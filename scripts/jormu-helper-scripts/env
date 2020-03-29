@@ -1,0 +1,49 @@
+CLI="$(which jcli)"
+[ -z "${CLI}" ] && [ -f jcli ] && CLI="./jcli"
+
+[ -z ${JORMUNGANDR_RESTAPI_URL} ] && echo "[ERROR] - you must set the shell variable \$JORMUNGANDR_RESTAPI_URL, check your node config for the rest: listen_address to identify the URL, eg: export JORMUNGANDR_RESTAPI_URL=http://127.0.0.1:3101/api" && exit 1
+
+ADDRTYPE="--testing"
+COLORS=1
+BLOCK0_HASH=$($CLI rest v0 settings get | grep 'block0Hash:' | sed -e 's/^[[:space:]]*//' | sed -e 's/block0Hash: //')
+FEE_CONSTANT=$($CLI rest v0 settings get | grep 'constant:' | sed -e 's/^[[:space:]]*//' | sed -e 's/constant: //')
+FEE_COEFFICIENT=$($CLI rest v0 settings get | grep 'coefficient:' | sed -e 's/^[[:space:]]*//' | sed -e 's/coefficient: //')
+FEE_CERTIFICATE=$($CLI rest v0 settings get | grep 'certificate:' | sed -e 's/^[[:space:]]*//' | sed -e 's/certificate: //')
+MAX_TXS_PER_BLOCK=$($CLI rest v0 settings get | grep 'maxTxsPerBlock:' | sed -e 's/^[[:space:]]*//' | sed -e 's/maxTxsPerBlock: //')
+SLOT_DURATION=$($CLI rest v0 settings get | grep 'slotDuration:' | sed -e 's/^[[:space:]]*//' | sed -e 's/slotDuration: //')
+SLOTS_PER_EPOCH=$($CLI rest v0 settings get | grep 'slotsPerEpoch:' | sed -e 's/^[[:space:]]*//' | sed -e 's/slotsPerEpoch: //')
+TIMEOUT_NO_OF_BLOCKS=200
+
+### COLORS
+if [ ${COLORS} -eq 1 ]; then
+    GREEN=`printf "\033[0;32m"`
+    RED=`printf "\033[0;31m"`
+    BLUE=`printf "\033[0;33m"`
+    WHITE=`printf "\033[0m"`
+else
+    GREEN=""
+    RED=""
+    BLUE=""
+    WHITE=""
+fi
+
+getTip() {
+  echo $($CLI rest v0 tip get)
+}
+waitNewBlockCreated() {
+  COUNTER=${TIMEOUT_NO_OF_BLOCKS}
+  echo "  ##Waiting for new block to be created (timeout = ${COUNTER} blocks = $((${COUNTER}*${SLOT_DURATION}))s)"
+  initialTip=$(getTip)
+  actualTip=${initialTip}
+
+  while [ "${actualTip}" = "${initialTip}" ]; do
+    sleep ${SLOT_DURATION}
+    actualTip=$(getTip)
+    COUNTER=$((COUNTER - 1))
+    if [ ${COUNTER} -lt 2 ]; then
+      echo "  !!!!!! ERROR: Waited $((${TIMEOUT_NO_OF_BLOCKS} * ${SLOT_DURATION}))s secs (${TIMEOUT_NO_OF_BLOCKS}*${SLOT_DURATION}) and no new block created"
+      exit 1
+    fi
+  done
+  echo "New block was created - $(getTip)"
+}

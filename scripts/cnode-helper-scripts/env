@@ -1,0 +1,10 @@
+# Todo:
+#  - Lookup executables for cabal/stack
+#  - Set priority about binary/cabal/stack after checking guild operators experience
+#  - Grab Socket from ps
+
+CCLI=$(which cardano-cli)
+CONFIG=~/cnode/files/cnode_ptn.yaml
+GENESIS_JSON=~/cnode/files/genesis.json
+SOCKET=~/cnode/sockets/0
+MAGIC=$(cat $GENESIS_JSON | jq -r .protocolConsts|jq -r .protocolMagic)
