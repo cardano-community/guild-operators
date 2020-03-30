@@ -10,34 +10,7 @@
 
 ### Genesis and config files for this network can be found [here]
 
-### Known Peers
-
-```
-{
-  "Producers":[
-     {
-        "addr":"51.79.141.170",
-        "port":9000,
-        "valency":1
-     },
-     {
-        "addr":"88.99.83.86",
-        "port":9000,
-        "valency":1
-     },
-     {
-        "addr":"88.99.83.86",
-        "port":9001,
-        "valency":1
-     },
-     {
-        "addr":"51.79.141.170",
-        "port":9000,
-        "valency":1
-     }
-  ]
-}
-```
+### Topology can be checked on [Wiki]
 
 # Jormungandr (Rust) Testnet details - Enabled upon request
 
@@ -52,3 +25,4 @@
 ```
 
 [here]: https://github.com/cardano-community/guild-operators/edit/master/files
+[Wiki]: https://github.com/cardano-community/guild-operators/wiki/Topology-for-Network-used-by-cardano-node-on-PTN
