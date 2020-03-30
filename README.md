@@ -16,6 +16,11 @@
 {
   "Producers":[
      {
+        "addr":"51.79.141.170",
+        "port":9000,
+        "valency":1
+     },
+     {
         "addr":"88.99.83.86",
         "port":9000,
         "valency":1
