@@ -90,7 +90,7 @@ NodeId:
 Protocol: RealPBFT
 GenesisFile: /home/rdlrt/cnode/files/genesis.json
 NumCoreNodes: 1
-RequiresNetworkMagic: RequiresMagic
+RequiresNetworkMagic: RequiresNoMagic
 PBftSignatureThreshold:
 TurnOnLogging: True
 ViewMode: LiveView
