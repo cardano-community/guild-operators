@@ -19,7 +19,7 @@
 # Do not forget to customize the RECOVERY_RESTART() function in order to implement your own recovery procedure.
 #
 # Featuers:
-#              - PoolTool sendtips.sh functions integrated if ENV vars are declared.  
+#              - PoolTool sendtips.sh and send_slots.sh functions integrated if ENV vars are declared.  
 #              - Fork/Sanity Check (by simultaneolsy checking PoolTool and ShellyExplorer)
 #              - Node Stuck 
 #                       1) by setting max block heghit difference: "Block_diff" (default 50)
@@ -37,8 +37,6 @@
 #           - 3) The HAST is not yet in Shelly Exporer and never will be because your node is on a fork, for making sure we do not 
 #                get False Positive we also check PoolTool - Very Useful Tool -.
 #
-#   
-#85.25.105.92
 # Disclaimers:
 #               1)   -->!!    USE THIS SCRIPT AT YOUR OWN RISK. IT IS YOUR OWN RESPONSABILITY TO MONITOR YOUR NODE!    !!<--
 #               2)                                  DO YOUR OWN TUNING --> 
@@ -53,7 +51,7 @@
 ## Configuration Parameters 
 #
 ## Rewards directory dump
-#export JORMUNGANDR_REWARD_DUMP_DIRECTORY=/datak/pool/Stakelovelace/Rewards
+#export JORMUNGANDR_REWARD_DUMP_DIRECTORY=/datak/pool/Rewards
 
 ## ITN Genesis
 GENESISHASH="8e4d2a343f3dcf9330ad9035b3e8d168e6728904262f2c434a4f8f934ec7b676"
@@ -93,7 +91,7 @@ LOG_DIRECTORY="/tmp";
 ## BACKUP
 #JTMP="/datak/jormungandr-storage";                  # Jormugandr Storage PATH (must match your storage settings PATH in your node-config.yaml)
                                                     # If set it will enable automatic backup 
-JTMPB="/datak/jormungandr-storage_backup"           # Backup destination
+JTMPB="/tmp/jormungandr-storage_backup"           # Backup destination
 
 BACKUPCYCLES=5                                     # Backup window  FREQ x BACKUPCYCLES = trigger backup procedure
 
@@ -129,7 +127,7 @@ JVERSION="J-Ver: $BOLD$VERSION$NC";
 
 clear;
 echo -e "\\t\\t$BOLD--   jstatus WatchDog   --$NC";
-echo -e "\\t\\t$LGRAY1       v1.2.0   2020 $NC\\n\\n";
+echo -e "\\t\\t$LGRAY1       v1.2.1   2020 $NC\\n\\n";
 echo -e "\\t\\t$LGRAY1 Loading... $JVERSION $NC\\n\\n";
 
 [ -f CLI ] && [ -f jcli ] && CLI="./jcli"
@@ -158,7 +156,7 @@ then
     PTSUBMISSION=" ";
 elif [ "$lastBlockHeight" != "" ]; 
     then
-    PoolToolURL="https://api.pooltool.io/v0/sharemytip?poolid=$MY_POOL_ID&userid=$MY_USER_ID&genesispref=$THIS_GENESIS&mytip=$lastBlockHeight&lasthash=$lastBlockHash&lastpool=$lastPoolID&platform=jstatus";
+    PoolToolURL="https://api.pooltool.io/v0/sharemytip?poolid=$MY_POOL_ID&userid=$MY_USER_ID&genesispref=$THIS_GENESIS&mytip=$lastBlockHeight&lasthash=$lastBlockHash&lastpool=$lastPoolID&platform=jstatus&version=$JVERSION";
     PoolToolHeight=$(curl -s -G $PoolToolURL | jq -r .pooltoolmax );
     PTSUBMISSION=$(echo "-> $PoolToolHeight <-");
     PoolToolWinLossURL="https://pooltool.s3-us-west-2.amazonaws.com/8e4d2a3/pools/$MY_POOL_ID/byepoch/$lastBlockDateSlot/winloss.json";
@@ -178,6 +176,18 @@ elif [ "$lastBlockHeight" != "" ];
     #curl -s -o $LOG_DIRECTORY/$lastBlockDateSlot.rewards_EPOCH.json https://pooltool.s3-us-west-2.amazonaws.com/8e4d2a3/pools/$MY_POOL_ID/rewards_EPOCH.json
     #Stake
     curl -s -o $LOG_DIRECTORY/$lastBlockDateSlot.currentstakers.json https://pooltool.s3-us-west-2.amazonaws.com/8e4d2a3/pools/$MY_POOL_ID/currentstakers.json
+fi
+
+if [[ "$lastBlockDateSlot" > "$lastBlockDateSlotOLDER" && "$lastBlockDateSlotOLDER" != "1" ]]
+then
+    sleep 20;
+    INIT_JSTATS;
+    # Slots Submission
+    JSON="$( jq -n --compact-output --arg CURRENTEPOCH "$lastBlockDateSlot" --arg POOLID "$MY_POOL_ID" --arg USERID "$MY_USER_ID" --arg GENESISPREF "$THIS_GENESIS" --arg ASSIGNED "$TOTS"  '{currentepoch: $CURRENTEPOCH, poolid: $POOLID,  genesispref: $GENESISPREF, userid: $USERID, assigned_slots: $ASSIGNED}')"
+
+    RESPONSE=$(curl -s -H "Accept: application/json" -H "Content-Type:application/json" -X POST --data "$JSON" "https://api.pooltool.io/v0/sendlogs");
+else
+    lastBlockDateSlotOLDER="$lastBlockDateSlot";
 fi
 }
 
@@ -239,6 +249,7 @@ do
 done
 peerAvailableCnt=$(jq -r .peerAvailableCnt $TMPF 2>/dev/null);
 peerQuarantinedCnt=$(jq -r .peerQuarantinedCnt $TMPF 2>/dev/null);
+peerConnectedCnt=$(jq -r .peerConnectedCnt $TMPF 2>/dev/null);
 peerUnreachableCnt=$(jq -r .peerUnreachableCnt $TMPF 2>/dev/null);
 lastBlockDateSlot=$(jq -r .lastBlockDate $TMPF | cut -d "." -f 1);
 lastBlockDateSlotFull=$(jq -r .lastBlockDate $TMPF 2>/dev/null)
@@ -311,7 +322,7 @@ watch_node=$(netstat -anl  | grep tcp | grep EST |  awk '{ print $5 }' | cut -d 
 BLOCKS_REJECTED1=$(grep -B3 Rejected $LEADERS | grep -A1 "$lastBlockDateSlot\."| grep scheduled_at_time >> $REJLOGS);
 BLOCKS_REJECTED2=$(cat $REJLOGS | sort -nr | uniq > $REJLOGSU );
 BLOCKS_REJECTED=$(cat $REJLOGSU | wc -l );
-REASON_REJECTED=$(grep -A1 Rejected $LEADERS);
+REASON_REJECTED=$(grep -A1 Rejected $LEADERS | sort | uniq | grep -v Rejected );
 fi
 }
 
@@ -321,8 +332,6 @@ MENUSTAST()
 curl -s -o $LOG_DIRECTORY/$lastBlockDateSlot.forkers.json https://pooltool.s3-us-west-2.amazonaws.com/stats/forkers.json
 #Heights Reported
 curl -s -o $LOG_DIRECTORY/$lastBlockDateSlot.heights.json https://pooltool.s3-us-west-2.amazonaws.com/stats/heights.json
-#Realttime
-#curl -s -o $LOG_DIRECTORY/$lastBlockDateSlot.syncd.json https://pooltool.s3-us-west-2.amazonaws.com/8e4d2a3/stats/syncd.json
 #OverAll
 curl -s -o $LOG_DIRECTORY/$lastBlockDateSlot.epochstats.json https://pooltool.s3-us-west-2.amazonaws.com/8e4d2a3/epochstats.json
 }
@@ -344,8 +353,8 @@ echo -e "-> RecvCnt:\\t$LGRAY$blockRecvCnt$NC \\t- BlockHeight:\\t$BHEIGHT-> $la
 echo -e "-> BlockTx:\\t$LGRAY$lastBlockTx$NC \\t- $POOLTOOLSTAS";
 if [[ $peerUnreachableCnt ]] 
 then
-echo -e "-> PUnreach:\\t$RED$peerUnreachableCnt$NC \\t- PAvail:\\t$BOLD$peerAvailableCnt$NC \\t- PQuarantined:\\t$ORANGE$peerQuarantinedCnt$NC";
-echo -e "-> UniqIP:\\t$CYAN$watch_node$NC \\t- Established:\\t$BOLD$nodesEstablished$NC \\t- Quarantined:\\t$ORANGE$Quarantined$NC";
+echo -e "-> PUnreach:\\t$RED$peerUnreachableCnt$NC \\t- PAvail:\\t$BOLD$peerAvailableCnt$NC \\t- PQuarantined:\\t$ORANGE$peerQuarantinedCnt/$Quarantined$NC";
+echo -e "-> UniqIP:\\t$CYAN$watch_node$NC \\t- Established:\\t$BOLD$nodesEstablished$NC \\t- PConnected:\\t$CYAN$peerConnectedCnt$NC";
 else
 echo -e "-> UniqIP:\\t$CYAN$watch_node$NC \\t- Established:\\t$BOLD$nodesEstablished$NC \\t- Quarantined:\\t$ORANGE$Quarantined$NC";
 fi
@@ -376,30 +385,17 @@ fi
 RECOVERY_RESTART()
 {
     STATUS="$RED--> We're ... Restarting! <--$NC";
-    #TGAUE=$(curl -s -X POST $TG_URL -d text="$HOSTN Recovery Restart %0AFLATLINERSCOUNTER:$FLATLINERSCOUNTER %0ATRY:$TRY %0AHASH: $LAST_HASH %0APOOLTHEIGHT: $PoolT_max %0APOOLINFO DS: $POOL_DELEGATED_STAKEQ LR: $LAST_EPOCH_POOL_REWARDS");
-    #jshutdown=$(CLI shutdown get);
-    sleep 2;
-    #CLEANDB=$(rm -rf $JTMP);
-    #jshutdown2=$(ps max | grep jorm | grep config | awk '{print $1}');
-    #jshutdown3=$(kill -9 $jshutdown2 2&> /dev/null );
-    #jshutdown4=$(killall ~/jormungandr/jormungandr 2&> /dev/null );
-    #CLEANDB=$(rm -rf $JTMP);
-    sleep 1;
-    #RECOVERSTORAGE=$(cp -rf $JTMPB $JTMP);
-    #MVLOG=$(mv $LOG_DIRECTORY/$HOSTN.log /datak/$HOSTN.log.bk);
-    #RECOVERY=$(echo -e "\\t\\t $RED--> Recovery in course please wait around 10 minutes$NC");
-    #GHASH=$(cat /datak/genesis-hash.txt); 
-    #START_JORGP=$(/root/jormungandr/jormungandr --config /datak/node-config.yaml --secret /datak/pool/Stakelovelace/secret.yaml --genesis-block-hash $GHASH &>> $LOG_DIRECTORY/$HOSTN.log &);
+    # Enter you instruction here below..
 }
 
 PAGER()
 {
     #echo -e "\\n \\t\\t\\t$RED-->  Pager Warning Alert sent!   <--$NC";
-    #STATUS="$RED-->  Pager Warning Alert sent! $NC";
+    STATUS="$RED-->  Pager Warning Alert sent! $NC";
     ##Telegram
-    TGAUE=$(curl -s -X POST $TG_URL -d text="$HOSTN $STATUS %0ATRY:$TRY FLATLINERSCOUNTER:$FLATLINERSCOUNTER BlockHeight: $lastBlockHeight %0AHASH:[$LAST_HASH](https://explorer.incentivized-testnet.iohkdev.io/tx/$LAST_HASH) %0APOOLTHEIGHT: $PoolT_max %0APOOLINFO DS: $POOL_DELEGATED_STAKEQ LR: $LAST_EPOCH_POOL_REWARDS");
+    #TGAUE=$(curl -s -X POST $TG_URL -d text="$HOSTN $STATUS %0ATRY:$TRY FLATLINERSCOUNTER:$FLATLINERSCOUNTER BlockHeight: $lastBlockHeight %0AHASH:[$LAST_HASH](https://explorer.incentivized-testnet.iohkdev.io/tx/$LAST_HASH) %0APOOLTHEIGHT: $PoolT_max %0APOOLINFO DS: $POOL_DELEGATED_STAKEQ LR: $LAST_EPOCH_POOL_REWARDS");
     ##Gotify
-    AUE=$(curl -s -X POST "http://172.13.0.4/message?token=Ap59j48LrTeyvQx" -F "title=$HOSTN Potential Fork" -F "message=TRY:$TRY -> HASH:$LAST_HASH PTH:$PoolT_max DS:$POOL_DELEGATED_STAKEQ LR:$LAST_EPOCH_POOL_REWARDS" -F "priority=$TRY");
+    #AUE=$(curl -s -X POST "http://172.13.0.4/message?token=Ap59j48LrTeyvQx" -F "title=$HOSTN Potential Fork" -F "message=TRY:$TRY -> HASH:$LAST_HASH PTH:$PoolT_max DS:$POOL_DELEGATED_STAKEQ LR:$LAST_EPOCH_POOL_REWARDS" -F "priority=$TRY");
 }
 
 PAGER_BLOCK_MADE()
@@ -411,7 +407,6 @@ PAGER_BLOCK_MADE()
         STATUS="-->  New block Made!  <--   👍";
         ##Telegram
         curl -s -X POST $TG_URL -d text="$HOSTN $STATUS %0AN: $CONCHAIN - $BLOCKS_MADE EpochSlots:$TOTS Remaining:$SLOTS %0AWin:$WIN Lost:$LOSS Storage:$BKMB %0APOOLTHEIGHT: $PoolT_max BlockHeight: $lastBlockHeight %0APOOLINFO: DS: $POOL_DELEGATED_STAKEQ LR: $LAST_EPOCH_POOL_DEL_REWARDS %0ABlock:[$LAST_BLOCKH](https://explorer.incentivized-testnet.iohkdev.io/block/$LAST_BLOCKH)" > /tmp/lasttx.json ;
-        #AUE=$(curl -s -X POST "http://172.13.0.4/message?token=Ap59j48LrTeyvQx" -F "title=$HOSTN Block just Made" -F "message=$HOSTN Block just Made N:$BLOCKS_MADE PTH:$PoolT_max DS:$POOL_DELEGATED_STAKEQ LR:$LAST_EPOCH_POOL_REWARDS" -F "priority=5");
         STATUS="$REW-->  New block Made!  <--   👍 $NC";
     fi
 
@@ -419,12 +414,7 @@ PAGER_BLOCK_MADE()
 
 PAGER_BLOCK_REJ()
 {
-        #echo -e "\\n \\t\\t\\t$RED-->  New block Rejected!  <--$NC";
         STATUS="$RED-->  New block Rejected!  <--$NC";
-        ##Telegram
-        #TGAUE=$(curl -s -X POST $TG_URL -d text="$HOSTN Block just Rejected N:$BLOCKS_REJECTED R:$REASON_REJECTED %0APOOLTHEIGHT: $PoolT_max %0APOOLINFO DS: $POOL_DELEGATED_STAKEQ LR: $LAST_EPOCH_POOL_REWARDS");
-        ##Gotify
-        AUE=$(curl -s -X POST "http://172.13.0.4/message?token=Ap59j48LrTeyvQx" -F "title=HOSTN Block just Rejected" -F "message=$HOSTN Block just Rejected Reason:$REASON_REJECTED POOLTHEIGHT: $PoolT_max" -F "priority=8");
 }
 
 EVAL_PAGE_BLOCK()
@@ -606,6 +596,7 @@ FLATLINERSCOUNTER=0;
 TRY=0;
 BACKUP=0;
 PoolT_max="$Block_diff";
+lastBlockDateSlotOLDER="1";
 
 ## Main process ##
 ##################
@@ -664,6 +655,7 @@ do
                 #sleep 1;
         else
             TRY=0;
+            #sleep $FREQ;
         fi
         INIT_JSTATS;
         POOLTOOL_S;
