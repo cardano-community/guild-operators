@@ -186,6 +186,7 @@ then
     JSON="$( jq -n --compact-output --arg CURRENTEPOCH "$lastBlockDateSlot" --arg POOLID "$MY_POOL_ID" --arg USERID "$MY_USER_ID" --arg GENESISPREF "$THIS_GENESIS" --arg ASSIGNED "$TOTS"  '{currentepoch: $CURRENTEPOCH, poolid: $POOLID,  genesispref: $GENESISPREF, userid: $USERID, assigned_slots: $ASSIGNED}')"
 
     RESPONSE=$(curl -s -H "Accept: application/json" -H "Content-Type:application/json" -X POST --data "$JSON" "https://api.pooltool.io/v0/sendlogs");
+    lastBlockDateSlotOLDER="$lastBlockDateSlot";
 else
     lastBlockDateSlotOLDER="$lastBlockDateSlot";
 fi
