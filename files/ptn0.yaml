@@ -1,4 +1,5 @@
 # global filter; messages must have at least this severity to pass:
+# Typical values would be Warning, Notice, Info or Debug
 minSeverity: Debug
 
 # global file rotation settings:
