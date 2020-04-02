@@ -34,9 +34,9 @@ setupScribes:
 # if not indicated otherwise, then log output is directed to this:
 defaultScribes:
   - - FileSK
-    - "logs/node.log"
+    - "logs/node-0.log"
   - - FileSK
-    - "logs/node.json"
+    - "logs/nod-0e.json"
 
 # more options which can be passed as key-value pairs:
 options:
@@ -85,17 +85,16 @@ options:
 ############### Cardano Node Configuration ###############
 ##########################################################
 
-
-NodeId:
+# NodeId:
 Protocol: RealPBFT
-GenesisFile: /home/rdlrt/cnode/files/genesis.json
+GenesisFile: /opt/cardano/cnode/files/genesis.json
 NumCoreNodes: 1
 RequiresNetworkMagic: RequiresNoMagic
 PBftSignatureThreshold:
 TurnOnLogging: True
 ViewMode: LiveView
 TurnOnLogMetrics: True
-SocketPath:
+SocketPath: /opt/cardano/cnode/sockets/0
 
 
 
@@ -112,7 +111,7 @@ LastKnownBlockVersion-Alt: 0
 # MinimalVerbosity: Minimal level of the rendering of captured items
 # MaximalVerbosity: Maximal level of the rendering of captured items
 # NormalVerbosity: the default level of the rendering of captured items
-TracingVerbosity: NormalVerbosity
+TracingVerbosity: MaximalVerbosity
 
 # Trace BlockFetch client.
 TraceBlockFetchClient: True
