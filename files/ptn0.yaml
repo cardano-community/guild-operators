@@ -25,18 +25,18 @@ defaultBackends:
 # here we set up outputs of logging in 'katip':
 setupScribes:
   - scKind: FileSK
-    scName: "logs/node-0.log"
+    scName: "/opt/cardano/cnode/logs/node-0.log"
     scFormat: ScText
   - scKind: FileSK
-    scName: "logs/node-0.json"
+    scName: "/opt/cardano/cnode/logs/node-0.json"
     scFormat: ScJson
 
 # if not indicated otherwise, then log output is directed to this:
 defaultScribes:
   - - FileSK
-    - "logs/node-0.log"
+    - "/opt/cardano/cnode/logs/node-0.log"
   - - FileSK
-    - "logs/nod-0e.json"
+    - "/opt/cardano/cnode/logs/node-0.json"
 
 # more options which can be passed as key-value pairs:
 options:
