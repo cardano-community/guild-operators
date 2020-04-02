@@ -8,9 +8,7 @@
 
 # Cardano Node (Haskell - PBFT) Testnet details
 
-### Genesis and config files for this network can be found [here]
-
-### Topology can be checked on [Wiki]
+Check Setup and connection details here [Wiki]
 
 # Jormungandr (Rust) Testnet details - Enabled upon request
 
@@ -25,4 +23,4 @@
 ```
 
 [here]: https://github.com/cardano-community/guild-operators/edit/master/files
-[Wiki]: https://github.com/cardano-community/guild-operators/wiki/Topology-for-Network-used-by-cardano-node-on-PTN
+[Wiki]: https://github.com/cardano-community/guild-operators/wiki
