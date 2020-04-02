@@ -1,0 +1,15 @@
+#!/bin/bash
+
+if [ -z "$CNODE_HOME" ]; then
+    CNODE_HOME="/opt/cardano/cnode"
+fi
+
+cardano-node run \
+  --config $CNODE_HOME/files/ptn0.yaml \
+  --database-path $CNODE_HOME/db \
+  --host-addr `curl --silent ifconfig.me` \
+  --signing-key $CNODE_HOME/priv/pbft0.key \
+  --delegation-certificate $CNODE_HOME/priv/pbft0.cert \
+  --port 9000 \
+  --socket-path $CNODE_HOME/sockets/pbft_node.socket \
+  --topology $CNODE_HOME/files/topology.json
