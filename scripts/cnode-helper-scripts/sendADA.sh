@@ -22,11 +22,12 @@ args=" issue-genesis-utxo-expenditure
   --txout            (\"${addr}\",${lovelace})
 "
 
-NETARGS=)
+NETARGS=(
   submit-tx
   --tx "$tx"
   --config "$CONFIG"
   --socket-path "$SOCKET"
+)
 
 set -x
 

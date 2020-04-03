@@ -9,7 +9,7 @@ cardano-node run \
   --database-path $CNODE_HOME/db \
   --host-addr `curl --silent ifconfig.me` \
   --signing-key $CNODE_HOME/priv/pbft0.key \
-  --delegation-certificate $CNODE_HOME/priv/pbft0.cert \
+  --delegation-certificate $CNODE_HOME/priv/pbft0.json \
   --port 9000 \
   --socket-path $CNODE_HOME/sockets/pbft_node.socket \
   --topology $CNODE_HOME/files/topology.json
