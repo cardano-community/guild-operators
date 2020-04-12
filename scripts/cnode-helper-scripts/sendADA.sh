@@ -26,7 +26,6 @@ NETARGS=(
   submit-tx
   --tx "$tx"
   --config "$CONFIG"
-  --socket-path "$SOCKET"
 )
 
 set -x
