@@ -4,7 +4,8 @@
 #  - Grab Socket from ps
 
 CCLI=$(which cardano-cli)
-CONFIG=~/cnode/files/cnode_ptn.yaml
-GENESIS_JSON=~/cnode/files/genesis.json
-SOCKET=~/cnode/sockets/0
+CNODE_HOME=/opt/cardano/cnode
+CONFIG=$CNODE_HOME/files/cnode_ptn.yaml
+GENESIS_JSON=$CNODE_HOME/files/genesis.json
+SOCKET=$CNODE_HOME/sockets/pbft_node.socket
 MAGIC=$(cat $GENESIS_JSON | jq -r .protocolConsts|jq -r .protocolMagic)
