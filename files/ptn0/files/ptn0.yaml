@@ -94,14 +94,14 @@ RequiresNetworkMagic: RequiresNoMagic
 PBftSignatureThreshold:
 TurnOnLogging: True
 ViewMode: LiveView
-TurnOnLogMetrics: True
+TurnOnLogMetrics: False
 SocketPath: /opt/cardano/cnode/sockets/pbft_node.socket
 
 
 
 #####    Update Parameters    #####
 
-ApplicationName: ptn-pbft
+ApplicationName: cardano-sl
 ApplicationVersion: 1
 LastKnownBlockVersion-Major: 0
 LastKnownBlockVersion-Minor: 2
@@ -133,7 +133,7 @@ TraceBlockFetchServer: True
 TraceChainDb: True
 
 # Trace ChainSync client.
-TraceChainSyncClient: False
+TraceChainSyncClient: True
 
 # Trace ChainSync server (blocks).
 TraceChainSyncBlockServer: False
@@ -160,13 +160,13 @@ TraceLocalErrorPolicy: True
 TraceForge: True
 
 # Trace Handshake protocol messages.
-TraceHandshake: False
+TraceHandshake: True
 
 # Trace IP Subscription messages.
-TraceIpSubscription: False
+TraceIpSubscription: True
 
 # Trace local ChainSync protocol messages.
-TraceLocalChainSyncProtocol: True
+TraceLocalChainSyncProtocol: False
 
 # Trace local Handshake protocol messages.
 TraceLocalHandshake: False
