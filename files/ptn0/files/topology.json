@@ -41,6 +41,15 @@
         "valency":1
      },
      {
+        "operator":"gufmar",
+        "node":"UBS90",
+        "addr":"185.161.193.90",
+        "port":9000,
+        "valency":1
+     },
+     {
+        "operator":"gufmar",
+        "node":"UBS92",
         "addr":"185.161.193.92",
         "port":9000,
         "valency":1
