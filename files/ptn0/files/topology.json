@@ -89,6 +89,13 @@
         "addr":"89.47.167.155",
         "port":9000,
         "valency":1
-     }
+     },
+     {
+        "operator":"OCG",
+        "node":"PHX",
+        "addr":"68.183.202.140",
+        "port":9000,
+        "valency":1
+     },
   ]
 }
