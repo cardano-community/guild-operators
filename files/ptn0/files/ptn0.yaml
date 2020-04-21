@@ -88,7 +88,7 @@ options:
 
 # NodeId:
 Protocol: RealPBFT
-NetworkName: testnet
+NetworkName: phtn
 GenesisFile: /opt/cardano/cnode/files/genesis.json
 NumCoreNodes: 1
 RequiresNetworkMagic: RequiresNoMagic
