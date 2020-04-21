@@ -4,7 +4,7 @@ minSeverity: Info
 
 # global file rotation settings:
 rotation:
-  rpLogLimitBytes: 5000000
+  rpLogLimitBytes: 10000000
   rpKeepFilesNum:  10
   rpMaxAgeHours:   24
 
@@ -19,23 +19,23 @@ defaultBackends:
 # if wanted, the EKG interface is listening on this port:
 #hasEKG: 12781
 
-#hasPrometheus:
-#  - "127.0.0.1"
-#  - 13788
+hasPrometheus:
+  - "127.0.0.1"
+  - 13788
 
 # here we set up outputs of logging in 'katip':
 setupScribes:
-  - scKind: FileSK
-    scName: "/opt/cardano/cnode/logs/node-0.log"
-    scFormat: ScText
+  #- scKind: FileSK
+  #  scName: "/opt/cardano/cnode/logs/node-0.log"
+  #  scFormat: ScText
   - scKind: FileSK
     scName: "/opt/cardano/cnode/logs/node-0.json"
     scFormat: ScJson
 
 # if not indicated otherwise, then log output is directed to this:
 defaultScribes:
-  - - FileSK
-    - "/opt/cardano/cnode/logs/node-0.log"
+  #- - FileSK
+  #  - "/opt/cardano/cnode/logs/node-0.log"
   - - FileSK
     - "/opt/cardano/cnode/logs/node-0.json"
 
@@ -88,6 +88,7 @@ options:
 
 # NodeId:
 Protocol: RealPBFT
+NetworkName: phtn
 GenesisFile: /opt/cardano/cnode/files/genesis.json
 NumCoreNodes: 1
 RequiresNetworkMagic: RequiresNoMagic
@@ -97,7 +98,10 @@ ViewMode: LiveView
 TurnOnLogMetrics: False
 SocketPath: /opt/cardano/cnode/sockets/pbft_node.socket
 
-
+## For cardano-dbsync-tool
+GenesisHash: a4070e675c204b4e065ca2d81661cf0e4e502170b01cc47adc42b918a9841da7 
+EnableLogMetrics: False
+EnableLogging: False
 
 #####    Update Parameters    #####
 
