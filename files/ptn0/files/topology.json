@@ -1,6 +1,8 @@
 {
   "Producers":[
      {
+        "operator":"ilap",
+        "node":"SIN",
         "addr":"51.79.141.170",
         "port":9000,
         "valency":1
