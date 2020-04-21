@@ -6,11 +6,14 @@
         "valency":1
      },
      {
+        "operator":"rdlrt",
+        "node":"RDLRT181",
         "addr":"88.99.83.86",
         "port":9000,
         "valency":1
      },
      {
+        "operator":"mask",
         "addr":"204.44.81.201",
         "port":9000,
         "valency":1
@@ -21,6 +24,7 @@
         "valency":1
      },
      {
+        "operator":"psychomb",
         "addr":"91.121.85.221",
         "port":9000,
         "valency":1
@@ -36,8 +40,9 @@
         "valency":1
      },
      {
-        "addr":"62.138.3.118",
+        "operator":"redoracle",
         "node":"ASTRA4364",
+        "addr":"62.138.3.118",
         "port":9000,
         "valency":1
      },
@@ -71,17 +76,27 @@
         "valency":1
      },
      {
+        "operator":"eysteinh",
         "addr":"89.162.104.95",
         "port":8002,
         "valency":1
      },
      {
+        "operator":"mmahut",
         "addr":"167.179.65.18",
         "port":9000,
         "valency":1
      },
      {
+        "operator":"matthijs",
         "addr":"139.99.237.20",
+        "port":9000,
+        "valency":1
+     },
+     {
+        "operator":"ocg",
+        "node":"PHX",
+        "addr":"68.183.202.140",
         "port":9000,
         "valency":1
      },
