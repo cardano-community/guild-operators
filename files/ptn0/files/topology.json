@@ -37,6 +37,7 @@
         "valency":1
      },
      {
+        "operator":"dmitry_stas",
         "addr":"78.11.162.144",
         "port":9000,
         "valency":1
@@ -68,6 +69,7 @@
         "valency":1
      },
      {
+        "operator":"timsahabutdinov",
         "addr":"95.181.198.207",
         "port":9000,
         "valency":1
@@ -103,6 +105,7 @@
         "valency":1
      },
      {
+        "operator":"soluyanov",
         "addr":"89.47.167.155",
         "port":9000,
         "valency":1
