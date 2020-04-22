@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# executes cabal build all
+# parses cardano-node binaries location from compiler output and copy it to ~./local/bin folder.
+
 my_bin_path="$HOME/.local/bin"
 
 mkdir -p $my_bin_path
