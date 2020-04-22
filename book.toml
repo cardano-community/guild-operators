@@ -1,7 +1,7 @@
 [book]
-authors = ["Nicolas Di Prima"]
+authors = ["Priyank Desai"]
 multilingual = false
-src = "doc"
+src = "docs"
 title = "Welcome to Guild Operators Setup"
 
 [output.html]
