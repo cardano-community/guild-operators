@@ -2,7 +2,7 @@
 
 A place to collect scripts that are supposed to help with usage of Cardano-node. The initial attempt below is with an aim to keep things similar to the current jormungandr scripts' usage.
 
-##### Create Privat key and corresponding address file
+#### Create Privat key and corresponding address file
 ``` bash
 cd $CNODE_HOME/scripts
 ./createAddr.sh pbft1
@@ -11,7 +11,7 @@ cd $CNODE_HOME/scripts
 # Repeat to validate:
 ```
 
-##### Create and submit a transaction to send ADA
+#### Create and submit a transaction to send ADA
 ```
 # Send ADA script usage
 cd $CNODE_HOME/scripts
