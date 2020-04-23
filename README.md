@@ -3,16 +3,15 @@
 - Remember: To avoid spamming logs of nodes of other network, please ensure to not re-use IP-port combination between different networks
 - Also Remember: Before starting node for the first time, ensure respective storage/db folders are empty
 - Cap: Pools intending to run their stake pool have been distributed 1000000000 Test Lovelaces, would be great if we use it as a cap.
-- The information below is not complete and only intended for usage between the operators using these networks.
 - For helper scripts, these are either copies - or small modifications of IOHK provided helper scripts to keep them compatible with versions here.
 
 # Cardano Node (Haskell - PBFT) Testnet details
 
-Check Setup and connection details here [Wiki]
+Check Setup and connection details [here]
 
 # Jormungandr (Rust) Testnet details - Enabled upon request
 
-## v0.8.16
+## v0.8.19
 
 ### Trusted Peers
 ```
@@ -22,5 +21,4 @@ Check Setup and connection details here [Wiki]
       id: 0add359010d13fc0e9d403c822887638969276aaedccd1f4
 ```
 
-[here]: https://github.com/cardano-community/guild-operators/edit/master/files
-[Wiki]: https://github.com/cardano-community/guild-operators/wiki
+[here]: https://cardano-community.github.io/guild-operators

@@ -6,6 +6,8 @@ This document is built using [IOHK build instructions](https://github.com/input-
 
 The code in the Haskell node also requires that the development packages for a couple of Linux system libraries be installed:
 
+**Tip**: The steps described individually below can be executed with the two scripts "[cabal_prepare](https://github.com/cardano-community/guild-operators/blob/master/files/ptn0/scripts/cabal-prepare.sh)" and "[build-all-install](https://github.com/cardano-community/guild-operators/blob/master/files/ptn0/scripts/cabal-build-all-install.sh)". (_prepare_ automatically recognizes Debian/Ubuntu or CentOS)
+
 The instructions for **Debian and Ubuntu** are identical.
 ``` bash
 sudo apt-get update
@@ -100,7 +102,7 @@ Type `exit` at shell to return to your original user.
 
 ##### Verify Login to postgres instance
 ``` bash
-export PGPASSFILE=/opt/cardano/cnode/priv/files/.pgpass
+export PGPASSFILE=/opt/cardano/cnode/priv/.pgpass
 echo "localhost:5432:cexplorer_phtn:$(whoami):password" > $PGPASSFILE
 chmod 0600 /opt/cardano/cnode/priv/.pgpass
 psql -U $(whoami)
