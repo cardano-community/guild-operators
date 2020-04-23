@@ -1,25 +1,30 @@
 <!DOCTYPE HTML>
-<html lang="en" class="sidebar-visible no-js">
+<html lang="en" class="sidebar-visible no-js light">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
         <title>Welcome to Guild Operators Setup</title>
+        
+        <meta name="robots" content="noindex" />
+        
+
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
         <meta name="description" content="">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff" />
 
-        <base href="">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
 
-        <link rel="stylesheet" href="book.css">
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
         <link href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800" rel="stylesheet" type="text/css">
         <link href="https://fonts.googleapis.com/css?family=Source+Code+Pro:500" rel="stylesheet" type="text/css">
 
-        <link rel="shortcut icon" href="favicon.png">
-
-        <!-- Font Awesome -->
-        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
-
+        <!-- Highlight.js Stylesheets -->
         <link rel="stylesheet" href="highlight.css">
         <link rel="stylesheet" href="tomorrow-night.css">
         <link rel="stylesheet" href="ayu-highlight.css">
@@ -28,9 +33,14 @@
         
 
         
-
     </head>
-    <body class="light">
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "light" : "light";
+        </script>
+
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
         <script type="text/javascript">
             try {
@@ -50,10 +60,13 @@
         <!-- Set the theme before any content is loaded, prevents flash -->
         <script type="text/javascript">
             var theme;
-            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { } 
-            if (theme === null || theme === undefined) { theme = 'light'; }
-            document.body.className = theme;
-            document.querySelector('html').className = theme + ' js';
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
         </script>
 
         <!-- Hide / unhide sidebar before it is displayed -->
@@ -69,42 +82,60 @@
         </script>
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
-            <ol class="chapter"><li><a href="Home.html"><strong aria-hidden="true">1.</strong> Home</a></li><li><ol class="section"><li><a href="Getting-started-with-Haskell-Node.html"><strong aria-hidden="true">1.1.</strong> Getting started with Haskell Node</a></li><li><a href="Build-instructions.html"><strong aria-hidden="true">1.2.</strong> Build Instructions</a></li><li><a href="Setup-BFT-Member.html"><strong aria-hidden="true">1.3.</strong> Set up and connect to the network as BFT leader</a></li><li><a href="Setup-Passive-Member.html"><strong aria-hidden="true">1.4.</strong> Set up and connect to the network as a passive member</a></li><li><a href="cli-scripts.html"><strong aria-hidden="true">1.5.</strong> CLI Scripts for usual operations</a></li></ol></li></ol>
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html"><strong aria-hidden="true">1.</strong> Home</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Getting-started-with-Haskell-Node.html"><strong aria-hidden="true">1.1.</strong> Getting started with Haskell Node</a></li><li class="chapter-item expanded "><a href="Build-instructions.html"><strong aria-hidden="true">1.2.</strong> Build Instructions</a></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html"><strong aria-hidden="true">1.3.</strong> Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html"><strong aria-hidden="true">1.4.</strong> Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html"><strong aria-hidden="true">1.5.</strong> CLI Scripts for usual operations</a></li></ol></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
 
         <div id="page-wrapper" class="page-wrapper">
 
             <div class="page">
                 
-                <div id="menu-bar" class="menu-bar">
-                    <div id="menu-bar-sticky-container">
-                        <div class="left-buttons">
-                            <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
-                                <i class="fa fa-bars"></i>
-                            </button>
-                            <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
-                                <i class="fa fa-paint-brush"></i>
-                            </button>
-                            <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
-                                <li role="none"><button role="menuitem" class="theme" id="light">Light <span class="default">(default)</span></button></li>
-                                <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
-                                <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
-                                <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
-                                <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
-                            </ul>
-                            
-                        </div>
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                        
+                    </div>
 
-                        <h1 class="menu-title">Welcome to Guild Operators Setup</h1> 
+                    <h1 class="menu-title">Welcome to Guild Operators Setup</h1>
 
-                        <div class="right-buttons">
-                            <a href="print.html" title="Print this book" aria-label="Print this book">
-                                <i id="print-button" class="fa fa-print"></i>
-                            </a>
-                        </div>
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        
                     </div>
                 </div>
 
+                
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" name="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
                 
 
                 <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
@@ -118,13 +149,13 @@
 
                 <div id="content" class="content">
                     <main>
-                        <a class="header" href="print.html#welcome-to-the-guild-operators-wiki" id="welcome-to-the-guild-operators-wiki"><h4>Welcome to the guild-operators wiki!</h4></a>
+                        <h4><a class="header" href="#welcome-to-the-guild-operators-wiki" id="welcome-to-the-guild-operators-wiki">Welcome to the guild-operators wiki!</a></h4>
 <p>This repo was created by some of the community members and serves as as easy means to add documentation or scripts that makes more sense to users.</p>
 <p>If there are any discrepancies/suggestions/contributions for this document, please open a issue and one of the collaborators should be able to add the changes in.</p>
-<a class="header" href="print.html#getting-started-with-haskell-node" id="getting-started-with-haskell-node"><h4>Getting started with Haskell Node</h4></a>
+<h4><a class="header" href="#getting-started-with-haskell-node" id="getting-started-with-haskell-node">Getting started with Haskell Node</a></h4>
 <p>Use the sidebar to navigate through the topics. Note that the instructions assume the folder structure as below, you're expected to update the folder reference as per your environment.
 Note that currently the network is on real-pbft consensus. This is not shelley codebase , and its best to set your expectation accordingly. This is currently only useful to get familiar with modular architecture and usage.</p>
-<a class="header" href="print.html#folder-structure" id="folder-structure"><h5>Folder structure</h5></a>
+<h5><a class="header" href="#folder-structure" id="folder-structure">Folder structure</a></h5>
 <p>The documentation will use the below as a reference folder.</p>
 <pre><code>/opt/cardano/cnode          # Top-Level Folder
 ├── ...
@@ -168,8 +199,8 @@ curl -o cnode.sh https://raw.githubusercontent.com/cardano-community/guild-opera
 cd -
 </code></pre>
 <p>This document is built using <a href="https://github.com/input-output-hk/cardano-node/blob/master/doc/building-running.md">IOHK build instructions</a> as base with additional info, which we can propose to add if it makes sense.</p>
-<a class="header" href="print.html#using-cabal" id="using-cabal"><h3>Using Cabal</h3></a>
-<a class="header" href="print.html#cardano-node" id="cardano-node"><h4>Cardano Node</h4></a>
+<h3><a class="header" href="#using-cabal" id="using-cabal">Using Cabal</a></h3>
+<h4><a class="header" href="#cardano-node" id="cardano-node">Cardano Node</a></h4>
 <p>The code in the Haskell node also requires that the development packages for a couple of Linux system libraries be installed:</p>
 <p><strong>Tip</strong>: The steps described individually below can be executed with the two scripts &quot;<a href="https://github.com/cardano-community/guild-operators/blob/master/files/ptn0/scripts/cabal-prepare.sh">cabal_prepare</a>&quot; and &quot;<a href="https://github.com/cardano-community/guild-operators/blob/master/files/ptn0/scripts/cabal-build-all-install.sh">build-all-install</a>&quot;. (<em>prepare</em> automatically recognizes Debian/Ubuntu or CentOS)</p>
 <p>The instructions for <strong>Debian and Ubuntu</strong> are identical.</p>
@@ -188,7 +219,7 @@ You best get them with the Haskell installer tool [ghcup][ghcup].</p>
 <pre><code class="language-bash">curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
 </code></pre>
 <p>confirm 2x ENTER and type YES at the end to add ghcup to your PATH variable
-Then restart your terminal session or execute</p>
+Then restart your terminal session or execute </p>
 <pre><code class="language-bash">source ~/.ghcup/env
 </code></pre>
 <p>to use the ghcup command for the next steps</p>
@@ -208,26 +239,26 @@ cardano-cli
 chairman
 </code></pre>
 <p>You can see the build location path from the last few output lines (starting with Linking) of <code>cabal build all</code> command.
-For example, for cardano-cli 1.10.1 it is</p>
+For example, for cardano-cli 1.10.1 it is </p>
 <pre><code>~/cardano-node/dist-newstyle/build/x86_64-linux/ghc-8.6.5/cardano-node-1.10.1/x/cardano-cli/build/cardano-cli/
 </code></pre>
-<a class="header" href="print.html#cardano-db-sync-tool" id="cardano-db-sync-tool"><h4>Cardano DB Sync tool</h4></a>
+<h4><a class="header" href="#cardano-db-sync-tool" id="cardano-db-sync-tool">Cardano DB Sync tool</a></h4>
 <p>Instructions below are for creating a local working postgresql instance. For now, we leave the best practices for postgres database to the user and focus on minimal relevant config for <code>cardano-db-sync</code> tool.</p>
-<a class="header" href="print.html#set-up-a-local-postgres-server" id="set-up-a-local-postgres-server"><h5>Set up a local Postgres Server:</h5></a>
+<h5><a class="header" href="#set-up-a-local-postgres-server" id="set-up-a-local-postgres-server">Set up a local Postgres Server:</a></h5>
 <pre><code class="language-bash">sudo yum install -y postgresql-server postgresql-server-devel postgresql-contrib postgresql-devel
 sudo postgresql-setup initdb
 # TODO: For consistency on this page, edit /var/lib/pgsql/data/pg_hba.conf to replace ident with md5 for localhost and 127.0.0.1 (except lines with replication)
 sudo systemctl start postgresql
 sudo systemctl enable postgresql
 </code></pre>
-<a class="header" href="print.html#build-cardano-db-sync" id="build-cardano-db-sync"><h5>Build cardano-db-sync</h5></a>
+<h5><a class="header" href="#build-cardano-db-sync" id="build-cardano-db-sync">Build cardano-db-sync</a></h5>
 <p>To build instructions for cardano-db-sync tool will be similar to cardano-node:</p>
 <pre><code class="language-bash">git clone https://github.com/input-output-hk/cardano-db-sync
 cd cardano-db-sync
 cabal build all
 </code></pre>
 <p>Now you can copy the cardano-db-sync binary to your ~/.local/bin folder as before using the output (scan for line starting with <em>Linking..</em>).</p>
-<a class="header" href="print.html#create-user-in-postgres" id="create-user-in-postgres"><h5>Create User in Postgres</h5></a>
+<h5><a class="header" href="#create-user-in-postgres" id="create-user-in-postgres">Create User in Postgres</a></h5>
 <p>Login to Postgres instance as superuser:</p>
 <pre><code class="language-bash">echo $(whoami)
 sudo su postgres
@@ -241,14 +272,14 @@ ALTER USER &lt;username&gt; PASSWORD 'Password';
 \q
 </code></pre>
 <p>Type <code>exit</code> at shell to return to your original user.</p>
-<a class="header" href="print.html#verify-login-to-postgres-instance" id="verify-login-to-postgres-instance"><h5>Verify Login to postgres instance</h5></a>
+<h5><a class="header" href="#verify-login-to-postgres-instance" id="verify-login-to-postgres-instance">Verify Login to postgres instance</a></h5>
 <pre><code class="language-bash">export PGPASSFILE=/opt/cardano/cnode/priv/.pgpass
 echo &quot;localhost:5432:cexplorer_phtn:$(whoami):password&quot; &gt; $PGPASSFILE
 chmod 0600 /opt/cardano/cnode/priv/.pgpass
 psql -U $(whoami)
 ## TODO: Sample output
 </code></pre>
-<a class="header" href="print.html#prepare-db-for-db-sync-tool-" id="prepare-db-for-db-sync-tool-"><h5>Prepare DB for db-sync-tool :</h5></a>
+<h5><a class="header" href="#prepare-db-for-db-sync-tool-" id="prepare-db-for-db-sync-tool-">Prepare DB for db-sync-tool :</a></h5>
 <pre><code class="language-bash"># scripts/postgresql-setup.sh --dropdb #if exists already, will fail if it doesnt - thats OK
 scripts/postgresql-setup.sh --createdb
 # Password:
@@ -294,9 +325,9 @@ select * from tx;
 # ...
 # (36 rows)
 </code></pre>
-<a class="header" href="print.html#config-for-phtn---as-a-bft-member" id="config-for-phtn---as-a-bft-member"><h3>Config for pHTN - as a BFT Member</h3></a>
+<h3><a class="header" href="#config-for-phtn---as-a-bft-member" id="config-for-phtn---as-a-bft-member">Config for pHTN - as a BFT Member</a></h3>
 <p>Use this guide only if you already have your key (referred to as pbft0.key below) that's already registered in genesis.</p>
-<a class="header" href="print.html#create-verification-key" id="create-verification-key"><h4>Create verification key</h4></a>
+<h4><a class="header" href="#create-verification-key" id="create-verification-key">Create verification key</a></h4>
 <pre><code class="language-bash"># Create the verification key
 cardano-cli to-verification --real-pbft --secret $CNODE_HOME/priv/pbft0.key --to $CNODE_HOME/priv/pbft0.vfk
 
@@ -306,20 +337,20 @@ cardano-cli signing-key-public --real-pbft --secret $CNODE_HOME/priv/pbft0.key |
 cat $CNODE_HOME/priv/pbft0.vfk
 # HyZ+SQ3odbYPH...A==
 </code></pre>
-<a class="header" href="print.html#extract-your-cert-from-genesis-using-below" id="extract-your-cert-from-genesis-using-below"><h4>Extract your cert from genesis using below</h4></a>
+<h4><a class="header" href="#extract-your-cert-from-genesis-using-below" id="extract-your-cert-from-genesis-using-below">Extract your cert from genesis using below</a></h4>
 <pre><code class="language-bash"># Extract cert from genesis.
 grep `cat $CNODE_HOME/priv/pbft0.vfk` -B 4 -A 3 $CNODE_HOME/files/genesis.json | sed -e 's@^.*{@{@' -e 's@^.*},@}@' &gt; $CNODE_HOME/priv/pbft0.json
 </code></pre>
-<a class="header" href="print.html#start-node" id="start-node"><h4>Start Node</h4></a>
+<h4><a class="header" href="#start-node" id="start-node">Start Node</a></h4>
 <pre><code class="language-bash"># Run the node
 cd $CNODE_HOME/scripts
 ./cnode.sh
 </code></pre>
-<a class="header" href="print.html#config-for-phtn---as-a-passive-node" id="config-for-phtn---as-a-passive-node"><h3>Config for pHTN - as a Passive node</h3></a>
-<a class="header" href="print.html#create-singing-and-verifying-keys" id="create-singing-and-verifying-keys"><h4>Create singing and verifying keys</h4></a>
+<h3><a class="header" href="#config-for-phtn---as-a-passive-node" id="config-for-phtn---as-a-passive-node">Config for pHTN - as a Passive node</a></h3>
+<h4><a class="header" href="#create-singing-and-verifying-keys" id="create-singing-and-verifying-keys">Create singing and verifying keys</a></h4>
 <pre><code class="language-bash">$ cardano-cli keygen --real-pbft --secret $CNODE_HOME/priv/pbft0p.key --no-password
 </code></pre>
-<a class="header" href="print.html#create-verification-key-1" id="create-verification-key-1"><h4>Create verification key</h4></a>
+<h4><a class="header" href="#create-verification-key-1" id="create-verification-key-1">Create verification key</a></h4>
 <pre><code class="language-bash"># Create the verification key
 cardano-cli to-verification --real-pbft --secret $CNODE_HOME/priv/pbft0p.key --to $CNODE_HOME/priv/pbft0p.vfk
 
@@ -329,7 +360,7 @@ cardano-cli signing-key-public --real-pbft --secret $CNODE_HOME/priv/pbft0p.key 
 cat $CNODE_HOME/priv/pbft0p.vfk
 # HyZ+SQ3odbYPH...A==
 </code></pre>
-<a class="header" href="print.html#create-certificates" id="create-certificates"><h4>Create certificates</h4></a>
+<h4><a class="header" href="#create-certificates" id="create-certificates">Create certificates</a></h4>
 <pre><code class="language-bash">$ cardano-cli issue-delegation-certificate \
 --config $CNODE_HOME/files/config.json \
 --since-epoch &lt;?&gt; \
@@ -337,7 +368,7 @@ cat $CNODE_HOME/priv/pbft0p.vfk
 --delegate-key $CNODE_HOME/priv/pbft0p.key \
 --certificate $CNODE_HOME/files/pbft0p.json
 </code></pre>
-<a class="header" href="print.html#start-passive-node" id="start-passive-node"><h4>Start Passive Node</h4></a>
+<h4><a class="header" href="#start-passive-node" id="start-passive-node">Start Passive Node</a></h4>
 <pre><code class="language-bash">CNODE_HOME=/opt/cardano/cnode
 cardano-node run \
           --config $CNODE_HOME/files/ptn0.yaml \
@@ -349,16 +380,16 @@ cardano-node run \
           --socket-path $CNODE_HOME/sockets/0 \
           --topology $CNODE_HOME/files/topology.json
 </code></pre>
-<a class="header" href="print.html#collection-of-value-added-scripts" id="collection-of-value-added-scripts"><h3>Collection of Value-added scripts</h3></a>
+<h3><a class="header" href="#collection-of-value-added-scripts" id="collection-of-value-added-scripts">Collection of Value-added scripts</a></h3>
 <p>A place to collect scripts that are supposed to help with usage of Cardano-node. The initial attempt below is with an aim to keep things similar to the current jormungandr scripts' usage.</p>
-<a class="header" href="print.html#create-privat-key-and-corresponding-address-file" id="create-privat-key-and-corresponding-address-file"><h5>Create Privat key and corresponding address file</h5></a>
+<h4><a class="header" href="#create-privat-key-and-corresponding-address-file" id="create-privat-key-and-corresponding-address-file">Create Privat key and corresponding address file</a></h4>
 <pre><code class="language-bash">cd $CNODE_HOME/scripts
 ./createAddr.sh pbft1
 # Sample output to enter passphrase (can be left empty, you will need this passphrase to access the key if filled):
 # Enter password to encrypt 'pbft1':
 # Repeat to validate:
 </code></pre>
-<a class="header" href="print.html#create-and-submit-a-transaction-to-send-ada" id="create-and-submit-a-transaction-to-send-ada"><h5>Create and submit a transaction to send ADA</h5></a>
+<h4><a class="header" href="#create-and-submit-a-transaction-to-send-ada" id="create-and-submit-a-transaction-to-send-ada">Create and submit a transaction to send ADA</a></h4>
 <pre><code># Send ADA script usage
 cd $CNODE_HOME/scripts
 ./sendADA.sh tx.out 2cWKMJemoBa....ssL7fzhq 20 $CNODE_HOME/priv/pbft0.key
@@ -390,8 +421,19 @@ cd $CNODE_HOME/scripts
         
 
         
+        
+        
+        <script type="text/javascript">
+            window.playpen_copyable = true;
+        </script>
+        
 
         
+
+        
+        <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
         
 
         <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
