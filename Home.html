@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="en" class="sidebar-visible no-js light">
+<html lang="en" class="sidebar-visible no-js ayu">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Home - Welcome to Guild Operators Setup</title>
+        <title>Getting Started - Cardano Community managed Documentation for Pool Operators</title>
         
 
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
@@ -31,12 +31,15 @@
         
 
         
+        <!-- MathJax -->
+        <script async type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        
     </head>
     <body>
         <!-- Provide site root to javascript -->
         <script type="text/javascript">
             var path_to_root = "";
-            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "light" : "light";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "ayu" : "ayu";
         </script>
 
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
@@ -62,7 +65,7 @@
             if (theme === null || theme === undefined) { theme = default_theme; }
             var html = document.querySelector('html');
             html.classList.remove('no-js')
-            html.classList.remove('light')
+            html.classList.remove('ayu')
             html.classList.add(theme);
             html.classList.add('js');
         </script>
@@ -81,7 +84,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html" class="active"><strong aria-hidden="true">1.</strong> Home</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Getting-started-with-Haskell-Node.html"><strong aria-hidden="true">1.1.</strong> Getting started with Haskell Node</a></li><li class="chapter-item expanded "><a href="Build-instructions.html"><strong aria-hidden="true">1.2.</strong> Build Instructions</a></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html"><strong aria-hidden="true">1.3.</strong> Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html"><strong aria-hidden="true">1.4.</strong> Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html"><strong aria-hidden="true">1.5.</strong> CLI Scripts for usual operations</a></li></ol></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html" class="active">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Folder-structure.html">Folder Structure</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item "><a href="rest.html">REST</a></li><li class="chapter-item "><a href="graphql.html">GraphQL</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -100,11 +103,11 @@
                             <i class="fa fa-paint-brush"></i>
                         </button>
                         <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
-                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu (default)</button></li>
                         </ul>
                         
                         <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
@@ -113,11 +116,15 @@
                         
                     </div>
 
-                    <h1 class="menu-title">Welcome to Guild Operators Setup</h1>
+                    <h1 class="menu-title">Cardano Community managed Documentation for Pool Operators</h1>
 
                     <div class="right-buttons">
                         <a href="print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        
+                        <a href="https://github.com/cardano-community/guild-operators" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
                         
                     </div>
@@ -147,9 +154,13 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h4><a class="header" href="#welcome-to-the-guild-operators-wiki" id="welcome-to-the-guild-operators-wiki">Welcome to the guild-operators wiki!</a></h4>
-<p>This repo was created by some of the community members and serves as as easy means to add documentation or scripts that makes more sense to users.</p>
-<p>If there are any discrepancies/suggestions/contributions for this document, please open a issue and one of the collaborators should be able to add the changes in.</p>
+                        <h3><a class="header" href="#welcome" id="welcome">Welcome!!</a></h3>
+<p>This documentation (rather the repository itself) is created by some of the community members and serves as as easy means to add documentation or scripts that makes more sense to users. The target audience for this document are mainly experienced stake pool operators.</p>
+<p>The repository is already open to collaboration from many members within community. We would love community contributions and verification of the instructions, rather than having 100 version of documentations. If there are any discrepancies/suggestions/contributions for this document, please open a issue and one of the collaborators should be able to add the changes in.</p>
+<h4><a class="header" href="#getting-started-with-haskell-node" id="getting-started-with-haskell-node">Getting started with Haskell Node</a></h4>
+<p>Use the sidebar to navigate through the topics. Note that the instructions assume the folder structure as per Next topic, you're expected to update the folder reference as per your environment.
+Also, since you cannot run a Praos node yet, the instructions here-in allow you to join a private haskell testnet network (phtn), we will gradually update to Praos version and update the phtn references.</p>
+<p><em>Note that currently the codebase cardano-node is using permissive oBFT consensus. While we would like to onboard new features as they're built for Shelley (which will be hybrid of oBFT nodes run by bootstrap entities and Praos nodes by stakepool operators) codebase, its best to set your expectation accordingly. In the current state, this serves as a useful means to get familiar with modular architecture and usage.</em></p>
 
                     </main>
 
@@ -158,7 +169,7 @@
                         
 
                         
-                            <a rel="next" href="Getting-started-with-Haskell-Node.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="Folder-structure.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
                         
@@ -172,7 +183,7 @@
                 
 
                 
-                    <a rel="next" href="Getting-started-with-Haskell-Node.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next" href="Folder-structure.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
                 

@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Set up and connect to the network as BFT leader - Cardano Community managed Documentation for Pool Operators</title>
+        <title>Make Transactions - Cardano Community managed Documentation for Pool Operators</title>
         
 
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
@@ -84,7 +84,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Folder-structure.html">Folder Structure</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item "><a href="rest.html">REST</a></li><li class="chapter-item "><a href="graphql.html">GraphQL</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html" class="active">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Folder-structure.html">Folder Structure</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item "><a href="rest.html">REST</a></li><li class="chapter-item "><a href="graphql.html">GraphQL</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html" class="active">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -154,40 +154,21 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h3><a class="header" href="#config-for-phtn---as-a-bft-member" id="config-for-phtn---as-a-bft-member">Config for pHTN - as a BFT Member</a></h3>
-<p>Use this guide only if you already have your key (referred to as pbft0.key below) that's already registered in genesis.</p>
-<h4><a class="header" href="#create-verification-key" id="create-verification-key">Create verification key</a></h4>
-<pre><code class="language-bash"># Create the verification key
-cardano-cli to-verification --real-pbft --secret $CNODE_HOME/priv/pbft0.key --to $CNODE_HOME/priv/pbft0.vfk
-
-# Check the verification/public key
-cardano-cli signing-key-public --real-pbft --secret $CNODE_HOME/priv/pbft0.key | awk '/base64/ { print $4}'
-# HyZ+SQ3odbYPH...A==
-cat $CNODE_HOME/priv/pbft0.vfk
-# HyZ+SQ3odbYPH...A==
-</code></pre>
-<h4><a class="header" href="#extract-your-cert-from-genesis-using-below" id="extract-your-cert-from-genesis-using-below">Extract your cert from genesis using below</a></h4>
-<pre><code class="language-bash"># Extract cert from genesis.
-grep `cat $CNODE_HOME/priv/pbft0.vfk` -B 4 -A 3 $CNODE_HOME/files/genesis.json | sed -e 's@^.*{@{@' -e 's@^.*},@}@' &gt; $CNODE_HOME/priv/pbft0.json
-</code></pre>
-<h4><a class="header" href="#start-node" id="start-node">Start Node</a></h4>
-<pre><code class="language-bash"># Run the node
-cd $CNODE_HOME/scripts
-./cnode.sh
-</code></pre>
+                        <h3><a class="header" href="#make-transactions" id="make-transactions">Make Transactions</a></h3>
+<p>&lt; Coming Soon .. &gt;</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
                         
-                            <a rel="prev" href="graphql.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="createAddr.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
                         
 
                         
-                            <a rel="next" href="Setup-Passive-Member.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="Contributors.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
                         
@@ -199,13 +180,13 @@ cd $CNODE_HOME/scripts
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
                 
-                    <a rel="prev" href="graphql.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="createAddr.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
                 
 
                 
-                    <a rel="next" href="Setup-Passive-Member.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next" href="Contributors.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
                 

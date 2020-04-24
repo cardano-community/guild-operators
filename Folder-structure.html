@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Set up and connect to the network as BFT leader - Cardano Community managed Documentation for Pool Operators</title>
+        <title>Folder Structure - Cardano Community managed Documentation for Pool Operators</title>
         
 
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
@@ -84,7 +84,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Folder-structure.html">Folder Structure</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item "><a href="rest.html">REST</a></li><li class="chapter-item "><a href="graphql.html">GraphQL</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html" class="active">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Folder-structure.html" class="active">Folder Structure</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item "><a href="rest.html">REST</a></li><li class="chapter-item "><a href="graphql.html">GraphQL</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -154,26 +154,50 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h3><a class="header" href="#config-for-phtn---as-a-bft-member" id="config-for-phtn---as-a-bft-member">Config for pHTN - as a BFT Member</a></h3>
-<p>Use this guide only if you already have your key (referred to as pbft0.key below) that's already registered in genesis.</p>
-<h4><a class="header" href="#create-verification-key" id="create-verification-key">Create verification key</a></h4>
-<pre><code class="language-bash"># Create the verification key
-cardano-cli to-verification --real-pbft --secret $CNODE_HOME/priv/pbft0.key --to $CNODE_HOME/priv/pbft0.vfk
+                        <h3><a class="header" href="#folder-structure" id="folder-structure">Folder structure</a></h3>
+<p>The documentations here use the below as a reference folder.</p>
+<pre><code>/opt/cardano/cnode          # Top-Level Folder
+├── ...
+├── files                   # Config, genesis and topology files
+│   ├── ...
+│   ├── genesis.json        # Genesis file referenced in ptn0.yaml
+│   ├── ptn0.yaml           # Config file used by cardano-node
+│   └── inventory.json      # Map of Real-PBFT chain for cardano-node
+├── db                      # DB Store for cardano-node
+├── logs                    # Logs for cardano-node
+├── priv                    # Folder to store your keys (permission: 600)
+├── scripts                 # Scripts to start and interact with cardano-node
+├── sockets                 # Socket files created by cardano-node
+└── ...
+</code></pre>
+<p>You can create the above using sample commands below:</p>
+<pre><code class="language-bash">export CNODE_HOME=/opt/cardano/cnode
+sudo mkdir -p ${CNODE_HOME}/{files,db,logs,scripts,sockets,priv}
+sudo chown -R $USER:$USER $CNODE_HOME
+chmod -R 755 $CNODE_HOME
 
-# Check the verification/public key
-cardano-cli signing-key-public --real-pbft --secret $CNODE_HOME/priv/pbft0.key | awk '/base64/ { print $4}'
-# HyZ+SQ3odbYPH...A==
-cat $CNODE_HOME/priv/pbft0.vfk
-# HyZ+SQ3odbYPH...A==
-</code></pre>
-<h4><a class="header" href="#extract-your-cert-from-genesis-using-below" id="extract-your-cert-from-genesis-using-below">Extract your cert from genesis using below</a></h4>
-<pre><code class="language-bash"># Extract cert from genesis.
-grep `cat $CNODE_HOME/priv/pbft0.vfk` -B 4 -A 3 $CNODE_HOME/files/genesis.json | sed -e 's@^.*{@{@' -e 's@^.*},@}@' &gt; $CNODE_HOME/priv/pbft0.json
-</code></pre>
-<h4><a class="header" href="#start-node" id="start-node">Start Node</a></h4>
-<pre><code class="language-bash"># Run the node
+mkdir ~/git # To hold git repositories that will be used for building binaries
+
+cd $CNODE_HOME/files
+
+curl -o ptn0.yaml https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0.yaml
+curl https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/genesis.json | jq '.' &gt; genesis.json
+curl https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/topology.json | jq '.' &gt; topology.json
+
+# If using a different CNODE_HOME than in this example, execute the below:
+# sed -i -e &quot;s#/opt/cardano/cnode#${CNODE_HOME}#&quot; $CNODE_HOME/files/ptn0.yaml
+## For future use:
+## It generates random NodeID:
+## -e &quot;s#NodeId:.*#NodeId:`od -A n -t u8 -N 8 /dev/urandom`#&quot; \
+
+cd -
 cd $CNODE_HOME/scripts
-./cnode.sh
+curl -o env https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
+curl -o sendADA.sh https://github.com/cardano-community/guild-operators/blob/master/scripts/cnode-helper-scripts/sendADA.sh
+curl -o cnode.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/cnode.sh.templ
+# If you opt for an alternate CNODE_HOME, please run the below:
+# sed -i -e &quot;s#/opt/cardano/cnode#${CNODE_HOME}#&quot; *.sh
+cd -
 </code></pre>
 
                     </main>
@@ -181,13 +205,13 @@ cd $CNODE_HOME/scripts
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
                         
-                            <a rel="prev" href="graphql.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="Home.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
                         
 
                         
-                            <a rel="next" href="Setup-Passive-Member.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="Build-and-Run.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
                         
@@ -199,13 +223,13 @@ cd $CNODE_HOME/scripts
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
                 
-                    <a rel="prev" href="graphql.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="Home.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
                 
 
                 
-                    <a rel="next" href="Setup-Passive-Member.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next" href="Build-and-Run.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
                 

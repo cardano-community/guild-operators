@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="en" class="sidebar-visible no-js light">
+<html lang="en" class="sidebar-visible no-js ayu">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Welcome to Guild Operators Setup</title>
+        <title>Cardano Community managed Documentation for Pool Operators</title>
         
         <meta name="robots" content="noindex" />
         
@@ -33,12 +33,15 @@
         
 
         
+        <!-- MathJax -->
+        <script async type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        
     </head>
     <body>
         <!-- Provide site root to javascript -->
         <script type="text/javascript">
             var path_to_root = "";
-            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "light" : "light";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "ayu" : "ayu";
         </script>
 
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
@@ -64,7 +67,7 @@
             if (theme === null || theme === undefined) { theme = default_theme; }
             var html = document.querySelector('html');
             html.classList.remove('no-js')
-            html.classList.remove('light')
+            html.classList.remove('ayu')
             html.classList.add(theme);
             html.classList.add('js');
         </script>
@@ -83,7 +86,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html"><strong aria-hidden="true">1.</strong> Home</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Getting-started-with-Haskell-Node.html"><strong aria-hidden="true">1.1.</strong> Getting started with Haskell Node</a></li><li class="chapter-item expanded "><a href="Build-instructions.html"><strong aria-hidden="true">1.2.</strong> Build Instructions</a></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html"><strong aria-hidden="true">1.3.</strong> Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html"><strong aria-hidden="true">1.4.</strong> Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html"><strong aria-hidden="true">1.5.</strong> CLI Scripts for usual operations</a></li></ol></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Folder-structure.html">Folder Structure</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item "><a href="rest.html">REST</a></li><li class="chapter-item "><a href="graphql.html">GraphQL</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -102,11 +105,11 @@
                             <i class="fa fa-paint-brush"></i>
                         </button>
                         <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
-                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu (default)</button></li>
                         </ul>
                         
                         <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
@@ -115,11 +118,15 @@
                         
                     </div>
 
-                    <h1 class="menu-title">Welcome to Guild Operators Setup</h1>
+                    <h1 class="menu-title">Cardano Community managed Documentation for Pool Operators</h1>
 
                     <div class="right-buttons">
                         <a href="print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        
+                        <a href="https://github.com/cardano-community/guild-operators" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
                         
                     </div>
@@ -149,14 +156,15 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h4><a class="header" href="#welcome-to-the-guild-operators-wiki" id="welcome-to-the-guild-operators-wiki">Welcome to the guild-operators wiki!</a></h4>
-<p>This repo was created by some of the community members and serves as as easy means to add documentation or scripts that makes more sense to users.</p>
-<p>If there are any discrepancies/suggestions/contributions for this document, please open a issue and one of the collaborators should be able to add the changes in.</p>
+                        <h3><a class="header" href="#welcome" id="welcome">Welcome!!</a></h3>
+<p>This documentation (rather the repository itself) is created by some of the community members and serves as as easy means to add documentation or scripts that makes more sense to users. The target audience for this document are mainly experienced stake pool operators.</p>
+<p>The repository is already open to collaboration from many members within community. We would love community contributions and verification of the instructions, rather than having 100 version of documentations. If there are any discrepancies/suggestions/contributions for this document, please open a issue and one of the collaborators should be able to add the changes in.</p>
 <h4><a class="header" href="#getting-started-with-haskell-node" id="getting-started-with-haskell-node">Getting started with Haskell Node</a></h4>
-<p>Use the sidebar to navigate through the topics. Note that the instructions assume the folder structure as below, you're expected to update the folder reference as per your environment.
-Note that currently the network is on real-pbft consensus. This is not shelley codebase , and its best to set your expectation accordingly. This is currently only useful to get familiar with modular architecture and usage.</p>
-<h5><a class="header" href="#folder-structure" id="folder-structure">Folder structure</a></h5>
-<p>The documentation will use the below as a reference folder.</p>
+<p>Use the sidebar to navigate through the topics. Note that the instructions assume the folder structure as per Next topic, you're expected to update the folder reference as per your environment.
+Also, since you cannot run a Praos node yet, the instructions here-in allow you to join a private haskell testnet network (phtn), we will gradually update to Praos version and update the phtn references.</p>
+<p><em>Note that currently the codebase cardano-node is using permissive oBFT consensus. While we would like to onboard new features as they're built for Shelley (which will be hybrid of oBFT nodes run by bootstrap entities and Praos nodes by stakepool operators) codebase, its best to set your expectation accordingly. In the current state, this serves as a useful means to get familiar with modular architecture and usage.</em></p>
+<h3><a class="header" href="#folder-structure" id="folder-structure">Folder structure</a></h3>
+<p>The documentations here use the below as a reference folder.</p>
 <pre><code>/opt/cardano/cnode          # Top-Level Folder
 ├── ...
 ├── files                   # Config, genesis and topology files
@@ -176,6 +184,8 @@ Note that currently the network is on real-pbft consensus. This is not shelley c
 sudo mkdir -p ${CNODE_HOME}/{files,db,logs,scripts,sockets,priv}
 sudo chown -R $USER:$USER $CNODE_HOME
 chmod -R 755 $CNODE_HOME
+
+mkdir ~/git # To hold git repositories that will be used for building binaries
 
 cd $CNODE_HOME/files
 
@@ -198,106 +208,143 @@ curl -o cnode.sh https://raw.githubusercontent.com/cardano-community/guild-opera
 # sed -i -e &quot;s#/opt/cardano/cnode#${CNODE_HOME}#&quot; *.sh
 cd -
 </code></pre>
-<p>This document is built using <a href="https://github.com/input-output-hk/cardano-node/blob/master/doc/building-running.md">IOHK build instructions</a> as base with additional info, which we can propose to add if it makes sense.</p>
-<h3><a class="header" href="#using-cabal" id="using-cabal">Using Cabal</a></h3>
-<h4><a class="header" href="#cardano-node" id="cardano-node">Cardano Node</a></h4>
-<p>The code in the Haskell node also requires that the development packages for a couple of Linux system libraries be installed:</p>
+<h3><a class="header" href="#build-and-run" id="build-and-run">Build and Run</a></h3>
+<p>This document is built using instructions from <a href="https://github.com/input-output-hk">IOH repositories</a> as base with additional info/clarification, which we can propose to add if it makes sense.</p>
+<p>The instructions are intentionally limited to cabal to avoid wait times/availability of nix/docker/stack.yaml files being up to date - and managing multiple versions of instructions (for now).</p>
+<p>Note that the instructions are mainly focused around building Cardano components and OS/thirdparty software (eg: postgres) setup instructions are intended to provide build level information only.</p>
+<p>Ofcourse, we can always add links with specific best practices to those instructions - for those who would like to contribute, please open a PR directly on the <a href="https://github.com/cardano-community/guild-operators/tree/master/docs">github repo</a> to do so.</p>
+<h3><a class="header" href="#building-cardano-node-and-cardano-cli" id="building-cardano-node-and-cardano-cli">Building Cardano Node and Cardano CLI</a></h3>
+<h4><a class="header" href="#pre-requisites" id="pre-requisites">Pre-Requisites</a></h4>
+<h5><a class="header" href="#system-packages" id="system-packages">System Packages</a></h5>
+<p>The Haskell cardano-node build requires the following dependency packages to be available to the system:</p>
 <p><strong>Tip</strong>: The steps described individually below can be executed with the two scripts &quot;<a href="https://github.com/cardano-community/guild-operators/blob/master/files/ptn0/scripts/cabal-prepare.sh">cabal_prepare</a>&quot; and &quot;<a href="https://github.com/cardano-community/guild-operators/blob/master/files/ptn0/scripts/cabal-build-all-install.sh">build-all-install</a>&quot;. (<em>prepare</em> automatically recognizes Debian/Ubuntu or CentOS)</p>
 <p>The instructions for <strong>Debian and Ubuntu</strong> are identical.</p>
 <pre><code class="language-bash">sudo apt-get update
-sudo apt-get -y install curl build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev tmux
+sudo apt-get -y install curl build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev tmux git
 </code></pre>
 <p>If you're using <strong>CentOS</strong>, the corresponding packages will be:</p>
 <pre><code class="language-bash">sudo yum update
-sudo yum -y install curl pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs systemd-devel zlib-devel tmux
+sudo yum -y install curl pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs systemd-devel zlib-devel tmux git
 # You might need to create a symlink to /usr/lib64/libtinfo.so as per below if one does not already exist
 # sudo ln -s $(ls -1 /usr/lib64/libtinfo.so* | tail -1) /usr/lib64/libtinfo.so
 # sudo ln -s $(ls -1 /usr/lib64/libtinfo.so* | tail -1) /usr/lib64/libtinfo.so.5
 </code></pre>
-<p>The required versions are [GHC 8.6.5][ghc865] and [Cabal-3.0][cabal30].
-You best get them with the Haskell installer tool [ghcup][ghcup].</p>
-<pre><code class="language-bash">curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+<h4><a class="header" href="#ghc-and-cabal" id="ghc-and-cabal">GHC and Cabal</a></h4>
+<p>The node depends on very specific versions of <a href="https://www.haskell.org/ghcup/">GHC 8.6.5</a> and [Cabal 3.0].
+The best way to get them is with the Haskell Installer tool [ghcup].</p>
+<pre><code class="language-bash">mkdir ~/tmp;cd ~/tmp
+curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+
+# confirm by pressing ENTER twice and type YES at the end to add ghcup to your PATH variable.
+
+source ~/.ghcup/env
 </code></pre>
-<p>confirm 2x ENTER and type YES at the end to add ghcup to your PATH variable
-Then restart your terminal session or execute </p>
-<pre><code class="language-bash">source ~/.ghcup/env
-</code></pre>
-<p>to use the ghcup command for the next steps</p>
 <p>Now install and activate the required GHC version</p>
 <pre><code class="language-bash">ghcup install 8.6.5
 ghcup set 8.6.5
 ghc --version
 </code></pre>
-<p>Finally the Cardano Node git repo can be cloned and the code built:</p>
-<pre><code class="language-bash">git clone https://github.com/input-output-hk/cardano-node
-cd cardano-node
-cabal build all
+<p>To download and install cabal specific release, follow instructions below:</p>
+<pre><code class="language-bash">wget https://downloads.haskell.org/cabal/cabal-install-3.0.0.0/cabal-install-3.0.0.0-x86_64-unknown-linux.tar.xz
+tar xz cabal-install-3.0.0.0-x86_64-unknown-linux.tar.xz
+cp cabal ~/.local/bin
+cd -
 </code></pre>
-<p>Now you can copy the binaries into your ~/.local/bin folder (when part of the PATH variable).</p>
+<h4><a class="header" href="#build-instructions" id="build-instructions">Build Instructions</a></h4>
+<p>Now that the dependencies have been met, we can start setting up the node.
+Start by cloning the Cardano Node git to build the binaries:</p>
+<pre><code class="language-bash">cd ~/git
+git clone https://github.com/input-output-hk/cardano-node
+cd cardano-node
+cabal build all | tee build.log | grep ^Linking
+</code></pre>
+<p>Now you can copy the binaries build (using location above) into ~/.local/bin folder (when part of the PATH variable).</p>
 <pre><code>cardano-node
 cardano-cli
 chairman
 </code></pre>
-<p>You can see the build location path from the last few output lines (starting with Linking) of <code>cabal build all</code> command.
-For example, for cardano-cli 1.10.1 it is </p>
-<pre><code>~/cardano-node/dist-newstyle/build/x86_64-linux/ghc-8.6.5/cardano-node-1.10.1/x/cardano-cli/build/cardano-cli/
+<p>For example for cardano-cli 1.10.1 it is <code>~/git/cardano-node/dist-newstyle/build/x86_64-linux/ghc-8.6.5/cardano-node-1.10.1/x/cardano-cli/build/cardano-cli/cardano-cli</code></p>
+<h4><a class="header" href="#verify" id="verify">Verify</a></h4>
+<p>Execute cardano-cli and cardano-node to verify output as below:</p>
+<pre><code class="language-bash">cardano-cli version
+# cardano-cli 1.10.1 - linux-x86_64 - ghc-8.6
+cardano-node
+#Usage: cardano-node (run | run-mock) [--help]
+#  Start node of the Cardano blockchain.
+#
+#Available options:
+#  --help                   Show this help text
+#
+#Execute node with a real protocol.
+#  run                      Execute node with a real protocol.
+#
+#Execute node with a mock protocol.
+#  run-mock                 Execute node with a mock protocol.
 </code></pre>
-<h4><a class="header" href="#cardano-db-sync-tool" id="cardano-db-sync-tool">Cardano DB Sync tool</a></h4>
-<p>Instructions below are for creating a local working postgresql instance. For now, we leave the best practices for postgres database to the user and focus on minimal relevant config for <code>cardano-db-sync</code> tool.</p>
-<h5><a class="header" href="#set-up-a-local-postgres-server" id="set-up-a-local-postgres-server">Set up a local Postgres Server:</a></h5>
-<pre><code class="language-bash">sudo yum install -y postgresql-server postgresql-server-devel postgresql-contrib postgresql-devel
+<h3><a class="header" href="#dbsync-tool" id="dbsync-tool">DBSync tool</a></h3>
+<p>Cardano DB Sync tool relies on an existing PostgreSQL server.</p>
+<h4><a class="header" href="#sample-local-postgresql-server-deployment-instructions" id="sample-local-postgresql-server-deployment-instructions">Sample Local PostgreSQL Server Deployment instructions</a></h4>
+<p>These are sample PostgreSQL server deployment instructions used for reference while building Cardano DB Sync tool. These do not go into Best practices for deploying a secured instance, we would recommend you to customise the same as per your needs.</p>
+<pre><code class="language-bash"># TODO: Add debian/Ubuntu specific commands
+sudo yum install -y postgresql-server postgresql-server-devel postgresql-contrib postgresql-devel
 sudo postgresql-setup initdb
 # TODO: For consistency on this page, edit /var/lib/pgsql/data/pg_hba.conf to replace ident with md5 for localhost and 127.0.0.1 (except lines with replication)
 sudo systemctl start postgresql
 sudo systemctl enable postgresql
 </code></pre>
-<h5><a class="header" href="#build-cardano-db-sync" id="build-cardano-db-sync">Build cardano-db-sync</a></h5>
+<p>This page assumes you've already set up cardano-noe and have the OS level dependencies satisfied.</p>
+<h4><a class="header" href="#build-cardano-db-sync" id="build-cardano-db-sync">Build cardano-db-sync</a></h4>
 <p>To build instructions for cardano-db-sync tool will be similar to cardano-node:</p>
-<pre><code class="language-bash">git clone https://github.com/input-output-hk/cardano-db-sync
+<pre><code class="language-bash">cd ~/git
+git clone https://github.com/input-output-hk/cardano-db-sync
 cd cardano-db-sync
-cabal build all
+cabal build all | tee build.log | grep ^Linking
 </code></pre>
-<p>Now you can copy the cardano-db-sync binary to your ~/.local/bin folder as before using the output (scan for line starting with <em>Linking..</em>).</p>
-<h5><a class="header" href="#create-user-in-postgres" id="create-user-in-postgres">Create User in Postgres</a></h5>
+<p>Similar to before, you can copy the cardano-db-sync and cardano-db-sync-extended binary to your ~/.local/bin folder.</p>
+<h4><a class="header" href="#create-user-in-postgres" id="create-user-in-postgres">Create User in Postgres</a></h4>
 <p>Login to Postgres instance as superuser:</p>
 <pre><code class="language-bash">echo $(whoami)
 sudo su postgres
 psql
 </code></pre>
-<p>Execute the below in psql prompt. Replace the username to be your OS user (output of <code>echo $(whoami)</code> command executed above) :</p>
+<p>Execute the below in psql prompt. Replace <strong><username></strong> and <strong>PasswordYouWant</strong> with your OS user (output of <code>echo $(whoami)</code> command executed above) and a password you'd like to authenticate to Postgres with:</p>
 <pre><code class="language-sql">CREATE ROLE &lt;username&gt; superuser;
 CREATE USER &lt;username&gt;;
 GRANT ROOT TO &lt;username&gt;;
-ALTER USER &lt;username&gt; PASSWORD 'Password';
+ALTER USER &lt;username&gt; PASSWORD 'PasswordYouWant';
 \q
 </code></pre>
-<p>Type <code>exit</code> at shell to return to your original user.</p>
-<h5><a class="header" href="#verify-login-to-postgres-instance" id="verify-login-to-postgres-instance">Verify Login to postgres instance</a></h5>
+<p>Type <code>exit</code> to return to your original user</p>
+<h4><a class="header" href="#verify-login-to-postgres-instance" id="verify-login-to-postgres-instance">Verify Login to postgres instance</a></h4>
 <pre><code class="language-bash">export PGPASSFILE=/opt/cardano/cnode/priv/.pgpass
-echo &quot;localhost:5432:cexplorer_phtn:$(whoami):password&quot; &gt; $PGPASSFILE
+echo &quot;localhost:5432:cexplorer_phtn:$(whoami):PasswordYouWant&quot; &gt; $PGPASSFILE
 chmod 0600 /opt/cardano/cnode/priv/.pgpass
 psql -U $(whoami)
 ## TODO: Sample output
 </code></pre>
-<h5><a class="header" href="#prepare-db-for-db-sync-tool-" id="prepare-db-for-db-sync-tool-">Prepare DB for db-sync-tool :</a></h5>
-<pre><code class="language-bash"># scripts/postgresql-setup.sh --dropdb #if exists already, will fail if it doesnt - thats OK
+<h4><a class="header" href="#prepare-db-for-cardano-db-sync-" id="prepare-db-for-cardano-db-sync-">Prepare DB for cardano-db-sync :</a></h4>
+<pre><code class="language-bash">cd ~/git/cardano-db-sync
+# scripts/postgresql-setup.sh --dropdb #if exists already, will fail if it doesnt - thats OK
 scripts/postgresql-setup.sh --createdb
 # Password:
 # Password:
 # All good!
 ## Verify you can see &quot;All good!&quot; as above
 </code></pre>
-<p>Start cardano-db-sync tool:</p>
-<pre><code class="language-bash">PGPASSFILE=/opt/cardano/cnode/priv/files/.pgpass cardano-db-sync --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/pbft_node.socket --schema-dir schema/
+<h4><a class="header" href="#start-cardano-db-sync-tool" id="start-cardano-db-sync-tool">Start cardano-db-sync-tool</a></h4>
+<pre><code class="language-bash">cd ~/git/cardano-db-sync
+PGPASSFILE=/opt/cardano/cnode/priv/files/.pgpass cardano-db-sync --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/pbft_node.socket --schema-dir schema/
 </code></pre>
 <p>You can use same instructions above to repeat and execute <code>cardano-db-sync-extended</code> as well.</p>
-<p>To test, connect to postgres instance and execute commands as per below:</p>
+<h4><a class="header" href="#validation" id="validation">Validation</a></h4>
+<p>To validate, connect to postgres instance and execute commands as per below:</p>
 <pre><code class="language-bash">export PGPASSFILE=/opt/cardano/cnode/priv/files/.pgpass
 psql cexplorer_phtn
 </code></pre>
-<pre><code class="language-postgres">\dt
+<p>You should be at the psql prompt, you can check the tables and verify they're populated:</p>
+<pre><code class="language-sql">\dt
 #            List of relations
-# Schema |      Name      | Type  | Owner 
+# Schema |      Name      | Type  | Owner
 #--------+----------------+-------+-------
 # public | block          | table | &lt;username&gt;
 # public | epoch          | table | &lt;username&gt;
@@ -310,13 +357,13 @@ psql cexplorer_phtn
 #(8 rows)
 
 select * from meta;
-# id | protocol_const | slot_duration |     start_time      | network_name 
+# id | protocol_const | slot_duration |     start_time      | network_name
 #----+----------------+---------------+---------------------+--------------
 #  1 |          43200 |         20000 | 2020-04-12 13:55:37 | pHTN
 #(1 row)
 
 select * from tx;
-# id |                                hash                                | block | fee |     out_sum      | size 
+# id |                                hash                                | block | fee |     out_sum      | size
 #----+--------------------------------------------------------------------+-------+-----+------------------+------
 #  1 | \x26b63ce785b16fc53ba3ab882ac0e5342a77b33f355ba82982e3e2d5e05500df |     1 |   0 |       1000000000 |    0
 #  2 | \xbd8f661658dabbb557d4b5e23264d34fda2a2304daccdac283e337581a88c479 |     1 |   0 |   62499975000000 |    0
@@ -325,6 +372,10 @@ select * from tx;
 # ...
 # (36 rows)
 </code></pre>
+<h3><a class="header" href="#rest" id="rest">REST</a></h3>
+<p>&lt; Coming Soon .. &gt;</p>
+<h3><a class="header" href="#graphql" id="graphql">GraphQL</a></h3>
+<p>&lt; Coming Soon .. &gt;</p>
 <h3><a class="header" href="#config-for-phtn---as-a-bft-member" id="config-for-phtn---as-a-bft-member">Config for pHTN - as a BFT Member</a></h3>
 <p>Use this guide only if you already have your key (referred to as pbft0.key below) that's already registered in genesis.</p>
 <h4><a class="header" href="#create-verification-key" id="create-verification-key">Create verification key</a></h4>
@@ -394,6 +445,24 @@ cardano-node run \
 cd $CNODE_HOME/scripts
 ./sendADA.sh tx.out 2cWKMJemoBa....ssL7fzhq 20 $CNODE_HOME/priv/pbft0.key
 </code></pre>
+<h3><a class="header" href="#create-keysaddress" id="create-keysaddress">Create Keys/Address</a></h3>
+<p>&lt; Coming Soon .. &gt;</p>
+<h3><a class="header" href="#make-transactions" id="make-transactions">Make Transactions</a></h3>
+<p>&lt; Coming Soon .. &gt;</p>
+<h3><a class="header" href="#contributors" id="contributors">Contributors</a></h3>
+<p>Everyone is welcome to contribute to the guide, as well as repository. Below is just a thank you to people who have been contributing consistently:</p>
+<p><a href="https://github.com/gufmar">Markus</a><br />
+<a href="https://github.com/ilap">Pal Dorogi</a><br />
+<a href="https://github.com/papacarp">Papacarp</a><br />
+<a href="https://github.com/PegasusPool">PegasusPool</a><br />
+<a href="https://github.com/oldcryptogeek">OCG</a><br />
+<a href="https://github.com/RedOracle">RedOracle</a><br />
+<a href="https://github.com/mmahut">Marek</a></p>
+<p>The document wouldnt be complete in absence of active testers from the community to provide invaluable inputs,</p>
+<p><a href="https://github.com/psychomb">Psychomb</a><br />
+<a href="https://github.com/bergr01">Bergr01</a><br />
+<a href="https://github.com/matthijs_last">Matthijs</a></p>
+<p><strong>Hopefully we have more joining the list soon :) To start contributing, simply hit the <a href="https://github.com/cardano-community/guild-operators">github repository</a> and raise Issue/Pull Request</strong></p>
 
                     </main>
 
@@ -447,7 +516,9 @@ cd $CNODE_HOME/scripts
         
         <script type="text/javascript">
         window.addEventListener('load', function() {
-            window.setTimeout(window.print, 100);
+            MathJax.Hub.Register.StartupHook('End', function() {
+                window.setTimeout(window.print, 100);
+            });
         });
         </script>
         
