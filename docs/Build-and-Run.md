@@ -1,6 +1,6 @@
 ### Build and Run
 
-This document is built using instructions from [IOH repositories](https://github.com/input-output-hk) as base with additional info/clarification, which we can propose to add if it makes sense.
+This document is built using instructions from [IOHK repositories](https://github.com/input-output-hk) as base with additional info/clarification, which we can propose to add if it makes sense.
 
 The instructions are intentionally limited to cabal to avoid wait times/availability of nix/docker/stack.yaml files being up to date - and managing multiple versions of instructions (for now).
 
