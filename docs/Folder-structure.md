@@ -1,11 +1,7 @@
 
-#### Getting started with Haskell Node
+### Folder structure
 
-Use the sidebar to navigate through the topics. Note that the instructions assume the folder structure as below, you're expected to update the folder reference as per your environment.
-Note that currently the network is on real-pbft consensus. This is not shelley codebase , and its best to set your expectation accordingly. This is currently only useful to get familiar with modular architecture and usage.
-
-##### Folder structure
-The documentation will use the below as a reference folder.
+The documentations here use the below as a reference folder.
 
     /opt/cardano/cnode          # Top-Level Folder
     ├── ...
@@ -27,6 +23,8 @@ export CNODE_HOME=/opt/cardano/cnode
 sudo mkdir -p ${CNODE_HOME}/{files,db,logs,scripts,sockets,priv}
 sudo chown -R $USER:$USER $CNODE_HOME
 chmod -R 755 $CNODE_HOME
+
+mkdir ~/git # To hold git repositories that will be used for building binaries
 
 cd $CNODE_HOME/files
 

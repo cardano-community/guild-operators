@@ -1,6 +1,20 @@
 [book]
-authors = ["Priyank Desai"]
+authors = ["Cardano Community"]
+language = "en"
 multilingual = false
 src = "docs"
-title = "Welcome to Guild Operators Setup"
+title = "Cardano Community managed Documentation for Pool Operators"
 
+[output.html]
+theme = "docs/.theme"
+default-theme = "Ayu"
+git-repository-url = "https://github.com/cardano-community/guild-operators"
+git-repository-icon = "fa-github"
+mathjax-support = true
+no-section-label = true
+
+[output.html.fold]
+enable = true
+level = 3
+
+[rust]
