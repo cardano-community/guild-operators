@@ -86,7 +86,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Folder-structure.html">Folder Structure</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item "><a href="rest.html">REST</a></li><li class="chapter-item "><a href="graphql.html">GraphQL</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Folder-structure.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="rest.html">REST - TBD</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -163,6 +163,25 @@
 <p>Use the sidebar to navigate through the topics. Note that the instructions assume the folder structure as per Next topic, you're expected to update the folder reference as per your environment.
 Also, since you cannot run a Praos node yet, the instructions here-in allow you to join a private haskell testnet network (phtn), we will gradually update to Praos version and update the phtn references.</p>
 <p><em>Note that currently the codebase cardano-node is using permissive oBFT consensus. While we would like to onboard new features as they're built for Shelley (which will be hybrid of oBFT nodes run by bootstrap entities and Praos nodes by stakepool operators) codebase, its best to set your expectation accordingly. In the current state, this serves as a useful means to get familiar with modular architecture and usage.</em></p>
+<h3><a class="header" href="#build-and-run" id="build-and-run">Build and Run</a></h3>
+<p>This document is built using instructions from <a href="https://github.com/input-output-hk">IOHK repositories</a> as base with additional info/clarification, which we can propose to add if it makes sense.</p>
+<p><strong>The instructions are intentionally limited to cabal</strong> to avoid wait times/availability of nix/docker/stack.yaml files on what we expect to be rapidly developing codebase - this will also help prevent managing multiple versions of instructions (atleast for now).</p>
+<p>Note that the instructions are mainly focused around building Cardano components and OS/thirdparty software (eg: postgres) setup instructions are intended to provide build level information only.</p>
+<p>Ofcourse, we can always add links with specific best practices to those instructions - for those who would like to contribute, please open a PR directly on the <a href="https://github.com/cardano-community/guild-operators/tree/master/docs">github repo</a> to do so.</p>
+<h4><a class="header" href="#docker-builds" id="docker-builds">Docker Builds:</a></h4>
+<p>If you would want to go down the docker route, the basic instructions to get you set up with docker itself are below, while the you can follow <a href="https://input-output-hk.github.io/adrestia/docs/installation/">IOHK Adrestia documentation</a> for latest release information:</p>
+<pre><code class="language-bash"># CentOS
+sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo yum install https://download.docker.com/linux/centos/7/x86_64/stable/Packages/containerd.io-1.2.6-3.3.el7.x86_64.rpm
+sudo yum install -y docker-ce docker-ce-cli
+sudo systemctl enable docker
+sudo chkconfig docker on
+
+## These steps would be automatically performed by the install above
+# sudo groupadd docker
+# sudo usermod -aG docker $USER
+sudo curl -L &quot;https://github.com/docker/compose/releases/download/1.25.5/docker-compose-$(uname -s)-$(uname -m)&quot; -o /usr/bin/docker-compose;chmod 755 /usr/bin/docker-compose
+</code></pre>
 <h3><a class="header" href="#folder-structure" id="folder-structure">Folder structure</a></h3>
 <p>The documentations here use the below as a reference folder.</p>
 <pre><code>/opt/cardano/cnode          # Top-Level Folder
@@ -208,11 +227,6 @@ curl -o cnode.sh https://raw.githubusercontent.com/cardano-community/guild-opera
 # sed -i -e &quot;s#/opt/cardano/cnode#${CNODE_HOME}#&quot; *.sh
 cd -
 </code></pre>
-<h3><a class="header" href="#build-and-run" id="build-and-run">Build and Run</a></h3>
-<p>This document is built using instructions from <a href="https://github.com/input-output-hk">IOHK repositories</a> as base with additional info/clarification, which we can propose to add if it makes sense.</p>
-<p>The instructions are intentionally limited to cabal to avoid wait times/availability of nix/docker/stack.yaml files being up to date - and managing multiple versions of instructions (for now).</p>
-<p>Note that the instructions are mainly focused around building Cardano components and OS/thirdparty software (eg: postgres) setup instructions are intended to provide build level information only.</p>
-<p>Ofcourse, we can always add links with specific best practices to those instructions - for those who would like to contribute, please open a PR directly on the <a href="https://github.com/cardano-community/guild-operators/tree/master/docs">github repo</a> to do so.</p>
 <h3><a class="header" href="#building-cardano-node-and-cardano-cli" id="building-cardano-node-and-cardano-cli">Building Cardano Node and Cardano CLI</a></h3>
 <h4><a class="header" href="#pre-requisites" id="pre-requisites">Pre-Requisites</a></h4>
 <h5><a class="header" href="#system-packages" id="system-packages">System Packages</a></h5>
@@ -335,7 +349,7 @@ scripts/postgresql-setup.sh --createdb
 <pre><code class="language-bash">cd ~/git/cardano-db-sync
 PGPASSFILE=/opt/cardano/cnode/priv/files/.pgpass cardano-db-sync --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/pbft_node.socket --schema-dir schema/
 </code></pre>
-<p>You can use same instructions above to repeat and execute <code>cardano-db-sync-extended</code> as well.</p>
+<p>You can use same instructions above to repeat and execute <code>cardano-db-sync</code> as well, but <a href="./graphql.html">cardano-graphql</a> uses <code>cardano-db-sync-extended</code>, so we'll stick to it</p>
 <h4><a class="header" href="#validation" id="validation">Validation</a></h4>
 <p>To validate, connect to postgres instance and execute commands as per below:</p>
 <pre><code class="language-bash">export PGPASSFILE=/opt/cardano/cnode/priv/files/.pgpass
@@ -375,7 +389,75 @@ select * from tx;
 <h3><a class="header" href="#rest" id="rest">REST</a></h3>
 <p>&lt; Coming Soon .. &gt;</p>
 <h3><a class="header" href="#graphql" id="graphql">GraphQL</a></h3>
-<p>&lt; Coming Soon .. &gt;</p>
+<h4><a class="header" href="#pre-requisites-1" id="pre-requisites-1">Pre-Requisites</a></h4>
+<p>Execute the below to set up yarn and dependencies</p>
+<pre><code class="language-bash">curl --silent --location https://dl.yarnpkg.com/rpm/yarn.repo | sudo tee /etc/yum.repos.d/yarn.repo
+sudo rpm --import https://dl.yarnpkg.com/rpm/pubkey.gpg
+sudo yum -y install yarn python3 make gcc-c++
+</code></pre>
+<p>Going with the spirit of the documentation here, instruction to build the graphql-engine binary :)</p>
+<pre><code class="language-bash">cd ~/git
+git clone https://github.com/hasura/graphql-engine
+cd graphql-engine/server
+cabal build all
+cp dist-newstyle/build/x86_64-linux/ghc-8.6.5/graphql-engine-1.0.0/x/graphql-engine/opt/build/graphql-engine/graphql-engine ~/.local/bin
+</code></pre>
+<h4><a class="header" href="#build-cardano-graphql" id="build-cardano-graphql">Build cardano-graphql</a></h4>
+<p>The command below will help you compile the cardano-graphql node:</p>
+<pre><code class="language-bash">git clone https://github.com/input-output-hk/cardano-graphql
+cd cardano-graphql
+yarn
+#yarn install v1.22.4
+# [1/4] Resolving packages...
+# [2/4] Fetching packages...
+# info fsevents@2.1.2: The platform &quot;linux&quot; is incompatible with this module.
+# info &quot;fsevents@2.1.2&quot; is an optional dependency and failed compatibility check. Excluding it from installation.
+# info fsevents@1.2.12: The platform &quot;linux&quot; is incompatible with this module.
+# info &quot;fsevents@1.2.12&quot; is an optional dependency and failed compatibility check. Excluding it from installation.
+# [3/4] Linking dependencies...
+# warning &quot; &gt; graphql-type-datetime@0.2.4&quot; has incorrect peer dependency &quot;graphql@^0.13.2&quot;.
+# warning &quot; &gt; @typescript-eslint/eslint-plugin@1.13.0&quot; has incorrect peer dependency &quot;eslint@^5.0.0&quot;.
+# warning &quot; &gt; @typescript-eslint/parser@1.13.0&quot; has incorrect peer dependency &quot;eslint@^5.0.0&quot;.
+# [4/4] Building fresh packages...
+# Done in 20.70s.
+yarn build
+# yarn run v1.22.4
+# $ yarn codegen:internal &amp;&amp; yarn codegen:external &amp;&amp; tsc -p . &amp;&amp; shx cp src/schema.graphql dist/
+# $ graphql-codegen
+#   ✔ Parse configuration
+#   ✔ Generate outputs
+# $ graphql-codegen --config ./codegen.external.yml
+#   ✔ Parse configuration
+#   ✔ Generate outputs
+# Done in 38.11s.
+cd dist
+rsync -arvh ../node_modules ./
+</code></pre>
+<h4><a class="header" href="#set-up-environment-for-cardano-graphql" id="set-up-environment-for-cardano-graphql">Set up environment for cardano-graphql</a></h4>
+<p>cardano-graphql requires cardano-node, cardano-db-sync-extended, postgresql and graphql-engine to be set up and running.
+The below will help you map the components:</p>
+<pre><code class="language-bash"># TODO: Improve and script the below
+export CNODE_HOME=/opt/cardano/cnode
+export PGPASSFILE=$CNODE_HOME/priv/.pgpass
+PGPASS=$(cat $PGPASSFILE)
+PG_HOST=$(echo $PGPASS | cut -d: -f 1)
+PG_PORT=$(echo $PGPASS | cut -d: -f 2)
+PG_DB=$(echo $PGPASS | cut -d: -f 3)
+PG_USER=$(echo $PGPASS | cut -d: -f 4)
+PG_PWD=$(echo $PGPASS | cut -d: -f 5)
+export NETWORK=phtn
+export EXTENDED=true
+export HASURA_GRAPHQL_DATABASE_URL=postgres://$PG_USER:$PG_PWD@PG_HOST:$PG_PORT/$PG_DB)
+export HASURA_GRAPHQL_ENABLE_CONSOLE=true
+export HASURA_GRAPHQL_ENABLED_LOG_TYPES=&quot;startup, http-log, webhook-log, websocket-log, query-log&quot;
+export HASURA_GRAPHQL_SERVER_PORT=4080
+export HASURA_GRAPHQL_SERVER_HOST=0.0.0.0
+export CACHE_ENABLED=true
+export HASURA_URI=http://127.0.0.1:4080/v1/graphql
+cd -;cd ~/git/cardano-graphql/dist
+graphql-engine serve
+node index.js
+</code></pre>
 <h3><a class="header" href="#config-for-phtn---as-a-bft-member" id="config-for-phtn---as-a-bft-member">Config for pHTN - as a BFT Member</a></h3>
 <p>Use this guide only if you already have your key (referred to as pbft0.key below) that's already registered in genesis.</p>
 <h4><a class="header" href="#create-verification-key" id="create-verification-key">Create verification key</a></h4>
