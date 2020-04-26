@@ -82,9 +82,27 @@
         "valency":1
      },
      {
-        "operator":"eysteinh",
+        "operator":"eysteinh@anplaptop",
         "addr":"89.162.104.95",
-        "port":8002,
+        "port":9002,
+        "valency":1
+     },
+     {
+        "operator":"eysteinh@anpserver2",
+        "addr":"89.162.104.95",
+        "port":9003,
+        "valency":1
+     },
+     {
+        "operator":"eysteinh@anpserver2",
+        "addr":"89.162.104.95",
+        "port":9004,
+        "valency":1
+     },
+     {
+        "operator":"eysteinh@anpserver2",
+        "addr":"89.162.104.95",
+        "port":9005,
         "valency":1
      },
      {
