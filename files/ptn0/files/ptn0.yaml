@@ -99,7 +99,7 @@ TurnOnLogMetrics: False
 SocketPath: /opt/cardano/cnode/sockets/pbft_node.socket
 
 ## For cardano-dbsync-tool
-GenesisHash: a4070e675c204b4e065ca2d81661cf0e4e502170b01cc47adc42b918a9841da7 
+GenesisHash: 998c4e62dec1917bbe35fb888df7cb5a740362d365b156cfe119cfcde705a504
 EnableLogMetrics: False
 EnableLogging: False
 

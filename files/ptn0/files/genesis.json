@@ -202,7 +202,7 @@
             "4e4a71206d8b6d676a14853584334b31ad96901d24d9ab5b22dafc452619d3c2ec1bc5d5cc272d60a03325442c6bfcc662b721d6eb6392f8320fa9ae5c77820a"
         }
     }
-, "startTime": 1586699737
+, "startTime": 1587880915
 , "nonAvvmBalances":
     { "2cWKMJemoBahBKKpdXfVFWd5DizWSugFSCZ13dtFGo1BVrg6RwvMrSRBUTYJMrDqLfPBz":
         "62499975000000"
@@ -249,7 +249,7 @@
     }
 , "blockVersionData":
     { "scriptVersion": 0
-    , "slotDuration": "20000"
+    , "slotDuration": "10000"
     , "maxBlockSize": "2000000"
     , "maxHeaderSize": "2000000"
     , "maxTxSize": "4096"
@@ -268,7 +268,7 @@
         { "summand": "155381000000000" , "multiplier": "43000000000" }
     , "unlockStakeEpoch": "18446744073709551615"
     }
-, "protocolConsts": { "k": 43200 , "protocolMagic": 459045235 }
+, "protocolConsts": { "k": 200 , "protocolMagic": 459045235 }
 , "avvmDistr":
     { "osYScyN8YhLAZ3hcsCpCgnPw8cHjPI7UtYYuTp6yr3Y=": "1000000000" }
 }
