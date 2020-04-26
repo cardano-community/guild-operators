@@ -206,12 +206,12 @@ scripts/postgresql-setup.sh --createdb
 </code></pre>
 <h4><a class="header" href="#start-cardano-db-sync-tool" id="start-cardano-db-sync-tool">Start cardano-db-sync-tool</a></h4>
 <pre><code class="language-bash">cd ~/git/cardano-db-sync
-PGPASSFILE=/opt/cardano/cnode/priv/files/.pgpass cardano-db-sync --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/pbft_node.socket --schema-dir schema/
+PGPASSFILE=/opt/cardano/cnode/priv/.pgpass cardano-db-sync --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/pbft_node.socket --schema-dir schema/
 </code></pre>
 <p>You can use same instructions above to repeat and execute <code>cardano-db-sync</code> as well, but <a href="./graphql.html">cardano-graphql</a> uses <code>cardano-db-sync-extended</code>, so we'll stick to it</p>
 <h4><a class="header" href="#validation" id="validation">Validation</a></h4>
 <p>To validate, connect to postgres instance and execute commands as per below:</p>
-<pre><code class="language-bash">export PGPASSFILE=/opt/cardano/cnode/priv/files/.pgpass
+<pre><code class="language-bash">export PGPASSFILE=/opt/cardano/cnode/priv/.pgpass
 psql cexplorer_phtn
 </code></pre>
 <p>You should be at the psql prompt, you can check the tables and verify they're populated:</p>
