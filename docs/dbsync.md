@@ -70,7 +70,7 @@ scripts/postgresql-setup.sh --createdb
 #### Start cardano-db-sync-tool
 ``` bash
 cd ~/git/cardano-db-sync
-PGPASSFILE=/opt/cardano/cnode/priv/files/.pgpass cardano-db-sync --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/pbft_node.socket --schema-dir schema/
+PGPASSFILE=/opt/cardano/cnode/priv/.pgpass cardano-db-sync --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/pbft_node.socket --schema-dir schema/
 ```
 
 You can use same instructions above to repeat and execute `cardano-db-sync` as well, but [cardano-graphql](./graphql.md) uses `cardano-db-sync-extended`, so we'll stick to it
@@ -80,7 +80,7 @@ You can use same instructions above to repeat and execute `cardano-db-sync` as w
 To validate, connect to postgres instance and execute commands as per below:
 
 ``` bash
-export PGPASSFILE=/opt/cardano/cnode/priv/files/.pgpass
+export PGPASSFILE=/opt/cardano/cnode/priv/.pgpass
 psql cexplorer_phtn
 ```
 
