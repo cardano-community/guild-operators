@@ -111,6 +111,13 @@
         "addr":"89.47.167.155",
         "port":9000,
         "valency":1
+     },
+     {
+        "operator": "rcourtman",
+        "node":"rcourtman",
+        "addr": "165.22.71.172",
+        "port": 9000,
+        "valency": 1
      }
   ]
 }
