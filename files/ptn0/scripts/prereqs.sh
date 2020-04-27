@@ -23,7 +23,7 @@ elif [ -z "${OS_ID##*rhel*}" ]; then
   curl --silent --location https://dl.yarnpkg.com/rpm/yarn.repo | sudo tee /etc/yum.repos.d/yarn.repo
   sudo rpm --import https://dl.yarnpkg.com/rpm/pubkey.gpg
   sudo yum update
-  sudo yum -y install python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs systemd-devel zlib-devel npm yarn make gcc-c++ tmux git wget
+  sudo yum -y install python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs systemd-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq
   if [ -f /usr/lib64/libtinfo.so ] && [ -f /usr/lib64/libtinfo.so.5 ]; then
     echo "ncurse libs already set up, skipping symlink.."
   else
