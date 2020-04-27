@@ -15,7 +15,7 @@ if [ -z "${OS_ID##*debian*}" ]; then
   curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
   echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
   sudo apt-get update
-  sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make gcc-c++ tmux git wget
+  sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make gcc-c++ tmux git jq wget
 elif [ -z "${OS_ID##*rhel*}" ]; then
   #CentOS/RHEL/Fedora
   echo "USING yum to prepare packages for ${DISTRO} system"
