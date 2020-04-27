@@ -2,10 +2,11 @@
 
 - [Getting Started](./Home.md)
   - [Build and Run](./Build-and-Run.md)
-    - [Common](./Folder-structure.md)
+    - [Common](./Common.md)
     - [Node and CLI](./node-cli.md)
+    - [Wallet](./wallet.md)
+    - [REST](./rest.md)
     - [DBSync tool](./dbsync.md)
-    - [REST - TBD](./rest.md)
     - [GraphQL](./graphql.md)
   - [Set up and connect to the network as BFT leader](./Setup-BFT-Member.md)
   - [Set up and connect to the network as a passive member](./Setup-Passive-Member.md)
@@ -13,4 +14,6 @@
     - [Create Keys/Address](./createAddr.md)
     - [Make Transactions](./sendADA.md)
 
+- [Appendix](./Home.md)
+  - [Sample Postgres Setup](postgres.md)
 - [Contributors](./Contributors.md)
