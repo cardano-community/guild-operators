@@ -81,7 +81,9 @@ curl https://raw.githubusercontent.com/cardano-community/guild-operators/master/
 cd $CNODE_HOME/scripts || return
 curl -o env https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
 curl -o sendADA.sh https://github.com/cardano-community/guild-operators/blob/master/scripts/cnode-helper-scripts/sendADA.sh
+chmod 755 sendADA.sh
 curl -o cnode.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/cnode.sh.templ
+chmod 755 cnode.sh
 # If you opt for an alternate CNODE_HOME, please run the below:
 # sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" *.sh
 cd - || return
