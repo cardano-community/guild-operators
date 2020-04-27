@@ -84,7 +84,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Folder-structure.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="rest.html">REST - TBD</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html" class="active">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Common.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="rest.html">REST</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html" class="active">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="postgres.html">Sample Postgres Setup</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -155,19 +155,7 @@
                 <div id="content" class="content">
                     <main>
                         <h3><a class="header" href="#collection-of-value-added-scripts" id="collection-of-value-added-scripts">Collection of Value-added scripts</a></h3>
-<p>A place to collect scripts that are supposed to help with usage of Cardano-node. The initial attempt below is with an aim to keep things similar to the current jormungandr scripts' usage.</p>
-<h4><a class="header" href="#create-privat-key-and-corresponding-address-file" id="create-privat-key-and-corresponding-address-file">Create Privat key and corresponding address file</a></h4>
-<pre><code class="language-bash">cd $CNODE_HOME/scripts
-./createAddr.sh pbft1
-# Sample output to enter passphrase (can be left empty, you will need this passphrase to access the key if filled):
-# Enter password to encrypt 'pbft1':
-# Repeat to validate:
-</code></pre>
-<h4><a class="header" href="#create-and-submit-a-transaction-to-send-ada" id="create-and-submit-a-transaction-to-send-ada">Create and submit a transaction to send ADA</a></h4>
-<pre><code># Send ADA script usage
-cd $CNODE_HOME/scripts
-./sendADA.sh tx.out 2cWKMJemoBa....ssL7fzhq 20 $CNODE_HOME/priv/pbft0.key
-</code></pre>
+<p>A place to collect scripts that are supposed to help with usage of Cardano-node. The attempt with these scripts is to keep things similar to the popular jormungandr scripts that pool operators in ITN have been accustomed to. Use the navigation menu on the left to drill down to specific script.</p>
 
                     </main>
 

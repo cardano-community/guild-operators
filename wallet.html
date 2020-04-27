@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Common - Cardano Community managed Documentation for Pool Operators</title>
+        <title>Wallet - Cardano Community managed Documentation for Pool Operators</title>
         
 
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
@@ -84,7 +84,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Folder-structure.html" class="active">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="rest.html">REST - TBD</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Common.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="wallet.html" class="active">Wallet</a></li><li class="chapter-item expanded "><a href="rest.html">REST</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="postgres.html">Sample Postgres Setup</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -154,50 +154,94 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h3><a class="header" href="#folder-structure" id="folder-structure">Folder structure</a></h3>
-<p>The documentations here use the below as a reference folder.</p>
-<pre><code>/opt/cardano/cnode          # Top-Level Folder
-├── ...
-├── files                   # Config, genesis and topology files
-│   ├── ...
-│   ├── genesis.json        # Genesis file referenced in ptn0.yaml
-│   ├── ptn0.yaml           # Config file used by cardano-node
-│   └── inventory.json      # Map of Real-PBFT chain for cardano-node
-├── db                      # DB Store for cardano-node
-├── logs                    # Logs for cardano-node
-├── priv                    # Folder to store your keys (permission: 600)
-├── scripts                 # Scripts to start and interact with cardano-node
-├── sockets                 # Socket files created by cardano-node
-└── ...
+                        <h1><a class="header" href="#cardano-wallet" id="cardano-wallet">Cardano Wallet</a></h1>
+<p>Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
+<h4><a class="header" href="#build-instructions" id="build-instructions">Build Instructions</a></h4>
+<p>Follow instructions below for building the cardano-wallet binary:</p>
+<pre><code class="language-bash">cd ~/git
+git clone https://github.com/input-output-hk/cardano-wallet
+cd cardano-wallet
+stack build --test --no-run-tests
+# TODO: Replace stack with cabal, once fixed
+# 
 </code></pre>
-<p>You can create the above using sample commands below:</p>
-<pre><code class="language-bash">export CNODE_HOME=/opt/cardano/cnode
-sudo mkdir -p ${CNODE_HOME}/{files,db,logs,scripts,sockets,priv}
-sudo chown -R $USER:$USER $CNODE_HOME
-chmod -R 755 $CNODE_HOME
-
-mkdir ~/git # To hold git repositories that will be used for building binaries
-
-cd $CNODE_HOME/files
-
-curl -o ptn0.yaml https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0.yaml
-curl https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/genesis.json | jq '.' &gt; genesis.json
-curl https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/topology.json | jq '.' &gt; topology.json
-
-# If using a different CNODE_HOME than in this example, execute the below:
-# sed -i -e &quot;s#/opt/cardano/cnode#${CNODE_HOME}#&quot; $CNODE_HOME/files/ptn0.yaml
-## For future use:
-## It generates random NodeID:
-## -e &quot;s#NodeId:.*#NodeId:`od -A n -t u8 -N 8 /dev/urandom`#&quot; \
-
-cd -
-cd $CNODE_HOME/scripts
-curl -o env https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
-curl -o sendADA.sh https://github.com/cardano-community/guild-operators/blob/master/scripts/cnode-helper-scripts/sendADA.sh
-curl -o cnode.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/cnode.sh.templ
-# If you opt for an alternate CNODE_HOME, please run the below:
-# sed -i -e &quot;s#/opt/cardano/cnode#${CNODE_HOME}#&quot; *.sh
-cd -
+<p>The binaries should now be available in ~/.cabal/bin folder.</p>
+<h4><a class="header" href="#start-the-wallet-server" id="start-the-wallet-server">Start the wallet server</a></h4>
+<pre><code class="language-bash">cardano-wallet-byron serve --node-socket $CNODE_HOME/sockets/pbft_node.socket --testnet $CNODE_HOME/files/genesis.json --database $CNODE_HOME/priv/wallet
+</code></pre>
+<h4><a class="header" href="#verify-the-wallet-is-handling-requests" id="verify-the-wallet-is-handling-requests">Verify the wallet is handling requests</a></h4>
+<pre><code class="language-bash">cardano-wallet-byron network information
+</code></pre>
+<p>Expected output should be similar to the following</p>
+<pre><code class="language-json">Ok.
+{
+    &quot;network_tip&quot;: {
+        &quot;epoch_number&quot;: 4,
+        &quot;slot_number&quot;: 730
+    },
+    &quot;node_tip&quot;: {
+        &quot;height&quot;: {
+            &quot;quantity&quot;: 2390,
+            &quot;unit&quot;: &quot;block&quot;
+        },
+        &quot;epoch_number&quot;: 4,
+        &quot;slot_number&quot;: 728
+    },
+    &quot;sync_progress&quot;: {
+        &quot;status&quot;: &quot;ready&quot;
+    },
+    &quot;next_epoch&quot;: {
+        &quot;epoch_start_time&quot;: &quot;2020-04-27T09:48:35Z&quot;,
+        &quot;epoch_number&quot;: 5
+    }
+}
+</code></pre>
+<h4><a class="header" href="#create-a-new-wallet" id="create-a-new-wallet">Create a new wallet</a></h4>
+<h5><a class="header" href="#first-generate-a-mnemonic-phrase" id="first-generate-a-mnemonic-phrase">First generate a mnemonic phrase</a></h5>
+<pre><code class="language-bash">cardano-wallet-byron mnemonic generate
+# false brother typical saddle settle phrase foster sauce ask sunset firm gate service render burger
+</code></pre>
+<h5><a class="header" href="#generate-a-new-byron-wallet-from-your-mnemonic-phrase" id="generate-a-new-byron-wallet-from-your-mnemonic-phrase">Generate a new byron wallet from your mnemonic phrase</a></h5>
+<pre><code class="language-bash">cardano-wallet-byron wallet create from-mnemonic --wallet-style icarus &quot;Guild Test Wallet&quot;
+</code></pre>
+<h5><a class="header" href="#expected-output" id="expected-output">Expected output:</a></h5>
+<pre><code class="language-text">Please enter 15 mnemonic words : false brother typical saddle settle phrase foster sauce ask sunset firm gate service render burger
+Please enter a passphrase: ******************
+Enter the passphrase a second time: ******************
+Ok.
+{
+    &quot;passphrase&quot;: {
+        &quot;last_updated_at&quot;: &quot;2020-04-27T06:35:19.48354187Z&quot;
+    },
+    &quot;state&quot;: {
+        &quot;status&quot;: &quot;syncing&quot;,
+        &quot;progress&quot;: {
+            &quot;quantity&quot;: 0,
+            &quot;unit&quot;: &quot;percent&quot;
+        }
+    },
+    &quot;discovery&quot;: &quot;sequential&quot;,
+    &quot;balance&quot;: {
+        &quot;total&quot;: {
+            &quot;quantity&quot;: 0,
+            &quot;unit&quot;: &quot;lovelace&quot;
+        },
+        &quot;available&quot;: {
+            &quot;quantity&quot;: 0,
+            &quot;unit&quot;: &quot;lovelace&quot;
+        }
+    },
+    &quot;name&quot;: &quot;Guild Test Wallet&quot;,
+    &quot;id&quot;: &quot;0854da56dd00ae2099a499303681826506527ac7&quot;,
+    &quot;tip&quot;: {
+        &quot;height&quot;: {
+            &quot;quantity&quot;: 0,
+            &quot;unit&quot;: &quot;block&quot;
+        },
+        &quot;epoch_number&quot;: 0,
+        &quot;slot_number&quot;: 0
+    }
+}
 </code></pre>
 
                     </main>
@@ -205,13 +249,13 @@ cd -
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
                         
-                            <a rel="prev" href="Build-and-Run.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="node-cli.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
                         
 
                         
-                            <a rel="next" href="node-cli.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="rest.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
                         
@@ -223,13 +267,13 @@ cd -
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
                 
-                    <a rel="prev" href="Build-and-Run.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="node-cli.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
                 
 
                 
-                    <a rel="next" href="node-cli.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next" href="rest.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
                 

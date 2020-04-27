@@ -86,7 +86,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Folder-structure.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="rest.html">REST - TBD</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Common.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="rest.html">REST</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="postgres.html">Sample Postgres Setup</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -162,7 +162,7 @@
 <h4><a class="header" href="#getting-started-with-haskell-node" id="getting-started-with-haskell-node">Getting started with Haskell Node</a></h4>
 <p>Use the sidebar to navigate through the topics. Note that the instructions assume the folder structure as per Next topic, you're expected to update the folder reference as per your environment.
 Also, since you cannot run a Praos node yet, the instructions here-in allow you to join a private haskell testnet network (phtn), we will gradually update to Praos version and update the phtn references.</p>
-<p><em>Note that currently the codebase cardano-node is using permissive oBFT consensus. While we would like to onboard new features as they're built for Shelley (which will be hybrid of oBFT nodes run by bootstrap entities and Praos nodes by stakepool operators) codebase, its best to set your expectation accordingly. In the current state, this serves as a useful means to get familiar with modular architecture and usage.</em></p>
+<p><em>Note that current version of documentation connects you to cardano-node, which is stable for using permissive oBFT consensus - the shelley (Praos) codebase is not yet in a state where we can run a network from it. While we would like to onboard new features as they're built for Shelley (which will be hybrid of oBFT nodes run by bootstrap entities and Praos nodes by stakepool operators) codebase, its best to set your expectation accordingly. In the current state, this serves as a useful means to get familiar with modular architecture and usage.</em></p>
 <h3><a class="header" href="#build-and-run" id="build-and-run">Build and Run</a></h3>
 <p>This document is built using instructions from <a href="https://github.com/input-output-hk">IOHK repositories</a> as base with additional info/clarification, which we can propose to add if it makes sense.</p>
 <p><strong>The instructions are intentionally limited to cabal</strong> to avoid wait times/availability of nix/docker/stack.yaml files on what we expect to be rapidly developing codebase - this will also help prevent managing multiple versions of instructions (atleast for now).</p>
@@ -182,8 +182,18 @@ sudo chkconfig docker on
 # sudo usermod -aG docker $USER
 sudo curl -L &quot;https://github.com/docker/compose/releases/download/1.25.5/docker-compose-$(uname -s)-$(uname -m)&quot; -o /usr/bin/docker-compose;chmod 755 /usr/bin/docker-compose
 </code></pre>
-<h3><a class="header" href="#folder-structure" id="folder-structure">Folder structure</a></h3>
-<p>The documentations here use the below as a reference folder.</p>
+<h3><a class="header" href="#pre-requisites" id="pre-requisites">Pre-Requisites</a></h3>
+<h4><a class="header" href="#dependencies-and-folder-structure-setup" id="dependencies-and-folder-structure-setup">Dependencies and Folder Structure setup</a></h4>
+<p>The pre-requisites for Linux systems are automated to be executed as a single script. Follow the instructions below to deploy the same:</p>
+<pre><code class="language-bash">mkdir &quot;~/tmp&quot;;cd &quot;~/tmp&quot;
+wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/prereqs.sh
+chmod 755 https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/prereqs.sh
+# Ensure you can run sudo commands with your user before execution
+./prereqs.sh
+## Follow the prompts for execution
+</code></pre>
+<h4><a class="header" href="#folder-structure" id="folder-structure">Folder structure</a></h4>
+<p>Running the script above will create the folder structure as per below, for your reference.</p>
 <pre><code>/opt/cardano/cnode          # Top-Level Folder
 ├── ...
 ├── files                   # Config, genesis and topology files
@@ -198,90 +208,20 @@ sudo curl -L &quot;https://github.com/docker/compose/releases/download/1.25.5/do
 ├── sockets                 # Socket files created by cardano-node
 └── ...
 </code></pre>
-<p>You can create the above using sample commands below:</p>
-<pre><code class="language-bash">export CNODE_HOME=/opt/cardano/cnode
-sudo mkdir -p ${CNODE_HOME}/{files,db,logs,scripts,sockets,priv}
-sudo chown -R $USER:$USER $CNODE_HOME
-chmod -R 755 $CNODE_HOME
-
-mkdir ~/git # To hold git repositories that will be used for building binaries
-
-cd $CNODE_HOME/files
-
-curl -o ptn0.yaml https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0.yaml
-curl https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/genesis.json | jq '.' &gt; genesis.json
-curl https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/topology.json | jq '.' &gt; topology.json
-
-# If using a different CNODE_HOME than in this example, execute the below:
-# sed -i -e &quot;s#/opt/cardano/cnode#${CNODE_HOME}#&quot; $CNODE_HOME/files/ptn0.yaml
-## For future use:
-## It generates random NodeID:
-## -e &quot;s#NodeId:.*#NodeId:`od -A n -t u8 -N 8 /dev/urandom`#&quot; \
-
-cd -
-cd $CNODE_HOME/scripts
-curl -o env https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
-curl -o sendADA.sh https://github.com/cardano-community/guild-operators/blob/master/scripts/cnode-helper-scripts/sendADA.sh
-curl -o cnode.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/cnode.sh.templ
-# If you opt for an alternate CNODE_HOME, please run the below:
-# sed -i -e &quot;s#/opt/cardano/cnode#${CNODE_HOME}#&quot; *.sh
-cd -
-</code></pre>
-<h3><a class="header" href="#building-cardano-node-and-cardano-cli" id="building-cardano-node-and-cardano-cli">Building Cardano Node and Cardano CLI</a></h3>
-<h4><a class="header" href="#pre-requisites" id="pre-requisites">Pre-Requisites</a></h4>
-<h5><a class="header" href="#system-packages" id="system-packages">System Packages</a></h5>
-<p>The Haskell cardano-node build requires the following dependency packages to be available to the system:</p>
-<p><strong>Tip</strong>: The steps described individually below can be executed with the two scripts &quot;<a href="https://github.com/cardano-community/guild-operators/blob/master/files/ptn0/scripts/cabal-prepare.sh">cabal_prepare</a>&quot; and &quot;<a href="https://github.com/cardano-community/guild-operators/blob/master/files/ptn0/scripts/cabal-build-all-install.sh">build-all-install</a>&quot;. (<em>prepare</em> automatically recognizes Debian/Ubuntu or CentOS)</p>
-<p>The instructions for <strong>Debian and Ubuntu</strong> are identical.</p>
-<pre><code class="language-bash">sudo apt-get update
-sudo apt-get -y install curl build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev tmux git
-</code></pre>
-<p>If you're using <strong>CentOS</strong>, the corresponding packages will be:</p>
-<pre><code class="language-bash">sudo yum update
-sudo yum -y install curl pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs systemd-devel zlib-devel tmux git
-# You might need to create a symlink to /usr/lib64/libtinfo.so as per below if one does not already exist
-# sudo ln -s $(ls -1 /usr/lib64/libtinfo.so* | tail -1) /usr/lib64/libtinfo.so
-# sudo ln -s $(ls -1 /usr/lib64/libtinfo.so* | tail -1) /usr/lib64/libtinfo.so.5
-</code></pre>
-<h4><a class="header" href="#ghc-and-cabal" id="ghc-and-cabal">GHC and Cabal</a></h4>
-<p>The node depends on very specific versions of <a href="https://www.haskell.org/ghcup/">GHC 8.6.5</a> and [Cabal 3.0].
-The best way to get them is with the Haskell Installer tool [ghcup].</p>
-<pre><code class="language-bash">mkdir ~/tmp;cd ~/tmp
-curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
-
-# confirm by pressing ENTER twice and type YES at the end to add ghcup to your PATH variable.
-
-source ~/.ghcup/env
-</code></pre>
-<p>Now install and activate the required GHC version</p>
-<pre><code class="language-bash">ghcup install 8.6.5
-ghcup set 8.6.5
-ghc --version
-</code></pre>
-<p>To download and install cabal specific release, follow instructions below:</p>
-<pre><code class="language-bash">wget https://downloads.haskell.org/cabal/cabal-install-3.0.0.0/cabal-install-3.0.0.0-x86_64-unknown-linux.tar.xz
-tar xf cabal-install-3.0.0.0-x86_64-unknown-linux.tar.xz
-cp cabal ~/.ghcup/bin
-cd -
-</code></pre>
+<h3><a class="header" href="#cardano-node-and-cardano-cli" id="cardano-node-and-cardano-cli">Cardano Node and Cardano CLI</a></h3>
+<p>Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
 <h4><a class="header" href="#build-instructions" id="build-instructions">Build Instructions</a></h4>
-<p>Now that the dependencies have been met, we can start setting up the node.
-Start by cloning the Cardano Node git to build the binaries:</p>
+<p>Run the commands below to clone the Cardano Node git repository and build the binaries:</p>
 <pre><code class="language-bash">cd ~/git
 git clone https://github.com/input-output-hk/cardano-node
 cd cardano-node
-cabal build all | tee build.log | grep ^Linking
+$CNODE_HOME/scripts/cabal-build-all.sh
 </code></pre>
-<p>Now you can copy the binaries build (using location above) into ~/.local/bin folder (when part of the PATH variable).</p>
-<pre><code>cardano-node
-cardano-cli
-chairman
-</code></pre>
-<p>For example for cardano-cli 1.10.1 it is <code>~/git/cardano-node/dist-newstyle/build/x86_64-linux/ghc-8.6.5/cardano-node-1.10.1/x/cardano-cli/build/cardano-cli/cardano-cli</code></p>
+<p>The above would copy the binaries built into ~/.cabal/bin folder.</p>
 <h4><a class="header" href="#verify" id="verify">Verify</a></h4>
 <p>Execute cardano-cli and cardano-node to verify output as below:</p>
 <pre><code class="language-bash">cardano-cli version
-# cardano-cli 1.10.1 - linux-x86_64 - ghc-8.6
+# cardano-cli 1.11.0 - linux-x86_64 - ghc-8.6
 cardano-node
 #Usage: cardano-node (run | run-mock) [--help]
 #  Start node of the Cardano blockchain.
@@ -295,47 +235,129 @@ cardano-node
 #Execute node with a mock protocol.
 #  run-mock                 Execute node with a mock protocol.
 </code></pre>
-<h3><a class="header" href="#dbsync-tool" id="dbsync-tool">DBSync tool</a></h3>
-<p>Cardano DB Sync tool relies on an existing PostgreSQL server.</p>
-<h4><a class="header" href="#sample-local-postgresql-server-deployment-instructions" id="sample-local-postgresql-server-deployment-instructions">Sample Local PostgreSQL Server Deployment instructions</a></h4>
-<p>These are sample PostgreSQL server deployment instructions used for reference while building Cardano DB Sync tool. These do not go into Best practices for deploying a secured instance, we would recommend you to customise the same as per your needs.</p>
-<pre><code class="language-bash"># TODO: Add debian/Ubuntu specific commands
-sudo yum install -y postgresql-server postgresql-server-devel postgresql-contrib postgresql-devel
-sudo postgresql-setup initdb
-# TODO: For consistency on this page, edit /var/lib/pgsql/data/pg_hba.conf to replace ident with md5 for localhost and 127.0.0.1 (except lines with replication)
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
+<h1><a class="header" href="#cardano-wallet" id="cardano-wallet">Cardano Wallet</a></h1>
+<p>Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
+<h4><a class="header" href="#build-instructions-1" id="build-instructions-1">Build Instructions</a></h4>
+<p>Follow instructions below for building the cardano-wallet binary:</p>
+<pre><code class="language-bash">cd ~/git
+git clone https://github.com/input-output-hk/cardano-wallet
+cd cardano-wallet
+stack build --test --no-run-tests
+# TODO: Replace stack with cabal, once fixed
+# 
 </code></pre>
-<p>This page assumes you've already set up cardano-noe and have the OS level dependencies satisfied.</p>
+<p>The binaries should now be available in ~/.cabal/bin folder.</p>
+<h4><a class="header" href="#start-the-wallet-server" id="start-the-wallet-server">Start the wallet server</a></h4>
+<pre><code class="language-bash">cardano-wallet-byron serve --node-socket $CNODE_HOME/sockets/pbft_node.socket --testnet $CNODE_HOME/files/genesis.json --database $CNODE_HOME/priv/wallet
+</code></pre>
+<h4><a class="header" href="#verify-the-wallet-is-handling-requests" id="verify-the-wallet-is-handling-requests">Verify the wallet is handling requests</a></h4>
+<pre><code class="language-bash">cardano-wallet-byron network information
+</code></pre>
+<p>Expected output should be similar to the following</p>
+<pre><code class="language-json">Ok.
+{
+    &quot;network_tip&quot;: {
+        &quot;epoch_number&quot;: 4,
+        &quot;slot_number&quot;: 730
+    },
+    &quot;node_tip&quot;: {
+        &quot;height&quot;: {
+            &quot;quantity&quot;: 2390,
+            &quot;unit&quot;: &quot;block&quot;
+        },
+        &quot;epoch_number&quot;: 4,
+        &quot;slot_number&quot;: 728
+    },
+    &quot;sync_progress&quot;: {
+        &quot;status&quot;: &quot;ready&quot;
+    },
+    &quot;next_epoch&quot;: {
+        &quot;epoch_start_time&quot;: &quot;2020-04-27T09:48:35Z&quot;,
+        &quot;epoch_number&quot;: 5
+    }
+}
+</code></pre>
+<h4><a class="header" href="#create-a-new-wallet" id="create-a-new-wallet">Create a new wallet</a></h4>
+<h5><a class="header" href="#first-generate-a-mnemonic-phrase" id="first-generate-a-mnemonic-phrase">First generate a mnemonic phrase</a></h5>
+<pre><code class="language-bash">cardano-wallet-byron mnemonic generate
+# false brother typical saddle settle phrase foster sauce ask sunset firm gate service render burger
+</code></pre>
+<h5><a class="header" href="#generate-a-new-byron-wallet-from-your-mnemonic-phrase" id="generate-a-new-byron-wallet-from-your-mnemonic-phrase">Generate a new byron wallet from your mnemonic phrase</a></h5>
+<pre><code class="language-bash">cardano-wallet-byron wallet create from-mnemonic --wallet-style icarus &quot;Guild Test Wallet&quot;
+</code></pre>
+<h5><a class="header" href="#expected-output" id="expected-output">Expected output:</a></h5>
+<pre><code class="language-text">Please enter 15 mnemonic words : false brother typical saddle settle phrase foster sauce ask sunset firm gate service render burger
+Please enter a passphrase: ******************
+Enter the passphrase a second time: ******************
+Ok.
+{
+    &quot;passphrase&quot;: {
+        &quot;last_updated_at&quot;: &quot;2020-04-27T06:35:19.48354187Z&quot;
+    },
+    &quot;state&quot;: {
+        &quot;status&quot;: &quot;syncing&quot;,
+        &quot;progress&quot;: {
+            &quot;quantity&quot;: 0,
+            &quot;unit&quot;: &quot;percent&quot;
+        }
+    },
+    &quot;discovery&quot;: &quot;sequential&quot;,
+    &quot;balance&quot;: {
+        &quot;total&quot;: {
+            &quot;quantity&quot;: 0,
+            &quot;unit&quot;: &quot;lovelace&quot;
+        },
+        &quot;available&quot;: {
+            &quot;quantity&quot;: 0,
+            &quot;unit&quot;: &quot;lovelace&quot;
+        }
+    },
+    &quot;name&quot;: &quot;Guild Test Wallet&quot;,
+    &quot;id&quot;: &quot;0854da56dd00ae2099a499303681826506527ac7&quot;,
+    &quot;tip&quot;: {
+        &quot;height&quot;: {
+            &quot;quantity&quot;: 0,
+            &quot;unit&quot;: &quot;block&quot;
+        },
+        &quot;epoch_number&quot;: 0,
+        &quot;slot_number&quot;: 0
+    }
+}
+</code></pre>
+<h3><a class="header" href="#cardano-rest" id="cardano-rest">Cardano Rest</a></h3>
+<p>Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
+<h4><a class="header" href="#build-instructions-2" id="build-instructions-2">Build Instructions</a></h4>
+<p>Clone the cardano-rest repository from github</p>
+<pre><code class="language-bash">cd ~/git
+git clone https://github.com/input-output-hk/cardano-rest.git
+cd cardano-rest
+$CNODE_HOME/scripts/cabal-build-all.sh
+</code></pre>
+<p>The above would copy the binaries into ~/.cabal/bin folder.</p>
+<h4><a class="header" href="#start-the-rest-server" id="start-the-rest-server">Start the REST server</a></h4>
+<p>Execute the below to start the Cardano Explorer API Server:</p>
+<pre><code class="language-bash">export PGPASSFILE=$CNODE_HOME/priv/.pgpass
+cardano-explorer-api
+# Running full server on http://localhost:8100/
+</code></pre>
+<h4><a class="header" href="#verify-the-rest-server-is-functioning" id="verify-the-rest-server-is-functioning">Verify the REST server is functioning</a></h4>
+<p>Verify that you can query the API Server using instruction below:</p>
+<pre><code class="language-bash">curl http://localhost:8100/api/blocks/pages
+</code></pre>
+<p>Expected output should be similar to the following:</p>
+<pre><code class="language-json">{&quot;Right&quot;:[261,[{&quot;cbeEpoch&quot;:4,&quot;cbeSlot&quot;:9345,&quot;cbeBlkHeight&quot;:2605,&quot;cbeBlkHash&quot;:&quot;9026612cfa53b7f8a84ff62c4e897830db9ab6ce24b19e0059f4b4db7a14c0f9&quot;,&quot;cbeTimeIssued&quot;:1587974365,&quot;cbeTxNum&quot;:0,&quot;cbeTotalSent&quot;:{&quot;getCoin&quot;:&quot;0&quot;},&quot;cbeSize&quot;:631,&quot;cbeBlockLead&quot;:&quot;464835a0904109be93d7996b9b4acc486f6c8f75a595b2c4392f9521&quot;,&quot;cbeFees&quot;:{&quot;getCoin&quot;:&quot;0&quot;}},{&quot;cbeEpoch&quot;:4,&quot;cbeSlot&quot;:9341,&quot;cbeBlkHeight&quot;:2604,&quot;cbeBlkHash&quot;:&quot;24000e2986bbfbfd610cb105d3697cce7582b8570469c4ff944b91d7dd0dc58f&quot;,&quot;cbeTimeIssued&quot;:1587974325,&quot;cbeTxNum&quot;:0,&quot;cbeTotalSent&quot;:{&quot;getCoin&quot;:&quot;0&quot;},&quot;cbeSize&quot;:631,&quot;cbeBlockLead&quot;:&quot;1ce88674d08d7813c5281e38e8a43b51550292f0bd8907b17a62eef2&quot;,&quot;cbeFees&quot;:{&quot;getCoin&quot;:&quot;0&quot;}},{&quot;cbeEpoch&quot;:4,&quot;cbeSlot&quot;:9338,&quot;cbeBlkHeight&quot;:2603,&quot;cbeBlkHash&quot;:&quot;5c2737421b223d1ab67f1046f8841d57d7f8456b77a841702fbb18bccf71a216&quot;,&quot;cbeTimeIssued&quot;:1587974295,&quot;cbeTxNum&quot;:0,&quot;cbeTotalSent&quot;:{&quot;getCoin&quot;:&quot;0&quot;},&quot;cbeSize&quot;:631,&quot;cbeBlockLead&quot;:&quot;f6a4cfa43cef5ebed8fbd0527153f9896d1f9dd83bd1d55e609d622b&quot;,&quot;cbeFees&quot;:{&quot;getCoin&quot;:&quot;0&quot;}},{&quot;cbeEpoch&quot;:4,&quot;cbeSlot&quot;:9333,&quot;cbeBlkHeight&quot;:2602,&quot;cbeBlkHash&quot;:&quot;496db1bc19d609687185e394cfcb8fa15e8df652c7dc40a58a347e30b9e4a25f&quot;,&quot;cbeTimeIssued&quot;:1587974245,&quot;cbeTxNum&quot;:0,&quot;cbeTotalSent&quot;:{&quot;getCoin&quot;:&quot;0&quot;},&quot;cbeSize&quot;:631,&quot;cbeBlockLead&quot;:&quot;a7cad2c48edecff1627bac50aab5fcc6831f6ab91131721269850805&quot;,&quot;cbeFees&quot;:{&quot;getCoin&quot;:&quot;0&quot;}},{&quot;cbeEpoch&quot;:4,&quot;cbeSlot&quot;:9332,&quot;cbeBlkHeight&quot;:2601,&quot;cbeBlkHash&quot;:&quot;8a837d43685dd350c6f1773b1ede7843d56d093a425ff4ccd799f7ff1b76204d&quot;,&quot;cbeTimeIssued&quot;:1587974235,&quot;cbeTxNum&quot;:0,&quot;cbeTotalSent&quot;:{&quot;getCoin&quot;:&quot;0&quot;},&quot;cbeSize&quot;:631,&quot;cbeBlockLead&quot;:&quot;a18aa0130f67053ed1cb346813054e160687a8ee7602a549f8ae165b&quot;,&quot;cbeFees&quot;:{&quot;getCoin&quot;:&quot;0&quot;}}]]}
+</code></pre>
+<h3><a class="header" href="#dbsync-tool" id="dbsync-tool">DBSync tool</a></h3>
+<p>Cardano DB Sync tool relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to <a href="postgres.html">Sample Local PostgreSQL Server Deployment instructions</a> for setting up Postgres instance.</p>
+<p>Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
 <h4><a class="header" href="#build-cardano-db-sync" id="build-cardano-db-sync">Build cardano-db-sync</a></h4>
 <p>To build instructions for cardano-db-sync tool will be similar to cardano-node:</p>
 <pre><code class="language-bash">cd ~/git
 git clone https://github.com/input-output-hk/cardano-db-sync
 cd cardano-db-sync
-cabal build all | tee build.log | grep ^Linking
+$CNODE_HOME/scripts/cabal-build-all.sh
 </code></pre>
-<p>Similar to before, you can copy the cardano-db-sync and cardano-db-sync-extended binary to your ~/.local/bin folder.</p>
-<h4><a class="header" href="#create-user-in-postgres" id="create-user-in-postgres">Create User in Postgres</a></h4>
-<p>Login to Postgres instance as superuser:</p>
-<pre><code class="language-bash">echo $(whoami)
-sudo su postgres
-psql
-</code></pre>
-<p>Execute the below in psql prompt. Replace <strong><username></strong> and <strong>PasswordYouWant</strong> with your OS user (output of <code>echo $(whoami)</code> command executed above) and a password you'd like to authenticate to Postgres with:</p>
-<pre><code class="language-sql">CREATE ROLE &lt;username&gt; superuser;
-CREATE USER &lt;username&gt;;
-GRANT ROOT TO &lt;username&gt;;
-ALTER USER &lt;username&gt; PASSWORD 'PasswordYouWant';
-\q
-</code></pre>
-<p>Type <code>exit</code> to return to your original user</p>
-<h4><a class="header" href="#verify-login-to-postgres-instance" id="verify-login-to-postgres-instance">Verify Login to postgres instance</a></h4>
-<pre><code class="language-bash">export PGPASSFILE=/opt/cardano/cnode/priv/.pgpass
-echo &quot;localhost:5432:cexplorer_phtn:$(whoami):PasswordYouWant&quot; &gt; $PGPASSFILE
-chmod 0600 /opt/cardano/cnode/priv/.pgpass
-psql -U $(whoami)
-## TODO: Sample output
-</code></pre>
+<p>Similar to before, <code>cardano-db-sync</code> and <code>cardano-db-sync-extended</code> should now be available in ~/.cabal/bin folder.</p>
 <h4><a class="header" href="#prepare-db-for-cardano-db-sync-" id="prepare-db-for-cardano-db-sync-">Prepare DB for cardano-db-sync :</a></h4>
 <pre><code class="language-bash">cd ~/git/cardano-db-sync
 # scripts/postgresql-setup.sh --dropdb #if exists already, will fail if it doesnt - thats OK
@@ -347,7 +369,7 @@ scripts/postgresql-setup.sh --createdb
 </code></pre>
 <h4><a class="header" href="#start-cardano-db-sync-tool" id="start-cardano-db-sync-tool">Start cardano-db-sync-tool</a></h4>
 <pre><code class="language-bash">cd ~/git/cardano-db-sync
-PGPASSFILE=/opt/cardano/cnode/priv/.pgpass cardano-db-sync --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/pbft_node.socket --schema-dir schema/
+PGPASSFILE=$CNODE_HOME/priv/.pgpass cardano-db-sync --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/pbft_node.socket --schema-dir schema/
 </code></pre>
 <p>You can use same instructions above to repeat and execute <code>cardano-db-sync</code> as well, but <a href="./graphql.html">cardano-graphql</a> uses <code>cardano-db-sync-extended</code>, so we'll stick to it</p>
 <h4><a class="header" href="#validation" id="validation">Validation</a></h4>
@@ -386,22 +408,16 @@ select * from tx;
 # ...
 # (36 rows)
 </code></pre>
-<h3><a class="header" href="#rest" id="rest">REST</a></h3>
-<p>&lt; Coming Soon .. &gt;</p>
 <h3><a class="header" href="#graphql" id="graphql">GraphQL</a></h3>
-<h4><a class="header" href="#pre-requisites-1" id="pre-requisites-1">Pre-Requisites</a></h4>
-<p>Execute the below to set up yarn and dependencies</p>
-<pre><code class="language-bash">curl --silent --location https://dl.yarnpkg.com/rpm/yarn.repo | sudo tee /etc/yum.repos.d/yarn.repo
-sudo rpm --import https://dl.yarnpkg.com/rpm/pubkey.gpg
-sudo yum -y install yarn npm python3 make gcc-c++
-</code></pre>
+<p>Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
+<h4><a class="header" href="#build-hasura-graphql-engine" id="build-hasura-graphql-engine">Build Hasura graphql-engine</a></h4>
 <p>Going with the spirit of the documentation here, instruction to build the graphql-engine binary :)</p>
 <pre><code class="language-bash">cd ~/git
 git clone https://github.com/hasura/graphql-engine
 cd graphql-engine/server
-cabal build all
-cp dist-newstyle/build/x86_64-linux/ghc-8.6.5/graphql-engine-1.0.0/x/graphql-engine/opt/build/graphql-engine/graphql-engine ~/.local/bin
+$CNODE_HOME/scripts/cabal-build-all.sh
 </code></pre>
+<p>This should make <code>graphql-engine</code> available at ~/.cabal/bin.</p>
 <h4><a class="header" href="#build-cardano-graphql" id="build-cardano-graphql">Build cardano-graphql</a></h4>
 <p>The command below will help you compile the cardano-graphql node:</p>
 <pre><code class="language-bash">git clone https://github.com/input-output-hk/cardano-graphql
@@ -436,17 +452,13 @@ rsync -arvh ../node_modules ./
 <h4><a class="header" href="#set-up-environment-for-cardano-graphql" id="set-up-environment-for-cardano-graphql">Set up environment for cardano-graphql</a></h4>
 <p>cardano-graphql requires cardano-node, cardano-db-sync-extended, postgresql and graphql-engine to be set up and running.
 The below will help you map the components:</p>
-<pre><code class="language-bash"># TODO: Improve and script the below
-export CNODE_HOME=/opt/cardano/cnode
-export PGPASSFILE=$CNODE_HOME/priv/.pgpass
+<pre><code class="language-bash">export PGPASSFILE=$CNODE_HOME/priv/.pgpass
 PGPASS=$(cat $PGPASSFILE)
 PG_HOST=$(echo $PGPASS | cut -d: -f 1)
 PG_PORT=$(echo $PGPASS | cut -d: -f 2)
 PG_DB=$(echo $PGPASS | cut -d: -f 3)
 PG_USER=$(echo $PGPASS | cut -d: -f 4)
 PG_PWD=$(echo $PGPASS | cut -d: -f 5)
-export NETWORK=phtn
-export EXTENDED=true
 export HASURA_GRAPHQL_DATABASE_URL=postgres://$PG_USER:$PG_PWD@$PG_HOST:$PG_PORT/$PG_DB
 export HASURA_GRAPHQL_ENABLE_CONSOLE=true
 export HASURA_GRAPHQL_ENABLED_LOG_TYPES=&quot;startup, http-log, webhook-log, websocket-log, query-log&quot;
@@ -454,8 +466,8 @@ export HASURA_GRAPHQL_SERVER_PORT=4080
 export HASURA_GRAPHQL_SERVER_HOST=0.0.0.0
 export CACHE_ENABLED=true
 export HASURA_URI=http://127.0.0.1:4080/v1/graphql
-cd -;cd ~/git/cardano-graphql/dist
-graphql-engine serve
+cd ~/git/cardano-graphql/dist
+graphql-engine serve &amp;
 node index.js
 </code></pre>
 <h3><a class="header" href="#config-for-phtn---as-a-bft-member" id="config-for-phtn---as-a-bft-member">Config for pHTN - as a BFT Member</a></h3>
@@ -514,23 +526,64 @@ cardano-node run \
           --topology $CNODE_HOME/files/topology.json
 </code></pre>
 <h3><a class="header" href="#collection-of-value-added-scripts" id="collection-of-value-added-scripts">Collection of Value-added scripts</a></h3>
-<p>A place to collect scripts that are supposed to help with usage of Cardano-node. The initial attempt below is with an aim to keep things similar to the current jormungandr scripts' usage.</p>
-<h4><a class="header" href="#create-privat-key-and-corresponding-address-file" id="create-privat-key-and-corresponding-address-file">Create Privat key and corresponding address file</a></h4>
+<p>A place to collect scripts that are supposed to help with usage of Cardano-node. The attempt with these scripts is to keep things similar to the popular jormungandr scripts that pool operators in ITN have been accustomed to. Use the navigation menu on the left to drill down to specific script.</p>
+<h3><a class="header" href="#create-keysaddress" id="create-keysaddress">Create Keys/Address</a></h3>
+<p>This script assists you to create a Private key file and generates a corresponding address script for it</p>
 <pre><code class="language-bash">cd $CNODE_HOME/scripts
 ./createAddr.sh pbft1
 # Sample output to enter passphrase (can be left empty, you will need this passphrase to access the key if filled):
 # Enter password to encrypt 'pbft1':
 # Repeat to validate:
 </code></pre>
-<h4><a class="header" href="#create-and-submit-a-transaction-to-send-ada" id="create-and-submit-a-transaction-to-send-ada">Create and submit a transaction to send ADA</a></h4>
+<h3><a class="header" href="#make-transactions" id="make-transactions">Make Transactions</a></h3>
+<p>This script will create and submit a transaction to send ADA using one of the BFT keys as source and an address specified on command line</p>
 <pre><code># Send ADA script usage
 cd $CNODE_HOME/scripts
 ./sendADA.sh tx.out 2cWKMJemoBa....ssL7fzhq 20 $CNODE_HOME/priv/pbft0.key
 </code></pre>
-<h3><a class="header" href="#create-keysaddress" id="create-keysaddress">Create Keys/Address</a></h3>
-<p>&lt; Coming Soon .. &gt;</p>
-<h3><a class="header" href="#make-transactions" id="make-transactions">Make Transactions</a></h3>
-<p>&lt; Coming Soon .. &gt;</p>
+<h3><a class="header" href="#welcome-1" id="welcome-1">Welcome!!</a></h3>
+<p>This documentation (rather the repository itself) is created by some of the community members and serves as as easy means to add documentation or scripts that makes more sense to users. The target audience for this document are mainly experienced stake pool operators.</p>
+<p>The repository is already open to collaboration from many members within community. We would love community contributions and verification of the instructions, rather than having 100 version of documentations. If there are any discrepancies/suggestions/contributions for this document, please open a issue and one of the collaborators should be able to add the changes in.</p>
+<h4><a class="header" href="#getting-started-with-haskell-node-1" id="getting-started-with-haskell-node-1">Getting started with Haskell Node</a></h4>
+<p>Use the sidebar to navigate through the topics. Note that the instructions assume the folder structure as per Next topic, you're expected to update the folder reference as per your environment.
+Also, since you cannot run a Praos node yet, the instructions here-in allow you to join a private haskell testnet network (phtn), we will gradually update to Praos version and update the phtn references.</p>
+<p><em>Note that current version of documentation connects you to cardano-node, which is stable for using permissive oBFT consensus - the shelley (Praos) codebase is not yet in a state where we can run a network from it. While we would like to onboard new features as they're built for Shelley (which will be hybrid of oBFT nodes run by bootstrap entities and Praos nodes by stakepool operators) codebase, its best to set your expectation accordingly. In the current state, this serves as a useful means to get familiar with modular architecture and usage.</em></p>
+<h3><a class="header" href="#sample-postgres-deployment-instructions" id="sample-postgres-deployment-instructions">Sample Postgres Deployment instructions</a></h3>
+<p>These deployment instructions used for reference while building <a href="dbsync.html">cardano-db-sync</a> tool. These are just for reference and ease of set up and consistency for those who are new to Postgres DB.
+It is recommended to customise these as per your needs for Production builds.</p>
+<h4><a class="header" href="#install-postgresql-server" id="install-postgresql-server">Install PostgreSQL Server</a></h4>
+<p>Execute commands below to set up Postgres Server</p>
+<pre><code class="language-bash"># TODO: Add debian/Ubuntu specific commands
+sudo yum install -y postgresql-server postgresql-server-devel postgresql-contrib postgresql-devel
+sudo postgresql-setup initdb
+sudo sed -i &quot;s#  ident#  md5#g&quot; /var/lib/pgsql/data/pg_hba.conf
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+</code></pre>
+<h4><a class="header" href="#create-user-in-postgres" id="create-user-in-postgres">Create User in Postgres</a></h4>
+<p>Login to Postgres instance as superuser:</p>
+<pre><code class="language-bash">echo $(whoami)
+# &lt;user&gt;
+sudo su postgres
+psql
+</code></pre>
+<p>Note the <user> returned as the output of <code>echo $(whoami)</code> command. Replace all instance of <user> in the documentation below.
+Execute the below in psql prompt. Replace <strong><username></strong> and <strong>PasswordYouWant</strong> with your OS user (output of <code>echo $(whoami)</code> command executed above) and a password you'd like to authenticate to Postgres with:</p>
+<pre><code class="language-sql">CREATE ROLE &lt;user&gt; SUPERUSER LOGIN;
+ALTER USER &lt;user&gt; PASSWORD 'PasswordYouWant';
+\q
+</code></pre>
+<p>Type <code>exit</code> at shell to return to your user from postgres</p>
+<h4><a class="header" href="#verify-login-to-postgres-instance" id="verify-login-to-postgres-instance">Verify Login to postgres instance</a></h4>
+<pre><code class="language-bash">export PGPASSFILE=$CNODE_HOME/priv/.pgpass
+echo &quot;localhost:5432:cexplorer_phtn:$(whoami):PasswordYouWant&quot; &gt; $PGPASSFILE
+chmod 0600 $PGPASSFILE
+psql postgres
+# psql (10.6)
+# Type &quot;help&quot; for help.
+# 
+# postgres=#
+</code></pre>
 <h3><a class="header" href="#contributors" id="contributors">Contributors</a></h3>
 <p>Everyone is welcome to contribute to the guide, as well as repository. Below is just a thank you to people who have been contributing consistently:</p>
 <p><a href="https://github.com/gufmar">Markus</a><br />

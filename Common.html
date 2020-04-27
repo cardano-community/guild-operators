@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>DBSync tool - Cardano Community managed Documentation for Pool Operators</title>
+        <title>Common - Cardano Community managed Documentation for Pool Operators</title>
         
 
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
@@ -84,7 +84,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Common.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="rest.html">REST</a></li><li class="chapter-item expanded "><a href="dbsync.html" class="active">DBSync tool</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="postgres.html">Sample Postgres Setup</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Common.html" class="active">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="rest.html">REST</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="postgres.html">Sample Postgres Setup</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -154,66 +154,31 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h3><a class="header" href="#dbsync-tool" id="dbsync-tool">DBSync tool</a></h3>
-<p>Cardano DB Sync tool relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to <a href="postgres.html">Sample Local PostgreSQL Server Deployment instructions</a> for setting up Postgres instance.</p>
-<p>Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
-<h4><a class="header" href="#build-cardano-db-sync" id="build-cardano-db-sync">Build cardano-db-sync</a></h4>
-<p>To build instructions for cardano-db-sync tool will be similar to cardano-node:</p>
-<pre><code class="language-bash">cd ~/git
-git clone https://github.com/input-output-hk/cardano-db-sync
-cd cardano-db-sync
-$CNODE_HOME/scripts/cabal-build-all.sh
+                        <h3><a class="header" href="#pre-requisites" id="pre-requisites">Pre-Requisites</a></h3>
+<h4><a class="header" href="#dependencies-and-folder-structure-setup" id="dependencies-and-folder-structure-setup">Dependencies and Folder Structure setup</a></h4>
+<p>The pre-requisites for Linux systems are automated to be executed as a single script. Follow the instructions below to deploy the same:</p>
+<pre><code class="language-bash">mkdir &quot;~/tmp&quot;;cd &quot;~/tmp&quot;
+wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/prereqs.sh
+chmod 755 https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/prereqs.sh
+# Ensure you can run sudo commands with your user before execution
+./prereqs.sh
+## Follow the prompts for execution
 </code></pre>
-<p>Similar to before, <code>cardano-db-sync</code> and <code>cardano-db-sync-extended</code> should now be available in ~/.cabal/bin folder.</p>
-<h4><a class="header" href="#prepare-db-for-cardano-db-sync-" id="prepare-db-for-cardano-db-sync-">Prepare DB for cardano-db-sync :</a></h4>
-<pre><code class="language-bash">cd ~/git/cardano-db-sync
-# scripts/postgresql-setup.sh --dropdb #if exists already, will fail if it doesnt - thats OK
-scripts/postgresql-setup.sh --createdb
-# Password:
-# Password:
-# All good!
-## Verify you can see &quot;All good!&quot; as above
-</code></pre>
-<h4><a class="header" href="#start-cardano-db-sync-tool" id="start-cardano-db-sync-tool">Start cardano-db-sync-tool</a></h4>
-<pre><code class="language-bash">cd ~/git/cardano-db-sync
-PGPASSFILE=$CNODE_HOME/priv/.pgpass cardano-db-sync --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/pbft_node.socket --schema-dir schema/
-</code></pre>
-<p>You can use same instructions above to repeat and execute <code>cardano-db-sync</code> as well, but <a href="./graphql.html">cardano-graphql</a> uses <code>cardano-db-sync-extended</code>, so we'll stick to it</p>
-<h4><a class="header" href="#validation" id="validation">Validation</a></h4>
-<p>To validate, connect to postgres instance and execute commands as per below:</p>
-<pre><code class="language-bash">export PGPASSFILE=/opt/cardano/cnode/priv/.pgpass
-psql cexplorer_phtn
-</code></pre>
-<p>You should be at the psql prompt, you can check the tables and verify they're populated:</p>
-<pre><code class="language-sql">\dt
-#            List of relations
-# Schema |      Name      | Type  | Owner
-#--------+----------------+-------+-------
-# public | block          | table | &lt;username&gt;
-# public | epoch          | table | &lt;username&gt;
-# public | meta           | table | &lt;username&gt;
-# public | schema_version | table | &lt;username&gt;
-# public | slot_leader    | table | &lt;username&gt;
-# public | tx             | table | &lt;username&gt;
-# public | tx_in          | table | &lt;username&gt;
-# public | tx_out         | table | &lt;username&gt;
-#(8 rows)
-
-select * from meta;
-# id | protocol_const | slot_duration |     start_time      | network_name
-#----+----------------+---------------+---------------------+--------------
-#  1 |          43200 |         20000 | 2020-04-12 13:55:37 | pHTN
-#(1 row)
-
-select * from tx;
-# id |                                hash                                | block | fee |     out_sum      | size
-#----+--------------------------------------------------------------------+-------+-----+------------------+------
-#  1 | \x26b63ce785b16fc53ba3ab882ac0e5342a77b33f355ba82982e3e2d5e05500df |     1 |   0 |       1000000000 |    0
-#  2 | \xbd8f661658dabbb557d4b5e23264d34fda2a2304daccdac283e337581a88c479 |     1 |   0 |   62499975000000 |    0
-#  3 | \x17fbf571b7d091e9cfb6853cd5fb603031831ce7e5e3acbb4b842960e90ba419 |     1 |   0 |   62499975000000 |    0
-#  4 | \x3e7e3c1105d3bd76a2b5ae897e1b79b86c7834e68409e533afc318112405ff69 |     1 |   0 |   62499975000000 |    0
-# ...
-# (36 rows)
+<h4><a class="header" href="#folder-structure" id="folder-structure">Folder structure</a></h4>
+<p>Running the script above will create the folder structure as per below, for your reference.</p>
+<pre><code>/opt/cardano/cnode          # Top-Level Folder
+├── ...
+├── files                   # Config, genesis and topology files
+│   ├── ...
+│   ├── genesis.json        # Genesis file referenced in ptn0.yaml
+│   ├── ptn0.yaml           # Config file used by cardano-node
+│   └── inventory.json      # Map of Real-PBFT chain for cardano-node
+├── db                      # DB Store for cardano-node
+├── logs                    # Logs for cardano-node
+├── priv                    # Folder to store your keys (permission: 600)
+├── scripts                 # Scripts to start and interact with cardano-node
+├── sockets                 # Socket files created by cardano-node
+└── ...
 </code></pre>
 
                     </main>
@@ -221,13 +186,13 @@ select * from tx;
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
                         
-                            <a rel="prev" href="rest.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="Build-and-Run.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
                         
 
                         
-                            <a rel="next" href="graphql.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="node-cli.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
                         
@@ -239,13 +204,13 @@ select * from tx;
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
                 
-                    <a rel="prev" href="rest.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="Build-and-Run.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
                 
 
                 
-                    <a rel="next" href="graphql.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next" href="node-cli.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
                 

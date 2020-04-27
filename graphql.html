@@ -84,7 +84,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Folder-structure.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="rest.html">REST - TBD</a></li><li class="chapter-item expanded "><a href="graphql.html" class="active">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Common.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="rest.html">REST</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="graphql.html" class="active">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="postgres.html">Sample Postgres Setup</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -155,19 +155,15 @@
                 <div id="content" class="content">
                     <main>
                         <h3><a class="header" href="#graphql" id="graphql">GraphQL</a></h3>
-<h4><a class="header" href="#pre-requisites" id="pre-requisites">Pre-Requisites</a></h4>
-<p>Execute the below to set up yarn and dependencies</p>
-<pre><code class="language-bash">curl --silent --location https://dl.yarnpkg.com/rpm/yarn.repo | sudo tee /etc/yum.repos.d/yarn.repo
-sudo rpm --import https://dl.yarnpkg.com/rpm/pubkey.gpg
-sudo yum -y install yarn npm python3 make gcc-c++
-</code></pre>
+<p>Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
+<h4><a class="header" href="#build-hasura-graphql-engine" id="build-hasura-graphql-engine">Build Hasura graphql-engine</a></h4>
 <p>Going with the spirit of the documentation here, instruction to build the graphql-engine binary :)</p>
 <pre><code class="language-bash">cd ~/git
 git clone https://github.com/hasura/graphql-engine
 cd graphql-engine/server
-cabal build all
-cp dist-newstyle/build/x86_64-linux/ghc-8.6.5/graphql-engine-1.0.0/x/graphql-engine/opt/build/graphql-engine/graphql-engine ~/.local/bin
+$CNODE_HOME/scripts/cabal-build-all.sh
 </code></pre>
+<p>This should make <code>graphql-engine</code> available at ~/.cabal/bin.</p>
 <h4><a class="header" href="#build-cardano-graphql" id="build-cardano-graphql">Build cardano-graphql</a></h4>
 <p>The command below will help you compile the cardano-graphql node:</p>
 <pre><code class="language-bash">git clone https://github.com/input-output-hk/cardano-graphql
@@ -202,17 +198,13 @@ rsync -arvh ../node_modules ./
 <h4><a class="header" href="#set-up-environment-for-cardano-graphql" id="set-up-environment-for-cardano-graphql">Set up environment for cardano-graphql</a></h4>
 <p>cardano-graphql requires cardano-node, cardano-db-sync-extended, postgresql and graphql-engine to be set up and running.
 The below will help you map the components:</p>
-<pre><code class="language-bash"># TODO: Improve and script the below
-export CNODE_HOME=/opt/cardano/cnode
-export PGPASSFILE=$CNODE_HOME/priv/.pgpass
+<pre><code class="language-bash">export PGPASSFILE=$CNODE_HOME/priv/.pgpass
 PGPASS=$(cat $PGPASSFILE)
 PG_HOST=$(echo $PGPASS | cut -d: -f 1)
 PG_PORT=$(echo $PGPASS | cut -d: -f 2)
 PG_DB=$(echo $PGPASS | cut -d: -f 3)
 PG_USER=$(echo $PGPASS | cut -d: -f 4)
 PG_PWD=$(echo $PGPASS | cut -d: -f 5)
-export NETWORK=phtn
-export EXTENDED=true
 export HASURA_GRAPHQL_DATABASE_URL=postgres://$PG_USER:$PG_PWD@$PG_HOST:$PG_PORT/$PG_DB
 export HASURA_GRAPHQL_ENABLE_CONSOLE=true
 export HASURA_GRAPHQL_ENABLED_LOG_TYPES=&quot;startup, http-log, webhook-log, websocket-log, query-log&quot;
@@ -220,8 +212,8 @@ export HASURA_GRAPHQL_SERVER_PORT=4080
 export HASURA_GRAPHQL_SERVER_HOST=0.0.0.0
 export CACHE_ENABLED=true
 export HASURA_URI=http://127.0.0.1:4080/v1/graphql
-cd -;cd ~/git/cardano-graphql/dist
-graphql-engine serve
+cd ~/git/cardano-graphql/dist
+graphql-engine serve &amp;
 node index.js
 </code></pre>
 
@@ -230,7 +222,7 @@ node index.js
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
                         
-                            <a rel="prev" href="rest.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="dbsync.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
                         
@@ -248,7 +240,7 @@ node index.js
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
                 
-                    <a rel="prev" href="rest.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="dbsync.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
                 

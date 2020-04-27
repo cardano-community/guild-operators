@@ -84,7 +84,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Folder-structure.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html" class="active">Node and CLI</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="rest.html">REST - TBD</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Common.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html" class="active">Node and CLI</a></li><li class="chapter-item expanded "><a href="wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="rest.html">REST</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="postgres.html">Sample Postgres Setup</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -154,61 +154,20 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h3><a class="header" href="#building-cardano-node-and-cardano-cli" id="building-cardano-node-and-cardano-cli">Building Cardano Node and Cardano CLI</a></h3>
-<h4><a class="header" href="#pre-requisites" id="pre-requisites">Pre-Requisites</a></h4>
-<h5><a class="header" href="#system-packages" id="system-packages">System Packages</a></h5>
-<p>The Haskell cardano-node build requires the following dependency packages to be available to the system:</p>
-<p><strong>Tip</strong>: The steps described individually below can be executed with the two scripts &quot;<a href="https://github.com/cardano-community/guild-operators/blob/master/files/ptn0/scripts/cabal-prepare.sh">cabal_prepare</a>&quot; and &quot;<a href="https://github.com/cardano-community/guild-operators/blob/master/files/ptn0/scripts/cabal-build-all-install.sh">build-all-install</a>&quot;. (<em>prepare</em> automatically recognizes Debian/Ubuntu or CentOS)</p>
-<p>The instructions for <strong>Debian and Ubuntu</strong> are identical.</p>
-<pre><code class="language-bash">sudo apt-get update
-sudo apt-get -y install curl build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev tmux git
-</code></pre>
-<p>If you're using <strong>CentOS</strong>, the corresponding packages will be:</p>
-<pre><code class="language-bash">sudo yum update
-sudo yum -y install curl pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs systemd-devel zlib-devel tmux git
-# You might need to create a symlink to /usr/lib64/libtinfo.so as per below if one does not already exist
-# sudo ln -s $(ls -1 /usr/lib64/libtinfo.so* | tail -1) /usr/lib64/libtinfo.so
-# sudo ln -s $(ls -1 /usr/lib64/libtinfo.so* | tail -1) /usr/lib64/libtinfo.so.5
-</code></pre>
-<h4><a class="header" href="#ghc-and-cabal" id="ghc-and-cabal">GHC and Cabal</a></h4>
-<p>The node depends on very specific versions of <a href="https://www.haskell.org/ghcup/">GHC 8.6.5</a> and [Cabal 3.0].
-The best way to get them is with the Haskell Installer tool [ghcup].</p>
-<pre><code class="language-bash">mkdir ~/tmp;cd ~/tmp
-curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
-
-# confirm by pressing ENTER twice and type YES at the end to add ghcup to your PATH variable.
-
-source ~/.ghcup/env
-</code></pre>
-<p>Now install and activate the required GHC version</p>
-<pre><code class="language-bash">ghcup install 8.6.5
-ghcup set 8.6.5
-ghc --version
-</code></pre>
-<p>To download and install cabal specific release, follow instructions below:</p>
-<pre><code class="language-bash">wget https://downloads.haskell.org/cabal/cabal-install-3.0.0.0/cabal-install-3.0.0.0-x86_64-unknown-linux.tar.xz
-tar xf cabal-install-3.0.0.0-x86_64-unknown-linux.tar.xz
-cp cabal ~/.ghcup/bin
-cd -
-</code></pre>
+                        <h3><a class="header" href="#cardano-node-and-cardano-cli" id="cardano-node-and-cardano-cli">Cardano Node and Cardano CLI</a></h3>
+<p>Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
 <h4><a class="header" href="#build-instructions" id="build-instructions">Build Instructions</a></h4>
-<p>Now that the dependencies have been met, we can start setting up the node.
-Start by cloning the Cardano Node git to build the binaries:</p>
+<p>Run the commands below to clone the Cardano Node git repository and build the binaries:</p>
 <pre><code class="language-bash">cd ~/git
 git clone https://github.com/input-output-hk/cardano-node
 cd cardano-node
-cabal build all | tee build.log | grep ^Linking
+$CNODE_HOME/scripts/cabal-build-all.sh
 </code></pre>
-<p>Now you can copy the binaries build (using location above) into ~/.local/bin folder (when part of the PATH variable).</p>
-<pre><code>cardano-node
-cardano-cli
-chairman
-</code></pre>
-<p>For example for cardano-cli 1.10.1 it is <code>~/git/cardano-node/dist-newstyle/build/x86_64-linux/ghc-8.6.5/cardano-node-1.10.1/x/cardano-cli/build/cardano-cli/cardano-cli</code></p>
+<p>The above would copy the binaries built into ~/.cabal/bin folder.</p>
 <h4><a class="header" href="#verify" id="verify">Verify</a></h4>
 <p>Execute cardano-cli and cardano-node to verify output as below:</p>
 <pre><code class="language-bash">cardano-cli version
-# cardano-cli 1.10.1 - linux-x86_64 - ghc-8.6
+# cardano-cli 1.11.0 - linux-x86_64 - ghc-8.6
 cardano-node
 #Usage: cardano-node (run | run-mock) [--help]
 #  Start node of the Cardano blockchain.
@@ -228,13 +187,13 @@ cardano-node
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
                         
-                            <a rel="prev" href="Folder-structure.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="Common.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
                         
 
                         
-                            <a rel="next" href="dbsync.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="wallet.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
                         
@@ -246,13 +205,13 @@ cardano-node
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
                 
-                    <a rel="prev" href="Folder-structure.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="Common.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
                 
 
                 
-                    <a rel="next" href="dbsync.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next" href="wallet.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
                 

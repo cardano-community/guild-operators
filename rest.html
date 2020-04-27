@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>REST - TBD - Cardano Community managed Documentation for Pool Operators</title>
+        <title>REST - Cardano Community managed Documentation for Pool Operators</title>
         
 
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
@@ -84,7 +84,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Folder-structure.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="rest.html" class="active">REST - TBD</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Common.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="rest.html" class="active">REST</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="postgres.html">Sample Postgres Setup</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -154,21 +154,42 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h3><a class="header" href="#rest" id="rest">REST</a></h3>
-<p>&lt; Coming Soon .. &gt;</p>
+                        <h3><a class="header" href="#cardano-rest" id="cardano-rest">Cardano Rest</a></h3>
+<p>Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
+<h4><a class="header" href="#build-instructions" id="build-instructions">Build Instructions</a></h4>
+<p>Clone the cardano-rest repository from github</p>
+<pre><code class="language-bash">cd ~/git
+git clone https://github.com/input-output-hk/cardano-rest.git
+cd cardano-rest
+$CNODE_HOME/scripts/cabal-build-all.sh
+</code></pre>
+<p>The above would copy the binaries into ~/.cabal/bin folder.</p>
+<h4><a class="header" href="#start-the-rest-server" id="start-the-rest-server">Start the REST server</a></h4>
+<p>Execute the below to start the Cardano Explorer API Server:</p>
+<pre><code class="language-bash">export PGPASSFILE=$CNODE_HOME/priv/.pgpass
+cardano-explorer-api
+# Running full server on http://localhost:8100/
+</code></pre>
+<h4><a class="header" href="#verify-the-rest-server-is-functioning" id="verify-the-rest-server-is-functioning">Verify the REST server is functioning</a></h4>
+<p>Verify that you can query the API Server using instruction below:</p>
+<pre><code class="language-bash">curl http://localhost:8100/api/blocks/pages
+</code></pre>
+<p>Expected output should be similar to the following:</p>
+<pre><code class="language-json">{&quot;Right&quot;:[261,[{&quot;cbeEpoch&quot;:4,&quot;cbeSlot&quot;:9345,&quot;cbeBlkHeight&quot;:2605,&quot;cbeBlkHash&quot;:&quot;9026612cfa53b7f8a84ff62c4e897830db9ab6ce24b19e0059f4b4db7a14c0f9&quot;,&quot;cbeTimeIssued&quot;:1587974365,&quot;cbeTxNum&quot;:0,&quot;cbeTotalSent&quot;:{&quot;getCoin&quot;:&quot;0&quot;},&quot;cbeSize&quot;:631,&quot;cbeBlockLead&quot;:&quot;464835a0904109be93d7996b9b4acc486f6c8f75a595b2c4392f9521&quot;,&quot;cbeFees&quot;:{&quot;getCoin&quot;:&quot;0&quot;}},{&quot;cbeEpoch&quot;:4,&quot;cbeSlot&quot;:9341,&quot;cbeBlkHeight&quot;:2604,&quot;cbeBlkHash&quot;:&quot;24000e2986bbfbfd610cb105d3697cce7582b8570469c4ff944b91d7dd0dc58f&quot;,&quot;cbeTimeIssued&quot;:1587974325,&quot;cbeTxNum&quot;:0,&quot;cbeTotalSent&quot;:{&quot;getCoin&quot;:&quot;0&quot;},&quot;cbeSize&quot;:631,&quot;cbeBlockLead&quot;:&quot;1ce88674d08d7813c5281e38e8a43b51550292f0bd8907b17a62eef2&quot;,&quot;cbeFees&quot;:{&quot;getCoin&quot;:&quot;0&quot;}},{&quot;cbeEpoch&quot;:4,&quot;cbeSlot&quot;:9338,&quot;cbeBlkHeight&quot;:2603,&quot;cbeBlkHash&quot;:&quot;5c2737421b223d1ab67f1046f8841d57d7f8456b77a841702fbb18bccf71a216&quot;,&quot;cbeTimeIssued&quot;:1587974295,&quot;cbeTxNum&quot;:0,&quot;cbeTotalSent&quot;:{&quot;getCoin&quot;:&quot;0&quot;},&quot;cbeSize&quot;:631,&quot;cbeBlockLead&quot;:&quot;f6a4cfa43cef5ebed8fbd0527153f9896d1f9dd83bd1d55e609d622b&quot;,&quot;cbeFees&quot;:{&quot;getCoin&quot;:&quot;0&quot;}},{&quot;cbeEpoch&quot;:4,&quot;cbeSlot&quot;:9333,&quot;cbeBlkHeight&quot;:2602,&quot;cbeBlkHash&quot;:&quot;496db1bc19d609687185e394cfcb8fa15e8df652c7dc40a58a347e30b9e4a25f&quot;,&quot;cbeTimeIssued&quot;:1587974245,&quot;cbeTxNum&quot;:0,&quot;cbeTotalSent&quot;:{&quot;getCoin&quot;:&quot;0&quot;},&quot;cbeSize&quot;:631,&quot;cbeBlockLead&quot;:&quot;a7cad2c48edecff1627bac50aab5fcc6831f6ab91131721269850805&quot;,&quot;cbeFees&quot;:{&quot;getCoin&quot;:&quot;0&quot;}},{&quot;cbeEpoch&quot;:4,&quot;cbeSlot&quot;:9332,&quot;cbeBlkHeight&quot;:2601,&quot;cbeBlkHash&quot;:&quot;8a837d43685dd350c6f1773b1ede7843d56d093a425ff4ccd799f7ff1b76204d&quot;,&quot;cbeTimeIssued&quot;:1587974235,&quot;cbeTxNum&quot;:0,&quot;cbeTotalSent&quot;:{&quot;getCoin&quot;:&quot;0&quot;},&quot;cbeSize&quot;:631,&quot;cbeBlockLead&quot;:&quot;a18aa0130f67053ed1cb346813054e160687a8ee7602a549f8ae165b&quot;,&quot;cbeFees&quot;:{&quot;getCoin&quot;:&quot;0&quot;}}]]}
+</code></pre>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
                         
-                            <a rel="prev" href="dbsync.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="wallet.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
                         
 
                         
-                            <a rel="next" href="graphql.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="dbsync.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
                         
@@ -180,13 +201,13 @@
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
                 
-                    <a rel="prev" href="dbsync.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="wallet.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
                 
 
                 
-                    <a rel="next" href="graphql.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next" href="dbsync.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
                 

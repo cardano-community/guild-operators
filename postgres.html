@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>DBSync tool - Cardano Community managed Documentation for Pool Operators</title>
+        <title>Sample Postgres Setup - Cardano Community managed Documentation for Pool Operators</title>
         
 
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
@@ -84,7 +84,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Common.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="rest.html">REST</a></li><li class="chapter-item expanded "><a href="dbsync.html" class="active">DBSync tool</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="postgres.html">Sample Postgres Setup</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Common.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="rest.html">REST</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-BFT-Member.html">Set up and connect to the network as BFT leader</a></li><li class="chapter-item expanded "><a href="Setup-Passive-Member.html">Set up and connect to the network as a passive member</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="postgres.html" class="active">Sample Postgres Setup</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -154,66 +154,41 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h3><a class="header" href="#dbsync-tool" id="dbsync-tool">DBSync tool</a></h3>
-<p>Cardano DB Sync tool relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to <a href="postgres.html">Sample Local PostgreSQL Server Deployment instructions</a> for setting up Postgres instance.</p>
-<p>Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
-<h4><a class="header" href="#build-cardano-db-sync" id="build-cardano-db-sync">Build cardano-db-sync</a></h4>
-<p>To build instructions for cardano-db-sync tool will be similar to cardano-node:</p>
-<pre><code class="language-bash">cd ~/git
-git clone https://github.com/input-output-hk/cardano-db-sync
-cd cardano-db-sync
-$CNODE_HOME/scripts/cabal-build-all.sh
+                        <h3><a class="header" href="#sample-postgres-deployment-instructions" id="sample-postgres-deployment-instructions">Sample Postgres Deployment instructions</a></h3>
+<p>These deployment instructions used for reference while building <a href="dbsync.html">cardano-db-sync</a> tool. These are just for reference and ease of set up and consistency for those who are new to Postgres DB.
+It is recommended to customise these as per your needs for Production builds.</p>
+<h4><a class="header" href="#install-postgresql-server" id="install-postgresql-server">Install PostgreSQL Server</a></h4>
+<p>Execute commands below to set up Postgres Server</p>
+<pre><code class="language-bash"># TODO: Add debian/Ubuntu specific commands
+sudo yum install -y postgresql-server postgresql-server-devel postgresql-contrib postgresql-devel
+sudo postgresql-setup initdb
+sudo sed -i &quot;s#  ident#  md5#g&quot; /var/lib/pgsql/data/pg_hba.conf
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
 </code></pre>
-<p>Similar to before, <code>cardano-db-sync</code> and <code>cardano-db-sync-extended</code> should now be available in ~/.cabal/bin folder.</p>
-<h4><a class="header" href="#prepare-db-for-cardano-db-sync-" id="prepare-db-for-cardano-db-sync-">Prepare DB for cardano-db-sync :</a></h4>
-<pre><code class="language-bash">cd ~/git/cardano-db-sync
-# scripts/postgresql-setup.sh --dropdb #if exists already, will fail if it doesnt - thats OK
-scripts/postgresql-setup.sh --createdb
-# Password:
-# Password:
-# All good!
-## Verify you can see &quot;All good!&quot; as above
+<h4><a class="header" href="#create-user-in-postgres" id="create-user-in-postgres">Create User in Postgres</a></h4>
+<p>Login to Postgres instance as superuser:</p>
+<pre><code class="language-bash">echo $(whoami)
+# &lt;user&gt;
+sudo su postgres
+psql
 </code></pre>
-<h4><a class="header" href="#start-cardano-db-sync-tool" id="start-cardano-db-sync-tool">Start cardano-db-sync-tool</a></h4>
-<pre><code class="language-bash">cd ~/git/cardano-db-sync
-PGPASSFILE=$CNODE_HOME/priv/.pgpass cardano-db-sync --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/pbft_node.socket --schema-dir schema/
+<p>Note the <user> returned as the output of <code>echo $(whoami)</code> command. Replace all instance of <user> in the documentation below.
+Execute the below in psql prompt. Replace <strong><username></strong> and <strong>PasswordYouWant</strong> with your OS user (output of <code>echo $(whoami)</code> command executed above) and a password you'd like to authenticate to Postgres with:</p>
+<pre><code class="language-sql">CREATE ROLE &lt;user&gt; SUPERUSER LOGIN;
+ALTER USER &lt;user&gt; PASSWORD 'PasswordYouWant';
+\q
 </code></pre>
-<p>You can use same instructions above to repeat and execute <code>cardano-db-sync</code> as well, but <a href="./graphql.html">cardano-graphql</a> uses <code>cardano-db-sync-extended</code>, so we'll stick to it</p>
-<h4><a class="header" href="#validation" id="validation">Validation</a></h4>
-<p>To validate, connect to postgres instance and execute commands as per below:</p>
-<pre><code class="language-bash">export PGPASSFILE=/opt/cardano/cnode/priv/.pgpass
-psql cexplorer_phtn
-</code></pre>
-<p>You should be at the psql prompt, you can check the tables and verify they're populated:</p>
-<pre><code class="language-sql">\dt
-#            List of relations
-# Schema |      Name      | Type  | Owner
-#--------+----------------+-------+-------
-# public | block          | table | &lt;username&gt;
-# public | epoch          | table | &lt;username&gt;
-# public | meta           | table | &lt;username&gt;
-# public | schema_version | table | &lt;username&gt;
-# public | slot_leader    | table | &lt;username&gt;
-# public | tx             | table | &lt;username&gt;
-# public | tx_in          | table | &lt;username&gt;
-# public | tx_out         | table | &lt;username&gt;
-#(8 rows)
-
-select * from meta;
-# id | protocol_const | slot_duration |     start_time      | network_name
-#----+----------------+---------------+---------------------+--------------
-#  1 |          43200 |         20000 | 2020-04-12 13:55:37 | pHTN
-#(1 row)
-
-select * from tx;
-# id |                                hash                                | block | fee |     out_sum      | size
-#----+--------------------------------------------------------------------+-------+-----+------------------+------
-#  1 | \x26b63ce785b16fc53ba3ab882ac0e5342a77b33f355ba82982e3e2d5e05500df |     1 |   0 |       1000000000 |    0
-#  2 | \xbd8f661658dabbb557d4b5e23264d34fda2a2304daccdac283e337581a88c479 |     1 |   0 |   62499975000000 |    0
-#  3 | \x17fbf571b7d091e9cfb6853cd5fb603031831ce7e5e3acbb4b842960e90ba419 |     1 |   0 |   62499975000000 |    0
-#  4 | \x3e7e3c1105d3bd76a2b5ae897e1b79b86c7834e68409e533afc318112405ff69 |     1 |   0 |   62499975000000 |    0
-# ...
-# (36 rows)
+<p>Type <code>exit</code> at shell to return to your user from postgres</p>
+<h4><a class="header" href="#verify-login-to-postgres-instance" id="verify-login-to-postgres-instance">Verify Login to postgres instance</a></h4>
+<pre><code class="language-bash">export PGPASSFILE=$CNODE_HOME/priv/.pgpass
+echo &quot;localhost:5432:cexplorer_phtn:$(whoami):PasswordYouWant&quot; &gt; $PGPASSFILE
+chmod 0600 $PGPASSFILE
+psql postgres
+# psql (10.6)
+# Type &quot;help&quot; for help.
+# 
+# postgres=#
 </code></pre>
 
                     </main>
@@ -221,13 +196,13 @@ select * from tx;
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
                         
-                            <a rel="prev" href="rest.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="Home.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
                         
 
                         
-                            <a rel="next" href="graphql.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="Contributors.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
                         
@@ -239,13 +214,13 @@ select * from tx;
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
                 
-                    <a rel="prev" href="rest.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="Home.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
                 
 
                 
-                    <a rel="next" href="graphql.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next" href="Contributors.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
                 
