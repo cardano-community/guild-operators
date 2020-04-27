@@ -24,7 +24,7 @@ Now you can copy the binaries build (using location above) into ~/.local/bin fol
 cardano-wallet-byron
 cardano-wallet-jormungandr
 ```
-For example the for cardano-wallet 2020.4.7 (git revision: ce8a9fd68ec08fac6f66e23b13f5477183e58141) the build output is in
+For example for cardano-wallet 2020.4.7 (git revision: ce8a9fd68ec08fac6f66e23b13f5477183e58141) the build output is in
 `../cardano-wallet/.stack-work/install/x86_64-linux/ee58348a9d8cc4d7d8564fb6f136266b08b58bb18601bef486b392d8321af87c/8.6.5/`
 
 #### Start the wallet server
