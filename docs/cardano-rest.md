@@ -4,9 +4,9 @@ This guide assumes you are using the common directory structure.
 
 #### Install Instructions
 
-```bash
-# Clone the cardano-rest repository from github
+Clone the cardano-rest repository from github
 
+```bash
 cd; cd git
 git clone https://github.com/input-output-hk/cardano-rest.git
 cd cardano-rest
