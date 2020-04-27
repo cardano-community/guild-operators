@@ -1,21 +1,8 @@
 ### DBSync tool
 
-Cardano DB Sync tool relies on an existing PostgreSQL server.
+Cardano DB Sync tool relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to [Sample Local PostgreSQL Server Deployment instructions](postgres.md) for setting up Postgres instance.
 
-#### Sample Local PostgreSQL Server Deployment instructions
-
-These are sample PostgreSQL server deployment instructions used for reference while building Cardano DB Sync tool. These do not go into Best practices for deploying a secured instance, we would recommend you to customise the same as per your needs.
-
-``` bash
-# TODO: Add debian/Ubuntu specific commands
-sudo yum install -y postgresql-server postgresql-server-devel postgresql-contrib postgresql-devel
-sudo postgresql-setup initdb
-# TODO: For consistency on this page, edit /var/lib/pgsql/data/pg_hba.conf to replace ident with md5 for localhost and 127.0.0.1 (except lines with replication)
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
-```
-
-This page assumes you've already set up cardano-noe and have the OS level dependencies satisfied.
+Ensure the [Pre-Requisites](Common.md#dependencies-and-folder-structure-setup) are in place before you proceed.
 
 #### Build cardano-db-sync
 
@@ -24,37 +11,9 @@ To build instructions for cardano-db-sync tool will be similar to cardano-node:
 cd ~/git
 git clone https://github.com/input-output-hk/cardano-db-sync
 cd cardano-db-sync
-cabal build all | tee build.log | grep ^Linking
+$CNODE_HOME/scripts/cabal-build-all.sh
 ```
-Similar to before, you can copy the cardano-db-sync and cardano-db-sync-extended binary to your ~/.local/bin folder.
-
-#### Create User in Postgres
-Login to Postgres instance as superuser:
-``` bash
-echo $(whoami)
-sudo su postgres
-psql
-```
-Execute the below in psql prompt. Replace **<username>** and **PasswordYouWant** with your OS user (output of `echo $(whoami)` command executed above) and a password you'd like to authenticate to Postgres with:
-``` sql
-CREATE ROLE <username> superuser;
-CREATE USER <username>;
-GRANT ROOT TO <username>;
-ALTER USER <username> PASSWORD 'PasswordYouWant';
-\q
-```
-
-Type `exit` to return to your original user
-
-#### Verify Login to postgres instance
-
-``` bash
-export PGPASSFILE=/opt/cardano/cnode/priv/.pgpass
-echo "localhost:5432:cexplorer_phtn:$(whoami):PasswordYouWant" > $PGPASSFILE
-chmod 0600 /opt/cardano/cnode/priv/.pgpass
-psql -U $(whoami)
-## TODO: Sample output
-```
+Similar to before, `cardano-db-sync` and `cardano-db-sync-extended` should now be available in ~/.cabal/bin folder.
 
 #### Prepare DB for cardano-db-sync :
 ``` bash
@@ -70,7 +29,7 @@ scripts/postgresql-setup.sh --createdb
 #### Start cardano-db-sync-tool
 ``` bash
 cd ~/git/cardano-db-sync
-PGPASSFILE=/opt/cardano/cnode/priv/.pgpass cardano-db-sync --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/pbft_node.socket --schema-dir schema/
+PGPASSFILE=$CNODE_HOME/priv/.pgpass cardano-db-sync --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/pbft_node.socket --schema-dir schema/
 ```
 
 You can use same instructions above to repeat and execute `cardano-db-sync` as well, but [cardano-graphql](./graphql.md) uses `cardano-db-sync-extended`, so we'll stick to it
