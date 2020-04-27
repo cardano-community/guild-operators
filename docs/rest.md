@@ -1,3 +1,0 @@
-### REST
-
-< Coming Soon .. >
