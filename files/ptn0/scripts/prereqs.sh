@@ -44,7 +44,7 @@ else
 fi
 
 echo "Install ghcup (The Haskell Toolchain installer) .."
-
+export BOOTSTRAP_HASKELL_NONINTERACTIVE=n
 curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh -s - -q
 # shellcheck source=/dev/null
 . ~/.ghcup/env
@@ -58,7 +58,7 @@ echo "Installing Cabal 3.0.0 .."
 wget https://downloads.haskell.org/cabal/cabal-install-3.0.0.0/cabal-install-3.0.0.0-x86_64-unknown-linux.tar.xz
 tar xf cabal-install-3.0.0.0-x86_64-unknown-linux.tar.xz
 chmod 755 cabal
-mkdir ~/.cabal/bin
+mkdir -p ~/.cabal/bin
 mv cabal ~/.ghcup/bin
 rm -f cabal-install-3.0.0.0-x86_64-unknown-linux.tar.xz cabal.sig
 
