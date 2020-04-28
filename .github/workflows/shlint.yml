@@ -9,7 +9,7 @@ on:
     branches: [ master ]
 
 jobs:
-  lint:
+  shlint:
     runs-on: ubuntu-latest
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
@@ -17,4 +17,4 @@ jobs:
     - name: SH Lint Check
       uses: azohra/shell-linter@v0.3.0
       with:
-        path: "**.sh"
+        path: "files/ptn0/scripts/*.sh"  
