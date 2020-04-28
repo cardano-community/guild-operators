@@ -42,6 +42,7 @@ fi
 echo "Install ghcup (The Haskell Toolchain installer) .."
 
 curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh -s - -q
+# shellcheck source=/dev/null
 . ~/.ghcup/env
 
 ghcup install 8.6.5
