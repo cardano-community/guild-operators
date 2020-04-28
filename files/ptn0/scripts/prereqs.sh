@@ -1,5 +1,10 @@
 #!/bin/sh
 
+# For who runs the script within containers and running it as root.
+SUDO="Y"
+
+if [[ "$SUDO" == "Y" ]] || [[ "$SUDO" == "y" ]] ; then sudo="sudo"; else sudo="" ; fi ; 
+
 # Variables
 export CNODE_HOME=/opt/cardano/cnode
 
@@ -11,24 +16,24 @@ if [ -z "${OS_ID##*debian*}" ]; then
   #Debian/Ubuntu
   echo "Using apt to prepare packages for ${DISTRO} system"
   sleep 2
-  sudo apt-get -y install curl
-  curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
-  echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
-  sudo apt-get update
-  sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ tmux git jq wget
+  $sudo apt-get -y install curl
+  curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | $sudo apt-key add -
+  echo "deb https://dl.yarnpkg.com/debian/ stable main" | $sudo tee /etc/apt/sources.list.d/yarn.list
+  $sudo apt-get update
+  $sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ tmux git jq wget
 elif [ -z "${OS_ID##*rhel*}" ]; then
   #CentOS/RHEL/Fedora
   echo "USING yum to prepare packages for ${DISTRO} system"
-  sudo yum -y install curl
-  curl --silent --location https://dl.yarnpkg.com/rpm/yarn.repo | sudo tee /etc/yum.repos.d/yarn.repo
-  sudo rpm --import https://dl.yarnpkg.com/rpm/pubkey.gpg
-  sudo yum update
-  sudo yum -y install python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs systemd-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq
+  $sudo yum -y install curl
+  curl --silent --location https://dl.yarnpkg.com/rpm/yarn.repo | $sudo tee /etc/yum.repos.d/yarn.repo
+  $sudo rpm --import https://dl.yarnpkg.com/rpm/pubkey.gpg
+  $sudo yum update
+  $sudo yum -y install python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs systemd-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq
   if [ -f /usr/lib64/libtinfo.so ] && [ -f /usr/lib64/libtinfo.so.5 ]; then
     echo "ncurse libs already set up, skipping symlink.."
   else
-    sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so
-    sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so.5
+    $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so
+    $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so.5
   fi
 else
   echo "We have no automated procedures for this ${DISTRO} system"
@@ -66,8 +71,8 @@ else
   echo "Setting up Environment Variable"
   echo "export CNODE_HOME=${CNODE_HOME}" >> ~/.bashrc
 fi
-sudo mkdir -p $CNODE_HOME/files $CNODE_HOME/db $CNODE_HOME/logs $CNODE_HOME/scripts $CNODE_HOME/sockets $CNODE_HOME/priv
-sudo chown -R "$USER":"$USER" "$CNODE_HOME"
+$sudo mkdir -p $CNODE_HOME/files $CNODE_HOME/db $CNODE_HOME/logs $CNODE_HOME/scripts $CNODE_HOME/sockets $CNODE_HOME/priv
+$sudo chown -R "$USER":"$USER" "$CNODE_HOME"
 chmod -R 755 "$CNODE_HOME"
 
 mkdir ~/git # To hold git repositories that will be used for building binaries
@@ -95,4 +100,3 @@ chmod 755 ./*.sh
 # If you opt for an alternate CNODE_HOME, please run the below:
 # sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" *.sh
 cd - || return
-
