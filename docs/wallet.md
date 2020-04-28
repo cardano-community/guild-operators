@@ -14,8 +14,7 @@ stack build --test --no-run-tests
 # TODO: Replace stack with cabal, once fixed
 # 
 ```
-
-The binaries should now be available in ~/.cabal/bin folder.
+Copy the cardano-wallet binary to your path. **This will be automated in the future.**  
 
 #### Start the wallet server
 ```bash
