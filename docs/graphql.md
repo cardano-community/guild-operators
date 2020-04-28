@@ -52,7 +52,7 @@ rsync -arvh ../node_modules ./
 cardano-graphql requires cardano-node, cardano-db-sync-extended, postgresql and graphql-engine to be set up and running.
 The below will help you map the components:
 ``` bash
-export PGPASSFILE=./pgpass
+export PGPASSFILE=$CNODE_HOME/priv/.pgpass
 IFS=':' read -r -a PGPASS <<< $(cat $PGPASSFILE)
 export HASURA_GRAPHQL_DATABASE_URL=postgres://${PGPASS[3]}:${PGPASS[4]}@${PGPASS[0]}:${PGPASS[1]}/${PGPASS[2]}
 export HASURA_GRAPHQL_ENABLE_CONSOLE=true
