@@ -369,7 +369,7 @@ scripts/postgresql-setup.sh --createdb
 </code></pre>
 <h4><a class="header" href="#start-cardano-db-sync-tool" id="start-cardano-db-sync-tool">Start cardano-db-sync-tool</a></h4>
 <pre><code class="language-bash">cd ~/git/cardano-db-sync
-PGPASSFILE=$CNODE_HOME/priv/.pgpass cardano-db-sync --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/pbft_node.socket --schema-dir schema/
+PGPASSFILE=$CNODE_HOME/priv/.pgpass cardano-db-sync-extended --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/pbft_node.socket --schema-dir schema/
 </code></pre>
 <p>You can use same instructions above to repeat and execute <code>cardano-db-sync</code> as well, but <a href="./graphql.html">cardano-graphql</a> uses <code>cardano-db-sync-extended</code>, so we'll stick to it</p>
 <h4><a class="header" href="#validation" id="validation">Validation</a></h4>
