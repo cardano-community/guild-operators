@@ -59,7 +59,12 @@ rm -f cabal-install-3.0.0.0-x86_64-unknown-linux.tar.xz cabal.sig
 
 echo "Creating Folder Structure .."
 
-[ ! "$(grep CNODE_HOME ~/.bashrc)" ] && echo "export CNODE_HOME=${CNODE_HOME}" >> ~/.bashrc
+if grep -q CNODE_HOME ~/.bashrc; then
+  echo "Environment Variable already set up!"
+else
+  echo "Setting up Environment Variable"
+  echo "export CNODE_HOME=${CNODE_HOME}" >> ~/.bashrc
+fi
 sudo mkdir -p $CNODE_HOME/files $CNODE_HOME/db $CNODE_HOME/logs $CNODE_HOME/scripts $CNODE_HOME/sockets $CNODE_HOME/priv
 sudo chown -R "$USER":"$USER" "$CNODE_HOME"
 chmod -R 755 "$CNODE_HOME"
