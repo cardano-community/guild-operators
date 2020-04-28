@@ -13,7 +13,7 @@ Everyone is welcome to contribute to the guide, as well as the repository. Below
 The document wouldn't be complete in absence of active testers from the community to provide invaluable inputs,
 
 [Psychomb](https://github.com/psychomb)  
-[Ola Ahlman](https://github.com/Scitz0)
+[Ola Ahlman](https://github.com/Scitz0)  
 [Bergr01](https://github.com/bergr01)  
 [Matthijs](https://github.com/matthijs_last)
 
