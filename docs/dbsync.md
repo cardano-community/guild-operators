@@ -39,7 +39,7 @@ You can use same instructions above to repeat and execute `cardano-db-sync` as w
 To validate, connect to postgres instance and execute commands as per below:
 
 ``` bash
-export PGPASSFILE=/opt/cardano/cnode/priv/.pgpass
+export PGPASSFILE=$CNODE_HOME/priv/.pgpass
 psql cexplorer_phtn
 ```
 
