@@ -374,7 +374,7 @@ PGPASSFILE=$CNODE_HOME/priv/.pgpass cardano-db-sync-extended --config /opt/carda
 <p>You can use same instructions above to repeat and execute <code>cardano-db-sync</code> as well, but <a href="./graphql.html">cardano-graphql</a> uses <code>cardano-db-sync-extended</code>, so we'll stick to it</p>
 <h4><a class="header" href="#validation" id="validation">Validation</a></h4>
 <p>To validate, connect to postgres instance and execute commands as per below:</p>
-<pre><code class="language-bash">export PGPASSFILE=/opt/cardano/cnode/priv/.pgpass
+<pre><code class="language-bash">export PGPASSFILE=$CNODE_HOME/priv/.pgpass
 psql cexplorer_phtn
 </code></pre>
 <p>You should be at the psql prompt, you can check the tables and verify they're populated:</p>
@@ -453,13 +453,8 @@ rsync -arvh ../node_modules ./
 <p>cardano-graphql requires cardano-node, cardano-db-sync-extended, postgresql and graphql-engine to be set up and running.
 The below will help you map the components:</p>
 <pre><code class="language-bash">export PGPASSFILE=$CNODE_HOME/priv/.pgpass
-PGPASS=$(cat $PGPASSFILE)
-PG_HOST=$(echo $PGPASS | cut -d: -f 1)
-PG_PORT=$(echo $PGPASS | cut -d: -f 2)
-PG_DB=$(echo $PGPASS | cut -d: -f 3)
-PG_USER=$(echo $PGPASS | cut -d: -f 4)
-PG_PWD=$(echo $PGPASS | cut -d: -f 5)
-export HASURA_GRAPHQL_DATABASE_URL=postgres://$PG_USER:$PG_PWD@$PG_HOST:$PG_PORT/$PG_DB
+IFS=':' read -r -a PGPASS &lt;&lt;&lt; $(cat $PGPASSFILE)
+export HASURA_GRAPHQL_DATABASE_URL=postgres://${PGPASS[3]}:${PGPASS[4]}@${PGPASS[0]}:${PGPASS[1]}/${PGPASS[2]}
 export HASURA_GRAPHQL_ENABLE_CONSOLE=true
 export HASURA_GRAPHQL_ENABLED_LOG_TYPES=&quot;startup, http-log, webhook-log, websocket-log, query-log&quot;
 export HASURA_GRAPHQL_SERVER_PORT=4080

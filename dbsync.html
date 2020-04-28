@@ -181,7 +181,7 @@ PGPASSFILE=$CNODE_HOME/priv/.pgpass cardano-db-sync-extended --config /opt/carda
 <p>You can use same instructions above to repeat and execute <code>cardano-db-sync</code> as well, but <a href="./graphql.html">cardano-graphql</a> uses <code>cardano-db-sync-extended</code>, so we'll stick to it</p>
 <h4><a class="header" href="#validation" id="validation">Validation</a></h4>
 <p>To validate, connect to postgres instance and execute commands as per below:</p>
-<pre><code class="language-bash">export PGPASSFILE=/opt/cardano/cnode/priv/.pgpass
+<pre><code class="language-bash">export PGPASSFILE=$CNODE_HOME/priv/.pgpass
 psql cexplorer_phtn
 </code></pre>
 <p>You should be at the psql prompt, you can check the tables and verify they're populated:</p>
