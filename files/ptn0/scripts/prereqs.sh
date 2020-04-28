@@ -44,7 +44,7 @@ else
 fi
 
 echo "Install ghcup (The Haskell Toolchain installer) .."
-export BOOTSTRAP_HASKELL_NONINTERACTIVE=n
+export BOOTSTRAP_HASKELL_NONINTERACTIVE=1
 curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh -s - -q
 # shellcheck source=/dev/null
 . ~/.ghcup/env
