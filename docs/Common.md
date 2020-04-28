@@ -6,7 +6,7 @@
 The pre-requisites for Linux systems are automated to be executed as a single script. Follow the instructions below to deploy the same:
 
 ``` bash
-mkdir "~/tmp";cd "~/tmp"
+mkdir "$HOME/tmp";cd "$HOME/tmp"
 wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/prereqs.sh
 chmod 755 prereqs.sh
 # Ensure you can run sudo commands with your user before execution
