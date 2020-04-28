@@ -1,9 +1,8 @@
 #!/bin/sh
 
 # For who runs the script within containers and running it as root.
-SUDO="Y"
-
-if [[ "$SUDO" == "Y" ]] || [[ "$SUDO" == "y" ]] ; then sudo="sudo"; else sudo="" ; fi ; 
+SUDO="Y";
+if [[ "$SUDO" == "Y" ]] || [[ "$SUDO" == "y" ]] ; then sudo="sudo"; else sudo="" ; fi 
 
 # Variables
 export CNODE_HOME=/opt/cardano/cnode
