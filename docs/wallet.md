@@ -1,4 +1,4 @@
-# Cardano Wallet
+### Cardano Wallet
 
 Ensure the [Pre-Requisites](Common.md#dependencies-and-folder-structure-setup) are in place before you proceed.
 

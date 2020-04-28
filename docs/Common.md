@@ -8,7 +8,7 @@ The pre-requisites for Linux systems are automated to be executed as a single sc
 ``` bash
 mkdir "~/tmp";cd "~/tmp"
 wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/prereqs.sh
-chmod 755 https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/prereqs.sh
+chmod 755 prereqs.sh
 # Ensure you can run sudo commands with your user before execution
 ./prereqs.sh
 ## Follow the prompts for execution
