@@ -165,7 +165,7 @@ stack build --test --no-run-tests
 # TODO: Replace stack with cabal, once fixed
 # 
 </code></pre>
-<p>The binaries should now be available in ~/.cabal/bin folder.</p>
+<p>Copy the cardano-wallet binary to your path. <strong>This will be automated in the future.</strong></p>
 <h4><a class="header" href="#start-the-wallet-server" id="start-the-wallet-server">Start the wallet server</a></h4>
 <pre><code class="language-bash">cardano-wallet-byron serve --node-socket $CNODE_HOME/sockets/pbft_node.socket --testnet $CNODE_HOME/files/genesis.json --database $CNODE_HOME/priv/wallet
 </code></pre>
