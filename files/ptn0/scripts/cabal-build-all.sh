@@ -3,7 +3,7 @@
 # executes cabal build all
 # parses executables created from compiler output and copies it to ~./cabal/bin folder.
 
-cabal build all 2>&1 | tee /tmp/build.log
+~/.ghcup/bin/cabal build all 2>&1 | tee /tmp/build.log
 
 grep "^Linking" /tmp/build.log | while read -r line ; do
     act_bin_path=$(echo "$line" | awk '{print $2}')
