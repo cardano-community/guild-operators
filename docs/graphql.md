@@ -54,6 +54,7 @@ The below will help you map the components:
 ``` bash
 export PGPASSFILE=$CNODE_HOME/priv/.pgpass
 IFS=':' read -r -a PGPASS <<< $(cat $PGPASSFILE)
+export HASURA_GRAPHQL_ENABLE_TELEMETRY=false  # Optional.  To send usage data to Hasura, set to true.
 export HASURA_GRAPHQL_DATABASE_URL=postgres://${PGPASS[3]}:${PGPASS[4]}@${PGPASS[0]}:${PGPASS[1]}/${PGPASS[2]}
 export HASURA_GRAPHQL_ENABLE_CONSOLE=true
 export HASURA_GRAPHQL_ENABLED_LOG_TYPES="startup, http-log, webhook-log, websocket-log, query-log"
