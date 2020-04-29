@@ -17,6 +17,7 @@ This should make `graphql-engine` available at ~/.cabal/bin.
 
 The command below will help you compile the cardano-graphql node:
 ``` bash
+cd ~/git
 git clone https://github.com/input-output-hk/cardano-graphql
 cd cardano-graphql
 yarn
