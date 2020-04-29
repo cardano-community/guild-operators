@@ -242,11 +242,11 @@ cardano-node
 <pre><code class="language-bash">cd ~/git
 git clone https://github.com/input-output-hk/cardano-wallet
 cd cardano-wallet
-stack build --test --no-run-tests
+$CNODE_HOME/scripts/stack-build.sh
 # TODO: Replace stack with cabal, once fixed
 # 
 </code></pre>
-<p>Copy the cardano-wallet binary to your path. <strong>This will be automated in the future.</strong></p>
+<p>The above would copy the binaries into ~/.cabal/bin folder.</p>
 <h4><a class="header" href="#start-the-wallet-server" id="start-the-wallet-server">Start the wallet server</a></h4>
 <pre><code class="language-bash">cardano-wallet-byron serve --node-socket $CNODE_HOME/sockets/pbft_node.socket --testnet $CNODE_HOME/files/genesis.json --database $CNODE_HOME/priv/wallet
 </code></pre>
