@@ -10,11 +10,10 @@ Follow instructions below for building the cardano-wallet binary:
 cd ~/git
 git clone https://github.com/input-output-hk/cardano-wallet
 cd cardano-wallet
-stack build --test --no-run-tests
+$CNODE_HOME/scripts/stack-build.sh
 # TODO: Replace stack with cabal, once fixed
 # 
 ```
-Copy the cardano-wallet binary to your path. **This will be automated in the future.**  
 
 #### Start the wallet server
 ```bash
