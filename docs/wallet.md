@@ -14,6 +14,7 @@ $CNODE_HOME/scripts/stack-build.sh
 # TODO: Replace stack with cabal, once fixed
 # 
 ```
+The above would copy the binaries into ~/.cabal/bin folder.
 
 #### Start the wallet server
 ```bash
