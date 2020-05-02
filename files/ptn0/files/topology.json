@@ -84,26 +84,32 @@
      },
      {
         "operator":"eysteinh@anplaptop",
-        "addr":"89.162.104.95",
+        "addr":"relay1.adanorthpool.com",
         "port":9002,
         "valency":1
      },
      {
         "operator":"eysteinh@anpserver2",
-        "addr":"89.162.104.95",
+        "addr":"relay1.adanorthpool.com",
         "port":9003,
         "valency":1
      },
      {
         "operator":"eysteinh@anpserver2",
-        "addr":"89.162.104.95",
+        "addr":"relay1.adanorthpool.com",
         "port":9004,
         "valency":1
      },
      {
         "operator":"eysteinh@anpserver2",
-        "addr":"89.162.104.95",
+        "addr":"relay1.adanorthpool.com",
         "port":9005,
+        "valency":1
+     },
+     {
+        "operator":"eysteinh@anpshetzner",
+        "addr":"relay2.adanorthpool.com",
+        "port":9000,
         "valency":1
      },
      {
