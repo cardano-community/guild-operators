@@ -7,14 +7,28 @@ It is recommended to customise these as per your needs for Production builds.
 
 Execute commands below to set up Postgres Server
 
+**CentOS/RHEL**: 
+
 ``` bash
-# TODO: Add debian/Ubuntu specific commands
 sudo yum install -y postgresql-server postgresql-server-devel postgresql-contrib postgresql-devel
 sudo postgresql-setup initdb
 sudo sed -i "s#  ident#  md5#g" /var/lib/pgsql/data/pg_hba.conf
 sudo systemctl start postgresql
 sudo systemctl enable postgresql
 ```
+
+**Debian/Ubuntu**:
+
+```bash
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+RELEASE=$(lsb_release -cs)
+echo "deb http://apt.postgresql.org/pub/repos/apt/ ${RELEASE}"-pgdg main | sudo tee  /etc/apt/sources.list.d/pgdg.list
+sudo apt-get update
+sudo apt-get -y install postgresql-11 postgresql-server-dev-11 postgresql-contrib libghc-hdbc-postgresql-dev
+sudo sed -i "s#  ident#  md5#g" /etc/postgresql/11/main/pg_hba.conf
+```
+
+
 
 #### Create User in Postgres
 
