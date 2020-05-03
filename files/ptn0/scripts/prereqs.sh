@@ -69,7 +69,7 @@ if grep -q CNODE_HOME ~/.bashrc; then
 else
   echo "Setting up Environment Variable"
   echo "export CNODE_HOME=${CNODE_HOME}" >> ~/.bashrc
-  source ~/.bashrc
+  . ~/.bashrc
 fi
 $sudo mkdir -p $CNODE_HOME/files $CNODE_HOME/db $CNODE_HOME/logs $CNODE_HOME/scripts $CNODE_HOME/sockets $CNODE_HOME/priv
 $sudo chown -R "$USER":"$USER" "$CNODE_HOME"
