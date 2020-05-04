@@ -15,6 +15,15 @@ This should make `graphql-engine` available at ~/.cabal/bin.
 
 #### Build cardano-graphql
 
+The build will fail if you are running a version of node.js earlier than 10.0.0
+
+Refer to [Upgrading Node.js Instructions](nodejs.md) if an upgrade is required
+```bash
+#check your version of node.js
+node -v
+#if response is 10.0.0 or higher build can proceed. 
+```
+
 The command below will help you compile the cardano-graphql node:
 ``` bash
 cd ~/git
