@@ -419,7 +419,12 @@ $CNODE_HOME/scripts/cabal-build-all.sh
 </code></pre>
 <p>This should make <code>graphql-engine</code> available at ~/.cabal/bin.</p>
 <h4><a class="header" href="#build-cardano-graphql" id="build-cardano-graphql">Build cardano-graphql</a></h4>
-<p>The command below will help you compile the cardano-graphql node:</p>
+<p>The build will fail if you are running a version of node.js earlier than 10.0.0 (which could happen if you have a conflicting version in your $PATH). You can verify your node version by executing the below:</p>
+<pre><code class="language-bash">#check your version of node.js
+node -v
+#if response is 10.0.0 or higher build can proceed. 
+</code></pre>
+<p>The commands below will help you compile the cardano-graphql node:</p>
 <pre><code class="language-bash">cd ~/git
 git clone https://github.com/input-output-hk/cardano-graphql
 cd cardano-graphql
