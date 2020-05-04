@@ -159,12 +159,30 @@
 It is recommended to customise these as per your needs for Production builds.</p>
 <h4><a class="header" href="#install-postgresql-server" id="install-postgresql-server">Install PostgreSQL Server</a></h4>
 <p>Execute commands below to set up Postgres Server</p>
-<pre><code class="language-bash"># TODO: Add debian/Ubuntu specific commands
-sudo yum install -y postgresql-server postgresql-server-devel postgresql-contrib postgresql-devel
-sudo postgresql-setup initdb
-sudo sed -i &quot;s#  ident#  md5#g&quot; /var/lib/pgsql/data/pg_hba.conf
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
+<pre><code class="language-bash"># Determine OS platform
+OS_ID=$(grep -i ^id_like= /etc/os-release | cut -d= -f 2)
+DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
+
+if [ -z &quot;${OS_ID##*debian*}&quot; ]; then
+  #Debian/Ubuntu
+  wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+  RELEASE=$(lsb_release -cs)
+  echo &quot;deb http://apt.postgresql.org/pub/repos/apt/ ${RELEASE}&quot;-pgdg main | sudo tee  /etc/apt/sources.list.d/pgdg.list
+  sudo apt-get update
+  sudo apt-get -y install postgresql-11 postgresql-server-dev-11 postgresql-contrib libghc-hdbc-postgresql-dev
+  sudo sed -i &quot;s#  ident#  md5#g&quot; /etc/postgresql/11/main/pg_hba.conf
+  sudo systemctl restart postgresql
+  sudo systemctl enable postgresql
+elif [ -z &quot;${OS_ID##*rhel*}&quot; ]; then
+  #CentOS/RHEL/Fedora
+  sudo yum install -y postgresql-server postgresql-server-devel postgresql-contrib postgresql-devel
+  sudo postgresql-setup initdb
+  sudo sed -i &quot;s#  ident#  md5#g&quot; /var/lib/pgsql/data/pg_hba.conf
+  sudo systemctl start postgresql
+  sudo systemctl enable postgresql
+else
+  echo &quot;We have no automated procedures for this ${DISTRO} system&quot;
+fi
 </code></pre>
 <h4><a class="header" href="#create-user-in-postgres" id="create-user-in-postgres">Create User in Postgres</a></h4>
 <p>Login to Postgres instance as superuser:</p>
