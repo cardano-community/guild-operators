@@ -10,7 +10,7 @@ Everyone is welcome to contribute to the guide, as well as the repository. Below
 [RedOracle](https://github.com/RedOracle)  
 [Marek](https://github.com/mmahut)
 
-The document wouldn't be complete in absence of active testers from the community to provide invaluable inputs,
+The document wouldn't be complete in absence of active testers from the community to provide invaluable inputs.
 
 [Psychomb](https://github.com/psychomb)  
 [Ola Ahlman](https://github.com/Scitz0)  

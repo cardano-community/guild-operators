@@ -44,8 +44,10 @@ else
 fi
 
 echo "Install ghcup (The Haskell Toolchain installer) .."
-export BOOTSTRAP_HASKELL_NONINTERACTIVE=1
-curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh -s - -q
+# TMP: Dirty hack to prevent ghcup interactive setup, yet allow profile set up
+unset BOOTSTRAP_HASKELL_NONINTERACTIVE
+export BOOTSTRAP_HASKELL_NO_UPGRADE=1
+curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sed -e 's#read.*#answer=Y;next_answer=Y#' | sh -s - -q
 # shellcheck source=/dev/null
 . ~/.ghcup/env
 
