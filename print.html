@@ -494,7 +494,7 @@ cd $CNODE_HOME/scripts
 ./cnode.sh
 </code></pre>
 <h3><a class="header" href="#config-for-phtn---as-a-passive-node" id="config-for-phtn---as-a-passive-node">Config for pHTN - as a Passive node</a></h3>
-<h4><a class="header" href="#create-singing-and-verifying-keys" id="create-singing-and-verifying-keys">Create singing and verifying keys</a></h4>
+<h4><a class="header" href="#create-signing-and-verifying-keys" id="create-signing-and-verifying-keys">Create signing and verifying keys</a></h4>
 <pre><code class="language-bash">$ cardano-cli keygen --real-pbft --secret $CNODE_HOME/priv/pbft0p.key --no-password
 </code></pre>
 <h4><a class="header" href="#create-verification-key-1" id="create-verification-key-1">Create verification key</a></h4>
@@ -521,8 +521,6 @@ cardano-node run \
           --config $CNODE_HOME/files/ptn0.yaml \
           --database-path $CNODE_HOME/db \
           --host-addr $(curl ifconfig.me) \
-          --signing-key $CNODE_HOME/priv/pbft0p.key \
-          --delegation-certificate $CNODE_HOME/files/pbft0p.json \
           --port 9000 \
           --socket-path $CNODE_HOME/sockets/0 \
           --topology $CNODE_HOME/files/topology.json
