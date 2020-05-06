@@ -36,8 +36,6 @@ cardano-node run \
           --config $CNODE_HOME/files/ptn0.yaml \
           --database-path $CNODE_HOME/db \
           --host-addr $(curl ifconfig.me) \
-          --signing-key $CNODE_HOME/priv/pbft0p.key \
-          --delegation-certificate $CNODE_HOME/files/pbft0p.json \
           --port 9000 \
           --socket-path $CNODE_HOME/sockets/0 \
           --topology $CNODE_HOME/files/topology.json
