@@ -1,6 +1,6 @@
 ### Config for pHTN - as a Passive node
 
-#### Create singing and verifying keys
+#### Create signing and verifying keys
 
 ``` bash
 $ cardano-cli keygen --real-pbft --secret $CNODE_HOME/priv/pbft0p.key --no-password
