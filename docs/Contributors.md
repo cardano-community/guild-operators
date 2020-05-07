@@ -2,7 +2,7 @@
 
 Everyone is welcome to contribute to the guide, as well as the repository. Below is just a thank you to people who have been contributing consistently:
 
-[Priyank](https://github.com/rdlrt)
+[Priyank](https://github.com/rdlrt)  
 [Markus](https://github.com/gufmar)  
 [Pal Dorogi](https://github.com/ilap)  
 [Papacarp](https://github.com/papacarp)  
@@ -11,7 +11,7 @@ Everyone is welcome to contribute to the guide, as well as the repository. Below
 [RedOracle](https://github.com/RedOracle)  
 [Marek](https://github.com/mmahut)
 
-The document wouldn't be complete in absence of active testers from the community to provide invaluable inputs,
+The document wouldn't be complete in absence of active testers from the community to provide invaluable inputs.
 
 [Psychomb](https://github.com/psychomb)  
 [Ola Ahlman](https://github.com/Scitz0)  
