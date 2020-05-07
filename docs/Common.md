@@ -11,6 +11,7 @@ wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/
 chmod 755 prereqs.sh
 # Ensure you can run sudo commands with your user before execution
 ./prereqs.sh
+. "${HOME}/.bashrc"
 ## Follow the prompts for execution
 ```
 
