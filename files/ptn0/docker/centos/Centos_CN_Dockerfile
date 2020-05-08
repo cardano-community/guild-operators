@@ -30,4 +30,4 @@ RUN set -x \
   
 EXPOSE 9000 12781 13788
 
-ENTRYPOINT ['/CN_entrypoint.sh']
+ENTRYPOINT ["/CN_entrypoint.sh"]
