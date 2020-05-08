@@ -9,8 +9,6 @@ ENV=/etc/profile \
 USER=root \
 PATH=$CNODE_HOME/scripts:~/.cabal/bin:~/.ghcup/bin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH 
 
-#COPY ./entrypoint.sh /
-
 RUN set -x \
   && apt update \
   && apt install -y wget \
