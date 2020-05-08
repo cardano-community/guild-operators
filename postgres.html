@@ -172,7 +172,7 @@ if [ -z &quot;${OS_ID##*debian*}&quot; ]; then
   sudo systemctl enable postgresql
 elif [ -z &quot;${OS_ID##*rhel*}&quot; ]; then
   #CentOS/RHEL/Fedora
-  sudo yum install -y postgresql-server postgresql-server-devel postgresql-contrib postgresql-devel
+  sudo yum install -y postgresql-server postgresql-server-devel postgresql-contrib postgresql-devel libpq-devel
   sudo postgresql-setup initdb
   sudo sed -i &quot;s#  ident#  md5#g&quot; /var/lib/pgsql/data/pg_hba.conf
   sudo systemctl start postgresql
