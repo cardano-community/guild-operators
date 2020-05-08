@@ -14,8 +14,8 @@ RUN set -x \
   && apt install -y wget \
   && cd / \
   && wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/prereqs.sh \
-  && wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/debian/entrypoint.sh \
-  && chmod +x /entrypoint.sh \
+  && wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/CN_entrypoint.sh \
+  && chmod +x /CN_entrypoint.sh \
   && cat prereqs.sh | sed 's/SUDO="Y";/SUDO="N";/g' > /tmp/prereqs.sh \
   && export BOOTSTRAP_HASKELL_NO_UPGRADE=1 \
   && bash /tmp/prereqs.sh \
@@ -30,4 +30,4 @@ RUN set -x \
   
 EXPOSE 9000 12781 13788
 
-ENTRYPOINT ['/entrypoint.sh']
+ENTRYPOINT ['/CN_entrypoint.sh']
