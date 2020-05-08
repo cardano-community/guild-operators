@@ -14,6 +14,7 @@ PATH=$CNODE_HOME/scripts:~/.cabal/bin:~/.ghcup/bin:/bin:/sbin:/usr/bin:/usr/sbin
 RUN set -x \
   && apt update \
   && apt install -y wget \
+  && cd / \
   && wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/prereqs.sh \
   && wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/debian/entrypoint.sh \
   && cat prereqs.sh | sed 's/SUDO="Y";/SUDO="N";/g' > /tmp/prereqs.sh \
