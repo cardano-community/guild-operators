@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # For who runs the script within containers and running it as root.
-SUDO="Y";
+SUDO="N";
 if [ "${SUDO}" = "Y" ] || [ "${SUDO}" = "y" ] ; then sudo="sudo"; else sudo="" ; fi
 
 # Variables
