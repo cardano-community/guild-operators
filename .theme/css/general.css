@@ -166,3 +166,11 @@ blockquote {
 .tooltipped .tooltiptext {
     visibility: visible;
 }
+
+.adrestia-arch {
+    display: block;
+    height: 100%;
+    width: 100%;
+    padding: 0x;
+    min-height: 750px;
+}
