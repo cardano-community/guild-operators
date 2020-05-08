@@ -15,6 +15,7 @@ RUN set -x \
   && wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/prereqs.sh \
   && wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/CN_entrypoint.sh \
   && chmod +x /CN_entrypoint.sh \
+  && echo "assumeyes=1" >> /etc/yum.conf \
   && cat prereqs.sh | sed 's/SUDO="Y";/SUDO="N";/g' > /tmp/prereqs.sh \
   && export BOOTSTRAP_HASKELL_NO_UPGRADE=1 \
   && bash /tmp/prereqs.sh \
