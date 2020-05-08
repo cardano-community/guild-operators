@@ -20,7 +20,9 @@ Pipe the chosen Dockerfile (i.e. Debian_Dockerfile) from STDIN:
 
 With bash on Linux, you can run:
 ```
+$ wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/debian/Debian_CN_Dockerfile 
 $ docker build -t guild-operators/cardano-node:debian - < Debian_CN_Dockerfile
+$ docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=passive guild-operators/cardano-node:debian 
 ```
 With Powershell on Windows, you can run:
 ```
