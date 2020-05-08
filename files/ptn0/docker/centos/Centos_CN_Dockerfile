@@ -24,7 +24,7 @@ RUN set -x \
   && cd cardano-node \
   && export PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH \
   && bash $CNODE_HOME/scripts/cabal-build-all.sh  \
-  && cd - && apt remove -y build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ libncursesw5 git tmux && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* cardano-node \
+  && cd - && yum remove -y build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ libncursesw5 git tmux && yum clean all && rm -rf /var/cache/yum/x86_64 /tmp/* /var/tmp/* cardano-node \
   && echo "Done!";
   
   
