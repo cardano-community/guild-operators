@@ -32,3 +32,5 @@ else
   echo "Please set a NETWORK environment variable to one of: active/passive"
   echo "Or mount a /configuration volume containing: configuration.yaml, genesis.json, and topology.json + Pool.cert, Pool.key for active nodes"
 fi
+# EKG Exposed
+socat -d tcp-listen:12781,reuseaddr,fork tcp:127.0.0.1:12781 &
