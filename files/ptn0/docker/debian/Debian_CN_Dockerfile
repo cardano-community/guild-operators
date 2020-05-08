@@ -1,0 +1,20 @@
+FROM debian
+
+RUN set -x \
+  && apt update \
+  && apt install -y wget \
+  && wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/prereqs.sh \
+  && cat prereqs.sh | sed 's/SUDO="Y";/SUDO="N";/g' > /tmp/prereqs.sh \
+  && bash /tmp/prereqs.sh \
+  && . ~/.bashrc \
+  && git clone https://github.com/input-output-hk/cardano-node.git \
+  && cd cardano-node \
+  && bash /opt/cardano/cnode/scripts/cabal-build-all.sh 
+  
+  
+ENV \
+CNODE_HOME=/opt/cardano/cnode \
+DEBIAN_FRONTEND=noninteractive \
+LANG=C.UTF-8 \
+ENV=/etc/profile \
+USER=root 
