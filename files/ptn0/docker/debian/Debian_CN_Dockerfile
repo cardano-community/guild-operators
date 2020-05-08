@@ -1,20 +1,33 @@
 FROM debian
 
+ENV \
+CNODE_HOME=/opt/cardano/cnode \
+CNODE_PORT=9000 \
+DEBIAN_FRONTEND=noninteractive \
+LANG=C.UTF-8 \
+ENV=/etc/profile \
+USER=root \
+PATH=$CNODE_HOME/scripts:~/.cabal/bin:~/.ghcup/bin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH 
+
+#COPY ./entrypoint.sh /
+
 RUN set -x \
   && apt update \
   && apt install -y wget \
   && wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/prereqs.sh \
+  && wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/debian/entrypoint.sh \
   && cat prereqs.sh | sed 's/SUDO="Y";/SUDO="N";/g' > /tmp/prereqs.sh \
+  && export BOOTSTRAP_HASKELL_NO_UPGRADE=1 \
   && bash /tmp/prereqs.sh \
-  && . ~/.bashrc \
+  && bash ~/.bashrc \
   && git clone https://github.com/input-output-hk/cardano-node.git \
   && cd cardano-node \
-  && bash /opt/cardano/cnode/scripts/cabal-build-all.sh 
+  && export PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH \
+  && bash $CNODE_HOME/scripts/cabal-build-all.sh  \
+  && cd - && apt remove -y build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ libncursesw5 git tmux && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* cardano-node \
+  && echo "Done!";
   
   
-ENV \
-CNODE_HOME=/opt/cardano/cnode \
-DEBIAN_FRONTEND=noninteractive \
-LANG=C.UTF-8 \
-ENV=/etc/profile \
-USER=root 
+EXPOSE 9000
+
+ENTRYPOINT ['/entrypoint.sh']
