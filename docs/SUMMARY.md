@@ -9,6 +9,7 @@
     - [REST](./rest.md)
     - [DBSync tool](./dbsync.md)
     - [GraphQL](./graphql.md)
+  - [Docker](./Docker.md)
   - [Set up and connect to the network as BFT leader](./Setup-BFT-Member.md)
   - [Set up and connect to the network as a passive member](./Setup-Passive-Member.md)
   - [Useful Scripts](./cli-scripts.md)
