@@ -1,6 +1,7 @@
 ### Contents
 
 - [Getting Started](./Home.md)
+  - [Architecture](./architecture.md)
   - [Build and Run](./Build-and-Run.md)
     - [Common](./Common.md)
     - [Node and CLI](./node-cli.md)
