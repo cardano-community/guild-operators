@@ -28,6 +28,7 @@ The commands below will help you compile the cardano-graphql node:
 cd ~/git
 git clone https://github.com/input-output-hk/cardano-graphql
 cd cardano-graphql
+git checkout v1.1.1
 yarn
 #yarn install v1.22.4
 # [1/4] Resolving packages...
