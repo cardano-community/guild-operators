@@ -27,6 +27,7 @@ $ docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=passive gu
 With Powershell on Windows, you can run (in this example the Debian version):
 ```
 Get-Content Debian_CN_Dockerfile | docker build -t guild-operators/cardano-node:debian -
+docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=passive guild-operators/cardano-node:debian 
 ```
 
 
@@ -35,6 +36,7 @@ Get-Content Debian_CN_Dockerfile | docker build -t guild-operators/cardano-node:
 With bash on Linux, you can run:
 ```
 $ docker build -t guild-operators/cardano-wallet:debian - < Debian_CW_Dockerfile
+docker run -itd --name CN --hostname CN -p xx:xx -it -e NETWORK=passive guild-operators/cardano-wallet:debian 
 ```
 With Powershell on Windows, you can run:
 ```
