@@ -10,7 +10,7 @@ export CNODE_PORT=9000
 if [[ -d /configuration ]]; then
   exec cardano-node run \
     --config /configuration/configuration.yaml \
-    --database-path /tmp/db \
+    --database-path  /configuration/db \
     --host-addr `curl ifconfig.me` \
     --signing-key /configuration/Pool.key \
     --delegation-certificate /configuration/Pool.cert \
