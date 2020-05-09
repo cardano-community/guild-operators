@@ -30,10 +30,10 @@ With bash on Linux, you can run (in this example the Debian version):
 ```
 wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/debian/Debian_CN_Dockerfile 
 docker build -t cardanocommunity/cardano-node:debian - < Debian_CN_Dockerfile
-docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=mainnet cardanocommunity/cardano-node:debian 
+docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=ptn0 cardanocommunity/cardano-node:debian 
 ```
-This last run command will run the container (Full passive Cardano Node) mapping the internal port of the container to your ip `-p 9000:9000` while you can change the `-e NETWORK=testnet` paramiter to `mainnet` or map your configuration directory with the `-v` parameter as follow:
-
+>This last run command will run the container (Full passive Cardano Node) mapping the internal port of the container to your >IP `-p 9000:9000` while you can change the `-e NETWORK=testnet` paramiter to `mainnet` or map your configuration directory >with the `-v` parameter as follow:
+>NOTE: Only ptn0 is owrking at the moment.
 ```
 docker run -itd --name CN --hostname CN -p 9000:9000 -it -v <PATHTOYOURDIR>:/configuration -e NETWORK=testnet cardanocommunity/cardano-node:debian 
 ```
@@ -51,17 +51,13 @@ docker exec -it CN bash
 ```
 
 
-***
-
-> #### WINZOZZ Users..
-> 
+---
+#### WINZOZZ Users..
 >With Powershell on Windows, you can run (in this example the Debian version):
 >```
 >Get-Content Debian_CN_Dockerfile | docker build -t guild-operators/cardano-node:debian -
->docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=testnet guild-operators/cardano-node:debian 
 >```
->
-***
+---
 
 
 ### Cardano-Wallet (testnet / mainnet)
