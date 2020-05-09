@@ -26,7 +26,7 @@ elif [[ "$NETWORK" == "testnet" ]]; then
   --socket-path /ipc/node.socket \
   --topology $CNODE_HOME/files/testnet-topology.json $@
 elif [[ "$NETWORK" == "mainnet" ]]; then
-  exec ln -s $CNODE_HOME/files/mainnet.yaml /configuration/configuration.yaml \
+  #exec ln -s $CNODE_HOME/files/mainnet.yaml /configuration/configuration.yaml \
   exec cardano-node run \
     --config $CNODE_HOME/files/mainnet.yaml \
     --database-path /tmp/mainnet-db \
