@@ -74,7 +74,7 @@ docker run -itd --name CN --hostname CN -p 127.0.0.1:9000:9000 -it -e NETWORK=pa
 With bash on Linux, you can run:
 ```
 $ docker build -t guild-operators/cardano-wallet:debian - < Debian_CW_Dockerfile
-docker run -itd --name CN --hostname CN -p 127.0.0.1:8090:8090 -it -e NETWORK=mainnet guild-operators/cardano-wallet:debian 
+docker run -itd --name CW --hostname CW -p 127.0.0.1:8090:8090 -it -e NETWORK=mainnet guild-operators/cardano-wallet:debian 
 ```
 With Powershell on Windows, you can run:
 ```
