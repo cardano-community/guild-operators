@@ -32,14 +32,6 @@ elif [[ "$NETWORK" == "mainnet" ]]; then
     --port $CNODE_PORT \
     --socket-path /ipc/node.socket \
     --topology $CNODE_HOME/files/mainnet-topology.json $@
-elif [[ "$NETWORK" == "byron" ]]; then
-  exec cardano-node run \
-    --config $CNODE_HOME/files/byron.yaml \
-    --database-path /tmp/mainnet-byron-db \
-    --host-addr `curl ifconfig.me` \
-    --port $CNODE_PORT \
-    --socket-path /ipc/node.socket \
-    --topology $CNODE_HOME/files/byron-mainnet-topology.json $@
 elif [[ "$NETWORK" == "ptn0" ]]; then
   exec cardano-node run \
     --config $CNODE_HOME/files/ptn0.yaml \
