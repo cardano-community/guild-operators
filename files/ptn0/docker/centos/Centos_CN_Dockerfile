@@ -9,12 +9,15 @@ ENV=/etc/profile \
 USER=root \
 PATH=$CNODE_HOME/scripts:~/.cabal/bin:~/.ghcup/bin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH 
 
+WORKDIR /
+
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/CN_entrypoint.sh /
+RUN chmod +x /CN_entrypoint.sh 
+
 RUN set -x \
   && yum install -y wget \
   && cd / \
   && wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/prereqs.sh \
-  && wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/CN_entrypoint.sh \
-  && chmod +x /CN_entrypoint.sh \
   && echo "assumeyes=1" >> /etc/yum.conf \
   && cat prereqs.sh | sed 's/SUDO="Y";/SUDO="N";/g' > /tmp/prereqs.sh \
   && export BOOTSTRAP_HASKELL_NO_UPGRADE=1 \
@@ -30,4 +33,4 @@ RUN set -x \
   
 EXPOSE 9000 12781 13788
 
-ENTRYPOINT ["/CN_entrypoint.sh"]
+ENTRYPOINT ["./CN_entrypoint.sh"]
