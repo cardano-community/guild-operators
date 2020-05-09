@@ -1,0 +1,41 @@
+version: "3.5"
+
+services:
+  cardano-node:
+    image: cardanocommunity/cardano-node:debian
+    environment:
+      NETWORK:
+    volumes:
+      - node-${NETWORK}-db:/data
+      - node-ipc:/ipc
+      - node-config:/nix/store
+    restart: on-failure
+
+  cardano-wallet:
+    image: cardanocommunity/cardano-wallet:debian
+    volumes:
+      - wallet-${NETWORK}-db:/wallet-db
+      - node-ipc:/ipc
+      - node-config:/config
+    ports:
+      - 8090:8090
+    entrypoint: []
+    command: bash -c "
+        ([[ $$NETWORK == \"mainnet\" ]] && $$CMD --mainnet) ||
+        ([[ $$NETWORK == \"testnet\" ]] && $$CMD --testnet /config/genesis.json) ||
+        ([[ $$NETWORK == \"ptn0\" ]] && $$CMD --testnet /opt/cardano/cnode/files/genesis.json)
+      "
+    environment:
+      CMD: "cardano-wallet-byron serve --node-socket /ipc/node.socket --database /wallet-db --listen-address 0.0.0.0"
+      NETWORK:
+    restart: on-failure
+
+volumes:
+  node-ptn0-db:
+  node-mainnet-db:
+  node-testnet-db:
+  wallet-mainnet-db:
+  wallet-ptn0-db:
+  wallet-testnet-db:
+  node-ipc:
+  node-config:
