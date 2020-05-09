@@ -75,7 +75,9 @@ Get-Content Debian_CW_Dockerfile | docker build -t guild-operators/cardano-walle
 
 ## How to run your container from DockerHub
 
-### Community DockerHub
+### Cardano Community DockerHub
+
+ - Cardano Node
 
 _PTN0_  \
 `docker run -itd  --name CN --hostname CN -p 9001:9000 -it -e NETWORK=ptn0 cardanocommunity/cardano-node:debian` 
@@ -85,6 +87,21 @@ _Mainnet_ \
 
 _Testnet_ \
 `docker run -itd  --name CN --hostname CN -p 9001:9000 -it -e NETWORK=testnet cardanocommunity/cardano-node:debian` 
+
+
+ - Cardano Wallet
+
+_PTN0_  \
+`docker run -itd  --name CN --hostname CN -p 8090:8090 -it -e NETWORK=ptn0 cardanocommunity/cardano-wallet:debian` 
+
+_Mainnet_ \
+`docker run -itd  --name CN --hostname CN -p 8090:8090 -it -e NETWORK=mainnet cardanocommunity/cardano-wallet:debian` 
+
+_Testnet_ \
+`docker run -itd  --name CN --hostname CN -p 8090:8090 -it -e NETWORK=testnet cardanocommunity/cardano-wallet:debian`
+
+> Thos are single images, to run a full wallet you need also a full Cardano Node.
+
  
  ### IOHK DockerHub (Nix Version)
 
