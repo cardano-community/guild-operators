@@ -28,7 +28,6 @@ RUN set -x \
   && echo "Done!!";
 
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/mainnet-topology.json $CNODE_HOME/files/
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/byron-mainnet-topology.json $CNODE_HOME/files/
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/CN_entrypoint.sh /
 RUN chmod +x /CN_entrypoint.sh 
 
