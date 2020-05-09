@@ -74,7 +74,8 @@ docker run -itd --name CW --hostname CW -p 8090:8090 -e NETWORK=mainnet guild-op
 While to run a node + wallet trough the docker-compose cmd:
 ```
 wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/Wallet-docker-compose.yaml
-NETWORK=mainnet docker-compose -f Wallet-docker-compose.yaml up
+NETWORK=mainnet docker-compose -f Wallet-docker-compose.yaml up    # add -d for detach mode
+
 ```
 
 ***
