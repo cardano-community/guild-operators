@@ -31,7 +31,7 @@ elif [[ "$NETWORK" == "mainnet" ]]; then
     --host-addr `curl ifconfig.me` \
     --port $CNODE_PORT \
     --socket-path /ipc/node.socket \
-    --topology /configuration/mainnet-topology.json $@
+    --topology $CNODE_HOME/files/mainnet-topology.json $@
 else
   echo "Please set a NETWORK environment variable to one of: active/passive"
   echo "Or mount a /configuration volume containing: configuration.yaml, genesis.json, and topology.json + Pool.cert, Pool.key for active nodes"
