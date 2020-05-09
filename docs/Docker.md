@@ -6,8 +6,8 @@ In there here below section you can find a collection of procedure that will mak
 
 ### Cardano Node exposing
 - Node port (9000) 
-- Prometheus port (12781) 
-- EKG port (13788) 
+- Prometheus port (13788) 
+- EKG port (12781) 
 
 ### Cardano Node exposing
 - Wallet port (8090)
