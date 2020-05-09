@@ -2,6 +2,8 @@
 
 In there here below section you can find a collection of procedure that will make you able to get you Cardano-* software safely running in docker containers using the Linux flavour of your choice.
 
+***
+
 ## Port mapping
 
  Node Ports        |  Wallet Ports      | OS Flavors
@@ -12,6 +14,8 @@ EKG (12781)        |                    |
 
 
 The dockerfiles are located in ./files/ptn0/docker/ 
+
+***
 
 ## How to build your own image from Dockerfile
 
@@ -47,17 +51,17 @@ docker exec -it CN bash
 ```
 
 
+***
 
-
-#### WINZOZZ Users..
-
-With Powershell on Windows, you can run (in this example the Debian version):
-```
-Get-Content Debian_CN_Dockerfile | docker build -t guild-operators/cardano-node:debian -
-docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=testnet guild-operators/cardano-node:debian 
-```
-
-
+> #### WINZOZZ Users..
+> 
+>With Powershell on Windows, you can run (in this example the Debian version):
+>```
+>Get-Content Debian_CN_Dockerfile | docker build -t guild-operators/cardano-node:debian -
+>docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=testnet guild-operators/cardano-node:debian 
+>```
+>
+***
 
 ### Cardano-Wallet (testnet / mainnet)
 
@@ -71,10 +75,10 @@ With Powershell on Windows, you can run:
 Get-Content Debian_CW_Dockerfile | docker build -t guild-operators/cardano-wallet:debian -
 ```
 
-
+***
 
 ## How to run your container from DockerHub
-
+***
 ### Cardano Community DockerHub
 
  - Cardano Node
@@ -99,6 +103,7 @@ _Mainnet_ \
 
 _Testnet_ \
 `docker run -itd  --name CN --hostname CN -p 8090:8090 -it -e NETWORK=testnet cardanocommunity/cardano-wallet:debian`
+***
 
 > Thos are single images, to run a full wallet you need also a full Cardano Node.
 
