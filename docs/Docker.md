@@ -24,6 +24,12 @@ $ wget https://raw.githubusercontent.com/cardano-community/guild-operators/docke
 $ docker build -t guild-operators/cardano-node:debian - < Debian_CN_Dockerfile
 $ docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=passive guild-operators/cardano-node:debian 
 ```
+This last run command will run the container (Full passive Cardano Node) mapping the internal port of the container to your ip `-p 9000:9000` while you can change the `-e NETWORK=passive` paramiter to `active` or map your configuration directory with the `-v` parameter as follow:
+
+```
+docker run -itd --name CN --hostname CN -p 9000:9000 -it -v <PATHTOYOURDIR>:/configuration -e NETWORK=passive guild-operators/cardano-node:debian 
+```
+
 With Powershell on Windows, you can run (in this example the Debian version):
 ```
 Get-Content Debian_CN_Dockerfile | docker build -t guild-operators/cardano-node:debian -
