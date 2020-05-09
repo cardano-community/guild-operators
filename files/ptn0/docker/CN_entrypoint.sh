@@ -28,7 +28,7 @@ elif [[ "$NETWORK" == "testnet" ]]; then
 elif [[ "$NETWORK" == "mainnet" ]]; then
   #exec ln -s $CNODE_HOME/files/mainnet.yaml /configuration/configuration.yaml \
   exec cardano-node run \
-    --config $CNODE_HOME/files/mainnet.yaml \
+    --config $CNODE_HOME/files/mainnet.json \
     --database-path /tmp/mainnet-db \
     --host-addr `curl ifconfig.me` \
     --port $CNODE_PORT \
