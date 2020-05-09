@@ -28,7 +28,7 @@ The dockerfiles are located in ./files/ptn0/docker/
 Instead of specifying a context, you can pass a single Dockerfile in the URL or pipe the file in via STDIN. 
 Pipe the chosen Dockerfile (i.e. Debian_Dockerfile) from STDIN:
 
-### Cardano-Node
+### Cardano-Node (passive / active / configuration)
 
 With bash on Linux, you can run (in this example the Debian version):
 ```
@@ -63,12 +63,12 @@ docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=passive guil
 ```
 
 
-### Cardano-Wallet
+### Cardano-Wallet (testnet / mainnet)
 
 With bash on Linux, you can run:
 ```
 $ docker build -t guild-operators/cardano-wallet:debian - < Debian_CW_Dockerfile
-docker run -itd --name CN --hostname CN -p xx:xx -it -e NETWORK=passive guild-operators/cardano-wallet:debian 
+docker run -itd --name CN --hostname CN -p xx:xx -it -e NETWORK=mainnet guild-operators/cardano-wallet:debian 
 ```
 With Powershell on Windows, you can run:
 ```
