@@ -11,6 +11,7 @@ PATH=$CNODE_HOME/scripts:~/.cabal/bin:~/.ghcup/bin:/bin:/sbin:/usr/bin:/usr/sbin
 
 WORKDIR /
 
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/mainnet-topology.json /opt/cardano/cnode/files/
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/CW_entrypoint.sh /
 RUN chmod +x /CW_entrypoint.sh 
 
