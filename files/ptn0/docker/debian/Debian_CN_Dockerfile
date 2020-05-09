@@ -27,7 +27,7 @@ RUN set -x \
   && cd - && apt remove -y build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ libncursesw5 git tmux && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* ~/.cabal/store ~/.cabal/packages ~/.ghcup/ghc cardano-node ~/git \
   && echo "Done!!";
 
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/mainnet.yaml $CNODE_HOME/files/
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/mainnet.json $CNODE_HOME/files/
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/mainnet-topology.json $CNODE_HOME/files/
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/CN_entrypoint.sh /
 RUN chmod +x /CN_entrypoint.sh 
