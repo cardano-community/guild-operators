@@ -28,7 +28,7 @@ wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/
 docker build -t guild-operators/cardano-node:debian - < Debian_CN_Dockerfile
 docker run -itd --name CN --hostname CN -p 127.0.0.1:9000:9000 -it -e NETWORK=testnet guild-operators/cardano-node:debian 
 ```
-This last run command will run the container (Full passive Cardano Node) mapping the internal port of the container to your ip `-p 9000:9000` while you can change the `-e NETWORK=testnet` paramiter to `active` or map your configuration directory with the `-v` parameter as follow:
+This last run command will run the container (Full passive Cardano Node) mapping the internal port of the container to your ip `-p 9000:9000` while you can change the `-e NETWORK=testnet` paramiter to `mainnet` or map your configuration directory with the `-v` parameter as follow:
 
 ```
 docker run -itd --name CN --hostname CN -p 9000:9000 -it -v <PATHTOYOURDIR>:/configuration -e NETWORK=testnet guild-operators/cardano-node:debian 
