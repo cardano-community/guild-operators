@@ -29,13 +29,13 @@ Pipe the chosen Dockerfile (i.e. `Debian_CN_Dockerfile`) from STDIN:
 With bash on Linux, you can run (in this example the Debian version):
 ```
 wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/debian/Debian_CN_Dockerfile 
-docker build -t guild-operators/cardano-node:debian - < Debian_CN_Dockerfile
-docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=mainnet guild-operators/cardano-node:debian 
+docker build -t cardanocommunity/cardano-node:debian - < Debian_CN_Dockerfile
+docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=mainnet cardanocommunity/cardano-node:debian 
 ```
 This last run command will run the container (Full passive Cardano Node) mapping the internal port of the container to your ip `-p 9000:9000` while you can change the `-e NETWORK=testnet` paramiter to `mainnet` or map your configuration directory with the `-v` parameter as follow:
 
 ```
-docker run -itd --name CN --hostname CN -p 9000:9000 -it -v <PATHTOYOURDIR>:/configuration -e NETWORK=testnet guild-operators/cardano-node:debian 
+docker run -itd --name CN --hostname CN -p 9000:9000 -it -v <PATHTOYOURDIR>:/configuration -e NETWORK=testnet cardanocommunity/cardano-node:debian 
 ```
 
 Once the container is running, you cat attach to it by running the following command (change `CN` with your container name):
