@@ -24,7 +24,7 @@ RUN set -x \
   && cd cardano-node \
   && export PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH \
   && bash $CNODE_HOME/scripts/cabal-build-all.sh  \
-  && cd - && apt remove -y build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ libncursesw5 git tmux && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* cardano-node \
+  && cd - && apt remove -y build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ libncursesw5 git tmux && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* ~/.cabal/store ~/.cabal/packages ~/.ghcup/ghc cardano-node ~/git \
   && echo "Done!!";
 
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/mainnet-topology.json $CNODE_HOME/files/
