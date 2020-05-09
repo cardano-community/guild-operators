@@ -31,7 +31,7 @@ RUN set -x \
   && git clone https://github.com/input-output-hk/cardano-wallet.git \
   && cd cardano-wallet \
   && bash /opt/cardano/cnode/scripts/stack-build.sh \
-  && cd - && apt remove -y build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ libncursesw5 git tmux && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* ~/.cabal/store ~/.cabal/packages ~/.ghcup/ghc cardano-wallet \
+  && cd - && apt remove -y build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ libncursesw5 git tmux && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* ~/.cabal/store ~/.cabal/packages ~/.stack cardano-wallet \
   && echo "Done!";
 
 EXPOSE 8090
