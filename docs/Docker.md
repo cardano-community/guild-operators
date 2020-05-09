@@ -43,7 +43,7 @@ This last run command will run the container (Full passive Cardano Node) mapping
 docker run -itd --name CN --hostname CN -p 9000:9000 -it -v <PATHTOYOURDIR>:/configuration -e NETWORK=passive guild-operators/cardano-node:debian 
 ```
 
-Once the container is running, you cat attach to it by running the following command:
+Once the container is running, you cat attach to it by running the following command (change `CN` with your container name):
 ```
 docker attach CN
 ```
