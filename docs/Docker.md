@@ -18,7 +18,6 @@ In there here below section you can find a collection of procedure that will mak
 ## Available Unix Container Flavours
   - Debian    (`Debian_Dockerfile`)
   - CentOS    (`CentOS_Dockerfile`)
-  - Nixos     (`NixOS_Dockerfile`)
 
 The dockerfiles are located in ./files/ptn0/docker/ 
 
@@ -82,5 +81,5 @@ Get-Content Debian_CW_Dockerfile | docker build -t guild-operators/cardano-walle
 ... tbd
 
  - Community DockerHub
- - IOHK DockerHub
+ - IOHK DockerHub (Nix Version)
 
