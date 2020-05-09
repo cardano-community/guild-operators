@@ -4,20 +4,12 @@ In there here below section you can find a collection of procedure that will mak
 
 ## Port mapping
 
-### Cardano Node exposing
-- Node port (9000) 
-- Prometheus port (13788) 
-- EKG port (12781) 
+ Node Ports        |  Wallet Ports      | OS Flavors
+------------       | -------------      | -------------
+Node  (9000)       | Wallet (8090)      | Debian (`Debian_Dockerfile`)
+Prometheus (13788) | Prometheus (12781) | Centos (`CentOS_Dockerfile`)
+EKG (12781)        |                    |
 
-### Cardano Node exposing
-- Wallet port (8090)
-- Prometheus port (12781) 
-
-
-
-## Available Unix Container Flavours
-  - Debian    (`Debian_Dockerfile`)
-  - CentOS    (`CentOS_Dockerfile`)
 
 The dockerfiles are located in ./files/ptn0/docker/ 
 
@@ -83,8 +75,16 @@ Get-Content Debian_CW_Dockerfile | docker build -t guild-operators/cardano-walle
 
 ## How to run your container from DockerHub
 
-... tbd
+### Community DockerHub
 
- - Community DockerHub
- - IOHK DockerHub (Nix Version)
+_PTN0_  \
+`docker run -itd  --name CN --hostname CN -p 9001:9000 -it -e NETWORK=ptn0 cardanocommunity/cardano-node:debian` 
+
+_Mainnet_ \
+`docker run -itd  --name CN --hostname CN -p 9001:9000 -it -e NETWORK=mainnet cardanocommunity/cardano-node:debian` 
+
+_Testnet_ \
+`docker run -itd  --name CN --hostname CN -p 9001:9000 -it -e NETWORK=testnet cardanocommunity/cardano-node:debian` 
+ 
+ ### IOHK DockerHub (Nix Version)
 
