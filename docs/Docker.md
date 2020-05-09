@@ -63,8 +63,9 @@ docker exec -it CN bash
 >
 ***
 
-### Cardano-Wallet (testnet / mainnet)
 
+## docker-compose
+### Cardano-Wallet (testnet / mainnet)
 
 > At the moment the best way to run the Wallet container is trough the related docker compose file (`Wallet-docker-compose.yaml`) 
 
