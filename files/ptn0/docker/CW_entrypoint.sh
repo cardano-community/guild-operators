@@ -1,6 +1,8 @@
-#!/bin/sh
+#!/bin/bash
 
 echo $NETWORK
+
+. ~/.bashrc
 
 export CNODE_HOME=/opt/cardano/cnode 
 export CNODE_PORT=9000 
