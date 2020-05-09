@@ -28,6 +28,8 @@ The dockerfiles are located in ./files/ptn0/docker/
 Instead of specifying a context, you can pass a single Dockerfile in the URL or pipe the file in via STDIN. 
 Pipe the chosen Dockerfile (i.e. Debian_Dockerfile) from STDIN:
 
+
+
 ### Cardano-Node (passive / active / configuration)
 
 With bash on Linux, you can run (in this example the Debian version):
@@ -54,6 +56,9 @@ While if you have an hook within the continer console use the following command 
 docker exec -it CN bash 
 ```
 
+
+
+
 #### WINZOZZ Users..
 
 With Powershell on Windows, you can run (in this example the Debian version):
@@ -61,6 +66,7 @@ With Powershell on Windows, you can run (in this example the Debian version):
 Get-Content Debian_CN_Dockerfile | docker build -t guild-operators/cardano-node:debian -
 docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=passive guild-operators/cardano-node:debian 
 ```
+
 
 
 ### Cardano-Wallet (testnet / mainnet)
@@ -74,6 +80,7 @@ With Powershell on Windows, you can run:
 ```
 Get-Content Debian_CW_Dockerfile | docker build -t guild-operators/cardano-wallet:debian -
 ```
+
 
 
 ## How to run your container from DockerHub
