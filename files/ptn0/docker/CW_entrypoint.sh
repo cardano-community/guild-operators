@@ -29,6 +29,13 @@ elif [[ "$NETWORK" == "mainnet" ]]; then
 	--listen-address 0.0.0.0 \
     	--port $CWALLET_PORT \
 	--mainnet $@
+elif [[ "$NETWORK" == "ptn0" ]]; then
+  exec cardano-wallet-byron serve \
+	--node-socket /ipc/node.socket \
+	--database /wallet-ptn0-db \
+	--listen-address 0.0.0.0 \
+    	--port $CWALLET_PORT \
+	--mainnet $@
 else
   echo "Please set a NETWORK environment variable to one of: mainnet/testnet"
 fi
