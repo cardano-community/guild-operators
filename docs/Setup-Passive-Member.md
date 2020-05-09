@@ -37,6 +37,6 @@ cardano-node run \
           --database-path $CNODE_HOME/db \
           --host-addr $(curl ifconfig.me) \
           --port 9000 \
-          --socket-path $CNODE_HOME/sockets/0 \
+          --socket-path $CNODE_HOME/sockets/pbft_node.socket \
           --topology $CNODE_HOME/files/topology.json
 ```
