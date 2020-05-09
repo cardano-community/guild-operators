@@ -27,7 +27,7 @@ elif [[ "$NETWORK" == "testnet" ]]; then
 elif [[ "$NETWORK" == "mainnet" ]]; then
   exec cardano-node run \
     --config /configuration/configuration.yaml \
-    --database-path /tmp/mainnet-db 
+    --database-path /tmp/mainnet-db \
     --host-addr `curl ifconfig.me` \
     --port $CNODE_PORT \
     --socket-path /ipc/node.socket \
@@ -35,7 +35,7 @@ elif [[ "$NETWORK" == "mainnet" ]]; then
 elif [[ "$NETWORK" == "byron" ]]; then
   exec cardano-node run \
     --config $CNODE_HOME/files/byron.yaml \
-    --database-path /tmp/mainnet-byron-db 
+    --database-path /tmp/mainnet-byron-db \
     --host-addr `curl ifconfig.me` \
     --port $CNODE_PORT \
     --socket-path /ipc/node.socket \
@@ -43,7 +43,7 @@ elif [[ "$NETWORK" == "byron" ]]; then
 elif [[ "$NETWORK" == "ptn0" ]]; then
   exec cardano-node run \
     --config $CNODE_HOME/files/ptn0.yaml \
-    --database-path $CNODE_HOME/mainnet-ptn0-db 
+    --database-path $CNODE_HOME/mainnet-ptn0-db \
     --host-addr `curl ifconfig.me` \
     --port $CNODE_PORT \
     --socket-path /ipc/node.socket \
