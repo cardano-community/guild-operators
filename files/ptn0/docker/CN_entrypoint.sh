@@ -49,7 +49,7 @@ elif [[ "$NETWORK" == "ptn0" ]]; then
     --socket-path /ipc/node.socket \
     --topology $CNODE_HOME/files/topology.json $@
 else
-  echo "Please set a NETWORK environment variable to one of: active/passive"
+  echo "Please set a NETWORK environment variable to one of: testnet/mainnet/byron/ptn0"
   echo "Or mount a /configuration volume containing: configuration.yaml, genesis.json, and topology.json + Pool.cert, Pool.key for active nodes"
 fi
 # EKG Exposed
