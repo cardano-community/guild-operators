@@ -2,6 +2,19 @@
 
 In there here below section you can find a collection of procedure that will make you able to get you Cardano-* software safely running in docker containers using the Linux flavour of your choice.
 
+## Port mapping
+
+### Cardano node image exposing
+- Node port (9000) 
+- Prometheus port (12781) 
+- EKG port (13788) 
+
+### Cardano node image exposing
+- Wallet port (8090)
+- Prometheus port (12781) 
+
+
+
 ## Available Unix Container Flavours
   - Debian    (`Debian_Dockerfile`)
   - CentOS    (`CentOS_Dockerfile`)
