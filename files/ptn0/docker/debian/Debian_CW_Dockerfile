@@ -9,16 +9,22 @@ ENV=/etc/profile \
 USER=root \
 PATH=$CNODE_HOME/scripts:~/.cabal/bin:~/.ghcup/bin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH 
 
+WORKDIR /
+
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/CW_entrypoint.sh /
+RUN chmod +x /CW_entrypoint.sh 
+
 RUN set -x \
   && apt update \
-  && apt install -y wget \
+  && apt install -y wget git netbase haskell-stack \
+  && stack upgrade --binary-only \
   && cd / \
-  && wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/prereqs.sh \
-  && wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/CW_entrypoint.sh \
-  && chmod +x /CW_entrypoint.sh && cp /CW_entrypoint.sh /bin/ \
-  && cat prereqs.sh | sed 's/SUDO="Y";/SUDO="N";/g' > /tmp/prereqs.sh \
+  && wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/debian/docker_prereqs.sh \
+  #&& wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/CW_entrypoint.sh \
+  #&& chmod +x /CW_entrypoint.sh && mv /CW_entrypoint.sh /root/ \
+  #&& cat prereqs.sh | sed 's/SUDO="Y";/SUDO="N";/g' > /tmp/prereqs.sh \
   && export BOOTSTRAP_HASKELL_NO_UPGRADE=1 \
-  && bash /tmp/prereqs.sh \
+  && bash docker_prereqs.sh \
   && bash ~/.bashrc \
   && export PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH \
   && git clone https://github.com/input-output-hk/cardano-wallet.git \
@@ -29,5 +35,4 @@ RUN set -x \
 
 EXPOSE 8090
 
-ENTRYPOINT ["bash"]
-CMD ["/CW_entrypoint.sh"]
+ENTRYPOINT ["./CW_entrypoint.sh"]
