@@ -28,7 +28,7 @@ The dockerfiles are located in ./files/ptn0/docker/
 Instead of specifying a context, you can pass a single Dockerfile in the URL or pipe the file in via STDIN. 
 Pipe the chosen Dockerfile (i.e. Debian_Dockerfile) from STDIN:
 
-
+Note: All `docker run` commands are using as default mapping IP `127.0.0.1` customize it as you please.
 
 ### Cardano-Node (passive / active / configuration)
 
@@ -36,12 +36,12 @@ With bash on Linux, you can run (in this example the Debian version):
 ```
 wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/debian/Debian_CN_Dockerfile 
 docker build -t guild-operators/cardano-node:debian - < Debian_CN_Dockerfile
-docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=passive guild-operators/cardano-node:debian 
+docker run -itd --name CN --hostname CN -p 127.0.0.1:9000:9000 -it -e NETWORK=passive guild-operators/cardano-node:debian 
 ```
 This last run command will run the container (Full passive Cardano Node) mapping the internal port of the container to your ip `-p 9000:9000` while you can change the `-e NETWORK=passive` paramiter to `active` or map your configuration directory with the `-v` parameter as follow:
 
 ```
-docker run -itd --name CN --hostname CN -p 9000:9000 -it -v <PATHTOYOURDIR>:/configuration -e NETWORK=passive guild-operators/cardano-node:debian 
+docker run -itd --name CN --hostname CN -p 127.0.0.1:9000:9000 -it -v <PATHTOYOURDIR>:/configuration -e NETWORK=passive guild-operators/cardano-node:debian 
 ```
 
 Once the container is running, you cat attach to it by running the following command (change `CN` with your container name):
@@ -64,7 +64,7 @@ docker exec -it CN bash
 With Powershell on Windows, you can run (in this example the Debian version):
 ```
 Get-Content Debian_CN_Dockerfile | docker build -t guild-operators/cardano-node:debian -
-docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=passive guild-operators/cardano-node:debian 
+docker run -itd --name CN --hostname CN -p 127.0.0.1:9000:9000 -it -e NETWORK=passive guild-operators/cardano-node:debian 
 ```
 
 
@@ -74,7 +74,7 @@ docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=passive guil
 With bash on Linux, you can run:
 ```
 $ docker build -t guild-operators/cardano-wallet:debian - < Debian_CW_Dockerfile
-docker run -itd --name CN --hostname CN -p xx:xx -it -e NETWORK=mainnet guild-operators/cardano-wallet:debian 
+docker run -itd --name CN --hostname CN -p 127.0.0.1:8090:8090 -it -e NETWORK=mainnet guild-operators/cardano-wallet:debian 
 ```
 With Powershell on Windows, you can run:
 ```
