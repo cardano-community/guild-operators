@@ -27,7 +27,7 @@ RUN set -x \
   && bash docker_prereqs.sh \
   && bash ~/.bashrc \
   && export PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH \
-  && ln -s /opt/cardano/cnode/files/topology.json /config/topology.json \
+  #&& ln -s /opt/cardano/cnode/files/topology.json /config/topology.json \
   && git clone https://github.com/input-output-hk/cardano-wallet.git \
   && cd cardano-wallet \
   && bash /opt/cardano/cnode/scripts/stack-build.sh \
