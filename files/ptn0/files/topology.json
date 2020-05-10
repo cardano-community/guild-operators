@@ -35,6 +35,13 @@
         "valency":1
      },
      {
+        "operator":"dmitrystas",
+        "node":"DM128",
+        "addr":"207.180.239.128",
+        "port":6000,
+        "valency":1
+     },
+     {
         "operator":"mask",
         "node":"Pegasus",
         "addr":"ptn.pegasuspool.info",
