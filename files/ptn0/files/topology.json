@@ -20,6 +20,13 @@
         "addr":"185.161.193.90",
         "port":6000,
         "valency":1
+     },
+     {
+        "operator":"redoracle",
+        "node":"ASTRA4364",
+        "addr":"62.138.3.118",
+        "port":6000,
+        "valency":1
      }
   ]
 }
