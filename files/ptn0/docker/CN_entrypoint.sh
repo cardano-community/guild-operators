@@ -33,8 +33,7 @@ elif [[ "$NETWORK" == "ptn0" ]]; then
     --host-addr `curl ifconfig.me` \
     --port $CNODE_PORT \
     --socket-path /ipc/node.socket \
-    --topology $CNODE_HOME/files/topology.json \
-    --shelley-vrf-key /configuration/vrf.skey $@
+    --topology $CNODE_HOME/files/topology.json $@
 else
   echo "Please set a NETWORK environment variable to one of: mainnet/ptn0"
   echo "Or mount a /configuration volume containing: configuration.yaml, genesis.json, and topology.json + Pool.cert, Pool.key for active nodes"
