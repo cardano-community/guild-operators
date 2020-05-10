@@ -33,6 +33,6 @@ ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/f
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/CN_entrypoint.sh /
 RUN chmod +x /CN_entrypoint.sh 
 
-EXPOSE 9000 12781 13788
+EXPOSE 9000 12782 13788
 
 ENTRYPOINT ["./CN_entrypoint.sh"]
