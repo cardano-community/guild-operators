@@ -32,7 +32,7 @@ elif [[ "$NETWORK" == "mainnet" ]]; then
     --host-addr `curl ifconfig.me` \
     --port $CNODE_PORT \
     --socket-path /ipc/node.socket \
-    --topology $CNODE_HOME/files/mainnet-topology.json $@
+    --topology $CNODE_HOME/files/mainnet-topology.yaml $@
 elif [[ "$NETWORK" == "ptn0" ]]; then
   exec cardano-node run \
     --config $CNODE_HOME/files/ptn0.yaml \
