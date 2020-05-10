@@ -4,7 +4,7 @@
         "operator":"rdlrt",
         "node":"RDLRT181",
         "addr":"88.99.83.86",
-        "port":9000,
+        "port":6000,
         "valency":1
      }
   ]
