@@ -7,6 +7,9 @@ echo $NETWORK
 export CNODE_HOME=/opt/cardano/cnode 
 export CNODE_PORT=9000 
 
+# EKG Exposed
+socat -d tcp-listen:12781,reuseaddr,fork tcp:127.0.0.1:12781 &
+
 if [[ -d /configuration ]]; then
   exec cardano-node run \
   --topology /configuration/topology.json \
@@ -41,5 +44,3 @@ else
   echo "Please set a NETWORK environment variable to one of: mainnet/ptn0"
   echo "Or mount a /configuration volume containing: configuration.yaml, genesis.json, and topology.json + Pool.cert, Pool.key for active nodes"
 fi
-# EKG Exposed
-socat -d tcp-listen:12781,reuseaddr,fork tcp:127.0.0.1:12781 &
