@@ -5,7 +5,7 @@
 
 case $# in
   4 ) tx="$1";
-    addr="$2";
+    outaddr="$2";
     lovelace="$(( $3 * 1000000 ))";
     from_key="$4";
     from_addr=$(${CCLI} signing-key-address --real-pbft --testnet-magic $MAGIC --secret $from_key |head -1);;
@@ -14,12 +14,14 @@ Usage:  $(basename $0) <Tx-File to Create for submission> <Output Address> <Amou
 EOF
   exit 1;; esac
 
-args=" issue-genesis-utxo-expenditure
-  --config              "$CONFIG"
-  --tx                  ${tx}
-  --wallet-key          ${from_key}
-  --rich-addr-from    \"${from_addr}\"
-  --txout            (\"${addr}\",${lovelace})
+#TODO : Update fee and ttl dynamically
+args=" shelley transaction build-raw 
+  --config              "$CONFIG" 
+  --tx-in               ${inaddr}#${idx}
+  --tx-out              ${outaddr}
+  --ttl                 1000
+  --fee                 100000
+  --tx-body-file        ${tx}
 "
 
 NETARGS=(
