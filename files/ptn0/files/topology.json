@@ -8,7 +8,7 @@
         "valency":1
      },
     {
-        "operator":"🄾🄲🄶 🀄️",
+        "operator":"OCG",
         "node":"Phoenix",
         "addr":"68.183.202.140",
         "port":6000,
@@ -32,6 +32,34 @@
         "node":"ASTRA4364",
         "addr":"62.138.3.118",
         "port":6000,
+        "valency":1
+     },
+     {
+        "operator":"dmitrystas",
+        "node":"DM128",
+        "addr":"207.180.239.128",
+        "port":6000,
+        "valency":1
+     },
+     {
+        "operator":"mask",
+        "node":"Pegasus",
+        "addr":"ptn.pegasuspool.info",
+        "port":6000,
+        "valency":1
+     },
+     {
+        "operator":"adanorthpool",
+        "node":"relay1node1",
+        "addr":"relay1.adanorthpool.com",
+        "port":9013,
+        "valency":1
+     },
+     {
+        "operator":"adanorthpool",
+        "node":"relay2node1",
+        "addr":"relay2.adanorthpool.com",
+        "port":9013,
         "valency":1
      }
   ]
