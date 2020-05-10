@@ -9,14 +9,15 @@ export CNODE_PORT=9000
 
 if [[ -d /configuration ]]; then
   exec cardano-node run \
-    --config /configuration/configuration.yaml \
-    --database-path  /configuration/db \
-    --host-addr `curl ifconfig.me` \
-    --port $CNODE_PORT \
-    --signing-key /configuration/Pool.skey \
-    --delegation-certificate /configuration/Pool.cert \
-    --socket-path /ipc/node.socket \
-    --topology /configuration/topology.json $@
+	--topology /configuration/topology.json \
+	--shelley-kes-key /configuration/Pool.skey \
+ 	--shelley-operational-certificate /configuration/Pool.cert \
+	--shelley-vrf-key /configuration/vrf.skey \
+  --config /configuration/configuration.yaml \
+	--database-path $CNODE_HOME/files/db \
+  --port $CNODE_PORT \
+	--socket-path /ipc/node.socket \
+	--host-addr `curl ifconfig.me` $@ 
 elif [[ "$NETWORK" == "testnet" ]]; then
   exec cardano-node run \
   --config $CNODE_HOME/files/testnet.yaml \
@@ -40,7 +41,8 @@ elif [[ "$NETWORK" == "ptn0" ]]; then
     --host-addr `curl ifconfig.me` \
     --port $CNODE_PORT \
     --socket-path /ipc/node.socket \
-    --topology $CNODE_HOME/files/topology.json $@
+    --topology $CNODE_HOME/files/topology.json \
+	  --shelley-vrf-key /configuration/vrf.skey $@
 else
   echo "Please set a NETWORK environment variable to one of: testnet/mainnet/byron/ptn0"
   echo "Or mount a /configuration volume containing: configuration.yaml, genesis.json, and topology.json + Pool.cert, Pool.key for active nodes"
