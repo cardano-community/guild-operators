@@ -19,7 +19,7 @@ elif [[ "$NETWORK" == "mainnet" ]]; then
   exec ln -s /opt/cardano/cnode/files/mainnet-topology.yaml /config/topology.yaml \
   exec cardano-wallet-byron serve \
 	--node-socket /ipc/node.socket \
-	--database /tmp/wallet-mainnet-db \
+	--database /wallet-db \
 	--listen-address 0.0.0.0 \
     	--port $CWALLET_PORT \
 	--mainnet $@
@@ -27,7 +27,7 @@ elif [[ "$NETWORK" == "ptn0" ]]; then
   exec ln -s /opt/cardano/cnode/files/topology.json /config/topology.json \
   exec cardano-wallet-byron serve \
 	--node-socket /ipc/node.socket \
-	--database /tmp/wallet-ptn0-db \
+	--database /wallet-db \
 	--listen-address 0.0.0.0 \
     	--port $CWALLET_PORT \
 	--mainnet $@
