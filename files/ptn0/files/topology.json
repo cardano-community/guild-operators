@@ -61,6 +61,13 @@
         "addr":"relay2.adanorthpool.com",
         "port":9013,
         "valency":1
+     },
+     {
+        "operator":"homerj",
+        "node":"AAAFIN",
+        "addr":"95.216.188.94",
+        "port":6000,
+        "valency":1
      }
   ]
 }
