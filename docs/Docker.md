@@ -16,7 +16,22 @@ EKG (12781)        |                    |
 The dockerfiles are located in ./files/ptn0/docker/ 
 
 ***
+## How to run a Cardano Node with Docker
 
+### Custom container with your own cfg.
+```
+docker run -itd  -p 9000:9000 -v <YourNetPath>:/ipc -v <YourCfgPath>:/configuration -v <YourKeysPath>:/keys  cardanocommunity/cardano-node:debian
+```
+* YourNetPath   - is where your node.socket resides (needs to be shared if you want to run a wallet too)
+* YourCfgPath   - Your cfg files (configuration.yaml, topology.json, genesis.yaml)
+* YourKeysPath  - Location of your private keys (kes.skey, vrf.skey, ops.cert, delagation.count)
+
+
+### Custom container with ptn0 cfg.
+```
+docker run -itd  -p 6000:9000 -v <YourKeysPath>:/keys -v <YourNetPath>:/ipc  -e NETWORK=ptn0 cardanocommunity/cardano-node:debian
+```
+-----------
 ## How to build your own image from Dockerfile
 
 - Requirements: [Docker](https://docs.docker.com/)
