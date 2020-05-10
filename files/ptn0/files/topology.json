@@ -15,6 +15,12 @@
         "valency":1
      },
     {
+        "operator":"psychomb",
+        "addr":"91.121.85.221",
+        "port":6000,
+        "valency":1
+     },
+    {
         "operator":"gufmar",
         "node":"ubs90",
         "addr":"185.161.193.90",
