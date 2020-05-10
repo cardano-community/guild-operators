@@ -13,6 +13,13 @@
         "addr":"68.183.202.140",
         "port":6000,
         "valency":1
+     },
+    {
+        "operator":"gufmar",
+        "node":"ubs90",
+        "addr":"185.161.193.90",
+        "port":6000,
+        "valency":1
      }
   ]
 }
