@@ -37,7 +37,7 @@
      {
         "operator":"mask",
         "node":"Pegasus",
-        "addr":"204.44.81.19",
+        "addr":"ptn.pegasuspool.info",
         "port":6000,
         "valency":1
      }
