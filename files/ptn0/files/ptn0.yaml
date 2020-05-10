@@ -17,7 +17,7 @@ defaultBackends:
   - KatipBK
 
 # if wanted, the EKG interface is listening on this port:
-#hasEKG: 12781
+hasEKG: 12781
 
 hasPrometheus:
   - "127.0.0.1"
@@ -87,12 +87,11 @@ options:
 ##########################################################
 
 # NodeId:
-Protocol: RealPBFT
+Protocol: TPraos
 NetworkName: phtn
 GenesisFile: /opt/cardano/cnode/files/genesis.json
 NumCoreNodes: 1
-RequiresNetworkMagic: RequiresNoMagic
-PBftSignatureThreshold:
+RequiresNetworkMagic: RequiresMagic
 TurnOnLogging: True
 ViewMode: LiveView
 TurnOnLogMetrics: False
