@@ -13,6 +13,8 @@ if [[ -d /configuration ]]; then
     --database-path  /configuration/db \
     --host-addr `curl ifconfig.me` \
     --port $CNODE_PORT \
+    --delegate-key /configuration/Pool.skey \ 
+    --certificate /configuration/Pool.cert \
     --socket-path /ipc/node.socket \
     --topology /configuration/topology.json $@
 elif [[ "$NETWORK" == "testnet" ]]; then
