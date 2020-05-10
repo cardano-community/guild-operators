@@ -1,6 +1,6 @@
-### Config for pHTN - as a BFT Member
+### Config for pHTN - as a genesis member node
 
-Use this guide only if you already have your key (referred to as pbft0.key below) that's already registered in genesis.
+Use this guide only if you already have your key (referred to as `delegate.skey` below) that's already registered in genesis.
 
 #### Create verification key
 
