@@ -33,6 +33,20 @@
         "addr":"62.138.3.118",
         "port":6000,
         "valency":1
+     },
+     {
+        "operator":"adanorthpool",
+        "node":"relay1node1",
+        "addr":"relay1.adanorthpool.com",
+        "port":9013,
+        "valency":1
+     },
+         {
+        "operator":"adanorthpool",
+        "node":"relay2node1",
+        "addr":"relay2.adanorthpool.com",
+        "port":9013,
+        "valency":1
      }
   ]
 }
