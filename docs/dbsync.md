@@ -29,7 +29,7 @@ scripts/postgresql-setup.sh --createdb
 #### Start cardano-db-sync-tool
 ``` bash
 cd ~/git/cardano-db-sync
-PGPASSFILE=$CNODE_HOME/priv/.pgpass cardano-db-sync-extended --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/pbft_node.socket --schema-dir schema/
+PGPASSFILE=$CNODE_HOME/priv/.pgpass cardano-db-sync-extended --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/node0.socket --schema-dir schema/
 ```
 
 You can use same instructions above to repeat and execute `cardano-db-sync` as well, but [cardano-graphql](./graphql.md) uses `cardano-db-sync-extended`, so we'll stick to it

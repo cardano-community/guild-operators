@@ -18,7 +18,7 @@ The above would copy the binaries into ~/.cabal/bin folder.
 
 #### Start the wallet server
 ```bash
-cardano-wallet-byron serve --node-socket $CNODE_HOME/sockets/pbft_node.socket --testnet $CNODE_HOME/files/genesis.json --database $CNODE_HOME/priv/wallet
+cardano-wallet-byron serve --node-socket $CNODE_HOME/sockets/node0.socket --testnet $CNODE_HOME/files/genesis.json --database $CNODE_HOME/priv/wallet
 ```
 
 #### Verify the wallet is handling requests

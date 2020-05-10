@@ -17,7 +17,7 @@ defaultBackends:
   - KatipBK
 
 # if wanted, the EKG interface is listening on this port:
-#hasEKG: 12781
+hasEKG: 12781
 
 hasPrometheus:
   - "127.0.0.1"
@@ -87,28 +87,25 @@ options:
 ##########################################################
 
 # NodeId:
-Protocol: RealPBFT
+Protocol: TPraos
 NetworkName: phtn
 GenesisFile: /opt/cardano/cnode/files/genesis.json
 NumCoreNodes: 1
-RequiresNetworkMagic: RequiresNoMagic
-PBftSignatureThreshold:
+RequiresNetworkMagic: RequiresMagic
 TurnOnLogging: True
 ViewMode: LiveView
 TurnOnLogMetrics: False
 SocketPath: /opt/cardano/cnode/sockets/pbft_node.socket
 
 ## For cardano-dbsync-tool
-GenesisHash: 998c4e62dec1917bbe35fb888df7cb5a740362d365b156cfe119cfcde705a504
 EnableLogMetrics: False
-EnableLogging: False
 
 #####    Update Parameters    #####
 
 ApplicationName: cardano-sl
-ApplicationVersion: 1
+ApplicationVersion: 0
 LastKnownBlockVersion-Major: 0
-LastKnownBlockVersion-Minor: 2
+LastKnownBlockVersion-Minor: 0
 LastKnownBlockVersion-Alt: 0
 
 #####         Tracing         #####
