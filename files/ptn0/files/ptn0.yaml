@@ -95,7 +95,7 @@ RequiresNetworkMagic: RequiresMagic
 TurnOnLogging: True
 ViewMode: LiveView
 TurnOnLogMetrics: False
-SocketPath: /opt/cardano/cnode/sockets/pbft_node.socket
+SocketPath: /opt/cardano/cnode/sockets/node0.socket
 
 ## For cardano-dbsync-tool
 EnableLogMetrics: False
