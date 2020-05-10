@@ -11,10 +11,10 @@ if [[ -d /configuration ]]; then
   exec cardano-node run \
   --topology /configuration/topology.json \
   --shelley-kes-key /configuration/kes.skey \
-  --shelley-operational-certificate /configuration/Pool.cert \
+  --shelley-operational-certificate /configuration/ops.cert \
   --shelley-vrf-key /configuration/vrf.skey \
   --config /configuration/configuration.yaml \
-  --database-path $CNODE_HOME/files/db \
+  --database-path /tmp/mainnet-ptn0-db \
   --port $CNODE_PORT \
   --socket-path /ipc/node.socket \
   --host-addr `curl ifconfig.me` $@ 
@@ -29,11 +29,11 @@ elif [[ "$NETWORK" == "mainnet" ]]; then
 elif [[ "$NETWORK" == "ptn0" ]]; then
   exec cardano-node run \
    --config $CNODE_HOME/files/ptn0.yaml \
-   --database-path $CNODE_HOME/mainnet-ptn0-db \
+   --database-path /tmp/mainnet-ptn0-db \
    --host-addr `curl ifconfig.me` \
    --port $CNODE_PORT \
    --socket-path /ipc/node.socket \
-   --shelley-operational-certificate /keys/Pool.cert \
+   --shelley-operational-certificate /keys/ops.cert \
    --shelley-kes-key /keys/kes.skey \
    --shelley-vrf-key /keys/vrf.skey \
    --topology $CNODE_HOME/files/topology.json $@
