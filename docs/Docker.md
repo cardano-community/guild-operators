@@ -16,15 +16,15 @@ EKG (12781)        |                    |
 The dockerfiles are located in ./files/ptn0/docker/ 
 
 ***
-## How to run a Cardano Node with Docker
+## How to run a __Cardano Node__ with Docker
 
 ### Custom container with your own cfg.
 ```bash
 docker run -itd  -p 9000:9000 -v <YourNetPath>:/ipc -v <YourCfgPath>:/configuration -v <YourKeysPath>:/keys  cardanocommunity/cardano-node:debian
 ```
-* YourNetPath   - is where your node.socket resides (needs to be shared if you want to run a wallet too)
-* YourCfgPath   - Your cfg files (configuration.yaml, topology.json, genesis.yaml)
-* YourKeysPath  - Location of your private keys (kes.skey, vrf.skey, ops.cert, delagation.count)
+* __YourNetPath__   - is where your node.socket resides (needs to be shared if you want to run a wallet too)
+* __YourCfgPath__   - Your cfg files (configuration.yaml, topology.json, genesis.yaml)
+* __YourKeysPath__  - Location of your private keys (kes.skey, vrf.skey, ops.cert, delagation.count)
 
 
 ### Custom container with ptn0 cfg.
@@ -34,7 +34,7 @@ docker run -itd  -p 6000:9000 -v <YourKeysPath>:/keys -v <YourNetPath>:/ipc  -e 
 -----------
 ## How to build your own image from Dockerfile
 
-- Requirements: [Docker](https://docs.docker.com/)
+- **Requirements:** [Docker](https://docs.docker.com/)
 
 Instead of specifying a context, you can pass a single Dockerfile in the URL or pipe the file in via STDIN. 
 Pipe the chosen Dockerfile (i.e. `Debian_CN_Dockerfile`) from STDIN:
