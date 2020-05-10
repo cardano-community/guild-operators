@@ -22,7 +22,7 @@ RUN set -x \
   && bash ~/.bashrc \
   && git clone https://github.com/input-output-hk/cardano-node.git \
   && cd cardano-node \
-  #&& export PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH \
+  && export PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH \
   && bash $CNODE_HOME/scripts/cabal-build-all.sh  \
   && cd - && apt remove -y build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ git && apt-get clean && apt install -y socat && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* ~/.cabal/store ~/.cabal/packages ~/.ghcup/ghc cardano-node ~/git \
   && echo "Done!!";
