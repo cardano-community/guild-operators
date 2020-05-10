@@ -8,7 +8,7 @@ export CNODE_HOME=/opt/cardano/cnode
 export CNODE_PORT=9000 
 
 # EKG Exposed
-socat -d tcp-listen:12781,reuseaddr,fork tcp:127.0.0.1:12781 &
+socat -d tcp-listen:12782,reuseaddr,fork tcp:127.0.0.1:12781 &
 
 if [[ -d /configuration ]]; then
   exec cardano-node run \
