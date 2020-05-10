@@ -10,7 +10,7 @@ export CNODE_PORT=9000
 if [[ -d /configuration ]]; then
   exec cardano-node run \
   --topology /configuration/topology.json \
-  --shelley-kes-key /configuration/Pool.skey \
+  --shelley-kes-key /configuration/kes.skey \
   --shelley-operational-certificate /configuration/Pool.cert \
   --shelley-vrf-key /configuration/vrf.skey \
   --config /configuration/configuration.yaml \
@@ -28,12 +28,14 @@ elif [[ "$NETWORK" == "mainnet" ]]; then
     --topology $CNODE_HOME/files/mainnet-topology.yaml $@
 elif [[ "$NETWORK" == "ptn0" ]]; then
   exec cardano-node run \
-    --config $CNODE_HOME/files/ptn0.yaml \
-    --database-path $CNODE_HOME/mainnet-ptn0-db \
-    --host-addr `curl ifconfig.me` \
-    --port $CNODE_PORT \
-    --socket-path /ipc/node.socket \
-    --topology $CNODE_HOME/files/topology.json $@
+   --config $CNODE_HOME/files/ptn0.yaml \
+   --database-path $CNODE_HOME/mainnet-ptn0-db \
+   --host-addr `curl ifconfig.me` \
+   --port $CNODE_PORT \
+   --socket-path /ipc/node.socket \
+   --shelley-kes-key /keys/kes.skey \
+   --shelley-vrf-key /keys/vrf.skey \
+   --topology $CNODE_HOME/files/topology.json $@
 else
   echo "Please set a NETWORK environment variable to one of: mainnet/ptn0"
   echo "Or mount a /configuration volume containing: configuration.yaml, genesis.json, and topology.json + Pool.cert, Pool.key for active nodes"
