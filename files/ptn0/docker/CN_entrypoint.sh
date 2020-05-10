@@ -12,8 +12,6 @@ if [[ -d /configuration ]]; then
     --config /configuration/configuration.yaml \
     --database-path  /configuration/db \
     --host-addr `curl ifconfig.me` \
-    --signing-key /configuration/Pool.key \
-    --delegation-certificate /configuration/Pool.cert \
     --port $CNODE_PORT \
     --socket-path /ipc/node.socket \
     --topology /configuration/topology.json $@
