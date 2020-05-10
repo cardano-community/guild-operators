@@ -18,14 +18,6 @@ if [[ -d /configuration ]]; then
   --port $CNODE_PORT \
   --socket-path /ipc/node.socket \
   --host-addr `curl ifconfig.me` $@ 
-elif [[ "$NETWORK" == "testnet" ]]; then
-  exec cardano-node run \
-  --config $CNODE_HOME/files/testnet.yaml \
-  --database-path $CNODE_HOME/testnet-db \
-  --host-addr `curl ifconfig.me` \
-  --port $CNODE_PORT \
-  --socket-path /ipc/node.socket \
-  --topology $CNODE_HOME/files/testnet-topology.json $@
 elif [[ "$NETWORK" == "mainnet" ]]; then
   exec cardano-node run \
     --config $CNODE_HOME/files/mainnet.yaml \
