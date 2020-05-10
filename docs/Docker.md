@@ -7,7 +7,7 @@ In there here below section you can find a collection of procedure that will mak
 ## Port mapping
 
  Node Ports        |  Wallet Ports      | OS Flavors
-------------       | -------------      | -------------
+------------:       | -------------:      | :-------------:
 Node  (9000)       | Wallet (8090)      | Debian (`Debian_Dockerfile`)
 Prometheus (13788) | Prometheus (13788) | Centos (`CentOS_Dockerfile`)
 EKG (12781)        |                    |
