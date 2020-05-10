@@ -107,10 +107,6 @@ _PTN0_  \
 _Mainnet_ \
 `docker run -itd  --name CN --hostname CN -p 9001:9000 -it -e NETWORK=mainnet cardanocommunity/cardano-node:debian` 
 
-_Testnet_ \
-`docker run -itd  --name CN --hostname CN -p 9001:9000 -it -e NETWORK=testnet cardanocommunity/cardano-node:debian` 
-
-
  - Cardano Wallet
 
 See *docker-compose section.
