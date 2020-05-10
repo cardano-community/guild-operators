@@ -11,7 +11,7 @@ PATH=$CNODE_HOME/scripts:~/.cabal/bin:~/.ghcup/bin:/bin:/sbin:/usr/bin:/usr/sbin
 
 WORKDIR /
 
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/mainnet-topology.json /opt/cardano/cnode/files/
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/mainnet-topology.yaml /opt/cardano/cnode/files/
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/CW_entrypoint.sh /
 RUN chmod +x /CW_entrypoint.sh 
 
@@ -21,13 +21,9 @@ RUN set -x \
   && stack upgrade --binary-only \
   && cd / && mkdir /config \
   && wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/debian/docker_prereqs.sh \
-  #&& wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/CW_entrypoint.sh \
-  #&& chmod +x /CW_entrypoint.sh && mv /CW_entrypoint.sh /root/ \
-  #&& cat prereqs.sh | sed 's/SUDO="Y";/SUDO="N";/g' > /tmp/prereqs.sh \
   && export BOOTSTRAP_HASKELL_NO_UPGRADE=1 \
   && bash docker_prereqs.sh \
   && bash ~/.bashrc \
-  && export PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH \
   && git clone https://github.com/input-output-hk/cardano-wallet.git \
   && cd cardano-wallet \
   && bash /opt/cardano/cnode/scripts/stack-build.sh \

@@ -24,7 +24,7 @@ elif [[ "$NETWORK" == "testnet" ]]; then
     	--port $CWALLET_PORT \
 	--testnet $@
 elif [[ "$NETWORK" == "mainnet" ]]; then
-  exec ln -s /opt/cardano/cnode/files/mainnet-topology.json /config/topology.json \
+  exec ln -s /opt/cardano/cnode/files/mainnet-topology.yaml /config/topology.yaml \
   exec cardano-wallet-byron serve \
 	--node-socket /ipc/node.socket \
 	--database /wallet-mainnet-db \
