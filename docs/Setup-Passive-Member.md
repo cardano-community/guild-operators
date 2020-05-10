@@ -1,7 +1,5 @@
 ### Config for pHTN - as a Passive node
 
-< Outdated - will be modified shortly >
-
 #### Create signing and verifying keys
 
 ``` bash

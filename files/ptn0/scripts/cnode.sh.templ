@@ -4,7 +4,12 @@ if [ -z "$CNODE_HOME" ]; then
     CNODE_HOME="/opt/cardano/cnode"
 fi
 
-cardano-node run --topology $CNODE_HOME/files/topology.json --shelley-kes-key $CNODE_HOME/priv/kes.skey \
-  --shelley-operational-certificate $CNODE_HOME/priv/ops.cert --shelley-vrf-key $CNODE_HOME/priv/vrf.skey \
-  --config $CNODE_HOME/files/ptn0.yaml --database-path $CNODE_HOME/files/db \
-  --port 6000 --socket-path $CNODE_HOME/sockets/node0.socket --host-addr 0.0.0.0
+cardano-node run \
+  --config $CNODE_HOME/files/ptn0.yaml \
+  --database-path $CNODE_HOME/db \
+  --host-addr `curl --silent ifconfig.me` \
+  --signing-key $CNODE_HOME/priv/pbft0.key \
+  --delegation-certificate $CNODE_HOME/priv/pbft0.json \
+  --port 9000 \
+  --socket-path $CNODE_HOME/sockets/pbft_node.socket \
+  --topology $CNODE_HOME/files/topology.json

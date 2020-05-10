@@ -28,7 +28,7 @@ Running the script above will create the folder structure as per below, for your
     │   ├── ...
     │   ├── genesis.json        # Genesis file referenced in ptn0.yaml
     │   ├── ptn0.yaml           # Config file used by cardano-node
-    │   └── topology.json       # Map of chain for cardano-node to boot from
+    │   └── inventory.json      # Map of Real-PBFT chain for cardano-node
     ├── db                      # DB Store for cardano-node
     ├── logs                    # Logs for cardano-node
     ├── priv                    # Folder to store your keys (permission: 600)
