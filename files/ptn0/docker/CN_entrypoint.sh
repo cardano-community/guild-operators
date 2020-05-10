@@ -33,6 +33,7 @@ elif [[ "$NETWORK" == "ptn0" ]]; then
    --host-addr `curl ifconfig.me` \
    --port $CNODE_PORT \
    --socket-path /ipc/node.socket \
+   --shelley-operational-certificate /keys/Pool.cert \
    --shelley-kes-key /keys/kes.skey \
    --shelley-vrf-key /keys/vrf.skey \
    --topology $CNODE_HOME/files/topology.json $@
