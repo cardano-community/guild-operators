@@ -24,7 +24,7 @@ The dockerfiles are located in ./files/ptn0/docker/
 Instead of specifying a context, you can pass a single Dockerfile in the URL or pipe the file in via STDIN. 
 Pipe the chosen Dockerfile (i.e. `Debian_CN_Dockerfile`) from STDIN:
 
-### Cardano-Node (testnet / mainnet / ptn0 / configuration)
+### Cardano-Node ( mainnet / ptn0 / configuration)
 
 With bash on Linux, you can run (in this example the Debian version):
 ```
@@ -32,10 +32,10 @@ wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/
 docker build -t cardanocommunity/cardano-node:debian - < Debian_CN_Dockerfile
 docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=ptn0 cardanocommunity/cardano-node:debian 
 ```
->This last run command will run the container (Full passive Cardano Node) mapping the internal port of the container to your >IP `-p 9000:9000` while you can change the `-e NETWORK=testnet` paramiter to `mainnet` or map your configuration directory >with the `-v` parameter as follow:
+>This last run command will run the container (Full passive Cardano Node) mapping the internal port of the container to your >IP `-p 9000:9000` while you can change the `-e NETWORK=ptn0` paramiter to `mainnet` or map your configuration directory >with the `-v` parameter as follow:
 >NOTE: Only ptn0 is owrking at the moment.
 ```
-docker run -itd --name CN --hostname CN -p 9000:9000 -it -v <PATHTOYOURDIR>:/configuration -e NETWORK=testnet cardanocommunity/cardano-node:debian 
+docker run -itd --name CN --hostname CN -p 9000:9000 -it -v <PATHTOYOURDIR>:/configuration -e NETWORK=ptn0 cardanocommunity/cardano-node:debian 
 ```
 
 Once the container is running, you cat attach to it by running the following command (change `CN` with your container name):
