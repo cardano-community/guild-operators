@@ -19,7 +19,7 @@ The dockerfiles are located in ./files/ptn0/docker/
 ## How to run a Cardano Node with Docker
 
 ### Custom container with your own cfg.
-```
+```bash
 docker run -itd  -p 9000:9000 -v <YourNetPath>:/ipc -v <YourCfgPath>:/configuration -v <YourKeysPath>:/keys  cardanocommunity/cardano-node:debian
 ```
 * YourNetPath   - is where your node.socket resides (needs to be shared if you want to run a wallet too)
@@ -28,7 +28,7 @@ docker run -itd  -p 9000:9000 -v <YourNetPath>:/ipc -v <YourCfgPath>:/configurat
 
 
 ### Custom container with ptn0 cfg.
-```
+```bash
 docker run -itd  -p 6000:9000 -v <YourKeysPath>:/keys -v <YourNetPath>:/ipc  -e NETWORK=ptn0 cardanocommunity/cardano-node:debian
 ```
 -----------
@@ -42,26 +42,26 @@ Pipe the chosen Dockerfile (i.e. `Debian_CN_Dockerfile`) from STDIN:
 ### Cardano-Node ( mainnet / ptn0 / configuration)
 
 With bash on Linux, you can run (in this example the Debian version):
-```
+```bash
 wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/debian/Debian_CN_Dockerfile 
 docker build -t cardanocommunity/cardano-node:debian - < Debian_CN_Dockerfile
 docker run -itd --name CN --hostname CN -p 9000:9000 -it -e NETWORK=ptn0 cardanocommunity/cardano-node:debian 
 ```
 >This last run command will run the container (Full passive Cardano Node) mapping the internal port of the container to your >IP `-p 9000:9000` while you can change the `-e NETWORK=ptn0` paramiter to `mainnet` or map your configuration directory >with the `-v` parameter as follow:
 >NOTE: Only ptn0 is owrking at the moment.
-```
+```bash
 docker run -itd --name CN --hostname CN -p 9000:9000 -it -v <PATHTOYOURDIR>:/configuration -e NETWORK=ptn0 cardanocommunity/cardano-node:debian 
 ```
 
 Once the container is running, you cat attach to it by running the following command (change `CN` with your container name):
-```
+```bash
 docker attach CN
 ```
 To detach the session without stopping the node press `CTRL+P` then `CTRL+Q` and you will be detached from the container
 If you hit `CTRL+C` instead the container will be stopped.
 
 While if you have an hook within the continer console use the following command (change `CN` with your container name)
-```
+```bash
 docker exec -it CN bash 
 ```
 
@@ -80,14 +80,14 @@ docker exec -it CN bash
 > At the moment the best way to run the Wallet container is trough the related docker compose file (`Wallet-docker-compose.yaml`) 
 
 With bash on Linux, you can run _just_ for the wallet image:
-```
+```bash
 $ docker build -t guild-operators/cardano-wallet:debian - < Debian_CW_Dockerfile
 docker run -itd --name CW --hostname CW -p 8090:8090 -e NETWORK=mainnet guild-operators/cardano-wallet:debian 
 ```
 
 ## docker-compose
 While to run a node + wallet trough the docker-compose cmd:
-```
+```bash
 wget https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/Wallet-docker-compose.yaml
 NETWORK=mainnet docker-compose -f Wallet-docker-compose.yaml up    # add -d for detach mode
 
