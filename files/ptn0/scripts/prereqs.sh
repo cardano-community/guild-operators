@@ -100,6 +100,7 @@ curl -s -o cnode.sh https://raw.githubusercontent.com/cardano-community/guild-op
 curl -s -o cabal-build-all.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/cabal-build-all.sh
 curl -s -o stack-build.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/stack-build.sh
 curl -s -o system-info.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/system-info.sh
+curl -s -o $CNODE_HOME/priv/delegate.counter https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/delegate.counter
 chmod 755 ./*.sh
 # If you opt for an alternate CNODE_HOME, please run the below:
 # sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" *.sh
