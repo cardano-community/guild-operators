@@ -33,6 +33,13 @@
         "addr":"62.138.3.118",
         "port":6000,
         "valency":1
+     },
+     {
+        "operator":"mask",
+        "node":"Pegasus",
+        "addr":"204.44.81.19",
+        "port":6000,
+        "valency":1
      }
   ]
 }
