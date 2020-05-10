@@ -1,5 +1,5 @@
 {
-    "activeSlotsCoeff": 0.8,
+    "activeSlotsCoeff": 0.1,
     "protocolParams": {
         "poolDecayRate": 0,
         "poolDeposit": 0,
@@ -7,7 +7,7 @@
             "minor": 0,
             "major": 0
         },
-        "decentralisationParam": 0.5,
+        "decentralisationParam": 0.8,
         "maxTxSize": 2048,
         "minFeeA": 0,
         "maxBlockBodySize": 2097152,
@@ -60,10 +60,10 @@
     },
     "maxLovelaceSupply": 250000000000,
     "networkMagic": 4036000915,
-    "epochLength": 210,
+    "epochLength": 2000,
     "staking": null,
-    "slotsPerKESPeriod": 210,
+    "slotsPerKESPeriod": 8000,
     "slotLength": 2,
     "maxKESEvolutions": 1080,
-    "securityParam": 21
+    "securityParam": 20
 }
