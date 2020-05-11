@@ -68,6 +68,13 @@
         "addr":"95.216.188.94",
         "port":6000,
         "valency":1
+     },
+     {
+        "operator":"ilap",
+        "node":"SIN",
+        "addr":"51.79.141.170",
+        "port":6000,
+        "valency":1
      }
   ]
 }
