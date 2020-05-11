@@ -8,4 +8,5 @@ CNODE_HOME=/opt/cardano/cnode
 CONFIG=$CNODE_HOME/files/cnode_ptn.yaml
 GENESIS_JSON=$CNODE_HOME/files/genesis.json
 export NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
+export CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
 MAGIC=$(cat $GENESIS_JSON | jq -r .protocolConsts|jq -r .protocolMagic)
