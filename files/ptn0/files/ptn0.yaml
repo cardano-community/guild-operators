@@ -125,7 +125,7 @@ TraceBlockFetchDecisions: True
 TraceBlockFetchProtocol: True
 
 # Serialised Trace BlockFetch protocol messages.
-TraceBlockFetchProtocolSerialised: False
+TraceBlockFetchProtocolSerialised: True
 
 # Trace BlockFetch server.
 TraceBlockFetchServer: True
@@ -137,10 +137,10 @@ TraceChainDb: True
 TraceChainSyncClient: True
 
 # Trace ChainSync server (blocks).
-TraceChainSyncBlockServer: False
+TraceChainSyncBlockServer: True
 
 # Trace ChainSync server (headers)
-TraceChainSyncHeaderServer: False
+TraceChainSyncHeaderServer: True
 
 # Trace ChainSync protocol messages.
 TraceChainSyncProtocol: True
@@ -152,7 +152,7 @@ TraceDNSResolver: False
 TraceDNSSubscription: False
 
 # Trace error policy resolution.
-TraceErrorPolicy: False
+TraceErrorPolicy: True
 
 # Trace local error policy resolution.
 TraceLocalErrorPolicy: True
@@ -167,7 +167,7 @@ TraceHandshake: True
 TraceIpSubscription: True
 
 # Trace local ChainSync protocol messages.
-TraceLocalChainSyncProtocol: False
+TraceLocalChainSyncProtocol: True
 
 # Trace local Handshake protocol messages.
 TraceLocalHandshake: False

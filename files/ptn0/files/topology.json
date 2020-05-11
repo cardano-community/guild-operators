@@ -4,8 +4,8 @@
         "operator":"rdlrt",
         "node":"RDLRT181",
         "addr":"88.99.83.86",
-        "port":6000,
-        "valency":1
+        "port":6001,
+        "valency":2
      },
     {
         "operator":"OCG",
