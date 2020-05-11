@@ -1,5 +1,5 @@
 {
-    "activeSlotsCoeff": 0.1,
+    "activeSlotsCoeff": 0.3,
     "protocolParams": {
         "poolDecayRate": 0,
         "poolDeposit": 0,
@@ -7,7 +7,7 @@
             "minor": 0,
             "major": 0
         },
-        "decentralisationParam": 0.8,
+        "decentralisationParam": 0.5,
         "maxTxSize": 2048,
         "minFeeA": 0,
         "maxBlockBodySize": 2097152,
@@ -26,8 +26,8 @@
         "tau": 0,
         "a0": 0.5
     },
-    "protocolMagicId": 838299401,
-    "startTime": "2020-05-10T13:17:00.000000000Z",
+    "protocolMagicId": 838299405,
+    "startTime": "2020-05-11T01:27:00.000000000Z",
     "genDelegs": {
         "a7de3179be75510f96dadb213265fd214ed3d756283eb9fd3a2a7aff698573c5": "2764395be07f0ae2b63c1975d9d266cb3ea35183f91847a11f8dc2d1a166168e",
         "88495d57971224c29af661f92a68fbb992034b221161ce44b1d046a1c1dcbe82": "6564d69ed9076eed6f40e3efdd9119eedd0c0c2d738aad316a13417c311fe7ac",
@@ -60,10 +60,10 @@
     },
     "maxLovelaceSupply": 250000000000,
     "networkMagic": 4036000915,
-    "epochLength": 2000,
+    "epochLength": 216,
     "staking": null,
-    "slotsPerKESPeriod": 8000,
+    "slotsPerKESPeriod": 2160,
     "slotLength": 2,
-    "maxKESEvolutions": 1080,
-    "securityParam": 20
+    "maxKESEvolutions": 1080000,
+    "securityParam": 216
 }
