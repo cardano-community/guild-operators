@@ -1,33 +1,33 @@
 {
-    "activeSlotsCoeff": 0.3,
+    "activeSlotsCoeff": 0.9,
     "protocolParams": {
         "poolDecayRate": 0,
-        "poolDeposit": 0,
+        "poolDeposit": 100000000,
         "protocolVersion": {
             "minor": 0,
             "major": 0
         },
         "decentralisationParam": 0.5,
         "maxTxSize": 2048,
-        "minFeeA": 0,
+        "minFeeA": 500000,
         "maxBlockBodySize": 2097152,
-        "keyMinRefund": 0,
+        "keyMinRefund": 500000,
         "minFeeB": 0,
         "eMax": 0,
         "extraEntropy": {
             "tag": "NeutralNonce"
         },
         "maxBlockHeaderSize": 8192,
-        "keyDeposit": 0,
+        "keyDeposit": 100000000,
         "keyDecayRate": 0,
         "nOpt": 100,
         "rho": 0,
-        "poolMinRefund": 0,
+        "poolMinRefund": 10000000,
         "tau": 0,
-        "a0": 0.5
+        "a0": 0
     },
-    "protocolMagicId": 838299405,
-    "startTime": "2020-05-11T01:27:00.000000000Z",
+    "protocolMagicId": 838299499,
+    "startTime": "2020-05-11T06:45:00.000000000Z",
     "genDelegs": {
         "a7de3179be75510f96dadb213265fd214ed3d756283eb9fd3a2a7aff698573c5": "2764395be07f0ae2b63c1975d9d266cb3ea35183f91847a11f8dc2d1a166168e",
         "88495d57971224c29af661f92a68fbb992034b221161ce44b1d046a1c1dcbe82": "6564d69ed9076eed6f40e3efdd9119eedd0c0c2d738aad316a13417c311fe7ac",
@@ -51,19 +51,19 @@
         "93a605c92238747bc306e3e252e80e08ccd5edecae9fd14951ba4cce75b2d4f9": "52daf5133f4bdaa4dd4ffc2d95487f19e57d639057b6e3839ed386c5a2fb575d",
         "9640abd97d3d43aeda8cc39d4e384d086c1f6ad7a67aa2fcc10a86b137832b3a": "f97f57233c837d56c62a9e8b42428197e17ebc1e064990111c92ce1c3aa81d63"
     },
-    "updateQuorum": 5,
+    "updateQuorum": 12,
     "maxMajorPV": 25446,
     "initialFunds": {
         "82065820c4132db1c094b7290b7a3286ec9495aaa62bc9ddc3028f342a3755c4e81ecd0d": 83333333333,
         "820658207449a9ad0f761ce5775963e445993c7ef419623d27bb289f65bd5d95dfcf8ad9": 83333333334,
         "820658200bdf428894c66082499a287f6f661f3e20ec78ae693fd393ccc724d9b4bed05d": 83333333333
     },
-    "maxLovelaceSupply": 250000000000,
-    "networkMagic": 4036000915,
-    "epochLength": 216,
+    "maxLovelaceSupply": 50000000000000000,
+    "networkMagic": 4036000900,
+    "epochLength": 5000,
     "staking": null,
-    "slotsPerKESPeriod": 2160,
+    "slotsPerKESPeriod": 720000,
     "slotLength": 2,
-    "maxKESEvolutions": 1080000,
-    "securityParam": 216
+    "maxKESEvolutions": 140000000,
+    "securityParam": 500
 }
