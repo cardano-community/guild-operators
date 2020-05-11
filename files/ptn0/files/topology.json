@@ -75,6 +75,13 @@
         "addr":"51.79.141.170",
         "port":6000,
         "valency":1
+     },
+     {
+        "operator": "regisg27",
+        "node": "ADAFR",
+        "addr": "176.31.122.83",
+        "port": 6000,
+        "valency": 1
      }
   ]
 }
