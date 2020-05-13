@@ -55,14 +55,14 @@ ghcup install 8.6.5
 ghcup set 8.6.5
 ghc --version
 
-echo "Installing Cabal 3.0.0 .."
+echo "Installing Cabal 3.2.0 .."
 
-wget https://downloads.haskell.org/cabal/cabal-install-3.0.0.0/cabal-install-3.0.0.0-x86_64-unknown-linux.tar.xz
-tar xf cabal-install-3.0.0.0-x86_64-unknown-linux.tar.xz
+wget https://downloads.haskell.org/~cabal/cabal-install-3.2.0.0/cabal-install-3.2.0.0-x86_64-unknown-linux.tar.xz
+tar xf cabal-install-3.2.0.0-x86_64-unknown-linux.tar.xz
 chmod 755 cabal
 mkdir -p ~/.cabal/bin
 mv cabal ~/.ghcup/bin
-rm -f cabal-install-3.0.0.0-x86_64-unknown-linux.tar.xz cabal.sig
+rm -f cabal-install-3.2.0.0-x86_64-unknown-linux.tar.xz cabal.sig
 
 echo "Creating Folder Structure .."
 

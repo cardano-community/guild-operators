@@ -5,7 +5,7 @@
 - Cap: Pools intending to run their stake pool have been distributed 1000000000 Test Lovelaces, would be great if we use it as a cap.
 - For helper scripts, these are either copies - or small modifications of IOHK provided helper scripts to keep them compatible with versions here.
 
-# Cardano Node (Haskell - PBFT) Testnet details
+# Cardano Node (Haskell - TPraos) Testnet details
 
 Check Setup and connection details [here]
 
