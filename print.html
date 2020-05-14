@@ -519,10 +519,15 @@ Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Req
 # Repeat to validate:
 </code></pre>
 <h3><a class="header" href="#make-transactions" id="make-transactions">Make Transactions</a></h3>
-<p>This script will create and submit a transaction to send ADA using your private key as source and an address specified on command line</p>
+<p>This script will create and submit a transaction to send ADA using your private key as source and an address specified on command line, it assumes the <a href="Common.html#dependencies-and-folder-structure-setup">pre-requisites</a> are already in place</p>
 <pre><code class="language-bash"># Send ADA script usage
 cd $CNODE_HOME/scripts
-./sendADA.sh tx.out 2cWKMJemoBa....ssL7fzhq 20 $CNODE_HOME/priv/node0.key
+
+./sendADA.sh
+# Usage:  sendADA.sh &lt;Tx-File to Create for submission&gt; &lt;Output Address&gt; &lt;Amount in ADA&gt; &lt;Signing Key file (script expects .vkey with same name in same folder)&gt;
+#
+# Example:
+# ./sendADA.sh tx.out 2cWKMJemoBa....ssL7fzhq 20 $CNODE_HOME/priv/node0.key
 </code></pre>
 <h3><a class="header" href="#welcome-1" id="welcome-1">Welcome!!</a></h3>
 <p>This documentation (rather the repository itself) is created by some of the community members and serves as an easy means to add documentation or scripts that makes more sense to users. The target audience for this document are mainly experienced stake pool operators.</p>
