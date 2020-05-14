@@ -152,7 +152,8 @@
                 <div id="content" class="content">
                     <main>
                         <h3><a class="header" href="#config-for-phtn---as-a-genesis-member-node" id="config-for-phtn---as-a-genesis-member-node">Config for pHTN - as a genesis member node</a></h3>
-<p>Use this guide only if you already have your key (referred to as <code>delegate.skey</code> below) that's already registered in genesis.</p>
+<p>Use this guide only if you already have your genesis keys (referred to as <code>delegate.skey</code> below). The step may not apply to most of the pool operators.
+Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
 <h4><a class="header" href="#create-verification-key" id="create-verification-key">Create verification key</a></h4>
 <pre><code class="language-bash"># Create the Node operation keys
 cardano-cli shelley node key-gen-VRF --verification-key-file $CNODE_HOME/priv/vrf.vkey --signing-key-file $CNODE_HOME/priv/vrf.skey
