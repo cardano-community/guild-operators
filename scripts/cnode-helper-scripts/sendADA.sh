@@ -25,13 +25,12 @@ case $# in
     outaddr="$2";
     lovelace="$(( $3 * 1000000 ))";
     from_key="$4";
-    from_addr="";
+    from_addr="";;
   * ) cat >&2 <<EOF
 Usage:  $(basename $0) <Tx-File to Create for submission> <Output Address> <Amount in ADA> <Signing Key file (script expects .vkey with same name in same folder)>
 EOF
   exit 1;; esac
 
-NWMAGIC=`cat ${GENESIS_JSON} | jq .networkMagic`
 echo "NW Magic is $NWMAGIC"
 
 echo "getting protocol params"
