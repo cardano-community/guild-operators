@@ -45,7 +45,7 @@ echo "calculating min fee"
 MINFEE=`${CCLI} shelley transaction calculate-min-fee --tx-in-count 1 --tx-out-count 2 --ttl ${ttlvalue} --testnet-magic ${NWMAGIC} --signing-key-file ${from_key} --protocol-params-file /tmp/protparams.json | awk '{ print $2 }'`
 echo "min fee is $MINFEE"
 
-from_addr=`${CCLI} shelley address build-enterprise --payment-verification-key-file "${from_key%.*}.vkey"`
+from_addr=`${CCLI} shelley address build --payment-verification-key-file "${from_key%.*}.vkey"`
 echo "from_ddress is $from_addr"
 
 echo "balance check.."
