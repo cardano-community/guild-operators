@@ -1,44 +1,19 @@
-### Config for pHTN - as a Passive node
+### Start a Passive node
 
-< Outdated - will be modified shortly >
+This document helps you to set a basic Passive Node connecting to the network. This would also be a first step if you do not have a genesis (BFT) keys for TPraos network, to allow you to register your pool.
+Ensure the [Pre-Requisites](Common.md#dependencies-and-folder-structure-setup) are in place before you proceed.
 
-#### Create signing and verifying keys
+To start the node in passive mode, execute the steps as below:
 
-``` bash
-$ cardano-cli keygen --real-pbft --secret $CNODE_HOME/priv/pbft0p.key --no-password
-```
-
-#### Create verification key
-
-``` bash
-# Create the verification key
-cardano-cli to-verification --real-pbft --secret $CNODE_HOME/priv/pbft0p.key --to $CNODE_HOME/priv/pbft0p.vfk
-
-# Check the verification/public key
-cardano-cli signing-key-public --real-pbft --secret $CNODE_HOME/priv/pbft0p.key | awk '/base64/ { print $4}'
-# HyZ+SQ3odbYPH...A==
-cat $CNODE_HOME/priv/pbft0p.vfk
-# HyZ+SQ3odbYPH...A==
-```
-
-#### Create certificates
-``` bash
-$ cardano-cli issue-delegation-certificate \
---config $CNODE_HOME/files/config.json \
---since-epoch <?> \
---secret <THE ISSUER SECRET/KEY FOR GENESIS> \
---delegate-key $CNODE_HOME/priv/pbft0p.key \
---certificate $CNODE_HOME/files/pbft0p.json
-```
 #### Start Passive Node
-
 ``` bash
-CNODE_HOME=/opt/cardano/cnode
 cardano-node run \
           --config $CNODE_HOME/files/ptn0.yaml \
           --database-path $CNODE_HOME/db \
-          --host-addr $(curl ifconfig.me) \
-          --port 9000 \
-          --socket-path $CNODE_HOME/sockets/pbft_node.socket \
+          --host-addr 0.0.0.0 \
+          --port 5001 \
+          --socket-path $CNODE_HOME/sockets/node0.socket \
           --topology $CNODE_HOME/files/topology.json
 ```
+
+Note that if you do not want your node to be publicly available, you can change `--host-addr` to `127.0.0.1`

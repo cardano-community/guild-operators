@@ -1,6 +1,7 @@
 ### Config for pHTN - as a genesis member node
 
-Use this guide only if you already have your key (referred to as `delegate.skey` below) that's already registered in genesis.
+Use this guide only if you already have your genesis keys (referred to as `delegate.skey` below). The step may not apply to most of the pool operators.
+Ensure the [Pre-Requisites](Common.md#dependencies-and-folder-structure-setup) are in place before you proceed.
 
 #### Create verification key
 

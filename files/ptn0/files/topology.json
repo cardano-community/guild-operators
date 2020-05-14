@@ -5,7 +5,7 @@
         "node":"RDLRT181",
         "addr":"88.99.83.86",
         "port":6002,
-        "valency":2
+        "valency":1
      },
     {
         "operator":"OCG",
