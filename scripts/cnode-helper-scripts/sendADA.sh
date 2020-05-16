@@ -50,7 +50,7 @@ echo "from_ddress is $from_addr"
 
 echo "balance check.."
 ${CCLI} shelley query filtered-utxo --testnet-magic ${NWMAGIC} --address ${from_addr} > /tmp/fullUtxo.out
-${CCLI} shelley query filtered-utxo --testnet-magic ${NWMAGIC} --address ${from_addr} | grep -v TxHash | grep -v "\-" | sort -k 3,3 -V | head -n 1  > /tmp/balance.txt
+${CCLI} shelley query filtered-utxo --testnet-magic ${NWMAGIC} --address ${from_addr} | grep -v TxHash | grep -v "\-" | sort -k 3 -nr | head -n 1  > /tmp/balance.txt
 cat /tmp/balance.txt
 
 if [ ! -s /tmp/balance.txt ]; then
