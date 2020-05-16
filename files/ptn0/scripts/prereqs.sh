@@ -1,17 +1,13 @@
 #!/bin/sh
 
 get_input() {
-  while :
-  do
-    read -p "$1 (default: $2): " answer
-    if [ -z "$answer" ]; then echo "$2"; else echo "$answer"; fi
-    break
-  done
+  printf "%s (default: %s): " "$1" "$2" >&2; read -r answer
+  if [ -z "$answer" ]; then echo "$2"; else echo "$answer"; fi
 }
 
 get_answer() {
 
-  read -p "$@ (yes/no): " answer
+  printf "%s (yes/no): " "$*" >&2; read -r answer
   while : 
   do
     case $answer in
@@ -19,19 +15,19 @@ get_answer() {
       return 0;;
     [Nn]*)
       return 1;;
-    *) read -p "Please enter 'yes' or 'no' to continue: " answer
+    *) printf "%s" "Please enter 'yes' or 'no' to continue: " >&2; read -r answer
     esac
   done
 }
 
 err_exit() {
-  echo "$@\nExiting..." >&2
+  printf "%s\nExiting..." "$*" >&2
   exit 1
 }
 
 usage() {
   cat <<EOF >&2
-Usage: `basename $0` [-i]
+Usage: $(basename "$0") [-i]
 Install pre-requisites for 'cardano-node'
 
 -i                  Interactive mode
@@ -52,18 +48,18 @@ do
 done
 
 # For who runs the script within containers and running it as root.
-UID=`id -u`
-GID=`id -g`
+UID=$(id -u)
+GID=$(id -g)
 
 # Defaults
 CNODE_PATH="/opt/cardano"
 CNODE_NAME="htn"
 CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
-CNODE_VNAME=`echo "$CNODE_NAME" | awk '{print toupper($0)}'`
+CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
 
 WANT_BUILD_DEPS='Y'
 
-#if [ `id -u` -eq 0 ]; then
+#if [ $(id -u$( -eq 0 ]; then
 #  err_exit "Please run as non-root user."
 #fi
 
@@ -72,12 +68,12 @@ if [ "${SUDO}" = "Y" ] || [ "${SUDO}" = "y" ] ; then sudo="sudo"; else sudo="" ;
 
 if [ "$INTERACTIVE" = 'Y' ]; then
   clear;
-  CNODE_PATH=`get_input "Please enter the project path" ${CNODE_PATH}`
-  CNODE_NAME=`get_input "Please enter directory name" ${CNODE_NAME}`
+  CNODE_PATH=$(get_input "Please enter the project path" ${CNODE_PATH})
+  CNODE_NAME=$(get_input "Please enter directory name" ${CNODE_NAME})
   CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
-  CNODE_VNAME=`echo "$CNODE_NAME" | awk '{print toupper($0)}'`
+  CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
 
-  if [ -d ${CNODE_HOME} ]; then
+  if [ -d "${CNODE_HOME}" ]; then
     err_exit "The \"${CNODE_HOME}\" directory exist, pls remove or choose an other one."
   fi
 
@@ -144,7 +140,7 @@ fi
 
 echo "Creating Folder Structure .."
 
-if grep -q ${CNODE_VNAME}_HOME ~/.bashrc; then
+if grep -q "${CNODE_VNAME}_HOME" ~/.bashrc; then
   echo "Environment Variable already set up!"
 else
   echo "Setting up Environment Variable"
@@ -153,7 +149,7 @@ else
   . "${HOME}/.bashrc"
 fi
 
-$sudo mkdir -p $CNODE_HOME/files $CNODE_HOME/db $CNODE_HOME/logs $CNODE_HOME/scripts $CNODE_HOME/sockets $CNODE_HOME/priv
+$sudo mkdir -p "$CNODE_HOME"/files "$CNODE_HOME"/db "$CNODE_HOME"/logs "$CNODE_HOME"/scripts "$CNODE_HOME"/sockets "$CNODE_HOME"/priv
 $sudo chown -R "$UID":"$GID" "$CNODE_HOME"
 chmod -R 755 "$CNODE_HOME"
 
@@ -169,9 +165,9 @@ curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/mast
 # sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/ptn0.yaml
 ## For future use:
 ## It generates random NodeID:
-## -e "s#NodeId:.*#NodeId:`od -A n -t u8 -N 8 /dev/urandom`#" \
+## -e "s#NodeId:.*#NodeId:$(od -A n -t u8 -N 8 /dev/urandom$(#" \
 
-cd $CNODE_HOME/scripts || return
+cd "$CNODE_HOME"/scripts || return
 curl -s -o env https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
 sed -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i env
 curl -s -o createAddr.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/createAddr.sh
@@ -181,7 +177,7 @@ sed -e "s@CNODE_HOME=.*@${CNODE_VNAME}_HOME=${CNODE_HOME}@g" -e "s@CNODE_HOME@${
 curl -s -o cabal-build-all.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/cabal-build-all.sh
 curl -s -o stack-build.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/stack-build.sh
 curl -s -o system-info.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/system-info.sh
-curl -s -o $CNODE_HOME/priv/delegate.counter https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/delegate.counter
+curl -s -o "$CNODE_HOME"/priv/delegate.counter https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/delegate.counter
 chmod 755 ./*.sh
 # If you opt for an alternate CNODE_HOME, please run the below:
 # sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" *.sh
