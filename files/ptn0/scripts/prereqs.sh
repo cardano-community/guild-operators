@@ -126,7 +126,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
 
   ghc_v=$(ghc --version | grep 8\.6\.5 2>/dev/null)
   cabal_v=$(cabal --version | grep version\ 3 2>/dev/null)
-  if [ "${ghc_v}" == "" ] || [ "${cabal_v}" == "" ]; then
+  if [ "${ghc_v}" = "" ] || [ "${cabal_v}" = "" ]; then
     echo "Install ghcup (The Haskell Toolchain installer) .."
     # TMP: Dirty hack to prevent ghcup interactive setup, yet allow profile set up
     unset BOOTSTRAP_HASKELL_NONINTERACTIVE
