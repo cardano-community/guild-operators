@@ -26,31 +26,67 @@ get_answer() {
 
 err_exit() {
   echo "$@\nExiting..." >&2
-  exit
+  exit 1
 }
 
-if [ `id -u` -eq 0 ]; then
-  err_exit "Please run as non-root user."
-fi
+usage() {
+  cat <<EOF >&2
+Usage: `basename $0` [-i]
+Install pre-requisites for 'cardano-node'
+
+-i                  Interactive mode
+EOF
+  exit 1
+}
+
+while getopts "i" opt
+do
+  case "$opt" in
+    i)
+      INTERACTIVE='Y'
+      ;;
+    *)
+      usage
+      ;;
+    esac
+done
 
 # For who runs the script within containers and running it as root.
-SUDO="Y";
-if [ "${SUDO}" = "Y" ] || [ "${SUDO}" = "y" ] ; then sudo="sudo"; else sudo="" ; fi
-
 UID=`id -u`
 GID=`id -g`
 
-clear;
-CNODE_PATH=`get_input "Please enter the project path" /opt/cardano`
-CNODE_NAME=`get_input "Please enter directory name" htn`
+# Defaults
+CNODE_PATH="/opt/cardano"
+CNODE_NAME="htn"
 CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
-CNODE_NAME=`echo "$CNODE_NAME" | awk '{print toupper($0)}'`
+CNODE_VNAME=`echo "$CNODE_NAME" | awk '{print toupper($0)}'`
 
-if [ -d ${CNODE_HOME} ]; then
-  err_exit "The \"${CNODE_HOME}\" directory exist, pls remove or choose and other one."
+WANT_BUILD_DEPS='Y'
+
+#if [ `id -u` -eq 0 ]; then
+#  err_exit "Please run as non-root user."
+#fi
+
+SUDO="Y";
+if [ "${SUDO}" = "Y" ] || [ "${SUDO}" = "y" ] ; then sudo="sudo"; else sudo="" ; fi
+
+if [ "$INTERACTIVE" = 'Y' ]; then
+  clear;
+  CNODE_PATH=`get_input "Please enter the project path" ${CNODE_PATH}`
+  CNODE_NAME=`get_input "Please enter directory name" ${CNODE_NAME}`
+  CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
+  CNODE_VNAME=`echo "$CNODE_NAME" | awk '{print toupper($0)}'`
+
+  if [ -d ${CNODE_HOME} ]; then
+    err_exit "The \"${CNODE_HOME}\" directory exist, pls remove or choose an other one."
+  fi
+
+  if ! get_answer "Do you want to install build dependencies for cardano node?"; then
+    WANT_BUILD_DEPS='N'
+  fi
 fi
 
-if get_answer "Do you want to install build dependencies for cardano node?"; then
+if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
 
   # Determine OS platform
   OS_ID=$(grep -i ^id_like= /etc/os-release | cut -d= -f 2)
@@ -108,11 +144,11 @@ fi
 
 echo "Creating Folder Structure .."
 
-if grep -q ${CNODE_NAME}_HOME ~/.bashrc; then
+if grep -q ${CNODE_VNAME}_HOME ~/.bashrc; then
   echo "Environment Variable already set up!"
 else
   echo "Setting up Environment Variable"
-  echo "export ${CNODE_NAME}_HOME=${CNODE_HOME}" >> ~/.bashrc
+  echo "export ${CNODE_VNAME}_HOME=${CNODE_HOME}" >> ~/.bashrc
   # shellcheck source=/dev/null
   . "${HOME}/.bashrc"
 fi
@@ -137,11 +173,11 @@ curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/mast
 
 cd $CNODE_HOME/scripts || return
 curl -s -o env https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
-sed -e "s@CNODE_HOME@${CNODE_NAME}_HOME@g" -i env
+sed -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i env
 curl -s -o createAddr.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/createAddr.sh
 curl -s -o sendADA.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/sendADA.sh
 curl -s -o cnode.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/cnode.sh.templ
-sed -e "s@CNODE_HOME=.*@${CNODE_NAME}_HOME=${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_NAME}_HOME@g" -i cnode.sh
+sed -e "s@CNODE_HOME=.*@${CNODE_VNAME}_HOME=${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i cnode.sh
 curl -s -o cabal-build-all.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/cabal-build-all.sh
 curl -s -o stack-build.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/stack-build.sh
 curl -s -o system-info.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/system-info.sh
