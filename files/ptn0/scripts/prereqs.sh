@@ -53,7 +53,7 @@ G_ID=$(id -g)
 
 # Defaults
 CNODE_PATH="/opt/cardano"
-CNODE_NAME="htn"
+CNODE_NAME="cnode"
 CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
 CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
 
@@ -91,23 +91,27 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
   if [ -z "${OS_ID##*debian*}" ]; then
     #Debian/Ubuntu
     echo "Using apt to prepare packages for ${DISTRO} system"
-    sleep 2
+    echo "  Updating system packages..."
     $sudo apt-get -y install curl
-    curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | $sudo apt-key add -
-    echo "deb https://dl.yarnpkg.com/debian/ stable main" | $sudo tee /etc/apt/sources.list.d/yarn.list
-    $sudo apt-get update
-    $sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ tmux git jq wget libncursesw5
+    curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | $sudo apt-key add - > /dev/null
+    echo "deb https://dl.yarnpkg.com/debian/ stable main" | $sudo tee /etc/apt/sources.list.d/yarn.list > /dev/null
+    $sudo apt-get -y update > /dev/null
+    echo "  Installing missing prerequisite packages, if any.."
+    $sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ tmux git jq wget libncursesw5 > /dev/null
   elif [ -z "${OS_ID##*rhel*}" ]; then
     #CentOS/RHEL/Fedora
-    echo "USING yum to prepare packages for ${DISTRO} system"
-    $sudo yum -y install curl
-    curl --silent --location https://dl.yarnpkg.com/rpm/yarn.repo | $sudo tee /etc/yum.repos.d/yarn.repo
-    $sudo rpm --import https://dl.yarnpkg.com/rpm/pubkey.gpg
-    $sudo yum update
-    $sudo yum -y install python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs systemd-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq
+    echo "Using yum to prepare packages for ${DISTRO} system"
+    echo "  Updating system packages..."
+    $sudo yum -y install curl > /dev/null
+    curl --silent --location https://dl.yarnpkg.com/rpm/yarn.repo | $sudo tee /etc/yum.repos.d/yarn.repo > /dev/null
+    $sudo rpm --import https://dl.yarnpkg.com/rpm/pubkey.gpg > /dev/null
+    $sudo yum -y update > /dev/null
+    echo "  Installing missing prerequisite packages, if any.."
+    $sudo yum -y install python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs systemd-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq > /dev/null
     if [ -f /usr/lib64/libtinfo.so ] && [ -f /usr/lib64/libtinfo.so.5 ]; then
-      echo "ncurse libs already set up, skipping symlink.."
+      echo "  Symlink updates not required for ncurse libs, skipping.."
     else
+      echo "  Updating symlinks for ncurse libs.."
       $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so
       $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so.5
     fi
@@ -120,21 +124,25 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     exit;
   fi
 
+  ghc_v=$(ghc --version | grep 8\.6\.5 2>/dev/null)
+  cabal_v=$(cabal --version | grep version\ 3 2>/dev/null)
+  if [ "${ghc_v}" == "" ] || [ "${cabal_v}" == "" ]; then
+    echo "Install ghcup (The Haskell Toolchain installer) .."
+    # TMP: Dirty hack to prevent ghcup interactive setup, yet allow profile set up
+    unset BOOTSTRAP_HASKELL_NONINTERACTIVE
+    export BOOTSTRAP_HASKELL_NO_UPGRADE=1
+    curl -s --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sed -e 's#read.*#answer=Y;next_answer=Y#' | bash
+    # shellcheck source=/dev/null
+    . ~/.ghcup/env
 
-  echo "Install ghcup (The Haskell Toolchain installer) .."
-  # TMP: Dirty hack to prevent ghcup interactive setup, yet allow profile set up
-  unset BOOTSTRAP_HASKELL_NONINTERACTIVE
-  export BOOTSTRAP_HASKELL_NO_UPGRADE=1
-  curl -s --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sed -e 's#read.*#answer=Y;next_answer=Y#' | bash
-  # shellcheck source=/dev/null
-  . ~/.ghcup/env
+    ghcup install 8.6.5
+    ghcup set 8.6.5
+    ghc --version
 
-  ghcup install 8.6.5
-  ghcup set 8.6.5
-  ghc --version
-
-  echo "Installing bundled Cabal .."
-  ghcup install-cabal
+    echo "Installing bundled Cabal .."
+    ghcup install-cabal
+  fi
+  
 fi
 # END OF Install build deps.
 
