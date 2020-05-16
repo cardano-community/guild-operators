@@ -48,8 +48,8 @@ do
 done
 
 # For who runs the script within containers and running it as root.
-UID=$(id -u)
-GID=$(id -g)
+U_ID=$(id -u)
+G_ID=$(id -g)
 
 # Defaults
 CNODE_PATH="/opt/cardano"
@@ -150,7 +150,7 @@ else
 fi
 
 $sudo mkdir -p "$CNODE_HOME"/files "$CNODE_HOME"/db "$CNODE_HOME"/logs "$CNODE_HOME"/scripts "$CNODE_HOME"/sockets "$CNODE_HOME"/priv
-$sudo chown -R "$UID":"$GID" "$CNODE_HOME"
+$sudo chown -R "$U_ID":"$G_ID" "$CNODE_HOME"
 chmod -R 755 "$CNODE_HOME"
 
 mkdir -p ~/git # To hold git repositories that will be used for building binaries
