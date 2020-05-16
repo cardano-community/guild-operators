@@ -18,8 +18,6 @@ function myexit() {
 # start with a clean slate
 cleanup
 
-NWMAGIC=`cat ${GENESIS_JSON} | jq .networkMagic`
-
 case $# in
   4 ) tx="$1";
     outaddr="$2";
@@ -37,7 +35,7 @@ echo "getting protocol params"
 ${CCLI} shelley query protocol-parameters --testnet-magic ${NWMAGIC} > /tmp/protparams.json
 # cat /tmp/protparams.json
 
-currSlot=`cardano-cli shelley query tip --testnet-magic 42 | awk '{ print $5 }' | grep -Eo '[0-9]{1,}'`
+currSlot=`cardano-cli shelley query tip --testnet-magic ${NWMAGIC} | awk '{ print $5 }' | grep -Eo '[0-9]{1,}'`
 ttlvalue=$(($currSlot+1000))
 echo "current slot is $currSlot, setting ttl to $ttlvalue"
 
@@ -50,7 +48,7 @@ echo "from_ddress is $from_addr"
 
 echo "balance check.."
 ${CCLI} shelley query filtered-utxo --testnet-magic ${NWMAGIC} --address ${from_addr} > /tmp/fullUtxo.out
-${CCLI} shelley query filtered-utxo --testnet-magic ${NWMAGIC} --address ${from_addr} | grep -v TxHash | grep -v "\-" | sort -k 3 -nr | head -n 1  > /tmp/balance.txt
+${CCLI} shelley query filtered-utxo --testnet-magic ${NWMAGIC} --address ${from_addr} | grep -v TxHash | grep -v "\-" | sort -k 3,3 -V | head -n 1  > /tmp/balance.txt
 cat /tmp/balance.txt
 
 if [ ! -s /tmp/balance.txt ]; then
