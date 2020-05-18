@@ -18,4 +18,4 @@ jobs:
       uses: azohra/shell-linter@v0.3.0
       with:
         pattern: "*.sh"
-        exclude: "scripts/jormu-helper-scripts/*" 
+        exclude: "./scripts/jormu-helper-scripts/*.sh" 
