@@ -9,4 +9,4 @@ fi
 
 WNAME=$1
 cardano-cli shelley address key-gen --verification-key-file $WNAME.vkey --signing-key-file $WNAME.skey
-cardano-cli shelley address build --verification-key-file $WNAME.vkey | tee $WNAME.addr
+cardano-cli shelley address build --payment-verification-key-file $WNAME.vkey | tee $WNAME.addr
