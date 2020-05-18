@@ -17,4 +17,4 @@ jobs:
     - name: SH Lint Check
       uses: azohra/shell-linter@v0.3.0
       with:
-        path: "files/ptn0/scripts/*.sh"
+        path: "files/ptn0/scripts,scripts/cnode-helper-scripts"

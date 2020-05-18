@@ -1,6 +1,6 @@
 #!/bin/sh
-
-. $(dirname $0)/env
+# shellcheck disable=SC2086,SC1090
+. "$(dirname $0)"/env
 
 if  [ "$1" = "--help" ] || [ $# -ne 1 ]; then
     echo "usage: $0 <Name of Key File>"
