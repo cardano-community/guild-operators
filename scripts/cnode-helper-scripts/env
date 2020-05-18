@@ -12,13 +12,13 @@ export CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
 MAGIC=$(cat $GENESIS_JSON | jq -r .protocolMagicId)
 NWMAGIC=$(cat $GENESIS_JSON | jq -r .networkMagic)
 SLOT_DURATION=$(cat $GENESIS_JSON | jq -r .slotLength)
-TIMEOUT_NO_OF_BLOCKS=200
+TIMEOUT_NO_OF_SLOTS=200
 
 getTip() {
   echo $($CCLI shelley query tip --testnet-magic ${NWMAGIC} | sed -r 's/.*unBlockNo = ([0-9]+).*/\1/')
 }
 waitNewBlockCreated() {
-  COUNTER=${TIMEOUT_NO_OF_BLOCKS}
+  COUNTER=${TIMEOUT_NO_OF_SLOTS}
   printf "\nWaiting for new block to be created (timeout = ${COUNTER} blocks = $((${COUNTER}*${SLOT_DURATION}))s)\n"
   initialTip=$(getTip)
   actualTip=${initialTip}
@@ -28,7 +28,7 @@ waitNewBlockCreated() {
     actualTip=$(getTip)
     COUNTER=$((COUNTER - ${SLOT_DURATION}))
     if [ ${COUNTER} -lt 2 ]; then
-      printf "\n\n!!!!!! ERROR: Waited $((${TIMEOUT_NO_OF_BLOCKS} * ${SLOT_DURATION}))s secs (${TIMEOUT_NO_OF_BLOCKS}*${SLOT_DURATION}) and no new block created\n\n"
+      printf "\n\n!!!!!! ERROR: Waited $((${TIMEOUT_NO_OF_SLOTS} * ${SLOT_DURATION}))s secs (${TIMEOUT_NO_OF_SLOTS}*${SLOT_DURATION}) and no new block created\n\n"
       exit 1
     fi
   done
