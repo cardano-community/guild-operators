@@ -180,7 +180,7 @@ TraceLocalTxSubmissionProtocol: True
 TraceLocalTxSubmissionServer: True
 
 # Trace mempool.
-TraceMempool: False
+TraceMempool: True
 
 # Trace Mux Events
 TraceMux: False
