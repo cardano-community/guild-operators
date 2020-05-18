@@ -15,15 +15,16 @@ Total balance in 1 UTxO is 1000000000 Lovelace or 1000 ADA
 
 ### Make Transactions
 
-This script will create and submit a transaction to send ADA using your private key as source and an address specified on command line, it assumes the [pre-requisites](Common.md#dependencies-and-folder-structure-setup) are already in place
+This script will create and submit a transaction to send ADA from source address to destination address, it assumes the [pre-requisites](Common.md#dependencies-and-folder-structure-setup) are already in place.  
+The script can also be used to defrag address by setting destination and source address to the same and amount to the string 'all'
 
 ``` bash
 # Send ADA script usage
 cd $CNODE_HOME/scripts
 
 ./sendADA.sh
-# Usage:  sendADA.sh <Tx-File to Create for submission> <Output Address> <Amount in ADA> <Signing Key file>
+# Usage:  sendADA.sh <Destination Address> <Amount> <Source Address> <Source Sign Key>
 #
 # Example:
-# ./sendADA.sh tx.out 61WKMJemoBa....ssL7fzhq 20 $CNODE_HOME/priv/utxo2.skey
+# ./sendADA.sh 61WKMJemoBa....ssL7fzhq 20 $CNODE_HOME/priv/utxo2.addr $CNODE_HOME/priv/utxo2.skey
 ```

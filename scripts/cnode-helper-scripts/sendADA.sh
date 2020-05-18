@@ -39,7 +39,7 @@ cleanup
 
 
 # Handle script arguments
-if [[ ! -f ${#1} ]]; then
+if [[ ! -f "$1" ]]; then
   D_ADDR="$1"
 else
   D_ADDR="$(cat $1)"
@@ -47,13 +47,13 @@ fi
 re_number='^[0-9]+([.][0-9]+)?$'
 if [[ $2 =~ ${re_number} ]]; then
   # /1 is to remove decimals from bc command
-  LOVELACE=$(echo $(( $2 * 1000000 / 1 )) | bc)
+  LOVELACE=$(echo "$2 * 1000000 / 1" | bc)
 elif [[ $2 = "all" ]]; then
   LOVELACE="all"
 else
   myexit "'Amount in ADA' must be a valid number or the string 'all'"
 fi
-if [[ ! -f ${#3} ]]; then
+if [[ ! -f "$3" ]]; then
   S_ADDR="$3"
 else
   S_ADDR="$(cat $3)"
