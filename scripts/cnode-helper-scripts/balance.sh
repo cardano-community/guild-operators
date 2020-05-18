@@ -7,7 +7,7 @@ usage() { echo "Usage: $(basename "$0") <address or path to address file>" 1>&2;
 
 if [[ $# -eq 0 ]]; then
   usage
-elif [[ $# -eq 1 && ! -f "${#1}" ]]; then
+elif [[ $# -eq 1 && ! -f "$1" ]]; then
   WALLET_ADDR=$1
 elif [[ $# -eq 1 ]]; then
   WALLET_ADDR="$(cat "$1")"
