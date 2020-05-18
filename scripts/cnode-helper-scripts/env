@@ -1,13 +1,33 @@
-# Todo:
-#  - Lookup executables for cabal/stack
-#  - Set priority about binary/cabal/stack after checking guild operators experience
-#  - Grab Socket from ps
-
+#!/usr/bin/env bash
+# shellcheck disable=SC2034,SC2086
 CCLI=$(which cardano-cli)
 CNODE_HOME=/opt/cardano/cnode
 CONFIG=$CNODE_HOME/files/cnode_ptn.yaml
 GENESIS_JSON=$CNODE_HOME/files/genesis.json
-export NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
-export CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
-MAGIC=$(cat $GENESIS_JSON | jq -r .protocolMagicId)
-NWMAGIC=$(cat $GENESIS_JSON | jq -r .networkMagic)
+NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
+CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
+MAGIC=$(jq -r .protocolMagicId < $GENESIS_JSON)
+NWMAGIC=$(jq -r .networkMagic < $GENESIS_JSON)
+SLOT_DURATION=$(jq -r .slotLength < $GENESIS_JSON)
+TIMEOUT_NO_OF_SLOTS=200
+
+getTip() {
+  $CCLI shelley query tip --testnet-magic ${NWMAGIC} | sed -r 's/.*unBlockNo = ([0-9]+).*/\1/'
+}
+waitNewBlockCreated() {
+  COUNTER=${TIMEOUT_NO_OF_SLOTS}
+  echo -e "\nWaiting for new block to be created (timeout = ${COUNTER} blocks = $(( COUNTER * SLOT_DURATION ))s)\n"
+  initialTip=$(getTip)
+  actualTip=${initialTip}
+
+  while [ "${actualTip}" = "${initialTip}" ]; do
+    sleep ${SLOT_DURATION}
+    actualTip=$(getTip)
+    COUNTER=$((COUNTER - SLOT_DURATION))
+    if [ ${COUNTER} -lt 2 ]; then
+      echo -e "\n\n!!!!!! ERROR: Waited $(( TIMEOUT_NO_OF_SLOTS * SLOT_DURATION ))s secs $(( TIMEOUT_NO_OF_SLOTS * SLOT_DURATION )) and no new block created\n\n"
+      exit 1
+    fi
+  done
+  echo "New block was created - $(getTip)"
+}

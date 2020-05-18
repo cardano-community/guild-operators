@@ -1,111 +1,188 @@
 #!/usr/bin/env bash
-
-. $(dirname $0)/env
-
-function cleanup() {
-	rm -rf /tmp/balance.txt
-	rm -rf /tmp/protparams.json
-	rm -rf /tmp/tx.signed
+# shellcheck disable=SC1090,SC2086,SC2206,SC2015
+function usage() {
+  printf "\n%s\n\n" "Usage: $(basename "$0") <Destination Address> <Amount> <Source Address> <Source Sign Key>"
+  printf "  %-20s\t%s\n" \
+    "Destination Address" "Address or path to Address file." \
+    "Amount" "Amount in ADA, number(fraction of ADA valid) or the string 'all'." \
+    "" "Amount sent is reduced with calculated transaction fee." \
+    "Source Address" "Address or path to Address file." \
+    "Source Sign Key" "Path to Signature (skey) file. For staking address payment skey is to be used."
+  printf "\n"
+  exit 1
 }
 
+if [[ $# -ne 4 ]]; then
+  usage
+fi
+
 function myexit() {
-	if [ ! -z "$1" ]; then
-		echo "Exiting: $1"
-	fi
-	exit 1
+  if [ -n "$1" ]; then
+    echo "Exiting: $1"
+  fi
+  exit 1
+}
+
+function cleanup() {
+  rm -rf /tmp/fullUtxo.out
+  rm -rf /tmp/balance.txt
+  rm -rf /tmp/protparams.json
+  rm -rf /tmp/tx.signed
+  rm -rf /tmp/tx.raw
 }
 
 # start with a clean slate
 cleanup
 
-case $# in
-  4 ) tx="$1";
-    outaddr="$2";
-    lovelace="$(( $3 * 1000000 ))";
-    from_key="$4";
-    from_addr="";;
-  * ) cat >&2 <<EOF
-Usage:  $(basename $0) <Tx-File to Create for submission> <Output Address> <Amount in ADA> <Signing Key file (script expects .vkey with same name in same folder)>
-EOF
-  exit 1;; esac
+# source env
+. "$(dirname $0)"/env
 
-echo "NW Magic is $NWMAGIC"
 
-echo "getting protocol params"
+# Handle script arguments
+if [[ ! -f ${#1} ]]; then
+  D_ADDR="$1"
+else
+  D_ADDR="$(cat $1)"
+fi
+re_number='^[0-9]+([.][0-9]+)?$'
+if [[ $2 =~ ${re_number} ]]; then
+  # /1 is to remove decimals from bc command
+  LOVELACE=$(echo $(( $2 * 1000000 / 1 )) | bc)
+elif [[ $2 = "all" ]]; then
+  LOVELACE="all"
+else
+  myexit "'Amount in ADA' must be a valid number or the string 'all'"
+fi
+if [[ ! -f ${#3} ]]; then
+  S_ADDR="$3"
+else
+  S_ADDR="$(cat $3)"
+fi
+[[ -f "$4" ]] && S_SKEY="$4" || myexit "Source Sign file(skey) not found!"
+
+
+echo ""
+echo "## Protocol Parameters ##"
 ${CCLI} shelley query protocol-parameters --testnet-magic ${NWMAGIC} > /tmp/protparams.json
-# cat /tmp/protparams.json
+CURRSLOT=$(${CCLI} shelley query tip --testnet-magic ${NWMAGIC} | awk '{ print $5 }' | grep -Eo '[0-9]{1,}')
+TTLVALUE=$(( CURRSLOT + 1000 ))
+echo "TN Magic is ${NWMAGIC}"
+echo "Current slot is ${CURRSLOT}, setting ttl to ${TTLVALUE}"
 
-currSlot=`cardano-cli shelley query tip --testnet-magic ${NWMAGIC} | awk '{ print $5 }' | grep -Eo '[0-9]{1,}'`
-ttlvalue=$(($currSlot+1000))
-echo "current slot is $currSlot, setting ttl to $ttlvalue"
-
-echo "calculating min fee"
-MINFEE=`${CCLI} shelley transaction calculate-min-fee --tx-in-count 1 --tx-out-count 2 --ttl ${ttlvalue} --testnet-magic ${NWMAGIC} --signing-key-file ${from_key} --protocol-params-file /tmp/protparams.json | awk '{ print $2 }'`
-echo "min fee is $MINFEE"
-
-from_addr=`${CCLI} shelley address build --payment-verification-key-file "${from_key%.*}.vkey"`
-echo "from_ddress is $from_addr"
-
-echo "balance check.."
-${CCLI} shelley query filtered-utxo --testnet-magic ${NWMAGIC} --address ${from_addr} > /tmp/fullUtxo.out
-${CCLI} shelley query filtered-utxo --testnet-magic ${NWMAGIC} --address ${from_addr} | grep -v TxHash | grep -v "\-" | sort -k 3 -nr | head -n 1  > /tmp/balance.txt
-cat /tmp/balance.txt
-
+echo ""
+echo "## Balance Check Destination Address ##"
+. "$(dirname $0)"/balance.sh ${D_ADDR}
+echo ""
+echo "## Balance Check Source Address ##"
+. "$(dirname $0)"/balance.sh ${S_ADDR}
 if [ ! -s /tmp/balance.txt ]; then
-	myexit "Aborting, as failed to locate a UTXO"
+        myexit "Failed to locate a UTxO, wallet empty?"
 fi
 
-inaddr=`awk '{ print $1 }' /tmp/balance.txt`
-idx=`awk '{ print $2 }' /tmp/balance.txt`
-origbalance=`awk '{ print $3 }' /tmp/balance.txt`
+if [[ ${LOVELACE} = "all" ]]; then
+  LOVELACE=${TOTALBALANCE}
+  echo "'Amount in ADA' set to 'all', lovelace to send set to total supply: ${TOTALBALANCE}"
+fi
+echo "Using UTxO's:"
+BALANCE=0
+UTx0_COUNT=0
+TX_IN=""
+while read -r UTxO; do
+  INADDR=$(awk '{ print $1 }' <<< "${UTxO}")
+  IDX=$(awk '{ print $2 }' <<< "${UTxO}")
+  UTx0_BALANCE=$(awk '{ print $3 }' <<< "${UTxO}")
+  echo "TxHash: ${INADDR}#${IDX}"
+  echo "Lovelace: ${UTx0_BALANCE}"
+  UTx0_COUNT=$(( UTx0_COUNT +1))
+  TX_IN="${TX_IN} --tx-in ${INADDR}#${IDX}"
+  BALANCE=$(( BALANCE + UTx0_BALANCE ))
+  [[ ${BALANCE} -ge ${LOVELACE} ]] && break
+done </tmp/balance.txt
 
-echo "Using UTXO with highest value balance:"
-cat /tmp/balance.txt
+[[ ${BALANCE} -eq ${LOVELACE} ]] && OUT_COUNT=1 || OUT_COUNT=2
 
-newbalance=$(($origbalance-$MINFEE-$lovelace))
-echo "new balance would be $newbalance lovelaces ($origbalance minus $MINFEE minus $lovelace)"
+echo ""
+echo "## Calculate fee, new amount and remaining balance ##"
+MINFEE_ARGS=(
+  shelley transaction calculate-min-fee
+  --tx-in-count ${UTx0_COUNT}
+  --tx-out-count ${OUT_COUNT}
+  --ttl ${TTLVALUE}
+  --testnet-magic ${NWMAGIC}
+  --signing-key-file ${S_SKEY}
+  --protocol-params-file /tmp/protparams.json
+)
+MINFEE=$(${CCLI} ${MINFEE_ARGS[*]} | awk '{ print $2 }')
+echo "fee is ${MINFEE}"
 
-if [ $newbalance -lt 0 ]; then
-	myexit "New balance is $newbalance is negative - aborting"
+if [ ${LOVELACE} -lt ${MINFEE} ]; then
+        myexit "Fee deducted from ADA to send, can not be less than fee (${LOVELACE} < ${MINFEE})"
 fi
 
-echo "Going to try sending $3 ADA from $inaddr index $idx"
+NEWLOVELACE=$(( LOVELACE - MINFEE ))
+echo "new amount to send in Lovelace after fee deduction is ${NEWLOVELACE} lovelaces (${LOVELACE} minus ${MINFEE})"
 
-#TODO : Update fee and ttl dynamically
-args=" shelley transaction build-raw 
-  --tx-in               ${inaddr}#${idx}
-  --tx-out              ${outaddr}+$lovelace
-  --tx-out		${from_addr}+$newbalance
-  --ttl                 ${ttlvalue}
-  --fee                 ${MINFEE}
-  --tx-body-file        ${tx}
-"
+TX_OUT="--tx-out ${D_ADDR}+${NEWLOVELACE}"
+if [[ ${OUT_COUNT} -eq 2 ]]; then
+  NEWBALANCE=$(( BALANCE - LOVELACE ))
+  TX_OUT="${TX_OUT} --tx-out ${S_ADDR}+${NEWBALANCE}"
+  echo "balance left to be returned in used UTxO's is ${NEWBALANCE} lovelaces (${BALANCE} minus ${LOVELACE})"
+fi
 
-# echo "Args value is: $args"
+BUILD_ARGS=(
+  shelley transaction build-raw
+  ${TX_IN}
+  ${TX_OUT}
+  --ttl ${TTLVALUE}
+  --fee ${MINFEE}
+  --tx-body-file /tmp/tx.raw
+)
 
-NETARGS=(
+SIGN_ARGS=(
+  shelley transaction sign
+  --tx-body-file /tmp/tx.raw
+  --signing-key-file ${S_SKEY}
+  --testnet-magic ${NWMAGIC}
+  --tx-file /tmp/tx.signed
+)
+
+SUBMIT_ARGS=(
   shelley transaction submit
-  --tx-filepath "/tmp/tx.signed"
+  --tx-file "/tmp/tx.signed"
   --testnet-magic ${NWMAGIC}
 )
 
-set -x
+echo ""
+echo "## Build, Sign & Send transaction ##"
+echo "Build transaction"
 
-${CCLI} ${args}
-if [ $? -ne 0 ]; then
-	myexit  "1. Problem during tx creation with args ${args}"
+output=$(${CCLI} ${BUILD_ARGS[*]})
+if [[ -n $output ]]; then
+        myexit "1. Problem during tx creation with args ${BUILD_ARGS[*]}"
 fi
 
-${CCLI} shelley transaction sign --tx-body-file ${tx} --signing-key-file ${from_key} --testnet-magic ${NWMAGIC} --tx-file /tmp/tx.signed
-if [ $? -ne 0 ]; then
-	myexit "1.5 Problem during signing"
+echo "Sign transaction"
+
+output=$(${CCLI} ${SIGN_ARGS[*]})
+if [[ -n $output ]]; then
+        myexit "2. Problem during signing with args ${SIGN_ARGS[*]}"
 fi
 
-echo "Starting sending"
+echo "Send transaction"
 
-${CCLI} ${NETARGS[*]}
-if [ $? -ne 0 ]; then
-	myexit "2. Problem during tx submission with args ${NETARGS}"
+output=$(${CCLI} ${SUBMIT_ARGS[*]})
+if [[ -n $output ]]; then
+  echo "$output"
+        myexit "3. Problem during tx submission with args ${SUBMIT_ARGS[*]}"
 fi
 
-echo "Finished"
+waitNewBlockCreated
+
+echo ""
+echo "## Balance Check Destination Address ##"
+. "$(dirname $0)"/balance.sh ${D_ADDR}
+echo ""
+echo "## Balance Check Source Address ##"
+. "$(dirname $0)"/balance.sh ${S_ADDR}
+
+echo "## Finished! ##"
