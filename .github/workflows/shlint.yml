@@ -18,4 +18,4 @@ jobs:
       uses: azohra/shell-linter@latest
       with:
         pattern: "*.sh"
-        path: "files/ptn0/scripts,scripts/cnode-helper-scripts" 
+        path: "files/ptn0/scripts" 
