@@ -15,7 +15,7 @@ jobs:
     # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
     - uses: actions/checkout@v1
     - name: SH Lint Check
-      uses: azohra/shell-linter@v0.3.0
+      uses: azohra/shell-linter@latest
       with:
         pattern: "*.sh"
-        exclude: "./scripts/jormu-helper-scripts/*.sh" 
+        path: "files/ptn0/scripts,scripts/cnode-helper-scripts" 
