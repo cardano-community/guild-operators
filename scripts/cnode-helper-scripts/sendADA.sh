@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC1090,SC2086,SC2206,SC2015
 function usage() {
-  printf "\n%s\n\n" "Usage: $(basename "$0") <Destination Address> <Amount> <Source Address> <Source Sign Key>"
+  printf "\n%s\n\n" "Usage: $(basename "$0") <Destination Address> <Amount> <Source Address> <Source Sign Key> [--include-fee]"
   printf "  %-20s\t%s\n" \
     "Destination Address" "Address or path to Address file." \
     "Amount" "Amount in ADA, number(fraction of ADA valid) or the string 'all'." \
-    "" "Amount sent is reduced with calculated transaction fee." \
     "Source Address" "Address or path to Address file." \
-    "Source Sign Key" "Path to Signature (skey) file. For staking address payment skey is to be used."
+    "Source Sign Key" "Path to Signature (skey) file. For staking address payment skey is to be used." \
+    "--include-fee" "Optional argument to specify that amount to send should be reduced by fee instead of payed by sender."
   printf "\n"
   exit 1
 }
 
-if [[ $# -ne 4 ]]; then
+if [[ $# -lt 4 ]]; then
   usage
 fi
 
 function myexit() {
   if [ -n "$1" ]; then
-    echo "Exiting: $1"
+    echo -e "\nError: $1\n"
   fi
   exit 1
 }
@@ -44,22 +44,29 @@ if [[ ! -f "$1" ]]; then
 else
   D_ADDR="$(cat $1)"
 fi
+
+LOVELACE="$2"
 re_number='^[0-9]+([.][0-9]+)?$'
-if [[ $2 =~ ${re_number} ]]; then
+if [[ ${LOVELACE} =~ ${re_number} ]]; then
   # /1 is to remove decimals from bc command
-  LOVELACE=$(echo "$2 * 1000000 / 1" | bc)
-elif [[ $2 = "all" ]]; then
-  LOVELACE="all"
-else
+  LOVELACE=$(echo "${LOVELACE} * 1000000 / 1" | bc)
+elif [[ ${LOVELACE} != "all" ]]; then
   myexit "'Amount in ADA' must be a valid number or the string 'all'"
 fi
+
 if [[ ! -f "$3" ]]; then
   S_ADDR="$3"
 else
   S_ADDR="$(cat $3)"
 fi
+
 [[ -f "$4" ]] && S_SKEY="$4" || myexit "Source Sign file(skey) not found!"
 
+if [[ $# -eq 5 ]]; then
+  [[ $5 = "--include-fee" ]] && INCL_FEE="true" || usage
+else
+  INCL_FEE="false"
+fi
 
 echo ""
 echo "## Protocol Parameters ##"
@@ -76,13 +83,15 @@ echo ""
 echo "## Balance Check Source Address ##"
 . "$(dirname $0)"/balance.sh ${S_ADDR}
 if [ ! -s /tmp/balance.txt ]; then
-        myexit "Failed to locate a UTxO, wallet empty?"
+  myexit "Failed to locate a UTxO, wallet empty?"
 fi
 
 if [[ ${LOVELACE} = "all" ]]; then
+  INCL_FEE="true"
   LOVELACE=${TOTALBALANCE}
   echo "'Amount in ADA' set to 'all', lovelace to send set to total supply: ${TOTALBALANCE}"
 fi
+
 echo "Using UTxO's:"
 BALANCE=0
 UTx0_COUNT=0
@@ -96,7 +105,7 @@ while read -r UTxO; do
   UTx0_COUNT=$(( UTx0_COUNT +1))
   TX_IN="${TX_IN} --tx-in ${INADDR}#${IDX}"
   BALANCE=$(( BALANCE + UTx0_BALANCE ))
-  [[ ${BALANCE} -ge ${LOVELACE} ]] && break
+  [[ ${INCL_FEE} = "true" && ${BALANCE} -ge ${LOVELACE} ]] && break
 done </tmp/balance.txt
 
 [[ ${BALANCE} -eq ${LOVELACE} ]] && OUT_COUNT=1 || OUT_COUNT=2
@@ -115,18 +124,34 @@ MINFEE_ARGS=(
 MINFEE=$(${CCLI} ${MINFEE_ARGS[*]} | awk '{ print $2 }')
 echo "fee is ${MINFEE}"
 
-if [ ${LOVELACE} -lt ${MINFEE} ]; then
-        myexit "Fee deducted from ADA to send, can not be less than fee (${LOVELACE} < ${MINFEE})"
+# Sanity checks
+if [[ ${INCL_FEE} = "false" ]]; then
+  if [[ ${BALANCE} -lt $(( LOVELACE + MINFEE )) ]]; then
+    myexit "Not enough Lovelace in address (${BALANCE} < ${LOVELACE} + ${MINFEE})"
+  fi
+else
+  if [[ ${LOVELACE} -lt ${MINFEE} ]]; then
+    myexit "Fee deducted from ADA to send, amount can not be less than fee (${LOVELACE} < ${MINFEE})"
+  elif [[ ${BALANCE} -lt ${LOVELACE} ]]; then
+    myexit "Not enough Lovelace in address (${BALANCE} < ${LOVELACE})"
+  fi
 fi
 
-NEWLOVELACE=$(( LOVELACE - MINFEE ))
-echo "new amount to send in Lovelace after fee deduction is ${NEWLOVELACE} lovelaces (${LOVELACE} minus ${MINFEE})"
+if [[ ${INCL_FEE} = "false" ]]; then
+  TX_OUT="--tx-out ${D_ADDR}+${LOVELACE}"
+else
+  TX_OUT="--tx-out ${D_ADDR}+$(( LOVELACE - MINFEE ))"
+  echo "new amount to send in Lovelace after fee deduction is $(( LOVELACE - MINFEE )) lovelaces (${LOVELACE} - ${MINFEE})"
+fi
 
-TX_OUT="--tx-out ${D_ADDR}+${NEWLOVELACE}"
-if [[ ${OUT_COUNT} -eq 2 ]]; then
-  NEWBALANCE=$(( BALANCE - LOVELACE ))
+NEWBALANCE=$(( TOTALBALANCE - LOVELACE ))
+if [[ ${INCL_FEE} = "false" ]]; then
+  NEWBALANCE=$(( BALANCE - LOVELACE - MINFEE ))
   TX_OUT="${TX_OUT} --tx-out ${S_ADDR}+${NEWBALANCE}"
-  echo "balance left to be returned in used UTxO's is ${NEWBALANCE} lovelaces (${BALANCE} minus ${LOVELACE})"
+  echo "balance left to be returned in used UTxO's is ${NEWBALANCE} lovelaces (${BALANCE} - ${LOVELACE} - ${MINFEE})"
+elif [[ ${OUT_COUNT} -eq 2 ]]; then
+  TX_OUT="${TX_OUT} --tx-out ${S_ADDR}+$(( BALANCE - LOVELACE ))"
+  echo "balance left to be returned in used UTxO's is $(( BALANCE - LOVELACE )) lovelaces (${BALANCE} - ${LOVELACE})"
 fi
 
 BUILD_ARGS=(
@@ -179,10 +204,19 @@ fi
 waitNewBlockCreated
 
 echo ""
-echo "## Balance Check Destination Address ##"
-. "$(dirname $0)"/balance.sh ${D_ADDR}
-echo ""
 echo "## Balance Check Source Address ##"
 . "$(dirname $0)"/balance.sh ${S_ADDR}
+
+while [[ ${TOTALBALANCE} -ne ${NEWBALANCE} ]]; do
+  echo "Failure: Balance missmatch, transaction not included in latest block (${TOTALBALANCE} != ${NEWBALANCE})"
+  waitNewBlockCreated
+  echo ""
+  echo "## Balance Check Source Address ##"
+  . "$(dirname $0)"/balance.sh ${S_ADDR}
+done
+
+echo ""
+echo "## Balance Check Destination Address ##"
+. "$(dirname $0)"/balance.sh ${D_ADDR}
 
 echo "## Finished! ##"
