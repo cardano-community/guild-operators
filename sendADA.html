@@ -165,14 +165,17 @@ Total balance in 1 UTxO is 1000000000 Lovelace or 1000 ADA
 <h3><a class="header" href="#make-transactions" id="make-transactions">Make Transactions</a></h3>
 <p>This script will create and submit a transaction to send ADA from source address to destination address, it assumes the <a href="Common.html#dependencies-and-folder-structure-setup">pre-requisites</a> are already in place.<br />
 The script can also be used to defrag address by setting destination and source address to the same and amount to the string 'all'</p>
-<pre><code class="language-bash"># Send ADA script usage
-cd $CNODE_HOME/scripts
+<pre><code class="language-bash">cd $CNODE_HOME/scripts
 
 ./sendADA.sh
-# Usage:  sendADA.sh &lt;Destination Address&gt; &lt;Amount&gt; &lt;Source Address&gt; &lt;Source Sign Key&gt;
-#
-# Example:
-# ./sendADA.sh 61WKMJemoBa....ssL7fzhq 20 $CNODE_HOME/priv/utxo2.addr $CNODE_HOME/priv/utxo2.skey
+
+Usage: sendADA.sh &lt;Destination Address&gt; &lt;Amount&gt; &lt;Source Address&gt; &lt;Source Sign Key&gt; [--include-fee]
+
+  Destination Address   Address or path to Address file.
+  Amount                Amount in ADA, number(fraction of ADA valid) or the string 'all'.
+  Source Address        Address or path to Address file.
+  Source Sign Key       Path to Signature (skey) file. For staking address payment skey is to be used.
+  --include-fee         Optional argument to specify that amount to send should be reduced by fee instead of payed by sender.
 </code></pre>
 
                     </main>
