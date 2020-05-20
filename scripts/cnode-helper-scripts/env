@@ -16,7 +16,8 @@ getTip() {
 }
 waitNewBlockCreated() {
   COUNTER=${TIMEOUT_NO_OF_SLOTS}
-  echo -e "\nWaiting for new block to be created (timeout = ${COUNTER} blocks = $(( COUNTER * SLOT_DURATION ))s)\n"
+  echo -e "\nWaiting for new block to be created (timeout = ${COUNTER} slots, $(( COUNTER * SLOT_DURATION ))s)\n"
+  echo -e "Cancel balance check at any time by pressing Ctrl+C, Command+C\n"
   initialTip=$(getTip)
   actualTip=${initialTip}
 
@@ -24,8 +25,8 @@ waitNewBlockCreated() {
     sleep ${SLOT_DURATION}
     actualTip=$(getTip)
     COUNTER=$((COUNTER - SLOT_DURATION))
-    if [ ${COUNTER} -lt 2 ]; then
-      echo -e "\n\n!!!!!! ERROR: Waited $(( TIMEOUT_NO_OF_SLOTS * SLOT_DURATION ))s secs $(( TIMEOUT_NO_OF_SLOTS * SLOT_DURATION )) and no new block created\n\n"
+    if [ ${COUNTER} -lt ${SLOT_DURATION} ]; then
+      echo -e "\n\n!!!!!! ERROR: Waited $(( TIMEOUT_NO_OF_SLOTS * SLOT_DURATION )) secs and no new block created\n\n"
       exit 1
     fi
   done

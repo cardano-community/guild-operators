@@ -19,12 +19,15 @@ This script will create and submit a transaction to send ADA from source address
 The script can also be used to defrag address by setting destination and source address to the same and amount to the string 'all'
 
 ``` bash
-# Send ADA script usage
 cd $CNODE_HOME/scripts
 
 ./sendADA.sh
-# Usage:  sendADA.sh <Destination Address> <Amount> <Source Address> <Source Sign Key>
-#
-# Example:
-# ./sendADA.sh 61WKMJemoBa....ssL7fzhq 20 $CNODE_HOME/priv/utxo2.addr $CNODE_HOME/priv/utxo2.skey
+
+Usage: sendADA.sh <Destination Address> <Amount> <Source Address> <Source Sign Key> [--include-fee]
+
+  Destination Address   Address or path to Address file.
+  Amount                Amount in ADA, number(fraction of ADA valid) or the string 'all'.
+  Source Address        Address or path to Address file.
+  Source Sign Key       Path to Signature (skey) file. For staking address payment skey is to be used.
+  --include-fee         Optional argument to specify that amount to send should be reduced by fee instead of payed by sender.
 ```

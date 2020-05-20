@@ -25,17 +25,17 @@ cleanup
 
 # The "testnet magic" is specific on the testnet and will not be needed for the mainnet.
 ${CCLI} shelley query filtered-utxo --testnet-magic "${NWMAGIC}" --address "${WALLET_ADDR}" > /tmp/fullUtxo.out
-echo ""
-head -n 2 /tmp/fullUtxo.out
-
-grep -v TxHash < /tmp/fullUtxo.out | grep -v "\-" | sort -k3 -nr > /tmp/balance.txt
-head -n 10 /tmp/balance.txt
-if [ ! -s /tmp/balance.txt ]; then
-  [ "$0" = "${BASH_SOURCE[*]}" ] && exit || return
-fi
+tail -n +3 /tmp/fullUtxo.out | sort -k3 -nr > /tmp/balance.txt
 
 TOTALBALANCE=0
 UTx0_COUNT=0
+
+if [ -s /tmp/balance.txt ]; then
+  echo ""
+  head -n 2 /tmp/fullUtxo.out
+  head -n 10 /tmp/balance.txt
+fi
+
 while read -r UTxO; do
   INADDR=$(awk '{ print $1 }' <<< "$UTxO")
   IDX=$(awk '{ print $2 }' <<< "$UTxO")
