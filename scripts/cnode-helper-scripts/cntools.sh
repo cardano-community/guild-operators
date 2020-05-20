@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# shellcheck disable=SC1090,SC2086,SC2034,SC2143,SC2046
 # 2020-05-19 cntools initial release (concept)
 
 ############### script settings ###################################
@@ -102,11 +102,11 @@ case $OPERATION in
 		say "Currently installed: ${CURRENT_VERSION}"
 		say "Desired release:      ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})"
 		if [ "${DESIRED_RELEASE_CLEAN}" != "${CURRENT_VERSION}" ]; then
-			read -n 1 -p "Would you like to upgrade to this release? (y/N)? " answer
+			read -r -n 1 -p "Would you like to upgrade to this release? (y/N)? " answer
 			case ${answer:0:1} in
 				y|Y )
-					FILE="cardano-node-"${DESIRED_RELEASE}"-"${ASSET_PLATTFORM}".tar.gz"
-					URL="https://github.com/input-output-hk/cardano-node/releases/download/"${DESIRED_RELEASE}"/"${FILE}
+					FILE="cardano-node-${DESIRED_RELEASE}-${ASSET_PLATTFORM}.tar.gz"
+					URL="https://github.com/input-output-hk/cardano-node/releases/download/${DESIRED_RELEASE}/"${FILE}
 					echo -e "\nDownload $FILE ..."
 					curl --proto '=https' --tlsv1.2 -L -URL ${URL} -O ${CNODE_HOME}${FILE}
 					tar -C ${CNODE_BIN_HOME} -xzf $FILE
@@ -120,14 +120,14 @@ case $OPERATION in
 	else # 
 		say "No cardano-cli binary found"
 		say "Desired available release: ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})"
-		read -n 1 -p "Would you like to install this release? (Y/n)? " answer
+		read -n 1 -r -p "Would you like to install this release? (Y/n)? " answer
 		case ${answer:0:1} in
 			n|N )
 				say "Well, that was a pleasant but brief pleasure. Bye bye!"
 			;;
 			* )
-				FILE="cardano-node-"${DESIRED_RELEASE}"-"${ASSET_PLATTFORM}".tar.gz"
-				URL="https://github.com/input-output-hk/cardano-node/releases/download/"${DESIRED_RELEASE}"/"${FILE}
+				FILE="cardano-node-${DESIRED_RELEASE}-${ASSET_PLATTFORM}.tar.gz"
+				URL="https://github.com/input-output-hk/cardano-node/releases/download/${DESIRED_RELEASE}/"${FILE}
 				echo -e "\nDownload $FILE ..."
 				curl --proto '=https' --tlsv1.2 -L -URL ${URL} -O ${CNODE_HOME}${FILE}
 				mkdir -p ${CNODE_BIN_HOME}
@@ -172,7 +172,7 @@ case $OPERATION in
 		${CCLI} shelley address key-gen --verification-key-file $MY_vkey_file --signing-key-file $MY_skey_file
 		if [ "${PROTECT_SIGN_KEYS}" == "yes" ]; then
 			MY_ZIP_PASS="12345"
-			$(7z a ${MY_skey_file}.7z ${WALLET_FOLDER}/${WALLET_NAME}/*.skey -sdel -p${MY_ZIP_PASS})
+			7z a ${MY_skey_file}.7z ${WALLET_FOLDER}/${WALLET_NAME}/*.skey -sdel -p${MY_ZIP_PASS}
 		fi
 		# TODO build different 
 		${CCLI} shelley address build --payment-verification-key-file $MY_vkey_file > $MY_payment_file
@@ -187,7 +187,7 @@ case $OPERATION in
 	
 	  list) # no parameters
 	  
-		for WALLET_FOLDER_NAME in ${WALLET_FOLDER}/*/     
+		for WALLET_FOLDER_NAME in "${WALLET_FOLDER}"/*/
 		do
 			WALLET_NAME=${WALLET_FOLDER_NAME%*/} 
 			if [ -f "${WALLET_FOLDER_NAME}${WALLET_PAY_FILENAME}" ]; then
@@ -254,10 +254,10 @@ case $OPERATION in
 			if [[ ${WALLET_BALANCE} == "" ]]; then
 				say "INFO: This wallet appears to be empty"
 				say "${RED}WARN: By deleting this keys you can no longer access the wallet${NC}"
-				read -n 1 -p "Are you sure to delete secret/public key pairs (y/n)? " answer
+				read -n 1 -r -p "Are you sure to delete secret/public key pairs (y/n)? " answer
 				case ${answer:0:1} in
 					y|Y )
-						rm -rf "${WALLET_FOLDER}/${WALLET_NAME}"
+						rm -rf "${WALLET_FOLDER:?}/${WALLET_NAME}"
 						say "\nremoved ${WALLET_NAME}"
 					;;
 					* )
@@ -267,15 +267,15 @@ case $OPERATION in
 			else
 				if [[ ${WALLET_BALANCE} == "0" ]]; then
 					say "INFO: found local wallet file with current balance 0"
-					rm -r "${WALLET_FOLDER}/${WALLET_NAME}"
+					rm -r "${WALLET_FOLDER:?}/${WALLET_NAME}"
 					echo "removed ${WALLET_NAME}"
 				else
 					say "${RED}WARN: this wallet file has a balance of ${WALLET_BALANCE_NICE}${NC}"
 					say "${RED}WARN: By deleting this keys you can no longer access the wallet${NC}"
-					read -n 1 -p "      Are you sure to delete secret/public key pairs (y/n)? " answer
+					read -n 1 -r -p "      Are you sure to delete secret/public key pairs (y/n)? " answer
 					case ${answer:0:1} in
 						y|Y )
-							rm -rf "${WALLET_FOLDER}/${WALLET_NAME}"
+							rm -rf "${WALLET_FOLDER:?}/${WALLET_NAME}"
 							echo -e "\nremoved ${WALLET_NAME}"
 						;;
 						* )
@@ -327,7 +327,7 @@ case $OPERATION in
 			exit 1
 		fi
 		
-		if [ ${4} -eq ${4} 2>/dev/null ]; then 
+		if [ ${4} -eq ${4} ] 2>/dev/null; then 
 			AMOUNT=${4}
 			AMOUNT_NICE=$(printf "%'d Lovelaces" ${AMOUNT})
 		else
@@ -350,7 +350,7 @@ case $OPERATION in
 		
 		# get the source wallet's state
 		SOURCE_BALANCE=$(${CCLI} rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^value:' | sed -e 's/value: //' )
-		if (( $SOURCE_BALANCE == 0 )); then
+		if (( SOURCE_BALANCE == 0 )); then
 			echo "ERROR: source wallet balance is zero"
 			exit 1
 		fi
@@ -363,12 +363,12 @@ case $OPERATION in
 		FEE_COEFFICIENT=$(echo $settings | jq -r .fees.coefficient)
 		FEE_CERTIFICATE=$(echo $settings | jq -r .fees.certificate)
 		BLOCK0_HASH=$(echo $settings | jq -r .block0Hash)
-		FEES=$((${FEE_CONSTANT} + 2 * ${FEE_COEFFICIENT}))
+		FEES=$(( FEE_CONSTANT + 2 * FEE_COEFFICIENT ))
 		FEES_NICE=$(printf "%'d Lovelaces" ${FEES})
-		AMOUNT_WITH_FEES=$((${AMOUNT} + ${FEES}))
+		AMOUNT_WITH_FEES=$(( AMOUNT + FEES ))
 
-		if (( $AMOUNT_WITH_FEES = $SOURCE_BALANCE )); then
-			echo "ERROR: source wallet ($SOURCE_BALANCE) has not enough funds to send $AMOUNT and pay $((${FEE_CONSTANT} + 2 * ${FEE_COEFFICIENT})) in fees"
+		if (( AMOUNT_WITH_FEES = SOURCE_BALANCE )); then
+			echo "ERROR: source wallet ($SOURCE_BALANCE) has not enough funds to send $AMOUNT and pay $(( FEE_CONSTANT + 2 * FEE_COEFFICIENT )) in fees"
 			exit 1
 		fi
 
@@ -382,7 +382,7 @@ case $OPERATION in
 		WITNESS_SECRET_FILE="${TMPDIR}/witness.secret.$$"
 		WITNESS_OUTPUT_FILE="${TMPDIR}/witness.out.$$"
 
-		printf "${SOURCE_KEY}" > ${WITNESS_SECRET_FILE}
+		echo "${SOURCE_KEY}" > ${WITNESS_SECRET_FILE}
 
 		${CCLI} transaction make-witness ${TRANSACTION_ID} \
 			--genesis-block-hash ${BLOCK0_HASH} \
@@ -466,7 +466,7 @@ case $OPERATION in
 		fi
 		
 		OWNER_BALANCE=$(${CCLI} rest v0 account get "${OWNER_ADDRESS}" --host "${NODE_REST_URL}" | grep '^value:' | sed -e 's/value: //' )
-		if (( $OWNER_BALANCE == 0 )); then
+		if (( OWNER_BALANCE == 0 )); then
 			echo "ERROR: wallet $WALLET_OWNER balance is zero"
 			exit 1
 		fi
@@ -499,10 +499,10 @@ case $OPERATION in
 			FEE_CERTIFICATE=$(echo $settings | jq -r .fees.per_certificate_fees.certificate_pool_registration)
 		fi
 		BLOCK0_HASH=$(echo $settings | jq -r .block0Hash)
-		AMOUNT_WITH_FEES=$((${FEE_CONSTANT} + ${FEE_COEFFICIENT} + ${FEE_CERTIFICATE}))
+		AMOUNT_WITH_FEES=$(( FEE_CONSTANT + FEE_COEFFICIENT + FEE_CERTIFICATE ))
 		AMOUNT_WITH_FEES_NICE=$(printf "%'d Lovelaces" ${AMOUNT_WITH_FEES})
 
-		if (( $OWNER_BALANCE <= AMOUNT_WITH_FEES )); then
+		if (( OWNER_BALANCE <= AMOUNT_WITH_FEES )); then
 			echo "ERROR: owner wallet balance is not sufficient to pay the registration fee"
 			exit 1
 		fi
@@ -517,9 +517,9 @@ case $OPERATION in
 
 			# generate pool KES and VRF certificates
 			${CCLI} key generate --type=SumEd25519_12 > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.key"
-			cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.key" | ${CCLI} key to-public > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.pub"
+			${CCLI} key to-public > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.pub" < "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.key"
 			${CCLI} key generate --type=Curve25519_2HashDH > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.key"
-			cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.key" | ${CCLI} key to-public > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.pub"
+			${CCLI} key to-public > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.pub" < "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.key"
 		fi
 
 		# build stake pool certificate
@@ -533,7 +533,7 @@ case $OPERATION in
 		${TAXES}
 
 		# get the stake pool ID
-		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool.cert" | ${CCLI} certificate get-stake-pool-id > "${POOL_FOLDER}/${POOL_NAME}/stake_pool.id"
+		${CCLI} certificate get-stake-pool-id > "${POOL_FOLDER}/${POOL_NAME}/stake_pool.id" < "${POOL_FOLDER}/${POOL_NAME}/stake_pool.cert"
 		POOLID=$(cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool.id")
 
 		# note pool-ID, vrf and KES keys into a secret file
@@ -548,7 +548,7 @@ case $OPERATION in
 		TRANSACTION_ID=$(${CCLI} transaction data-for-witness --staging ${STAGING_FILE})
 		WITNESS_SECRET_FILE="${TMPDIR}/witness.secret.$$"
 		WITNESS_OUTPUT_FILE="${TMPDIR}/witness.out.$$"
-		printf "${OWNER_KEY}" > ${WITNESS_SECRET_FILE}
+		echo "${OWNER_KEY}" > ${WITNESS_SECRET_FILE}
 		
 		${CCLI} transaction make-witness ${TRANSACTION_ID} \
 			--genesis-block-hash ${BLOCK0_HASH} \
@@ -641,7 +641,7 @@ case $OPERATION in
 		fi
 		SOURCE_BALANCE=$(${CCLI} rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^value:' | sed -e 's/value: //' )
 		SOURCE_BALANCE_NICE=$(printf "%'d Lovelaces" ${SOURCE_BALANCE})
-		if (( $SOURCE_BALANCE == 0 )); then
+		if (( SOURCE_BALANCE == 0 )); then
 			echo "ERROR: fee wallet balance is zero"
 			exit 1
 		fi
@@ -658,9 +658,9 @@ case $OPERATION in
 			FEE_CERTIFICATE=$(echo $settings | jq -r .fees.per_certificate_fees.certificate_stake_delegation)
 		fi
 		BLOCK0_HASH=$(echo $settings | jq -r .block0Hash)
-		AMOUNT_WITH_FEES=$((${FEE_CONSTANT} + ${FEE_COEFFICIENT} + ${FEE_CERTIFICATE}))
+		AMOUNT_WITH_FEES=$(( FEE_CONSTANT + FEE_COEFFICIENT + FEE_CERTIFICATE ))
 		AMOUNT_WITH_FEES_NICE=$(printf "%'d Lovelaces" ${AMOUNT_WITH_FEES})
-		if (( $SOURCE_BALANCE <= AMOUNT_WITH_FEES )); then
+		if (( SOURCE_BALANCE <= AMOUNT_WITH_FEES )); then
 			echo "ERROR: wallet balance is not sufficient to pay the registration fees"
 			exit 1
 		fi
@@ -683,7 +683,7 @@ case $OPERATION in
 		WITNESS_SECRET_FILE="${TMPDIR}/witness.secret.$$"
 		WITNESS_OUTPUT_FILE="${TMPDIR}/witness.out.$$"
 
-		printf "${SOURCE_KEY}" > ${WITNESS_SECRET_FILE}
+		echo "${SOURCE_KEY}" > ${WITNESS_SECRET_FILE}
 		
 		${CCLI} transaction make-witness ${TRANSACTION_ID} \
 			--genesis-block-hash ${BLOCK0_HASH} \
