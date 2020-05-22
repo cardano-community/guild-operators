@@ -174,24 +174,29 @@ mkdir -p "$PROM_DIR" "$GRAF_DIR" "$NEXP_DIR" "$DASH_DIR"
 
 tar zxC "$PROM_DIR" -f "$TMP_DIR"/*prome*gz --strip-components 1
 tar zxC "$GRAF_DIR" -f "$TMP_DIR"/*graf*gz --strip-components 1
-tar zxC "$NEXP_DIR" -f "$TMP_DIR"/*node_exporter*gz "$NEXP-$NEXP_VER.${ARCHS[IDX]}/$NEXP" --strip-components 1
+tar zxC "$TMP_DIR" -f "$TMP_DIR"/*node_exporter*gz --strip-components 1
 
 echo -e "Configuring components" >&2
 
+mv "$TMP_DIR/node_exporter" "$NEXP_DIR/"
 chmod +x "$NEXP_DIR"/*
+
+# Fix grafana's datasource.
+sed -e "s#Prometheus#prometheus#g" "$TMP_DIR/$UMED_DB" -i
 cp -pr "$TMP_DIR/$UMED_DB" "$DASH_DIR/"
+
 cp -pr "$TMP_DIR/$IOHK_DB" "$DASH_DIR/"
 
 NEXP_PORT=$(( PORT + 1 ))
 HOSTNAME=$(hostname)
 
-sed -i -e "s#\(^scrape_configs:.*\)#\1\n\
+sed -e "s#\(^scrape_configs:.*\)#\1\n\
   - job_name: '${HOSTNAME}_node'\n\
     static_configs:\n\
     - targets: ['$IP:$PORT']\n\
   - job_name: '${HOSTNAME}_node_exp'\n\
     static_configs:\n\
-    - targets: ['$IP:$NEXP_PORT']#g" -e "s#9090#$PROM_PORT#g" "$PROM_DIR"/prometheus.yml
+    - targets: ['$IP:$NEXP_PORT']#g" -e "s#9090#$PROM_PORT#g" "$PROM_DIR"/prometheus.yml -i
 
 cat > "$PROJ_PATH/start_all.sh" <<EOF
 #!/bin/bash
