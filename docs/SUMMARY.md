@@ -11,6 +11,7 @@
     - [GraphQL](./graphql.md)
   - [Set up node as member of Genesis](./Setup-Node-Genesis.md)
   - [Set up node as pool operator](./Setup-Node.md)
+  - [Set up monitoring using Prometheus and Grafana](./monitoring.md)
   - [Useful Scripts](./cli-scripts.md)
     - [CNTools](./cntools.md)
     - [Create Keys/Address](./createAddr.md)
