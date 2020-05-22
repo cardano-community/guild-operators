@@ -12,6 +12,7 @@
   - [Set up node as member of Genesis](./Setup-Node-Genesis.md)
   - [Set up node as pool operator](./Setup-Node.md)
   - [Useful Scripts](./cli-scripts.md)
+    - [CNTools](./cntools.md)
     - [Create Keys/Address](./createAddr.md)
     - [Make Transactions](./sendADA.md)
 
