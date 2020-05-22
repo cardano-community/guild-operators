@@ -66,7 +66,7 @@ dl() {
 #### MAIN
 ######################################################################
 
-
+# shellcheck disable=SC2209
 DBG=echo
 unset DBG # For debug only
 
@@ -74,8 +74,8 @@ PROM_VER=2.18.1
 GRAF_VER=7.0.0
 NEXP_VER=0.18.1
 
-CURL=$(which curl)
-WGET=$(which wget)
+CURL=$(command -v curl)
+WGET=$(command -v wget)
 
 DL=${CURL:=$WGET}
 
