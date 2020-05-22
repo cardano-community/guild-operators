@@ -10,7 +10,7 @@ If you have run `prereqs.sh`, this should already be available in your scripts f
 ``` bash
 cd $CNODE_HOME/scripts
 wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.sh
-chmod 750 https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.sh
+chmod 750 cntools.sh
 ```
 
 #### Check Usage
