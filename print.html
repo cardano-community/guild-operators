@@ -83,7 +83,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="architecture.html">Architecture</a></li><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Common.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="rest.html">REST</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-Node-Genesis.html">Set up node as member of Genesis</a></li><li class="chapter-item expanded "><a href="Setup-Node.html">Set up node as pool operator</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="cntools.html">CNTools</a></li><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="postgres.html">Sample Postgres Setup</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="architecture.html">Architecture</a></li><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Common.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="rest.html">REST</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-Node-Genesis.html">Set up node as member of Genesis</a></li><li class="chapter-item expanded "><a href="Setup-Node.html">Set up node as pool operator</a></li><li class="chapter-item expanded "><a href="monitoring.html">Set up monitoring using Prometheus and Grafana</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="cntools.html">CNTools</a></li><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="postgres.html">Sample Postgres Setup</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -515,16 +515,69 @@ Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Req
 </code></pre>
 <p>Note that if you do not want your node to be publicly available, you can change <code>--host-addr</code> to <code>127.0.0.1</code>
 If this is your relay node, you can update topology.json to link to your core node.</p>
+<h3><a class="header" href="#cardano-node-tools" id="cardano-node-tools">Cardano Node Tools</a></h3>
+<p>This is a multi-purpose script to operate various activities (like creating keys, transactions, registering stake pool , delegating to a pool or updating binaries) using cardano node.</p>
+<p>The script assumes the <a href="Common.html#dependencies-and-folder-structure-setup">pre-requisites</a> have already been run.</p>
+<h4><a class="header" href="#download-setup_monsh" id="download-setup_monsh">Download setup_mon.sh</a></h4>
+<p>If you have run <code>prereqs.sh</code>, this should already be available in your scripts folder. To download cntools.sh you can execute the commands below:</p>
+<pre><code class="language-bash">cd $CNODE_HOME/scripts
+wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/setup_mon.sh
+chmod 750 setup_mon.sh
+</code></pre>
+<h4><a class="header" href="#set-up-monitoring" id="set-up-monitoring">Set up Monitoring</a></h4>
+<p>Execute setup_mon.sh with full path to destination folder you want to setup monitoring in</p>
+<pre><code class="language-bash">./setup_mon.sh /opt/cardano/cnode/monitoring
+#
+# Please use hasPrometeus's IP:PORT from node's config file.
+# The files will be installed in the &quot;/opt/cardano/cnode/monitoring&quot; directory.
+# What port will be used for prometheus web server (Default is 9090)?9003
+# What is the ip of the node (default:127.0.0.1)?
+# What port is used for prometheus metrics of the node running on 127.0.0.1's (Default is 9001)?
+# Is this correct? http://127.0.0.1:9001/metrics
+# Do you want to continue? [Y/n/q] Y
+# 
+# Downloading prometheus v2.18.1...
+# Downloading grafana v7.0.0...
+# Downloading exporter v0.18.1...
+# Downloading grafana dashboard(s)...
+#   - Haskel_Node_SKY_Relay1_Dash.json
+#   - cardano-application-dashboard-v2.json
+# 
+# Configuring components
+# 
+# 
+# =====================================================
+# Installation is completed
+# =====================================================
+# 
+# - Prometheus (default): http://localhost:9003/metrics
+#     Node metrics:       http://127.0.0.1:9001
+#     Node exp metrics:   http://127.0.0.1:9002
+# - Grafana (default):    http://localhost:3000
+# 
+# 
+# You need to do the following to configure grafana:
+# 0. Start the required services in a new terminal by &quot;/opt/cardano/cnode/monitoring/start_all.sh&quot;
+#   - check the prometheus and its exporters by opening URLs above after start.
+# 1. Login to grafana as admin/admin (http://localhost:3000)
+# 2. Add &quot;prometheus&quot; (all lowercase) datasource (http://localhost:9003)
+# 3. Create a new dashboard by importing dashboards (left plus sign).
+#   - Sometimes, the individual panel's &quot;prometheus&quot; datasource needs to be refreshed.
+# 
+# Enjoy...
+# 
+# Cleaning up...
+</code></pre>
 <h3><a class="header" href="#collection-of-value-added-scripts" id="collection-of-value-added-scripts">Collection of Value-added scripts</a></h3>
 <p>A place to collect scripts that are supposed to help with usage of Cardano-node. The attempt with these scripts is to keep things similar to the popular jormungandr scripts that pool operators in ITN have been accustomed to. Use the navigation menu on the left to drill down to specific script.</p>
-<h3><a class="header" href="#cardano-node-tools" id="cardano-node-tools">Cardano Node Tools</a></h3>
+<h3><a class="header" href="#cardano-node-tools-1" id="cardano-node-tools-1">Cardano Node Tools</a></h3>
 <p>This is a multi-purpose script to operate various activities (like creating keys, transactions, registering stake pool , delegating to a pool or updating binaries) using cardano node.</p>
 <p>The script assumes the <a href="Common.html#dependencies-and-folder-structure-setup">pre-requisites</a> have already been run.</p>
 <h4><a class="header" href="#download-cntoolssh" id="download-cntoolssh">Download cntools.sh</a></h4>
 <p>If you have run <code>prereqs.sh</code>, this should already be available in your scripts folder. To download cntools.sh you can execute the commands below:</p>
 <pre><code class="language-bash">cd $CNODE_HOME/scripts
 wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.sh
-chmod 750 https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.sh
+chmod 750 cntools.sh
 </code></pre>
 <h4><a class="header" href="#check-usage" id="check-usage">Check Usage</a></h4>
 <p>Execute cntools.sh without any arguments to check the usage syntax:</p>
