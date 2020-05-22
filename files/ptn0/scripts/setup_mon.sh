@@ -9,7 +9,7 @@
 #
 # DESCRIPTION:
 #
-# This script downloads and configures the required files 
+# This script downloads and configures the required files
 # for monitoring a Shelley node by using grafana/prometheus.
 #
 
@@ -53,7 +53,7 @@ dl() {
     DL_URL="${1}"
     OUTPUT="${TMP_DIR}/$(basename "$DL_URL")"
     shift
-    
+
     case ${DL} in
         *"wget"*)
             wget --no-check-certificate --output-document="${OUTPUT}" "${DL_URL}";;
@@ -80,7 +80,7 @@ WGET=$(command -v wget)
 DL=${CURL:=$WGET}
 
 if [ -z "$1" ] ; then
-    message "usage: $(basename "$0") <full path>\nExample: $(basename "$0") /opt/cardano/monitoring"
+    message "usage: $(basename "$0") <full path to folder which would contain monitoring artifacts>\nExample: ./$(basename "$0") /opt/cardano/cnode/monitoring"
 fi
 
 if  [ -z "$DL" ]; then
@@ -106,15 +106,17 @@ while :
 do
     echo "Please use hasPrometeus's IP:PORT from node's config file."
     echo "The files will be installed in the \"$PROJ_PATH\" directory."
+    read -rp "What port will be used for prometheus web server (Default is 9090)?" prom_port
     read -rp "What is the ip of the node (default:${IP})? " ip
     read -rp "What port is used for prometheus metrics of the node running on ${IP:="${ip}"}'s (Default is ${PORT})?" port
     echo "Is this correct? http://${ip:-"${IP}"}:${port:-"${PORT}"}/metrics"
     read -rp "Do you want to continue? [Y/n/q] " answer
-    
+
     case ${answer:="Y"} in
         [yY]*)
             IP=${ip:-"${IP}"}
             PORT=${port:-"${PORT}"}
+            PROM_PORT=${prom_port:-"9090"}
             break;;
         [nN]* )
             continue;;
@@ -189,26 +191,26 @@ sed -i -e "s#\(^scrape_configs:.*\)#\1\n\
     - targets: ['$IP:$PORT']\n\
   - job_name: '${HOSTNAME}_node_exp'\n\
     static_configs:\n\
-    - targets: ['$IP:$NEXP_PORT']#g"  "$PROM_DIR"/prometheus.yml
+    - targets: ['$IP:$NEXP_PORT']#g" -e "s#9090#$PROM_PORT#g" "$PROM_DIR"/prometheus.yml
 
 cat > "$PROJ_PATH/start_all.sh" <<EOF
 #!/bin/bash
 
-	#1. exporter
-	"$PROJ_PATH/exporters/node_exporter" --web.listen-address="$IP:$NEXP_PORT" &
-	sleep 3
+        #1. exporter
+        "$PROJ_PATH/exporters/node_exporter" --web.listen-address="$IP:$NEXP_PORT" &
+        sleep 3
 
-	#2. Prometheus
-	"$PROM_DIR/prometheus" --config.file="$PROM_DIR/prometheus.yml" &
-	sleep 3
+        #2. Prometheus
+        "$PROM_DIR/prometheus" --config.file="$PROM_DIR/prometheus.yml" --web.listen-address=:$PROM_PORT &
+        sleep 3
 
-	#3. Grafana
-	#vi "$GRAF_DIR/conf/defaults.ini"
-	cd "$GRAF_DIR"
-	./bin/grafana-server web
+        #3. Grafana
+        #vi "$GRAF_DIR/conf/defaults.ini"
+        cd "$GRAF_DIR"
+        ./bin/grafana-server web
 EOF
 
-chmod a+rx start_all.sh
+chmod a+rx "$PROJ_PATH/start_all.sh"
 
 echo -e "
 
@@ -216,7 +218,7 @@ echo -e "
 Installation is completed
 =====================================================
 
-- Prometheus (default): http://localhost:9090/metrics
+- Prometheus (default): http://localhost:$PROM_PORT/metrics
     Node metrics:       http://$IP:$PORT
     Node exp metrics:   http://$IP:$NEXP_PORT
 - Grafana (default):    http://localhost:3000
@@ -226,7 +228,7 @@ You need to do the following to configure grafana:
 0. Start the required services in a new terminal by \"$PROJ_PATH/start_all.sh\"
   - check the prometheus and its exporters by opening URLs above after start.
 1. Login to grafana as admin/admin (http://localhost:3000)
-2. Add \"prometheus\" (all lowercase) datasource (http://localhost:9090)
+2. Add \"prometheus\" (all lowercase) datasource (http://localhost:$PROM_PORT)
 3. Create a new dashboard by importing dashboards (left plus sign).
   - Sometimes, the individual panel's \"prometheus\" datasource needs to be refreshed.
 
@@ -234,4 +236,3 @@ Enjoy...
 " >&2
 
 clean_up 0
-
