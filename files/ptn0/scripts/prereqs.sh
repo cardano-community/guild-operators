@@ -97,7 +97,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     echo "deb https://dl.yarnpkg.com/debian/ stable main" | $sudo tee /etc/apt/sources.list.d/yarn.list > /dev/null
     $sudo apt-get -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    $sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ tmux git jq wget libncursesw5 > /dev/null
+    $sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ tmux git jq wget libncursesw5 p7zip-full > /dev/null
   elif [ -z "${OS_ID##*rhel*}" ]; then
     #CentOS/RHEL/Fedora
     echo "Using yum to prepare packages for ${DISTRO} system"
@@ -107,7 +107,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo rpm --import https://dl.yarnpkg.com/rpm/pubkey.gpg > /dev/null
     $sudo yum -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    $sudo yum -y install python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs systemd-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq > /dev/null
+    $sudo yum -y install python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs systemd-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq p7zip > /dev/null
     if [ -f /usr/lib64/libtinfo.so ] && [ -f /usr/lib64/libtinfo.so.5 ]; then
       echo "  Symlink updates not required for ncurse libs, skipping.."
     else
@@ -183,6 +183,7 @@ curl -s -o sendADA.sh https://raw.githubusercontent.com/cardano-community/guild-
 curl -s -o balance.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/balance.sh
 curl -s -o cnode.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/cnode.sh.templ
 curl -s -o cntools.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.sh
+curl -s -o setup_mon.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/setup_mon.sh
 sed -e "s@CNODE_HOME=.*@${CNODE_VNAME}_HOME=${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i cnode.sh
 curl -s -o cabal-build-all.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/cabal-build-all.sh
 curl -s -o stack-build.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/stack-build.sh
