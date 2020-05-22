@@ -163,10 +163,10 @@ $DBG dl "$IOHK_DB_URL"
 
 echo ""
 
-PROM_DIR="$PROJ_DIR/prometheus"
-GRAF_DIR="$PROJ_DIR/grafana"
-NEXP_DIR="$PROJ_DIR/exporters"
-DASH_DIR="$PROJ_DIR/dashboards"
+PROM_DIR="$PROJ_PATH/prometheus"
+GRAF_DIR="$PROJ_PATH/grafana"
+NEXP_DIR="$PROJ_PATH/exporters"
+DASH_DIR="$PROJ_PATH/dashboards"
 
 mkdir -p "$PROM_DIR" "$GRAF_DIR" "$NEXP_DIR" "$DASH_DIR"
 
@@ -191,7 +191,7 @@ sed -i -e "s#\(^scrape_configs:.*\)#\1\n\
     static_configs:\n\
     - targets: ['$IP:$NEXP_PORT']#g"  "$PROM_DIR"/prometheus.yml
 
-cat > start_all.sh <<EOF
+cat > "$PROJ_PATH/start_all.sh" <<EOF
 #!/bin/bash
 
 	#1. exporter
@@ -223,7 +223,7 @@ Installation is completed
 
 
 You need to do the following to configure grafana:
-0. Start the required services in a new terminal by \"$PROJ_DIR/start_all.sh\"
+0. Start the required services in a new terminal by \"$PROJ_PATH/start_all.sh\"
   - check the prometheus and its exporters by opening URLs above after start.
 1. Login to grafana as admin/admin (http://localhost:3000)
 2. Add \"prometheus\" (all lowercase) datasource (http://localhost:9090)
