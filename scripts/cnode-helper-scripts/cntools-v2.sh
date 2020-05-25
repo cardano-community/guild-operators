@@ -34,6 +34,8 @@ need_cmd "jq"
 
 function main {
 
+while true; do # Main loop
+
 clear
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 echo "   CNTOOLS v0.1                                 Creators: Scitz0[AHL], gufmar[CLIO1]"
@@ -44,7 +46,8 @@ echo "   3) funds   [send|delegate]"
 echo "   4) pool    [register]"
 echo "   q) quit"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-while true; do
+
+while true; do # Home menu
   read -r -n 1 -p "What would you like to do? (1-4): " OPERATION
   echo ""
   case ${OPERATION:0:1} in
@@ -121,6 +124,8 @@ case $OPERATION in
 		esac
 		
 	fi
+  
+  echo "" && read -n 1 -s -p "press any key to return to home menu"
 
   ;; ###################################################################
 
@@ -136,6 +141,7 @@ case $OPERATION in
   echo "   4) remove"
   echo "   5) decrypt"
   echo "   6) encrypt"
+  echo "   h) home"
   echo "   q) quit"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   while true; do
@@ -153,6 +159,8 @@ case $OPERATION in
       5) SUBCOMMAND="decrypt" && break
         ;;
       6) SUBCOMMAND="encrypt" && break
+        ;;
+      h) break
         ;;
       q) echo "" && exit
         ;;
@@ -172,7 +180,8 @@ case $OPERATION in
     echo "   2) staking  - upgrade existing payment wallet"
     echo "                 a payment wallet need to exist for before upgrade"
     echo "                 make sure there are funds available in payment wallet before upgrade"
-    echo ""
+    echo "   h) home"
+    echo "   q) quit"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     while true; do
@@ -182,6 +191,8 @@ case $OPERATION in
         1) wallet_type="payment" && break
           ;;
         2) wallet_type="staking" && break
+          ;;
+        h) break
           ;;
         q) echo "" && exit
           ;;
@@ -225,7 +236,8 @@ case $OPERATION in
       say "Wallet: ${wallet_name}" "log"
       say "Payment Address: $(cat ${payment_addr_file})" "log"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-      echo ""
+      
+      echo "" && read -n 1 -s -p "press any key to return to home menu"
       
       ;; ###################################################################
 	
@@ -315,7 +327,8 @@ case $OPERATION in
       say "Payment Address: $(cat ${payment_addr_file})" "log"
       say "Staking Address: $(cat ${staking_addr_file})" "log"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-      echo ""
+      
+      echo "" && read -n 1 -s -p "press any key to return to home menu"
       
       ;; ###################################################################
       
@@ -354,6 +367,8 @@ case $OPERATION in
 			fi
 		done
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    
+    echo "" && read -n 1 -s -p "press any key to return to home menu"
 		
 	  ;; ###################################################################
 	
@@ -394,19 +409,20 @@ case $OPERATION in
 			echo ""
 		fi
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    
+    echo "" && read -n 1 -s -p "press any key to return to home menu"
 		
 	  ;; ###################################################################
 	
 	  remove)
     clear
-    # TODO - Make sure staking address is empty as well !!!!
     say "Select Wallet:"
 		select wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do 
       test -n "${wallet_name}" && break
       say ">>> Invalid Selection (ctrl+c to quit)"
     done
 
-    # Wallet key filenames
+    # Wallet key filename
     payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
 
 		if [ -f "${payment_addr_file}" ]; then
@@ -451,6 +467,8 @@ case $OPERATION in
 			echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 			echo ""
 		fi
+    
+    echo "" && read -n 1 -s -p "press any key to return to home menu"
 		
 	  ;; ###################################################################
     
@@ -514,7 +532,8 @@ case $OPERATION in
 		say "Wallet decrypted: ${wallet_name}" "log"
     say "Files decrypted: ${keysDecrypted}" "log"
 		echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-		echo ""
+		
+    echo "" && read -n 1 -s -p "press any key to return to home menu"
 
 	  ;; ###################################################################
     
@@ -578,7 +597,8 @@ case $OPERATION in
 		say "Wallet encrypted: ${wallet_name}" "log"
     say "Files encrypted: ${keysEncrypted}" "log"
 		echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-		echo ""
+		
+    echo "" && read -n 1 -s -p "press any key to return to home menu"
 
 	  ;; ###################################################################
 
@@ -594,6 +614,7 @@ case $OPERATION in
   echo ""
   echo "   1) send"
   echo "   2) delegate"
+  echo "   h) home"
   echo "   q) quit"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   while true; do
@@ -603,6 +624,8 @@ case $OPERATION in
       1) SUBCOMMAND="send" && break
         ;;
       2) SUBCOMMAND="delegate" && break
+        ;;
+      h) break
         ;;
       q) echo "" && exit
         ;;
@@ -617,6 +640,8 @@ case $OPERATION in
     
     # Destination
     while true; do
+      say " -- Destination Address / Wallet --"
+      echo ""
       read -n 1 -r -p "Do you want to specify destination as an Address or Wallet (a/w)? " d_type
       say ""
       case ${d_type:0:1} in
@@ -644,11 +669,23 @@ case $OPERATION in
       esac
     done
     
-    # Amount    
-    echo "" && read -r -p "Amount: " amount
+    # Amount
+    echo ""
+    say " -- Amount to Send --"
+    echo ""
+    say "Valid entry:  ${BLUE}Integer${NC}"
+    say "              ${BLUE}Fraction number${NC} with a decimal dot"
+    say "              The string '${BLUE}all${NC}' to send all available funds in source wallet"
+    echo ""
+    say "Info:         If destination and source wallet is the same and amount set to 'all',"
+    say "              wallet will be defraged, ie converts multiple UTxO's to one"
+    echo ""
+    read -r -p "Amount: " amount
     [[ -z "${amount}" ]] && error "amount can not be empty!" && exit 1
     
     # Source
+    echo ""
+    say " -- Source Wallet --"
     echo "" && say "Select Source Wallet:"
     select s_wallet in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do 
       test -n "${s_wallet}" && break
@@ -660,6 +697,18 @@ case $OPERATION in
       exit 1
     fi
     s_addr="$(cat ${s_payment_addr_file})"
+    
+    echo ""
+    say " -- Transaction Fee --"
+    echo ""
+    read -n 1 -r -p "Fee payed by sender (y/n)? [else amount sent reduced] " answer
+    echo ""
+    case ${answer:0:1} in
+      n|N ) include_fee="yes"
+      ;;
+      * ) include_fee="no"
+      ;;
+    esac
     
     # Source Sign Key
     # decrypt signing key if needed and make sure to encrypt again even on failure
@@ -675,17 +724,13 @@ case $OPERATION in
         unset password
         exit 1
       fi
+    else
+      [[ ! -f "${s_payment_sk_file}" ]] && error "source wallet signing key file not found:" "${s_payment_sk_file}" && exit 1
     fi
-    [[ ! -f "${s_payment_sk_file}" ]] && error "source wallet signing key file not found:" "${s_payment_sk_file}"
     
-    read -n 1 -r -p "Fee payed by sender (y/n)? " answer
+    say "${ORANGE}Source wallet signing key decrypted, make sure key is re-encrypted in case of error or cancelation${NC}"
+    read -n 1 -s -p "press any key to continue"
     echo ""
-    case ${answer:0:1} in
-      n|N ) include_fee="yes"
-      ;;
-      * ) include_fee="no"
-      ;;
-    esac
 
     if ! sendADA "${d_addr}" "${amount}" "${s_addr}" "${s_payment_sk_file}" "${include_fee}"; then 
       delayExit=1
@@ -730,7 +775,8 @@ case $OPERATION in
     say "  Fees:       $(numfmt --grouping ${minFee}) Lovelaces" "log"
     say "  Balance:    $(numfmt --grouping ${newBalance}) Lovelaces ($(numfmt --grouping ${newBalanceADA}) ADA)" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    say ""
+    
+    echo "" && read -n 1 -s -p "press any key to return to home menu"
     
     ;; ###################################################################
     
@@ -753,8 +799,10 @@ case $OPERATION in
   ;; ###################################################################
 
 esac # main OPERATION
+
+done # main loop  
 }
-   
+
 ##############################################################
 
 main "$@"
