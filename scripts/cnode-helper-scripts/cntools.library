@@ -1,0 +1,492 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2034,SC2086,SC2230
+
+############################################################
+# library sourced by cntools with common taskes to perform #
+############################################################
+
+# Assumes that env has been sourced by calling script
+
+# Command    : error [message] [optional:message2 ...]
+# Description: Print error message and return 1
+#              each argument creates a separate row 
+# Parameters : message   >   The error message
+# Return     : error message on STDERR and return with code 1
+# Examples of Usage: 
+#   >> error "Some error message"
+error() {
+  i=0
+  for message in "$@"; do
+    if [[ ${i} -eq 0 ]]; then
+      >&2 echo -e "Error: ${message}"
+    else
+      >&2 echo -e "${message}"
+    fi
+    if [[ "${CNTOOLS_LOG}" != "" ]]; then 
+      echo "$(date -Iseconds) - ERROR: ${message}" >> ${CNTOOLS_LOG}
+    fi
+    ((i++))
+  done
+  return 1
+}
+
+
+# Command    : say [message]
+# Description: Print message
+# Parameters : message   >   The message
+# Return     : message on STDOUT
+# Examples of Usage: 
+#   >> say "Some message"
+say() {
+	echo -e "$1"
+	if [[ $2 == "log" && "${CNTOOLS_LOG}" != "" ]]; then 
+		echo "$(date -Iseconds) - INFO: $1" >> ${CNTOOLS_LOG}
+	fi
+}
+
+
+# Command    : need_cmd [command]
+# Description: Check if command is available, else print error
+# Parameters : command   >   The command to check
+# Return     : null
+# Examples of Usage: 
+#   >> need_cmd "jq"
+need_cmd() {
+	if ! command -v "$1" > /dev/null 2>&1; then
+    error "WARN: need '$1' (command not found)" "try 'sudo apt install $1'"
+  fi
+}
+
+
+# Command    : getPassword [optional:confirm]
+# Description: Get password from user on STDIN
+# Parameters : confirm   >   Optional parameter, force user provide password twise to confirm          
+# Return     : populates $password variable, make sure to unset variable when done
+# Examples of Usage: 
+#   >> local userPassword=$(getPassword confirm)
+getPassword() {
+  while true; do
+    say "Enter key password (length >= 8)"
+    password=$(systemd-ask-password "Password:")
+    if [ ${#password} -lt 8 ]; then
+      error "password length too short, please use a minimum of 8 characters."
+      continue
+    fi
+    if [[ "$1" = "confirm" ]]; then
+      local checkPassword=$(systemd-ask-password "Confirm: ")
+      if [[ "${password}" != "${checkPassword}" ]]; then
+        say ""
+        error "password missmatch, please retry!"
+        say ""
+      else
+        say "" && break
+      fi
+    else
+      say "" && break
+    fi
+  done
+}
+
+
+# Command    : encryptFile [file] [password]
+# Description: Encrypt file with GPG
+# Parameters : file       >   Path for file to encrypt
+#                             will get a new .gpg file extention added to filename
+#              password   >   Password to encrypt file with
+# Return     : null on successful execution
+# Examples of Usage: 
+#   >> encryptFile "$CNODE_HOME/priv/wallet/MyWallet/SigningKeyShelley.skey"
+encryptFile() {
+  echo "${2}" | gpg --symmetric --yes --batch --cipher-algo AES256 --passphrase-fd 0 --output "${1}.gpg" "${1}" >/dev/null && \
+  rm -f "${1}" || \
+  error "failed to encrypt ${1}"
+}
+
+
+# Command    : decryptFile [file] [password]
+# Description: Decrypt file with GPG
+# Parameters : file       >   Path for file to decrypt
+#                             file extension .gpg required
+#              password   >   Password to decrypt file with
+# Return     : null on successful execution
+# Examples of Usage: 
+#   >> decryptFile "$CNODE_HOME/priv/wallet/MyWallet/SigningKeyShelley.skey"
+decryptFile() {
+  echo "${2}" | gpg --decrypt --batch --yes --passphrase-fd 0 --output "${1%.*}" "${1}" >/dev/null 2>&1 && \
+  rm -f "${1}" || \
+  error "failed to decrypt ${1}"
+}
+
+
+# Command    : getTip [optional:slot]
+# Description: Get latest block or slot number
+# Parameters : slot   >   optional parameter to get slot tip instead of block
+# Return     : string with tip on STDOUT
+# Examples of Usage: 
+#   >> tip=$(getTip)
+getTip() {
+  [[ $1 = "slot" ]] && column=5 || column=16 # default to use block tip
+  $CCLI shelley query tip --testnet-magic ${NWMAGIC} | awk '{ print $'"${column}"' }' | grep -Eo '[0-9]{1,}'
+}
+
+
+# Command    : waitNewBlockCreated
+# Description: Wait for a new block to be created
+# Parameters : null
+# Return     : prints progress on STDOUT
+# Examples of Usage: 
+#   >> waitNewBlockCreated
+waitNewBlockCreated() {
+  COUNTER=${TIMEOUT_NO_OF_SLOTS}
+  say ""
+  say "Waiting for new block to be created (timeout = ${COUNTER} slots, $(( COUNTER * SLOT_DURATION ))s)" "log"
+  say "Cancel balance check at any time by pressing Ctrl+C, Command+C"
+  say ""
+  initialTip=$(getTip)
+  actualTip=${initialTip}
+
+  while [ "${actualTip}" = "${initialTip}" ]; do
+    sleep ${SLOT_DURATION}
+    actualTip=$(getTip)
+    COUNTER=$((COUNTER - SLOT_DURATION))
+    if [ ${COUNTER} -lt ${SLOT_DURATION} ]; then
+      error "waited $(( TIMEOUT_NO_OF_SLOTS * SLOT_DURATION )) secs and no new block created"
+      return 1
+    fi
+  done
+  say "New block was created - ${actualTip}" "log"
+}
+
+
+# Command    : getBalance [address]
+# Description: check balance for provided address
+# Parameters : address   >   Address or path to Address file.
+# Return     : prints progress on STDOUT
+# Examples of Usage: 
+#   >> getBalance 61WKMJemoBa....ssL7fzhq
+getBalance() {
+  TOTALBALANCE=0
+  UTx0_COUNT=0
+
+  ${CCLI} shelley query utxo --testnet-magic "${NWMAGIC}" --address "${1}" > ${TMP_FOLDER}/fullUtxo.out
+  tail -n +3 ${TMP_FOLDER}/fullUtxo.out | sort -k3 -nr > ${TMP_FOLDER}/balance.txt
+
+  if [ -s ${TMP_FOLDER}/balance.txt ]; then
+    head -n 2 ${TMP_FOLDER}/fullUtxo.out
+    head -n 10 ${TMP_FOLDER}/balance.txt
+  fi
+
+  while read -r utxo; do
+    UTx0_COUNT=$(( UTx0_COUNT + 1 ))
+    TOTALBALANCE=$(( TOTALBALANCE + $(awk '{ print $3 }' <<< "${utxo}") ))
+  done <${TMP_FOLDER}/balance.txt
+
+  [[ ${UTx0_COUNT} -gt 10 ]] && say "... (top 10 UTx0 with most lovelace)"
+
+  # ADA pretty print explanation for sed
+  # remove trailing 0 IF there is a decimal separator
+  # remove the separator if there are only 0 after separator also (assuming there is at least a digit before like BC does)
+
+  totalBalanceADA=$(echo "${TOTALBALANCE}/1000000" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+  
+  say ""
+  say "Total balance in ${UTx0_COUNT} UTxO is $(numfmt --grouping ${TOTALBALANCE}) Lovelaces or $(numfmt --grouping ${totalBalanceADA}) ADA" "log"
+}
+
+
+# Command    : sendADA [destination address] [amount] [source address] [source sign key] [Include Fee]
+# Description: send ADA from source to destination
+#              can also be used to defrag address by sending all to self
+#              supports fee to be payed by sender(default) or receiver by reducing amount to send
+# Parameters : Destination Address   >   Destination address.
+#              Amount                >   Amount in ADA, number(fraction of ADA valid) or the string 'all'.
+#              Source Address        >   Source address.
+#              Source Sign Key       >   Path to Signature (skey) file. For staking address payment skey is to be used.
+#              Include Fee         >   Optional argument to specify that amount to send should be reduced by fee instead of payed by sender.
+# Return     : prints progress on STDOUT
+# Examples of Usage: 
+#   >> sendADA 61WKMJemoBa....ssL7fzhq 100 61RM9xbIdg....HbyQY175 "$CNODE_HOME/priv/wallet/MyWallet/pay.skey" "no"
+sendADA() {
+
+  # Handle script arguments
+  dAddr="$1"
+  sAddr="$3"
+  sKey="$4"
+  inclFee="$5"
+  
+  lovelace="$2"
+  re_number='^[0-9]+([.][0-9]+)?$'
+  if [[ ${lovelace} =~ ${re_number} ]]; then
+    # /1 is to remove decimals from bc command
+    lovelace=$(echo "${lovelace} * 1000000 / 1" | bc)
+  elif [[ ${lovelace} != "all" ]]; then
+    error "'Amount in ADA' must be a valid number or the string 'all'"
+    return 1
+  fi
+
+  say ""
+  say " -- Protocol Parameters --"
+  currSlot=$(${CCLI} shelley query tip --testnet-magic ${NWMAGIC} | awk '{ print $5 }' | grep -Eo '[0-9]{1,}')
+  ttlValue=$(( currSlot + 1000 ))
+  say "TN Magic is ${NWMAGIC}" "log"
+  say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
+
+  say ""
+  say "--- Balance Check Destination Address --------------------------------------------------" "log"
+  getBalance ${dAddr}
+  say ""
+  say "--- Balance Check Source Address -------------------------------------------------------" "log"
+  getBalance ${sAddr}
+  if [ ! -s ${TMP_FOLDER}/balance.txt ]; then
+    error "Failed to locate a UTxO, wallet empty?"
+    return 1
+  fi
+
+  if [[ ${lovelace} = "all" ]]; then
+    inclFee="yes"
+    lovelace=${TOTALBALANCE}
+    say "'Amount in ADA' set to 'all', lovelace to send set to total supply: $(numfmt --grouping ${TOTALBALANCE})" "log"
+  fi
+
+  say "Using UTxO's:" "log"
+  balance=0
+  utxoCount=0
+  txIn=""
+  while read -r utxo; do
+    inAddr=$(awk '{ print $1 }' <<< "${utxo}")
+    idx=$(awk '{ print $2 }' <<< "${utxo}")
+    utxoBalance=$(awk '{ print $3 }' <<< "${utxo}")
+    say "TxHash: ${inAddr}#${idx}" "log"
+    say "Lovelace: $(numfmt --grouping ${utxoBalance})" "log"
+    utxoCount=$(( utxoCount +1))
+    txIn="${txIn} --tx-in ${inAddr}#${idx}"
+    balance=$(( balance + utxoBalance ))
+    [[ ${inclFee} = "yes" && ${balance} -ge ${lovelace} ]] && break
+  done <${TMP_FOLDER}/balance.txt
+
+  [[ ${balance} -eq ${lovelace} ]] && outCount=1 || outCount=2
+
+  say ""
+  say " -- Calculate fee, new amount and remaining balance --" "log"
+  minFeeArgs=(
+    shelley transaction calculate-min-fee
+    --tx-in-count ${utxoCount}
+    --tx-out-count ${outCount}
+    --ttl ${ttlValue}
+    --testnet-magic ${NWMAGIC}
+    --signing-key-file ${sKey}
+    --protocol-params-file ${TMP_FOLDER}/protparams.json
+  )
+  
+  minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
+  
+  say "fee is $(numfmt --grouping ${minFee})" "log"
+
+  # Sanity checks
+  if [[ ${inclFee} = "no" ]]; then
+    if [[ ${balance} -lt $(( lovelace + minFee )) ]]; then
+      error "Not enough Lovelace in address ($(numfmt --grouping ${balance}) < $(numfmt --grouping ${lovelace}) + $(numfmt --grouping ${minFee}))"
+      return 1
+    fi
+  else
+    if [[ ${lovelace} -lt ${minFee} ]]; then
+      error "Fee deducted from ADA to send, amount can not be less than fee ($(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}))"
+      return 1
+    elif [[ ${balance} -lt ${lovelace} ]]; then
+      error "Not enough Lovelace in address ($(numfmt --grouping ${balance}) < $(numfmt --grouping ${lovelace}))"
+      return 1
+    fi
+  fi
+
+  if [[ ${inclFee} = "no" ]]; then
+    txOut="--tx-out ${dAddr}+${lovelace}"
+  else
+    txOut="--tx-out ${dAddr}+$(( lovelace - minFee ))"
+    say "New amount to send in Lovelace after fee deduction is $(numfmt --grouping $(( lovelace - minFee ))) lovelaces ($(numfmt --grouping ${lovelace}) - $(numfmt --grouping ${minFee}))" "log"
+  fi
+
+  newBalance=$(( TOTALBALANCE - lovelace ))
+  if [[ ${inclFee} = "no" ]]; then
+    newBalance=$(( balance - lovelace - minFee ))
+    txOut="${txOut} --tx-out ${sAddr}+${newBalance}"
+    say "Balance left to be returned in used UTxO's is $(numfmt --grouping ${newBalance}) lovelaces ($(numfmt --grouping ${balance}) - $(numfmt --grouping ${lovelace}) - $(numfmt --grouping ${minFee}))" "log"
+  elif [[ ${outCount} -eq 2 ]]; then
+    txOut="${txOut} --tx-out ${sAddr}+$(( balance - lovelace ))"
+    say "Balance left to be returned in used UTxO's is $(numfmt --grouping $(( balance - lovelace ))) lovelaces ($(numfmt --grouping ${balance}) - $(numfmt --grouping ${lovelace}))" "log"
+  fi
+
+  buildArgs=(
+    shelley transaction build-raw
+    ${txIn}
+    ${txOut}
+    --ttl ${ttlValue}
+    --fee ${minFee}
+    --tx-body-file ${TMP_FOLDER}/tx.raw
+  )
+
+  signArgs=(
+    shelley transaction sign
+    --tx-body-file ${TMP_FOLDER}/tx.raw
+    --signing-key-file ${sKey}
+    --testnet-magic ${NWMAGIC}
+    --tx-file ${TMP_FOLDER}/tx.signed
+  )
+
+  submitArgs=(
+    shelley transaction submit
+    --tx-file "${TMP_FOLDER}/tx.signed"
+    --testnet-magic ${NWMAGIC}
+  )
+
+  say ""
+  say " -- Build, Sign & Send transaction --" "log"
+  say "Building transaction"
+
+  output=$(${CCLI} ${buildArgs[*]})
+  if [[ -n $output ]]; then
+    error "1. Problem during tx creation with args ${buildArgs[*]}" "$output"
+    return 1
+  fi
+
+  say "Signing transaction"
+  
+  ## TODO decrypt skey
+  output=$(${CCLI} ${signArgs[*]})
+  ## TODO encrypt skey
+  if [[ -n $output ]]; then
+    error "2. Problem during signing with args ${signArgs[*]}" "$output"
+    return 1
+  fi
+
+  say "Sending transaction"
+
+  output=$(${CCLI} ${submitArgs[*]})
+  if [[ -n $output ]]; then
+    error "3. Problem during tx submission with args ${submitArgs[*]}" "$output"
+    return 1
+  fi
+}
+
+# Command    : registerStaking [payment address] [payment sign key] [staking sign key] [staking cert file]
+# Description: Register staking keys on chain
+# Parameters : payment address         >   Payment address, funds needed to pay tx fee for stake key registration
+#              payment sign key        >   Payment signature key
+#              staking sign key        >   Staking signature key
+#              staking cert file       >   Staking certificate
+# Return     : prints progress on STDOUT
+# Examples of Usage: 
+#   >> registerStaking 61WKMJemoBa....ssL7fzhq "../wallet/MyWallet/Payment.skey" "../wallet/MyWallet/Staking.skey" "../wallet/MyWallet/Staking.cert" 
+registerStaking() {
+
+  # script arguments
+  payment_addr="$1"
+  payment_sk="$2"
+  staking_sk="$3"
+  staking_cert="$4"
+  
+  say " -- Register Staking Keys on Chain --" "log"
+  say ""
+  say "--- Balance Check Source Address -------------------------------------------------------" "log"
+  getBalance ${payment_addr}
+  
+  tx=$(head -n 1 ${TMP_FOLDER}/balance.txt)
+  
+  [[ -z ${tx} ]] && error "payment address empty" && return 1
+  
+  say ""
+  say "Using UTxO with highest balance:" "log"
+  say "${tx}" "log"
+  say ""
+  
+  utxo=$( echo "${tx}" | awk '{ print $1 }')
+  id=$( echo "${tx}" | awk '{ print $2 }')
+  balance=$( echo "${tx}" | awk '{ print $3 }')
+  
+  tx_in="${utxo}#${id}"
+  
+  say " -- Protocol Parameters --"
+  currSlot=$(${CCLI} shelley query tip --testnet-magic ${NWMAGIC} | awk '{ print $5 }' | grep -Eo '[0-9]{1,}')
+  ttlValue=$(( currSlot + 1000 ))
+  keyDeposit=$(cat ${TMP_FOLDER}/protparams.json | jq -r '.keyDeposit')
+  say "Key Deposit is ${keyDeposit}"
+  say "TN Magic is ${NWMAGIC}" "log"
+  say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
+  
+  say ""
+  say " -- Calculate fee, new amount and remaining balance --" "log"
+  minFeeArgs=(
+    shelley transaction calculate-min-fee
+    --tx-in-count 1
+    --tx-out-count 1
+    --ttl ${ttlValue}
+    --testnet-magic ${NWMAGIC}
+    --signing-key-file ${payment_sk}
+    --signing-key-file ${staking_sk}
+    --certificate ${staking_cert}
+    --protocol-params-file ${TMP_FOLDER}/protparams.json
+  )
+  minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
+  say "fee is $(numfmt --grouping ${minFee})" "log"
+  
+  if [[ ${balance} -lt $(( minFee + keyDeposit )) ]]; then
+    error "Not enough Lovelace in payment address ($(numfmt --grouping ${balance}) < $(numfmt --grouping ${minFee}) + $(numfmt --grouping ${keyDeposit}))"
+    return 1
+  fi
+  
+  newBalance=$(( balance - minFee - keyDeposit ))
+  tx_out="${txOut} --tx-out ${payment_addr}+${newBalance}"
+  say "Balance left to be returned in used UTxO is $(numfmt --grouping ${newBalance}) lovelaces ($(numfmt --grouping ${balance}) - $(numfmt --grouping ${minFee}) - $(numfmt --grouping ${keyDeposit}))" "log"
+  
+  buildArgs=(
+    shelley transaction build-raw
+    ${tx_in}
+    ${tx_out}
+    --ttl ${ttlValue}
+    --fee ${minFee}
+    --tx-body-file ${TMP_FOLDER}/tx.raw
+  )
+
+  signArgs=(
+    shelley transaction sign
+    --tx-body-file ${TMP_FOLDER}/tx.raw
+    --signing-key-file ${payment_sk}
+    --signing-key-file ${staking_sk}
+    --testnet-magic ${NWMAGIC}
+    --tx-file ${TMP_FOLDER}/tx.signed
+  )
+
+  submitArgs=(
+    shelley transaction submit
+    --tx-file "${TMP_FOLDER}/tx.signed"
+    --testnet-magic ${NWMAGIC}
+  )
+
+  say ""
+  say " -- Build, Sign & Send transaction --" "log"
+  say "Building transaction"
+
+  output=$(${CCLI} ${buildArgs[*]})
+  if [[ -n $output ]]; then
+    error "1. Problem during tx creation with args ${buildArgs[*]}" "$output"
+    return 1
+  fi
+
+  say "Signing transaction"
+  
+  ## TODO decrypt skey
+  output=$(${CCLI} ${signArgs[*]})
+  ## TODO encrypt skey
+  if [[ -n $output ]]; then
+    error "2. Problem during signing with args ${signArgs[*]}" "$output"
+    return 1
+  fi
+
+  say "Sending transaction"
+
+  output=$(${CCLI} ${submitArgs[*]})
+  if [[ -n $output ]]; then
+    error "3. Problem during tx submission with args ${submitArgs[*]}" "$output"
+    return 1
+  fi
+}
+  
