@@ -23,13 +23,13 @@ All participants, who want to participate in staking, need to register a __stake
 
 The registration is revoked when a de-registration certificate signed by the account's `stake signing key` is posted to the blockchain, causing the account to be deleted (__Ask what is the impact of this__).
 
-See [detailed example here](/Operators.md#create-stake-key-registration-certificate)
+See [detailed example here](./Operators.md#create-stake-key-registration-certificate)
 
 ### Delegation certificates
 
 Delegation certificates uses a `staking key` to grant the right to sign blocks to another key. 
 
-See [detailed example here](/Operators.md#create-the-stake-owners-delegation-certificate)
+See [detailed example here](./Operators.md#create-the-stake-owners-delegation-certificate)
 
 ### Stake pool certificates
 
