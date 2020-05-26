@@ -22,7 +22,7 @@ rm -f ${TMP_FOLDER}/*
 
 # Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
 ${CCLI} shelley query protocol-parameters --testnet-magic ${NWMAGIC} > ${TMP_FOLDER}/protparams.json || {
-  error "failed to query protocol parameters, node running and env parameters correct?"
+  say "${RED}ERROR${NC}: failed to query protocol parameters, node running and env parameters correct?" "log"
   exit 1
 }
 
@@ -38,8 +38,9 @@ function main {
 while true; do # Main loop
 
 clear
+echo " >> CNTOOLS <<                                       A Guild Operators collaboration"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-echo "   CNTOOLS                                           A Guild Operators collaboration"
+echo "   Main Menu"
 echo ""
 echo "   1) update"
 echo "   2) wallet  [new|list|show|remove|decrypt|encrypt]"
@@ -70,9 +71,12 @@ done
 case $OPERATION in
 
   update) # not ready yet. ToDo when binary releases become available
-
-	error "Sorry! not ready yet in cntools"
-  exit 1
+  clear
+  echo " >> UPDATE"
+	echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+  echo ""
+	say "${RED}ERROR${NC}: Sorry! not ready yet in cntools" "log"
+  echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
 
 	if [ ${#} -lt 2 ]; then
 		DESIRED_RELEASE_JSON=$(curl --proto '=https' --tlsv1.2 -sSf https://api.github.com/repos/input-output-hk/cardano-node/releases/latest)
@@ -126,13 +130,14 @@ case $OPERATION in
 
 	fi
 
-echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+  echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 
   ;; ###################################################################
 
   wallet)
 
   clear
+  echo " >> WALLET"
 	echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   echo "   Wallet Management"
   echo ""
@@ -174,6 +179,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 	  new)
 
     clear
+    echo " >> WALLET >> NEW"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo "   Wallet Type"
     echo ""
@@ -206,6 +212,9 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
       payment)
 
       clear
+      echo " >> WALLET >> NEW >> PAYMENT"
+      echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      echo ""
       read -r -p "Name of new wallet: " wallet_name
       echo ""
       mkdir -p "${WALLET_FOLDER}/${wallet_name}"
@@ -218,7 +227,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
       if [[ -f "${payment_addr_file}" ]]; then
         say "${RED}WARN${NC}: A wallet ${GREEN}$wallet_name${NC} already exists"
         say "      Choose another name or delete the existing one"
-        exit 1
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
 
       ${CCLI} shelley address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}"
@@ -230,7 +239,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
         if ! encryptFile "${payment_vk_file}" "${password}" || \
            ! encryptFile "${payment_sk_file}" "${password}"; then
           rm -rf "${WALLET_FOLDER:?}/${wallet_name}"
-          exit 1
+          echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
         fi
       fi
 
@@ -244,6 +253,9 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
       staking)
 
       clear
+      echo " >> WALLET >> NEW >> STAKING"
+      echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      echo ""
       say "Select Wallet:"
       select wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
         test -n "${wallet_name}" && break
@@ -261,11 +273,11 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
       if [[ ! -f "${payment_addr_file}" ]]; then
         say "${RED}WARN${NC}: No payment wallet found with name: ${GREEN}$wallet_name${NC}"
         say "      A payment wallet with funds available needed to upgrade to staking"
-        exit 1
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       elif [[ -f "${staking_addr_file}" ]]; then
         say "${RED}WARN${NC}: A staking wallet ${GREEN}$wallet_name${NC} already exists"
         say "      Choose another name or delete the existing one"
-        exit 1
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
 
       ${CCLI} shelley stake-address key-gen --verification-key-file "${staking_vk_file}" --signing-key-file "${staking_sk_file}"
@@ -275,14 +287,15 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
       # Decrypt payment signing key if needed, reencrypted together with staking keys later
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
         [[ ! -f "${payment_sk_file}.gpg" ]] && {
-          error "'PROTECT_KEYS=yes' but no gpg encrypted file found on disk:" "${payment_sk_file}.gpg"
-          exit 1
+          say "${RED}ERROR${NC}: 'PROTECT_KEYS=yes' but no gpg encrypted file found on disk:" "log"
+          say "${payment_sk_file}.gpg" "log"
+          echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
         }
         echo ""
         getPassword # $password variable populated by getPassword function
         if ! decryptFile "${payment_sk_file}.gpg" "${password}"; then
           unset password
-          exit 1
+          echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
         fi
       fi
       
@@ -290,10 +303,10 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 
       # Register on chain
       if ! registerStaking "${payment_addr}" "${payment_sk_file}" "${staking_sk_file}" "${staking_cert_file}"; then
-        error "failure during staking key registration, removing newly created staking keys"
+        say "${RED}ERROR${NC}: failure during staking key registration, removing newly created staking keys" "log"
         rm -f "${staking_vk_file}" "${staking_sk_file}" "${staking_addr_file}" "${staking_cert_file}"
         [[ "${PROTECT_KEYS}" = "yes" ]] && encryptFile "${payment_sk_file}" "${password}"
-        exit 1
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
 
       # Encrypt keys before we wait for tx to go through
@@ -302,7 +315,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
            ! encryptFile "${staking_sk_file}" "${password}" || \
            ! encryptFile "${staking_cert_file}" "${password}" || \
            ! encryptFile "${payment_sk_file}" "${password}"; then
-          error "failure during key encryption!"
+          say "${RED}ERROR${NC}: failure during key encryption!" "log"
         fi
       fi
 
@@ -314,7 +327,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 
       while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
         say ""
-        error "Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))" "log"
+        say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))" "log"
         waitNewBlockCreated
         say ""
         say "--- Balance Check Source Address -------------------------------------------------------" "log"
@@ -335,12 +348,13 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 
 	  list)
     clear
-
+    echo " >> WALLET >> LIST"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
 		for wallet_folder_name in "${WALLET_FOLDER}"/*/
 		do
 		  wallet_name=${wallet_folder_name%*/}
 			if [ -f "${wallet_folder_name}${WALLET_PAY_ADDR_FILENAME}" ]; then
-        echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 				payment_addr_file=$(cat "${wallet_folder_name}${WALLET_PAY_ADDR_FILENAME}")
 				say "Wallet: ${GREEN}${wallet_name##*/}${NC} "
 				echo ""
@@ -357,19 +371,22 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
         #  echo ""
         #fi
 			else
-        echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 				say "Wallet: ${GREEN}${wallet_name##*/}${NC} "
 				say "${RED}WARN${NC}: missing wallet address file:"
 				say "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
         echo ""
 			fi
+      echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      echo ""
 		done
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+    read -r -n 1 -s -p "press any key to return to home menu"
 	  ;; ###################################################################
 
 	  show)
     clear
+    echo " >> WALLET >> SHOW"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
 		say "Select Wallet:"
 		select wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
       test -n "${wallet_name}" && break
@@ -411,6 +428,9 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 
 	  remove)
     clear
+    echo " >> WALLET >> REMOVE"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
     say "Select Wallet:"
 		select wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
       test -n "${wallet_name}" && break
@@ -469,6 +489,9 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 
     decrypt)
     clear
+    echo " >> WALLET >> DECRYPT"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
     say "Select Wallet:"
 		select wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
       test -n "${wallet_name}" && break
@@ -481,7 +504,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
       say "${RED}WARN${NC}: wallet not found"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo ""
-      exit 1
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
 
     # Wallet key filenames
@@ -522,8 +545,6 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 
     unset password
 
-    [[ ${keysDecrypted} -eq 0 ]] && exit 1
-
 		say "Wallet decrypted: ${wallet_name}" "log"
     say "Files decrypted: ${keysDecrypted}" "log"
 		echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -534,6 +555,9 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 
     encrypt)
     clear
+    echo " >> WALLET >> ENCRYPT"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
     say "Select Wallet:"
 		select wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
       test -n "${wallet_name}" && break
@@ -546,7 +570,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
       say "${RED}WARN${NC}: wallet not found"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo ""
-      exit 1
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
 
     # Wallet key filenames
@@ -587,8 +611,6 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 
     unset password
 
-    [[ ${keysEncrypted} -eq 0 ]] && exit 1
-
 		say "Wallet encrypted: ${wallet_name}" "log"
     say "Files encrypted: ${keysEncrypted}" "log"
 		echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -604,6 +626,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
   funds)
 
   clear
+  echo " >> FUNDS"
 	echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   echo "   Handle Funds"
   echo ""
@@ -630,7 +653,11 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
   done
 
 	case $SUBCOMMAND in
-    send)  # [DESTINATION ADDRESS|WALLET] [AMOUNT] [SOURCE WALLET] [optional:--include-fee]
+    send)
+    
+    clear
+    echo " >> FUNDS >> SEND"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
 
     # Destination
@@ -652,8 +679,9 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
           done
           d_payment_addr_file="${WALLET_FOLDER}/${dWallet}/${WALLET_PAY_ADDR_FILENAME}"
           if [[ ! -f "${d_payment_addr_file}" ]]; then
-            error "destination wallet address file not found:" "${d_payment_addr_file}"
-            exit 1
+            say "${RED}ERROR${NC}: destination wallet address file not found:" "log"
+            say "${d_payment_addr_file}" "log"
+            echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
           fi
           d_addr="$(cat ${d_payment_addr_file})"
           break
@@ -676,7 +704,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
     say "              wallet will be defraged, ie converts multiple UTxO's to one"
     echo ""
     read -r -p "Amount: " amount
-    [[ -z "${amount}" ]] && error "amount can not be empty!" && exit 1
+    [[ -z "${amount}" ]] && say "${RED}ERROR${NC}: amount can not be empty!" "log" && echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
 
     # Source
     echo ""
@@ -688,8 +716,9 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
     done
     s_payment_addr_file="${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_ADDR_FILENAME}"
     if [[ ! -f "${s_payment_addr_file}" ]]; then
-      error "source wallet address file not found:" "${s_payment_addr_file}"
-      exit 1
+      say "${RED}ERROR${NC}: source wallet address file not found:" "log"
+      say "${s_payment_addr_file}" "log"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
     s_addr="$(cat ${s_payment_addr_file})"
 
@@ -710,18 +739,22 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
     s_payment_sk_file="${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_SK_FILENAME}"
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
       [[ ! -f "${s_payment_sk_file}.gpg" ]] && {
-        error "'PROTECT_KEYS=yes' but no gpg encrypted file found on disk:" "${s_payment_sk_file}.gpg"
-        exit 1
+        say "${RED}ERROR${NC}: 'PROTECT_KEYS=yes' but no gpg encrypted file found on disk:" "log"
+        say "${s_payment_sk_file}.gpg" "log"
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       }
       echo ""
       getPassword # $password variable populated by getPassword function
       if ! decryptFile "${s_payment_sk_file}.gpg" "${password}"; then
         unset password
-        exit 1
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
     else
-      [[ ! -f "${s_payment_sk_file}" ]] && error "source wallet signing key file not found:" "${s_payment_sk_file}" && exit 1
-
+      if [[ ! -f "${s_payment_sk_file}" ]]; then
+        say "${RED}ERROR${NC}: source wallet signing key file not found:" "log"
+        say "${s_payment_sk_file}" "log"
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      fi
     fi
 
     say "${ORANGE}Source wallet signing key decrypted, make sure key is re-encrypted in case of error or cancelation${NC}"
@@ -739,7 +772,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
       unset password
     fi
 
-    [[ ${delayExit} -eq 1 ]] && exit 1
+    [[ ${delayExit} -eq 1 ]] && echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
 
     waitNewBlockCreated
 
@@ -749,7 +782,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       say ""
-      error "Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))" "log"
+      say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))" "log"
       waitNewBlockCreated
       say ""
       say "--- Balance Check Source Address -------------------------------------------------------" "log"
@@ -778,9 +811,14 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
     ;; ###################################################################
 
     delegate)  # [WALLET NAME] [POOL NAME]
-
-    error "Sorry! not ready yet in cntools"
-    exit 1
+    
+    clear
+    echo " >> FUNDS >> DELEGATE"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
+    
+    say "${RED}ERROR${NC}: Sorry! not ready yet in cntools"
+    echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
 
 	  ;; ###################################################################
 
@@ -791,7 +829,8 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
   pool)
 
   clear
-	echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+  echo " >> POOL"
+  echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   echo "   Pool Management"
   echo ""
   echo "   1) new"
@@ -819,7 +858,10 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 	  new)
 
     clear
-    read -r -p "Name of new pool: " pool_name
+    echo " >> POOL >> NEW"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
+    read -r -p "Pool Name: " pool_name
     echo ""
     mkdir -p "${POOL_FOLDER}/${pool_name}"
 
@@ -837,7 +879,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
     if [[ -f "${pool_hotkey_vk_file}" ]]; then
       say "${RED}WARN${NC}: A pool ${GREEN}$pool_name${NC} already exists"
       say "      Choose another name or delete the existing one"
-      exit 1
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
     ${CCLI} shelley node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
     ${CCLI} shelley node key-gen --verification-key-file "${pool_coldkey_vk_file}" --signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter "${pool_opcert_counter_file}"
@@ -853,7 +895,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
       if ! encryptFile "${pool_coldkey_vk_file}" "${password}" || \
           ! encryptFile "${pool_coldkey_sk_file}" "${password}"; then
         rm -rf "${POOL_FOLDER:?}/${pool_name}"
-        exit 1
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
     fi
 
@@ -863,12 +905,15 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
     say "--shelley-kes-key ${pool_hotkey_sk_file}  --shelley-vrf-key ${pool_vrf_sk_file} --shelley-operational-certificate ${pool_opcert_file}" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
-    exit 1
+    read -r -n 1 -s -p "press any key to return to home menu" && continue
     ;;
 
     register)
 
     clear
+    echo " >> POOL >> REGISTER"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
     say "Select Pool:"
     select pool_name in $(find ${POOL_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
       test -n "${pool_name}" && break
@@ -881,21 +926,23 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
       say "${RED}WARN${NC}: pool not found"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo ""
-      exit 1
+      read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
 
     pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
       [[ ! -f "${pool_coldkey_vk_file}.gpg" ]] && {
-        error "'PROTECT_KEYS=yes' but no gpg encrypted file found on disk:" "${pool_coldkey_vk_file}.gpg"
-        exit 1
+        say "${RED}ERROR${NC}: 'PROTECT_KEYS=yes' but no gpg encrypted file found on disk:" "log"
+        say "${pool_coldkey_vk_file}.gpg" "log"
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       }
       echo ""
       getPassword # $password variable populated by getPassword function
       if ! decryptFile "${pool_coldkey_vk_file}.gpg" "${password}"; then
-        error "Unable to decrypt coldkey vk file" "${pool_coldkey_vk_file}.gpg"
+        say "${RED}ERROR${NC}: Unable to decrypt coldkey vk file" "log"
+        say "${pool_coldkey_vk_file}.gpg" "log"
         unset password
-        exit 1
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       else
         encryptFile "${pool_coldkey_vk_file}" "${password}"  # re-encrypt until we are through UI part
       fi
@@ -904,14 +951,16 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
     pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
       [[ ! -f "${pool_coldkey_sk_file}.gpg" ]] && {
-        error "'PROTECT_KEYS=yes' but no gpg encrypted file found on disk:" "${pool_coldkey_sk_file}.gpg"
-        exit 1
+        say "${RED}ERROR${NC}: 'PROTECT_KEYS=yes' but no gpg encrypted file found on disk:" "log"
+        say "${pool_coldkey_sk_file}.gpg" "log"
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       }
       echo ""
       if ! decryptFile "${pool_coldkey_sk_file}.gpg" "${password}"; then
-        error "Unable to decrypt coldkey sk file" "${pool_coldkey_sk_file}.gpg"
+        say "${RED}ERROR${NC}: Unable to decrypt coldkey sk file" "log"
+        say "${pool_coldkey_sk_file}.gpg" "log"
         unset password
-        exit 1
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       else
         encryptFile "${pool_coldkey_sk_file}" "${password}"  # re-encrypt until we are through UI part
       fi
@@ -965,43 +1014,42 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo ""
       unset poolpassword
-      exit 1
+      read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
 
     pay_payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
     if [[ ! -f "${pay_payment_addr_file}" ]]; then
-      error "source wallet address file not found:" "${pay_payment_addr_file}"
+      say "${RED}ERROR${NC}: source wallet address file not found:" "log"
+      say "${pay_payment_addr_file}" "log"
       unset poolpassword
-      exit 1
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
     pay_addr="$(cat ${pay_payment_addr_file})"
-
 
     pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
       [[ ! -f "${pay_payment_sk_file}.gpg" ]] && {
-        error "'PROTECT_KEYS=yes' but no gpg encrypted file found on disk:" "${pay_payment_sk_file}.gpg"
+        say "${RED}ERROR${NC}: 'PROTECT_KEYS=yes' but no gpg encrypted file found on disk:" "log"
+        say "${pay_payment_sk_file}.gpg" "log"
         unset poolpassword
-        exit 1
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       }
       echo ""
       getPassword # $password variable populated by getPassword function
       #password="Hannam11!"
       if ! decryptFile "${pay_payment_sk_file}.gpg" "${password}"; then
-        error "Unable to decrypt coldkey sk file" "${pay_payment_sk_file}.gpg"
+        say "${RED}ERROR${NC}: Unable to decrypt pay sk file" "log"
+        say "${pay_payment_sk_file}.gpg" "log"
         unset password
         unset poolpassword
-        exit 1
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       else
-        [[ ! -f "${pay_payment_sk_file}" ]] && error "source wallet signing key file not found:" "${pay_payment_sk_file}"
-        encryptFile "${pay_payment_sk_file}" "${password}"  # re-encrypt until we are through UI part
+        # Key successfully decrypted, re-encrypt until we are through UI part
+        encryptFile "${pay_payment_sk_file}" "${password}"
       fi
     fi
 
-
     paypassword=$password # save off paypassword so we can re-encrypt later
-
-
 
     say "Select Wallet pledge/reward from:"
 		select pledge_wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
@@ -1015,15 +1063,16 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
       say "${RED}WARN${NC}: wallet not found"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo ""
-      exit 1
+      read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
 
     staking_addr_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_STAKING_ADDR_FILENAME}"
     if [[ ! -f "${staking_addr_file}" ]]; then
-      error "source wallet does not have a staking address:" "${staking_addr_file}"
+      say "${RED}ERROR${NC}: source wallet does not have a staking address:" "log"
+      say "${staking_addr_file}" "log"
       unset paypassword
       unset poolpassword
-      exit 1
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
     stake_addr="$(cat ${staking_addr_file})"
 
@@ -1031,53 +1080,69 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
     staking_sk_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_STAKING_SK_FILENAME}"
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
       [[ ! -f "${staking_sk_file}.gpg" ]] && {
-        error "'PROTECT_KEYS=yes' but no gpg encrypted file found on disk:" "${staking_sk_file}.gpg"
+        say "${RED}ERROR${NC}: 'PROTECT_KEYS=yes' but no gpg encrypted file found on disk:" "log"
+        say "${staking_sk_file}.gpg" "log"
         unset paypassword
         unset poolpassword
-        exit 1
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       }
       echo ""
       getPassword # $password variable populated by getPassword function
       if ! decryptFile "${staking_sk_file}.gpg" "${password}"; then
-        error "Unable to decrypt coldkey sk file" "${staking_sk_file}.gpg"
+        say "${RED}ERROR${NC}: Unable to decrypt coldkey sk file" "log"
+        say "${staking_sk_file}.gpg" "log"
         unset password
         unset paypassword
         unset poolpassword
-        exit 1
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       else
-        [[ ! -f "${staking_sk_file}" ]] && error "staking wallet signing key file not found:" "${staking_sk_file}"
-        encryptFile "${staking_sk_file}" "${password}"  # re-encrypt until we are through UI part
+        # Key successfully decrypted, re-encrypt until we are through UI part
+        encryptFile "${staking_sk_file}" "${password}"
       fi
     fi
 
     staking_vk_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_STAKING_VK_FILENAME}"
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
       [[ ! -f "${staking_vk_file}.gpg" ]] && {
-        error "'PROTECT_KEYS=yes' but no gpg encrypted file found on disk:" "${staking_vk_file}.gpg"
-        exit 1
+        say "${RED}ERROR${NC}: 'PROTECT_KEYS=yes' but no gpg encrypted file found on disk:" "log"
+        say "${staking_vk_file}.gpg" "log"
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       }
       echo ""
       if ! decryptFile "${staking_vk_file}.gpg" "${password}"; then
-        error "Unable to decrypt coldkey sk file" "${staking_vk_file}.gpg"
+        say "${RED}ERROR${NC}: Unable to decrypt colkey vk file" "log"
+        say "${staking_vk_file}.gpg" "log"
         unset password
         unset paypassword
         unset poolpassword
-        exit 1
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       else
-        [[ ! -f "${staking_vk_file}" ]] && error "staking wallet verification key file not found:" "${staking_vk_file}"
-        encryptFile "${staking_vk_file}" "${password}"  # re-encrypt until we are through UI part
+        # Key successfully decrypted, re-encrypt until we are through UI part
+        encryptFile "${staking_vk_file}" "${password}"
       fi
     fi
 
     #Unencrypted Files
     #pay_payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
-    [[ ! -f "${pay_payment_addr_file}" ]] && error "payment address file not found:" "${pay_payment_addr_file}"
+    [[ ! -f "${pay_payment_addr_file}" ]] && {
+      say "${RED}ERROR${NC}: payment address file not found:" "log"
+      say "${pay_payment_addr_file}" "log"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    }
 
     #staking_addr_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_STAKING_ADDR_FILENAME}"
-    [[ ! -f "${staking_addr_file}" ]] && error "staking address file not found:" "${staking_addr_file}"
+    [[ ! -f "${staking_addr_file}" ]] && {
+      say "${RED}ERROR${NC}: staking address file not found:" "log"
+      say "${staking_addr_file}" "log"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    }
 
     pool_vrf_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_VK_FILENAME}"
-    [[ ! -f "${pool_vrf_vk_file}" ]] && error "pool vrf vk file not found:" "${pool_vrf_vk_file}"
+    [[ ! -f "${pool_vrf_vk_file}" ]] && {
+      say "${RED}ERROR${NC}: pool vrf vk file not found:" "log"
+      say "${pool_vrf_vk_file}" "log"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    }
 
     #Encrypted Files
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
@@ -1086,7 +1151,16 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
           ! decryptFile "${pay_payment_sk_file}.gpg" "${paypassword}" || \
           ! decryptFile "${staking_vk_file}.gpg" "${password}" || \
           ! decryptFile "${staking_sk_file}.gpg" "${password}"; then
-        error "failure during key decryption!"
+        say "${RED}ERROR${NC}: failure during key decryption!" "log"
+        say "${ORANGE}Please make sure all of these keys are encrypted for wallet ${wallet_name} and pool ${pool_name}, else manually re-encrypt!${NC}"
+        say "File should have extension .gpg"
+        say "${pool_coldkey_vk_file}.gpg" "log"
+        say "${pool_coldkey_sk_file}.gpg" "log"
+        say "${pay_payment_sk_file}.gpg" "log"
+        say "${staking_vk_file}.gpg" "log"
+        say "${staking_sk_file}.gpg" "log"
+        # No need to continue as we failed to decrypt some of the files
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
     fi
     ##pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
@@ -1099,8 +1173,6 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
     pool_pledgecert_file="${POOL_FOLDER}/${pool_name}/${POOL_PLEDGECERT_FILENAME}"
 
-
-
     say "-- creating registration cert --" "log"
     ${CCLI} shelley stake-pool registration-certificate --stake-pool-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge $(( pledgeada * 1000000 )) --pool-cost $(( costada * 1000000 )) --pool-margin ${margin} --reward-account-verification-key-file "${staking_vk_file}" --pool-owner-staking-verification-key "${staking_vk_file}" --out-file "${pool_regcert_file}"
     say "-- creating delegation cert --" "log"
@@ -1108,7 +1180,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
     say "-- Sending transaction to chain --" "log"
 
     if ! registerPoolAndRewardAndPledge "$(cat ${pay_payment_addr_file})" "${pool_coldkey_sk_file}" "${staking_sk_file}" "${pool_regcert_file}" "${pool_pledgecert_file}" "${pay_payment_sk_file}"; then
-      error "failure during pool registration, removing newly created pledge and registration files"
+      say "${RED}ERROR${NC}: failure during pool registration, removing newly created pledge and registration files" "log"
       rm -f "${pool_regcert_file}" "${pool_pledgecert_file}"
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
         if ! encryptFile "${pool_coldkey_vk_file}" "${poolpassword}" || \
@@ -1116,10 +1188,17 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
             ! encryptFile "${pay_payment_sk_file}" "${paypassword}" || \
             ! encryptFile "${staking_vk_file}" "${password}" || \
             ! encryptFile "${staking_sk_file}" "${password}"; then
-          error "failure during key encryption!"
+          say "${RED}ERROR${NC}: failure during key encryption!" "log"
+          say "${ORANGE}Please make sure all of these keys are encrypted for wallet ${wallet_name} and pool ${pool_name}, else manually re-encrypt!${NC}"
+          say "File should have extension .gpg"
+          say "${pool_coldkey_vk_file}.gpg" "log"
+          say "${pool_coldkey_sk_file}.gpg" "log"
+          say "${pay_payment_sk_file}.gpg" "log"
+          say "${staking_vk_file}.gpg" "log"
+          say "${staking_sk_file}.gpg" "log"
         fi
       fi
-      exit 1
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
 
     # Encrypt keys before we wait for tx to go through
@@ -1129,7 +1208,15 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
           ! encryptFile "${pay_payment_sk_file}" "${paypassword}" || \
           ! encryptFile "${staking_vk_file}" "${password}" || \
           ! encryptFile "${staking_sk_file}" "${password}"; then
-        error "failure during key encryption!"
+        say "${RED}ERROR${NC}: failure during key encryption!" "log"
+        say "${ORANGE}Please make sure all of these keys are encrypted for wallet ${wallet_name} and pool ${pool_name}, else manually re-encrypt!${NC}"
+        say "File should have extension .gpg"
+        say "${pool_coldkey_vk_file}.gpg" "log"
+        say "${pool_coldkey_sk_file}.gpg" "log"
+        say "${pay_payment_sk_file}.gpg" "log"
+        say "${staking_vk_file}.gpg" "log"
+        say "${staking_sk_file}.gpg" "log"
+        read -r -n 1 -s -p "press any key to continue"
       fi
     fi
 
@@ -1141,7 +1228,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       say ""
-      error "Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))" "log"
+      say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))" "log"
       waitNewBlockCreated
       say ""
       say "--- Balance Check Source Address -------------------------------------------------------" "log"
