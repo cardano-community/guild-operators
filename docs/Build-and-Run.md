@@ -1,16 +1,16 @@
 ### Build and Run
 
-This document is built using instructions from [IOHK repositories](https://github.com/input-output-hk) as base with additional info/clarification, which we can propose to add if it makes sense.
+This document is built using instructions from [IOHK repositories](https://github.com/input-output-hk) as a foundation, with additional info/clarification which we can contribute to where appropriate.
 
-**The instructions are intentionally limited to cabal** to avoid wait times/availability of nix/docker/stack.yaml files on what we expect to be rapidly developing codebase - this will also help prevent managing multiple versions of instructions (atleast for now).
+**The instructions are intentionally limited to cabal** to avoid wait times/availability of nix/docker/stack.yaml files on, what we expect to be, a rapidly developing codebase - this will also help prevent managing multiple versions of instructions (at least for now).
 
-Note that the instructions are mainly focused around building Cardano components and OS/thirdparty software (eg: postgres) setup instructions are intended to provide build level information only.
+Note that the instructions are predominantly focused around building Cardano components and OS/3rd-party software (eg: postgres) setup instructions are intended to provide build-level information only.
 
-Ofcourse, we can always add links with specific best practices to those instructions - for those who would like to contribute, please open a PR directly on the [github repo](https://github.com/cardano-community/guild-operators/tree/master/docs) to do so.
+Of course, we can always add links with specific best practices related to those instructions - for those who would like to contribute, please open a PR directly on the [github repo](https://github.com/cardano-community/guild-operators/tree/master/docs) to do so.
 
 #### Docker Builds:
 
-If you would want to go down the docker route, the basic instructions to get you set up with docker itself are below, while the you can follow [IOHK Adrestia documentation](https://input-output-hk.github.io/adrestia/docs/installation/) for latest release information:
+If you would like to go down the Docker route, the basic instructions to get you set up with Docker itself are below. Additionally, you can follow [IOHK Adrestia documentation](https://input-output-hk.github.io/adrestia/docs/installation/) for the latest release information:
 ``` bash
 # CentOS
 sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
