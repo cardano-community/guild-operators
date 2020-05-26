@@ -1,5 +1,5 @@
 #!/bin/bash
-# shellcheck disable=SC1090,SC2086,SC2154
+# shellcheck disable=SC1090,SC2086,SC2154,SC2034
 # ,SC2034,SC2143,SC2046,
 # Creators: gufmar, Scitz0
 # 2020-05-19 cntools initial release (concept)
@@ -841,7 +841,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
     ## TODO: Should we encrypt any more of the keys?
 
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-      trap "rm -rf ${POOL_FOLDER:?}/${pool_name}" INT TERM
+      trap 'rm -rf ${POOL_FOLDER:?}/${pool_name}' INT TERM
       getPassword confirm # $password variable populated by getPassword function
       if ! encryptFile "${pool_coldkey_vk_file}" "${password}" || \
           ! encryptFile "${pool_coldkey_sk_file}" "${password}"; then
@@ -918,10 +918,10 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
       pledgeada="$(cat ${saved_pledge})"
     fi
     echo "" && read -r -p "Pledge in ADA (default: ${pledgeada}): " pledgeenter
-    if [[ ! -z "${pledgeenter}" ]]; then
+    if [[ -n "${pledgeenter}" ]]; then
       pledgeada=$pledgeenter
     fi
-    $(echo "${pledgeada}" > ${saved_pledge})
+    echo "${pledgeada}" > ${saved_pledge}
 
     saved_margin="${POOL_FOLDER}/${pool_name}/${POOL_SAVED_MARGIN_FILENAME}"
     margin=0.07 # default margin
@@ -929,10 +929,10 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
       margin="$(cat ${saved_margin})"
     fi
     echo "" && read -r -p "Margin (default: ${margin}): " marginenter
-    if [[ ! -z "${marginenter}" ]]; then
+    if [[ -n "${marginenter}" ]]; then
       margin=$marginenter
     fi
-    $(echo "${margin}" > ${saved_margin})
+    echo "${margin}" > ${saved_margin}
 
     saved_cost="${POOL_FOLDER}/${pool_name}/${POOL_SAVED_COST_FILENAME}"
     costada=256 # default cost
@@ -940,10 +940,10 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
       costada="$(cat ${saved_cost})"
     fi
     echo "" && read -r -p "Cost in ADA (default: ${costada}): " costenter
-    if [[ ! -z "${costenter}" ]]; then
+    if [[ -n "${costenter}" ]]; then
       costada=$costenter
     fi
-    $(echo "${costada}" > ${saved_cost})
+    echo "${costada}" > ${saved_cost}
 
     say "Select Wallet to pay fees from:"
 		select wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
@@ -953,7 +953,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
     echo ""
 
     if [[ ! -d "${WALLET_FOLDER}/${wallet_name}" ]]; then
-      say "Wallet: ${GREEN}${WALLET_NAME##*/}${NC} "
+      say "Wallet: ${GREEN}${wallet_name##*/}${NC} "
       say "${RED}WARN${NC}: wallet not found"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo ""
@@ -1004,7 +1004,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
     echo ""
 
     if [[ ! -d "${WALLET_FOLDER}/${pledge_wallet_name}" ]]; then
-      say "Wallet: ${GREEN}${WALLET_NAME##*/}${NC} "
+      say "Wallet: ${GREEN}${wallet_name##*/}${NC} "
       say "${RED}WARN${NC}: wallet not found"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo ""
@@ -1130,7 +1130,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 
     say ""
     say "--- Balance Check Source Address -------------------------------------------------------" "log"
-    getBalance $(cat ${pay_payment_addr_file})
+    getBalance "$(cat ${pay_payment_addr_file})"
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       say ""
@@ -1138,10 +1138,10 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
       waitNewBlockCreated
       say ""
       say "--- Balance Check Source Address -------------------------------------------------------" "log"
-      getBalance $(cat ${pay_payment_addr_file})
+      getBalance "$(cat ${pay_payment_addr_file})"
     done
 
-    say "Wallet: ${WALLET_NAME}" "log"
+    say "Wallet: ${wallet_name}" "log"
     say "Payment Address: $(cat ${pay_payment_addr_file})" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
