@@ -12,7 +12,7 @@ Everyone is welcome to contribute to the guide, as well as the repository. Below
 [Priyank](https://github.com/rdlrt)  
 [Psychomb](https://github.com/psychomb)  
 [PegasusPool](https://github.com/PegasusPool)  
-[Matthijs](https://github.com/matthijs_last)  
+[Matthijs](https://github.com/matthijs-aeon)  
 [Marek](https://github.com/mmahut)  
 
 
