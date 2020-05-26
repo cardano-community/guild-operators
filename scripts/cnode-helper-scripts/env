@@ -9,26 +9,3 @@ export CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
 MAGIC=$(jq -r .protocolMagicId < $GENESIS_JSON)
 NWMAGIC=$(jq -r .networkMagic < $GENESIS_JSON)
 SLOT_DURATION=$(jq -r .slotLength < $GENESIS_JSON)
-TIMEOUT_NO_OF_SLOTS=200
-
-getTip() {
-  $CCLI shelley query tip --testnet-magic ${NWMAGIC} | sed -r 's/.*unBlockNo = ([0-9]+).*/\1/'
-}
-waitNewBlockCreated() {
-  COUNTER=${TIMEOUT_NO_OF_SLOTS}
-  echo -e "\nWaiting for new block to be created (timeout = ${COUNTER} slots, $(( COUNTER * SLOT_DURATION ))s)\n"
-  echo -e "Cancel balance check at any time by pressing Ctrl+C, Command+C\n"
-  initialTip=$(getTip)
-  actualTip=${initialTip}
-
-  while [ "${actualTip}" = "${initialTip}" ]; do
-    sleep ${SLOT_DURATION}
-    actualTip=$(getTip)
-    COUNTER=$((COUNTER - SLOT_DURATION))
-    if [ ${COUNTER} -lt ${SLOT_DURATION} ]; then
-      echo -e "\n\n!!!!!! ERROR: Waited $(( TIMEOUT_NO_OF_SLOTS * SLOT_DURATION )) secs and no new block created\n\n"
-      exit 1
-    fi
-  done
-  echo "New block was created - $(getTip)"
-}

@@ -36,6 +36,7 @@ cleanup
 
 # source env
 . "$(dirname $0)"/env
+. "$(dirname $0)"/cntools.library
 
 
 # Handle script arguments
