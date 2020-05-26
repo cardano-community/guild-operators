@@ -39,12 +39,12 @@ while true; do # Main loop
 
 clear
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-echo "   CNTOOLS v0.1                                 Creators: Scitz0[AHL], gufmar[CLIO1]"
+echo "   CNTOOLS                                           A Guild Operators collaboration"
 echo ""
 echo "   1) update"
-echo "   2) wallet  [list|show|remove|decrypt|encrypt]"
+echo "   2) wallet  [new|list|show|remove|decrypt|encrypt]"
 echo "   3) funds   [send|delegate]"
-echo "   4) pool    [register]"
+echo "   4) pool    [new|register]"
 echo "   q) quit"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
@@ -792,15 +792,18 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
   echo ""
   echo "   1) new"
   echo "   2) register"
+  echo "   h) home"
   echo "   q) quit"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   while true; do
-    read -r -n 1 -p "What pool operation would you like to perform? (1): " SUBCOMMAND
+    read -r -n 1 -p "What pool operation would you like to perform? (1-2): " SUBCOMMAND
     echo ""
     case ${SUBCOMMAND:0:1} in
       1) SUBCOMMAND="new" && break
         ;;
       2) SUBCOMMAND="register" && break
+        ;;
+      h) break
         ;;
       q) echo "" && exit
         ;;
