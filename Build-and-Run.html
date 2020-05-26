@@ -152,12 +152,12 @@
                 <div id="content" class="content">
                     <main>
                         <h3><a class="header" href="#build-and-run" id="build-and-run">Build and Run</a></h3>
-<p>This document is built using instructions from <a href="https://github.com/input-output-hk">IOHK repositories</a> as base with additional info/clarification, which we can propose to add if it makes sense.</p>
-<p><strong>The instructions are intentionally limited to cabal</strong> to avoid wait times/availability of nix/docker/stack.yaml files on what we expect to be rapidly developing codebase - this will also help prevent managing multiple versions of instructions (atleast for now).</p>
-<p>Note that the instructions are mainly focused around building Cardano components and OS/thirdparty software (eg: postgres) setup instructions are intended to provide build level information only.</p>
-<p>Ofcourse, we can always add links with specific best practices to those instructions - for those who would like to contribute, please open a PR directly on the <a href="https://github.com/cardano-community/guild-operators/tree/master/docs">github repo</a> to do so.</p>
+<p>This document is built using instructions from <a href="https://github.com/input-output-hk">IOHK repositories</a> as a foundation, with additional info/clarification which we can contribute to where appropriate.</p>
+<p><strong>The instructions are intentionally limited to cabal</strong> to avoid wait times/availability of nix/docker/stack.yaml files on, what we expect to be, a rapidly developing codebase - this will also help prevent managing multiple versions of instructions (at least for now).</p>
+<p>Note that the instructions are predominantly focused around building Cardano components and OS/3rd-party software (eg: postgres) setup instructions are intended to provide build-level information only.</p>
+<p>Of course, we can always add links with specific best practices related to those instructions - for those who would like to contribute, please open a PR directly on the <a href="https://github.com/cardano-community/guild-operators/tree/master/docs">github repo</a> to do so.</p>
 <h4><a class="header" href="#docker-builds" id="docker-builds">Docker Builds:</a></h4>
-<p>If you would want to go down the docker route, the basic instructions to get you set up with docker itself are below, while the you can follow <a href="https://input-output-hk.github.io/adrestia/docs/installation/">IOHK Adrestia documentation</a> for latest release information:</p>
+<p>If you would like to go down the Docker route, the basic instructions to get you set up with Docker itself are below. Additionally, you can follow <a href="https://input-output-hk.github.io/adrestia/docs/installation/">IOHK Adrestia documentation</a> for the latest release information:</p>
 <pre><code class="language-bash"># CentOS
 sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 sudo yum install https://download.docker.com/linux/centos/7/x86_64/stable/Packages/containerd.io-1.2.6-3.3.el7.x86_64.rpm
