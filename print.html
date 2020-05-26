@@ -83,7 +83,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="architecture.html">Architecture</a></li><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Common.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="rest.html">REST</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-Node-Genesis.html">Set up node as member of Genesis</a></li><li class="chapter-item expanded "><a href="Setup-Node.html">Set up node as pool operator</a></li><li class="chapter-item expanded "><a href="monitoring.html">Set up monitoring using Prometheus and Grafana</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="cntools.html">CNTools</a></li><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="postgres.html">Sample Postgres Setup</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="architecture.html">Architecture</a></li><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Common.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="rest.html">REST</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-Node-Genesis.html">Set up node as member of Genesis</a></li><li class="chapter-item expanded "><a href="Setup-Node.html">Set up node as pool operator</a></li><li class="chapter-item expanded "><a href="monitoring.html">Set up monitoring using Prometheus and Grafana</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="cntools.html">CNTools</a></li><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li><li class="chapter-item expanded "><a href="Staking/Main.html">Guide to the Staking</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Staking/Keys.html">Keys</a></li><li class="chapter-item expanded "><a href="Staking/Addresses.html">Addresses</a></li><li class="chapter-item expanded "><a href="Staking/Certificates.html">Certificates</a></li><li class="chapter-item expanded "><a href="Staking/StakeHolders.html">StakeHolders</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="Staking/Owners.html">Owners</a></li><li class="chapter-item "><a href="Staking/Operators.html">Operators</a></li><li class="chapter-item "><a href="Staking/Delegates.html">Delegates</a></li></ol></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="postgres.html">Sample Postgres Setup</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -638,6 +638,691 @@ Usage: sendADA.sh &lt;Destination Address&gt; &lt;Amount&gt; &lt;Source Address&
   Source Address        Address or path to Address file.
   Source Sign Key       Path to Signature (skey) file. For staking address payment skey is to be used.
   --include-fee         Optional argument to specify that amount to send should be reduced by fee instead of payed by sender.
+</code></pre>
+<h1><a class="header" href="#shelley-staking" id="shelley-staking">Shelley Staking</a></h1>
+<p>This guide's chapter targets the pool operators for getting their head around of Shelley staking.
+To fully understand the staking mechanism we need to define and interpret the following key concepts:</p>
+<ul>
+<li>What are the <a href="Staking/./Keys.html">keys</a></li>
+<li>What are the <a href="Staking/./Addresses.html">addresses</a></li>
+<li>What are the <a href="Staking/./Certificates.html">certificates</a> and </li>
+<li>Who are the <a href="Staking/./StakeHolders.html">stake holders</a> that are participanting in staking.</li>
+</ul>
+<h2><a class="header" href="#keys-addresses-and-certifications" id="keys-addresses-and-certifications">Keys, Addresses and Certifications</a></h2>
+<p>The following picture helps to understand the relations between keys, addresses and certificates.</p>
+<p><img src="https://user-images.githubusercontent.com/1113398/82848496-08549500-9f37-11ea-92cc-701a05e3bd74.png" alt="ShelleyKeyAndAddresses" /></p>
+<h2><a class="header" href="#key-types-and-their-functions" id="key-types-and-their-functions">Key Types and their functions</a></h2>
+<p>Keys are just simply asymmetric cryptography key pairs (private/public, signing/verifying) that are used for signing and validating payments and staking related certificates and identifying,  defining addresses on the Cardano blockchain.</p>
+<p>As it can be seen in the picture there are two main type of keys in Shelley:</p>
+<ul>
+<li><strong>Node keys</strong> and</li>
+<li><strong>Address keys</strong>.</li>
+</ul>
+<p>The node keys are relevant to the security of the blockchain while the address keys are relevant to the functions of the addresses derived from the keys for identifying funds on the blockchain.
+See details below and above in the picture.</p>
+<ol>
+<li>Node Keys
+<ul>
+<li>Operator/operatioanl key: operator's offline key pair with cert counter for new  certificates. </li>
+<li>Hot KES key: operator's hot KES key pair.</li>
+<li>Block signing key: operational VRF key pair, it participates in the &quot;lottery&quot; i.e. right to create and sign the block for the specific slot.</li>
+</ul>
+</li>
+<li>Address (Payment, Staking etc.) keys
+<ul>
+<li>Payment key: single address key pair (usually for generating UtxO addresses)</li>
+<li>Staking key: stake/reward address key pair (usually generating account/reward addresses)</li>
+</ul>
+</li>
+</ol>
+<h2><a class="header" href="#addresses-and-their-functions" id="addresses-and-their-functions">Addresses and their functions</a></h2>
+<p>The addresses, as of now, are just a simple <code>blake2b-256</code> hash of the relevant veryifying/public keys contatenated with some metadata that are or can be stored on the <code>Cardano</code> blockchain. </p>
+<blockquote>
+<p>Addresses in this context are only relevant to the ledger specification and not to any wallet addresses.
+So, the wallets <code>m/44'/1852'/0'/{0,1,2}</code> <code>bech32</code> addresses (e.g. <code>ca1hg9...</code>) are irrelevant here.</p>
+</blockquote>
+<p>Currently there are three main type of addresses and a reserved <em>address space</em> for future use:</p>
+<ol>
+<li><strong>Payment addresses</strong>: 
+<ul>
+<li>base addresses (can participate in staking, a.k.a goup addresses in ITN jorm terminology)</li>
+<li>pointer addresses (need to check whether it can or cannot participate in staking)</li>
+<li>enterprise addresses (cannot participate in staking a.k.a UtxO address)</li>
+</ul>
+</li>
+<li><strong>Reward addresses</strong>: Reward/account addresses (can participate in staking)</li>
+<li><strong>Byron addresses</strong>: The legacy addresses, for backward compatibility (cannot participate in staking)</li>
+<li><strong>Future addresses</strong>: possible 5 main /w 16 subtypes or 80 additional address types)</li>
+</ol>
+<p>Therefore addresses, in Cardano Shelley (only in Haskell code), are some serialised data specified in the ledger specification that are stored in the blockhain's blocks (e.g. an UtxO address).</p>
+<p>The serialised data (address) contains two parts the <strong>metadata</strong> and <strong>payload</strong> (i.e. <code>address = metadata + payload</code>): </p>
+<ul>
+<li>metadata: is for interpreting the</li>
+<li>payload: the raw or encoded bytes. For example the verifying/public keys or their hashes or even scripts (e.g. plutus smart contract) hashes.</li>
+</ul>
+<p><em>Therefore, in layman definition (by removing some complexity for easy understanding): 
+<strong>Addresses are serialised public/verifying keys</strong></em> </p>
+<p>See,the <a href="https://github.com/input-output-hk/cardano-ledger-specs/blob/master/shelley/chain-and-ledger/executable-spec/cddl-files/shelley.cddl#L66">detailed address specification here</a>.</p>
+<blockquote>
+<p>Pls, keep in mind, that it does not mean that the specification is currently is used, implemented and/or finalised.</p>
+</blockquote>
+<h2><a class="header" href="#certificates" id="certificates">Certificates</a></h2>
+<p>Shelley's PoS protocol requires different certificates posted to the blockhain; which will be pulbicyl available for all participants. Those are valids until explicitly overwritten or revoked.</p>
+<p>There are four main type of certificates are in Shelley:</p>
+<ol>
+<li>Operational key certificates (<strong>off chain</strong>),</li>
+<li>Stake Key registration certificates (<strong>on chain</strong>),</li>
+<li>Delegation certificates (<strong>on chain</strong>) and</li>
+<li>Stake pool certificates (<strong>on chain</strong>).</li>
+</ol>
+<h3><a class="header" href="#operational-key-certificates" id="operational-key-certificates">Operational key certificates</a></h3>
+<p>The <code>operational key certificate</code>'s is created from a <code>staking key</code>
+used by stake pool operators for protecting their pool(s) and keys, signing bocke, participating in the lottery and not for delegating staking rights.
+This certificate needs for operating a node as a stake pool. </p>
+<p>See <a href="Staking/./Operators.html#run-a-node-with-operational-key-certificate">detailed example here</a></p>
+<h3><a class="header" href="#stake-key-registration-certificates" id="stake-key-registration-certificates">Stake Key registration certificates</a></h3>
+<p>All participants, who want to participate in staking, need to register a <strong>stake key</strong> on the blockchain by posting a <strong>stake key registration certificate</strong>. The registration requires a key deposit specified in the genesis (400K lovelace for FnF), but do not require any <code>signature</code> signed by the corresponding <code>stake signing key</code>.</p>
+<p>The registration is revoked when a de-registration certificate signed by the account's <code>stake signing key</code> is posted to the blockchain, causing the account to be deleted (<strong>Ask what is the impact of this</strong>).</p>
+<p>See <a href="Staking/./Operators.html#create-stake-key-registration-certificate">detailed example here</a></p>
+<h3><a class="header" href="#delegation-certificates" id="delegation-certificates">Delegation certificates</a></h3>
+<p>Delegation certificates uses a <code>staking key</code> to grant the right to sign blocks to another key. </p>
+<p>See <a href="Staking/./Operators.html#create-the-stake-owners-delegation-certificate">detailed example here</a></p>
+<h3><a class="header" href="#stake-pool-certificates" id="stake-pool-certificates">Stake pool certificates</a></h3>
+<p>A node for operating as a stake pool must post a <code>stake pool registration certificate</code> signed by all the owners' <code>staking signing key</code> and the pool operator's <code>operational signing key</code>. </p>
+<p>To revoke the certificate a <code>stake pool retirement certificate</code> must be posted to the chain signed by <strong>only</strong> the pool's <code>operational signing key</code>.</p>
+<p>No owner(s) is/are required to sign the retirement certificate.</p>
+<p>See <a href="Staking/./Operators.html#run-a-node-with-operational-key-certificate">detailed example here</a></p>
+<h2><a class="header" href="#the-stake-holders" id="the-stake-holders">The Stake Holders</a></h2>
+<p>Tha stake holders in simple words are those who are participating in stakings, namely:</p>
+<ul>
+<li><a href="Staking/./Operators.html">Operators</a>, who operate staking pools,</li>
+<li><a href="Staking/./Owners.html">Owners</a>, who own a pool, in some extent, by pledging their stakes to pools and the</li>
+<li><a href="Staking/./Delegates.html">Delegates</a>, who delegate their staking rights to stake pools.</li>
+</ul>
+<p>For participating in staking, every stake holder must have some form of different type of <code>address keys</code>:</p>
+<ul>
+<li>payment keys, which can or cannot participate in staking and </li>
+<li>staking keys for receiving staking (stake or pool)  rewards.</li>
+</ul>
+<h3><a class="header" href="#owners" id="owners">Owners</a></h3>
+<p>The owners are the stake holders who have some funds deposited and want to own, in some extent, a staking pool. The owner's objectives are the following:</p>
+<ul>
+<li>Create <code>payment key(s)</code> for generating <code>base</code> payment addresses.</li>
+<li>Create <code>stake key(s)</code> for generating  <strong>pool</strong> <code>reward address</code>.</li>
+<li>Create and submit the owner's <code>delegation certificate</code> for pledging.</li>
+</ul>
+<blockquote>
+<p>Note: In this example the operator's stake and payment keys will be used for pledging.
+That means the the <strong>operator</strong> is the <strong>owner</strong>.</p>
+</blockquote>
+<p>See <a href="Staking/./Operators.html">detailed example here</a></p>
+<h3><a class="header" href="#operators" id="operators">Operators</a></h3>
+<p>The operator(s) is/are the stake holder(s) who operating a pools. The operators can define their operational costs in the pool certificate, that can be deducted from the rewards.</p>
+<p>The objectives are the following:</p>
+<ul>
+<li>Understand <strong>off-chain</strong> <code>operational key certificates</code>,</li>
+<li>the required keys and addresses,
+<ul>
+<li><code>payment key(s)</code> for generating <code>base</code> payment addresses,</li>
+<li><code>stake key(s)</code> for generating  <strong>pool</strong> <code>reward address(es)</code>,</li>
+</ul>
+</li>
+<li>the stake address registration process <strong>with</strong> <code>key deposit</code> and</li>
+<li>the stake pool registration procedure /w pledge and other params.</li>
+</ul>
+<p>Detailed steps are:</p>
+<ul>
+<li>Run a node with an <code>operational key certificate</code></li>
+<li>Create stake key registration certificate for registering the operator's stake key (<code>staking.key</code>) on the chain, then</li>
+<li>Create a pool registration certificate for the node to became a stake pool (<code>pool.cert</code>),</li>
+<li>Create a delegation certificate for the owner (operator in our exercise) to delegate its stake as pledge to the newly creating pool (<code>deleg.cert</code>).</li>
+<li>Sends the <strong>on-chain</strong> certificates to the blockchain in one or more transactions.</li>
+</ul>
+<h4><a class="header" href="#run-a-node-with-operational-key-certificate" id="run-a-node-with-operational-key-certificate">Run a node with Operational Key Certificate</a></h4>
+<p>The operational key certificates use an <strong>operational key</strong> (cold) key to grant the right to sign blocks to another key (KES) that will expire after some epochs, that is based on the genesis parameters. </p>
+<p>It uses a similar mechanism to the <code>forward secure signature scheme</code> where the signing key (KES) changes over time period and the end of each time period a new signing key is computed for the next peried and the old one is erased. </p>
+<p>The mechanism used for running a node with <code>operational key certificates</code> are the following: </p>
+<ol>
+<li>KES (Key Evolving Signatures) that creates new (hot) KES keys periodically from the cold key
+<ul>
+<li>Create the cold (offline) key pair,</li>
+<li>Create the hot KES key pairs (periodically), for signing blocks.</li>
+<li>Create the <code>operational key certificate</code></li>
+</ul>
+</li>
+<li>Generate VRF key pair for leader selection (lottery).</li>
+<li>Run stake pool that is using the</li>
+</ol>
+<ul>
+<li>non expired Operational certificate</li>
+<li>non expired KES (hot) signing key</li>
+<li>VRF signing key</li>
+</ul>
+<p>Before the old hot (KES) key pair is expiring, a new <code>operational key certificate</code> needs to be created by using a newly generated hot (KES) key pair and the <strong>off-line</strong> cold signing key.</p>
+<p>In production environment, it is expected that the cold key is generated by some seed generation mechanism (BIP39 or similar) and stored on computer that does not have access to the Internet and when the time arrives, the operational certificates with the hot (KES) key pairs are transferred, by some mechanism (USB stick, air gapped QR etc.) to the stake pool.</p>
+<pre><code class="language-bash"># 1.1 Create cold key pair
+##########################################
+pushd  /opt/cardano/fnf &amp;&amp; mkdir -p ~/cold-keys &amp;&amp; pushd ~/cold-keys || exit 127
+
+# Generate the cold offline key pair
+cardano-cli shelley node key-gen \
+    --verification-key-file cold.vkey \
+    --signing-key-file cold.skey \
+    --operational-certificate-issue-counter cold.counter
+popd
+
+# 1.2 Generate a new hot KES keypair 
+cardano-cli shelley node key-gen-KES --verification-key-file priv/kes.vkey --signing-key-file priv/kes.skey
+
+# 1.3 Generate the ops cert based on 
+# - the `cold signing key`
+# - the hot KES key and
+# - the cold key's counter
+# New periodic cert is based on the new hot KES key.
+# kes-period tells how long the ops cert therefrore the hot KES keys are valid
+#
+cardano-cli shelley node issue-op-cert \
+    --cold-signing-key-file ~/cold-keys/cold.skey \
+    --operational-certificate-issue-counter ~/cold-keys/cold.counter \
+    --hot-kes-verification-key-file priv/kes.vkey \
+    --kes-period 0 \
+    --out-file priv/op.cert
+
+# 2. Generate VRF key pair for leader selection
+#########################################################
+cardano-cli shelley node key-gen-VRF --verification-key-file priv/vrf.vkey --signing-key-file priv/vrf.skey
+
+# 3. Run node /w these new keys generated
+#########################################################
+
+cardano-node run \
+  --config                          files/config.json \
+  --topology                        files/topology.json \
+  --database-path                   db \
+  --socket-path                     sockets/nodes.socket \
+  --shelley-kes-key                 priv/kes.skey \
+  --shelley-vrf-key                 priv/vrf.skey \
+  --shelley-operational-certificate priv/op.cert \
+  --port                            6000 
+
+</code></pre>
+<p>I will use the initial genesis address as input for registering the:</p>
+<ul>
+<li>delegate registration certificate and</li>
+<li>pool registration certificate</li>
+</ul>
+<blockquote>
+<p>Keep in mind the operator also need to have its stake key registered onn the chain.</p>
+</blockquote>
+<h4><a class="header" href="#create-stake-key-registration-certificate" id="create-stake-key-registration-certificate">Create stake key registration certificate</a></h4>
+<p>First we need to create the operator's key in order to register the key on the chain.</p>
+<p>The delegate's <code>staking key</code> needs to be registered on the blockchain in order to participating in staking, which just need a simple transaction using any <code>payment address</code>.</p>
+<blockquote>
+<p>This is the pool operators's stake key, and not the delegate's one. 
+Therefore I prefixed them it differently i.e. <code>staking</code>, to distuinguish between the delegate's (<code>stake</code>) prefix.</p>
+</blockquote>
+<pre><code class="language-bash">mkdir operator &amp;&amp; pushd operator
+
+# Generate the operator's stake keys
+cardano-cli shelley stake-address key-gen --verification-key-file staking.vkey --signing-key-file staking.skey
+
+# crate teh reward (staking) address from the operator's stake keys
+cardano-cli shelley stake-address build --staking-verification-key-file staking.vkey &gt; staking.addr
+
+# Generate the operator's payment keys
+cardano-cli shelley address key-gen --verification-key-file op_pay.vkey --signing-key-file op_pay.skey
+
+# Generate an `enterprise` address for the operator.
+cardano-cli shelley address build --payment-verification-key-file op_pay.vkey &gt; op_pay.addr
+
+# Generate the base address  i.e. compount `enterprise || reward` address
+cardano-cli shelley address build \
+    --payment-verification-key-file op_pay.vkey \
+    --staking-verification-key-file staking.vkey \
+    &gt; base.addr
+</code></pre>
+<p>The next step is creating a stake address registration certificate.</p>
+<p>For registering an <code>stake key</code> on the chain a <code>key deposit1</code> fee must be paid. The amount can be optained from the genesis for the params file e.g.:</p>
+<pre><code class="language-bash">grep keyDep ../params.json
+    &quot;keyDeposit&quot;: 400000,
+</code></pre>
+<p>Generate the operator's stake key registration certificate </p>
+<p>Keep, in mind that the a <code>key registration certificates</code> needs a deposit (<strong>keyDeposit</strong> in genesis) for the costs of tracking the key and the corresponding reward account. Also, it does not require any witness to register the certificate, but only the witness for the fees from the input of the transaction.</p>
+<pre><code class="language-bash"># Keep in mind that this certificates needs a `keyDeposit` specified in the genesis.
+cardano-cli shelley stake-address registration-certificate \
+    --staking-verification-key-file staking.vkey \
+    --out-file staking.cert
+# The certificate contains the `blake2b-256` hash of the stake verifying key
+
+# Calculate the min fee for the following outputs:
+# 1. the base address that will contain the funds for pledge
+# 2. And the change address.
+# Keep in mind just one signing key is required, the paying signing key,
+# as stake key reg cert does not need t obe witnessed
+cardano-cli shelley transaction calculate-min-fee \
+    --tx-in-count 1 \
+    --tx-out-count 2 \
+    --ttl 500000 \
+    --testnet-magic 42 \
+    --signing-key-file /opt/cardano/fnf/addresses/genesis.skey \
+    --certificate staking.cert \
+    --protocol-params-file params.json
+# 
+# runTxCalculateMinFee: 174169
+
+# INPUT will be based on the genesis addres (FROM)
+# but any pay address is fine.
+FROM=&quot;617190446876aed298ee207c6b5a335e832e2169a060b8167ef3ba9caff6fa3393&quot;
+
+cardano-cli shelley query utxo --testnet-magic 42 --address &quot;$FROM&quot;
+#                           TxHash                                 TxIx        Lovelace
+#----------------------------------------------------------------------------------------
+#c85b72ee021915f5a8349209db54a51334ad9dfcec2f0fa2619a707556017bb3     0      499999825831
+
+INPUT=&quot;c85b72ee021915f5a8349209db54a51334ad9dfcec2f0fa2619a707556017bb3#0&quot;
+BALANCE=499999825831
+# The amount will be 400K and I will pladge all of it to the pool
+AMOUNT=400000000000
+KEYDEP=400000
+FEE=174169
+CHANGE=&quot;$FROM+$(( 499999825831 - $FEE - $KEYDEP - $AMOUNT ))&quot;
+
+
+# So, I used the genesis UtxO to move to some staking (group) address and 500K back to it.
+cardano-cli shelley transaction build-raw \
+    --tx-in &quot;$INPUT&quot; \
+    --tx-out $(cat base.addr)+$AMOUNT \
+    --tx-out &quot;$CHANGE&quot; \
+    --ttl 500000 \
+    --fee &quot;$FEE&quot; \
+    --tx-body-file staking-cert.tx \
+    --certificate staking.cert
+
+# Sign it
+cardano-cli shelley transaction sign \
+    --tx-body-file staking-cert.tx \
+    --signing-key-file /opt/cardano/fnf/addresses/genesis.skey \
+    --testnet-magic 42 \
+    --tx-file signed-staking-cert.tx
+
+# Submit it
+cardano-cli shelley transaction submit \
+    --tx-file signed-staking-cert.tx \
+    --testnet-magic 42
+</code></pre>
+<h4><a class="header" href="#create-a-pool-registration--certificate" id="create-a-pool-registration--certificate">Create a pool registration  certificate</a></h4>
+<p>A node needs a <code>pool certificate</code> registered on the blockchain for the operator to became a stake pool (<code>pool.cert</code>),</p>
+<p>Now we have a 400K on the operator's <code>base address</code> and the stake key (<code>staking.key</code>) is registered.</p>
+<pre><code class="language-bash">cardano-cli shelley query utxo --testnet-magic 42 --address $(cat base.addr)
+                           TxHash                                 TxIx        Lovelace
+----------------------------------------------------------------------------------------
+863506d0e7d1afcdb558ac4b021f2e7746f3c3178faecd11e1f0349ded141a74     0      400000000000
+</code></pre>
+<p>In the operator's PoV, for registering a pool, the pool certificate must contain:</p>
+<ul>
+<li>a <code>node operational verifying key</code> a.k.a. <code>cold key</code>, for generating the pool id.</li>
+<li>the <code>VRF verifyig key</code> a.k.a <code>hot key</code>, for lottery, to prove that the node has the right to create and sign a block,</li>
+<li>an operator <code>stake verifying keys</code> for generating the reward address, where the pool rewards would be sent and</li>
+<li>owner's <code>stake verifying keys</code> generating the pledge <code>staking</code> address, that has enough fund for pledging.</li>
+</ul>
+<blockquote>
+<p>Note: the <code>reward account verification key</code> and the <code>owner staking verification key</code> can be the same is, see below example, if the operator is the owner too.</p>
+</blockquote>
+<p>Also, for registering a pool certificate a <code>pool deposit</code> must be paid too.</p>
+<pre><code class="language-bash"># Createing a pools cert with
+# - 400K of the owner's (operator in this example) 400K pledge, 
+# - 1k as cost /w 
+# - 5% margin
+cardano-cli shelley stake-pool registration-certificate \
+    --stake-pool-verification-key-file ~/cold-keys/pool.vkey \
+    --vrf-verification-key-file /opt/cardano/fnf/priv/vrf.vkey \
+    --pool-pledge 400000000000 \
+    --pool-cost 1000000000 \
+    --pool-margin 0.05 \
+    --reward-account-verification-key-file staking.vkey \
+    --pool-owner-staking-verification-key staking.vkey \
+    --out-file pool.cert
+</code></pre>
+<h4><a class="header" href="#create-the-stake-owners-delegation-certificate" id="create-the-stake-owners-delegation-certificate">Create (the stake owner's) delegation certificate</a></h4>
+<p>For <strong>pledging</strong>, the owner (in our example the operator) must create a <code>stake delegation certificate</code> for delegating at least a <code>pledge</code> amount of stake from the owner's <code>staking key</code> specified in the pool certificate.</p>
+<p>In simple words, the owner is delegating its funds (<code>pledge</code>) to the pool he/she owns.</p>
+<pre><code class="language-bash">cardano-cli shelley stake-address delegation-certificate \
+    --staking-verification-key-file staking.vkey \
+    --stake-pool-verification-key-file ~/cold-keys/pool.vkey \
+    --out-file owner-delegation.cert
+</code></pre>
+<h4><a class="header" href="#submit-the-certificate-to-the-chain" id="submit-the-certificate-to-the-chain">Submit the certificate to the chain</a></h4>
+<p>The certificates can be sent in one transaction.</p>
+<blockquote>
+<p>Please, keep in mind that the registering a pool the operator's must pay a (decaying) <code>pool deposit</code> fee.</p>
+</blockquote>
+<pre><code># grep -i poolDeposit params.json
+#  &quot;poolDeposit&quot;: 500000000,
+# or 
+# cardano-cli shelley query  protocol-parameters --testnet-magic 42 | jq '.poolDeposit'
+# 500000000
+
+
+# Calculate the fee for sending the both certificates the
+# - pool registration certificate and the
+# - owner's (in our case the operator's) delegating certificate.
+#
+# Also, it will be paid by my genesis key, but any valid `payment` signing key would do that 
+# has the fee and the deposit
+cardano-cli shelley transaction calculate-min-fee \
+    --tx-in-count 1 \
+    --tx-out-count 1 \
+    --ttl 500000 \
+    --testnet-magic 42 \
+    --signing-key-file /opt/cardano/fnf/addresses/genesis.skey \
+    --signing-key-file staking.skey \
+    --signing-key-file ~/cold-keys/pool.skey \
+    --certificate pool.cert \
+    --certificate owner-delegation.cert \
+    --protocol-params-file ../params.json
+# runTxCalculateMinFee: 184377
+
+FEE=184377
+POOLDEP=500000000
+
+cardano-cli shelley query utxo --testnet-magic 42 --address &quot;$FROM&quot;
+#                           TxHash                                 TxIx        Lovelace
+#----------------------------------------------------------------------------------------
+#863506d0e7d1afcdb558ac4b021f2e7746f3c3178faecd11e1f0349ded141a74     1       99999251662
+
+BALANCE=99999251662
+INPUT=&quot;863506d0e7d1afcdb558ac4b021f2e7746f3c3178faecd11e1f0349ded141a74#1&quot;
+CHANGE=&quot;$FROM+$(( $BALANCE - $FEE - $POOLDEP ))&quot;
+
+# Build
+cardano-cli shelley transaction build-raw \
+     --tx-in &quot;$INPUT&quot; \
+     --tx-out &quot;$CHANGE&quot; \
+     --ttl 500000 \
+     --fee &quot;$FEE&quot; \
+     --tx-body-file pool-cert.tx \
+     --certificate pool.cert \
+     --certificate owner-delegation.cert 
+
+# Sign
+# - the `genesis.skey` needs for signing the payment from the $FROM address.
+# - the `staking.skey` needs for signing the owner's delegation certificate.
+# - the `pool.skey` needs for signing the pool's registration certificate.
+cardano-cli shelley transaction sign \
+    --tx-body-file pool-cert.tx \
+    --signing-key-file /opt/cardano/fnf/addresses/genesis.skey \
+    --signing-key-file staking.skey \
+    --signing-key-file ~/cold-keys/pool.skey \
+    --testnet-magic 42 \
+    --tx-file signed-pool-cert.tx
+
+# Submit:
+cardano-cli shelley transaction submit \
+    --tx-file signed-pool-cert.tx \
+    --testnet-magic 42
+
+</code></pre>
+<p>Done your pool is registered.</p>
+<p>To check it you can you the following command:</p>
+<pre><code class="language-bash"># Get the Pool Id whihc is in the owner-delegation.cert
+POOL_ID=$( tail -1 owner-delegation.cert | cut -c 6- )
+echo $POOL_ID
+# 5820d07e860c52860d92373893b27d6926e6610c925f905eba40d8e930004bf2dc44
+shelley query ledger-state  --testnet-magic 42 | grep &quot;poolPubKey&quot; | grep  &quot;$POOL_ID&quot;
+#                    &quot;_poolPubKey&quot;: &quot;d07e860c52860d92373893b27d6926e6610c925f905eba40d8e930004bf2dc44&quot;,
+</code></pre>
+<h3><a class="header" href="#delegates" id="delegates">Delegates</a></h3>
+<p>The delegates are the stake holders who have some funds deposited and want to participate in staking.
+Therefore the steps for delegating stakes are the following:</p>
+<ul>
+<li>Create <code>stake key(s)</code> for generating the <strong>delegate</strong>'s <code>reward address(es)</code> for collecting their <code>stake rewards</code>.</li>
+<li>Create <code>payment key(s)</code> for generating the <strong>delegate</strong>'s <code>payment address(es)</code> for payments that will participate in stake delegation and also deposititing some funds.</li>
+<li>Register <code>stake address</code> on the blockhain, <strong>with</strong> key deposit, which is required for participatin in staking and </li>
+<li>Create and submit the <strong>stake delegation certificate</strong> for the selected pool.</li>
+</ul>
+<h4><a class="header" href="#create-delegates-staking-keys-and-addresses" id="create-delegates-staking-keys-and-addresses">Create <em>delegate's</em> staking keys and addresses</a></h4>
+<p>Stake address, derived from a <code>stake verification key</code>, is a simple <code>reward (account) address</code> which is not a <code>payment address</code> therefore it cannot be used as an output of a transaction.
+In the <code>cardano-cli</code> they use a CBOR format for preventing it to be added as the input into a transaction.</p>
+<blockquote>
+<p>Keep in mind, that only the <strong>reward</strong> addresses and the <strong>base</strong>_, <strong>pointer</strong> and some <strong>script</strong> (not available yet) addresses can participate in the staking.</p>
+</blockquote>
+<p>First, we need to create the relevant <code>payment</code> and <code>stake</code> keys and the related addresses for the delegate. The payment address for paying the transactions for sending the <code>registration certificate</code> (which is just simply the reward account address in some CBOR encoded format) to the chain.</p>
+<pre><code class="language-bash"># Delegate's staking/acount key, then Staking/Account address
+############################################################
+mkdir delegate &amp;&amp; pushd delegate
+cardano-cli shelley stake-address key-gen --verification-key-file stake.vkey --signing-key-file stake.skey
+
+cardano-cli shelley stake-address build --staking-verification-key-file stake.vkey &gt; stake.addr
+cat stake.addr
+#-------v 32 bytes key starts from here
+8200582032a8c3f17ae5dafc3e947f82b0b418483f0a8680def9418c87397f2bd3d35efb
+# It's a CBOR representation of the vkey
+#82                                      # array(2)
+#   00                                   # unsigned(0)
+#   58 20                                # bytes(32)
+#      32A8C3F17AE5DAFC3E947F82B0B418483F0A8680DEF9418C87397F2BD3D35EFB # 
+# &quot;2\xA8\xC3\xF1z\xE5\xDA\xFC&gt;\x94\x7F\x82\xB0\xB4\x18H?\n\x86\x80\xDE\xF9A\x8C\x879\x7F+\xD3\xD3^\xFB&quot;
+
+
+# Delegates payment key -&gt; payment address (a.k.a legacy UtxO a.k.a enterprise address).
+# Ur use some address that already has some fund on it.
+############################################################
+cardano-cli shelley address build --payment-verification-key-file pay.vkey &gt; pay.addr
+cat pay.addr
+# As a single Shelley UtXO address and (no CBOR repr)
+# header(1) | address(32), so no hash224
+# 0x61 = 0110 0001 || 0x47eb...2907 therefore an UtXO enterprise address
+6147ebc8bf8714dcf6700ac482a5d42624ffca6afb51ae23930ea6591119a12907
+
+####################################################################
+# Generate the delegate's base address (0x01...) from 
+# 1. the `pay.vkey` (used for enterprise address `0x61...`)
+# 2. and from the `stake.key`
+# It's a combination of the payment and reward address, with
+# the 0b0000 0b0001, as a base address prefix
+####################################################################
+cardano-cli shelley address build \
+    --payment-verification-key-file pay.vkey \
+    --staking-verification-key-file stake.vkey \
+    &gt; stake.base
+</code></pre>
+<h4><a class="header" href="#generating-the-staking-key-certificate" id="generating-the-staking-key-certificate">Generating the Staking key certificate</a></h4>
+<pre><code class="language-bash"># First we need to generate the stake address registration
+# certificate using the stake verification key
+############################################################
+cardano-cli shelley stake-address registration-certificate \
+--staking-verification-key-file stake.vkey \
+--out-file stake.cert
+
+cat stake.cert
+cbor-hex:
+ 18b482008200582032a8c3f17ae5dafc3e947f82b0b418483f0a8680def9418c87397f2bd3d35efb
+# 18 B4 # unsigned(180)
+# 
+#82                                      # array(2)
+#   00                                   # unsigned(0)
+#   82                                   # array(2)
+#      00                                # unsigned(0)
+#      58 20                             # bytes(32)
+#         32A8C3F17AE5DAFC3E947F82B0B418483F0A8680DEF9418C87397F2BD3D35EFB  
+# &quot;2\xA8\xC3\xF1z\xE5\xDA\xFC&gt;\x94\x7F\x82\xB0\xB4\x18H?\n\x86\x80\xDE\xF9A\x8C\x879\x7F+\xD3\xD3^\xFB&quot;
+</code></pre>
+<h4><a class="header" href="#registering-the-delegates-staking-key-on-chain" id="registering-the-delegates-staking-key-on-chain">Registering the delegate's staking key on chain</a></h4>
+<p>The delegate's staking key needs to be registered in the blockchain, which just need a simple transaction using any payment address.</p>
+<p>Keep, in mind that the any stake key registration certificates needs a deposit for the costs of tracking the key and the corresponding reward account. Also, it does not require any witness to register the certificate, but only the witness for the fees from the input of the transaction.</p>
+<pre><code class="language-bash"># Get param files
+export CARDANO_NODE_SOCKET_PATH=/opt/cardano/fnf/sockets/node0.socket
+cardano-cli shelley query protocol-parameters \
+--testnet-magic 42 \
+--out-file params.json
+
+# 3. Calc tx fee
+# You need only one singing keys included in fee calculation:
+# 1. the `payment` address signing key of the input
+# as the stake key reg cert does not need witness
+# One UtxO is enough for the change, but I will move some fund from genesis to the delegates address
+FEE=$(cardano-cli shelley transaction calculate-min-fee \
+--protocol-params-file params.json \
+--certificate stake.cert \
+--tx-in-count 1 \
+--tx-out-count 2 \
+--ttl 500000 \
+--testnet-magic 42 \
+--signing-key-file /opt/cardano/fnf/addresses/genesis.skey \
+| awk '{ print $2}')
+
+# I will use the the genesis address as input for paying the fee.
+#################################################################
+FROM=$( cat /opt/cardano/fnf/addresses/genesis.addr )
+# i.e. FROM=617190446876aed298ee207c6b5a335e832e2169a060b8167ef3ba9caff6fa3393
+
+
+TX=$(cardano-cli shelley query utxo --testnet-magic 42 --address &quot;$FROM&quot;  | grep &quot;^[^- ]&quot; | sort -k 2n | tail -1)
+UTXO=$( echo &quot;$TX&quot; | awk '{ print $1 }')
+ID=$( echo &quot;$TX&quot; | awk '{ print $2 }')
+BALANCE=$( echo &quot;$TX&quot; | awk '{ print $3 }')
+INPUT=&quot;${UTXO}#${ID}&quot;
+
+# This 500K ADA amount is going to the delegates UtxO style address for its delegated stakes
+TO=$(cat pay.addr)
+AMOUNT=500000000000
+
+OUTPUT1=&quot;${FROM}+${CHANGE}&quot;
+OUTPUT2=&quot;${TO}+${AMOUNT}&quot;
+# It also needs a key deposit specified in the genesis e.g.
+# grep keyD
+#    &quot;keyDeposit&quot;: 400000,
+#    &quot;keyDecayRate&quot;: 0, Means the key won't decay, i.e. all money will
+# get back when  the key is de0registered from the chain
+KEYDEP=400000
+
+# This means that change will less by 400K Lovelace that will be 
+# probably (need to check) taken by the treasury 
+CHANGE=$(( $BALANCE -  $FEE - $AMOUNT - $KEYDEP ))
+
+echo &quot;Balance: $BALANCE, Amount: &quot;$AMOUNT&quot;,  Change: $CHANGE, runTxCalculateMinFee: $FEE&quot;
+echo &quot;Input  : $INPUT&quot;
+echo &quot;Output1: $OUTPUT1&quot;
+echo &quot;Output2: $OUTPUT2&quot;
+
+# Build
+cardano-cli shelley transaction build-raw \
+	--tx-in &quot;$INPUT&quot; \
+	--tx-out &quot;${FROM}+${CHANGE}&quot; \
+	--tx-out &quot;${TO}+${AMOUNT}&quot; \
+	--ttl 500000 \
+	--fee &quot;$FEE&quot; \
+	--tx-body-file stake-cert-tx
+# Sign
+cardano-cli shelley transaction sign \
+    --tx-body-file stake-cert-tx \
+    --signing-key-file /opt/cardano/fnf/addresses/genesis.skey \
+    --signing-key-file stake.skey \
+    --tx-file stake-cert-tx \
+    --testnet-magic 42
+
+# Submit
+# Wait some minutes
+# Get the stake address
+# cut -c 9-  stake.addr 
+# 32a8c3f17ae5dafc3e947f82b0b418483f0a8680def9418c87397f2bd3d35efb
+STAKE_ADDR=$( cut -c 9-  stake.addr )
+
+# Before 
+export CARDANO_NODE_SOCKET_PATH=/opt/cardano/fnf/sockets/node0.socket 
+cardano-cli shelley query ledger-state  --testnet-magic 42 | grep &quot;$STAKE_ADDR&quot;
+
+
+cardano-cli shelley transaction submit \
+    --tx-file signed-stake-key-registration.tx \
+    --testnet-magic 42
+
+# After 
+cardano-cli shelley query ledger-state  --testnet-magic 42 | grep &quot;$STAKE_ADDR&quot;
+#                        &quot;contents&quot;: &quot;32a8c3f17ae5dafc3e947f82b0b418483f0a8680def9418c87397f2bd3d35efb&quot;
+#                        &quot;contents&quot;: &quot;32a8c3f17ae5dafc3e947f82b0b418483f0a8680def9418c87397f2bd3d35efb&quot;
+#                        &quot;contents&quot;: &quot;32a8c3f17ae5dafc3e947f82b0b418483f0a8680def9418c87397f2bd3d35efb&quot;
+
+# Ready to delegate now.
+</code></pre>
+<h4><a class="header" href="#create-a-delegation-certificate-and-submit-to-the-network" id="create-a-delegation-certificate-and-submit-to-the-network">Create a delegation certificate and submit to the network</a></h4>
+<pre><code class="language-bash"># You can use aither some pool from the google's spreadsheet 
+echo &quot;type: Node operator verification key
+title: Stake pool operator key
+cbor-hex:
+ 5820&lt;the 32 bytes length of the pool's operational verification key from the google sheet without the 5820 CBOR tag.&gt;
+ &quot; &gt; pool.vkey
+
+# or delegate to your own pool by getting its `operational verifycation key` (the cold key)
+# !! BE AWARE!! that the `stake.key` must have been already registered on the chain.
+cardano-cli shelley stake-address delegation-certificate \
+    --staking-verification-key-file stake.vkey \
+    --stake-pool-verification-key-file ~/cold-keys/pool.vkey \
+    --out-file pool-delegation.cert
+
+####################################################################
+####################################################################
+
+# Calculate the minimum fee.
+cardano-cli shelley transaction calculate-min-fee \
+    --tx-in-count 1 \
+    --tx-out-count 1 \
+    --ttl 500000 \
+    --testnet-magic 42 \
+    --signing-key-file pay.skey \
+    --signing-key-file stake.skey \
+    --certificate pool-delegation.cert \
+    --protocol-params-file params.json
+# runTxCalculateMinFee: 172805
+FEE=172805
+# Get the intput and balance
+cardano-cli shelley query utxo --testnet-magic 42 --address $(cat stake.base)
+#                           TxHash                                 TxIx        Lovelace
+#----------------------------------------------------------------------------------------
+#1c089abfd6d56c73ac57aa94c403991041a383956f1f8fd4141a8e03a678a24c     0      499999260330
+
+INPUT=&quot;1c089abfd6d56c73ac57aa94c403991041a383956f1f8fd4141a8e03a678a24c#0&quot;
+BAL=499999260330
+CHANGE=$(( $BAL - $FEE))
+# The new `base address`
+OUTPUT=&quot;$( cat stake.base)+$CHANGE&quot;
+
+# Build
+# Input: Your `base` payment address e.g. `stake.base` with &quot;0x01....&quot;
+# Output: change back to the base address.
+cardano-cli shelley transaction build-raw \
+     --tx-in &quot;$INPUT&quot; \
+     --tx-out &quot;$OUTPUT&quot; \
+     --ttl 500000 \
+     --fee &quot;$FEE&quot; \
+     --tx-body-file pool-delegation.tx \
+     --certificate pool-delegation.cert
+
+# Sign
+# You need 2 signing keys
+# 1. the `pay.skey` for wittness the input and
+# 2. the `staking signing key` for signing the delegation certificate.
+cardano-cli shelley transaction sign \
+    --tx-body-file pool-delegation.tx \
+    --signing-key-file stake.skey \
+    --signing-key-file pay.skey \
+    --testnet-magic 42 \
+    --tx-file signed-pool-delegation.tx
+
+# Before
+
+# Submit:
+cardano-cli shelley transaction submit \
+    --tx-file signed-pool-delegation.tx \
+    --testnet-magic 42
+
+# Done As less money is there.
+# you need to wait two epochs to be receiving rewards
+cardano-cli shelley query utxo --testnet-magic 42 --address $(cat stake.base)
+#                           TxHash                                 TxIx        Lovelace
+#----------------------------------------------------------------------------------------
+#ba544d056f94e559076c0c7a0406f37ed7182a6d0fdc0cf2569498353f9dd797     0      499999087525
+
 </code></pre>
 <h3><a class="header" href="#welcome-1" id="welcome-1">Welcome!!</a></h3>
 <p>This documentation (rather the repository itself) is created by some of the community members and serves as an easy means to add documentation or scripts that makes more sense to users. The target audience for this document are mainly experienced stake pool operators.</p>
