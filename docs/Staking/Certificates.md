@@ -14,7 +14,7 @@ The `operational key certificate`'s is created from a `staking key`
 used by stake pool operators for protecting their pool(s) and keys, signing bocke, participating in the lottery and not for delegating staking rights.
 This certificate needs for operating a node as a stake pool. 
 
-See [detailed examaple here](./Operators.md#run-a-node-with-operational-key-certificate)
+See [detailed example here](./Operators.md#run-a-node-with-operational-key-certificate)
 
 
 ### Stake Key registration certificates
