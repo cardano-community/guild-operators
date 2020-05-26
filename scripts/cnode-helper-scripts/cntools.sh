@@ -60,7 +60,7 @@ while true; do # Home menu
       ;;
     4) OPERATION="pool" && break
       ;;
-    q) echo "" && exit
+    q) clear && exit
       ;;
     *) say ">>> Invalid Selection"
       ;;
@@ -163,7 +163,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
         ;;
       h) break
         ;;
-      q) echo "" && exit
+      q) clear && exit
         ;;
       *) say ">>> Invalid Selection"
         ;;
@@ -195,7 +195,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
           ;;
         h) break
           ;;
-        q) echo "" && exit
+        q) clear && exit
           ;;
         *) say ">>> Invalid Selection"
           ;;
@@ -285,9 +285,11 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
           exit 1
         fi
       fi
+      
+      payment_addr="$(cat ${payment_addr_file})"
 
       # Register on chain
-      if ! registerStaking "$(cat ${payment_addr_file})" "${payment_sk_file}" "${staking_sk_file}" "${staking_cert_file}"; then
+      if ! registerStaking "${payment_addr}" "${payment_sk_file}" "${staking_sk_file}" "${staking_cert_file}"; then
         error "failure during staking key registration, removing newly created staking keys"
         rm -f "${staking_vk_file}" "${staking_sk_file}" "${staking_addr_file}" "${staking_cert_file}"
         [[ "${PROTECT_KEYS}" = "yes" ]] && encryptFile "${payment_sk_file}" "${password}"
@@ -308,7 +310,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 
       say ""
       say "--- Balance Check Source Address -------------------------------------------------------" "log"
-      getBalance ${sAddr}
+      getBalance "${payment_addr}"
 
       while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
         say ""
@@ -316,7 +318,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
         waitNewBlockCreated
         say ""
         say "--- Balance Check Source Address -------------------------------------------------------" "log"
-        getBalance ${sAddr}
+        getBalance "${payment_addr}"
       done
 
       say "Wallet: ${wallet_name}" "log"
@@ -346,13 +348,14 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 				say "Balance:"
         getBalance ${payment_addr_file}
         echo ""
-        if [ -f "${wallet_folder_name}${WALLET_STAKING_ADDR_FILENAME}" ]; then
-          staking_addr_file=$(cat "${wallet_folder_name}${WALLET_STAKING_ADDR_FILENAME}")
-          say "Reward Address:  ${staking_addr_file}"
-          say "Balance:"
-          getBalance ${staking_addr_file}
-          echo ""
-        fi
+        # TODO - Can reward address be listed?
+        #if [ -f "${wallet_folder_name}${WALLET_STAKING_ADDR_FILENAME}" ]; then
+        #  staking_addr_file=$(cat "${wallet_folder_name}${WALLET_STAKING_ADDR_FILENAME}")
+        #  say "Reward Address:  ${staking_addr_file}"
+        #  say "Balance:"
+        #  getBalance ${staking_addr_file}
+        #  echo ""
+        #fi
 			else
         echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 				say "Wallet: ${GREEN}${wallet_name##*/}${NC} "
@@ -387,13 +390,14 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 			say "Balance:"
       getBalance ${payment_addr}
 			echo ""
-      if [ -f "${staking_addr_file}" ]; then
-        staking_addr=$(cat "${staking_addr_file}")
-        say "Reward Address:  ${staking_addr}"
-        say "Balance:"
-        getBalance ${staking_addr}
-        echo ""
-      fi
+      # TODO - Can reward address be listed?
+      #if [ -f "${staking_addr_file}" ]; then
+      #  staking_addr=$(cat "${staking_addr_file}")
+      #  say "Reward Address:  ${staking_addr}"
+      #  say "Balance:"
+      #  getBalance ${staking_addr}
+      #  echo ""
+      #fi
 		else
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 			say "Wallet: ${GREEN}${wallet_name##*/}${NC} "
@@ -618,7 +622,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
         ;;
       h) break
         ;;
-      q) echo "" && exit
+      q) clear && exit
         ;;
       *) say ">>> Invalid Selection"
         ;;
@@ -805,7 +809,7 @@ echo "" && read -r -n 1 -s -p "press any key to return to home menu"
         ;;
       h) break
         ;;
-      q) echo "" && exit
+      q) clear && exit
         ;;
       *) say ">>> Invalid Selection"
         ;;
