@@ -824,8 +824,8 @@ case $OPERATION in
     echo ""
 
     say "Select Wallet to Delegate from:"
-    select delegate_wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-      test -n "${delegate_wallet_name}" && break
+    select wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
+      test -n "${wallet_name}" && break
       say ">>> Invalid Selection (ctrl+c to quit)"
     done
     echo ""
@@ -835,10 +835,10 @@ case $OPERATION in
       walletpassword=$password # save for later
       echo ""
     fi
-    staking_sk_file="${WALLET_FOLDER}/${delegate_wallet_name}/${WALLET_STAKING_SK_FILENAME}"
-    staking_vk_file="${WALLET_FOLDER}/${delegate_wallet_name}/${WALLET_STAKING_VK_FILENAME}"
-    pay_payment_addr_file="${WALLET_FOLDER}/${delegate_wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
-    pay_payment_sk_file="${WALLET_FOLDER}/${delegate_wallet_name}/${WALLET_PAY_SK_FILENAME}"
+    staking_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKING_SK_FILENAME}"
+    staking_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKING_VK_FILENAME}"
+    pay_payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
+    pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
     if [[ ! -f "${pay_payment_addr_file}" ]]; then
       say "${RED}ERROR${NC}: 'Source wallet address file not found:" "log"
       say "${pay_payment_addr_file}" "log"
@@ -863,23 +863,23 @@ case $OPERATION in
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
       if ! decryptFile "${pool_coldkey_vk_file}.gpg" "${password}"; then
         say "${RED}ERROR${NC}: failure during pool cold key decryption!" "log"
-        unset password poolpassword
+        unset password walletpassword
         # No need to continue as we failed to decrypt some of the files
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-      elif ! decryptFile "${pay_payment_sk_file}.gpg" "${password}" || \
-          ! decryptFile "${staking_vk_file}.gpg" "${password}" || \
-          ! decryptFile "${staking_sk_file}.gpg" "${password}"; then
+      elif ! decryptFile "${pay_payment_sk_file}.gpg" "${walletpassword}" || \
+          ! decryptFile "${staking_vk_file}.gpg" "${walletpassword}" || \
+          ! decryptFile "${staking_sk_file}.gpg" "${walletpassword}"; then
         say "${RED}ERROR${NC}: Pool decryption successful but failure during wallet key decryption!" "log"
         say "re-encrypting pool cold key"
-        encryptFile "${pool_coldkey_vk_file}" "${poolpassword}"
-        unset password poolpassword
+        encryptFile "${pool_coldkey_vk_file}" "${password}"
+        unset password walletpassword
         # No need to continue as we failed to decrypt some of the files
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
     fi
     
     #Generated Files
-    delegation_cert_file="${WALLET_FOLDER}/${delegate_wallet_name}/${WALLET_DELEGCERT_FILENAME}"
+    delegation_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DELEGCERT_FILENAME}"
 
     say "-- creating delegation cert --" "log"
     ${CCLI} shelley stake-address delegation-certificate --staking-verification-key-file "${staking_vk_file}" --stake-pool-verification-key-file "${pool_coldkey_vk_file}" --out-file "${delegation_cert_file}"
