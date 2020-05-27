@@ -25,8 +25,9 @@ Execute cntools.sh without any arguments to run the tool.
 Main Menu
 ``` bash
 ./cntools.sh
+ >> CNTOOLS <<                                       A Guild Operators collaboration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   CNTOOLS                                           A Guild Operators collaboration
+   Main Menu
 
    1) update
    2) wallet  [new|list|show|remove|decrypt|encrypt]
