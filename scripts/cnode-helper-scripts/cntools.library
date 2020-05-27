@@ -28,8 +28,8 @@ log() {
 # Examples of Usage:
 #   >> say "Some message"
 say() {
-	echo -e "$1"
-	if [[ $2 = "log" ]]; then 
+  echo -e "$1"
+  if [[ $2 = "log" ]]; then 
     log "$1"
   fi
 }
@@ -42,7 +42,7 @@ say() {
 # Examples of Usage:
 #   >> need_cmd "jq"
 need_cmd() {
-	if ! command -v "$1" > /dev/null 2>&1; then
+  if ! command -v "$1" > /dev/null 2>&1; then
     say "${RED}ERROR${NC}: need '$1' (command not found)" "try 'sudo apt install $1'" "log"
   fi
 }
@@ -104,11 +104,12 @@ encryptFile() {
 # Examples of Usage:
 #   >> decryptFile "$CNODE_HOME/priv/wallet/MyWallet/SigningKeyShelley.skey"
 decryptFile() {
-  echo "${2}" | gpg --decrypt --batch --yes --passphrase-fd 0 --output "${1%.*}" "${1}" >/dev/null 2>&1 && \
+  echo "${2}" | gpg --decrypt --batch --yes --passphrase-fd 0 --output "${1%.*}" "${1}" >/dev/null && \
   rm -f "${1}" || {
     say "${RED}ERROR${NC}: failed to decrypt ${1}" "log"
     return 1
   }
+  echo ""
 }
 
 
