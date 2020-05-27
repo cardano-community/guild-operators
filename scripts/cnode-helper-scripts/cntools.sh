@@ -400,13 +400,21 @@ case $OPERATION in
         getBalance ${payment_addr_file}
         echo ""
         # TODO - Can reward address be listed?
-        #if [ -f "${wallet_folder_name}${WALLET_STAKING_ADDR_FILENAME}" ]; then
+        # if [ -f "${wallet_folder_name}${WALLET_STAKING_ADDR_FILENAME}" ]; then
         #  staking_addr_file=$(cat "${wallet_folder_name}${WALLET_STAKING_ADDR_FILENAME}")
         #  say "Reward Address:  ${staking_addr_file}"
         #  say "Balance:"
         #  getBalance ${staking_addr_file}
         #  echo ""
-        #fi
+        # fi
+        if [ -f "${wallet_folder_name}${WALLET_STAKEPAY_ADDR_FILENAME}" ]; then
+         staking_addr_file=$(cat "${wallet_folder_name}${WALLET_STAKEPAY_ADDR_FILENAME}")
+         say "Staking Address:  ${staking_addr_file}"
+         say "Balance:"
+         getBalance ${staking_addr_file}
+         echo ""
+        fi
+
       else
         say "Wallet: ${GREEN}${wallet_name##*/}${NC} "
         say "${RED}WARN${NC}: missing wallet address file:"
