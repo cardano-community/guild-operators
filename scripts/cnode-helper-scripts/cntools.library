@@ -7,27 +7,17 @@
 
 # Assumes that env has been sourced by calling script
 
-# Command    : error [message] [optional:message2 ...]
-# Description: Print error message and return 1
-#              each argument creates a separate row
-# Parameters : message   >   The error message
-# Return     : error message on STDERR and return with code 1
+# Command    : log [message]
+# Description: Log message to file if activated in config
+#              message is NOT outputed to STDOUT
+# Parameters : message   >   The message
+# Return     : null
 # Examples of Usage:
-#   >> error "Some error message"
-error() {
-  i=0
-  for message in "$@"; do
-    if [[ ${i} -eq 0 ]]; then
-      >&2 echo -e "Error: ${message}"
-    else
-      >&2 echo -e "${message}"
-    fi
-    if [[ "${CNTOOLS_LOG}" != "" ]]; then
-      echo "$(date -Iseconds) - ERROR: ${message}" >> ${CNTOOLS_LOG}
-    fi
-    ((i++))
-  done
-  return 1
+#   >> log "Some log message"
+log() {
+  if [[ "${CNTOOLS_LOG}" != "" ]]; then
+    echo "$(date -Iseconds) : ${message}" >> ${CNTOOLS_LOG}
+  fi
 }
 
 
@@ -39,9 +29,9 @@ error() {
 #   >> say "Some message"
 say() {
 	echo -e "$1"
-	if [[ $2 == "log" && "${CNTOOLS_LOG}" != "" ]]; then
-		echo "$(date -Iseconds) - INFO: $1" >> ${CNTOOLS_LOG}
-	fi
+	if [[ $2 = "log" ]]; then 
+    log "$1"
+  fi
 }
 
 
@@ -53,7 +43,7 @@ say() {
 #   >> need_cmd "jq"
 need_cmd() {
 	if ! command -v "$1" > /dev/null 2>&1; then
-    error "WARN: need '$1' (command not found)" "try 'sudo apt install $1'"
+    say "${RED}ERROR${NC}: need '$1' (command not found)" "try 'sudo apt install $1'" "log"
   fi
 }
 
@@ -69,20 +59,20 @@ getPassword() {
     say "Enter key password (length >= 8)"
     password=$(systemd-ask-password "Password:")
     if [ ${#password} -lt 8 ]; then
-      error "password length too short, please use a minimum of 8 characters."
+      say "${RED}ERROR${NC}: password length too short, please use a minimum of 8 characters."
       continue
     fi
     if [[ "$1" = "confirm" ]]; then
       local checkPassword=$(systemd-ask-password "Confirm: ")
       if [[ "${password}" != "${checkPassword}" ]]; then
         say ""
-        error "password missmatch, please retry!"
+        say "${RED}ERROR${NC}: password missmatch, please retry!"
         say ""
       else
-        say "" && break
+        say "" && return
       fi
     else
-      say "" && break
+      say "" && return
     fi
   done
 }
@@ -98,8 +88,10 @@ getPassword() {
 #   >> encryptFile "$CNODE_HOME/priv/wallet/MyWallet/SigningKeyShelley.skey"
 encryptFile() {
   echo "${2}" | gpg --symmetric --yes --batch --cipher-algo AES256 --passphrase-fd 0 --output "${1}.gpg" "${1}" >/dev/null && \
-  rm -f "${1}" || \
-  error "failed to encrypt ${1}"
+  rm -f "${1}" || {
+    say "${RED}ERROR${NC}: failed to encrypt ${1}" "log"
+    return 1
+  }
 }
 
 
@@ -113,8 +105,10 @@ encryptFile() {
 #   >> decryptFile "$CNODE_HOME/priv/wallet/MyWallet/SigningKeyShelley.skey"
 decryptFile() {
   echo "${2}" | gpg --decrypt --batch --yes --passphrase-fd 0 --output "${1%.*}" "${1}" >/dev/null 2>&1 && \
-  rm -f "${1}" || \
-  error "failed to decrypt ${1}"
+  rm -f "${1}" || {
+    say "${RED}ERROR${NC}: failed to decrypt ${1}" "log"
+    return 1
+  }
 }
 
 
@@ -150,7 +144,7 @@ waitNewBlockCreated() {
     actualTip=$(getTip)
     COUNTER=$((COUNTER - SLOT_DURATION))
     if [ ${COUNTER} -lt ${SLOT_DURATION} ]; then
-      error "waited $(( TIMEOUT_NO_OF_SLOTS * SLOT_DURATION )) secs and no new block created"
+      say "${ORANGE}WARN${NC}: waited $(( TIMEOUT_NO_OF_SLOTS * SLOT_DURATION )) secs and no new block created" "log"
       return 1
     fi
   done
@@ -220,7 +214,7 @@ sendADA() {
     # /1 is to remove decimals from bc command
     lovelace=$(echo "${lovelace} * 1000000 / 1" | bc)
   elif [[ ${lovelace} != "all" ]]; then
-    error "'Amount in ADA' must be a valid number or the string 'all'"
+    say "${RED}ERROR${NC}: 'Amount in ADA' must be a valid number or the string 'all'"
     return 1
   fi
 
@@ -238,7 +232,7 @@ sendADA() {
   say "--- Balance Check Source Address -------------------------------------------------------" "log"
   getBalance ${sAddr}
   if [ ! -s ${TMP_FOLDER}/balance.txt ]; then
-    error "Failed to locate a UTxO, wallet empty?"
+    say "${RED}ERROR${NC}: Failed to locate a UTxO, wallet empty?" "log"
     return 1
   fi
 
@@ -285,15 +279,15 @@ sendADA() {
   # Sanity checks
   if [[ ${inclFee} = "no" ]]; then
     if [[ ${balance} -lt $(( lovelace + minFee )) ]]; then
-      error "Not enough Lovelace in address ($(numfmt --grouping ${balance}) < $(numfmt --grouping ${lovelace}) + $(numfmt --grouping ${minFee}))"
+      say "${RED}ERROR${NC}: Not enough Lovelace in address ($(numfmt --grouping ${balance}) < $(numfmt --grouping ${lovelace}) + $(numfmt --grouping ${minFee}))" "log"
       return 1
     fi
   else
     if [[ ${lovelace} -lt ${minFee} ]]; then
-      error "Fee deducted from ADA to send, amount can not be less than fee ($(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}))"
+      say "${RED}ERROR${NC}: Fee deducted from ADA to send, amount can not be less than fee ($(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}))" "log"
       return 1
     elif [[ ${balance} -lt ${lovelace} ]]; then
-      error "Not enough Lovelace in address ($(numfmt --grouping ${balance}) < $(numfmt --grouping ${lovelace}))"
+      say "${RED}ERROR${NC}: Not enough Lovelace in address ($(numfmt --grouping ${balance}) < $(numfmt --grouping ${lovelace}))" "log"
       return 1
     fi
   fi
@@ -344,7 +338,8 @@ sendADA() {
 
   output=$(${CCLI} ${buildArgs[*]})
   if [[ -n $output ]]; then
-    error "1. Problem during tx creation with args ${buildArgs[*]}" "$output"
+    say "${RED}ERROR${NC}: 1. Problem during tx creation with args ${buildArgs[*]}" "log"
+    say "$output" "log"
     return 1
   fi
 
@@ -354,7 +349,8 @@ sendADA() {
   output=$(${CCLI} ${signArgs[*]})
   ## TODO encrypt skey
   if [[ -n $output ]]; then
-    error "2. Problem during signing with args ${signArgs[*]}" "$output"
+    say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]}" "log"
+    say "$output" "log"
     return 1
   fi
 
@@ -362,7 +358,8 @@ sendADA() {
 
   output=$(${CCLI} ${submitArgs[*]})
   if [[ -n $output ]]; then
-    error "3. Problem during tx submission with args ${submitArgs[*]}" "$output"
+    say "${RED}ERROR${NC}: 3. Problem during tx submission with args ${submitArgs[*]}" "log"
+    say "$output" "log"
     return 1
   fi
 }
@@ -391,7 +388,7 @@ registerStaking() {
 
   tx=$(head -n 1 ${TMP_FOLDER}/balance.txt)
 
-  [[ -z ${tx} ]] && error "payment address empty" && return 1
+  [[ -z ${tx} ]] && say "${RED}ERROR${NC}: payment address empty" "log" && return 1
 
   say ""
   say "Using UTxO with highest balance:" "log"
@@ -429,7 +426,7 @@ registerStaking() {
   say "fee is $(numfmt --grouping ${minFee})" "log"
 
   if [[ ${balance} -lt $(( minFee + keyDeposit )) ]]; then
-    error "Not enough Lovelace in payment address ($(numfmt --grouping ${balance}) < $(numfmt --grouping ${minFee}) + $(numfmt --grouping ${keyDeposit}))"
+    say "${RED}ERROR${NC}: Not enough Lovelace in payment address ($(numfmt --grouping ${balance}) < $(numfmt --grouping ${minFee}) + $(numfmt --grouping ${keyDeposit}))" "log"
     return 1
   fi
 
@@ -468,7 +465,8 @@ registerStaking() {
 
   output=$(${CCLI} ${buildArgs[*]})
   if [[ -n $output ]]; then
-    error "1. Problem during tx creation with args ${buildArgs[*]}" "$output"
+    say "${RED}ERROR${NC}: 1. Problem during tx creation with args ${buildArgs[*]}" "log"
+    say "$output" "log" 
     return 1
   fi
 
@@ -478,7 +476,8 @@ registerStaking() {
   output=$(${CCLI} ${signArgs[*]})
   ## TODO encrypt skey
   if [[ -n $output ]]; then
-    error "2. Problem during signing with args ${signArgs[*]}" "$output"
+    say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]}" "log"
+    say "$output" "log"
     return 1
   fi
 
@@ -486,7 +485,8 @@ registerStaking() {
 
   output=$(${CCLI} ${submitArgs[*]})
   if [[ -n $output ]]; then
-    error "3. Problem during tx submission with args ${submitArgs[*]}" "$output"
+    say "${RED}ERROR${NC}: 3. Problem during tx submission with args ${submitArgs[*]}" "log"
+    say "$output" "log"
     return 1
   fi
 }
@@ -522,7 +522,7 @@ registerPool() {
 
   tx=$(head -n 1 ${TMP_FOLDER}/balance.txt)
 
-  [[ -z ${tx} ]] && error "payment address empty" && return 1
+  [[ -z ${tx} ]] && say "${RED}ERROR${NC}: payment address empty" "log" && return 1
 
   say ""
   say "Using UTxO with highest balance:" "log"
@@ -564,7 +564,7 @@ registerPool() {
   say "fee is $(numfmt --grouping ${minFee})" "log"
 
   if [[ ${balance} -lt $(( minFee + poolDeposit )) ]]; then
-    error "Not enough Lovelace in payment address ($(numfmt --grouping ${balance}) < $(numfmt --grouping ${minFee}) + $(numfmt --grouping ${poolDeposit}))"
+    say "${RED}ERROR${NC}: Not enough Lovelace in payment address ($(numfmt --grouping ${balance}) < $(numfmt --grouping ${minFee}) + $(numfmt --grouping ${poolDeposit}))" "log"
     return 1
   fi
 
@@ -606,7 +606,8 @@ registerPool() {
 
   output=$(${CCLI} ${buildArgs[*]})
   if [[ -n $output ]]; then
-    error "1. Problem during tx creation with args ${buildArgs[*]}" "$output"
+    say "${RED}ERROR${NC}: 1. Problem during tx creation with args ${buildArgs[*]}" "log"
+    say "$output" "log"
     return 1
   fi
 
@@ -616,7 +617,8 @@ registerPool() {
   output=$(${CCLI} ${signArgs[*]})
   ## TODO encrypt skey
   if [[ -n $output ]]; then
-    error "2. Problem during signing with args ${signArgs[*]}" "$output"
+    say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]}" "log"
+    say "$output" "log"
     return 1
   fi
 
@@ -624,7 +626,8 @@ registerPool() {
 
   output=$(${CCLI} ${submitArgs[*]})
   if [[ -n $output ]]; then
-    error "3. Problem during tx submission with args ${submitArgs[*]}" "$output"
+    say "${RED}ERROR${NC}: 3. Problem during tx submission with args ${submitArgs[*]}" "log"
+    say "$output" "log"
     return 1
   fi
 

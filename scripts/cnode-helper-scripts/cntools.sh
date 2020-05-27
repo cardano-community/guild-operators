@@ -654,7 +654,6 @@ case $OPERATION in
 
 	case $SUBCOMMAND in
     send)
-
     clear
     echo " >> FUNDS >> SEND"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -816,9 +815,6 @@ case $OPERATION in
     echo " >> FUNDS >> DELEGATE"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
-
-
-
 
     clear
     say "Select Wallet to Delegate from:"
@@ -1205,16 +1201,18 @@ case $OPERATION in
       say "${RED}WARN${NC}: wallet not found"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo ""
+
       read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
 
     pay_payment_addr_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
     if [[ ! -f "${pay_payment_addr_file}" ]]; then
-      say "${RED}ERROR${NC}: source wallet does not have a payment address:" "log"
+      say "${RED}ERROR${NC}: source wallet address file not found:" "log"
       say "${pay_payment_addr_file}" "log"
       unset poolpassword
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
+
 
 
     staking_sk_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_STAKING_SK_FILENAME}"
@@ -1222,19 +1220,23 @@ case $OPERATION in
       [[ ! -f "${staking_sk_file}.gpg" ]] && {
         say "${RED}ERROR${NC}: 'PROTECT_KEYS=yes' but no gpg encrypted file found on disk:" "log"
         say "${staking_sk_file}.gpg" "log"
+
         unset poolpassword
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       }
       echo ""
       getPassword # $password variable populated by getPassword function
+
       if ! decryptFile "${staking_sk_file}.gpg" "${password}"; then
         say "${RED}ERROR${NC}: Unable to decrypt coldkey sk file" "log"
         say "${staking_sk_file}.gpg" "log"
+
         unset password
         unset poolpassword
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       else
         # Key successfully decrypted, re-encrypt until we are through UI part
+
         encryptFile "${staking_sk_file}" "${password}"
       fi
     fi
@@ -1255,12 +1257,14 @@ case $OPERATION in
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       else
         # Key successfully decrypted, re-encrypt until we are through UI part
+
         encryptFile "${staking_vk_file}" "${password}"
       fi
     fi
 
     pay_payment_sk_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_PAY_SK_FILENAME}"
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
+
       [[ ! -f "${pay_payment_sk_file}.gpg" ]] && {
         say "${RED}ERROR${NC}: 'PROTECT_KEYS=yes' but no gpg encrypted file found on disk:" "log"
         say "${pay_payment_sk_file}.gpg" "log"
@@ -1272,14 +1276,14 @@ case $OPERATION in
         say "${pay_payment_sk_file}.gpg" "log"
         unset password
         unset poolpassword
-        exit 1
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       else
+
         if [[ ! -f "${pay_payment_sk_file}" ]]; then
           say "${RED}ERROR${NC}: staking wallet payment sk file not found:" "log"
           say "${pay_payment_sk_file}" "log"
           echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
         fi
-
         encryptFile "${pay_payment_sk_file}" "${password}"  # re-encrypt until we are through UI part
       fi
     fi
@@ -1329,7 +1333,9 @@ case $OPERATION in
     ${CCLI} shelley stake-address delegation-certificate --staking-verification-key-file "${staking_vk_file}" --stake-pool-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
     say "-- Sending transaction to chain --" "log"
 
+
     if ! registerPool "$(cat ${pay_payment_addr_file})" "${pool_coldkey_sk_file}" "${staking_sk_file}" "${pool_regcert_file}" "${pool_pledgecert_file}" "${pay_payment_sk_file}"; then
+
       say "${RED}ERROR${NC}: failure during pool registration, removing newly created pledge and registration files" "log"
       rm -f "${pool_regcert_file}" "${pool_pledgecert_file}"
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
