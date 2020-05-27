@@ -492,7 +492,7 @@ registerStaking() {
 }
 
 
-# Command    : registerPoolAndRewardAndPledge [payment address] [pool cold sign key] [staking sign key] [pool registration cert file] [pool pledge cert file] [payment sign key]
+# Command    : registerPool [payment address] [pool cold sign key] [staking sign key] [pool registration cert file] [pool pledge cert file] [payment sign key]
 #
 # Description: Register pool with pledge on chain
 # Parameters : payment address                >   Payment address, funds needed to pay tx fee for pool registration
@@ -503,9 +503,9 @@ registerStaking() {
 #              staking cert file              >   Staking certificate
 # Return     : prints progress on STDOUT
 # Examples of Usage:
-#   >> registerPoolAndRewardAndPledge 61WKMJemoBa....ssL7fzhq "../pools/MyPool/Cold.skey" "../wallet/MyWallet2/Stake.skey" "poolreg.cert" "delegation.cert" "../wallet/MyWallet/Payment.skey"
+#   >> registerPool 61WKMJemoBa....ssL7fzhq "../pools/MyPool/Cold.skey" "../wallet/MyWallet2/Stake.skey" "poolreg.cert" "delegation.cert" "../wallet/MyWallet/Payment.skey"
 #
-registerPoolAndRewardAndPledge() {
+registerPool() {
 
   # script arguments
   payment_addr="$1"
@@ -514,7 +514,6 @@ registerPoolAndRewardAndPledge() {
   pool_regcert_file="$4"
   pool_pledgecert_file="$5"
   pay_payment_sk_file="$6"
-  echo "in here"
   # clean up
   say " -- Register Pool and Pledge on Chain --" "log"
   say ""
@@ -630,5 +629,137 @@ registerPoolAndRewardAndPledge() {
   fi
 
 
+
+}
+
+# Command    : Delegate [stake vkey] [stake skey] [pay skey] [pay addr] [pool vkey] [deleg cert]
+#
+# Description: Register pool with pledge on chain
+# Parameters : stake vkey    >   stake wallet vkey
+#              stake skey    >   stake wallet skey
+#              pay skey      >   payment skey
+#              pay addr      >   payment wallet address
+#              pool vkey     >   pool you are delegating to vkey
+#              deleg cert    >   delegation output certificate
+#
+# Return     : prints progress on STDOUT
+# Examples of Usage:
+#   >> registerPool   "../wallet/MyWallet/Stake.vkey" "../wallet/MyWallet/Stake.skey" "../wallet/MyWallet/Pay.skey" 61WKMJemoBa....ssL7fzhq "../pools/MyPool/Pool.vkey" "delegation.cert"
+#
+delegate() {
+
+  # script arguments
+  staking_vk_file="$1"
+  staking_sk_file="$2"
+  pay_payment_sk_file="$3"
+  payment_addr="$4"
+  pool_coldkey_vk_file="$5"
+  pool_delegcert_file="$6"
+  # clean up
+  say ""
+  say "--- Balance Check Payment Address -------------------------------------------------------" "log"
+  getBalance ${payment_addr}
+
+  tx=$(head -n 1 ${TMP_FOLDER}/balance.txt)
+
+  [[ -z ${tx} ]] && error "payment address empty" && return 1
+
+  say ""
+  say "Using UTxO with highest balance:" "log"
+  say "${tx}" "log"
+  say ""
+
+  utxo=$( echo "${tx}" | awk '{ print $1 }')
+  id=$( echo "${tx}" | awk '{ print $2 }')
+  balance=$( echo "${tx}" | awk '{ print $3 }')
+
+  tx_in="--tx-in ${utxo}#${id}"
+
+
+
+  say " -- Protocol Parameters --"
+  currSlot=$(${CCLI} shelley query tip --testnet-magic ${NWMAGIC} | awk '{ print $5 }' | grep -Eo '[0-9]{1,}')
+  ttlValue=$(( currSlot + 1000 ))
+  say "TN Magic is ${NWMAGIC}" "log"
+  say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
+
+  say ""
+  say " -- Calculate fee, new amount and remaining balance --" "log"
+  minFeeArgs=(
+    shelley transaction calculate-min-fee
+    --tx-in-count 1
+    --tx-out-count 1
+    --ttl ${ttlValue}
+    --testnet-magic ${NWMAGIC}
+    --signing-key-file ${pay_payment_sk_file}
+    --signing-key-file ${staking_sk_file}
+    --certificate ${pool_delegcert_file}
+    --protocol-params-file ${TMP_FOLDER}/protparams.json
+  )
+  minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
+  say "fee is $(numfmt --grouping ${minFee})" "log"
+
+  if [[ ${balance} -lt $(( minFee )) ]]; then
+    error "Not enough Lovelace in payment address ($(numfmt --grouping ${balance}) < $(numfmt --grouping ${minFee}) )"
+    return 1
+  fi
+
+  newBalance=$(( balance - minFee ))
+  tx_out="--tx-out ${payment_addr}+${newBalance}"
+  say "Balance left to be returned in used UTxO is $(numfmt --grouping ${newBalance}) lovelaces ($(numfmt --grouping ${balance}) - $(numfmt --grouping ${minFee}))" "log"
+
+  buildArgs=(
+    shelley transaction build-raw
+    ${tx_in}
+    ${tx_out}
+    --ttl ${ttlValue}
+    --fee ${minFee}
+    --certificate ${pool_delegcert_file}
+    --tx-body-file ${TMP_FOLDER}/tx.raw
+  )
+
+  signArgs=(
+    shelley transaction sign
+    --tx-body-file ${TMP_FOLDER}/tx.raw
+    --signing-key-file ${pay_payment_sk_file}
+    --signing-key-file ${staking_sk_file}
+    --testnet-magic ${NWMAGIC}
+    --tx-file ${TMP_FOLDER}/tx.signed
+  )
+
+  submitArgs=(
+    shelley transaction submit
+    --tx-file "${TMP_FOLDER}/tx.signed"
+    --testnet-magic ${NWMAGIC}
+  )
+
+  say ""
+  say " -- Build, Sign & Send transaction --" "log"
+  say "Building transaction"
+  echo ${buildArgs[*]}
+
+  output=$(${CCLI} ${buildArgs[*]})
+  if [[ -n $output ]]; then
+    error "1. Problem during tx creation with args ${buildArgs[*]}" "$output"
+    return 1
+  fi
+
+  say "Signing transaction"
+
+  ## TODO decrypt skey
+  output=$(${CCLI} ${signArgs[*]})
+  ## TODO encrypt skey
+  if [[ -n $output ]]; then
+    error "2. Problem during signing with args ${signArgs[*]}" "$output"
+    return 1
+  fi
+
+  say "Sending transaction"
+
+  output=$(${CCLI} ${submitArgs[*]})
+  if [[ -n $output ]]; then
+    error "3. Problem during tx submission with args ${submitArgs[*]}" "$output"
+    return 1
+  fi
 
 }
