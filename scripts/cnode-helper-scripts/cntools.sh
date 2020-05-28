@@ -228,7 +228,7 @@ case $OPERATION in
       echo ""
       read -r -p "Name of new wallet: " wallet_name
       # Remove unwanted characters from wallet name
-      wallet_name=$(echo "${wallet_name}" | sed -e 's/[^A-Za-z0-9._-]/_/g')
+      wallet_name=$(sed -e 's/[^A-Za-z0-9._-]/_/g' <<< "${wallet_name}")
       echo ""
       mkdir -p "${WALLET_FOLDER}/${wallet_name}"
 
@@ -1001,7 +1001,7 @@ case $OPERATION in
     echo ""
     read -r -p "Pool Name: " pool_name
     # Remove unwanted characters from pool name
-    pool_name=$(echo "${pool_name}" | sed -e 's/[^A-Za-z0-9._-]/_/g')
+    pool_name=$(sed -e 's/[^A-Za-z0-9._-]/_/g' <<< "${pool_name}")
     echo ""
     mkdir -p "${POOL_FOLDER}/${pool_name}"
 
