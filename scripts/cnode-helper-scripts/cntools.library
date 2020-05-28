@@ -166,7 +166,7 @@ getBalance() {
   TOTALBALANCE=0
   UTx0_COUNT=0
 
-  ${CCLI} shelley query utxo --testnet-magic "${NWMAGIC}" --address "${1}" --out-file ${TMP_FOLDER}/fullUtxo.out
+  ${CCLI} shelley query utxo --testnet-magic "${NWMAGIC}" --address "${1}" > ${TMP_FOLDER}/fullUtxo.out
   tail -n +3 ${TMP_FOLDER}/fullUtxo.out | sort -k3 -nr > ${TMP_FOLDER}/balance.txt
 
   if [ -s ${TMP_FOLDER}/balance.txt ]; then
