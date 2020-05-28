@@ -491,7 +491,7 @@ Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Req
 cardano-cli shelley node key-gen-VRF --verification-key-file $CNODE_HOME/priv/vrf.vkey --signing-key-file $CNODE_HOME/priv/vrf.skey
 cardano-cli shelley node key-gen-KES --verification-key-file $CNODE_HOME/priv/kes.vkey --signing-key-file $CNODE_HOME/priv/kes.skey
 # TODO: Process to propogate keys in genesis to members
-cardano-cli shelley node issue-op-cert --hot-kes-verification-key-file $CNODE_HOME/priv/kes.vkey --cold-signing-key-file $CNODE_HOME/priv/delegate.skey --operational-certificate-issue-counter $CNODE_HOME/priv/delegate.counter --kes-period 0 --out-file $CNODE_HOME/priv/ops.cert 
+cardano-cli shelley node issue-op-cert --kes-verification-key-file $CNODE_HOME/priv/kes.vkey --cold-signing-key-file $CNODE_HOME/priv/delegate.skey --operational-certificate-issue-counter $CNODE_HOME/priv/delegate.counter --kes-period 0 --out-file $CNODE_HOME/priv/ops.cert 
 </code></pre>
 <h4><a class="header" href="#start-node" id="start-node">Start Node</a></h4>
 <pre><code class="language-bash"># Run the node
@@ -862,7 +862,7 @@ Therefore I prefixed them it differently i.e. <code>staking</code>, to distuingu
 cardano-cli shelley stake-address key-gen --verification-key-file staking.vkey --signing-key-file staking.skey
 
 # crate teh reward (staking) address from the operator's stake keys
-cardano-cli shelley stake-address build --staking-verification-key-file staking.vkey &gt; staking.addr
+cardano-cli shelley stake-address build --stake-verification-key-file staking.vkey &gt; staking.addr
 
 # Generate the operator's payment keys
 cardano-cli shelley address key-gen --verification-key-file op_pay.vkey --signing-key-file op_pay.skey
@@ -873,7 +873,7 @@ cardano-cli shelley address build --payment-verification-key-file op_pay.vkey &g
 # Generate the base address  i.e. compount `enterprise || reward` address
 cardano-cli shelley address build \
     --payment-verification-key-file op_pay.vkey \
-    --staking-verification-key-file staking.vkey \
+    --stake-verification-key-file staking.vkey \
     &gt; base.addr
 </code></pre>
 <p>The next step is creating a stake address registration certificate.</p>
@@ -885,7 +885,7 @@ cardano-cli shelley address build \
 <p>Keep, in mind that the a <code>key registration certificates</code> needs a deposit (<strong>keyDeposit</strong> in genesis) for the costs of tracking the key and the corresponding reward account. Also, it does not require any witness to register the certificate, but only the witness for the fees from the input of the transaction.</p>
 <pre><code class="language-bash"># Keep in mind that this certificates needs a `keyDeposit` specified in the genesis.
 cardano-cli shelley stake-address registration-certificate \
-    --staking-verification-key-file staking.vkey \
+    --stake-verification-key-file staking.vkey \
     --out-file staking.cert
 # The certificate contains the `blake2b-256` hash of the stake verifying key
 
@@ -900,7 +900,7 @@ cardano-cli shelley transaction calculate-min-fee \
     --ttl 500000 \
     --testnet-magic 42 \
     --signing-key-file /opt/cardano/fnf/addresses/genesis.skey \
-    --certificate staking.cert \
+    --certificate-file staking.cert \
     --protocol-params-file params.json
 # 
 # runTxCalculateMinFee: 174169
@@ -930,15 +930,15 @@ cardano-cli shelley transaction build-raw \
     --tx-out &quot;$CHANGE&quot; \
     --ttl 500000 \
     --fee &quot;$FEE&quot; \
-    --tx-body-file staking-cert.tx \
-    --certificate staking.cert
+    --out-file staking-cert.tx \
+    --certificate-file staking.cert
 
 # Sign it
 cardano-cli shelley transaction sign \
     --tx-body-file staking-cert.tx \
     --signing-key-file /opt/cardano/fnf/addresses/genesis.skey \
     --testnet-magic 42 \
-    --tx-file signed-staking-cert.tx
+    --out-file signed-staking-cert.tx
 
 # Submit it
 cardano-cli shelley transaction submit \
@@ -969,7 +969,7 @@ cardano-cli shelley transaction submit \
 # - 1k as cost /w 
 # - 5% margin
 cardano-cli shelley stake-pool registration-certificate \
-    --stake-pool-verification-key-file ~/cold-keys/pool.vkey \
+    --cold-verification-key-file ~/cold-keys/pool.vkey \
     --vrf-verification-key-file /opt/cardano/fnf/priv/vrf.vkey \
     --pool-pledge 400000000000 \
     --pool-cost 1000000000 \
@@ -982,8 +982,8 @@ cardano-cli shelley stake-pool registration-certificate \
 <p>For <strong>pledging</strong>, the owner (in our example the operator) must create a <code>stake delegation certificate</code> for delegating at least a <code>pledge</code> amount of stake from the owner's <code>staking key</code> specified in the pool certificate.</p>
 <p>In simple words, the owner is delegating its funds (<code>pledge</code>) to the pool he/she owns.</p>
 <pre><code class="language-bash">cardano-cli shelley stake-address delegation-certificate \
-    --staking-verification-key-file staking.vkey \
-    --stake-pool-verification-key-file ~/cold-keys/pool.vkey \
+    --stake-verification-key-file staking.vkey \
+    --cold-verification-key-file ~/cold-keys/pool.vkey \
     --out-file owner-delegation.cert
 </code></pre>
 <h4><a class="header" href="#submit-the-certificate-to-the-chain" id="submit-the-certificate-to-the-chain">Submit the certificate to the chain</a></h4>
@@ -1012,8 +1012,8 @@ cardano-cli shelley transaction calculate-min-fee \
     --signing-key-file /opt/cardano/fnf/addresses/genesis.skey \
     --signing-key-file staking.skey \
     --signing-key-file ~/cold-keys/pool.skey \
-    --certificate pool.cert \
-    --certificate owner-delegation.cert \
+    --certificate-file pool.cert \
+    --certificate-file owner-delegation.cert \
     --protocol-params-file ../params.json
 # runTxCalculateMinFee: 184377
 
@@ -1035,9 +1035,9 @@ cardano-cli shelley transaction build-raw \
      --tx-out &quot;$CHANGE&quot; \
      --ttl 500000 \
      --fee &quot;$FEE&quot; \
-     --tx-body-file pool-cert.tx \
-     --certificate pool.cert \
-     --certificate owner-delegation.cert 
+     --out-file pool-cert.tx \
+     --certificate-file pool.cert \
+     --certificate-file owner-delegation.cert 
 
 # Sign
 # - the `genesis.skey` needs for signing the payment from the $FROM address.
@@ -1049,7 +1049,7 @@ cardano-cli shelley transaction sign \
     --signing-key-file staking.skey \
     --signing-key-file ~/cold-keys/pool.skey \
     --testnet-magic 42 \
-    --tx-file signed-pool-cert.tx
+    --out-file signed-pool-cert.tx
 
 # Submit:
 cardano-cli shelley transaction submit \
@@ -1087,7 +1087,7 @@ In the <code>cardano-cli</code> they use a CBOR format for preventing it to be a
 mkdir delegate &amp;&amp; pushd delegate
 cardano-cli shelley stake-address key-gen --verification-key-file stake.vkey --signing-key-file stake.skey
 
-cardano-cli shelley stake-address build --staking-verification-key-file stake.vkey &gt; stake.addr
+cardano-cli shelley stake-address build --stake-verification-key-file stake.vkey &gt; stake.addr
 cat stake.addr
 #-------v 32 bytes key starts from here
 8200582032a8c3f17ae5dafc3e947f82b0b418483f0a8680def9418c87397f2bd3d35efb
@@ -1118,7 +1118,7 @@ cat pay.addr
 ####################################################################
 cardano-cli shelley address build \
     --payment-verification-key-file pay.vkey \
-    --staking-verification-key-file stake.vkey \
+    --stake-verification-key-file stake.vkey \
     &gt; stake.base
 </code></pre>
 <h4><a class="header" href="#generating-the-staking-key-certificate" id="generating-the-staking-key-certificate">Generating the Staking key certificate</a></h4>
@@ -1126,7 +1126,7 @@ cardano-cli shelley address build \
 # certificate using the stake verification key
 ############################################################
 cardano-cli shelley stake-address registration-certificate \
---staking-verification-key-file stake.vkey \
+--stake-verification-key-file stake.vkey \
 --out-file stake.cert
 
 cat stake.cert
@@ -1158,7 +1158,7 @@ cardano-cli shelley query protocol-parameters \
 # One UtxO is enough for the change, but I will move some fund from genesis to the delegates address
 FEE=$(cardano-cli shelley transaction calculate-min-fee \
 --protocol-params-file params.json \
---certificate stake.cert \
+--certificate-file stake.cert \
 --tx-in-count 1 \
 --tx-out-count 2 \
 --ttl 500000 \
@@ -1188,7 +1188,7 @@ OUTPUT2=&quot;${TO}+${AMOUNT}&quot;
 # grep keyD
 #    &quot;keyDeposit&quot;: 400000,
 #    &quot;keyDecayRate&quot;: 0, Means the key won't decay, i.e. all money will
-# get back when  the key is de0registered from the chain
+# get back when  the key is de-registered from the chain
 KEYDEP=400000
 
 # This means that change will less by 400K Lovelace that will be 
@@ -1207,13 +1207,13 @@ cardano-cli shelley transaction build-raw \
 	--tx-out &quot;${TO}+${AMOUNT}&quot; \
 	--ttl 500000 \
 	--fee &quot;$FEE&quot; \
-	--tx-body-file stake-cert-tx
+	--out-file stake-cert-tx
 # Sign
 cardano-cli shelley transaction sign \
     --tx-body-file stake-cert-tx \
     --signing-key-file /opt/cardano/fnf/addresses/genesis.skey \
     --signing-key-file stake.skey \
-    --tx-file stake-cert-tx \
+    --out-file stake-cert-tx \
     --testnet-magic 42
 
 # Submit
@@ -1251,8 +1251,8 @@ cbor-hex:
 # or delegate to your own pool by getting its `operational verifycation key` (the cold key)
 # !! BE AWARE!! that the `stake.key` must have been already registered on the chain.
 cardano-cli shelley stake-address delegation-certificate \
-    --staking-verification-key-file stake.vkey \
-    --stake-pool-verification-key-file ~/cold-keys/pool.vkey \
+    --stake-verification-key-file stake.vkey \
+    --cold-verification-key-file ~/cold-keys/pool.vkey \
     --out-file pool-delegation.cert
 
 ####################################################################
@@ -1266,7 +1266,7 @@ cardano-cli shelley transaction calculate-min-fee \
     --testnet-magic 42 \
     --signing-key-file pay.skey \
     --signing-key-file stake.skey \
-    --certificate pool-delegation.cert \
+    --certificate-file pool-delegation.cert \
     --protocol-params-file params.json
 # runTxCalculateMinFee: 172805
 FEE=172805
@@ -1290,8 +1290,8 @@ cardano-cli shelley transaction build-raw \
      --tx-out &quot;$OUTPUT&quot; \
      --ttl 500000 \
      --fee &quot;$FEE&quot; \
-     --tx-body-file pool-delegation.tx \
-     --certificate pool-delegation.cert
+     --out-file pool-delegation.tx \
+     --certificate-file pool-delegation.cert
 
 # Sign
 # You need 2 signing keys
@@ -1302,7 +1302,7 @@ cardano-cli shelley transaction sign \
     --signing-key-file stake.skey \
     --signing-key-file pay.skey \
     --testnet-magic 42 \
-    --tx-file signed-pool-delegation.tx
+    --out-file signed-pool-delegation.tx
 
 # Before
 
