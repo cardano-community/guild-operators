@@ -81,7 +81,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="architecture.html">Architecture</a></li><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Common.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="rest.html">REST</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-Node-Genesis.html">Set up node as member of Genesis</a></li><li class="chapter-item expanded "><a href="Setup-Node.html" class="active">Set up node as pool operator</a></li><li class="chapter-item expanded "><a href="monitoring.html">Set up monitoring using Prometheus and Grafana</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="cntools.html">CNTools</a></li><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li><li class="chapter-item expanded "><a href="Staking/Main.html">Guide to the Staking</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Staking/Keys.html">Keys</a></li><li class="chapter-item expanded "><a href="Staking/Addresses.html">Addresses</a></li><li class="chapter-item expanded "><a href="Staking/Certificates.html">Certificates</a></li><li class="chapter-item expanded "><a href="Staking/StakeHolders.html">StakeHolders</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="Staking/Owners.html">Owners</a></li><li class="chapter-item "><a href="Staking/Operators.html">Operators</a></li><li class="chapter-item "><a href="Staking/Delegates.html">Delegates</a></li></ol></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="postgres.html">Sample Postgres Setup</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="architecture.html">Architecture</a></li><li class="chapter-item expanded "><a href="Common.html">Common</a></li><li class="chapter-item expanded "><a href="build-and-run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build/node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="Build/wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="Build/rest.html">REST</a></li><li class="chapter-item expanded "><a href="Build/dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="Build/graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-Node.html" class="active">Set up node as pool operator</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Scripts/cntools.html">CNTools</a></li><li class="chapter-item expanded "><a href="Scripts/createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="Scripts/sendADA.html">Make Transactions</a></li></ol></li><li class="chapter-item expanded "><a href="Staking/Main.html">Guide to the Staking</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Staking/Keys.html">Keys</a></li><li class="chapter-item expanded "><a href="Staking/Addresses.html">Addresses</a></li><li class="chapter-item expanded "><a href="Staking/Certificates.html">Certificates</a></li><li class="chapter-item expanded "><a href="Staking/StakeHolders.html">StakeHolders</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="Staking/Owners.html">Owners</a></li><li class="chapter-item "><a href="Staking/Operators.html">Operators</a></li><li class="chapter-item "><a href="Staking/Delegates.html">Delegates</a></li></ol></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Appendix/monitoring.html">Monitoring using Prometheus and Grafana</a></li><li class="chapter-item expanded "><a href="Appendix/postgres.html">Sample Postgres Setup</a></li><li class="chapter-item expanded "><a href="Appendix/Setup-Node-Genesis.html">Set up node as BFT member defined in Genesis</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -166,6 +166,22 @@ Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Req
           --socket-path $CNODE_HOME/sockets/node0.socket \
           --topology $CNODE_HOME/files/topology.json
 </code></pre>
+<h4><a class="header" href="#start-as-pool-operator" id="start-as-pool-operator">Start as Pool Operator</a></h4>
+<p>To start the node as a block producing pool, execute the steps as below:</p>
+<pre><code class="language-bash"># TODO: Add reference to key creations.
+# POOLNAME=POOL123
+POOLKEYSPATH=$CNODE_HOME/priv/pool/$POOLNAME
+cardano-node run \
+          --config $CNODE_HOME/files/ptn0.yaml \
+          --database-path $CNODE_HOME/db \
+          --host-addr 0.0.0.0 \
+          --port 5001 \
+          --socket-path $CNODE_HOME/sockets/node0.socket \
+          --topology $CNODE_HOME/files/topology.json
+          --shelley-kes-key $CNODE_HOME/priv/pool/$POOLNAME/Hot.skey
+          --shelley-vrf-key $CNODE_HOME/priv/pool/$POOLNAME/Vrf.skey
+          --shelley-operational-certificate $CNODE_HOME/priv/pool/$POOLNAME/opcert
+</code></pre>
 <p>Note that if you do not want your node to be publicly available, you can change <code>--host-addr</code> to <code>127.0.0.1</code>
 If this is your relay node, you can update topology.json to link to your core node.</p>
 
@@ -174,13 +190,13 @@ If this is your relay node, you can update topology.json to link to your core no
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
                         
-                            <a rel="prev" href="Setup-Node-Genesis.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="Build/graphql.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
                         
 
                         
-                            <a rel="next" href="monitoring.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="cli-scripts.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
                         
@@ -192,13 +208,13 @@ If this is your relay node, you can update topology.json to link to your core no
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
                 
-                    <a rel="prev" href="Setup-Node-Genesis.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="Build/graphql.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
                 
 
                 
-                    <a rel="next" href="monitoring.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next" href="cli-scripts.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
                 

@@ -83,7 +83,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="architecture.html">Architecture</a></li><li class="chapter-item expanded "><a href="Build-and-Run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Common.html">Common</a></li><li class="chapter-item expanded "><a href="node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="rest.html">REST</a></li><li class="chapter-item expanded "><a href="dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-Node-Genesis.html">Set up node as member of Genesis</a></li><li class="chapter-item expanded "><a href="Setup-Node.html">Set up node as pool operator</a></li><li class="chapter-item expanded "><a href="monitoring.html">Set up monitoring using Prometheus and Grafana</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="cntools.html">CNTools</a></li><li class="chapter-item expanded "><a href="createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="sendADA.html">Make Transactions</a></li></ol></li><li class="chapter-item expanded "><a href="Staking/Main.html">Guide to the Staking</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Staking/Keys.html">Keys</a></li><li class="chapter-item expanded "><a href="Staking/Addresses.html">Addresses</a></li><li class="chapter-item expanded "><a href="Staking/Certificates.html">Certificates</a></li><li class="chapter-item expanded "><a href="Staking/StakeHolders.html">StakeHolders</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="Staking/Owners.html">Owners</a></li><li class="chapter-item "><a href="Staking/Operators.html">Operators</a></li><li class="chapter-item "><a href="Staking/Delegates.html">Delegates</a></li></ol></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="postgres.html">Sample Postgres Setup</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="architecture.html">Architecture</a></li><li class="chapter-item expanded "><a href="Common.html">Common</a></li><li class="chapter-item expanded "><a href="build-and-run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Build/node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="Build/wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="Build/rest.html">REST</a></li><li class="chapter-item expanded "><a href="Build/dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="Build/graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="Setup-Node.html">Set up node as pool operator</a></li><li class="chapter-item expanded "><a href="cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Scripts/cntools.html">CNTools</a></li><li class="chapter-item expanded "><a href="Scripts/createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="Scripts/sendADA.html">Make Transactions</a></li></ol></li><li class="chapter-item expanded "><a href="Staking/Main.html">Guide to the Staking</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Staking/Keys.html">Keys</a></li><li class="chapter-item expanded "><a href="Staking/Addresses.html">Addresses</a></li><li class="chapter-item expanded "><a href="Staking/Certificates.html">Certificates</a></li><li class="chapter-item expanded "><a href="Staking/StakeHolders.html">StakeHolders</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="Staking/Owners.html">Owners</a></li><li class="chapter-item "><a href="Staking/Operators.html">Operators</a></li><li class="chapter-item "><a href="Staking/Delegates.html">Delegates</a></li></ol></li></ol></li></ol></li><li class="chapter-item expanded "><a href="Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="Appendix/monitoring.html">Monitoring using Prometheus and Grafana</a></li><li class="chapter-item expanded "><a href="Appendix/postgres.html">Sample Postgres Setup</a></li><li class="chapter-item expanded "><a href="Appendix/Setup-Node-Genesis.html">Set up node as BFT member defined in Genesis</a></li></ol></li><li class="chapter-item expanded "><a href="Contributors.html">Contributors</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -165,25 +165,6 @@ Since we're just trying to keep up with codebase, expect rapid changes (some bre
 <p>The architecture and description of various components are best described at <a href="https://input-output-hk.github.io/adrestia/docs/architecture/">Adrestia User Guide</a> by IOHK, which you can also view below.</p>
 <div>
 <iframe src="https://input-output-hk.github.io/adrestia/docs/architecture/" frameborder="0" class="adrestia-arch"></iframe></div>
-<h3><a class="header" href="#build-and-run" id="build-and-run">Build and Run</a></h3>
-<p>This document is built using instructions from <a href="https://github.com/input-output-hk">IOHK repositories</a> as a foundation, with additional info/clarification which we can contribute to where appropriate.</p>
-<p><strong>The instructions are intentionally limited to cabal</strong> to avoid wait times/availability of nix/docker/stack.yaml files on, what we expect to be, a rapidly developing codebase - this will also help prevent managing multiple versions of instructions (at least for now).</p>
-<p>Note that the instructions are predominantly focused around building Cardano components and OS/3rd-party software (eg: postgres) setup instructions are intended to provide build-level information only.</p>
-<p>Of course, we can always add links with specific best practices related to those instructions - for those who would like to contribute, please open a PR directly on the <a href="https://github.com/cardano-community/guild-operators/tree/master/docs">github repo</a> to do so.</p>
-<h4><a class="header" href="#docker-builds" id="docker-builds">Docker Builds:</a></h4>
-<p>If you would like to go down the Docker route, the basic instructions to get you set up with Docker itself are below. Additionally, you can follow <a href="https://input-output-hk.github.io/adrestia/docs/installation/">IOHK Adrestia documentation</a> for the latest release information:</p>
-<pre><code class="language-bash"># CentOS
-sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-sudo yum install https://download.docker.com/linux/centos/7/x86_64/stable/Packages/containerd.io-1.2.6-3.3.el7.x86_64.rpm
-sudo yum install -y docker-ce docker-ce-cli
-sudo systemctl enable docker
-sudo chkconfig docker on
-
-## These steps would be automatically performed by the install above
-# sudo groupadd docker
-# sudo usermod -aG docker $USER
-sudo curl -L &quot;https://github.com/docker/compose/releases/download/1.25.5/docker-compose-$(uname -s)-$(uname -m)&quot; -o /usr/bin/docker-compose;chmod 755 /usr/bin/docker-compose
-</code></pre>
 <h3><a class="header" href="#pre-requisites" id="pre-requisites">Pre-Requisites</a></h3>
 <h4><a class="header" href="#dependencies-and-folder-structure-setup" id="dependencies-and-folder-structure-setup">Dependencies and Folder Structure setup</a></h4>
 <p>The pre-requisites for Linux systems are automated to be executed as a single script. Follow the instructions below to deploy the same:</p>
@@ -214,8 +195,27 @@ chmod 755 prereqs.sh
 ├── sockets                 # Socket files created by cardano-node
 └── ...
 </code></pre>
+<h3><a class="header" href="#build-and-run" id="build-and-run">Build and Run</a></h3>
+<p>This document is built using instructions from <a href="https://github.com/input-output-hk">IOHK repositories</a> as a foundation, with additional info/clarification which we can contribute to where appropriate. Note that not everyone needs to build each component. You can refer to <a href="./architecture.html">architecture</a> to understand and qualify which components you want to run. For most Pool Operators, simply building <a href="./Build/node-cli.html">cardano-node</a> might be enough.</p>
+<p><strong>The instructions are intentionally limited to cabal</strong> to avoid wait times/availability of nix/docker/stack.yaml files on, what we expect to be, a rapidly developing codebase - this will also help prevent managing multiple versions of instructions (at least for now).</p>
+<p>Note that the instructions are predominantly focused around building Cardano components and OS/3rd-party software (eg: postgres) setup instructions are intended to provide build-level information only.</p>
+<p>Of course, we can always add links with specific best practices related to those instructions - for those who would like to contribute, please open a PR directly on the <a href="https://github.com/cardano-community/guild-operators/tree/master/docs">github repo</a> to do so.</p>
+<h4><a class="header" href="#docker-builds" id="docker-builds">Docker Builds:</a></h4>
+<p>If you would like to go down the Docker route, the basic instructions to get you set up with Docker itself are below. Additionally, you can follow <a href="https://input-output-hk.github.io/adrestia/docs/installation/">IOHK Adrestia documentation</a> for the latest release information:</p>
+<pre><code class="language-bash"># CentOS
+sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo yum install https://download.docker.com/linux/centos/7/x86_64/stable/Packages/containerd.io-1.2.6-3.3.el7.x86_64.rpm
+sudo yum install -y docker-ce docker-ce-cli
+sudo systemctl enable docker
+sudo chkconfig docker on
+
+## These steps would be automatically performed by the install above
+# sudo groupadd docker
+# sudo usermod -aG docker $USER
+sudo curl -L &quot;https://github.com/docker/compose/releases/download/1.25.5/docker-compose-$(uname -s)-$(uname -m)&quot; -o /usr/bin/docker-compose;chmod 755 /usr/bin/docker-compose
+</code></pre>
 <h3><a class="header" href="#cardano-node-and-cardano-cli" id="cardano-node-and-cardano-cli">Cardano Node and Cardano CLI</a></h3>
-<p>Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
+<p>Ensure the <a href="Build/Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
 <h4><a class="header" href="#build-instructions" id="build-instructions">Build Instructions</a></h4>
 <p>Run the commands below to clone the Cardano Node git repository and build the binaries:</p>
 <pre><code class="language-bash">cd ~/git
@@ -243,7 +243,7 @@ cardano-node
 </code></pre>
 <h3><a class="header" href="#cardano-wallet" id="cardano-wallet">Cardano Wallet</a></h3>
 <p><strong>Note: Cardano Wallet does not support TPraos network yet (it does support BFT networks and ITN Praos) - but as soon as it does, instructions below should still remain valid</strong></p>
-<p>Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
+<p>Ensure the <a href="Build/Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
 <h4><a class="header" href="#build-instructions-1" id="build-instructions-1">Build Instructions</a></h4>
 <p>Follow instructions below for building the cardano-wallet binary:</p>
 <pre><code class="language-bash">cd ~/git
@@ -335,7 +335,7 @@ Ok.
 }
 </code></pre>
 <h3><a class="header" href="#cardano-rest" id="cardano-rest">Cardano Rest</a></h3>
-<p>Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
+<p>Ensure the <a href="Build/Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
 <h4><a class="header" href="#build-instructions-2" id="build-instructions-2">Build Instructions</a></h4>
 <p>Clone the cardano-rest repository from github</p>
 <pre><code class="language-bash">cd ~/git
@@ -358,8 +358,8 @@ cardano-explorer-api
 <pre><code class="language-json">{&quot;Right&quot;:[261,[{&quot;cbeEpoch&quot;:4,&quot;cbeSlot&quot;:9345,&quot;cbeBlkHeight&quot;:2605,&quot;cbeBlkHash&quot;:&quot;9026612cfa53b7f8a84ff62c4e897830db9ab6ce24b19e0059f4b4db7a14c0f9&quot;,&quot;cbeTimeIssued&quot;:1587974365,&quot;cbeTxNum&quot;:0,&quot;cbeTotalSent&quot;:{&quot;getCoin&quot;:&quot;0&quot;},&quot;cbeSize&quot;:631,&quot;cbeBlockLead&quot;:&quot;464835a0904109be93d7996b9b4acc486f6c8f75a595b2c4392f9521&quot;,&quot;cbeFees&quot;:{&quot;getCoin&quot;:&quot;0&quot;}},{&quot;cbeEpoch&quot;:4,&quot;cbeSlot&quot;:9341,&quot;cbeBlkHeight&quot;:2604,&quot;cbeBlkHash&quot;:&quot;24000e2986bbfbfd610cb105d3697cce7582b8570469c4ff944b91d7dd0dc58f&quot;,&quot;cbeTimeIssued&quot;:1587974325,&quot;cbeTxNum&quot;:0,&quot;cbeTotalSent&quot;:{&quot;getCoin&quot;:&quot;0&quot;},&quot;cbeSize&quot;:631,&quot;cbeBlockLead&quot;:&quot;1ce88674d08d7813c5281e38e8a43b51550292f0bd8907b17a62eef2&quot;,&quot;cbeFees&quot;:{&quot;getCoin&quot;:&quot;0&quot;}},{&quot;cbeEpoch&quot;:4,&quot;cbeSlot&quot;:9338,&quot;cbeBlkHeight&quot;:2603,&quot;cbeBlkHash&quot;:&quot;5c2737421b223d1ab67f1046f8841d57d7f8456b77a841702fbb18bccf71a216&quot;,&quot;cbeTimeIssued&quot;:1587974295,&quot;cbeTxNum&quot;:0,&quot;cbeTotalSent&quot;:{&quot;getCoin&quot;:&quot;0&quot;},&quot;cbeSize&quot;:631,&quot;cbeBlockLead&quot;:&quot;f6a4cfa43cef5ebed8fbd0527153f9896d1f9dd83bd1d55e609d622b&quot;,&quot;cbeFees&quot;:{&quot;getCoin&quot;:&quot;0&quot;}},{&quot;cbeEpoch&quot;:4,&quot;cbeSlot&quot;:9333,&quot;cbeBlkHeight&quot;:2602,&quot;cbeBlkHash&quot;:&quot;496db1bc19d609687185e394cfcb8fa15e8df652c7dc40a58a347e30b9e4a25f&quot;,&quot;cbeTimeIssued&quot;:1587974245,&quot;cbeTxNum&quot;:0,&quot;cbeTotalSent&quot;:{&quot;getCoin&quot;:&quot;0&quot;},&quot;cbeSize&quot;:631,&quot;cbeBlockLead&quot;:&quot;a7cad2c48edecff1627bac50aab5fcc6831f6ab91131721269850805&quot;,&quot;cbeFees&quot;:{&quot;getCoin&quot;:&quot;0&quot;}},{&quot;cbeEpoch&quot;:4,&quot;cbeSlot&quot;:9332,&quot;cbeBlkHeight&quot;:2601,&quot;cbeBlkHash&quot;:&quot;8a837d43685dd350c6f1773b1ede7843d56d093a425ff4ccd799f7ff1b76204d&quot;,&quot;cbeTimeIssued&quot;:1587974235,&quot;cbeTxNum&quot;:0,&quot;cbeTotalSent&quot;:{&quot;getCoin&quot;:&quot;0&quot;},&quot;cbeSize&quot;:631,&quot;cbeBlockLead&quot;:&quot;a18aa0130f67053ed1cb346813054e160687a8ee7602a549f8ae165b&quot;,&quot;cbeFees&quot;:{&quot;getCoin&quot;:&quot;0&quot;}}]]}
 </code></pre>
 <h3><a class="header" href="#dbsync-tool" id="dbsync-tool">DBSync tool</a></h3>
-<p>Cardano DB Sync tool relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to <a href="postgres.html">Sample Local PostgreSQL Server Deployment instructions</a> for setting up Postgres instance.</p>
-<p>Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
+<p>Cardano DB Sync tool relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to <a href="Build/postgres.html">Sample Local PostgreSQL Server Deployment instructions</a> for setting up Postgres instance.</p>
+<p>Ensure the <a href="Build/Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
 <h4><a class="header" href="#build-cardano-db-sync" id="build-cardano-db-sync">Build cardano-db-sync</a></h4>
 <p>To build instructions for cardano-db-sync tool will be similar to cardano-node:</p>
 <pre><code class="language-bash">cd ~/git
@@ -381,7 +381,7 @@ scripts/postgresql-setup.sh --createdb
 <pre><code class="language-bash">cd ~/git/cardano-db-sync
 PGPASSFILE=$CNODE_HOME/priv/.pgpass cardano-db-sync-extended --config /opt/cardano/cnode/files/ptn0.yaml --genesis-file /opt/cardano/cnode/files/genesis.json --socket-path /opt/cardano/cnode/sockets/node0.socket --schema-dir schema/
 </code></pre>
-<p>You can use same instructions above to repeat and execute <code>cardano-db-sync</code> as well, but <a href="./graphql.html">cardano-graphql</a> uses <code>cardano-db-sync-extended</code>, so we'll stick to it</p>
+<p>You can use same instructions above to repeat and execute <code>cardano-db-sync</code> as well, but <a href="Build/./graphql.html">cardano-graphql</a> uses <code>cardano-db-sync-extended</code>, so we'll stick to it</p>
 <h4><a class="header" href="#validation" id="validation">Validation</a></h4>
 <p>To validate, connect to postgres instance and execute commands as per below:</p>
 <pre><code class="language-bash">export PGPASSFILE=$CNODE_HOME/priv/.pgpass
@@ -419,7 +419,7 @@ select * from tx;
 # (36 rows)
 </code></pre>
 <h3><a class="header" href="#graphql" id="graphql">GraphQL</a></h3>
-<p>Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
+<p>Ensure the <a href="Build/Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
 <h4><a class="header" href="#build-hasura-graphql-engine" id="build-hasura-graphql-engine">Build Hasura graphql-engine</a></h4>
 <p>Going with the spirit of the documentation here, instruction to build the graphql-engine binary :)</p>
 <pre><code class="language-bash">cd ~/git
@@ -483,21 +483,6 @@ cd ~/git/cardano-graphql/dist
 graphql-engine serve &amp;
 node index.js
 </code></pre>
-<h3><a class="header" href="#config-for-phtn---as-a-genesis-member-node" id="config-for-phtn---as-a-genesis-member-node">Config for pHTN - as a genesis member node</a></h3>
-<p>Use this guide only if you already have your genesis keys (referred to as <code>delegate.skey</code> below). The step may not apply to most of the pool operators.
-Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
-<h4><a class="header" href="#create-verification-key" id="create-verification-key">Create verification key</a></h4>
-<pre><code class="language-bash"># Create the Node operation keys
-cardano-cli shelley node key-gen-VRF --verification-key-file $CNODE_HOME/priv/vrf.vkey --signing-key-file $CNODE_HOME/priv/vrf.skey
-cardano-cli shelley node key-gen-KES --verification-key-file $CNODE_HOME/priv/kes.vkey --signing-key-file $CNODE_HOME/priv/kes.skey
-# TODO: Process to propogate keys in genesis to members
-cardano-cli shelley node issue-op-cert --kes-verification-key-file $CNODE_HOME/priv/kes.vkey --cold-signing-key-file $CNODE_HOME/priv/delegate.skey --operational-certificate-issue-counter $CNODE_HOME/priv/delegate.counter --kes-period 0 --out-file $CNODE_HOME/priv/ops.cert 
-</code></pre>
-<h4><a class="header" href="#start-node" id="start-node">Start Node</a></h4>
-<pre><code class="language-bash"># Run the node
-cd $CNODE_HOME/scripts
-./cnode.sh
-</code></pre>
 <p>Note that if you do not want your node to be publicly available, you can change <code>--host-addr</code> to <code>127.0.0.1</code></p>
 <h3><a class="header" href="#run-a-passive-node" id="run-a-passive-node">Run a passive node</a></h3>
 <p>This document helps you to set a basic Passive Node connecting to the network. This would also be a first step if you do not have a genesis (BFT) keys for TPraos network, to allow you to register your pool.
@@ -513,66 +498,29 @@ Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Req
           --socket-path $CNODE_HOME/sockets/node0.socket \
           --topology $CNODE_HOME/files/topology.json
 </code></pre>
+<h4><a class="header" href="#start-as-pool-operator" id="start-as-pool-operator">Start as Pool Operator</a></h4>
+<p>To start the node as a block producing pool, execute the steps as below:</p>
+<pre><code class="language-bash"># TODO: Add reference to key creations.
+# POOLNAME=POOL123
+POOLKEYSPATH=$CNODE_HOME/priv/pool/$POOLNAME
+cardano-node run \
+          --config $CNODE_HOME/files/ptn0.yaml \
+          --database-path $CNODE_HOME/db \
+          --host-addr 0.0.0.0 \
+          --port 5001 \
+          --socket-path $CNODE_HOME/sockets/node0.socket \
+          --topology $CNODE_HOME/files/topology.json
+          --shelley-kes-key $CNODE_HOME/priv/pool/$POOLNAME/Hot.skey
+          --shelley-vrf-key $CNODE_HOME/priv/pool/$POOLNAME/Vrf.skey
+          --shelley-operational-certificate $CNODE_HOME/priv/pool/$POOLNAME/opcert
+</code></pre>
 <p>Note that if you do not want your node to be publicly available, you can change <code>--host-addr</code> to <code>127.0.0.1</code>
 If this is your relay node, you can update topology.json to link to your core node.</p>
-<h3><a class="header" href="#cardano-node-tools" id="cardano-node-tools">Cardano Node Tools</a></h3>
-<p>This is a multi-purpose script to operate various activities (like creating keys, transactions, registering stake pool , delegating to a pool or updating binaries) using cardano node.</p>
-<p>The script assumes the <a href="Common.html#dependencies-and-folder-structure-setup">pre-requisites</a> have already been run.</p>
-<h4><a class="header" href="#download-setup_monsh" id="download-setup_monsh">Download setup_mon.sh</a></h4>
-<p>If you have run <code>prereqs.sh</code>, this should already be available in your scripts folder. To download cntools.sh you can execute the commands below:</p>
-<pre><code class="language-bash">cd $CNODE_HOME/scripts
-wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/setup_mon.sh
-chmod 750 setup_mon.sh
-</code></pre>
-<h4><a class="header" href="#set-up-monitoring" id="set-up-monitoring">Set up Monitoring</a></h4>
-<p>Execute setup_mon.sh with full path to destination folder you want to setup monitoring in</p>
-<pre><code class="language-bash">./setup_mon.sh /opt/cardano/cnode/monitoring
-#
-# Please use hasPrometeus's IP:PORT from node's config file.
-# The files will be installed in the &quot;/opt/cardano/cnode/monitoring&quot; directory.
-# What port will be used for prometheus web server (Default is 9090)?9003
-# What is the ip of the node (default:127.0.0.1)?
-# What port is used for prometheus metrics of the node running on 127.0.0.1's (Default is 9001)?
-# Is this correct? http://127.0.0.1:9001/metrics
-# Do you want to continue? [Y/n/q] Y
-# 
-# Downloading prometheus v2.18.1...
-# Downloading grafana v7.0.0...
-# Downloading exporter v0.18.1...
-# Downloading grafana dashboard(s)...
-#   - Haskel_Node_SKY_Relay1_Dash.json
-#   - cardano-application-dashboard-v2.json
-# 
-# Configuring components
-# 
-# 
-# =====================================================
-# Installation is completed
-# =====================================================
-# 
-# - Prometheus (default): http://localhost:9003/metrics
-#     Node metrics:       http://127.0.0.1:9001
-#     Node exp metrics:   http://127.0.0.1:9002
-# - Grafana (default):    http://localhost:3000
-# 
-# 
-# You need to do the following to configure grafana:
-# 0. Start the required services in a new terminal by &quot;/opt/cardano/cnode/monitoring/start_all.sh&quot;
-#   - check the prometheus and its exporters by opening URLs above after start.
-# 1. Login to grafana as admin/admin (http://localhost:3000)
-# 2. Add &quot;prometheus&quot; (all lowercase) datasource (http://localhost:9003)
-# 3. Create a new dashboard by importing dashboards (left plus sign).
-#   - Sometimes, the individual panel's &quot;prometheus&quot; datasource needs to be refreshed.
-# 
-# Enjoy...
-# 
-# Cleaning up...
-</code></pre>
 <h3><a class="header" href="#collection-of-value-added-scripts" id="collection-of-value-added-scripts">Collection of Value-added scripts</a></h3>
 <p>A place to collect scripts that are supposed to help with usage of Cardano-node. The attempt with these scripts is to keep things similar to the popular jormungandr scripts that pool operators in ITN have been accustomed to. Use the navigation menu on the left to drill down to specific script.</p>
-<h3><a class="header" href="#cardano-node-tools-1" id="cardano-node-tools-1">Cardano Node Tools</a></h3>
+<h3><a class="header" href="#cardano-node-tools" id="cardano-node-tools">Cardano Node Tools</a></h3>
 <p>This is a multi-purpose script to operate various activities (like creating keys, transactions, registering stake pool , delegating to a pool or updating binaries) using cardano node.</p>
-<p>The script assumes the <a href="Common.html#dependencies-and-folder-structure-setup">pre-requisites</a> have already been run.</p>
+<p>The script assumes the <a href="Scripts/Common.html#dependencies-and-folder-structure-setup">pre-requisites</a> have already been run.</p>
 <h4><a class="header" href="#download-cntoolssh" id="download-cntoolssh">Download cntools.sh</a></h4>
 <p>If you have run <code>prereqs.sh</code>, this should already be available in your scripts folder and make this step unnecessary. 
 To download cntools manually you can execute the commands below:</p>
@@ -620,7 +568,7 @@ WKMJemoBa4a9dc77d6d36cfbd90ae0e693e5e99ad59c09a8455169assL7fzhq     0        100
 Total balance in 1 UTxO is 1000000000 Lovelace or 1000 ADA
 </code></pre>
 <h3><a class="header" href="#make-transactions" id="make-transactions">Make Transactions</a></h3>
-<p>This script will create and submit a transaction to send ADA from source address to destination address, it assumes the <a href="Common.html#dependencies-and-folder-structure-setup">pre-requisites</a> are already in place.<br />
+<p>This script will create and submit a transaction to send ADA from source address to destination address, it assumes the <a href="Scripts/Common.html#dependencies-and-folder-structure-setup">pre-requisites</a> are already in place.<br />
 The script can also be used to defrag address by setting destination and source address to the same and amount to the string 'all'</p>
 <pre><code class="language-bash">cd $CNODE_HOME/scripts
 
@@ -1327,8 +1275,61 @@ cardano-cli shelley query utxo --testnet-magic 42 --address $(cat stake.base)
 Also, since you cannot run a Praos node yet, the instructions here-in allow you to join a private haskell testnet network (phtn).  We will gradually update to Praos version and update the phtn references.</p>
 <p>*Note that the shelley (Praos) codebase is still being cooked in the oven while we're trying to taste it, expect hand burns if not careful
 Since we're just trying to keep up with codebase, expect rapid changes (some breaking, requiring redo of network - but that's always the intent of keeping up with bleeding tech). Feedback/Contribution and ownership of tasks is always welcome.</p>
+<h3><a class="header" href="#cardano-node-tools-1" id="cardano-node-tools-1">Cardano Node Tools</a></h3>
+<p>This is a multi-purpose script to operate various activities (like creating keys, transactions, registering stake pool , delegating to a pool or updating binaries) using cardano node.</p>
+<p>The script assumes the <a href="Appendix/Common.html#dependencies-and-folder-structure-setup">pre-requisites</a> have already been run.</p>
+<h4><a class="header" href="#download-setup_monsh" id="download-setup_monsh">Download setup_mon.sh</a></h4>
+<p>If you have run <code>prereqs.sh</code>, this should already be available in your scripts folder. To download cntools.sh you can execute the commands below:</p>
+<pre><code class="language-bash">cd $CNODE_HOME/scripts
+wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/setup_mon.sh
+chmod 750 setup_mon.sh
+</code></pre>
+<h4><a class="header" href="#set-up-monitoring" id="set-up-monitoring">Set up Monitoring</a></h4>
+<p>Execute setup_mon.sh with full path to destination folder you want to setup monitoring in</p>
+<pre><code class="language-bash">./setup_mon.sh /opt/cardano/cnode/monitoring
+#
+# Please use hasPrometeus's IP:PORT from node's config file.
+# The files will be installed in the &quot;/opt/cardano/cnode/monitoring&quot; directory.
+# What port will be used for prometheus web server (Default is 9090)?9003
+# What is the ip of the node (default:127.0.0.1)?
+# What port is used for prometheus metrics of the node running on 127.0.0.1's (Default is 9001)?
+# Is this correct? http://127.0.0.1:9001/metrics
+# Do you want to continue? [Y/n/q] Y
+# 
+# Downloading prometheus v2.18.1...
+# Downloading grafana v7.0.0...
+# Downloading exporter v0.18.1...
+# Downloading grafana dashboard(s)...
+#   - Haskel_Node_SKY_Relay1_Dash.json
+#   - cardano-application-dashboard-v2.json
+# 
+# Configuring components
+# 
+# 
+# =====================================================
+# Installation is completed
+# =====================================================
+# 
+# - Prometheus (default): http://localhost:9003/metrics
+#     Node metrics:       http://127.0.0.1:9001
+#     Node exp metrics:   http://127.0.0.1:9002
+# - Grafana (default):    http://localhost:3000
+# 
+# 
+# You need to do the following to configure grafana:
+# 0. Start the required services in a new terminal by &quot;/opt/cardano/cnode/monitoring/start_all.sh&quot;
+#   - check the prometheus and its exporters by opening URLs above after start.
+# 1. Login to grafana as admin/admin (http://localhost:3000)
+# 2. Add &quot;prometheus&quot; (all lowercase) datasource (http://localhost:9003)
+# 3. Create a new dashboard by importing dashboards (left plus sign).
+#   - Sometimes, the individual panel's &quot;prometheus&quot; datasource needs to be refreshed.
+# 
+# Enjoy...
+# 
+# Cleaning up...
+</code></pre>
 <h3><a class="header" href="#sample-postgres-deployment-instructions" id="sample-postgres-deployment-instructions">Sample Postgres Deployment instructions</a></h3>
-<p>These deployment instructions used for reference while building <a href="dbsync.html">cardano-db-sync</a> tool. These are just for reference and ease of set up and consistency for those who are new to Postgres DB.
+<p>These deployment instructions used for reference while building <a href="Appendix/dbsync.html">cardano-db-sync</a> tool. These are just for reference and ease of set up and consistency for those who are new to Postgres DB.
 It is recommended to customise these as per your needs for Production builds.</p>
 <h4><a class="header" href="#install-postgresql-server" id="install-postgresql-server">Install PostgreSQL Server</a></h4>
 <p>Execute commands below to set up Postgres Server</p>
@@ -1380,6 +1381,20 @@ psql postgres
 # Type &quot;help&quot; for help.
 # 
 # postgres=#
+</code></pre>
+<h3><a class="header" href="#starting-as-a-bft-member-node-defined-in-genesis-of-tpraos" id="starting-as-a-bft-member-node-defined-in-genesis-of-tpraos">Starting as a BFT member node defined in Genesis of TPraos</a></h3>
+<p>Use this guide only if you already have your genesis keys (referred to as <code>delegate.skey</code> below). The step may not apply to most of the pool operators.
+Ensure the <a href="Appendix/Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
+<h4><a class="header" href="#create-verification-key" id="create-verification-key">Create verification key</a></h4>
+<pre><code class="language-bash"># Create the Node operation keys
+cardano-cli shelley node key-gen-VRF --verification-key-file $CNODE_HOME/priv/vrf.vkey --signing-key-file $CNODE_HOME/priv/vrf.skey
+cardano-cli shelley node key-gen-KES --verification-key-file $CNODE_HOME/priv/kes.vkey --signing-key-file $CNODE_HOME/priv/kes.skey
+cardano-cli shelley node issue-op-cert --kes-verification-key-file $CNODE_HOME/priv/kes.vkey --cold-signing-key-file $CNODE_HOME/priv/delegate.skey --operational-certificate-issue-counter $CNODE_HOME/priv/delegate.counter --kes-period 0 --out-file $CNODE_HOME/priv/ops.cert 
+</code></pre>
+<h4><a class="header" href="#start-node" id="start-node">Start Node</a></h4>
+<pre><code class="language-bash"># Run the node
+cd $CNODE_HOME/scripts
+./cnode.sh
 </code></pre>
 <h3><a class="header" href="#contributors" id="contributors">Contributors</a></h3>
 <p>Everyone is welcome to contribute to the guide, as well as the repository. Below is just a thank you to people who have been contributing consistently:</p>
