@@ -8,7 +8,7 @@
 ########## Global tasks ###########################################
 
 # get common env variables
-. "$(dirname $0)"/env
+. "$(dirname $0)"/env_guild
 
 # get cntools config parameters
 . "$(dirname $0)"/cntools.config
@@ -1139,8 +1139,8 @@ case $OPERATION in
       getPassword # $password variable populated by getPassword function
       echo ""
     fi
-
-    pay_payment_addr_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
+    stakepayment_addr_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_STAKEPAY_ADDR_FILENAME}"
+    #pay_payment_addr_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
     pay_payment_sk_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_PAY_SK_FILENAME}"
     staking_sk_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_STAKING_SK_FILENAME}"
     staking_vk_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_STAKING_VK_FILENAME}"
@@ -1149,9 +1149,9 @@ case $OPERATION in
     pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
     pool_vrf_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_VK_FILENAME}"
 
-    if [[ ! -f "${pay_payment_addr_file}" ]]; then
-      say "${RED}ERROR${NC}: source wallet address file not found:" "log"
-      say "${pay_payment_addr_file}" "log"
+    if [[ ! -f "${stakepayment_addr_file}" ]]; then
+      say "${RED}ERROR${NC}: source wallet staking address file not found:" "log"
+      say "${stakepayment_addr_file}" "log"
       unset password poolpassword
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
@@ -1194,7 +1194,7 @@ case $OPERATION in
     ${CCLI} shelley stake-address delegation-certificate --staking-verification-key-file "${staking_vk_file}" --stake-pool-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
     say "-- Sending transaction to chain --" "log"
 
-    if ! registerPool "$(cat ${pay_payment_addr_file})" "${pool_coldkey_sk_file}" "${staking_sk_file}" "${pool_regcert_file}" "${pool_pledgecert_file}" "${pay_payment_sk_file}"; then
+    if ! registerPool "$(cat ${stakepayment_addr_file})" "${pool_coldkey_sk_file}" "${staking_sk_file}" "${pool_regcert_file}" "${pool_pledgecert_file}" "${pay_payment_sk_file}"; then
       say "${RED}ERROR${NC}: failure during pool registration, removing newly created pledge and registration files" "log"
       rm -f "${pool_regcert_file}" "${pool_pledgecert_file}"
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
@@ -1234,6 +1234,7 @@ case $OPERATION in
         read -r -n 1 -s -p "press any key to continue"
       fi
     fi
+    unset password poolpassword
 
     waitNewBlockCreated
 
