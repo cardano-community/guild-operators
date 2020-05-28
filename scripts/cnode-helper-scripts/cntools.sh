@@ -244,7 +244,7 @@ case $OPERATION in
       fi
 
       ${CCLI} shelley address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}"
-      ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" > "${payment_addr_file}"
+      ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}"
 
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
         trap 'rm -rf ${WALLET_FOLDER:?}/${wallet_name}' INT TERM
@@ -315,11 +315,11 @@ case $OPERATION in
       fi
 
       ${CCLI} shelley stake-address key-gen --verification-key-file "${staking_vk_file}" --signing-key-file "${staking_sk_file}"
-      ${CCLI} shelley stake-address build --staking-verification-key-file "${staking_vk_file}" > "${staking_addr_file}"
+      ${CCLI} shelley stake-address build --stake-verification-key-file "${staking_vk_file}" --out-file "${staking_addr_file}"
       # upgrade the payment address to an address that delegates to the new stake address
-      ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --staking-verification-key-file "${staking_vk_file}" > "${base_addr_file}"
+      ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${staking_vk_file}" --out-file "${base_addr_file}"
 
-      ${CCLI} shelley stake-address registration-certificate --staking-verification-key-file "${staking_vk_file}" --out-file "${staking_cert_file}"
+      ${CCLI} shelley stake-address registration-certificate --stake-verification-key-file "${staking_vk_file}" --out-file "${staking_cert_file}"
 
       payment_addr="$(cat ${payment_addr_file})"
       base_addr="$(cat ${base_addr_file})"
@@ -922,7 +922,7 @@ case $OPERATION in
     delegation_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DELEGCERT_FILENAME}"
 
     say "-- creating delegation cert --" "log"
-    ${CCLI} shelley stake-address delegation-certificate --staking-verification-key-file "${staking_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${delegation_cert_file}"
+    ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${staking_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${delegation_cert_file}"
 
     #[stake vkey] [stake skey] [pay skey] [pay addr] [pool vkey] [deleg cert]
     if ! delegate "${staking_vk_file}" "${staking_sk_file}" "${pay_payment_sk_file}" "$(cat ${base_addr_file})" "${pool_coldkey_vk_file}"  "${delegation_cert_file}" ; then
@@ -1047,8 +1047,8 @@ case $OPERATION in
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
     ${CCLI} shelley node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
-    ${CCLI} shelley node key-gen --verification-key-file "${pool_coldkey_vk_file}" --signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter "${pool_opcert_counter_file}"
-    ${CCLI} shelley node issue-op-cert --hot-kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter "${pool_opcert_counter_file}" --kes-period 0 --out-file "${pool_opcert_file}"
+    ${CCLI} shelley node key-gen --cold-verification-key-file "${pool_coldkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
+    ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period 0 --out-file "${pool_opcert_file}"
     ${CCLI} shelley node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
 
     ## TODO: Should we encrypt any more of the keys?
@@ -1189,9 +1189,9 @@ case $OPERATION in
     pool_pledgecert_file="${POOL_FOLDER}/${pool_name}/${POOL_PLEDGECERT_FILENAME}"
 
     say "-- creating registration cert --" "log"
-    ${CCLI} shelley stake-pool registration-certificate --stake-pool-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge $(( pledgeada * 1000000 )) --pool-cost $(( costada * 1000000 )) --pool-margin ${margin} --reward-account-verification-key-file "${staking_vk_file}" --pool-owner-staking-verification-key "${staking_vk_file}" --out-file "${pool_regcert_file}"
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge $(( pledgeada * 1000000 )) --pool-cost $(( costada * 1000000 )) --pool-margin ${margin} --pool-reward-account-verification-key-file "${staking_vk_file}" --pool-owner-stake-verification-key-file "${staking_vk_file}" --out-file "${pool_regcert_file}"
     say "-- creating delegation cert --" "log"
-    ${CCLI} shelley stake-address delegation-certificate --staking-verification-key-file "${staking_vk_file}" --stake-pool-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
+    ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${staking_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
     say "-- Sending transaction to chain --" "log"
 
     if ! registerPool "$(cat ${base_addr_file})" "${pool_coldkey_sk_file}" "${staking_sk_file}" "${pool_regcert_file}" "${pool_pledgecert_file}" "${pay_payment_sk_file}"; then

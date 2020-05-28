@@ -166,7 +166,7 @@ getBalance() {
   TOTALBALANCE=0
   UTx0_COUNT=0
 
-  ${CCLI} shelley query utxo --testnet-magic "${NWMAGIC}" --address "${1}" > ${TMP_FOLDER}/fullUtxo.out
+  ${CCLI} shelley query utxo --testnet-magic "${NWMAGIC}" --address "${1}" --out-file ${TMP_FOLDER}/fullUtxo.out
   tail -n +3 ${TMP_FOLDER}/fullUtxo.out | sort -k3 -nr > ${TMP_FOLDER}/balance.txt
 
   if [ -s ${TMP_FOLDER}/balance.txt ]; then
@@ -224,7 +224,7 @@ sendADA() {
 
   say ""
   say " -- Protocol Parameters --"
-  currSlot=$(${CCLI} shelley query tip --testnet-magic ${NWMAGIC} | awk '{ print $5 }' | grep -Eo '[0-9]{1,}')
+  currSlot=$(getTip slot)
   ttlValue=$(( currSlot + 1000 ))
   say "TN Magic is ${NWMAGIC}" "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
@@ -319,7 +319,7 @@ sendADA() {
     ${txOut}
     --ttl ${ttlValue}
     --fee ${minFee}
-    --tx-body-file ${TMP_FOLDER}/tx.raw
+    --out-file ${TMP_FOLDER}/tx.raw
   )
 
   signArgs=(
@@ -327,7 +327,7 @@ sendADA() {
     --tx-body-file ${TMP_FOLDER}/tx.raw
     --signing-key-file ${sKey}
     --testnet-magic ${NWMAGIC}
-    --tx-file ${TMP_FOLDER}/tx.signed
+    --out-file ${TMP_FOLDER}/tx.signed
   )
 
   submitArgs=(
@@ -408,7 +408,7 @@ registerStaking() {
   tx_in="--tx-in ${utxo}#${id}"
 
   say " -- Protocol Parameters --"
-  currSlot=$(${CCLI} shelley query tip --testnet-magic ${NWMAGIC} | awk '{ print $5 }' | grep -Eo '[0-9]{1,}')
+  currSlot=$(getTip slot)
   ttlValue=$(( currSlot + 1000 ))
   keyDeposit=$(cat ${TMP_FOLDER}/protparams.json | jq -r '.keyDeposit')
   say "Key Deposit is ${keyDeposit}"
@@ -425,7 +425,7 @@ registerStaking() {
     --testnet-magic ${NWMAGIC}
     --signing-key-file ${payment_sk}
     --signing-key-file ${staking_sk}
-    --certificate ${staking_cert}
+    --certificate-file ${staking_cert}
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
@@ -446,8 +446,8 @@ registerStaking() {
     ${tx_out}
     --ttl ${ttlValue}
     --fee ${minFee}
-    --certificate ${staking_cert}
-    --tx-body-file ${TMP_FOLDER}/tx.raw
+    --certificate-file ${staking_cert}
+    --out-file ${TMP_FOLDER}/tx.raw
   )
 
   signArgs=(
@@ -456,7 +456,7 @@ registerStaking() {
     --signing-key-file ${payment_sk}
     --signing-key-file ${staking_sk}
     --testnet-magic ${NWMAGIC}
-    --tx-file ${TMP_FOLDER}/tx.signed
+    --out-file ${TMP_FOLDER}/tx.signed
   )
 
   submitArgs=(
@@ -544,7 +544,7 @@ registerPool() {
 
 
   say " -- Protocol Parameters --"
-  currSlot=$(${CCLI} shelley query tip --testnet-magic ${NWMAGIC} | awk '{ print $5 }' | grep -Eo '[0-9]{1,}')
+  currSlot=$(getTip slot)
   ttlValue=$(( currSlot + 1000 ))
   poolDeposit=$(cat ${TMP_FOLDER}/protparams.json | jq -r '.poolDeposit')
   say "TN Magic is ${NWMAGIC}" "log"
@@ -562,8 +562,8 @@ registerPool() {
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${pool_coldkey_sk_file}
     --signing-key-file ${staking_sk_file}
-    --certificate ${pool_regcert_file}
-    --certificate ${pool_pledgecert_file}
+    --certificate-file ${pool_regcert_file}
+    --certificate-file ${pool_pledgecert_file}
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
@@ -584,9 +584,9 @@ registerPool() {
     ${tx_out}
     --ttl ${ttlValue}
     --fee ${minFee}
-    --certificate ${pool_regcert_file}
-    --certificate ${pool_pledgecert_file}
-    --tx-body-file ${TMP_FOLDER}/tx.raw
+    --certificate-file ${pool_regcert_file}
+    --certificate-file ${pool_pledgecert_file}
+    --out-file ${TMP_FOLDER}/tx.raw
   )
 
   signArgs=(
@@ -596,7 +596,7 @@ registerPool() {
     --signing-key-file ${pool_coldkey_sk_file}
     --signing-key-file ${staking_sk_file}
     --testnet-magic ${NWMAGIC}
-    --tx-file ${TMP_FOLDER}/tx.signed
+    --out-file ${TMP_FOLDER}/tx.signed
   )
 
   submitArgs=(
@@ -687,7 +687,7 @@ delegate() {
 
 
   say " -- Protocol Parameters --"
-  currSlot=$(${CCLI} shelley query tip --testnet-magic ${NWMAGIC} | awk '{ print $5 }' | grep -Eo '[0-9]{1,}')
+  currSlot=$(getTip slot)
   ttlValue=$(( currSlot + 1000 ))
   say "TN Magic is ${NWMAGIC}" "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
@@ -702,7 +702,7 @@ delegate() {
     --testnet-magic ${NWMAGIC}
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${staking_sk_file}
-    --certificate ${pool_delegcert_file}
+    --certificate-file ${pool_delegcert_file}
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
@@ -723,8 +723,8 @@ delegate() {
     ${tx_out}
     --ttl ${ttlValue}
     --fee ${minFee}
-    --certificate ${pool_delegcert_file}
-    --tx-file ${TMP_FOLDER}/tx.raw
+    --certificate-file ${pool_delegcert_file}
+    --out-file ${TMP_FOLDER}/tx.raw
   )
 
   signArgs=(
@@ -733,7 +733,7 @@ delegate() {
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${staking_sk_file}
     --testnet-magic ${NWMAGIC}
-    --tx-file ${TMP_FOLDER}/tx.signed
+    --out-file ${TMP_FOLDER}/tx.signed
   )
 
   submitArgs=(
