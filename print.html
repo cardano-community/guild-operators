@@ -215,7 +215,7 @@ sudo chkconfig docker on
 sudo curl -L &quot;https://github.com/docker/compose/releases/download/1.25.5/docker-compose-$(uname -s)-$(uname -m)&quot; -o /usr/bin/docker-compose;chmod 755 /usr/bin/docker-compose
 </code></pre>
 <h3><a class="header" href="#cardano-node-and-cardano-cli" id="cardano-node-and-cardano-cli">Cardano Node and Cardano CLI</a></h3>
-<p>Ensure the <a href="Build/Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
+<p>Ensure the <a href="Build/../Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
 <h4><a class="header" href="#build-instructions" id="build-instructions">Build Instructions</a></h4>
 <p>Run the commands below to clone the Cardano Node git repository and build the binaries:</p>
 <pre><code class="language-bash">cd ~/git
@@ -243,7 +243,7 @@ cardano-node
 </code></pre>
 <h3><a class="header" href="#cardano-wallet" id="cardano-wallet">Cardano Wallet</a></h3>
 <p><strong>Note: Cardano Wallet does not support TPraos network yet (it does support BFT networks and ITN Praos) - but as soon as it does, instructions below should still remain valid</strong></p>
-<p>Ensure the <a href="Build/Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
+<p>Ensure the <a href="Build/../Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
 <h4><a class="header" href="#build-instructions-1" id="build-instructions-1">Build Instructions</a></h4>
 <p>Follow instructions below for building the cardano-wallet binary:</p>
 <pre><code class="language-bash">cd ~/git
@@ -335,7 +335,7 @@ Ok.
 }
 </code></pre>
 <h3><a class="header" href="#cardano-rest" id="cardano-rest">Cardano Rest</a></h3>
-<p>Ensure the <a href="Build/Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
+<p>Ensure the <a href="Build/../Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
 <h4><a class="header" href="#build-instructions-2" id="build-instructions-2">Build Instructions</a></h4>
 <p>Clone the cardano-rest repository from github</p>
 <pre><code class="language-bash">cd ~/git
@@ -359,7 +359,7 @@ cardano-explorer-api
 </code></pre>
 <h3><a class="header" href="#dbsync-tool" id="dbsync-tool">DBSync tool</a></h3>
 <p>Cardano DB Sync tool relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to <a href="Build/postgres.html">Sample Local PostgreSQL Server Deployment instructions</a> for setting up Postgres instance.</p>
-<p>Ensure the <a href="Build/Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
+<p>Ensure the <a href="Build/../Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
 <h4><a class="header" href="#build-cardano-db-sync" id="build-cardano-db-sync">Build cardano-db-sync</a></h4>
 <p>To build instructions for cardano-db-sync tool will be similar to cardano-node:</p>
 <pre><code class="language-bash">cd ~/git
@@ -520,7 +520,7 @@ If this is your relay node, you can update topology.json to link to your core no
 <p>A place to collect scripts that are supposed to help with usage of Cardano-node. The attempt with these scripts is to keep things similar to the popular jormungandr scripts that pool operators in ITN have been accustomed to. Use the navigation menu on the left to drill down to specific script.</p>
 <h3><a class="header" href="#cardano-node-tools" id="cardano-node-tools">Cardano Node Tools</a></h3>
 <p>This is a multi-purpose script to operate various activities (like creating keys, transactions, registering stake pool , delegating to a pool or updating binaries) using cardano node.</p>
-<p>The script assumes the <a href="Scripts/Common.html#dependencies-and-folder-structure-setup">pre-requisites</a> have already been run.</p>
+<p>The script assumes the <a href="Scripts/../Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> have already been run.</p>
 <h4><a class="header" href="#download-cntoolssh" id="download-cntoolssh">Download cntools.sh</a></h4>
 <p>If you have run <code>prereqs.sh</code>, this should already be available in your scripts folder and make this step unnecessary. 
 To download cntools manually you can execute the commands below:</p>
@@ -1277,7 +1277,7 @@ Also, since you cannot run a Praos node yet, the instructions here-in allow you 
 Since we're just trying to keep up with codebase, expect rapid changes (some breaking, requiring redo of network - but that's always the intent of keeping up with bleeding tech). Feedback/Contribution and ownership of tasks is always welcome.</p>
 <h3><a class="header" href="#cardano-node-tools-1" id="cardano-node-tools-1">Cardano Node Tools</a></h3>
 <p>This is a multi-purpose script to operate various activities (like creating keys, transactions, registering stake pool , delegating to a pool or updating binaries) using cardano node.</p>
-<p>The script assumes the <a href="Appendix/Common.html#dependencies-and-folder-structure-setup">pre-requisites</a> have already been run.</p>
+<p>The script assumes the <a href="Appendix/../Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> have already been run.</p>
 <h4><a class="header" href="#download-setup_monsh" id="download-setup_monsh">Download setup_mon.sh</a></h4>
 <p>If you have run <code>prereqs.sh</code>, this should already be available in your scripts folder. To download cntools.sh you can execute the commands below:</p>
 <pre><code class="language-bash">cd $CNODE_HOME/scripts
@@ -1384,7 +1384,7 @@ psql postgres
 </code></pre>
 <h3><a class="header" href="#starting-as-a-bft-member-node-defined-in-genesis-of-tpraos" id="starting-as-a-bft-member-node-defined-in-genesis-of-tpraos">Starting as a BFT member node defined in Genesis of TPraos</a></h3>
 <p>Use this guide only if you already have your genesis keys (referred to as <code>delegate.skey</code> below). The step may not apply to most of the pool operators.
-Ensure the <a href="Appendix/Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
+Ensure the <a href="Appendix/../Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> are in place before you proceed.</p>
 <h4><a class="header" href="#create-verification-key" id="create-verification-key">Create verification key</a></h4>
 <pre><code class="language-bash"># Create the Node operation keys
 cardano-cli shelley node key-gen-VRF --verification-key-file $CNODE_HOME/priv/vrf.vkey --signing-key-file $CNODE_HOME/priv/vrf.skey
