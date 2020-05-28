@@ -44,6 +44,8 @@ say() {
 need_cmd() {
   if ! command -v "$1" > /dev/null 2>&1; then
     say "${RED}ERROR${NC}: need '$1' (command not found)" "try 'sudo apt install $1'" "log"
+    say "please install with your packet manager of choice(apt/yum etc..) and relaunch cntools"
+    return 1
   fi
 }
 
