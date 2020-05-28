@@ -1,7 +1,7 @@
 #!/bin/bash
 # shellcheck disable=SC1090,SC2086,SC2154,SC2034
 # ,SC2034,SC2143,SC2046,
-# Creators: gufmar, Scitz0
+# Creators: gufmar, Scitz0, Papacarp
 # 2020-05-19 cntools initial release (concept)
 # 2020-05-24 helper functions moved cnlibrary & configuration to env file
 
@@ -244,14 +244,14 @@ case $OPERATION in
       fi
 
       ${CCLI} shelley address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}"
-      ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" > "${payment_addr_file}"
+      ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}"
 
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
         trap 'rm -rf ${WALLET_FOLDER:?}/${wallet_name}' INT TERM
         say " -- Wallet ${GREEN}${wallet_name}${NC} Password --"
         getPassword confirm # $password variable populated by getPassword function
         if ! encryptFile "${payment_vk_file}" "${password}" || \
-           ! encryptFile "${payment_sk_file}" "${password}"; then
+          ! encryptFile "${payment_sk_file}" "${password}"; then
           rm -rf "${WALLET_FOLDER:?}/${wallet_name}"
           echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
         fi
@@ -278,11 +278,14 @@ case $OPERATION in
 
       # Wallet key filenames
       payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+      payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
       payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
       staking_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKING_VK_FILENAME}"
       staking_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKING_SK_FILENAME}"
       staking_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKING_ADDR_FILENAME}"
       staking_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKING_CERT_FILENAME}"
+      base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
+
 
       if [[ ! -f "${payment_addr_file}" ]]; then
         say "${RED}WARN${NC}: No payment wallet found with name: ${GREEN}$wallet_name${NC}"
@@ -294,44 +297,57 @@ case $OPERATION in
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
 
-      ${CCLI} shelley stake-address key-gen --verification-key-file "${staking_vk_file}" --signing-key-file "${staking_sk_file}"
-      ${CCLI} shelley stake-address build --stake-verification-key-file "${staking_vk_file}" > "${staking_addr_file}"
-      ${CCLI} shelley stake-address registration-certificate --stake-verification-key-file "${staking_vk_file}" --out-file "${staking_cert_file}"
-
-      # Decrypt payment signing key if needed, reencrypted together with staking keys later
+      # Decrypt payment keys if needed, reencrypted together with staking keys later
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-        [[ ! -f "${payment_sk_file}.gpg" ]] && {
-          say "${RED}ERROR${NC}: 'PROTECT_KEYS=yes' but no gpg encrypted file found on disk:" "log"
-          say "${payment_sk_file}.gpg" "log"
+        [[ ! -f "${payment_vk_file}.gpg" || ! -f "${payment_sk_file}.gpg" ]] && {
+          say "${RED}ERROR${NC}: 'PROTECT_KEYS=yes' but gpg encrypted payment vk or sk file missing!" "log"
           echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
         }
         echo ""
         say " -- Wallet ${GREEN}${wallet_name}${NC} Password --"
         getPassword # $password variable populated by getPassword function
-        if ! decryptFile "${payment_sk_file}.gpg" "${password}"; then
+        if ! decryptFile "${payment_vk_file}.gpg" "${password}" || \
+           ! decryptFile "${payment_sk_file}.gpg" "${password}"; then
           unset password
-          rm -f "${staking_vk_file}" "${staking_sk_file}" "${staking_addr_file}" "${staking_cert_file}"
-          echo "" && say "${RED}ERROR${NC}: failure during payment signing key decryption, removing newly created staking keys" "log"
+          echo "" && say "${RED}ERROR${NC}: failure during payment key decryption" "log"
           echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
         fi
       fi
 
+      ${CCLI} shelley stake-address key-gen --verification-key-file "${staking_vk_file}" --signing-key-file "${staking_sk_file}"
+      ${CCLI} shelley stake-address build --stake-verification-key-file "${staking_vk_file}" --out-file "${staking_addr_file}"
+      # upgrade the payment address to an address that delegates to the new stake address
+      ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${staking_vk_file}" --out-file "${base_addr_file}"
+
+      ${CCLI} shelley stake-address registration-certificate --stake-verification-key-file "${staking_vk_file}" --out-file "${staking_cert_file}"
+
       payment_addr="$(cat ${payment_addr_file})"
+      base_addr="$(cat ${base_addr_file})"
 
       # Register on chain
-      if ! registerStaking "${payment_addr}" "${payment_sk_file}" "${staking_sk_file}" "${staking_cert_file}"; then
+      if ! registerStaking "${payment_addr}" "${base_addr}" "${payment_sk_file}" "${staking_sk_file}" "${staking_cert_file}"; then
         say "${RED}ERROR${NC}: failure during staking key registration, removing newly created staking keys" "log"
         rm -f "${staking_vk_file}" "${staking_sk_file}" "${staking_addr_file}" "${staking_cert_file}"
-        [[ "${PROTECT_KEYS}" = "yes" ]] && encryptFile "${payment_sk_file}" "${password}"
+        if [[ "${PROTECT_KEYS}" = "yes" ]]; then
+          if ! encryptFile "${payment_sk_file}" "${password}" || \
+              ! encryptFile "${payment_vk_file}" "${password}"; then
+            say "${RED}ERROR${NC}: failure during key encryption!" "log"
+            say "${ORANGE}Please make sure all of these keys are encrypted for wallet ${wallet_name}, else manually re-encrypt!${NC}"
+            say "File should have extension .gpg"
+            say "${payment_sk_file}.gpg" "log"
+            say "${payment_vk_file}.gpg" "log"
+          fi
+        fi
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
 
       # Encrypt keys before we wait for tx to go through
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
         if ! encryptFile "${staking_vk_file}" "${password}" || \
-           ! encryptFile "${staking_sk_file}" "${password}" || \
-           ! encryptFile "${staking_cert_file}" "${password}" || \
-           ! encryptFile "${payment_sk_file}" "${password}"; then
+          ! encryptFile "${payment_vk_file}" "${password}" || \
+          ! encryptFile "${staking_sk_file}" "${password}" || \
+          ! encryptFile "${staking_cert_file}" "${password}" || \
+          ! encryptFile "${payment_sk_file}" "${password}"; then
           say "${RED}ERROR${NC}: failure during key encryption!" "log"
         fi
       fi
@@ -342,9 +358,9 @@ case $OPERATION in
       say "--- Balance Check Source Address -------------------------------------------------------" "log"
       getBalance "${payment_addr}"
 
-      while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
+      while [[ ${TOTALBALANCE} -ne 0 ]]; do
         say ""
-        say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))" "log"
+        say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != 0" "log"
         waitNewBlockCreated
         say ""
         say "--- Balance Check Source Address -------------------------------------------------------" "log"
@@ -352,8 +368,9 @@ case $OPERATION in
       done
 
       say "Wallet: ${wallet_name}" "log"
-      say "Payment Address: $(cat ${payment_addr_file})" "log"
-      say "Staking Address: $(cat ${staking_addr_file})" "log"
+      say "Payment Address: ${payment_addr}" "log"
+      say "Reward Address:  $(cat ${staking_addr_file})" "log"
+      say "Base Address:    ${base_addr}" "log"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 
@@ -371,26 +388,33 @@ case $OPERATION in
     for wallet_folder_name in "${WALLET_FOLDER}"/*/
     do
       wallet_name=${wallet_folder_name%*/}
-      if [ -f "${wallet_folder_name}${WALLET_PAY_ADDR_FILENAME}" ]; then
-        payment_addr_file=$(cat "${wallet_folder_name}${WALLET_PAY_ADDR_FILENAME}")
-        say "Wallet: ${GREEN}${wallet_name##*/}${NC} "
+      say "Wallet: ${GREEN}${wallet_name##*/}${NC} "
+      # Wallet key filenames
+      payment_addr_file="${wallet_folder_name}${WALLET_PAY_ADDR_FILENAME}"
+      staking_addr_file="${wallet_folder_name}${WALLET_STAKING_ADDR_FILENAME}"
+      base_addr_file="${wallet_folder_name}${WALLET_BASE_ADDR_FILENAME}"
+
+      if [ -f "${payment_addr_file}" ]; then
         echo ""
-        say "Payment Address: ${payment_addr_file}"
+        payment_addr=$(cat "${payment_addr_file}")
+        say "Payment Address: ${payment_addr}"
         say "Balance:"
-        getBalance ${payment_addr_file}
+        getBalance ${payment_addr}
+      fi
+      ## TODO - Can reward address balance be listed?
+      #if [ -f "${staking_addr_file}" ]; then
+      #  echo ""
+      #  reward_addr=$(cat "${staking_addr_file}")
+      #  say "Reward Address:  ${reward_addr}"
+      #  say "Balance:"
+      #  getBalance ${reward_addr}
+      #fi
+      if [ -f "${base_addr_file}" ]; then
         echo ""
-        # TODO - Can reward address be listed?
-        #if [ -f "${wallet_folder_name}${WALLET_STAKING_ADDR_FILENAME}" ]; then
-        #  staking_addr_file=$(cat "${wallet_folder_name}${WALLET_STAKING_ADDR_FILENAME}")
-        #  say "Reward Address:  ${staking_addr_file}"
-        #  say "Balance:"
-        #  getBalance ${staking_addr_file}
-        #  echo ""
-        #fi
-      else
-        say "Wallet: ${GREEN}${wallet_name##*/}${NC} "
-        say "${RED}WARN${NC}: missing wallet address file:"
-        say "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
+        base_addr=$(cat "${base_addr_file}")
+        say "Base Address:     ${base_addr}"
+        say "Balance:"
+        getBalance ${base_addr}
         echo ""
       fi
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -410,33 +434,34 @@ case $OPERATION in
       say ">>> Invalid Selection (ctrl+c to quit)"
     done
     echo ""
+    say "Wallet: ${GREEN}${wallet_name##*/}${NC} "
 
     # Wallet key filenames
     payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
     staking_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKING_ADDR_FILENAME}"
+    base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
 
     if [ -f "${payment_addr_file}" ]; then
-      echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-      payment_addr=$(cat "${payment_addr_file}")
-      say "Wallet: ${GREEN}${wallet_name##*/}${NC} "
       echo ""
-      say "Payemnt Address: ${payment_addr}"
+      payment_addr=$(cat "${payment_addr_file}")
+      say "Payment Address: ${payment_addr}"
       say "Balance:"
       getBalance ${payment_addr}
+    fi
+    ## TODO - Can reward address balance be listed?
+    #if [ -f "${staking_addr_file}" ]; then
+    #  echo ""
+    #  reward_addr=$(cat "${staking_addr_file}")
+    #  say "Reward Address:  ${reward_addr}"
+    #  say "Balance:"
+    #  getBalance ${reward_addr}
+    #fi
+    if [ -f "${base_addr_file}" ]; then
       echo ""
-      # TODO - Can reward address be listed?
-      #if [ -f "${staking_addr_file}" ]; then
-      #  staking_addr=$(cat "${staking_addr_file}")
-      #  say "Reward Address:  ${staking_addr}"
-      #  say "Balance:"
-      #  getBalance ${staking_addr}
-      #  echo ""
-      #fi
-    else
-      echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-      say "Wallet: ${GREEN}${wallet_name##*/}${NC} "
-      say "${RED}WARN${NC}: missing wallet address file:"
-      say "${payment_addr_file}"
+      base_addr=$(cat "${base_addr_file}")
+      say "Base Address:     ${base_addr}"
+      say "Balance:"
+      getBalance ${base_addr}
       echo ""
     fi
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -456,10 +481,12 @@ case $OPERATION in
 
     # Wallet key filename
     payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
+    base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
 
     if [ -f "${payment_addr_file}" ]; then
       getBalance "$(cat ${payment_addr_file})" >/dev/null
       if [[ ${TOTALBALANCE} -eq 0 ]]; then
+        ## TODO - also check base address(reward as well?) so we can warn about this!
         say ""
         say "INFO: This wallet appears to be empty"
         say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup"
@@ -842,6 +869,13 @@ case $OPERATION in
       say ">>> Invalid Selection (ctrl+c to quit)"
     done
     echo ""
+    base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
+    #pay_payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
+    if [[ ! -f "${base_addr_file}" ]]; then
+      say "${RED}ERROR${NC}: 'Source wallet staking address file not found (are you sure this is a staking wallet?):" "log"
+      say "${base_addr_file}" "log"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
       say " -- Wallet ${GREEN}${wallet_name}${NC} Password --"
       getPassword # $password variable populated by getPassword function
@@ -850,15 +884,8 @@ case $OPERATION in
     fi
     staking_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKING_SK_FILENAME}"
     staking_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKING_VK_FILENAME}"
-    pay_payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
     pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-    if [[ ! -f "${pay_payment_addr_file}" ]]; then
-      say "${RED}ERROR${NC}: 'Source wallet address file not found:" "log"
-      say "${pay_payment_addr_file}" "log"
-      unset password walletpassword
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    
+
     say "Select Pool:"
     select pool_name in $(find ${POOL_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
       test -n "${pool_name}" && break
@@ -890,7 +917,7 @@ case $OPERATION in
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
     fi
-    
+
     #Generated Files
     delegation_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DELEGCERT_FILENAME}"
 
@@ -898,7 +925,7 @@ case $OPERATION in
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${staking_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${delegation_cert_file}"
 
     #[stake vkey] [stake skey] [pay skey] [pay addr] [pool vkey] [deleg cert]
-    if ! delegate "${staking_vk_file}" "${staking_sk_file}" "${pay_payment_sk_file}" "$(cat ${pay_payment_addr_file})" "${pool_coldkey_vk_file}"  "${delegation_cert_file}" ; then
+    if ! delegate "${staking_vk_file}" "${staking_sk_file}" "${pay_payment_sk_file}" "$(cat ${base_addr_file})" "${pool_coldkey_vk_file}"  "${delegation_cert_file}" ; then
       echo "" && say "${RED}ERROR${NC}: failure during delegation, removing newly created delegation certificate file" "log"
       rm -f "${delegation_cert_file}"
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
@@ -941,7 +968,7 @@ case $OPERATION in
 
     echo ""
     say "--- Balance Check Source Address -------------------------------------------------------" "log"
-    getBalance "$(cat ${pay_payment_addr_file})"
+    getBalance "$(cat ${base_addr_file})"
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       echo ""
@@ -949,11 +976,11 @@ case $OPERATION in
       waitNewBlockCreated
       echo ""
       say "--- Balance Check Source Address -------------------------------------------------------" "log"
-      getBalance "$(cat ${pay_payment_addr_file})"
+      getBalance "$(cat ${base_addr_file})"
     done
 
     say "Wallet: ${wallet_name}" "log"
-    say "Payment Address: $(cat ${pay_payment_addr_file})" "log"
+    say "Payment Address: $(cat ${base_addr_file})" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
 
@@ -1020,8 +1047,8 @@ case $OPERATION in
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
     ${CCLI} shelley node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
-    ${CCLI} shelley node key-gen --cold-verification-key-file "${pool_coldkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter "${pool_opcert_counter_file}"
-    ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter "${pool_opcert_counter_file}" --kes-period 0 --out-file "${pool_opcert_file}"
+    ${CCLI} shelley node key-gen --cold-verification-key-file "${pool_coldkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
+    ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period 0 --out-file "${pool_opcert_file}"
     ${CCLI} shelley node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
 
     ## TODO: Should we encrypt any more of the keys?
@@ -1059,7 +1086,7 @@ case $OPERATION in
       say ">>> Invalid Selection (ctrl+c to quit)"
     done
     echo ""
-    
+
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
       say " -- Pool ${GREEN}${pool_name}${NC} Password --"
       getPassword # $password variable populated by getPassword function
@@ -1107,25 +1134,24 @@ case $OPERATION in
       say ">>> Invalid Selection (ctrl+c to quit)"
     done
     echo ""
-    
+
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
       say " -- Wallet ${GREEN}${pledge_wallet_name}${NC} Password --"
       getPassword # $password variable populated by getPassword function
       echo ""
     fi
-
-    pay_payment_addr_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
+    base_addr_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
     pay_payment_sk_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_PAY_SK_FILENAME}"
     staking_sk_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_STAKING_SK_FILENAME}"
     staking_vk_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_STAKING_VK_FILENAME}"
-    
+
     pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
     pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
     pool_vrf_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_VK_FILENAME}"
-    
-    if [[ ! -f "${pay_payment_addr_file}" ]]; then
-      say "${RED}ERROR${NC}: source wallet address file not found:" "log"
-      say "${pay_payment_addr_file}" "log"
+
+    if [[ ! -f "${base_addr_file}" ]]; then
+      say "${RED}ERROR${NC}: source wallet staking address file not found:" "log"
+      say "${base_addr_file}" "log"
       unset password poolpassword
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
@@ -1163,12 +1189,12 @@ case $OPERATION in
     pool_pledgecert_file="${POOL_FOLDER}/${pool_name}/${POOL_PLEDGECERT_FILENAME}"
 
     say "-- creating registration cert --" "log"
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge $(( pledgeada * 1000000 )) --pool-cost $(( costada * 1000000 )) --pool-margin ${margin} --reward-account-verification-key-file "${staking_vk_file}" --pool-owner-staking-verification-key "${staking_vk_file}" --out-file "${pool_regcert_file}"
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge $(( pledgeada * 1000000 )) --pool-cost $(( costada * 1000000 )) --pool-margin ${margin} --pool-reward-account-verification-key-file "${staking_vk_file}" --pool-owner-stake-verification-key-file "${staking_vk_file}" --out-file "${pool_regcert_file}"
     say "-- creating delegation cert --" "log"
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${staking_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
     say "-- Sending transaction to chain --" "log"
 
-    if ! registerPool "$(cat ${pay_payment_addr_file})" "${pool_coldkey_sk_file}" "${staking_sk_file}" "${pool_regcert_file}" "${pool_pledgecert_file}" "${pay_payment_sk_file}"; then
+    if ! registerPool "$(cat ${base_addr_file})" "${pool_coldkey_sk_file}" "${staking_sk_file}" "${pool_regcert_file}" "${pool_pledgecert_file}" "${pay_payment_sk_file}"; then
       say "${RED}ERROR${NC}: failure during pool registration, removing newly created pledge and registration files" "log"
       rm -f "${pool_regcert_file}" "${pool_pledgecert_file}"
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
@@ -1208,12 +1234,13 @@ case $OPERATION in
         read -r -n 1 -s -p "press any key to continue"
       fi
     fi
+    unset password poolpassword
 
     waitNewBlockCreated
 
     say ""
     say "--- Balance Check Source Address -------------------------------------------------------" "log"
-    getBalance "$(cat ${pay_payment_addr_file})"
+    getBalance "$(cat ${base_addr_file})"
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       say ""
@@ -1221,11 +1248,11 @@ case $OPERATION in
       waitNewBlockCreated
       say ""
       say "--- Balance Check Source Address -------------------------------------------------------" "log"
-      getBalance "$(cat ${pay_payment_addr_file})"
+      getBalance "$(cat ${base_addr_file})"
     done
 
     say "Wallet: ${wallet_name}" "log"
-    say "Payment Address: $(cat ${pay_payment_addr_file})" "log"
+    say "Payment Address: $(cat ${base_addr_file})" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     read -r -n 1 -s -p "press any key to return to home menu" && continue

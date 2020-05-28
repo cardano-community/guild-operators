@@ -29,7 +29,7 @@ log() {
 #   >> say "Some message"
 say() {
   echo -e "$1"
-  if [[ $2 = "log" ]]; then 
+  if [[ $2 = "log" ]]; then
     log "$1"
   fi
 }
@@ -94,6 +94,7 @@ encryptFile() {
     say "${RED}ERROR${NC}: failed to encrypt ${1}" "log"
     return 1
   }
+  say "${1} successfully encrypted" "log"
 }
 
 
@@ -111,7 +112,7 @@ decryptFile() {
     say "${RED}ERROR${NC}: failed to decrypt ${1}" "log"
     return 1
   }
-  echo ""
+  say "${1} successfully decrypted" "log"
 }
 
 
@@ -165,7 +166,7 @@ getBalance() {
   TOTALBALANCE=0
   UTx0_COUNT=0
 
-  ${CCLI} shelley query utxo --testnet-magic "${NWMAGIC}" --address "${1}" > ${TMP_FOLDER}/fullUtxo.out
+  ${CCLI} shelley query utxo --testnet-magic "${NWMAGIC}" --address "${1}" --out-file ${TMP_FOLDER}/fullUtxo.out
   tail -n +3 ${TMP_FOLDER}/fullUtxo.out | sort -k3 -nr > ${TMP_FOLDER}/balance.txt
 
   if [ -s ${TMP_FOLDER}/balance.txt ]; then
@@ -223,7 +224,7 @@ sendADA() {
 
   say ""
   say " -- Protocol Parameters --"
-  currSlot=$(${CCLI} shelley query tip --testnet-magic ${NWMAGIC} | awk '{ print $5 }' | grep -Eo '[0-9]{1,}')
+  currSlot=$(getTip slot)
   ttlValue=$(( currSlot + 1000 ))
   say "TN Magic is ${NWMAGIC}" "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
@@ -368,21 +369,23 @@ sendADA() {
 }
 
 # Command    : registerStaking [payment address] [payment sign key] [staking sign key] [staking cert file]
-# Description: Register staking keys on chain
+# Description: Register staking keys on chain and move funds from payment address to payment staking address
 # Parameters : payment address         >   Payment address, funds needed to pay tx fee for stake key registration
+#              base_address            >   This is the new address, all funds will be moved from payment address to this address
 #              payment sign key        >   Payment signature key
 #              staking sign key        >   Staking signature key
 #              staking cert file       >   Staking certificate
 # Return     : prints progress on STDOUT
 # Examples of Usage:
-#   >> registerStaking 61WKMJemoBa....ssL7fzhq "../wallet/MyWallet/Payment.skey" "../wallet/MyWallet/Staking.skey" "../wallet/MyWallet/Staking.cert"
+#   >> registerStaking 61WKMJemoBa....ssL7fzhq 61WKMJemoBa....ssL7fzhq "../wallet/MyWallet/Payment.skey" "../wallet/MyWallet/Staking.skey" "../wallet/MyWallet/Staking.cert"
 registerStaking() {
 
   # script arguments
   payment_addr="$1"
-  payment_sk="$2"
-  staking_sk="$3"
-  staking_cert="$4"
+  base_addr="$2"
+  payment_sk="$3"
+  staking_sk="$4"
+  staking_cert="$5"
 
   say " -- Register Staking Keys on Chain --" "log"
   say ""
@@ -405,7 +408,7 @@ registerStaking() {
   tx_in="--tx-in ${utxo}#${id}"
 
   say " -- Protocol Parameters --"
-  currSlot=$(${CCLI} shelley query tip --testnet-magic ${NWMAGIC} | awk '{ print $5 }' | grep -Eo '[0-9]{1,}')
+  currSlot=$(getTip slot)
   ttlValue=$(( currSlot + 1000 ))
   keyDeposit=$(cat ${TMP_FOLDER}/protparams.json | jq -r '.keyDeposit')
   say "Key Deposit is ${keyDeposit}"
@@ -434,9 +437,9 @@ registerStaking() {
   fi
 
   newBalance=$(( balance - minFee - keyDeposit ))
-  tx_out="--tx-out ${payment_addr}+${newBalance}"
-  say "Balance left to be returned in used UTxO is $(numfmt --grouping ${newBalance}) lovelaces ($(numfmt --grouping ${balance}) - $(numfmt --grouping ${minFee}) - $(numfmt --grouping ${keyDeposit}))" "log"
-
+  tx_out="--tx-out ${base_addr}+${newBalance}"
+  say "Balance left to be returned in used UTxO is 0" "log"
+  say "Balance in new staking address is $(numfmt --grouping ${newBalance}) lovelaces ($(numfmt --grouping ${balance}) - $(numfmt --grouping ${minFee}) - $(numfmt --grouping ${keyDeposit}))" "log"
   buildArgs=(
     shelley transaction build-raw
     ${tx_in}
@@ -469,7 +472,7 @@ registerStaking() {
   output=$(${CCLI} ${buildArgs[*]})
   if [[ -n $output ]]; then
     say "${RED}ERROR${NC}: 1. Problem during tx creation with args ${buildArgs[*]}" "log"
-    say "$output" "log" 
+    say "$output" "log"
     return 1
   fi
 
@@ -541,7 +544,7 @@ registerPool() {
 
 
   say " -- Protocol Parameters --"
-  currSlot=$(${CCLI} shelley query tip --testnet-magic ${NWMAGIC} | awk '{ print $5 }' | grep -Eo '[0-9]{1,}')
+  currSlot=$(getTip slot)
   ttlValue=$(( currSlot + 1000 ))
   poolDeposit=$(cat ${TMP_FOLDER}/protparams.json | jq -r '.poolDeposit')
   say "TN Magic is ${NWMAGIC}" "log"
@@ -684,7 +687,7 @@ delegate() {
 
 
   say " -- Protocol Parameters --"
-  currSlot=$(${CCLI} shelley query tip --testnet-magic ${NWMAGIC} | awk '{ print $5 }' | grep -Eo '[0-9]{1,}')
+  currSlot=$(getTip slot)
   ttlValue=$(( currSlot + 1000 ))
   say "TN Magic is ${NWMAGIC}" "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
