@@ -20,5 +20,24 @@ cardano-node run \
           --topology $CNODE_HOME/files/topology.json
 ```
 
+#### Start as Pool Operator
+
+To start the node as a block producing pool, execute the steps as below:
+``` bash
+# TODO: Add reference to key creations.
+# POOLNAME=POOL123
+POOLKEYSPATH=$CNODE_HOME/priv/pool/$POOLNAME
+cardano-node run \
+          --config $CNODE_HOME/files/ptn0.yaml \
+          --database-path $CNODE_HOME/db \
+          --host-addr 0.0.0.0 \
+          --port 5001 \
+          --socket-path $CNODE_HOME/sockets/node0.socket \
+          --topology $CNODE_HOME/files/topology.json
+          --shelley-kes-key $CNODE_HOME/priv/pool/$POOLNAME/Hot.skey
+          --shelley-vrf-key $CNODE_HOME/priv/pool/$POOLNAME/Vrf.skey
+          --shelley-operational-certificate $CNODE_HOME/priv/pool/$POOLNAME/opcert
+```
+
 Note that if you do not want your node to be publicly available, you can change `--host-addr` to `127.0.0.1`
 If this is your relay node, you can update topology.json to link to your core node.

@@ -1,6 +1,6 @@
 ### Build and Run
 
-This document is built using instructions from [IOHK repositories](https://github.com/input-output-hk) as a foundation, with additional info/clarification which we can contribute to where appropriate.
+This document is built using instructions from [IOHK repositories](https://github.com/input-output-hk) as a foundation, with additional info/clarification which we can contribute to where appropriate. Note that not everyone needs to build each component. You can refer to [architecture](./architecture.md) to understand and qualify which components you want to run. For most Pool Operators, simply building [cardano-node](./Build/node-cli.md) might be enough.
 
 **The instructions are intentionally limited to cabal** to avoid wait times/availability of nix/docker/stack.yaml files on, what we expect to be, a rapidly developing codebase - this will also help prevent managing multiple versions of instructions (at least for now).
 
