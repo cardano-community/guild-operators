@@ -29,7 +29,7 @@ log() {
 #   >> say "Some message"
 say() {
   echo -e "$1"
-  if [[ $2 = "log" ]]; then 
+  if [[ $2 = "log" ]]; then
     log "$1"
   fi
 }
@@ -92,6 +92,7 @@ encryptFile() {
     say "${RED}ERROR${NC}: failed to encrypt ${1}" "log"
     return 1
   }
+  say "${1} successfully encrypted" "log"
 }
 
 
@@ -109,7 +110,7 @@ decryptFile() {
     say "${RED}ERROR${NC}: failed to decrypt ${1}" "log"
     return 1
   }
-  echo ""
+  say "${1} successfully decrypted" "log"
 }
 
 
@@ -316,7 +317,7 @@ sendADA() {
     ${txOut}
     --ttl ${ttlValue}
     --fee ${minFee}
-    --out-file ${TMP_FOLDER}/tx.raw
+    --tx-body-file ${TMP_FOLDER}/tx.raw
   )
 
   signArgs=(
@@ -324,7 +325,7 @@ sendADA() {
     --tx-body-file ${TMP_FOLDER}/tx.raw
     --signing-key-file ${sKey}
     --testnet-magic ${NWMAGIC}
-    --out-file ${TMP_FOLDER}/tx.signed
+    --tx-file ${TMP_FOLDER}/tx.signed
   )
 
   submitArgs=(
@@ -366,21 +367,23 @@ sendADA() {
 }
 
 # Command    : registerStaking [payment address] [payment sign key] [staking sign key] [staking cert file]
-# Description: Register staking keys on chain
+# Description: Register staking keys on chain and move funds from payment address to payment staking address
 # Parameters : payment address         >   Payment address, funds needed to pay tx fee for stake key registration
+#              base_address            >   This is the new address, all funds will be moved from payment address to this address
 #              payment sign key        >   Payment signature key
 #              staking sign key        >   Staking signature key
 #              staking cert file       >   Staking certificate
 # Return     : prints progress on STDOUT
 # Examples of Usage:
-#   >> registerStaking 61WKMJemoBa....ssL7fzhq "../wallet/MyWallet/Payment.skey" "../wallet/MyWallet/Staking.skey" "../wallet/MyWallet/Staking.cert"
+#   >> registerStaking 61WKMJemoBa....ssL7fzhq 61WKMJemoBa....ssL7fzhq "../wallet/MyWallet/Payment.skey" "../wallet/MyWallet/Staking.skey" "../wallet/MyWallet/Staking.cert"
 registerStaking() {
 
   # script arguments
   payment_addr="$1"
-  payment_sk="$2"
-  staking_sk="$3"
-  staking_cert="$4"
+  base_addr="$2"
+  payment_sk="$3"
+  staking_sk="$4"
+  staking_cert="$5"
 
   say " -- Register Staking Keys on Chain --" "log"
   say ""
@@ -420,7 +423,7 @@ registerStaking() {
     --testnet-magic ${NWMAGIC}
     --signing-key-file ${payment_sk}
     --signing-key-file ${staking_sk}
-    --certificate-file ${staking_cert}
+    --certificate ${staking_cert}
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
@@ -432,17 +435,17 @@ registerStaking() {
   fi
 
   newBalance=$(( balance - minFee - keyDeposit ))
-  tx_out="--tx-out ${payment_addr}+${newBalance}"
-  say "Balance left to be returned in used UTxO is $(numfmt --grouping ${newBalance}) lovelaces ($(numfmt --grouping ${balance}) - $(numfmt --grouping ${minFee}) - $(numfmt --grouping ${keyDeposit}))" "log"
-
+  tx_out="--tx-out ${base_addr}+${newBalance}"
+  say "Balance left to be returned in used UTxO is 0" "log"
+  say "Balance in new staking address is $(numfmt --grouping ${newBalance}) lovelaces ($(numfmt --grouping ${balance}) - $(numfmt --grouping ${minFee}) - $(numfmt --grouping ${keyDeposit}))" "log"
   buildArgs=(
     shelley transaction build-raw
     ${tx_in}
     ${tx_out}
     --ttl ${ttlValue}
     --fee ${minFee}
-    --certificate-file ${staking_cert}
-    --out-file ${TMP_FOLDER}/tx.raw
+    --certificate ${staking_cert}
+    --tx-body-file ${TMP_FOLDER}/tx.raw
   )
 
   signArgs=(
@@ -451,7 +454,7 @@ registerStaking() {
     --signing-key-file ${payment_sk}
     --signing-key-file ${staking_sk}
     --testnet-magic ${NWMAGIC}
-    --out-file ${TMP_FOLDER}/tx.signed
+    --tx-file ${TMP_FOLDER}/tx.signed
   )
 
   submitArgs=(
@@ -467,7 +470,7 @@ registerStaking() {
   output=$(${CCLI} ${buildArgs[*]})
   if [[ -n $output ]]; then
     say "${RED}ERROR${NC}: 1. Problem during tx creation with args ${buildArgs[*]}" "log"
-    say "$output" "log" 
+    say "$output" "log"
     return 1
   fi
 
@@ -557,8 +560,8 @@ registerPool() {
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${pool_coldkey_sk_file}
     --signing-key-file ${staking_sk_file}
-    --certificate-file ${pool_regcert_file}
-    --certificate-file ${pool_pledgecert_file}
+    --certificate ${pool_regcert_file}
+    --certificate ${pool_pledgecert_file}
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
@@ -579,9 +582,9 @@ registerPool() {
     ${tx_out}
     --ttl ${ttlValue}
     --fee ${minFee}
-    --certificate-file ${pool_regcert_file}
-    --certificate-file ${pool_pledgecert_file}
-    --out-file ${TMP_FOLDER}/tx.raw
+    --certificate ${pool_regcert_file}
+    --certificate ${pool_pledgecert_file}
+    --tx-body-file ${TMP_FOLDER}/tx.raw
   )
 
   signArgs=(
@@ -591,7 +594,7 @@ registerPool() {
     --signing-key-file ${pool_coldkey_sk_file}
     --signing-key-file ${staking_sk_file}
     --testnet-magic ${NWMAGIC}
-    --out-file ${TMP_FOLDER}/tx.signed
+    --tx-file ${TMP_FOLDER}/tx.signed
   )
 
   submitArgs=(
@@ -697,7 +700,7 @@ delegate() {
     --testnet-magic ${NWMAGIC}
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${staking_sk_file}
-    --certificate-file ${pool_delegcert_file}
+    --certificate ${pool_delegcert_file}
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
@@ -718,8 +721,8 @@ delegate() {
     ${tx_out}
     --ttl ${ttlValue}
     --fee ${minFee}
-    --certificate-file ${pool_delegcert_file}
-    --out-file ${TMP_FOLDER}/tx.raw
+    --certificate ${pool_delegcert_file}
+    --tx-file ${TMP_FOLDER}/tx.raw
   )
 
   signArgs=(
@@ -728,7 +731,7 @@ delegate() {
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${staking_sk_file}
     --testnet-magic ${NWMAGIC}
-    --out-file ${TMP_FOLDER}/tx.signed
+    --tx-file ${TMP_FOLDER}/tx.signed
   )
 
   submitArgs=(
