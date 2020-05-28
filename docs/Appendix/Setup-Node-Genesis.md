@@ -1,7 +1,7 @@
 ### Starting as a BFT member node defined in Genesis of TPraos
 
 Use this guide only if you already have your genesis keys (referred to as `delegate.skey` below). The step may not apply to most of the pool operators.
-Ensure the [Pre-Requisites](Common.md#dependencies-and-folder-structure-setup) are in place before you proceed.
+Ensure the [Pre-Requisites](../Common.md#dependencies-and-folder-structure-setup) are in place before you proceed.
 
 #### Create verification key
 

@@ -2,7 +2,7 @@
 
 **Note: Cardano Wallet does not support TPraos network yet (it does support BFT networks and ITN Praos) - but as soon as it does, instructions below should still remain valid**
 
-Ensure the [Pre-Requisites](Common.md#dependencies-and-folder-structure-setup) are in place before you proceed.
+Ensure the [Pre-Requisites](../Common.md#dependencies-and-folder-structure-setup) are in place before you proceed.
 
 #### Build Instructions
 

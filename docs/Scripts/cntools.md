@@ -2,7 +2,7 @@
 
 This is a multi-purpose script to operate various activities (like creating keys, transactions, registering stake pool , delegating to a pool or updating binaries) using cardano node.
 
-The script assumes the [pre-requisites](Common.md#dependencies-and-folder-structure-setup) have already been run.
+The script assumes the [Pre-Requisites](../Common.md#dependencies-and-folder-structure-setup) have already been run.
 
 #### Download cntools.sh
 
