@@ -27,15 +27,26 @@ ${CCLI} shelley query protocol-parameters --testnet-magic ${NWMAGIC} > ${TMP_FOL
 }
 
 # check for required command line tools
-need_cmd "curl"
-need_cmd "jq"
-[[ "${PROTECT_KEYS}" = "yes" ]] && need_cmd "gpg"
+if ! need_cmd "curl" || \
+   ! need_cmd "jq" || \
+   ! need_cmd "bc" || \
+   ! need_cmd "sed" || \
+   ! need_cmd "awk" || \
+   ! need_cmd "numfmt"; then exit 1
+fi
+if [[ "${PROTECT_KEYS}" = "yes" ]]; then
+  if ! need_cmd "gpg" || \
+     ! need_cmd "systemd-ask-password"; then exit 1
+  fi
+fi
 
 ###################################################################
 
 function main {
 
 while true; do # Main loop
+
+trap # Clear any set trap
 
 clear
 echo " >> CNTOOLS <<                                       A Guild Operators collaboration"
@@ -216,6 +227,8 @@ case $OPERATION in
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo ""
       read -r -p "Name of new wallet: " wallet_name
+      # Remove unwanted characters from wallet name
+      wallet_name=$(echo "${wallet_name}" | sed -e 's/[^A-Za-z0-9._-]/_/g')
       echo ""
       mkdir -p "${WALLET_FOLDER}/${wallet_name}"
 
@@ -987,6 +1000,8 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     read -r -p "Pool Name: " pool_name
+    # Remove unwanted characters from pool name
+    pool_name=$(echo "${pool_name}" | sed -e 's/[^A-Za-z0-9._-]/_/g')
     echo ""
     mkdir -p "${POOL_FOLDER}/${pool_name}"
 
