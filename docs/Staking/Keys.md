@@ -1,6 +1,6 @@
 ## Key Types and their functions
 
-Keys are just simply asymmetric cryptography key pairs (private/public, signing/verifying) that are used for signing and validating payments and staking related certificates and identifying,  defining addresses on the Cardano blockchain.
+Keys are just simply asymmetric cryptography key pairs (private/public, signing/verifying) that are used for signing and validating payments and staking related certificates and identifying, defining addresses on the Cardano blockchain.
 
 As it can be seen in the picture there are two main type of keys in Shelley:
 - __Node keys__ and
@@ -10,7 +10,7 @@ The node keys are relevant to the security of the blockchain while the address k
 See details below and above in the picture.
 
 1. Node Keys
-    - Operator/operatioanl key: operator's offline key pair with cert counter for new  certificates. 
+    - Operator/operational key: operator's offline key pair with cert counter for new certificates. 
     - Hot KES key: operator's hot KES key pair.
     - Block signing key: operational VRF key pair, it participates in the "lottery" i.e. right to create and sign the block for the specific slot.
 2. Address (Payment, Staking etc.) keys
