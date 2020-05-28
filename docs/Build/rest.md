@@ -1,6 +1,6 @@
 ### Cardano Rest
 
-Ensure the [Pre-Requisites](Common.md#dependencies-and-folder-structure-setup) are in place before you proceed.
+Ensure the [Pre-Requisites](../Common.md#dependencies-and-folder-structure-setup) are in place before you proceed.
 
 #### Build Instructions
 
