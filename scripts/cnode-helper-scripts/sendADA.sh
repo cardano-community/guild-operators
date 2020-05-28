@@ -161,7 +161,7 @@ BUILD_ARGS=(
   ${TX_OUT}
   --ttl ${TTLVALUE}
   --fee ${MINFEE}
-  --tx-body-file /tmp/tx.raw
+  --out-file /tmp/tx.raw
 )
 
 SIGN_ARGS=(
@@ -169,7 +169,7 @@ SIGN_ARGS=(
   --tx-body-file /tmp/tx.raw
   --signing-key-file ${S_SKEY}
   --testnet-magic ${NWMAGIC}
-  --tx-file /tmp/tx.signed
+  --out-file /tmp/tx.signed
 )
 
 SUBMIT_ARGS=(

@@ -316,7 +316,7 @@ sendADA() {
     ${txOut}
     --ttl ${ttlValue}
     --fee ${minFee}
-    --tx-body-file ${TMP_FOLDER}/tx.raw
+    --out-file ${TMP_FOLDER}/tx.raw
   )
 
   signArgs=(
@@ -324,7 +324,7 @@ sendADA() {
     --tx-body-file ${TMP_FOLDER}/tx.raw
     --signing-key-file ${sKey}
     --testnet-magic ${NWMAGIC}
-    --tx-file ${TMP_FOLDER}/tx.signed
+    --out-file ${TMP_FOLDER}/tx.signed
   )
 
   submitArgs=(
@@ -420,7 +420,7 @@ registerStaking() {
     --testnet-magic ${NWMAGIC}
     --signing-key-file ${payment_sk}
     --signing-key-file ${staking_sk}
-    --certificate ${staking_cert}
+    --certificate-file ${staking_cert}
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
@@ -441,8 +441,8 @@ registerStaking() {
     ${tx_out}
     --ttl ${ttlValue}
     --fee ${minFee}
-    --certificate ${staking_cert}
-    --tx-body-file ${TMP_FOLDER}/tx.raw
+    --certificate-file ${staking_cert}
+    --out-file ${TMP_FOLDER}/tx.raw
   )
 
   signArgs=(
@@ -451,7 +451,7 @@ registerStaking() {
     --signing-key-file ${payment_sk}
     --signing-key-file ${staking_sk}
     --testnet-magic ${NWMAGIC}
-    --tx-file ${TMP_FOLDER}/tx.signed
+    --out-file ${TMP_FOLDER}/tx.signed
   )
 
   submitArgs=(
@@ -557,8 +557,8 @@ registerPool() {
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${pool_coldkey_sk_file}
     --signing-key-file ${staking_sk_file}
-    --certificate ${pool_regcert_file}
-    --certificate ${pool_pledgecert_file}
+    --certificate-file ${pool_regcert_file}
+    --certificate-file ${pool_pledgecert_file}
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
@@ -579,9 +579,9 @@ registerPool() {
     ${tx_out}
     --ttl ${ttlValue}
     --fee ${minFee}
-    --certificate ${pool_regcert_file}
-    --certificate ${pool_pledgecert_file}
-    --tx-body-file ${TMP_FOLDER}/tx.raw
+    --certificate-file ${pool_regcert_file}
+    --certificate-file ${pool_pledgecert_file}
+    --out-file ${TMP_FOLDER}/tx.raw
   )
 
   signArgs=(
@@ -591,7 +591,7 @@ registerPool() {
     --signing-key-file ${pool_coldkey_sk_file}
     --signing-key-file ${staking_sk_file}
     --testnet-magic ${NWMAGIC}
-    --tx-file ${TMP_FOLDER}/tx.signed
+    --out-file ${TMP_FOLDER}/tx.signed
   )
 
   submitArgs=(
@@ -697,7 +697,7 @@ delegate() {
     --testnet-magic ${NWMAGIC}
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${staking_sk_file}
-    --certificate ${pool_delegcert_file}
+    --certificate-file ${pool_delegcert_file}
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
@@ -718,8 +718,8 @@ delegate() {
     ${tx_out}
     --ttl ${ttlValue}
     --fee ${minFee}
-    --certificate ${pool_delegcert_file}
-    --tx-body-file ${TMP_FOLDER}/tx.raw
+    --certificate-file ${pool_delegcert_file}
+    --out-file ${TMP_FOLDER}/tx.raw
   )
 
   signArgs=(
@@ -728,7 +728,7 @@ delegate() {
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${staking_sk_file}
     --testnet-magic ${NWMAGIC}
-    --tx-file ${TMP_FOLDER}/tx.signed
+    --out-file ${TMP_FOLDER}/tx.signed
   )
 
   submitArgs=(
