@@ -93,7 +93,7 @@
      { 
        "operator": "mondonet",
         "node": "NET51",
-        "addr": "173.254.35.173",
+        "addr": "173.254.35.137",
         "port": 6000,
         "valency": 1
      }
