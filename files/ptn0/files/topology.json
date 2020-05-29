@@ -89,6 +89,13 @@
         "addr": "relay.ptn0.cardano.none.guru",
         "port": 30201,
         "valency": 1
+     },
+     { 
+       "operator": "mondonet",
+        "node": "NET51",
+        "addr": "173.254.35.173",
+        "port": 6000,
+        "valency": 1
      }
   ]
 }
