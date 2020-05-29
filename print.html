@@ -583,7 +583,7 @@ Usage: sendADA.sh &lt;Destination Address&gt; &lt;Amount&gt; &lt;Source Address&
   --include-fee         Optional argument to specify that amount to send should be reduced by fee instead of payed by sender.
 </code></pre>
 <h1><a class="header" href="#shelley-staking" id="shelley-staking">Shelley Staking</a></h1>
-<p>This guide's chapter targets the pool operators for getting their head around of Shelley staking.
+<p>This guide's chapter targets the pool operators for getting their head around of Shelley staking. The network references used for this guide are for Friends anf Family Network, and the user is expected to update testnet-magic as desired.
 To fully understand the staking mechanism we need to define and interpret the following key concepts:</p>
 <ul>
 <li>What are the <a href="Staking/./Keys.html">keys</a></li>
@@ -810,19 +810,19 @@ Therefore I prefixed them it differently i.e. <code>staking</code>, to distuingu
 cardano-cli shelley stake-address key-gen --verification-key-file staking.vkey --signing-key-file staking.skey
 
 # crate teh reward (staking) address from the operator's stake keys
-cardano-cli shelley stake-address build --stake-verification-key-file staking.vkey &gt; staking.addr
+cardano-cli shelley stake-address build --stake-verification-key-file staking.vkey --testnet-magic 42 &gt; staking.addr
 
 # Generate the operator's payment keys
 cardano-cli shelley address key-gen --verification-key-file op_pay.vkey --signing-key-file op_pay.skey
 
 # Generate an `enterprise` address for the operator.
-cardano-cli shelley address build --payment-verification-key-file op_pay.vkey &gt; op_pay.addr
+cardano-cli shelley address build --payment-verification-key-file op_pay.vkey --testnet-magic 42 &gt; op_pay.addr
 
 # Generate the base address  i.e. compount `enterprise || reward` address
 cardano-cli shelley address build \
     --payment-verification-key-file op_pay.vkey \
     --stake-verification-key-file staking.vkey \
-    &gt; base.addr
+    --testnet-magic 42 &gt; base.addr
 </code></pre>
 <p>The next step is creating a stake address registration certificate.</p>
 <p>For registering an <code>stake key</code> on the chain a <code>key deposit1</code> fee must be paid. The amount can be optained from the genesis for the params file e.g.:</p>
@@ -1035,7 +1035,7 @@ In the <code>cardano-cli</code> they use a CBOR format for preventing it to be a
 mkdir delegate &amp;&amp; pushd delegate
 cardano-cli shelley stake-address key-gen --verification-key-file stake.vkey --signing-key-file stake.skey
 
-cardano-cli shelley stake-address build --stake-verification-key-file stake.vkey &gt; stake.addr
+cardano-cli shelley stake-address build --stake-verification-key-file stake.vkey --testnet-magic 42 &gt; stake.addr
 cat stake.addr
 #-------v 32 bytes key starts from here
 8200582032a8c3f17ae5dafc3e947f82b0b418483f0a8680def9418c87397f2bd3d35efb
@@ -1050,7 +1050,7 @@ cat stake.addr
 # Delegates payment key -&gt; payment address (a.k.a legacy UtxO a.k.a enterprise address).
 # Ur use some address that already has some fund on it.
 ############################################################
-cardano-cli shelley address build --payment-verification-key-file pay.vkey &gt; pay.addr
+cardano-cli shelley address build --payment-verification-key-file pay.vkey --testnet-magic 42 &gt; pay.addr
 cat pay.addr
 # As a single Shelley UtXO address and (no CBOR repr)
 # header(1) | address(32), so no hash224
@@ -1067,7 +1067,7 @@ cat pay.addr
 cardano-cli shelley address build \
     --payment-verification-key-file pay.vkey \
     --stake-verification-key-file stake.vkey \
-    &gt; stake.base
+    --testnet-magic 42 &gt; stake.base
 </code></pre>
 <h4><a class="header" href="#generating-the-staking-key-certificate" id="generating-the-staking-key-certificate">Generating the Staking key certificate</a></h4>
 <pre><code class="language-bash"># First we need to generate the stake address registration
