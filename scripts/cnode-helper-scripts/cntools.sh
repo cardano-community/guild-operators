@@ -56,7 +56,7 @@ echo ""
 echo "   1) update"
 echo "   2) wallet  [new/upgrade|list|show|remove|decrypt|encrypt]"
 echo "   3) funds   [send|delegate]"
-echo "   4) pool    [new|register]"
+echo "   4) pool    [new|register|rotate KES]"
 echo "   q) quit"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
@@ -1000,16 +1000,19 @@ case $OPERATION in
   echo ""
   echo "   1) new"
   echo "   2) register"
+  echo "   3) rotate KES keys"
   echo "   h) home"
   echo "   q) quit"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   while true; do
-    read -r -n 1 -p "What pool operation would you like to perform? (1-2): " SUBCOMMAND
+    read -r -n 1 -p "What pool operation would you like to perform? (1-3): " SUBCOMMAND
     echo ""
     case ${SUBCOMMAND:0:1} in
       1) SUBCOMMAND="new" && break
         ;;
       2) SUBCOMMAND="register" && break
+        ;;
+      3) SUBCOMMAND="rotate" && break
         ;;
       h) break
         ;;
@@ -1040,15 +1043,25 @@ case $OPERATION in
     pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
     pool_vrf_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_VK_FILENAME}"
     pool_vrf_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_SK_FILENAME}"
+    pool_saved_kes_start="${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}"
+
 
     if [[ -f "${pool_hotkey_vk_file}" ]]; then
       say "${RED}WARN${NC}: A pool ${GREEN}$pool_name${NC} already exists"
       say "      Choose another name or delete the existing one"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
+
+    #Calculate appropriate KES period
+    currSlot=$(getTip slot)
+    slotsPerKESPeriod=$(cat ${GENESIS_JSON} | jq -r '.slotsPerKESPeriod')
+    start_kes_period=$(( currSlot / slotsPerKESPeriod  ))
+    echo "${start_kes_period}" > ${pool_saved_kes_start}
+
+
     ${CCLI} shelley node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
     ${CCLI} shelley node key-gen --cold-verification-key-file "${pool_coldkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
-    ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period 0 --out-file "${pool_opcert_file}"
+    ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${start_kes_period}" --out-file "${pool_opcert_file}"
     ${CCLI} shelley node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
 
     ## TODO: Should we encrypt any more of the keys?
@@ -1257,6 +1270,84 @@ case $OPERATION in
     echo ""
     read -r -n 1 -s -p "press any key to return to home menu" && continue
 
+    ;; ###################################################################
+    rotate)
+
+    clear
+
+    echo " >> POOL >> ROTATE KES"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
+
+
+
+    say "Select Pool:"
+    select pool_name in $(find ${POOL_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
+      test -n "${pool_name}" && break
+      say ">>> Invalid Selection (ctrl+c to quit)"
+    done
+    echo ""
+
+    if [[ "${PROTECT_KEYS}" = "yes" ]]; then
+      say " -- Pool ${GREEN}${pool_name}${NC} Password --"
+      getPassword # $password variable populated by getPassword function
+      echo ""
+    fi
+    # cold keys
+    pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
+    pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
+
+    # Extra info
+    pool_vrf_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_SK_FILENAME}"
+
+    # generated files
+    pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
+    pool_hotkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_SK_FILENAME}"
+    pool_opcert_counter_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_COUNTER_FILENAME}"
+    pool_saved_kes_start="${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}"
+    pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
+
+
+    #Encrypted Files
+    if [[ "${PROTECT_KEYS}" = "yes" ]]; then
+      if ! decryptFile "${pool_coldkey_vk_file}.gpg" "${password}" || \
+          ! decryptFile "${pool_coldkey_sk_file}.gpg" "${password}"; then
+        say "${RED}ERROR${NC}: failure during key decryption!" "log"
+        unset password
+        # No need to continue as we failed to decrypt some of the files
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      fi
+    fi
+    #Calculate appropriate KES period
+    currSlot=$(getTip slot)
+    slotsPerKESPeriod=$(cat ${GENESIS_JSON} | jq -r '.slotsPerKESPeriod')
+    start_kes_period=$(( currSlot / slotsPerKESPeriod  ))
+
+    echo "${start_kes_period}" > ${pool_saved_kes_start}
+
+    ${CCLI} shelley node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
+    ${CCLI} shelley node key-gen --cold-verification-key-file "${pool_coldkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
+    ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${start_kes_period}" --out-file "${pool_opcert_file}"
+
+    if [[ "${PROTECT_KEYS}" = "yes" ]]; then
+      if ! encryptFile "${pool_coldkey_vk_file}" "${password}" || \
+          ! encryptFile "${pool_coldkey_sk_file}" "${password}"; then
+        say "${RED}ERROR${NC}: failure during key encryption!" "log"
+        say "${ORANGE}Please make sure all of these keys are encrypted for pool ${pool_name}, else manually re-encrypt!${NC}"
+        say "File should have extension .gpg"
+        say "${pool_coldkey_vk_file}.gpg" "log"
+        say "${pool_coldkey_sk_file}.gpg" "log"
+      fi
+    fi
+
+    say "Pool KES Keys Updated: ${pool_name}" "log"
+    say "Restart your pool node for changes to take effect" "log"
+    say "Start (or restart) your cardano node with the following:" "log"
+    say "--shelley-kes-key ${pool_hotkey_sk_file}  --shelley-vrf-key ${pool_vrf_sk_file} --shelley-operational-certificate ${pool_opcert_file}" "log"
+
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
+    read -r -n 1 -s -p "press any key to return to home menu" && continue
     ;; ###################################################################
 
   esac
