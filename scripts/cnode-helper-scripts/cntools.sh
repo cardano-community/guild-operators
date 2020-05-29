@@ -21,7 +21,7 @@ mkdir -p ${TMP_FOLDER} # Create if missing
 rm -f ${TMP_FOLDER}/*
 
 # Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
-${CCLI} shelley query protocol-parameters --testnet-magic ${NWMAGIC} > ${TMP_FOLDER}/protparams.json || {
+${CCLI} shelley query protocol-parameters --testnet-magic ${NWMAGIC} --out-file ${TMP_FOLDER}/protparams.json || {
   say "${RED}ERROR${NC}: failed to query protocol parameters, node running and env parameters correct?" "log"
   exit 1
 }
@@ -228,7 +228,7 @@ case $OPERATION in
       echo ""
       read -r -p "Name of new wallet: " wallet_name
       # Remove unwanted characters from wallet name
-      wallet_name="${wallet_name//+([^[:alnum:]])/_}"
+      wallet_name=${wallet_name//[^[:alnum:]]/_}
       echo ""
       mkdir -p "${WALLET_FOLDER}/${wallet_name}"
 
@@ -255,6 +255,7 @@ case $OPERATION in
           rm -rf "${WALLET_FOLDER:?}/${wallet_name}"
           echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
         fi
+        echo ""
       fi
 
       say "Wallet: ${wallet_name}" "log"
@@ -312,6 +313,10 @@ case $OPERATION in
           echo "" && say "${RED}ERROR${NC}: failure during payment key decryption" "log"
           echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
         fi
+        echo ""
+        say "${ORANGE}Source wallet signing & verification keys decrypted, make sure keys are re-encrypted in case of error or cancelation${NC}"
+        read -r -n 1 -s -p "press any key to continue"
+        echo ""
       fi
 
       ${CCLI} shelley stake-address key-gen --verification-key-file "${staking_vk_file}" --signing-key-file "${staking_sk_file}"
@@ -350,6 +355,7 @@ case $OPERATION in
           ! encryptFile "${payment_sk_file}" "${password}"; then
           say "${RED}ERROR${NC}: failure during key encryption!" "log"
         fi
+        echo ""
       fi
 
       waitNewBlockCreated
@@ -397,9 +403,9 @@ case $OPERATION in
       if [ -f "${payment_addr_file}" ]; then
         echo ""
         payment_addr=$(cat "${payment_addr_file}")
-        say "Payment Address: ${payment_addr}"
+        say "${BLUE}Payment Address${NC}: ${payment_addr}"
         say "Balance:"
-        getBalance ${payment_addr}
+        getBalance ${payment_addr} | indent
       fi
       ## TODO - Can reward address balance be listed?
       #if [ -f "${staking_addr_file}" ]; then
@@ -407,14 +413,14 @@ case $OPERATION in
       #  reward_addr=$(cat "${staking_addr_file}")
       #  say "Reward Address:  ${reward_addr}"
       #  say "Balance:"
-      #  getBalance ${reward_addr}
+      #  getBalance ${reward_addr} | indent
       #fi
       if [ -f "${base_addr_file}" ]; then
         echo ""
         base_addr=$(cat "${base_addr_file}")
-        say "Base Address:     ${base_addr}"
+        say "${CYAN}Base Address${NC}:    ${base_addr}"
         say "Balance:"
-        getBalance ${base_addr}
+        getBalance ${base_addr} | indent
         echo ""
       fi
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -434,6 +440,8 @@ case $OPERATION in
       say ">>> Invalid Selection (ctrl+c to quit)"
     done
     echo ""
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
     say "Wallet: ${GREEN}${wallet_name##*/}${NC} "
 
     # Wallet key filenames
@@ -444,9 +452,9 @@ case $OPERATION in
     if [ -f "${payment_addr_file}" ]; then
       echo ""
       payment_addr=$(cat "${payment_addr_file}")
-      say "Payment Address: ${payment_addr}"
+      say "${BLUE}Payment Address${NC}: ${payment_addr}"
       say "Balance:"
-      getBalance ${payment_addr}
+      getBalance ${payment_addr} | indent
     fi
     ## TODO - Can reward address balance be listed?
     #if [ -f "${staking_addr_file}" ]; then
@@ -454,14 +462,14 @@ case $OPERATION in
     #  reward_addr=$(cat "${staking_addr_file}")
     #  say "Reward Address:  ${reward_addr}"
     #  say "Balance:"
-    #  getBalance ${reward_addr}
+    #  getBalance ${reward_addr} | indent
     #fi
     if [ -f "${base_addr_file}" ]; then
       echo ""
       base_addr=$(cat "${base_addr_file}")
-      say "Base Address:     ${base_addr}"
+      say "${CYAN}Base Address${NC}:    ${base_addr}"
       say "Balance:"
-      getBalance ${base_addr}
+      getBalance ${base_addr} | indent
       echo ""
     fi
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -767,17 +775,19 @@ case $OPERATION in
     fi
     s_addr="$(cat ${s_payment_addr_file})"
 
-    echo ""
-    say " -- Transaction Fee --"
-    echo ""
-    read -n 1 -r -p "Fee payed by sender (y/n)? [else amount sent reduced] " answer
-    echo ""
-    case ${answer:0:1} in
-      n|N ) include_fee="yes"
-      ;;
-      * ) include_fee="no"
-      ;;
-    esac
+    if  [[ "${amount}" != "all" ]]; then
+      echo ""
+      say " -- Transaction Fee --"
+      echo ""
+      read -n 1 -r -p "Fee payed by sender (y/n)? [else amount sent is reduced] : " answer
+      echo ""
+      case ${answer:0:1} in
+        n|N ) include_fee="yes"
+        ;;
+        * ) include_fee="no"
+        ;;
+      esac
+    fi
 
     # Source Sign Key
     # decrypt signing key if needed and make sure to encrypt again even on failure
@@ -795,6 +805,10 @@ case $OPERATION in
         unset password
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
+      echo ""
+      say "${ORANGE}Source wallet signing key decrypted, make sure key is re-encrypted in case of error or cancelation${NC}"
+      read -r -n 1 -s -p "press any key to continue"
+      echo ""
     else
       if [[ ! -f "${s_payment_sk_file}" ]]; then
         say "${RED}ERROR${NC}: source wallet signing key file not found:" "log"
@@ -803,19 +817,22 @@ case $OPERATION in
       fi
     fi
 
-    say "${ORANGE}Source wallet signing key decrypted, make sure key is re-encrypted in case of error or cancelation${NC}"
-    read -r -n 1 -s -p "press any key to continue"
-    echo ""
-
     if ! sendADA "${d_addr}" "${amount}" "${s_addr}" "${s_payment_sk_file}" "${include_fee}"; then
       delayExit=1
     else
       delayExit=0
     fi
+    
+    ori_balance=${lovelace}
+    ori_balance_ada=$(echo "${ori_balance}/1000000" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
 
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-      encryptFile "${s_payment_sk_file}" "${password}"
+      if ! encryptFile "${s_payment_sk_file}" "${password}"; then
+        say "${ORANGE}Key re-encryption failed, please manually re-encrypt wallet keys!${NC}"
+        read -r -n 1 -s -p "press any key to continue"
+      fi
       unset password
+      echo ""
     fi
 
     [[ ${delayExit} -eq 1 ]] && echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -834,21 +851,27 @@ case $OPERATION in
       say "--- Balance Check Source Address -------------------------------------------------------" "log"
       getBalance ${s_addr}
     done
+    
+    s_balance=${TOTALBALANCE}
+    s_balance_ada=${totalBalanceADA}
 
     say ""
     say "--- Balance Check Destination Address --------------------------------------------------" "log"
     getBalance ${d_addr}
 
-    newBalanceADA=$(echo "${newBalance}/1000000" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+    d_balance=${TOTALBALANCE}
+    d_balance_ada=${totalBalanceADA}
 
     say ""
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say "Transaction" "log"
-    say "  From:       ${s_wallet}" "log"
-    say "  Amount:     $(numfmt --grouping ${amount})" "log"
-    say "  To:         ${d_addr}" "log"
-    say "  Fees:       $(numfmt --grouping ${minFee}) Lovelaces" "log"
-    say "  Balance:    $(numfmt --grouping ${newBalance}) Lovelaces ($(numfmt --grouping ${newBalanceADA}) ADA)" "log"
+    say "  From:        ${s_wallet}" "log"
+    say "  Amount:      $(numfmt --grouping ${ori_balance}) Lovelaces ($(numfmt --grouping ${ori_balance_ada}) ADA)" "log"
+    say "  To:          ${d_addr}" "log"
+    say "  Fees:        $(numfmt --grouping ${minFee}) Lovelaces" "log"
+    say "  Balance:" "log"
+    say "  Source:      $(numfmt --grouping ${s_balance}) Lovelaces ($(numfmt --grouping ${s_balance_ada}) ADA)" "log"
+    say "  Destination: $(numfmt --grouping ${d_balance}) Lovelaces ($(numfmt --grouping ${d_balance_ada}) ADA)" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
 
@@ -916,6 +939,10 @@ case $OPERATION in
         # No need to continue as we failed to decrypt some of the files
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
+      echo ""
+      say "${ORANGE}Wallet payment and stake keys decrypted as well as pool cold verification key, make sure keys are re-encrypted in case of error or cancelation${NC}"
+      read -r -n 1 -s -p "press any key to continue"
+      echo ""
     fi
 
     #Generated Files
@@ -962,6 +989,7 @@ case $OPERATION in
         # No need to continue as we failed to decrypt some of the files
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
+      echo ""
     fi
 
     waitNewBlockCreated
@@ -1028,7 +1056,7 @@ case $OPERATION in
     echo ""
     read -r -p "Pool Name: " pool_name
     # Remove unwanted characters from pool name
-    pool_name="${pool_name//+([^[:alnum:]])/_}"
+    pool_name=${pool_name//[^[:alnum:]]/_}
     echo ""
     mkdir -p "${POOL_FOLDER}/${pool_name}"
 
@@ -1063,6 +1091,7 @@ case $OPERATION in
         echo "" && say "${RED}ERROR${NC}: failure during pool cold key encryption, removing newly created ${GREEN}$pool_name${NC} pool" "log"
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
+      echo ""
     fi
 
     say "Pool: ${pool_name}" "log"
@@ -1182,6 +1211,10 @@ case $OPERATION in
         # No need to continue as we failed to decrypt some of the files
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
+      echo ""
+      say "${ORANGE}Wallet payment and stake keys decrypted as well as pool cold keys, make sure keys are re-encrypted in case of error or cancelation${NC}"
+      read -r -n 1 -s -p "press any key to continue"
+      echo ""
     fi
 
     #Generated Files
@@ -1189,7 +1222,7 @@ case $OPERATION in
     pool_pledgecert_file="${POOL_FOLDER}/${pool_name}/${POOL_PLEDGECERT_FILENAME}"
 
     say "-- creating registration cert --" "log"
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge $(( pledgeada * 1000000 )) --pool-cost $(( costada * 1000000 )) --pool-margin ${margin} --pool-reward-account-verification-key-file "${staking_vk_file}" --pool-owner-stake-verification-key-file "${staking_vk_file}" --out-file "${pool_regcert_file}"
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge $(( pledgeada * 1000000 )) --pool-cost $(( costada * 1000000 )) --pool-margin ${margin} --pool-reward-account-verification-key-file "${staking_vk_file}" --pool-owner-stake-verification-key-file "${staking_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC}
     say "-- creating delegation cert --" "log"
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${staking_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
     say "-- Sending transaction to chain --" "log"
@@ -1233,8 +1266,9 @@ case $OPERATION in
         say "${staking_sk_file}.gpg" "log"
         read -r -n 1 -s -p "press any key to continue"
       fi
+      echo ""
+      unset password poolpassword
     fi
-    unset password poolpassword
 
     waitNewBlockCreated
 
