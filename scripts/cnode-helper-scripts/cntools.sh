@@ -56,7 +56,7 @@ echo ""
 echo "   1) update"
 echo "   2) wallet  [new/upgrade|list|show|remove|decrypt|encrypt]"
 echo "   3) funds   [send|delegate]"
-echo "   4) pool    [new|register|rotate KES]"
+echo "   4) pool    [new|register|list|show|rotate KES|decrypt|encrypt]"
 echo "   q) quit"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
@@ -474,6 +474,7 @@ case $OPERATION in
     fi
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+    
     ;; ###################################################################
 
     remove)
@@ -551,14 +552,6 @@ case $OPERATION in
     done
     echo ""
 
-    if [[ ! -d "${WALLET_FOLDER}/${wallet_name}" ]]; then
-      say "Wallet: ${GREEN}${wallet_name##*/}${NC} "
-      say "${RED}WARN${NC}: wallet not found"
-      echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-      echo ""
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-
     # Wallet key filenames
     payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
     payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
@@ -617,14 +610,6 @@ case $OPERATION in
       say ">>> Invalid Selection (ctrl+c to quit)"
     done
     echo ""
-
-    if [[ ! -d "${WALLET_FOLDER}/${wallet_name}" ]]; then
-      say "Wallet: ${GREEN}${wallet_name##*/}${NC} "
-      say "${RED}WARN${NC}: wallet not found"
-      echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-      echo ""
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
 
     # Wallet key filenames
     payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
@@ -1028,19 +1013,31 @@ case $OPERATION in
   echo ""
   echo "   1) new"
   echo "   2) register"
-  echo "   3) rotate KES keys"
+  echo "   3) list"
+  echo "   4) show"
+  echo "   5) rotate KES keys"
+  echo "   6) decrypt"
+  echo "   7) encrypt"
   echo "   h) home"
   echo "   q) quit"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   while true; do
-    read -r -n 1 -p "What pool operation would you like to perform? (1-3): " SUBCOMMAND
+    read -r -n 1 -p "What pool operation would you like to perform? (1-7): " SUBCOMMAND
     echo ""
     case ${SUBCOMMAND:0:1} in
       1) SUBCOMMAND="new" && break
         ;;
       2) SUBCOMMAND="register" && break
         ;;
-      3) SUBCOMMAND="rotate" && break
+      3) SUBCOMMAND="list" && break
+        ;;
+      4) SUBCOMMAND="show" && break
+        ;;
+      5) SUBCOMMAND="rotate" && break
+        ;;
+      6) SUBCOMMAND="decrypt" && break
+        ;;
+      7) SUBCOMMAND="encrypt" && break
         ;;
       h) break
         ;;
@@ -1063,6 +1060,7 @@ case $OPERATION in
     echo ""
     mkdir -p "${POOL_FOLDER}/${pool_name}"
 
+    pool_id_file="${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}"
     pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
     pool_hotkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_SK_FILENAME}"
     pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
@@ -1089,6 +1087,7 @@ case $OPERATION in
 
     ${CCLI} shelley node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
     ${CCLI} shelley node key-gen --cold-verification-key-file "${pool_coldkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
+    ${CCLI} shelley stake-pool id --verification-key-file "${pool_coldkey_vk_file}" > "${pool_id_file}"
     ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${start_kes_period}" --out-file "${pool_opcert_file}"
     ${CCLI} shelley node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
 
@@ -1114,7 +1113,8 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     read -r -n 1 -s -p "press any key to return to home menu" && continue
-    ;;
+    
+    ;; ###################################################################
 
     register)
 
@@ -1170,7 +1170,7 @@ case $OPERATION in
     echo "${costada}" > ${saved_cost}
     echo ""
 
-    say "Select Wallet pledge/reward from:"
+    say "Select pledge/reward wallet:"
     select pledge_wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
       test -n "${pledge_wallet_name}" && break
       say ">>> Invalid Selection (ctrl+c to quit)"
@@ -1303,8 +1303,56 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     read -r -n 1 -s -p "press any key to return to home menu" && continue
-
+    
     ;; ###################################################################
+
+    list)
+    
+    clear
+    echo " >> POOL >> LIST"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
+    for pool_folder_name in "${POOL_FOLDER}"/*/
+    do
+      pool_name=${pool_folder_name%*/}
+      pool_id=$(cat "${pool_folder_name}${POOL_ID_FILENAME}")
+      ledger_status=$(${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} | grep "poolPubKey" | grep "${pool_id}")
+      [[ -n "${ledger_status}" ]] && ledger_status="YES" || ledger_status="NO"
+      say "Pool: ${GREEN}${pool_name##*/}${NC} "
+      say "ID: ${pool_id}"
+      say "Registered: ${ledger_status}"    
+      echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      echo ""
+    done
+    read -r -n 1 -s -p "press any key to return to home menu"
+    
+    ;; ###################################################################
+
+    show)
+    
+    clear
+    echo " >> POOL >> SHOW"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
+    say "Select Pool:"
+    select pool_name in $(find ${POOL_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
+      test -n "${pool_name}" && break
+      say ">>> Invalid Selection (ctrl+c to quit)"
+    done
+    echo ""
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
+    pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
+    ledger_status=$(${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} | grep "poolPubKey" | grep "${pool_id}")
+    [[ -n "${ledger_status}" ]] && ledger_status="YES" || ledger_status="NO"
+    say "Pool: ${GREEN}${pool_name##*/}${NC} "
+    say "ID: ${pool_id}"
+    say "Registered: ${ledger_status}"  
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+    
+    ;; ###################################################################
+    
     rotate)
 
     clear
@@ -1375,12 +1423,98 @@ case $OPERATION in
       fi
     fi
 
+    echo ""
     say "Pool KES Keys Updated: ${pool_name}" "log"
     say "Restart your pool node for changes to take effect" "log"
 
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     read -r -n 1 -s -p "press any key to return to home menu" && continue
+    
+    ;; ###################################################################
+    
+    decrypt)
+    
+    clear
+    echo " >> POOL >> DECRYPT"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
+    say "Select Pool:"
+    select pool_name in $(find ${POOL_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
+      test -n "${pool_name}" && break
+      say ">>> Invalid Selection (ctrl+c to quit)"
+    done
+    echo ""
+
+    # Pool cold key filenames
+    pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
+    pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
+
+    say " -- Pool ${GREEN}${pool_name}${NC} Password --"
+    getPassword # $password variable populated by getPassword function
+
+    keysDecrypted=0
+    if [[ -f "${pool_coldkey_vk_file}.gpg" ]]; then
+      if decryptFile "${pool_coldkey_vk_file}.gpg" "${password}"; then
+        keysDecrypted=$((++keysDecrypted))
+      fi
+    fi
+    if [[ -f "${pool_coldkey_sk_file}.gpg" ]]; then
+      if decryptFile "${pool_coldkey_sk_file}.gpg" "${password}"; then
+        keysDecrypted=$((++keysDecrypted))
+      fi
+    fi
+
+    unset password
+
+    say "Pool decrypted: ${pool_name}" "log"
+    say "Files decrypted: ${keysDecrypted}" "log"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+
+    echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+
+    ;; ###################################################################
+
+    encrypt)
+    
+    clear
+    echo " >> POOL >> ENCRYPT"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
+    say "Select Pool:"
+    select pool_name in $(find ${POOL_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
+      test -n "${pool_name}" && break
+      say ">>> Invalid Selection (ctrl+c to quit)"
+    done
+    echo ""
+
+    # Pool cold key filenames
+    pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
+    pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
+
+    say " -- Pool ${GREEN}${pool_name}${NC} Password --"
+    getPassword confirm # $password variable populated by getPassword function
+
+    keysEncrypted=0
+    if [[ -f "${pool_coldkey_vk_file}" ]]; then
+      if encryptFile "${pool_coldkey_vk_file}" "${password}"; then
+        keysEncrypted=$((++keysEncrypted))
+      fi
+    fi
+    if [[ -f "${pool_coldkey_sk_file}" ]]; then
+      if encryptFile "${pool_coldkey_sk_file}" "${password}"; then
+        keysEncrypted=$((++keysEncrypted))
+      fi
+    fi
+
+    unset password
+
+    say "Pool encrypted: ${pool_name}" "log"
+    say "Files encrypted: ${keysEncrypted}" "log"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+
+    echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+
     ;; ###################################################################
 
   esac
