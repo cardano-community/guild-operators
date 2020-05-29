@@ -1349,6 +1349,10 @@ case $OPERATION in
         # No need to continue as we failed to decrypt some of the files
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
+      echo ""
+      say "${ORANGE}Pool cold keys decrypted, make sure keys are re-encrypted in case of error or cancelation${NC}"
+      read -r -n 1 -s -p "press any key to continue"
+      echo ""
     fi
     #Calculate appropriate KES period
     currSlot=$(getTip slot)
@@ -1373,8 +1377,6 @@ case $OPERATION in
 
     say "Pool KES Keys Updated: ${pool_name}" "log"
     say "Restart your pool node for changes to take effect" "log"
-    say "Start (or restart) your cardano node with the following:" "log"
-    say "--shelley-kes-key ${pool_hotkey_sk_file}  --shelley-vrf-key ${pool_vrf_sk_file} --shelley-operational-certificate ${pool_opcert_file}" "log"
 
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
