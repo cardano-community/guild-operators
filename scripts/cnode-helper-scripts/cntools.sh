@@ -244,7 +244,7 @@ case $OPERATION in
       fi
 
       ${CCLI} shelley address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}"
-      ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}"
+      ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" --testnet-magic ${NWMAGIC}
 
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
         trap 'rm -rf ${WALLET_FOLDER:?}/${wallet_name}' INT TERM
@@ -315,9 +315,9 @@ case $OPERATION in
       fi
 
       ${CCLI} shelley stake-address key-gen --verification-key-file "${staking_vk_file}" --signing-key-file "${staking_sk_file}"
-      ${CCLI} shelley stake-address build --stake-verification-key-file "${staking_vk_file}" --out-file "${staking_addr_file}"
+      ${CCLI} shelley stake-address build --stake-verification-key-file "${staking_vk_file}" --out-file "${staking_addr_file}" --testnet-magic ${NWMAGIC}
       # upgrade the payment address to an address that delegates to the new stake address
-      ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${staking_vk_file}" --out-file "${base_addr_file}"
+      ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${staking_vk_file}" --out-file "${base_addr_file}" --testnet-magic ${NWMAGIC}
 
       ${CCLI} shelley stake-address registration-certificate --stake-verification-key-file "${staking_vk_file}" --out-file "${staking_cert_file}"
 
