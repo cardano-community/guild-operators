@@ -1082,7 +1082,7 @@ case $OPERATION in
 
     #Calculate appropriate KES period
     currSlot=$(getTip slot)
-    slotsPerKESPeriod=$(cat $GENESIS_JSON | jq -r '.slotsPerKESPeriod')
+    slotsPerKESPeriod=$(jq -r .slotsPerKESPeriod $GENESIS_JSON)
     start_kes_period=$(( currSlot / slotsPerKESPeriod  ))
     echo "${start_kes_period}" > ${pool_saved_kes_start}
 
@@ -1352,7 +1352,7 @@ case $OPERATION in
     fi
     #Calculate appropriate KES period
     currSlot=$(getTip slot)
-    slotsPerKESPeriod=$(cat $GENESIS_JSON | jq -r '.slotsPerKESPeriod')
+    slotsPerKESPeriod=$(jq -r .slotsPerKESPeriod $GENESIS_JSON)
     start_kes_period=$(( currSlot / slotsPerKESPeriod  ))
 
     echo "${start_kes_period}" > ${pool_saved_kes_start}
