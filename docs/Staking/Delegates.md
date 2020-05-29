@@ -22,7 +22,7 @@ First, we need to create the relevant `payment` and `stake` keys and the related
 mkdir delegate && pushd delegate
 cardano-cli shelley stake-address key-gen --verification-key-file stake.vkey --signing-key-file stake.skey
 
-cardano-cli shelley stake-address build --stake-verification-key-file stake.vkey > stake.addr
+cardano-cli shelley stake-address build --stake-verification-key-file stake.vkey --testnet-magic 42 > stake.addr
 cat stake.addr
 #-------v 32 bytes key starts from here
 8200582032a8c3f17ae5dafc3e947f82b0b418483f0a8680def9418c87397f2bd3d35efb
@@ -37,7 +37,7 @@ cat stake.addr
 # Delegates payment key -> payment address (a.k.a legacy UtxO a.k.a enterprise address).
 # Ur use some address that already has some fund on it.
 ############################################################
-cardano-cli shelley address build --payment-verification-key-file pay.vkey > pay.addr
+cardano-cli shelley address build --payment-verification-key-file pay.vkey --testnet-magic 42 > pay.addr
 cat pay.addr
 # As a single Shelley UtXO address and (no CBOR repr)
 # header(1) | address(32), so no hash224
@@ -54,7 +54,7 @@ cat pay.addr
 cardano-cli shelley address build \
     --payment-verification-key-file pay.vkey \
     --stake-verification-key-file stake.vkey \
-    > stake.base
+    --testnet-magic 42 > stake.base
 ```
 
 #### Generating the Staking key certificate

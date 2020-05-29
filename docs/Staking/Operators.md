@@ -109,19 +109,19 @@ mkdir operator && pushd operator
 cardano-cli shelley stake-address key-gen --verification-key-file staking.vkey --signing-key-file staking.skey
 
 # crate teh reward (staking) address from the operator's stake keys
-cardano-cli shelley stake-address build --stake-verification-key-file staking.vkey > staking.addr
+cardano-cli shelley stake-address build --stake-verification-key-file staking.vkey --testnet-magic 42 > staking.addr
 
 # Generate the operator's payment keys
 cardano-cli shelley address key-gen --verification-key-file op_pay.vkey --signing-key-file op_pay.skey
 
 # Generate an `enterprise` address for the operator.
-cardano-cli shelley address build --payment-verification-key-file op_pay.vkey > op_pay.addr
+cardano-cli shelley address build --payment-verification-key-file op_pay.vkey --testnet-magic 42 > op_pay.addr
 
 # Generate the base address  i.e. compount `enterprise || reward` address
 cardano-cli shelley address build \
     --payment-verification-key-file op_pay.vkey \
     --stake-verification-key-file staking.vkey \
-    > base.addr
+    --testnet-magic 42 > base.addr
 ```
 
 The next step is creating a stake address registration certificate.

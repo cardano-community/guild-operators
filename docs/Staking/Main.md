@@ -1,6 +1,6 @@
 # Shelley Staking
 
-This guide's chapter targets the pool operators for getting their head around of Shelley staking.
+This guide's chapter targets the pool operators for getting their head around of Shelley staking. The network references used for this guide are for Friends anf Family Network, and the user is expected to update testnet-magic as desired.
 To fully understand the staking mechanism we need to define and interpret the following key concepts:
 - What are the [keys](./Keys.md)
 - What are the [addresses](./Addresses.md)
