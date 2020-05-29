@@ -20,6 +20,16 @@ log() {
   fi
 }
 
+# Command    : indent
+# Description: Pipe output of command to this function to indent output
+# Parameters : null
+# Return     : Indented output
+# Examples of Usage:
+#   >> some_command | indent
+indent() { 
+  sed 's/^/  /'; 
+}
+
 
 # Command    : say [message]
 # Description: Print message
@@ -389,24 +399,7 @@ registerStaking() {
 
   say " -- Register Staking Keys on Chain --" "log"
   say ""
-  say "--- Balance Check Source Address -------------------------------------------------------" "log"
-  getBalance ${payment_addr}
-
-  tx=$(head -n 1 ${TMP_FOLDER}/balance.txt)
-
-  [[ -z ${tx} ]] && say "${RED}ERROR${NC}: payment address empty" "log" && return 1
-
-  say ""
-  say "Using UTxO with highest balance:" "log"
-  say "${tx}" "log"
-  say ""
-
-  utxo=$( echo "${tx}" | awk '{ print $1 }')
-  id=$( echo "${tx}" | awk '{ print $2 }')
-  balance=$( echo "${tx}" | awk '{ print $3 }')
-
-  tx_in="--tx-in ${utxo}#${id}"
-
+  
   say " -- Protocol Parameters --"
   currSlot=$(getTip slot)
   ttlValue=$(( currSlot + 1000 ))
@@ -414,12 +407,34 @@ registerStaking() {
   say "Key Deposit is ${keyDeposit}"
   say "TN Magic is ${NWMAGIC}" "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
+  say ""
+  
+  say "--- Balance Check Source Address -------------------------------------------------------" "log"
+  getBalance ${payment_addr}
+
+  if [ ! -s ${TMP_FOLDER}/balance.txt ]; then
+    say "${RED}ERROR${NC}: Failed to locate a UTxO, payment wallet empty?" "log"
+    say "funds needed to pay tx fee for stake key registration"
+    return 1
+  fi
+  
+  # Use all available utxo in source payment address
+  say "Using UTxO's:" "log"
+  tx_in=""
+  while read -r utxo; do
+    in_addr=$(awk '{ print $1 }' <<< "${utxo}")
+    idx=$(awk '{ print $2 }' <<< "${utxo}")
+    utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
+    say "TxHash: ${in_addr}#${idx}" "log"
+    say "Lovelace: $(numfmt --grouping ${utxo_balance})" "log"
+    tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
+  done <${TMP_FOLDER}/balance.txt
 
   say ""
-  say " -- Calculate fee, new amount and remaining balance --" "log"
+  say " -- Calculate fee --" "log"
   minFeeArgs=(
     shelley transaction calculate-min-fee
-    --tx-in-count 1
+    --tx-in-count ${UTx0_COUNT}
     --tx-out-count 1
     --ttl ${ttlValue}
     --testnet-magic ${NWMAGIC}
@@ -428,18 +443,20 @@ registerStaking() {
     --certificate-file ${staking_cert}
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
+
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
 
-  if [[ ${balance} -lt $(( minFee + keyDeposit )) ]]; then
-    say "${RED}ERROR${NC}: Not enough Lovelace in payment address ($(numfmt --grouping ${balance}) < $(numfmt --grouping ${minFee}) + $(numfmt --grouping ${keyDeposit}))" "log"
+  if [[ ${TOTALBALANCE} -lt $(( minFee + keyDeposit )) ]]; then
+    say "${RED}ERROR${NC}: Not enough Lovelace in payment address ($(numfmt --grouping ${TOTALBALANCE}) < $(numfmt --grouping ${minFee}) + $(numfmt --grouping ${keyDeposit}))" "log"
     return 1
   fi
 
-  newBalance=$(( balance - minFee - keyDeposit ))
+  newBalance=$(( TOTALBALANCE - minFee - keyDeposit ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
-  say "Balance left to be returned in used UTxO is 0" "log"
-  say "Balance in new staking address is $(numfmt --grouping ${newBalance}) lovelaces ($(numfmt --grouping ${balance}) - $(numfmt --grouping ${minFee}) - $(numfmt --grouping ${keyDeposit}))" "log"
+  
+  say "Balance in new staking address is $(numfmt --grouping ${newBalance}) lovelaces ($(numfmt --grouping ${TOTALBALANCE}) - $(numfmt --grouping ${minFee}) - $(numfmt --grouping ${keyDeposit}))" "log"
+  
   buildArgs=(
     shelley transaction build-raw
     ${tx_in}
@@ -478,9 +495,7 @@ registerStaking() {
 
   say "Signing transaction"
 
-  ## TODO decrypt skey
   output=$(${CCLI} ${signArgs[*]})
-  ## TODO encrypt skey
   if [[ -n $output ]]; then
     say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]}" "log"
     say "$output" "log"
