@@ -822,7 +822,7 @@ case $OPERATION in
     else
       delayExit=0
     fi
-    
+
     ori_balance=${lovelace}
     ori_balance_ada=$(echo "${ori_balance}/1000000" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
 
@@ -851,7 +851,7 @@ case $OPERATION in
       say "--- Balance Check Source Address -------------------------------------------------------" "log"
       getBalance ${s_addr}
     done
-    
+
     s_balance=${TOTALBALANCE}
     s_balance_ada=${totalBalanceADA}
 
@@ -1082,7 +1082,7 @@ case $OPERATION in
 
     #Calculate appropriate KES period
     currSlot=$(getTip slot)
-    slotsPerKESPeriod=$(cat ${GENESIS_JSON} | jq -r '.slotsPerKESPeriod')
+    slotsPerKESPeriod=$(cat $GENESIS_JSON | jq -r '.slotsPerKESPeriod')
     start_kes_period=$(( currSlot / slotsPerKESPeriod  ))
     echo "${start_kes_period}" > ${pool_saved_kes_start}
 
@@ -1313,8 +1313,6 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
 
-
-
     say "Select Pool:"
     select pool_name in $(find ${POOL_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
       test -n "${pool_name}" && break
@@ -1354,7 +1352,7 @@ case $OPERATION in
     fi
     #Calculate appropriate KES period
     currSlot=$(getTip slot)
-    slotsPerKESPeriod=$(cat ${GENESIS_JSON} | jq -r '.slotsPerKESPeriod')
+    slotsPerKESPeriod=$(cat $GENESIS_JSON | jq -r '.slotsPerKESPeriod')
     start_kes_period=$(( currSlot / slotsPerKESPeriod  ))
 
     echo "${start_kes_period}" > ${pool_saved_kes_start}
