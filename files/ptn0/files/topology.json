@@ -84,6 +84,13 @@
         "valency": 1
      },
      {
+        "operator": "matthijs",
+        "node": "AEON",
+        "addr": "139.99.238.119",
+        "port": 6000,
+        "valency": 1
+     },
+     {
         "operator": "rcmorano",
         "node": "RPST",
         "addr": "relay.ptn0.cardano.none.guru",
