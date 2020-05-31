@@ -1374,7 +1374,7 @@ case $OPERATION in
       say "ID: ${pool_id}"
       say "Registered:            ${ledger_status}"
       if [[ -f "${pool_folder_name}${POOL_CURRENT_KES_START}" ]]; then
-        kesExpiration $(cat "${pool_folder_name}${POOL_CURRENT_KES_START}")
+        kesExpiration "$(cat "${pool_folder_name}${POOL_CURRENT_KES_START}")"
         say "KES expiration period: ${kes_expiration_period}"
         say "KES expiration date:   ${expiration_date}"
       fi
@@ -1413,7 +1413,7 @@ case $OPERATION in
     say "ID: ${pool_id}"
     say "Registered:            ${ledger_status}"
     if [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]]; then
-      kesExpiration $(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")
+      kesExpiration "$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
       say "KES expiration period: ${kes_expiration_period}"
       say "KES expiration date:   ${expiration_date}"
     fi
