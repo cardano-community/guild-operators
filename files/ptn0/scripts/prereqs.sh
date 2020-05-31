@@ -107,7 +107,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo rpm --import https://dl.yarnpkg.com/rpm/pubkey.gpg > /dev/null
     $sudo yum -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    $sudo yum -y install python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs systemd-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq p7zip > /dev/null
+    $sudo yum -y install python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs systemd-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq > /dev/null
     if [ -f /usr/lib64/libtinfo.so ] && [ -f /usr/lib64/libtinfo.so.5 ]; then
       echo "  Symlink updates not required for ncurse libs, skipping.."
     else
