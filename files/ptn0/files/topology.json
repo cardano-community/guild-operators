@@ -96,6 +96,13 @@
         "addr": "relay.ptn0.cardano.none.guru",
         "port": 30201,
         "valency": 1
+     },
+     {
+        "operator": "Scitz0",
+        "node": "relay1",
+        "addr": "relay1.ahlnet.nu",
+        "port": 2101,
+        "valency": 1
      }
   ]
 }
