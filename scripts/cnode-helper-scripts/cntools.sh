@@ -332,7 +332,7 @@ case $OPERATION in
       # Register on chain
       if ! registerStaking "${payment_addr}" "${base_addr}" "${payment_sk_file}" "${staking_sk_file}" "${staking_cert_file}"; then
         say "${RED}ERROR${NC}: failure during staking key registration, removing newly created staking keys" "log"
-        rm -f "${staking_vk_file}" "${staking_sk_file}" "${staking_addr_file}" "${staking_cert_file}"
+        rm -f "${staking_vk_file}" "${staking_sk_file}" "${staking_addr_file}" "${staking_cert_file}" "${base_addr_file}"
         if [[ "${PROTECT_KEYS}" = "yes" ]]; then
           if ! encryptFile "${payment_sk_file}" "${password}" || \
               ! encryptFile "${payment_vk_file}" "${password}"; then
@@ -675,7 +675,7 @@ case $OPERATION in
   echo "   q) quit"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   while true; do
-    read -r -n 1 -p "What wallet operation would you like to perform? (1-2): " SUBCOMMAND
+    read -r -n 1 -p "What wallet operation would you like to perform? (1-2) : " SUBCOMMAND
     echo ""
     case ${SUBCOMMAND:0:1} in
       1) SUBCOMMAND="send" && break
@@ -702,26 +702,48 @@ case $OPERATION in
     while true; do
       say " -- Destination Address / Wallet --"
       echo ""
-      read -n 1 -r -p "Do you want to specify destination as an Address or Wallet (a/w)? " d_type
+      read -n 1 -r -p "Do you want to specify destination as an Address or Wallet (a/w)? : " d_type
       say ""
       case ${d_type:0:1} in
         a|A )
           echo "" && read -r -p "Address: " d_addr
-          test -n "${d_type}" && break
+          test -n "${d_addr}" && break
         ;;
         w|W )
           echo "" && say "Select Destination Wallet:"
-          select dWallet in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-            test -n "${dWallet}" && break
+          select d_wallet in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
+            test -n "${d_wallet}" && break
             say ">>> Invalid Selection (ctrl+c to quit)"
           done
-          d_payment_addr_file="${WALLET_FOLDER}/${dWallet}/${WALLET_PAY_ADDR_FILENAME}"
+          d_payment_addr_file="${WALLET_FOLDER}/${d_wallet}/${WALLET_PAY_ADDR_FILENAME}"
+          d_base_addr_file="${WALLET_FOLDER}/${d_wallet}/${WALLET_BASE_ADDR_FILENAME}"
+          # Check if payment address file exist, sanity check for empty/invalid directories
           if [[ ! -f "${d_payment_addr_file}" ]]; then
             say "${RED}ERROR${NC}: destination wallet address file not found:" "log"
             say "${d_payment_addr_file}" "log"
-            echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+            echo "" && read -r -n 1 -s -p "press any key to return to home menu" && break
           fi
-          d_addr="$(cat ${d_payment_addr_file})"
+          d_addr_file="${d_payment_addr_file}" # default
+          if [[ -f "${d_base_addr_file}" ]]; then
+            # Both payment and base address available, let user choose what to use
+            while true; do
+              echo ""
+              read -n 1 -r -p "Wallet contain both payment and base address, choose destination (p/b)? : " d_wallet_type
+              echo ""
+              case ${d_wallet_type:0:1} in
+                p|P )
+                  break
+                ;;
+                b|B )
+                  d_addr_file="${d_base_addr_file}" && break
+                ;;
+                * )
+                  say ">>> Invalid Selection"
+                ;;
+              esac
+            done
+          fi
+          d_addr="$(cat ${d_addr_file})"
           break
         ;;
         * )
@@ -729,6 +751,8 @@ case $OPERATION in
         ;;
       esac
     done
+    # Destination loop could break without getting a valid address
+    [[ -z ${d_addr} ]] && continue
 
     # Amount
     echo ""
@@ -753,12 +777,33 @@ case $OPERATION in
       say ">>> Invalid Selection (ctrl+c to quit)"
     done
     s_payment_addr_file="${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_ADDR_FILENAME}"
+    s_base_addr_file="${WALLET_FOLDER}/${s_wallet}/${WALLET_BASE_ADDR_FILENAME}"
     if [[ ! -f "${s_payment_addr_file}" ]]; then
       say "${RED}ERROR${NC}: source wallet address file not found:" "log"
       say "${s_payment_addr_file}" "log"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
-    s_addr="$(cat ${s_payment_addr_file})"
+    s_addr_file="${s_payment_addr_file}" # default
+    if [[ -f "${s_base_addr_file}" ]]; then
+      # Both payment and base address available, let user choose what to use
+      while true; do
+        echo ""
+        read -n 1 -r -p "Wallet contain both payment and base address, choose source (p/b)? : " s_wallet_type
+        echo ""
+        case ${s_wallet_type:0:1} in
+          p|P )
+            break
+          ;;
+          b|B )
+            s_addr_file="${s_base_addr_file}" && break
+          ;;
+          * )
+            say ">>> Invalid Selection"
+          ;;
+        esac
+      done
+    fi
+    s_addr="$(cat ${s_addr_file})"
 
     if  [[ "${amount}" != "all" ]]; then
       echo ""
@@ -850,9 +895,15 @@ case $OPERATION in
     say ""
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say "Transaction" "log"
-    say "  From:        ${s_wallet}" "log"
+    [[ "${s_wallet_type,,}" = "b" ]] && s_wallet_type="base" || s_wallet_type="payment"
+    say "  From:        ${s_wallet} (${s_wallet_type})" "log"
     say "  Amount:      $(numfmt --grouping ${ori_balance}) Lovelaces ($(numfmt --grouping ${ori_balance_ada}) ADA)" "log"
-    say "  To:          ${d_addr}" "log"
+    if [[ ${d_type,,} = "a" ]]; then
+      say "  To:          ${d_addr}" "log"
+    else
+      [[ "${d_wallet_type,,}" = "b" ]] && d_wallet_type="base" || d_wallet_type="payment"
+      say "  To:          ${d_wallet} (${d_wallet_type})" "log"
+    fi
     say "  Fees:        $(numfmt --grouping ${minFee}) Lovelaces" "log"
     say "  Balance:" "log"
     say "  Source:      $(numfmt --grouping ${s_balance}) Lovelaces ($(numfmt --grouping ${s_balance_ada}) ADA)" "log"
@@ -1107,9 +1158,11 @@ case $OPERATION in
     fi
 
     say "Pool: ${pool_name}" "log"
-    say "PoolPubKey: TODO" "log" # TODO: extract from pool_coldkey_vk_file
-    say "Start your cardano node with the following:" "log"
-    say "--shelley-kes-key ${pool_hotkey_sk_file}  --shelley-vrf-key ${pool_vrf_sk_file} --shelley-operational-certificate ${pool_opcert_file}" "log"
+    say "PoolPubKey: $(cat "${pool_id_file}")" "log"
+    say "Start cardano node with the following run arguments:" "log"
+    say "--shelley-kes-key ${pool_hotkey_sk_file}"
+    say "--shelley-vrf-key ${pool_vrf_sk_file}"
+    say "--shelley-operational-certificate ${pool_opcert_file}"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -1136,38 +1189,37 @@ case $OPERATION in
       echo ""
     fi
 
-    saved_pledge="${POOL_FOLDER}/${pool_name}/${POOL_SAVED_PLEDGE_FILENAME}"
-    pledgeada=50000 # default pledge
-    if [[ -f "${saved_pledge}" ]]; then
-      pledgeada="$(cat ${saved_pledge})"
+    pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
+    
+    pledge_ada=50000 # default pledge
+    if [[ -f "${pool_config}" ]]; then
+      pledge_ada=$(jq -r .pledgeADA "${pool_config}")
     fi
-    read -r -p "Pledge in ADA (default: ${pledgeada}): " pledgeenter
-    if [[ -n "${pledgeenter}" ]]; then
-      pledgeada=$pledgeenter
+    read -r -p "Pledge in ADA (default: ${pledge_ada}): " pledge_enter
+    if [[ -n "${pledge_enter}" ]]; then
+      pledge_ada=$pledge_enter
     fi
-    echo "${pledgeada}" > ${saved_pledge}
 
-    saved_margin="${POOL_FOLDER}/${pool_name}/${POOL_SAVED_MARGIN_FILENAME}"
     margin=0.07 # default margin
-    if [[ -f "${saved_margin}" ]]; then
-      margin="$(cat ${saved_margin})"
+    if [[ -f "${pool_config}" ]]; then
+      margin=$(jq -r .margin "${pool_config}")
     fi
-    echo "" && read -r -p "Margin (default: ${margin}): " marginenter
-    if [[ -n "${marginenter}" ]]; then
-      margin=$marginenter
+    echo "" && read -r -p "Margin (default: ${margin}): " margin_enter
+    if [[ -n "${margin_enter}" ]]; then
+      margin=$margin_enter
     fi
-    echo "${margin}" > ${saved_margin}
 
-    saved_cost="${POOL_FOLDER}/${pool_name}/${POOL_SAVED_COST_FILENAME}"
-    costada=256 # default cost
-    if [[ -f "${saved_cost}" ]]; then
-      costada="$(cat ${saved_cost})"
+    cost_ada=256 # default cost
+    if [[ -f "${pool_config}" ]]; then
+      cost_ada=$(jq -r .costADA "${pool_config}")
     fi
-    echo "" && read -r -p "Cost in ADA (default: ${costada}): " costenter
-    if [[ -n "${costenter}" ]]; then
-      costada=$costenter
+    echo "" && read -r -p "Cost in ADA (default: ${cost_ada}): " cost_enter
+    if [[ -n "${cost_enter}" ]]; then
+      cost_ada=$cost_enter
     fi
-    echo "${costada}" > ${saved_cost}
+    
+    echo "{\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada}" > "${pool_config}"
+
     echo ""
 
     say "Select pledge/reward wallet:"
@@ -1235,7 +1287,7 @@ case $OPERATION in
     pool_pledgecert_file="${POOL_FOLDER}/${pool_name}/${POOL_PLEDGECERT_FILENAME}"
 
     say "-- creating registration cert --" "log"
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge $(( pledgeada * 1000000 )) --pool-cost $(( costada * 1000000 )) --pool-margin ${margin} --pool-reward-account-verification-key-file "${staking_vk_file}" --pool-owner-stake-verification-key-file "${staking_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC}
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge $(( pledge_ada * 1000000 )) --pool-cost $(( cost_ada * 1000000 )) --pool-margin ${margin} --pool-reward-account-verification-key-file "${staking_vk_file}" --pool-owner-stake-verification-key-file "${staking_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC}
     say "-- creating delegation cert --" "log"
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${staking_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
     say "-- Sending transaction to chain --" "log"
@@ -1320,7 +1372,19 @@ case $OPERATION in
       [[ -n "${ledger_status}" ]] && ledger_status="YES" || ledger_status="NO"
       say "Pool: ${GREEN}${pool_name##*/}${NC} "
       say "ID: ${pool_id}"
-      say "Registered: ${ledger_status}"    
+      say "Registered:            ${ledger_status}"
+      if [[ -f "${pool_folder_name}${POOL_CURRENT_KES_START}" ]]; then
+        kesExpiration "$(cat "${pool_folder_name}${POOL_CURRENT_KES_START}")"
+        say "KES expiration period: ${kes_expiration_period}"
+        say "KES expiration date:   ${expiration_date}"
+      fi
+      pool_hotkey_sk_file="${pool_folder_name}${POOL_HOTKEY_SK_FILENAME}"
+      pool_vrf_sk_file="${pool_folder_name}${POOL_VRF_SK_FILENAME}"
+      pool_opcert_file="${pool_folder_name}${POOL_OPCERT_FILENAME}"
+      say "run arguments:"
+      say "--shelley-kes-key ${pool_hotkey_sk_file}"
+      say "--shelley-vrf-key ${pool_vrf_sk_file}"
+      say "--shelley-operational-certificate ${pool_opcert_file}"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo ""
     done
@@ -1347,7 +1411,19 @@ case $OPERATION in
     [[ -n "${ledger_status}" ]] && ledger_status="YES" || ledger_status="NO"
     say "Pool: ${GREEN}${pool_name##*/}${NC} "
     say "ID: ${pool_id}"
-    say "Registered: ${ledger_status}"  
+    say "Registered:            ${ledger_status}"
+    if [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]]; then
+      kesExpiration "$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
+      say "KES expiration period: ${kes_expiration_period}"
+      say "KES expiration date:   ${expiration_date}"
+    fi
+    pool_hotkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_SK_FILENAME}"
+    pool_vrf_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_SK_FILENAME}"
+    pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
+    say "run arguments:"
+    say "--shelley-kes-key ${pool_hotkey_sk_file}"
+    say "--shelley-vrf-key ${pool_vrf_sk_file}"
+    say "--shelley-operational-certificate ${pool_opcert_file}"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo "" && read -r -n 1 -s -p "press any key to return to home menu"
     
@@ -1422,9 +1498,13 @@ case $OPERATION in
         say "${pool_coldkey_sk_file}.gpg" "log"
       fi
     fi
+    
+    kesExpiration "${start_kes_period}"
 
     echo ""
     say "Pool KES Keys Updated: ${pool_name}" "log"
+    say "New KES start period: ${start_kes_period}"
+    say "KES keys will expire on ${kes_expiration_period}, ${expiration_date}"
     say "Restart your pool node for changes to take effect" "log"
 
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"

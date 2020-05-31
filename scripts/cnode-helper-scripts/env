@@ -8,4 +8,3 @@ NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
 export CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
 MAGIC=$(jq -r .protocolMagicId < $GENESIS_JSON)
 NWMAGIC=$(jq -r .networkMagic < $GENESIS_JSON)
-SLOT_DURATION=$(jq -r .slotLength < $GENESIS_JSON)

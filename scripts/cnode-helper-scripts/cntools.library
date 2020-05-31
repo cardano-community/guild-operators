@@ -145,6 +145,7 @@ getTip() {
 # Examples of Usage:
 #   >> waitNewBlockCreated
 waitNewBlockCreated() {
+  SLOT_DURATION=$(jq -r .slotLength "$GENESIS_JSON")
   COUNTER=${TIMEOUT_NO_OF_SLOTS}
   say ""
   say "Waiting for new block to be created (timeout = ${COUNTER} slots, $(( COUNTER * SLOT_DURATION ))s)" "log"
@@ -786,4 +787,27 @@ delegate() {
     return 1
   fi
 
+}
+
+# Command    : kesExpiration [current KES period]
+#
+# Description: Calculate KES expiration
+# Parameters : current KES period    >   KES start stored in POOL_CURRENT_KES_START file for pool in question
+# Return     : expiration date can be accessed through variable ${expiration_date} after function has been executed
+# Examples of Usage:
+#   >> kesExpiration 1234
+#
+kesExpiration() {
+  if [[ -z "${1##*[!0-9]*}" ]]; then
+    say "${RED}ERROR${NC}: current KES period must be an integer number [$1]"
+    return 1
+  fi
+  
+  max_kes_evolutions=$(jq -r .maxKESEvolutions "${GENESIS_JSON}")
+  genesis_start_time_sec=$(date --date=$(jq -r .systemStart "${GENESIS_JSON}") +%s)	# UTC
+  slot_duration=$(jq -r .slotLength "${GENESIS_JSON}")
+  slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
+  kes_expiration_period=$(( ${1} + ${max_kes_evolutions} - 1 ))
+  expiration_time_sec=$(( ${genesis_start_time_sec} + ( ${slot_duration} * ${kes_expiration_period} * ${slots_per_kes_period} ) ))
+  expiration_date=$(date --date=@${expiration_time_sec})
 }
