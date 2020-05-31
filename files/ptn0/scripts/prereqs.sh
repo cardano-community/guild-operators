@@ -94,7 +94,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     #Debian/Ubuntu
     echo "Using apt to prepare packages for ${DISTRO} system"
     echo "  Updating system packages..."
-    $sudo apt-get -y install curl
+    $sudo apt-get -y install curl gnupg
     curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | $sudo apt-key add - > /dev/null
     echo "deb https://dl.yarnpkg.com/debian/ stable main" | $sudo tee /etc/apt/sources.list.d/yarn.list > /dev/null
     $sudo apt-get -y update > /dev/null
