@@ -293,7 +293,7 @@ case $OPERATION in
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo ""
       # Make sure wallet folder exist and is non-empty
-      if [[ ! -d "${WALLET_FOLDER}" || $(ls -l "${WALLET_FOLDER}" | grep -c ^d) -eq 0 ]]; then
+      if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
         say "${RED}ERROR${NC}: Missing or empty wallet folder, please first create a payment wallet"
         say "Wallet folder: ${WALLET_FOLDER}"
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -485,7 +485,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     # Make sure wallet folder exist and is non-empty
-    if [[ ! -d "${WALLET_FOLDER}" || $(ls -l "${WALLET_FOLDER}" | grep -c ^d) -eq 0 ]]; then
+    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a wallet"
       say "Wallet folder: ${WALLET_FOLDER}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -539,7 +539,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     # Make sure wallet folder exist and is non-empty
-    if [[ ! -d "${WALLET_FOLDER}" || $(ls -l "${WALLET_FOLDER}" | grep -c ^d) -eq 0 ]]; then
+    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: Missing or empty wallet folder, nothing to remove"
       say "Wallet folder: ${WALLET_FOLDER}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -618,7 +618,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     # Make sure wallet folder exist and is non-empty
-    if [[ ! -d "${WALLET_FOLDER}" || $(ls -l "${WALLET_FOLDER}" | grep -c ^d) -eq 0 ]]; then
+    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a wallet"
       say "Wallet folder: ${WALLET_FOLDER}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -638,7 +638,7 @@ case $OPERATION in
     
     filesUnlocked=0
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-      filesUnlocked=$(ls -1 "${WALLET_FOLDER}/${wallet_name}/" | wc -l)
+      filesUnlocked=$(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f | wc -l)
       echo "" && say "Unlocking wallet files (root access needed)" "log"
       chmod 600 "${WALLET_FOLDER}/${wallet_name}"/*
       sudo chattr -i "${WALLET_FOLDER}/${wallet_name}"/*
@@ -703,7 +703,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     # Make sure wallet folder exist and is non-empty
-    if [[ ! -d "${WALLET_FOLDER}" || $(ls -l "${WALLET_FOLDER}" | grep -c ^d) -eq 0 ]]; then
+    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a wallet"
       say "Wallet folder: ${WALLET_FOLDER}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -756,7 +756,7 @@ case $OPERATION in
     
     filesLocked=0
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-      filesLocked=$(ls -1 "${WALLET_FOLDER}/${wallet_name}/" | wc -l)
+      filesLocked=$(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f | wc -l)
       # lock all wallet files
       echo "" && say "Locking all wallet files (root access needed)" "log"
       chmod 400 "${WALLET_FOLDER}/${wallet_name}"/*
@@ -833,7 +833,7 @@ case $OPERATION in
         ;;
         w|W )
           # Make sure wallet folder exist and is non-empty
-          if [[ ! -d "${WALLET_FOLDER}" || $(ls -l "${WALLET_FOLDER}" | grep -c ^d) -eq 0 ]]; then
+          if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
             say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a wallet"
             say "Wallet folder: ${WALLET_FOLDER}"
             echo "" && read -r -n 1 -s -p "press any key to return to home menu" && break
@@ -900,7 +900,7 @@ case $OPERATION in
     echo ""
     say " -- Source Wallet --"
     # Make sure wallet folder exist and is non-empty
-    if [[ ! -d "${WALLET_FOLDER}" || $(ls -l "${WALLET_FOLDER}" | grep -c ^d) -eq 0 ]]; then
+    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a wallet"
       say "Wallet folder: ${WALLET_FOLDER}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -1073,7 +1073,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     # Make sure wallet folder exist and is non-empty
-    if [[ ! -d "${WALLET_FOLDER}" || $(ls -l "${WALLET_FOLDER}" | grep -c ^d) -eq 0 ]]; then
+    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a wallet"
       say "Wallet folder: ${WALLET_FOLDER}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -1102,7 +1102,7 @@ case $OPERATION in
     pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
 
     # Make sure pool folder exist and is non-empty
-    if [[ ! -d "${POOL_FOLDER}" || $(ls -l "${POOL_FOLDER}" | grep -c ^d) -eq 0 ]]; then
+    if [[ ! -d "${POOL_FOLDER}" || $(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: Missing or empty pool folder, please first create a pool"
       say "Pool folder: ${POOL_FOLDER}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -1383,7 +1383,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     # Make sure pool folder exist and is non-empty
-    if [[ ! -d "${POOL_FOLDER}" || $(ls -l "${POOL_FOLDER}" | grep -c ^d) -eq 0 ]]; then
+    if [[ ! -d "${POOL_FOLDER}" || $(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: Missing or empty pool folder, please first create a pool"
       say "Pool folder: ${POOL_FOLDER}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -1436,7 +1436,7 @@ case $OPERATION in
     echo ""
 
     # Make sure wallet folder exist and is non-empty
-    if [[ ! -d "${WALLET_FOLDER}" || $(ls -l "${WALLET_FOLDER}" | grep -c ^d) -eq 0 ]]; then
+    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a stake wallet"
       say "Wallet folder: ${WALLET_FOLDER}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -1649,7 +1649,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     # Make sure pool folder exist and is non-empty
-    if [[ ! -d "${POOL_FOLDER}" || $(ls -l "${POOL_FOLDER}" | grep -c ^d) -eq 0 ]]; then
+    if [[ ! -d "${POOL_FOLDER}" || $(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: Missing or empty pool folder, please first create a pool"
       say "Pool folder: ${POOL_FOLDER}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -1693,7 +1693,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     # Make sure pool folder exist and is non-empty
-    if [[ ! -d "${POOL_FOLDER}" || $(ls -l "${POOL_FOLDER}" | grep -c ^d) -eq 0 ]]; then
+    if [[ ! -d "${POOL_FOLDER}" || $(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: Missing or empty pool folder, please first create and register a pool"
       say "Pool folder: ${POOL_FOLDER}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -1781,7 +1781,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     # Make sure pool folder exist and is non-empty
-    if [[ ! -d "${POOL_FOLDER}" || $(ls -l "${POOL_FOLDER}" | grep -c ^d) -eq 0 ]]; then
+    if [[ ! -d "${POOL_FOLDER}" || $(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: Missing or empty pool folder, please first create a pool"
       say "Pool folder: ${POOL_FOLDER}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -1794,7 +1794,7 @@ case $OPERATION in
     
     filesUnlocked=0
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-      filesUnlocked=$(ls -1 "${POOL_FOLDER}/${pool_name}/" | wc -l)
+      filesUnlocked=$(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f | wc -l)
       # Unlock pool files
       echo "" && say "Unlocking pool files (root access needed)" "log"
       chmod 600 "${POOL_FOLDER}/${pool_name}"/*
@@ -1852,7 +1852,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     # Make sure pool folder exist and is non-empty
-    if [[ ! -d "${POOL_FOLDER}" || $(ls -l "${POOL_FOLDER}" | grep -c ^d) -eq 0 ]]; then
+    if [[ ! -d "${POOL_FOLDER}" || $(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: Missing or empty pool folder, please first create a pool"
       say "Pool folder: ${POOL_FOLDER}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -1885,7 +1885,7 @@ case $OPERATION in
     
     filesLocked=0
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-      filesLocked=$(ls -1 "${POOL_FOLDER}/${pool_name}/" | wc -l)
+      filesLocked=$(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f | wc -l)
       # lock all pool files
       echo "" && say "Locking all pool files (root access needed)" "log"
       chmod 400 "${POOL_FOLDER}/${pool_name}"/*
