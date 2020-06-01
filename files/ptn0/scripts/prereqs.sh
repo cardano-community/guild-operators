@@ -1,7 +1,5 @@
 #!/bin/sh
 
-set -e 
-
 get_input() {
   printf "%s (default: %s): " "$1" "$2" >&2; read -r answer
   if [ -z "$answer" ]; then echo "$2"; else echo "$answer"; fi
@@ -94,12 +92,17 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     #Debian/Ubuntu
     echo "Using apt to prepare packages for ${DISTRO} system"
     echo "  Updating system packages..."
-    $sudo apt-get -y install curl gnupg
+    $sudo apt-get -y install curl > /dev/null
     curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | $sudo apt-key add - > /dev/null
     echo "deb https://dl.yarnpkg.com/debian/ stable main" | $sudo tee /etc/apt/sources.list.d/yarn.list > /dev/null
     $sudo apt-get -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    $sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ tmux git jq wget libncursesw5 > /dev/null
+    $sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ tmux git jq wget libncursesw5 gnupg > /dev/null;rc=$?
+    if [ $rc != 0 ]; then
+      echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
+      echo "sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ tmux git jq wget libncursesw5 gnupg"
+      exit;
+    fi
   elif [ -z "${OS_ID##*rhel*}" ]; then
     #CentOS/RHEL/Fedora
     echo "Using yum to prepare packages for ${DISTRO} system"
@@ -109,7 +112,12 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo rpm --import https://dl.yarnpkg.com/rpm/pubkey.gpg > /dev/null
     $sudo yum -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    $sudo yum -y install python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs systemd-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq  > /dev/null
+    $sudo yum -y install python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq gnupg > /dev/null;rc=$?
+    if [ $rc != 0 ]; then
+      echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
+      echo "sudo yum -y install python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq gnupg"
+      exit;
+    fi
     if [ -f /usr/lib64/libtinfo.so ] && [ -f /usr/lib64/libtinfo.so.5 ]; then
       echo "  Symlink updates not required for ncurse libs, skipping.."
     else
@@ -122,10 +130,12 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     echo "please manually install required packages."
     echo "Their relative names are:"
     echo "Debian: curl build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev tmux"
-    echo "CentOS: curl pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs systemd-devel zlib-devel tmux"
+    echo "CentOS: curl pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd-devel zlib-devel tmux"
     exit;
   fi
-
+  ghc_v=$(ghc --version | grep 8\.6\.5 2>/dev/null)
+  cabal_v=$(cabal --version | grep version\ 3 2>/dev/null)
+  if [ "${ghc_v}" = "" ] || [ "${cabal_v}" = "" ]; then
     echo "Install ghcup (The Haskell Toolchain installer) .."
     # TMP: Dirty hack to prevent ghcup interactive setup, yet allow profile set up
     unset BOOTSTRAP_HASKELL_NONINTERACTIVE
@@ -140,7 +150,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
 
     echo "Installing bundled Cabal .."
     ghcup install-cabal
-  
+  fi
 fi
 # END OF Install build deps.
 
