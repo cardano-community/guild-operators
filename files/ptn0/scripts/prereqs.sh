@@ -152,6 +152,9 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     ghcup install-cabal
   fi
 fi
+
+if [ ! -d ~/.cabal/bin ]; then mkdir -p ~/.cabal/bin; fi
+
 # END OF Install build deps.
 
 echo "Creating Folder Structure .."
