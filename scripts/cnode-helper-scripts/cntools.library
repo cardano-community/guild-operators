@@ -210,11 +210,11 @@ getBalance() {
 # Parameters : Destination Address   >   Destination address.
 #              Amount                >   Amount in ADA, number(fraction of ADA valid) or the string 'all'.
 #              Source Address        >   Source address.
-#              Source Sign Key       >   Path to Signature (skey) file. For staking address payment skey is to be used.
-#              Include Fee         >   Optional argument to specify that amount to send should be reduced by fee instead of payed by sender.
+#              Source Sign Key       >   Path to Signature (skey) file. For stake wallet, payment skey is to be used.
+#              Include Fee           >   Optional argument to specify that amount to send should be reduced by fee instead of payed by sender.
 # Return     : prints progress on STDOUT
 # Examples of Usage:
-#   >> sendADA 61WKMJemoBa....ssL7fzhq 100 61RM9xbIdg....HbyQY175 "$CNODE_HOME/priv/wallet/MyWallet/pay.skey" "no"
+#   >> sendADA 61WKMJemoBa....ssL7fzhq 100 61RM9xbIdg....HbyQY175 "$CNODE_HOME/priv/wallet/MyWallet/payment.skey" "no"
 sendADA() {
 
   # Handle script arguments
@@ -379,26 +379,26 @@ sendADA() {
   fi
 }
 
-# Command    : registerStaking [payment address] [payment sign key] [staking sign key] [staking cert file]
-# Description: Register staking keys on chain and move funds from payment address to payment staking address
+# Command    : registerStakeWallet [payment address] [payment sign key] [stake sign key] [stake cert file]
+# Description: Register stake keys on chain and move funds from payment address to payment base address
 # Parameters : payment address         >   Payment address, funds needed to pay tx fee for stake key registration
 #              base_address            >   This is the new address, all funds will be moved from payment address to this address
 #              payment sign key        >   Payment signature key
-#              staking sign key        >   Staking signature key
-#              staking cert file       >   Staking certificate
+#              stake sign key          >   Stake signature key
+#              stake cert file         >   Stake certificate
 # Return     : prints progress on STDOUT
 # Examples of Usage:
-#   >> registerStaking 61WKMJemoBa....ssL7fzhq 61WKMJemoBa....ssL7fzhq "../wallet/MyWallet/Payment.skey" "../wallet/MyWallet/Staking.skey" "../wallet/MyWallet/Staking.cert"
-registerStaking() {
+#   >> registerStakeWallet 61WKMJemoBa....ssL7fzhq 61WKMJemoBa....ssL7fzhq "../wallet/MyWallet/payment.skey" "../wallet/MyWallet/stake.skey" "../wallet/MyWallet/stake.cert"
+registerStakeWallet() {
 
   # script arguments
   payment_addr="$1"
   base_addr="$2"
   payment_sk="$3"
-  staking_sk="$4"
-  staking_cert="$5"
+  stake_sk="$4"
+  stake_cert="$5"
 
-  say " -- Register Staking Keys on Chain --" "log"
+  say " -- Register Stake Keys on Chain --" "log"
   say ""
   
   say " -- Protocol Parameters --"
@@ -440,8 +440,8 @@ registerStaking() {
     --ttl ${ttlValue}
     --testnet-magic ${NWMAGIC}
     --signing-key-file ${payment_sk}
-    --signing-key-file ${staking_sk}
-    --certificate-file ${staking_cert}
+    --signing-key-file ${stake_sk}
+    --certificate-file ${stake_cert}
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
 
@@ -456,7 +456,7 @@ registerStaking() {
   newBalance=$(( TOTALBALANCE - minFee - keyDeposit ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
   
-  say "Balance in new staking address is $(numfmt --grouping ${newBalance}) lovelaces ($(numfmt --grouping ${TOTALBALANCE}) - $(numfmt --grouping ${minFee}) - $(numfmt --grouping ${keyDeposit}))" "log"
+  say "Balance in new base address is $(numfmt --grouping ${newBalance}) lovelaces ($(numfmt --grouping ${TOTALBALANCE}) - $(numfmt --grouping ${minFee}) - $(numfmt --grouping ${keyDeposit}))" "log"
   
   buildArgs=(
     shelley transaction build-raw
@@ -464,7 +464,7 @@ registerStaking() {
     ${tx_out}
     --ttl ${ttlValue}
     --fee ${minFee}
-    --certificate-file ${staking_cert}
+    --certificate-file ${stake_cert}
     --out-file ${TMP_FOLDER}/tx.raw
   )
 
@@ -472,7 +472,7 @@ registerStaking() {
     shelley transaction sign
     --tx-body-file ${TMP_FOLDER}/tx.raw
     --signing-key-file ${payment_sk}
-    --signing-key-file ${staking_sk}
+    --signing-key-file ${stake_sk}
     --testnet-magic ${NWMAGIC}
     --out-file ${TMP_FOLDER}/tx.signed
   )
@@ -514,25 +514,25 @@ registerStaking() {
 }
 
 
-# Command    : registerPool [payment address] [pool cold sign key] [staking sign key] [pool registration cert file] [pool pledge cert file] [payment sign key]
+# Command    : registerPool [payment address] [pool cold sign key] [stake sign key] [pool registration cert file] [pool pledge cert file] [payment sign key]
 #
 # Description: Register pool with pledge on chain
-# Parameters : payment address                >   Payment address, funds needed to pay tx fee for pool registration
-#              payment sign key               >   Payment signature key
+# Parameters : payment address                >   payment address, funds needed to pay tx fee for pool registration
+#              payment sign key               >   payment signature key
 #              pool cold sign key             >   pool cold sign key
 #              pool registration cert file    >   pool registration cert file
-#              staking sign key               >   Staking signature key
-#              staking cert file              >   Staking certificate
+#              stake sign key                 >   stake signature key
+#              stake cert file                >   stake certificate
 # Return     : prints progress on STDOUT
 # Examples of Usage:
-#   >> registerPool 61WKMJemoBa....ssL7fzhq "../pools/MyPool/Cold.skey" "../wallet/MyWallet2/Stake.skey" "poolreg.cert" "delegation.cert" "../wallet/MyWallet/Payment.skey"
+#   >> registerPool 61WKMJemoBa....ssL7fzhq "../pools/MyPool/cold.skey" "../wallet/MyWallet2/stake.skey" "pool.cert" "delegation.cert" "../wallet/MyWallet/payment.skey"
 #
 registerPool() {
 
   # script arguments
   payment_addr="$1"
   pool_coldkey_sk_file="$2"
-  staking_sk_file="$3"
+  stake_sk_file="$3"
   pool_regcert_file="$4"
   pool_pledgecert_file="$5"
   pay_payment_sk_file="$6"
@@ -577,7 +577,7 @@ registerPool() {
     --testnet-magic ${NWMAGIC}
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${pool_coldkey_sk_file}
-    --signing-key-file ${staking_sk_file}
+    --signing-key-file ${stake_sk_file}
     --certificate-file ${pool_regcert_file}
     --certificate-file ${pool_pledgecert_file}
     --protocol-params-file ${TMP_FOLDER}/protparams.json
@@ -610,7 +610,7 @@ registerPool() {
     --tx-body-file ${TMP_FOLDER}/tx.raw
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${pool_coldkey_sk_file}
-    --signing-key-file ${staking_sk_file}
+    --signing-key-file ${stake_sk_file}
     --testnet-magic ${NWMAGIC}
     --out-file ${TMP_FOLDER}/tx.signed
   )
@@ -669,13 +669,13 @@ registerPool() {
 #
 # Return     : prints progress on STDOUT
 # Examples of Usage:
-#   >> registerPool   "../wallet/MyWallet/Stake.vkey" "../wallet/MyWallet/Stake.skey" "../wallet/MyWallet/Pay.skey" 61WKMJemoBa....ssL7fzhq "../pools/MyPool/Pool.vkey" "delegation.cert"
+#   >> registerPool   "../wallet/MyWallet/stake.vkey" "../wallet/MyWallet/stake.skey" "../wallet/MyWallet/payment.skey" 61WKMJemoBa....ssL7fzhq "../pools/MyPool/cold.vkey" "delegation.cert"
 #
 delegate() {
 
   # script arguments
-  staking_vk_file="$1"
-  staking_sk_file="$2"
+  stake_vk_file="$1"
+  stake_sk_file="$2"
   pay_payment_sk_file="$3"
   payment_addr="$4"
   pool_coldkey_vk_file="$5"
@@ -717,7 +717,7 @@ delegate() {
     --ttl ${ttlValue}
     --testnet-magic ${NWMAGIC}
     --signing-key-file ${pay_payment_sk_file}
-    --signing-key-file ${staking_sk_file}
+    --signing-key-file ${stake_sk_file}
     --certificate-file ${pool_delegcert_file}
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
@@ -747,7 +747,7 @@ delegate() {
     shelley transaction sign
     --tx-body-file ${TMP_FOLDER}/tx.raw
     --signing-key-file ${pay_payment_sk_file}
-    --signing-key-file ${staking_sk_file}
+    --signing-key-file ${stake_sk_file}
     --testnet-magic ${NWMAGIC}
     --out-file ${TMP_FOLDER}/tx.signed
   )
