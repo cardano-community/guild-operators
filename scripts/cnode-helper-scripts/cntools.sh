@@ -60,7 +60,7 @@ if [[ ${PROTECT_KEYS} = "yes" && "${UID}" -ne 0 ]]; then
     say "${ORANGE}WARN${NC}: Elevated privileges needed for chattr command used to write protect wallet and pool keys"
     say "Run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
     echo ""
-    say "echo \"$(whoami) ALL=NOPASSWD: $(which chattr)\" >> /etc/sudoers"
+    say "echo \"$(whoami) ALL=NOPASSWD: $(command -v chattr)\" >> /etc/sudoers"
     echo ""
     exit 1
   fi
@@ -667,12 +667,12 @@ case $OPERATION in
         echo "" && say "Unlocking encrypted wallet files" "log"
         while IFS= read -r -d '' file; do 
           sudo chattr -i "$file" &>/dev/null
-        done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name *.gpg -print0)
+        done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name "./*.gpg" -print0)
       fi
       
       while IFS= read -r -d '' file; do 
         decryptFile "$file" "${password}" && keysDecrypted=$((++keysDecrypted))
-      done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name *.gpg -print0)
+      done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name "./*.gpg" -print0)
 
       unset password
     fi
@@ -1781,12 +1781,12 @@ case $OPERATION in
         echo "" && say "Unlocking encrypted pool files" "log"
         while IFS= read -r -d '' file; do 
           sudo chattr -i "$file" &>/dev/null
-        done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -name *.gpg -print0)
+        done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -name "./*.gpg" -print0)
       fi
       
       while IFS= read -r -d '' file; do 
         decryptFile "$file" "${password}" && keysDecrypted=$((++keysDecrypted))
-      done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -name *.gpg -print0)
+      done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -name "./*.gpg" -print0)
 
       unset password
     fi
