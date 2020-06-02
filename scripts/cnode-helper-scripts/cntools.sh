@@ -17,7 +17,14 @@
 . "$(dirname $0)"/cntools.library
 
 # Start with a clean slate
-mkdir -p ${TMP_FOLDER} # Create if missing
+mkdir -p "${TMP_FOLDER}" # Create if missing
+if [[ ! -d "${TMP_FOLDER}" ]]; then
+  echo ""
+  say "${RED}ERROR${NC}: Failed to create directory for temporary files:"
+  say "${TMP_FOLDER}"
+  echo ""
+  exit 1
+fi
 rm -f "${TMP_FOLDER:?}"/*
 
 # Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
@@ -38,6 +45,26 @@ if [[ "${ENCRYPT_KEYS}" = "yes" ]]; then
   if ! need_cmd "gpg" || \
      ! need_cmd "systemd-ask-password"; then exit 1
   fi
+fi
+if [[ "${PROTECT_KEYS}" = "yes" ]]; then
+  if ! need_cmd "chattr"; then
+    exit 1
+  fi
+fi
+
+if [[ ${PROTECT_KEYS} = "yes" && "${UID}" -ne 0 ]]; then
+  touch "${TMP_FOLDER}/test"
+  if ! sudo -n chattr -i "${TMP_FOLDER}/test" 2>&1; then
+    rm -f "${TMP_FOLDER}/test"
+    echo ""
+    say "${ORANGE}WARN${NC}: Elevated privileges needed for chattr command used to write protect wallet and pool keys"
+    say "Run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
+    echo ""
+    say "echo \"$(whoami) ALL=NOPASSWD: $(which chattr)\" >> /etc/sudoers"
+    echo ""
+    exit 1
+  fi
+  rm -f "${TMP_FOLDER}/test"
 fi
 
 ###################################################################
@@ -273,7 +300,7 @@ case $OPERATION in
       
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
         # Lock wallet files
-        say "Locking all wallet files (root access needed)" "log"
+        say "Locking all wallet files" "log"
         chmod 400 "${WALLET_FOLDER}/${wallet_name}"/*
         sudo chattr +i "${WALLET_FOLDER}/${wallet_name}"/*
         echo ""
@@ -316,8 +343,8 @@ case $OPERATION in
       base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
 
 
-      if [[ ! -f "${payment_addr_file}" ]]; then
-        say "${RED}WARN${NC}: No payment wallet found with name: ${GREEN}$wallet_name${NC}"
+      if [[ ! -f "${payment_sk_file}" ||  ! -f "${payment_vk_file}" ||  ! -f "${payment_addr_file}" ]]; then
+        say "${RED}WARN${NC}: Payment wallet keys missing or missconfiguration for wallet filenames: ${GREEN}$wallet_name${NC}"
         say "      A payment wallet with funds available needed to upgrade to stake wallet"
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       elif [[ -f "${stake_addr_file}" ]]; then
@@ -334,8 +361,7 @@ case $OPERATION in
         }
         if [[ "${PROTECT_KEYS}" = "yes" ]]; then
           # Unlock gpg wallet files for decryption
-          echo "" && say "Unlocking wallet encrypted files (root access needed)" "log"
-          chmod 600 "${payment_vk_file}.gpg" "${payment_sk_file}.gpg"
+          echo "" && say "Unlocking wallet encrypted files" "log"
           sudo chattr -i "${payment_vk_file}.gpg" "${payment_sk_file}.gpg"
         fi
         echo "" && say " -- Wallet ${GREEN}${wallet_name}${NC} Password --"
@@ -345,7 +371,7 @@ case $OPERATION in
           unset password
           if [[ "${PROTECT_KEYS}" = "yes" ]]; then
             # Re-lock gpg wallet files
-            echo "" && say "Re-locking wallet encrypted files (root access needed)" "log"
+            echo "" && say "Re-locking wallet encrypted files" "log"
             chmod 400 "${payment_vk_file}.gpg" "${payment_sk_file}.gpg"
             sudo chattr +i "${payment_vk_file}.gpg" "${payment_sk_file}.gpg"
           fi
@@ -382,7 +408,7 @@ case $OPERATION in
         fi
         if [[ "${PROTECT_KEYS}" = "yes" ]]; then
           # Re-lock all wallet files even if re-encryption failes
-          echo "" && say "Re-locking wallet files (root access needed)" "log"
+          echo "" && say "Re-locking wallet files" "log"
           chmod 400 "${WALLET_FOLDER}/${wallet_name}"/*
           sudo chattr +i "${WALLET_FOLDER}/${wallet_name}"/*
         fi
@@ -403,7 +429,7 @@ case $OPERATION in
       
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
         # lock all wallet files
-        echo "" && say "Locking all wallet files (root access needed)" "log"
+        echo "" && say "Locking all wallet files" "log"
         chmod 400 "${WALLET_FOLDER}/${wallet_name}"/*
         sudo chattr +i "${WALLET_FOLDER}/${wallet_name}"/*
       fi
@@ -568,7 +594,7 @@ case $OPERATION in
           y|Y )
             if [[ "${PROTECT_KEYS}" = "yes" ]]; then
               # Unlock all wallet files
-              echo "" && say "Unlocking all wallet files (root access needed)" "log"
+              echo "" && say "Unlocking all wallet files" "log"
               sudo chattr -i "${WALLET_FOLDER:?}/${wallet_name}"/*
             fi
             rm -rf "${WALLET_FOLDER:?}/${wallet_name}"
@@ -588,7 +614,7 @@ case $OPERATION in
           y|Y )
             if [[ "${PROTECT_KEYS}" = "yes" ]]; then
               # Unlock all wallet files
-              echo "" && say "Unlocking all wallet files (root access needed)" "log"
+              echo "" && say "Unlocking all wallet files" "log"
               sudo chattr -i "${WALLET_FOLDER:?}/${wallet_name}"/*
             fi
             rm -rf "${WALLET_FOLDER:?}/${wallet_name}"
@@ -628,65 +654,41 @@ case $OPERATION in
       test -n "${wallet_name}" && break
       say ">>> Invalid Selection (ctrl+c to quit)"
     done
-
-    # Wallet key filenames
-    payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
-    payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-    stake_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_CERT_FILENAME}"
+    echo ""
     
     filesUnlocked=0
-    if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-      filesUnlocked=$(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f | wc -l)
-      echo "" && say "Unlocking wallet files (root access needed)" "log"
-      chmod 600 "${WALLET_FOLDER}/${wallet_name}"/*
-      sudo chattr -i "${WALLET_FOLDER}/${wallet_name}"/*
-    fi
-    
-    echo ""
-    say " -- Wallet ${GREEN}${wallet_name}${NC} Password --"
-    getPassword # $password variable populated by getPassword function
-
     keysDecrypted=0
-    if [[ -f "${payment_vk_file}.gpg" ]]; then
-      if decryptFile "${payment_vk_file}.gpg" "${password}"; then
-        keysDecrypted=$((++keysDecrypted))
+    
+    if [[ "${ENCRYPT_KEYS}" = "yes" ]]; then
+      say " -- Wallet ${GREEN}${wallet_name}${NC} Password --"
+      getPassword # $password variable populated by getPassword function
+      
+      if [[ "${PROTECT_KEYS}" = "yes" ]]; then
+        echo "" && say "Unlocking encrypted wallet files" "log"
+        while IFS= read -r -d '' file; do 
+          sudo chattr -i "$file" &>/dev/null
+        done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name *.gpg -print0)
       fi
-    fi
-    if [[ -f "${payment_sk_file}.gpg" ]]; then
-      if decryptFile "${payment_sk_file}.gpg" "${password}"; then
-        keysDecrypted=$((++keysDecrypted))
-      fi
-    fi
-    if [[ -f "${stake_vk_file}.gpg" ]]; then
-      if decryptFile "${stake_vk_file}.gpg" "${password}"; then
-        keysDecrypted=$((++keysDecrypted))
-      fi
-    fi
-    if [[ -f "${stake_sk_file}.gpg" ]]; then
-      if decryptFile "${stake_sk_file}.gpg" "${password}"; then
-        keysDecrypted=$((++keysDecrypted))
-      fi
-    fi
-    if [[ -f "${stake_cert_file}.gpg" ]]; then
-      if decryptFile "${stake_cert_file}.gpg" "${password}"; then
-        keysDecrypted=$((++keysDecrypted))
-      fi
+      
+      while IFS= read -r -d '' file; do 
+        decryptFile "$file" "${password}" && keysDecrypted=$((++keysDecrypted))
+      done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name *.gpg -print0)
+
+      unset password
     fi
     
-    # re-run to chmod decrypted files
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-      chmod 600 "${WALLET_FOLDER}/${wallet_name}"/*
+      echo "" && say "Unocking all wallet files" "log"
+      while IFS= read -r -d '' file; do 
+        sudo chattr -i "$file" && chmod 600 "$file" && filesUnlocked=$((++filesUnlocked))
+      done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
     fi
 
-    unset password
-    
     echo ""
-    say "Wallet decrypted: ${wallet_name}" "log"
-    say "Files unlocked:   ${filesUnlocked}" "log"
-    say "Files decrypted:  ${keysDecrypted}" "log"
-    if [[ ${filesUnlocked} -ne 0 || ${keysDecrypted} -ne 0 ]]; then 
+    say "Wallet unprotected: ${wallet_name}" "log"
+    say "Files unlocked:     ${filesUnlocked}" "log"
+    say "Files decrypted:    ${keysDecrypted}" "log"
+    if [[ ${filesUnlocked} -ne 0 || ${keysDecrypted} -ne 0 ]]; then
       echo ""
       say "${ORANGE}Wallet files are now unprotected${NC}"
       say "Use 'WALLET >> ENCRYPT / LOCK' to re-lock"
@@ -715,58 +717,36 @@ case $OPERATION in
     done
     echo ""
 
-    # Wallet key filenames
-    payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
-    payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-    stake_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_CERT_FILENAME}"
-
-    say " -- Wallet ${GREEN}${wallet_name}${NC} Password --"
-    getPassword confirm # $password variable populated by getPassword function
-
+    filesLocked=0
     keysEncrypted=0
-    if [[ "${ENCRYPT_KEYS}" = "yes" ]]; then # Only encrypt files if configured
-      if [[ -f "${payment_vk_file}" ]]; then
-        if encryptFile "${payment_vk_file}" "${password}"; then
-          keysEncrypted=$((++keysEncrypted))
-        fi
-      fi
-      if [[ -f "${payment_sk_file}" ]]; then
-        if encryptFile "${payment_sk_file}" "${password}"; then
-          keysEncrypted=$((++keysEncrypted))
-        fi
-      fi
-      if [[ -f "${stake_vk_file}" ]]; then
-        if encryptFile "${stake_vk_file}" "${password}"; then
-          keysEncrypted=$((++keysEncrypted))
-        fi
-      fi
-      if [[ -f "${stake_sk_file}" ]]; then
-        if encryptFile "${stake_sk_file}" "${password}"; then
-          keysEncrypted=$((++keysEncrypted))
-        fi
-      fi
-      if [[ -f "${stake_cert_file}" ]]; then
-        if encryptFile "${stake_cert_file}" "${password}"; then
-          keysEncrypted=$((++keysEncrypted))
-        fi
-      fi
+    
+    if [[ "${ENCRYPT_KEYS}" = "yes" ]]; then
+      keyFiles=(
+        "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
+        "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+        "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+        "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+        "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_CERT_FILENAME}"
+      )
+      
+      say " -- Wallet ${GREEN}${wallet_name}${NC} Password --"
+      getPassword confirm # $password variable populated by getPassword function
+      
+      for keyFile in "${keyFiles[@]}"; do
+        [[ -f "${keyFile}" ]] && encryptFile "${keyFile}" "${password}" && keysEncrypted=$((++keysEncrypted))
+      done
+      unset password
+    fi
+
+    if [[ "${PROTECT_KEYS}" = "yes" ]]; then
+      echo "" && say "Locking all wallet files" "log"
+      while IFS= read -r -d '' file; do 
+        chmod 400 "$file" && sudo chattr +i "$file" && filesLocked=$((++filesLocked))
+      done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
     fi
     
-    filesLocked=0
-    if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-      filesLocked=$(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f | wc -l)
-      # lock all wallet files
-      echo "" && say "Locking all wallet files (root access needed)" "log"
-      chmod 400 "${WALLET_FOLDER}/${wallet_name}"/*
-      sudo chattr +i "${WALLET_FOLDER}/${wallet_name}"/*
-    fi
     echo ""
-
-    unset password
-
-    say "Wallet encrypted: ${wallet_name}" "log"
+    say "Wallet protected: ${wallet_name}" "log"
     say "Files locked:     ${filesLocked}" "log"
     say "Files encrypted:  ${keysEncrypted}" "log"
     if [[ ${filesLocked} -ne 0 || ${keysEncrypted} -ne 0 ]]; then
@@ -963,8 +943,7 @@ case $OPERATION in
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       }
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-        echo "" && say "Unlocking source wallet signing key file (root access needed)" "log"
-        chmod 600 "${s_payment_sk_file}.gpg"
+        echo "" && say "Unlocking source wallet signing key file" "log"
         sudo chattr -i "${s_payment_sk_file}.gpg"
       fi
       echo ""
@@ -973,7 +952,7 @@ case $OPERATION in
       if ! decryptFile "${s_payment_sk_file}.gpg" "${password}"; then
         unset password
         if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-          echo "" && say "Re-locking source wallet encrypted signing key file (root access needed)" "log"
+          echo "" && say "Re-locking source wallet encrypted signing key file" "log"
           chmod 400 "${s_payment_sk_file}.gpg"
           sudo chattr +i "${s_payment_sk_file}.gpg"
         fi
@@ -1010,7 +989,7 @@ case $OPERATION in
     
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
       # lock source wallet signing key file, encrypted or not
-      echo "" && say "Locking source wallet signing key file (root access needed)" "log"
+      echo "" && say "Locking source wallet signing key file" "log"
       chmod 400 "${s_payment_sk_file}"*
       sudo chattr +i "${s_payment_sk_file}"*
     fi
@@ -1123,8 +1102,7 @@ case $OPERATION in
     # Encrypted Files to decrypt
     if [[ "${ENCRYPT_KEYS}" = "yes" ]]; then
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-        echo "" && say "Unlocking needed and encrypted pool/wallet files (root access needed)" "log"
-        chmod 600 "${pool_coldkey_vk_file}.gpg" "${pay_payment_sk_file}.gpg" "${stake_vk_file}.gpg" "${stake_sk_file}.gpg"
+        echo "" && say "Unlocking needed and encrypted pool/wallet files" "log"
         sudo chattr -i "${pool_coldkey_vk_file}.gpg" "${pay_payment_sk_file}.gpg" "${stake_vk_file}.gpg" "${stake_sk_file}.gpg"
       fi
       echo ""
@@ -1132,7 +1110,7 @@ case $OPERATION in
         say "${RED}ERROR${NC}: failure during pool cold key decryption!" "log"
         unset password walletpassword
         if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-          echo "" && say "Re-locking pool & wallet files (root access needed)" "log"
+          echo "" && say "Re-locking pool & wallet files" "log"
           chmod 400 "${pool_coldkey_vk_file}.gpg" "${pay_payment_sk_file}.gpg" "${stake_vk_file}.gpg" "${stake_sk_file}.gpg"
           sudo chattr +i "${pool_coldkey_vk_file}.gpg" "${pay_payment_sk_file}.gpg" "${stake_vk_file}.gpg" "${stake_sk_file}.gpg"
         fi
@@ -1146,7 +1124,7 @@ case $OPERATION in
         encryptFile "${pool_coldkey_vk_file}" "${password}"
         unset password walletpassword
         if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-          echo "" && say "Re-locking pool & wallet files (root access needed)" "log"
+          echo "" && say "Re-locking pool & wallet files" "log"
           chmod 400 "${pool_coldkey_vk_file}.gpg" "${pay_payment_sk_file}.gpg" "${stake_vk_file}.gpg" "${stake_sk_file}.gpg"
           sudo chattr +i "${pool_coldkey_vk_file}.gpg" "${pay_payment_sk_file}.gpg" "${stake_vk_file}.gpg" "${stake_sk_file}.gpg"
         fi
@@ -1185,7 +1163,7 @@ case $OPERATION in
       fi
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
         # lock wallet and pool files, encrypted or not
-        echo "" && say "Locking wallet and pool files (root access needed)" "log"
+        echo "" && say "Locking wallet and pool files" "log"
         chmod 400 "${WALLET_FOLDER}/${wallet_name}"/* "${POOL_FOLDER}/${pool_name}"/*
         sudo chattr +i "${WALLET_FOLDER}/${wallet_name}"/* "${POOL_FOLDER}/${pool_name}"/*
       fi
@@ -1207,7 +1185,7 @@ case $OPERATION in
         say "${stake_sk_file}.gpg" "log"
         if [[ "${PROTECT_KEYS}" = "yes" ]]; then
           # lock wallet and pool files, encrypted or not
-          echo "" && say "Locking wallet and pool files (root access needed)" "log"
+          echo "" && say "Locking wallet and pool files" "log"
           chmod 400 "${WALLET_FOLDER}/${wallet_name}"/* "${POOL_FOLDER}/${pool_name}"/*
           sudo chattr +i "${WALLET_FOLDER}/${wallet_name}"/* "${POOL_FOLDER}/${pool_name}"/*
         fi
@@ -1218,7 +1196,7 @@ case $OPERATION in
     
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
       # lock wallet and pool files, encrypted or not
-      echo "" && say "Locking wallet and pool files (root access needed)" "log"
+      echo "" && say "Locking wallet and pool files" "log"
       chmod 400 "${WALLET_FOLDER}/${wallet_name}"/* "${POOL_FOLDER}/${pool_name}"/*
       sudo chattr +i "${WALLET_FOLDER}/${wallet_name}"/* "${POOL_FOLDER}/${pool_name}"/*
     fi
@@ -1358,7 +1336,7 @@ case $OPERATION in
     
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
       # Lock pool files
-      say "Locking all pool files (root access needed)" "log"
+      say "Locking all pool files" "log"
       chmod 400 "${POOL_FOLDER}/${pool_name}"/*
       sudo chattr +i "${POOL_FOLDER}/${pool_name}"/*
       echo ""
@@ -1480,8 +1458,7 @@ case $OPERATION in
     if [[ "${ENCRYPT_KEYS}" = "yes" ]]; then
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
         # Unlock gpg pool & wallet files for decryption
-        echo "" && say "Unlocking pool encrypted files (root access needed)" "log"
-        chmod 600 "${pool_coldkey_vk_file}.gpg" "${pool_coldkey_sk_file}.gpg" "${pay_payment_sk_file}.gpg" "${stake_vk_file}.gpg" "${stake_sk_file}.gpg"
+        echo "" && say "Unlocking pool encrypted files" "log"
         sudo chattr -i "${pool_coldkey_vk_file}.gpg" "${pool_coldkey_sk_file}.gpg" "${pay_payment_sk_file}.gpg" "${stake_vk_file}.gpg" "${stake_sk_file}.gpg"
       fi
       if ! decryptFile "${pool_coldkey_vk_file}.gpg" "${poolpassword}" || \
@@ -1490,7 +1467,7 @@ case $OPERATION in
         unset password poolpassword
         if [[ "${PROTECT_KEYS}" = "yes" ]]; then
           # Re-lock gpg files
-          echo "" && say "Re-locking pool & wallet encrypted files (root access needed)" "log"
+          echo "" && say "Re-locking pool & wallet encrypted files" "log"
           chmod 400 "${pool_coldkey_vk_file}.gpg" "${pool_coldkey_sk_file}.gpg" "${pay_payment_sk_file}.gpg" "${stake_vk_file}.gpg" "${stake_sk_file}.gpg"
           sudo chattr +i "${pool_coldkey_vk_file}.gpg" "${pool_coldkey_sk_file}.gpg" "${pay_payment_sk_file}.gpg" "${stake_vk_file}.gpg" "${stake_sk_file}.gpg"
         fi
@@ -1506,7 +1483,7 @@ case $OPERATION in
         unset password poolpassword
         if [[ "${PROTECT_KEYS}" = "yes" ]]; then
           # Re-lock gpg files
-          echo "" && say "Re-locking pool & wallet encrypted files (root access needed)" "log"
+          echo "" && say "Re-locking pool & wallet encrypted files" "log"
           chmod 400 "${pool_coldkey_vk_file}.gpg" "${pool_coldkey_sk_file}.gpg" "${pay_payment_sk_file}.gpg" "${stake_vk_file}.gpg" "${stake_sk_file}.gpg"
           sudo chattr +i "${pool_coldkey_vk_file}.gpg" "${pool_coldkey_sk_file}.gpg" "${pay_payment_sk_file}.gpg" "${stake_vk_file}.gpg" "${stake_sk_file}.gpg"
         fi
@@ -1549,7 +1526,7 @@ case $OPERATION in
         fi
         if [[ "${PROTECT_KEYS}" = "yes" ]]; then
           # Re-lock files
-          echo "" && say "Re-locking pool & wallet files (root access needed)" "log"
+          echo "" && say "Re-locking pool & wallet files" "log"
           chmod 400 "${WALLET_FOLDER}/${pledge_wallet_name}"/* "${POOL_FOLDER}/${pool_name}"/*
           sudo chattr +i "${WALLET_FOLDER}/${pledge_wallet_name}"/* "${POOL_FOLDER}/${pool_name}"/*
         fi
@@ -1580,7 +1557,7 @@ case $OPERATION in
     
     # Re-lock files
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-      echo "" && say "Re-locking pool & wallet files (root access needed)" "log"
+      echo "" && say "Re-locking pool & wallet files" "log"
       chmod 400 "${WALLET_FOLDER}/${pledge_wallet_name}"/* "${POOL_FOLDER}/${pool_name}"/*
       sudo chattr +i "${WALLET_FOLDER}/${pledge_wallet_name}"/* "${POOL_FOLDER}/${pool_name}"/*
     fi
@@ -1791,44 +1768,35 @@ case $OPERATION in
       test -n "${pool_name}" && break
       say ">>> Invalid Selection (ctrl+c to quit)"
     done
+    echo ""
     
     filesUnlocked=0
-    if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-      filesUnlocked=$(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f | wc -l)
-      # Unlock pool files
-      echo "" && say "Unlocking pool files (root access needed)" "log"
-      chmod 600 "${POOL_FOLDER}/${pool_name}"/*
-      sudo chattr -i "${POOL_FOLDER}/${pool_name}"/*
-    fi
-
-    # Pool cold key filenames
-    pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
-    pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
-
-    echo ""
-    say " -- Pool ${GREEN}${pool_name}${NC} Password --"
-    getPassword # $password variable populated by getPassword function
-
     keysDecrypted=0
+    
     if [[ "${ENCRYPT_KEYS}" = "yes" ]]; then
-      if [[ -f "${pool_coldkey_vk_file}.gpg" ]]; then
-        if decryptFile "${pool_coldkey_vk_file}.gpg" "${password}"; then
-          keysDecrypted=$((++keysDecrypted))
-        fi
+      say " -- Pool ${GREEN}${pool_name}${NC} Password --"
+      getPassword # $password variable populated by getPassword function
+      
+      if [[ "${PROTECT_KEYS}" = "yes" ]]; then
+        echo "" && say "Unlocking encrypted pool files" "log"
+        while IFS= read -r -d '' file; do 
+          sudo chattr -i "$file" &>/dev/null
+        done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -name *.gpg -print0)
       fi
-      if [[ -f "${pool_coldkey_sk_file}.gpg" ]]; then
-        if decryptFile "${pool_coldkey_sk_file}.gpg" "${password}"; then
-          keysDecrypted=$((++keysDecrypted))
-        fi
-      fi
+      
+      while IFS= read -r -d '' file; do 
+        decryptFile "$file" "${password}" && keysDecrypted=$((++keysDecrypted))
+      done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -name *.gpg -print0)
+
+      unset password
     fi
     
-    # re-run to chmod decrypted files
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-      chmod 600 "${POOL_FOLDER}/${pool_name}"/*
+      echo "" && say "Unocking all pool files" "log"
+      while IFS= read -r -d '' file; do 
+        sudo chattr -i "$file" && chmod 600 "$file" && filesUnlocked=$((++filesUnlocked))
+      done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -print0)
     fi
-
-    unset password
 
     echo ""
     say "Pool decrypted:  ${pool_name}" "log"
@@ -1864,37 +1832,30 @@ case $OPERATION in
     done
     echo ""
 
-    # Pool cold key filenames
-    pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
-    pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
-
-    say " -- Pool ${GREEN}${pool_name}${NC} Password --"
-    getPassword confirm # $password variable populated by getPassword function
-
+    filesLocked=0
     keysEncrypted=0
-    if [[ -f "${pool_coldkey_vk_file}" ]]; then
-      if encryptFile "${pool_coldkey_vk_file}" "${password}"; then
-        keysEncrypted=$((++keysEncrypted))
-      fi
-    fi
-    if [[ -f "${pool_coldkey_sk_file}" ]]; then
-      if encryptFile "${pool_coldkey_sk_file}" "${password}"; then
-        keysEncrypted=$((++keysEncrypted))
-      fi
+    
+    if [[ "${ENCRYPT_KEYS}" = "yes" ]]; then
+      say " -- Pool ${GREEN}${pool_name}${NC} Password --"
+      getPassword confirm # $password variable populated by getPassword function
+      keyFiles=(
+        "${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
+        "${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
+      )
+      for keyFile in "${keyFiles[@]}"; do
+        [[ -f "${keyFile}" ]] && encryptFile "${keyFile}" "${password}" && keysEncrypted=$((++keysEncrypted))
+      done
+      unset password
     fi
     
-    filesLocked=0
     if [[ "${PROTECT_KEYS}" = "yes" ]]; then
-      filesLocked=$(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f | wc -l)
-      # lock all pool files
-      echo "" && say "Locking all pool files (root access needed)" "log"
-      chmod 400 "${POOL_FOLDER}/${pool_name}"/*
-      sudo chattr +i "${POOL_FOLDER}/${pool_name}"/*
+      echo "" && say "Locking all pool files" "log"
+      while IFS= read -r -d '' file; do 
+        chmod 400 "$file" && sudo chattr +i "$file" && filesLocked=$((++filesLocked))
+      done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -print0)
     fi
+    
     echo ""
-
-    unset password
-
     say "Pool encrypted:  ${pool_name}" "log"
     say "Files locked:    ${filesLocked}" "log"
     say "Files encrypted: ${keysEncrypted}" "log"
