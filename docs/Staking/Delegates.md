@@ -90,7 +90,7 @@ Keep, in mind that the any stake key registration certificates needs a deposit f
 
 ``` bash
 # Get param files
-export CARDANO_NODE_SOCKET_PATH=/opt/cardano/fnf/sockets/node0.socket
+export CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
 cardano-cli shelley query protocol-parameters \
 --testnet-magic 42 \
 --out-file params.json
@@ -107,12 +107,12 @@ FEE=$(cardano-cli shelley transaction calculate-min-fee \
 --tx-out-count 2 \
 --ttl 500000 \
 --testnet-magic 42 \
---signing-key-file /opt/cardano/fnf/addresses/genesis.skey \
+--signing-key-file $CNODE_HOME/priv/genesis.skey \
 | awk '{ print $2}')
 
 # I will use the the genesis address as input for paying the fee.
 #################################################################
-FROM=$( cat /opt/cardano/fnf/addresses/genesis.addr )
+FROM=$( cat $CNODE_HOME/priv/genesis.addr )
 # i.e. FROM=617190446876aed298ee207c6b5a335e832e2169a060b8167ef3ba9caff6fa3393
 
 
@@ -155,7 +155,7 @@ cardano-cli shelley transaction build-raw \
 # Sign
 cardano-cli shelley transaction sign \
     --tx-body-file stake-cert-tx \
-    --signing-key-file /opt/cardano/fnf/addresses/genesis.skey \
+    --signing-key-file $CNODE_HOME/priv/genesis.skey \
     --signing-key-file stake.skey \
     --out-file stake-cert-tx \
     --testnet-magic 42
@@ -168,7 +168,7 @@ cardano-cli shelley transaction sign \
 STAKE_ADDR=$( cut -c 9-  stake.addr )
 
 # Before 
-export CARDANO_NODE_SOCKET_PATH=/opt/cardano/fnf/sockets/node0.socket 
+export CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket 
 cardano-cli shelley query ledger-state  --testnet-magic 42 | grep "$STAKE_ADDR"
 
 

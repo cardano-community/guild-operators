@@ -18,10 +18,10 @@ chmod 750 setup_mon.sh
 Execute setup_mon.sh with full path to destination folder you want to setup monitoring in
 
 ``` bash
-./setup_mon.sh /opt/cardano/cnode/monitoring
+./setup_mon.sh $CNODE_HOME/monitoring
 #
 # Please use hasPrometeus's IP:PORT from node's config file.
-# The files will be installed in the "/opt/cardano/cnode/monitoring" directory.
+# The files will be installed in the "$CNODE_HOME/monitoring" directory.
 # What port will be used for prometheus web server (Default is 9090)?9003
 # What is the ip of the node (default:127.0.0.1)?
 # What port is used for prometheus metrics of the node running on 127.0.0.1's (Default is 9001)?
@@ -49,7 +49,7 @@ Execute setup_mon.sh with full path to destination folder you want to setup moni
 # 
 # 
 # You need to do the following to configure grafana:
-# 0. Start the required services in a new terminal by "/opt/cardano/cnode/monitoring/start_all.sh"
+# 0. Start the required services in a new terminal by "$CNODE_HOME/monitoring/start_all.sh"
 #   - check the prometheus and its exporters by opening URLs above after start.
 # 1. Login to grafana as admin/admin (http://localhost:3000)
 # 2. Add "prometheus" (all lowercase) datasource (http://localhost:9003)
