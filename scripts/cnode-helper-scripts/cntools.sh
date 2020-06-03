@@ -73,7 +73,7 @@ function main {
 
 while true; do # Main loop
 
-trap # Clear any set trap
+trap - SIGINT # Clear trap if set
 
 clear
 echo " >> CNTOOLS <<                                       A Guild Operators collaboration"
@@ -287,9 +287,15 @@ case $OPERATION in
       ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" --testnet-magic ${NWMAGIC}
 
       if [[ "${ENCRYPT_KEYS}" = "yes" ]]; then
-        trap 'rm -rf ${WALLET_FOLDER:?}/${wallet_name}' INT TERM
         say " -- Wallet ${GREEN}${wallet_name}${NC} Password --"
-        getPassword confirm # $password variable populated by getPassword function
+        trap "return 1" SIGINT
+        if ! getPassword confirm; then # $password variable populated by getPassword function
+          echo -e "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
+          say "removing newly created wallet"
+          rm -rf ${WALLET_FOLDER:?}/${wallet_name}
+          echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+        fi
+        
         if ! encryptFile "${payment_vk_file}" "${password}" || \
           ! encryptFile "${payment_sk_file}" "${password}"; then
           rm -rf "${WALLET_FOLDER:?}/${wallet_name}"
@@ -366,7 +372,11 @@ case $OPERATION in
           echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
         }
         echo "" && say " -- Wallet ${GREEN}${wallet_name}${NC} Password --"
-        getPassword # $password variable populated by getPassword function
+        trap "return 1" SIGINT
+        if ! getPassword; then # $password variable populated by getPassword function
+          echo -e "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
+          echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+        fi
         if ! decryptFile "${payment_vk_file}.gpg" "${password}" || \
            ! decryptFile "${payment_sk_file}.gpg" "${password}"; then
           unset password
@@ -439,7 +449,9 @@ case $OPERATION in
         sudo chattr +i "${WALLET_FOLDER}/${wallet_name}"/*
       fi
 
-      waitNewBlockCreated
+      if ! waitNewBlockCreated; then
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      fi
 
       say ""
       say "--- Balance Check Source Address -------------------------------------------------------" "log"
@@ -448,11 +460,17 @@ case $OPERATION in
       while [[ ${TOTALBALANCE} -ne 0 ]]; do
         say ""
         say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != 0" "log"
-        waitNewBlockCreated
+        if ! waitNewBlockCreated; then
+          break
+        fi
         say ""
         say "--- Balance Check Source Address -------------------------------------------------------" "log"
         getBalance "${payment_addr}"
       done
+      
+      if [[ ${TOTALBALANCE} -ne 0 ]]; then
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      fi
 
       say "Wallet: ${wallet_name}" "log"
       say "Payment Address: ${payment_addr}" "log"
@@ -665,7 +683,11 @@ case $OPERATION in
     
     if [[ "${ENCRYPT_KEYS}" = "yes" ]]; then
       say " -- Wallet ${GREEN}${wallet_name}${NC} Password --"
-      getPassword # $password variable populated by getPassword function
+      trap "return 1" SIGINT
+      if ! getPassword; then # $password variable populated by getPassword function
+        echo -e "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      fi
       
       if [[ "${PROTECT_KEYS}" = "yes" ]]; then
         echo "" && say "Unlocking encrypted wallet files" "log"
@@ -734,7 +756,11 @@ case $OPERATION in
       )
       
       say " -- Wallet ${GREEN}${wallet_name}${NC} Password --"
-      getPassword confirm # $password variable populated by getPassword function
+      trap "return 1" SIGINT
+      if ! getPassword confirm; then # $password variable populated by getPassword function
+        echo -e "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      fi
       
       for keyFile in "${keyFiles[@]}"; do
         [[ -f "${keyFile}" ]] && encryptFile "${keyFile}" "${password}" && keysEncrypted=$((++keysEncrypted))
@@ -952,7 +978,11 @@ case $OPERATION in
       fi
       echo ""
       say " -- Wallet ${GREEN}${s_wallet}${NC} Password --"
-      getPassword # $password variable populated by getPassword function
+      trap "return 1" SIGINT
+      if ! getPassword; then # $password variable populated by getPassword function
+        echo -e "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      fi
       if ! decryptFile "${s_payment_sk_file}.gpg" "${password}"; then
         unset password
         if [[ "${PROTECT_KEYS}" = "yes" ]]; then
@@ -1001,7 +1031,9 @@ case $OPERATION in
 
     [[ ${delayExit} -eq 1 ]] && echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
 
-    waitNewBlockCreated
+    if ! waitNewBlockCreated; then
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
 
     say ""
     say "--- Balance Check Source Address -------------------------------------------------------" "log"
@@ -1010,11 +1042,17 @@ case $OPERATION in
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       say ""
       say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))" "log"
-      waitNewBlockCreated
+      if ! waitNewBlockCreated; then
+        break
+      fi
       say ""
       say "--- Balance Check Source Address -------------------------------------------------------" "log"
       getBalance ${s_addr}
     done
+    
+    if [[ ${TOTALBALANCE} -ne ${newBalance} ]]; then 
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
 
     s_balance=${TOTALBALANCE}
     s_balance_ada=${totalBalanceADA}
@@ -1076,7 +1114,11 @@ case $OPERATION in
     fi
     if [[ "${ENCRYPT_KEYS}" = "yes" ]]; then
       say " -- Wallet ${GREEN}${wallet_name}${NC} Password --"
-      getPassword # $password variable populated by getPassword function
+      trap "return 1" SIGINT
+      if ! getPassword; then # $password variable populated by getPassword function
+        echo -e "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      fi
       walletpassword=$password # save for later
       echo ""
     fi
@@ -1098,7 +1140,11 @@ case $OPERATION in
     echo ""
     if [[ "${ENCRYPT_KEYS}" = "yes" ]]; then
       say " -- Pool ${GREEN}${pool_name}${NC} Password --"
-      getPassword # $password variable populated by getPassword function
+      trap "return 1" SIGINT
+      if ! getPassword; then # $password variable populated by getPassword function
+        echo -e "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      fi
       echo ""
     fi
     pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
@@ -1209,7 +1255,9 @@ case $OPERATION in
       sudo chattr +i "${delegation_cert_file}"
     fi
 
-    waitNewBlockCreated
+    if ! waitNewBlockCreated; then
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
 
     echo ""
     say "--- Balance Check Source Address -------------------------------------------------------" "log"
@@ -1218,11 +1266,17 @@ case $OPERATION in
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       echo ""
       say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))" "log"
-      waitNewBlockCreated
+      if ! waitNewBlockCreated; then
+        break
+      fi
       echo ""
       say "--- Balance Check Source Address -------------------------------------------------------" "log"
       getBalance "$(cat ${base_addr_file})"
     done
+    
+    if [[ ${TOTALBALANCE} -ne ${newBalance} ]]; then
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
 
     say "Wallet: ${wallet_name}" "log"
     say "Payment Address: $(cat ${base_addr_file})" "log"
@@ -1330,8 +1384,14 @@ case $OPERATION in
     ## TODO: Should we encrypt any more of the keys?
 
     if [[ "${ENCRYPT_KEYS}" = "yes" ]]; then
-      trap 'rm -rf ${POOL_FOLDER:?}/${pool_name}' INT TERM
       say " -- Pool ${GREEN}${pool_name}${NC} Password --"
+      trap "return 1" SIGINT
+      if ! getPassword confirm; then # $password variable populated by getPassword function
+        echo -e "\n\n" && echo -e "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
+        say "removing newly created pool"
+        rm -rf ${POOL_FOLDER:?}/${pool_name}
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      fi
       getPassword confirm # $password variable populated by getPassword function
       if ! encryptFile "${pool_coldkey_vk_file}" "${password}" || \
           ! encryptFile "${pool_coldkey_sk_file}" "${password}"; then
@@ -1571,7 +1631,9 @@ case $OPERATION in
       sudo chattr +i "${WALLET_FOLDER}/${pledge_wallet_name}"/* "${POOL_FOLDER}/${pool_name}"/*
     fi
 
-    waitNewBlockCreated
+    if ! waitNewBlockCreated; then
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
 
     say ""
     say "--- Balance Check Source Address -------------------------------------------------------" "log"
@@ -1580,11 +1642,17 @@ case $OPERATION in
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       say ""
       say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))" "log"
-      waitNewBlockCreated
+      if ! waitNewBlockCreated; then
+        break
+      fi
       say ""
       say "--- Balance Check Source Address -------------------------------------------------------" "log"
       getBalance "$(cat ${base_addr_file})"
     done
+    
+    if [[ ${TOTALBALANCE} -ne ${newBalance} ]]; then
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
 
     echo ""
     say "Pool ${GREEN}${pool_name}${NC} successfully registered using wallet ${GREEN}${pledge_wallet_name}${NC} for pledge" "log"
