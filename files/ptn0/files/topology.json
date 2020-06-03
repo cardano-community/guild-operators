@@ -103,6 +103,13 @@
         "addr": "relay1.ahlnet.nu",
         "port": 2101,
         "valency": 1
+     },
+     {
+      "operator": "mondonet",
+        "node": "NET51",
+        "addr": "104.173.253.56",
+        "port": 6000,
+        "valency": 1
      }
   ]
 }
