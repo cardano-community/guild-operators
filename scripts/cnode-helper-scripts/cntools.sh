@@ -1601,7 +1601,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     while IFS= read -r -d '' pool; do 
-      pool_id=$(cat "${pool_folder_name}${POOL_ID_FILENAME}")
+      pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
       ledger_status=$(${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} | grep "poolPubKey" | grep "${pool_id}")
       [[ -n "${ledger_status}" ]] && ledger_status="YES" || ledger_status="NO"
       say "Pool: ${GREEN}$(basename ${pool})${NC} "
