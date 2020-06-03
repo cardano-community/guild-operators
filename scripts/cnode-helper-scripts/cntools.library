@@ -71,15 +71,23 @@ getPassword() {
     say "Enter key password (length >= 8)"
     password=$(systemd-ask-password "Password:")
     if [ ${#password} -lt 8 ]; then
+      say ""
       say "${RED}ERROR${NC}: password length too short, please use a minimum of 8 characters."
+      say ""
+      read -r -n 1 -s -p "Press q to abort or any other key to retry" abort
+      [[ ${abort} = "q" ]] && return 1
+      say "\n"
       continue
     fi
     if [[ "$1" = "confirm" ]]; then
       local checkPassword=$(systemd-ask-password "Confirm: ")
       if [[ "${password}" != "${checkPassword}" ]]; then
         say ""
-        say "${RED}ERROR${NC}: password missmatch, please retry!"
+        say "${RED}ERROR${NC}: password missmatch!"
         say ""
+        read -r -n 1 -s -p "Press q to abort or any other key to retry" abort
+        [[ ${abort} = "q" ]] && return 1
+        say "\n"
       else
         say "" && return
       fi
@@ -149,13 +157,18 @@ waitNewBlockCreated() {
   COUNTER=${TIMEOUT_NO_OF_SLOTS}
   say ""
   say "Waiting for new block to be created (timeout = ${COUNTER} slots, $(( COUNTER * SLOT_DURATION ))s)" "log"
-  say "Cancel balance check at any time by pressing Ctrl+C, Command+C"
+  say ""
+  say "${BLUE}INFO${NC}: press any key to cancel balance check and return"
   say ""
   initialTip=$(getTip)
   actualTip=${initialTip}
 
   while [ "${actualTip}" = "${initialTip}" ]; do
-    sleep ${SLOT_DURATION}
+    read -r -n 1 -s -t ${SLOT_DURATION} -p "" abort
+    if [[ $? -eq 0 ]]; then
+      say "${BLUE}INFO${NC}: Balance check aborted!" "log"
+      return 1
+    fi
     actualTip=$(getTip)
     COUNTER=$((COUNTER - SLOT_DURATION))
     if [ ${COUNTER} -lt ${SLOT_DURATION} ]; then
