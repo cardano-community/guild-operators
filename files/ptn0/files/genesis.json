@@ -22,13 +22,13 @@
     "keyDeposit": 1000,
     "keyDecayRate": 0,
     "nOpt": 5,
-    "rho": 1.78650067e-3,
+    "rho": 1.78650067e-7,
     "poolMinRefund": 0,
     "tau": 0.1,
     "a0": 0.4
   },
   "protocolMagicId": 4003,
-  "systemStart": "2020-06-04T07:10:00.00Z",
+  "systemStart": "2020-06-04T12:32:00.00Z",
   "genDelegs": {
     "7e4c9656274afdd4d41a282b5573b7d24e343a436f1baf7aea6fae4ec8230c64": "e14e834b692b1a42917927751d77f19e904e8b8e6f79a38db363d0b0a23b1c21",
     "a2da5b6ae89cbbb592d2ed14df932fb182dad922d172439568dace944499dbba": "038fb60f021b41d510a901630e210ba09b07463056bd7ed96487b92c7df741a2"
@@ -63,7 +63,7 @@
     "60b0df235874857c9f984c18173b66831789c3b7779e0c6cf8713f98c4e324fac2": 1000000000000,
     "60896d73f2aeae8bc4be55b2070a48834de84ebb356d5fd9c82ae3f5d49a37313d": 1000000000000
   },
-  "maxLovelaceSupply": 5e+18,
+  "maxLovelaceSupply": 1e+15,
   "networkMagic": 4003,
   "epochLength": 900,
   "staking": null,
