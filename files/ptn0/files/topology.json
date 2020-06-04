@@ -124,6 +124,20 @@
         "addr": "node1.stakelove.com",
         "port": 3009,
         "valency": 1
+     },
+     {
+      "operator": "BNTY1",
+        "node": "relay1",
+        "addr": "relay1.phtn0.cryptobounty.org",
+        "port": 9848,
+        "valency": 1
+     },
+     {
+      "operator": "BNTY1",
+        "node": "relay2",
+        "addr": "relay2.phtn0.cryptobounty.org",
+        "port": 9849,
+        "valency": 1
      }
 
   ]
