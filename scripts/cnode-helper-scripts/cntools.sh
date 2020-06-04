@@ -588,7 +588,7 @@ case $OPERATION in
     echo ""
     say " -- Removing write protection from all wallet files --" "log"
     while IFS= read -r -d '' file; do 
-      if [[ $(lsattr -R "$file" 2>/dev/null | grep -P "(?<=-)i(?=-)" | wc -l) -ne 0 ]]; then
+      if [[ $(lsattr -R "$file" 2>/dev/null | grep -c -P "(?<=-)i(?=-)") -ne 0 ]]; then
         sudo chattr -i "${file}" && \
         chmod 600 "${file}" && \
         filesUnlocked=$((++filesUnlocked))
@@ -679,7 +679,7 @@ case $OPERATION in
     echo ""
     say " -- Write protecting all pool files using 'chattr +i' --" "log"
     while IFS= read -r -d '' file; do
-      if [[ $(lsattr -R "$file" 2>/dev/null | grep -P "(?<=-)i(?=-)" | wc -l) -eq 0 ]]; then
+      if [[ $(lsattr -R "$file" 2>/dev/null | grep -c -P "(?<=-)i(?=-)") -eq 0 ]]; then
         chmod 400 "${file}" && \
         sudo chattr +i "${file}" && \
         filesLocked=$((++filesLocked)) && \
@@ -1498,7 +1498,7 @@ case $OPERATION in
     echo ""
     say " -- Removing write protection from all pool files --" "log"
     while IFS= read -r -d '' file; do
-      if [[ $(lsattr -R "$file" 2>/dev/null | grep -P "(?<=-)i(?=-)" | wc -l) -ne 0 ]]; then
+      if [[ $(lsattr -R "$file" 2>/dev/null | grep -c -P "(?<=-)i(?=-)") -ne 0 ]]; then
         sudo chattr -i "${file}" && \
         chmod 600 "${file}" && \
         filesUnlocked=$((++filesUnlocked)) && \
@@ -1586,7 +1586,7 @@ case $OPERATION in
     echo ""
     say " -- Write protecting all pool files using 'chattr +i' --" "log"
     while IFS= read -r -d '' file; do
-      if [[ $(lsattr -R "$file" 2>/dev/null | grep -P "(?<=-)i(?=-)" | wc -l) -eq 0 ]]; then
+      if [[ $(lsattr -R "$file" 2>/dev/null | grep -c -P "(?<=-)i(?=-)") -eq 0 ]]; then
         chmod 400 "$file" && \
         sudo chattr +i "$file" && \
         filesLocked=$((++filesLocked)) && \
