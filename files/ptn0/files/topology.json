@@ -110,6 +110,14 @@
         "addr": "104.173.253.56",
         "port": 6000,
         "valency": 1
+     },
+     {
+      "operator": "skokasik",
+        "node": "WAAUS",
+        "addr": "htn.wastaking.xyz",
+        "port": 5001,
+        "valency": 1
      }
+
   ]
 }
