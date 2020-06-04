@@ -97,10 +97,10 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     echo "deb https://dl.yarnpkg.com/debian/ stable main" | $sudo tee /etc/apt/sources.list.d/yarn.list > /dev/null
     $sudo apt-get -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    $sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev zlib1g-dev npm yarn make g++ tmux git jq wget libncursesw5 gnupg > /dev/null;rc=$?
+    $sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl1.0-dev libtinfo-dev systemd libsystemd-dev zlib1g-dev npm yarn make g++ tmux git jq wget libncursesw5 gnupg > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
-      echo "sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev zlib1g-dev npm yarn make g++ tmux git jq wget libncursesw5 gnupg"
+      echo "sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl1.0-dev libtinfo-dev systemd libsystemd-dev zlib1g-dev npm yarn make g++ tmux git jq wget libncursesw5 gnupg"
       exit;
     fi
   elif [ -z "${OS_ID##*rhel*}" ]; then
