@@ -117,6 +117,13 @@
         "addr": "htn.wastaking.xyz",
         "port": 5001,
         "valency": 1
+     },
+     {
+      "operator": "papacarp",
+        "node": "LOVE",
+        "addr": "node1.stakelove.com",
+        "port": 3009,
+        "valency": 1
      }
 
   ]
