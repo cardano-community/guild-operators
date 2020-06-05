@@ -64,7 +64,7 @@ echo "                decrypt / unlock | encrypt / lock ]"
 echo ""
 echo "   3) funds   [ send | delegate ]"
 echo ""
-echo "   4) pool    [ new | register | list | show | rotate KES |"
+echo "   4) pool    [ new | register | modify | list | show | rotate KES |"
 echo "                decrypt / unlock | encrypt / lock ]"
 echo "   q) quit"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -1076,31 +1076,34 @@ case $OPERATION in
   echo ""
   echo "   1) new"
   echo "   2) register"
-  echo "   3) list"
-  echo "   4) show"
-  echo "   5) rotate KES keys"
-  echo "   6) decrypt / unlock"
-  echo "   7) encrypt / lock"
+  echo "   3) modify"
+  echo "   4) list"
+  echo "   5) show"
+  echo "   6) rotate KES keys"
+  echo "   7) decrypt / unlock"
+  echo "   8) encrypt / lock"
   echo "   h) home"
   echo "   q) quit"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   while true; do
-    read -r -n 1 -p "What pool operation would you like to perform? (1-7): " SUBCOMMAND
+    read -r -n 1 -p "What pool operation would you like to perform? (1-8): " SUBCOMMAND
     echo ""
     case ${SUBCOMMAND:0:1} in
       1) SUBCOMMAND="new" && break
         ;;
       2) SUBCOMMAND="register" && break
         ;;
-      3) SUBCOMMAND="list" && break
+      3) SUBCOMMAND="modify" && break
         ;;
-      4) SUBCOMMAND="show" && break
+      4) SUBCOMMAND="list" && break
         ;;
-      5) SUBCOMMAND="rotate" && break
+      5) SUBCOMMAND="show" && break
         ;;
-      6) SUBCOMMAND="decrypt" && break
+      6) SUBCOMMAND="rotate" && break
         ;;
-      7) SUBCOMMAND="encrypt" && break
+      7) SUBCOMMAND="decrypt" && break
+        ;;
+      8) SUBCOMMAND="encrypt" && break
         ;;
       h) break
         ;;
@@ -1224,9 +1227,6 @@ case $OPERATION in
       cost_ada=$cost_enter
     fi
     
-    # Update pool config
-    echo "{\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada}" > "${pool_config}"
-    
     echo ""
 
     # Make sure wallet folder exist and is non-empty
@@ -1241,6 +1241,9 @@ case $OPERATION in
       say ">>> Invalid Selection (ctrl+c to quit)"
     done
     echo ""
+    
+    # Save pool config
+    echo "{\"pledgeWallet\":\"$pledge_wallet_name\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada}" > "${pool_config}"
 
     base_addr_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
     pay_payment_sk_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_PAY_SK_FILENAME}"
@@ -1272,11 +1275,11 @@ case $OPERATION in
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
     pool_pledgecert_file="${POOL_FOLDER}/${pool_name}/${POOL_PLEDGECERT_FILENAME}"
 
-    say "-- creating registration cert --"
+    say "-- creating registration cert --" "log"
     ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge $(( pledge_ada * 1000000 )) --pool-cost $(( cost_ada * 1000000 )) --pool-margin ${margin} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC}
-    say "-- creating delegation cert --"
+    say "-- creating delegation cert --" "log"
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
-    say "-- Sending transaction to chain --"
+    say "-- Sending transaction to chain --" "log"
 
     if ! registerPool "$(cat ${base_addr_file})" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pool_pledgecert_file}" "${pay_payment_sk_file}"; then
       say "${RED}ERROR${NC}: failure during pool registration, removing newly created pledge and registration files"
@@ -1309,6 +1312,183 @@ case $OPERATION in
 
     echo ""
     say "Pool ${GREEN}${pool_name}${NC} successfully registered using wallet ${GREEN}${pledge_wallet_name}${NC} for pledge" "log"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
+    read -r -n 1 -s -p "press any key to return to home menu" && continue
+    
+    ;; ###################################################################
+
+    modify)
+
+    clear
+    echo " >> POOL >> MODIFY"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
+    
+    if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
+      say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
+    
+    # Make sure pool folder exist and is non-empty
+    if [[ ! -d "${POOL_FOLDER}" || $(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: Missing or empty pool folder, please first create a pool and register it"
+      say "Pool folder: ${POOL_FOLDER}"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
+    say "Select Pool:"
+    select pool_name in $(find ${POOL_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
+      test -n "${pool_name}" && break
+      say ">>> Invalid Selection (ctrl+c to quit)"
+    done
+    echo ""
+
+    pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
+    
+    if [[ ! -f ${pool_config} ]]; then
+      say "${ORANGE}WARN${NC}: Missing pool config file, please first register your pool"
+      say "${pool_config}"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
+    
+    # Pledge wallet, also used to pay for pool update fee
+    echo ""
+    pledge_wallet=$(jq -r .pledgeWallet "${pool_config}") # old pledge wallet
+    say " -- Pledge Wallet --"
+    echo ""
+    say "Used for pool update registration fee"
+    say "Old pledge wallet: ${GREEN}${pledge_wallet}${NC}"
+    echo ""
+    say "${ORANGE}If a new wallet is chosen as pledge a manual delegation to the pool with new wallet is needed${NC}"
+    # Make sure wallet folder exist and is non-empty
+    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a wallet"
+      say "Wallet folder: ${WALLET_FOLDER}"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
+    echo "" && say "Select Wallet:"
+    select wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
+      test -n "${wallet_name}" && break
+      say ">>> Invalid Selection (ctrl+c to quit)"
+    done
+    payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
+    base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
+    if [[ ! -f "${payment_addr_file}" ]]; then
+      say "${RED}ERROR${NC}: wallet address file not found:"
+      say "${payment_addr_file}"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
+    addr_file="${payment_addr_file}" # default
+    if [[ -f "${base_addr_file}" ]]; then
+      # Both payment and base address available, let user choose what to use
+      while true; do
+        echo ""
+        read -n 1 -r -p "Wallet contain both payment and base address, choose source (p/b)? : " wallet_type
+        echo ""
+        case ${wallet_type:0:1} in
+          p|P )
+            break
+          ;;
+          b|B )
+            addr_file="${base_addr_file}" && break
+          ;;
+          * )
+            say ">>> Invalid Selection"
+          ;;
+        esac
+      done
+    fi
+    echo ""
+    
+    say "Enter new pool parameters, press enter to use old value"
+    echo ""
+    
+    pledge_ada=$(jq -r .pledgeADA "${pool_config}")
+    read -r -p "New Pledge in ADA (old: ${pledge_ada}): " pledge_enter
+    if [[ -n "${pledge_enter}" ]]; then
+      pledge_ada=$pledge_enter
+    fi
+
+    margin=$(jq -r .margin "${pool_config}")
+    echo "" && read -r -p "New Margin (old: ${margin}): " margin_enter
+    if [[ -n "${margin_enter}" ]]; then
+      margin=$margin_enter
+    fi
+
+    cost_ada=$(jq -r .costADA "${pool_config}")
+    echo "" && read -r -p "New Cost in ADA (old: ${cost_ada}): " cost_enter
+    if [[ -n "${cost_enter}" ]]; then
+      cost_ada=$cost_enter
+    fi
+    
+    # Update pool config
+    echo "{\"pledgeWallet\":\"$pledge_wallet_name\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada}" > "${pool_config}"
+    
+    echo ""
+
+    pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+
+    pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
+    pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
+    pool_vrf_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_VK_FILENAME}"
+
+    if [[ ! -f "${addr_file}" || ! -f "${pay_payment_sk_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" ]]; then
+      say "${RED}ERROR${NC}: ${GREEN}${wallet_name}${NC} wallet files missing, expecting these files to be available:"
+      say "${addr_file}"
+      say "${pay_payment_sk_file}"
+      say "${stake_sk_file}"
+      say "${stake_vk_file}"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
+
+    [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}"  || ! -f "${pool_vrf_vk_file}" ]] && {
+      say "${RED}ERROR${NC}: pool files missing, expecting these files to be available:"
+      say "${pool_coldkey_vk_file}"
+      say "${pool_coldkey_sk_file}"
+      say "${pool_vrf_vk_file}"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    }
+
+    #Generated Files
+    pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
+
+    say "-- creating registration cert --" "log"
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge $(( pledge_ada * 1000000 )) --pool-cost $(( cost_ada * 1000000 )) --pool-margin ${margin} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC}
+    say "-- Sending transaction to chain --" "log"
+
+    if ! modifyPool "$(cat ${addr_file})" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pay_payment_sk_file}"; then
+      say "${RED}ERROR${NC}: failure during pool update, removing newly created registration certificate"
+      rm -f "${pool_regcert_file}"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
+
+    if ! waitNewBlockCreated; then
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
+
+    say ""
+    say "--- Balance Check Wallet Address -------------------------------------------------------"
+    getBalance "$(cat ${addr_file})"
+
+    while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
+      say ""
+      say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))"
+      if ! waitNewBlockCreated; then
+        break
+      fi
+      say ""
+      say "--- Balance Check Wallet Address -------------------------------------------------------"
+      getBalance "$(cat ${addr_file})"
+    done
+    
+    if [[ ${TOTALBALANCE} -ne ${newBalance} ]]; then
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
+
+    echo ""
+    say "Pool ${GREEN}${pool_name}${NC} successfully updated with new parameters using wallet ${GREEN}${wallet_name}${NC} to pay for registration fee" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     read -r -n 1 -s -p "press any key to return to home menu" && continue
