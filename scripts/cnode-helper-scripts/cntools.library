@@ -18,7 +18,7 @@ log() {
   if [[ "${CNTOOLS_LOG}" != "" ]]; then
 	message=$1
 	for color in ${COLORS[@]}; do
-		message=${message/\$\{$color}}
+		message=$(echo $message | sed -r 's/\\e\[[0-9;]{1,6}m/ ~~~ /g')
 	done
     echo "$(date -Iseconds) : $message" >> ${CNTOOLS_LOG}
   fi
