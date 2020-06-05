@@ -95,7 +95,7 @@ case $OPERATION in
   echo " >> UPDATE"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   echo ""
-  say "${RED}ERROR${NC}: Sorry! not ready yet in cntools" "log"
+  say "${RED}ERROR${NC}: Sorry! not ready yet in cntools"
   echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
 
   if [ ${#} -lt 2 ]; then
@@ -110,8 +110,8 @@ case $OPERATION in
   if [ -f "${CCLI}" ]; then
     CURRENT_VERSION=$(${CCLI} --version | cut -f 2 -d " ")
 
-    say "Currently installed: ${CURRENT_VERSION}"
-    say "Desired release:      ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})"
+    say "Currently installed: ${CURRENT_VERSION}" "log"
+    say "Desired release:      ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})" "log"
     if [ "${DESIRED_RELEASE_CLEAN}" != "${CURRENT_VERSION}" ]; then
       read -r -n 1 -p "Would you like to upgrade to this release? (y/N)? " answer
       case ${answer:0:1} in
@@ -130,7 +130,7 @@ case $OPERATION in
     fi
   else #
     say "No cardano-cli binary found"
-    say "Desired available release: ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})"
+    say "Desired available release: ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})" "log"
     read -n 1 -r -p "Would you like to install this release? (Y/n)? " answer
     case ${answer:0:1} in
       n|N )
@@ -144,7 +144,7 @@ case $OPERATION in
         mkdir -p ${CNODE_BIN_HOME}
         tar -C ${CNODE_BIN_HOME} -xzf $FILE
         rm $FILE
-        say "installed Jormungandr ${DESIRED_RELEASE_CLEAN}" "log"
+        say "installed cardano-node ${DESIRED_RELEASE_CLEAN}" "log"
       ;;
     esac
 
@@ -263,7 +263,7 @@ case $OPERATION in
       ${CCLI} shelley address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}"
       ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" --testnet-magic ${NWMAGIC}
 
-      say "Wallet: ${wallet_name}" "log"
+      say "New Wallet: ${wallet_name}" "log"
       say "Payment Address: $(cat ${payment_addr_file})" "log"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu"
@@ -352,7 +352,7 @@ case $OPERATION in
           break
         fi
         say ""
-        say "--- Balance Check Source Address -------------------------------------------------------" "log"
+        say "--- Balance Check Source Address -------------------------------------------------------"
         getBalance "${payment_addr}"
       done
       
@@ -360,7 +360,7 @@ case $OPERATION in
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
 
-      say "Wallet: ${wallet_name}" "log"
+      say "New Stake Wallet: ${wallet_name}" "log"
       say "Payment Address: ${payment_addr}" "log"
       say "Reward Address:  $(cat ${stake_addr_file})" "log"
       say "Base Address:    ${base_addr}" "log"
@@ -386,7 +386,7 @@ case $OPERATION in
     fi
     
     while IFS= read -r -d '' wallet; do 
-      say "Wallet: ${GREEN}$(basename ${wallet})${NC} "
+      say "Wallet: ${GREEN}$(basename ${wallet})${NC} " "log"
       # Wallet key filenames
       payment_addr_file="${wallet}/${WALLET_PAY_ADDR_FILENAME}"
       stake_addr_file="${wallet}/${WALLET_STAKE_ADDR_FILENAME}"
@@ -395,7 +395,7 @@ case $OPERATION in
       if [ -f "${payment_addr_file}" ]; then
         echo ""
         payment_addr=$(cat "${payment_addr_file}")
-        say "${BLUE}Payment Address${NC}: ${payment_addr}"
+        say "${BLUE}Payment Address${NC}: ${payment_addr}" "log"
         say "Balance:"
         getBalance ${payment_addr} | indent
       fi
@@ -410,7 +410,7 @@ case $OPERATION in
       if [ -f "${base_addr_file}" ]; then
         echo ""
         base_addr=$(cat "${base_addr_file}")
-        say "${CYAN}Base Address${NC}:    ${base_addr}"
+        say "${CYAN}Base Address${NC}:    ${base_addr}" "log"
         say "Balance:"
         getBalance ${base_addr} | indent
         echo ""
@@ -448,7 +448,7 @@ case $OPERATION in
     echo ""
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
-    say "Wallet: ${GREEN}${wallet_name##*/}${NC} "
+    say "Wallet: ${GREEN}${wallet_name##*/}${NC} " "log"
 
     # Wallet key filenames
     payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
@@ -458,7 +458,7 @@ case $OPERATION in
     if [ -f "${payment_addr_file}" ]; then
       echo ""
       payment_addr=$(cat "${payment_addr_file}")
-      say "${BLUE}Payment Address${NC}: ${payment_addr}"
+      say "${BLUE}Payment Address${NC}: ${payment_addr}" "log"
       say "Balance:"
       getBalance ${payment_addr} | indent
     fi
@@ -473,7 +473,7 @@ case $OPERATION in
     if [ -f "${base_addr_file}" ]; then
       echo ""
       base_addr=$(cat "${base_addr_file}")
-      say "${CYAN}Base Address${NC}:    ${base_addr}"
+      say "${CYAN}Base Address${NC}:    ${base_addr}" "log"
       say "Balance:"
       getBalance ${base_addr} | indent
       echo ""
@@ -534,7 +534,7 @@ case $OPERATION in
         esac
       else
         say ""
-        say "${RED}WARN${NC}: this wallet has a balance of $(numfmt --grouping ${totalBalanceADA}) ADA"
+        say "${RED}WARN${NC}: this wallet has a balance of $(numfmt --grouping ${totalBalanceADA}) ADA" "log"
         say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup"
         read -n 1 -r -p "Are you sure to delete wallet (y/n)? " answer
         say ""
@@ -775,8 +775,8 @@ case $OPERATION in
           d_base_addr_file="${WALLET_FOLDER}/${d_wallet}/${WALLET_BASE_ADDR_FILENAME}"
           # Check if payment address file exist, sanity check for empty/invalid directories
           if [[ ! -f "${d_payment_addr_file}" ]]; then
-            say "${RED}ERROR${NC}: destination wallet address file not found:" "log"
-            say "${d_payment_addr_file}" "log"
+            say "${RED}ERROR${NC}: destination wallet address file not found:"
+            say "${d_payment_addr_file}"
             echo "" && read -r -n 1 -s -p "press any key to return to home menu" && break
           fi
           d_addr_file="${d_payment_addr_file}" # default
@@ -822,7 +822,7 @@ case $OPERATION in
     say "              wallet will be defraged, ie converts multiple UTxO's to one"
     echo ""
     read -r -p "Amount: " amount
-    [[ -z "${amount}" ]] && say "${RED}ERROR${NC}: amount can not be empty!" "log" && echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    [[ -z "${amount}" ]] && say "${RED}ERROR${NC}: amount can not be empty!" && echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
 
     # Source
     echo ""
@@ -841,8 +841,8 @@ case $OPERATION in
     s_payment_addr_file="${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_ADDR_FILENAME}"
     s_base_addr_file="${WALLET_FOLDER}/${s_wallet}/${WALLET_BASE_ADDR_FILENAME}"
     if [[ ! -f "${s_payment_addr_file}" ]]; then
-      say "${RED}ERROR${NC}: source wallet address file not found:" "log"
-      say "${s_payment_addr_file}" "log"
+      say "${RED}ERROR${NC}: source wallet address file not found:"
+      say "${s_payment_addr_file}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
     s_addr_file="${s_payment_addr_file}" # default
@@ -885,8 +885,8 @@ case $OPERATION in
     # decrypt signing key if needed and make sure to encrypt again even on failure
     s_payment_sk_file="${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_SK_FILENAME}"
     if [[ ! -f "${s_payment_sk_file}" ]]; then
-      say "${RED}ERROR${NC}: source wallet signing key file not found:" "log"
-      say "${s_payment_sk_file}" "log"
+      say "${RED}ERROR${NC}: source wallet signing key file not found:"
+      say "${s_payment_sk_file}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
 
@@ -904,7 +904,7 @@ case $OPERATION in
     fi
 
     say ""
-    say "--- Balance Check Source Address -------------------------------------------------------" "log"
+    say "--- Balance Check Source Address -------------------------------------------------------"
     getBalance ${s_addr}
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
@@ -914,7 +914,7 @@ case $OPERATION in
         break
       fi
       say ""
-      say "--- Balance Check Source Address -------------------------------------------------------" "log"
+      say "--- Balance Check Source Address -------------------------------------------------------"
       getBalance ${s_addr}
     done
     
@@ -926,7 +926,7 @@ case $OPERATION in
     s_balance_ada=${totalBalanceADA}
 
     say ""
-    say "--- Balance Check Destination Address --------------------------------------------------" "log"
+    say "--- Balance Check Destination Address --------------------------------------------------"
     getBalance ${d_addr}
 
     d_balance=${TOTALBALANCE}
@@ -982,8 +982,8 @@ case $OPERATION in
     base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
     
     if [[ ! -f "${base_addr_file}" ]]; then
-      say "${RED}ERROR${NC}: 'Source wallet base address file not found (are you sure this is a stake wallet?):" "log"
-      say "${base_addr_file}" "log"
+      say "${RED}ERROR${NC}: 'Source wallet base address file not found (are you sure this is a stake wallet?):"
+      say "${base_addr_file}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
 
@@ -992,10 +992,10 @@ case $OPERATION in
     pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
     
     if [[ ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]]; then
-      say "${RED}ERROR${NC}: 'Source wallet keys missing, expecting these files to be in wallet:" "log"
-      say "${stake_sk_file}" "log"
-      say "${stake_vk_file}" "log"
-      say "${pay_payment_sk_file}" "log"
+      say "${RED}ERROR${NC}: 'Source wallet keys missing, expecting these files to be in wallet:"
+      say "${stake_sk_file}"
+      say "${stake_vk_file}"
+      say "${pay_payment_sk_file}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
 
@@ -1014,8 +1014,8 @@ case $OPERATION in
     pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
     
     if [[ ! -f "${pool_coldkey_vk_file}" ]]; then
-      say "${RED}ERROR${NC}: 'Pool cold verification key missing:" "log"
-      say "${pool_coldkey_vk_file}" "log"
+      say "${RED}ERROR${NC}: 'Pool cold verification key missing:"
+      say "${pool_coldkey_vk_file}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
 
@@ -1037,7 +1037,7 @@ case $OPERATION in
     fi
 
     echo ""
-    say "--- Balance Check Source Address -------------------------------------------------------" "log"
+    say "--- Balance Check Source Address -------------------------------------------------------"
     getBalance "$(cat ${base_addr_file})"
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
@@ -1047,7 +1047,7 @@ case $OPERATION in
         break
       fi
       echo ""
-      say "--- Balance Check Source Address -------------------------------------------------------" "log"
+      say "--- Balance Check Source Address -------------------------------------------------------"
       getBalance "$(cat ${base_addr_file})"
     done
     
@@ -1160,7 +1160,7 @@ case $OPERATION in
 
     say "Pool: ${pool_name}" "log"
     say "PoolPubKey: $(cat "${pool_id_file}")" "log"
-    say "Start cardano node with the following run arguments:" "log"
+    say "Start cardano node with the following run arguments:"
     say "--shelley-kes-key ${pool_hotkey_sk_file}"
     say "--shelley-vrf-key ${pool_vrf_sk_file}"
     say "--shelley-operational-certificate ${pool_opcert_file}"
@@ -1252,19 +1252,19 @@ case $OPERATION in
     pool_vrf_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_VK_FILENAME}"
 
     if [[ ! -f "${base_addr_file}" || ! -f "${pay_payment_sk_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" ]]; then
-      say "${RED}ERROR${NC}: Source pledge wallet files missing, expecting these files to be available:" "log"
-      say "${base_addr_file}" "log"
-      say "${pay_payment_sk_file}" "log"
-      say "${stake_sk_file}" "log"
-      say "${stake_vk_file}" "log"
+      say "${RED}ERROR${NC}: Source pledge wallet files missing, expecting these files to be available:"
+      say "${base_addr_file}"
+      say "${pay_payment_sk_file}"
+      say "${stake_sk_file}"
+      say "${stake_vk_file}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
 
     [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}"  || ! -f "${pool_vrf_vk_file}" ]] && {
-      say "${RED}ERROR${NC}: pool files missing, expecting these files to be available:" "log"
-      say "${pool_coldkey_vk_file}" "log"
-      say "${pool_coldkey_sk_file}" "log"
-      say "${pool_vrf_vk_file}" "log"
+      say "${RED}ERROR${NC}: pool files missing, expecting these files to be available:"
+      say "${pool_coldkey_vk_file}"
+      say "${pool_coldkey_sk_file}"
+      say "${pool_vrf_vk_file}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     }
 
@@ -1272,14 +1272,14 @@ case $OPERATION in
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
     pool_pledgecert_file="${POOL_FOLDER}/${pool_name}/${POOL_PLEDGECERT_FILENAME}"
 
-    say "-- creating registration cert --" "log"
+    say "-- creating registration cert --"
     ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge $(( pledge_ada * 1000000 )) --pool-cost $(( cost_ada * 1000000 )) --pool-margin ${margin} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC}
-    say "-- creating delegation cert --" "log"
+    say "-- creating delegation cert --"
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
-    say "-- Sending transaction to chain --" "log"
+    say "-- Sending transaction to chain --"
 
     if ! registerPool "$(cat ${base_addr_file})" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pool_pledgecert_file}" "${pay_payment_sk_file}"; then
-      say "${RED}ERROR${NC}: failure during pool registration, removing newly created pledge and registration files" "log"
+      say "${RED}ERROR${NC}: failure during pool registration, removing newly created pledge and registration files"
       rm -f "${pool_regcert_file}" "${pool_pledgecert_file}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
@@ -1289,7 +1289,7 @@ case $OPERATION in
     fi
 
     say ""
-    say "--- Balance Check Source Address -------------------------------------------------------" "log"
+    say "--- Balance Check Source Address -------------------------------------------------------"
     getBalance "$(cat ${base_addr_file})"
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
@@ -1299,7 +1299,7 @@ case $OPERATION in
         break
       fi
       say ""
-      say "--- Balance Check Source Address -------------------------------------------------------" "log"
+      say "--- Balance Check Source Address -------------------------------------------------------"
       getBalance "$(cat ${base_addr_file})"
     done
     
@@ -1439,11 +1439,11 @@ case $OPERATION in
     pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
     
     [[ ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_hotkey_vk_file}"  || ! -f "${pool_hotkey_sk_file}" || ! -f "${pool_opcert_counter_file}" ]] && {
-      say "${RED}ERROR${NC}: pool files missing, expecting these files to be available:" "log"
-      say "${pool_coldkey_sk_file}" "log"
-      say "${pool_hotkey_vk_file}" "log"
-      say "${pool_hotkey_sk_file}" "log"
-      say "${pool_opcert_counter_file}" "log"
+      say "${RED}ERROR${NC}: pool files missing, expecting these files to be available:"
+      say "${pool_coldkey_sk_file}"
+      say "${pool_hotkey_vk_file}"
+      say "${pool_hotkey_sk_file}"
+      say "${pool_opcert_counter_file}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     }
 
@@ -1461,9 +1461,9 @@ case $OPERATION in
 
     echo ""
     say "Pool KES Keys Updated: ${pool_name}" "log"
-    say "New KES start period: ${start_kes_period}"
-    say "KES keys will expire on kes period ${kes_expiration_period}, ${expiration_date}"
-    say "Restart your pool node for changes to take effect" "log"
+    say "New KES start period: ${start_kes_period}" "log"
+    say "KES keys will expire on kes period ${kes_expiration_period}, ${expiration_date}" "log"
+    say "Restart your pool node for changes to take effect"
 
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
@@ -1528,7 +1528,7 @@ case $OPERATION in
     say "Files decrypted: ${keysDecrypted}" "log"
     if [[ ${filesUnlocked} -ne 0 || ${keysDecrypted} -ne 0 ]]; then 
       echo ""
-      say "${ORANGE}Pool files are now unprotected${NC}"
+      say "${ORANGE}Pool files are now unprotected${NC}" "log"
       say "Use 'POOL >> ENCRYPT / LOCK' to re-lock"
     fi
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -1600,7 +1600,7 @@ case $OPERATION in
     say "Files encrypted: ${keysEncrypted}" "log"
     if [[ ${filesLocked} -ne 0 || ${keysEncrypted} -ne 0 ]]; then
       echo ""
-      say "${BLUE}Pool files are now protected${NC}"
+      say "${BLUE}Pool files are now protected${NC}" "log"
       say "Use 'POOL >> DECRYPT / UNLOCK' to unlock"
     fi
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
