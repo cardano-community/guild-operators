@@ -16,7 +16,11 @@
 #   >> log "Some log message"
 log() {
   if [[ "${CNTOOLS_LOG}" != "" ]]; then
-    echo "$(date -Iseconds) : ${message}" >> ${CNTOOLS_LOG}
+	message=$1
+	for color in ${COLORS[@]}; do
+		message=$(echo $message | sed -r 's/\\e\[[0-9;]{1,6}m/ ~~~ /g')
+	done
+    echo "$(date -Iseconds) : $message" >> ${CNTOOLS_LOG}
   fi
 }
 
@@ -48,7 +52,7 @@ say() {
 # Command    : need_cmd [command]
 # Description: Check if command is available, else print error
 # Parameters : command   >   The command to check
-# Return     : 1 on error
+# Return     : null
 # Examples of Usage:
 #   >> need_cmd "jq"
 need_cmd() {
