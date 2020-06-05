@@ -25,16 +25,22 @@ Execute cntools.sh without any arguments to run the tool.
 Main Menu
 ``` bash
 ./cntools.sh
- >> CNTOOLS <<                                       A Guild Operators collaboration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   Main Menu
-
-   1) update
-   2) wallet  [new|list|show|remove|decrypt|encrypt]
-   3) funds   [send|delegate]
-   4) pool    [new|register]
-   q) quit
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#  >> CNTOOLS <<                                       A Guild Operators collaboration
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#    Main Menu
+# 
+#    1) update
+# 
+#    2) wallet  [ new / upgrade | list | show | remove |
+#                 decrypt / unlock | encrypt / lock ]
+#
+#    3) funds   [ send | delegate ]
+#
+#    4) pool    [ new | register | list | show | rotate KES |
+#                 decrypt / unlock | encrypt / lock ]
+#    q) quit
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# What would you like to do? (1-4):
 ```
 
 PS: Note that parts of the scripts are under construction, but you would see a message if a particular functionality is unavailable
