@@ -30,7 +30,7 @@ rm -f "${TMP_FOLDER:?}"/*
 # Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
 ${CCLI} shelley query protocol-parameters --testnet-magic ${NWMAGIC} --out-file ${TMP_FOLDER}/protparams.json || {
   say "\n"
-  say "${ORANGE}WARN${NC}: failed to query protocol parameters, node running and env parameters correct?" "log"
+  say "${ORANGE}WARN${NC}: failed to query protocol parameters, node running and env parameters correct?"
   say "\n${BLUE}Press c to continue or any other key to quit${NC}"
   say "only offline functions will be available if you continue\n"
   read -r -n 1 -s -p "" answer
@@ -263,7 +263,7 @@ case $OPERATION in
       ${CCLI} shelley address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}"
       ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" --testnet-magic ${NWMAGIC}
 
-      say "New Wallet: ${wallet_name}" "log"
+      say "New Wallet: ${GREEN}${wallet_name}${NC}" "log"
       say "Payment Address: $(cat ${payment_addr_file})" "log"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu"
@@ -332,7 +332,7 @@ case $OPERATION in
 
       # Register on chain
       if ! registerStakeWallet "${payment_addr}" "${base_addr}" "${payment_sk_file}" "${stake_sk_file}" "${stake_cert_file}"; then
-        say "${RED}ERROR${NC}: failure during stake key registration, removing newly created stake keys" "log"
+        say "${RED}ERROR${NC}: failure during stake key registration, removing newly created stake keys"
         rm -f "${stake_vk_file}" "${stake_sk_file}" "${stake_addr_file}" "${stake_cert_file}" "${base_addr_file}"
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
@@ -347,7 +347,7 @@ case $OPERATION in
 
       while [[ ${TOTALBALANCE} -ne 0 ]]; do
         say ""
-        say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != 0" "log"
+        say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != 0"
         if ! waitNewBlockCreated; then
           break
         fi
@@ -360,7 +360,7 @@ case $OPERATION in
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
 
-      say "New Stake Wallet: ${wallet_name}" "log"
+      say "New Stake Wallet: ${GREEN}${wallet_name}${NC}" "log"
       say "Payment Address: ${payment_addr}" "log"
       say "Reward Address:  $(cat ${stake_addr_file})" "log"
       say "Base Address:    ${base_addr}" "log"
@@ -534,7 +534,7 @@ case $OPERATION in
         esac
       else
         say ""
-        say "${RED}WARN${NC}: this wallet has a balance of $(numfmt --grouping ${totalBalanceADA}) ADA" "log"
+        say "${RED}WARN${NC}: this wallet has a balance of $(numfmt --grouping ${totalBalanceADA}) ADA"
         say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup"
         read -n 1 -r -p "Are you sure to delete wallet (y/n)? " answer
         say ""
@@ -613,7 +613,7 @@ case $OPERATION in
     unset password
     
     echo ""
-    say "Wallet unprotected: ${wallet_name}" "log"
+    say "Wallet unprotected: ${GREEN}${wallet_name}${NC}" "log"
     say "Files unlocked:     ${filesUnlocked}" "log"
     say "Files decrypted:    ${keysDecrypted}" "log"
     if [[ ${filesUnlocked} -ne 0 || ${keysDecrypted} -ne 0 ]]; then
@@ -688,7 +688,7 @@ case $OPERATION in
     done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
     
     echo ""
-    say "Wallet protected: ${wallet_name}" "log"
+    say "Wallet protected: ${GREEN}${wallet_name}${NC}" "log"
     say "Files locked:     ${filesLocked}" "log"
     say "Files encrypted:  ${keysEncrypted}" "log"
     if [[ ${filesLocked} -ne 0 || ${keysEncrypted} -ne 0 ]]; then
@@ -909,7 +909,7 @@ case $OPERATION in
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       say ""
-      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))" "log"
+      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))"
       if ! waitNewBlockCreated; then
         break
       fi
@@ -936,13 +936,13 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say "Transaction" "log"
     [[ "${s_wallet_type,,}" = "b" ]] && s_wallet_type="base" || s_wallet_type="payment"
-    say "  From:        ${s_wallet} (${s_wallet_type})" "log"
+    say "  From:        ${GREEN}${s_wallet}${NC} (${s_wallet_type})" "log"
     say "  Amount:      $(numfmt --grouping ${ori_balance}) Lovelaces ($(numfmt --grouping ${ori_balance_ada}) ADA)" "log"
     if [[ ${d_type,,} = "a" ]]; then
       say "  To:          ${d_addr}" "log"
     else
       [[ "${d_wallet_type,,}" = "b" ]] && d_wallet_type="base" || d_wallet_type="payment"
-      say "  To:          ${d_wallet} (${d_wallet_type})" "log"
+      say "  To:          ${GREEN}${d_wallet}${NC} (${d_wallet_type})" "log"
     fi
     say "  Fees:        $(numfmt --grouping ${minFee}) Lovelaces" "log"
     say "  Balance:" "log"
@@ -1027,7 +1027,7 @@ case $OPERATION in
 
     #[stake vkey] [stake skey] [pay skey] [pay addr] [pool vkey] [deleg cert]
     if ! delegate "${stake_vk_file}" "${stake_sk_file}" "${pay_payment_sk_file}" "$(cat ${base_addr_file})" "${pool_coldkey_vk_file}" "${delegation_cert_file}" ; then
-      echo "" && say "${RED}ERROR${NC}: failure during delegation, removing newly created delegation certificate file" "log"
+      echo "" && say "${RED}ERROR${NC}: failure during delegation, removing newly created delegation certificate file"
       rm -f "${delegation_cert_file}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
@@ -1042,7 +1042,7 @@ case $OPERATION in
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       echo ""
-      say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))" "log"
+      say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))"
       if ! waitNewBlockCreated; then
         break
       fi
@@ -1055,7 +1055,7 @@ case $OPERATION in
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
 
-    say "Wallet: ${wallet_name}" "log"
+    say "Wallet: ${GREEN}${wallet_name}${NC}" "log"
     say "Payment Address: $(cat ${base_addr_file})" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
@@ -1158,12 +1158,12 @@ case $OPERATION in
     ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${start_kes_period}" --out-file "${pool_opcert_file}"
     ${CCLI} shelley node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
 
-    say "Pool: ${pool_name}" "log"
+    say "Pool: ${GREEN}${pool_name}${NC}" "log"
     say "PoolPubKey: $(cat "${pool_id_file}")" "log"
-    say "Start cardano node with the following run arguments:"
-    say "--shelley-kes-key ${pool_hotkey_sk_file}"
-    say "--shelley-vrf-key ${pool_vrf_sk_file}"
-    say "--shelley-operational-certificate ${pool_opcert_file}"
+    say "Start cardano node with the following run arguments:" "log"
+    say "--shelley-kes-key ${pool_hotkey_sk_file}" "log"
+    say "--shelley-vrf-key ${pool_vrf_sk_file}" "log"
+    say "--shelley-operational-certificate ${pool_opcert_file}" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -1294,7 +1294,7 @@ case $OPERATION in
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       say ""
-      say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))" "log"
+      say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))"
       if ! waitNewBlockCreated; then
         break
       fi
@@ -1460,7 +1460,7 @@ case $OPERATION in
     kesExpiration "${start_kes_period}"
 
     echo ""
-    say "Pool KES Keys Updated: ${pool_name}" "log"
+    say "Pool KES Keys Updated: ${GREEN}${pool_name}${NC}" "log"
     say "New KES start period: ${start_kes_period}" "log"
     say "KES keys will expire on kes period ${kes_expiration_period}, ${expiration_date}" "log"
     say "Restart your pool node for changes to take effect"
@@ -1523,7 +1523,7 @@ case $OPERATION in
     unset password
     
     echo ""
-    say "Pool decrypted:  ${pool_name}" "log"
+    say "Pool decrypted:  ${GREEN}${pool_name}${NC}" "log"
     say "Files unlocked:  ${filesUnlocked}" "log"
     say "Files decrypted: ${keysDecrypted}" "log"
     if [[ ${filesUnlocked} -ne 0 || ${keysDecrypted} -ne 0 ]]; then 
@@ -1595,7 +1595,7 @@ case $OPERATION in
     done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -print0)
     
     echo ""
-    say "Pool encrypted:  ${pool_name}" "log"
+    say "Pool encrypted:  ${GREEN}${pool_name}${NC}" "log"
     say "Files locked:    ${filesLocked}" "log"
     say "Files encrypted: ${keysEncrypted}" "log"
     if [[ ${filesLocked} -ne 0 || ${keysEncrypted} -ne 0 ]]; then
