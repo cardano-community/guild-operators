@@ -27,11 +27,17 @@
     "tau": 0.1,
     "a0": 0.4
   },
-  "protocolMagicId": 4003,
-  "systemStart": "2020-06-04T12:32:00.00Z",
+  "protocolMagicId": 4004,
+  "systemStart": "2020-06-05T05:35:00.00Z",
   "genDelegs": {
-    "7e4c9656274afdd4d41a282b5573b7d24e343a436f1baf7aea6fae4ec8230c64": "e14e834b692b1a42917927751d77f19e904e8b8e6f79a38db363d0b0a23b1c21",
-    "a2da5b6ae89cbbb592d2ed14df932fb182dad922d172439568dace944499dbba": "038fb60f021b41d510a901630e210ba09b07463056bd7ed96487b92c7df741a2"
+        "b18d6e32c2fb1c0ae7e9a16757a728fc14f2694c6d4c90c0ff3a8d241a4daa4a": {
+            "delegate": "ff74c4b0ec688de34e1089a22d97badfd1c20afec65c07c82fd180a2491462b7",
+            "vrf": "7f4bf0dfcc089b55750a62e84a4d667ae48c39f2eb8cb3e8e2b4698992b89de2"
+        },
+        "b0531df0ef8b76b1b72128a8d742d79c9082e7115382886cf5f1e89bc10cf8a4": {
+            "delegate": "e9ef3c0a95ad50a248c2c8555cff7da7729c06d0adb2feee1944fc5ff43e6cf6",
+            "vrf": "e6b2df1c21cb9958a3fcb26a93f0e4fa52449b3483b4023d531418aa62088240"
+        }
   },
   "updateQuorum": 2,
   "networkId": "Testnet",
@@ -64,7 +70,7 @@
     "60896d73f2aeae8bc4be55b2070a48834de84ebb356d5fd9c82ae3f5d49a37313d": 1000000000000
   },
   "maxLovelaceSupply": 1e+15,
-  "networkMagic": 4003,
+  "networkMagic": 4004,
   "epochLength": 900,
   "staking": null,
   "slotsPerKESPeriod": 14400,
