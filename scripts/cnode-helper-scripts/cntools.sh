@@ -378,7 +378,6 @@ case $OPERATION in
     clear
     echo " >> WALLET >> LIST"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo ""
     
     if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
@@ -386,38 +385,28 @@ case $OPERATION in
     fi
     
     while IFS= read -r -d '' wallet; do 
-      say "Wallet: ${GREEN}$(basename ${wallet})${NC} " "log"
       # Wallet key filenames
       payment_addr_file="${wallet}/${WALLET_PAY_ADDR_FILENAME}"
       stake_addr_file="${wallet}/${WALLET_STAKE_ADDR_FILENAME}"
       base_addr_file="${wallet}/${WALLET_BASE_ADDR_FILENAME}"
-
-      if [ -f "${payment_addr_file}" ]; then
-        echo ""
-        payment_addr=$(cat "${payment_addr_file}")
-        say "${BLUE}Payment Address${NC}: ${payment_addr}" "log"
-        say "Balance:"
-        getBalance ${payment_addr} | indent
-      fi
-      ## TODO - Can reward address balance be listed?
-      #if [ -f "${stake_addr_file}" ]; then
-      #  echo ""
-      #  reward_addr=$(cat "${stake_addr_file}")
-      #  say "Reward Address:  ${reward_addr}"
-      #  say "Balance:"
-      #  getBalance ${reward_addr} | indent
-      #fi
-      if [ -f "${base_addr_file}" ]; then
-        echo ""
-        base_addr=$(cat "${base_addr_file}")
-        say "${CYAN}Base Address${NC}:    ${base_addr}" "log"
-        say "Balance:"
-        getBalance ${base_addr} | indent
-        echo ""
-      fi
-      echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo ""
-    done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0)
+      say "${GREEN}$(basename ${wallet})${NC}" "log"
+      if [ -f "${payment_addr_file}" ]; then
+        payment_addr=$(cat "${payment_addr_file}")
+        getBalance ${payment_addr} >/dev/null
+        say "$(printf "%-7s : %s" "Payment" "${payment_addr}")" "log"
+        say "$(printf "%9s %s" "" "$(numfmt --grouping ${TOTALBALANCE}) Lovelaces ($(numfmt --grouping ${totalBalanceADA}) ADA)")" "log"
+      fi
+      if [ -f "${base_addr_file}" ]; then
+        base_addr=$(cat "${base_addr_file}")
+        getBalance ${base_addr} >/dev/null
+        say "$(printf "%-7s : %s" "Base" "${base_addr}")" "log"
+        say "$(printf "%9s %s" "" "$(numfmt --grouping ${TOTALBALANCE}) Lovelaces ($(numfmt --grouping ${totalBalanceADA}) ADA)")" "log"
+      fi
+    done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+    echo ""
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
     
     read -r -n 1 -s -p "press any key to return to home menu"
     ;; ###################################################################
@@ -448,7 +437,7 @@ case $OPERATION in
     echo ""
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
-    say "Wallet: ${GREEN}${wallet_name##*/}${NC} " "log"
+    say "${GREEN}${wallet_name##*/}${NC} " "log"
 
     # Wallet key filenames
     payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
@@ -459,7 +448,6 @@ case $OPERATION in
       echo ""
       payment_addr=$(cat "${payment_addr_file}")
       say "${BLUE}Payment Address${NC}: ${payment_addr}" "log"
-      say "Balance:"
       getBalance ${payment_addr} | indent
     fi
     ## TODO - Can reward address balance be listed?
@@ -474,7 +462,6 @@ case $OPERATION in
       echo ""
       base_addr=$(cat "${base_addr_file}")
       say "${CYAN}Base Address${NC}:    ${base_addr}" "log"
-      say "Balance:"
       getBalance ${base_addr} | indent
       echo ""
     fi
@@ -1500,7 +1487,6 @@ case $OPERATION in
     clear
     echo " >> POOL >> LIST"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo ""
     
     if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
@@ -1508,27 +1494,22 @@ case $OPERATION in
     fi
     
     while IFS= read -r -d '' pool; do 
+      echo ""
       pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
       ledger_status=$(${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} | grep "poolPubKey" | grep "${pool_id}")
       [[ -n "${ledger_status}" ]] && ledger_status="YES" || ledger_status="NO"
-      say "Pool: ${GREEN}$(basename ${pool})${NC} "
-      say "ID: ${pool_id}"
-      say "Registered:            ${ledger_status}"
+      say "${GREEN}$(basename ${pool})${NC} "
+      say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
+      say "$(printf "%-21s : %s" "Registered" "${ledger_status}")" "log"
       if [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]]; then
         kesExpiration "$(cat "${pool}/${POOL_CURRENT_KES_START}")"
-        say "KES expiration period: ${kes_expiration_period}"
-        say "KES expiration date:   ${expiration_date}"
+        say "$(printf "%-21s : %s" "KES expiration period" "${kes_expiration_period}")" "log"
+        say "$(printf "%-21s : %s" "KES expiration date" "${expiration_date}")" "log"
       fi
-      pool_hotkey_sk_file="${pool}/${POOL_HOTKEY_SK_FILENAME}"
-      pool_vrf_sk_file="${pool}/${POOL_VRF_SK_FILENAME}"
-      pool_opcert_file="${pool}/${POOL_OPCERT_FILENAME}"
-      say "run arguments:"
-      say "--shelley-kes-key ${pool_hotkey_sk_file}"
-      say "--shelley-vrf-key ${pool_vrf_sk_file}"
-      say "--shelley-operational-certificate ${pool_opcert_file}"
-      echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-      echo ""
-    done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0)
+    done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+    echo ""
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
     
     read -r -n 1 -s -p "press any key to return to home menu"
     
@@ -1563,21 +1544,21 @@ case $OPERATION in
     pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
     ledger_status=$(${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} | grep "poolPubKey" | grep "${pool_id}")
     [[ -n "${ledger_status}" ]] && ledger_status="YES" || ledger_status="NO"
-    say "Pool: ${GREEN}${pool_name##*/}${NC} "
-    say "ID: ${pool_id}"
-    say "Registered:            ${ledger_status}"
+    say "${GREEN}${pool_name}${NC} "
+    say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
+    say "$(printf "%-21s : %s" "Registered" "${ledger_status}")" "log"
     if [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]]; then
       kesExpiration "$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
-      say "KES expiration period: ${kes_expiration_period}"
-      say "KES expiration date:   ${expiration_date}"
+      say "$(printf "%-21s : %s" "KES expiration period" "${kes_expiration_period}")" "log"
+      say "$(printf "%-21s : %s" "KES expiration date" "${expiration_date}")" "log"
     fi
     pool_hotkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_SK_FILENAME}"
     pool_vrf_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_SK_FILENAME}"
     pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
-    say "run arguments:"
-    say "--shelley-kes-key ${pool_hotkey_sk_file}"
-    say "--shelley-vrf-key ${pool_vrf_sk_file}"
-    say "--shelley-operational-certificate ${pool_opcert_file}"
+    say "$(printf "%-21s : %s" "Run arguments" "--shelley-kes-key ${pool_hotkey_sk_file}")" "log"
+    say "$(printf "%-21s   %s" "" "--shelley-vrf-key ${pool_vrf_sk_file}")" "log"
+    say "$(printf "%-21s   %s" "" "--shelley-operational-certificate ${pool_opcert_file}")" "log"
+    echo ""
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo "" && read -r -n 1 -s -p "press any key to return to home menu"
     
