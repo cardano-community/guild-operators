@@ -151,12 +151,13 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h3><a class="header" href="#cardano-node-tools" id="cardano-node-tools">Cardano Node Tools</a></h3>
-<p>This is a multi-purpose script to operate various activities (like creating keys, transactions, registering stake pool , delegating to a pool or updating binaries) using cardano node.</p>
-<p>The script assumes the <a href="../Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> have already been run.</p>
-<h4><a class="header" href="#download-cntoolssh" id="download-cntoolssh">Download cntools.sh</a></h4>
-<p>If you have run <code>prereqs.sh</code>, this should already be available in your scripts folder and make this step unnecessary. 
-To download cntools manually you can execute the commands below:</p>
+                        <h1><a class="header" href="#quickstart-for-using-cntools" id="quickstart-for-using-cntools">Quickstart for using CNTOOLS</a></h1>
+<p>CNTOOLS is a simple shell script that will simplify typical operations used in FF and HTN testnets.  We have developed this for our own use, and as such tend to follow some well worn paths when using it.  See below for simple step by step guide for getting a pool setup on the FF network.  Please note that this tool is tested on linux platforms only at this point.
+The script assumes the <a href="../Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> have already been run.</p>
+<h4><a class="header" href="#download-and-configuration-cntoolssh" id="download-and-configuration-cntoolssh">Download and Configuration cntools.sh</a></h4>
+<p>If you have run <code>prereqs.sh</code>, this should already be available in your scripts folder and make this step unnecessary. </p>
+<p>CNTOOLS connects to your node through the configuration in the env file located in the same directory as the script.  Customize this file for your needs.  CNTOOLS will start even if you node is offline, but don't expect to get very far.</p>
+<p>To download cntools manually you can execute the commands below:</p>
 <pre><code class="language-bash">cd $CNODE_HOME/scripts
 curl -s -o cntools.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.sh
 curl -s -o cntools.config https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.config
@@ -165,28 +166,154 @@ curl -s -o env https://raw.githubusercontent.com/cardano-community/guild-operato
 chmod 750 cntools.sh
 chmod 640 cntools.config cntools.library env 
 </code></pre>
-<h4><a class="header" href="#check-usage" id="check-usage">Check Usage</a></h4>
-<p>Execute cntools.sh without any arguments to run the tool.</p>
-<p>Main Menu</p>
-<pre><code class="language-bash">./cntools.sh
-#  &gt;&gt; CNTOOLS &lt;&lt;                                       A Guild Operators collaboration
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#    Main Menu
-# 
-#    1) update
-# 
-#    2) wallet  [ new / upgrade | list | show | remove |
-#                 decrypt / unlock | encrypt / lock ]
-#
-#    3) funds   [ send | delegate ]
-#
-#    4) pool    [ new | register | list | show | rotate KES |
-#                 decrypt / unlock | encrypt / lock ]
-#    q) quit
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# What would you like to do? (1-4):
+<h4><a class="header" href="#start" id="start">Start</a></h4>
+<p>Insure the tool is executable and start it with:</p>
+<pre><code>$ ./cntools.sh
 </code></pre>
-<p>PS: Note that parts of the scripts are under construction, but you would see a message if a particular functionality is unavailable</p>
+<p>You should get a screen that looks something like this:</p>
+<pre><code> &gt;&gt; CNTOOLS &lt;&lt;                                       A Guild Operators collaboration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Main Menu
+   1) update
+   2) wallet  [ new / upgrade | list | show | remove |
+                decrypt / unlock | encrypt / lock ]
+   3) funds   [ send | delegate ]
+   4) pool    [ new | register | list | show | rotate KES |
+                decrypt / unlock | encrypt / lock ]
+   q) quit
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+What would you like to do? (1-4):
+</code></pre>
+<h1><a class="header" href="#step-by-step-to-create-a-pool-with-cntools" id="step-by-step-to-create-a-pool-with-cntools">Step by Step to create a pool with CNTOOLS</a></h1>
+<ol>
+<li>Choose <strong>wallet</strong> (option  2)</li>
+</ol>
+<pre><code> &gt;&gt; WALLET
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Wallet Management
+
+   1) new / upgrade
+   2) list
+   3) show
+   4) remove
+   5) decrypt / unlock
+   6) encrypt / lock
+   h) home
+   q) quit
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+What wallet operation would you like to perform? (1-6):
+</code></pre>
+<ol start="2">
+<li>Choose <strong>new / upgrade</strong> (option  1)</li>
+</ol>
+<pre><code> &gt;&gt; WALLET &gt;&gt; NEW / UPGRADE
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Wallet Type
+
+   1) payment  - First step for a new wallet
+                 A payment wallet can send and receive funds but not delegate/pledge.
+
+   2) stake    - Upgrade existing payment wallet to a stake wallet
+                 Make sure there are funds available in payment wallet before upgrade
+                 as this is needed to pay for the stake wallet registration fee.
+                 A stake wallet is needed to be able to delegate and pledge to a pool.
+                 All funds from payment address will be moved to base address.
+   h) home
+   q) quit
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Choose wallet type (1-2):
+</code></pre>
+<ol start="3">
+<li>Choose <strong>payment</strong> type of wallet (option  1)</li>
+<li>Give the wallet a name</li>
+<li>CNTOOLS will give you your payment address.  For example:</li>
+</ol>
+<pre><code>&gt;&gt; WALLET &gt;&gt; NEW &gt;&gt; PAYMENT
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Name of new wallet: bob
+
+Wallet: bob
+Payment Address: 60ca926192c09b2fc689b5258d9265038c4270e1f1934413255822db1f9645e2c1
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+</code></pre>
+<ol start="6">
+<li><strong>Send some money to this wallet.</strong>  Either through the faucet or have a friend send you some.  IMPORTANT...  The wallet must have funds in it before you can proceed.</li>
+<li>From the main menu choose <strong>wallet</strong> (option #2) and then this time choose <strong>stake</strong> (option #2) to upgrade your wallet</li>
+<li>CNTOOLS will give you a list of wallets you can upgrade.  choose the wallet you created in step 4.  In this example case that wallet is called <strong>bob</strong>.   This will send a transaction to the blockchain to upgrade your wallet to a staking wallet.  the result should look something like this:</li>
+</ol>
+<pre><code>--- Balance Check Source Address -------------------------------------------------------
+
+Total balance in 0 UTxO is 0 Lovelaces or 0 ADA
+Wallet: bob
+Payment Address: 60ca926192c09b2fc689b5258d9265038c4270e1f1934413255822db1f9645e2c1
+Reward Address:  5821e00e0798d1028c9fcd1a1ac2cb0a6af63dd51deb018dfd2fa91abe32c27490e980
+Base Address:    00ca926192c09b2fc689b5258d9265038c4270e1f1934413255822db1f9645e2c10e0798d1028c9fcd1a1ac2cb0a6af63dd51deb018dfd2fa91abe32c27490e980
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+</code></pre>
+<p>The total balance is 0 for the payment address because ALL funds have been moved to the base address.
+9.  From the main menu select <strong>pool</strong> (option 4)</p>
+<pre><code>&gt;&gt; POOL
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Pool Management
+
+   1) new
+   2) register
+   3) list
+   4) show
+   5) rotate KES keys
+   6) decrypt / unlock
+   7) encrypt / lock
+   h) home
+   q) quit
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+What pool operation would you like to perform? (1-7):
+</code></pre>
+<ol start="10">
+<li>select <strong>new</strong> to create a new pool (option 1)</li>
+<li>Give the pool a name.  in our case we call it LOVE.  The result should look something like this:</li>
+</ol>
+<pre><code> &gt;&gt; POOL &gt;&gt; NEW
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Pool Name: LOVE
+
+Pool: LOVE
+PoolPubKey: 687c3f588d996ee5fc751cc581826f63c407b1c46514ef9fe3001fa96d3a75bc
+Start cardano node with the following run arguments:
+--shelley-kes-key /opt/cardano/cnode/priv/pool/LOVE/hot.skey
+--shelley-vrf-key /opt/cardano/cnode/priv/pool/LOVE/vrf.skey
+--shelley-operational-certificate /opt/cardano/cnode/priv/pool/LOVE/op.cert
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+</code></pre>
+<ol start="12">
+<li>start or restart your cardano-node with the parameters as shown.  This will insure your node has all the information necessary to create blocks.  IMPORTANT.  If you do not start your node with these parameters you won't be able to make blocks.</li>
+<li>from the main menu select <strong>pool</strong> (option 4)</li>
+<li>select <strong>register</strong> (option 2)</li>
+<li>select the pool you just created in step 11 above</li>
+<li>CNTOOLS will give you prompts to set pledge, margin and cost.  Enter values that are useful to you.  Make sure you set your pledge low enough to insure your funds in your wallet will cover pledge plus pool registration fees.  It will look something like this:</li>
+</ol>
+<pre><code>Pledge in ADA (default: 50000): 899
+Margin (default: 0.07): 0.10
+Cost in ADA (default: 256): 500
+</code></pre>
+<ol start="17">
+<li>select the wallet you want to register the pool with.</li>
+<li>DONE!  The output should look something like this:</li>
+</ol>
+<pre><code>New block was created - 107
+
+--- Balance Check Source Address -------------------------------------------------------
+                           TxHash                                 TxIx        Lovelace
+----------------------------------------------------------------------------------------
+7f4294db8036bf985bea434d2b910176d8b274f8b7a413748b53540138e3dfaa     0         899947600
+
+Total balance in 1 UTxO is 899947600 Lovelaces or 899.9476 ADA
+
+Pool LOVE successfully registered using wallet bob for pledge
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+</code></pre>
 
                     </main>
 
