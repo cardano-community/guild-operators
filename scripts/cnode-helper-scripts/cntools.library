@@ -242,7 +242,7 @@ getBalance() {
   totalBalanceADA=$(echo "${TOTALBALANCE}/1000000" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
 
   say ""
-  say "Total balance in ${UTx0_COUNT} UTxO is $(numfmt --grouping ${TOTALBALANCE}) Lovelaces or $(numfmt --grouping ${totalBalanceADA}) ADA" "log"
+  say "Total balance is ${GREEN}$(numfmt --grouping ${totalBalanceADA})${NC} ADA" "log"
 }
 
 
