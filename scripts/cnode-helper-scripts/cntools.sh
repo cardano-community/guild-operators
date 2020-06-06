@@ -307,7 +307,7 @@ case $OPERATION in
 
 
       if [[ ! -f "${payment_addr_file}" || ! -f "${payment_vk_file}" || ! -f "${payment_sk_file}" ]]; then
-        say "${RED}WARN${NC}: Payment wallet files missing or missconfiguration for wallet filenames: ${GREEN}$wallet_name${NC}"
+        say "${RED}WARN${NC}: Payment wallet files missing or misconfiguration for wallet filenames: ${GREEN}$wallet_name${NC}"
         say "Expect the following files to exist:"
         say "${payment_addr_file}"
         say "${payment_vk_file}"
@@ -347,7 +347,7 @@ case $OPERATION in
 
       while [[ ${TOTALBALANCE} -ne 0 ]]; do
         say ""
-        say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != 0"
+        say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != 0"
         if ! waitNewBlockCreated; then
           break
         fi
@@ -735,6 +735,77 @@ case $OPERATION in
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
     
+    say " -- Source Wallet --"
+    # Make sure wallet folder exist and is non-empty
+    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a wallet"
+      say "Wallet folder: ${WALLET_FOLDER}"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
+    echo "" && say "Select Source Wallet:"
+    select s_wallet in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
+      test -n "${s_wallet}" && break
+      say ">>> Invalid Selection (ctrl+c to quit)"
+    done
+    s_payment_addr_file="${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_ADDR_FILENAME}"
+    s_base_addr_file="${WALLET_FOLDER}/${s_wallet}/${WALLET_BASE_ADDR_FILENAME}"
+    if [[ ! -f "${s_payment_addr_file}" ]]; then
+      say "${RED}ERROR${NC}: source wallet address file not found:"
+      say "${s_payment_addr_file}"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
+    s_addr_file="${s_payment_addr_file}" # default
+    if [[ -f "${s_base_addr_file}" ]]; then
+      # Both payment and base address available, let user choose what to use
+      while true; do
+        echo ""
+        read -n 1 -r -p "Wallet contain both payment and base address, choose source (p / b)? : " s_wallet_type
+        echo ""
+        case ${s_wallet_type:0:1} in
+          p|P )
+            break
+          ;;
+          b|B )
+            s_addr_file="${s_base_addr_file}" && break
+          ;;
+          * )
+            say ">>> Invalid Selection"
+          ;;
+        esac
+      done
+    fi
+    s_addr="$(cat ${s_addr_file})"
+
+    say ""
+    say "--- Balance Check Source Address -------------------------------------------------------"
+    getBalance ${s_addr}
+
+    # Amount
+    echo ""
+    say " -- Amount to Send (in ADA) --"
+    echo ""
+    say "Valid entry:  ${BLUE}Integer (e.g. 15) or Decimal (e.g. 956.1235) - no commas allowed${NC}"
+    say "              The string '${BLUE}all${NC}' to send all available funds in source wallet"
+    echo ""
+    say "Info:         If destination and source wallet is the same and amount set to 'all',"
+    say "              wallet will be defraged, ie converts multiple UTxO's to one"
+    echo ""
+    read -r -p "Amount (ADA): " amount
+
+    if  [[ "${amount}" != "all" ]]; then
+      echo ""
+      say " -- Transaction Fee --"
+      echo ""
+      read -n 1 -r -p "Fee payed by sender (y/n)? [else amount sent is reduced] : " answer
+      echo ""
+      case ${answer:0:1} in
+        n|N ) include_fee="yes"
+        ;;
+        * ) include_fee="no"
+        ;;
+      esac
+    fi
+
     # Destination
     while true; do
       say " -- Destination Address / Wallet --"
@@ -796,77 +867,6 @@ case $OPERATION in
     done
     # Destination loop could break without getting a valid address
     [[ -z ${d_addr} ]] && continue
-
-    # Amount
-    echo ""
-    say " -- Amount to Send --"
-    echo ""
-    say "Valid entry:  ${BLUE}Integer${NC}"
-    say "              ${BLUE}Fraction number${NC} with a decimal dot"
-    say "              The string '${BLUE}all${NC}' to send all available funds in source wallet"
-    echo ""
-    say "Info:         If destination and source wallet is the same and amount set to 'all',"
-    say "              wallet will be defraged, ie converts multiple UTxO's to one"
-    echo ""
-    read -r -p "Amount: " amount
-    [[ -z "${amount}" ]] && say "${RED}ERROR${NC}: amount can not be empty!" && echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-
-    # Source
-    echo ""
-    say " -- Source Wallet --"
-    # Make sure wallet folder exist and is non-empty
-    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a wallet"
-      say "Wallet folder: ${WALLET_FOLDER}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    echo "" && say "Select Source Wallet:"
-    select s_wallet in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-      test -n "${s_wallet}" && break
-      say ">>> Invalid Selection (ctrl+c to quit)"
-    done
-    s_payment_addr_file="${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_ADDR_FILENAME}"
-    s_base_addr_file="${WALLET_FOLDER}/${s_wallet}/${WALLET_BASE_ADDR_FILENAME}"
-    if [[ ! -f "${s_payment_addr_file}" ]]; then
-      say "${RED}ERROR${NC}: source wallet address file not found:"
-      say "${s_payment_addr_file}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    s_addr_file="${s_payment_addr_file}" # default
-    if [[ -f "${s_base_addr_file}" ]]; then
-      # Both payment and base address available, let user choose what to use
-      while true; do
-        echo ""
-        read -n 1 -r -p "Wallet contain both payment and base address, choose source (p/b)? : " s_wallet_type
-        echo ""
-        case ${s_wallet_type:0:1} in
-          p|P )
-            break
-          ;;
-          b|B )
-            s_addr_file="${s_base_addr_file}" && break
-          ;;
-          * )
-            say ">>> Invalid Selection"
-          ;;
-        esac
-      done
-    fi
-    s_addr="$(cat ${s_addr_file})"
-
-    if  [[ "${amount}" != "all" ]]; then
-      echo ""
-      say " -- Transaction Fee --"
-      echo ""
-      read -n 1 -r -p "Fee payed by sender (y/n)? [else amount sent is reduced] : " answer
-      echo ""
-      case ${answer:0:1} in
-        n|N ) include_fee="yes"
-        ;;
-        * ) include_fee="no"
-        ;;
-      esac
-    fi
 
     # Source Sign Key
     # decrypt signing key if needed and make sure to encrypt again even on failure
@@ -1029,7 +1029,7 @@ case $OPERATION in
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       echo ""
-      say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))"
+      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))"
       if ! waitNewBlockCreated; then
         break
       fi
@@ -1284,7 +1284,7 @@ case $OPERATION in
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       say ""
-      say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))"
+      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))"
       if ! waitNewBlockCreated; then
         break
       fi
@@ -1461,7 +1461,7 @@ case $OPERATION in
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       say ""
-      say "${ORANGE}WARN${NC}: Balance missmatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))"
+      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))"
       if ! waitNewBlockCreated; then
         break
       fi
