@@ -450,14 +450,6 @@ case $OPERATION in
       say "${BLUE}Payment Address${NC}: ${payment_addr}" "log"
       getBalance ${payment_addr} | indent
     fi
-    ## TODO - Can reward address balance be listed?
-    #if [ -f "${stake_addr_file}" ]; then
-    #  echo ""
-    #  reward_addr=$(cat "${stake_addr_file}")
-    #  say "Reward Address:  ${reward_addr}"
-    #  say "Balance:"
-    #  getBalance ${reward_addr} | indent
-    #fi
     if [ -f "${base_addr_file}" ]; then
       echo ""
       base_addr=$(cat "${base_addr_file}")
@@ -470,7 +462,7 @@ case $OPERATION in
     
     ;; ###################################################################
 
-    remove)
+    remove) ## TODO - Check reward address
     
     clear
     echo " >> WALLET >> REMOVE"
@@ -497,51 +489,62 @@ case $OPERATION in
     # Wallet key filename
     payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
     base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
-
-    if [ -f "${payment_addr_file}" ]; then
-      getBalance "$(cat ${payment_addr_file})" >/dev/null
-      if [[ ${TOTALBALANCE} -eq 0 ]]; then
-      
-        ## TODO - also check base address(reward as well?) so we can warn about this!
-        
-        say ""
-        say "INFO: This wallet appears to be empty"
-        say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup"
-        say ""
-        read -n 1 -r -p "Are you sure to delete wallet (y/n)? " answer
-        say ""
-        case ${answer:0:1} in
-          y|Y )
-            rm -rf "${WALLET_FOLDER:?}/${wallet_name}"
-            echo "" && say "removed ${GREEN}${wallet_name}${NC}" "log"
-          ;;
-          * )
-            say "skipped removal process for ${GREEN}$wallet_name${NC}"
-          ;;
-        esac
-      else
-        say ""
-        say "${RED}WARN${NC}: this wallet has a balance of $(numfmt --grouping ${totalBalanceADA}) ADA"
-        say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup"
-        read -n 1 -r -p "Are you sure to delete wallet (y/n)? " answer
-        say ""
-        case ${answer:0:1} in
-          y|Y )
-            rm -rf "${WALLET_FOLDER:?}/${wallet_name}"
-            echo "" && say "removed ${GREEN}${wallet_name}${NC}" "log"
-          ;;
-          * )
-            say "skipped removal process for ${GREEN}$wallet_name${NC}"
-          ;;
-        esac
-      fi
-    else
-      say ""
-      say "Wallet: ${GREEN}${wallet_name}${NC} "
-      say "${RED}WARN${NC}: missing wallet address file:"
+    
+    if [[ ! -f "${payment_addr_file}" && ! -f "${base_addr_file}" ]]; then
+      say "${RED}WARN${NC}: no payment or base address files found in wallet"
       say "${payment_addr_file}"
-      echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      say "${base_addr_file}"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+    fi
+    if [[ -f "${payment_addr_file}" ]]; then
+      getBalance "$(cat ${payment_addr_file})" >/dev/null
+      payment_balance=${TOTALBALANCE}
+      payment_balance_ada=${totalBalanceADA}
+    fi
+    if [[ -f "${base_addr_file}" ]]; then
+      getBalance "$(cat ${base_addr_file})" >/dev/null
+      base_balance=${TOTALBALANCE}
+      base_balance_ada=${totalBalanceADA}
+    fi
+    
+    if [[ ${payment_balance} -eq 0 && ${base_balance} -eq 0 ]]; then
+      say ""
+      say "INFO: This wallet appears to be empty"
+      say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup"
+      say ""
+      read -n 1 -r -p "Are you sure to delete wallet (y/n)? " answer
+      say ""
+      case ${answer:0:1} in
+        y|Y )
+          rm -rf "${WALLET_FOLDER:?}/${wallet_name}"
+          echo "" && say "removed ${GREEN}${wallet_name}${NC}" "log"
+        ;;
+        * )
+          say "skipped removal process for ${GREEN}$wallet_name${NC}"
+        ;;
+      esac
+    else
       echo ""
+      say "${RED}WARN${NC}: wallet not empty!"
+      if [[ $(bc <<< "${payment_balance_ada} > 0" ) -eq 1 ]]; then
+        say "Payment address balance: ${BLUE}$(numfmt --grouping ${payment_balance_ada})${NC} ADA"
+      fi
+      if [[ $(bc <<< "${base_balance_ada} > 0" ) -eq 1 ]]; then
+        say "Base address balance: ${BLUE}$(numfmt --grouping ${base_balance_ada})${NC} ADA"
+      fi
+      echo ""
+      say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup"
+      read -n 1 -r -p "Are you sure to delete wallet (y/n)? " answer
+      say ""
+      case ${answer:0:1} in
+        y|Y )
+          rm -rf "${WALLET_FOLDER:?}/${wallet_name}"
+          echo "" && say "removed ${GREEN}${wallet_name}${NC}" "log"
+        ;;
+        * )
+          say "skipped removal process for ${GREEN}$wallet_name${NC}"
+        ;;
+      esac
     fi
 
     echo "" && read -r -n 1 -s -p "press any key to return to home menu"
@@ -790,9 +793,13 @@ case $OPERATION in
     say "Info:         If destination and source wallet is the same and amount set to 'all',"
     say "              wallet will be defraged, ie converts multiple UTxO's to one"
     echo ""
-    read -r -p "Amount (ADA): " amount
+    read -r -p "Amount (ADA): " amountADA
 
-    if  [[ "${amount}" != "all" ]]; then
+    if  [[ "${amountADA}" != "all" ]]; then
+      amountLovelace=$(ADAtoLovelace "${amountADA}")
+      if [[ $? -ne 0 ]]; then
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      fi
       echo ""
       say " -- Transaction Fee --"
       echo ""
@@ -804,6 +811,13 @@ case $OPERATION in
         * ) include_fee="no"
         ;;
       esac
+    else
+      amountLovelace=${TOTALBALANCE}
+      amountADA=${totalBalanceADA}
+      echo ""
+      say "ADA to send set to total supply: $(numfmt --grouping ${totalBalanceADA})" "log"
+      echo ""
+      include_fee="yes"
     fi
 
     # Destination
@@ -877,12 +891,9 @@ case $OPERATION in
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
 
-    if ! sendADA "${d_addr}" "${amount}" "${s_addr}" "${s_payment_sk_file}" "${include_fee}"; then
+    if ! sendADA "${d_addr}" "${amountLovelace}" "${s_addr}" "${s_payment_sk_file}" "${include_fee}"; then
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
-
-    ori_balance=${lovelace}
-    ori_balance_ada=$(echo "${ori_balance}/1000000" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
     
     echo ""
 
@@ -909,14 +920,12 @@ case $OPERATION in
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
 
-    s_balance=${TOTALBALANCE}
     s_balance_ada=${totalBalanceADA}
 
     say ""
     say "--- Balance Check Destination Address --------------------------------------------------"
     getBalance ${d_addr}
 
-    d_balance=${TOTALBALANCE}
     d_balance_ada=${totalBalanceADA}
 
     say ""
@@ -924,7 +933,7 @@ case $OPERATION in
     say "Transaction" "log"
     [[ "${s_wallet_type,,}" = "b" ]] && s_wallet_type="base" || s_wallet_type="payment"
     say "  From:        ${GREEN}${s_wallet}${NC} (${s_wallet_type})" "log"
-    say "  Amount:      $(numfmt --grouping ${ori_balance}) Lovelaces ($(numfmt --grouping ${ori_balance_ada}) ADA)" "log"
+    say "  Amount:      $(numfmt --grouping ${amountADA}) ADA" "log"
     if [[ ${d_type,,} = "a" ]]; then
       say "  To:          ${d_addr}" "log"
     else
@@ -933,8 +942,8 @@ case $OPERATION in
     fi
     say "  Fees:        $(numfmt --grouping ${minFee}) Lovelaces" "log"
     say "  Balance:" "log"
-    say "  Source:      $(numfmt --grouping ${s_balance}) Lovelaces ($(numfmt --grouping ${s_balance_ada}) ADA)" "log"
-    say "  Destination: $(numfmt --grouping ${d_balance}) Lovelaces ($(numfmt --grouping ${d_balance_ada}) ADA)" "log"
+    say "  Source:      $(numfmt --grouping ${s_balance_ada}) ADA" "log"
+    say "  Destination: $(numfmt --grouping ${d_balance_ada}) ADA" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
 
@@ -1042,8 +1051,10 @@ case $OPERATION in
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
 
-    say "Wallet: ${GREEN}${wallet_name}${NC}" "log"
-    say "Payment Address: $(cat ${base_addr_file})" "log"
+    say "Delegation successfully registered"
+    say "Wallet : ${GREEN}${wallet_name}${NC}"
+    say "Pool   : ${GREEN}${pool_name}${NC}" "log"
+    say "Amount : $(numfmt --grouping ${totalBalanceADA}) ADA" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
 
@@ -1128,7 +1139,6 @@ case $OPERATION in
     pool_vrf_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_SK_FILENAME}"
     pool_saved_kes_start="${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}"
 
-
     if [[ -f "${pool_hotkey_vk_file}" ]]; then
       say "${RED}WARN${NC}: A pool ${GREEN}$pool_name${NC} already exists"
       say "      Choose another name or delete the existing one"
@@ -1140,7 +1150,6 @@ case $OPERATION in
     slotsPerKESPeriod=$(jq -r .slotsPerKESPeriod $GENESIS_JSON)
     start_kes_period=$(( currSlot / slotsPerKESPeriod  ))
     echo "${start_kes_period}" > ${pool_saved_kes_start}
-
 
     ${CCLI} shelley node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
     ${CCLI} shelley node key-gen --cold-verification-key-file "${pool_coldkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
@@ -1191,27 +1200,45 @@ case $OPERATION in
     if [[ -f "${pool_config}" ]]; then
       pledge_ada=$(jq -r .pledgeADA "${pool_config}")
     fi
-    read -r -p "Pledge in ADA (default: ${pledge_ada}): " pledge_enter
+    read -r -p "Pledge (in ADA, default: ${pledge_ada}): " pledge_enter
     if [[ -n "${pledge_enter}" ]]; then
-      pledge_ada=$pledge_enter
+      pledge_ada="${pledge_enter}"
+      pledge_lovelace=$(ADAtoLovelace "${pledge_enter}")
+      if [[ $? -ne 0 ]]; then
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      fi
+    else
+      pledge_lovelace=$(ADAtoLovelace "${pledge_ada}")
     fi
 
-    margin=0.07 # default margin
+    margin=7.5 # default margin in %
     if [[ -f "${pool_config}" ]]; then
       margin=$(jq -r .margin "${pool_config}")
     fi
-    echo "" && read -r -p "Margin (default: ${margin}): " margin_enter
+    echo "" && read -r -p "Margin (in %, default: ${margin}): " margin_enter
     if [[ -n "${margin_enter}" ]]; then
-      margin=$margin_enter
+      margin="${margin_enter}"
+      margin_fraction=$(pctToFraction "${margin_enter}")
+      if [[ $? -ne 0 ]]; then
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      fi
+    else
+      margin_fraction=$(pctToFraction "${margin}")
     fi
 
     cost_ada=256 # default cost
     if [[ -f "${pool_config}" ]]; then
       cost_ada=$(jq -r .costADA "${pool_config}")
     fi
-    echo "" && read -r -p "Cost in ADA (default: ${cost_ada}): " cost_enter
+    echo "" && read -r -p "Cost (in ADA, default: ${cost_ada}): " cost_enter
     if [[ -n "${cost_enter}" ]]; then
-      cost_ada=$cost_enter
+      cost_ada="${cost_enter}"
+      cost_lovelace=$(ADAtoLovelace "${cost_enter}")
+      if [[ $? -ne 0 ]]; then
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      fi
+    else
+      cost_lovelace=$(ADAtoLovelace "${cost_ada}")
     fi
     
     echo ""
@@ -1263,7 +1290,7 @@ case $OPERATION in
     pool_pledgecert_file="${POOL_FOLDER}/${pool_name}/${POOL_PLEDGECERT_FILENAME}"
 
     say "-- creating registration cert --" "log"
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge $(( pledge_ada * 1000000 )) --pool-cost $(( cost_ada * 1000000 )) --pool-margin ${margin} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC}
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC}
     say "-- creating delegation cert --" "log"
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
     say "-- Sending transaction to chain --" "log"
@@ -1299,6 +1326,14 @@ case $OPERATION in
 
     echo ""
     say "Pool ${GREEN}${pool_name}${NC} successfully registered using wallet ${GREEN}${pledge_wallet_name}${NC} for pledge" "log"
+    say "Pledge : $(numfmt --grouping ${pledge_ada}) ADA" "log"
+    say "Margin : ${margin}%" "log"
+    say "Cost   : $(numfmt --grouping ${cost_ada}) ADA" "log"
+    if [[ ${TOTALBALANCE} -lt ${pledge_lovelace} ]]; then
+      echo ""
+      say "${ORANGE}WARN${NC}: Balance in pledge wallet base address is less than set pool pledge"
+      say "      make sure to put enough funds in wallet to honor pledge"
+    fi
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -1343,7 +1378,6 @@ case $OPERATION in
     pledge_wallet=$(jq -r .pledgeWallet "${pool_config}") # old pledge wallet
     say " -- Pledge Wallet --"
     echo ""
-    say "Used for pool update registration fee"
     say "Old pledge wallet: ${GREEN}${pledge_wallet}${NC}"
     echo ""
     say "${ORANGE}If a new wallet is chosen as pledge a manual delegation to the pool with new wallet is needed${NC}"
@@ -1358,61 +1392,50 @@ case $OPERATION in
       test -n "${wallet_name}" && break
       say ">>> Invalid Selection (ctrl+c to quit)"
     done
-    payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
-    base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
-    if [[ ! -f "${payment_addr_file}" ]]; then
-      say "${RED}ERROR${NC}: wallet address file not found:"
-      say "${payment_addr_file}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    addr_file="${payment_addr_file}" # default
-    if [[ -f "${base_addr_file}" ]]; then
-      # Both payment and base address available, let user choose what to use
-      while true; do
-        echo ""
-        read -n 1 -r -p "Wallet contain both payment and base address, choose source (p/b)? : " wallet_type
-        echo ""
-        case ${wallet_type:0:1} in
-          p|P )
-            break
-          ;;
-          b|B )
-            addr_file="${base_addr_file}" && break
-          ;;
-          * )
-            say ">>> Invalid Selection"
-          ;;
-        esac
-      done
-    fi
-    echo ""
     
+    echo ""
     say "Enter new pool parameters, press enter to use old value"
     echo ""
     
     pledge_ada=$(jq -r .pledgeADA "${pool_config}")
-    read -r -p "New Pledge in ADA (old: ${pledge_ada}): " pledge_enter
+    read -r -p "New Pledge (in ADA, old: ${pledge_ada}): " pledge_enter
     if [[ -n "${pledge_enter}" ]]; then
-      pledge_ada=$pledge_enter
+      pledge_ada="${pledge_enter}"
+      pledge_lovelace=$(ADAtoLovelace "${pledge_enter}")
+      if [[ $? -ne 0 ]]; then
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      fi
+    else
+      pledge_lovelace=$(ADAtoLovelace "${pledge_ada}")
     fi
 
     margin=$(jq -r .margin "${pool_config}")
-    echo "" && read -r -p "New Margin (old: ${margin}): " margin_enter
+    echo "" && read -r -p "New Margin (in %, old: ${margin}): " margin_enter
     if [[ -n "${margin_enter}" ]]; then
-      margin=$margin_enter
+      margin="${margin_enter}"
+      margin_fraction=$(pctToFraction "${margin_enter}")
+      if [[ $? -ne 0 ]]; then
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      fi
+    else
+      margin_fraction=$(pctToFraction "${margin}")
     fi
 
     cost_ada=$(jq -r .costADA "${pool_config}")
-    echo "" && read -r -p "New Cost in ADA (old: ${cost_ada}): " cost_enter
+    echo "" && read -r -p "New Cost (in ADA, old: ${cost_ada}): " cost_enter
     if [[ -n "${cost_enter}" ]]; then
-      cost_ada=$cost_enter
+      cost_ada="${cost_enter}"
+      cost_lovelace=$(ADAtoLovelace "${cost_enter}")
+      if [[ $? -ne 0 ]]; then
+        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      fi
+    else
+      cost_lovelace=$(ADAtoLovelace "${cost_ada}")
     fi
-    
-    # Update pool config
-    echo "{\"pledgeWallet\":\"$pledge_wallet_name\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada}" > "${pool_config}"
     
     echo ""
 
+    base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
     pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
     stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
@@ -1421,9 +1444,9 @@ case $OPERATION in
     pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
     pool_vrf_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_VK_FILENAME}"
 
-    if [[ ! -f "${addr_file}" || ! -f "${pay_payment_sk_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" ]]; then
+    if [[ ! -f "${base_addr_file}" || ! -f "${pay_payment_sk_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" ]]; then
       say "${RED}ERROR${NC}: ${GREEN}${wallet_name}${NC} wallet files missing, expecting these files to be available:"
-      say "${addr_file}"
+      say "${base_addr_file}"
       say "${pay_payment_sk_file}"
       say "${stake_sk_file}"
       say "${stake_vk_file}"
@@ -1431,7 +1454,7 @@ case $OPERATION in
     fi
 
     [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}"  || ! -f "${pool_vrf_vk_file}" ]] && {
-      say "${RED}ERROR${NC}: pool files missing, expecting these files to be available:"
+      say "${RED}ERROR${NC}: ${GREEN}${pool_name}${NC} pool files missing, expecting these files to be available:"
       say "${pool_coldkey_vk_file}"
       say "${pool_coldkey_sk_file}"
       say "${pool_vrf_vk_file}"
@@ -1442,10 +1465,10 @@ case $OPERATION in
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
 
     say "-- creating registration cert --" "log"
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge $(( pledge_ada * 1000000 )) --pool-cost $(( cost_ada * 1000000 )) --pool-margin ${margin} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC}
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC}
     say "-- Sending transaction to chain --" "log"
 
-    if ! modifyPool "$(cat ${addr_file})" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pay_payment_sk_file}"; then
+    if ! modifyPool "$(cat ${base_addr_file})" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pay_payment_sk_file}"; then
       say "${RED}ERROR${NC}: failure during pool update, removing newly created registration certificate"
       rm -f "${pool_regcert_file}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -1457,7 +1480,7 @@ case $OPERATION in
 
     say ""
     say "--- Balance Check Wallet Address -------------------------------------------------------"
-    getBalance "$(cat ${addr_file})"
+    getBalance "$(cat ${base_addr_file})"
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       say ""
@@ -1467,15 +1490,26 @@ case $OPERATION in
       fi
       say ""
       say "--- Balance Check Wallet Address -------------------------------------------------------"
-      getBalance "$(cat ${addr_file})"
+      getBalance "$(cat ${base_addr_file})"
     done
     
     if [[ ${TOTALBALANCE} -ne ${newBalance} ]]; then
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
+    
+    # Update pool config
+    echo "{\"pledgeWallet\":\"$pledge_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada}" > "${pool_config}"
 
     echo ""
     say "Pool ${GREEN}${pool_name}${NC} successfully updated with new parameters using wallet ${GREEN}${wallet_name}${NC} to pay for registration fee" "log"
+    say "Pledge : $(numfmt --grouping ${pledge_ada}) ADA" "log"
+    say "Margin : ${margin}%" "log"
+    say "Cost   : $(numfmt --grouping ${cost_ada}) ADA" "log"
+    if [[ ${TOTALBALANCE} -lt ${pledge_lovelace} ]]; then
+      echo ""
+      say "${ORANGE}WARN${NC}: Balance in pledge wallet base address is less than set pool pledge"
+      say "      make sure to put enough funds in wallet to honor pledge"
+    fi
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     read -r -n 1 -s -p "press any key to return to home menu" && continue
@@ -1546,6 +1580,12 @@ case $OPERATION in
     [[ -n "${ledger_status}" ]] && ledger_status="YES" || ledger_status="NO"
     say "${GREEN}${pool_name}${NC} "
     say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
+    pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
+    if [[ -f "${pool_config}" ]]; then
+      say "$(printf "%-21s : %s ADA" "Pledge" "$(numfmt --grouping $(jq -r .pledgeADA "${pool_config}"))")" "log"
+      say "$(printf "%-21s : %s %%" "Margin" "$(numfmt --grouping $(jq -r .margin "${pool_config}"))")" "log"
+      say "$(printf "%-21s : %s ADA" "Cost" "$(numfmt --grouping $(jq -r .costADA "${pool_config}"))")" "log"
+    fi
     say "$(printf "%-21s : %s" "Registered" "${ledger_status}")" "log"
     if [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]]; then
       kesExpiration "$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
