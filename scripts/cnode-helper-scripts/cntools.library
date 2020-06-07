@@ -210,6 +210,76 @@ waitNewBlockCreated() {
 }
 
 
+# Command    : validateDecimalNbr [decimalNbr]
+# Description: validate decimal number
+# Parameters : decimalNbr   >   decimal number
+# Return     : 0 on success, else 1
+# Examples of Usage:
+#   >> validateDecimalNbr 100.5
+validateDecimalNbr() {
+  re_decimal_nbr='^[0-9]+([.][0-9]+)?$'
+  if [[ $1 =~ ${re_decimal_nbr} ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+# Command    : ADAtoLovelace [ADA]
+# Description: Convert number in ADA to Lovelace
+# Parameters : ADA   >   Amount in ADA, decimal number accepted
+# Return     : Lovelace on STDOUT
+# Examples of Usage:
+#   >> ADAtoLovelace 100.5
+ADAtoLovelace() {
+  if validateDecimalNbr $1; then
+    echo "$1 * 1000000 / 1" | bc # /1 is to remove decimals from bc command
+  else
+    say "${RED}ERROR${NC}: must be a valid integer or decimal number"
+    return 1
+  fi
+}
+
+# Command    : lovelacetoADA [Lovelace]
+# Description: Convert number in Lovelace to ADA
+# Parameters : Lovelace   >   Amount in Lovelace, integer number accepted
+# Return     : ADA on STDOUT
+# Examples of Usage:
+#   >> lovelacetoADA 100.5
+lovelacetoADA() {
+  re_int_nbr='^[0-9]+$'
+  if [[ $1 =~ ${re_int_nbr} ]]; then
+    # ADA pretty print explanation for sed
+    # remove trailing 0 IF there is a decimal separator
+    # remove the separator if there are only 0 after separator also (assuming there is at least a digit before like BC does)
+    echo "$1 / 1000000" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//'
+  else
+    say "${RED}ERROR${NC}: must be a valid integer number"
+    return 1
+  fi
+}
+
+# Command    : pctToFraction [percent]
+# Description: Convert number as precent to fraction
+# Parameters : percent   >   number to be converted in range 0-100
+# Return     : fraction number on STDOUT
+# Examples of Usage:
+#   >> pctToFraction 7.5
+pctToFraction() {
+  if validateDecimalNbr $1; then
+    if [[ $(bc <<< "$1 >= 0" ) -eq 0 || $(bc <<< "$1 <= 100" ) -eq 0 ]]; then
+      say "${RED}ERROR${NC}: must be a number between 0-100"
+      return 1
+    else
+      echo "x=$1 / 100; if(x<1) print 0; x" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//'
+    fi
+  else
+    say "${RED}ERROR${NC}: must be a valid integer or decimal number"
+    return 1
+  fi
+}
+
+
 # Command    : getBalance [address]
 # Description: check balance for provided address
 # Parameters : address   >   Address or path to Address file.
@@ -235,11 +305,7 @@ getBalance() {
 
   [[ ${UTx0_COUNT} -gt 10 ]] && say "... (top 10 UTx0 with most lovelace)"
 
-  # ADA pretty print explanation for sed
-  # remove trailing 0 IF there is a decimal separator
-  # remove the separator if there are only 0 after separator also (assuming there is at least a digit before like BC does)
-
-  totalBalanceADA=$(echo "${TOTALBALANCE}/1000000" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+  totalBalanceADA=$(lovelacetoADA ${TOTALBALANCE})
 
   say ""
   say "Total balance is ${GREEN}$(numfmt --grouping ${totalBalanceADA})${NC} ADA" "log"
@@ -251,7 +317,7 @@ getBalance() {
 #              can also be used to defrag address by sending all to self
 #              supports fee to be payed by sender(default) or receiver by reducing amount to send
 # Parameters : Destination Address   >   Destination address.
-#              Amount                >   Amount in ADA, number(fraction of ADA valid) or the string 'all'.
+#              Amount                >   Amount in lovelace.
 #              Source Address        >   Source address.
 #              Source Sign Key       >   Path to Signature (skey) file. For stake wallet, payment skey is to be used.
 #              Include Fee           >   Optional argument to specify that amount to send should be reduced by fee instead of payed by sender.
@@ -262,19 +328,10 @@ sendADA() {
 
   # Handle script arguments
   dAddr="$1"
+  lovelace="$2"
   sAddr="$3"
   sKey="$4"
   inclFee="$5"
-
-  lovelace="$2"
-  re_number='^[0-9]+([.][0-9]+)?$'
-  if [[ ${lovelace} =~ ${re_number} ]]; then
-    # /1 is to remove decimals from bc command
-    lovelace=$(echo "${lovelace} * 1000000 / 1" | bc)
-  elif [[ ${lovelace} != "all" ]]; then
-    say "${RED}ERROR${NC}: 'Amount in ADA' must be a valid number or the string 'all'"
-    return 1
-  fi
 
   say ""
   say " -- Protocol Parameters --"
@@ -283,21 +340,9 @@ sendADA() {
   say "TN Magic is ${NWMAGIC}" "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
 
-  say ""
-  say "--- Balance Check Destination Address --------------------------------------------------" "log"
-  getBalance ${dAddr}
-  say ""
-  say "--- Balance Check Source Address -------------------------------------------------------" "log"
-  getBalance ${sAddr}
   if [ ! -s ${TMP_FOLDER}/balance.txt ]; then
-    say "${RED}ERROR${NC}: Failed to locate a UTxO, wallet empty?" "log"
+    say "${RED}ERROR${NC}: Failed to locate a UTxO, source wallet empty?" "log"
     return 1
-  fi
-
-  if [[ ${lovelace} = "all" ]]; then
-    inclFee="yes"
-    lovelace=${TOTALBALANCE}
-    say "'Amount in ADA' set to 'all', lovelace to send set to total supply: $(numfmt --grouping ${TOTALBALANCE})" "log"
   fi
 
   say "Using UTxO's:" "log"
