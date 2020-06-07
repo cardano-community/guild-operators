@@ -796,10 +796,10 @@ case $OPERATION in
     read -r -p "Amount (ADA): " amountADA
 
     if  [[ "${amountADA}" != "all" ]]; then
-      amountLovelace=$(ADAtoLovelace "${amountADA}")
-      if [[ $? -ne 0 ]]; then
+      if ! ADAtoLovelace "${amountADA}"; then
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
+      amountLovelace=$(ADAtoLovelace "${amountADA}")
       echo ""
       say " -- Transaction Fee --"
       echo ""
@@ -1202,11 +1202,11 @@ case $OPERATION in
     fi
     read -r -p "Pledge (in ADA, default: ${pledge_ada}): " pledge_enter
     if [[ -n "${pledge_enter}" ]]; then
-      pledge_ada="${pledge_enter}"
-      pledge_lovelace=$(ADAtoLovelace "${pledge_enter}")
-      if [[ $? -ne 0 ]]; then
+      if ! ADAtoLovelace "${pledge_enter}"; then
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
+      pledge_lovelace=$(ADAtoLovelace "${pledge_enter}")
+      pledge_ada="${pledge_enter}"
     else
       pledge_lovelace=$(ADAtoLovelace "${pledge_ada}")
     fi
@@ -1217,11 +1217,11 @@ case $OPERATION in
     fi
     echo "" && read -r -p "Margin (in %, default: ${margin}): " margin_enter
     if [[ -n "${margin_enter}" ]]; then
-      margin="${margin_enter}"
-      margin_fraction=$(pctToFraction "${margin_enter}")
-      if [[ $? -ne 0 ]]; then
+      if ! pctToFraction "${margin_enter}"; then
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
+      margin_fraction=$(pctToFraction "${margin_enter}")
+      margin="${margin_enter}"
     else
       margin_fraction=$(pctToFraction "${margin}")
     fi
@@ -1232,11 +1232,11 @@ case $OPERATION in
     fi
     echo "" && read -r -p "Cost (in ADA, default: ${cost_ada}): " cost_enter
     if [[ -n "${cost_enter}" ]]; then
-      cost_ada="${cost_enter}"
-      cost_lovelace=$(ADAtoLovelace "${cost_enter}")
-      if [[ $? -ne 0 ]]; then
+      if ! ADAtoLovelace "${cost_enter}"; then
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
+      cost_lovelace=$(ADAtoLovelace "${cost_enter}")
+      cost_ada="${cost_enter}"
     else
       cost_lovelace=$(ADAtoLovelace "${cost_ada}")
     fi
@@ -1400,11 +1400,11 @@ case $OPERATION in
     pledge_ada=$(jq -r .pledgeADA "${pool_config}")
     read -r -p "New Pledge (in ADA, old: ${pledge_ada}): " pledge_enter
     if [[ -n "${pledge_enter}" ]]; then
-      pledge_ada="${pledge_enter}"
-      pledge_lovelace=$(ADAtoLovelace "${pledge_enter}")
-      if [[ $? -ne 0 ]]; then
+      if ! ADAtoLovelace "${pledge_enter}"; then
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
+      pledge_lovelace=$(ADAtoLovelace "${pledge_enter}")
+      pledge_ada="${pledge_enter}"
     else
       pledge_lovelace=$(ADAtoLovelace "${pledge_ada}")
     fi
@@ -1412,11 +1412,11 @@ case $OPERATION in
     margin=$(jq -r .margin "${pool_config}")
     echo "" && read -r -p "New Margin (in %, old: ${margin}): " margin_enter
     if [[ -n "${margin_enter}" ]]; then
-      margin="${margin_enter}"
-      margin_fraction=$(pctToFraction "${margin_enter}")
-      if [[ $? -ne 0 ]]; then
+      if ! pctToFraction "${margin_enter}"; then
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
+      margin_fraction=$(pctToFraction "${margin_enter}")
+      margin="${margin_enter}"
     else
       margin_fraction=$(pctToFraction "${margin}")
     fi
@@ -1424,11 +1424,11 @@ case $OPERATION in
     cost_ada=$(jq -r .costADA "${pool_config}")
     echo "" && read -r -p "New Cost (in ADA, old: ${cost_ada}): " cost_enter
     if [[ -n "${cost_enter}" ]]; then
-      cost_ada="${cost_enter}"
-      cost_lovelace=$(ADAtoLovelace "${cost_enter}")
-      if [[ $? -ne 0 ]]; then
+      if ! ADAtoLovelace "${cost_enter}"; then
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
+      cost_lovelace=$(ADAtoLovelace "${cost_enter}")
+      cost_ada="${cost_enter}"
     else
       cost_lovelace=$(ADAtoLovelace "${cost_ada}")
     fi
@@ -1582,9 +1582,9 @@ case $OPERATION in
     say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
     if [[ -f "${pool_config}" ]]; then
-      say "$(printf "%-21s : %s ADA" "Pledge" "$(numfmt --grouping $(jq -r .pledgeADA "${pool_config}"))")" "log"
-      say "$(printf "%-21s : %s %%" "Margin" "$(numfmt --grouping $(jq -r .margin "${pool_config}"))")" "log"
-      say "$(printf "%-21s : %s ADA" "Cost" "$(numfmt --grouping $(jq -r .costADA "${pool_config}"))")" "log"
+      say "$(printf "%-21s : %s ADA" "Pledge" "$(numfmt --grouping "$(jq -r .pledgeADA "${pool_config}")")")" "log"
+      say "$(printf "%-21s : %s %%" "Margin" "$(numfmt --grouping "$(jq -r .margin "${pool_config}")")")" "log"
+      say "$(printf "%-21s : %s ADA" "Cost" "$(numfmt --grouping "$(jq -r .costADA "${pool_config}")")")" "log"
     fi
     say "$(printf "%-21s : %s" "Registered" "${ledger_status}")" "log"
     if [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]]; then

@@ -218,7 +218,7 @@ waitNewBlockCreated() {
 #   >> validateDecimalNbr 100.5
 validateDecimalNbr() {
   re_decimal_nbr='^[0-9]+([.][0-9]+)?$'
-  if [[ $1 =~ ${re_fraction_nbr} ]]; then
+  if [[ $1 =~ ${re_decimal_nbr} ]]; then
     return 0
   else
     return 1
@@ -235,7 +235,7 @@ ADAtoLovelace() {
   if validateDecimalNbr $1; then
     echo "$1 * 1000000 / 1" | bc # /1 is to remove decimals from bc command
   else
-    say "${RED}ERROR${NC}: 'Amount in ADA' must be a valid integer or decimal number"
+    say "${RED}ERROR${NC}: must be a valid integer or decimal number"
     return 1
   fi
 }
@@ -254,7 +254,7 @@ lovelacetoADA() {
     # remove the separator if there are only 0 after separator also (assuming there is at least a digit before like BC does)
     echo "$1 / 1000000" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//'
   else
-    say "${RED}ERROR${NC}: 'Amount in Lovelace' must be a valid integer number"
+    say "${RED}ERROR${NC}: must be a valid integer number"
     return 1
   fi
 }
