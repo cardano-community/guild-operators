@@ -16,8 +16,8 @@
 #   >> log "Some log message"
 log() {
   if [[ "${CNTOOLS_LOG}" != "" ]]; then
-    message=$(echo $1 | sed -r 's/\\e\[[0-9;]{1,6}m/ ~~~ /g')
-    echo "$(date -Iseconds) : $message" >> ${CNTOOLS_LOG}
+    message=$(echo $1 | sed -E 's/\\e\[[0-9;]{1,6}m/ ~~~ /g')
+    echo "$(date "+%Y-%m-%dT%H:%M:%S%Z") : $message" >> ${CNTOOLS_LOG}
   fi
 }
 

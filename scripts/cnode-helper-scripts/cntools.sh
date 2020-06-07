@@ -394,14 +394,24 @@ case $OPERATION in
       if [ -f "${payment_addr_file}" ]; then
         payment_addr=$(cat "${payment_addr_file}")
         getBalance ${payment_addr} >/dev/null
-        say "$(printf "%-7s : %s" "Payment" "${payment_addr}")" "log"
-        say "$(printf "%9s %s" "" "$(numfmt --grouping ${TOTALBALANCE}) Lovelaces ($(numfmt --grouping ${totalBalanceADA}) ADA)")" "log"
+        # say "$(printf "%-7s : %s" "Payment" "${payment_addr}")" "log"
+	say "$(printf "%s\t%s" "Payment"  "$(numfmt --grouping ${totalBalanceADA}) ADA")" "log"
       fi
       if [ -f "${base_addr_file}" ]; then
         base_addr=$(cat "${base_addr_file}")
         getBalance ${base_addr} >/dev/null
-        say "$(printf "%-7s : %s" "Base" "${base_addr}")" "log"
-        say "$(printf "%9s %s" "" "$(numfmt --grouping ${TOTALBALANCE}) Lovelaces ($(numfmt --grouping ${totalBalanceADA}) ADA)")" "log"
+        # say "$(printf "%-7s : %s" "Base" "${base_addr}")" "log"
+	say "$(printf "%s\t%s" "Base" "$(numfmt --grouping ${totalBalanceADA}) ADA")" "log"
+  # TODO: make the below a bit prettier
+	poolId=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address ${base_addr} | grep Delegations | awk '{ print $6 }' | rev | cut -c 3- | rev)
+	while IFS= read -r -d '' pool; do
+		pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
+		if [ $pool_id = $poolId ]; then
+			poolName=$(basename ${pool})
+		fi
+	done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+
+	say "${RED}Delegated to ${NC} ${BLUE}${poolName}${NC} ${RED}($poolId)${NC}"
       fi
     done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
     echo ""
