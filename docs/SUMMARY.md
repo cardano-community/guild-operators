@@ -23,6 +23,7 @@
       - [Operators](./Staking/Operators.md)
       - [Delegates](./Staking/Delegates.md)
 - [Appendix](./Home.md)
+  - [Update topology](./Scripts/topologyupdater.md)
   - [Monitoring using Prometheus and Grafana](./Appendix/monitoring.md)
   - [Sample Postgres Setup](./Appendix/postgres.md)
   - [Set up node as BFT member defined in Genesis](./Appendix/Setup-Node-Genesis.md)
