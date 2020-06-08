@@ -384,34 +384,29 @@ case $OPERATION in
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
     
-    while IFS= read -r -d '' wallet; do 
-      # Wallet key filenames
-      payment_addr_file="${wallet}/${WALLET_PAY_ADDR_FILENAME}"
-      stake_addr_file="${wallet}/${WALLET_STAKE_ADDR_FILENAME}"
-      base_addr_file="${wallet}/${WALLET_BASE_ADDR_FILENAME}"
+    while IFS= read -r -d '' wallet; do
+      getBalanceAllAddr "${wallet}"
       echo ""
       say "${GREEN}$(basename ${wallet})${NC}" "log"
-      if [ -f "${payment_addr_file}" ]; then
-        payment_addr=$(cat "${payment_addr_file}")
-        getBalance ${payment_addr} >/dev/null
-        # say "$(printf "%-7s : %s" "Payment" "${payment_addr}")" "log"
-	say "$(printf "%s\t%s" "Payment"  "$(numfmt --grouping ${totalBalanceADA}) ADA")" "log"
-      fi
-      if [ -f "${base_addr_file}" ]; then
-        base_addr=$(cat "${base_addr_file}")
-        getBalance ${base_addr} >/dev/null
-        # say "$(printf "%-7s : %s" "Base" "${base_addr}")" "log"
-	say "$(printf "%s\t%s" "Base" "$(numfmt --grouping ${totalBalanceADA}) ADA")" "log"
-  # TODO: make the below a bit prettier
-	poolId=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address ${base_addr} | grep Delegations | awk '{ print $6 }' | rev | cut -c 3- | rev)
-	while IFS= read -r -d '' pool; do
-		pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
-		if [ $pool_id = $poolId ]; then
-			poolName=$(basename ${pool})
-		fi
-	done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-
-	say "${RED}Delegated to ${NC} ${BLUE}${poolName}${NC} ${RED}($poolId)${NC}"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Payment"  "$(numfmt --grouping ${payment_ada})")" "log"
+      if [[ -f "${base_addr_file}" ]]; then
+        say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base" "$(numfmt --grouping ${base_ada})")" "log"
+        if [[ "${reward_lovelace}" -eq -1 ]]; then
+          say "${ORANGE}Not a registered stake wallet on chain${NC}"
+          continue
+        fi
+        say "$(printf "%s\t${CYAN}%s${NC} ADA" "Reward" "$(numfmt --grouping ${reward_ada})")" "log"
+        delegation_pool_id=$(grep -oP ',KeyHash \K\w+' <<< "${stake_address_info}") # stake_address_info populated in getBalanceAllAddr()
+        if [[ -n ${delegation_pool_id} ]]; then
+          unset poolName
+          while IFS= read -r -d '' pool; do
+            pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
+            if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
+              poolName=$(basename ${pool})
+            fi
+          done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+          say "${RED}Delegated to${NC} ${BLUE}${poolName}${NC} ${RED}(${delegation_pool_id})${NC}" "log"
+        fi
       fi
     done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
     echo ""
@@ -447,26 +442,52 @@ case $OPERATION in
     echo ""
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
-    say "${GREEN}${wallet_name##*/}${NC} " "log"
+    say "$(printf "%-8s ${GREEN}%s${NC}" "Wallet" "${wallet_name}")" "log"
+    echo ""
 
-    # Wallet key filenames
-    payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
-    stake_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_ADDR_FILENAME}"
-    base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
+    getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}"
 
-    if [ -f "${payment_addr_file}" ]; then
+    say "$(printf "${BLUE}%-8s${NC} %-7s: %s" "Payment" "address" "${payment_addr}")" "log"
+    say "$(printf "%-8s %-7s: ${CYAN}%s${NC} ADA" "" "amount" "$(numfmt --grouping ${payment_ada})")" "log"
+    if [[ -s ${TMP_FOLDER}/balance_payment.out ]]; then
       echo ""
-      payment_addr=$(cat "${payment_addr_file}")
-      say "${BLUE}Payment Address${NC}: ${payment_addr}" "log"
-      getBalance ${payment_addr} | indent
-    fi
-    if [ -f "${base_addr_file}" ]; then
-      echo ""
-      base_addr=$(cat "${base_addr_file}")
-      say "${CYAN}Base Address${NC}:    ${base_addr}" "log"
-      getBalance ${base_addr} | indent
+      head -n 2 ${TMP_FOLDER}/fullUtxo_payment.out
+      head -n 10 ${TMP_FOLDER}/balance_payment.out
       echo ""
     fi
+    
+    if [[ -f "${base_addr_file}" ]]; then
+      echo ""
+      say "$(printf "${BLUE}%-8s${NC} %-7s: %s" "Base" "address" "${base_addr}")" "log"
+      say "$(printf "%-8s %-7s: ${CYAN}%s${NC} ADA" "" "amount" "$(numfmt --grouping ${base_ada})")" "log"
+      if [[ -s ${TMP_FOLDER}/balance_base.out ]]; then
+        echo ""
+        head -n 2 ${TMP_FOLDER}/fullUtxo_base.out
+        head -n 10 ${TMP_FOLDER}/balance_base.out
+        echo ""
+      fi
+      
+      if [[ "${reward_lovelace}" -eq -1 ]]; then
+        say "${ORANGE}Not a registered stake wallet on chain${NC}"
+      else
+        echo ""
+        say "$(printf "${BLUE}%-8s${NC} %-7s: %s" "Reward" "address" "${base_addr}")" "log"
+        say "$(printf "%-8s %-7s: ${CYAN}%s${NC} ADA" "" "amount" "$(numfmt --grouping ${reward_ada})")" "log"
+        delegation_pool_id=$(grep -oP ',KeyHash \K\w+' <<< "${stake_address_info}") # stake_address_info populated in getBalanceAllAddr()
+        if [[ -n ${delegation_pool_id} ]]; then
+          unset poolName
+          while IFS= read -r -d '' pool; do
+            pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
+            if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
+              poolName=$(basename ${pool})
+            fi
+          done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+          echo ""
+          say "${RED}Delegated to${NC} ${BLUE}${poolName}${NC} ${RED}(${delegation_pool_id})${NC}" "log"
+        fi
+      fi
+    fi
+    echo ""
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo "" && read -r -n 1 -s -p "press any key to return to home menu"
     

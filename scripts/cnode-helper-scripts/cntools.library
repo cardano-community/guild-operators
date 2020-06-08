@@ -291,17 +291,17 @@ getBalance() {
   UTx0_COUNT=0
 
   ${CCLI} shelley query utxo --testnet-magic "${NWMAGIC}" --address "${1}" > ${TMP_FOLDER}/fullUtxo.out
-  tail -n +3 ${TMP_FOLDER}/fullUtxo.out | sort -k3 -nr > ${TMP_FOLDER}/balance.txt
+  tail -n +3 ${TMP_FOLDER}/fullUtxo.out | sort -k3 -nr > ${TMP_FOLDER}/balance.out
 
-  if [ -s ${TMP_FOLDER}/balance.txt ]; then
+  if [ -s ${TMP_FOLDER}/balance.out ]; then
     head -n 2 ${TMP_FOLDER}/fullUtxo.out
-    head -n 10 ${TMP_FOLDER}/balance.txt
+    head -n 10 ${TMP_FOLDER}/balance.out
   fi
 
   while read -r utxo; do
     UTx0_COUNT=$(( UTx0_COUNT + 1 ))
     TOTALBALANCE=$(( TOTALBALANCE + $(awk '{ print $3 }' <<< "${utxo}") ))
-  done <${TMP_FOLDER}/balance.txt
+  done <${TMP_FOLDER}/balance.out
 
   [[ ${UTx0_COUNT} -gt 10 ]] && say "... (top 10 UTx0 with most lovelace)"
 
@@ -309,6 +309,46 @@ getBalance() {
 
   say ""
   say "Total balance is ${GREEN}$(numfmt --grouping ${totalBalanceADA})${NC} ADA" "log"
+}
+
+
+# Command    : getBalanceAllAddr [path to wallet]
+# Description: check balance for all wallet addresses
+# Parameters : path to wallet   >   Full path to wallet folder
+# Return     : populates $<addr_type>_lovelace & $<addr_type>_ada
+# Examples of Usage:
+#   >> getBalanceAllAddr /opt/cardano/cnode/priv/wallet/MyWallet
+getBalanceAllAddr() {
+  # Wallet key filenames
+  payment_addr_file="${1}/${WALLET_PAY_ADDR_FILENAME}"
+  stake_addr_file="${1}/${WALLET_STAKE_ADDR_FILENAME}"
+  base_addr_file="${1}/${WALLET_BASE_ADDR_FILENAME}"
+  if [ -f "${payment_addr_file}" ]; then
+    payment_addr=$(cat "${payment_addr_file}")
+    getBalance ${payment_addr} >/dev/null
+    payment_lovelace=${TOTALBALANCE}
+    payment_ada=${totalBalanceADA}
+    cp -f ${TMP_FOLDER}/fullUtxo.out ${TMP_FOLDER}/fullUtxo_payment.out
+    cp -f ${TMP_FOLDER}/balance.out ${TMP_FOLDER}/balance_payment.out
+  fi
+  if [ -f "${base_addr_file}" ]; then
+    base_addr=$(cat "${base_addr_file}")
+    getBalance ${base_addr} >/dev/null
+    base_lovelace=${TOTALBALANCE}
+    base_ada=${totalBalanceADA}
+    cp -f ${TMP_FOLDER}/fullUtxo.out ${TMP_FOLDER}/fullUtxo_base.out
+    cp -f ${TMP_FOLDER}/balance.out ${TMP_FOLDER}/balance_base.out
+    stake_address_info=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address ${base_addr})
+    rewards=$(grep -oP 'Coin \K\d+' <<< "${stake_address_info}")
+    if [[ -z ${rewards} ]]; then
+      # Not a registered stake wallet on chain
+      reward_lovelace=-1
+      reward_ada=-1
+    else
+      reward_lovelace=${rewards}
+      reward_ada=$(lovelacetoADA ${rewards})
+    fi
+  fi
 }
 
 
@@ -340,7 +380,7 @@ sendADA() {
   say "TN Magic is ${NWMAGIC}" "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
 
-  if [ ! -s ${TMP_FOLDER}/balance.txt ]; then
+  if [ ! -s ${TMP_FOLDER}/balance.out ]; then
     say "${RED}ERROR${NC}: Failed to locate a UTxO, source wallet empty?" "log"
     return 1
   fi
@@ -359,7 +399,7 @@ sendADA() {
     txIn="${txIn} --tx-in ${inAddr}#${idx}"
     balance=$(( balance + utxoBalance ))
     [[ ${inclFee} = "yes" && ${balance} -ge ${lovelace} ]] && break
-  done <${TMP_FOLDER}/balance.txt
+  done <${TMP_FOLDER}/balance.out
 
   [[ ${balance} -eq ${lovelace} ]] && outCount=1 || outCount=2
 
@@ -501,7 +541,7 @@ registerStakeWallet() {
   say "--- Balance Check Source Address -------------------------------------------------------" "log"
   getBalance ${payment_addr}
 
-  if [ ! -s ${TMP_FOLDER}/balance.txt ]; then
+  if [ ! -s ${TMP_FOLDER}/balance.out ]; then
     say "${RED}ERROR${NC}: Failed to locate a UTxO, payment wallet empty?" "log"
     say "funds needed to pay tx fee for stake key registration"
     return 1
@@ -517,7 +557,7 @@ registerStakeWallet() {
     say "TxHash: ${in_addr}#${idx}" "log"
     say "Lovelace: $(numfmt --grouping ${utxo_balance})" "log"
     tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <${TMP_FOLDER}/balance.txt
+  done <${TMP_FOLDER}/balance.out
 
   say ""
   say " -- Calculate fee --" "log"
@@ -630,7 +670,7 @@ registerPool() {
   say "--- Balance Check Base Address -------------------------------------------------------" "log"
   getBalance ${base_addr}
 
-  tx=$(head -n 1 ${TMP_FOLDER}/balance.txt)
+  tx=$(head -n 1 ${TMP_FOLDER}/balance.out)
 
   [[ -z ${tx} ]] && say "${RED}ERROR${NC}: base address empty" "log" && return 1
 
@@ -649,7 +689,7 @@ registerPool() {
     say "TxHash: ${in_addr}#${idx}" "log"
     say "Lovelace: $(numfmt --grouping ${utxo_balance})" "log"
     tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <${TMP_FOLDER}/balance.txt
+  done <${TMP_FOLDER}/balance.out
 
   say " -- Protocol Parameters --"
   currSlot=$(getTip slot)
@@ -771,7 +811,7 @@ modifyPool() {
   say "--- Balance Check Base Address -------------------------------------------------------" "log"
   getBalance ${base_addr}
 
-  tx=$(head -n 1 ${TMP_FOLDER}/balance.txt)
+  tx=$(head -n 1 ${TMP_FOLDER}/balance.out)
 
   [[ -z ${tx} ]] && say "${RED}ERROR${NC}: base address empty" "log" && return 1
 
@@ -790,7 +830,7 @@ modifyPool() {
     say "TxHash: ${in_addr}#${idx}" "log"
     say "Lovelace: $(numfmt --grouping ${utxo_balance})" "log"
     tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <${TMP_FOLDER}/balance.txt
+  done <${TMP_FOLDER}/balance.out
 
   say " -- Protocol Parameters --"
   currSlot=$(getTip slot)
@@ -910,7 +950,7 @@ delegate() {
   say "--- Balance Check Payment Address -------------------------------------------------------" "log"
   getBalance ${base_addr}
 
-  tx=$(head -n 1 ${TMP_FOLDER}/balance.txt)
+  tx=$(head -n 1 ${TMP_FOLDER}/balance.out)
 
   [[ -z ${tx} ]] && error "payment address empty" && return 1
 
@@ -929,7 +969,7 @@ delegate() {
     say "TxHash: ${in_addr}#${idx}" "log"
     say "Lovelace: $(numfmt --grouping ${utxo_balance})" "log"
     tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <${TMP_FOLDER}/balance.txt
+  done <${TMP_FOLDER}/balance.out
 
   say " -- Protocol Parameters --"
   currSlot=$(getTip slot)
