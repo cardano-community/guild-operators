@@ -1,9 +1,9 @@
-# Quickstart for using TOPOLOG-UPDATER
+# Quickstart for using TOPOLOGY-UPDATER
 Since the test network has to get along without P2P network module for the time being, it needs static topology files. This, due to its centralization factor, far from being a perfect "TopologyUpdater" service is intended to be a temporary solution to allow everyone to activate their relay nodes without having to postpone and wait for manual topology completion requests.
 
 The topologyupdater shell script must be executed on the relay node as a cronjob exactly every 60 minutes. After 4 consecutive requests (3 hours) the node is considered a new relay node in listed in the topology file. If the node is turned off, it's automatically delisted after 3 hours.
 
-#### Download and Configure topologyupdater.sh
+#### Download and Configure topologyUpdater.sh
 
 If you have run `prereqs.sh`, this should already be available in your scripts folder and make this step unnecessary. 
 
@@ -13,8 +13,8 @@ Before the updater can make a valid request to the central topology service, he 
 To download topologyupdater.sh manually you can execute the commands below:
 ``` bash
 cd $CNODE_HOME/scripts
-curl -s -o topologyupdater.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/topologyupdater.sh
-chmod 750 topologyupdater.sh
+curl -s -o topologyUpdater.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/topologyUpdater.sh
+chmod 750 topologyUpdater.sh
 ```
 
 #### Start
