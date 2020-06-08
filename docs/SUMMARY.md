@@ -14,6 +14,7 @@
     - [CNTools](./Scripts/cntools.md)
     - [Create Keys/Address](./Scripts/createAddr.md)
     - [Make Transactions](./Scripts/sendADA.md)
+    - [topology Updater](./Scripts/topologyupdater.md)
   - [Guide to the Staking](./Staking/Main.md)
     - [Keys](./Staking/Keys.md)
     - [Addresses](./Staking/Addresses.md)
