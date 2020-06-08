@@ -715,16 +715,16 @@ Usage: sendADA.sh &lt;Destination Address&gt; &lt;Amount&gt; &lt;Source Address&
   Source Sign Key       Path to Signature (skey) file. For staking address payment skey is to be used.
   --include-fee         Optional argument to specify that amount to send should be reduced by fee instead of payed by sender.
 </code></pre>
-<h1><a class="header" href="#quickstart-for-using-topolog-updater" id="quickstart-for-using-topolog-updater">Quickstart for using TOPOLOG-UPDATER</a></h1>
+<h1><a class="header" href="#quickstart-for-using-topology-updater" id="quickstart-for-using-topology-updater">Quickstart for using TOPOLOGY-UPDATER</a></h1>
 <p>Since the test network has to get along without P2P network module for the time being, it needs static topology files. This, due to its centralization factor, far from being a perfect &quot;TopologyUpdater&quot; service is intended to be a temporary solution to allow everyone to activate their relay nodes without having to postpone and wait for manual topology completion requests.</p>
 <p>The topologyupdater shell script must be executed on the relay node as a cronjob exactly every 60 minutes. After 4 consecutive requests (3 hours) the node is considered a new relay node in listed in the topology file. If the node is turned off, it's automatically delisted after 3 hours.</p>
-<h4><a class="header" href="#download-and-configure-topologyupdatersh" id="download-and-configure-topologyupdatersh">Download and Configure topologyupdater.sh</a></h4>
+<h4><a class="header" href="#download-and-configure-topologyupdatersh" id="download-and-configure-topologyupdatersh">Download and Configure topologyUpdater.sh</a></h4>
 <p>If you have run <code>prereqs.sh</code>, this should already be available in your scripts folder and make this step unnecessary. </p>
 <p>Before the updater can make a valid request to the central topology service, he must query the current tip/blockNo from the well synced local node. It connects to your node through the configuration in script (note: not the usual env file, as cronjobs don't run in the same environment). Customize this file for your needs.</p>
 <p>To download topologyupdater.sh manually you can execute the commands below:</p>
 <pre><code class="language-bash">cd $CNODE_HOME/scripts
-curl -s -o topologyupdater.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/topologyupdater.sh
-chmod 750 topologyupdater.sh
+curl -s -o topologyUpdater.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/topologyUpdater.sh
+chmod 750 topologyUpdater.sh
 </code></pre>
 <h4><a class="header" href="#start-1" id="start-1">Start</a></h4>
 <p>Then add the script to be executed once a hour at a minute of your choice (eg xx:25 o clock in the example below)</p>
