@@ -16,7 +16,7 @@
 # get helper functions from library file
 . "$(dirname $0)"/cntools.library
 
-# Start with a clean slate
+# create temporary directory if missing
 mkdir -p "${TMP_FOLDER}" # Create if missing
 if [[ ! -d "${TMP_FOLDER}" ]]; then
   echo ""
@@ -25,7 +25,6 @@ if [[ ! -d "${TMP_FOLDER}" ]]; then
   echo ""
   exit 1
 fi
-rm -f "${TMP_FOLDER:?}"/*
 
 # Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
 ${CCLI} shelley query protocol-parameters --testnet-magic ${NWMAGIC} --out-file ${TMP_FOLDER}/protparams.json || {
@@ -51,6 +50,9 @@ fi
 function main {
 
 while true; do # Main loop
+
+# Start with a clean slate after each completed or canceled command
+rm -f "${TMP_FOLDER:?}"/*
 
 clear
 echo " >> CNTOOLS <<                                       A Guild Operators collaboration"
@@ -667,24 +669,30 @@ case $OPERATION in
       echo ""
       case $(select_opt "Payment" "Base" "Cancel") in
         0) s_addr_file="${s_payment_addr_file}" 
-           amountLovelace=${payment_lovelace}
-           amountADA=${payment_ada}
+           totalAmountLovelace=${payment_lovelace}
+           totalAmountADA=${payment_ada}
+           # set correct .out files, used by sendADA()
+           cp -f ${TMP_FOLDER}/fullUtxo_payment.out ${TMP_FOLDER}/fullUtxo.out
+           cp -f ${TMP_FOLDER}/balance_payment.out ${TMP_FOLDER}/balance.out
            ;;
         1) s_addr_file="${s_base_addr_file}" 
-           amountLovelace=${base_lovelace}
-           amountADA=${base_ada}
+           totalAmountLovelace=${base_lovelace}
+           totalAmountADA=${base_ada}
            ;;
         2) continue ;;
       esac
     elif [[ ${payment_lovelace} -gt 0 ]]; then
       s_addr_file="${s_payment_addr_file}"
-      amountLovelace=${payment_lovelace}
-      amountADA=${payment_ada}
+      totalAmountLovelace=${payment_lovelace}
+      totalAmountADA=${payment_ada}
+      # set correct .out files, used by sendADA()
+      cp -f ${TMP_FOLDER}/fullUtxo_payment.out ${TMP_FOLDER}/fullUtxo.out
+      cp -f ${TMP_FOLDER}/balance_payment.out ${TMP_FOLDER}/balance.out
       say "$(printf "%s\t${CYAN}%s${NC} ADA" "Payment"  "$(numfmt --grouping ${payment_ada})")" "log"
     elif [[ ${base_lovelace} -gt 0 ]]; then
       s_addr_file="${s_base_addr_file}"
-      amountLovelace=${base_lovelace}
-      amountADA=${base_ada}
+      totalAmountLovelace=${base_lovelace}
+      totalAmountADA=${base_ada}
       say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base"  "$(numfmt --grouping ${base_ada})")" "log"
     else
       say "${RED}ERROR${NC}: no funds available in either payment or base address for wallet ${GREEN}${s_wallet}${NC}"
@@ -720,6 +728,8 @@ case $OPERATION in
       esac
     else
       echo ""
+      amountADA=${totalAmountADA}
+      amountLovelace=${totalAmountLovelace}
       say "ADA to send set to total supply: $(numfmt --grouping ${amountADA})" "log"
       echo ""
       include_fee="yes"
@@ -749,7 +759,7 @@ case $OPERATION in
          elif [[ -f "${d_base_addr_file}" ]]; then
            d_addr_file="${d_base_addr_file}"
          else
-           say "${RED}ERROR${NC}: no payment or base address file found for wallet ${GREEN}${s_wallet}${NC}"
+           say "${RED}ERROR${NC}: no payment or base address file found for wallet ${GREEN}${d_wallet}${NC}"
            say "${d_payment_addr_file}"
            say "${d_base_addr_file}"
            echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue

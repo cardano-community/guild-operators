@@ -415,6 +415,7 @@ pctToFraction() {
 #   >> getBalance 61WKMJemoBa....ssL7fzhq
 getBalance() {
   TOTALBALANCE=0
+  totalBalanceADA=0
   UTx0_COUNT=0
 
   ${CCLI} shelley query utxo --testnet-magic "${NWMAGIC}" --address "${1}" > ${TMP_FOLDER}/fullUtxo.out
@@ -446,10 +447,18 @@ getBalance() {
 # Examples of Usage:
 #   >> getBalanceAllAddr /opt/cardano/cnode/priv/wallet/MyWallet
 getBalanceAllAddr() {
+  payment_lovelace=0
+  payment_ada=0
+  base_lovelace=0
+  base_ada=0
+  reward_lovelace=-1
+  reward_ada=-1
+  
   # Wallet key filenames
   payment_addr_file="${1}/${WALLET_PAY_ADDR_FILENAME}"
   stake_addr_file="${1}/${WALLET_STAKE_ADDR_FILENAME}"
   base_addr_file="${1}/${WALLET_BASE_ADDR_FILENAME}"
+  
   if [ -f "${payment_addr_file}" ]; then
     payment_addr=$(cat "${payment_addr_file}")
     getBalance ${payment_addr} >/dev/null
@@ -467,11 +476,7 @@ getBalanceAllAddr() {
     cp -f ${TMP_FOLDER}/balance.out ${TMP_FOLDER}/balance_base.out
     stake_address_info=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address ${base_addr})
     rewards=$(grep -oP 'Coin \K\d+' <<< "${stake_address_info}")
-    if [[ -z ${rewards} ]]; then
-      # Not a registered stake wallet on chain
-      reward_lovelace=-1
-      reward_ada=-1
-    else
+    if [[ -n ${rewards} ]]; then
       reward_lovelace=${rewards}
       reward_ada=$(lovelacetoADA ${rewards})
     fi
