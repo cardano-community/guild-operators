@@ -51,8 +51,8 @@ function main {
 
 while true; do # Main loop
 
-# Start with a clean slate after each completed or canceled command
-rm -f "${TMP_FOLDER:?}"/*
+# Start with a clean slate after each completed or canceled command excluding protparams.json from purge
+find "${TMP_FOLDER:?}" -type f -not -name 'protparams.json' -delete
 
 clear
 echo " >> CNTOOLS <<                                       A Guild Operators collaboration"
@@ -671,9 +671,6 @@ case $OPERATION in
         0) s_addr_file="${s_payment_addr_file}" 
            totalAmountLovelace=${payment_lovelace}
            totalAmountADA=${payment_ada}
-           # set correct .out files, used by sendADA()
-           cp -f ${TMP_FOLDER}/fullUtxo_payment.out ${TMP_FOLDER}/fullUtxo.out
-           cp -f ${TMP_FOLDER}/balance_payment.out ${TMP_FOLDER}/balance.out
            ;;
         1) s_addr_file="${s_base_addr_file}" 
            totalAmountLovelace=${base_lovelace}
@@ -685,9 +682,6 @@ case $OPERATION in
       s_addr_file="${s_payment_addr_file}"
       totalAmountLovelace=${payment_lovelace}
       totalAmountADA=${payment_ada}
-      # set correct .out files, used by sendADA()
-      cp -f ${TMP_FOLDER}/fullUtxo_payment.out ${TMP_FOLDER}/fullUtxo.out
-      cp -f ${TMP_FOLDER}/balance_payment.out ${TMP_FOLDER}/balance.out
       say "$(printf "%s\t${CYAN}%s${NC} ADA" "Payment"  "$(numfmt --grouping ${payment_ada})")" "log"
     elif [[ ${base_lovelace} -gt 0 ]]; then
       s_addr_file="${s_base_addr_file}"

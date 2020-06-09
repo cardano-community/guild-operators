@@ -511,6 +511,8 @@ sendADA() {
   ttlValue=$(( currSlot + 1000 ))
   say "TN Magic is ${NWMAGIC}" "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
+  
+  getBalance ${sAddr} >/dev/null
 
   if [ ! -s ${TMP_FOLDER}/balance.out ]; then
     say "${RED}ERROR${NC}: Failed to locate a UTxO, source wallet empty?" "log"
