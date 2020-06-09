@@ -282,29 +282,30 @@ case $OPERATION in
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
 
-      say ""
-      say "--- Balance Check Source Address -------------------------------------------------------" "log"
-      getBalance "${payment_addr}"
+      getBalance "${payment_addr}" >/dev/null
 
       while [[ ${TOTALBALANCE} -ne 0 ]]; do
         say ""
-        say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != 0"
+        say "${ORANGE}WARN${NC}: Payment address balance mismatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != 0)"
         if ! waitNewBlockCreated; then
           break
         fi
-        say ""
-        say "--- Balance Check Source Address -------------------------------------------------------"
-        getBalance "${payment_addr}"
+        getBalance "${payment_addr}" >/dev/null
       done
       
       if [[ ${TOTALBALANCE} -ne 0 ]]; then
-        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+        # balance check aborted, return to main menu
+        continue
       fi
+      
+      getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}"
 
-      say "New Stake Wallet: ${GREEN}${wallet_name}${NC}" "log"
-      say "Payment Address: ${payment_addr}" "log"
-      say "Reward Address:  $(cat ${stake_addr_file})" "log"
-      say "Base Address:    ${base_addr}" "log"
+      say "New Stake Wallet : ${GREEN}${wallet_name}${NC}" "log"
+      say "Payment Address  : ${payment_addr}" "log"
+      say "Payment Balance  : ${CYAN}$(numfmt --grouping ${payment_ada})${NC} ADA" "log"
+      say "Base Address     : ${base_addr}" "log"
+      say "Base Balance     : ${CYAN}$(numfmt --grouping ${base_ada})${NC} ADA" "log"
+      say "Reward Address   : $(cat ${stake_addr_file})" "log"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu"
 
@@ -378,26 +379,25 @@ case $OPERATION in
 
     getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}"
 
-    say "$(printf "${BLUE}%-8s${NC} %-7s: %s" "Payment" "address" "${payment_addr}")" "log"
-    say "$(printf "%-8s %-7s: ${CYAN}%s${NC} ADA" "" "amount" "$(numfmt --grouping ${payment_ada})")" "log"
     if [[ -s ${TMP_FOLDER}/balance_payment.out ]]; then
-      echo ""
+      say "${BLUE}Payment UTxOs${NC}"
       head -n 2 ${TMP_FOLDER}/fullUtxo_payment.out
       head -n 10 ${TMP_FOLDER}/balance_payment.out
-      echo ""
+      echo -e "\n"
+    fi
+    if [[ -s ${TMP_FOLDER}/balance_base.out ]]; then
+      say "${BLUE}Base UTxOs${NC}"
+      head -n 2 ${TMP_FOLDER}/fullUtxo_base.out
+      head -n 10 ${TMP_FOLDER}/balance_base.out
+      echo -e "\n"
     fi
     
+    say "$(printf "${BLUE}%-8s${NC} %-7s: %s" "Payment" "address" "${payment_addr}")" "log"
+    say "$(printf "%-8s %-7s: ${CYAN}%s${NC} ADA" "" "amount" "$(numfmt --grouping ${payment_ada})")" "log"
+    
     if [[ -f "${base_addr_file}" ]]; then
-      echo ""
       say "$(printf "${BLUE}%-8s${NC} %-7s: %s" "Base" "address" "${base_addr}")" "log"
       say "$(printf "%-8s %-7s: ${CYAN}%s${NC} ADA" "" "amount" "$(numfmt --grouping ${base_ada})")" "log"
-      if [[ -s ${TMP_FOLDER}/balance_base.out ]]; then
-        echo ""
-        head -n 2 ${TMP_FOLDER}/fullUtxo_base.out
-        head -n 10 ${TMP_FOLDER}/balance_base.out
-        echo ""
-      fi
-      
       if [[ "${reward_lovelace}" -eq -1 ]]; then
         say "${ORANGE}Not a registered stake wallet on chain${NC}"
       else
@@ -815,18 +815,18 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say "Transaction" "log"
     [[ "${s_wallet_type,,}" = "b" ]] && s_wallet_type="base" || s_wallet_type="payment"
-    say "  From:        ${GREEN}${s_wallet}${NC} (${s_wallet_type})" "log"
-    say "  Amount:      $(numfmt --grouping ${amountADA}) ADA" "log"
+    say "  From          : ${GREEN}${s_wallet}${NC} (${s_wallet_type})" "log"
+    say "  Amount        : $(numfmt --grouping ${amountADA}) ADA" "log"
     if [[ ${d_type,,} = "a" ]]; then
-      say "  To:          ${d_addr}" "log"
+      say "  To            : ${d_addr}" "log"
     else
       [[ "${d_wallet_type,,}" = "b" ]] && d_wallet_type="base" || d_wallet_type="payment"
-      say "  To:          ${GREEN}${d_wallet}${NC} (${d_wallet_type})" "log"
+      say "  To            : ${GREEN}${d_wallet}${NC} (${d_wallet_type})" "log"
     fi
-    say "  Fees:        $(numfmt --grouping ${minFee}) Lovelaces" "log"
-    say "  Balance:" "log"
-    say "  Source:      $(numfmt --grouping ${s_balance_ada}) ADA" "log"
-    say "  Destination: $(numfmt --grouping ${d_balance_ada}) ADA" "log"
+    say "  Fees          : $(numfmt --grouping ${minFee}) Lovelaces" "log"
+    say "  Balance" "log"
+    say "  - Source      : $(numfmt --grouping ${s_balance_ada}) ADA" "log"
+    say "  - Destination : $(numfmt --grouping ${d_balance_ada}) ADA" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
 
