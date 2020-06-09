@@ -55,38 +55,22 @@ while true; do # Main loop
 clear
 echo " >> CNTOOLS <<                                       A Guild Operators collaboration"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-echo "   Main Menu"
+echo " Main Menu"
 echo ""
-echo "   1) update"
-echo ""
-echo "   2) wallet  [ new / upgrade | list | show | remove |"
-echo "                decrypt / unlock | encrypt / lock ]"
-echo ""
-echo "   3) funds   [ send | delegate ]"
-echo ""
-echo "   4) pool    [ new | register | modify | list | show | rotate KES |"
-echo "                decrypt / unlock | encrypt / lock ]"
-echo "   q) quit"
+echo " ) Update  -  install or upgrade latest available binary of Haskell Cardano"
+echo " ) Wallet  -  create, show, remove and protect wallets"
+echo " ) Funds   -  send and delegate ADA"
+echo " ) Pool    -  pool creation and management"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-while true; do # Home menu
-  read -r -n 1 -p "What would you like to do? (1-4): " OPERATION
-  echo ""
-  case ${OPERATION:0:1} in
-    1) OPERATION="update" && break
-      ;;
-    2) OPERATION="wallet" && break
-      ;;
-    3) OPERATION="funds" && break
-      ;;
-    4) OPERATION="pool" && break
-      ;;
-    q) clear && exit
-      ;;
-    *) say ">>> Invalid Selection"
-      ;;
-  esac
-done
+say " What would you like to do?"
+case $(select_opt "Update" "Wallet" "Funds" "Pool" "Quit") in
+  0) OPERATION="update" ;;
+  1) OPERATION="wallet" ;;
+  2) OPERATION="funds" ;;
+  3) OPERATION="pool" ;;
+  4) clear && exit ;;
+esac
 
 case $OPERATION in
   update) # not ready yet. ToDo when binary releases become available
@@ -113,41 +97,35 @@ case $OPERATION in
     say "Currently installed: ${CURRENT_VERSION}" "log"
     say "Desired release:      ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})" "log"
     if [ "${DESIRED_RELEASE_CLEAN}" != "${CURRENT_VERSION}" ]; then
-      read -r -n 1 -p "Would you like to upgrade to this release? (y/N)? " answer
-      case ${answer:0:1} in
-        y|Y )
-          FILE="cardano-node-${DESIRED_RELEASE}-${ASSET_PLATTFORM}.tar.gz"
-          URL="https://github.com/input-output-hk/cardano-node/releases/download/${DESIRED_RELEASE}/"${FILE}
-          echo -e "\nDownload $FILE ..."
-          curl --proto '=https' --tlsv1.2 -L -URL ${URL} -O ${CNODE_HOME}${FILE}
-          tar -C ${CNODE_BIN_HOME} -xzf $FILE
-          rm $FILE
-
-          say "updated cardano-node from ${CURRENT_VERSION} to ${DESIRED_RELEASE_CLEAN}" "log"
-        ;;
+      say "Would you like to upgrade to this release?"
+      case $(select_opt "Yes" "No") in
+        0) FILE="cardano-node-${DESIRED_RELEASE}-${ASSET_PLATTFORM}.tar.gz"
+           URL="https://github.com/input-output-hk/cardano-node/releases/download/${DESIRED_RELEASE}/"${FILE}
+           echo -e "\nDownload $FILE ..."
+           curl --proto '=https' --tlsv1.2 -L -URL ${URL} -O ${CNODE_HOME}${FILE}
+           tar -C ${CNODE_BIN_HOME} -xzf $FILE
+           rm $FILE
+           say "updated cardano-node from ${CURRENT_VERSION} to ${DESIRED_RELEASE_CLEAN}" "log"
+           ;;
+        1) say "upgrade canceled" ;;
       esac
-
     fi
   else #
     say "No cardano-cli binary found"
     say "Desired available release: ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})" "log"
-    read -n 1 -r -p "Would you like to install this release? (Y/n)? " answer
-    case ${answer:0:1} in
-      n|N )
-        say "Well, that was a pleasant but brief pleasure. Bye bye!"
-      ;;
-      * )
-        FILE="cardano-node-${DESIRED_RELEASE}-${ASSET_PLATTFORM}.tar.gz"
-        URL="https://github.com/input-output-hk/cardano-node/releases/download/${DESIRED_RELEASE}/"${FILE}
-        echo -e "\nDownload $FILE ..."
-        curl --proto '=https' --tlsv1.2 -L -URL ${URL} -O ${CNODE_HOME}${FILE}
-        mkdir -p ${CNODE_BIN_HOME}
-        tar -C ${CNODE_BIN_HOME} -xzf $FILE
-        rm $FILE
-        say "installed cardano-node ${DESIRED_RELEASE_CLEAN}" "log"
-      ;;
+    say "Would you like to install this release?"
+    case $(select_opt "Yes" "No") in
+      0) FILE="cardano-node-${DESIRED_RELEASE}-${ASSET_PLATTFORM}.tar.gz"
+         URL="https://github.com/input-output-hk/cardano-node/releases/download/${DESIRED_RELEASE}/"${FILE}
+         echo -e "\nDownload $FILE ..."
+         curl --proto '=https' --tlsv1.2 -L -URL ${URL} -O ${CNODE_HOME}${FILE}
+         mkdir -p ${CNODE_BIN_HOME}
+         tar -C ${CNODE_BIN_HOME} -xzf $FILE
+         rm $FILE
+         say "installed cardano-node ${DESIRED_RELEASE_CLEAN}" "log"
+         ;;
+      1) say "Well, that was a pleasant but brief pleasure. Bye bye!" ;;
     esac
-
   fi
 
   echo "" && read -r -n 1 -s -p "press any key to return to home menu"
@@ -159,78 +137,52 @@ case $OPERATION in
   clear
   echo " >> WALLET"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  echo "   Wallet Management"
+  echo " Wallet Management"
   echo ""
-  echo "   1) new / upgrade"
-  echo "   2) list"
-  echo "   3) show"
-  echo "   4) remove"
-  echo "   5) decrypt / unlock"
-  echo "   6) encrypt / lock"
-  echo "   h) home"
-  echo "   q) quit"
+  echo " ) New      -  create a new payment wallet or upgrade existing to a stake wallet"
+  echo " ) List     -  list all available wallets in a compact view"
+  echo " ) Show     -  show detailed view of a specific wallet"
+  echo " ) Remove   -  remove a wallet"
+  echo " ) Decrypt  -  remove write protection and decrypt wallet"
+  echo " ) Encrypt  -  encrypt wallet keys and make all files immutable"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  while true; do
-    read -r -n 1 -p "What wallet operation would you like to perform? (1-6): " SUBCOMMAND
-    echo ""
-    case ${SUBCOMMAND:0:1} in
-      1) SUBCOMMAND="new" && break
-        ;;
-      2) SUBCOMMAND="list" && break
-        ;;
-      3) SUBCOMMAND="show" && break
-        ;;
-      4) SUBCOMMAND="remove" && break
-        ;;
-      5) SUBCOMMAND="decrypt" && break
-        ;;
-      6) SUBCOMMAND="encrypt" && break
-        ;;
-      h) break
-        ;;
-      q) clear && exit
-        ;;
-      *) say ">>> Invalid Selection"
-        ;;
-    esac
-  done
+  
+  say " Select wallet operation"
+  case $(select_opt "New" "List" "Show" "Remove" "Decrypt" "Encrypt" "<- Home") in
+    0) SUBCOMMAND="new" ;;
+    1) SUBCOMMAND="list" ;;
+    2) SUBCOMMAND="show" ;;
+    3) SUBCOMMAND="remove" ;;
+    4) SUBCOMMAND="decrypt" ;;
+    5) SUBCOMMAND="encrypt" ;;
+    6) continue ;;
+  esac
 
   case $SUBCOMMAND in
     new)
 
     clear
-    echo " >> WALLET >> NEW / UPGRADE"
+    echo " >> WALLET >> NEW"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo "   Wallet Type"
+    echo " Wallet Type"
     echo ""
-    echo "   1) payment  - First step for a new wallet"
-    echo "                 A payment wallet can send and receive funds but not delegate/pledge."
+    echo " ) Payment  -  First step for a new wallet"
+    echo "               A payment wallet can send and receive funds but not delegate/pledge."
     echo ""
-    echo "   2) stake    - Upgrade existing payment wallet to a stake wallet"
-    echo "                 Make sure there are funds available in payment wallet before upgrade"
-    echo "                 as this is needed to pay for the stake wallet registration fee."
-    echo "                 A stake wallet is needed to be able to delegate and pledge to a pool."
-    echo "                 All funds from payment address will be moved to base address."
-    echo "   h) home"
-    echo "   q) quit"
+    echo " ) Stake    -  Upgrade existing payment wallet to a stake wallet"
+    echo "               Make sure there are funds available in payment wallet before upgrade"
+    echo "               as this is needed to pay for the stake wallet registration fee."
+    echo "               A stake wallet is needed to be able to delegate and pledge to a pool."
+    echo "               All funds from payment address will be moved to base address."
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
-    while true; do
-      read -r -n 1 -p "Choose wallet type (1-2): " wallet_type
-      echo ""
-      case ${wallet_type:0:1} in
-        1) wallet_type="payment" && break
-          ;;
-        2) wallet_type="stake" && break
-          ;;
-        h) break
-          ;;
-        q) clear && exit
-          ;;
-        *) say ">>> Invalid Selection"
-          ;;
-      esac
-    done
+    
+    say " Choose wallet type"
+    case $(select_opt "Payment" "Stake" "<- Home") in
+      0) wallet_type="payment" ;;
+      1) wallet_type="stake" ;;
+      2) continue ;;
+    esac
 
     case $wallet_type in
       payment)
@@ -282,18 +234,7 @@ case $OPERATION in
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
       
-      # Make sure wallet folder exist and is non-empty
-      if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-        say "${RED}ERROR${NC}: Missing or empty wallet folder, please first create a payment wallet"
-        say "Wallet folder: ${WALLET_FOLDER}"
-        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-      fi
-      say "Select Wallet:"
-      select wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-        test -n "${wallet_name}" && break
-        say ">>> Invalid Selection (ctrl+c to quit)"
-      done
-      echo ""
+      if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
 
       # Wallet key filenames
       payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
@@ -428,18 +369,8 @@ case $OPERATION in
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
     
-    # Make sure wallet folder exist and is non-empty
-    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a wallet"
-      say "Wallet folder: ${WALLET_FOLDER}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    say "Select Wallet:"
-    select wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-      test -n "${wallet_name}" && break
-      say ">>> Invalid Selection (ctrl+c to quit)"
-    done
-    echo ""
+    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
+
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     say "$(printf "%-8s ${GREEN}%s${NC}" "Wallet" "${wallet_name}")" "log"
@@ -505,17 +436,7 @@ case $OPERATION in
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
     
-    # Make sure wallet folder exist and is non-empty
-    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: Missing or empty wallet folder, nothing to remove"
-      say "Wallet folder: ${WALLET_FOLDER}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    say "Select Wallet:"
-    select wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-      test -n "${wallet_name}" && break
-      say ">>> Invalid Selection (ctrl+c to quit)"
-    done
+    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
 
     # Wallet key filename
     payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
@@ -539,23 +460,18 @@ case $OPERATION in
     fi
     
     if [[ ${payment_balance} -eq 0 && ${base_balance} -eq 0 ]]; then
-      say ""
       say "INFO: This wallet appears to be empty"
       say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup"
       say ""
-      read -n 1 -r -p "Are you sure to delete wallet (y/n)? " answer
-      say ""
-      case ${answer:0:1} in
-        y|Y )
-          rm -rf "${WALLET_FOLDER:?}/${wallet_name}"
-          echo "" && say "removed ${GREEN}${wallet_name}${NC}" "log"
-        ;;
-        * )
-          say "skipped removal process for ${GREEN}$wallet_name${NC}"
-        ;;
+      say "Are you sure to delete wallet? "
+      case $(select_opt "Yes" "No") in
+        0) rm -rf "${WALLET_FOLDER:?}/${wallet_name}"
+           echo "" && say "removed ${GREEN}${wallet_name}${NC}" "log"
+           ;;
+        1) say "skipped removal process for ${GREEN}$wallet_name${NC}"
+           ;;
       esac
     else
-      echo ""
       say "${RED}WARN${NC}: wallet not empty!"
       if [[ $(bc <<< "${payment_balance_ada} > 0" ) -eq 1 ]]; then
         say "Payment address balance: ${BLUE}$(numfmt --grouping ${payment_balance_ada})${NC} ADA"
@@ -565,16 +481,13 @@ case $OPERATION in
       fi
       echo ""
       say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup"
-      read -n 1 -r -p "Are you sure to delete wallet (y/n)? " answer
-      say ""
-      case ${answer:0:1} in
-        y|Y )
-          rm -rf "${WALLET_FOLDER:?}/${wallet_name}"
-          echo "" && say "removed ${GREEN}${wallet_name}${NC}" "log"
-        ;;
-        * )
-          say "skipped removal process for ${GREEN}$wallet_name${NC}"
-        ;;
+      say "Are you sure to delete wallet? "
+      case $(select_opt "Yes" "No") in
+        0) rm -rf "${WALLET_FOLDER:?}/${wallet_name}"
+           echo "" && say "removed ${GREEN}${wallet_name}${NC}" "log"
+           ;;
+        1) say "skipped removal process for ${GREEN}$wallet_name${NC}"
+           ;;
       esac
     fi
 
@@ -585,28 +498,17 @@ case $OPERATION in
     decrypt)
     
     clear
-    echo " >> WALLET >> DECRYPT / UNLOCK"
+    echo " >> WALLET >> DECRYPT"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
     protectionPreRequisites || continue
     
-    # Make sure wallet folder exist and is non-empty
-    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a wallet"
-      say "Wallet folder: ${WALLET_FOLDER}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    say "Select Wallet:"
-    select wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-      test -n "${wallet_name}" && break
-      say ">>> Invalid Selection (ctrl+c to quit)"
-    done
+    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
     
     filesUnlocked=0
     keysDecrypted=0
     
-    echo ""
     say " -- Removing write protection from all wallet files --" "log"
     while IFS= read -r -d '' file; do 
       if [[ $(lsattr -R "$file" 2>/dev/null | grep -c -P "(?<=-)i(?=-)") -ne 0 ]]; then
@@ -651,28 +553,17 @@ case $OPERATION in
     encrypt)
     
     clear
-    echo " >> WALLET >> ENCRYPT / LOCK"
+    echo " >> WALLET >> ENCRYPT"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
     protectionPreRequisites || continue
     
-    # Make sure wallet folder exist and is non-empty
-    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a wallet"
-      say "Wallet folder: ${WALLET_FOLDER}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    say "Select Wallet:"
-    select wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-      test -n "${wallet_name}" && break
-      say ">>> Invalid Selection (ctrl+c to quit)"
-    done
+    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
 
     filesLocked=0
     keysEncrypted=0
     
-    echo ""
     say " -- Encrypting sensitive pool keys with GPG --" "log"
     echo ""
     say "Pool ${GREEN}${wallet_name}${NC} Password"
@@ -732,29 +623,18 @@ case $OPERATION in
   clear
   echo " >> FUNDS"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  echo "   Handle Funds"
+  echo " Handle Funds"
   echo ""
-  echo "   1) send"
-  echo "   2) delegate"
-  echo "   h) home"
-  echo "   q) quit"
+  echo " 1) Send      -  send ADA from a local wallet to an address or a wallet"
+  echo " 2) Delegate  -  delegate stake wallet to a pool"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  while true; do
-    read -r -n 1 -p "What wallet operation would you like to perform? (1-2) : " SUBCOMMAND
-    echo ""
-    case ${SUBCOMMAND:0:1} in
-      1) SUBCOMMAND="send" && break
-        ;;
-      2) SUBCOMMAND="delegate" && break
-        ;;
-      h) break
-        ;;
-      q) clear && exit
-        ;;
-      *) say ">>> Invalid Selection"
-        ;;
-    esac
-  done
+  
+  say " Select funds operation"
+  case $(select_opt "Send" "Delegate" "<- Home") in
+    0) SUBCOMMAND="send" ;;
+    1) SUBCOMMAND="delegate" ;;
+    2) continue ;;
+  esac
 
   case $SUBCOMMAND in
     send)
@@ -770,49 +650,47 @@ case $OPERATION in
     fi
     
     say " -- Source Wallet --"
-    # Make sure wallet folder exist and is non-empty
-    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a wallet"
-      say "Wallet folder: ${WALLET_FOLDER}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    echo "" && say "Select Source Wallet:"
-    select s_wallet in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-      test -n "${s_wallet}" && break
-      say ">>> Invalid Selection (ctrl+c to quit)"
-    done
+    echo ""
+    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
+    s_wallet="${wallet_name}"
+    
     s_payment_addr_file="${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_ADDR_FILENAME}"
     s_base_addr_file="${WALLET_FOLDER}/${s_wallet}/${WALLET_BASE_ADDR_FILENAME}"
-    if [[ ! -f "${s_payment_addr_file}" ]]; then
-      say "${RED}ERROR${NC}: source wallet address file not found:"
-      say "${s_payment_addr_file}"
+    
+    getBalanceAllAddr "${WALLET_FOLDER}/${s_wallet}"
+    
+    if [[ ${payment_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
+      # Both payment and base address available with funds, let user choose what to use
+      say "Both payment and base address available with funds, choose address"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Payment"  "$(numfmt --grouping ${payment_ada})")" "log"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base"  "$(numfmt --grouping ${base_ada})")" "log"
+      echo ""
+      case $(select_opt "Payment" "Base" "Cancel") in
+        0) s_addr_file="${s_payment_addr_file}" 
+           amountLovelace=${payment_lovelace}
+           amountADA=${payment_ada}
+           ;;
+        1) s_addr_file="${s_base_addr_file}" 
+           amountLovelace=${base_lovelace}
+           amountADA=${base_ada}
+           ;;
+        2) continue ;;
+      esac
+    elif [[ ${payment_lovelace} -gt 0 ]]; then
+      s_addr_file="${s_payment_addr_file}"
+      amountLovelace=${payment_lovelace}
+      amountADA=${payment_ada}
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Payment"  "$(numfmt --grouping ${payment_ada})")" "log"
+    elif [[ ${base_lovelace} -gt 0 ]]; then
+      s_addr_file="${s_base_addr_file}"
+      amountLovelace=${base_lovelace}
+      amountADA=${base_ada}
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base"  "$(numfmt --grouping ${base_ada})")" "log"
+    else
+      say "${RED}ERROR${NC}: no funds available in either payment or base address for wallet ${GREEN}${s_wallet}${NC}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
-    s_addr_file="${s_payment_addr_file}" # default
-    if [[ -f "${s_base_addr_file}" ]]; then
-      # Both payment and base address available, let user choose what to use
-      while true; do
-        echo ""
-        read -n 1 -r -p "Wallet contain both payment and base address, choose source (p / b)? : " s_wallet_type
-        echo ""
-        case ${s_wallet_type:0:1} in
-          p|P )
-            break
-          ;;
-          b|B )
-            s_addr_file="${s_base_addr_file}" && break
-          ;;
-          * )
-            say ">>> Invalid Selection"
-          ;;
-        esac
-      done
-    fi
     s_addr="$(cat ${s_addr_file})"
-
-    say ""
-    say "--- Balance Check Source Address -------------------------------------------------------"
-    getBalance ${s_addr}
 
     # Amount
     echo ""
@@ -834,84 +712,58 @@ case $OPERATION in
       echo ""
       say " -- Transaction Fee --"
       echo ""
-      read -n 1 -r -p "Fee payed by sender (y/n)? [else amount sent is reduced] : " answer
-      echo ""
-      case ${answer:0:1} in
-        n|N ) include_fee="yes"
-        ;;
-        * ) include_fee="no"
-        ;;
+      say "Fee payed by sender? [else amount sent is reduced]"
+      case $(select_opt "Yes" "No" "Cancel") in
+        0) include_fee="no" ;;
+        1) include_fee="yes" ;;
+        2) continue ;;
       esac
     else
-      amountLovelace=${TOTALBALANCE}
-      amountADA=${totalBalanceADA}
       echo ""
-      say "ADA to send set to total supply: $(numfmt --grouping ${totalBalanceADA})" "log"
+      say "ADA to send set to total supply: $(numfmt --grouping ${amountADA})" "log"
       echo ""
       include_fee="yes"
     fi
 
     # Destination
-    while true; do
-      say " -- Destination Address / Wallet --"
-      echo ""
-      read -n 1 -r -p "Do you want to specify destination as an Address or Wallet (a/w)? : " d_type
-      say ""
-      case ${d_type:0:1} in
-        a|A )
-          echo "" && read -r -p "Address: " d_addr
-          test -n "${d_addr}" && break
-        ;;
-        w|W )
-          # Make sure wallet folder exist and is non-empty
-          if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-            say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a wallet"
-            say "Wallet folder: ${WALLET_FOLDER}"
-            echo "" && read -r -n 1 -s -p "press any key to return to home menu" && break
-          fi
-          echo "" && say "Select Destination Wallet:"
-          select d_wallet in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-            test -n "${d_wallet}" && break
-            say ">>> Invalid Selection (ctrl+c to quit)"
-          done
-          d_payment_addr_file="${WALLET_FOLDER}/${d_wallet}/${WALLET_PAY_ADDR_FILENAME}"
-          d_base_addr_file="${WALLET_FOLDER}/${d_wallet}/${WALLET_BASE_ADDR_FILENAME}"
-          # Check if payment address file exist, sanity check for empty/invalid directories
-          if [[ ! -f "${d_payment_addr_file}" ]]; then
-            say "${RED}ERROR${NC}: destination wallet address file not found:"
-            say "${d_payment_addr_file}"
-            echo "" && read -r -n 1 -s -p "press any key to return to home menu" && break
-          fi
-          d_addr_file="${d_payment_addr_file}" # default
-          if [[ -f "${d_base_addr_file}" ]]; then
-            # Both payment and base address available, let user choose what to use
-            while true; do
-              echo ""
-              read -n 1 -r -p "Wallet contain both payment and base address, choose destination (p/b)? : " d_wallet_type
-              echo ""
-              case ${d_wallet_type:0:1} in
-                p|P )
-                  break
-                ;;
-                b|B )
-                  d_addr_file="${d_base_addr_file}" && break
-                ;;
-                * )
-                  say ">>> Invalid Selection"
-                ;;
-              esac
-            done
-          fi
-          d_addr="$(cat ${d_addr_file})"
-          break
-        ;;
-        * )
-          say ">>> Invalid Selection"
-        ;;
-      esac
-    done
-    # Destination loop could break without getting a valid address
-    [[ -z ${d_addr} ]] && continue
+    say " -- Destination Address / Wallet --"
+    echo ""
+    say "Is destination a local wallet or an address?"
+    case $(select_opt "Wallet" "Address" "Cancel") in
+      0) if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
+         d_wallet="${wallet_name}"
+         d_payment_addr_file="${WALLET_FOLDER}/${d_wallet}/${WALLET_PAY_ADDR_FILENAME}"
+         d_base_addr_file="${WALLET_FOLDER}/${d_wallet}/${WALLET_BASE_ADDR_FILENAME}"
+    
+         if [[ -f "${d_payment_addr_file}" && -f "${d_base_addr_file}" ]]; then
+           # Both payment and base address available, let user choose what to use
+           say "Both payment and base address available, choose address"
+           echo ""
+           case $(select_opt "Payment" "Base" "Cancel") in
+             0) d_addr_file="${d_payment_addr_file}" ;;
+             1) d_addr_file="${d_base_addr_file}" ;;
+             2) continue ;;
+           esac
+         elif [[ -f "${d_payment_addr_file}" ]]; then
+           d_addr_file="${d_payment_addr_file}"
+         elif [[ -f "${d_base_addr_file}" ]]; then
+           d_addr_file="${d_base_addr_file}"
+         else
+           say "${RED}ERROR${NC}: no payment or base address file found for wallet ${GREEN}${s_wallet}${NC}"
+           say "${d_payment_addr_file}"
+           say "${d_base_addr_file}"
+           echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+         fi
+         d_addr="$(cat ${d_addr_file})"
+         ;;
+      1) echo "" && read -r -p "Address: " d_addr ;;
+      2) continue ;;
+    esac
+    # Destination could be empty, if so  without getting a valid address
+    if [[ -z ${d_addr} ]]; then
+      say "${RED}ERROR${NC}: destination address field empty"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
 
     # Source Sign Key
     # decrypt signing key if needed and make sure to encrypt again even on failure
@@ -994,22 +846,12 @@ case $OPERATION in
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
     
-    # Make sure wallet folder exist and is non-empty
-    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a wallet"
-      say "Wallet folder: ${WALLET_FOLDER}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    say "Select Wallet to Delegate from:"
-    select wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-      test -n "${wallet_name}" && break
-      say ">>> Invalid Selection (ctrl+c to quit)"
-    done
-    echo ""
+    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
+    
     base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
     
     if [[ ! -f "${base_addr_file}" ]]; then
-      say "${RED}ERROR${NC}: 'Source wallet base address file not found (are you sure this is a stake wallet?):"
+      say "${RED}ERROR${NC}: 'wallet base address file not found (are you sure this is a stake wallet?):"
       say "${base_addr_file}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
@@ -1026,18 +868,8 @@ case $OPERATION in
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
 
-    # Make sure pool folder exist and is non-empty
-    if [[ ! -d "${POOL_FOLDER}" || $(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: Missing or empty pool folder, please first create a pool"
-      say "Pool folder: ${POOL_FOLDER}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    say "Select Pool:"
-    select pool_name in $(find ${POOL_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-      test -n "${pool_name}" && break
-      say ">>> Invalid Selection (ctrl+c to quit)"
-    done
-    echo ""
+    if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
+    
     pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
     
     if [[ ! -f "${pool_coldkey_vk_file}" ]]; then
@@ -1101,47 +933,31 @@ case $OPERATION in
   clear
   echo " >> POOL"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  echo "   Pool Management"
+  echo " Pool Management"
   echo ""
-  echo "   1) new"
-  echo "   2) register"
-  echo "   3) modify"
-  echo "   4) list"
-  echo "   5) show"
-  echo "   6) rotate KES keys"
-  echo "   7) decrypt / unlock"
-  echo "   8) encrypt / lock"
-  echo "   h) home"
-  echo "   q) quit"
+  echo " ) New       -  create a new pool"
+  echo " ) Register  -  register created pool on chain using a stake wallet (pledge wallet)"
+  echo " ) Modify    -  change pool parameters and register updated pool values on chain"
+  echo " ) List      -  a compact list view of available local pools"
+  echo " ) Show      -  detailed view of specified pool"
+  echo " ) Rotate    -  rotate pool KES keys"
+  echo " ) Decrypt   -  remove write protection and decrypt pool"
+  echo " ) Encrypt   -  encrypt pool cold keys and make all files immutable"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  while true; do
-    read -r -n 1 -p "What pool operation would you like to perform? (1-8): " SUBCOMMAND
-    echo ""
-    case ${SUBCOMMAND:0:1} in
-      1) SUBCOMMAND="new" && break
-        ;;
-      2) SUBCOMMAND="register" && break
-        ;;
-      3) SUBCOMMAND="modify" && break
-        ;;
-      4) SUBCOMMAND="list" && break
-        ;;
-      5) SUBCOMMAND="show" && break
-        ;;
-      6) SUBCOMMAND="rotate" && break
-        ;;
-      7) SUBCOMMAND="decrypt" && break
-        ;;
-      8) SUBCOMMAND="encrypt" && break
-        ;;
-      h) break
-        ;;
-      q) clear && exit
-        ;;
-      *) say ">>> Invalid Selection"
-        ;;
-    esac
-  done
+  
+  say " Select wallet operation"
+  case $(select_opt "New" "Register" "Modify" "List" "Show" "Rotate" "Decrypt" "Encrypt" "<- Home") in
+    0) SUBCOMMAND="new" ;;
+    1) SUBCOMMAND="register" ;;
+    2) SUBCOMMAND="modify" ;;
+    3) SUBCOMMAND="list" ;;
+    4) SUBCOMMAND="show" ;;
+    5) SUBCOMMAND="rotate" ;;
+    6) SUBCOMMAND="decrypt" ;;
+    7) SUBCOMMAND="encrypt" ;;
+    8) continue ;;
+  esac
+
   case $SUBCOMMAND in
     new)
 
@@ -1212,18 +1028,7 @@ case $OPERATION in
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
     
-    # Make sure pool folder exist and is non-empty
-    if [[ ! -d "${POOL_FOLDER}" || $(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: Missing or empty pool folder, please first create a pool"
-      say "Pool folder: ${POOL_FOLDER}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    say "Select Pool:"
-    select pool_name in $(find ${POOL_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-      test -n "${pool_name}" && break
-      say ">>> Invalid Selection (ctrl+c to quit)"
-    done
-    echo ""
+    if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
 
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
     
@@ -1274,26 +1079,15 @@ case $OPERATION in
     
     echo ""
 
-    # Make sure wallet folder exist and is non-empty
-    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a stake wallet"
-      say "Wallet folder: ${WALLET_FOLDER}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    say "Select pledge/reward wallet:"
-    select pledge_wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-      test -n "${pledge_wallet_name}" && break
-      say ">>> Invalid Selection (ctrl+c to quit)"
-    done
-    echo ""
+    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
     
     # Save pool config
-    echo "{\"pledgeWallet\":\"$pledge_wallet_name\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada}" > "${pool_config}"
+    echo "{\"pledgeWallet\":\"$wallet_name\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada}" > "${pool_config}"
 
-    base_addr_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
-    pay_payment_sk_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_PAY_SK_FILENAME}"
-    stake_sk_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-    stake_vk_file="${WALLET_FOLDER}/${pledge_wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+    base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
+    pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
 
     pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
     pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
@@ -1356,7 +1150,7 @@ case $OPERATION in
     fi
 
     echo ""
-    say "Pool ${GREEN}${pool_name}${NC} successfully registered using wallet ${GREEN}${pledge_wallet_name}${NC} for pledge" "log"
+    say "Pool ${GREEN}${pool_name}${NC} successfully registered using wallet ${GREEN}${wallet_name}${NC} for pledge" "log"
     say "Pledge : $(numfmt --grouping ${pledge_ada}) ADA" "log"
     say "Margin : ${margin}%" "log"
     say "Cost   : $(numfmt --grouping ${cost_ada}) ADA" "log"
@@ -1383,18 +1177,7 @@ case $OPERATION in
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
     
-    # Make sure pool folder exist and is non-empty
-    if [[ ! -d "${POOL_FOLDER}" || $(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: Missing or empty pool folder, please first create a pool and register it"
-      say "Pool folder: ${POOL_FOLDER}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    say "Select Pool:"
-    select pool_name in $(find ${POOL_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-      test -n "${pool_name}" && break
-      say ">>> Invalid Selection (ctrl+c to quit)"
-    done
-    echo ""
+    if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
 
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
     
@@ -1412,19 +1195,9 @@ case $OPERATION in
     say "Old pledge wallet: ${GREEN}${pledge_wallet}${NC}"
     echo ""
     say "${ORANGE}If a new wallet is chosen as pledge a manual delegation to the pool with new wallet is needed${NC}"
-    # Make sure wallet folder exist and is non-empty
-    if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: Missing or empty wallet folder, please first create a wallet"
-      say "Wallet folder: ${WALLET_FOLDER}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    echo "" && say "Select Wallet:"
-    select wallet_name in $(find ${WALLET_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-      test -n "${wallet_name}" && break
-      say ">>> Invalid Selection (ctrl+c to quit)"
-    done
-    
     echo ""
+    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
+    
     say "Enter new pool parameters, press enter to use old value"
     echo ""
     
@@ -1592,18 +1365,8 @@ case $OPERATION in
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
     
-    # Make sure pool folder exist and is non-empty
-    if [[ ! -d "${POOL_FOLDER}" || $(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: Missing or empty pool folder, please first create a pool"
-      say "Pool folder: ${POOL_FOLDER}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    say "Select Pool:"
-    select pool_name in $(find ${POOL_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-      test -n "${pool_name}" && break
-      say ">>> Invalid Selection (ctrl+c to quit)"
-    done
-    echo ""
+    if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
+    
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
@@ -1647,18 +1410,7 @@ case $OPERATION in
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
     
-    # Make sure pool folder exist and is non-empty
-    if [[ ! -d "${POOL_FOLDER}" || $(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: Missing or empty pool folder, please first create and register a pool"
-      say "Pool folder: ${POOL_FOLDER}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    say "Select Pool:"
-    select pool_name in $(find ${POOL_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-      test -n "${pool_name}" && break
-      say ">>> Invalid Selection (ctrl+c to quit)"
-    done
-    echo ""
+    if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
 
     # cold keys
     pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
@@ -1706,28 +1458,17 @@ case $OPERATION in
     decrypt)
     
     clear
-    echo " >> POOL >> DECRYPT / UNLOCK"
+    echo " >> POOL >> DECRYPT"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
     protectionPreRequisites || continue
     
-    # Make sure pool folder exist and is non-empty
-    if [[ ! -d "${POOL_FOLDER}" || $(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: Missing or empty pool folder, please first create a pool"
-      say "Pool folder: ${POOL_FOLDER}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    say "Select Pool:"
-    select pool_name in $(find ${POOL_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-      test -n "${pool_name}" && break
-      say ">>> Invalid Selection (ctrl+c to quit)"
-    done
+    if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
     
     filesUnlocked=0
     keysDecrypted=0
     
-    echo ""
     say " -- Removing write protection from all pool files --" "log"
     while IFS= read -r -d '' file; do
       if [[ $(lsattr -R "$file" 2>/dev/null | grep -c -P "(?<=-)i(?=-)") -ne 0 ]]; then
@@ -1772,28 +1513,17 @@ case $OPERATION in
     encrypt)
     
     clear
-    echo " >> POOL >> ENCRYPT / LOCK"
+    echo " >> POOL >> ENCRYPT"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
     protectionPreRequisites || continue
     
-    # Make sure pool folder exist and is non-empty
-    if [[ ! -d "${POOL_FOLDER}" || $(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: Missing or empty pool folder, please first create a pool"
-      say "Pool folder: ${POOL_FOLDER}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
-    say "Select Pool:"
-    select pool_name in $(find ${POOL_FOLDER}/* -maxdepth 1 -type d | sed 's#.*/##'); do
-      test -n "${pool_name}" && break
-      say ">>> Invalid Selection (ctrl+c to quit)"
-    done
+    if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
 
     filesLocked=0
     keysEncrypted=0
 
-    echo ""
     say " -- Encrypting sensitive pool keys with GPG --" "log"
     echo ""
     say "Pool ${GREEN}${pool_name}${NC} Password"
