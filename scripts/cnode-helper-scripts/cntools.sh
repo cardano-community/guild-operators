@@ -705,7 +705,7 @@ case $OPERATION in
     read -r -p "Amount (ADA): " amountADA
 
     if  [[ "${amountADA}" != "all" ]]; then
-      if ! ADAtoLovelace "${amountADA}" >/den/null; then
+      if ! ADAtoLovelace "${amountADA}" >/dev/null; then
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
       amountLovelace=$(ADAtoLovelace "${amountADA}")
