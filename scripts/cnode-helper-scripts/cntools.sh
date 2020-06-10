@@ -59,18 +59,18 @@ echo " >> CNTOOLS <<                                       A Guild Operators col
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 echo " Main Menu"
 echo ""
-echo " ) Update  -  install or upgrade latest available binary of Haskell Cardano"
 echo " ) Wallet  -  create, show, remove and protect wallets"
 echo " ) Funds   -  send and delegate ADA"
 echo " ) Pool    -  pool creation and management"
+echo " ) Update  -  install or upgrade latest available binary of Haskell Cardano"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-say " What would you like to do?"
-case $(select_opt "Update" "Wallet" "Funds" "Pool" "Quit") in
-  0) OPERATION="update" ;;
-  1) OPERATION="wallet" ;;
-  2) OPERATION="funds" ;;
-  3) OPERATION="pool" ;;
+say " What would you like to do?\n"
+case $(select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[u] Update" "[q] Quit") in
+  0) OPERATION="wallet" ;;
+  1) OPERATION="funds" ;;
+  2) OPERATION="pool" ;;
+  3) OPERATION="update" ;;
   4) clear && exit ;;
 esac
 
@@ -99,8 +99,8 @@ case $OPERATION in
     say "Currently installed: ${CURRENT_VERSION}" "log"
     say "Desired release:      ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})" "log"
     if [ "${DESIRED_RELEASE_CLEAN}" != "${CURRENT_VERSION}" ]; then
-      say "Would you like to upgrade to this release?"
-      case $(select_opt "Yes" "No") in
+      say "Would you like to upgrade to this release?\n"
+      case $(select_opt "[y] Yes" "[n] No") in
         0) FILE="cardano-node-${DESIRED_RELEASE}-${ASSET_PLATTFORM}.tar.gz"
            URL="https://github.com/input-output-hk/cardano-node/releases/download/${DESIRED_RELEASE}/"${FILE}
            echo -e "\nDownload $FILE ..."
@@ -115,8 +115,8 @@ case $OPERATION in
   else #
     say "No cardano-cli binary found"
     say "Desired available release: ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})" "log"
-    say "Would you like to install this release?"
-    case $(select_opt "Yes" "No") in
+    say "Would you like to install this release?\n"
+    case $(select_opt "[y] Yes" "[n] No") in
       0) FILE="cardano-node-${DESIRED_RELEASE}-${ASSET_PLATTFORM}.tar.gz"
          URL="https://github.com/input-output-hk/cardano-node/releases/download/${DESIRED_RELEASE}/"${FILE}
          echo -e "\nDownload $FILE ..."
@@ -149,8 +149,8 @@ case $OPERATION in
   echo " ) Encrypt  -  encrypt wallet keys and make all files immutable"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   
-  say " Select wallet operation"
-  case $(select_opt "New" "List" "Show" "Remove" "Decrypt" "Encrypt" "<- Home") in
+  say " Select wallet operation\n"
+  case $(select_opt "[n] New" "[l] List" "[s] Show" "[r] Remove" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
     0) SUBCOMMAND="new" ;;
     1) SUBCOMMAND="list" ;;
     2) SUBCOMMAND="show" ;;
@@ -179,8 +179,8 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
-    say " Choose wallet type"
-    case $(select_opt "Payment" "Stake" "<- Home") in
+    say " Choose wallet type\n"
+    case $(select_opt "[p] Payment" "[s] Stake" "[h] Home") in
       0) wallet_type="payment" ;;
       1) wallet_type="stake" ;;
       2) continue ;;
@@ -340,7 +340,7 @@ case $OPERATION in
           continue
         fi
         say "$(printf "%s\t${CYAN}%s${NC} ADA" "Reward" "$(numfmt --grouping ${reward_ada})")" "log"
-        delegation_pool_id=$(grep -oP ',KeyHash \K\w+' <<< "${stake_address_info}") # stake_address_info populated in getBalanceAllAddr()
+        [[ "${stake_address_info}" =~ ,KeyHash.([[:alnum:]]+) ]] && delegation_pool_id="${BASH_REMATCH[1]}" || delegation_pool_id="" # stake_address_info populated in getBalanceAllAddr()
         if [[ -n ${delegation_pool_id} ]]; then
           unset poolName
           while IFS= read -r -d '' pool; do
@@ -403,10 +403,9 @@ case $OPERATION in
       if [[ "${reward_lovelace}" -eq -1 ]]; then
         say "${ORANGE}Not a registered stake wallet on chain${NC}"
       else
-        echo ""
         say "$(printf "${BLUE}%-8s${NC} %-7s: %s" "Reward" "address" "${base_addr}")" "log"
         say "$(printf "%-8s %-7s: ${CYAN}%s${NC} ADA" "" "amount" "$(numfmt --grouping ${reward_ada})")" "log"
-        delegation_pool_id=$(grep -oP ',KeyHash \K\w+' <<< "${stake_address_info}") # stake_address_info populated in getBalanceAllAddr()
+        [[ "${stake_address_info}" =~ ,KeyHash.([[:alnum:]]+) ]] && delegation_pool_id="${BASH_REMATCH[1]}" || delegation_pool_id="" # stake_address_info populated in getBalanceAllAddr()
         if [[ -n ${delegation_pool_id} ]]; then
           unset poolName
           while IFS= read -r -d '' pool; do
@@ -463,10 +462,9 @@ case $OPERATION in
     
     if [[ ${payment_balance} -eq 0 && ${base_balance} -eq 0 ]]; then
       say "INFO: This wallet appears to be empty"
-      say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup"
-      say ""
-      say "Are you sure to delete wallet? "
-      case $(select_opt "Yes" "No") in
+      say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
+      say "Are you sure to delete wallet?\n"
+      case $(select_opt "[y] Yes" "[n] No") in
         0) rm -rf "${WALLET_FOLDER:?}/${wallet_name}"
            echo "" && say "removed ${GREEN}${wallet_name}${NC}" "log"
            ;;
@@ -482,9 +480,9 @@ case $OPERATION in
         say "Base address balance: ${BLUE}$(numfmt --grouping ${base_balance_ada})${NC} ADA"
       fi
       echo ""
-      say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup"
-      say "Are you sure to delete wallet? "
-      case $(select_opt "Yes" "No") in
+      say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
+      say "Are you sure to delete wallet?\n"
+      case $(select_opt "[y] Yes" "[n] No") in
         0) rm -rf "${WALLET_FOLDER:?}/${wallet_name}"
            echo "" && say "removed ${GREEN}${wallet_name}${NC}" "log"
            ;;
@@ -513,7 +511,7 @@ case $OPERATION in
     
     say " -- Removing write protection from all wallet files --" "log"
     while IFS= read -r -d '' file; do 
-      if [[ $(lsattr -R "$file" 2>/dev/null | grep -c -P "(?<=-)i(?=-)") -ne 0 ]]; then
+      if [[ $(lsattr -R "$file") =~ -i- ]]; then
         sudo chattr -i "${file}" && \
         chmod 600 "${file}" && \
         filesUnlocked=$((++filesUnlocked))
@@ -593,7 +591,7 @@ case $OPERATION in
     echo ""
     say " -- Write protecting all pool files using 'chattr +i' --" "log"
     while IFS= read -r -d '' file; do
-      if [[ $(lsattr -R "$file" 2>/dev/null | grep -c -P "(?<=-)i(?=-)") -eq 0 ]]; then
+      if [[ ! $(lsattr -R "$file") =~ -i- ]]; then
         chmod 400 "${file}" && \
         sudo chattr +i "${file}" && \
         filesLocked=$((++filesLocked)) && \
@@ -631,8 +629,8 @@ case $OPERATION in
   echo " 2) Delegate  -  delegate stake wallet to a pool"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   
-  say " Select funds operation"
-  case $(select_opt "Send" "Delegate" "<- Home") in
+  say " Select funds operation\n"
+  case $(select_opt "[s] Send" "[d] Delegate" "[h] Home") in
     0) SUBCOMMAND="send" ;;
     1) SUBCOMMAND="delegate" ;;
     2) continue ;;
@@ -667,8 +665,8 @@ case $OPERATION in
       say "$(printf "%s\t${CYAN}%s${NC} ADA" "Payment"  "$(numfmt --grouping ${payment_ada})")" "log"
       say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base"  "$(numfmt --grouping ${base_ada})")" "log"
       echo ""
-      case $(select_opt "Payment" "Base" "Cancel") in
-        0) s_addr_file="${s_payment_addr_file}" 
+      case $(select_opt "[p] Payment" "[b] Base" "[c] Cancel") in
+        0) s_addr_file="${s_payment_addr_file}"
            totalAmountLovelace=${payment_lovelace}
            totalAmountADA=${payment_ada}
            ;;
@@ -707,15 +705,15 @@ case $OPERATION in
     read -r -p "Amount (ADA): " amountADA
 
     if  [[ "${amountADA}" != "all" ]]; then
-      if ! ADAtoLovelace "${amountADA}"; then
+      if ! ADAtoLovelace "${amountADA}" >/den/null; then
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
       amountLovelace=$(ADAtoLovelace "${amountADA}")
       echo ""
       say " -- Transaction Fee --"
       echo ""
-      say "Fee payed by sender? [else amount sent is reduced]"
-      case $(select_opt "Yes" "No" "Cancel") in
+      say "Fee payed by sender? [else amount sent is reduced]\n"
+      case $(select_opt "[y] Yes" "[n] No" "[c] Cancel") in
         0) include_fee="no" ;;
         1) include_fee="yes" ;;
         2) continue ;;
@@ -732,8 +730,9 @@ case $OPERATION in
     # Destination
     say " -- Destination Address / Wallet --"
     echo ""
-    say "Is destination a local wallet or an address?"
-    case $(select_opt "Wallet" "Address" "Cancel") in
+    d_addr_file=""
+    say "Is destination a local wallet or an address?\n"
+    case $(select_opt "[w] Wallet" "[a] Address" "[c] Cancel") in
       0) if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
          d_wallet="${wallet_name}"
          d_payment_addr_file="${WALLET_FOLDER}/${d_wallet}/${WALLET_PAY_ADDR_FILENAME}"
@@ -741,9 +740,8 @@ case $OPERATION in
     
          if [[ -f "${d_payment_addr_file}" && -f "${d_base_addr_file}" ]]; then
            # Both payment and base address available, let user choose what to use
-           say "Both payment and base address available, choose address"
-           echo ""
-           case $(select_opt "Payment" "Base" "Cancel") in
+           say "Both payment and base address available, choose address\n"
+           case $(select_opt "[p] Payment" "[b] Base" "[c] Cancel") in
              0) d_addr_file="${d_payment_addr_file}" ;;
              1) d_addr_file="${d_base_addr_file}" ;;
              2) continue ;;
@@ -818,14 +816,15 @@ case $OPERATION in
     say ""
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say "Transaction" "log"
-    [[ "${s_wallet_type,,}" = "b" ]] && s_wallet_type="base" || s_wallet_type="payment"
+    [[ "${s_addr_file}" = "${s_payment_addr_file}" ]] && s_wallet_type="payment" || s_wallet_type="base"
     say "  From          : ${GREEN}${s_wallet}${NC} (${s_wallet_type})" "log"
     say "  Amount        : $(numfmt --grouping ${amountADA}) ADA" "log"
-    if [[ ${d_type,,} = "a" ]]; then
-      say "  To            : ${d_addr}" "log"
+    if [[ "${d_addr_file}" = "${d_payment_addr_file}" ]]; then
+      say "  To            : ${GREEN}${d_wallet}${NC} (payment)" "log"
+    elif [[ "${d_addr_file}" = "${d_base_addr_file}" ]]; then
+      say "  To            : ${GREEN}${d_wallet}${NC} (base)" "log"
     else
-      [[ "${d_wallet_type,,}" = "b" ]] && d_wallet_type="base" || d_wallet_type="payment"
-      say "  To            : ${GREEN}${d_wallet}${NC} (${d_wallet_type})" "log"
+      say "  To            : ${d_addr}" "log"
     fi
     say "  Fees          : $(numfmt --grouping ${minFee}) Lovelaces" "log"
     say "  Balance" "log"
@@ -949,8 +948,8 @@ case $OPERATION in
   echo " ) Encrypt   -  encrypt pool cold keys and make all files immutable"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   
-  say " Select wallet operation"
-  case $(select_opt "New" "Register" "Modify" "List" "Show" "Rotate" "Decrypt" "Encrypt" "<- Home") in
+  say " Select wallet operation\n"
+  case $(select_opt "[n] New" "[r] Register" "[m] Modify" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
     0) SUBCOMMAND="new" ;;
     1) SUBCOMMAND="register" ;;
     2) SUBCOMMAND="modify" ;;
@@ -1042,7 +1041,7 @@ case $OPERATION in
     fi
     read -r -p "Pledge (in ADA, default: ${pledge_ada}): " pledge_enter
     if [[ -n "${pledge_enter}" ]]; then
-      if ! ADAtoLovelace "${pledge_enter}"; then
+      if ! ADAtoLovelace "${pledge_enter}" >/dev/null; then
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
       pledge_lovelace=$(ADAtoLovelace "${pledge_enter}")
@@ -1057,7 +1056,7 @@ case $OPERATION in
     fi
     echo "" && read -r -p "Margin (in %, default: ${margin}): " margin_enter
     if [[ -n "${margin_enter}" ]]; then
-      if ! pctToFraction "${margin_enter}"; then
+      if ! pctToFraction "${margin_enter}" >/dev/null; then
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
       margin_fraction=$(pctToFraction "${margin_enter}")
@@ -1072,7 +1071,7 @@ case $OPERATION in
     fi
     echo "" && read -r -p "Cost (in ADA, default: ${cost_ada}): " cost_enter
     if [[ -n "${cost_enter}" ]]; then
-      if ! ADAtoLovelace "${cost_enter}"; then
+      if ! ADAtoLovelace "${cost_enter}" >/dev/null; then
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
       cost_lovelace=$(ADAtoLovelace "${cost_enter}")
@@ -1208,7 +1207,7 @@ case $OPERATION in
     pledge_ada=$(jq -r .pledgeADA "${pool_config}")
     read -r -p "New Pledge (in ADA, old: ${pledge_ada}): " pledge_enter
     if [[ -n "${pledge_enter}" ]]; then
-      if ! ADAtoLovelace "${pledge_enter}"; then
+      if ! ADAtoLovelace "${pledge_enter}" >/dev/null; then
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
       pledge_lovelace=$(ADAtoLovelace "${pledge_enter}")
@@ -1220,7 +1219,7 @@ case $OPERATION in
     margin=$(jq -r .margin "${pool_config}")
     echo "" && read -r -p "New Margin (in %, old: ${margin}): " margin_enter
     if [[ -n "${margin_enter}" ]]; then
-      if ! pctToFraction "${margin_enter}"; then
+      if ! pctToFraction "${margin_enter}" >/dev/null; then
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
       margin_fraction=$(pctToFraction "${margin_enter}")
@@ -1232,7 +1231,7 @@ case $OPERATION in
     cost_ada=$(jq -r .costADA "${pool_config}")
     echo "" && read -r -p "New Cost (in ADA, old: ${cost_ada}): " cost_enter
     if [[ -n "${cost_enter}" ]]; then
-      if ! ADAtoLovelace "${cost_enter}"; then
+      if ! ADAtoLovelace "${cost_enter}" >/dev/null; then
         echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
       fi
       cost_lovelace=$(ADAtoLovelace "${cost_enter}")
@@ -1475,7 +1474,7 @@ case $OPERATION in
     
     say " -- Removing write protection from all pool files --" "log"
     while IFS= read -r -d '' file; do
-      if [[ $(lsattr -R "$file" 2>/dev/null | grep -c -P "(?<=-)i(?=-)") -ne 0 ]]; then
+      if [[ $(lsattr -R "$file") =~ -i- ]]; then
         sudo chattr -i "${file}" && \
         chmod 600 "${file}" && \
         filesUnlocked=$((++filesUnlocked)) && \
@@ -1552,7 +1551,7 @@ case $OPERATION in
     echo ""
     say " -- Write protecting all pool files using 'chattr +i' --" "log"
     while IFS= read -r -d '' file; do
-      if [[ $(lsattr -R "$file" 2>/dev/null | grep -c -P "(?<=-)i(?=-)") -eq 0 ]]; then
+      if [[ ! $(lsattr -R "$file") =~ -i- ]]; then
         chmod 400 "$file" && \
         sudo chattr +i "$file" && \
         filesLocked=$((++filesLocked)) && \
