@@ -3,7 +3,9 @@
 
 #### Dependencies and Folder Structure setup
 
-The pre-requisites for Linux systems are automated to be executed as a single script. Follow the instructions below to deploy the same:
+The pre-requisites for Linux systems are automated to be executed as a single script. Note that the guide assumes you do *NOT* change working directory or mix multiple SSH sessions.
+Please ensure to *READ* the output if you execute something and investigate/raise issue if you receive an error. Do not continue bypassing any errors.
+Follow the instructions below to deploy the same:
 
 ``` bash
 mkdir "$HOME/tmp";cd "$HOME/tmp"
@@ -14,9 +16,28 @@ wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/
 chmod 755 prereqs.sh
 # Ensure you can run sudo commands with your user before execution
 ./prereqs.sh
+## Follow the prompts for execution. To make sure environment variables are available for session you're running, make sure to source bashrc
 . "${HOME}/.bashrc"
-## Follow the prompts for execution
 ```
+
+#### Connect to public Haskell Testnet Network (HTN)
+
+The prereqs script above will connect you to guild network. If you would like to connect to public HTN instead, kindly execute the below before you proceed after you've executed the above:
+
+``` bash
+curl -s -o $CNODE_HOME/files/topology.json https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/ff-topology.json
+curl -s -o $CNODE_HOME/files/genesis.json https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/ff-genesis.json
+curl -s -o $CNODE_HOME/files/ptn0.yaml https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/ff-config.json
+```
+
+If you were already running a node on guild network and would like to *replace* by moving to HTN, but continue using scripts - follow instructions below:
+
+- Stop your node (if running).
+- Ensure you've run commands above which will place updated files at correct location.
+- Delete your existing DB folder by executing `rm -rf $CNODE_HOME/db/*` (or alternately - you can rename the folder to switch back later).
+- Start the node
+
+Eventually, you should be able to maintain different versions by tweaking scripts as desired. But for simplicity and reducing manual interventions, we will keep the guide using uniform paths.
 
 #### Folder structure
 

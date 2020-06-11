@@ -128,8 +128,8 @@ The next step is creating a stake address registration certificate.
 
 For registering an `stake key` on the chain a `key deposit1` fee must be paid. The amount can be optained from the genesis for the params file e.g.:
 ``` bash
-grep keyDep ../params.json
-    "keyDeposit": 400000,
+cardano-cli shelley query protocol-parameters --testnet-magic 42 | tee params.json | jq -r .keyDeposit
+400000
 ```
 
 Generate the operator's stake key registration certificate 
