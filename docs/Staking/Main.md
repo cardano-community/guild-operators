@@ -11,4 +11,4 @@ To fully understand the staking mechanism we need to define and interpret the fo
 
 The following picture helps to understand the relations between keys, addresses and certificates.
 
-![ShelleyKeyAndAddresses](https://user-images.githubusercontent.com/1113398/82848496-08549500-9f37-11ea-92cc-701a05e3bd74.png)
+![ShelleyKeyAndAddresses](https://raw.githubusercontent.com/ilap/ShelleyStuffs/master/images/ShelleyKeyAndAddresses.png)
