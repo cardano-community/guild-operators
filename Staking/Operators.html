@@ -278,8 +278,8 @@ cardano-cli shelley address build \
 </code></pre>
 <p>The next step is creating a stake address registration certificate.</p>
 <p>For registering an <code>stake key</code> on the chain a <code>key deposit1</code> fee must be paid. The amount can be optained from the genesis for the params file e.g.:</p>
-<pre><code class="language-bash">grep keyDep ../params.json
-    &quot;keyDeposit&quot;: 400000,
+<pre><code class="language-bash">cardano-cli shelley query protocol-parameters --testnet-magic 42 | tee params.json | jq -r .keyDeposit
+400000
 </code></pre>
 <p>Generate the operator's stake key registration certificate </p>
 <p>Keep, in mind that the a <code>key registration certificates</code> needs a deposit (<strong>keyDeposit</strong> in genesis) for the costs of tracking the key and the corresponding reward account. Also, it does not require any witness to register the certificate, but only the witness for the fees from the input of the transaction.</p>

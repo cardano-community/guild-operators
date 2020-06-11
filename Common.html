@@ -153,7 +153,9 @@
                     <main>
                         <h3><a class="header" href="#pre-requisites" id="pre-requisites">Pre-Requisites</a></h3>
 <h4><a class="header" href="#dependencies-and-folder-structure-setup" id="dependencies-and-folder-structure-setup">Dependencies and Folder Structure setup</a></h4>
-<p>The pre-requisites for Linux systems are automated to be executed as a single script. Follow the instructions below to deploy the same:</p>
+<p>The pre-requisites for Linux systems are automated to be executed as a single script. Note that the guide assumes you do <em>NOT</em> change working directory or mix multiple SSH sessions.
+Please ensure to <em>READ</em> the output if you execute something and investigate/raise issue if you receive an error. Do not continue bypassing any errors.
+Follow the instructions below to deploy the same:</p>
 <pre><code class="language-bash">mkdir &quot;$HOME/tmp&quot;;cd &quot;$HOME/tmp&quot;
 # Install wget
 # CentOS / RedHat - sudo dnf -y install wget
@@ -162,9 +164,23 @@ wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/
 chmod 755 prereqs.sh
 # Ensure you can run sudo commands with your user before execution
 ./prereqs.sh
+## Follow the prompts for execution. To make sure environment variables are available for session you're running, make sure to source bashrc
 . &quot;${HOME}/.bashrc&quot;
-## Follow the prompts for execution
 </code></pre>
+<h4><a class="header" href="#connect-to-public-haskell-testnet-network-htn" id="connect-to-public-haskell-testnet-network-htn">Connect to public Haskell Testnet Network (HTN)</a></h4>
+<p>The prereqs script above will connect you to guild network. If you would like to connect to public HTN instead, kindly execute the below before you proceed after you've executed the above:</p>
+<pre><code class="language-bash">curl -s -o $CNODE_HOME/files/topology.json https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/ff-topology.json
+curl -s -o $CNODE_HOME/files/genesis.json https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/ff-genesis.json
+curl -s -o $CNODE_HOME/files/ptn0.yaml https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/ff-config.json
+</code></pre>
+<p>If you were already running a node on guild network and would like to <em>replace</em> by moving to HTN, but continue using scripts - follow instructions below:</p>
+<ul>
+<li>Stop your node (if running).</li>
+<li>Ensure you've run commands above which will place updated files at correct location.</li>
+<li>Delete your existing DB folder by executing <code>rm -rf $CNODE_HOME/db/*</code> (or alternately - you can rename the folder to switch back later).</li>
+<li>Start the node</li>
+</ul>
+<p>Eventually, you should be able to maintain different versions by tweaking scripts as desired. But for simplicity and reducing manual interventions, we will keep the guide using uniform paths.</p>
 <h4><a class="header" href="#folder-structure" id="folder-structure">Folder structure</a></h4>
 <p>Running the script above will create the folder structure as per below, for your reference.</p>
 <pre><code>/opt/cardano/cnode          # Top-Level Folder
