@@ -5,6 +5,8 @@
 # 2020-05-19 cntools initial release (concept)
 # 2020-05-24 helper functions moved cnlibrary & configuration to env file
 
+find /opt/cardano -name node*json -mtime +1 -exec rm -rf {} \;
+
 ########## Global tasks ###########################################
 
 # get common env variables
@@ -627,16 +629,69 @@ case $OPERATION in
   echo ""
   echo " 1) Send      -  send ADA from a local wallet to an address or a wallet"
   echo " 2) Delegate  -  delegate stake wallet to a pool"
+  echo " 3) Withdraw  -  withdraw earned rewards to base address"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   
   say " Select funds operation\n"
-  case $(select_opt "[s] Send" "[d] Delegate" "[h] Home") in
+  case $(select_opt "[s] Send" "[d] Delegate" "[w] Withdraw Rewards" "[h] Home") in
     0) SUBCOMMAND="send" ;;
     1) SUBCOMMAND="delegate" ;;
-    2) continue ;;
+    2) SUBCOMMAND="withdrawrewards" ;;
+    3) continue ;;
   esac
 
   case $SUBCOMMAND in
+    withdrawrewards)
+
+    clear
+    echo " >> FUNDS >> WITHDRAW REWARDS"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
+
+    if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
+      say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
+    
+    say " -- Choose Wallet --"
+    echo ""
+    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
+    wallet="${wallet_name}"
+    
+    payment_addr_file="${WALLET_FOLDER}/${wallet}/${WALLET_PAY_ADDR_FILENAME}"
+    
+    base_addr_file="${WALLET_FOLDER}/${wallet}/${WALLET_BASE_ADDR_FILENAME}"
+    stake_addr_file="${WALLET_FOLDER}/${wallet}/${WALLET_STAKE_ADDR_FILENAME}"
+
+    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+    pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+    
+    getBalanceAllAddr "${WALLET_FOLDER}/${wallet}"
+
+    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Payment"  "$(numfmt --grouping ${payment_ada})")" "log"
+    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base"  "$(numfmt --grouping ${base_ada})")" "log"
+    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(numfmt --grouping ${reward_ada})")" "log"
+
+    if ! withdrawRewards "${stake_vk_file}" "${stake_sk_file}" "${pay_payment_sk_file}" "$(cat ${base_addr_file})" "$(cat ${stake_addr_file})" $reward_lovelace; then
+      echo "" && say "${RED}ERROR${NC}: failure during withdrawal of rewards"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
+
+    if ! waitNewBlockCreated; then
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
+
+    say ""
+    say "--- Balance Check -------------------------------------------------------"
+    getBalanceAllAddr "${WALLET_FOLDER}/${wallet}"
+
+    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Payment"  "$(numfmt --grouping ${payment_ada})")" "log"
+    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base"  "$(numfmt --grouping ${base_ada})")" "log"
+    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(numfmt --grouping ${reward_ada})")" "log"
+    echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+    ;;
+
     send)
     
     clear
