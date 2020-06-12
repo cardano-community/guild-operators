@@ -671,6 +671,11 @@ case $OPERATION in
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base"  "$(numfmt --grouping ${base_ada})")" "log"
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(numfmt --grouping ${reward_ada})")" "log"
 
+    if [[ $reward_lovelace -le 0 ]]; then
+      echo "Failed to locate any rewards associated with the chosen wallet, please try another one"
+      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    fi
+
     if ! withdrawRewards "${stake_vk_file}" "${stake_sk_file}" "${pay_payment_sk_file}" "$(cat ${base_addr_file})" "$(cat ${stake_addr_file})" $reward_lovelace; then
       echo "" && say "${RED}ERROR${NC}: failure during withdrawal of rewards"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
