@@ -1,0 +1,80 @@
+{
+  "activeSlotsCoeff": 0.4,
+  "protocolParams": {
+    "poolDecayRate": 0,
+    "poolDeposit": 100000000,
+    "protocolVersion": {
+      "minor": 0,
+      "major": 0
+    },
+    "minUTxOValue": 0,
+    "decentralisationParam": 0.5,
+    "maxTxSize": 16384,
+    "minFeeA": 50,
+    "maxBlockBodySize": 65536,
+    "keyMinRefund": 50,
+    "minFeeB": 0,
+    "eMax": 100,
+    "extraEntropy": {
+      "tag": "NeutralNonce"
+    },
+    "maxBlockHeaderSize": 8192,
+    "keyDeposit": 1000,
+    "keyDecayRate": 0,
+    "nOpt": 5,
+    "rho": 1.78650067e-7,
+    "poolMinRefund": 0,
+    "tau": 0.1,
+    "a0": 0.4
+  },
+  "protocolMagicId": 4006,
+  "systemStart": "2020-06-12T04:23:00.00Z",
+  "genDelegs": {
+        "b18d6e32c2fb1c0ae7e9a16757a728fc14f2694c6d4c90c0ff3a8d241a4daa4a": {
+            "delegate": "ff74c4b0ec688de34e1089a22d97badfd1c20afec65c07c82fd180a2491462b7",
+            "vrf": "7f4bf0dfcc089b55750a62e84a4d667ae48c39f2eb8cb3e8e2b4698992b89de2"
+        },
+        "b0531df0ef8b76b1b72128a8d742d79c9082e7115382886cf5f1e89bc10cf8a4": {
+            "delegate": "e9ef3c0a95ad50a248c2c8555cff7da7729c06d0adb2feee1944fc5ff43e6cf6",
+            "vrf": "e6b2df1c21cb9958a3fcb26a93f0e4fa52449b3483b4023d531418aa62088240"
+        }
+  },
+  "updateQuorum": 1,
+  "networkId": "Testnet",
+  "maxMajorPV": 25446,
+  "initialFunds": {
+    "60ad2b6ea753e38f4baa76d94ed667e5aea0c39ff04b400f7448babaefa79dca20": 10000000000,
+    "60b84eccd786ccb836c33a21f55e4a25dcb3a161938280570e938707a9d7686855": 10000000000,
+    "600fc9e641e931c52dc1822d386fdb647ffa9cdcad9ac0ee73b9bf3368d5c44f54": 10000000000,
+    "60f73fa2e2e5ccc99da74dfb0fd42dd21bffbbaf29264b294afde0686d002d3031": 10000000000,
+    "60e20b578c9261482a1175c0c7c782688d4d24537c79517725d45b1e6c218e7bd7": 10000000000,
+    "6085fca6292ec9e84bc603a35afe4590018f5e548796b415e5190794076e3013e5": 10000000000,
+    "60d5598a203ab2bf1c84784e718ec3c86dad96577eb05115ca8bd73d2642791a0b": 10000000000,
+    "60e4b5fa9e4fe7fc05927b65d1dcff10f1756b9adda3d95e01be888a50ec1c9b3c": 10000000000,
+    "60c558efc7290e6c16fcfdf8e9bb2a35deeee1d0397fed79beb691cd222a658d19": 10000000000,
+    "60a149dfda04a9dc77d6d36cfbd90ae0e693e5e99ad59c09a8455169afe180b8de": 10000000000,
+    "60cafc7fa89300069df914b16ee4bb807392bbeb4a22817e46b568e7c3e44c4c12": 10000000000,
+    "60d859bb45a12877823072d5b3a2ee07364d5f1667c712b2346c9fca5e26e835bb": 10000000000,
+    "6012d8ee697e06788b1e83eb5f110a0aab9604daa257621813c19e100c7b43f17e": 10000000000,
+    "601176ffb75fefdaf81d12be48393ab09636c97fa9e28caf243869cdecb07b6d83": 10000000000,
+    "60d032b54aa74db6e027a881e69363517f3cc89499f1b334cb9263cc6302b1e81b": 10000000000,
+    "609ae433e9e70fb898c03ff9b8b96f85b4a49d7ecfc8a7a8509cbb3ab2fb60c885": 10000000000,
+    "60b7956a50e4b70a24a0d88b255f76e103afc3fecc735ecf5ddc24f9061b7afc38": 10000000000,
+    "60711b4d7d6ede831130edb24d0f55cf57b6b34ec81c3c85ba800f4ee695ff5a56": 10000000000,
+    "60b61f61b09ac3d1207b216fa27e6cc7d36f5c7a0dc071ab01d2e16b485156e7a8": 10000000000,
+    "60ea8099c048c7c34e09434c007976f66571ddcad043142693fe5c927f77b3b51e": 10000000000,
+    "6067a4db846b564655984a4f9304707ebd857c1379fd72c4f5329546a9aabc6138": 10000000000,
+    "606f75438d09e5b2b507fbdc6e2afb4c524a69b059f2bb65a6cfa5575467d61a52": 10000000000,
+    "60b496df105508bc908f930fdc4849fa5d9cf437a83e0713f4b1f4ad13f211f245": 1000000000000,
+    "60b0df235874857c9f984c18173b66831789c3b7779e0c6cf8713f98c4e324fac2": 1000000000000,
+    "60896d73f2aeae8bc4be55b2070a48834de84ebb356d5fd9c82ae3f5d49a37313d": 1000000000000
+  },
+  "maxLovelaceSupply": 1e+15,
+  "networkMagic": 4006,
+  "epochLength": 900,
+  "staking": null,
+  "slotsPerKESPeriod": 14400,
+  "slotLength": 2,
+  "maxKESEvolutions": 2240,
+  "securityParam": 72
+}
