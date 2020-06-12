@@ -5,8 +5,6 @@
 # 2020-05-19 cntools initial release (concept)
 # 2020-05-24 helper functions moved cnlibrary & configuration to env file
 
-find /opt/cardano -name node*json -mtime +1 -exec rm -rf {} \;
-
 ########## Global tasks ###########################################
 
 # get common env variables
