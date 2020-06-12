@@ -22,13 +22,13 @@
     "keyDeposit": 1000,
     "keyDecayRate": 0,
     "nOpt": 5,
-    "rho": 1.78650067e-6,
+    "rho": 1.78650067e-7,
     "poolMinRefund": 0,
     "tau": 0.1,
     "a0": 0.4
   },
-  "protocolMagicId": 4005,
-  "systemStart": "2020-06-09T02:15:00.00Z",
+  "protocolMagicId": 4006,
+  "systemStart": "2020-06-12T04:23:00.00Z",
   "genDelegs": {
         "b18d6e32c2fb1c0ae7e9a16757a728fc14f2694c6d4c90c0ff3a8d241a4daa4a": {
             "delegate": "ff74c4b0ec688de34e1089a22d97badfd1c20afec65c07c82fd180a2491462b7",
@@ -39,7 +39,7 @@
             "vrf": "e6b2df1c21cb9958a3fcb26a93f0e4fa52449b3483b4023d531418aa62088240"
         }
   },
-  "updateQuorum": 2,
+  "updateQuorum": 1,
   "networkId": "Testnet",
   "maxMajorPV": 25446,
   "initialFunds": {
@@ -70,11 +70,11 @@
     "60896d73f2aeae8bc4be55b2070a48834de84ebb356d5fd9c82ae3f5d49a37313d": 1000000000000
   },
   "maxLovelaceSupply": 1e+15,
-  "networkMagic": 4005,
+  "networkMagic": 4006,
   "epochLength": 900,
   "staking": null,
   "slotsPerKESPeriod": 14400,
   "slotLength": 2,
   "maxKESEvolutions": 2240,
-  "securityParam": 108
+  "securityParam": 72
 }
