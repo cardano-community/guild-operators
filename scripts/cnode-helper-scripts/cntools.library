@@ -32,6 +32,18 @@ indent() {
 }
 
 
+# Command    : waitForInput
+# Description: wait for user keypress to continue
+waitForInput() {
+  ESC=$(printf "\033")
+  echo ""
+  read -rsn1 -p "press any key to return to home menu" key # get 1 character
+  if [[ $key == $ESC ]]; then
+    read -rsn2 key # read 2 more chars
+  fi
+}
+
+
 # Command    : say [message]
 # Description: Print message
 # Parameters : message   >   The message
@@ -82,8 +94,7 @@ protectionPreRequisites() {
     say "Run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
     echo ""
     say "sudo echo \"$(whoami) ALL=NOPASSWD: $(command -v chattr)\" >> /etc/sudoers"
-    echo ""
-    read -r -n 1 -s -p "press any key to return to home menu"
+    waitForInput
     return 1
   fi
   rm -f "${TMP_FOLDER}/test"
@@ -205,7 +216,7 @@ function selectWallet {
   if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
     say "${RED}ERROR${NC}: Missing or empty wallet folder, please first create a payment wallet"
     say "Wallet folder: ${WALLET_FOLDER}"
-    echo "" && read -r -n 1 -s -p "press any key to return to home menu" && return 1
+    waitForInput && return 1
   fi
   say "Select Wallet:\n"
   selectDir "${WALLET_FOLDER}"
@@ -224,7 +235,7 @@ function selectPool {
   if [[ ! -d "${POOL_FOLDER}" || $(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
     say "${RED}ERROR${NC}: Missing or empty pool folder, please first create a pool"
     say "Pool folder: ${POOL_FOLDER}"
-    echo "" && read -r -n 1 -s -p "press any key to return to home menu" && return 1
+    waitForInput && return 1
   fi
   say "Select Pool:\n"
   selectDir "${POOL_FOLDER}"
@@ -316,6 +327,16 @@ getTip() {
   tip=$($CCLI shelley query tip --testnet-magic ${NWMAGIC})
   [[ $1 = "slot" ]] && tipType="Slot" || tipType="Block" # default to use block tip
   [[ "${tip}" =~ un${tipType}No.=.([[:alnum:]]+) ]] && echo ${BASH_REMATCH[1]}
+}
+
+# Command    : getEpoch
+# Description: Calculates current epoch based on slot tip
+# Parameters : null
+# Return     : epoch on STDOUT
+# Examples of Usage:
+#   >> epoch=$(getEpoch)
+getEpoch() {
+  echo $(( $(getTip slot) / $(jq -r .epochLength ${GENESIS_JSON}) ))
 }
 
 
