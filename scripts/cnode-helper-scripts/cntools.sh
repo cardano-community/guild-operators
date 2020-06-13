@@ -62,78 +62,21 @@ echo ""
 echo " ) Wallet  -  create, show, remove and protect wallets"
 echo " ) Funds   -  send and delegate ADA"
 echo " ) Pool    -  pool creation and management"
+echo " ) Blocks  -  show core node block log if available"
 echo " ) Update  -  install or upgrade latest available binary of Haskell Cardano"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
 say " What would you like to do?\n"
-case $(select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[u] Update" "[q] Quit") in
+case $(select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[b] Blocks" "[u] Update" "[q] Quit") in
   0) OPERATION="wallet" ;;
   1) OPERATION="funds" ;;
   2) OPERATION="pool" ;;
-  3) OPERATION="update" ;;
-  4) clear && exit ;;
+  3) OPERATION="blocks" ;;
+  4) OPERATION="update" ;;
+  5) clear && exit ;;
 esac
 
 case $OPERATION in
-  update) # not ready yet. ToDo when binary releases become available
-  
-  clear
-  echo " >> UPDATE"
-  echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  echo ""
-  say "${RED}ERROR${NC}: Sorry! not ready yet in cntools"
-  echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-
-  if [ ${#} -lt 2 ]; then
-    DESIRED_RELEASE_JSON=$(curl --proto '=https' --tlsv1.2 -sSf https://api.github.com/repos/input-output-hk/cardano-node/releases/latest)
-  else
-    DESIRED_RELEASE_JSON=$(curl --proto '=https' --tlsv1.2 -sSf https://api.github.com/repos/input-output-hk/cardano-node/releases/tags/${2})
-  fi
-  DESIRED_RELEASE=$(echo $DESIRED_RELEASE_JSON | jq -r .tag_name)
-  DESIRED_RELEASE_PUBLISHED=$(echo $DESIRED_RELEASE_JSON | jq -r .published_at)
-  DESIRED_RELEASE_CLEAN=$(echo ${DESIRED_RELEASE} | cut -c2-)
-
-  if [ -f "${CCLI}" ]; then
-    CURRENT_VERSION=$(${CCLI} --version | cut -f 2 -d " ")
-
-    say "Currently installed: ${CURRENT_VERSION}" "log"
-    say "Desired release:      ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})" "log"
-    if [ "${DESIRED_RELEASE_CLEAN}" != "${CURRENT_VERSION}" ]; then
-      say "Would you like to upgrade to this release?\n"
-      case $(select_opt "[y] Yes" "[n] No") in
-        0) FILE="cardano-node-${DESIRED_RELEASE}-${ASSET_PLATTFORM}.tar.gz"
-           URL="https://github.com/input-output-hk/cardano-node/releases/download/${DESIRED_RELEASE}/"${FILE}
-           echo -e "\nDownload $FILE ..."
-           curl --proto '=https' --tlsv1.2 -L -URL ${URL} -O ${CNODE_HOME}${FILE}
-           tar -C ${CNODE_BIN_HOME} -xzf $FILE
-           rm $FILE
-           say "updated cardano-node from ${CURRENT_VERSION} to ${DESIRED_RELEASE_CLEAN}" "log"
-           ;;
-        1) say "upgrade canceled" ;;
-      esac
-    fi
-  else #
-    say "No cardano-cli binary found"
-    say "Desired available release: ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})" "log"
-    say "Would you like to install this release?\n"
-    case $(select_opt "[y] Yes" "[n] No") in
-      0) FILE="cardano-node-${DESIRED_RELEASE}-${ASSET_PLATTFORM}.tar.gz"
-         URL="https://github.com/input-output-hk/cardano-node/releases/download/${DESIRED_RELEASE}/"${FILE}
-         echo -e "\nDownload $FILE ..."
-         curl --proto '=https' --tlsv1.2 -L -URL ${URL} -O ${CNODE_HOME}${FILE}
-         mkdir -p ${CNODE_BIN_HOME}
-         tar -C ${CNODE_BIN_HOME} -xzf $FILE
-         rm $FILE
-         say "installed cardano-node ${DESIRED_RELEASE_CLEAN}" "log"
-         ;;
-      1) say "Well, that was a pleasant but brief pleasure. Bye bye!" ;;
-    esac
-  fi
-
-  echo "" && read -r -n 1 -s -p "press any key to return to home menu"
-
-  ;; ###################################################################
-
   wallet)
 
   clear
@@ -198,7 +141,7 @@ case $OPERATION in
       wallet_name=${wallet_name//[^[:alnum:]]/_}
       if [[ -z "${wallet_name}" ]]; then
         say "${RED}ERROR${NC}: Empty wallet name, please retry!"
-        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+        waitForInput && continue
       fi
       echo ""
       mkdir -p "${WALLET_FOLDER}/${wallet_name}"
@@ -211,7 +154,7 @@ case $OPERATION in
       if [[ -f "${payment_addr_file}" ]]; then
         say "${RED}WARN${NC}: A wallet ${GREEN}$wallet_name${NC} already exists"
         say "      Choose another name or delete the existing one"
-        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+        waitForInput && continue
       fi
 
       ${CCLI} shelley address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}"
@@ -220,7 +163,7 @@ case $OPERATION in
       say "New Wallet: ${GREEN}${wallet_name}${NC}" "log"
       say "Payment Address: $(cat ${payment_addr_file})" "log"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+      waitForInput
 
       ;; ###################################################################
 
@@ -233,7 +176,7 @@ case $OPERATION in
       
       if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
         say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
-        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+        waitForInput && continue
       fi
       
       if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
@@ -256,11 +199,11 @@ case $OPERATION in
         say "${payment_vk_file}"
         say "${payment_sk_file}"
         say "      A payment wallet with funds available needed to upgrade to stake wallet"
-        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+        waitForInput && continue
       elif [[ -f "${stake_addr_file}" ]]; then
         say "${RED}WARN${NC}: A stake wallet ${GREEN}$wallet_name${NC} already exists"
         say "      Choose another name or delete the existing one"
-        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+        waitForInput && continue
       fi
 
       ${CCLI} shelley stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}"
@@ -277,11 +220,11 @@ case $OPERATION in
       if ! registerStakeWallet "${payment_addr}" "${base_addr}" "${payment_sk_file}" "${stake_sk_file}" "${stake_cert_file}"; then
         say "${RED}ERROR${NC}: failure during stake key registration, removing newly created stake keys"
         rm -f "${stake_vk_file}" "${stake_sk_file}" "${stake_addr_file}" "${stake_cert_file}" "${base_addr_file}"
-        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+        waitForInput && continue
       fi
 
       if ! waitNewBlockCreated; then
-        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+        waitForInput && continue
       fi
 
       getBalance "${payment_addr}" >/dev/null
@@ -309,7 +252,7 @@ case $OPERATION in
       say "Base Balance     : ${CYAN}$(numfmt --grouping ${base_ada})${NC} ADA" "log"
       say "Reward Address   : $(cat ${stake_addr_file})" "log"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+      waitForInput
 
       ;; ###################################################################
 
@@ -325,7 +268,7 @@ case $OPERATION in
     
     if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     
     while IFS= read -r -d '' wallet; do
@@ -355,9 +298,8 @@ case $OPERATION in
     done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
     echo ""
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo ""
     
-    read -r -n 1 -s -p "press any key to return to home menu"
+    waitForInput
     ;; ###################################################################
 
     show)
@@ -369,7 +311,7 @@ case $OPERATION in
     
     if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     
     if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
@@ -421,7 +363,7 @@ case $OPERATION in
     fi
     echo ""
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+    waitForInput
     
     ;; ###################################################################
 
@@ -434,7 +376,7 @@ case $OPERATION in
     
     if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     
     if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
@@ -447,7 +389,7 @@ case $OPERATION in
       say "${RED}WARN${NC}: no payment or base address files found in wallet"
       say "${payment_addr_file}"
       say "${base_addr_file}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+      waitForInput
     fi
     if [[ -f "${payment_addr_file}" ]]; then
       getBalance "$(cat ${payment_addr_file})" >/dev/null
@@ -491,7 +433,7 @@ case $OPERATION in
       esac
     fi
 
-    echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+    waitForInput
 
     ;; ###################################################################
 
@@ -526,7 +468,7 @@ case $OPERATION in
     echo ""
     if ! getPassword; then # $password variable populated by getPassword function
       echo -e "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     while IFS= read -r -d '' file; do 
       decryptFile "${file}" "${password}" && \
@@ -546,7 +488,7 @@ case $OPERATION in
     fi
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+    waitForInput
 
     ;; ###################################################################
 
@@ -570,7 +512,7 @@ case $OPERATION in
     echo ""
     if ! getPassword confirm; then # $password variable populated by getPassword function
       echo -e "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     keyFiles=(
       "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
@@ -610,7 +552,7 @@ case $OPERATION in
     fi
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+    waitForInput
 
     ;; ###################################################################
 
@@ -648,7 +590,7 @@ case $OPERATION in
 
     if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     
     say " -- Choose Wallet --"
@@ -672,16 +614,16 @@ case $OPERATION in
 
     if [[ $reward_lovelace -le 0 ]]; then
       echo "Failed to locate any rewards associated with the chosen wallet, please try another one"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     if ! withdrawRewards "${stake_vk_file}" "${stake_sk_file}" "${pay_payment_sk_file}" "$(cat ${base_addr_file})" "$(cat ${stake_addr_file})" $reward_lovelace; then
       echo "" && say "${RED}ERROR${NC}: failure during withdrawal of rewards"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     if ! waitNewBlockCreated; then
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     say ""
@@ -692,7 +634,8 @@ case $OPERATION in
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base"  "$(numfmt --grouping ${base_ada})")" "log"
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(numfmt --grouping ${reward_ada})")" "log"
     echo "" && read -r -n 1 -s -p "press any key to return to home menu"
-    ;;
+    
+    ;; ###################################################################
 
     send)
     
@@ -703,7 +646,7 @@ case $OPERATION in
     
     if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     
     say " -- Source Wallet --"
@@ -745,7 +688,7 @@ case $OPERATION in
       say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base"  "$(numfmt --grouping ${base_ada})")" "log"
     else
       say "${RED}ERROR${NC}: no funds available in either payment or base address for wallet ${GREEN}${s_wallet}${NC}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     s_addr="$(cat ${s_addr_file})"
 
@@ -763,7 +706,7 @@ case $OPERATION in
 
     if  [[ "${amountADA}" != "all" ]]; then
       if ! ADAtoLovelace "${amountADA}" >/dev/null; then
-        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+        waitForInput && continue
       fi
       amountLovelace=$(ADAtoLovelace "${amountADA}")
       echo ""
@@ -811,7 +754,7 @@ case $OPERATION in
            say "${RED}ERROR${NC}: no payment or base address file found for wallet ${GREEN}${d_wallet}${NC}"
            say "${d_payment_addr_file}"
            say "${d_base_addr_file}"
-           echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+           waitForInput && continue
          fi
          d_addr="$(cat ${d_addr_file})"
          ;;
@@ -821,7 +764,7 @@ case $OPERATION in
     # Destination could be empty, if so  without getting a valid address
     if [[ -z ${d_addr} ]]; then
       say "${RED}ERROR${NC}: destination address field empty"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     # Source Sign Key
@@ -830,17 +773,17 @@ case $OPERATION in
     if [[ ! -f "${s_payment_sk_file}" ]]; then
       say "${RED}ERROR${NC}: source wallet signing key file not found:"
       say "${s_payment_sk_file}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     if ! sendADA "${d_addr}" "${amountLovelace}" "${s_addr}" "${s_payment_sk_file}" "${include_fee}"; then
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     
     echo ""
 
     if ! waitNewBlockCreated; then
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     say ""
@@ -859,7 +802,7 @@ case $OPERATION in
     done
     
     if [[ ${TOTALBALANCE} -ne ${newBalance} ]]; then 
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     s_balance_ada=${totalBalanceADA}
@@ -890,7 +833,7 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
 
-    echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+    waitForInput
 
     ;; ###################################################################
 
@@ -903,7 +846,7 @@ case $OPERATION in
     
     if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     
     if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
@@ -913,7 +856,7 @@ case $OPERATION in
     if [[ ! -f "${base_addr_file}" ]]; then
       say "${RED}ERROR${NC}: 'wallet base address file not found (are you sure this is a stake wallet?):"
       say "${base_addr_file}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
@@ -925,7 +868,7 @@ case $OPERATION in
       say "${stake_sk_file}"
       say "${stake_vk_file}"
       say "${pay_payment_sk_file}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     
     say "Do you want to delegate to a local pool or specify the pools cold vkey cbor-hex?\n"
@@ -960,11 +903,11 @@ case $OPERATION in
     if ! delegate "${stake_vk_file}" "${stake_sk_file}" "${pay_payment_sk_file}" "$(cat ${base_addr_file})" "${pool_coldkey_vk_file}" "${delegation_cert_file}" ; then
       echo "" && say "${RED}ERROR${NC}: failure during delegation, removing newly created delegation certificate file"
       rm -f "${delegation_cert_file}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     if ! waitNewBlockCreated; then
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     echo ""
@@ -983,7 +926,7 @@ case $OPERATION in
     done
     
     if [[ ${TOTALBALANCE} -ne ${newBalance} ]]; then
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     say "Delegation successfully registered"
@@ -993,7 +936,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
 
-    echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+    waitForInput && continue
     ;; ###################################################################
 
   esac
@@ -1042,7 +985,7 @@ case $OPERATION in
     pool_name=${pool_name//[^[:alnum:]]/_}
     if [[ -z "${pool_name}" ]]; then
       say "${RED}ERROR${NC}: Empty pool name, please retry!"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     echo ""
     mkdir -p "${POOL_FOLDER}/${pool_name}"
@@ -1061,7 +1004,7 @@ case $OPERATION in
     if [[ -f "${pool_hotkey_vk_file}" ]]; then
       say "${RED}WARN${NC}: A pool ${GREEN}$pool_name${NC} already exists"
       say "      Choose another name or delete the existing one"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     #Calculate appropriate KES period
@@ -1084,7 +1027,7 @@ case $OPERATION in
     say "--shelley-operational-certificate ${pool_opcert_file}" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
-    read -r -n 1 -s -p "press any key to return to home menu" && continue
+    waitForInput && continue
     
     ;; ###################################################################
 
@@ -1097,7 +1040,7 @@ case $OPERATION in
     
     if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     
     if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
@@ -1111,7 +1054,7 @@ case $OPERATION in
     read -r -p "Pledge (in ADA, default: ${pledge_ada}): " pledge_enter
     if [[ -n "${pledge_enter}" ]]; then
       if ! ADAtoLovelace "${pledge_enter}" >/dev/null; then
-        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+        waitForInput && continue
       fi
       pledge_lovelace=$(ADAtoLovelace "${pledge_enter}")
       pledge_ada="${pledge_enter}"
@@ -1126,7 +1069,7 @@ case $OPERATION in
     echo "" && read -r -p "Margin (in %, default: ${margin}): " margin_enter
     if [[ -n "${margin_enter}" ]]; then
       if ! pctToFraction "${margin_enter}" >/dev/null; then
-        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+        waitForInput && continue
       fi
       margin_fraction=$(pctToFraction "${margin_enter}")
       margin="${margin_enter}"
@@ -1141,7 +1084,7 @@ case $OPERATION in
     echo "" && read -r -p "Cost (in ADA, default: ${cost_ada}): " cost_enter
     if [[ -n "${cost_enter}" ]]; then
       if ! ADAtoLovelace "${cost_enter}" >/dev/null; then
-        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+        waitForInput && continue
       fi
       cost_lovelace=$(ADAtoLovelace "${cost_enter}")
       cost_ada="${cost_enter}"
@@ -1171,7 +1114,7 @@ case $OPERATION in
       say "${pay_payment_sk_file}"
       say "${stake_sk_file}"
       say "${stake_vk_file}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}"  || ! -f "${pool_vrf_vk_file}" ]] && {
@@ -1179,7 +1122,7 @@ case $OPERATION in
       say "${pool_coldkey_vk_file}"
       say "${pool_coldkey_sk_file}"
       say "${pool_vrf_vk_file}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     }
 
     #Generated Files
@@ -1195,11 +1138,11 @@ case $OPERATION in
     if ! registerPool "$(cat ${base_addr_file})" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pool_pledgecert_file}" "${pay_payment_sk_file}"; then
       say "${RED}ERROR${NC}: failure during pool registration, removing newly created pledge and registration files"
       rm -f "${pool_regcert_file}" "${pool_pledgecert_file}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     if ! waitNewBlockCreated; then
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     say ""
@@ -1218,7 +1161,7 @@ case $OPERATION in
     done
     
     if [[ ${TOTALBALANCE} -ne ${newBalance} ]]; then
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     echo ""
@@ -1233,7 +1176,7 @@ case $OPERATION in
     fi
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
-    read -r -n 1 -s -p "press any key to return to home menu" && continue
+    waitForInput && continue
     
     ;; ###################################################################
 
@@ -1246,7 +1189,7 @@ case $OPERATION in
     
     if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     
     if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
@@ -1256,7 +1199,7 @@ case $OPERATION in
     if [[ ! -f ${pool_config} ]]; then
       say "${ORANGE}WARN${NC}: Missing pool config file, please first register your pool"
       say "${pool_config}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     
     # Pledge wallet, also used to pay for pool update fee
@@ -1277,7 +1220,7 @@ case $OPERATION in
     read -r -p "New Pledge (in ADA, old: ${pledge_ada}): " pledge_enter
     if [[ -n "${pledge_enter}" ]]; then
       if ! ADAtoLovelace "${pledge_enter}" >/dev/null; then
-        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+        waitForInput && continue
       fi
       pledge_lovelace=$(ADAtoLovelace "${pledge_enter}")
       pledge_ada="${pledge_enter}"
@@ -1289,7 +1232,7 @@ case $OPERATION in
     echo "" && read -r -p "New Margin (in %, old: ${margin}): " margin_enter
     if [[ -n "${margin_enter}" ]]; then
       if ! pctToFraction "${margin_enter}" >/dev/null; then
-        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+        waitForInput && continue
       fi
       margin_fraction=$(pctToFraction "${margin_enter}")
       margin="${margin_enter}"
@@ -1301,7 +1244,7 @@ case $OPERATION in
     echo "" && read -r -p "New Cost (in ADA, old: ${cost_ada}): " cost_enter
     if [[ -n "${cost_enter}" ]]; then
       if ! ADAtoLovelace "${cost_enter}" >/dev/null; then
-        echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+        waitForInput && continue
       fi
       cost_lovelace=$(ADAtoLovelace "${cost_enter}")
       cost_ada="${cost_enter}"
@@ -1326,7 +1269,7 @@ case $OPERATION in
       say "${pay_payment_sk_file}"
       say "${stake_sk_file}"
       say "${stake_vk_file}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}"  || ! -f "${pool_vrf_vk_file}" ]] && {
@@ -1334,7 +1277,7 @@ case $OPERATION in
       say "${pool_coldkey_vk_file}"
       say "${pool_coldkey_sk_file}"
       say "${pool_vrf_vk_file}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     }
 
     #Generated Files
@@ -1347,11 +1290,11 @@ case $OPERATION in
     if ! modifyPool "$(cat ${base_addr_file})" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pay_payment_sk_file}"; then
       say "${RED}ERROR${NC}: failure during pool update, removing newly created registration certificate"
       rm -f "${pool_regcert_file}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     if ! waitNewBlockCreated; then
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
 
     say ""
@@ -1370,7 +1313,7 @@ case $OPERATION in
     done
     
     if [[ ${TOTALBALANCE} -ne ${newBalance} ]]; then
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     
     # Update pool config
@@ -1388,7 +1331,7 @@ case $OPERATION in
     fi
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
-    read -r -n 1 -s -p "press any key to return to home menu" && continue
+    waitForInput && continue
     
     ;; ###################################################################
 
@@ -1400,7 +1343,7 @@ case $OPERATION in
     
     if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     
     while IFS= read -r -d '' pool; do 
@@ -1421,7 +1364,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
-    read -r -n 1 -s -p "press any key to return to home menu"
+    waitForInput
     
     ;; ###################################################################
 
@@ -1434,7 +1377,7 @@ case $OPERATION in
     
     if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     
     if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
@@ -1466,7 +1409,7 @@ case $OPERATION in
     say "$(printf "%-21s   %s" "" "--shelley-operational-certificate ${pool_opcert_file}")" "log"
     echo ""
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+    waitForInput
     
     ;; ###################################################################
     
@@ -1479,7 +1422,7 @@ case $OPERATION in
     
     if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     
     if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
@@ -1500,7 +1443,7 @@ case $OPERATION in
       say "${pool_hotkey_vk_file}"
       say "${pool_hotkey_sk_file}"
       say "${pool_opcert_counter_file}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     }
 
     #Calculate appropriate KES period
@@ -1523,7 +1466,7 @@ case $OPERATION in
 
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
-    read -r -n 1 -s -p "press any key to return to home menu" && continue
+    waitForInput && continue
     
     ;; ###################################################################
     
@@ -1558,7 +1501,7 @@ case $OPERATION in
     echo ""
     if ! getPassword; then # $password variable populated by getPassword function
       echo -e "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     while IFS= read -r -d '' file; do 
       decryptFile "${file}" "${password}" && \
@@ -1578,7 +1521,7 @@ case $OPERATION in
     fi
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+    waitForInput
 
     ;; ###################################################################
 
@@ -1602,7 +1545,7 @@ case $OPERATION in
     echo ""
     if ! getPassword confirm; then # $password variable populated by getPassword function
       echo -e "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+      waitForInput && continue
     fi
     keyFiles=(
       "${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
@@ -1639,7 +1582,7 @@ case $OPERATION in
     fi
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+    waitForInput
 
     ;; ###################################################################
 
@@ -1647,6 +1590,101 @@ case $OPERATION in
 
   ;; ###################################################################
 
+  blocks)
+  
+  clear
+  echo " >> BLOCKS"
+  echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+  
+  if [[ ! -f "${BLOCK_LOG_FILE}" ]]; then
+    say "${RED}ERROR${NC}: block log file not found!"
+    say "run cntoolsBlockCollector.sh script to start collecting blocks from json log file"
+    say "log file to parse grabbed from node config file specified in env"
+    say "if BLOCK_LOG_FILE has been modified cntoolsBlockCollector.sh script has to be restarted"
+    waitForInput && continue
+  fi
+  
+  epoch=$(getEpoch)
+  
+  say "Current epoch: ${epoch}\n"
+  
+  read -r -p "Enter epoch to list (enter for current): " epoch_enter
+  [[ -z "${epoch_enter}" ]] && epoch_enter=${epoch}
+  
+  block_count=$(jq -c --arg epoch $epoch_enter '[.[] | select(.epoch==$epoch)] | length' "${BLOCK_LOG_FILE}")
+  [[ "${block_count}" =~ ^[0-9]+$ ]] || block_count=0
+  
+  say "${BLUE}${block_count}${NC} blocks created in epoch ${BLUE}${epoch_enter}${NC}" "log"
+  
+  if [[ ${block_count} -gt 0 ]]; then
+    echo ""
+    # print block table
+    echo '[Slot,At,Hash]' | cat - <(jq -c --arg epoch $epoch_enter '.[] | select(.epoch==$epoch) | [.slot,(.at|sub("\\.[0-9]+Z$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S %Z")),.hash]' "${BLOCK_LOG_FILE}") | column -t -s'[],"'
+  fi
+
+  waitForInput
+
+  ;; ###################################################################
+  
+  update) # not ready yet. ToDo when binary releases become available
+  
+  clear
+  echo " >> UPDATE"
+  echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+  echo ""
+  say "${RED}ERROR${NC}: Sorry! not ready yet in cntools"
+  waitForInput && continue
+
+  if [ ${#} -lt 2 ]; then
+    DESIRED_RELEASE_JSON=$(curl --proto '=https' --tlsv1.2 -sSf https://api.github.com/repos/input-output-hk/cardano-node/releases/latest)
+  else
+    DESIRED_RELEASE_JSON=$(curl --proto '=https' --tlsv1.2 -sSf https://api.github.com/repos/input-output-hk/cardano-node/releases/tags/${2})
+  fi
+  DESIRED_RELEASE=$(echo $DESIRED_RELEASE_JSON | jq -r .tag_name)
+  DESIRED_RELEASE_PUBLISHED=$(echo $DESIRED_RELEASE_JSON | jq -r .published_at)
+  DESIRED_RELEASE_CLEAN=$(echo ${DESIRED_RELEASE} | cut -c2-)
+
+  if [ -f "${CCLI}" ]; then
+    CURRENT_VERSION=$(${CCLI} --version | cut -f 2 -d " ")
+
+    say "Currently installed: ${CURRENT_VERSION}" "log"
+    say "Desired release:      ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})" "log"
+    if [ "${DESIRED_RELEASE_CLEAN}" != "${CURRENT_VERSION}" ]; then
+      say "Would you like to upgrade to this release?\n"
+      case $(select_opt "[y] Yes" "[n] No") in
+        0) FILE="cardano-node-${DESIRED_RELEASE}-${ASSET_PLATTFORM}.tar.gz"
+           URL="https://github.com/input-output-hk/cardano-node/releases/download/${DESIRED_RELEASE}/"${FILE}
+           echo -e "\nDownload $FILE ..."
+           curl --proto '=https' --tlsv1.2 -L -URL ${URL} -O ${CNODE_HOME}${FILE}
+           tar -C ${CNODE_BIN_HOME} -xzf $FILE
+           rm $FILE
+           say "updated cardano-node from ${CURRENT_VERSION} to ${DESIRED_RELEASE_CLEAN}" "log"
+           ;;
+        1) say "upgrade canceled" ;;
+      esac
+    fi
+  else #
+    say "No cardano-cli binary found"
+    say "Desired available release: ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})" "log"
+    say "Would you like to install this release?\n"
+    case $(select_opt "[y] Yes" "[n] No") in
+      0) FILE="cardano-node-${DESIRED_RELEASE}-${ASSET_PLATTFORM}.tar.gz"
+         URL="https://github.com/input-output-hk/cardano-node/releases/download/${DESIRED_RELEASE}/"${FILE}
+         echo -e "\nDownload $FILE ..."
+         curl --proto '=https' --tlsv1.2 -L -URL ${URL} -O ${CNODE_HOME}${FILE}
+         mkdir -p ${CNODE_BIN_HOME}
+         tar -C ${CNODE_BIN_HOME} -xzf $FILE
+         rm $FILE
+         say "installed cardano-node ${DESIRED_RELEASE_CLEAN}" "log"
+         ;;
+      1) say "Well, that was a pleasant but brief pleasure. Bye bye!" ;;
+    esac
+  fi
+
+  waitForInput
+
+  ;; ###################################################################
+  
 esac # main OPERATION
 done # main loop
 }
