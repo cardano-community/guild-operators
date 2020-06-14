@@ -1,5 +1,5 @@
 #!/bin/bash
-# shellcheck disable=SC1090
+# shellcheck disable=SC1090,SC2086
 
 # get common env variables
 . "$(dirname $0)"/env
