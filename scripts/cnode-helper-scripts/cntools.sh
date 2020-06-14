@@ -340,7 +340,7 @@ case $OPERATION in
           continue
         fi
         say "$(printf "%s\t${CYAN}%s${NC} ADA" "Reward" "$(numfmt --grouping ${reward_ada})")" "log"
-        [[ "${stake_address_info}" =~ ,KeyHash.([[:alnum:]]+) ]] && delegation_pool_id="${BASH_REMATCH[1]}" || delegation_pool_id="" # stake_address_info populated in getBalanceAllAddr()
+        delegation_pool_id=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address $(cat ${stake_addr_file}) | jq -r '.[].delegation // empty')
         if [[ -n ${delegation_pool_id} ]]; then
           unset poolName
           while IFS= read -r -d '' pool; do
@@ -403,9 +403,9 @@ case $OPERATION in
       if [[ "${reward_lovelace}" -eq -1 ]]; then
         say "${ORANGE}Not a registered stake wallet on chain${NC}"
       else
-        say "$(printf "${BLUE}%-8s${NC} %-7s: %s" "Reward" "address" "${base_addr}")" "log"
+        say "$(printf "${BLUE}%-8s${NC} %-7s: %s" "Reward" "address" "${stake_addr}")" "log"
         say "$(printf "%-8s %-7s: ${CYAN}%s${NC} ADA" "" "amount" "$(numfmt --grouping ${reward_ada})")" "log"
-        [[ "${stake_address_info}" =~ ,KeyHash.([[:alnum:]]+) ]] && delegation_pool_id="${BASH_REMATCH[1]}" || delegation_pool_id="" # stake_address_info populated in getBalanceAllAddr()
+        delegation_pool_id=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address $(cat ${stake_addr_file}) | jq -r '.[].delegation  // empty')
         if [[ -n ${delegation_pool_id} ]]; then
           unset poolName
           while IFS= read -r -d '' pool; do
@@ -654,18 +654,17 @@ case $OPERATION in
     say " -- Choose Wallet --"
     echo ""
     if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
-    wallet="${wallet_name}"
     
-    payment_addr_file="${WALLET_FOLDER}/${wallet}/${WALLET_PAY_ADDR_FILENAME}"
+    payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
     
-    base_addr_file="${WALLET_FOLDER}/${wallet}/${WALLET_BASE_ADDR_FILENAME}"
-    stake_addr_file="${WALLET_FOLDER}/${wallet}/${WALLET_STAKE_ADDR_FILENAME}"
+    base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
+    stake_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_ADDR_FILENAME}"
 
     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
     stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
     pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
     
-    getBalanceAllAddr "${WALLET_FOLDER}/${wallet}"
+    getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}"
 
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Payment"  "$(numfmt --grouping ${payment_ada})")" "log"
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base"  "$(numfmt --grouping ${base_ada})")" "log"
@@ -687,7 +686,7 @@ case $OPERATION in
 
     say ""
     say "--- Balance Check -------------------------------------------------------"
-    getBalanceAllAddr "${WALLET_FOLDER}/${wallet}"
+    getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}"
 
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Payment"  "$(numfmt --grouping ${payment_ada})")" "log"
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base"  "$(numfmt --grouping ${base_ada})")" "log"
@@ -928,16 +927,28 @@ case $OPERATION in
       say "${pay_payment_sk_file}"
       echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
     fi
-
-    if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
     
-    pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
-    
-    if [[ ! -f "${pool_coldkey_vk_file}" ]]; then
-      say "${RED}ERROR${NC}: 'Pool cold verification key missing:"
-      say "${pool_coldkey_vk_file}"
-      echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
-    fi
+    say "Do you want to delegate to a local pool or specify the pools cold vkey cbor-hex?\n"
+    case $(select_opt "[p] Pool" "[v] Vkey" "[c] Cancel") in
+      0) if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
+         pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
+         if [[ ! -f "${pool_coldkey_vk_file}" ]]; then
+           say "${RED}ERROR${NC}: 'Pool cold verification key missing:"
+           say "${pool_coldkey_vk_file}"
+           echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+         fi
+         ;;
+      1) read -r -p "vkey cbor-hex(blank to cancel): " vkey_cbor 
+         [[ -z "${vkey_cbor}" ]] && continue
+         pool_name="${vkey_cbor}"
+         pool_coldkey_vk_file="${TMP_FOLDER}/pool_delegation.vkey"
+         echo "type: Node operator verification key" > "${pool_coldkey_vk_file}"
+         echo "title: Stake pool operator key" >> "${pool_coldkey_vk_file}"
+         echo "cbor-hex:" >> "${pool_coldkey_vk_file}"
+         echo " ${vkey_cbor}" >> "${pool_coldkey_vk_file}"
+         ;;
+      2) continue ;;
+    esac
 
     #Generated Files
     delegation_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DELEGCERT_FILENAME}"
