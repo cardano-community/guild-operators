@@ -14,6 +14,7 @@
     "maxBlockBodySize": 65536,
     "keyMinRefund": 50,
     "minFeeB": 0,
+    "minPoolCost": 5000000,
     "eMax": 100,
     "extraEntropy": {
       "tag": "NeutralNonce"
@@ -22,13 +23,13 @@
     "keyDeposit": 1000,
     "keyDecayRate": 0,
     "nOpt": 5,
-    "rho": 1.78650067e-7,
+    "rho": 0.0005,
     "poolMinRefund": 0,
     "tau": 0.1,
     "a0": 0.4
   },
-  "protocolMagicId": 4006,
-  "systemStart": "2020-06-12T04:23:00.00Z",
+  "protocolMagicId": 4007,
+  "systemStart": "2020-06-14T01:30:00.00Z",
   "genDelegs": {
         "b18d6e32c2fb1c0ae7e9a16757a728fc14f2694c6d4c90c0ff3a8d241a4daa4a": {
             "delegate": "ff74c4b0ec688de34e1089a22d97badfd1c20afec65c07c82fd180a2491462b7",
@@ -69,8 +70,8 @@
     "60b0df235874857c9f984c18173b66831789c3b7779e0c6cf8713f98c4e324fac2": 1000000000000,
     "60896d73f2aeae8bc4be55b2070a48834de84ebb356d5fd9c82ae3f5d49a37313d": 1000000000000
   },
-  "maxLovelaceSupply": 1e+15,
-  "networkMagic": 4006,
+  "maxLovelaceSupply": 1e+14,
+  "networkMagic": 4007,
   "epochLength": 900,
   "staking": null,
   "slotsPerKESPeriod": 14400,
