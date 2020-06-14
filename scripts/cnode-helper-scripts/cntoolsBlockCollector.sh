@@ -1,10 +1,11 @@
 #!/bin/bash
+# shellcheck disable=SC1090
 
 # get common env variables
-. "$(dirname "$0")/env"
+. "$(dirname $0)"/env
 
 # get cntools config parameters
-. "$(dirname "$0")/cntools.config"
+. "$(dirname $0)"/cntools.config
 
 # get log file from config file specified in env
 [[ $(grep "scName.*\.json" "${CONFIG}") =~ scName:.\"(.+\.json)\" ]] && logfile="${BASH_REMATCH[1]}" || logfile=""

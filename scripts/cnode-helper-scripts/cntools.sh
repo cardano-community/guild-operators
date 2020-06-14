@@ -1,9 +1,6 @@
 #!/bin/bash
 # shellcheck disable=SC1090,SC2086,SC2154,SC2034
 # ,SC2034,SC2143,SC2046,
-# Creators: gufmar, Scitz0, Papacarp
-# 2020-05-19 cntools initial release (concept)
-# 2020-05-24 helper functions moved cnlibrary & configuration to env file
 
 ########## Global tasks ###########################################
 
