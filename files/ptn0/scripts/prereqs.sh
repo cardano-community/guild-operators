@@ -115,10 +115,10 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo rpm --import https://dl.yarnpkg.com/rpm/pubkey.gpg > /dev/null
     $sudo yum -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    $sudo yum -y install python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq gnupg > /dev/null;rc=$?
+    $sudo yum -y install python3 coreutils-single pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq gnupg > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
-      echo "sudo yum -y install coreutils python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq gnupg"
+      echo "sudo yum -y install coreutils-single python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq gnupg"
       echo "It would be best if you could submit an issue at https://github.com/cardano-community/guild-operators with the details to tackle in future, as some errors may be due to external/already present dependencies"
       exit;
     fi
