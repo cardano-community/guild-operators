@@ -9,9 +9,9 @@
 # get log file from config file specified in env
 [[ $(grep scName.*\.json "${CONFIG}") =~ scName:.\"(.+\.json)\" ]] && logfile="${BASH_REMATCH[1]}" || logfile=""
 
-[[ -z "${logfile}" ]] && say "${RED}Error:${NC} Failed to locate json logfile in node configuration file\na setupScribe of format ScJson with extension .json expected" && exit 1
+[[ -z "${logfile}" ]] && echo -e "${RED}Error:${NC} Failed to locate json logfile in node configuration file\na setupScribe of format ScJson with extension .json expected" && exit 1
 
-[[ -z "${BLOCK_LOG_FILE}" ]] && say "${RED}Error:${NC} 'BLOCK_LOG_FILE' not configured in cntools.config" && exit 1
+[[ -z "${BLOCK_LOG_FILE}" ]] && echo -e "${RED}Error:${NC} 'BLOCK_LOG_FILE' not configured in cntools.config" && exit 1
 
 # create BLOCK_LOG_FILE if missing
 [[ ! -f "${BLOCK_LOG_FILE}" ]] && echo "[]" > "${BLOCK_LOG_FILE}"
