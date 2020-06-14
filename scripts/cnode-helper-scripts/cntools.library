@@ -491,12 +491,9 @@ getBalanceAllAddr() {
     base_ada=${totalBalanceADA}
     cp -f ${TMP_FOLDER}/fullUtxo.out ${TMP_FOLDER}/fullUtxo_base.out
     cp -f ${TMP_FOLDER}/balance.out ${TMP_FOLDER}/balance_base.out
-    rewards=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address ${stake_addr} | jq '.[] | .rewardAccountBalance')
-    [[ ! -z "$rewards" ]] && echo "" >/dev/null || rewards=0
-    if [[ -n ${rewards} ]]; then
-      reward_lovelace=${rewards}
-      reward_ada=$(lovelacetoADA ${rewards})
-    fi
+    reward_lovelace=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address ${stake_addr} | jq -r '.[].rewardAccountBalance // empty')
+    [[ "${reward_lovelace}" =~ ^[0-9]+$ ]] || reward_lovelace=0
+    reward_ada=$(lovelacetoADA ${reward_lovelace})
   fi
 }
 
@@ -1072,6 +1069,9 @@ modifyPool() {
   fi
 }
 
+# Command    : withdrawRewards [stake vkey file] [stake skey file] [payment skey file] [base address] [reward address] [rewards in lovelace]
+# Description: withdraw rewards earned and send to wallet base address
+#
 withdrawRewards() {
 
   # script arguments
@@ -1082,35 +1082,22 @@ withdrawRewards() {
   stake_addr="$5"
   reward_lovelace="$6"
 
-  # say ""
-  # say "--- Balance Check Payment Address -------------------------------------------------------" "log"
-  getBalance ${base_addr}
-
   tx=$(head -n 1 ${TMP_FOLDER}/balance.out)
 
   [[ -z ${tx} ]] && error "payment address empty" && return 1
 
-  # say ""
-  # say "Using UTxO with highest balance:" "log"
-  # say "${tx}" "log"
-  # say ""
-
   # Use all available utxo in pledge wallet base address
-  # say "Using UTxO's:" "log"
   tx_in=""
   while read -r utxo; do
     in_addr=$(awk '{ print $1 }' <<< "${utxo}")
     idx=$(awk '{ print $2 }' <<< "${utxo}")
     utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
-    # say "TxHash: ${in_addr}#${idx}" "log"
-    # say "Lovelace: $(numfmt --grouping ${utxo_balance})" "log"
     tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
   done <${TMP_FOLDER}/balance.out
 
   say " -- Protocol Parameters --"
   currSlot=$(getTip slot)
   ttlValue=$(( currSlot + 1000 ))
-  # say "TN Magic is ${NWMAGIC}" "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
 
   say ""
@@ -1176,9 +1163,7 @@ withdrawRewards() {
 
   say "Signing transaction"
 
-  ## TODO decrypt skey
   output=$(${CCLI} ${signArgs[*]})
-  ## TODO encrypt skey
   if [[ -n $output ]]; then
     error "2. Problem during signing with args ${signArgs[*]}" "$output"
     return 1
