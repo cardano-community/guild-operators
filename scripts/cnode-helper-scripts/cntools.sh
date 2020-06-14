@@ -633,7 +633,7 @@ case $OPERATION in
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Payment"  "$(numfmt --grouping ${payment_ada})")" "log"
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base"  "$(numfmt --grouping ${base_ada})")" "log"
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(numfmt --grouping ${reward_ada})")" "log"
-    echo "" && read -r -n 1 -s -p "press any key to return to home menu"
+    waitForInput
     
     ;; ###################################################################
 
@@ -878,7 +878,7 @@ case $OPERATION in
          if [[ ! -f "${pool_coldkey_vk_file}" ]]; then
            say "${RED}ERROR${NC}: 'Pool cold verification key missing:"
            say "${pool_coldkey_vk_file}"
-           echo "" && read -r -n 1 -s -p "press any key to return to home menu" && continue
+           waitForInput && continue
          fi
          ;;
       1) read -r -p "vkey cbor-hex(blank to cancel): " vkey_cbor 
