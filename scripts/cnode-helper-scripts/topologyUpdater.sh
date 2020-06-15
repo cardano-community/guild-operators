@@ -20,4 +20,8 @@ export CARDANO_NODE_SOCKET_PATH="${CNODE_HOME}/sockets/node0.socket"
 
 blockNo=$(cardano-cli shelley query tip --testnet-magic $TESTNET_MAGIC | grep -oP 'unBlockNo = \K\d+')
 
-curl -s "https://api.clio.one/htopology/v1/?port=${CNODE_PORT}&blockNo=${blockNo}&hostname=${CNODE_HOSTNAME}&valency=${CNODE_VALENCY}" | tee -a $CNODE_LOG_DIR/topologyUpdater_lastresult.json
+# Note: 
+# if you run your node in IPv4/IPv6 dual stack network configuration and want announced the 
+# IPv4 address only please add the -4 parameter to the curl command below  (curl -4 -s ...)
+
+curl -s "https://api.clio.one/htopology/v1/?port=${CNODE_PORT}&blockNo=${blockNo}&hostname=${CNODE_HOSTNAME}&valency=${CNODE_VALENCY}&magic=${TESTNET_MAGIC}" | tee -a $CNODE_LOG_DIR/topologyUpdater_lastresult.json
