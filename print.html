@@ -776,12 +776,25 @@ chmod 750 topologyUpdater.sh
 <h1><a class="header" href="#step-by-step-to-have-your-relay-node-listed-in-the-topology" id="step-by-step-to-have-your-relay-node-listed-in-the-topology">Step by Step to have your relay node listed in the topology</a></h1>
 <p><em>Note:</em> You don't need to execute this for your pool nodes. </p>
 <p>You need to execute it once for every relay node you run. (IP:PORT combination)</p>
-<p>If one of the parameters is outside the allowed ranges, invlaid or missing the returned json will tell you what need to be fixed.</p>
+<p>If one of the parameters is outside the allowed ranges, invalid or missing the returned json will tell you what need to be fixed.</p>
 <p>Don't try to execute the script more often than once a hour. It's completely useless and may lead to a temporary blacklisting.</p>
-<h1><a class="header" href="#where-is-the-topology-file" id="where-is-the-topology-file">Where is the topology file</a></h1>
-<p>Work in progress. the topologyupdater is a quick interim solution. For now we propose it as a temporary solution and start collecting relay node registrations. </p>
-<p>We need to figure out how much entries a topology files should have and how we best share the registered nodes to ensure a smooth and solid testnet operation.</p>
-<p>Stay tuned. </p>
+<h1><a class="header" href="#where-is-the-topology-file" id="where-is-the-topology-file">Where is the topology file?</a></h1>
+<p>Each subscribed node (4 consecutive requests) is allowed to fetch a subset of other nodes. </p>
+<p>Engineers of cardano-node network stack suggested to use around 20 peers. More peers create unnecessary and unwanted system load and delays.</p>
+<p>the URL to fetch the peer list is <a href="https://api.clio.one/htopology/v1/fetch/">https://api.clio.one/htopology/v1/fetch/</a></p>
+<p>In it's default setting it returns a list of 15 remote peers. The <code>max</code> parameter allows to define a number between 1 and 20 remote peers.</p>
+<p>There is also a <code>customPeers</code> parameter, to include also some custom peers you want included in the topology json file.  Every custom peer is defined in the form [address]:[port] and optional :[valancy]. Multiple custom peers are separated by | </p>
+<p>A complete example looks like</p>
+<p><a href="https://api.clio.one/htopology/v1/fetch/?max=12&amp;customPeers=10.0.0.1:3001%7C10.0.0.2:3002%7Crelays.mydomain.com:3003:3">https://api.clio.one/htopology/v1/fetch/?max=12&amp;customPeers=10.0.0.1:3001|10.0.0.2:3002|relays.mydomain.com:3003:3</a></p>
+<p>you can request the file from you node by using the curl command</p>
+<pre><code>curl -s -o path/to/topology.json https://api.clio.one/htopology/v1/fetch?max=14
+</code></pre>
+<p>Don't forget to restart your node to load the new topology. </p>
+<p>Might think about including the curl command in your startup script before cardano-node.</p>
+<h2><a class="header" href="#how-are-the-peers-for-my-topology-file-selected" id="how-are-the-peers-for-my-topology-file-selected">How are the peers for my topology file selected?</a></h2>
+<p>We calculate the distance on earth surface from your nodes IP to all subscribed peers. then we order by distance (closest first) and start picking one peer. then skip some, pick the next, skip, pick, skip, pick ... until we reach the end of the list (most fare away). The number of skipped records is calculated in a way to have the desired number of peers at the end.</p>
+<p>Every requesting node has his personal distances to all other nodes. </p>
+<p>We assume this should result in a well distributed and interconnected peering network.</p>
 <h1><a class="header" href="#shelley-staking" id="shelley-staking">Shelley Staking</a></h1>
 <p>This guide's chapter targets the pool operators for getting their head around of Shelley staking. The network references used for this guide are for Friends anf Family Network, and the user is expected to update testnet-magic as desired.
 To fully understand the staking mechanism we need to define and interpret the following key concepts:</p>
