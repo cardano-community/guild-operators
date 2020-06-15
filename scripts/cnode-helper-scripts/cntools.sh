@@ -1593,11 +1593,12 @@ case $OPERATION in
   echo " >> BLOCKS"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   
-  if [[ ! -f "${BLOCK_LOG_FILE}" ]]; then
-    say "${RED}ERROR${NC}: block log file not found!"
+  if [[ ! -d "${BLOCK_LOG_DIR}" ]]; then
+    say "${RED}ERROR${NC}: block log directory not found!"
     say "run cntoolsBlockCollector.sh script to start collecting blocks from json log file"
     say "log file to parse grabbed from node config file specified in env"
-    say "if BLOCK_LOG_FILE has been modified cntoolsBlockCollector.sh script has to be restarted"
+    say "if BLOCK_LOG_DIR has been modified cntoolsBlockCollector.sh script has to be restarted"
+    say "one file for each epoch created containing that epochs created blocks"
     waitForInput && continue
   fi
   
@@ -1608,15 +1609,22 @@ case $OPERATION in
   read -r -p "Enter epoch to list (enter for current): " epoch_enter
   [[ -z "${epoch_enter}" ]] && epoch_enter=${epoch}
   
-  block_count=$(jq -c --arg epoch $epoch_enter '[.[] | select(.epoch==$epoch)] | length' "${BLOCK_LOG_FILE}")
+  blocks_file="${BLOCK_LOG_DIR}/blocks_${epoch_enter}.json"
+  
+  if [[ ! -f "${blocks_file}" ]]; then
+    say "No blocks created in epoch ${epoch_enter}"
+    waitForInput && continue
+  fi
+  
+  block_count=$(jq -c '[.[]] | length' "${blocks_file}")
   [[ "${block_count}" =~ ^[0-9]+$ ]] || block_count=0
   
-  say "${BLUE}${block_count}${NC} blocks created in epoch ${BLUE}${epoch_enter}${NC}" "log"
+  say "\n${BLUE}${block_count}${NC} blocks created in epoch ${BLUE}${epoch_enter}${NC}" "log"
   
   if [[ ${block_count} -gt 0 ]]; then
     echo ""
     # print block table
-    echo '[Slot,At,Hash]' | cat - <(jq -c --arg epoch $epoch_enter '.[] | select(.epoch==$epoch) | [.slot,(.at|sub("\\.[0-9]+Z$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S %Z")),.hash]' "${BLOCK_LOG_FILE}") | column -t -s'[],"'
+    echo '[Slot,At,Size,Hash]' | cat - <(jq -c '.[] | [.slot,(.at|sub("\\.[0-9]+Z$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S %Z")),.size,.hash]' "${blocks_file}") | column -t -s'[],"'
   fi
 
   waitForInput
