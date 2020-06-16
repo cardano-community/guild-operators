@@ -443,6 +443,25 @@ pctToFraction() {
   fi
 }
 
+# Command    : fractionToPCT [fraction]
+# Description: Convert fraction number to precent
+# Parameters : fraction   >   number to be converted 
+# Return     : number as percentage on STDOUT
+# Examples of Usage:
+#   >> fractionToPCT 0.015
+fractionToPCT() {
+  if validateDecimalNbr $1; then
+    if (( $(bc <<<"$1 > 0") )); then 
+      echo "x=$1 * 100; if(x<1) print 0; x" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//'
+    else
+      echo 0
+    fi
+  else
+    say "${RED}ERROR${NC}: must be a valid decimal number"
+    return 1
+  fi
+}
+
 
 # Command    : getBalance [address]
 # Description: check balance for provided address
