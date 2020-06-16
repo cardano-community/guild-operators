@@ -12,7 +12,7 @@ unset logfile
 if [[ "${CONFIG##*.}" = "yaml" ]]; then
   [[ $(grep "scName.*\.json" "${CONFIG}") =~ scName:.\"(.+\.json)\" ]] && logfile="${BASH_REMATCH[1]}"
 elif [[ "${CONFIG##*.}" = "json" ]]; then
-  jq -r '.setupScribes[] | select (.scFormat == "ScJson") | .scName' "${CONFIG}"
+  logfile=$(jq -r '.setupScribes[] | select (.scFormat == "ScJson") | .scName' "${CONFIG}")
 fi
 [[ -z "${logfile}" ]] && echo -e "${RED}Error:${NC} Failed to locate json logfile in node configuration file\na setupScribe of format ScJson with extension .json expected" && exit 1
 
