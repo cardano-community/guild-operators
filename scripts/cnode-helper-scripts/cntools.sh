@@ -1425,7 +1425,7 @@ case $OPERATION in
       # delegator count
       delegator_count=$(jq -r '[._delegationState._dstate._delegations[] | select(.[] == "'"${pool_id}"'")] | length' <<< "${ledger_state}")
       say "$(printf "%-21s : %s" "Delegators" "${delegator_count}")" "log"
-      stake_pct=$(fractionToPCT $(printf "%.10f" $(${CCLI} shelley query stake-distribution --testnet-magic ${NWMAGIC} | grep "${pool_id}" | tr -s ' ' | cut -d ' ' -f 2)))
+      stake_pct=$(fractionToPCT "$(printf "%.10f" "$(${CCLI} shelley query stake-distribution --testnet-magic ${NWMAGIC} | grep "${pool_id}" | tr -s ' ' | cut -d ' ' -f 2)")")
       if validateDecimalNbr ${stake_pct}; then
         say "$(printf "%-21s : %s %%" "Stake distribution" "${stake_pct}")" "log"
       fi
