@@ -263,7 +263,7 @@ case $OPERATION in
     echo " >> WALLET >> LIST"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     
-    if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
+    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
       waitForInput && continue
     fi
@@ -286,7 +286,7 @@ case $OPERATION in
           while IFS= read -r -d '' pool; do
             pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
             if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
-              poolName=$(basename ${pool})
+              poolName=$(basename ${pool}) && break
             fi
           done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
           say "${RED}Delegated to${NC} ${BLUE}${poolName}${NC} ${RED}(${delegation_pool_id})${NC}" "log"
@@ -350,7 +350,7 @@ case $OPERATION in
           while IFS= read -r -d '' pool; do
             pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
             if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
-              poolName=$(basename ${pool})
+              poolName=$(basename ${pool}) && break
             fi
           done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
           echo ""
@@ -1343,14 +1343,16 @@ case $OPERATION in
       waitForInput && continue
     fi
     
+    ledger_state=$(${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
+    
     while IFS= read -r -d '' pool; do 
       echo ""
       pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
-      ledger_status=$(${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} | grep "poolPubKey" | grep "${pool_id}")
-      [[ -n "${ledger_status}" ]] && ledger_status="YES" || ledger_status="NO"
+      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${ledger_state}")
+      [[ -n "${ledger_pool_state}" ]] && pool_registered="YES" || pool_registered="NO"
       say "${GREEN}$(basename ${pool})${NC} "
       say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
-      say "$(printf "%-21s : %s" "Registered" "${ledger_status}")" "log"
+      say "$(printf "%-21s : %s" "Registered" "${pool_registered}")" "log"
       if [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]]; then
         kesExpiration "$(cat "${pool}/${POOL_CURRENT_KES_START}")"
         say "$(printf "%-21s : %s" "KES expiration period" "${kes_expiration_period}")" "log"
@@ -1381,9 +1383,10 @@ case $OPERATION in
     
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
+    ledger_state=$(${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
     pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
-    ledger_status=$(${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} | grep "poolPubKey" | grep "${pool_id}")
-    [[ -n "${ledger_status}" ]] && ledger_status="YES" || ledger_status="NO"
+    ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${ledger_state}")
+    [[ -n "${ledger_pool_state}" ]] && pool_registered="YES" || pool_registered="NO"
     say "${GREEN}${pool_name}${NC} "
     say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
@@ -1392,11 +1395,40 @@ case $OPERATION in
       say "$(printf "%-21s : %s %%" "Margin" "$(numfmt --grouping "$(jq -r .margin "${pool_config}")")")" "log"
       say "$(printf "%-21s : %s ADA" "Cost" "$(numfmt --grouping "$(jq -r .costADA "${pool_config}")")")" "log"
     fi
-    say "$(printf "%-21s : %s" "Registered" "${ledger_status}")" "log"
-    if [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]]; then
-      kesExpiration "$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
-      say "$(printf "%-21s : %s" "KES expiration period" "${kes_expiration_period}")" "log"
-      say "$(printf "%-21s : %s" "KES expiration date" "${expiration_date}")" "log"
+    say "$(printf "%-21s : %s" "Registered" "${pool_registered}")" "log"
+    if [[ "${pool_registered}" = "YES" ]]; then
+      if [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]]; then
+        kesExpiration "$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
+        say "$(printf "%-21s : %s" "KES expiration period" "${kes_expiration_period}")" "log"
+        say "$(printf "%-21s : %s" "KES expiration date" "${expiration_date}")" "log"
+      fi
+      # get owners
+      while read -r owner; do
+        owner_wallet=$(grep -r ${owner} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
+        owner_wallet="$(basename "$(dirname "${owner_wallet}")")"
+        if [[ -n ${owner_wallet} ]]; then
+          say "$(printf "%-21s : %s" "Owner wallet" "${GREEN}${owner_wallet}${NC}")" "log"
+        else
+          say "$(printf "%-21s : %s" "Owner account" "${owner}")" "log"
+        fi
+      done < <(jq -c -r '._poolOwners[] // empty' <<< "${ledger_pool_state}")
+      reward_account=$(jq -r '._poolRAcnt.getRwdCred.contents' <<< "${ledger_pool_state}")
+      if [[ -n ${reward_account} ]]; then
+        reward_wallet=$(grep -r ${reward_account} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
+        reward_wallet="$(basename "$(dirname "${reward_wallet}")")"
+        if [[ -n ${reward_wallet} ]]; then
+          say "$(printf "%-21s : %s" "Reward wallet" "${GREEN}${reward_wallet}${NC}")" "log"
+        else
+          say "$(printf "%-21s : %s" "Reward account" "${reward_account}")" "log"
+        fi
+      fi
+      # delegator count
+      delegator_count=$(jq -r '[._delegationState._dstate._delegations[] | select(.[] == "'"${pool_id}"'")] | length' <<< "${ledger_state}")
+      say "$(printf "%-21s : %s" "Delegators" "${delegator_count}")" "log"
+      stake_pct=$(fractionToPCT "$(printf "%.10f" "$(${CCLI} shelley query stake-distribution --testnet-magic ${NWMAGIC} | grep "${pool_id}" | tr -s ' ' | cut -d ' ' -f 2)")")
+      if validateDecimalNbr ${stake_pct}; then
+        say "$(printf "%-21s : %s %%" "Stake distribution" "${stake_pct}")" "log"
+      fi
     fi
     pool_hotkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_SK_FILENAME}"
     pool_vrf_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_SK_FILENAME}"
