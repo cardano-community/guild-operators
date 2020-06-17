@@ -48,19 +48,23 @@ The URL to fetch the peer list is [https://api.clio.one/htopology/v1/fetch/](htt
 
 In it's default setting it returns a list of 15 remote peers. The `max` parameter allows to define a number between 1 and 20 remote peers.
 
+you can request the file from you node by using the curl command
+
+```
+curl -s -o path/to/topology.json "https://api.clio.one/htopology/v1/fetch/?max=14"
+```
+
+Don't forget to restart your node to load the new topology. 
+
+## and my custom peers (internal pools) ?
+
 There is also a `customPeers` parameter, to include also some custom peers you want included in the topology json file.  Every custom peer is defined in the form [address]:[port] and optional :[valancy]. Multiple custom peers are separated by | 
 
 A complete example looks like
 
-[https://api.clio.one/htopology/v1/fetch/?max=12&customPeers=10.0.0.1:3001|10.0.0.2:3002|relays.mydomain.com:3003:3](https://api.clio.one/htopology/v1/fetch/?max=12&customPeers=10.0.0.1:3001|10.0.0.2:3002|relays.mydomain.com:3003:3)
-
-you can request the file from you node by using the curl command
-
 ```
-curl -s -o path/to/topology.json https://api.clio.one/htopology/v1/fetch/?max=14
+curl -s -o topology.json "https://api.clio.one/htopology/v1/fetch/?max=12&customPeers=10.0.0.1:3001|10.0.0.2:3002|relays.mydomain.com:3003:3"
 ```
-
-Don't forget to restart your node to load the new topology. 
 
 Might think about including the curl command in your startup script before cardano-node.
 
