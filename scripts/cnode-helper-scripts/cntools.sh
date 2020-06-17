@@ -52,7 +52,7 @@ while true; do # Main loop
 find "${TMP_FOLDER:?}" -type f -not -name 'protparams.json' -delete
 
 clear
-echo " >> CNTOOLS <<                                       A Guild Operators collaboration"
+say " >> CNTOOLS <<                                       A Guild Operators collaboration" "log"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 echo " Main Menu"
 echo ""
@@ -77,7 +77,7 @@ case $OPERATION in
   wallet)
 
   clear
-  echo " >> WALLET"
+  say " >> WALLET" "log"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   echo " Wallet Management"
   echo ""
@@ -104,7 +104,7 @@ case $OPERATION in
     new)
 
     clear
-    echo " >> WALLET >> NEW"
+    say " >> WALLET >> NEW" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo " Wallet Type"
     echo ""
@@ -130,7 +130,7 @@ case $OPERATION in
       payment)
 
       clear
-      echo " >> WALLET >> NEW >> PAYMENT"
+      say " >> WALLET >> NEW >> PAYMENT" "log"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo ""
       read -r -p "Name of new wallet: " wallet_name
@@ -167,7 +167,7 @@ case $OPERATION in
       stake)
 
       clear
-      echo " >> WALLET >> NEW >> STAKE"
+      say " >> WALLET >> NEW >> STAKE" "log"
       echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       echo ""
       
@@ -260,7 +260,7 @@ case $OPERATION in
     list)
     
     clear
-    echo " >> WALLET >> LIST"
+    say " >> WALLET >> LIST" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     
     if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
@@ -302,7 +302,7 @@ case $OPERATION in
     show)
     
     clear
-    echo " >> WALLET >> SHOW"
+    say " >> WALLET >> SHOW" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
@@ -367,7 +367,7 @@ case $OPERATION in
     remove) ## TODO - Check reward address
     
     clear
-    echo " >> WALLET >> REMOVE"
+    say " >> WALLET >> REMOVE" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
@@ -437,7 +437,7 @@ case $OPERATION in
     decrypt)
     
     clear
-    echo " >> WALLET >> DECRYPT"
+    say " >> WALLET >> DECRYPT" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
@@ -492,7 +492,7 @@ case $OPERATION in
     encrypt)
     
     clear
-    echo " >> WALLET >> ENCRYPT"
+    say " >> WALLET >> ENCRYPT" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
@@ -560,7 +560,7 @@ case $OPERATION in
   funds)
 
   clear
-  echo " >> FUNDS"
+  say " >> FUNDS" "log"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   echo " Handle Funds"
   echo ""
@@ -581,8 +581,8 @@ case $OPERATION in
     withdrawrewards)
 
     clear
-    echo " >> FUNDS >> WITHDRAW REWARDS"
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    say " >> FUNDS >> WITHDRAW REWARDS" "log"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
 
     if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
@@ -622,6 +622,21 @@ case $OPERATION in
     if ! waitNewBlockCreated; then
       waitForInput && continue
     fi
+    
+    getBalance "$(cat ${base_addr_file})" >/dev/null
+
+    while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
+      echo ""
+      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))"
+      if ! waitNewBlockCreated; then
+        break
+      fi
+      getBalance "$(cat ${base_addr_file})" >/dev/null
+    done
+    
+    if [[ ${TOTALBALANCE} -ne ${newBalance} ]]; then
+      waitForInput && continue
+    fi
 
     say ""
     say "--- Balance Check -------------------------------------------------------"
@@ -637,7 +652,7 @@ case $OPERATION in
     send)
     
     clear
-    echo " >> FUNDS >> SEND"
+    say " >> FUNDS >> SEND" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
@@ -783,9 +798,7 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    say ""
-    say "--- Balance Check Source Address -------------------------------------------------------"
-    getBalance ${s_addr}
+    getBalance ${s_addr} >/dev/null
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       say ""
@@ -793,9 +806,7 @@ case $OPERATION in
       if ! waitNewBlockCreated; then
         break
       fi
-      say ""
-      say "--- Balance Check Source Address -------------------------------------------------------"
-      getBalance ${s_addr}
+      getBalance ${s_addr} >/dev/null
     done
     
     if [[ ${TOTALBALANCE} -ne ${newBalance} ]]; then 
@@ -804,9 +815,7 @@ case $OPERATION in
 
     s_balance_ada=${totalBalanceADA}
 
-    say ""
-    say "--- Balance Check Destination Address --------------------------------------------------"
-    getBalance ${d_addr}
+    getBalance ${d_addr} >/dev/null
 
     d_balance_ada=${totalBalanceADA}
 
@@ -837,7 +846,7 @@ case $OPERATION in
     delegate)  # [WALLET NAME] [POOL NAME]
 
     clear
-    echo " >> FUNDS >> DELEGATE"
+    say " >> FUNDS >> DELEGATE" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
@@ -907,9 +916,7 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    echo ""
-    say "--- Balance Check Source Address -------------------------------------------------------"
-    getBalance "$(cat ${base_addr_file})"
+    getBalance "$(cat ${base_addr_file})" >/dev/null
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       echo ""
@@ -917,9 +924,7 @@ case $OPERATION in
       if ! waitNewBlockCreated; then
         break
       fi
-      echo ""
-      say "--- Balance Check Source Address -------------------------------------------------------"
-      getBalance "$(cat ${base_addr_file})"
+      getBalance "$(cat ${base_addr_file})" >/dev/null
     done
     
     if [[ ${TOTALBALANCE} -ne ${newBalance} ]]; then
@@ -943,13 +948,14 @@ case $OPERATION in
   pool)
 
   clear
-  echo " >> POOL"
+  say " >> POOL" "log"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   echo " Pool Management"
   echo ""
   echo " ) New       -  create a new pool"
   echo " ) Register  -  register created pool on chain using a stake wallet (pledge wallet)"
   echo " ) Modify    -  change pool parameters and register updated pool values on chain"
+  echo " ) Retire    -  de-register stake pool from chain in specified epoch"
   echo " ) List      -  a compact list view of available local pools"
   echo " ) Show      -  detailed view of specified pool"
   echo " ) Rotate    -  rotate pool KES keys"
@@ -958,23 +964,24 @@ case $OPERATION in
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   
   say " Select wallet operation\n"
-  case $(select_opt "[n] New" "[r] Register" "[m] Modify" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
+  case $(select_opt "[n] New" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
     0) SUBCOMMAND="new" ;;
     1) SUBCOMMAND="register" ;;
     2) SUBCOMMAND="modify" ;;
-    3) SUBCOMMAND="list" ;;
-    4) SUBCOMMAND="show" ;;
-    5) SUBCOMMAND="rotate" ;;
-    6) SUBCOMMAND="decrypt" ;;
-    7) SUBCOMMAND="encrypt" ;;
-    8) continue ;;
+    3) SUBCOMMAND="retire" ;;
+    4) SUBCOMMAND="list" ;;
+    5) SUBCOMMAND="show" ;;
+    6) SUBCOMMAND="rotate" ;;
+    7) SUBCOMMAND="decrypt" ;;
+    8) SUBCOMMAND="encrypt" ;;
+    9) continue ;;
   esac
 
   case $SUBCOMMAND in
     new)
 
     clear
-    echo " >> POOL >> NEW"
+    say " >> POOL >> NEW" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     read -r -p "Pool Name: " pool_name
@@ -1031,7 +1038,7 @@ case $OPERATION in
     register)
 
     clear
-    echo " >> POOL >> REGISTER"
+    say " >> POOL >> REGISTER" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
@@ -1142,9 +1149,7 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    say ""
-    say "--- Balance Check Source Address -------------------------------------------------------"
-    getBalance "$(cat ${base_addr_file})"
+    getBalance "$(cat ${base_addr_file})" >/dev/null
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       say ""
@@ -1152,9 +1157,7 @@ case $OPERATION in
       if ! waitNewBlockCreated; then
         break
       fi
-      say ""
-      say "--- Balance Check Source Address -------------------------------------------------------"
-      getBalance "$(cat ${base_addr_file})"
+      getBalance "$(cat ${base_addr_file})" >/dev/null
     done
     
     if [[ ${TOTALBALANCE} -ne ${newBalance} ]]; then
@@ -1180,7 +1183,7 @@ case $OPERATION in
     modify)
 
     clear
-    echo " >> POOL >> MODIFY"
+    say " >> POOL >> MODIFY" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
@@ -1294,9 +1297,7 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    say ""
-    say "--- Balance Check Wallet Address -------------------------------------------------------"
-    getBalance "$(cat ${base_addr_file})"
+    getBalance "$(cat ${base_addr_file})" >/dev/null
 
     while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
       say ""
@@ -1304,9 +1305,7 @@ case $OPERATION in
       if ! waitNewBlockCreated; then
         break
       fi
-      say ""
-      say "--- Balance Check Wallet Address -------------------------------------------------------"
-      getBalance "$(cat ${base_addr_file})"
+      getBalance "$(cat ${base_addr_file})" >/dev/null
     done
     
     if [[ ${TOTALBALANCE} -ne ${newBalance} ]]; then
@@ -1332,10 +1331,122 @@ case $OPERATION in
     
     ;; ###################################################################
 
+    retire)
+
+    clear
+    say " >> POOL >> RETIRE" "log"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
+    
+    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
+      say "${RED}ERROR${NC}: CNTOOLS started without node access, only offline functions available!"
+      waitForInput && continue
+    fi
+    
+    if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
+    
+    ledger_state=$(${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
+    pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
+    ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${ledger_state}")
+    
+    if [[ -z "${ledger_pool_state}" ]]; then
+      say "${RED}ERROR${NC}: Pool ${GREEN}${pool_name}${NC} not registered on chain!"
+      waitForInput && continue
+    fi
+    
+    epoch=$(getEpoch)
+    eMax=$(jq -r '.eMax' "${TMP_FOLDER}"/protparams.json)
+    
+    say "Current epoch: ${BLUE}${epoch}${NC}" "log"
+    epoch_start=$((epoch + 1))
+    epoch_end=$((epoch + eMax))
+    say "earlist epoch to retire pool is ${BLUE}${epoch_start}${NC} and latest ${BLUE}${epoch_end}${NC}" "log"
+    echo ""
+  
+    read -r -p "Enter epoch in which to retire pool (blank for ${epoch_start}): " epoch_enter
+    [[ -z "${epoch_enter}" ]] && epoch_enter=${epoch_start}
+    
+    if [[ ${epoch_enter} -lt ${epoch_start} || ${epoch_enter} -gt ${epoch_end} ]]; then
+      say "${RED}ERROR${NC}: epoch invalid, valid range: ${epoch_start}-${epoch_end}"
+      waitForInput && continue
+    fi
+    
+    say "\nWallet for pool de-registration transaction fee"
+    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
+    
+    payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
+    base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
+    
+    getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}"
+    
+    if [[ ${payment_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
+      # Both payment and base address available with funds, let user choose what to use
+      say "Both payment and base address available with funds, choose address"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Payment"  "$(numfmt --grouping ${payment_ada})")" "log"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base"  "$(numfmt --grouping ${base_ada})")" "log"
+      echo ""
+      case $(select_opt "[p] Payment" "[b] Base" "[c] Cancel") in
+        0) addr_file="${payment_addr_file}" ;;
+        1) addr_file="${base_addr_file}" ;;
+        2) continue ;;
+      esac
+    elif [[ ${payment_lovelace} -gt 0 ]]; then
+      addr_file="${payment_addr_file}"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Payment"  "$(numfmt --grouping ${payment_ada})")" "log"
+    elif [[ ${base_lovelace} -gt 0 ]]; then
+      addr_file="${base_addr_file}"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base"  "$(numfmt --grouping ${base_ada})")" "log"
+    else
+      say "${RED}ERROR${NC}: no funds available in either payment or base address for wallet ${GREEN}${wallet_name}${NC}"
+      waitForInput && continue
+    fi
+    addr="$(cat ${addr_file})"
+    echo ""
+    
+    pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
+    pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
+    pool_deregcert_file="${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}"
+    
+    payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+    
+    say "-- creating de-registration cert --" "log"
+    ${CCLI} shelley stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file}
+    
+    if ! deRegisterPool "${pool_coldkey_sk_file}" "${pool_deregcert_file}" "${addr}" "${payment_sk_file}"; then
+      say "${RED}ERROR${NC}: failure during pool de-registration"
+      waitForInput && continue
+    fi
+    
+    if ! waitNewBlockCreated; then
+      waitForInput && continue
+    fi
+
+    getBalance "${addr}" >/dev/null
+
+    while [[ ${TOTALBALANCE} -ne ${newBalance} ]]; do
+      say ""
+      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${TOTALBALANCE}) != $(numfmt --grouping ${newBalance}))"
+      if ! waitNewBlockCreated; then
+        break
+      fi
+      getBalance "${addr}" >/dev/null
+    done
+    
+    if [[ ${TOTALBALANCE} -ne ${newBalance} ]]; then
+      waitForInput && continue
+    fi
+    
+    echo ""
+    say "Pool ${GREEN}${pool_name}${NC} set to be retired in epoch ${BLUE}${epoch_enter}${NC}" "log"
+    
+    waitForInput
+    
+    ;; ###################################################################
+
     list)
     
     clear
-    echo " >> POOL >> LIST"
+    say " >> POOL >> LIST" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     
     if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
@@ -1370,7 +1481,7 @@ case $OPERATION in
     show)
     
     clear
-    echo " >> POOL >> SHOW"
+    say " >> POOL >> SHOW" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
@@ -1445,7 +1556,7 @@ case $OPERATION in
     rotate)
 
     clear
-    echo " >> POOL >> ROTATE KES"
+    say " >> POOL >> ROTATE KES" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
@@ -1502,7 +1613,7 @@ case $OPERATION in
     decrypt)
     
     clear
-    echo " >> POOL >> DECRYPT"
+    say " >> POOL >> DECRYPT" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
@@ -1557,7 +1668,7 @@ case $OPERATION in
     encrypt)
     
     clear
-    echo " >> POOL >> ENCRYPT"
+    say " >> POOL >> ENCRYPT" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
@@ -1622,7 +1733,7 @@ case $OPERATION in
   blocks)
   
   clear
-  echo " >> BLOCKS"
+  say " >> BLOCKS" "log"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   
   if [[ ! -d "${BLOCK_LOG_DIR}" ]]; then
@@ -1666,7 +1777,7 @@ case $OPERATION in
   update) # not ready yet. ToDo when binary releases become available
   
   clear
-  echo " >> UPDATE"
+  say " >> UPDATE" "log"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   echo ""
   say "${RED}ERROR${NC}: Sorry! not ready yet in cntools"
