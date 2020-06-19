@@ -1345,7 +1345,7 @@ case $OPERATION in
     
     if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
     
-    ledger_state=$(${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
+    ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
     pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
     ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${ledger_state}")
     
@@ -1454,7 +1454,7 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    ledger_state=$(${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
+    ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
     
     while IFS= read -r -d '' pool; do 
       echo ""
@@ -1494,7 +1494,7 @@ case $OPERATION in
     
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
-    ledger_state=$(${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
+    ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
     pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
     ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${ledger_state}")
     [[ -n "${ledger_pool_state}" ]] && pool_registered="YES" || pool_registered="NO"
