@@ -36,36 +36,52 @@ elif [[ ! -d "${BLOCK_LOG_DIR}" ]];then
   }
 fi
 
-echo " ~~ BLOCK COLLECTOR ~~"
-echo "monitoring json logfile for blocks (TraceAdoptedBlock)"
+echo " "
+echo " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+echo " ~~ BLOCK COLLECTOR STARTED ~~"
+echo "monitoring json logfile for block traces"
 
 # Continuously parse cardano-node json log file for block traces
 while read -r logentry; do
   _jq() {
     echo "${logentry}" | base64 --decode | jq -r "${1}"
   }
-  if [[ $(_jq '.data.kind') = "TraceAdoptedBlock" ]]; then
-    # extract important parts
+  if [[ $(_jq '.data.kind') = "TraceNodeIsLeader" ]]; then
     at="$(_jq '.at')"
-    at_local="$(date '+%F %T %Z' -d "${at}")"
+    at_local="$(date '+%F_%T_%Z' -d "${at}")"
     slot="$(_jq '.data.slot')"
-    [[ "$(_jq '.data."block hash"')" =~ unHashHeader.=.([[:alnum:]]+) ]] && block_hash="${BASH_REMATCH[1]}" || block_hash=""
-    block_size="$(_jq '.data."block size"')"
     epoch=$(( slot / $(jq -r .epochLength "${GENESIS_JSON}") ))
     # create epoch block file if missing
     blocks_file="${BLOCK_LOG_DIR}/blocks_${epoch}.json"
     [[ ! -f "${blocks_file}" ]] && echo "[]" > "${blocks_file}"
-    echo -e "\n ~~ NEW BLOCK ~~"
-    echo "at    : ${at_local}"
-    echo "epoch : ${epoch}"
-    echo "slot  : ${slot}"
-    echo "hash  : ${block_hash}"
-    echo "size  : ${block_size}"
+    echo " "
+    echo " ~~ LEADER EVENT ~~"
+    echo -e "Epoch Slot At\n${epoch} ${slot} ${at_local}" | column -t
     jq --arg _at "${at}" \
     --arg _slot "${slot}" \
-    --arg _block_hash "${block_hash}" \
+    '. += [{"at": $_at,"slot": $_slot}]' \
+    "${blocks_file}" > "${TMP_FOLDER}/blocks.json" && mv -f "${TMP_FOLDER}/blocks.json" "${blocks_file}"
+  elif [[ $(_jq '.data.kind') = "TraceAdoptedBlock" ]]; then
+    slot="$(_jq '.data.slot')"
+    [[ "$(_jq '.data."block hash"')" =~ unHashHeader.=.([[:alnum:]]+) ]] && block_hash="${BASH_REMATCH[1]}" || block_hash=""
+    block_size="$(_jq '.data."block size"')"
+    epoch=$(( slot / $(jq -r .epochLength "${GENESIS_JSON}") ))
+    echo " ~~ ADOPTED BLOCK ~~"
+    echo -e "Size Hash\n${block_size} ${block_hash}" | column -t
+    jq --arg _slot "${slot}" \
     --arg _block_size "${block_size}" \
-    '. += [{"at": $_at,"slot": $_slot,"size": $_block_size,"hash": $_block_hash}]' \
+    --arg _block_hash "${block_hash}" \
+    '[.[] | select(.slot == $_slot) += {"size": $_block_size,"hash": $_block_hash}]' \
+    "${blocks_file}" > "${TMP_FOLDER}/blocks.json" && mv -f "${TMP_FOLDER}/blocks.json" "${blocks_file}"
+  elif [[ $(_jq '.data.kind') = "TraceForgedInvalidBlock" ]]; then
+    slot="$(_jq '.data.slot')"
+    epoch=$(( slot / $(jq -r .epochLength "${GENESIS_JSON}") ))
+    echo " ~~ INVALID BLOCK ~~"
+    echo "Base 64 encoded json trace"
+    echo -e "run this command to decode:\necho ${logentry} | base64 -d | jq -r"
+    jq --arg _slot "${slot}" \
+    --arg _json_trace "Invalid Block (base64 enc json): ${logentry}" \
+    '[.[] | select(.slot == $_slot) += {"hash": $_json_trace}]' \
     "${blocks_file}" > "${TMP_FOLDER}/blocks.json" && mv -f "${TMP_FOLDER}/blocks.json" "${blocks_file}"
   fi
 done < <(tail -F -n0 "${logfile}" | jq -c -r '. | @base64')
