@@ -116,7 +116,7 @@ function selectOption {
   cursor_blink_off() { printf "$ESC[?25l"; }
   cursor_to()        { printf "$ESC[$1;${2:-1}H"; }
   print_option()     { printf "  $1 "; }
-  print_selected()   { printf " $ESC[7m $1 $ESC[27m"; }
+  print_selected()   { printf " $ESC[7m $1 $ESC[27m$2"; }
   get_cursor_row()   { IFS=';' read -sdR -p $'\E[6n' ROW COL; echo ${ROW#*[}; }
   key_input()        { read -rsn1 key   # get 1 character
                        if [[ $key == $ESC ]]; then
@@ -127,6 +127,7 @@ function selectOption {
                        elif [[ $key = ""   ]]; then echo enter;
                        else echo $key; fi; }
   opt_shortcut()     { [[ "$1" =~ ^\[([[:alnum:]])\].* ]] && echo ${BASH_REMATCH[1]}; }
+  opt_firstchar()    { printf "${1:0:1}" | tr '[:upper:]' '[:lower:]'; }
 
   # initially print empty new lines (scroll down if at bottom of screen)
   for opt; do printf "\n"; done
@@ -145,11 +146,18 @@ function selectOption {
     # print options by overwriting the last lines
     local idx=0
     for opt; do
+      opt_part2=""
+      if [[ "$opt" =~ ^(.*)[[:space:]](\(.*) ]]; then 
+        opt_part1="${BASH_REMATCH[1]}"
+        opt_part2=" ${BASH_REMATCH[2]}"
+      else
+        opt_part1="$opt"
+      fi
       cursor_to $(($startrow + $idx))
       if [ $idx -eq $selected ]; then
-        print_selected "$opt"
+        print_selected "$opt_part1" "$opt_part2"
       else
-        print_option "$opt"
+        print_option "$opt_part1$opt_part2"
       fi
       ((idx++))
     done
@@ -164,12 +172,19 @@ function selectOption {
              if [ $selected -lt 0 ]; then selected=$(($# - 1)); fi;;
       down)  ((selected++));
              if [ $selected -ge $# ]; then selected=0; fi;;
-      *)     i=0
+      *)     # shortcut available for selected key?
+             i=0
              for opt; do
-               shortcut=$(opt_shortcut "$opt")
-               [[ ${key_pressed} = ${shortcut} ]] && selected=${i} && shortcut_found="yes" && break
+               [[ ${key_pressed} = $(opt_shortcut "$opt") ]] && selected=${i} && shortcut_found="yes" && break
                ((i++))
-             done;;
+             done
+             # If no shortcut is found, lets see if it matches the first char of any of the options
+             j=0
+             for opt; do
+               [[ "${shortcut_found}" != "yes" && ${key_pressed} = $(opt_firstchar "$opt") ]] && selected=${j} && break
+               ((j++))
+             done
+             ;;
     esac
   done
 
@@ -187,59 +202,39 @@ function select_opt {
   return $answer
 }
 
-# Command    : selectDir [path to folder]
-# Description: A helper function to selectOption() specifically for directory selection 
-# Parameters : path to folder    >   full path to folder, subdirs of this folder added to select menu
-# Return     : populates ${dir_name} variable, 'Cancel' option/value added to all selections
+
+# Command    : getDirs [path to folder]
+# Description: A helper function to get all subdirs for a directory
+# Parameters : path to folder    >   full path to folder, subdirs of this folder returned
+# Return     : populates ${dirs} array
 # Examples of Usage:
-#   >> selectDir /opt/cardano/cnode/priv/wallet
+#   >> getDirs /opt/cardano/cnode/priv/wallet
 #
-function selectDir {
+function getDirs {
+  if [[ ! -d "$1" ]]; then
+    say "${RED}ERROR${NC}: Missing folder: $1"
+    waitForInput && return 1
+  fi
   dirs=()
   while IFS= read -r -d '' dir; do
     dirs+=("$(basename ${dir})")
   done < <(find "${1}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+  return 0
+}
+
+# Command    : selectDir [dir1 dir2 ...]
+# Description: A helper function to selectOption() specifically for directory selection 
+# Parameters : array of dirs    >   array of dirs to include in selection, '[c] Cancel' option added to all selections
+# Return     : populates ${dir_name} variable, 
+# Examples of Usage:
+#   >> selectDir Wallet1 Wallet2 Wallet3
+#
+function selectDir {
+  dirs=("$@")
   dirs+=("[c] Cancel")
   selectOption "${dirs[@]}" 1>&2
   dir_name=${dirs[$?]}
-}
-
-# Command    : selectWallet
-# Description: A helper function to selectDir() specifically for wallet selection 
-# Parameters : null
-# Return     : populates ${wallet_name} variable, returns 1 on cancelation
-# Examples of Usage:
-#   >> selectWallet
-#
-function selectWallet {
-  # Make sure wallet folder exist and is non-empty
-  if [[ ! -d "${WALLET_FOLDER}" || $(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-    say "${RED}ERROR${NC}: Missing or empty wallet folder, please first create a payment wallet"
-    say "Wallet folder: ${WALLET_FOLDER}"
-    waitForInput && return 1
-  fi
-  say "Select Wallet:\n"
-  selectDir "${WALLET_FOLDER}"
-  [[ "${dir_name}" = "[c] Cancel" ]] && return 1 || wallet_name="${dir_name}"
-}
-
-# Command    : selectPool
-# Description: A helper function to selectDir() specifically for pool selection 
-# Parameters : null
-# Return     : populates ${pool_name} variable, returns 1 on cancelation
-# Examples of Usage:
-#   >> selectPool
-#
-function selectPool {
-  # Make sure pool folder exist and is non-empty
-  if [[ ! -d "${POOL_FOLDER}" || $(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]]; then
-    say "${RED}ERROR${NC}: Missing or empty pool folder, please first create a pool"
-    say "Pool folder: ${POOL_FOLDER}"
-    waitForInput && return 1
-  fi
-  say "Select Pool:\n"
-  selectDir "${POOL_FOLDER}"
-  [[ "${dir_name}" = "[c] Cancel" ]] && return 1 || pool_name="${dir_name}"
+  [[ "${dir_name}" = "[c] Cancel" ]] && return 1 || return 0
 }
 
 
