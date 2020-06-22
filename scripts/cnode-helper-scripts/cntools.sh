@@ -176,7 +176,27 @@ case $OPERATION in
         waitForInput && continue
       fi
       
-      if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
+      wallet_dirs=()
+      if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
+      for dir in "${dirs[@]}"; do
+        payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
+        payment_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_VK_FILENAME}"
+        payment_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_ADDR_FILENAME}"
+        [[ ! -f "${payment_addr_file}" || ! -f "${payment_vk_file}" || ! -f "${payment_sk_file}" ]] && continue
+        stake_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_ADDR_FILENAME}"
+        [[ -f "${stake_addr_file}" ]] && continue # already a stake wallet
+        getBalance "$(cat ${payment_addr_file})" >/dev/null
+        [[ ${TOTALBALANCE} -eq 0 ]] && continue
+        wallet_dirs+=("${dir} (${CYAN}$(numfmt --grouping ${totalBalanceADA})${NC} ADA)")
+      done
+      if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
+        say "${ORANGE}WARN${NC}: No wallets available that can be upgraded!"
+        say "first create a payment wallet and fund it"
+        waitForInput && continue
+      fi
+      say "Select Wallet:\n"
+      if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+      wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
 
       # Wallet key filenames
       payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
@@ -187,21 +207,6 @@ case $OPERATION in
       stake_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_ADDR_FILENAME}"
       stake_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_CERT_FILENAME}"
       base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
-
-
-      if [[ ! -f "${payment_addr_file}" || ! -f "${payment_vk_file}" || ! -f "${payment_sk_file}" ]]; then
-        say "${RED}WARN${NC}: Payment wallet files missing or misconfiguration for wallet filenames: ${GREEN}$wallet_name${NC}"
-        say "Expect the following files to exist:"
-        say "${payment_addr_file}"
-        say "${payment_vk_file}"
-        say "${payment_sk_file}"
-        say "      A payment wallet with funds available needed to upgrade to stake wallet"
-        waitForInput && continue
-      elif [[ -f "${stake_addr_file}" ]]; then
-        say "${RED}WARN${NC}: A stake wallet ${GREEN}$wallet_name${NC} already exists"
-        say "      Choose another name or delete the existing one"
-        waitForInput && continue
-      fi
 
       ${CCLI} shelley stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}"
       ${CCLI} shelley stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" --testnet-magic ${NWMAGIC}
@@ -240,7 +245,7 @@ case $OPERATION in
         continue
       fi
       
-      getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}"
+      getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}" "no"
 
       say "New Stake Wallet : ${GREEN}${wallet_name}${NC}" "log"
       say "Payment Address  : ${payment_addr}" "log"
@@ -268,8 +273,9 @@ case $OPERATION in
       waitForInput && continue
     fi
     
+    ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
     while IFS= read -r -d '' wallet; do
-      getBalanceAllAddr "${wallet}"
+      getBalanceAllAddr "${wallet}" "yes"
       echo ""
       say "${GREEN}$(basename ${wallet})${NC}" "log"
       say "$(printf "%s\t${CYAN}%s${NC} ADA" "Payment"  "$(numfmt --grouping ${payment_ada})")" "log"
@@ -280,7 +286,8 @@ case $OPERATION in
           continue
         fi
         say "$(printf "%s\t${CYAN}%s${NC} ADA" "Reward" "$(numfmt --grouping ${reward_ada})")" "log"
-        delegation_pool_id=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address "$(cat ${stake_addr_file})" | jq -r '.[].delegation // empty')
+        stake_addr=$(cat ${stake_addr_file})
+        delegation_pool_id=$(jq -r -c '._delegationState._dstate._delegations[] // empty' <<< "${ledger_state}" | grep "${stake_addr:6}" | jq -r '.[1] // empty')
         if [[ -n ${delegation_pool_id} ]]; then
           unset poolName
           while IFS= read -r -d '' pool; do
@@ -311,14 +318,30 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
+    wallet_dirs=()
+    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
+    for dir in "${dirs[@]}"; do
+      payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
+      payment_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_VK_FILENAME}"
+      payment_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_ADDR_FILENAME}"
+      [[ ! -f "${payment_addr_file}" || ! -f "${payment_vk_file}" || ! -f "${payment_sk_file}" ]] && continue
+      wallet_dirs+=("${dir}")
+    done
+    if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No wallets available!"
+      say "first create a wallet"
+      waitForInput && continue
+    fi
+    say "Select Wallet:\n"
+    if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    wallet_name="${dir_name}"
 
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     say "$(printf "%-8s ${GREEN}%s${NC}" "Wallet" "${wallet_name}")" "log"
     echo ""
 
-    getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}"
+    getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}" "yes"
 
     if [[ -s ${TMP_FOLDER}/balance_payment.out ]]; then
       say "${BLUE}Payment UTxOs${NC}"
@@ -376,7 +399,14 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
+    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
+    if [[ ${#dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No wallets available!"
+      waitForInput && continue
+    fi
+    say "Select Wallet:\n"
+    if ! selectDir "${dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    wallet_name="${dir_name}"
 
     # Wallet key filename
     payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
@@ -386,20 +416,20 @@ case $OPERATION in
       say "${RED}WARN${NC}: no payment or base address files found in wallet"
       say "${payment_addr_file}"
       say "${base_addr_file}"
-      waitForInput
-    fi
-    if [[ -f "${payment_addr_file}" ]]; then
-      getBalance "$(cat ${payment_addr_file})" >/dev/null
-      payment_balance=${TOTALBALANCE}
-      payment_balance_ada=${totalBalanceADA}
-    fi
-    if [[ -f "${base_addr_file}" ]]; then
-      getBalance "$(cat ${base_addr_file})" >/dev/null
-      base_balance=${TOTALBALANCE}
-      base_balance_ada=${totalBalanceADA}
+      say "\nAre you sure to delete wallet anyway?\n"
+      case $(select_opt "[y] Yes" "[n] No") in
+        0) rm -rf "${WALLET_FOLDER:?}/${wallet_name}"
+           echo "" && say "removed ${GREEN}${wallet_name}${NC}" "log"
+           ;;
+        1) say "skipped removal process for ${GREEN}$wallet_name${NC}"
+           ;;
+      esac
+      waitForInput && continue
     fi
     
-    if [[ ${payment_balance} -eq 0 && ${base_balance} -eq 0 ]]; then
+    getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}" "no"
+    
+    if [[ ${payment_lovelace} -eq 0 && ${base_lovelace} -eq 0 ]]; then
       say "INFO: This wallet appears to be empty"
       say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
       say "Are you sure to delete wallet?\n"
@@ -412,11 +442,11 @@ case $OPERATION in
       esac
     else
       say "${RED}WARN${NC}: wallet not empty!"
-      if [[ $(bc <<< "${payment_balance_ada} > 0" ) -eq 1 ]]; then
-        say "Payment address balance: ${BLUE}$(numfmt --grouping ${payment_balance_ada})${NC} ADA"
+      if [[ ${payment_lovelace} -gt 0 ]]; then
+        say "Payment address balance: ${BLUE}$(numfmt --grouping ${payment_ada})${NC} ADA"
       fi
-      if [[ $(bc <<< "${base_balance_ada} > 0" ) -eq 1 ]]; then
-        say "Base address balance: ${BLUE}$(numfmt --grouping ${base_balance_ada})${NC} ADA"
+      if [[ ${base_lovelace} -gt 0 ]]; then
+        say "Base address balance: ${BLUE}$(numfmt --grouping ${base_ada})${NC} ADA"
       fi
       echo ""
       say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
@@ -443,7 +473,15 @@ case $OPERATION in
     
     protectionPreRequisites || continue
     
-    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
+    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
+    if [[ ${#dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No wallets available!"
+      say "first create a wallet"
+      waitForInput && continue
+    fi
+    say "Select Wallet:\n"
+    if ! selectDir "${dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    wallet_name="${dir_name}"
     
     filesUnlocked=0
     keysDecrypted=0
@@ -498,7 +536,15 @@ case $OPERATION in
     
     protectionPreRequisites || continue
     
-    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
+    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
+    if [[ ${#dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No wallets available!"
+      say "first create a wallet"
+      waitForInput && continue
+    fi
+    say "Select Wallet:\n"
+    if ! selectDir "${dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    wallet_name="${dir_name}"
 
     filesLocked=0
     keysEncrypted=0
@@ -590,31 +636,52 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    say " -- Choose Wallet --"
-    echo ""
-    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
-    
-    payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
-    
+    wallet_dirs=()
+    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
+    wallet_count=${#dirs[@]}
+    for dir in "${dirs[@]}"; do
+      base_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_BASE_ADDR_FILENAME}"
+      stake_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_ADDR_FILENAME}"
+      stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
+      stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
+      pay_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
+      [[ ! -f "${base_addr_file}" || ! -f "${stake_addr_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]] && continue
+      if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+        reward_lovelace=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address "$(cat ${stake_addr_file})" | jq -r '.[].rewardAccountBalance // empty')
+        [[ "${reward_lovelace}" =~ ^[0-9]+$ ]] || reward_lovelace=0
+        [[ ${reward_lovelace} -le 0 ]] && continue
+        reward_ada=$(lovelacetoADA ${reward_lovelace})
+        wallet_dirs+=("${dir} (Rewards: ${CYAN}$(numfmt --grouping ${reward_ada})${NC} ADA)")
+      else
+        wallet_dirs+=("${dir}")
+      fi
+    done
+    if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No wallets available that have rewards to withdraw!"
+      waitForInput && continue
+    fi
+    say "Select Wallet:\n"
+    if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
+      
     base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
     stake_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_ADDR_FILENAME}"
-
     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
     stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
     pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
     
-    getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}"
+    getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}" "yes"
 
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Payment"  "$(numfmt --grouping ${payment_ada})")" "log"
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base"  "$(numfmt --grouping ${base_ada})")" "log"
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(numfmt --grouping ${reward_ada})")" "log"
-
-    if [[ $reward_lovelace -le 0 ]]; then
+    
+    if [[ ${reward_lovelace} -le 0 ]]; then
       echo "Failed to locate any rewards associated with the chosen wallet, please try another one"
       waitForInput && continue
     fi
 
-    if ! withdrawRewards "${stake_vk_file}" "${stake_sk_file}" "${pay_payment_sk_file}" "$(cat ${base_addr_file})" "$(cat ${stake_addr_file})" $reward_lovelace; then
+    if ! withdrawRewards "${stake_vk_file}" "${stake_sk_file}" "${pay_payment_sk_file}" "$(cat ${base_addr_file})" "$(cat ${stake_addr_file})" ${reward_lovelace}; then
       echo "" && say "${RED}ERROR${NC}: failure during withdrawal of rewards"
       waitForInput && continue
     fi
@@ -640,7 +707,7 @@ case $OPERATION in
 
     say ""
     say "--- Balance Check -------------------------------------------------------"
-    getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}"
+    getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}" "yes"
 
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Payment"  "$(numfmt --grouping ${payment_ada})")" "log"
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base"  "$(numfmt --grouping ${base_ada})")" "log"
@@ -663,13 +730,33 @@ case $OPERATION in
     
     say " -- Source Wallet --"
     echo ""
-    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
-    s_wallet="${wallet_name}"
+    s_wallet_dirs=()
+    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
+    wallet_count=${#dirs[@]}
+    for dir in "${dirs[@]}"; do
+      s_payment_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_ADDR_FILENAME}"
+      s_base_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_BASE_ADDR_FILENAME}"
+      [[ ! -f "${s_payment_addr_file}" ]] && continue
+      if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+        getBalanceAllAddr "${WALLET_FOLDER}/${dir}" "no"
+        [[ ${payment_lovelace} -eq 0 && ${base_lovelace} -eq 0 ]] && continue
+        s_wallet_dirs+=("${dir} (Payment: ${CYAN}$(numfmt --grouping ${payment_ada})${NC} ADA - Base: ${CYAN}$(numfmt --grouping ${base_ada})${NC} ADA)")
+      else
+        s_wallet_dirs+=("${dir}")
+      fi
+    done
+    if [[ ${#s_wallet_dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No wallets available that have funds to send!"
+      waitForInput && continue
+    fi
+    say "Select Source Wallet:\n"
+    if ! selectDir "${s_wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    s_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
     
     s_payment_addr_file="${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_ADDR_FILENAME}"
     s_base_addr_file="${WALLET_FOLDER}/${s_wallet}/${WALLET_BASE_ADDR_FILENAME}"
     
-    getBalanceAllAddr "${WALLET_FOLDER}/${s_wallet}"
+    getBalanceAllAddr "${WALLET_FOLDER}/${s_wallet}" "no"
     
     if [[ ${payment_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
       # Both payment and base address available with funds, let user choose what to use
@@ -738,15 +825,25 @@ case $OPERATION in
       echo ""
       include_fee="yes"
     fi
-
+    
     # Destination
     say " -- Destination Address / Wallet --"
     echo ""
     d_addr_file=""
     say "Is destination a local wallet or an address?\n"
     case $(select_opt "[w] Wallet" "[a] Address" "[c] Cancel") in
-      0) if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
-         d_wallet="${wallet_name}"
+      0) d_wallet_dirs=()
+         if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
+         for dir in "${dirs[@]}"; do
+           d_payment_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_ADDR_FILENAME}"
+           d_base_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_BASE_ADDR_FILENAME}"
+           [[ ! -f ${d_payment_addr_file} && ! -f ${d_base_addr_file} ]] && continue
+           d_wallet_dirs+=("${dir}")
+         done
+         say "Select Destination Wallet:\n"
+         if ! selectDir "${d_wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+         d_wallet="${dir_name}"
+
          d_payment_addr_file="${WALLET_FOLDER}/${d_wallet}/${WALLET_PAY_ADDR_FILENAME}"
          d_base_addr_file="${WALLET_FOLDER}/${d_wallet}/${WALLET_BASE_ADDR_FILENAME}"
     
@@ -855,37 +952,81 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
-    
-    base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
-    
-    if [[ ! -f "${base_addr_file}" ]]; then
-      say "${RED}ERROR${NC}: 'wallet base address file not found (are you sure this is a stake wallet?):"
-      say "${base_addr_file}"
+    wallet_dirs=()
+    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
+    if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+      ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
+    fi
+    wallet_count=${#dirs[@]}
+    for dir in "${dirs[@]}"; do
+      base_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_BASE_ADDR_FILENAME}"
+      stake_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_ADDR_FILENAME}"
+      stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
+      stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
+      pay_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
+      [[ ! -f "${base_addr_file}" || ! -f "${stake_addr_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]] && continue
+      if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+        getBalance "$(cat ${base_addr_file})" >/dev/null
+        stake_addr=$(cat ${stake_addr_file})
+        delegation_pool_id=$(jq -r -c '._delegationState._dstate._delegations[] // empty' <<< "${ledger_state}" | grep "${stake_addr:6}" | jq -r '.[1] // empty')
+        unset poolName
+        if [[ -n ${delegation_pool_id} ]]; then
+          while IFS= read -r -d '' pool; do
+            pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
+            if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
+              poolName=$(basename ${pool}) && break
+            fi
+          done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+        fi
+        if [[ -n ${poolName} ]]; then
+          wallet_dirs+=("${dir} (Base: ${CYAN}${totalBalanceADA}${NC} - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
+        elif [[ -n ${delegation_pool_id} ]]; then
+          wallet_dirs+=("${dir} (Base: ${CYAN}${totalBalanceADA}${NC} - ${RED}delegated${NC} to external address)")
+        else
+          wallet_dirs+=("${dir} (Base: ${CYAN}${totalBalanceADA}${NC})")
+        fi
+      else
+        wallet_dirs+=("${dir}")
+      fi
+    done
+    if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No wallets available that can be delegated!"
       waitForInput && continue
     fi
+    say "Select Wallet:\n"
+    if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
+    
+    getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}" "yes"
 
+    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Payment"  "$(numfmt --grouping ${payment_ada})")" "log"
+    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Base"  "$(numfmt --grouping ${base_ada})")" "log"
+    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(numfmt --grouping ${reward_ada})")" "log"
+    echo ""
+    
+    base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
     stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
     pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
     
-    if [[ ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]]; then
-      say "${RED}ERROR${NC}: 'Source wallet keys missing, expecting these files to be in wallet:"
-      say "${stake_sk_file}"
-      say "${stake_vk_file}"
-      say "${pay_payment_sk_file}"
-      waitForInput && continue
-    fi
-    
     say "Do you want to delegate to a local pool or specify the pools cold vkey cbor-hex?\n"
     case $(select_opt "[p] Pool" "[v] Vkey" "[c] Cancel") in
-      0) if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
-         pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
-         if [[ ! -f "${pool_coldkey_vk_file}" ]]; then
-           say "${RED}ERROR${NC}: 'Pool cold verification key missing:"
-           say "${pool_coldkey_vk_file}"
+      0) pool_dirs=()
+         if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
+         for dir in "${dirs[@]}"; do
+           pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
+           [[ ! -f "${pool_coldkey_vk_file}" ]] && continue
+           pool_dirs+=("${dir}")
+         done
+         if [[ ${#pool_dirs[@]} -eq 0 ]]; then
+           say "${ORANGE}WARN${NC}: No pools available to delegate to!"
+           say "first create and register a pool or choose to delegate using pools cold vkey cbor-hex"
            waitForInput && continue
          fi
+         say "Select Pool:\n"
+         if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+         pool_name="${dir_name}"
+         pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
          ;;
       1) read -r -p "vkey cbor-hex(blank to cancel): " vkey_cbor 
          [[ -z "${vkey_cbor}" ]] && continue
@@ -1047,7 +1188,27 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
+    pool_dirs=()
+    ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
+    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
+    for dir in "${dirs[@]}"; do
+      pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
+      pool_coldkey_sk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_SK_FILENAME}"
+      pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
+      [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
+      pool_id=$(cat "${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}")
+      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${ledger_state}")
+      [[ -n "${ledger_pool_state}" ]] && continue
+      pool_dirs+=("${dir}")
+    done
+    if [[ ${#pool_dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No pools available that can be registered!"
+      say "first create a pool"
+      waitForInput && continue
+    fi
+    say "Select Pool:\n"
+    if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    pool_name="${dir_name}"
 
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
     
@@ -1098,7 +1259,47 @@ case $OPERATION in
     
     echo ""
 
-    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
+    wallet_dirs=()
+    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
+    wallet_count=${#dirs[@]}
+    for dir in "${dirs[@]}"; do
+      base_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_BASE_ADDR_FILENAME}"
+      stake_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_ADDR_FILENAME}"
+      stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
+      stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
+      pay_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
+      [[ ! -f "${base_addr_file}" || ! -f "${stake_addr_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]] && continue
+      if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+        getBalance "$(cat ${base_addr_file})" >/dev/null
+        stake_addr=$(cat ${stake_addr_file})
+        delegation_pool_id=$(jq -r -c '._delegationState._dstate._delegations[] // empty' <<< "${ledger_state}" | grep "${stake_addr:6}" | jq -r '.[1] // empty')
+        unset poolName
+        if [[ -n ${delegation_pool_id} ]]; then
+          while IFS= read -r -d '' pool; do
+            pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
+            if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
+              poolName=$(basename ${pool}) && break
+            fi
+          done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+        fi
+        if [[ -n ${poolName} ]]; then
+          wallet_dirs+=("${dir} (Base: ${CYAN}${totalBalanceADA}${NC} - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
+        elif [[ -n ${delegation_pool_id} ]]; then
+          wallet_dirs+=("${dir} (Base: ${CYAN}${totalBalanceADA}${NC} - ${RED}delegated${NC} to external address)")
+        else
+          wallet_dirs+=("${dir} (Base: ${CYAN}${totalBalanceADA}${NC})")
+        fi
+      else
+        wallet_dirs+=("${dir}")
+      fi
+    done
+    if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No wallets available that can be used in pool registration as pledge wallet!"
+      waitForInput && continue
+    fi
+    say "Select Wallet:\n"
+    if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
     
     # Save pool config
     echo "{\"pledgeWallet\":\"$wallet_name\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada}" > "${pool_config}"
@@ -1192,7 +1393,27 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
+    pool_dirs=()
+    ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
+    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
+    for dir in "${dirs[@]}"; do
+      pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
+      pool_coldkey_sk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_SK_FILENAME}"
+      pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
+      [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
+      pool_id=$(cat "${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}")
+      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${ledger_state}")
+      [[ -z "${ledger_pool_state}" ]] && continue
+      pool_dirs+=("${dir}")
+    done
+    if [[ ${#pool_dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No pools available that can be modified!"
+      say "first register a pool"
+      waitForInput && continue
+    fi
+    say "Select Pool:\n"
+    if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    pool_name="${dir_name}"
 
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
     
@@ -1211,7 +1432,47 @@ case $OPERATION in
     echo ""
     say "${ORANGE}If a new wallet is chosen as pledge a manual delegation to the pool with new wallet is needed${NC}"
     echo ""
-    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
+    wallet_dirs=()
+    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
+    wallet_count=${#dirs[@]}
+    for dir in "${dirs[@]}"; do
+      base_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_BASE_ADDR_FILENAME}"
+      stake_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_ADDR_FILENAME}"
+      stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
+      stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
+      pay_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
+      [[ ! -f "${base_addr_file}" || ! -f "${stake_addr_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]] && continue
+      if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+        getBalance "$(cat ${base_addr_file})" >/dev/null
+        stake_addr=$(cat ${stake_addr_file})
+        delegation_pool_id=$(jq -r -c '._delegationState._dstate._delegations[] // empty' <<< "${ledger_state}" | grep "${stake_addr:6}" | jq -r '.[1] // empty')
+        unset poolName
+        if [[ -n ${delegation_pool_id} ]]; then
+          while IFS= read -r -d '' pool; do
+            pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
+            if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
+              poolName=$(basename ${pool}) && break
+            fi
+          done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+        fi
+        if [[ -n ${poolName} ]]; then
+          wallet_dirs+=("${dir} (Base: ${CYAN}${totalBalanceADA}${NC} - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
+        elif [[ -n ${delegation_pool_id} ]]; then
+          wallet_dirs+=("${dir} (Base: ${CYAN}${totalBalanceADA}${NC} - ${RED}delegated${NC} to external address)")
+        else
+          wallet_dirs+=("${dir} (Base: ${CYAN}${totalBalanceADA}${NC})")
+        fi
+      else
+        wallet_dirs+=("${dir}")
+      fi
+    done
+    if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No wallets available that can be used in pool registration as pledge wallet!"
+      waitForInput && continue
+    fi
+    say "Select Wallet:\n"
+    if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
     
     say "Enter new pool parameters, press enter to use old value"
     echo ""
@@ -1343,16 +1604,27 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
-    
+    pool_dirs=()
     ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
-    pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
-    ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${ledger_state}")
-    
-    if [[ -z "${ledger_pool_state}" ]]; then
-      say "${RED}ERROR${NC}: Pool ${GREEN}${pool_name}${NC} not registered on chain!"
+    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
+    for dir in "${dirs[@]}"; do
+      pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
+      pool_coldkey_sk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_SK_FILENAME}"
+      pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
+      [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
+      pool_id=$(cat "${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}")
+      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${ledger_state}")
+      [[ -z "${ledger_pool_state}" ]] && continue
+      pool_dirs+=("${dir}")
+    done
+    if [[ ${#pool_dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No pools available that can be retired!"
+      say "first register a pool"
       waitForInput && continue
     fi
+    say "Select Pool:\n"
+    if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    pool_name="${dir_name}"
     
     epoch=$(getEpoch)
     eMax=$(jq -r '.eMax' "${TMP_FOLDER}"/protparams.json)
@@ -1372,12 +1644,32 @@ case $OPERATION in
     fi
     
     say "\nWallet for pool de-registration transaction fee"
-    if ! selectWallet; then continue; fi # ${wallet_name} populated by selectWallet function
+    wallet_dirs=()
+    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
+    wallet_count=${#dirs[@]}
+    for dir in "${dirs[@]}"; do
+      payment_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_ADDR_FILENAME}"
+      base_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_BASE_ADDR_FILENAME}"
+      if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+        getBalanceAllAddr "${WALLET_FOLDER}/${dir}" "no"
+        [[ ${payment_lovelace} -eq 0 && ${base_lovelace} -eq 0 ]] && continue
+        wallet_dirs+=("${dir} (Payment: ${CYAN}$(numfmt --grouping ${payment_ada})${NC} ADA - Base: ${CYAN}$(numfmt --grouping ${base_ada})${NC} ADA)")
+      else
+        wallet_dirs+=("${dir}")
+      fi
+    done
+    if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No wallets available that have funds to pay for pool retirement transaction fee!"
+      waitForInput && continue
+    fi
+    say "Select Wallet:\n"
+    if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
     
     payment_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
     base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
     
-    getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}"
+    getBalanceAllAddr "${WALLET_FOLDER}/${wallet_name}" "no"
     
     if [[ ${payment_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
       # Both payment and base address available with funds, let user choose what to use
@@ -1490,7 +1782,21 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
+    pool_dirs=()
+    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
+    for dir in "${dirs[@]}"; do
+      pool_id="${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}"
+      [[ ! -f "${pool_id}" ]] && continue
+      pool_dirs+=("${dir}")
+    done
+    if [[ ${#pool_dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No pools available!"
+      say "first create a pool"
+      waitForInput && continue
+    fi
+    say "Select Pool:\n"
+    if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    pool_name="${dir_name}"
     
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
@@ -1565,7 +1871,24 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
+    pool_dirs=()
+    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
+    for dir in "${dirs[@]}"; do
+      pool_coldkey_sk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_SK_FILENAME}"
+      pool_hotkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_HOTKEY_VK_FILENAME}"
+      pool_hotkey_sk_file="${POOL_FOLDER}/${dir}/${POOL_HOTKEY_SK_FILENAME}"
+      pool_opcert_counter_file="${POOL_FOLDER}/${dir}/${POOL_OPCERT_COUNTER_FILENAME}"
+      [[ ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_hotkey_vk_file}"  || ! -f "${pool_hotkey_sk_file}" || ! -f "${pool_opcert_counter_file}" ]] && continue
+      pool_dirs+=("${dir}")
+    done
+    if [[ ${#pool_dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No pools available to rotate KES keys for!"
+      say "first create a pool"
+      waitForInput && continue
+    fi
+    say "Select Pool:\n"
+    if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    pool_name="${dir_name}"
 
     # cold keys
     pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
@@ -1576,15 +1899,6 @@ case $OPERATION in
     pool_opcert_counter_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_COUNTER_FILENAME}"
     pool_saved_kes_start="${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}"
     pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
-    
-    [[ ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_hotkey_vk_file}"  || ! -f "${pool_hotkey_sk_file}" || ! -f "${pool_opcert_counter_file}" ]] && {
-      say "${RED}ERROR${NC}: pool files missing, expecting these files to be available:"
-      say "${pool_coldkey_sk_file}"
-      say "${pool_hotkey_vk_file}"
-      say "${pool_hotkey_sk_file}"
-      say "${pool_opcert_counter_file}"
-      waitForInput && continue
-    }
 
     #Calculate appropriate KES period
     currSlot=$(getTip slot)
@@ -1619,7 +1933,15 @@ case $OPERATION in
     
     protectionPreRequisites || continue
     
-    if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
+    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
+    if [[ ${#dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No pools available!"
+      say "first create a pool"
+      waitForInput && continue
+    fi
+    say "Select Pool:\n"
+    if ! selectDir "${dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    pool_name="${dir_name}"
     
     filesUnlocked=0
     keysDecrypted=0
@@ -1674,7 +1996,15 @@ case $OPERATION in
     
     protectionPreRequisites || continue
     
-    if ! selectPool; then continue; fi # ${pool_name} populated by selectPool function
+    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
+    if [[ ${#dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No pools available!"
+      say "first create a pool"
+      waitForInput && continue
+    fi
+    say "Select Pool:\n"
+    if ! selectDir "${dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    pool_name="${dir_name}"
 
     filesLocked=0
     keysEncrypted=0
