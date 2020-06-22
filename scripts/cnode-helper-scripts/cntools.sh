@@ -647,7 +647,7 @@ case $OPERATION in
       pay_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
       [[ ! -f "${base_addr_file}" || ! -f "${stake_addr_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]] && continue
       if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        reward_lovelace=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address $(cat "${stake_addr_file}") | jq -r '.[].rewardAccountBalance // empty')
+        reward_lovelace=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address "$(cat ${stake_addr_file})" | jq -r '.[].rewardAccountBalance // empty')
         [[ "${reward_lovelace}" =~ ^[0-9]+$ ]] || reward_lovelace=0
         [[ ${reward_lovelace} -le 0 ]] && continue
         reward_ada=$(lovelacetoADA ${reward_lovelace})
