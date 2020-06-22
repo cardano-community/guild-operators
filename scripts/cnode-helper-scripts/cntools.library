@@ -1346,7 +1346,7 @@ delegate() {
   fi
 }
 
-"${pool_coldkey_sk_file}" "${pool_deregcert_file}" "${addr}" "${payment_sk_file}"
+
 # Command    : deRegisterPool [pool cold skey] [pool dereg cert] [wallet addr] [wallet skey]
 #
 # Description: Retire pool
