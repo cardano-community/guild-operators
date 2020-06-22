@@ -33,10 +33,10 @@ cardano-node run \
           --host-addr 0.0.0.0 \
           --port 5001 \
           --socket-path $CNODE_HOME/sockets/node0.socket \
-          --topology $CNODE_HOME/files/topology.json
-          --shelley-kes-key $CNODE_HOME/priv/pool/$POOLNAME/Hot.skey
-          --shelley-vrf-key $CNODE_HOME/priv/pool/$POOLNAME/Vrf.skey
-          --shelley-operational-certificate $CNODE_HOME/priv/pool/$POOLNAME/opcert
+          --topology $CNODE_HOME/files/topology.json \
+          --shelley-kes-key $CNODE_HOME/priv/pool/$POOLNAME/hot.skey \
+          --shelley-vrf-key $CNODE_HOME/priv/pool/$POOLNAME/vrf.skey \
+          --shelley-operational-certificate $CNODE_HOME/priv/pool/$POOLNAME/op.cert
 ```
 
 Note that if you do not want your node to be publicly available, you can change `--host-addr` to `127.0.0.1`
