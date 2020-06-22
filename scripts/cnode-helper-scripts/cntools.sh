@@ -273,7 +273,6 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
     while IFS= read -r -d '' wallet; do
       getBalanceAllAddr "${wallet}" "yes"
       echo ""
@@ -286,8 +285,7 @@ case $OPERATION in
           continue
         fi
         say "$(printf "%s\t${CYAN}%s${NC} ADA" "Reward" "$(numfmt --grouping ${reward_ada})")" "log"
-        stake_addr=$(cat ${stake_addr_file})
-        delegation_pool_id=$(jq -r -c '._delegationState._dstate._delegations[] // empty' <<< "${ledger_state}" | grep "${stake_addr:6}" | jq -r '.[1] // empty')
+        delegation_pool_id=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address "$(cat ${stake_addr_file})" | jq -r '.[].delegation // empty')
         if [[ -n ${delegation_pool_id} ]]; then
           unset poolName
           while IFS= read -r -d '' pool; do
@@ -954,9 +952,6 @@ case $OPERATION in
     
     wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
-    if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-      ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
-    fi
     wallet_count=${#dirs[@]}
     for dir in "${dirs[@]}"; do
       base_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_BASE_ADDR_FILENAME}"
@@ -967,8 +962,7 @@ case $OPERATION in
       [[ ! -f "${base_addr_file}" || ! -f "${stake_addr_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]] && continue
       if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
         getBalance "$(cat ${base_addr_file})" >/dev/null
-        stake_addr=$(cat ${stake_addr_file})
-        delegation_pool_id=$(jq -r -c '._delegationState._dstate._delegations[] // empty' <<< "${ledger_state}" | grep "${stake_addr:6}" | jq -r '.[1] // empty')
+        delegation_pool_id=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address "$(cat ${stake_addr_file})" | jq -r '.[].delegation // empty')
         unset poolName
         if [[ -n ${delegation_pool_id} ]]; then
           while IFS= read -r -d '' pool; do
@@ -1189,7 +1183,7 @@ case $OPERATION in
     fi
     
     pool_dirs=()
-    ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
+    ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json)
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
@@ -1197,7 +1191,7 @@ case $OPERATION in
       pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
       [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
       pool_id=$(cat "${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}")
-      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${ledger_state}")
+      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
       [[ -n "${ledger_pool_state}" ]] && continue
       pool_dirs+=("${dir}")
     done
@@ -1271,8 +1265,7 @@ case $OPERATION in
       [[ ! -f "${base_addr_file}" || ! -f "${stake_addr_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]] && continue
       if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
         getBalance "$(cat ${base_addr_file})" >/dev/null
-        stake_addr=$(cat ${stake_addr_file})
-        delegation_pool_id=$(jq -r -c '._delegationState._dstate._delegations[] // empty' <<< "${ledger_state}" | grep "${stake_addr:6}" | jq -r '.[1] // empty')
+        delegation_pool_id=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address "$(cat ${stake_addr_file})" | jq -r '.[].delegation // empty')
         unset poolName
         if [[ -n ${delegation_pool_id} ]]; then
           while IFS= read -r -d '' pool; do
@@ -1394,7 +1387,7 @@ case $OPERATION in
     fi
     
     pool_dirs=()
-    ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
+    ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json)
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
@@ -1402,7 +1395,7 @@ case $OPERATION in
       pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
       [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
       pool_id=$(cat "${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}")
-      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${ledger_state}")
+      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
       [[ -z "${ledger_pool_state}" ]] && continue
       pool_dirs+=("${dir}")
     done
@@ -1444,8 +1437,7 @@ case $OPERATION in
       [[ ! -f "${base_addr_file}" || ! -f "${stake_addr_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]] && continue
       if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
         getBalance "$(cat ${base_addr_file})" >/dev/null
-        stake_addr=$(cat ${stake_addr_file})
-        delegation_pool_id=$(jq -r -c '._delegationState._dstate._delegations[] // empty' <<< "${ledger_state}" | grep "${stake_addr:6}" | jq -r '.[1] // empty')
+        delegation_pool_id=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address "$(cat ${stake_addr_file})" | jq -r '.[].delegation // empty')
         unset poolName
         if [[ -n ${delegation_pool_id} ]]; then
           while IFS= read -r -d '' pool; do
@@ -1605,7 +1597,7 @@ case $OPERATION in
     fi
     
     pool_dirs=()
-    ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
+    ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json)
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
@@ -1613,7 +1605,7 @@ case $OPERATION in
       pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
       [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
       pool_id=$(cat "${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}")
-      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${ledger_state}")
+      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
       [[ -z "${ledger_pool_state}" ]] && continue
       pool_dirs+=("${dir}")
     done
@@ -1746,12 +1738,12 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
+    ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json)
     
     while IFS= read -r -d '' pool; do 
       echo ""
       pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
-      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${ledger_state}")
+      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' --out-file "${TMP_FOLDER}"/ledger-state.json)
       [[ -n "${ledger_pool_state}" ]] && pool_registered="YES" || pool_registered="NO"
       say "${GREEN}$(basename ${pool})${NC} "
       say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
@@ -1800,9 +1792,9 @@ case $OPERATION in
     
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
-    ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC})
+    ledger_state=$(timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json)
     pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
-    ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${ledger_state}")
+    ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
     [[ -n "${ledger_pool_state}" ]] && pool_registered="YES" || pool_registered="NO"
     say "${GREEN}${pool_name}${NC} "
     say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
@@ -1840,7 +1832,7 @@ case $OPERATION in
         fi
       fi
       # delegator count
-      delegator_count=$(jq -r '[._delegationState._dstate._delegations[] | select(.[] == "'"${pool_id}"'")] | length' <<< "${ledger_state}")
+      delegator_count=$(jq -r '[._delegationState._dstate._delegations[] | select(.[] == "'"${pool_id}"'")] | length' "${TMP_FOLDER}"/ledger-state.json)
       say "$(printf "%-21s : %s" "Delegators" "${delegator_count}")" "log"
       stake_pct=$(fractionToPCT "$(printf "%.10f" "$(${CCLI} shelley query stake-distribution --testnet-magic ${NWMAGIC} | grep "${pool_id}" | tr -s ' ' | cut -d ' ' -f 2)")")
       if validateDecimalNbr ${stake_pct}; then
