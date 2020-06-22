@@ -1743,7 +1743,7 @@ case $OPERATION in
     while IFS= read -r -d '' pool; do 
       echo ""
       pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
-      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' --out-file "${TMP_FOLDER}"/ledger-state.json)
+      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
       [[ -n "${ledger_pool_state}" ]] && pool_registered="YES" || pool_registered="NO"
       say "${GREEN}$(basename ${pool})${NC} "
       say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
