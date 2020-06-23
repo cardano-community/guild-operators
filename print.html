@@ -236,6 +236,7 @@ sudo curl -L &quot;https://github.com/docker/compose/releases/download/1.25.5/do
 <pre><code class="language-bash">cd ~/git
 git clone https://github.com/input-output-hk/cardano-node
 cd cardano-node
+echo -e &quot;package cardano-crypto-praos\n  flags: -external-libsodium-vrf&quot; &gt; cabal.project.local
 $CNODE_HOME/scripts/cabal-build-all.sh
 </code></pre>
 <p>The above would copy the binaries built into ~/.cabal/bin folder.</p>
