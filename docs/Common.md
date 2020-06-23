@@ -26,7 +26,7 @@ The prereqs script above will connect you to guild network. If you would like to
 
 ``` bash
 wget -O $CNODE_HOME/files/topology.json https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/shelley_testnet-topology.json
-wget -O $CNODE_HOME/files/genesis.json https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/shelley_testnet-config.json
+wget -O $CNODE_HOME/files/genesis.json https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/shelley_testnet-genesis.json
 ```
 
 If you were already running a node on guild network and would like to *replace* by moving to HTN, but continue using scripts - follow instructions below:
