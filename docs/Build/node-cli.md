@@ -10,6 +10,7 @@ Run the commands below to clone the Cardano Node git repository and build the bi
 cd ~/git
 git clone https://github.com/input-output-hk/cardano-node
 cd cardano-node
+echo -e "package cardano-crypto-praos\n  flags: -external-libsodium-vrf" > cabal.project.local
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
 
