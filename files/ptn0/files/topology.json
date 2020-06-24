@@ -99,8 +99,8 @@
      },
      {
         "operator": "Scitz0",
-        "node": "relay1",
-        "addr": "relay1.ahlnet.nu",
+        "node": "AHL",
+        "addr": "relay-phtn.ahlnet.nu",
         "port": 2101,
         "valency": 1
      },
