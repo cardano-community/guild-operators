@@ -13,7 +13,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff" />
 
-        <link rel="shortcut icon" href="favicon.png">
+        <link rel="shortcut icon" href="">
         <link rel="stylesheet" href="css/variables.css">
         <link rel="stylesheet" href="css/general.css">
         <link rel="stylesheet" href="css/chrome.css">
@@ -38,7 +38,7 @@
         <!-- Provide site root to javascript -->
         <script type="text/javascript">
             var path_to_root = "";
-            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "ayu" : "ayu";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "ayu";
         </script>
 
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
@@ -1497,7 +1497,7 @@ Since we're just trying to keep up with codebase, expect rapid changes (some bre
 <h4><a class="header" href="#download-setup_monsh" id="download-setup_monsh">Download setup_mon.sh</a></h4>
 <p>If you have run <code>prereqs.sh</code>, this should already be available in your scripts folder. To download cntools.sh you can execute the commands below:</p>
 <pre><code class="language-bash">cd $CNODE_HOME/scripts
-wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/setup_mon.sh
+wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/setup_mon.sh
 chmod 750 setup_mon.sh
 </code></pre>
 <h4><a class="header" href="#set-up-monitoring" id="set-up-monitoring">Set up Monitoring</a></h4>
@@ -1656,17 +1656,7 @@ cd $CNODE_HOME/scripts
         
         
         
-        <script type="text/javascript">
-            window.playpen_copyable = true;
-        </script>
-        
 
-        
-        <script src="ace.js" type="text/javascript" charset="utf-8"></script>
-        <script src="editor.js" type="text/javascript" charset="utf-8"></script>
-        <script src="mode-rust.js" type="text/javascript" charset="utf-8"></script>
-        <script src="theme-dawn.js" type="text/javascript" charset="utf-8"></script>
-        <script src="theme-tomorrow_night.js" type="text/javascript" charset="utf-8"></script>
         
 
         
