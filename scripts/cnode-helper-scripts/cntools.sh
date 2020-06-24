@@ -1190,7 +1190,7 @@ case $OPERATION in
       pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
       [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
       pool_id=$(cat "${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}")
-      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
+      ledger_pool_state=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
       [[ -n "${ledger_pool_state}" ]] && continue
       pool_dirs+=("${dir}")
     done
@@ -1441,7 +1441,7 @@ case $OPERATION in
       pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
       [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
       pool_id=$(cat "${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}")
-      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
+      ledger_pool_state=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
       [[ -z "${ledger_pool_state}" ]] && continue
       pool_dirs+=("${dir}")
     done
@@ -1693,7 +1693,7 @@ case $OPERATION in
       pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
       [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
       pool_id=$(cat "${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}")
-      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
+      ledger_pool_state=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
       [[ -z "${ledger_pool_state}" ]] && continue
       pool_dirs+=("${dir}")
     done
@@ -1831,7 +1831,7 @@ case $OPERATION in
     while IFS= read -r -d '' pool; do 
       echo ""
       pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
-      ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
+      ledger_pool_state=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
       [[ -n "${ledger_pool_state}" ]] && pool_registered="YES" || pool_registered="NO"
       say "${GREEN}$(basename ${pool})${NC} "
       say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
@@ -1882,7 +1882,7 @@ case $OPERATION in
     echo ""
     timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
     pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
-    ledger_pool_state=$(jq -r '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
+    ledger_pool_state=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
     [[ -n "${ledger_pool_state}" ]] && pool_registered="YES" || pool_registered="NO"
     say "${GREEN}${pool_name}${NC} "
     say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
@@ -1920,7 +1920,7 @@ case $OPERATION in
         fi
       fi
       # delegator count
-      delegator_count=$(jq -r '[._delegationState._dstate._delegations[] | select(.[] == "'"${pool_id}"'")] | length' "${TMP_FOLDER}"/ledger-state.json)
+      delegator_count=$(jq -r '[.esLState._delegationState._dstate._delegations[] | select(.[] == "'"${pool_id}"'")] | length' "${TMP_FOLDER}"/ledger-state.json)
       say "$(printf "%-21s : %s" "Delegators" "${delegator_count}")" "log"
       stake_pct=$(fractionToPCT "$(printf "%.10f" "$(${CCLI} shelley query stake-distribution --testnet-magic ${NWMAGIC} | grep "${pool_id}" | tr -s ' ' | cut -d ' ' -f 2)")")
       if validateDecimalNbr ${stake_pct}; then
