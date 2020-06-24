@@ -9,7 +9,7 @@ The script assumes the [Pre-Requisites](../Common.md#dependencies-and-folder-str
 If you have run `prereqs.sh`, this should already be available in your scripts folder. To download cntools.sh you can execute the commands below:
 ``` bash
 cd $CNODE_HOME/scripts
-wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/setup_mon.sh
+wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/setup_mon.sh
 chmod 750 setup_mon.sh
 ```
 
