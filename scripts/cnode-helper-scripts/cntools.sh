@@ -1,6 +1,5 @@
 #!/bin/bash
 # shellcheck disable=SC1090,SC2086,SC2154,SC2034
-# ,SC2034,SC2143,SC2046,
 
 ########## Global tasks ###########################################
 
@@ -60,7 +59,7 @@ echo " ) Wallet  -  create, show, remove and protect wallets"
 echo " ) Funds   -  send and delegate ADA"
 echo " ) Pool    -  pool creation and management"
 echo " ) Blocks  -  show core node block log if available"
-echo " ) Update  -  install or upgrade latest available binary of Haskell Cardano"
+echo " ) Update  -  update cntools script and library config files"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
 say " What would you like to do?\n"
@@ -1251,6 +1250,53 @@ case $OPERATION in
       cost_lovelace=$(ADAtoLovelace "${cost_ada}")
     fi
     
+    meta_name="${pool_name}" # default name
+    meta_ticker="${pool_name}" # default ticker
+    meta_description="No Description" #default Description
+    meta_homepage="https://foo.com" #default homepage
+    meta_json_url="https://foo.bat/poolmeta.json" #default JSON
+    pool_meta_file=${POOL_FOLDER}/${pool_name}/poolmeta.json
+    if [[ -f "${pool_meta_file}" ]]; then
+      meta_name=$(jq -r .name "${pool_meta_file}")
+      meta_ticker=$(jq -r .ticker "${pool_meta_file}")
+      meta_homepage=$(jq -r .homepage "${pool_meta_file}")
+      meta_description=$(jq -r .description "${pool_meta_file}")
+    fi
+    if [[ -f "${pool_config}" ]]; then
+      meta_json_url=$(jq -r .json_url "${pool_config}")
+    fi
+    echo "" && read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
+    name_enter=${name_enter//[^[:alnum:]]/_}
+    if [[ -n "${name_enter}" ]]; then
+      meta_name="${name_enter}"
+    fi
+    echo "" && read -r -p "Enter Pool's Ticker (default: ${meta_ticker}): " ticker_enter
+    ticker_enter=${ticker_enter//[^[:alnum:]]/_}
+    if [[ -n "${ticker_enter}" ]]; then
+      meta_ticker="${ticker_enter}"
+    #else #TODO: Ticker length validation
+    fi
+    echo "" && read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
+    desc_enter=${desc_enter}
+    if [[ -n "${desc_enter}" ]]; then
+      meta_description="${desc_enter}"
+    fi
+    echo "" && read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter
+    homepage_enter="${homepage_enter}"
+    if [[ -n "${homepage_enter}" ]]; then
+      meta_homepage="${homepage_enter}"
+    #else #TODO: URL validation
+    fi
+    echo "" && read -r -p "Enter Pool's JSON URL to host metadata file (default: ${meta_json_url}): " json_url_enter
+    json_url_enter="${json_url_enter}"
+    if [[ -n "${json_url_enter}" ]]; then
+      meta_json_url="${json_url_enter}"
+    #else #TODO: URL validation
+    fi
+    
+    echo -e "Please make sure you host your metadata JSON file (with contents as below) at ${meta_json_url} :\n"
+    echo -e "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}"| tee "${pool_meta_file}"
+    
     echo ""
 
     wallet_dirs=()
@@ -1295,7 +1341,7 @@ case $OPERATION in
     wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
     
     # Save pool config
-    echo "{\"pledgeWallet\":\"$wallet_name\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada}" > "${pool_config}"
+    echo "{\"pledgeWallet\":\"$wallet_name\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\"}" > "${pool_config}"
 
     base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
     pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
@@ -1328,7 +1374,7 @@ case $OPERATION in
     pool_pledgecert_file="${POOL_FOLDER}/${pool_name}/${POOL_PLEDGECERT_FILENAME}"
 
     say "-- creating registration cert --" "log"
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC}
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )"
     say "-- creating delegation cert --" "log"
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
     say "-- Sending transaction to chain --" "log"
@@ -1415,7 +1461,49 @@ case $OPERATION in
       say "${pool_config}"
       waitForInput && continue
     fi
-    
+
+    pool_meta_file=${POOL_FOLDER}/${pool_name}/poolmeta.json
+    if [[ -f "${pool_meta_file}" ]]; then
+      meta_name=$(jq -r .name "${pool_meta_file}")
+      meta_ticker=$(jq -r .ticker "${pool_meta_file}")
+      meta_homepage=$(jq -r .homepage "${pool_meta_file}")
+      meta_description=$(jq -r .description "${pool_meta_file}")
+    fi
+    if [[ -f "${pool_config}" ]]; then
+      meta_json_url=$(jq -r .json_url "${pool_config}")
+    fi
+    echo "" && read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
+    name_enter=${name_enter//[^[:alnum:]]/_}
+    if [[ -n "${name_enter}" ]]; then
+      meta_name="${name_enter}"
+    fi
+    echo "" && read -r -p "Enter Pool's Ticker (default: ${meta_ticker}): " ticker_enter
+    ticker_enter=${ticker_enter//[^[:alnum:]]/_}
+    if [[ -n "${ticker_enter}" ]]; then
+      meta_ticker="${ticker_enter}"
+    #else #TODO: Ticker length validation
+    fi
+    echo "" && read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
+    desc_enter=${desc_enter}
+    if [[ -n "${desc_enter}" ]]; then
+      meta_description="${desc_enter}"
+    fi
+    echo "" && read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter
+    homepage_enter="${homepage_enter}"
+    if [[ -n "${homepage_enter}" ]]; then
+      meta_homepage="${homepage_enter}"
+    #else #TODO: URL validation
+    fi
+    echo "" && read -r -p "Enter Pool's JSON URL to host metadata file (default: ${meta_json_url}): " json_url_enter
+    json_url_enter="${json_url_enter}"
+    if [[ -n "${json_url_enter}" ]]; then
+      meta_json_url="${json_url_enter}"
+    #else #TODO: URL validation
+    fi
+
+    echo -e "Please make sure you host your metadata JSON file (with contents as below) at ${meta_json_url} :\n"
+    echo -e "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}"| tee "${pool_meta_file}"
+
     # Pledge wallet, also used to pay for pool update fee
     echo ""
     pledge_wallet=$(jq -r .pledgeWallet "${pool_config}") # old pledge wallet
@@ -1537,7 +1625,7 @@ case $OPERATION in
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
 
     say "-- creating registration cert --" "log"
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC}
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )"
     say "-- Sending transaction to chain --" "log"
 
     if ! modifyPool "$(cat ${base_addr_file})" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pay_payment_sk_file}"; then
@@ -2096,7 +2184,7 @@ case $OPERATION in
 
   ;; ###################################################################
   
-  update) # not ready yet. ToDo when binary releases become available
+  update) # not ready yet
   
   clear
   say " >> UPDATE" "log"
@@ -2105,14 +2193,17 @@ case $OPERATION in
   say "${RED}ERROR${NC}: Sorry! not ready yet in cntools"
   waitForInput && continue
 
-  if [ ${#} -lt 2 ]; then
-    DESIRED_RELEASE_JSON=$(curl --proto '=https' --tlsv1.2 -sSf https://api.github.com/repos/input-output-hk/cardano-node/releases/latest)
+  URL="https://raw.githubusercontent.com/rdlrt/guild-operators/master/scripts/cnode-helper-scripts"
+  GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "$(curl -s "${URL}/cntools.config")" |sed -e "s#.*=##")
+  GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "$(curl -s "${URL}/cntools.config")" |sed -e "s#.*=##")
+  if [ "$CNTOOLS_MAJOR_VERSION" -lt "$GIT_MAJOR_VERSION" ];then
+    echo "${CNTOOLS_MAJOR_VERSION}"
+  elif [ "$CNTOOLS_MAJOR_VERSION" -lt "$GIT_MINOR_VERSION" ];then
+    echo "${CNTOOLS_MINOR_VERSION}"
   else
-    DESIRED_RELEASE_JSON=$(curl --proto '=https' --tlsv1.2 -sSf https://api.github.com/repos/input-output-hk/cardano-node/releases/tags/${2})
+    say "${GREEN}Up to Date${NC}: You're using the latest version. No updates required!"
   fi
-  DESIRED_RELEASE=$(echo $DESIRED_RELEASE_JSON | jq -r .tag_name)
-  DESIRED_RELEASE_PUBLISHED=$(echo $DESIRED_RELEASE_JSON | jq -r .published_at)
-  DESIRED_RELEASE_CLEAN=$(echo ${DESIRED_RELEASE} | cut -c2-)
+  waitForInput && continue
 
   if [ -f "${CCLI}" ]; then
     CURRENT_VERSION=$(${CCLI} --version | cut -f 2 -d " ")
