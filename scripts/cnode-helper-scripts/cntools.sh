@@ -56,9 +56,9 @@ echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 echo " Main Menu"
 echo ""
 echo " ) Wallet  -  create, show, remove and protect wallets"
-echo " ) Funds   -  send and delegate ADA"
+echo " ) Funds   -  send, withdraw and delegate"
 echo " ) Pool    -  pool creation and management"
-echo " ) Blocks  -  show core node block log if available"
+echo " ) Blocks  -  show core node leader slots"
 echo " ) Update  -  update cntools script and library config files"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
@@ -1276,7 +1276,10 @@ case $OPERATION in
     ticker_enter=${ticker_enter//[^[:alnum:]]/_}
     if [[ -n "${ticker_enter}" ]]; then
       meta_ticker="${ticker_enter}"
-    #else #TODO: Ticker length validation
+    fi
+    if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
+      say "${RED}ERROR${NC}: ticker must be between 3-5 characters"
+      waitForInput && continue
     fi
     echo "" && read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
     desc_enter=${desc_enter}
@@ -1287,13 +1290,19 @@ case $OPERATION in
     homepage_enter="${homepage_enter}"
     if [[ -n "${homepage_enter}" ]]; then
       meta_homepage="${homepage_enter}"
-    #else #TODO: URL validation
+    fi
+    if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
+      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in lenth"
+      waitForInput && continue
     fi
     echo "" && read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter
     json_url_enter="${json_url_enter}"
     if [[ -n "${json_url_enter}" ]]; then
       meta_json_url="${json_url_enter}"
-    #else #TODO: URL validation
+    fi
+    if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
+      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in lenth"
+      waitForInput && continue
     fi
     
     echo -e "Please make sure you host your metadata JSON file (with contents as below) at ${meta_json_url} :\n"
@@ -1483,7 +1492,10 @@ case $OPERATION in
     ticker_enter=${ticker_enter//[^[:alnum:]]/_}
     if [[ -n "${ticker_enter}" ]]; then
       meta_ticker="${ticker_enter}"
-    #else #TODO: Ticker length validation
+    fi
+    if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
+      say "${RED}ERROR${NC}: ticker must be between 3-5 characters"
+      waitForInput && continue
     fi
     echo "" && read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
     desc_enter=${desc_enter}
@@ -1494,13 +1506,19 @@ case $OPERATION in
     homepage_enter="${homepage_enter}"
     if [[ -n "${homepage_enter}" ]]; then
       meta_homepage="${homepage_enter}"
-    #else #TODO: URL validation
+    fi
+    if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
+      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in lenth"
+      waitForInput && continue
     fi
     echo "" && read -r -p "Enter Pool's JSON URL to host metadata file (default: ${meta_json_url}): " json_url_enter
     json_url_enter="${json_url_enter}"
     if [[ -n "${json_url_enter}" ]]; then
       meta_json_url="${json_url_enter}"
-    #else #TODO: URL validation
+    fi
+    if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
+      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in lenth"
+      waitForInput && continue
     fi
 
     echo -e "Please make sure you host your metadata JSON file (with contents as below) at ${meta_json_url} :\n"
