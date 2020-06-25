@@ -97,10 +97,10 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     echo "deb https://dl.yarnpkg.com/debian/ stable main" | $sudo tee /etc/apt/sources.list.d/yarn.list > /dev/null
     $sudo apt-get -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    $sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev yarn make g++ tmux git jq wget libncursesw5 gnupg aptitude > /dev/null;rc=$?
+    $sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev yarn make g++ tmux git jq wget libncursesw5 gnupg aptitude libtool autoconf > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
-      echo "sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev npm yarn make g++ tmux git jq wget libncursesw5 gnupg"
+      echo "sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev npm yarn make g++ tmux git jq wget libncursesw5 gnupg libtool autoconf"
       echo "It would be best if you could submit an issue at https://github.com/cardano-community/guild-operators with the details to tackle in future, as some errors may be due to external/already present dependencies"
       exit;
     else
@@ -115,10 +115,10 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo rpm --import https://dl.yarnpkg.com/rpm/pubkey.gpg > /dev/null
     $sudo yum -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    $sudo yum -y install python3 coreutils-single pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq gnupg > /dev/null;rc=$?
+    $sudo yum -y install python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq gnupg libtool autoconf > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
-      echo "sudo yum -y install coreutils-single python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq gnupg"
+      echo "sudo yum -y install coreutils python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq gnupg libtool autoconf"
       echo "It would be best if you could submit an issue at https://github.com/cardano-community/guild-operators with the details to tackle in future, as some errors may be due to external/already present dependencies"
       exit;
     fi
@@ -172,11 +172,27 @@ else
   . "${HOME}/.bashrc"
 fi
 
+mkdir "${HOME}/git" > /dev/null 2>&1 # To hold git repositories that will be used for building binaries
+
+# This part is commented out as if-and-when libsodium at system causes a conflict with fork, IOHK would need to fix this in a more acceptable manner.
+
+# if grep -q "/usr/local/lib:$LD_LIBRARY_PATH" ~/.bashrc; then
+#   echo "Load Library Paths already set up!"
+# else
+#   echo "export LD_LIBRARY_PATH=/usr/lib64\:\$LD_LIBRARY_PATH" >> ~/.bashrc
+#   cd "$HOME/git" || return
+#   git clone https://github.com/input-output-hk/libsodium >/dev/null 2>&1
+#   cd libsodium
+#   git checkout 66f017f1
+#   ./autogen.sh > autogen.log 2&1
+#   ./configure > configure.log 2&1
+#   make > make.log 2>&1
+#   $sudo make install > install.log 2>&1
+# fi
+
 $sudo mkdir -p "$CNODE_HOME"/files "$CNODE_HOME"/db "$CNODE_HOME"/logs "$CNODE_HOME"/scripts "$CNODE_HOME"/sockets "$CNODE_HOME"/priv
 $sudo chown -R "$U_ID":"$G_ID" "$CNODE_HOME"
 chmod -R 755 "$CNODE_HOME"
-
-mkdir -p ~/git # To hold git repositories that will be used for building binaries
 
 cd "$CNODE_HOME/files" || return
 

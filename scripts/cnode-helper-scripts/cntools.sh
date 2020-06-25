@@ -1263,14 +1263,16 @@ case $OPERATION in
       meta_description=$(jq -r .description "${pool_meta_file}")
     fi
     if [[ -f "${pool_config}" ]]; then
-      meta_json_url=$(jq -r .json_url "${pool_config}")
+      if [[ -z "$(jq -r .json_url ${pool_config})" ]]; then
+        meta_json_url=$(jq -r .json_url "${pool_config}")
+      fi
     fi
     echo "" && read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
     name_enter=${name_enter//[^[:alnum:]]/_}
     if [[ -n "${name_enter}" ]]; then
       meta_name="${name_enter}"
     fi
-    echo "" && read -r -p "Enter Pool's Ticker (default: ${meta_ticker}): " ticker_enter
+    echo "" && read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter
     ticker_enter=${ticker_enter//[^[:alnum:]]/_}
     if [[ -n "${ticker_enter}" ]]; then
       meta_ticker="${ticker_enter}"
@@ -1287,7 +1289,7 @@ case $OPERATION in
       meta_homepage="${homepage_enter}"
     #else #TODO: URL validation
     fi
-    echo "" && read -r -p "Enter Pool's JSON URL to host metadata file (default: ${meta_json_url}): " json_url_enter
+    echo "" && read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter
     json_url_enter="${json_url_enter}"
     if [[ -n "${json_url_enter}" ]]; then
       meta_json_url="${json_url_enter}"
