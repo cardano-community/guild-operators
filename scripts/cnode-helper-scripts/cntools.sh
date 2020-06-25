@@ -1911,7 +1911,7 @@ case $OPERATION in
           say "$(printf "%-21s : %s" "Owner account" "${owner}")" "log"
         fi
       done < <(jq -c -r '._poolOwners[] // empty' <<< "${ledger_pool_state}")
-      reward_account=$(jq -r '._poolRAcnt.getRwdCred.contents' <<< "${ledger_pool_state}")
+      reward_account=$(jq -r '.rewardAccount.credential."key hash"' <<< "${ledger_pool_state}")
       if [[ -n ${reward_account} ]]; then
         reward_wallet=$(grep -r ${reward_account} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
         reward_wallet="$(basename "$(dirname "${reward_wallet}")")"
