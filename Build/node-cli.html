@@ -158,6 +158,7 @@
 <pre><code class="language-bash">cd ~/git
 git clone https://github.com/input-output-hk/cardano-node
 cd cardano-node
+### Please ensure you have run the *UPDATED* prereqs.sh (see link at top of this document) before continuing
 echo -e &quot;package cardano-crypto-praos\n  flags: -external-libsodium-vrf&quot; &gt; cabal.project.local
 $CNODE_HOME/scripts/cabal-build-all.sh
 </code></pre>
