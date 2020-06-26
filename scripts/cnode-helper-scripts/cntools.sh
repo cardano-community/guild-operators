@@ -1312,6 +1312,7 @@ case $OPERATION in
     relay_address="123.123.123.123" # default address
     relay_port="3001" # default port
     relay_output=""
+    relay_array=()
     say "\n -- Pool Relay Registration --\n"
     # ToDo SRV & IPv6 support
     case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in 
@@ -1330,6 +1331,7 @@ case $OPERATION in
              waitForInput && continue
            fi
          fi
+         relay_array+=( "address" "${relay_dns_enter}" "port" "${relay_port}" )
          relay_output="--pool-relay-port ${relay_port} --single-host-pool-relay ${relay_dns_enter}"
          ;;
       1) while true; do
@@ -1351,6 +1353,7 @@ case $OPERATION in
                continue
              fi
            fi
+           relay_array+=( "address" "${relay_address}" "port" "${relay_port}" )
            relay_output+="--pool-relay-port ${relay_port} --pool-relay-ipv4 ${relay_address} "
            say "\nAdd more IPv4 entries?\n"
            case $(select_opt "[y] Yes" "[n] No" "[c] Cancel") in
@@ -1406,9 +1409,15 @@ case $OPERATION in
     if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
     pledge_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
     
+    # Construct relay json array
+    relay_json=$({
+      echo '['
+      printf '{"%s": "%s", "%s": "%s"},\n' "${relay_array[@]}" | sed '$s/,$//'
+      echo ']'
+    } | jq -c .)
     # Save pool config
-    echo "{\"pledgeWallet\":\"$pledge_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\"}" > "${pool_config}"
-
+    echo "{\"pledgeWallet\":\"$pledge_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\",\"relays\": $relay_json}" > "${pool_config}"
+    
     base_addr_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_BASE_ADDR_FILENAME}"
     pay_payment_sk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_PAY_SK_FILENAME}"
     stake_sk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_STAKE_SK_FILENAME}"
@@ -1440,7 +1449,7 @@ case $OPERATION in
     pool_pledgecert_file="${POOL_FOLDER}/${pool_name}/${POOL_PLEDGECERT_FILENAME}"
 
     say "-- creating registration cert --" "log" 
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" "${relay_output}"
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output}
     say "-- creating delegation cert --" "log"
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
     say "-- Sending transaction to chain --" "log"
@@ -1578,7 +1587,6 @@ case $OPERATION in
     if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
     pledge_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
     
-    
     say " -- Pool Parameters --\n"
     say "press enter to use old value\n"
     
@@ -1675,7 +1683,13 @@ case $OPERATION in
     relay_address="123.123.123.123" # default address
     relay_port="3001" # default port
     relay_output=""
+    relay_array=()
     say "\n -- Pool Relay Registration --\n"
+    if [[ -f "${pool_meta_file}" && -n $(jq '.relays //empty' "${pool_config}") ]]; then
+      say "Previous relay configuration:\n"
+      echo -e '[ADDRESS,PORT]\n[-------,----]' | cat - <(jq -c '.relays[] | [.address,.port] //empty' "${pool_config}") | column -t -s'[],"'
+      echo ""
+    fi
     # ToDo SRV & IPv6 support
     case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in 
       0) read -r -p "Enter relays's DNS record, onyl A or AAAA DNS records, SRV not supported at this time: " relay_dns_enter
@@ -1693,6 +1707,7 @@ case $OPERATION in
              waitForInput && continue
            fi
          fi
+         relay_array+=( "address" "${relay_dns_enter}" "port" "${relay_port}" )
          relay_output="--pool-relay-port ${relay_port} --single-host-pool-relay ${relay_dns_enter}"
          ;;
       1) while true; do
@@ -1714,6 +1729,7 @@ case $OPERATION in
                continue
              fi
            fi
+           relay_array+=( "address" "${relay_address}" "port" "${relay_port}" )
            relay_output+="--pool-relay-port ${relay_port} --pool-relay-ipv4 ${relay_address} "
            say "\nAdd more IPv4 entries?\n"
            case $(select_opt "[y] Yes" "[n] No" "[c] Cancel") in
@@ -1725,6 +1741,15 @@ case $OPERATION in
          ;;
       2) continue ;;
     esac
+    
+    # Construct relay json array
+    relay_json=$({
+      echo '['
+      printf '{"%s": "%s", "%s": "%s"},\n' "${relay_array[@]}" | sed '$s/,$//'
+      echo ']'
+    } | jq -c .)
+    # Update pool config
+    echo "{\"pledgeWallet\":\"$pledge_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\",\"relays\": $relay_json}" > "${pool_config}"
     
     echo ""
 
@@ -1758,7 +1783,8 @@ case $OPERATION in
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
 
     say "-- creating registration cert --" "log"
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" "${relay_output}"
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output}
+    
     say "-- Sending transaction to chain --" "log"
 
     if ! modifyPool "$(cat ${base_addr_file})" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pay_payment_sk_file}"; then
@@ -1785,9 +1811,6 @@ case $OPERATION in
     if [[ ${TOTALBALANCE} -ne ${newBalance} ]]; then
       waitForInput && continue
     fi
-    
-    # Update pool config
-    echo "{\"pledgeWallet\":\"$pledge_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\"}" > "${pool_config}"
 
     echo ""
     say "Pool ${GREEN}${pool_name}${NC} successfully updated with new parameters using wallet ${GREEN}${pledge_wallet}${NC} to pay for registration fee" "log"
