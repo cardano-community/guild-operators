@@ -24,8 +24,8 @@ sudo/root access needed to configure systemd.
 In this example normal output from the `cntoolsBlockCollector.sh` script is ignored. Error output is logged using syslog and end up in the systems standard syslog file, normally `/var/log/syslog`. Other logging configurations are not covered here. 
 
 **1. Create systemd service file**  
-Replace `User` with the correct user for your system. Copy & paste all code below to create the service file.
-```
+Replace `$USER` with the correct user for your system. Copy & paste all code below to create the service file.
+``` bash
 sudo bash -c 'cat <<EOF > /etc/systemd/system/cntools-blockcollector.service
 [Unit]
 Description=CNTools - Block Collector
@@ -35,7 +35,7 @@ After=network.target
 Type=simple
 Restart=on-failure
 RestartSec=10
-User=cardano
+User=$USER
 WorkingDirectory=/opt/cardano/cnode/scripts
 ExecStart=/opt/cardano/cnode/scripts/cntoolsBlockCollector.sh
 SuccessExitStatus=143
