@@ -1204,7 +1204,7 @@ case $OPERATION in
     pool_name="${dir_name}"
 
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
-    
+    say " -- Pool Parameters --\n"
     pledge_ada=50000 # default pledge
     if [[ -f "${pool_config}" ]]; then
       pledge_ada=$(jq -r .pledgeADA "${pool_config}")
@@ -1224,7 +1224,7 @@ case $OPERATION in
     if [[ -f "${pool_config}" ]]; then
       margin=$(jq -r .margin "${pool_config}")
     fi
-    echo "" && read -r -p "Margin (in %, default: ${margin}): " margin_enter
+    read -r -p "Margin (in %, default: ${margin}): " margin_enter
     if [[ -n "${margin_enter}" ]]; then
       if ! pctToFraction "${margin_enter}" >/dev/null; then
         waitForInput && continue
@@ -1239,7 +1239,7 @@ case $OPERATION in
     if [[ -f "${pool_config}" ]]; then
       cost_ada=$(jq -r .costADA "${pool_config}")
     fi
-    echo "" && read -r -p "Cost (in ADA, default: ${cost_ada}): " cost_enter
+    read -r -p "Cost (in ADA, default: ${cost_ada}): " cost_enter
     if [[ -n "${cost_enter}" ]]; then
       if ! ADAtoLovelace "${cost_enter}" >/dev/null; then
         waitForInput && continue
@@ -1250,6 +1250,7 @@ case $OPERATION in
       cost_lovelace=$(ADAtoLovelace "${cost_ada}")
     fi
     
+    say "\n -- Pool Metadata --\n"
     meta_name="${pool_name}" # default name
     meta_ticker="${pool_name}" # default ticker
     meta_description="No Description" #default Description
@@ -1267,12 +1268,12 @@ case $OPERATION in
         meta_json_url=$(jq -r .json_url "${pool_config}")
       fi
     fi
-    echo "" && read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
+    read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
     name_enter=${name_enter//[^[:alnum:]]/_}
     if [[ -n "${name_enter}" ]]; then
       meta_name="${name_enter}"
     fi
-    echo "" && read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter
+    read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter
     ticker_enter=${ticker_enter//[^[:alnum:]]/_}
     if [[ -n "${ticker_enter}" ]]; then
       meta_ticker="${ticker_enter}"
@@ -1281,12 +1282,12 @@ case $OPERATION in
       say "${RED}ERROR${NC}: ticker must be between 3-5 characters"
       waitForInput && continue
     fi
-    echo "" && read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
+    read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
     desc_enter=${desc_enter}
     if [[ -n "${desc_enter}" ]]; then
       meta_description="${desc_enter}"
     fi
-    echo "" && read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter
+    read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter
     homepage_enter="${homepage_enter}"
     if [[ -n "${homepage_enter}" ]]; then
       meta_homepage="${homepage_enter}"
@@ -1295,7 +1296,7 @@ case $OPERATION in
       say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in lenth"
       waitForInput && continue
     fi
-    echo "" && read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter
+    read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter
     json_url_enter="${json_url_enter}"
     if [[ -n "${json_url_enter}" ]]; then
       meta_json_url="${json_url_enter}"
@@ -1305,8 +1306,62 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    echo -e "Please make sure you host your metadata JSON file (with contents as below) at ${meta_json_url} :\n"
-    echo -e "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}"| tee "${pool_meta_file}"
+    say "\n${ORANGE}Please make sure you host your metadata JSON file (with contents as below) at ${meta_json_url} :${NC}\n"
+    say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
+    
+    relay_address="123.123.123.123" # default address
+    relay_port="3001" # default port
+    relay_output=""
+    say "\n -- Pool Relay Registration --\n"
+    # ToDo SRV & IPv6 support
+    case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in 
+      0) read -r -p "Enter relays's DNS record, onyl A or AAAA DNS records, SRV not supported at this time: " relay_dns_enter
+         if [[ -z "${relay_dns_enter}" ]]; then
+           say "${RED}ERROR${NC}: DNS record can not be empty!"
+           waitForInput && continue
+         fi
+         #ToDo - DNS format verficication?
+         read -r -p "Enter relays's port (default: ${relay_port}): " relay_port_enter
+         if [[ -n "${relay_port_enter}" ]]; then
+           if [[ "${relay_port_enter}" =~ ^[0-9]+$ && "${relay_port_enter}" -ge 1 && "${relay_port_enter}" -le 65535 ]]; then
+             relay_port="${relay_port_enter}"
+           else
+             say "${RED}ERROR${NC}: invalid port number!"
+             waitForInput && continue
+           fi
+         fi
+         relay_output="--pool-relay-port ${relay_port} --single-host-pool-relay ${relay_dns_enter}"
+         ;;
+      1) while true; do
+           read -r -p "Enter relays's IPv4 address (default: ${relay_address}): " relay_ipv4_enter
+           if [[ -n "${relay_ipv4_enter}" ]]; then
+             if validIP "${relay_ipv4_enter}"; then
+               relay_address="${relay_ipv4_enter}"
+             else
+               say "${RED}ERROR${NC}: invalid IPv4 address format!\n"
+               continue
+             fi
+           fi
+           read -r -p "Enter relays's port (default: ${relay_port}): " relay_port_enter
+           if [[ -n "${relay_port_enter}" ]]; then
+             if [[ "${relay_port_enter}" =~ ^[0-9]+$ && "${relay_port_enter}" -ge 1 && "${relay_port_enter}" -le 65535 ]]; then
+               relay_port="${relay_port_enter}"
+             else
+               say "${RED}ERROR${NC}: invalid port number!\n"
+               continue
+             fi
+           fi
+           relay_output+="--pool-relay-port ${relay_port} --pool-relay-ipv4 ${relay_address} "
+           say "\nAdd more IPv4 entries?\n"
+           case $(select_opt "[y] Yes" "[n] No" "[c] Cancel") in
+             0) continue ;;
+             1) break ;;
+             2) continue 2 ;;
+           esac
+         done
+         ;;
+      2) continue ;;
+    esac
     
     echo ""
 
@@ -1347,17 +1402,17 @@ case $OPERATION in
       say "${ORANGE}WARN${NC}: No wallets available that can be used in pool registration as pledge wallet!"
       waitForInput && continue
     fi
-    say "Select Wallet:\n"
+    say "Select Pledge Wallet:\n"
     if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
+    pledge_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
     
     # Save pool config
-    echo "{\"pledgeWallet\":\"$wallet_name\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\"}" > "${pool_config}"
+    echo "{\"pledgeWallet\":\"$pledge_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\"}" > "${pool_config}"
 
-    base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
-    pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+    base_addr_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_BASE_ADDR_FILENAME}"
+    pay_payment_sk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_PAY_SK_FILENAME}"
+    stake_sk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_STAKE_SK_FILENAME}"
+    stake_vk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_STAKE_VK_FILENAME}"
 
     pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
     pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
@@ -1384,8 +1439,8 @@ case $OPERATION in
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
     pool_pledgecert_file="${POOL_FOLDER}/${pool_name}/${POOL_PLEDGECERT_FILENAME}"
 
-    say "-- creating registration cert --" "log"
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )"
+    say "-- creating registration cert --" "log" 
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" "${relay_output}"
     say "-- creating delegation cert --" "log"
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
     say "-- Sending transaction to chain --" "log"
@@ -1416,7 +1471,7 @@ case $OPERATION in
     fi
 
     echo ""
-    say "Pool ${GREEN}${pool_name}${NC} successfully registered using wallet ${GREEN}${wallet_name}${NC} for pledge" "log"
+    say "Pool ${GREEN}${pool_name}${NC} successfully registered using wallet ${GREEN}${pledge_wallet}${NC} for pledge" "log"
     say "Pledge : $(numfmt --grouping ${pledge_ada}) ADA" "log"
     say "Margin : ${margin}%" "log"
     say "Cost   : $(numfmt --grouping ${cost_ada}) ADA" "log"
@@ -1473,57 +1528,6 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    pool_meta_file=${POOL_FOLDER}/${pool_name}/poolmeta.json
-    if [[ -f "${pool_meta_file}" ]]; then
-      meta_name=$(jq -r .name "${pool_meta_file}")
-      meta_ticker=$(jq -r .ticker "${pool_meta_file}")
-      meta_homepage=$(jq -r .homepage "${pool_meta_file}")
-      meta_description=$(jq -r .description "${pool_meta_file}")
-    fi
-    if [[ -f "${pool_config}" ]]; then
-      meta_json_url=$(jq -r .json_url "${pool_config}")
-    fi
-    echo "" && read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
-    name_enter=${name_enter//[^[:alnum:]]/_}
-    if [[ -n "${name_enter}" ]]; then
-      meta_name="${name_enter}"
-    fi
-    echo "" && read -r -p "Enter Pool's Ticker (default: ${meta_ticker}): " ticker_enter
-    ticker_enter=${ticker_enter//[^[:alnum:]]/_}
-    if [[ -n "${ticker_enter}" ]]; then
-      meta_ticker="${ticker_enter}"
-    fi
-    if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
-      say "${RED}ERROR${NC}: ticker must be between 3-5 characters"
-      waitForInput && continue
-    fi
-    echo "" && read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
-    desc_enter=${desc_enter}
-    if [[ -n "${desc_enter}" ]]; then
-      meta_description="${desc_enter}"
-    fi
-    echo "" && read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter
-    homepage_enter="${homepage_enter}"
-    if [[ -n "${homepage_enter}" ]]; then
-      meta_homepage="${homepage_enter}"
-    fi
-    if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
-      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in lenth"
-      waitForInput && continue
-    fi
-    echo "" && read -r -p "Enter Pool's JSON URL to host metadata file (default: ${meta_json_url}): " json_url_enter
-    json_url_enter="${json_url_enter}"
-    if [[ -n "${json_url_enter}" ]]; then
-      meta_json_url="${json_url_enter}"
-    fi
-    if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
-      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in lenth"
-      waitForInput && continue
-    fi
-
-    echo -e "Please make sure you host your metadata JSON file (with contents as below) at ${meta_json_url} :\n"
-    echo -e "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}"| tee "${pool_meta_file}"
-
     # Pledge wallet, also used to pay for pool update fee
     echo ""
     pledge_wallet=$(jq -r .pledgeWallet "${pool_config}") # old pledge wallet
@@ -1570,12 +1574,13 @@ case $OPERATION in
       say "${ORANGE}WARN${NC}: No wallets available that can be used in pool registration as pledge wallet!"
       waitForInput && continue
     fi
-    say "Select Wallet:\n"
+    say "Select Pledge Wallet:\n"
     if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
+    pledge_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
     
-    say "Enter new pool parameters, press enter to use old value"
-    echo ""
+    
+    say " -- Pool Parameters --\n"
+    say "press enter to use old value\n"
     
     pledge_ada=$(jq -r .pledgeADA "${pool_config}")
     read -r -p "New Pledge (in ADA, old: ${pledge_ada}): " pledge_enter
@@ -1590,7 +1595,7 @@ case $OPERATION in
     fi
 
     margin=$(jq -r .margin "${pool_config}")
-    echo "" && read -r -p "New Margin (in %, old: ${margin}): " margin_enter
+    read -r -p "New Margin (in %, old: ${margin}): " margin_enter
     if [[ -n "${margin_enter}" ]]; then
       if ! pctToFraction "${margin_enter}" >/dev/null; then
         waitForInput && continue
@@ -1602,7 +1607,7 @@ case $OPERATION in
     fi
 
     cost_ada=$(jq -r .costADA "${pool_config}")
-    echo "" && read -r -p "New Cost (in ADA, old: ${cost_ada}): " cost_enter
+    read -r -p "New Cost (in ADA, old: ${cost_ada}): " cost_enter
     if [[ -n "${cost_enter}" ]]; then
       if ! ADAtoLovelace "${cost_enter}" >/dev/null; then
         waitForInput && continue
@@ -1613,19 +1618,127 @@ case $OPERATION in
       cost_lovelace=$(ADAtoLovelace "${cost_ada}")
     fi
     
+    say "\n -- Pool Metadata --\n"
+    say "press enter to use old value\n"
+    
+    pool_meta_file=${POOL_FOLDER}/${pool_name}/poolmeta.json
+    if [[ -f "${pool_meta_file}" ]]; then
+      meta_name=$(jq -r .name "${pool_meta_file}")
+      meta_ticker=$(jq -r .ticker "${pool_meta_file}")
+      meta_homepage=$(jq -r .homepage "${pool_meta_file}")
+      meta_description=$(jq -r .description "${pool_meta_file}")
+    fi
+    if [[ -f "${pool_config}" ]]; then
+      meta_json_url=$(jq -r .json_url "${pool_config}")
+    fi
+    read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
+    name_enter=${name_enter//[^[:alnum:]]/_}
+    if [[ -n "${name_enter}" ]]; then
+      meta_name="${name_enter}"
+    fi
+    read -r -p "Enter Pool's Ticker (default: ${meta_ticker}): " ticker_enter
+    ticker_enter=${ticker_enter//[^[:alnum:]]/_}
+    if [[ -n "${ticker_enter}" ]]; then
+      meta_ticker="${ticker_enter}"
+    fi
+    if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
+      say "${RED}ERROR${NC}: ticker must be between 3-5 characters"
+      waitForInput && continue
+    fi
+    read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
+    desc_enter=${desc_enter}
+    if [[ -n "${desc_enter}" ]]; then
+      meta_description="${desc_enter}"
+    fi
+    read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter
+    homepage_enter="${homepage_enter}"
+    if [[ -n "${homepage_enter}" ]]; then
+      meta_homepage="${homepage_enter}"
+    fi
+    if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
+      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in lenth"
+      waitForInput && continue
+    fi
+    read -r -p "Enter Pool's JSON URL to host metadata file (default: ${meta_json_url}): " json_url_enter
+    json_url_enter="${json_url_enter}"
+    if [[ -n "${json_url_enter}" ]]; then
+      meta_json_url="${json_url_enter}"
+    fi
+    if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
+      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in lenth"
+      waitForInput && continue
+    fi
+
+    say "\n${ORANGE}Please make sure you host your metadata JSON file (with contents as below) at ${meta_json_url} :${NC}\n"
+    say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}"| tee "${pool_meta_file}"
+
+    relay_address="123.123.123.123" # default address
+    relay_port="3001" # default port
+    relay_output=""
+    say "\n -- Pool Relay Registration --\n"
+    # ToDo SRV & IPv6 support
+    case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in 
+      0) read -r -p "Enter relays's DNS record, onyl A or AAAA DNS records, SRV not supported at this time: " relay_dns_enter
+         if [[ -z "${relay_dns_enter}" ]]; then
+           say "${RED}ERROR${NC}: DNS record can not be empty!"
+           waitForInput && continue
+         fi
+         #ToDo - DNS format verficication?
+         read -r -p "Enter relays's port (default: ${relay_port}): " relay_port_enter
+         if [[ -n "${relay_port_enter}" ]]; then
+           if [[ "${relay_port_enter}" =~ ^[0-9]+$ && "${relay_port_enter}" -ge 1 && "${relay_port_enter}" -le 65535 ]]; then
+             relay_port="${relay_port_enter}"
+           else
+             say "${RED}ERROR${NC}: invalid port number!"
+             waitForInput && continue
+           fi
+         fi
+         relay_output="--pool-relay-port ${relay_port} --single-host-pool-relay ${relay_dns_enter}"
+         ;;
+      1) while true; do
+           read -r -p "Enter relays's IPv4 address (default: ${relay_address}): " relay_ipv4_enter
+           if [[ -n "${relay_ipv4_enter}" ]]; then
+             if validIP "${relay_ipv4_enter}"; then
+               relay_address="${relay_ipv4_enter}"
+             else
+               say "${RED}ERROR${NC}: invalid IPv4 address format!\n"
+               continue
+             fi
+           fi
+           read -r -p "Enter relays's port (default: ${relay_port}): " relay_port_enter
+           if [[ -n "${relay_port_enter}" ]]; then
+             if [[ "${relay_port_enter}" =~ ^[0-9]+$ && "${relay_port_enter}" -ge 1 && "${relay_port_enter}" -le 65535 ]]; then
+               relay_port="${relay_port_enter}"
+             else
+               say "${RED}ERROR${NC}: invalid port number!\n"
+               continue
+             fi
+           fi
+           relay_output+="--pool-relay-port ${relay_port} --pool-relay-ipv4 ${relay_address} "
+           say "\nAdd more IPv4 entries?\n"
+           case $(select_opt "[y] Yes" "[n] No" "[c] Cancel") in
+             0) continue ;;
+             1) break ;;
+             2) continue 2 ;;
+           esac
+         done
+         ;;
+      2) continue ;;
+    esac
+    
     echo ""
 
-    base_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
-    pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+    base_addr_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_BASE_ADDR_FILENAME}"
+    pay_payment_sk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_PAY_SK_FILENAME}"
+    stake_sk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_STAKE_SK_FILENAME}"
+    stake_vk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_STAKE_VK_FILENAME}"
 
     pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
     pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
     pool_vrf_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_VK_FILENAME}"
 
     if [[ ! -f "${base_addr_file}" || ! -f "${pay_payment_sk_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" ]]; then
-      say "${RED}ERROR${NC}: ${GREEN}${wallet_name}${NC} wallet files missing, expecting these files to be available:"
+      say "${RED}ERROR${NC}: ${GREEN}${pledge_wallet}${NC} wallet files missing, expecting these files to be available:"
       say "${base_addr_file}"
       say "${pay_payment_sk_file}"
       say "${stake_sk_file}"
@@ -1645,7 +1758,7 @@ case $OPERATION in
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
 
     say "-- creating registration cert --" "log"
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )"
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" "${relay_output}"
     say "-- Sending transaction to chain --" "log"
 
     if ! modifyPool "$(cat ${base_addr_file})" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pay_payment_sk_file}"; then
@@ -1674,10 +1787,10 @@ case $OPERATION in
     fi
     
     # Update pool config
-    echo "{\"pledgeWallet\":\"$pledge_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada}" > "${pool_config}"
+    echo "{\"pledgeWallet\":\"$pledge_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\"}" > "${pool_config}"
 
     echo ""
-    say "Pool ${GREEN}${pool_name}${NC} successfully updated with new parameters using wallet ${GREEN}${wallet_name}${NC} to pay for registration fee" "log"
+    say "Pool ${GREEN}${pool_name}${NC} successfully updated with new parameters using wallet ${GREEN}${pledge_wallet}${NC} to pay for registration fee" "log"
     say "Pledge : $(numfmt --grouping ${pledge_ada}) ADA" "log"
     say "Margin : ${margin}%" "log"
     say "Cost   : $(numfmt --grouping ${cost_ada}) ADA" "log"
