@@ -208,7 +208,7 @@ do
       echom 2 "Last Sync Difference: $(echo $J2_URL |cut -d/ -f3|cut -d: -f2) was behind $(echo $J1_URL |cut -d/ -f3|cut -d: -f2) $((i++ + 1)) time(s)"
       if [ "$i" -ge $timeout ]; then
         if [ "${autorestart}" != "N" ]; then
-          jcli rest v0 shutdown get -h $J2_URL > /dev/null
+          jcli rest v0 shutdown post -h $J2_URL > /dev/null
           echom 9 "Last Node Reset due to timeout: $(echo $J2_URL |cut -d/ -f3|cut -d: -f2)" >> $jlogsf/killjormu.log
         fi
         i=0
