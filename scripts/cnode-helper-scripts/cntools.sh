@@ -2067,7 +2067,7 @@ case $OPERATION in
     if [[ -f "${pool_config}" ]]; then
       say "$(printf "%-21s : %s" "Meta Json URL" "$(jq -r .json_url "${pool_config}")")" "log"
       if [[ -n $(jq '.relays //empty' "${pool_config}") ]]; then
-        jq -c '.relays[]' "${pool_config}" | while read relay; do
+        jq -c '.relays[]' "${pool_config}" | while read -r relay; do
           say "$(printf "%-21s : %s" "Relay" "$(jq -r '. | .address + ":" + .port' <<< ${relay})")" "log"
         done
       fi
