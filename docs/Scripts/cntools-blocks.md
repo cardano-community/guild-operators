@@ -17,7 +17,7 @@ As the block collector relies on the cardano-node log file for block traces the 
 `TraceNodeIsLeader TraceAdoptedBlock TraceForgedInvalidBlock`  
 
 ### Installation and Configuration
-The script is best run as a background process. This can be accomplished in many ways but the preferred method is to run it as a  systemd service. A terminal multiplexer like tmux och screen could also be used but not covered here.
+The script is best run as a background process. This can be accomplished in many ways but the preferred method is to run it as a  systemd service. A terminal multiplexer like tmux or screen could also be used but not covered here.
 
 sudo/root access needed to configure systemd.
 
@@ -49,19 +49,17 @@ EOF'
 ```
 
 **2. Reload systemd**  
-
-`sudo systemctl daemon-reload`
-
+```
+sudo systemctl daemon-reload
+```
 **3. Start block collector**  
 Run below commands to enable automatic start of service on startup and start it.
-
 ```
 sudo systemctl enable cntools-blockcollector.service
 sudo systemctl start cntools-blockcollector.service
 ```
-
 ### View Collected Blocks
-Start CNTools and choose **Blocks** [b] to open the block viewer.  
+Start CNTools and choose `Blocks [b]` to open the block viewer.  
 Enter the epoch you want to see or press `enter` to see the current epoch.
 
 If the node was elected to create blocks in the selected epoch it could look something like this:
