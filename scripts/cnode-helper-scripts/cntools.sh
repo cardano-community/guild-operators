@@ -1181,8 +1181,10 @@ case $OPERATION in
       waitForInput && continue
     fi
     
+    say "Dumping ledger-state from node, can take a while on larger networks..."
+    
     pool_dirs=()
-    timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
+    timeout -k 5 30 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
@@ -1452,8 +1454,8 @@ case $OPERATION in
     ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output}
     say "-- creating delegation cert --" "log"
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
+    
     say "-- Sending transaction to chain --" "log"
-
     if ! registerPool "$(cat ${base_addr_file})" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pool_pledgecert_file}" "${pay_payment_sk_file}"; then
       say "${RED}ERROR${NC}: failure during pool registration, removing newly created pledge and registration files"
       rm -f "${pool_regcert_file}" "${pool_pledgecert_file}"
@@ -1507,8 +1509,10 @@ case $OPERATION in
       waitForInput && continue
     fi
     
+    say "Dumping ledger-state from node, can take a while on larger networks..."
+    
     pool_dirs=()
-    timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
+    timeout -k 5 30 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
@@ -1685,7 +1689,7 @@ case $OPERATION in
     relay_output=""
     relay_array=()
     say "\n -- Pool Relay Registration --\n"
-    if [[ -f "${pool_meta_file}" && -n $(jq '.relays //empty' "${pool_config}") ]]; then
+    if [[ -f "${pool_config}" && -n $(jq '.relays //empty' "${pool_config}") ]]; then
       say "Previous relay configuration:\n"
       echo -e '[ADDRESS,PORT]\n[-------,----]' | cat - <(jq -c '.relays[] | [.address,.port] //empty' "${pool_config}") | column -t -s'[],"'
       echo ""
@@ -1708,7 +1712,7 @@ case $OPERATION in
            fi
          fi
          relay_array+=( "address" "${relay_dns_enter}" "port" "${relay_port}" )
-         relay_output="--pool-relay-port ${relay_port} --single-host-pool-relay ${relay_dns_enter}"
+         relay_output="--single-host-pool-relay ${relay_dns_enter} --pool-relay-port ${relay_port}"
          ;;
       1) while true; do
            read -r -p "Enter relays's IPv4 address (default: ${relay_address}): " relay_ipv4_enter
@@ -1781,12 +1785,11 @@ case $OPERATION in
 
     #Generated Files
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
-
+    
     say "-- creating registration cert --" "log"
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output}
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output} --testnet-magic ${NWMAGIC} --out-file "${pool_regcert_file}"
     
     say "-- Sending transaction to chain --" "log"
-
     if ! modifyPool "$(cat ${base_addr_file})" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pay_payment_sk_file}"; then
       say "${RED}ERROR${NC}: failure during pool update, removing newly created registration certificate"
       rm -f "${pool_regcert_file}"
@@ -1840,8 +1843,10 @@ case $OPERATION in
       waitForInput && continue
     fi
     
+    say "Dumping ledger-state from node, can take a while on larger networks..."
+    
     pool_dirs=()
-    timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
+    timeout -k 5 30 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
@@ -1982,7 +1987,9 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
+    say "Dumping ledger-state from node, can take a while on larger networks..."
+    
+    timeout -k 5 30 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
     
     while IFS= read -r -d '' pool; do 
       echo ""
@@ -2034,9 +2041,11 @@ case $OPERATION in
     if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
     pool_name="${dir_name}"
     
+    say "Dumping ledger-state from node, can take a while on larger networks...\n"
+    timeout -k 5 30 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
+    
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
-    timeout -k 3 4 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
     pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
     ledger_pool_state=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
     [[ -n "${ledger_pool_state}" ]] && pool_registered="YES" || pool_registered="NO"
@@ -2047,6 +2056,21 @@ case $OPERATION in
       say "$(printf "%-21s : %s ADA" "Pledge" "$(numfmt --grouping "$(jq -r .pledgeADA "${pool_config}")")")" "log"
       say "$(printf "%-21s : %s %%" "Margin" "$(numfmt --grouping "$(jq -r .margin "${pool_config}")")")" "log"
       say "$(printf "%-21s : %s ADA" "Cost" "$(numfmt --grouping "$(jq -r .costADA "${pool_config}")")")" "log"
+    fi
+    pool_meta_file=${POOL_FOLDER}/${pool_name}/poolmeta.json
+    if [[ -f "${pool_meta_file}" ]]; then
+      say "$(printf "%-21s : %s" "Meta Name" "$(jq -r .name "${pool_meta_file}")")" "log"
+      say "$(printf "%-21s : %s" "Meta Ticker" "$(jq -r .ticker "${pool_meta_file}")")" "log"
+      say "$(printf "%-21s : %s" "Meta Homepage" "$(jq -r .homepage "${pool_meta_file}")")" "log"
+      say "$(printf "%-21s : %s" "Meta Description" "$(jq -r .description "${pool_meta_file}")")" "log"
+    fi
+    if [[ -f "${pool_config}" ]]; then
+      say "$(printf "%-21s : %s" "Meta Json URL" "$(jq -r .json_url "${pool_config}")")" "log"
+      if [[ -n $(jq '.relays //empty' "${pool_config}") ]]; then
+        jq -c '.relays[]' "${pool_config}" | while read relay; do
+          say "$(printf "%-21s : %s" "Relay" "$(jq -r '. | .address + ":" + .port' <<< ${relay})")" "log"
+        done
+      fi
     fi
     say "$(printf "%-21s : %s" "Registered" "${pool_registered}")" "log"
     if [[ "${pool_registered}" = "YES" ]]; then
