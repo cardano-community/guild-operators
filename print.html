@@ -784,7 +784,7 @@ Cost   : 500 ADA
 <code>TraceNodeIsLeader TraceAdoptedBlock TraceForgedInvalidBlock</code></li>
 </ul>
 <h3><a class="header" href="#installation-and-configuration" id="installation-and-configuration">Installation and Configuration</a></h3>
-<p>The script is best run as a background process. This can be accomplished in many ways but the preferred method is to run it as a  systemd service. A terminal multiplexer like tmux och screen could also be used but not covered here.</p>
+<p>The script is best run as a background process. This can be accomplished in many ways but the preferred method is to run it as a  systemd service. A terminal multiplexer like tmux or screen could also be used but not covered here.</p>
 <p>sudo/root access needed to configure systemd.</p>
 <p>In this example normal output from the <code>cntoolsBlockCollector.sh</code> script is ignored. Error output is logged using syslog and end up in the systems standard syslog file, normally <code>/var/log/syslog</code>. Other logging configurations are not covered here. </p>
 <p><strong>1. Create systemd service file</strong><br />
@@ -811,14 +811,15 @@ WantedBy=multi-user.target
 EOF'
 </code></pre>
 <p><strong>2. Reload systemd</strong></p>
-<p><code>sudo systemctl daemon-reload</code></p>
+<pre><code>sudo systemctl daemon-reload
+</code></pre>
 <p><strong>3. Start block collector</strong><br />
 Run below commands to enable automatic start of service on startup and start it.</p>
 <pre><code>sudo systemctl enable cntools-blockcollector.service
 sudo systemctl start cntools-blockcollector.service
 </code></pre>
 <h3><a class="header" href="#view-collected-blocks" id="view-collected-blocks">View Collected Blocks</a></h3>
-<p>Start CNTools and choose <strong>Blocks</strong> [b] to open the block viewer.<br />
+<p>Start CNTools and choose <code>Blocks [b]</code> to open the block viewer.<br />
 Enter the epoch you want to see or press <code>enter</code> to see the current epoch.</p>
 <p>If the node was elected to create blocks in the selected epoch it could look something like this:</p>
 <pre><code> &gt;&gt; BLOCKS
