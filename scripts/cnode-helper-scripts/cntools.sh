@@ -1332,7 +1332,7 @@ case $OPERATION in
            fi
          fi
          relay_array+=( "address" "${relay_dns_enter}" "port" "${relay_port}" )
-         relay_output="--pool-relay-port ${relay_port} --single-host-pool-relay ${relay_dns_enter}"
+         relay_output="--single-host-pool-relay ${relay_dns_enter} --pool-relay-port ${relay_port}"
          ;;
       1) while true; do
            read -r -p "Enter relays's IPv4 address (default: ${relay_address}): " relay_ipv4_enter
