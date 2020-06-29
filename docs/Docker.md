@@ -1,3 +1,44 @@
+# Cardano Docker Suite Plan
+
+## Features:
+- Modular images by OS using binaries (dockerfiles and dockerhub images)
+	--> Debian
+	--> Centos
+	--> Alpine
+	--> NixOS
+
+- Custom Docker compose 
+	--> Pool
+	--> Relays
+	--> Wallet
+	--> Explorer
+	--> Adrestia
+	--> DB-Sync (including Postgres setup)
+
+- Full featured Guild Operators tools
+	--> cntools
+	--> ...
+
+- Monitoring enabled
+ --> EKG, Prometheus, Grafana
+
+## Documentation
+- Intro and Scope
+	--> Why we use docker setup 
+
+- How to Run Docker (within the cardano ecosystem)
+	--> Network/relays setup
+	--> Ports setup (Relays, Pool, Prometheus, Grafana)
+
+- How to customize docker compose
+	how to customize you docker-compose
+
+- Docker cheatsheet
+
+- k8s intro and implementation hints
+
+
+---------------------------------------------
 # Docker Images 
 
 In there here below section you can find a collection of procedure that will make you able to get you Cardano-* software safely running in docker containers using the Linux flavour of your choice.
