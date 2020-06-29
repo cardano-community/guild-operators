@@ -2,25 +2,25 @@
 
 ## Features:
 - Modular images by OS using binaries (dockerfiles and dockerhub images)
-	> Debian
-	> Centos
-	> Alpine
+	> Debian,
+	> Centos,
+	> Alpine,
 	> NixOS
 
 - Custom Docker compose 
-	> Pool
-	> Relays
-	> Wallet
-	> Explorer
-	> Adrestia
+	> Pool,
+	> Relays,
+	> Wallet,
+	> Explorer,
+	> Adrestia,
 	> DB-Sync (including Postgres setup)
 
 - Full featured Guild Operators tools
-	> cntools
+	> cntools,
 	> ...
 
 - Monitoring enabled
- --> EKG, Prometheus, Grafana
+ 	> EKG, Prometheus, Grafana
 
 ## Documentation
 - Intro and Scope
