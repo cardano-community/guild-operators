@@ -43,7 +43,7 @@ chmod 640 cntools.config cntools.library env
 
 You should get a screen that looks something like this:
 ```
- >> CNTOOLS <<                                       A Guild Operators collaboration
+ >> CNTOOLS 0.1 <<                                       A Guild Operators collaboration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  Main Menu
 

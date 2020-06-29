@@ -2382,7 +2382,8 @@ case $OPERATION in
     say "  wget -O cntools.library ${URL}/cntools.library"
     say "  wget -O cntoolsBlockCollector.sh ${URL}/cntoolsBlockCollector.sh"
     say "  wget -O env ${URL}/env"
-    say "  chmod +x $CNODE_HOME/scripts/cntools.sh $CNODE_HOME/scripts/cntoolsBlockCollector.sh"
+    say "  chmod 750 $CNODE_HOME/scripts/cntools.sh $CNODE_HOME/scripts/cntoolsBlockCollector.sh"
+    say "  chmod 640 $CNODE_HOME/scripts/cntools.library $CNODE_HOME/scripts/env"
   elif [ "$CNTOOLS_MINOR_VERSION" != "$GIT_MINOR_VERSION" ];then
     say "Applying minor version update (no changes required for operation)..."
     wget -q -O "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh"
