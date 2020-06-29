@@ -51,7 +51,7 @@ while true; do # Main loop
 find "${TMP_FOLDER:?}" -type f -not -name 'protparams.json' -delete
 
 clear
-say " >> CNTOOLS <<                                       A Guild Operators collaboration" "log"
+say " >> CNTOOLS $CNTOOLS_VERSION <<                                       A Guild Operators collaboration" "log"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 echo " Main Menu"
 echo ""
@@ -1295,7 +1295,7 @@ case $OPERATION in
       meta_homepage="${homepage_enter}"
     fi
     if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
-      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in lenth"
+      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
       waitForInput && continue
     fi
     read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter
@@ -1304,7 +1304,7 @@ case $OPERATION in
       meta_json_url="${json_url_enter}"
     fi
     if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
-      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in lenth"
+      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
       waitForInput && continue
     fi
     
@@ -1668,7 +1668,7 @@ case $OPERATION in
       meta_homepage="${homepage_enter}"
     fi
     if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
-      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in lenth"
+      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
       waitForInput && continue
     fi
     read -r -p "Enter Pool's JSON URL to host metadata file (default: ${meta_json_url}): " json_url_enter
@@ -1677,7 +1677,7 @@ case $OPERATION in
       meta_json_url="${json_url_enter}"
     fi
     if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
-      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in lenth"
+      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
       waitForInput && continue
     fi
 
@@ -1691,8 +1691,9 @@ case $OPERATION in
     say "\n -- Pool Relay Registration --\n"
     if [[ -f "${pool_config}" && -n $(jq '.relays //empty' "${pool_config}") ]]; then
       say "Previous relay configuration:\n"
-      echo -e '[ADDRESS,PORT]\n[-------,----]' | cat - <(jq -c '.relays[] | [.address,.port] //empty' "${pool_config}") | column -t -s'[],"'
+      echo -e '[ADDRESS,PORT]\n[-------,----]' | cat - <(jq -c '.relays[] | [.address,.port] //empty' "${pool_config}") | column -t -s'[],'
       echo ""
+      
     fi
     # ToDo SRV & IPv6 support
     case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in 
@@ -2370,16 +2371,28 @@ case $OPERATION in
   say " >> UPDATE" "log"
   echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   echo ""
-  say "${RED}ERROR${NC}: Sorry! not ready yet in cntools"
-  waitForInput && continue
 
-  URL="https://raw.githubusercontent.com/rdlrt/guild-operators/master/scripts/cnode-helper-scripts"
-  GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "$(curl -s "${URL}/cntools.config")" |sed -e "s#.*=##")
-  GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "$(curl -s "${URL}/cntools.config")" |sed -e "s#.*=##")
-  if [ "$CNTOOLS_MAJOR_VERSION" -lt "$GIT_MAJOR_VERSION" ];then
-    echo "${CNTOOLS_MAJOR_VERSION}"
-  elif [ "$CNTOOLS_MAJOR_VERSION" -lt "$GIT_MINOR_VERSION" ];then
-    echo "${CNTOOLS_MINOR_VERSION}"
+  URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
+  GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "$(curl -s "${URL}/cntools.library")" |sed -e "s#.*=##")
+  GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "$(curl -s "${URL}/cntools.library")" |sed -e "s#.*=##")
+  if [ "$CNTOOLS_MAJOR_VERSION" != "$GIT_MAJOR_VERSION" ];then
+    say "${RED}WARNING${NC}: Breaking changes were made to CNTools! We will not overwrite your changes automatically. Please backup $CNODE_HOME/priv/wallet and $CNODE_HOME/priv/pool folders and then run the below:"
+    say "  wget -O cntools.sh ${URL}/cntools.sh"
+    say "  wget -O cntools.config ${URL}/cntools.config"
+    say "  wget -O cntools.library ${URL}/cntools.library"
+    say "  wget -O cntoolsBlockCollector.sh ${URL}/cntoolsBlockCollector.sh"
+    say "  wget -O env ${URL}/env"
+    say "  chmod +x $CNODE_HOME/scripts/cntools.sh $CNODE_HOME/scripts/cntoolsBlockCollector.sh"
+  elif [ "$CNTOOLS_MINOR_VERSION" != "$GIT_MINOR_VERSION" ];then
+    say "Applying minor version update (no changes required for operation)..."
+    wget -q -O "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh"
+    wget -q -O "$CNODE_HOME/scripts/cntools.library" "$URL/cntools.library"
+    wget -q -O "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "$URL/cntoolsBlockCollector.sh"
+    if [[ $? == 0 ]]; then
+      say "Update applied successfully! Please start CNTools again !\n"
+      chmod +x "$CNODE_HOME/scripts/cntools.sh" "$CNODE_HOME/scripts/cntoolsBlockCollector.sh"
+      exit
+    fi
   else
     say "${GREEN}Up to Date${NC}: You're using the latest version. No updates required!"
   fi
