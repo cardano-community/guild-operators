@@ -2388,8 +2388,8 @@ case $OPERATION in
     say "Applying minor version update (no changes required for operation)..."
     wget -q -O "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh"
     wget -q -O "$CNODE_HOME/scripts/cntools.library" "$URL/cntools.library"
-    wget -q -O "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "$URL/cntoolsBlockCollector.sh"
-    if [[ $? == 0 ]]; then
+    rc=$(wget -q -O "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "$URL/cntoolsBlockCollector.sh")
+    if [[ $rc == 0 ]]; then
       say "Update applied successfully! Please start CNTools again !\n"
       chmod +x "$CNODE_HOME/scripts/cntools.sh" "$CNODE_HOME/scripts/cntoolsBlockCollector.sh"
       exit
