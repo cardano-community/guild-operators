@@ -51,7 +51,7 @@ while true; do # Main loop
 find "${TMP_FOLDER:?}" -type f -not -name 'protparams.json' -delete
 
 clear
-say " >> CNTOOLS $CNTOOLS_VERSION <<                                       A Guild Operators collaboration" "log"
+say "$(printf "%-52s %s" " >> CNTOOLS $CNTOOLS_VERSION << " "A Guild Operators collaboration")" "log"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 echo " Main Menu"
 echo ""
@@ -1181,7 +1181,7 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    say "Dumping ledger-state from node, can take a while on larger networks..."
+    say "Dumping ledger-state from node, can take a while on larger networks...\n"
     
     pool_dirs=()
     timeout -k 5 30 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
@@ -1311,15 +1311,32 @@ case $OPERATION in
     say "\n${ORANGE}Please make sure you host your metadata JSON file (with contents as below) at ${meta_json_url} :${NC}\n"
     say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
     
-    relay_address="123.123.123.123" # default address
-    relay_port="3001" # default port
+    relay_counter=0
     relay_output=""
     relay_array=()
     say "\n -- Pool Relay Registration --\n"
+    if [[ -f "${pool_config}" && -n $(jq '.relays //empty' "${pool_config}") ]]; then
+      say "Previous relay configuration:\n"
+      echo -e 'TYPE ADDRESS PORT\n---- ------- ----' | cat - <(jq -r -c '.relays[] | [.type //"-",.address //"-",.port //"-"] | @tsv //empty' "${pool_config}") | column -t
+      echo ""
+      
+    fi
     # ToDo SRV & IPv6 support
     case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in 
-      0) read -r -p "Enter relays's DNS record, onyl A or AAAA DNS records, SRV not supported at this time: " relay_dns_enter
-         if [[ -z "${relay_dns_enter}" ]]; then
+      0) if [[ -f "${pool_config}" ]]; then
+           relay_type=$(jq -r ".relays[${relay_counter}].type //empty" "${pool_config}")
+           if [[ ${relay_type} = "DNS_A" ]]; then
+             relay_address=$(jq -r ".relays[${relay_counter}].address //empty" "${pool_config}")
+             relay_port=$(jq -r ".relays[${relay_counter}].port //empty" "${pool_config}")
+           else
+             relay_address=""
+             relay_port=""
+           fi
+         fi
+         read -r -p "Enter relays's DNS record, only A or AAAA DNS records (default: ${relay_address}): " relay_dns_enter
+         if [[ -n "${relay_dns_enter}" ]]; then
+           relay_address="${relay_dns_enter}"
+         elif [[ -z "${relay_address}" ]]; then
            say "${RED}ERROR${NC}: DNS record can not be empty!"
            waitForInput && continue
          fi
@@ -1332,11 +1349,24 @@ case $OPERATION in
              say "${RED}ERROR${NC}: invalid port number!"
              waitForInput && continue
            fi
+         elif [[ -z "${relay_port}" ]]; then
+           say "${RED}ERROR${NC}: Port can not be empty!"
+           waitForInput && continue
          fi
-         relay_array+=( "address" "${relay_dns_enter}" "port" "${relay_port}" )
-         relay_output="--single-host-pool-relay ${relay_dns_enter} --pool-relay-port ${relay_port}"
+         relay_array+=( "type" "DNS_A" "address" "${relay_address}" "port" "${relay_port}" )
+         relay_output="--single-host-pool-relay ${relay_address} --pool-relay-port ${relay_port}"
          ;;
       1) while true; do
+           if [[ -f "${pool_config}" ]]; then
+             relay_type=$(jq -r ".relays[${relay_counter}].type //empty" "${pool_config}")
+             if [[ ${relay_type} = "IPv4" ]]; then
+               relay_address=$(jq -r ".relays[${relay_counter}].address //empty" "${pool_config}")
+               relay_port=$(jq -r ".relays[${relay_counter}].port //empty" "${pool_config}")
+             else
+               relay_address=""
+               relay_port=""
+             fi
+           fi
            read -r -p "Enter relays's IPv4 address (default: ${relay_address}): " relay_ipv4_enter
            if [[ -n "${relay_ipv4_enter}" ]]; then
              if validIP "${relay_ipv4_enter}"; then
@@ -1345,6 +1375,9 @@ case $OPERATION in
                say "${RED}ERROR${NC}: invalid IPv4 address format!\n"
                continue
              fi
+           elif [[ -z "${relay_address}" ]]; then
+             say "${RED}ERROR${NC}: IPv4 address can not be empty!\n"
+             continue
            fi
            read -r -p "Enter relays's port (default: ${relay_port}): " relay_port_enter
            if [[ -n "${relay_port_enter}" ]]; then
@@ -1354,12 +1387,15 @@ case $OPERATION in
                say "${RED}ERROR${NC}: invalid port number!\n"
                continue
              fi
+           elif [[ -z "${relay_port}" ]]; then
+             say "${RED}ERROR${NC}: Port can not be empty!\n"
+             continue
            fi
-           relay_array+=( "address" "${relay_address}" "port" "${relay_port}" )
+           relay_array+=( "type" "IPv4" "address" "${relay_address}" "port" "${relay_port}" )
            relay_output+="--pool-relay-port ${relay_port} --pool-relay-ipv4 ${relay_address} "
            say "\nAdd more IPv4 entries?\n"
            case $(select_opt "[y] Yes" "[n] No" "[c] Cancel") in
-             0) continue ;;
+             0) ((relay_counter++)) && continue ;;
              1) break ;;
              2) continue 2 ;;
            esac
@@ -1414,7 +1450,7 @@ case $OPERATION in
     # Construct relay json array
     relay_json=$({
       echo '['
-      printf '{"%s": "%s", "%s": "%s"},\n' "${relay_array[@]}" | sed '$s/,$//'
+      printf '{"%s":"%s","%s":"%s","%s":"%s"},\n' "${relay_array[@]}" | sed '$s/,$//'
       echo ']'
     } | jq -c .)
     # Save pool config
@@ -1509,7 +1545,7 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    say "Dumping ledger-state from node, can take a while on larger networks..."
+    say "Dumping ledger-state from node, can take a while on larger networks...\n"
     
     pool_dirs=()
     timeout -k 5 30 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
@@ -1684,21 +1720,32 @@ case $OPERATION in
     say "\n${ORANGE}Please make sure you host your metadata JSON file (with contents as below) at ${meta_json_url} :${NC}\n"
     say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}"| tee "${pool_meta_file}"
 
-    relay_address="123.123.123.123" # default address
-    relay_port="3001" # default port
+    relay_counter=0
     relay_output=""
     relay_array=()
     say "\n -- Pool Relay Registration --\n"
     if [[ -f "${pool_config}" && -n $(jq '.relays //empty' "${pool_config}") ]]; then
       say "Previous relay configuration:\n"
-      echo -e '[ADDRESS,PORT]\n[-------,----]' | cat - <(jq -c '.relays[] | [.address,.port] //empty' "${pool_config}") | column -t -s'[],'
+      echo -e 'TYPE ADDRESS PORT\n---- ------- ----' | cat - <(jq -r -c '.relays[] | [.type //"-",.address //"-",.port //"-"] | @tsv //empty' "${pool_config}") | column -t
       echo ""
       
     fi
     # ToDo SRV & IPv6 support
     case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in 
-      0) read -r -p "Enter relays's DNS record, onyl A or AAAA DNS records, SRV not supported at this time: " relay_dns_enter
-         if [[ -z "${relay_dns_enter}" ]]; then
+      0) if [[ -f "${pool_config}" ]]; then
+           relay_type=$(jq -r ".relays[${relay_counter}].type //empty" "${pool_config}")
+           if [[ ${relay_type} = "DNS_A" ]]; then
+             relay_address=$(jq -r ".relays[${relay_counter}].address //empty" "${pool_config}")
+             relay_port=$(jq -r ".relays[${relay_counter}].port //empty" "${pool_config}")
+           else
+             relay_address=""
+             relay_port=""
+           fi
+         fi
+         read -r -p "Enter relays's DNS record, only A or AAAA DNS records (default: ${relay_address}): " relay_dns_enter
+         if [[ -n "${relay_dns_enter}" ]]; then
+           relay_address="${relay_dns_enter}"
+         elif [[ -z "${relay_address}" ]]; then
            say "${RED}ERROR${NC}: DNS record can not be empty!"
            waitForInput && continue
          fi
@@ -1711,11 +1758,24 @@ case $OPERATION in
              say "${RED}ERROR${NC}: invalid port number!"
              waitForInput && continue
            fi
+         elif [[ -z "${relay_port}" ]]; then
+           say "${RED}ERROR${NC}: Port can not be empty!"
+           waitForInput && continue
          fi
-         relay_array+=( "address" "${relay_dns_enter}" "port" "${relay_port}" )
-         relay_output="--single-host-pool-relay ${relay_dns_enter} --pool-relay-port ${relay_port}"
+         relay_array+=( "type" "DNS_A" "address" "${relay_address}" "port" "${relay_port}" )
+         relay_output="--single-host-pool-relay ${relay_address} --pool-relay-port ${relay_port}"
          ;;
       1) while true; do
+           if [[ -f "${pool_config}" ]]; then
+             relay_type=$(jq -r ".relays[${relay_counter}].type //empty" "${pool_config}")
+             if [[ ${relay_type} = "IPv4" ]]; then
+               relay_address=$(jq -r ".relays[${relay_counter}].address //empty" "${pool_config}")
+               relay_port=$(jq -r ".relays[${relay_counter}].port //empty" "${pool_config}")
+             else
+               relay_address=""
+               relay_port=""
+             fi
+           fi
            read -r -p "Enter relays's IPv4 address (default: ${relay_address}): " relay_ipv4_enter
            if [[ -n "${relay_ipv4_enter}" ]]; then
              if validIP "${relay_ipv4_enter}"; then
@@ -1724,6 +1784,9 @@ case $OPERATION in
                say "${RED}ERROR${NC}: invalid IPv4 address format!\n"
                continue
              fi
+           elif [[ -z "${relay_address}" ]]; then
+             say "${RED}ERROR${NC}: IPv4 address can not be empty!\n"
+             continue
            fi
            read -r -p "Enter relays's port (default: ${relay_port}): " relay_port_enter
            if [[ -n "${relay_port_enter}" ]]; then
@@ -1733,12 +1796,15 @@ case $OPERATION in
                say "${RED}ERROR${NC}: invalid port number!\n"
                continue
              fi
+           elif [[ -z "${relay_port}" ]]; then
+             say "${RED}ERROR${NC}: Port can not be empty!\n"
+             continue
            fi
-           relay_array+=( "address" "${relay_address}" "port" "${relay_port}" )
+           relay_array+=( "type" "IPv4" "address" "${relay_address}" "port" "${relay_port}" )
            relay_output+="--pool-relay-port ${relay_port} --pool-relay-ipv4 ${relay_address} "
            say "\nAdd more IPv4 entries?\n"
            case $(select_opt "[y] Yes" "[n] No" "[c] Cancel") in
-             0) continue ;;
+             0) ((relay_counter++)) && continue ;;
              1) break ;;
              2) continue 2 ;;
            esac
@@ -1750,12 +1816,12 @@ case $OPERATION in
     # Construct relay json array
     relay_json=$({
       echo '['
-      printf '{"%s": "%s", "%s": "%s"},\n' "${relay_array[@]}" | sed '$s/,$//'
+      printf '{"%s":"%s","%s":"%s","%s":"%s"},\n' "${relay_array[@]}" | sed '$s/,$//'
       echo ']'
     } | jq -c .)
     # Update pool config
     echo "{\"pledgeWallet\":\"$pledge_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\",\"relays\": $relay_json}" > "${pool_config}"
-    
+
     echo ""
 
     base_addr_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_BASE_ADDR_FILENAME}"
@@ -1844,7 +1910,7 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    say "Dumping ledger-state from node, can take a while on larger networks..."
+    say "Dumping ledger-state from node, can take a while on larger networks...\n"
     
     pool_dirs=()
     timeout -k 5 30 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
@@ -1988,7 +2054,7 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    say "Dumping ledger-state from node, can take a while on larger networks..."
+    say "Dumping ledger-state from node, can take a while on larger networks...\n"
     
     timeout -k 5 30 ${CCLI} shelley query ledger-state --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
     
@@ -2069,7 +2135,7 @@ case $OPERATION in
       say "$(printf "%-21s : %s" "Meta Json URL" "$(jq -r .json_url "${pool_config}")")" "log"
       if [[ -n $(jq '.relays //empty' "${pool_config}") ]]; then
         jq -c '.relays[]' "${pool_config}" | while read -r relay; do
-          say "$(printf "%-21s : %s" "Relay" "$(jq -r '. | .address + ":" + .port' <<< ${relay})")" "log"
+          say "$(printf "%-21s : %s" "Relay ($(jq -r '.type' <<< ${relay}))" "$(jq -r '. | .address + ":" + .port' <<< ${relay})")" "log"
         done
       fi
     fi
