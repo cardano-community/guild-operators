@@ -2,6 +2,13 @@
 # shellcheck disable=SC2034,SC2086,SC2230
 
 ############################################################
+# Variables to keep counter for versions                   #
+############################################################
+CNTOOLS_MAJOR_VERSION=0 # Any breaking changes (eg: that requires change of cntools.config, env or a change in priv folder would be considered breaking and will be exempt from auto-update)
+CNTOOLS_MINOR_VERSION=1 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
+CNTOOLS_VERSION="$CNTOOLS_MAJOR_VERSION.$CNTOOLS_MINOR_VERSION"
+
+############################################################
 # library sourced by cntools with common taskes to perform #
 ############################################################
 
