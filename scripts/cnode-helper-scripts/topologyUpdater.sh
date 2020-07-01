@@ -7,7 +7,7 @@ CNODE_HOME="/opt/cardano/cnode"
 CNODE_LOG_DIR="${CNODE_HOME}/logs/"
 
 CNODE_PORT=6000  # must match your relay node port as set in the startup command
-CNODE_HOSTNAME=""  # optional. must resolve to the IP you are requesting from
+CNODE_HOSTNAME="CHANGE ME"  # optional. must resolve to the IP you are requesting from
 CNODE_VALENCY=1   # optional for multi-IP hostnames
 
 TESTNET_MAGIC=42
