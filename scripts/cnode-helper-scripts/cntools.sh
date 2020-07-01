@@ -2439,8 +2439,10 @@ case $OPERATION in
   echo ""
 
   URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
-  GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "$(curl -s "${URL}/cntools.library")" |sed -e "s#.*=##")
-  GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "$(curl -s "${URL}/cntools.library")" |sed -e "s#.*=##")
+  wget -q -O /tmp/cntools.library "${URL}/cntools.library"
+  GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= /tmp/cntools.library |sed -e "s#.*=##")
+  GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= /tmp/cntools.library |sed -e "s#.*=##")
+  rm -f /tmp/cntools/library
   if [ "$CNTOOLS_MAJOR_VERSION" != "$GIT_MAJOR_VERSION" ];then
     say "${RED}WARNING${NC}: Breaking changes were made to CNTools! We will not overwrite your changes automatically. Please backup $CNODE_HOME/priv/wallet and $CNODE_HOME/priv/pool folders and then run the below:"
     say "  wget -O cntools.sh ${URL}/cntools.sh"
