@@ -99,7 +99,9 @@ TurnOnLogMetrics: False
 SocketPath: /opt/cardano/cnode/sockets/node0.socket
 
 ## For cardano-dbsync-tool
+EnableLogging: True
 EnableLogMetrics: False
+GenesisHash: ''
 
 #####    Update Parameters    #####
 
