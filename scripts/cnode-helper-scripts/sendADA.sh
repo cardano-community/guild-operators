@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1090,SC2086,SC2206,SC2015
+# shellcheck disable=SC1090,SC2086,SC2206,SC2015,SC2154
 function usage() {
   printf "\n%s\n\n" "Usage: $(basename "$0") <Destination Address> <Amount> <Source Address> <Source Sign Key> [--include-fee]"
   printf "  %-20s\t%s\n" \
