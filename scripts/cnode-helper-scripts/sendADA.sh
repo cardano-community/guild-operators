@@ -99,9 +99,14 @@ while [[ ${base_lovelace} -ne ${newBalance} ]]; do
   say ""
   say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${base_lovelace}) != $(numfmt --grouping ${newBalance}))"
   if ! waitNewBlockCreated; then
-    break
+    echo "" && exit 1
   fi
   getBalance ${S_ADDR}
 done
 
-echo "## Finished! ##"
+say "$(printf "\n%s\t\t${CYAN}%s${NC} ADA" "Funds in source wallet:"  "$(numfmt --grouping ${base_ada})")" "log"
+
+getBalance ${D_ADDR}
+say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in destination wallet:"  "$(numfmt --grouping ${base_ada})")" "log"
+
+say "\n## Finished! ##"
