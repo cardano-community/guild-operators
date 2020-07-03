@@ -12,7 +12,7 @@ git clone https://github.com/input-output-hk/cardano-node
 cd cardano-node
 
 ##### Temporary step for end-users, since master is often broken incompatible with new networks
-git fetch --tags -all
+git fetch --tags --all
 git checkout release/1.14.x
 #####
 
