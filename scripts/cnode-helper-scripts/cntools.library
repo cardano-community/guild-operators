@@ -672,10 +672,10 @@ sendADA() {
     --testnet-magic ${NWMAGIC}
   )
 
-  say ""
+  echo ""
   say " -- Build, Sign & Send transaction --" "log"
+  
   say "Building transaction"
-
   output=$(${CCLI} ${buildArgs[*]})
   if [[ -n $output ]]; then
     say "${RED}ERROR${NC}: 1. Problem during tx creation with args ${buildArgs[*]}" "log"
@@ -684,10 +684,7 @@ sendADA() {
   fi
 
   say "Signing transaction"
-
-  ## TODO decrypt skey
   output=$(${CCLI} ${signArgs[*]})
-  ## TODO encrypt skey
   if [[ -n $output ]]; then
     say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]}" "log"
     say "$output" "log"
@@ -695,7 +692,6 @@ sendADA() {
   fi
 
   say "Sending transaction"
-
   output=$(${CCLI} ${submitArgs[*]})
   if [[ -n $output ]]; then
     say "${RED}ERROR${NC}: 3. Problem during tx submission with args ${submitArgs[*]}" "log"
@@ -807,10 +803,10 @@ registerStakeWallet() {
     --testnet-magic ${NWMAGIC}
   )
 
-  say ""
+  echo ""
   say " -- Build, Sign & Send transaction --" "log"
+  
   say "Building transaction" "log"
-
   output=$(${CCLI} ${buildArgs[*]})
   if [[ -n $output ]]; then
     say "${RED}ERROR${NC}: 1. Problem during tx creation with args ${buildArgs[*]}"
@@ -819,7 +815,6 @@ registerStakeWallet() {
   fi
 
   say "Signing transaction" "log"
-
   output=$(${CCLI} ${signArgs[*]})
   if [[ -n $output ]]; then
     say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]}"
@@ -828,7 +823,6 @@ registerStakeWallet() {
   fi
 
   say "Sending transaction" "log"
-
   output=$(${CCLI} ${submitArgs[*]})
   if [[ -n $output ]]; then
     say "${RED}ERROR${NC}: 3. Problem during tx submission with args ${submitArgs[*]}"
@@ -964,11 +958,10 @@ registerPool() {
     --testnet-magic ${NWMAGIC}
   )
 
-  say ""
+  echo ""
   say " -- Build, Sign & Send transaction --" "log"
+  
   say "Building transaction"
-  echo ${buildArgs[*]}
-
   output=$(${CCLI} ${buildArgs[*]})
   if [[ -n $output ]]; then
     say "${RED}ERROR${NC}: 1. Problem during tx creation with args ${buildArgs[*]}" "log"
@@ -977,7 +970,6 @@ registerPool() {
   fi
 
   say "Signing transaction"
-
   output=$(${CCLI} ${signArgs[*]})
   if [[ -n $output ]]; then
     say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]}" "log"
@@ -986,7 +978,6 @@ registerPool() {
   fi
 
   say "Sending transaction"
-
   output=$(${CCLI} ${submitArgs[*]})
   if [[ -n $output ]]; then
     say "${RED}ERROR${NC}: 3. Problem during tx submission with args ${submitArgs[*]}" "log"
@@ -1092,11 +1083,10 @@ modifyPool() {
     --testnet-magic ${NWMAGIC}
   )
 
-  say ""
+  echo ""
   say " -- Build, Sign & Send transaction --" "log"
+  
   say "Building transaction"
-  echo ${buildArgs[*]}
-
   output=$(${CCLI} ${buildArgs[*]})
   if [[ -n $output ]]; then
     say "${RED}ERROR${NC}: 1. Problem during tx creation with args ${buildArgs[*]}" "log"
@@ -1105,7 +1095,6 @@ modifyPool() {
   fi
 
   say "Signing transaction"
-
   output=$(${CCLI} ${signArgs[*]})
   if [[ -n $output ]]; then
     say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]}" "log"
@@ -1114,7 +1103,6 @@ modifyPool() {
   fi
 
   say "Sending transaction"
-
   output=$(${CCLI} ${submitArgs[*]})
   if [[ -n $output ]]; then
     say "${RED}ERROR${NC}: 3. Problem during tx submission with args ${submitArgs[*]}" "log"
@@ -1321,11 +1309,10 @@ delegate() {
     --testnet-magic ${NWMAGIC}
   )
 
-  say ""
+  echo ""
   say " -- Build, Sign & Send transaction --" "log"
+  
   say "Building transaction"
-  echo ${buildArgs[*]}
-
   output=$(${CCLI} ${buildArgs[*]})
   if [[ -n $output ]]; then
     error "1. Problem during tx creation with args ${buildArgs[*]}" "$output"
@@ -1333,17 +1320,13 @@ delegate() {
   fi
 
   say "Signing transaction"
-
-  ## TODO decrypt skey
   output=$(${CCLI} ${signArgs[*]})
-  ## TODO encrypt skey
   if [[ -n $output ]]; then
     error "2. Problem during signing with args ${signArgs[*]}" "$output"
     return 1
   fi
 
   say "Sending transaction"
-
   output=$(${CCLI} ${submitArgs[*]})
   if [[ -n $output ]]; then
     error "3. Problem during tx submission with args ${submitArgs[*]}" "$output"
@@ -1436,9 +1419,8 @@ deRegisterPool() {
 
   echo ""
   say " -- Build, Sign & Send transaction --" "log"
+  
   say "Building transaction"
-  echo ${buildArgs[*]}
-
   output=$(${CCLI} ${buildArgs[*]})
   if [[ -n $output ]]; then
     error "1. Problem during tx creation with args ${buildArgs[*]}" "$output"
@@ -1446,17 +1428,13 @@ deRegisterPool() {
   fi
 
   say "Signing transaction"
-
-  ## TODO decrypt skey
   output=$(${CCLI} ${signArgs[*]})
-  ## TODO encrypt skey
   if [[ -n $output ]]; then
     error "2. Problem during signing with args ${signArgs[*]}" "$output"
     return 1
   fi
 
   say "Sending transaction"
-
   output=$(${CCLI} ${submitArgs[*]})
   if [[ -n $output ]]; then
     error "3. Problem during tx submission with args ${submitArgs[*]}" "$output"
