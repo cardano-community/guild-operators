@@ -47,16 +47,6 @@ else
   D_ADDR="$(cat $1)"
 fi
 
-LOVELACE="$2"
-re_number='^[0-9]+([.][0-9]+)?$'
-if [[ ${LOVELACE} =~ ${re_number} ]]; then
-  # /1 is to remove decimals from bc command
-  LOVELACE=$(echo "${LOVELACE} * 1000000 / 1" | bc)
-elif [[ ${LOVELACE} != "all" ]]; then
-  say "${RED}ERROR${NC}: 'Amount in ADA' must be a valid number or the string 'all'"
-  echo "" && exit 1
-fi
-
 if [[ ! -f "$3" ]]; then
   S_ADDR="$3"
 else
@@ -85,6 +75,22 @@ else
   echo "" && exit 1
 fi
 
+LOVELACE="$2"
+if [[ ${LOVELACE} != "all" ]]; then
+  if ! ADAtoLovelace "${LOVELACE}"; then
+    echo "" && exit 1
+  fi
+  LOVELACE=$(ADAtoLovelace "${LOVELACE}")
+  if [[ ${LOVELACE} -lt ${base_lovelace} ]]; then
+    say "${RED}ERROR${NC}: not enough funds available in source address"
+    echo "" && exit 1
+  fi
+else
+  LOVELACE=${base_lovelace}
+  say "$(printf "\n%s\t${CYAN}%s${NC} ADA" "ADA to send set to total supply:"  "$(numfmt --grouping ${base_ada})")" "log"
+  INCL_FEE="yes"
+fi
+
 if ! sendADA "${D_ADDR}" "${LOVELACE}" "${S_ADDR}" "${S_SKEY}" "${INCL_FEE}"; then
   echo "" && exit 1
 fi
@@ -109,4 +115,4 @@ say "$(printf "\n%s\t\t${CYAN}%s${NC} ADA" "Funds in source wallet:"  "$(numfmt 
 getBalance ${D_ADDR}
 say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in destination wallet:"  "$(numfmt --grouping ${base_ada})")" "log"
 
-say "\n## Finished! ##"
+say "\n## Finished! ##\n"
