@@ -122,7 +122,7 @@ case $OPERATION in
     stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
 
-    if [[ $(ls -1 "${WALLET_FOLDER}/${wallet_name}/" | wc -l) -gt 0 ]]; then
+    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -printf '.' | wc -c) -gt 0 ]]; then
       say "${RED}WARN${NC}: A wallet ${GREEN}$wallet_name${NC} already exists"
       say "      Choose another name or delete the existing one"
       waitForInput && continue
@@ -154,7 +154,7 @@ case $OPERATION in
     
     while IFS= read -r -d '' wallet; do
       wallet_name=$(basename ${wallet})
-      enc_files=$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name *.gpg -printf '.' | wc -c)
+      enc_files=$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -printf '.' | wc -c)
       if getAddress ${wallet_name} || [[ ${enc_files} -gt 0 ]]; then
         echo ""
         if [[ ${enc_files} -gt 0 ]]; then
@@ -205,7 +205,7 @@ case $OPERATION in
     wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     for dir in "${dirs[@]}"; do
-      enc_files=$(find "${WALLET_FOLDER}/${dir}" -mindepth 1 -maxdepth 1 -type f -name *.gpg -printf '.' | wc -c)
+      enc_files=$(find "${WALLET_FOLDER}/${dir}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -printf '.' | wc -c)
       if ! getAddress "${dir}" && [[ ${enc_files} -eq 0 ]]; then continue; fi
       wallet_dirs+=("${dir}")
     done
@@ -217,7 +217,7 @@ case $OPERATION in
     say "Select Wallet:\n"
     if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
     wallet_name=${dir_name}
-    enc_files=$(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name *.gpg -printf '.' | wc -c)
+    enc_files=$(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -printf '.' | wc -c)
     
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
