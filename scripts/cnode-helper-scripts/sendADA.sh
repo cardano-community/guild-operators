@@ -77,11 +77,11 @@ fi
 
 LOVELACE="$2"
 if [[ ${LOVELACE} != "all" ]]; then
-  if ! ADAtoLovelace "${LOVELACE}"; then
+  if ! ADAtoLovelace "${LOVELACE}" >/dev/null; then
     echo "" && exit 1
   fi
   LOVELACE=$(ADAtoLovelace "${LOVELACE}")
-  if [[ ${LOVELACE} -lt ${base_lovelace} ]]; then
+  if [[ ${LOVELACE} -gt ${base_lovelace} ]]; then
     say "${RED}ERROR${NC}: not enough funds available in source address"
     echo "" && exit 1
   fi
