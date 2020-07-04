@@ -734,8 +734,11 @@ isWalletRegistered() {
 registerStakeWallet() {
   
   echo ""
-  say " -- Register Wallet ${GREEN}${1}${NC} on Chain --"
   waitForInput "Wallet not registered on chain, press any key to continue with registration"
+  
+  echo ""
+  say " ## Register Stake Wallet ${GREEN}${1}${NC} on Chain ##" "log"
+  echo ""
 
   # Wallet key filenames
   payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SK_FILENAME}"
@@ -743,7 +746,9 @@ registerStakeWallet() {
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
   stake_cert_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_CERT_FILENAME}"
   
-  say "Creating registration certificate" "log" && echo
+  echo ""
+  say " -- Creating registration certificate --" "log"
+  echo ""
   ${CCLI} shelley stake-address registration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cert_file}"
   
   say " -- Protocol Parameters --"

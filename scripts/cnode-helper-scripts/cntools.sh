@@ -912,7 +912,7 @@ case $OPERATION in
     #Generated Files
     delegation_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DELEGCERT_FILENAME}"
 
-    say "-- creating delegation cert --" "log"
+    say " -- creating delegation cert --" "log"
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${delegation_cert_file}"
 
     if ! delegate "${stake_vk_file}" "${stake_sk_file}" "${pay_payment_sk_file}" "${base_addr}" "${pool_coldkey_vk_file}" "${delegation_cert_file}" ; then
@@ -1377,10 +1377,12 @@ case $OPERATION in
     pool_pledgecert_file="${POOL_FOLDER}/${pool_name}/${POOL_PLEDGECERT_FILENAME}"
     
     echo ""
+    say " ## Register Stake Pool ##" "log"
+    echo ""
     say " -- creating registration cert --" "log"
     echo ""
     ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output}
-    say "-- creating delegation cert --" "log"
+    say " -- creating delegation cert --" "log"
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
     
     say " -- Sending transaction to chain --" "log"
