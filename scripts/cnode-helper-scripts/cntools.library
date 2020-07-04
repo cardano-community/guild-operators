@@ -503,10 +503,6 @@ getPayAddress() {
   if [[ -f "${payment_vk_file}" ]]; then
     pay_addr=$(${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --testnet-magic ${NWMAGIC} 2>/dev/null)
     if [[ -z ${pay_addr} ]]; then
-      # try genesis address instead
-      pay_addr=$(${CCLI} shelley genesis initial-addr --verification-key-file "${payment_vk_file}" --testnet-magic ${NWMAGIC} 2>/dev/null)
-    fi
-    if [[ -z ${pay_addr} ]]; then
       return 1
     fi
   else
