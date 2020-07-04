@@ -80,7 +80,7 @@ say() {
 #   >> need_cmd "jq"
 need_cmd() {
   if ! command -v "$1" > /dev/null 2>&1; then
-    say "${RED}ERROR${NC}: need '$1' (command not found)" "try 'sudo apt install $1'" "log"
+    say "${RED}ERROR${NC}: need '$1' (command not found)" "try 'sudo apt install $1'"
     say "please install with your packet manager of choice(apt/yum etc..) and relaunch cntools"
     return 1
   fi
@@ -324,7 +324,7 @@ getPassword() {
 encryptFile() {
   echo "${2}" | gpg --symmetric --yes --batch --cipher-algo AES256 --passphrase-fd 0 --output "${1}.gpg" "${1}" >/dev/null && \
   rm -f "${1}" || {
-    say "${RED}ERROR${NC}: failed to encrypt ${1}" "log"
+    say "${RED}ERROR${NC}: failed to encrypt ${1}"
     return 1
   }
   say "${1} successfully encrypted" "log"
@@ -342,7 +342,7 @@ encryptFile() {
 decryptFile() {
   echo "${2}" | gpg --decrypt --batch --yes --passphrase-fd 0 --output "${1%.*}" "${1}" >/dev/null && \
   rm -f "${1}" || {
-    say "${RED}ERROR${NC}: failed to decrypt ${1}" "log"
+    say "${RED}ERROR${NC}: failed to decrypt ${1}"
     return 1
   }
   say "${1} successfully decrypted" "log"
@@ -494,10 +494,30 @@ fractionToPCT() {
   fi
 }
 
-# Command    : getAddress [wallet name]
+
+# Command    : getPayAddress [wallet name]
+# Description: create and save payment address
+# Return     : populates $pay_addr
+getPayAddress() {
+  payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
+  if [[ -f "${payment_vk_file}" ]]; then
+    pay_addr=$(${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --testnet-magic ${NWMAGIC} 2>/dev/null)
+    if [[ -z ${pay_addr} ]]; then
+      # try genesis address instead
+      pay_addr=$(${CCLI} shelley genesis initial-addr --verification-key-file "${payment_vk_file}" --testnet-magic ${NWMAGIC} 2>/dev/null)
+    fi
+    if [[ -z ${pay_addr} ]]; then
+      return 1
+    fi
+  else
+    return 1
+  fi
+}
+
+# Command    : getBaseAddress [wallet name]
 # Description: create, store and save base address
 # Return     : populates $base_addr
-getAddress() {
+getBaseAddress() {
   payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
   base_addr_file="${WALLET_FOLDER}/${1}/${WALLET_BASE_ADDR_FILENAME}"
@@ -525,10 +545,10 @@ getRewardAddress() {
 
 # Command    : getBalance [address]
 # Description: check balance for provided address
-# Return     : populates $base_lovelace & $base_ada
+# Return     : populates $lovelace & $ada
 getBalance() {
-  base_lovelace=0
-  base_ada=0
+  lovelace=0
+  ada=0
   utx0_count=0
 
   ${CCLI} shelley query utxo --testnet-magic "${NWMAGIC}" --address "${1}" > ${TMP_FOLDER}/fullUtxo.out
@@ -536,10 +556,10 @@ getBalance() {
   
   while read -r utxo; do
     utx0_count=$(( utx0_count + 1 ))
-    base_lovelace=$(( base_lovelace + $(awk '{ print $3 }' <<< "${utxo}") ))
+    lovelace=$(( lovelace + $(awk '{ print $3 }' <<< "${utxo}") ))
   done <${TMP_FOLDER}/balance.out
 
-  base_ada=$(lovelacetoADA ${base_lovelace})
+  ada=$(lovelacetoADA ${lovelace})
 }
 
 
@@ -573,7 +593,7 @@ sendADA() {
 
   # Handle script arguments
   dAddr="$1"
-  lovelace="$2"
+  amount="$2"
   sAddr="$3"
   sKey="$4"
   inclFee="$5"
@@ -595,10 +615,10 @@ sendADA() {
     utxoCount=$(( utxoCount +1))
     txIn="${txIn} --tx-in ${inAddr}#${idx}"
     balance=$(( balance + utxoBalance ))
-    [[ ${inclFee} = "yes" && ${balance} -ge ${lovelace} ]] && break
+    [[ ${inclFee} = "yes" && ${balance} -ge ${amount} ]] && break
   done <${TMP_FOLDER}/balance.out
 
-  [[ ${balance} -eq ${lovelace} ]] && outCount=1 || outCount=2
+  [[ ${balance} -eq ${amount} ]] && outCount=1 || outCount=2
 
   say ""
   say " -- Calculate fee, new amount and remaining balance --" "log"
@@ -618,35 +638,35 @@ sendADA() {
 
   # Sanity checks
   if [[ ${inclFee} = "no" ]]; then
-    if [[ ${balance} -lt $(( lovelace + minFee )) ]]; then
-      say "${RED}ERROR${NC}: Not enough Lovelace in address ($(numfmt --grouping ${balance}) < $(numfmt --grouping ${lovelace}) + $(numfmt --grouping ${minFee}))" "log"
+    if [[ ${balance} -lt $(( amount + minFee )) ]]; then
+      say "${RED}ERROR${NC}: Not enough Lovelace in address ($(numfmt --grouping ${balance}) < $(numfmt --grouping ${amount}) + $(numfmt --grouping ${minFee}))" 1>&2
       return 1
     fi
   else
-    if [[ ${lovelace} -lt ${minFee} ]]; then
-      say "${RED}ERROR${NC}: Fee deducted from ADA to send, amount can not be less than fee ($(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}))" "log"
+    if [[ ${amount} -lt ${minFee} ]]; then
+      say "${RED}ERROR${NC}: Fee deducted from ADA to send, amount can not be less than fee ($(numfmt --grouping ${amount}) < $(numfmt --grouping ${minFee}))" 1>&2
       return 1
-    elif [[ ${balance} -lt ${lovelace} ]]; then
-      say "${RED}ERROR${NC}: Not enough Lovelace in address ($(numfmt --grouping ${balance}) < $(numfmt --grouping ${lovelace}))" "log"
+    elif [[ ${balance} -lt ${amount} ]]; then
+      say "${RED}ERROR${NC}: Not enough Lovelace in address ($(numfmt --grouping ${balance}) < $(numfmt --grouping ${amount}))" 1>&2
       return 1
     fi
   fi
 
   if [[ ${inclFee} = "no" ]]; then
-    txOut="--tx-out ${dAddr}+${lovelace}"
+    txOut="--tx-out ${dAddr}+${amount}"
   else
-    txOut="--tx-out ${dAddr}+$(( lovelace - minFee ))"
-    say "New amount to send in Lovelace after fee deduction is $(numfmt --grouping $(( lovelace - minFee ))) lovelaces ($(numfmt --grouping ${lovelace}) - $(numfmt --grouping ${minFee}))" "log"
+    txOut="--tx-out ${dAddr}+$(( amount - minFee ))"
+    say "New amount to send in Lovelace after fee deduction is $(numfmt --grouping $(( amount - minFee ))) lovelaces ($(numfmt --grouping ${amount}) - $(numfmt --grouping ${minFee}))" "log"
   fi
 
-  newBalance=$(( base_lovelace - lovelace ))
+  newBalance=$(( lovelace - amount ))
   if [[ ${inclFee} = "no" ]]; then
-    newBalance=$(( balance - lovelace - minFee ))
+    newBalance=$(( balance - amount - minFee ))
     txOut="${txOut} --tx-out ${sAddr}+${newBalance}"
-    say "Balance left to be returned in used UTxO's is $(numfmt --grouping ${newBalance}) lovelaces ($(numfmt --grouping ${balance}) - $(numfmt --grouping ${lovelace}) - $(numfmt --grouping ${minFee}))" "log"
+    say "Balance left to be returned in used UTxO's is $(numfmt --grouping ${newBalance}) lovelaces ($(numfmt --grouping ${balance}) - $(numfmt --grouping ${amount}) - $(numfmt --grouping ${minFee}))" "log"
   elif [[ ${outCount} -eq 2 ]]; then
-    txOut="${txOut} --tx-out ${sAddr}+$(( balance - lovelace ))"
-    say "Balance left to be returned in used UTxO's is $(numfmt --grouping $(( balance - lovelace ))) lovelaces ($(numfmt --grouping ${balance}) - $(numfmt --grouping ${lovelace}))" "log"
+    txOut="${txOut} --tx-out ${sAddr}+$(( balance - amount ))"
+    say "Balance left to be returned in used UTxO's is $(numfmt --grouping $(( balance - amount ))) lovelaces ($(numfmt --grouping ${balance}) - $(numfmt --grouping ${amount}))" "log"
   fi
 
   buildArgs=(
@@ -678,7 +698,7 @@ sendADA() {
   say "Building transaction"
   output=$(${CCLI} ${buildArgs[*]})
   if [[ -n $output ]]; then
-    say "${RED}ERROR${NC}: 1. Problem during tx creation with args ${buildArgs[*]}" "log"
+    say "${RED}ERROR${NC}: 1. Problem during tx creation with args ${buildArgs[*]}" 1>&2
     say "$output" "log"
     return 1
   fi
@@ -686,7 +706,7 @@ sendADA() {
   say "Signing transaction"
   output=$(${CCLI} ${signArgs[*]})
   if [[ -n $output ]]; then
-    say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]}" "log"
+    say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]}" 1>&2
     say "$output" "log"
     return 1
   fi
@@ -694,7 +714,7 @@ sendADA() {
   say "Sending transaction"
   output=$(${CCLI} ${submitArgs[*]})
   if [[ -n $output ]]; then
-    say "${RED}ERROR${NC}: 3. Problem during tx submission with args ${submitArgs[*]}" "log"
+    say "${RED}ERROR${NC}: 3. Problem during tx submission with args ${submitArgs[*]}" 1>&2
     say "$output" "log"
     return 1
   fi
@@ -768,15 +788,15 @@ registerStakeWallet() {
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
 
-  if [[ ${base_lovelace} -lt $(( minFee + keyDeposit )) ]]; then
-    say "${RED}ERROR${NC}: Not enough Lovelace in wallet ($(numfmt --grouping ${base_lovelace}) < $(numfmt --grouping ${minFee}) + $(numfmt --grouping ${keyDeposit}))" "log"
+  if [[ ${lovelace} -lt $(( minFee + keyDeposit )) ]]; then
+    say "${RED}ERROR${NC}: Not enough Lovelace in wallet ($(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}) + $(numfmt --grouping ${keyDeposit}))"
     return 1
   fi
 
-  newBalance=$(( base_lovelace - minFee - keyDeposit ))
+  newBalance=$(( lovelace - minFee - keyDeposit ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
   
-  say "New balance after tx fee and key deposit is $(numfmt --grouping ${newBalance}) lovelaces ($(numfmt --grouping ${base_lovelace}) - $(numfmt --grouping ${minFee}) - $(numfmt --grouping ${keyDeposit}))" "log"
+  say "New balance after tx fee and key deposit is $(numfmt --grouping ${newBalance}) lovelaces ($(numfmt --grouping ${lovelace}) - $(numfmt --grouping ${minFee}) - $(numfmt --grouping ${keyDeposit}))" "log"
   
   buildArgs=(
     shelley transaction build-raw
@@ -837,15 +857,15 @@ registerStakeWallet() {
       break
     fi
     getBalance ${base_addr}
-    if [[ ${base_lovelace} -ne ${newBalance} ]]; then
+    if [[ ${lovelace} -ne ${newBalance} ]]; then
       echo ""
-      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${base_lovelace}) != $(numfmt --grouping ${newBalance}))"
+      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${lovelace}) != $(numfmt --grouping ${newBalance}))"
     else
       break
     fi
   done
   
-  if [[ ${base_lovelace} -ne ${newBalance} ]]; then
+  if [[ ${lovelace} -ne ${newBalance} ]]; then
     say "${RED}ERROR${NC}: failed to register wallet on chain or"
     return 1
   fi
@@ -882,7 +902,7 @@ registerPool() {
   say " -- Register Pool and Pledge on Chain --" "log"
 
   if [[ ! -s ${TMP_FOLDER}/balance.out ]]; then
-    say "${RED}ERROR${NC}: wallet empty" "log"
+    say "${RED}ERROR${NC}: wallet empty"
     return 1
   fi
   
@@ -922,14 +942,14 @@ registerPool() {
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
 
-  if [[ ${base_lovelace} -lt $(( minFee + poolDeposit )) ]]; then
-    say "${RED}ERROR${NC}: Not enough Lovelace in base address ( $(numfmt --grouping ${base_lovelace}) < $(numfmt --grouping ${minFee}) + $(numfmt --grouping ${poolDeposit}) )" "log"
+  if [[ ${lovelace} -lt $(( minFee + poolDeposit )) ]]; then
+    say "${RED}ERROR${NC}: Not enough Lovelace in base address ( $(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}) + $(numfmt --grouping ${poolDeposit}) )"
     return 1
   fi
 
-  newBalance=$(( base_lovelace - minFee - poolDeposit ))
+  newBalance=$(( lovelace - minFee - poolDeposit ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
-  say "Balance left to be returned in used UTxO is $(numfmt --grouping ${newBalance}) lovelaces ( $(numfmt --grouping ${base_lovelace}) - $(numfmt --grouping ${minFee}) - $(numfmt --grouping ${poolDeposit}) )" "log"
+  say "Balance left to be returned in used UTxO is $(numfmt --grouping ${newBalance}) lovelaces ( $(numfmt --grouping ${lovelace}) - $(numfmt --grouping ${minFee}) - $(numfmt --grouping ${poolDeposit}) )" "log"
 
   buildArgs=(
     shelley transaction build-raw
@@ -964,7 +984,7 @@ registerPool() {
   say "Building transaction"
   output=$(${CCLI} ${buildArgs[*]})
   if [[ -n $output ]]; then
-    say "${RED}ERROR${NC}: 1. Problem during tx creation with args ${buildArgs[*]}" "log"
+    say "${RED}ERROR${NC}: 1. Problem during tx creation with args ${buildArgs[*]}"
     say "$output" "log"
     return 1
   fi
@@ -972,7 +992,7 @@ registerPool() {
   say "Signing transaction"
   output=$(${CCLI} ${signArgs[*]})
   if [[ -n $output ]]; then
-    say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]}" "log"
+    say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]}"
     say "$output" "log"
     return 1
   fi
@@ -980,7 +1000,7 @@ registerPool() {
   say "Sending transaction"
   output=$(${CCLI} ${submitArgs[*]})
   if [[ -n $output ]]; then
-    say "${RED}ERROR${NC}: 3. Problem during tx submission with args ${submitArgs[*]}" "log"
+    say "${RED}ERROR${NC}: 3. Problem during tx submission with args ${submitArgs[*]}"
     say "$output" "log"
     return 1
   fi
@@ -1011,7 +1031,7 @@ modifyPool() {
   echo ""
   say " -- Modify Pool Parameters and Update on Chain --" "log"
   if [[ ! -s ${TMP_FOLDER}/balance.out ]]; then
-    say "${RED}ERROR${NC}: wallet empty" "log"
+    say "${RED}ERROR${NC}: wallet empty"
     return 1
   fi
   
@@ -1048,14 +1068,14 @@ modifyPool() {
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
 
-  if [[ ${base_lovelace} -lt ${minFee} ]]; then
-    say "${RED}ERROR${NC}: Not enough Lovelace in base address ( $(numfmt --grouping ${base_lovelace}) < $(numfmt --grouping ${minFee}) )" "log"
+  if [[ ${lovelace} -lt ${minFee} ]]; then
+    say "${RED}ERROR${NC}: Not enough Lovelace in base address ( $(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}) )"
     return 1
   fi
 
-  newBalance=$(( base_lovelace - minFee ))
+  newBalance=$(( lovelace - minFee ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
-  say "Balance left to be returned in used UTxO is $(numfmt --grouping ${newBalance}) lovelaces ( $(numfmt --grouping ${base_lovelace}) - $(numfmt --grouping ${minFee}) )" "log"
+  say "Balance left to be returned in used UTxO is $(numfmt --grouping ${newBalance}) lovelaces ( $(numfmt --grouping ${lovelace}) - $(numfmt --grouping ${minFee}) )" "log"
 
   buildArgs=(
     shelley transaction build-raw
@@ -1089,7 +1109,7 @@ modifyPool() {
   say "Building transaction"
   output=$(${CCLI} ${buildArgs[*]})
   if [[ -n $output ]]; then
-    say "${RED}ERROR${NC}: 1. Problem during tx creation with args ${buildArgs[*]}" "log"
+    say "${RED}ERROR${NC}: 1. Problem during tx creation with args ${buildArgs[*]}"
     say "$output" "log"
     return 1
   fi
@@ -1097,7 +1117,7 @@ modifyPool() {
   say "Signing transaction"
   output=$(${CCLI} ${signArgs[*]})
   if [[ -n $output ]]; then
-    say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]}" "log"
+    say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]}"
     say "$output" "log"
     return 1
   fi
@@ -1105,7 +1125,7 @@ modifyPool() {
   say "Sending transaction"
   output=$(${CCLI} ${submitArgs[*]})
   if [[ -n $output ]]; then
-    say "${RED}ERROR${NC}: 3. Problem during tx submission with args ${submitArgs[*]}" "log"
+    say "${RED}ERROR${NC}: 3. Problem during tx submission with args ${submitArgs[*]}"
     say "$output" "log"
     return 1
   fi
@@ -1126,7 +1146,7 @@ withdrawRewards() {
 
   echo ""
   if [[ ! -s ${TMP_FOLDER}/balance.out ]]; then
-    say "${RED}ERROR${NC}: wallet empty" "log"
+    say "${RED}ERROR${NC}: wallet empty"
     return 1
   fi
 
@@ -1160,14 +1180,14 @@ withdrawRewards() {
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
 
-  if [[ ${base_lovelace} -lt ${minFee} ]]; then
-    error "Not enough Lovelace in wallet ( $(numfmt --grouping ${base_lovelace}) < $(numfmt --grouping ${minFee}) )"
+  if [[ ${lovelace} -lt ${minFee} ]]; then
+    error "Not enough Lovelace in wallet ( $(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}) )"
     return 1
   fi
 
-  newBalance=$(( base_lovelace - minFee + reward_lovelace ))
+  newBalance=$(( lovelace - minFee + reward_lovelace ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
-  say "Balance left to be returned in used UTxO is $(numfmt --grouping ${newBalance}) lovelaces ( $(numfmt --grouping ${base_lovelace}) - $(numfmt --grouping ${minFee}) )" "log"
+  say "Balance left to be returned in used UTxO is $(numfmt --grouping ${newBalance}) lovelaces ( $(numfmt --grouping ${lovelace}) - $(numfmt --grouping ${minFee}) )" "log"
 
   buildArgs=(
     shelley transaction build-raw
@@ -1275,14 +1295,14 @@ delegate() {
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
 
-  if [[ ${base_lovelace} -lt ${minFee} ]]; then
-    error "Not enough Lovelace in wallet ( $(numfmt --grouping ${base_lovelace}) < $(numfmt --grouping ${minFee}) )"
+  if [[ ${lovelace} -lt ${minFee} ]]; then
+    error "Not enough Lovelace in wallet ( $(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}) )"
     return 1
   fi
 
-  newBalance=$(( base_lovelace - minFee ))
+  newBalance=$(( lovelace - minFee ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
-  say "Balance left to be returned in used UTxO is $(numfmt --grouping ${newBalance}) lovelaces ( $(numfmt --grouping ${base_lovelace}) - $(numfmt --grouping ${minFee}) )" "log"
+  say "Balance left to be returned in used UTxO is $(numfmt --grouping ${newBalance}) lovelaces ( $(numfmt --grouping ${lovelace}) - $(numfmt --grouping ${minFee}) )" "log"
 
   buildArgs=(
     shelley transaction build-raw
@@ -1383,14 +1403,14 @@ deRegisterPool() {
   say "fee is $(numfmt --grouping ${minFee})" "log"
   echo ""
   
-  if [[ ${base_lovelace} -lt ${minFee} ]]; then
-    error "Not enough Lovelace in wallet ( $(numfmt --grouping ${base_lovelace}) < $(numfmt --grouping ${minFee}) )"
+  if [[ ${lovelace} -lt ${minFee} ]]; then
+    error "Not enough Lovelace in wallet ( $(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}) )"
     return 1
   fi
 
-  newBalance=$(( base_lovelace - minFee ))
+  newBalance=$(( lovelace - minFee ))
   tx_out="--tx-out ${wallet_addr}+${newBalance}"
-  say "Balance left to be returned in used UTxO is $(numfmt --grouping ${newBalance}) lovelaces ( $(numfmt --grouping ${base_lovelace}) - $(numfmt --grouping ${minFee}) )" "log"
+  say "Balance left to be returned in used UTxO is $(numfmt --grouping ${newBalance}) lovelaces ( $(numfmt --grouping ${lovelace}) - $(numfmt --grouping ${minFee}) )" "log"
 
   buildArgs=(
     shelley transaction build-raw

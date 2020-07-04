@@ -68,8 +68,8 @@ else
 fi
 
 getBalance ${S_ADDR}
-if [[ ${base_lovelace} -gt 0 ]]; then
-  say "$(printf "\n%s\t${CYAN}%s${NC} ADA" "Funds in source wallet:"  "$(numfmt --grouping ${base_ada})")" "log"
+if [[ ${lovelace} -gt 0 ]]; then
+  say "$(printf "\n%s\t${CYAN}%s${NC} ADA" "Funds in source wallet:"  "$(numfmt --grouping ${ada})")" "log"
 else
   say "${RED}ERROR${NC}: no funds available in source address"
   echo "" && exit 1
@@ -81,13 +81,13 @@ if [[ ${LOVELACE} != "all" ]]; then
     echo "" && exit 1
   fi
   LOVELACE=$(ADAtoLovelace "${LOVELACE}")
-  if [[ ${LOVELACE} -gt ${base_lovelace} ]]; then
+  if [[ ${LOVELACE} -gt ${lovelace} ]]; then
     say "${RED}ERROR${NC}: not enough funds available in source address"
     echo "" && exit 1
   fi
 else
-  LOVELACE=${base_lovelace}
-  say "$(printf "\n%s\t${CYAN}%s${NC} ADA" "ADA to send set to total supply:"  "$(numfmt --grouping ${base_ada})")" "log"
+  LOVELACE=${lovelace}
+  say "$(printf "\n%s\t${CYAN}%s${NC} ADA" "ADA to send set to total supply:"  "$(numfmt --grouping ${ada})")" "log"
   INCL_FEE="yes"
 fi
 
@@ -101,18 +101,18 @@ fi
 
 getBalance ${S_ADDR}
 
-while [[ ${base_lovelace} -ne ${newBalance} ]]; do
+while [[ ${lovelace} -ne ${newBalance} ]]; do
   say ""
-  say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${base_lovelace}) != $(numfmt --grouping ${newBalance}))"
+  say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${lovelace}) != $(numfmt --grouping ${newBalance}))"
   if ! waitNewBlockCreated; then
     echo "" && exit 1
   fi
   getBalance ${S_ADDR}
 done
 
-say "$(printf "\n%s\t\t${CYAN}%s${NC} ADA" "Funds in source wallet:"  "$(numfmt --grouping ${base_ada})")" "log"
+say "$(printf "\n%s\t\t${CYAN}%s${NC} ADA" "Funds in source wallet:"  "$(numfmt --grouping ${ada})")" "log"
 
 getBalance ${D_ADDR}
-say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in destination wallet:"  "$(numfmt --grouping ${base_ada})")" "log"
+say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in destination wallet:"  "$(numfmt --grouping ${ada})")" "log"
 
 say "\n## Finished! ##\n"
