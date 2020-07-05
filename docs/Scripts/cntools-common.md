@@ -4,15 +4,15 @@ CNTools contains more functionality not described here.
 
 Step by Step guide to create a pool with CNTools
 
-* [Stake Wallet](#stake-wallet)  
-a stake wallet is needed for delegation/pledge
+* [Create Wallet](#create-wallet)  
+a wallet is needed for pledge and to pay for pool registration fee
 * [Create Pool](#create-pool)  
 create the necessary pool keys 
 * [Register Pool](#create-pool)  
 register the pool on-chain
 
 
-#### Stake Wallet
+#### Create Wallet
 
 **1.** `Choose Wallet [w]` and you will be presented with the following menu:
 ```
@@ -20,7 +20,7 @@ register the pool on-chain
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  Wallet Management
 
- ) New      -  create a new payment wallet or upgrade existing to a stake wallet
+ ) New      -  create a new wallet
  ) List     -  list all available wallets in a compact view
  ) Show     -  show detailed view of a specific wallet
  ) Remove   -  remove a wallet
@@ -37,56 +37,25 @@ register the pool on-chain
   [e] Encrypt
   [h] Home
 ```
-**2.** Choose `New [n]` to go to submenu for creating a new wallet
+**2.** Choose `New [n]` to create a new wallet
+**3.** Give the wallet a name  
+**4.** CNTools will give you the wallet address.  For example:
 ```
  >> WALLET >> NEW
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- Wallet Type
-
- ) Payment  -  First step for a new wallet
-               A payment wallet can send and receive funds but not delegate/pledge.
-
- ) Stake    -  Upgrade existing payment wallet to a stake wallet
-               Make sure there are funds available in payment wallet before upgrade
-               as this is needed to pay for the stake wallet registration fee.
-               A stake wallet is needed to be able to delegate and pledge to a pool.
-               All funds from payment address will be moved to base address.
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
- Choose wallet type
-
-  [p] Payment
-  [s] Stake
-  [h] Home
-```
-**3.** Choose `Payment [p]` type of wallet  
-**4.** Give the wallet a name  
-**5.** CNTools will give you your payment address.  For example:
-```
- >> WALLET >> NEW >> PAYMENT
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Name of new wallet: bob
 
-New Wallet: bob
-Payment Address: 60f8a4bed2e379cf8ee5aa28bb7b227362b38694368b767b270720760503132fc5
+New Wallet : bob
+Address    : 00cf9ad54b7f6beac642cd460589e5b42ea40d6848aeeafa5e905855ed249d3d7693cb75605a8bc8edc8cca63cee97a3afb5502d0e8c46d212
+
+You can now send and receive ADA using this address.
+Wallet will be automatically registered on chain if you
+choose to delegate or pledge wallet when registering a stake pool.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ```
-**6.**  Send some money to this wallet. Either through the faucet or have a friend send you some.  
+**5.**  Send some money to this wallet. Either through the faucet or have a friend send you some.  
 **IMPORTANT** - The wallet must have funds in it before you can proceed.  
-**7.**  From the main menu choose `Wallet >> New` and then this time choose `Stake [s]` to upgrade your wallet  
-**8.**  CNTools will give you a list of wallets you can upgrade. Choose the wallet you created in step 4. In this example case, that wallet is called `bob`. This will send a transaction to the blockchain to upgrade your wallet to a staking wallet. The result should look something like this:
-```
-New block was created - 23386
-New Stake Wallet : bob
-Payment Address  : 60f8a4bed2e379cf8ee5aa28bb7b227362b38694368b767b270720760503132fc5
-Payment Balance  : 0 ADA
-Base Address     : 00f8a4bed2e379cf8ee5aa28bb7b227362b38694368b767b270720760503132fc545bdb48005781a47a864347843654fd58c1363695453697b5b59fd7ca2af3dc8
-Base Balance     : 99.428691 ADA
-Reward Address   : 5821e045bdb48005781a47a864347843654fd58c1363695453697b5b59fd7ca2af3dc8
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-```
-The total balance is 0 for the payment address because ALL funds have been moved to the base address.  
 
 
 #### Create Pool
@@ -136,7 +105,7 @@ Start cardano node with the following run arguments:
 --shelley-operational-certificate /opt/cardano/cnode/priv/pool/LOVE/op.cert
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ```
-4.  Start or restart your cardano-node with the parameters as shown.  This will ensure your node has all the information necessary to create blocks.  
+**4.**  Start or restart your cardano-node with the parameters as shown.  This will ensure your node has all the information necessary to create blocks.  
 **IMPORTANT** - If you do not start your node with these parameters you won't be able to make blocks.
 
 
@@ -144,23 +113,33 @@ Start cardano node with the following run arguments:
 
 **1.**  From the main menu select `Pool [p]`  
 **2.**  Select `Register [r]`  
-**3.**  Select the pool you just created in step 11 above  
-**4.**  CNTools will give you prompts to set metadata, pledge, margin and cost. Enter values that are useful to you.  
+**3.**  Select the pool you just created  
+**4.**  CNTools will give you prompts to set pledge, margin, cost, metadata, and relays. Enter values that are useful to you.  
 **IMPORTANT** - Make sure you set your pledge low enough to insure your funds in your wallet will cover pledge plus pool registration fees.  
+**5.**  Select wallet to use as pledge wallet, `bob` in our case.  
+As this is a newly created wallet you will be prompted to press a key to continue with wallet registration.  
+When complete and if successful, both wallet and pool will be registered on-chain.
 
 It will look something like this:
 ```
  >> POOL >> REGISTER
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Dumping ledger-state from node, can take a while on larger networks...
+
 Select Pool:
 
   LOVE
   [c] Cancel
 
+ -- Pool Parameters --
+
 Pledge (in ADA, default: 50000): 899
 Margin (in %, default: 7.5): 10
 Cost (in ADA, default: 256): 500
+
+ -- Pool Metadata --
+
 Enter Pool's Name (default: LOVE):
 Enter Pool's Ticker , should be between 3-5 characters (default: LOVE):
 Enter Pool's Description (default: No Description): My custom description
@@ -168,15 +147,35 @@ Enter Pool's Homepage (default: https://foo.com): https://love.fake.com
 Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: https://foo.bat/poolmeta.json): https://love.fake.com/poolmeta.json
 
 Please make sure you host your metadata JSON file (with contents as below) at https://love.fake.com/poolmeta.json :
+
 {
   "name": "LOVE",
   "ticker": "LOVE",
   "description": "My custom description",
   "homepage": "https://love.fake.com"
 }
+
+ -- Pool Relay Registration --
+
+  [d] A or AAAA DNS record  (single)
+  [4] IPv4 address (multiple)
+  [c] Cancel
+
+Enter relays's DNS record, only A or AAAA DNS records (default: ): relay1.love.fake.com
+Enter relays's port (default: ): 3001
+
+Select Pledge Wallet:
+
+  bob  (1000.991236 ADA)
+  [c] Cancel
+
+Funds in pledge wallet: 1000.991236 ADA
+
+Wallet not registered on chain, press any key to continue with registration
+
+... *wallet registration and pool registration output* ... 
 ```
-**5.**  Select the wallet you want to register the pool with.  
-**6.**  DONE!  
+**7.**  DONE!  
 
 The final output on successful registration should look something like this:
 ```
