@@ -132,6 +132,7 @@ case $OPERATION in
     ${CCLI} shelley stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}"
     getBaseAddress ${wallet_name}
     getPayAddress ${wallet_name}
+    getRewardAddress ${wallet_name}
 
     say "New Wallet          : ${GREEN}${wallet_name}${NC}" "log"
     say "Address             : ${base_addr}" "log"
@@ -158,39 +159,47 @@ case $OPERATION in
     while IFS= read -r -d '' wallet; do
       wallet_name=$(basename ${wallet})
       enc_files=$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -printf '.' | wc -c)
-      if getBaseAddress ${wallet_name} || [[ ${enc_files} -gt 0 ]]; then
-        echo ""
-        if [[ ${enc_files} -gt 0 ]]; then
-          say "${GREEN}${wallet_name}${NC} (${ORANGE}encrypted${NC})" "log"
-          base_addr=$(cat "${wallet}/${WALLET_BASE_ADDR_FILENAME}")
-        else
-          say "${GREEN}${wallet_name}${NC}" "log"
-        fi
+      echo ""
+      if [[ ${enc_files} -gt 0 ]]; then
+        say "${GREEN}${wallet_name}${NC} (${ORANGE}encrypted${NC})" "log"
+        base_addr=$(cat "${wallet}/${WALLET_BASE_ADDR_FILENAME}")
+        pay_addr=$(cat "${wallet}/${WALLET_PAY_ADDR_FILENAME}")
+      else
+        say "${GREEN}${wallet_name}${NC}" "log"
+        getBaseAddress ${wallet_name}
+        getPayAddress ${wallet_name}
+      fi
+      if [[ -n ${base_addr} ]]; then
         getBalance ${base_addr}
         say "$(printf "%s\t\t\t${CYAN}%s${NC} ADA" "Funds"  "$(numfmt --grouping ${ada})")" "log"
-        if getPayAddress ${wallet_name}; then
-          getBalance ${pay_addr}
+      fi
+      if [[ -n ${pay_addr} ]]; then
+        getBalance ${pay_addr}
+        if [[ ${lovelace} -gt 0 ]]; then
           say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds"  "$(numfmt --grouping ${ada})")" "log"
-          if [[ ${lovelace} -gt 0 ]]; then
-            pay_wallets_with_funds+=("${wallet_name}")
-          fi
+          pay_wallets_with_funds+=("${wallet_name}")
         fi
-        getRewards ${wallet_name}
-        if [[ "${reward_lovelace}" -eq -1 ]]; then
-          say "${ORANGE}Not a registered wallet on chain${NC}"
-        else
-          say "$(printf "%s\t\t\t${CYAN}%s${NC} ADA" "Rewards" "$(numfmt --grouping ${reward_ada})")" "log"
-          delegation_pool_id=$(jq -r '.delegation // empty' <<< "${stakeAddressInfo}")
-          if [[ -n ${delegation_pool_id} ]]; then
-            unset poolName
-            while IFS= read -r -d '' pool; do
-              pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
-              if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
-                poolName=$(basename ${pool}) && break
-              fi
-            done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-            say "${RED}Delegated to${NC} ${BLUE}${poolName}${NC} ${RED}(${delegation_pool_id})${NC}" "log"
-          fi
+      fi
+      if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
+        say "${RED}Not a supporeted wallet${NC} - genesis address?"
+        say "Use an external script to send funds to a CNTools compatible wallet"
+        continue
+      fi
+      getRewards ${wallet_name}
+      if [[ "${reward_lovelace}" -eq -1 ]]; then
+        say "${ORANGE}Not a registered wallet on chain${NC}"
+      else
+        say "$(printf "%s\t\t\t${CYAN}%s${NC} ADA" "Rewards" "$(numfmt --grouping ${reward_ada})")" "log"
+        delegation_pool_id=$(jq -r '.delegation // empty' <<< "${stakeAddressInfo}")
+        if [[ -n ${delegation_pool_id} ]]; then
+          unset poolName
+          while IFS= read -r -d '' pool; do
+            pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
+            if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
+              poolName=$(basename ${pool}) && break
+            fi
+          done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+          say "${RED}Delegated to${NC} ${BLUE}${poolName}${NC} ${RED}(${delegation_pool_id})${NC}" "log"
         fi
       fi
     done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
@@ -232,7 +241,18 @@ case $OPERATION in
                echo ""
              fi
            done
-           waitNewBlockCreated
+           if ! waitNewBlockCreated; then
+             waitForInput && continue
+           fi 
+           getBalance ${pay_addr}
+           while [[ ${lovelace} -ne 0 ]]; do
+             say ""
+             say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${lovelace}) != 0)"
+             if ! waitNewBlockCreated; then
+               break
+             fi
+             getBalance ${pay_addr}
+           done
            ;;
         1) say "Upgrade process aborted!"
            ;;
@@ -258,7 +278,7 @@ case $OPERATION in
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     for dir in "${dirs[@]}"; do
       enc_files=$(find "${WALLET_FOLDER}/${dir}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -printf '.' | wc -c)
-      if ! getBaseAddress "${dir}" && [[ ${enc_files} -eq 0 ]]; then continue; fi
+      if ! getBaseAddress "${dir}" && ! getPayAddress "${dir}" && [[ ${enc_files} -eq 0 ]]; then continue; fi
       wallet_dirs+=("${dir}")
     done
     if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
@@ -275,14 +295,18 @@ case $OPERATION in
     echo ""
     if [[ ${enc_files} -gt 0 ]]; then
       base_addr=$(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}")
+      pay_addr=$(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}")
       say "$(printf "%-8s ${GREEN}%s${NC} ${ORANGE}%s${NC}" "Wallet" "${wallet_name}" "(encrypted)")" "log"
     else
       getBaseAddress ${wallet_name}
+      getPayAddress ${wallet_name}
       say "$(printf "%-8s ${GREEN}%s${NC}" "Wallet" "${wallet_name}")" "log"
     fi
 
     getBalance ${base_addr}
-    if [[ -s ${TMP_FOLDER}/balance.out ]]; then
+    base_lovelace=${lovelace}
+    base_ada=${ada}
+    if [[ ${utx0_count} -gt 0 ]]; then
       echo ""
       say "${BLUE}UTxOs${NC}"
       head -n 2 ${TMP_FOLDER}/fullUtxo.out
@@ -290,9 +314,22 @@ case $OPERATION in
       [[ ${utx0_count} -gt 10 ]] && say "... (top 10 UTx0 with most lovelace)"
     fi
     
+    getBalance ${pay_addr}
+    pay_lovelace=${lovelace}
+    pay_ada=${ada}
+    if [[ ${utx0_count} -gt 0 ]]; then
+      echo ""
+      say "${BLUE}Enterprise UTxOs${NC}"
+      head -n 2 ${TMP_FOLDER}/fullUtxo.out
+      head -n 10 ${TMP_FOLDER}/balance.out
+      [[ ${utx0_count} -gt 10 ]] && say "... (top 10 UTx0 with most lovelace)"
+    fi
+    
     echo ""
-    say "$(printf "%-8s : %s" "Address" "${base_addr}")" "log"
-    say "$(printf "%-8s : ${CYAN}%s${NC} ADA" "Funds" "$(numfmt --grouping ${ada})")" "log"
+    say "$(printf "%-19s : %s" "Address" "${base_addr}")" "log"
+    say "$(printf "%-19s : ${CYAN}%s${NC} ADA" "Funds" "$(numfmt --grouping ${base_ada})")" "log"
+    say "$(printf "%-19s : %s" "Enterprise Address" "${pay_addr}")" "log"
+    say "$(printf "%-19s : ${CYAN}%s${NC} ADA" "Enterprise Funds" "$(numfmt --grouping ${pay_ada})")" "log"
     getRewards ${wallet_name}
     if [[ "${reward_lovelace}" -eq -1 ]]; then
       echo ""
@@ -339,7 +376,7 @@ case $OPERATION in
     if ! selectDir "${dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
     wallet_name="${dir_name}"
     
-    if ! getBaseAddress ${wallet_name}; then
+    if ! getBaseAddress ${wallet_name} && ! getPayAddress ${wallet_name}; then
       say "${RED}WARN${NC}: unable to get address for wallet and do a balance check"
       say "\nAre you sure to delete wallet anyway?\n"
       case $(select_opt "[y] Yes" "[n] No") in
@@ -352,10 +389,25 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    getBalance ${base_addr}
+    if [[ -n ${base_addr} ]]; then
+      getBalance ${base_addr}
+      base_lovelace=${lovelace}
+      base_ada=${ada}
+    else
+      base_lovelace=0
+      base_ada=0
+    fi
+    if [[ -n ${pay_addr} ]]; then
+      getBalance ${pay_addr}
+      pay_lovelace=${lovelace}
+      pay_ada=${ada}
+    else
+      pay_lovelace=0
+      pay_ada=0
+    fi
     getRewards ${wallet_name}
     
-    if [[ ${lovelace} -eq 0 && ${reward_lovelace} -le 0 ]]; then
+    if [[ ${base_lovelace} -eq 0 && ${pay_lovelace} -eq 0 && ${reward_lovelace} -le 0 ]]; then
       say "INFO: This wallet appears to be empty"
       say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
       say "Are you sure to delete wallet?\n"
@@ -368,11 +420,14 @@ case $OPERATION in
       esac
     else
       say "${RED}WARN${NC}: wallet not empty!"
-      if [[ ${lovelace} -gt 0 ]]; then
-        say "Funds:   ${CYAN}$(numfmt --grouping ${ada})${NC} ADA"
+      if [[ ${base_lovelace} -gt 0 ]]; then
+        say "Funds : ${CYAN}$(numfmt --grouping ${base_ada})${NC} ADA"
+      fi
+      if [[ ${pay_lovelace} -gt 0 ]]; then
+        say "Enterprise Funds : ${CYAN}$(numfmt --grouping ${base_ada})${NC} ADA"
       fi
       if [[ ${reward_lovelace} -gt 0 ]]; then
-        say "Rewards: ${CYAN}$(numfmt --grouping ${reward_ada})${NC} ADA"
+        say "Rewards : ${CYAN}$(numfmt --grouping ${reward_ada})${NC} ADA"
       fi
       echo ""
       say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
@@ -566,12 +621,10 @@ case $OPERATION in
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
     for dir in "${dirs[@]}"; do
-      base_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_BASE_ADDR_FILENAME}"
-      stake_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_ADDR_FILENAME}"
       stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
       stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
       pay_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
-      [[ ! -f "${base_addr_file}" || ! -f "${stake_addr_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]] && continue
+      [[ ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]] && continue
       if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
         getRewards ${dir}
         [[ ${reward_lovelace} -le 0 ]] && continue
@@ -657,14 +710,23 @@ case $OPERATION in
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
     for dir in "${dirs[@]}"; do
-      s_base_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_BASE_ADDR_FILENAME}"
       s_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
-      [[ ! -f "${s_base_addr_file}" || ! -f "${s_payment_sk_file}" ]] && continue
+      [[ ! -f "${s_payment_sk_file}" ]] && continue
       if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        if getBaseAddress ${dir}; then
-          getBalance ${base_addr}
-          [[ ${lovelace} -eq 0 ]] && continue
-          s_wallet_dirs+=("${dir} (${CYAN}$(numfmt --grouping ${ada})${NC} ADA)")
+        getBaseAddress ${dir}
+        getPayAddress ${dir}
+        getBalance ${base_addr}
+        base_lovelace=${lovelace}
+        base_ada=${ada}
+        getBalance ${pay_addr}
+        pay_ada=${ada}
+        pay_lovelace=${lovelace}
+        if [[ ${base_lovelace} -gt 0 && ${pay_lovelace} -gt 0 ]]; then
+          s_wallet_dirs+=("${dir} (Funds: ${CYAN}$(numfmt --grouping ${base_ada})${NC} ADA | Enterprise Funds: ${CYAN}$(numfmt --grouping ${pay_ada})${NC} ADA)")
+        elif [[ ${base_lovelace} -gt 0 ]]; then
+          s_wallet_dirs+=("${dir} (Funds: ${CYAN}$(numfmt --grouping ${base_ada})${NC} ADA)")
+        elif [[ ${pay_lovelace} -gt 0 ]]; then
+          s_wallet_dirs+=("${dir} (Enterprise Funds: ${CYAN}$(numfmt --grouping ${pay_ada})${NC} ADA)")
         fi
       else
         s_wallet_dirs+=("${dir}")
@@ -677,16 +739,39 @@ case $OPERATION in
     say "Select Source Wallet:\n"
     if ! selectDir "${s_wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
     s_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
-    s_addr="$(cat ${WALLET_FOLDER}/${s_wallet}/${WALLET_BASE_ADDR_FILENAME})"
-    s_payment_sk_file="${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_SK_FILENAME}"
     
-    getBalance ${s_addr}
-    if [[ ${lovelace} -gt 0 ]]; then
-      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in source wallet:"  "$(numfmt --grouping ${ada})")" "log"
+    getBaseAddress ${s_wallet}
+    getPayAddress ${s_wallet}
+    getBalance ${base_addr}
+    base_lovelace=${lovelace}
+    base_ada=${ada}
+    getBalance ${pay_addr}
+    pay_ada=${ada}
+    pay_lovelace=${lovelace}
+    
+    if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
+      # Both payment and base address available with funds, let user choose what to use
+      say "Both base and enterprise address available with funds, choose source wallet"
+      say "$(printf "%s\t\t${CYAN}%s${NC} ADA" "Funds :"  "$(numfmt --grouping ${base_ada})")" "log"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(numfmt --grouping ${pay_ada})")" "log"
+      echo ""
+      case $(select_opt "[b] Base" "[e] Enterprise" "[c] Cancel") in
+        0) s_addr="${base_addr}" ;;
+        1) s_addr="${pay_addr}" ;;
+        2) continue ;;
+      esac
+    elif [[ ${pay_lovelace} -gt 0 ]]; then
+      s_addr="${pay_addr}"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(numfmt --grouping ${pay_ada})")" "log"
+    elif [[ ${base_lovelace} -gt 0 ]]; then
+      s_addr="${base_addr}" 
+      say "$(printf "%s\t\t${CYAN}%s${NC} ADA" "Funds :"  "$(numfmt --grouping ${base_ada})")" "log"
     else
-      say "${RED}ERROR${NC}: no funds available for wallet ${GREEN}${wallet_name}${NC}"
+      say "${RED}ERROR${NC}: no funds available for wallet ${GREEN}${s_wallet}${NC}"
       waitForInput && continue
     fi
+
+    s_payment_sk_file="${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_SK_FILENAME}"
 
     # Amount
     echo ""
@@ -732,14 +817,36 @@ case $OPERATION in
       0) d_wallet_dirs=()
          if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
          for dir in "${dirs[@]}"; do
-           d_base_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_BASE_ADDR_FILENAME}"
-           [[ ! -f ${d_base_addr_file} ]] && continue
-           d_wallet_dirs+=("${dir}")
+           if getBaseAddress ${dir} || getPayAddress ${dir}; then
+             d_wallet_dirs+=("${dir}")
+           fi
          done
          say "Select Destination Wallet:\n"
          if ! selectDir "${d_wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
          d_wallet="${dir_name}"
-         d_addr="$(cat ${WALLET_FOLDER}/${d_wallet}/${WALLET_BASE_ADDR_FILENAME})"
+         
+         d_base_addr_file="${WALLET_FOLDER}/${d_wallet}/${WALLET_BASE_ADDR_FILENAME}"
+         d_pay_addr_file="${WALLET_FOLDER}/${d_wallet}/${WALLET_PAY_ADDR_FILENAME}"
+    
+         if [[ -f "${d_base_addr_file}" && -f "${d_pay_addr_file}" ]]; then
+           # Both base and enterprise address available, let user choose what to use
+           say "Both base and enterprise address available with funds, choose destination wallet"
+           case $(select_opt "[b] Base" "[e] Enterprise" "[c] Cancel") in
+             0) d_addr_file="${d_base_addr_file}" ;;
+             1) d_addr_file="${d_pay_addr_file}" ;;
+             2) continue ;;
+           esac
+         elif [[ -f "${d_pay_addr_file}" ]]; then
+           d_addr_file="${d_pay_addr_file}"
+         elif [[ -f "${d_base_addr_file}" ]]; then
+           d_addr_file="${d_base_addr_file}"
+         else
+           say "${RED}ERROR${NC}: no address file found for wallet ${GREEN}${d_wallet}${NC}"
+           say "${d_base_addr_file}"
+           say "${d_pay_addr_file}"
+           waitForInput && continue
+         fi
+         d_addr="$(cat ${d_addr_file})"
          ;;
       1) echo "" && read -r -p "Address: " d_addr ;;
       2) continue ;;
@@ -818,31 +925,31 @@ case $OPERATION in
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
     for dir in "${dirs[@]}"; do
-      base_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_BASE_ADDR_FILENAME}"
-      stake_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_ADDR_FILENAME}"
       stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
       stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
       pay_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
-      [[ ! -f "${base_addr_file}" || ! -f "${stake_addr_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]] && continue
+      if ! getBaseAddress ${dir} && [[ ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]]; then continue; fi
       if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        getBaseAddress ${dir}
         getBalance ${base_addr}
         [[ ${lovelace} -eq 0 ]] && continue
-        getRewardAddress ${dir}
-        delegation_pool_id=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address "${reward_addr}" | jq -r '.[].delegation // empty')
-        unset poolName
-        if [[ -n ${delegation_pool_id} ]]; then
-          while IFS= read -r -d '' pool; do
-            pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
-            if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
-              poolName=$(basename ${pool}) && break
-            fi
-          done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-        fi
-        if [[ -n ${poolName} ]]; then
-          wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
-        elif [[ -n ${delegation_pool_id} ]]; then
-          wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to external address)")
+        if getRewardAddress ${dir}; then
+          delegation_pool_id=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address "${reward_addr}" | jq -r '.[].delegation // empty')
+          unset poolName
+          if [[ -n ${delegation_pool_id} ]]; then
+            while IFS= read -r -d '' pool; do
+              pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
+              if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
+                poolName=$(basename ${pool}) && break
+              fi
+            done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+          fi
+          if [[ -n ${poolName} ]]; then
+            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
+          elif [[ -n ${delegation_pool_id} ]]; then
+            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to external address)")
+          else
+            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA)")
+          fi
         else
           wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA)")
         fi
@@ -1288,31 +1395,31 @@ case $OPERATION in
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
     for dir in "${dirs[@]}"; do
-      base_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_BASE_ADDR_FILENAME}"
-      stake_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_ADDR_FILENAME}"
       stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
       stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
       pay_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
-      [[ ! -f "${base_addr_file}" || ! -f "${stake_addr_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]] && continue
+      if ! getBaseAddress ${dir} && [[ ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]]; then continue; fi
       if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        getBaseAddress ${dir}
         getBalance ${base_addr}
         [[ ${lovelace} -eq 0 ]] && continue
-        getRewardAddress ${dir}
-        delegation_pool_id=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address "${reward_addr}" | jq -r '.[].delegation // empty')
-        unset poolName
-        if [[ -n ${delegation_pool_id} ]]; then
-          while IFS= read -r -d '' pool; do
-            pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
-            if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
-              poolName=$(basename ${pool}) && break
-            fi
-          done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-        fi
-        if [[ -n ${poolName} ]]; then
-          wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
-        elif [[ -n ${delegation_pool_id} ]]; then
-          wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to external address)")
+        if getRewardAddress ${dir}; then
+          delegation_pool_id=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address "${reward_addr}" | jq -r '.[].delegation // empty')
+          unset poolName
+          if [[ -n ${delegation_pool_id} ]]; then
+            while IFS= read -r -d '' pool; do
+              pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
+              if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
+                poolName=$(basename ${pool}) && break
+              fi
+            done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+          fi
+          if [[ -n ${poolName} ]]; then
+            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
+          elif [[ -n ${delegation_pool_id} ]]; then
+            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to external address)")
+          else
+            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA)")
+          fi
         else
           wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA)")
         fi
@@ -1487,31 +1594,31 @@ case $OPERATION in
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
     for dir in "${dirs[@]}"; do
-      base_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_BASE_ADDR_FILENAME}"
-      stake_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_ADDR_FILENAME}"
       stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
       stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
       pay_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
-      [[ ! -f "${base_addr_file}" || ! -f "${stake_addr_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]] && continue
+      if ! getBaseAddress ${dir} && [[ ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]]; then continue; fi
       if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        getBaseAddress ${dir}
         getBalance ${base_addr}
         [[ ${lovelace} -eq 0 ]] && continue
-        getRewardAddress ${dir}
-        delegation_pool_id=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address "${reward_addr}" | jq -r '.[].delegation // empty')
-        unset poolName
-        if [[ -n ${delegation_pool_id} ]]; then
-          while IFS= read -r -d '' pool; do
-            pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
-            if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
-              poolName=$(basename ${pool}) && break
-            fi
-          done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-        fi
-        if [[ -n ${poolName} ]]; then
-          wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
-        elif [[ -n ${delegation_pool_id} ]]; then
-          wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to external address)")
+        if getRewardAddress ${dir}; then
+          delegation_pool_id=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address "${reward_addr}" | jq -r '.[].delegation // empty')
+          unset poolName
+          if [[ -n ${delegation_pool_id} ]]; then
+            while IFS= read -r -d '' pool; do
+              pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
+              if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
+                poolName=$(basename ${pool}) && break
+              fi
+            done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+          fi
+          if [[ -n ${poolName} ]]; then
+            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
+          elif [[ -n ${delegation_pool_id} ]]; then
+            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to external address)")
+          else
+            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA)")
+          fi
         else
           wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA)")
         fi
@@ -1629,7 +1736,7 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    say "\n${ORANGE}Please host ${pool_meta_file} file as-is at ${meta_json_url}!\n"
+    say "\n${ORANGE}Please host ${pool_meta_file} file as-is at ${meta_json_url}!${NC}\n"
     echo -e "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" > "${pool_meta_file}"
 
     relay_counter=0
@@ -1868,12 +1975,12 @@ case $OPERATION in
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
     for dir in "${dirs[@]}"; do
-      base_addr_file="${WALLET_FOLDER}/${dir}/${WALLET_BASE_ADDR_FILENAME}"
       if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        getBaseAddress ${dir}
-        getBalance ${base_addr}
-        [[ ${lovelace} -eq 0 ]] && continue
-        wallet_dirs+=("${dir} (${CYAN}$(numfmt --grouping ${ada})${NC} ADA)")
+        if getBaseAddress ${dir}; then
+          getBalance ${base_addr}
+          [[ ${lovelace} -eq 0 ]] && continue
+          wallet_dirs+=("${dir} (${CYAN}$(numfmt --grouping ${ada})${NC} ADA)")
+        fi
       else
         wallet_dirs+=("${dir}")
       fi
@@ -2338,15 +2445,19 @@ case $OPERATION in
   GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= /tmp/cntools.library |sed -e "s#.*=##")
   rm -f /tmp/cntools.library
   if [ "$CNTOOLS_MAJOR_VERSION" != "$GIT_MAJOR_VERSION" ];then
-    say "${RED}WARNING${NC}: Breaking changes were made to CNTools! We will not overwrite your changes automatically. Please backup $CNODE_HOME/priv/wallet and $CNODE_HOME/priv/pool folders and then run the below:"
-    say "  wget -O cntools.sh ${URL}/cntools.sh"
-    say "  wget -O cntools.config ${URL}/cntools.config"
-    say "  wget -O cntools.library ${URL}/cntools.library"
-    say "  wget -O cntoolsBlockCollector.sh ${URL}/cntoolsBlockCollector.sh"
-    say "  wget -O env ${URL}/env"
+    say "New major version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}${NC} (Current: ${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION})\n"
+    say "${RED}WARNING${NC}: Breaking changes were made to CNTools!\n"
+    say "We will not overwrite your changes automatically."
+    say "Please backup $CNODE_HOME/priv/wallet and $CNODE_HOME/priv/pool folders and then run the below:"
+    say "  wget -O $CNODE_HOME/scripts/cntools.sh ${URL}/cntools.sh"
+    say "  wget -O $CNODE_HOME/scripts/cntools.config ${URL}/cntools.config"
+    say "  wget -O $CNODE_HOME/scripts/cntools.library ${URL}/cntools.library"
+    say "  wget -O $CNODE_HOME/scripts/cntoolsBlockCollector.sh ${URL}/cntoolsBlockCollector.sh"
+    say "  wget -O $CNODE_HOME/scripts/env ${URL}/env"
     say "  chmod 750 $CNODE_HOME/scripts/cntools.sh $CNODE_HOME/scripts/cntoolsBlockCollector.sh"
     say "  chmod 640 $CNODE_HOME/scripts/cntools.library $CNODE_HOME/scripts/env"
   elif [ "$CNTOOLS_MINOR_VERSION" != "$GIT_MINOR_VERSION" ];then
+    say "New minor version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}${NC} (Current: ${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION})\n"
     say "Applying minor version update (no changes required for operation)..."
     wget -q -O "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh"
     wget -q -O "$CNODE_HOME/scripts/cntools.library" "$URL/cntools.library"

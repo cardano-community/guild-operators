@@ -502,12 +502,14 @@ getPayAddress() {
   payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
   payment_addr_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_ADDR_FILENAME}"
   if [[ -f "${payment_vk_file}" ]]; then
-    ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}"  --out-file "${payment_addr_file}" --testnet-magic ${NWMAGIC}
-    pay_addr=$(cat "${payment_addr_file}")
-    if [[ -z ${pay_addr} ]]; then
+    if ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" --testnet-magic ${NWMAGIC} 2>/dev/null; then
+      pay_addr=$(cat "${payment_addr_file}")
+    else
+      pay_addr=""
       return 1
     fi
   else
+    pay_addr=""
     return 1
   fi
 }
@@ -523,6 +525,7 @@ getBaseAddress() {
     ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" --testnet-magic ${NWMAGIC}
     base_addr=$(cat "${base_addr_file}")
   else
+    base_addr=""
     return 1
   fi
 }
@@ -537,6 +540,7 @@ getRewardAddress() {
     ${CCLI} shelley stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" --testnet-magic ${NWMAGIC}
     reward_addr=$(cat "${stake_addr_file}")
   else
+    reward_addr=""
     return 1
   fi
 }
@@ -548,6 +552,8 @@ getBalance() {
   lovelace=0
   ada=0
   utx0_count=0
+  
+  [[ -z $1 ]] && return 1
 
   ${CCLI} shelley query utxo --testnet-magic "${NWMAGIC}" --address "${1}" > ${TMP_FOLDER}/fullUtxo.out
   tail -n +3 ${TMP_FOLDER}/fullUtxo.out | sort -k3 -nr > ${TMP_FOLDER}/balance.out
@@ -602,6 +608,8 @@ sendADA() {
   ttlValue=$(( currSlot + 1000 ))
   say "TN Magic is ${NWMAGIC}" "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
+  
+  getBalance ${sAddr}
 
   balance=0
   utxoCount=0
