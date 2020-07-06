@@ -2200,7 +2200,7 @@ case $OPERATION in
       output="$(printf " \tStake\tReward\tStake Address")"
       for key in $delegators; do
         stake_address="581de0$key"
-        reward=$(${CCLI} shelley query stake-address-info --address $stake_address --testnet-magic 42 | jq ".[\"$stake_address\"][\"rewardAccountBalance\"]")
+        reward=$(${CCLI} shelley query stake-address-info --address $stake_address --testnet-magic $NWMAGIC | jq ".[\"$stake_address\"][\"rewardAccountBalance\"]")
         stake=$(jq ".esLState._utxoState._utxo | .[] | select(.address | contains(\"${key}\")) | .amount" "${TMP_FOLDER}"/ledger-state.json | awk '{total = total + $1} END {print total}')
         total_stake=$((total_stake + stake))
         output="$(printf "%s\n \t${stake}\t${reward}\t${stake_address}" "${output}")"
