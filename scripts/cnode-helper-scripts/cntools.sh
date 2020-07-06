@@ -3,10 +3,10 @@
 
 ########## Global tasks ###########################################
 
-# set locale for compatibility
-export LC_ALL=C.UTF-8
-
 # get common env variables
+# set locale for compatibility
+export LC_ALL=en_US.UTF-8
+
 . "$(dirname $0)"/env
 
 # get cntools config parameters
@@ -2202,11 +2202,11 @@ case $OPERATION in
         stake_address="581de0$key"
         reward=$(${CCLI} shelley query stake-address-info --address $stake_address --testnet-magic 42 | jq ".[\"$stake_address\"][\"rewardAccountBalance\"]")
         stake=$(jq ".esLState._utxoState._utxo | .[] | select(.address | contains(\"${key}\")) | .amount" "${TMP_FOLDER}"/ledger-state.json | awk '{total = total + $1} END {print total}')
-        total_stake=$((${total_stake} + ${stake}))
-        output="$(printf "${output}\n \t${stake}\t${reward}\t${stake_address}")"
+        total_stake=$((total_stake + stake))
+        output="$(printf "%s\n \t${stake}\t${reward}\t${stake_address}" "${output}")"
       done
-      say "$(printf "${output}\n" | rev | column -t -s $'\t' | rev)" "log"
-      say "$(printf "%-21s : %s ADA" "Stake" "$(numfmt --grouping $(lovelacetoADA ${total_stake}))")" "log"
+      say "$(printf "%s\n" "${output}" | rev | column -t -s $'\t' | rev)" "log"
+      say "$(printf "%-21s : %s ADA" "Stake" "$(numfmt --grouping "$(lovelacetoADA ${total_stake})")")" "log"
       stake_pct=$(fractionToPCT "$(printf "%.10f" "$(${CCLI} shelley query stake-distribution --testnet-magic ${NWMAGIC} | grep "${pool_id}" | tr -s ' ' | cut -d ' ' -f 2)")")
       if validateDecimalNbr ${stake_pct}; then
         say "$(printf "%-21s : %s %%" "Stake distribution" "${stake_pct}")" "log"
