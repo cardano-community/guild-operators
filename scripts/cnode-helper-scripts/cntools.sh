@@ -212,8 +212,10 @@ case $OPERATION in
       say "${GREEN}${pay_wallets_with_funds[*]}${NC}" "log"
       echo ""
       say "Do you want to upgrade these wallets to CNTools compatible wallets that can be delegated?\n"
-      case $(select_opt "[y] Yes" "[n] No") in
-        0) for wallet_name in "${pay_wallets_with_funds[@]}"; do
+      case $(select_opt "[n] No" "[y] Yes") in
+        0) say "Upgrade process aborted!"
+           ;;
+        1) for wallet_name in "${pay_wallets_with_funds[@]}"; do
              say "Wallet: ${GREEN}${wallet_name}${NC}"
              # Wallet key filenames
              payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
@@ -253,8 +255,6 @@ case $OPERATION in
              fi
              getBalance ${pay_addr}
            done
-           ;;
-        1) say "Upgrade process aborted!"
            ;;
       esac
     fi
@@ -751,11 +751,11 @@ case $OPERATION in
     
     if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
       # Both payment and base address available with funds, let user choose what to use
-      say "Both base and enterprise address available with funds, choose source wallet"
+      say "Select source wallet address"
       say "$(printf "%s\t\t${CYAN}%s${NC} ADA" "Funds :"  "$(numfmt --grouping ${base_ada})")" "log"
       say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(numfmt --grouping ${pay_ada})")" "log"
       echo ""
-      case $(select_opt "[b] Base" "[e] Enterprise" "[c] Cancel") in
+      case $(select_opt "[b] Base (default)" "[e] Enterprise" "[c] Cancel") in
         0) s_addr="${base_addr}" ;;
         1) s_addr="${pay_addr}" ;;
         2) continue ;;
@@ -801,6 +801,7 @@ case $OPERATION in
       esac
     else
       echo ""
+      getBalance ${s_addr}
       amountADA=${ada}
       amountLovelace=${lovelace}
       say "ADA to send set to total supply: $(numfmt --grouping ${amountADA})" "log"
@@ -825,28 +826,28 @@ case $OPERATION in
          if ! selectDir "${d_wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
          d_wallet="${dir_name}"
          
-         d_base_addr_file="${WALLET_FOLDER}/${d_wallet}/${WALLET_BASE_ADDR_FILENAME}"
-         d_pay_addr_file="${WALLET_FOLDER}/${d_wallet}/${WALLET_PAY_ADDR_FILENAME}"
+         getBaseAddress ${d_wallet}
+         getPayAddress ${d_wallet}
     
-         if [[ -f "${d_base_addr_file}" && -f "${d_pay_addr_file}" ]]; then
+         if [[ -n "${base_addr}" && "${base_addr}" != "${s_addr}" && -n "${pay_addr}" && "${pay_addr}" != "${s_addr}" ]]; then
            # Both base and enterprise address available, let user choose what to use
-           say "Both base and enterprise address available with funds, choose destination wallet"
-           case $(select_opt "[b] Base" "[e] Enterprise" "[c] Cancel") in
-             0) d_addr_file="${d_base_addr_file}" ;;
-             1) d_addr_file="${d_pay_addr_file}" ;;
+           say "Select destination wallet address"
+           case $(select_opt "[b] Base (default)" "[e] Enterprise" "[c] Cancel") in
+             0) d_addr="${base_addr}" ;;
+             1) d_addr="${pay_addr}" ;;
              2) continue ;;
            esac
-         elif [[ -f "${d_pay_addr_file}" ]]; then
-           d_addr_file="${d_pay_addr_file}"
-         elif [[ -f "${d_base_addr_file}" ]]; then
-           d_addr_file="${d_base_addr_file}"
+         elif [[ -n "${base_addr}" && "${base_addr}" != "${s_addr}" ]]; then
+           d_addr="${base_addr}"
+         elif [[ -n "${pay_addr}" && "${pay_addr}" != "${s_addr}" ]]; then
+           d_addr="${pay_addr}"
+         elif [[ "${base_addr}" = "${s_addr}" || "${pay_addr}" = "${s_addr}" ]]; then
+           say "${RED}ERROR${NC}: sending to same address as source not supported"
+           waitForInput && continue
          else
-           say "${RED}ERROR${NC}: no address file found for wallet ${GREEN}${d_wallet}${NC}"
-           say "${d_base_addr_file}"
-           say "${d_pay_addr_file}"
+           say "${RED}ERROR${NC}: no address found for wallet ${GREEN}${d_wallet}${NC} :("
            waitForInput && continue
          fi
-         d_addr="$(cat ${d_addr_file})"
          ;;
       1) echo "" && read -r -p "Address: " d_addr ;;
       2) continue ;;
@@ -887,14 +888,19 @@ case $OPERATION in
     getBalance ${d_addr}
 
     d_balance_ada=${ada}
-
+    
+    getPayAddress ${s_wallet}
+    [[ "${pay_addr}" = "${s_addr}" ]] && s_wallet_type=" (Enterprise)" || s_wallet_type=""
+    getPayAddress ${d_wallet}
+    [[ "${pay_addr}" = "${d_addr}" ]] && d_wallet_type=" (Enterprise)" || d_wallet_type=""
+    
     say ""
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say "Transaction" "log"
-    say "  From          : ${GREEN}${s_wallet}${NC}" "log"
+    say "  From          : ${GREEN}${s_wallet}${NC}${s_wallet_type}" "log"
     say "  Amount        : $(numfmt --grouping ${amountADA}) ADA" "log"
     if [[ -n "${d_wallet}" ]]; then
-      say "  To            : ${GREEN}${d_wallet}${NC}" "log"
+      say "  To            : ${GREEN}${d_wallet}${NC}${d_wallet_type}" "log"
     else
       say "  To            : ${d_addr}" "log"
     fi
