@@ -41,6 +41,20 @@ if ! need_cmd "curl" || \
    ! need_cmd "numfmt"; then exit 1
 fi
 
+# check to see if there are any updates available
+URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
+wget -q -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"
+GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+if [[ "${CNTOOLS_MAJOR_VERSION}" != "${GIT_MAJOR_VERSION}" || "${CNTOOLS_MINOR_VERSION}" != "${GIT_MINOR_VERSION}" ]]; then
+  clear
+  say "\nA new version of CNTools is available"
+  say "\nInstalled Version : ${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}"
+  say "Available Version : ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}${NC}"
+  say "\nGo to Update section for upgrade"
+  waitForInput "press any key to proceed to home menu"
+fi
+
 ###################################################################
 
 function main {
@@ -2446,10 +2460,9 @@ case $OPERATION in
   echo ""
 
   URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
-  wget -q -O /tmp/cntools.library "${URL}/cntools.library"
-  GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= /tmp/cntools.library |sed -e "s#.*=##")
-  GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= /tmp/cntools.library |sed -e "s#.*=##")
-  rm -f /tmp/cntools.library
+  wget -q -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"
+  GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+  GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
   if [ "$CNTOOLS_MAJOR_VERSION" != "$GIT_MAJOR_VERSION" ];then
     say "New major version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}${NC} (Current: ${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION})\n"
     say "${RED}WARNING${NC}: Breaking changes were made to CNTools!\n"
