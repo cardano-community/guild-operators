@@ -500,8 +500,10 @@ fractionToPCT() {
 # Return     : populates $pay_addr
 getPayAddress() {
   payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
+  payment_addr_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_ADDR_FILENAME}"
   if [[ -f "${payment_vk_file}" ]]; then
-    pay_addr=$(${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --testnet-magic ${NWMAGIC} 2>/dev/null)
+    ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}"  --out-file "${payment_addr_file}" --testnet-magic ${NWMAGIC}
+    pay_addr=$(cat "${payment_addr_file}")
     if [[ -z ${pay_addr} ]]; then
       return 1
     fi
@@ -519,7 +521,7 @@ getBaseAddress() {
   base_addr_file="${WALLET_FOLDER}/${1}/${WALLET_BASE_ADDR_FILENAME}"
   if [[ -f "${payment_vk_file}" && -f "${stake_vk_file}" ]]; then
     ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" --testnet-magic ${NWMAGIC}
-    base_addr=$(cat ${base_addr_file})
+    base_addr=$(cat "${base_addr_file}")
   else
     return 1
   fi
@@ -533,7 +535,7 @@ getRewardAddress() {
   stake_addr_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_ADDR_FILENAME}"
   if [[ -f "${stake_vk_file}" ]]; then
     ${CCLI} shelley stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" --testnet-magic ${NWMAGIC}
-    reward_addr=$(cat ${stake_addr_file})
+    reward_addr=$(cat "${stake_addr_file}")
   else
     return 1
   fi

@@ -131,10 +131,12 @@ case $OPERATION in
     ${CCLI} shelley address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}"
     ${CCLI} shelley stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}"
     getBaseAddress ${wallet_name}
+    getPayAddress ${wallet_name}
 
-    say "New Wallet : ${GREEN}${wallet_name}${NC}" "log"
-    say "Address    : ${base_addr}" "log"
-    say "\nYou can now send and receive ADA using this address."
+    say "New Wallet          : ${GREEN}${wallet_name}${NC}" "log"
+    say "Address             : ${base_addr}" "log"
+    say "Enterprise Address  : ${pay_addr}" "log"
+    say "\nYou can now send and receive ADA using the above. Note that Enterprise Address will not take part in staking."
     say "Wallet will be automatically registered on chain if you\nchoose to delegate or pledge wallet when registering a stake pool."
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     waitForInput && continue
@@ -165,12 +167,19 @@ case $OPERATION in
           say "${GREEN}${wallet_name}${NC}" "log"
         fi
         getBalance ${base_addr}
-        say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds"  "$(numfmt --grouping ${ada})")" "log"
+        say "$(printf "%s\t\t\t${CYAN}%s${NC} ADA" "Funds"  "$(numfmt --grouping ${ada})")" "log"
+        if getPayAddress ${wallet_name}; then
+          getBalance ${pay_addr}
+          say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds"  "$(numfmt --grouping ${ada})")" "log"
+          if [[ ${lovelace} -gt 0 ]]; then
+            pay_wallets_with_funds+=("${wallet_name}")
+          fi
+        fi
         getRewards ${wallet_name}
         if [[ "${reward_lovelace}" -eq -1 ]]; then
           say "${ORANGE}Not a registered wallet on chain${NC}"
         else
-          say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards" "$(numfmt --grouping ${reward_ada})")" "log"
+          say "$(printf "%s\t\t\t${CYAN}%s${NC} ADA" "Rewards" "$(numfmt --grouping ${reward_ada})")" "log"
           delegation_pool_id=$(jq -r '.delegation // empty' <<< "${stakeAddressInfo}")
           if [[ -n ${delegation_pool_id} ]]; then
             unset poolName
@@ -182,12 +191,6 @@ case $OPERATION in
             done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
             say "${RED}Delegated to${NC} ${BLUE}${poolName}${NC} ${RED}(${delegation_pool_id})${NC}" "log"
           fi
-        fi
-      fi
-      if getPayAddress ${wallet_name}; then
-        getBalance ${pay_addr}
-        if [[ ${lovelace} -gt 0 ]]; then
-          pay_wallets_with_funds+=("${wallet_name}")
         fi
       fi
     done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
@@ -231,7 +234,7 @@ case $OPERATION in
            done
            waitNewBlockCreated
            ;;
-        1) say "Upgrade process aborted, these wallets wont be usable within CNTools"
+        1) say "Upgrade process aborted!"
            ;;
       esac
     fi
