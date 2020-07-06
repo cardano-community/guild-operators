@@ -1626,8 +1626,8 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    say "\n${ORANGE}Please make sure you host your metadata JSON file (with contents as below) at ${meta_json_url} :${NC}\n"
-    say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}"| tee "${pool_meta_file}"
+    say "\n${ORANGE}Please host ${pool_meta_file} file as-is at ${meta_json_url}!\n"
+    echo -e "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" > "${pool_meta_file}"
 
     relay_counter=0
     relay_output=""
