@@ -3,6 +3,9 @@
 
 ########## Global tasks ###########################################
 
+# set locale for compatibility
+export LC_ALL=C.UTF-8
+
 # get common env variables
 . "$(dirname $0)"/env
 
