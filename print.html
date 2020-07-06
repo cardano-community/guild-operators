@@ -605,20 +605,20 @@ chmod 640 cntools.config cntools.library env
 CNTools contains more functionality not described here. </p>
 <p>Step by Step guide to create a pool with CNTools</p>
 <ul>
-<li><a href="Scripts/cntools-common.html#stake-wallet">Stake Wallet</a><br />
-a stake wallet is needed for delegation/pledge</li>
+<li><a href="Scripts/cntools-common.html#create-wallet">Create Wallet</a><br />
+a wallet is needed for pledge and to pay for pool registration fee</li>
 <li><a href="Scripts/cntools-common.html#create-pool">Create Pool</a><br />
 create the necessary pool keys </li>
 <li><a href="Scripts/cntools-common.html#create-pool">Register Pool</a><br />
 register the pool on-chain</li>
 </ul>
-<h4><a class="header" href="#stake-wallet" id="stake-wallet">Stake Wallet</a></h4>
+<h4><a class="header" href="#create-wallet" id="create-wallet">Create Wallet</a></h4>
 <p><strong>1.</strong> <code>Choose Wallet [w]</code> and you will be presented with the following menu:</p>
 <pre><code> &gt;&gt; WALLET
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  Wallet Management
 
- ) New      -  create a new payment wallet or upgrade existing to a stake wallet
+ ) New      -  create a new wallet
  ) List     -  list all available wallets in a compact view
  ) Show     -  show detailed view of a specific wallet
  ) Remove   -  remove a wallet
@@ -635,53 +635,24 @@ register the pool on-chain</li>
   [e] Encrypt
   [h] Home
 </code></pre>
-<p><strong>2.</strong> Choose <code>New [n]</code> to go to submenu for creating a new wallet</p>
+<p><strong>2.</strong> Choose <code>New [n]</code> to create a new wallet
+<strong>3.</strong> Give the wallet a name<br />
+<strong>4.</strong> CNTools will give you the wallet address.  For example:</p>
 <pre><code> &gt;&gt; WALLET &gt;&gt; NEW
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- Wallet Type
-
- ) Payment  -  First step for a new wallet
-               A payment wallet can send and receive funds but not delegate/pledge.
-
- ) Stake    -  Upgrade existing payment wallet to a stake wallet
-               Make sure there are funds available in payment wallet before upgrade
-               as this is needed to pay for the stake wallet registration fee.
-               A stake wallet is needed to be able to delegate and pledge to a pool.
-               All funds from payment address will be moved to base address.
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
- Choose wallet type
-
-  [p] Payment
-  [s] Stake
-  [h] Home
-</code></pre>
-<p><strong>3.</strong> Choose <code>Payment [p]</code> type of wallet<br />
-<strong>4.</strong> Give the wallet a name<br />
-<strong>5.</strong> CNTools will give you your payment address.  For example:</p>
-<pre><code> &gt;&gt; WALLET &gt;&gt; NEW &gt;&gt; PAYMENT
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Name of new wallet: bob
 
-New Wallet: bob
-Payment Address: 60f8a4bed2e379cf8ee5aa28bb7b227362b38694368b767b270720760503132fc5
+New Wallet : bob
+Address    : 00cf9ad54b7f6beac642cd460589e5b42ea40d6848aeeafa5e905855ed249d3d7693cb75605a8bc8edc8cca63cee97a3afb5502d0e8c46d212
+
+You can now send and receive ADA using this address.
+Wallet will be automatically registered on chain if you
+choose to delegate or pledge wallet when registering a stake pool.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 </code></pre>
-<p><strong>6.</strong>  Send some money to this wallet. Either through the faucet or have a friend send you some.<br />
-<strong>IMPORTANT</strong> - The wallet must have funds in it before you can proceed.<br />
-<strong>7.</strong>  From the main menu choose <code>Wallet &gt;&gt; New</code> and then this time choose <code>Stake [s]</code> to upgrade your wallet<br />
-<strong>8.</strong>  CNTools will give you a list of wallets you can upgrade. Choose the wallet you created in step 4. In this example case, that wallet is called <code>bob</code>. This will send a transaction to the blockchain to upgrade your wallet to a staking wallet. The result should look something like this:</p>
-<pre><code>New block was created - 23386
-New Stake Wallet : bob
-Payment Address  : 60f8a4bed2e379cf8ee5aa28bb7b227362b38694368b767b270720760503132fc5
-Payment Balance  : 0 ADA
-Base Address     : 00f8a4bed2e379cf8ee5aa28bb7b227362b38694368b767b270720760503132fc545bdb48005781a47a864347843654fd58c1363695453697b5b59fd7ca2af3dc8
-Base Balance     : 99.428691 ADA
-Reward Address   : 5821e045bdb48005781a47a864347843654fd58c1363695453697b5b59fd7ca2af3dc8
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-</code></pre>
-<p>The total balance is 0 for the payment address because ALL funds have been moved to the base address.</p>
+<p><strong>5.</strong>  Send some money to this wallet. Either through the faucet or have a friend send you some.<br />
+<strong>IMPORTANT</strong> - The wallet must have funds in it before you can proceed.</p>
 <h4><a class="header" href="#create-pool" id="create-pool">Create Pool</a></h4>
 <p><strong>1.</strong> From the main menu select <code>Pool [p]</code></p>
 <pre><code> &gt;&gt; POOL
@@ -726,28 +697,36 @@ Start cardano node with the following run arguments:
 --shelley-operational-certificate /opt/cardano/cnode/priv/pool/LOVE/op.cert
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 </code></pre>
-<ol start="4">
-<li>Start or restart your cardano-node with the parameters as shown.  This will ensure your node has all the information necessary to create blocks.<br />
-<strong>IMPORTANT</strong> - If you do not start your node with these parameters you won't be able to make blocks.</li>
-</ol>
+<p><strong>4.</strong>  Start or restart your cardano-node with the parameters as shown.  This will ensure your node has all the information necessary to create blocks.<br />
+<strong>IMPORTANT</strong> - If you do not start your node with these parameters you won't be able to make blocks.</p>
 <h4><a class="header" href="#register-pool" id="register-pool">Register Pool</a></h4>
 <p><strong>1.</strong>  From the main menu select <code>Pool [p]</code><br />
 <strong>2.</strong>  Select <code>Register [r]</code><br />
-<strong>3.</strong>  Select the pool you just created in step 11 above<br />
-<strong>4.</strong>  CNTools will give you prompts to set metadata, pledge, margin and cost. Enter values that are useful to you.<br />
-<strong>IMPORTANT</strong> - Make sure you set your pledge low enough to insure your funds in your wallet will cover pledge plus pool registration fees.</p>
+<strong>3.</strong>  Select the pool you just created<br />
+<strong>4.</strong>  CNTools will give you prompts to set pledge, margin, cost, metadata, and relays. Enter values that are useful to you.<br />
+<strong>IMPORTANT</strong> - Make sure you set your pledge low enough to insure your funds in your wallet will cover pledge plus pool registration fees.<br />
+<strong>5.</strong>  Select wallet to use as pledge wallet, <code>bob</code> in our case.<br />
+As this is a newly created wallet you will be prompted to press a key to continue with wallet registration.<br />
+When complete and if successful, both wallet and pool will be registered on-chain.</p>
 <p>It will look something like this:</p>
 <pre><code> &gt;&gt; POOL &gt;&gt; REGISTER
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Dumping ledger-state from node, can take a while on larger networks...
 
 Select Pool:
 
   LOVE
   [c] Cancel
 
+ -- Pool Parameters --
+
 Pledge (in ADA, default: 50000): 899
 Margin (in %, default: 7.5): 10
 Cost (in ADA, default: 256): 500
+
+ -- Pool Metadata --
+
 Enter Pool's Name (default: LOVE):
 Enter Pool's Ticker , should be between 3-5 characters (default: LOVE):
 Enter Pool's Description (default: No Description): My custom description
@@ -755,15 +734,35 @@ Enter Pool's Homepage (default: https://foo.com): https://love.fake.com
 Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: https://foo.bat/poolmeta.json): https://love.fake.com/poolmeta.json
 
 Please make sure you host your metadata JSON file (with contents as below) at https://love.fake.com/poolmeta.json :
+
 {
   &quot;name&quot;: &quot;LOVE&quot;,
   &quot;ticker&quot;: &quot;LOVE&quot;,
   &quot;description&quot;: &quot;My custom description&quot;,
   &quot;homepage&quot;: &quot;https://love.fake.com&quot;
 }
+
+ -- Pool Relay Registration --
+
+  [d] A or AAAA DNS record  (single)
+  [4] IPv4 address (multiple)
+  [c] Cancel
+
+Enter relays's DNS record, only A or AAAA DNS records (default: ): relay1.love.fake.com
+Enter relays's port (default: ): 3001
+
+Select Pledge Wallet:
+
+  bob  (1000.991236 ADA)
+  [c] Cancel
+
+Funds in pledge wallet: 1000.991236 ADA
+
+Wallet not registered on chain, press any key to continue with registration
+
+... *wallet registration and pool registration output* ... 
 </code></pre>
-<p><strong>5.</strong>  Select the wallet you want to register the pool with.<br />
-<strong>6.</strong>  DONE!</p>
+<p><strong>7.</strong>  DONE!</p>
 <p>The final output on successful registration should look something like this:</p>
 <pre><code>New block was created - 23414
 
