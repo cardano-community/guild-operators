@@ -2187,9 +2187,23 @@ case $OPERATION in
           say "$(printf "%-21s : %s" "Reward account" "${reward_account}")" "log"
         fi
       fi
-      # delegator count
-      delegator_count=$(jq -r '[.esLState._delegationState._dstate._delegations[] | select(.[] == "'"${pool_id}"'")] | length' "${TMP_FOLDER}"/ledger-state.json)
-      say "$(printf "%-21s : %s" "Delegators" "${delegator_count}")" "log"
+      # Delegators
+      say "$(printf "%-21s :" "Delegators")" "log"
+      non_myopic_delegators=$(jq -r ".esNonMyopic.snapNM._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
+      snapshot_delegators=$(jq -r ".esSnapshots._pstakeSet._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
+      lstate_delegators=$(jq -r ".esLState._delegationState._dstate._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
+      delegators=$(echo "${non_myopic_delegators}" "${snapshot_delegators}" "${lstate_delegators}" | tr ' ' '\n' | sort -u)
+      total_stake=0
+      output="$(printf " \tStake\tReward\tStake Address")"
+      for key in $delegators; do
+        stake_address="581de0$key"
+        reward=$(${CCLI} shelley query stake-address-info --address $stake_address --testnet-magic 42 | jq ".[\"$stake_address\"][\"rewardAccountBalance\"]")
+        stake=$(jq ".esLState._utxoState._utxo | .[] | select(.address | contains(\"${key}\")) | .amount" "${TMP_FOLDER}"/ledger-state.json | awk '{total = total + $1} END {print total}')
+        total_stake=$((${total_stake} + ${stake}))
+        output="$(printf "${output}\n \t${stake}\t${reward}\t${stake_address}")"
+      done
+      say "$(printf "${output}\n" | rev | column -t -s $'\t' | rev)" "log"
+      say "$(printf "%-21s : %s ADA" "Stake" "$(numfmt --grouping $(lovelacetoADA ${total_stake}))")" "log"
       stake_pct=$(fractionToPCT "$(printf "%.10f" "$(${CCLI} shelley query stake-distribution --testnet-magic ${NWMAGIC} | grep "${pool_id}" | tr -s ' ' | cut -d ' ' -f 2)")")
       if validateDecimalNbr ${stake_pct}; then
         say "$(printf "%-21s : %s %%" "Stake distribution" "${stake_pct}")" "log"
