@@ -776,7 +776,7 @@ registerStakeWallet() {
 
   say ""
   say " -- Calculate fee --" "log"
-  ${CCLI} shelley transaction build-raw ${txIn} --tx-out ${base_addr}+$(( lovelace - keyDeposit )) --ttl ${ttlValue} --fee 0 --certificate-file ${stake_cert_file} --out-file "${TMP_FOLDER}"/tx0.tmp
+  ${CCLI} shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$(( lovelace - keyDeposit )) --ttl ${ttlValue} --fee 0 --certificate-file ${stake_cert_file} --out-file "${TMP_FOLDER}"/tx0.tmp
   minFeeArgs=(
     shelley transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
