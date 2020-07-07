@@ -2191,22 +2191,24 @@ case $OPERATION in
         fi
       fi
       # Delegators
-      say "$(printf "%-21s :" "Delegators")" "log"
+      printf "Looking for delegators, please wait..."
       non_myopic_delegators=$(jq -r ".esNonMyopic.snapNM._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
       snapshot_delegators=$(jq -r ".esSnapshots._pstakeSet._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
       lstate_delegators=$(jq -r ".esLState._delegationState._dstate._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
       delegators=$(echo "${non_myopic_delegators}" "${snapshot_delegators}" "${lstate_delegators}" | tr ' ' '\n' | sort -u)
       total_stake=0
-      output="$(printf " \tStake\tReward\tStake Address")"
-      for key in $delegators; do
-        stake_address="581de0$key"
-        reward=$(${CCLI} shelley query stake-address-info --address $stake_address --testnet-magic $NWMAGIC | jq ".[\"$stake_address\"][\"rewardAccountBalance\"]")
+      delegator=1
+      for key in ${delegators}; do
+        printf "\r"
+        stake_address="581de0${key}"
+        reward=$(${CCLI} shelley query stake-address-info --address ${stake_address} --testnet-magic ${NWMAGIC} | jq ".[\"${stake_address}\"][\"rewardAccountBalance\"]")
         stake=$(jq ".esLState._utxoState._utxo | .[] | select(.address | contains(\"${key}\")) | .amount" "${TMP_FOLDER}"/ledger-state.json | awk '{total = total + $1} END {print total}')
         total_stake=$((total_stake + stake))
-        output="$(printf "%s\n \t${stake}\t${reward}\t${stake_address}" "${output}")"
+        say "$(printf "%-21s : %s" "Delegator ${delegator} key" "${key}")" "log"
+        say "$(printf "%-21s : ${CYAN}%s${NC} ADA (%s ADA)" " Stake (reward)" "$(numfmt --grouping "$(lovelacetoADA ${stake})")" "$(numfmt --grouping "$(lovelacetoADA ${reward})")")" "log"
+        delegator=$((delegator+1))
       done
-      say "$(printf "%s\n" "${output}" | rev | column -t -s $'\t' | rev)" "log"
-      say "$(printf "%-21s : %s ADA" "Stake" "$(numfmt --grouping "$(lovelacetoADA ${total_stake})")")" "log"
+      say "$(printf "%-21s : ${GREEN}%s${NC} ADA" "Stake" "$(numfmt --grouping "$(lovelacetoADA ${total_stake})")")" "log"
       stake_pct=$(fractionToPCT "$(printf "%.10f" "$(${CCLI} shelley query stake-distribution --testnet-magic ${NWMAGIC} | grep "${pool_id}" | tr -s ' ' | cut -d ' ' -f 2)")")
       if validateDecimalNbr ${stake_pct}; then
         say "$(printf "%-21s : %s %%" "Stake distribution" "${stake_pct}")" "log"
