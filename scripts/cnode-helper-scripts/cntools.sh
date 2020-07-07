@@ -1276,7 +1276,7 @@ case $OPERATION in
       meta_description=$(jq -r .description "${pool_meta_file}")
     fi
     if [[ -f "${pool_config}" ]]; then
-      if [[ -z "$(jq -r .json_url ${pool_config})" ]]; then
+      if [[ "$(jq -r .json_url ${pool_config})" ]]; then
         meta_json_url=$(jq -r .json_url "${pool_config}")
       fi
     fi
