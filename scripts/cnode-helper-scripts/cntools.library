@@ -357,8 +357,8 @@ decryptFile() {
 #   >> tip=$(getTip)
 getTip() {
   tip=$($CCLI shelley query tip --testnet-magic ${NWMAGIC})
-  [[ $1 = "slot" ]] && tipType="Slot" || tipType="Block" # default to use block tip
-  [[ "${tip}" =~ un${tipType}No.=.([[:alnum:]]+) ]] && echo ${BASH_REMATCH[1]}
+  [[ $1 = "slot" ]] && tipType="slot" || tipType="block" # default to use block tip
+  [[ "${tip}" =~ ${tipType}No.\:.([[:alnum:]]+) ]] && echo ${BASH_REMATCH[1]}
 }
 
 # Command    : getEpoch
@@ -628,18 +628,20 @@ sendADA() {
 
   say ""
   say " -- Calculate fee, new amount and remaining balance --" "log"
+  cardano-cli shelley transaction build-raw ${txIn} --tx-out ${dAddr}+${amount} --ttl ${ttlValue} --fee 0 --out-file /tmp/tx0.tmp
   minFeeArgs=(
     shelley transaction calculate-min-fee
+    --tx-body-file /tmp/tx0.tmp
     --tx-in-count ${utxoCount}
     --tx-out-count ${outCount}
-    --ttl ${ttlValue}
     --testnet-magic ${NWMAGIC}
-    --signing-key-file ${sKey}
+    --witness-count 1
+    --byron-witness-count 0
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
 
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
-
+  rm -f /tmp/tx0.tmp
   say "fee is $(numfmt --grouping ${minFee})" "log"
 
   # Sanity checks
@@ -784,20 +786,21 @@ registerStakeWallet() {
 
   say ""
   say " -- Calculate fee --" "log"
+  cardano-cli shelley transaction build-raw ${txIn} --tx-out ${base_addr}+$(( lovelace - keyDeposit )) --ttl ${ttlValue} --fee 0 --certificate-file ${stake_cert_file} --out-file /tmp/tx0.tmp
   minFeeArgs=(
     shelley transaction calculate-min-fee
+    --tx-body-file /tmp/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
-    --ttl ${ttlValue}
     --testnet-magic ${NWMAGIC}
-    --signing-key-file ${payment_sk_file}
-    --signing-key-file ${stake_sk_file}
-    --certificate-file ${stake_cert_file}
+    --witness-count 2
+    --byron-witness-count 0
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
 
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
+  rm -f /tmp/tx0.tmp
 
   if [[ ${lovelace} -lt $(( minFee + keyDeposit )) ]]; then
     say "${RED}ERROR${NC}: Not enough Lovelace in wallet ($(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}) + $(numfmt --grouping ${keyDeposit}))"
@@ -937,21 +940,20 @@ registerPool() {
 
   echo ""
   say " -- Calculate fee, new amount and remaining balance --" "log"
+  cardano-cli shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$(( lovelace - poolDeposit )) --ttl ${ttlValue} --certificate-file ${pool_regcert_file} --certificate-file ${pool_pledgecert_file} --fee 0 --out-file /tmp/tx0.tmp
   minFeeArgs=(
     shelley transaction calculate-min-fee
+    --tx-body-file /tmp/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
-    --ttl ${ttlValue}
     --testnet-magic ${NWMAGIC}
-    --signing-key-file ${pay_payment_sk_file}
-    --signing-key-file ${pool_coldkey_sk_file}
-    --signing-key-file ${stake_sk_file}
-    --certificate-file ${pool_regcert_file}
-    --certificate-file ${pool_pledgecert_file}
+    --witness-count 3
+    --byron-witness-count 0
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
+  rm -f /tmp/tx0.tmp
 
   if [[ ${lovelace} -lt $(( minFee + poolDeposit )) ]]; then
     say "${RED}ERROR${NC}: Not enough Lovelace in base address ( $(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}) + $(numfmt --grouping ${poolDeposit}) )"
@@ -1064,20 +1066,20 @@ modifyPool() {
 
   echo ""
   say " -- Calculate fee, new amount and remaining balance --" "log"
+  cardano-cli shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$lovelace --ttl ${ttlValue} --certificate-file ${pool_regcert_file} --fee 0 --out-file /tmp/tx0.tmp
   minFeeArgs=(
     shelley transaction calculate-min-fee
+    --tx-body-file /tmp/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
-    --ttl ${ttlValue}
     --testnet-magic ${NWMAGIC}
-    --signing-key-file ${pay_payment_sk_file}
-    --signing-key-file ${pool_coldkey_sk_file}
-    --signing-key-file ${stake_sk_file}
-    --certificate-file ${pool_regcert_file}
+    --witness-count 3
+    --byron-witness-count 0
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
+  rm -f /tmp/tx0.tmp
 
   if [[ ${lovelace} -lt ${minFee} ]]; then
     say "${RED}ERROR${NC}: Not enough Lovelace in base address ( $(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}) )"
@@ -1177,19 +1179,20 @@ withdrawRewards() {
 
   say ""
   say " -- Calculate fee, new amount and remaining balance --" "log"
+  cardano-cli shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$(( lovelace + reward_lovelace )) --ttl ${ttlValue} --fee 0 --out-file /tmp/tx0.tmp
   minFeeArgs=(
     shelley transaction calculate-min-fee
+    --tx-body-file /tmp/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
-    --ttl ${ttlValue}
     --testnet-magic ${NWMAGIC}
-    --signing-key-file ${pay_payment_sk_file}
-    --signing-key-file ${stake_sk_file}
-    --withdrawal ${stake_addr}+${reward_lovelace}
+    --witness-count 2
+    --byron-witness-count 0
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
+  rm -f /tmp/tx0.tmp
 
   if [[ ${lovelace} -lt ${minFee} ]]; then
     error "Not enough Lovelace in wallet ( $(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}) )"
@@ -1292,19 +1295,20 @@ delegate() {
 
   echo ""
   say " -- Calculate fee, new amount and remaining balance --" "log"
+  cardano-cli shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$lovelace --ttl ${ttlValue} --fee 0 --certificate-file ${pool_delegcert_file} --out-file /tmp/tx0.tmp
   minFeeArgs=(
     shelley transaction calculate-min-fee
+    --tx-body-file /tmp/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
-    --ttl ${ttlValue}
     --testnet-magic ${NWMAGIC}
-    --signing-key-file ${pay_payment_sk_file}
-    --signing-key-file ${stake_sk_file}
-    --certificate-file ${pool_delegcert_file}
+    --witness-count 2
+    --byron-witness-count 0
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
+  rm -f /tmp/tx0.tmp
 
   if [[ ${lovelace} -lt ${minFee} ]]; then
     error "Not enough Lovelace in wallet ( $(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}) )"
@@ -1399,19 +1403,20 @@ deRegisterPool() {
 
   echo ""
   say " -- Calculate fee, new amount and remaining balance --" "log"
+  cardano-cli shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$lovelace --ttl ${ttlValue} --fee 0 --certificate-file ${pool_deregcert_file} --out-file /tmp/tx0.tmp
   minFeeArgs=(
     shelley transaction calculate-min-fee
+    --tx-body-file /tmp/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
-    --ttl ${ttlValue}
     --testnet-magic ${NWMAGIC}
-    --signing-key-file ${wallet_payment_sk_file}
-    --signing-key-file ${pool_coldkey_sk_file}
-    --certificate-file ${pool_deregcert_file}
+    --witness-count 2
+    --byron-witness-count 0
     --protocol-params-file ${TMP_FOLDER}/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
+  rm -f /tmp/tx0.tmp
   echo ""
   
   if [[ ${lovelace} -lt ${minFee} ]]; then
