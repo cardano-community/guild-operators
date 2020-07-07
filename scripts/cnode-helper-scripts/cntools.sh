@@ -45,15 +45,17 @@ if ! need_cmd "curl" || \
 fi
 
 # check to see if there are any updates available
+clear
+say "CNTools version check...\n"
 URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
 wget -q -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"
 GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
 GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
 if [[ "${CNTOOLS_MAJOR_VERSION}" != "${GIT_MAJOR_VERSION}" || "${CNTOOLS_MINOR_VERSION}" != "${GIT_MINOR_VERSION}" ]]; then
-  clear
-  say "\nA new version of CNTools is available"
-  say "\nInstalled Version : ${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}"
-  say "Available Version : ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}${NC}"
+  say "A new version of CNTools is available" "log"
+  echo ""
+  say "Installed Version : ${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}" "log"
+  say "Available Version : ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}${NC}" "log"
   say "\nGo to Update section for upgrade"
   waitForInput "press any key to proceed to home menu"
 fi
