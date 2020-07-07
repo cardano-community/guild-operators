@@ -43,14 +43,14 @@
     },
     "maxLovelaceSupply": 45000000000000000,
     "networkMagic": 4001,
-    "epochLength": 900,
+    "epochLength": 1800,
     "staking": {
         "pools": {},
         "stake": {}
     },
-    "systemStart": "2020-07-07T05:15Z",
+    "systemStart": "2020-07-07T22:46Z",
     "slotsPerKESPeriod": 150,
-    "slotLength": 2,
+    "slotLength": 1,
     "maxKESEvolutions": 2240,
-    "securityParam": 81
+    "securityParam": 108
 }
