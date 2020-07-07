@@ -30,16 +30,6 @@ log() {
   fi
 }
 
-# Command    : indent
-# Description: Pipe output of command to this function to indent output
-# Parameters : null
-# Return     : Indented output
-# Examples of Usage:
-#   >> some_command | indent
-indent() { 
-  sed 's/^/  /'; 
-}
-
 
 # Command    : waitForInput [optional: message]
 # Description: wait for user keypress to continue
@@ -100,9 +90,9 @@ protectionPreRequisites() {
     return 1
   fi
   
-  touch "${TMP_FOLDER}/test"
-  if ! sudo -n chattr -i "${TMP_FOLDER}/test" 2>&1; then
-    rm -f "${TMP_FOLDER}/test"
+  touch "${TMP_FOLDER}"/test
+  if ! sudo -n chattr -i "${TMP_FOLDER}"/test 2>&1; then
+    rm -f "${TMP_FOLDER}"/test
     echo ""
     say "${ORANGE}WARN${NC}: Elevated privileges needed for chattr command used to write protect wallet and pool keys"
     say "Run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
@@ -111,7 +101,7 @@ protectionPreRequisites() {
     waitForInput
     return 1
   fi
-  rm -f "${TMP_FOLDER}/test"
+  rm -f "${TMP_FOLDER}"/test
 }
 
 
@@ -349,16 +339,17 @@ decryptFile() {
 }
 
 
-# Command    : getTip [optional:slot]
-# Description: Get latest block or slot number
-# Parameters : slot   >   optional parameter to get slot tip instead of block
+# Command    : getBlockTip
+# Description: Get latest block number
 # Return     : string with tip on STDOUT
-# Examples of Usage:
-#   >> tip=$(getTip)
-getTip() {
-  tip=$($CCLI shelley query tip --testnet-magic ${NWMAGIC})
-  [[ $1 = "slot" ]] && tipType="slot" || tipType="block" # default to use block tip
-  [[ "${tip}" =~ ${tipType}No.\:.([[:alnum:]]+) ]] && echo ${BASH_REMATCH[1]}
+getBlockTip() {
+  $CCLI shelley query tip --testnet-magic ${NWMAGIC} | jq -r '.blockNo'
+}
+# Command    : getSlotTip
+# Description: Get latest slot number
+# Return     : string with tip on STDOUT
+getSlotTip() {
+  $CCLI shelley query tip --testnet-magic ${NWMAGIC} | jq -r '.slotNo'
 }
 
 # Command    : getEpoch
@@ -368,7 +359,7 @@ getTip() {
 # Examples of Usage:
 #   >> epoch=$(getEpoch)
 getEpoch() {
-  echo $(( $(getTip slot) / $(jq -r .epochLength ${GENESIS_JSON}) ))
+  echo $(( $(getSlotTip) / $(jq -r .epochLength ${GENESIS_JSON}) ))
 }
 
 
@@ -386,7 +377,7 @@ waitNewBlockCreated() {
   say ""
   say "${BLUE}INFO${NC}: press any key to cancel balance check and return"
   say ""
-  initialTip=$(getTip)
+  initialTip=$(getBlockTip)
   actualTip=${initialTip}
 
   while [ "${actualTip}" = "${initialTip}" ]; do
@@ -395,7 +386,7 @@ waitNewBlockCreated() {
       say "${BLUE}INFO${NC}: Balance check aborted!" "log"
       return 1
     fi
-    actualTip=$(getTip)
+    actualTip=$(getBlockTip)
     COUNTER=$((COUNTER - SLOT_DURATION))
     if [ ${COUNTER} -lt ${SLOT_DURATION} ]; then
       say "${ORANGE}WARN${NC}: waited $(( TIMEOUT_NO_OF_SLOTS * SLOT_DURATION )) secs and no new block created" "log"
@@ -555,13 +546,13 @@ getBalance() {
   
   [[ -z $1 ]] && return 1
 
-  ${CCLI} shelley query utxo --testnet-magic "${NWMAGIC}" --address "${1}" > ${TMP_FOLDER}/fullUtxo.out
-  tail -n +3 ${TMP_FOLDER}/fullUtxo.out | sort -k3 -nr > ${TMP_FOLDER}/balance.out
+  ${CCLI} shelley query utxo --testnet-magic "${NWMAGIC}" --address "${1}" > "${TMP_FOLDER}"/fullUtxo.out
+  tail -n +3 "${TMP_FOLDER}"/fullUtxo.out | sort -k3 -nr > "${TMP_FOLDER}"/balance.out
   
   while read -r utxo; do
     utx0_count=$(( utx0_count + 1 ))
     lovelace=$(( lovelace + $(awk '{ print $3 }' <<< "${utxo}") ))
-  done <${TMP_FOLDER}/balance.out
+  done <"${TMP_FOLDER}"/balance.out
 
   ada=$(lovelacetoADA ${lovelace})
 }
@@ -604,7 +595,7 @@ sendADA() {
 
   say ""
   say " -- Protocol Parameters --"
-  currSlot=$(getTip slot)
+  currSlot=$(getSlotTip)
   ttlValue=$(( currSlot + 1000 ))
   say "TN Magic is ${NWMAGIC}" "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
@@ -622,26 +613,25 @@ sendADA() {
     txIn="${txIn} --tx-in ${inAddr}#${idx}"
     balance=$(( balance + utxoBalance ))
     [[ ${inclFee} = "yes" && ${balance} -ge ${amount} ]] && break
-  done <${TMP_FOLDER}/balance.out
+  done <"${TMP_FOLDER}"/balance.out
 
   [[ ${balance} -eq ${amount} ]] && outCount=1 || outCount=2
 
   say ""
   say " -- Calculate fee, new amount and remaining balance --" "log"
-  cardano-cli shelley transaction build-raw ${txIn} --tx-out ${dAddr}+${amount} --ttl ${ttlValue} --fee 0 --out-file /tmp/tx0.tmp
+  cardano-cli shelley transaction build-raw ${txIn} --tx-out ${dAddr}+${amount} --ttl ${ttlValue} --fee 0 --out-file "${TMP_FOLDER}"/tx0.tmp
   minFeeArgs=(
     shelley transaction calculate-min-fee
-    --tx-body-file /tmp/tx0.tmp
+    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utxoCount}
     --tx-out-count ${outCount}
     --testnet-magic ${NWMAGIC}
     --witness-count 1
     --byron-witness-count 0
-    --protocol-params-file ${TMP_FOLDER}/protparams.json
+    --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
 
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
-  rm -f /tmp/tx0.tmp
   say "fee is $(numfmt --grouping ${minFee})" "log"
 
   # Sanity checks
@@ -683,20 +673,20 @@ sendADA() {
     ${txOut}
     --ttl ${ttlValue}
     --fee ${minFee}
-    --out-file ${TMP_FOLDER}/tx.raw
+    --out-file "${TMP_FOLDER}"/tx.raw
   )
 
   signArgs=(
     shelley transaction sign
-    --tx-body-file ${TMP_FOLDER}/tx.raw
+    --tx-body-file "${TMP_FOLDER}"/tx.raw
     --signing-key-file ${sKey}
     --testnet-magic ${NWMAGIC}
-    --out-file ${TMP_FOLDER}/tx.signed
+    --out-file "${TMP_FOLDER}"/tx.signed
   )
 
   submitArgs=(
     shelley transaction submit
-    --tx-file "${TMP_FOLDER}/tx.signed"
+    --tx-file "${TMP_FOLDER}"/tx.signed
     --testnet-magic ${NWMAGIC}
   )
 
@@ -764,9 +754,9 @@ registerStakeWallet() {
   ${CCLI} shelley stake-address registration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cert_file}"
   
   say " -- Protocol Parameters --"
-  currSlot=$(getTip slot)
+  currSlot=$(getSlotTip)
   ttlValue=$(( currSlot + 1000 ))
-  keyDeposit=$(cat ${TMP_FOLDER}/protparams.json | jq -r '.keyDeposit')
+  keyDeposit=$(cat "${TMP_FOLDER}"/protparams.json | jq -r '.keyDeposit')
   say "Key Deposit is ${keyDeposit}"
   say "TN Magic is ${NWMAGIC}" "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
@@ -782,25 +772,24 @@ registerStakeWallet() {
     say "TxHash: ${in_addr}#${idx}" "log"
     say "Lovelace: $(numfmt --grouping ${utxo_balance})" "log"
     tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <${TMP_FOLDER}/balance.out
+  done <"${TMP_FOLDER}"/balance.out
 
   say ""
   say " -- Calculate fee --" "log"
-  cardano-cli shelley transaction build-raw ${txIn} --tx-out ${base_addr}+$(( lovelace - keyDeposit )) --ttl ${ttlValue} --fee 0 --certificate-file ${stake_cert_file} --out-file /tmp/tx0.tmp
+  cardano-cli shelley transaction build-raw ${txIn} --tx-out ${base_addr}+$(( lovelace - keyDeposit )) --ttl ${ttlValue} --fee 0 --certificate-file ${stake_cert_file} --out-file "${TMP_FOLDER}"/tx0.tmp
   minFeeArgs=(
     shelley transaction calculate-min-fee
-    --tx-body-file /tmp/tx0.tmp
+    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
     --testnet-magic ${NWMAGIC}
     --witness-count 2
     --byron-witness-count 0
-    --protocol-params-file ${TMP_FOLDER}/protparams.json
+    --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
 
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
-  rm -f /tmp/tx0.tmp
 
   if [[ ${lovelace} -lt $(( minFee + keyDeposit )) ]]; then
     say "${RED}ERROR${NC}: Not enough Lovelace in wallet ($(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}) + $(numfmt --grouping ${keyDeposit}))"
@@ -819,21 +808,21 @@ registerStakeWallet() {
     --ttl ${ttlValue}
     --fee ${minFee}
     --certificate-file ${stake_cert_file}
-    --out-file ${TMP_FOLDER}/tx.raw
+    --out-file "${TMP_FOLDER}"/tx.raw
   )
 
   signArgs=(
     shelley transaction sign
-    --tx-body-file ${TMP_FOLDER}/tx.raw
+    --tx-body-file "${TMP_FOLDER}"/tx.raw
     --signing-key-file ${payment_sk_file}
     --signing-key-file ${stake_sk_file}
     --testnet-magic ${NWMAGIC}
-    --out-file ${TMP_FOLDER}/tx.signed
+    --out-file "${TMP_FOLDER}"/tx.signed
   )
 
   submitArgs=(
     shelley transaction submit
-    --tx-file "${TMP_FOLDER}/tx.signed"
+    --tx-file "${TMP_FOLDER}"/tx.signed
     --testnet-magic ${NWMAGIC}
   )
 
@@ -915,7 +904,7 @@ registerPool() {
   echo ""
   say " -- Register Pool and Pledge on Chain --" "log"
 
-  if [[ ! -s ${TMP_FOLDER}/balance.out ]]; then
+  if [[ ! -s "${TMP_FOLDER}"/balance.out ]]; then
     say "${RED}ERROR${NC}: wallet empty"
     return 1
   fi
@@ -927,33 +916,32 @@ registerPool() {
     idx=$(awk '{ print $2 }' <<< "${utxo}")
     utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
     tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <${TMP_FOLDER}/balance.out
+  done <"${TMP_FOLDER}"/balance.out
 
   echo ""
   say " -- Protocol Parameters --"
-  currSlot=$(getTip slot)
+  currSlot=$(getSlotTip)
   ttlValue=$(( currSlot + 1000 ))
-  poolDeposit=$(cat ${TMP_FOLDER}/protparams.json | jq -r '.poolDeposit')
+  poolDeposit=$(cat "${TMP_FOLDER}"/protparams.json | jq -r '.poolDeposit')
   say "TN Magic is ${NWMAGIC}" "log"
   say "Pool Deposit is ${poolDeposit}"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
 
   echo ""
   say " -- Calculate fee, new amount and remaining balance --" "log"
-  cardano-cli shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$(( lovelace - poolDeposit )) --ttl ${ttlValue} --certificate-file ${pool_regcert_file} --certificate-file ${pool_pledgecert_file} --fee 0 --out-file /tmp/tx0.tmp
+  cardano-cli shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$(( lovelace - poolDeposit )) --ttl ${ttlValue} --certificate-file ${pool_regcert_file} --certificate-file ${pool_pledgecert_file} --fee 0 --out-file "${TMP_FOLDER}"/tx0.tmp
   minFeeArgs=(
     shelley transaction calculate-min-fee
-    --tx-body-file /tmp/tx0.tmp
+    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
     --testnet-magic ${NWMAGIC}
     --witness-count 3
     --byron-witness-count 0
-    --protocol-params-file ${TMP_FOLDER}/protparams.json
+    --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
-  rm -f /tmp/tx0.tmp
 
   if [[ ${lovelace} -lt $(( minFee + poolDeposit )) ]]; then
     say "${RED}ERROR${NC}: Not enough Lovelace in base address ( $(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}) + $(numfmt --grouping ${poolDeposit}) )"
@@ -972,22 +960,22 @@ registerPool() {
     --fee ${minFee}
     --certificate-file ${pool_regcert_file}
     --certificate-file ${pool_pledgecert_file}
-    --out-file ${TMP_FOLDER}/tx.raw
+    --out-file "${TMP_FOLDER}"/tx.raw
   )
 
   signArgs=(
     shelley transaction sign
-    --tx-body-file ${TMP_FOLDER}/tx.raw
+    --tx-body-file "${TMP_FOLDER}"/tx.raw
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${pool_coldkey_sk_file}
     --signing-key-file ${stake_sk_file}
     --testnet-magic ${NWMAGIC}
-    --out-file ${TMP_FOLDER}/tx.signed
+    --out-file "${TMP_FOLDER}"/tx.signed
   )
 
   submitArgs=(
     shelley transaction submit
-    --tx-file "${TMP_FOLDER}/tx.signed"
+    --tx-file "${TMP_FOLDER}"/tx.signed
     --testnet-magic ${NWMAGIC}
   )
 
@@ -1043,7 +1031,7 @@ modifyPool() {
   
   echo ""
   say " -- Modify Pool Parameters and Update on Chain --" "log"
-  if [[ ! -s ${TMP_FOLDER}/balance.out ]]; then
+  if [[ ! -s "${TMP_FOLDER}"/balance.out ]]; then
     say "${RED}ERROR${NC}: wallet empty"
     return 1
   fi
@@ -1055,31 +1043,30 @@ modifyPool() {
     idx=$(awk '{ print $2 }' <<< "${utxo}")
     utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
     tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <${TMP_FOLDER}/balance.out
+  done <"${TMP_FOLDER}"/balance.out
 
   echo ""
   say " -- Protocol Parameters --"
-  currSlot=$(getTip slot)
+  currSlot=$(getSlotTip)
   ttlValue=$(( currSlot + 1000 ))
   say "TN Magic is ${NWMAGIC}" "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
 
   echo ""
   say " -- Calculate fee, new amount and remaining balance --" "log"
-  cardano-cli shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$lovelace --ttl ${ttlValue} --certificate-file ${pool_regcert_file} --fee 0 --out-file /tmp/tx0.tmp
+  cardano-cli shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$lovelace --ttl ${ttlValue} --certificate-file ${pool_regcert_file} --fee 0 --out-file "${TMP_FOLDER}"/tx0.tmp
   minFeeArgs=(
     shelley transaction calculate-min-fee
-    --tx-body-file /tmp/tx0.tmp
+    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
     --testnet-magic ${NWMAGIC}
     --witness-count 3
     --byron-witness-count 0
-    --protocol-params-file ${TMP_FOLDER}/protparams.json
+    --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
-  rm -f /tmp/tx0.tmp
 
   if [[ ${lovelace} -lt ${minFee} ]]; then
     say "${RED}ERROR${NC}: Not enough Lovelace in base address ( $(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}) )"
@@ -1097,22 +1084,22 @@ modifyPool() {
     --ttl ${ttlValue}
     --fee ${minFee}
     --certificate-file ${pool_regcert_file}
-    --out-file ${TMP_FOLDER}/tx.raw
+    --out-file "${TMP_FOLDER}"/tx.raw
   )
 
   signArgs=(
     shelley transaction sign
-    --tx-body-file ${TMP_FOLDER}/tx.raw
+    --tx-body-file "${TMP_FOLDER}"/tx.raw
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${pool_coldkey_sk_file}
     --signing-key-file ${stake_sk_file}
     --testnet-magic ${NWMAGIC}
-    --out-file ${TMP_FOLDER}/tx.signed
+    --out-file "${TMP_FOLDER}"/tx.signed
   )
 
   submitArgs=(
     shelley transaction submit
-    --tx-file "${TMP_FOLDER}/tx.signed"
+    --tx-file "${TMP_FOLDER}"/tx.signed
     --testnet-magic ${NWMAGIC}
   )
 
@@ -1158,7 +1145,7 @@ withdrawRewards() {
   reward_lovelace="$6"
 
   echo ""
-  if [[ ! -s ${TMP_FOLDER}/balance.out ]]; then
+  if [[ ! -s "${TMP_FOLDER}"/balance.out ]]; then
     say "${RED}ERROR${NC}: wallet empty"
     return 1
   fi
@@ -1170,29 +1157,28 @@ withdrawRewards() {
     idx=$(awk '{ print $2 }' <<< "${utxo}")
     utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
     tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <${TMP_FOLDER}/balance.out
+  done <"${TMP_FOLDER}"/balance.out
 
   say " -- Protocol Parameters --"
-  currSlot=$(getTip slot)
+  currSlot=$(getSlotTip)
   ttlValue=$(( currSlot + 1000 ))
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
 
   say ""
   say " -- Calculate fee, new amount and remaining balance --" "log"
-  cardano-cli shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$(( lovelace + reward_lovelace )) --ttl ${ttlValue} --fee 0 --out-file /tmp/tx0.tmp
+  cardano-cli shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$(( lovelace + reward_lovelace )) --ttl ${ttlValue} --fee 0 --out-file "${TMP_FOLDER}"/tx0.tmp
   minFeeArgs=(
     shelley transaction calculate-min-fee
-    --tx-body-file /tmp/tx0.tmp
+    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
     --testnet-magic ${NWMAGIC}
     --witness-count 2
     --byron-witness-count 0
-    --protocol-params-file ${TMP_FOLDER}/protparams.json
+    --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
-  rm -f /tmp/tx0.tmp
 
   if [[ ${lovelace} -lt ${minFee} ]]; then
     error "Not enough Lovelace in wallet ( $(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}) )"
@@ -1210,21 +1196,21 @@ withdrawRewards() {
     --withdrawal ${stake_addr}+${reward_lovelace}
     --ttl ${ttlValue}
     --fee ${minFee}
-    --out-file ${TMP_FOLDER}/tx.raw
+    --out-file "${TMP_FOLDER}"/tx.raw
   )
 
   signArgs=(
     shelley transaction sign
-    --tx-body-file ${TMP_FOLDER}/tx.raw
+    --tx-body-file "${TMP_FOLDER}"/tx.raw
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${stake_sk_file}
     --testnet-magic ${NWMAGIC}
-    --out-file ${TMP_FOLDER}/tx.signed
+    --out-file "${TMP_FOLDER}"/tx.signed
   )
 
   submitArgs=(
     shelley transaction submit
-    --tx-file "${TMP_FOLDER}/tx.signed"
+    --tx-file "${TMP_FOLDER}"/tx.signed
     --testnet-magic ${NWMAGIC}
   )
 
@@ -1284,31 +1270,30 @@ delegate() {
     idx=$(awk '{ print $2 }' <<< "${utxo}")
     utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
     tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <${TMP_FOLDER}/balance.out
+  done <"${TMP_FOLDER}"/balance.out
   
   echo ""
   say " -- Protocol Parameters --"
-  currSlot=$(getTip slot)
+  currSlot=$(getSlotTip)
   ttlValue=$(( currSlot + 1000 ))
   say "TN Magic is ${NWMAGIC}" "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
 
   echo ""
   say " -- Calculate fee, new amount and remaining balance --" "log"
-  cardano-cli shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$lovelace --ttl ${ttlValue} --fee 0 --certificate-file ${pool_delegcert_file} --out-file /tmp/tx0.tmp
+  cardano-cli shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$lovelace --ttl ${ttlValue} --fee 0 --certificate-file ${pool_delegcert_file} --out-file "${TMP_FOLDER}"/tx0.tmp
   minFeeArgs=(
     shelley transaction calculate-min-fee
-    --tx-body-file /tmp/tx0.tmp
+    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
     --testnet-magic ${NWMAGIC}
     --witness-count 2
     --byron-witness-count 0
-    --protocol-params-file ${TMP_FOLDER}/protparams.json
+    --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
-  rm -f /tmp/tx0.tmp
 
   if [[ ${lovelace} -lt ${minFee} ]]; then
     error "Not enough Lovelace in wallet ( $(numfmt --grouping ${lovelace}) < $(numfmt --grouping ${minFee}) )"
@@ -1326,21 +1311,21 @@ delegate() {
     --ttl ${ttlValue}
     --fee ${minFee}
     --certificate-file ${pool_delegcert_file}
-    --out-file ${TMP_FOLDER}/tx.raw
+    --out-file "${TMP_FOLDER}"/tx.raw
   )
 
   signArgs=(
     shelley transaction sign
-    --tx-body-file ${TMP_FOLDER}/tx.raw
+    --tx-body-file "${TMP_FOLDER}"/tx.raw
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${stake_sk_file}
     --testnet-magic ${NWMAGIC}
-    --out-file ${TMP_FOLDER}/tx.signed
+    --out-file "${TMP_FOLDER}"/tx.signed
   )
 
   submitArgs=(
     shelley transaction submit
-    --tx-file "${TMP_FOLDER}/tx.signed"
+    --tx-file "${TMP_FOLDER}"/tx.signed
     --testnet-magic ${NWMAGIC}
   )
 
@@ -1392,31 +1377,30 @@ deRegisterPool() {
     idx=$(awk '{ print $2 }' <<< "${utxo}")
     utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
     tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <${TMP_FOLDER}/balance.out
+  done <"${TMP_FOLDER}"/balance.out
   
   echo ""
   say " -- Protocol Parameters --"
-  currSlot=$(getTip slot)
+  currSlot=$(getSlotTip)
   ttlValue=$(( currSlot + 1000 ))
   say "TN Magic is ${NWMAGIC}" "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" "log"
 
   echo ""
   say " -- Calculate fee, new amount and remaining balance --" "log"
-  cardano-cli shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$lovelace --ttl ${ttlValue} --fee 0 --certificate-file ${pool_deregcert_file} --out-file /tmp/tx0.tmp
+  cardano-cli shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$lovelace --ttl ${ttlValue} --fee 0 --certificate-file ${pool_deregcert_file} --out-file "${TMP_FOLDER}"/tx0.tmp
   minFeeArgs=(
     shelley transaction calculate-min-fee
-    --tx-body-file /tmp/tx0.tmp
+    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
     --testnet-magic ${NWMAGIC}
     --witness-count 2
     --byron-witness-count 0
-    --protocol-params-file ${TMP_FOLDER}/protparams.json
+    --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
   minFee=$(${CCLI} ${minFeeArgs[*]} | awk '{ print $2 }')
   say "fee is $(numfmt --grouping ${minFee})" "log"
-  rm -f /tmp/tx0.tmp
   echo ""
   
   if [[ ${lovelace} -lt ${minFee} ]]; then
@@ -1435,21 +1419,21 @@ deRegisterPool() {
     --ttl ${ttlValue}
     --fee ${minFee}
     --certificate-file ${pool_deregcert_file}
-    --out-file ${TMP_FOLDER}/tx.raw
+    --out-file "${TMP_FOLDER}"/tx.raw
   )
 
   signArgs=(
     shelley transaction sign
-    --tx-body-file ${TMP_FOLDER}/tx.raw
+    --tx-body-file "${TMP_FOLDER}"/tx.raw
     --signing-key-file ${wallet_payment_sk_file}
     --signing-key-file ${pool_coldkey_sk_file}
     --testnet-magic ${NWMAGIC}
-    --out-file ${TMP_FOLDER}/tx.signed
+    --out-file "${TMP_FOLDER}"/tx.signed
   )
 
   submitArgs=(
     shelley transaction submit
-    --tx-file "${TMP_FOLDER}/tx.signed"
+    --tx-file "${TMP_FOLDER}"/tx.signed
     --testnet-magic ${NWMAGIC}
   )
 

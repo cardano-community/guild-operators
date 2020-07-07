@@ -26,7 +26,7 @@ if [[ ! -d "${TMP_FOLDER}" ]]; then
 fi
 
 # Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
-${CCLI} shelley query protocol-parameters --testnet-magic ${NWMAGIC} --out-file ${TMP_FOLDER}/protparams.json || {
+${CCLI} shelley query protocol-parameters --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/protparams.json || {
   say "\n"
   say "${ORANGE}WARN${NC}: failed to query protocol parameters, node running and env parameters correct?"
   say "\n${BLUE}Press c to continue or any other key to quit${NC}"
@@ -288,7 +288,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
-    if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
+    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
@@ -328,8 +328,8 @@ case $OPERATION in
     if [[ ${utx0_count} -gt 0 ]]; then
       echo ""
       say "${BLUE}UTxOs${NC}"
-      head -n 2 ${TMP_FOLDER}/fullUtxo.out
-      head -n 10 ${TMP_FOLDER}/balance.out
+      head -n 2 "${TMP_FOLDER}"/fullUtxo.out
+      head -n 10 "${TMP_FOLDER}"/balance.out
       [[ ${utx0_count} -gt 10 ]] && say "... (top 10 UTx0 with most lovelace)"
     fi
     
@@ -339,8 +339,8 @@ case $OPERATION in
     if [[ ${utx0_count} -gt 0 ]]; then
       echo ""
       say "${BLUE}Enterprise UTxOs${NC}"
-      head -n 2 ${TMP_FOLDER}/fullUtxo.out
-      head -n 10 ${TMP_FOLDER}/balance.out
+      head -n 2 "${TMP_FOLDER}"/fullUtxo.out
+      head -n 10 "${TMP_FOLDER}"/balance.out
       [[ ${utx0_count} -gt 10 ]] && say "... (top 10 UTx0 with most lovelace)"
     fi
     
@@ -381,7 +381,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
-    if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
+    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
@@ -631,7 +631,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
 
-    if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
+    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
@@ -718,7 +718,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
-    if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
+    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
@@ -941,7 +941,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
-    if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
+    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
@@ -1035,7 +1035,7 @@ case $OPERATION in
       1) read -r -p "vkey cbor-hex(blank to cancel): " vkey_cbor 
          [[ -z "${vkey_cbor}" ]] && continue
          pool_name="${vkey_cbor}"
-         pool_coldkey_vk_file="${TMP_FOLDER}/pool_delegation.vkey"
+         pool_coldkey_vk_file="${TMP_FOLDER}"/pool_delegation.vkey
          echo "type: Node operator verification key" > "${pool_coldkey_vk_file}"
          echo "title: Stake pool operator key" >> "${pool_coldkey_vk_file}"
          echo "cbor-hex:" >> "${pool_coldkey_vk_file}"
@@ -1156,7 +1156,7 @@ case $OPERATION in
     fi
 
     #Calculate appropriate KES period
-    currSlot=$(getTip slot)
+    currSlot=$(getSlotTip)
     slotsPerKESPeriod=$(jq -r .slotsPerKESPeriod $GENESIS_JSON)
     start_kes_period=$(( currSlot / slotsPerKESPeriod  ))
     echo "${start_kes_period}" > ${pool_saved_kes_start}
@@ -1186,7 +1186,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
-    if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
+    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
@@ -1569,7 +1569,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
-    if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
+    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
@@ -2075,7 +2075,7 @@ case $OPERATION in
     say " >> POOL >> LIST" "log"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     
-    if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
+    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
@@ -2113,7 +2113,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
-    if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
+    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
@@ -2235,7 +2235,7 @@ case $OPERATION in
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo ""
     
-    if [[ ! -f ${TMP_FOLDER}/protparams.json ]]; then
+    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
@@ -2270,7 +2270,7 @@ case $OPERATION in
     pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
 
     #Calculate appropriate KES period
-    currSlot=$(getTip slot)
+    currSlot=$(getSlotTip)
     slotsPerKESPeriod=$(jq -r .slotsPerKESPeriod $GENESIS_JSON)
     start_kes_period=$(( currSlot / slotsPerKESPeriod  ))
 
