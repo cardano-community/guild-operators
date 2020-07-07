@@ -2203,10 +2203,10 @@ case $OPERATION in
       for key in ${delegators}; do
         printf "\r"
         stake_address="581de0${key}"
-        reward=$(${CCLI} shelley query stake-address-info --address ${stake_address} --testnet-magic ${NWMAGIC} | jq ".[\"${stake_address}\"][\"rewardAccountBalance\"]")
+        reward=$(jq -r ".esLState._delegationState._dstate._rewards | .[] | select(.[0][\"credential\"][\"key hash\"] == \"${key}\") | .[1]" "${TMP_FOLDER}"/ledger-state.json)
         stake=$(jq ".esLState._utxoState._utxo | .[] | select(.address | contains(\"${key}\")) | .amount" "${TMP_FOLDER}"/ledger-state.json | awk '{total = total + $1} END {print total}')
         total_stake=$((total_stake + stake))
-        say "$(printf "%-21s : %s" "Delegator ${delegator} key" "${key}")" "log"
+        say "$(printf "%-21s : %s" "Delegator ${delegator} hex key" "${key}")" "log"
         say "$(printf "%-21s : ${CYAN}%s${NC} ADA (%s ADA)" " Stake (reward)" "$(numfmt --grouping "$(lovelacetoADA ${stake})")" "$(numfmt --grouping "$(lovelacetoADA ${reward})")")" "log"
         delegator=$((delegator+1))
       done
