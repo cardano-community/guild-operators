@@ -2203,9 +2203,9 @@ case $OPERATION in
       for key in ${delegators}; do
         printf "\r"
         stake_address="581de0${key}"
+        stake=$(jq ".esLState._utxoState._utxo | .[] | select(.address | contains(\"${key}\")) | .amount" "${TMP_FOLDER}"/ledger-state.json | awk 'BEGIN{total = 0} {total = total + $1} END{print total}')
         reward=$(jq -r ".esLState._delegationState._dstate._rewards | .[] | select(.[0][\"credential\"][\"key hash\"] == \"${key}\") | .[1]" "${TMP_FOLDER}"/ledger-state.json)
-        stake=$(jq ".esLState._utxoState._utxo | .[] | select(.address | contains(\"${key}\")) | .amount" "${TMP_FOLDER}"/ledger-state.json | awk '{total = total + $1} END {print total}')
-        total_stake=$((total_stake + stake))
+        total_stake=$((total_stake + stake + reward))
         say "$(printf "%-21s : %s" "Delegator ${delegator} hex key" "${key}")" "log"
         say "$(printf "%-21s : ${CYAN}%s${NC} ADA (%s ADA)" " Stake (reward)" "$(numfmt --grouping "$(lovelacetoADA ${stake})")" "$(numfmt --grouping "$(lovelacetoADA ${reward})")")" "log"
         delegator=$((delegator+1))
