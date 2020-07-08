@@ -7,7 +7,7 @@
             "major": 0
         },
         "minUTxOValue": 0,
-        "decentralisationParam": 0.5,
+        "decentralisationParam": 0.7,
         "maxTxSize": 16384,
         "minPoolCost": 0,
         "minFeeA": 10,
@@ -19,12 +19,12 @@
         },
         "maxBlockHeaderSize": 1100,
         "keyDeposit": 40,
-        "nOpt": 3,
-        "rho": 2.2e-4,
+        "nOpt": 30,
+        "rho": 2.2e-7,
         "tau": 0.1,
         "a0": 0.3
     },
-    "protocolMagicId": 4001,
+    "protocolMagicId": 4002,
     "genDelegs": {
         "54511819e206bd4d72d0fcdf8dc3b6f3e352384ca199cdbddfd63ee7": {
             "delegate": "0490a125fa335138f5e07d76f1d3c602a9942cde3141ffb741069fd0",
@@ -42,15 +42,15 @@
         "604bde84fe6661cd5e8d6dd63fba7149048e460edee41f6ef87e506b73": 37000000000000000
     },
     "maxLovelaceSupply": 45000000000000000,
-    "networkMagic": 4001,
+    "networkMagic": 4002,
     "epochLength": 1800,
     "staking": {
         "pools": {},
         "stake": {}
     },
-    "systemStart": "2020-07-07T22:46Z",
-    "slotsPerKESPeriod": 150,
+    "systemStart": "2020-07-08T07:50Z",
+    "slotsPerKESPeriod": 300,
     "slotLength": 1,
-    "maxKESEvolutions": 2240,
+    "maxKESEvolutions": 900,
     "securityParam": 108
 }
