@@ -174,7 +174,6 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    pay_wallets_with_funds=()
     while IFS= read -r -d '' wallet; do
       wallet_name=$(basename ${wallet})
       enc_files=$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -printf '.' | wc -c)
@@ -196,7 +195,6 @@ case $OPERATION in
         getBalance ${pay_addr}
         if [[ ${lovelace} -gt 0 ]]; then
           say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds"  "$(numfmt --grouping ${ada})")" "log"
-          pay_wallets_with_funds+=("${wallet_name}")
         fi
       fi
       if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
@@ -224,59 +222,6 @@ case $OPERATION in
     done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
     say ""
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    
-    if [[ ${#pay_wallets_with_funds[@]} -gt 0 ]]; then
-      say ""
-      say "Wallets found with funds in payment/enterprise address:" "log"
-      say "${GREEN}${pay_wallets_with_funds[*]}${NC}" "log"
-      say ""
-      say "Do you want to upgrade these wallets to CNTools compatible wallets that can be delegated?\n"
-      case $(select_opt "[n] No" "[y] Yes") in
-        0) say "Upgrade process aborted!"
-           ;;
-        1) for wallet_name in "${pay_wallets_with_funds[@]}"; do
-             say "Wallet: ${GREEN}${wallet_name}${NC}"
-             # Wallet key filenames
-             payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
-             payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-             stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-             stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-             if [[ -f ${payment_vk_file} && -f ${payment_sk_file} && ! -f ${stake_vk_file} && ! -f ${stake_sk_file} ]]; then
-               # create stake keys and addresses
-               ${CCLI} shelley stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}"
-             elif [[ ! -f ${payment_vk_file} || ! -f ${payment_sk_file} || ! -f ${stake_vk_file} || ! -f ${stake_sk_file} ]]; then
-               say "${RED}ERROR${NC}: missing wallet files, unable to continue. Expecting these files to exist:"
-               say "${payment_vk_file}"
-               say "${payment_sk_file}"
-               say "${stake_vk_file}"
-               say "${stake_sk_file}"
-             fi
-             getPayAddress ${wallet_name}
-             getBaseAddress ${wallet_name}
-             getRewardAddress ${wallet_name}
-             getBalance ${pay_addr}
-             say "Sending all funds($(numfmt --grouping ${ada}) ADA) to wallets base address"
-             if ! sendADA "${base_addr}" "${lovelace}" "${pay_addr}" "${payment_sk_file}" "yes" >/dev/null; then
-               waitForInput "Failure while sending funds, press any key to continue"
-             else
-               say ""
-             fi
-           done
-           if ! waitNewBlockCreated; then
-             waitForInput && continue
-           fi 
-           getBalance ${pay_addr}
-           while [[ ${lovelace} -ne 0 ]]; do
-             say ""
-             say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${lovelace}) != 0)"
-             if ! waitNewBlockCreated; then
-               break
-             fi
-             getBalance ${pay_addr}
-           done
-           ;;
-      esac
-    fi
     
     waitForInput
     ;; ###################################################################
@@ -1069,7 +1014,6 @@ case $OPERATION in
     say "Pool   : ${GREEN}${pool_name}${NC}" "log"
     say "Amount : $(numfmt --grouping ${ada}) ADA" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    say ""
 
     waitForInput && continue
     ;; ###################################################################
@@ -1133,10 +1077,8 @@ case $OPERATION in
     pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
     pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
     pool_opcert_counter_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_COUNTER_FILENAME}"
-    pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
     pool_vrf_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_VK_FILENAME}"
     pool_vrf_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_SK_FILENAME}"
-    pool_saved_kes_start="${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}"
 
     if [[ -f "${pool_hotkey_vk_file}" ]]; then
       say "${RED}WARN${NC}: A pool ${GREEN}$pool_name${NC} already exists"
@@ -1144,26 +1086,14 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    #Calculate appropriate KES period
-    currSlot=$(getSlotTip)
-    slotsPerKESPeriod=$(jq -r .slotsPerKESPeriod $GENESIS_JSON)
-    start_kes_period=$(( currSlot / slotsPerKESPeriod  ))
-    echo "${start_kes_period}" > ${pool_saved_kes_start}
-
     ${CCLI} shelley node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
     ${CCLI} shelley node key-gen --cold-verification-key-file "${pool_coldkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
     ${CCLI} shelley stake-pool id --verification-key-file "${pool_coldkey_vk_file}" > "${pool_id_file}"
-    ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${start_kes_period}" --out-file "${pool_opcert_file}"
     ${CCLI} shelley node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
 
     say "Pool: ${GREEN}${pool_name}${NC}" "log"
     say "PoolPubKey: $(cat "${pool_id_file}")" "log"
-    say "Start cardano node with the following run arguments:" "log"
-    say "--shelley-kes-key ${pool_hotkey_sk_file}" "log"
-    say "--shelley-vrf-key ${pool_vrf_sk_file}" "log"
-    say "--shelley-operational-certificate ${pool_opcert_file}" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    say ""
     waitForInput && continue
     
     ;; ###################################################################
@@ -1312,6 +1242,8 @@ case $OPERATION in
     
     relay_counter=0
     relay_output=""
+    relay_address=""
+    relay_port=""
     relay_array=()
     say "\n# Pool Relay Registration\n"
     if [[ -f "${pool_config}" && -n $(jq '.relays //empty' "${pool_config}") ]]; then
@@ -1393,9 +1325,9 @@ case $OPERATION in
            relay_array+=( "type" "IPv4" "address" "${relay_address}" "port" "${relay_port}" )
            relay_output+="--pool-relay-port ${relay_port} --pool-relay-ipv4 ${relay_address} "
            say "\nAdd more IPv4 entries?\n"
-           case $(select_opt "[y] Yes" "[n] No" "[c] Cancel") in
-             0) ((relay_counter++)) && continue ;;
-             1) break ;;
+           case $(select_opt "[n] No" "[y] Yes" "[c] Cancel") in
+             0) break ;;
+             1) ((relay_counter++)) && continue ;;
              2) continue 2 ;;
            esac
          done
@@ -1470,18 +1402,22 @@ case $OPERATION in
     # Save pool config
     echo "{\"pledgeWallet\":\"$pledge_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\",\"relays\": $relay_json}" > "${pool_config}"
     
-    base_addr_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_BASE_ADDR_FILENAME}"
     pay_payment_sk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_PAY_SK_FILENAME}"
     stake_sk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_STAKE_SK_FILENAME}"
     stake_vk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_STAKE_VK_FILENAME}"
 
+    pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
     pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
     pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
     pool_vrf_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_VK_FILENAME}"
+    pool_opcert_counter_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_COUNTER_FILENAME}"
+    pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
+    pool_saved_kes_start="${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}"
+    pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
+    pool_pledgecert_file="${POOL_FOLDER}/${pool_name}/${POOL_PLEDGECERT_FILENAME}"
 
-    if [[ ! -f "${base_addr_file}" || ! -f "${pay_payment_sk_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" ]]; then
+    if [[ ! -f "${pay_payment_sk_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" ]]; then
       say "${RED}ERROR${NC}: Source pledge wallet files missing, expecting these files to be available:"
-      say "${base_addr_file}"
       say "${pay_payment_sk_file}"
       say "${stake_sk_file}"
       say "${stake_vk_file}"
@@ -1496,21 +1432,26 @@ case $OPERATION in
       waitForInput && continue
     }
 
-    #Generated Files
-    pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
-    pool_pledgecert_file="${POOL_FOLDER}/${pool_name}/${POOL_PLEDGECERT_FILENAME}"
-    
     say "\n"
     say "# Register Stake Pool" "log"
-    say "creating registration cert" 1 "log"
+    
+    #Calculate appropriate KES period
+    currSlot=$(getSlotTip)
+    slotsPerKESPeriod=$(jq -r .slotsPerKESPeriod $GENESIS_JSON)
+    start_kes_period=$(( currSlot / slotsPerKESPeriod  ))
+    echo "${start_kes_period}" > ${pool_saved_kes_start}
+    say "creating operational certificate" 1 "log"
+    ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${start_kes_period}" --out-file "${pool_opcert_file}"
+    
+    say "creating registration certificate" 1 "log"
     say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${stake_vk_file} --pool-owner-stake-verification-key-file ${stake_vk_file} --out-file ${pool_regcert_file} --testnet-magic ${NWMAGIC} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output}" 2
     ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output}
-    say "creating delegation cert" 1 "log"
+    say "creating delegation certificate" 1 "log"
     say "$ ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file ${stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${pool_pledgecert_file}" 2
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
     
     say "sending transaction to chain" 1 "log"
-    if ! registerPool "$(cat ${base_addr_file})" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pool_pledgecert_file}" "${pay_payment_sk_file}"; then
+    if ! registerPool "${base_addr}" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pool_pledgecert_file}" "${pay_payment_sk_file}"; then
       say "${RED}ERROR${NC}: failure during pool registration, removing newly created pledge and registration files"
       rm -f "${pool_regcert_file}" "${pool_pledgecert_file}"
       waitForInput && continue
@@ -1540,13 +1481,17 @@ case $OPERATION in
     say "Pledge : $(numfmt --grouping ${pledge_ada}) ADA" "log"
     say "Margin : ${margin}%" "log"
     say "Cost   : $(numfmt --grouping ${cost_ada}) ADA" "log"
+    say ""
+    say "Start cardano node with the following run arguments:" "log"
+    say "--shelley-kes-key ${pool_hotkey_sk_file}" "log"
+    say "--shelley-vrf-key ${pool_vrf_sk_file}" "log"
+    say "--shelley-operational-certificate ${pool_opcert_file}" "log"
     if [[ ${lovelace} -lt ${pledge_lovelace} ]]; then
       say ""
       say "${ORANGE}WARN${NC}: Balance in pledge wallet is less than set pool pledge"
       say "      make sure to put enough funds in wallet to honor pledge"
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    say ""
     waitForInput && continue
     
     ;; ###################################################################
@@ -1753,6 +1698,8 @@ case $OPERATION in
 
     relay_counter=0
     relay_output=""
+    relay_address=""
+    relay_port=""
     relay_array=()
     say "\n# Pool Relay Registration\n"
     if [[ -f "${pool_config}" && -n $(jq '.relays //empty' "${pool_config}") ]]; then
@@ -1834,9 +1781,9 @@ case $OPERATION in
            relay_array+=( "type" "IPv4" "address" "${relay_address}" "port" "${relay_port}" )
            relay_output+="--pool-relay-port ${relay_port} --pool-relay-ipv4 ${relay_address} "
            say "\nAdd more IPv4 entries?\n"
-           case $(select_opt "[y] Yes" "[n] No" "[c] Cancel") in
-             0) ((relay_counter++)) && continue ;;
-             1) break ;;
+           case $(select_opt "[n] No" "[y] Yes" "[c] Cancel") in
+             0) break ;;
+             1) ((relay_counter++)) && continue ;;
              2) continue 2 ;;
            esac
          done
@@ -1853,7 +1800,6 @@ case $OPERATION in
     # Update pool config
     say "{\"pledgeWallet\":\"$pledge_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\",\"relays\": $relay_json}" > "${pool_config}"
 
-    base_addr_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_BASE_ADDR_FILENAME}"
     pay_payment_sk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_PAY_SK_FILENAME}"
     stake_sk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_STAKE_SK_FILENAME}"
     stake_vk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_STAKE_VK_FILENAME}"
@@ -1862,9 +1808,8 @@ case $OPERATION in
     pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
     pool_vrf_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_VK_FILENAME}"
 
-    if [[ ! -f "${base_addr_file}" || ! -f "${pay_payment_sk_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" ]]; then
+    if [[ ! -f "${pay_payment_sk_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" ]]; then
       say "${RED}ERROR${NC}: ${GREEN}${pledge_wallet}${NC} wallet files missing, expecting these files to be available:"
-      say "${base_addr_file}"
       say "${pay_payment_sk_file}"
       say "${stake_sk_file}"
       say "${stake_vk_file}"
@@ -1884,7 +1829,7 @@ case $OPERATION in
     
     say "\n"
     say "# Modify Stake Pool" "log"
-    say "creating registration cert" 1 "log"
+    say "creating registration certificate" 1 "log"
     say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${stake_vk_file} --pool-owner-stake-verification-key-file ${stake_vk_file} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output} --testnet-magic ${NWMAGIC} --out-file ${pool_regcert_file}" 2
     ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output} --testnet-magic ${NWMAGIC} --out-file "${pool_regcert_file}"
     
@@ -1925,7 +1870,6 @@ case $OPERATION in
       say "      make sure to put enough funds in wallet to honor pledge"
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    say ""
     waitForInput && continue
     
     ;; ###################################################################
@@ -2022,7 +1966,7 @@ case $OPERATION in
     
     payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
     
-    say "creating de-registration cert" "log"
+    say "creating de-registration cert" 1 "log"
     say "$ ${CCLI} shelley stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file}" 2
     ${CCLI} shelley stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file}
     
@@ -2279,7 +2223,6 @@ case $OPERATION in
     say "Restart your pool node for changes to take effect"
 
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    say ""
     waitForInput && continue
     
     ;; ###################################################################
