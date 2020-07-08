@@ -138,6 +138,13 @@
         "addr": "relay2.phtn0.cryptobounty.org",
         "port": 9849,
         "valency": 1
+     },
+     {
+      "operator": "smaug",
+        "node": "relay",
+        "addr": "phtn.smaug.pool.pm",
+        "port": 6000,
+        "valency": 1
      }
 
   ]
