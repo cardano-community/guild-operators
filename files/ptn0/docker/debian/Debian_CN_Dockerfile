@@ -15,8 +15,7 @@ ENV \
     NIX_PATH=/nix/var/nix/profiles/per-user/guild/channels
 
 # PREREQ + DEBUG
-RUN apt-get update && apt-get -y install curl apt-utils xz-utils netbase sudo \
-    && apt-get -y install vim procps net-tools
+RUN apt-get update && apt-get -y install curl apt-utils xz-utils netbase sudo && apt-get clean &&rm -rf /usr/bin/apt*
 
 # SETUP USER
 RUN adduser --disabled-password --gecos '' guild
@@ -50,9 +49,12 @@ RUN cd && git clone --quiet https://github.com/cardano-community/guild-operators
     && rm -rf ~/guild-operators
 
 # HYDRA BINS
-RUN cd /usr/bin && sudo curl -o cardano-node-1.14.2-linux.tar.gz https://hydra.iohk.io/build/3253607/download/1/cardano-node-1.14.2-linux.tar.gz \
-    && sudo tar xzvf cardano-node-1.14.2-linux.tar.gz \
-    && sudo rm cardano-node-1.14.2-linux.tar.gz \
+RUN cd /usr/bin \
+    && REDIRECT=$(curl -s https://hydra.iohk.io/job/Cardano/cardano-node/cardano-node-linux/latest-finished | grep "hydra.iohk.io/build" | cut -d "\"" -f 2) \
+    && DOWNLATEST=$(curl -s $REDIRECT | grep "tar.gz" | head -n 1 |  cut -d "\"" -f 2) \
+    && sudo curl -o cardano-node-latest-linux.tar.gz $DOWNLATEST \
+    && sudo tar xzvf cardano-node-latest-linux.tar.gz \
+    && sudo rm cardano-node-latest-linux.tar.gz \
     && sudo mv configuration $CNODE_HOME/files
 
 # ENTRY SCRIPT
