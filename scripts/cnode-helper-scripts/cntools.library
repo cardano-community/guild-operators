@@ -963,7 +963,7 @@ registerPool() {
 
   newBalance=$(( lovelace - minFee - poolDeposit ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
-  say "Balance left to be returned in used UTxO is $(numfmt --grouping ${newBalance}) lovelaces ( $(numfmt --grouping ${lovelace}) - $(numfmt --grouping ${minFee}) - $(numfmt --grouping ${poolDeposit}) )" "log"
+  say "Balance left to be returned in used UTxO is $(numfmt --grouping ${newBalance}) lovelaces ( $(numfmt --grouping ${lovelace}) - $(numfmt --grouping ${minFee}) - $(numfmt --grouping ${poolDeposit}) )" 1 "log"
 
   buildArgs=(
     shelley transaction build-raw
