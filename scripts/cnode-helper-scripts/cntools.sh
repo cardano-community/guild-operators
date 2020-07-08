@@ -204,9 +204,7 @@ case $OPERATION in
         continue
       fi
       getRewards ${wallet_name}
-      if [[ "${reward_lovelace}" -eq -1 ]]; then
-        say "${ORANGE}Not a registered wallet on chain${NC}"
-      else
+      if [[ "${reward_lovelace}" -ge 0 ]]; then
         say "$(printf "%s\t\t\t${CYAN}%s${NC} ADA" "Rewards" "$(numfmt --grouping ${reward_ada})")" "log"
         delegation_pool_id=$(jq -r '.delegation // empty' <<< "${stakeAddressInfo}")
         if [[ -n ${delegation_pool_id} ]]; then
@@ -296,11 +294,8 @@ case $OPERATION in
     say "$(printf "%-19s : %s" "Enterprise Address" "${pay_addr}")" "log"
     say "$(printf "%-19s : ${CYAN}%s${NC} ADA" "Enterprise Funds" "$(numfmt --grouping ${pay_ada})")" "log"
     getRewards ${wallet_name}
-    if [[ "${reward_lovelace}" -eq -1 ]]; then
-      say ""
-      say "${ORANGE}Not a registered wallet on chain${NC}"
-    else
-      say "$(printf "%-8s : ${CYAN}%s${NC} ADA" "Rewards" "$(numfmt --grouping ${reward_ada})")" "log"
+    if [[ "${reward_lovelace}" -ge 0 ]]; then
+      say "$(printf "%-19s : ${CYAN}%s${NC} ADA" "Rewards" "$(numfmt --grouping ${reward_ada})")" "log"
       delegation_pool_id=$(jq -r '.delegation  // empty' <<< "${stakeAddressInfo}")
       if [[ -n ${delegation_pool_id} ]]; then
         unset poolName

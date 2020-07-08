@@ -24,12 +24,14 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 - op-cert creation moved from `Pool >> New` to `Pool >> Register`.
-- Removed enterprise wallet upgrade option in `Wallet >> List` 
 - Output changed in various places throughout.
 - Include reward in delegators stake.
 - Release now include patch version in addition to major and minor version.  
   In-app update modified to reflect this change.
-
+  
+### Removed
+- Enterprise wallet upgrade option in `Wallet >> List` 
+- `Not a registered wallet on chain` information from Wallet listing
 
 ### Fixed
 - meta_json_url check
