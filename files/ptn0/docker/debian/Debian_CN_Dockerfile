@@ -1,38 +1,65 @@
+# FROM https://hydra.iohk.io/job/Cardano/cardano-node/cardano-node-linux/latest-finished
+# Latest Genesis: https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished
+
 FROM debian
 
+ARG DEBIAN_FRONTEND=noninteractive
+
 ENV \
-CNODE_HOME=/opt/cardano/cnode \
-CNODE_PORT=9000 \
-DEBIAN_FRONTEND=noninteractive \
-LANG=C.UTF-8 \
-ENV=/etc/profile \
-USER=root \
-PATH=$CNODE_HOME/scripts:~/.cabal/bin:~/.ghcup/bin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH 
+    ENV=/etc/profile \
+    USER=guild \
+    CNODE_HOME=/opt/cardano/cnode \
+    PATH=/nix/var/nix/profiles/per-user/guild/profile/bin:/nix/var/nix/profiles/per-user/guild/profile/sbin:/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin \
+    GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
+    NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    NIX_PATH=/nix/var/nix/profiles/per-user/guild/channels
 
-WORKDIR /
+# PREREQ + DEBUG
+RUN apt-get update && apt-get -y install curl apt-utils xz-utils netbase sudo \
+    && apt-get -y install vim procps net-tools
 
-RUN set -x \
-  && apt update \
-  && apt install -y wget \
-  && cd / \
-  && wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/prereqs.sh \
-  && cat prereqs.sh | sed 's/SUDO="Y";/SUDO="N";/g' > /tmp/prereqs.sh \
-  && export BOOTSTRAP_HASKELL_NO_UPGRADE=1 \
-  && bash /tmp/prereqs.sh \
-  && bash ~/.bashrc \
-  && git clone https://github.com/input-output-hk/cardano-node.git \
-  && cd cardano-node \
-  && export PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH \
-  && bash $CNODE_HOME/scripts/cabal-build-all.sh  \
-  && cd - && apt remove -y build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev npm yarn make g++ git && apt-get clean && apt install -y socat && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* ~/.cabal/store ~/.cabal/packages ~/.ghcup/ghc cardano-node ~/git \
-  && echo "Done!!";
+# SETUP USER
+RUN adduser --disabled-password --gecos '' guild
+RUN adduser guild sudo
+RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/mainnet-genesis.json $CNODE_HOME/files/
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/mainnet.yaml $CNODE_HOME/files/
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/mainnet-topology.yaml $CNODE_HOME/files/
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/CN_entrypoint.sh /
-RUN chmod +x /CN_entrypoint.sh 
+USER guild
+WORKDIR /home/guild
 
-EXPOSE 9000 12782 13788
+# INSTALL NIX
+RUN sudo curl -sL https://nixos.org/nix/install | sh \
+    && sudo ln -s /nix/var/nix/profiles/per-user/etc/profile.d/nix.sh /etc/profile.d/ \
+    && . /home/guild/.nix-profile/etc/profile.d/nix.sh 
 
+# INSTALL DEPS  
+RUN /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -i python3 systemd libsodium tmux jq bc ncurses libtool autoconf git wget gnupg \
+    && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-channel --update \
+    && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -u --always \
+    && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-collect-garbage -d
+
+# GUILD SKAffold
+RUN sudo mkdir -p $CNODE_HOME/files $CNODE_HOME/db $CNODE_HOME/logs $CNODE_HOME/scripts $CNODE_HOME/sockets $CNODE_HOME/priv \
+    && sudo chown -R guild:guild $CNODE_HOME \
+    && chmod -R 755 $CNODE_HOME 
+
+# GUILD SCRIPTS
+RUN cd && git clone --quiet https://github.com/cardano-community/guild-operators.git \
+    && cp -rf ~/guild-operators/scripts/cnode-helper-scripts/* $CNODE_HOME/scripts \
+    && cp -rf ~/guild-operators/files/ptn0/scripts/* $CNODE_HOME/scripts \
+    && cp -rf ~/guild-operators/files/ptn0/files/* $CNODE_HOME/files \
+    && rm -rf ~/guild-operators
+
+# HYDRA BINS
+RUN cd /usr/bin && sudo curl -o cardano-node-1.14.2-linux.tar.gz https://hydra.iohk.io/build/3253607/download/1/cardano-node-1.14.2-linux.tar.gz \
+    && sudo tar xzvf cardano-node-1.14.2-linux.tar.gz \
+    && sudo rm cardano-node-1.14.2-linux.tar.gz \
+    && sudo mv configuration $CNODE_HOME/files
+
+# ENTRY SCRIPT
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/docker/files/ptn0/docker/CN_entrypoint.sh ./
+RUN sudo chown -R guild:guild /home/guild/CN_entrypoint.sh \
+    && sudo chown -R guild:guild $CNODE_HOME/files/* \
+    && chmod +x /home/guild/CN_entrypoint.sh
+    
+# CMD /bin/bash
 ENTRYPOINT ["./CN_entrypoint.sh"]
