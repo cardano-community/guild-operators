@@ -1,0 +1,99 @@
+# CNTools Changelog
+
+All notable changes to this tool will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [2.0.0] - 2020-07-xx
+### Added
+- Support for cardano-node 1.15.x  
+  - calculate-min-fee update to reflect change in 1.15.  
+    change was required to support byron witnesses.
+  - gettip update as output is now json formatted
+  - bech32 addressing in 1.15 required changes to delegator lookup in `Pool >> Show`
+- Output verbosity  
+  A new config parameter added for output verbosity using say function.  
+  0 = Minimal - Show relevant information (default)  
+  1 = Normal  - More information about whats going on behind the scene  
+  2 = Maximal - Debug level for troubleshooting
+- Changelog 
+
+### Changed
+- op-cert creation moved from `Pool >> New` to `Pool >> Register`.
+- Removed enterprise wallet upgrade option in `Wallet >> List` 
+- Output changed in various places throughout.
+- Include reward in delegators stake.
+- Release now include patch version in addition to major and minor version.  
+  In-app update modified to reflect this change.
+
+
+### Fixed
+- meta_json_url check
+- Invalid tx_in when registering stake wallet
+- Delegators rewards in `Pool >> Show`
+- Work-around awk versions that only support 32-bit integers
+
+
+## [1.2.0] - 2020-07-07
+### Added
+- Live stake and delegators in `Pool >> Show`
+
+### Fixed
+- Correct nwmagic - was hardcoded to 42
+
+
+## [1.1.0] - 2020-07-07
+### Fixed
+- Set script locale to fix format issue
+
+
+## [1.0.0] - 2020-07-07
+### Added
+- Wallet upgrade option added for backwards compatibility.  
+`Wallet >> LIST` now offer an upgrade option if it finds a wallet with payment address that has funds in it. Special note added in case a genesis address is found.
+- Update message on startup
+
+### Changed
+- Support for payment address(aka enterprise) minimised to default on base address support, as Everything that can be done with a payment address can also be done with the base address.
+- Reduce a step to Update (register) wallet keys, and moved this step to delegate/register pool step based on a check to see if the registration is required.
+- Changes for log output and variable names
+- Docs and output update
+- Replace pool JSON hosting instructions, from stout to copying file, to avoid user errors
+- Do not give option or allow sending to same address as source. Base <-> Enterprise for same wallet ok.
+
+### Fixed
+- Removed debug code in tx
+- A bug fixed for wallet not showing in some cases because reward address file was not generated at wallet creation
+
+
+## [0.3.0] - 2020-07-01
+### Fixed
+- In-app update bugfix
+
+## [0.2.0] - 2020-06-30
+### Added
+- Default values for relay on pool modify and re-registration
+- New pool config parameter for relay type called `type` containing either IPv4 or DNS_A currently.
+
+### Changed
+- Old relays table on modify/registration redone to include type. Also put together a little different to handle null values and omit quotation marks.
+- Pool show updated to show type for relay
+- On pool re-registration or modification the old relay valus are now read from pool config. If selection of type match old values the default values are set to old config.
+
+### Fixed
+- Minor alignment fix of main menu header
+
+
+## [0.1.0] - 2020-06-29
+### Added
+- First versioned released  
+  see github commit history for details before this release
+- In-app update for cntools
+
+### Changed
+- Update CNTools Doco to include Version on home screen
+
+### Fixed
+- Align table for reading relays
+

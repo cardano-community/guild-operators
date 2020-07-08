@@ -51,11 +51,12 @@ URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/
 wget -q -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"
 GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
 GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-if [[ "${CNTOOLS_MAJOR_VERSION}" != "${GIT_MAJOR_VERSION}" || "${CNTOOLS_MINOR_VERSION}" != "${GIT_MINOR_VERSION}" ]]; then
+GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+if [[ "${CNTOOLS_MAJOR_VERSION}" != "${GIT_MAJOR_VERSION}" || "${CNTOOLS_MINOR_VERSION}" != "${GIT_MINOR_VERSION}" || "${CNTOOLS_PATCH_VERSION}" != "${GIT_PATCH_VERSION}" ]]; then
   say "A new version of CNTools is available" "log"
   say ""
-  say "Installed Version : ${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}" "log"
-  say "Available Version : ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}${NC}" "log"
+  say "Installed Version : ${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}" "log"
+  say "Available Version : ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC}" "log"
   say "\nGo to Update section for upgrade"
   waitForInput "press any key to proceed to home menu"
 fi
@@ -2413,14 +2414,17 @@ case $OPERATION in
   say " >> UPDATE" "log"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   say ""
+  say "Changelog available at: https://cardano-community.github.io/guild-operators/Scripts/cntools-changelog.html"
 
   URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
   wget -q -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"
   GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
   GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+  GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
   if [ "$CNTOOLS_MAJOR_VERSION" != "$GIT_MAJOR_VERSION" ];then
-    say "New major version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}${NC} (Current: ${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION})\n"
+    say "New major version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION})\n"
     say "${RED}WARNING${NC}: Breaking changes were made to CNTools!\n"
+    say "${ORANGE}Please visit CNTools changelog site to see whats new and possibly breaking.${NC}\n"
     say "We will not overwrite your changes automatically."
     say "Please backup $CNODE_HOME/priv/wallet and $CNODE_HOME/priv/pool folders and then run the below:"
     say "  wget -O $CNODE_HOME/scripts/cntools.sh ${URL}/cntools.sh"
@@ -2430,9 +2434,9 @@ case $OPERATION in
     say "  wget -O $CNODE_HOME/scripts/env ${URL}/env"
     say "  chmod 750 $CNODE_HOME/scripts/cntools.sh $CNODE_HOME/scripts/cntoolsBlockCollector.sh"
     say "  chmod 640 $CNODE_HOME/scripts/cntools.library $CNODE_HOME/scripts/env"
-  elif [ "$CNTOOLS_MINOR_VERSION" != "$GIT_MINOR_VERSION" ];then
-    say "New minor version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}${NC} (Current: ${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION})\n"
-    say "Applying minor version update (no changes required for operation)..."
+  elif [ "$CNTOOLS_MINOR_VERSION" != "$GIT_MINOR_VERSION" || "$CNTOOLS_PATCH_VERSION" != "$GIT_PATCH_VERSION" ];then
+    say "New minor/patch version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION})\n"
+    say "Applying update (no changes required for operation)..."
     wget -q -O "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh"
     wget -q -O "$CNODE_HOME/scripts/cntools.library" "$URL/cntools.library"
     rc=$(wget -q -O "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "$URL/cntoolsBlockCollector.sh")
