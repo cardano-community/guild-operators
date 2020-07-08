@@ -17,6 +17,9 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   0 = Minimal - Show relevant information (default)  
   1 = Normal  - More information about whats going on behind the scene  
   2 = Maximal - Debug level for troubleshooting
+- Improve delegators list in `Pool >> Show`
+  - Identify owners delegations
+  - Display owner stake in red if `(stake + reward)` is below pledge (single-owner only for now)
 - Changelog 
 
 ### Changed
