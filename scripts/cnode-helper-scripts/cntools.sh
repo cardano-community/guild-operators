@@ -3,10 +3,10 @@
 
 ########## Global tasks ###########################################
 
-# get common env variables
 # set locale for compatibility
 export LC_ALL=en_US.UTF-8
 
+# get common env variables
 . "$(dirname $0)"/env
 
 # get cntools config parameters
@@ -2078,8 +2078,10 @@ case $OPERATION in
     say "${GREEN}${pool_name}${NC} "
     say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
+    pledge=0
     if [[ -f "${pool_config}" ]]; then
-      say "$(printf "%-21s : %s ADA" "Pledge" "$(numfmt --grouping "$(jq -r .pledgeADA "${pool_config}")")")" "log"
+      pledge=$(jq -r .pledgeADA "${pool_config}")
+      say "$(printf "%-21s : %s ADA" "Pledge" "$(numfmt --grouping "${pledge}")")" "log"
       say "$(printf "%-21s : %s %%" "Margin" "$(numfmt --grouping "$(jq -r .margin "${pool_config}")")")" "log"
       say "$(printf "%-21s : %s ADA" "Cost" "$(numfmt --grouping "$(jq -r .costADA "${pool_config}")")")" "log"
     fi
@@ -2133,15 +2135,27 @@ case $OPERATION in
       delegators=$(echo "${non_myopic_delegators}" "${snapshot_delegators}" "${lstate_delegators}" | tr ' ' '\n' | sort -u)
       total_stake=0
       delegator=1
+      owner=1
+      owners="$(jq -r ".esSnapshots._pstakeMark._poolParams.\"${pool_id}\".owners | .[]" "${TMP_FOLDER}"/ledger-state.json | tr '\n' ' ')"
+      nr_owners=$(jq -r ".esSnapshots._pstakeMark._poolParams.\"${pool_id}\".owners | length" "${TMP_FOLDER}"/ledger-state.json)
       for key in ${delegators}; do
         printf "\r"
-        stake_address="581de0${key}"
         stake=$(jq ".esLState._utxoState._utxo | .[] | select(.address | contains(\"${key}\")) | .amount" "${TMP_FOLDER}"/ledger-state.json | awk 'BEGIN{total = 0} {total = total + $1} END{printf "%.0f", total}')
         reward=$(jq -r ".esLState._delegationState._dstate._rewards | .[] | select(.[0][\"credential\"][\"key hash\"] == \"${key}\") | .[1]" "${TMP_FOLDER}"/ledger-state.json)
         total_stake=$((total_stake + stake + reward))
-        say "$(printf "%-21s : %s" "Delegator ${delegator} hex key" "${key}")" "log"
-        say "$(printf "%-21s : ${CYAN}%s${NC} ADA (%s ADA)" " Stake (reward)" "$(numfmt --grouping "$(lovelacetoADA ${stake})")" "$(numfmt --grouping "$(lovelacetoADA ${reward})")")" "log"
-        delegator=$((delegator+1))
+        stake_color="${CYAN}"
+        if echo "${owners}" | grep -q "${key}"; then
+            say "$(printf "%-21s : %s" "Owner ${owner} hex key" "${key}")" "log"
+            owner=$((owner + 1))
+            # ToDo: check multi-owner pledge
+            if [[ $(lovelacetoADA $((stake + reward))) < ${pledge} && ${nr_owners} == 1 ]]; then
+                stake_color="${RED}"
+            fi
+        else
+            say "$(printf "%-21s : %s" "Delegator ${delegator} hex key" "${key}")" "log"
+            delegator=$((delegator + 1))
+        fi
+        say "$(printf "%-21s : ${stake_color}%s${NC} ADA (%s ADA)" " Stake (reward)" "$(numfmt --grouping "$(lovelacetoADA ${stake})")" "$(numfmt --grouping "$(lovelacetoADA ${reward})")")" "log"
       done
       say "$(printf "%-21s : ${GREEN}%s${NC} ADA" "Stake" "$(numfmt --grouping "$(lovelacetoADA ${total_stake})")")" "log"
       stake_pct=$(fractionToPCT "$(printf "%.10f" "$(${CCLI} shelley query stake-distribution --testnet-magic ${NWMAGIC} | grep "${pool_id}" | tr -s ' ' | cut -d ' ' -f 2)")")
