@@ -145,7 +145,13 @@
         "addr": "phtn.smaug.pool.pm",
         "port": 6000,
         "valency": 1
+     },
+     {
+      "operator": "redoracle",
+        "node": "relay",
+        "addr": "148.72.153.168",
+        "port": 3112,
+        "valency": 1
      }
-
   ]
 }
