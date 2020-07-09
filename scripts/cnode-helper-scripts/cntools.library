@@ -541,7 +541,7 @@ getRewardAddress() {
 
 # Command    : getBalance [address]
 # Description: check balance for provided address
-# Return     : populates $lovelace & $ada
+# Return     : populates $lovelace & $utx0_count
 getBalance() {
   lovelace=0
   utx0_count=0
@@ -560,10 +560,9 @@ getBalance() {
 
 # Command    : getRewards [wallet name]
 # Description: check balance of reward address
-# Return     : populates $reward_lovelace & $reward_ada
+# Return     : populates $reward_lovelace
 getRewards() {
   reward_lovelace=-1
-  reward_ada=-1
   if isWalletRegistered $1; then
     reward_lovelace=$(jq -r '.rewardAccountBalance' <<< "${stakeAddressInfo}")
     [[ "${reward_lovelace}" =~ ^[0-9]+$ ]] || reward_lovelace=0
@@ -879,7 +878,6 @@ registerStakeWallet() {
     return 1
   fi
   
-  reward_ada=0
   reward_lovelace=0
 }
 
