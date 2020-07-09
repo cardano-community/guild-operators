@@ -2131,8 +2131,8 @@ case $OPERATION in
       total_stake=0
       delegator=1
       owner=1
-      owners="$(jq -r ".esSnapshots._pstakeMark._poolParams.\"${pool_id}\".owners | .[]" "${TMP_FOLDER}"/ledger-state.json | tr '\n' ' ')"
-      nr_owners=$(jq -r ".esSnapshots._pstakeMark._poolParams.\"${pool_id}\".owners | length" "${TMP_FOLDER}"/ledger-state.json)
+      owners="$(jq -c -r '.owners[] // empty' <<< "${ledger_pool_state}" | tr '\n' ' ')"
+      nr_owners=$(jq -r '(.owners | length) // 0' <<< "${ledger_pool_state}")")"
       for key in ${delegators}; do
         printf "\r"
         stake=$(jq ".esLState._utxoState._utxo | .[] | select(.address | contains(\"${key}\")) | .amount" "${TMP_FOLDER}"/ledger-state.json | awk 'BEGIN{total = 0} {total = total + $1} END{printf "%.0f", total}')
