@@ -28,6 +28,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Include reward in delegators stake.
 - Release now include patch version in addition to major and minor version.  
   In-app update modified to reflect this change.
+- Various minor code improvements
   
 ### Removed
 - Enterprise wallet upgrade option in `Wallet >> List` 

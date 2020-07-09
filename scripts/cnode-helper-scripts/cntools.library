@@ -643,8 +643,7 @@ sendADA() {
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
   say "$ ${CCLI} ${minFeeArgs[*]}" 2
-  minfeep="$(${CCLI} ${minFeeArgs[*]})"; ng='([0-9]+)'; [[ $minfeep =~ $ng ]]
-  minFee="${BASH_REMATCH[1]}"
+  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   say "fee is $(numfmt --grouping ${minFee})" 1 "log"
 
   # Sanity checks
@@ -801,8 +800,7 @@ registerStakeWallet() {
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
   say "$ ${CCLI} ${minFeeArgs[*]}" 2
-  minfeep="$(${CCLI} ${minFeeArgs[*]})"; ng='([0-9]+)'; [[ $minfeep =~ $ng ]]
-  minFee="${BASH_REMATCH[1]}"
+  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   say "fee is $(numfmt --grouping ${minFee})" 1 "log"
 
   if [[ ${lovelace} -lt $(( minFee + keyDeposit )) ]]; then
@@ -959,8 +957,7 @@ registerPool() {
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
   say "$ ${CCLI} ${minFeeArgs[*]}" 2
-  minfeep="$(${CCLI} ${minFeeArgs[*]})"; ng='([0-9]+)'; [[ $minfeep =~ $ng ]]
-  minFee="${BASH_REMATCH[1]}"  
+  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   say "fee is $(numfmt --grouping ${minFee})" 1 "log"
 
   if [[ ${lovelace} -lt $(( minFee + poolDeposit )) ]]; then
@@ -1086,8 +1083,7 @@ modifyPool() {
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
   say "$ ${CCLI} ${minFeeArgs[*]}" 2
-  minfeep="$(${CCLI} ${minFeeArgs[*]})"; ng='([0-9]+)'; [[ $minfeep =~ $ng ]]
-  minFee="${BASH_REMATCH[1]}"
+  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   say "fee is $(numfmt --grouping ${minFee})" 1 "log"
 
   if [[ ${lovelace} -lt ${minFee} ]]; then
@@ -1203,8 +1199,7 @@ withdrawRewards() {
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
   say "$ ${CCLI} ${minFeeArgs[*]}" 2
-  minfeep="$(${CCLI} ${minFeeArgs[*]})"; ng='([0-9]+)'; [[ $minfeep =~ $ng ]]
-  minFee="${BASH_REMATCH[1]}"
+  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   say "fee is $(numfmt --grouping ${minFee})" 1 "log"
 
   if [[ ${lovelace} -lt ${minFee} ]]; then
@@ -1330,8 +1325,7 @@ delegate() {
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
   say "$ ${CCLI} ${minFeeArgs[*]}" 2
-  minfeep="$(${CCLI} ${minFeeArgs[*]})"; ng='([0-9]+)'; [[ $minfeep =~ $ng ]]
-  minFee="${BASH_REMATCH[1]}"
+  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   say "fee is $(numfmt --grouping ${minFee})" 1 "log"
 
   if [[ ${lovelace} -lt ${minFee} ]]; then
@@ -1449,8 +1443,7 @@ deRegisterPool() {
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
   say "$ ${CCLI} ${minFeeArgs[*]}" 2
-  minfeep="$(${CCLI} ${minFeeArgs[*]})"; ng='([0-9]+)'; [[ $minfeep =~ $ng ]]
-  minFee="${BASH_REMATCH[1]}"
+  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   say "fee is $(numfmt --grouping ${minFee})" 1 "log"
   
   if [[ ${lovelace} -lt ${minFee} ]]; then
