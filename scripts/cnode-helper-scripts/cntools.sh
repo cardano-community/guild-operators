@@ -2075,7 +2075,6 @@ case $OPERATION in
     say "${GREEN}${pool_name}${NC} "
     say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
-    pledge=0
     if [[ -f "${pool_config}" ]]; then
       pledge=$(jq -r .pledgeADA "${pool_config}")
       say "$(printf "%-21s : %s ADA" "Pledge" "$(numfmt --grouping "${pledge}")")" "log"
@@ -2133,8 +2132,9 @@ case $OPERATION in
       total_stake=0
       delegator=1
       owner=1
+      pledge="$(jq -c -r '.pledge // 0' <<< "${ledger_pool_state}" | tr '\n' ' ')"
       owners="$(jq -c -r '.owners[] // empty' <<< "${ledger_pool_state}" | tr '\n' ' ')"
-      nr_owners=$(jq -r '(.owners | length) // 0' <<< "${ledger_pool_state}")")"
+      nr_owners=$(jq -r '(.owners | length) // 0' <<< "${ledger_pool_state}")
       for key in ${delegators}; do
         printf "\r"
         stake=$(jq ".esLState._utxoState._utxo | .[] | select(.address | contains(\"${key}\")) | .amount" "${TMP_FOLDER}"/ledger-state.json | awk 'BEGIN{total = 0} {total = total + $1} END{printf "%.0f", total}')
@@ -2145,7 +2145,7 @@ case $OPERATION in
             say "$(printf "%-21s : %s" "Owner ${owner} hex key" "${key}")" "log"
             owner=$((owner + 1))
             # ToDo: check multi-owner pledge
-            if [[ $(lovelacetoADA $((stake + reward))) < ${pledge} && ${nr_owners} == 1 ]]; then
+            if [[ $((stake + reward)) -lt ${pledge} && ${nr_owners} -eq 1 ]]; then
                 stake_color="${RED}"
             fi
         else
