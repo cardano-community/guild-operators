@@ -44,7 +44,7 @@ RUN sudo curl -sL https://nixos.org/nix/install | sh \
     && . /home/guild/.nix-profile/etc/profile.d/nix.sh 
 
 # INSTALL DEPS  
-RUN /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -i python3 systemd libsodium tmux jq bc ncurses libtool autoconf git wget gnupg \
+RUN /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -i python3 systemd libsodium tmux jq bc ncurses libtool autoconf git wget gnupg column \
     && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-channel --update \
     && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -u --always \
     && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-collect-garbage -d
