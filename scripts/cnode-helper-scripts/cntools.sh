@@ -7,7 +7,7 @@
 # set locale for compatibility
 export LC_ALL=en_US.UTF-8
 
-. "$(dirname $0)"/env_htn
+. "$(dirname $0)"/env
 
 # get cntools config parameters
 . "$(dirname $0)"/cntools.config
