@@ -3,9 +3,6 @@
 
 ########## Global tasks ###########################################
 
-# set locale for compatibility
-export LC_ALL=en_US.UTF-8
-
 # get common env variables
 . "$(dirname $0)"/env
 
@@ -190,12 +187,12 @@ case $OPERATION in
       fi
       if [[ -n ${base_addr} ]]; then
         getBalance ${base_addr}
-        say "$(printf "%s\t\t\t${CYAN}%s${NC} ADA" "Funds"  "$(numfmt --grouping ${ada})")" "log"
+        say "$(printf "%s\t\t\t${CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
       fi
       if [[ -n ${pay_addr} ]]; then
         getBalance ${pay_addr}
         if [[ ${lovelace} -gt 0 ]]; then
-          say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds"  "$(numfmt --grouping ${ada})")" "log"
+          say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds"  "$(formatLovelace ${lovelace})")" "log"
         fi
       fi
       if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
@@ -205,7 +202,7 @@ case $OPERATION in
       fi
       getRewards ${wallet_name}
       if [[ "${reward_lovelace}" -ge 0 ]]; then
-        say "$(printf "%s\t\t\t${CYAN}%s${NC} ADA" "Rewards" "$(numfmt --grouping ${reward_ada})")" "log"
+        say "$(printf "%s\t\t\t${CYAN}%s${NC} ADA" "Rewards" "$(formatLovelace ${reward_lovelace})")" "log"
         delegation_pool_id=$(jq -r '.delegation // empty' <<< "${stakeAddressInfo}")
         if [[ -n ${delegation_pool_id} ]]; then
           unset poolName
@@ -268,7 +265,6 @@ case $OPERATION in
 
     getBalance ${base_addr}
     base_lovelace=${lovelace}
-    base_ada=${ada}
     if [[ ${utx0_count} -gt 0 ]]; then
       say ""
       say "${BLUE}UTxOs${NC}"
@@ -279,7 +275,6 @@ case $OPERATION in
     
     getBalance ${pay_addr}
     pay_lovelace=${lovelace}
-    pay_ada=${ada}
     if [[ ${utx0_count} -gt 0 ]]; then
       say ""
       say "${BLUE}Enterprise UTxOs${NC}"
@@ -290,12 +285,12 @@ case $OPERATION in
     
     say ""
     say "$(printf "%-19s : %s" "Address" "${base_addr}")" "log"
-    say "$(printf "%-19s : ${CYAN}%s${NC} ADA" "Funds" "$(numfmt --grouping ${base_ada})")" "log"
+    say "$(printf "%-19s : ${CYAN}%s${NC} ADA" "Funds" "$(formatLovelace ${base_lovelace})")" "log"
     say "$(printf "%-19s : %s" "Enterprise Address" "${pay_addr}")" "log"
-    say "$(printf "%-19s : ${CYAN}%s${NC} ADA" "Enterprise Funds" "$(numfmt --grouping ${pay_ada})")" "log"
+    say "$(printf "%-19s : ${CYAN}%s${NC} ADA" "Enterprise Funds" "$(formatLovelace ${pay_lovelace})")" "log"
     getRewards ${wallet_name}
     if [[ "${reward_lovelace}" -ge 0 ]]; then
-      say "$(printf "%-19s : ${CYAN}%s${NC} ADA" "Rewards" "$(numfmt --grouping ${reward_ada})")" "log"
+      say "$(printf "%-19s : ${CYAN}%s${NC} ADA" "Rewards" "$(formatLovelace ${reward_lovelace})")" "log"
       delegation_pool_id=$(jq -r '.delegation  // empty' <<< "${stakeAddressInfo}")
       if [[ -n ${delegation_pool_id} ]]; then
         unset poolName
@@ -352,18 +347,14 @@ case $OPERATION in
     if [[ -n ${base_addr} ]]; then
       getBalance ${base_addr}
       base_lovelace=${lovelace}
-      base_ada=${ada}
     else
       base_lovelace=0
-      base_ada=0
     fi
     if [[ -n ${pay_addr} ]]; then
       getBalance ${pay_addr}
       pay_lovelace=${lovelace}
-      pay_ada=${ada}
     else
       pay_lovelace=0
-      pay_ada=0
     fi
     getRewards ${wallet_name}
     
@@ -381,13 +372,13 @@ case $OPERATION in
     else
       say "${RED}WARN${NC}: wallet not empty!"
       if [[ ${base_lovelace} -gt 0 ]]; then
-        say "Funds : ${CYAN}$(numfmt --grouping ${base_ada})${NC} ADA"
+        say "Funds : ${CYAN}$(formatLovelace ${base_lovelace})${NC} ADA"
       fi
       if [[ ${pay_lovelace} -gt 0 ]]; then
-        say "Enterprise Funds : ${CYAN}$(numfmt --grouping ${base_ada})${NC} ADA"
+        say "Enterprise Funds : ${CYAN}$(formatLovelace ${base_lovelace})${NC} ADA"
       fi
       if [[ ${reward_lovelace} -gt 0 ]]; then
-        say "Rewards : ${CYAN}$(numfmt --grouping ${reward_ada})${NC} ADA"
+        say "Rewards : ${CYAN}$(formatLovelace ${reward_lovelace})${NC} ADA"
       fi
       say ""
       say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
@@ -588,8 +579,7 @@ case $OPERATION in
       if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
         getRewards ${dir}
         [[ ${reward_lovelace} -le 0 ]] && continue
-        reward_ada=$(lovelacetoADA ${reward_lovelace})
-        wallet_dirs+=("${dir} (Rewards: ${CYAN}$(numfmt --grouping ${reward_ada})${NC} ADA)")
+        wallet_dirs+=("${dir} (Rewards: ${CYAN}$(formatLovelace ${reward_lovelace})${NC} ADA)")
       else
         wallet_dirs+=("${dir}")
       fi
@@ -616,8 +606,8 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds"  "$(numfmt --grouping ${ada})")" "log"
-    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(numfmt --grouping ${reward_ada})")" "log"
+    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
+    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")" "log"
 
     if ! withdrawRewards "${stake_vk_file}" "${stake_sk_file}" "${pay_payment_sk_file}" "${base_addr}" "${reward_addr}" ${reward_lovelace}; then
       say "" && say "${RED}ERROR${NC}: failure during withdrawal of rewards"
@@ -632,7 +622,7 @@ case $OPERATION in
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
       say ""
-      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${lovelace}) != $(numfmt --grouping ${newBalance}))"
+      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
       if ! waitNewBlockCreated; then
         break
       fi
@@ -646,8 +636,8 @@ case $OPERATION in
     getRewards ${wallet_name}
 
     say ""
-    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds"  "$(numfmt --grouping ${ada})")" "log"
-    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(numfmt --grouping ${reward_ada})")" "log"
+    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
+    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")" "log"
     waitForInput
     
     ;; ###################################################################
@@ -675,16 +665,14 @@ case $OPERATION in
         getPayAddress ${dir}
         getBalance ${base_addr}
         base_lovelace=${lovelace}
-        base_ada=${ada}
         getBalance ${pay_addr}
-        pay_ada=${ada}
         pay_lovelace=${lovelace}
         if [[ ${base_lovelace} -gt 0 && ${pay_lovelace} -gt 0 ]]; then
-          s_wallet_dirs+=("${dir} (Funds: ${CYAN}$(numfmt --grouping ${base_ada})${NC} ADA | Enterprise Funds: ${CYAN}$(numfmt --grouping ${pay_ada})${NC} ADA)")
+          s_wallet_dirs+=("${dir} (Funds: ${CYAN}$(formatLovelace ${base_lovelace})${NC} ADA | Enterprise Funds: ${CYAN}$(formatLovelace ${pay_lovelace})${NC} ADA)")
         elif [[ ${base_lovelace} -gt 0 ]]; then
-          s_wallet_dirs+=("${dir} (Funds: ${CYAN}$(numfmt --grouping ${base_ada})${NC} ADA)")
+          s_wallet_dirs+=("${dir} (Funds: ${CYAN}$(formatLovelace ${base_lovelace})${NC} ADA)")
         elif [[ ${pay_lovelace} -gt 0 ]]; then
-          s_wallet_dirs+=("${dir} (Enterprise Funds: ${CYAN}$(numfmt --grouping ${pay_ada})${NC} ADA)")
+          s_wallet_dirs+=("${dir} (Enterprise Funds: ${CYAN}$(formatLovelace ${pay_lovelace})${NC} ADA)")
         fi
       else
         s_wallet_dirs+=("${dir}")
@@ -702,16 +690,14 @@ case $OPERATION in
     getPayAddress ${s_wallet}
     getBalance ${base_addr}
     base_lovelace=${lovelace}
-    base_ada=${ada}
     getBalance ${pay_addr}
-    pay_ada=${ada}
     pay_lovelace=${lovelace}
     
     if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
       # Both payment and base address available with funds, let user choose what to use
       say "Select source wallet address"
-      say "$(printf "%s\t\t${CYAN}%s${NC} ADA" "Funds :"  "$(numfmt --grouping ${base_ada})")" "log"
-      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(numfmt --grouping ${pay_ada})")" "log"
+      say "$(printf "%s\t\t${CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
       say ""
       case $(select_opt "[b] Base (default)" "[e] Enterprise" "[c] Cancel") in
         0) s_addr="${base_addr}" ;;
@@ -720,10 +706,10 @@ case $OPERATION in
       esac
     elif [[ ${pay_lovelace} -gt 0 ]]; then
       s_addr="${pay_addr}"
-      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(numfmt --grouping ${pay_ada})")" "log"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
     elif [[ ${base_lovelace} -gt 0 ]]; then
       s_addr="${base_addr}" 
-      say "$(printf "%s\t\t${CYAN}%s${NC} ADA" "Funds :"  "$(numfmt --grouping ${base_ada})")" "log"
+      say "$(printf "%s\t\t${CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
     else
       say "${RED}ERROR${NC}: no funds available for wallet ${GREEN}${s_wallet}${NC}"
       waitForInput && continue
@@ -758,9 +744,8 @@ case $OPERATION in
     else
       say ""
       getBalance ${s_addr}
-      amountADA=${ada}
       amountLovelace=${lovelace}
-      say "ADA to send set to total supply: $(numfmt --grouping ${amountADA})" "log"
+      say "ADA to send set to total supply: $(formatLovelace ${amountLovelace})" "log"
       say ""
       include_fee="yes"
     fi
@@ -824,7 +809,7 @@ case $OPERATION in
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
       say ""
-      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${lovelace}) != $(numfmt --grouping ${newBalance}))"
+      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
       if ! waitNewBlockCreated; then
         break
       fi
@@ -835,11 +820,11 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    s_balance_ada=${ada}
+    s_balance=${lovelace}
 
     getBalance ${d_addr}
 
-    d_balance_ada=${ada}
+    d_balance=${lovelace}
     
     getPayAddress ${s_wallet}
     [[ "${pay_addr}" = "${s_addr}" ]] && s_wallet_type=" (Enterprise)" || s_wallet_type=""
@@ -850,16 +835,16 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say "Transaction" "log"
     say "  From          : ${GREEN}${s_wallet}${NC}${s_wallet_type}" "log"
-    say "  Amount        : $(numfmt --grouping ${amountADA}) ADA" "log"
+    say "  Amount        : $(formatLovelace ${amountLovelace}) ADA" "log"
     if [[ -n "${d_wallet}" ]]; then
       say "  To            : ${GREEN}${d_wallet}${NC}${d_wallet_type}" "log"
     else
       say "  To            : ${d_addr}" "log"
     fi
-    say "  Fees          : $(numfmt --grouping ${minFee}) Lovelaces" "log"
+    say "  Fees          : $(formatLovelace ${minFee}) ADA" "log"
     say "  Balance" "log"
-    say "  - Source      : $(numfmt --grouping ${s_balance_ada}) ADA" "log"
-    say "  - Destination : $(numfmt --grouping ${d_balance_ada}) ADA" "log"
+    say "  - Source      : $(formatLovelace ${s_balance}) ADA" "log"
+    say "  - Destination : $(formatLovelace ${d_balance}) ADA" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
 
@@ -926,7 +911,7 @@ case $OPERATION in
     getBaseAddress ${wallet_name}
     getBalance ${base_addr}
     if [[ ${lovelace} -gt 0 ]]; then
-      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in wallet:"  "$(numfmt --grouping ${ada})")" "log"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${lovelace})")" "log"
     else
       say "${RED}ERROR${NC}: no funds available for wallet ${GREEN}${wallet_name}${NC}"
       waitForInput && continue
@@ -994,7 +979,7 @@ case $OPERATION in
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
       say ""
-      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${lovelace}) != $(numfmt --grouping ${newBalance}))"
+      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
       if ! waitNewBlockCreated; then
         break
       fi
@@ -1008,7 +993,7 @@ case $OPERATION in
     say "Delegation successfully registered"
     say "Wallet : ${GREEN}${wallet_name}${NC}"
     say "Pool   : ${GREEN}${pool_name}${NC}" "log"
-    say "Amount : $(numfmt --grouping ${ada}) ADA" "log"
+    say "Amount : $(formatLovelace ${lovelace}) ADA" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
     waitForInput && continue
@@ -1380,7 +1365,7 @@ case $OPERATION in
     getBalance ${base_addr}
     
     if [[ ${lovelace} -gt 0 ]]; then
-      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in pledge wallet:"  "$(numfmt --grouping ${ada})")" "log"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in pledge wallet:"  "$(formatLovelace ${lovelace})")" "log"
     else
       say "${RED}ERROR${NC}: no funds available for wallet ${GREEN}${pledge_wallet}${NC}"
       waitForInput && continue
@@ -1463,7 +1448,7 @@ case $OPERATION in
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
       say ""
-      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${lovelace}) != $(numfmt --grouping ${newBalance}))"
+      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
       if ! waitNewBlockCreated; then
         break
       fi
@@ -1476,9 +1461,9 @@ case $OPERATION in
 
     say ""
     say "Pool ${GREEN}${pool_name}${NC} successfully registered using wallet ${GREEN}${pledge_wallet}${NC} for pledge" "log"
-    say "Pledge : $(numfmt --grouping ${pledge_ada}) ADA" "log"
+    say "Pledge : $(formatLovelace ${pledge_lovelace}) ADA" "log"
     say "Margin : ${margin}%" "log"
-    say "Cost   : $(numfmt --grouping ${cost_ada}) ADA" "log"
+    say "Cost   : $(formatLovelace ${cost_lovelace}) ADA" "log"
     say ""
     say "Start cardano node with the following run arguments:" "log"
     say "--shelley-kes-key ${pool_hotkey_sk_file}" "log"
@@ -1592,7 +1577,7 @@ case $OPERATION in
     getBalance ${base_addr}
     
     if [[ ${lovelace} -gt 0 ]]; then
-      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in pledge wallet:"  "$(numfmt --grouping ${ada})")" "log"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in pledge wallet:"  "$(formatLovelace ${lovelace})")" "log"
     else
       say "${RED}ERROR${NC}: no funds available for wallet ${GREEN}${pledge_wallet}${NC}"
       waitForInput && continue
@@ -1846,7 +1831,7 @@ case $OPERATION in
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
       say ""
-      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${lovelace}) != $(numfmt --grouping ${newBalance}))"
+      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
       if ! waitNewBlockCreated; then
         break
       fi
@@ -1859,9 +1844,9 @@ case $OPERATION in
 
     say ""
     say "Pool ${GREEN}${pool_name}${NC} successfully updated with new parameters using wallet ${GREEN}${pledge_wallet}${NC} to pay for registration fee" "log"
-    say "Pledge : $(numfmt --grouping ${pledge_ada}) ADA" "log"
+    say "Pledge : $(formatLovelace ${pledge_lovelace}) ADA" "log"
     say "Margin : ${margin}%" "log"
-    say "Cost   : $(numfmt --grouping ${cost_ada}) ADA" "log"
+    say "Cost   : $(formatLovelace ${cost_lovelace}) ADA" "log"
     if [[ ${lovelace} -lt ${pledge_lovelace} ]]; then
       say ""
       say "${ORANGE}WARN${NC}: Balance in pledge wallet is less than set pool pledge"
@@ -1933,7 +1918,7 @@ case $OPERATION in
         if getBaseAddress ${dir}; then
           getBalance ${base_addr}
           [[ ${lovelace} -eq 0 ]] && continue
-          wallet_dirs+=("${dir} (${CYAN}$(numfmt --grouping ${ada})${NC} ADA)")
+          wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
         fi
       else
         wallet_dirs+=("${dir}")
@@ -1950,7 +1935,7 @@ case $OPERATION in
     getBalance ${base_addr}
     
     if [[ ${lovelace} -gt 0 ]]; then
-      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in wallet:"  "$(numfmt --grouping ${ada})")" "log"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${lovelace})")" "log"
     else
       say "${RED}ERROR${NC}: no funds available for wallet ${GREEN}${wallet_name}${NC}"
       say "funds needed to pay for tx fee sending deregistration certificate to chain"
@@ -1981,7 +1966,7 @@ case $OPERATION in
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
       say ""
-      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${lovelace}) != $(numfmt --grouping ${newBalance}))"
+      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
       if ! waitNewBlockCreated; then
         break
       fi
@@ -2076,10 +2061,11 @@ case $OPERATION in
     say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
     if [[ -f "${pool_config}" ]]; then
-      pledge=$(jq -r .pledgeADA "${pool_config}")
-      say "$(printf "%-21s : %s ADA" "Pledge" "$(numfmt --grouping "${pledge}")")" "log"
-      say "$(printf "%-21s : %s %%" "Margin" "$(numfmt --grouping "$(jq -r .margin "${pool_config}")")")" "log"
-      say "$(printf "%-21s : %s ADA" "Cost" "$(numfmt --grouping "$(jq -r .costADA "${pool_config}")")")" "log"
+      pledge_lovelace=$(ADAtoLovelace "$(jq -r .pledgeADA "${pool_config}")")
+      say "$(printf "%-21s : %s ADA" "Pledge" "$(formatLovelace "${pledge_lovelace}")")" "log"
+      say "$(printf "%-21s : %s %%" "Margin" "$(jq -r .margin "${pool_config}")")" "log"
+      cost_lovelace=$(ADAtoLovelace "$(jq -r .costADA "${pool_config}")")
+      say "$(printf "%-21s : %s ADA" "Cost" "$(formatLovelace "${cost_lovelace}")")" "log"
     fi
     pool_meta_file=${POOL_FOLDER}/${pool_name}/poolmeta.json
     if [[ -f "${pool_meta_file}" ]]; then
@@ -2152,10 +2138,10 @@ case $OPERATION in
             say "$(printf "%-21s : %s" "Delegator ${delegator} hex key" "${key}")" "log"
             delegator=$((delegator + 1))
         fi
-        say "$(printf "%-21s : ${stake_color}%s${NC} ADA (%s ADA)" " Stake (reward)" "$(numfmt --grouping "$(lovelacetoADA ${stake})")" "$(numfmt --grouping "$(lovelacetoADA ${reward})")")" "log"
+        say "$(printf "%-21s : ${stake_color}%s${NC} ADA (%s ADA)" " Stake (reward)" "$(formatLovelace ${stake})" "$(formatLovelace ${reward})")" "log"
       done
-      say "$(printf "%-21s : ${GREEN}%s${NC} ADA" "Stake" "$(numfmt --grouping "$(lovelacetoADA ${total_stake})")")" "log"
-      stake_pct=$(fractionToPCT "$(printf "%.10f" "$(${CCLI} shelley query stake-distribution --testnet-magic ${NWMAGIC} | grep "${pool_id}" | tr -s ' ' | cut -d ' ' -f 2)")")
+      say "$(printf "%-21s : ${GREEN}%s${NC} ADA" "Stake" "$(formatLovelace ${total_stake})")" "log"
+      stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} shelley query stake-distribution --testnet-magic ${NWMAGIC} | grep "${pool_id}" | tr -s ' ' | cut -d ' ' -f 2)")")
       if validateDecimalNbr ${stake_pct}; then
         say "$(printf "%-21s : %s %%" "Stake distribution" "${stake_pct}")" "log"
       fi

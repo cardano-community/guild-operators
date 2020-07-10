@@ -20,6 +20,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Improve delegators list in `Pool >> Show`
   - Identify owners delegations
   - Display owner stake in red if `(stake + reward)` is below pledge (single-owner only for now)
+- Display all lovelace values in floating point ADA with 6 decimals (lovelaces) using locales
 - Changelog 
 
 ### Changed
@@ -33,6 +34,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Removed
 - Enterprise wallet upgrade option in `Wallet >> List` 
 - `Not a registered wallet on chain` information from Wallet listing
+- en_US.UTF-8 locale dependency
 
 ### Fixed
 - meta_json_url check
@@ -102,4 +104,3 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 - Align table for reading relays
-
