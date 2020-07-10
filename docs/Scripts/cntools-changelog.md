@@ -20,6 +20,8 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Improve delegators list in `Pool >> Show`
   - Identify owners delegations
   - Display owner stake in red if `(stake + reward)` is below pledge (single-owner only for now)
+- Display all lovelace values in floating point ADA with 6 decimals (lovelaces) using locales
+  - Also remove the en_US.UTF-8 locale dependency
 - Changelog 
 
 ### Changed
