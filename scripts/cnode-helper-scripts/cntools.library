@@ -634,7 +634,7 @@ sendADA() {
   )
   say "$ ${CCLI} ${minFeeArgs[*]}" 2
   minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  say "fee is $(formatLovelace ${minFee})" 1 "log"
+  say "fee is $(formatLovelace ${minFee}) ADA" 1 "log"
 
   # Sanity checks
   if [[ ${inclFee} = "no" ]]; then
@@ -656,17 +656,17 @@ sendADA() {
     txOut="--tx-out ${dAddr}+${amount}"
   else
     txOut="--tx-out ${dAddr}+$(( amount - minFee ))"
-    say "New amount to send in Lovelace after fee deduction is $(formatLovelace $(( amount - minFee ))) lovelaces ($(formatLovelace ${amount}) - $(formatLovelace ${minFee}))" 1 "log"
+    say "New amount to send after fee deduction is $(formatLovelace $(( amount - minFee ))) ADA ($(formatLovelace ${amount}) - $(formatLovelace ${minFee}))" 1 "log"
   fi
 
   newBalance=$(( lovelace - amount ))
   if [[ ${inclFee} = "no" ]]; then
     newBalance=$(( balance - amount - minFee ))
     txOut="${txOut} --tx-out ${sAddr}+${newBalance}"
-    say "Balance left to be returned in used UTxO's is $(formatLovelace ${newBalance}) lovelaces ($(formatLovelace ${balance}) - $(formatLovelace ${amount}) - $(formatLovelace ${minFee}))" 1 "log"
+    say "Balance left to be returned in used UTxO's is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${balance}) - $(formatLovelace ${amount}) - $(formatLovelace ${minFee}))" 1 "log"
   elif [[ ${outCount} -eq 2 ]]; then
     txOut="${txOut} --tx-out ${sAddr}+$(( balance - amount ))"
-    say "Balance left to be returned in used UTxO's is $(formatLovelace $(( balance - amount ))) lovelaces ($(formatLovelace ${balance}) - $(formatLovelace ${amount}))" 1 "log"
+    say "Balance left to be returned in used UTxO's is $(formatLovelace $(( balance - amount ))) ADA ($(formatLovelace ${balance}) - $(formatLovelace ${amount}))" 1 "log"
   fi
 
   buildArgs=(
@@ -791,7 +791,7 @@ registerStakeWallet() {
   )
   say "$ ${CCLI} ${minFeeArgs[*]}" 2
   minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  say "fee is $(formatLovelace ${minFee})" 1 "log"
+  say "fee is $(formatLovelace ${minFee}) ADA" 1 "log"
 
   if [[ ${lovelace} -lt $(( minFee + keyDeposit )) ]]; then
     say "${RED}ERROR${NC}: Not enough ADA in wallet ($(formatLovelace ${lovelace}) < $(formatLovelace ${minFee}) + $(formatLovelace ${keyDeposit}))"
@@ -801,7 +801,7 @@ registerStakeWallet() {
   newBalance=$(( lovelace - minFee - keyDeposit ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
   
-  say "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) lovelaces ($(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) - $(formatLovelace ${keyDeposit}))" 1 "log"
+  say "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) - $(formatLovelace ${keyDeposit}))" 1 "log"
   
   buildArgs=(
     shelley transaction build-raw
@@ -947,7 +947,7 @@ registerPool() {
   )
   say "$ ${CCLI} ${minFeeArgs[*]}" 2
   minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  say "fee is $(formatLovelace ${minFee})" 1 "log"
+  say "fee is $(formatLovelace ${minFee}) ADA" 1 "log"
 
   if [[ ${lovelace} -lt $(( minFee + poolDeposit )) ]]; then
     say "${RED}ERROR${NC}: Not enough ADA in base address ( $(formatLovelace ${lovelace}) < $(formatLovelace ${minFee}) + $(formatLovelace ${poolDeposit}) )"
@@ -956,7 +956,7 @@ registerPool() {
 
   newBalance=$(( lovelace - minFee - poolDeposit ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
-  say "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) lovelaces ( $(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) - $(formatLovelace ${poolDeposit}) )" 1 "log"
+  say "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) - $(formatLovelace ${poolDeposit}) )" 1 "log"
 
   buildArgs=(
     shelley transaction build-raw
@@ -1073,7 +1073,7 @@ modifyPool() {
   )
   say "$ ${CCLI} ${minFeeArgs[*]}" 2
   minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  say "fee is $(formatLovelace ${minFee})" 1 "log"
+  say "fee is $(formatLovelace ${minFee}) ADA" 1 "log"
 
   if [[ ${lovelace} -lt ${minFee} ]]; then
     say "${RED}ERROR${NC}: Not enough ADA in base address ( $(formatLovelace ${lovelace}) < $(formatLovelace ${minFee}) )"
@@ -1082,7 +1082,7 @@ modifyPool() {
 
   newBalance=$(( lovelace - minFee ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
-  say "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) lovelaces ( $(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) )" 1 "log"
+  say "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) )" 1 "log"
 
   buildArgs=(
     shelley transaction build-raw
@@ -1189,7 +1189,7 @@ withdrawRewards() {
   )
   say "$ ${CCLI} ${minFeeArgs[*]}" 2
   minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  say "fee is $(formatLovelace ${minFee})" 1 "log"
+  say "fee is $(formatLovelace ${minFee}) ADA" 1 "log"
 
   if [[ ${lovelace} -lt ${minFee} ]]; then
     say "${RED}ERROR${NC}: Not enough ADA in wallet ( $(formatLovelace ${lovelace}) < $(formatLovelace ${minFee}) )"
@@ -1198,7 +1198,7 @@ withdrawRewards() {
 
   newBalance=$(( lovelace - minFee + reward_lovelace ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
-  say "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) lovelaces ( $(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) )" 1 "log"
+  say "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) )" 1 "log"
 
   buildArgs=(
     shelley transaction build-raw
@@ -1315,7 +1315,7 @@ delegate() {
   )
   say "$ ${CCLI} ${minFeeArgs[*]}" 2
   minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  say "fee is $(formatLovelace ${minFee})" 1 "log"
+  say "fee is $(formatLovelace ${minFee}) ADA" 1 "log"
 
   if [[ ${lovelace} -lt ${minFee} ]]; then
     say "${RED}ERROR${NC}: Not enough ADA in wallet ( $(formatLovelace ${lovelace}) < $(formatLovelace ${minFee}) )"
@@ -1324,7 +1324,7 @@ delegate() {
 
   newBalance=$(( lovelace - minFee ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
-  say "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) lovelaces ( $(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) )" 1 "log"
+  say "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) )" 1 "log"
 
   buildArgs=(
     shelley transaction build-raw
@@ -1433,7 +1433,7 @@ deRegisterPool() {
   )
   say "$ ${CCLI} ${minFeeArgs[*]}" 2
   minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  say "fee is $(formatLovelace ${minFee})" 1 "log"
+  say "fee is $(formatLovelace ${minFee}) ADA" 1 "log"
   
   if [[ ${lovelace} -lt ${minFee} ]]; then
     say "${RED}ERROR${NC}: Not enough ADA in wallet ( $(formatLovelace ${lovelace}) < $(formatLovelace ${minFee}) )"
