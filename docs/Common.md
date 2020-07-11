@@ -25,8 +25,9 @@ chmod 755 prereqs.sh
 The prereqs script above will connect you to guild network. If you would like to connect to public HTN instead, kindly execute the below before you proceed after you've executed the above:
 
 ``` bash
-wget -O $CNODE_HOME/files/topology.json https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/shelley_testnet-topology.json
-wget -O $CNODE_HOME/files/genesis.json https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/shelley_testnet-genesis.json
+wget -O $CNODE_HOME/files/byron_genesis.json https://hydra.iohk.io/build/3416851/download/1/mainnet_candidate-byron-genesis.json
+wget -O $CNODE_HOME/files/topology.json https://hydra.iohk.io/build/3416851/download/1/mainnet_candidate-topology.json
+wget -O $CNODE_HOME/files/genesis.json https://hydra.iohk.io/build/3416851/download/1/mainnet_candidate-shelley-genesis.json
 ```
 
 If you were already running a node on guild network and would like to *replace* by moving to HTN, but continue using scripts - follow instructions below:

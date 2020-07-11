@@ -24,7 +24,7 @@ function cleanup() {
 cleanup
 
 # The "testnet magic" is specific on the testnet and will not be needed for the mainnet.
-${CCLI} shelley query utxo --testnet-magic "${NWMAGIC}" --address "${WALLET_ADDR}" > /tmp/fullUtxo.out
+${CCLI} shelley query utxo --cardano-mode --testnet-magic "${NWMAGIC}" --address "${WALLET_ADDR}" > /tmp/fullUtxo.out
 tail -n +3 /tmp/fullUtxo.out | sort -k3 -nr > /tmp/balance.txt
 
 TOTALBALANCE=0

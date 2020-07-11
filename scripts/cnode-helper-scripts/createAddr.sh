@@ -8,5 +8,5 @@ if  [ "$1" = "--help" ] || [ $# -ne 1 ]; then
 fi
 
 WNAME=$1
-cardano-cli shelley address key-gen --verification-key-file $WNAME.vkey --signing-key-file $WNAME.skey
-cardano-cli shelley address build --payment-verification-key-file $WNAME.vkey  --testnet-magic ${NWMAGIC} | tee $WNAME.addr
+${CCLI} shelley address key-gen --verification-key-file $WNAME.vkey --signing-key-file $WNAME.skey
+${CCLI} shelley address build --payment-verification-key-file $WNAME.vkey  --testnet-magic ${NWMAGIC} | tee $WNAME.addr

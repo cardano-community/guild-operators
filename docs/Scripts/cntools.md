@@ -3,6 +3,8 @@ CNTools is a shell script that will simplify typical operations for wallets and 
 
 The script assumes the [Pre-Requisites](../Common.md#dependencies-and-folder-structure-setup) have already been run.
 
+Visit the [Changelog](cntools-changelog.md) section to see progress and current release.
+
 * [Overview](#overview)
 * [Download and Update](#download-and-update)
 * [Start CNTools](#start)

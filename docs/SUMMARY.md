@@ -12,6 +12,7 @@
   - [Set up node as pool operator](./Setup-Node.md)
   - [Useful Scripts](./cli-scripts.md)
     - [CNTools](./Scripts/cntools.md)
+	  - [Changelog](./Scripts/cntools-changelog.md)
 	  - [Common tasks](./Scripts/cntools-common.md)
 	  - [Block Collector](./Scripts/cntools-blocks.md)
     - [Create Keys/Address](./Scripts/createAddr.md)
