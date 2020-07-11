@@ -52,7 +52,7 @@ GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.libr
 if [[ "${CNTOOLS_MAJOR_VERSION}" != "${GIT_MAJOR_VERSION}" || "${CNTOOLS_MINOR_VERSION}" != "${GIT_MINOR_VERSION}" || "${CNTOOLS_PATCH_VERSION}" != "${GIT_PATCH_VERSION}" ]]; then
   say "A new version of CNTools is available" "log"
   say ""
-  say "Installed Version : ${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}" "log"
+  say "Installed Version : ${CNTOOLS_VERSION}" "log"
   say "Available Version : ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC}" "log"
   say "\nGo to Update section for upgrade"
   waitForInput "press any key to proceed"
@@ -2488,7 +2488,7 @@ case $OPERATION in
   GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
   GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
   if [[ "$CNTOOLS_MAJOR_VERSION" != "$GIT_MAJOR_VERSION" ]];then
-    say "New major version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION})\n"
+    say "New major version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
     say "${RED}WARNING${NC}: Breaking changes were made to CNTools!\n"
     say "${ORANGE}Please visit CNTools changelog site to see whats new and possibly breaking.${NC}\n"
     say "We will not overwrite your changes automatically."
@@ -2501,7 +2501,7 @@ case $OPERATION in
     say "  chmod 750 $CNODE_HOME/scripts/cntools.sh $CNODE_HOME/scripts/cntoolsBlockCollector.sh"
     say "  chmod 640 $CNODE_HOME/scripts/cntools.library $CNODE_HOME/scripts/env"
   elif [[ "$CNTOOLS_MINOR_VERSION" != "$GIT_MINOR_VERSION" || "$CNTOOLS_PATCH_VERSION" != "$GIT_PATCH_VERSION" ]];then
-    say "New minor/patch version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION})\n"
+    say "New minor/patch version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
     say "Applying update (no changes required for operation)..."
     wget -q -O "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh"
     wget -q -O "$CNODE_HOME/scripts/cntools.library" "$URL/cntools.library"
