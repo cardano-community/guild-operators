@@ -351,13 +351,13 @@ decryptFile() {
 # Description: Get latest block number
 # Return     : string with tip on STDOUT
 getBlockTip() {
-  $CCLI shelley query tip --testnet-magic ${NWMAGIC} | jq -r '.blockNo'
+  $CCLI shelley query tip --cardano-mode --testnet-magic ${NWMAGIC} | jq -r '.blockNo'
 }
 # Command    : getSlotTip
 # Description: Get latest slot number
 # Return     : string with tip on STDOUT
 getSlotTip() {
-  $CCLI shelley query tip --testnet-magic ${NWMAGIC} | jq -r '.slotNo'
+  $CCLI shelley query tip --cardano-mode --testnet-magic ${NWMAGIC} | jq -r '.slotNo'
 }
 
 # Command    : getEpoch
@@ -548,7 +548,7 @@ getBalance() {
   
   [[ -z $1 ]] && return 1
 
-  ${CCLI} shelley query utxo --testnet-magic "${NWMAGIC}" --address "${1}" > "${TMP_FOLDER}"/fullUtxo.out
+  ${CCLI} shelley query utxo --cardano-mode --testnet-magic "${NWMAGIC}" --address "${1}" > "${TMP_FOLDER}"/fullUtxo.out
   tail -n +3 "${TMP_FOLDER}"/fullUtxo.out | sort -k3 -nr > "${TMP_FOLDER}"/balance.out
   
   while read -r utxo; do
@@ -729,7 +729,7 @@ sendADA() {
 # Return     : 0 if registered, else 1
 isWalletRegistered() {
   if getRewardAddress $1; then
-    stakeAddressInfo=$(${CCLI} shelley query stake-address-info --testnet-magic ${NWMAGIC} --address ${reward_addr} | jq -r '.[] // empty')
+    stakeAddressInfo=$(${CCLI} shelley query stake-address-info --cardano-mode --testnet-magic ${NWMAGIC} --address ${reward_addr} | jq -r '.[] // empty')
     [[ -n "${stakeAddressInfo}" ]] && return 0
   fi
   return 1 
