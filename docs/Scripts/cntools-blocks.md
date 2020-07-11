@@ -60,25 +60,38 @@ sudo systemctl start cntools-blockcollector.service
 ```
 ### View Collected Blocks
 Start CNTools and choose `Blocks [b]` to open the block viewer.  
-Enter the epoch you want to see or press `enter` to see the current epoch.
+Either select `Epoch` and enter the epoch you want to see a detailed view for or choose `Summary` to display leader slots, adopted blocks and invalid blocks for last x epochs.
 
 If the node was elected to create blocks in the selected epoch it could look something like this:
 
+**Summary**
 ```
- >> BLOCKS
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Current epoch: 92
++--------+---------------+-----------------+-----------------+
+| Epoch  | Leader Slots  | Adopted Blocks  | Invalid Blocks  |
++--------+---------------+-----------------+-----------------+
+| 92     | 21            | 21              | 0               |
+| 91     | 30            | 30              | 0               |
+| 90     | 36            | 36              | 0               |
+| 89     | 37            | 37              | 0               |
+| 88     | 26            | 26              | 0               |
+| 87     | 25            | 25              | 0               |
+| 86     | 25            | 25              | 0               |
+| 85     | 37            | 37              | 0               |
+| 84     | 30            | 30              | 0               |
+| 83     | 26            | 26              | 0               |
++--------+---------------+-----------------+-----------------+
+```
+**Epoch**
+```
+Leader: 5  -  Adopted: 5  -  Invalid: 0
 
-Enter epoch to list (enter for current):
-
-7 blocks created in epoch 92
-
-Slot   At                       Size  Hash
-82809  2020-06-26 12:15:18 UTC  3     bd86e0358fbc929daeb0a877052149bcb57e2b2d7da573ea025c78cc2ed6896b
-82811  2020-06-26 12:15:22 UTC  3     fcd8e33f56b7a7d0c3a426570b8a1fba045266fd1a40ff63951c0f00fc7fbeb4
-82829  2020-06-26 12:15:58 UTC  3     d0804a37eee8dfaaeb39a06e3373adef51459b1429b838288291014a69c37c04
-82851  2020-06-26 12:16:42 UTC  3     d18c27edfdc2870d7922039d48764502f9b27b157b92b0dbe7171c35b1c94f5f
-82859  2020-06-26 12:16:58 UTC  3     e9a1efdd3aef257ea07c55e102ad976c2259ee3cacc9a1d45f7c9dc55db189e9
-82881  2020-06-26 12:17:42 UTC  3     d5bf67db9bcb6a26968b69dc9e65c540402bed985b46e98a925aa679adb51c88
-82913  2020-06-26 12:18:46 UTC  3     1bf29f81d8087ded9f268a2b89aef2c7c6eeda077e5b84941aa4732bea1c3e0c
++---------+--------------------------+-------+-------------------------------------------------------------------+
+| Slot    | At                       | Size  | Hash                                                              |
++---------+--------------------------+-------+-------------------------------------------------------------------+
+| 165619  | 2020-07-11 00:21:19 UTC  | 3     | d1b86acb88e3255ec400354629aa65e5be24c6561a5cbc3f3a04cdc3b1e2a8d1  |
+| 165683  | 2020-07-11 00:22:23 UTC  | 3     | 2ce005b1fed86a877aaa58a40f730fcfb3d4876d4218d5ee5e790d89fafd7610  |
+| 165696  | 2020-07-11 00:22:36 UTC  | 3     | 0678cb8e04021183f221df6f0ff73f9f9dc39a000c6163bd134d4ae86e9364b5  |
+| 165786  | 2020-07-11 00:24:06 UTC  | 3     | 51dfad492f5384230d7b21ec1fee212bd07d79121b2494200fb8f836354ee2f3  |
+| 165846  | 2020-07-11 00:25:06 UTC  | 3     | 25e02a42441e83602cc0119c18a6c19f4631fcff22393a3380cbd58d677e3e83  |
++---------+--------------------------+-------+-------------------------------------------------------------------+
 ```

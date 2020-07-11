@@ -2380,26 +2380,54 @@ case $OPERATION in
   
   say "Current epoch: ${epoch}\n"
   
-  read -r -p "Enter epoch to list (enter for current): " epoch_enter
-  [[ -z "${epoch_enter}" ]] && epoch_enter=${epoch}
+  say "Show a block summary for all epochs or a detailed view for a specific epoch?\n"
+  case $(select_opt "[s] Summary" "[e] Epoch" "[c] Cancel") in
+    0) block_table="Epoch,${BLUE}Leader Slots${NC},${GREEN}Adopted Blocks${NC},${RED}Invalid Blocks${NC}\n"
+       current_epoch=${epoch}
+       read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter
+       say ""
+       epoch_enter=${epoch_enter:-10}
+       if ! [[ ${epoch_enter} =~ ^[0-9]+$ ]]; then
+         say "${RED}ERROR${NC}: not a number"
+         waitForInput && continue
+       fi
+       first_epoch=$(( epoch - epoch_enter ))
+       [[ ${first_epoch} -lt 0 ]] && first_epoch=0
+       while [[ ${current_epoch} -gt ${first_epoch} ]]; do
+         blocks_file="${BLOCK_LOG_DIR}/blocks_${current_epoch}.json"
+         if [[ ! -f "${blocks_file}" ]]; then
+           block_table+="${current_epoch},0,0,0\n"
+         else
+           leader_count=$(jq -c '[.[].slot //empty] | length' "${blocks_file}")
+           invalid_count=$(jq -c '[.[].hash //empty | select(startswith("Invalid"))] | length' "${blocks_file}")
+           adopted_count=$(( $(jq -c '[.[].hash //empty] | length' "${blocks_file}") - invalid_count ))
+           block_table+="${current_epoch},${leader_count},${adopted_count},${invalid_count}\n"
+         fi
+         ((current_epoch--))
+       done
+       printTable ',' "$(echo -e ${block_table})"
+       ;;
+    1) read -r -p "Enter epoch to list (enter for current): " epoch_enter
+       [[ -z "${epoch_enter}" ]] && epoch_enter=${epoch}
+       blocks_file="${BLOCK_LOG_DIR}/blocks_${epoch_enter}.json"
+       if [[ ! -f "${blocks_file}" ]]; then
+         say "No blocks created in epoch ${epoch_enter}"
+         waitForInput && continue
+       fi
+       leader_count=$(jq -c '[.[].slot //empty] | length' "${blocks_file}")
+       invalid_count=$(jq -c '[.[].hash //empty | select(startswith("Invalid"))] | length' "${blocks_file}")
+       adopted_count=$(( $(jq -c '[.[].hash //empty] | length' "${blocks_file}") - invalid_count ))
+       say "\nLeader: ${BLUE}${leader_count}${NC}  -  Adopted: ${GREEN}${adopted_count}${NC}  -  Invalid: ${RED}${invalid_count}${NC}" "log"
+       if [[ ${leader_count} -gt 0 ]]; then
+         say ""
+         # print block table
+         printTable ',' "$(say 'Slot,At,Size,Hash' | cat - <(jq -rc '.[] | [.slot,(.at|sub("\\.[0-9]+Z$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S %Z")),.size,.hash] | @csv' "${blocks_file}") | tr -d '"')"
+       fi
+       ;;
+    2) continue ;;
+  esac
   
-  blocks_file="${BLOCK_LOG_DIR}/blocks_${epoch_enter}.json"
   
-  if [[ ! -f "${blocks_file}" ]]; then
-    say "No blocks created in epoch ${epoch_enter}"
-    waitForInput && continue
-  fi
-  
-  block_count=$(jq -c '[.[]] | length' "${blocks_file}")
-  [[ "${block_count}" =~ ^[0-9]+$ ]] || block_count=0
-  
-  say "\n${BLUE}${block_count}${NC} blocks created in epoch ${BLUE}${epoch_enter}${NC}" "log"
-  
-  if [[ ${block_count} -gt 0 ]]; then
-    say ""
-    # print block table
-    say '[Slot,At,Size,Hash]' | cat - <(jq -c '.[] | [.slot,(.at|sub("\\.[0-9]+Z$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S %Z")),.size,.hash]' "${blocks_file}") | column -t -s'[],"'
-  fi
 
   waitForInput
 

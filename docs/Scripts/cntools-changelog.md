@@ -21,6 +21,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Identify owners delegations
   - Display owner stake in red if `(stake + reward)` is below pledge (single-owner only for now)
 - Display all lovelace values in floating point ADA with 6 decimals (lovelaces) using locales
+- Block Collector summary view
 - Changelog 
 
 ### Changed
@@ -29,6 +30,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Include reward in delegators stake.
 - Release now include patch version in addition to major and minor version.  
   In-app update modified to reflect this change.
+- Block Collector table view
 - Various minor code improvements
   
 ### Removed
@@ -41,6 +43,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Invalid tx_in when registering stake wallet
 - Delegators rewards in `Pool >> Show`
 - Work-around awk versions that only support 32-bit integers
+- Sometimes cardano-node log contain duplicate traces for the same slot at log file rollover, now filtered
 
 
 ## [1.2.0] - 2020-07-07

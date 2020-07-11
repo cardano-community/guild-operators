@@ -57,10 +57,16 @@ while read -r logentry; do
     echo " "
     echo " ~~ LEADER EVENT ~~"
     echo -e "Epoch Slot At\n${epoch} ${slot} ${at_local}" | column -t
-    jq --arg _at "${at}" \
-    --arg _slot "${slot}" \
-    '. += [{"at": $_at,"slot": $_slot}]' \
-    "${blocks_file}" > "${TMP_FOLDER}/blocks.json" && mv -f "${TMP_FOLDER}/blocks.json" "${blocks_file}"
+    # check if entry already exist, bug noticed at log rollover that block traces can repeat
+    slot_search=$(jq --arg _slot "${slot}" '.[] | select(.slot == $_slot)' "${blocks_file}")
+    if [[ -n ${slot_search} ]]; then
+      echo "Duplicate slot entry, already added from previous leader trace, skipping"
+    else
+      jq --arg _at "${at}" \
+      --arg _slot "${slot}" \
+      '. += [{"at": $_at,"slot": $_slot}]' \
+      "${blocks_file}" > "${TMP_FOLDER}/blocks.json" && mv -f "${TMP_FOLDER}/blocks.json" "${blocks_file}"
+    fi
   elif [[ $(_jq '.data.kind') = "TraceAdoptedBlock" ]]; then
     slot="$(_jq '.data.slot')"
     [[ "$(_jq '.data."block hash"')" =~ unHashHeader.=.([[:alnum:]]+) ]] && block_hash="${BASH_REMATCH[1]}" || block_hash=""
