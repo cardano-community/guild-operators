@@ -627,7 +627,6 @@ sendADA() {
     --tx-in-count ${utxoCount}
     --tx-out-count ${outCount}
     --mainnet
-
     --witness-count 1
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
