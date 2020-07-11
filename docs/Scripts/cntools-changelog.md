@@ -5,7 +5,12 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - 2020-07-xx
+## [2.0.1] - 2020-07-12
+### Fixed
+- Version fix to include patch version
+
+
+## [2.0.0] - 2020-07-12
 ### Added
 - Support for cardano-node 1.15.x  
   - calculate-min-fee update to reflect change in 1.15.  
