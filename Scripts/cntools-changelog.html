@@ -1,0 +1,346 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js ayu">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Changelog - Cardano Community managed Documentation for Pool Operators</title>
+        
+
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="shortcut icon" href="../">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800" rel="stylesheet" type="text/css">
+        <link href="https://fonts.googleapis.com/css?family=Source+Code+Pro:500" rel="stylesheet" type="text/css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../highlight.css">
+        <link rel="stylesheet" href="../tomorrow-night.css">
+        <link rel="stylesheet" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        
+
+        
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "ayu";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('ayu')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded "><a href="../Home.html">Getting Started</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../architecture.html">Architecture</a></li><li class="chapter-item expanded "><a href="../Common.html">Common</a></li><li class="chapter-item expanded "><a href="../build-and-run.html">Build and Run</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../Build/node-cli.html">Node and CLI</a></li><li class="chapter-item expanded "><a href="../Build/wallet.html">Wallet</a></li><li class="chapter-item expanded "><a href="../Build/rest.html">REST</a></li><li class="chapter-item expanded "><a href="../Build/dbsync.html">DBSync tool</a></li><li class="chapter-item expanded "><a href="../Build/graphql.html">GraphQL</a></li></ol></li><li class="chapter-item expanded "><a href="../Setup-Node.html">Set up node as pool operator</a></li><li class="chapter-item expanded "><a href="../cli-scripts.html">Useful Scripts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../Scripts/cntools.html">CNTools</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../Scripts/cntools-changelog.html" class="active">Changelog</a></li><li class="chapter-item "><a href="../Scripts/cntools-common.html">Common tasks</a></li><li class="chapter-item "><a href="../Scripts/cntools-blocks.html">Block Collector</a></li></ol></li><li class="chapter-item expanded "><a href="../Scripts/createAddr.html">Create Keys/Address</a></li><li class="chapter-item expanded "><a href="../Scripts/sendADA.html">Make Transactions</a></li><li class="chapter-item expanded "><a href="../Scripts/topologyupdater.html">topology Updater</a></li></ol></li><li class="chapter-item expanded "><a href="../Staking/Main.html">Guide to the Staking</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../Staking/Keys.html">Keys</a></li><li class="chapter-item expanded "><a href="../Staking/Addresses.html">Addresses</a></li><li class="chapter-item expanded "><a href="../Staking/Certificates.html">Certificates</a></li><li class="chapter-item expanded "><a href="../Staking/StakeHolders.html">StakeHolders</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../Staking/Owners.html">Owners</a></li><li class="chapter-item "><a href="../Staking/Operators.html">Operators</a></li><li class="chapter-item "><a href="../Staking/Delegates.html">Delegates</a></li></ol></li></ol></li></ol></li><li class="chapter-item expanded "><a href="../Home.html">Appendix</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../Appendix/monitoring.html">Monitoring using Prometheus and Grafana</a></li><li class="chapter-item expanded "><a href="../Appendix/postgres.html">Sample Postgres Setup</a></li><li class="chapter-item expanded "><a href="../Appendix/Setup-Node-Genesis.html">Set up node as BFT member defined in Genesis</a></li></ol></li><li class="chapter-item expanded "><a href="../Contributors.html">Contributors</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu (default)</button></li>
+                        </ul>
+                    </div>
+
+                    <h1 class="menu-title">Cardano Community managed Documentation for Pool Operators</h1>
+
+                    <div class="right-buttons">
+                        
+                        <a href="https://github.com/cardano-community/guild-operators/blob/master/docs/Scripts/cntools-changelog.md" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        
+                        
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                        
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                    </div>
+                </div>
+
+                
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" name="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+                
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1><a class="header" href="#cntools-changelog" id="cntools-changelog">CNTools Changelog</a></h1>
+<p>All notable changes to this tool will be documented in this file.</p>
+<p>The format is based on <a href="https://keepachangelog.com/en/1.0.0/">Keep a Changelog</a>,
+and this adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
+<h2><a class="header" href="#200---2020-07-xx" id="200---2020-07-xx">[2.0.0] - 2020-07-xx</a></h2>
+<h3><a class="header" href="#added" id="added">Added</a></h3>
+<ul>
+<li>Support for cardano-node 1.15.x
+<ul>
+<li>calculate-min-fee update to reflect change in 1.15.<br />
+change was required to support byron witnesses.</li>
+<li>gettip update as output is now json formatted</li>
+<li>bech32 addressing in 1.15 required changes to delegator lookup in <code>Pool &gt;&gt; Show</code></li>
+<li>add --cardano-mode to query parameters</li>
+<li>--mainnet flag for address generation</li>
+</ul>
+</li>
+<li>Output verbosity<br />
+A new config parameter added for output verbosity using say function.<br />
+0 = Minimal - Show relevant information (default)<br />
+1 = Normal  - More information about whats going on behind the scene<br />
+2 = Maximal - Debug level for troubleshooting</li>
+<li>Improve delegators list in <code>Pool &gt;&gt; Show</code>
+<ul>
+<li>Identify owners delegations</li>
+<li>Display owner stake in red if <code>(stake + reward)</code> is below pledge (single-owner only for now)</li>
+</ul>
+</li>
+<li>Display all lovelace values in floating point ADA with 6 decimals (lovelaces) using locales</li>
+<li>Block Collector summary view</li>
+<li>KES rotation notification/warning on startup and in pool list/show views</li>
+<li>Changelog </li>
+</ul>
+<h3><a class="header" href="#changed" id="changed">Changed</a></h3>
+<ul>
+<li>op-cert creation moved from <code>Pool &gt;&gt; New</code> to <code>Pool &gt;&gt; Register</code>.</li>
+<li>Output changed in various places throughout.</li>
+<li>Include reward in delegators stake.</li>
+<li>Release now include patch version in addition to major and minor version.<br />
+In-app update modified to reflect this change.</li>
+<li>Block Collector table view</li>
+<li>Various minor code improvements</li>
+</ul>
+<h3><a class="header" href="#removed" id="removed">Removed</a></h3>
+<ul>
+<li>Enterprise wallet upgrade option in <code>Wallet &gt;&gt; List</code> </li>
+<li><code>Not a registered wallet on chain</code> information from Wallet listing</li>
+<li>en_US.UTF-8 locale dependency</li>
+</ul>
+<h3><a class="header" href="#fixed" id="fixed">Fixed</a></h3>
+<ul>
+<li>meta_json_url check</li>
+<li>Invalid tx_in when registering stake wallet</li>
+<li>Delegators rewards in <code>Pool &gt;&gt; Show</code></li>
+<li>Work-around awk versions that only support 32-bit integers</li>
+<li>Sometimes cardano-node log contain duplicate traces for the same slot at log file rollover, now filtered</li>
+</ul>
+<h2><a class="header" href="#120---2020-07-07" id="120---2020-07-07">[1.2.0] - 2020-07-07</a></h2>
+<h3><a class="header" href="#added-1" id="added-1">Added</a></h3>
+<ul>
+<li>Live stake and delegators in <code>Pool &gt;&gt; Show</code></li>
+</ul>
+<h3><a class="header" href="#fixed-1" id="fixed-1">Fixed</a></h3>
+<ul>
+<li>Correct nwmagic - was hardcoded to 42</li>
+</ul>
+<h2><a class="header" href="#110---2020-07-07" id="110---2020-07-07">[1.1.0] - 2020-07-07</a></h2>
+<h3><a class="header" href="#fixed-2" id="fixed-2">Fixed</a></h3>
+<ul>
+<li>Set script locale to fix format issue</li>
+</ul>
+<h2><a class="header" href="#100---2020-07-07" id="100---2020-07-07">[1.0.0] - 2020-07-07</a></h2>
+<h3><a class="header" href="#added-2" id="added-2">Added</a></h3>
+<ul>
+<li>Wallet upgrade option added for backwards compatibility.<br />
+<code>Wallet &gt;&gt; LIST</code> now offer an upgrade option if it finds a wallet with payment address that has funds in it. Special note added in case a genesis address is found.</li>
+<li>Update message on startup</li>
+</ul>
+<h3><a class="header" href="#changed-1" id="changed-1">Changed</a></h3>
+<ul>
+<li>Support for payment address(aka enterprise) minimised to default on base address support, as Everything that can be done with a payment address can also be done with the base address.</li>
+<li>Reduce a step to Update (register) wallet keys, and moved this step to delegate/register pool step based on a check to see if the registration is required.</li>
+<li>Changes for log output and variable names</li>
+<li>Docs and output update</li>
+<li>Replace pool JSON hosting instructions, from stout to copying file, to avoid user errors</li>
+<li>Do not give option or allow sending to same address as source. Base &lt;-&gt; Enterprise for same wallet ok.</li>
+</ul>
+<h3><a class="header" href="#fixed-3" id="fixed-3">Fixed</a></h3>
+<ul>
+<li>Removed debug code in tx</li>
+<li>A bug fixed for wallet not showing in some cases because reward address file was not generated at wallet creation</li>
+</ul>
+<h2><a class="header" href="#030---2020-07-01" id="030---2020-07-01">[0.3.0] - 2020-07-01</a></h2>
+<h3><a class="header" href="#fixed-4" id="fixed-4">Fixed</a></h3>
+<ul>
+<li>In-app update bugfix</li>
+</ul>
+<h2><a class="header" href="#020---2020-06-30" id="020---2020-06-30">[0.2.0] - 2020-06-30</a></h2>
+<h3><a class="header" href="#added-3" id="added-3">Added</a></h3>
+<ul>
+<li>Default values for relay on pool modify and re-registration</li>
+<li>New pool config parameter for relay type called <code>type</code> containing either IPv4 or DNS_A currently.</li>
+</ul>
+<h3><a class="header" href="#changed-2" id="changed-2">Changed</a></h3>
+<ul>
+<li>Old relays table on modify/registration redone to include type. Also put together a little different to handle null values and omit quotation marks.</li>
+<li>Pool show updated to show type for relay</li>
+<li>On pool re-registration or modification the old relay valus are now read from pool config. If selection of type match old values the default values are set to old config.</li>
+</ul>
+<h3><a class="header" href="#fixed-5" id="fixed-5">Fixed</a></h3>
+<ul>
+<li>Minor alignment fix of main menu header</li>
+</ul>
+<h2><a class="header" href="#010---2020-06-29" id="010---2020-06-29">[0.1.0] - 2020-06-29</a></h2>
+<h3><a class="header" href="#added-4" id="added-4">Added</a></h3>
+<ul>
+<li>First versioned released<br />
+see github commit history for details before this release</li>
+<li>In-app update for cntools</li>
+</ul>
+<h3><a class="header" href="#changed-3" id="changed-3">Changed</a></h3>
+<ul>
+<li>Update CNTools Doco to include Version on home screen</li>
+</ul>
+<h3><a class="header" href="#fixed-6" id="fixed-6">Fixed</a></h3>
+<ul>
+<li>Align table for reading relays</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                        
+                            <a rel="prev" href="../Scripts/cntools.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+                        
+
+                        
+                            <a rel="next" href="../Scripts/cntools-common.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+                        
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                
+                    <a rel="prev" href="../Scripts/cntools.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+                
+
+                
+                    <a rel="next" href="../Scripts/cntools-common.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+                
+            </nav>
+
+        </div>
+
+        
+
+        
+
+        
+        
+        
+
+        
+
+        
+        <script src="../elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../searcher.js" type="text/javascript" charset="utf-8"></script>
+        
+
+        <script src="../clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        
+
+        
+
+    </body>
+</html>
