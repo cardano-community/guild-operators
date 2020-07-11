@@ -55,8 +55,31 @@ if [[ "${CNTOOLS_MAJOR_VERSION}" != "${GIT_MAJOR_VERSION}" || "${CNTOOLS_MINOR_V
   say "Installed Version : ${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}" "log"
   say "Available Version : ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC}" "log"
   say "\nGo to Update section for upgrade"
-  waitForInput "press any key to proceed to home menu"
+  waitForInput "press any key to proceed"
 fi
+
+# check if there are pools in need of KES key rotation
+clear
+kes_rotation_needed="no"
+while IFS= read -r -d '' pool; do 
+  if [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]]; then
+    kesExpiration "$(cat "${pool}/${POOL_CURRENT_KES_START}")"
+    if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
+      kes_rotation_needed="yes"
+      say "\n** WARNING **\nPool ${GREEN}$(basename ${pool})${NC} in need of KES key rotation"
+      if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
+        say "${RED}Keys expired!${NC} : ${RED}$(showTimeLeft ${expiration_time_sec_diff:1})${NC} ago"
+      else
+        say "Time left : ${RED}$(showTimeLeft ${expiration_time_sec_diff})${NC}"
+      fi
+    elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
+      kes_rotation_needed="yes"
+      say "\nPool ${GREEN}$(basename ${pool})${NC} soon in need of KES key rotation"
+      say "Time left : ${ORANGE}$(showTimeLeft ${expiration_time_sec_diff})${NC}"
+    fi
+  fi
+done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+[[ ${kes_rotation_needed} = "yes" ]] && waitForInput "press any key to proceed"
 
 ###################################################################
 
@@ -2010,8 +2033,17 @@ case $OPERATION in
       say "$(printf "%-21s : %s" "Registered" "${pool_registered}")" "log"
       if [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]]; then
         kesExpiration "$(cat "${pool}/${POOL_CURRENT_KES_START}")"
-        say "$(printf "%-21s : %s" "KES expiration period" "${kes_expiration_period}")" "log"
-        say "$(printf "%-21s : %s" "KES expiration date" "${expiration_date}")" "log"
+        if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
+          if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
+            say "$(printf "%-21s : %s - ${RED}%s${NC} %s ago" "KES expiration date" "${expiration_date}" "EXPIRED!" "$(showTimeLeft ${expiration_time_sec_diff:1})")" "log"
+          else
+            say "$(printf "%-21s : %s - ${RED}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "ALERT!" "$(showTimeLeft ${expiration_time_sec_diff})")" "log"
+          fi
+        elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
+          say "$(printf "%-21s : %s - ${ORANGE}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "WARNING!" "$(showTimeLeft ${expiration_time_sec_diff})")" "log"
+        else
+          say "$(printf "%-21s : %s" "KES key expiration date" "${expiration_date}")" "log"
+        fi
       fi
     done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
     say ""
@@ -2086,8 +2118,17 @@ case $OPERATION in
     if [[ "${pool_registered}" = "YES" ]]; then
       if [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]]; then
         kesExpiration "$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
-        say "$(printf "%-21s : %s" "KES expiration period" "${kes_expiration_period}")" "log"
-        say "$(printf "%-21s : %s" "KES expiration date" "${expiration_date}")" "log"
+        if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
+          if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
+            say "$(printf "%-21s : %s - ${RED}%s${NC} %s ago" "KES expiration date" "${expiration_date}" "EXPIRED!" "$(showTimeLeft ${expiration_time_sec_diff:1})")" "log"
+          else
+            say "$(printf "%-21s : %s - ${RED}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "ALERT!" "$(showTimeLeft ${expiration_time_sec_diff})")" "log"
+          fi
+        elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
+          say "$(printf "%-21s : %s - ${ORANGE}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "WARNING!" "$(showTimeLeft ${expiration_time_sec_diff})")" "log"
+        else
+          say "$(printf "%-21s : %s" "KES key expiration date" "${expiration_date}")" "log"
+        fi
       fi
       # get owners
       while read -r owner; do

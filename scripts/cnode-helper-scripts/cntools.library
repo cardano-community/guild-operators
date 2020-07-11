@@ -1521,7 +1521,16 @@ kesExpiration() {
   slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
   kes_expiration_period=$(( ${1} + ${max_kes_evolutions} - 1 ))
   expiration_time_sec=$(( ${genesis_start_time_sec} + ( ${slot_duration} * ${kes_expiration_period} * ${slots_per_kes_period} ) ))
+  expiration_time_sec_diff=$(( expiration_time_sec - $(date +%s) ))
   expiration_date=$(date --date=@${expiration_time_sec})
+}
+
+showTimeLeft() {
+  if [[ -z "${1##*[!0-9]*}" ]]; then
+    say "${RED}ERROR${NC}: time must be an integer number [$1]"
+    return 1
+  fi
+  printf '%02dh:%02dm:%02ds\n' $(($1/3600)) $(($1%3600/60)) $(($1%60))
 }
 
 

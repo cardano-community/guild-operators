@@ -23,6 +23,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Display owner stake in red if `(stake + reward)` is below pledge (single-owner only for now)
 - Display all lovelace values in floating point ADA with 6 decimals (lovelaces) using locales
 - Block Collector summary view
+- KES rotation notification/warning on startup and in pool list/show views
 - Changelog 
 
 ### Changed
