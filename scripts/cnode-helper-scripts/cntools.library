@@ -97,7 +97,7 @@ protectionPreRequisites() {
      ! need_cmd "chattr"; then
     return 1
   fi
-  
+
   touch "${TMP_FOLDER}"/test
   if ! sudo -n chattr -i "${TMP_FOLDER}"/test 2>&1; then
     rm -f "${TMP_FOLDER}"/test
@@ -159,7 +159,7 @@ function selectOption {
     local idx=0
     for opt; do
       opt_part2=""
-      if [[ "$opt" =~ ^(.*)[[:space:]](\(.*) ]]; then 
+      if [[ "$opt" =~ ^(.*)[[:space:]](\(.*) ]]; then
         opt_part1="${BASH_REMATCH[1]}"
         opt_part2=" ${BASH_REMATCH[2]}"
       else
@@ -173,7 +173,7 @@ function selectOption {
       fi
       ((idx++))
     done
-    
+
     [[ "${shortcut_found}" = "yes" ]] && break
 
     # user key control
@@ -258,9 +258,9 @@ function getDirs {
 }
 
 # Command    : selectDir [dir1 dir2 ...]
-# Description: A helper function to selectOption() specifically for directory selection 
+# Description: A helper function to selectOption() specifically for directory selection
 # Parameters : array of dirs    >   array of dirs to include in selection, '[c] Cancel' option added to all selections
-# Return     : populates ${dir_name} variable, 
+# Return     : populates ${dir_name} variable,
 # Examples of Usage:
 #   >> selectDir Wallet1 Wallet2 Wallet3
 #
@@ -471,13 +471,13 @@ pctToFraction() {
 
 # Command    : fractionToPCT [fraction]
 # Description: Convert fraction number to precent
-# Parameters : fraction   >   number to be converted 
+# Parameters : fraction   >   number to be converted
 # Return     : number as percentage on STDOUT
 # Examples of Usage:
 #   >> fractionToPCT 0.015
 fractionToPCT() {
   if validateDecimalNbr $1; then
-    if (( $(bc <<<"$1 > 0") )); then 
+    if (( $(bc <<<"$1 > 0") )); then
       echo "x=$1 * 100; if(x<1) print 0; x" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//'
     else
       echo 0
@@ -545,12 +545,12 @@ getRewardAddress() {
 getBalance() {
   lovelace=0
   utx0_count=0
-  
+
   [[ -z $1 ]] && return 1
 
   ${CCLI} shelley query utxo --cardano-mode --testnet-magic "${NWMAGIC}" --address "${1}" > "${TMP_FOLDER}"/fullUtxo.out
   tail -n +3 "${TMP_FOLDER}"/fullUtxo.out | sort -k3 -nr > "${TMP_FOLDER}"/balance.out
-  
+
   while read -r utxo; do
     utx0_count=$(( utx0_count + 1 ))
     lovelace=$(( lovelace + $(awk '{ print $3 }' <<< "${utxo}") ))
@@ -596,7 +596,6 @@ sendADA() {
   currSlot=$(getSlotTip)
   ttlValue=$(( currSlot + 1000 ))
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" 1 "log"
-  
   getBalance ${sAddr}
 
   balance=0
@@ -627,7 +626,8 @@ sendADA() {
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utxoCount}
     --tx-out-count ${outCount}
-    --testnet-magic ${NWMAGIC}
+    --mainnet
+
     --witness-count 1
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
@@ -689,12 +689,13 @@ sendADA() {
   submitArgs=(
     shelley transaction submit
     --tx-file "${TMP_FOLDER}"/tx.signed
+    --cardano-mode
     --testnet-magic ${NWMAGIC}
   )
 
   say "" 1
   say "# Build, Sign & Send transaction" 1 "log"
-  
+
   say "Building transaction" 1
   say "$ ${CCLI} ${buildArgs[*]}" 2
   output=$(${CCLI} ${buildArgs[*]})
@@ -732,14 +733,14 @@ isWalletRegistered() {
     stakeAddressInfo=$(${CCLI} shelley query stake-address-info --cardano-mode --testnet-magic ${NWMAGIC} --address ${reward_addr} | jq -r '.[] // empty')
     [[ -n "${stakeAddressInfo}" ]] && return 0
   fi
-  return 1 
+  return 1
 }
 
 # Command    : registerStakeWallet [wallet name]
 # Description: Register stake keys on chain and move funds from payment address to payment base address
 # Return     : prints progress on STDOUT
 registerStakeWallet() {
-  
+
   say "\nWallet ${GREEN}${1}${NC} not registered on chain"
   waitForInput "press any key to continue with registration"
 
@@ -748,20 +749,20 @@ registerStakeWallet() {
   stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}"
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
   stake_cert_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_CERT_FILENAME}"
-  
+
   say "\n" 1
   say "Creating registration certificate" 1 "log"
   say "" 1
   say "${CCLI} shelley stake-address registration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cert_file}" 2
   ${CCLI} shelley stake-address registration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cert_file}"
-  
+
   say "# Protocol Parameters" 1 "log"
   currSlot=$(getSlotTip)
   ttlValue=$(( currSlot + 1000 ))
   keyDeposit=$(cat "${TMP_FOLDER}"/protparams.json | jq -r '.keyDeposit')
   say "Key Deposit is ${keyDeposit}" 1 "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" 1 "log"
-  
+
   # Use all available utxo in source address
   say "" 2
   say "Using UTxO's:" 2
@@ -800,9 +801,9 @@ registerStakeWallet() {
 
   newBalance=$(( lovelace - minFee - keyDeposit ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
-  
+
   say "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) - $(formatLovelace ${keyDeposit}))" 1 "log"
-  
+
   buildArgs=(
     shelley transaction build-raw
     ${tx_in}
@@ -825,12 +826,13 @@ registerStakeWallet() {
   submitArgs=(
     shelley transaction submit
     --tx-file "${TMP_FOLDER}"/tx.signed
+    --cardano-mode
     --testnet-magic ${NWMAGIC}
   )
 
   say "" 1
   say "# Build, Sign & Send transaction" 1 "log"
-  
+
   say "Building transaction" 1 "log"
   say "$ ${CCLI} ${buildArgs[*]}" 2
   output=$(${CCLI} ${buildArgs[*]})
@@ -857,9 +859,9 @@ registerStakeWallet() {
     say "$output"
     return 1
   fi
-  
+
   say "\n\n${ORANGE}Waiting for wallet registration to be recorded on chain, if aborted, choosen action will fail${NC}"
-  
+
   while true; do
     if ! waitNewBlockCreated; then
       break
@@ -872,12 +874,12 @@ registerStakeWallet() {
       break
     fi
   done
-  
+
   if [[ ${lovelace} -ne ${newBalance} ]]; then
     say "${RED}ERROR${NC}: operation aborted, selected action will not complete"
     return 1
   fi
-  
+
   reward_lovelace=0
 }
 
@@ -909,7 +911,7 @@ registerPool() {
     say "${RED}ERROR${NC}: wallet empty"
     return 1
   fi
-  
+
   say "" 1
   say "# Protocol Parameters" 1 "log"
   currSlot=$(getSlotTip)
@@ -917,7 +919,7 @@ registerPool() {
   poolDeposit=$(cat "${TMP_FOLDER}"/protparams.json | jq -r '.poolDeposit')
   say "Pool Deposit is ${poolDeposit}" 1 "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" 1 "log"
-  
+
   # Use all available utxo in pledge wallet
   say "" 2
   say "Using UTxO's:" 2
@@ -982,12 +984,13 @@ registerPool() {
   submitArgs=(
     shelley transaction submit
     --tx-file "${TMP_FOLDER}"/tx.signed
+    --cardano-mode
     --testnet-magic ${NWMAGIC}
   )
 
   say "" 1
   say "# Build, Sign & Send transaction" 1 "log"
-  
+
   say "Building transaction" 1
   say "$ ${CCLI} ${buildArgs[*]}" 2
   output=$(${CCLI} ${buildArgs[*]})
@@ -1043,7 +1046,7 @@ modifyPool() {
   currSlot=$(getSlotTip)
   ttlValue=$(( currSlot + 1000 ))
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" 1 "log"
-  
+
   # Use all available utxo in pledge wallet base address
   say "" 2
   say "Using UTxO's:" 2
@@ -1107,12 +1110,13 @@ modifyPool() {
   submitArgs=(
     shelley transaction submit
     --tx-file "${TMP_FOLDER}"/tx.signed
+    --cardano-mode
     --testnet-magic ${NWMAGIC}
   )
 
   say "" 1
   say "# Build, Sign & Send transaction" 1 "log"
-  
+
   say "Building transaction" 1
   say "$ ${CCLI} ${buildArgs[*]}" 2
   output=$(${CCLI} ${buildArgs[*]})
@@ -1159,7 +1163,7 @@ withdrawRewards() {
   currSlot=$(getSlotTip)
   ttlValue=$(( currSlot + 1000 ))
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" 1 "log"
-  
+
   # Use all available utxo in pledge wallet base address
   say "" 2
   say "Using UTxO's:" 2
@@ -1222,12 +1226,13 @@ withdrawRewards() {
   submitArgs=(
     shelley transaction submit
     --tx-file "${TMP_FOLDER}"/tx.signed
+    --cardano-mode
     --testnet-magic ${NWMAGIC}
   )
 
   say "" 1
   say "# Build, Sign & Send transaction" 1 "log"
-  
+
   say "Building transaction" 1
   say "$ ${CCLI} ${buildArgs[*]}" 2
   output=$(${CCLI} ${buildArgs[*]})
@@ -1348,12 +1353,13 @@ delegate() {
   submitArgs=(
     shelley transaction submit
     --tx-file "${TMP_FOLDER}"/tx.signed
+    --cardano-mode
     --testnet-magic ${NWMAGIC}
   )
 
   say "" 1
   say "# Build, Sign & Send transaction" 1 "log"
-  
+
   say "Building transaction" 1
   say "$ ${CCLI} ${buildArgs[*]}" 2
   output=$(${CCLI} ${buildArgs[*]})
@@ -1397,13 +1403,13 @@ deRegisterPool() {
   pool_deregcert_file="$2"
   wallet_addr="$3"
   wallet_payment_sk_file="$4"
-  
+
   say "" 1
   say "# Protocol Parameters" 1 "log"
   currSlot=$(getSlotTip)
   ttlValue=$(( currSlot + 1000 ))
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" 1 "log"
-  
+
   # Use all available utxo in wallet address
   say "" 2
   say "Using UTxO's:" 2
@@ -1434,7 +1440,7 @@ deRegisterPool() {
   say "$ ${CCLI} ${minFeeArgs[*]}" 2
   minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   say "fee is $(formatLovelace ${minFee}) ADA" 1 "log"
-  
+
   if [[ ${lovelace} -lt ${minFee} ]]; then
     say "${RED}ERROR${NC}: Not enough ADA in wallet ( $(formatLovelace ${lovelace}) < $(formatLovelace ${minFee}) )"
     return 1
@@ -1466,12 +1472,13 @@ deRegisterPool() {
   submitArgs=(
     shelley transaction submit
     --tx-file "${TMP_FOLDER}"/tx.signed
+    --cardano-mode
     --testnet-magic ${NWMAGIC}
   )
 
   say "" 1
   say "# Build, Sign & Send transaction" 1 "log"
-  
+
   say "Building transaction" 1
   say "$ ${CCLI} ${buildArgs[*]}" 2
   output=$(${CCLI} ${buildArgs[*]})
@@ -1514,7 +1521,7 @@ kesExpiration() {
     say "${RED}ERROR${NC}: current KES period must be an integer number [$1]"
     return 1
   fi
-  
+
   max_kes_evolutions=$(jq -r .maxKESEvolutions "${GENESIS_JSON}")
   genesis_start_time_sec=$(date --date=$(jq -r .systemStart "${GENESIS_JSON}") +%s)	# UTC
   slot_duration=$(jq -r .slotLength "${GENESIS_JSON}")
