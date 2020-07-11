@@ -496,7 +496,7 @@ getPayAddress() {
   payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
   payment_addr_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_ADDR_FILENAME}"
   if [[ -f "${payment_vk_file}" ]]; then
-    if ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" --testnet-magic ${NWMAGIC} 2>/dev/null; then
+    if ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" --mainnet 2>/dev/null; then
       pay_addr=$(cat "${payment_addr_file}")
     else
       pay_addr=""
@@ -516,7 +516,7 @@ getBaseAddress() {
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
   base_addr_file="${WALLET_FOLDER}/${1}/${WALLET_BASE_ADDR_FILENAME}"
   if [[ -f "${payment_vk_file}" && -f "${stake_vk_file}" ]]; then
-    ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" --testnet-magic ${NWMAGIC}
+    ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" --mainnet
     base_addr=$(cat "${base_addr_file}")
   else
     base_addr=""
@@ -531,7 +531,7 @@ getRewardAddress() {
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
   stake_addr_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_ADDR_FILENAME}"
   if [[ -f "${stake_vk_file}" ]]; then
-    ${CCLI} shelley stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" --testnet-magic ${NWMAGIC}
+    ${CCLI} shelley stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" --mainnet
     reward_addr=$(cat "${stake_addr_file}")
   else
     reward_addr=""

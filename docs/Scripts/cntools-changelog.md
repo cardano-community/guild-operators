@@ -13,6 +13,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - gettip update as output is now json formatted
   - bech32 addressing in 1.15 required changes to delegator lookup in `Pool >> Show`
   - add --cardano-mode to query parameters
+  - --mainnet flag for address generation
 - Output verbosity  
   A new config parameter added for output verbosity using say function.  
   0 = Minimal - Show relevant information (default)  
