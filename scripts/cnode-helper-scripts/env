@@ -4,6 +4,7 @@ CCLI=$(which cardano-cli)
 CNODE_HOME=/opt/cardano/cnode
 CONFIG=$CNODE_HOME/files/ptn0.yaml
 GENESIS_JSON=$CNODE_HOME/files/genesis.json
+BYRON_GENESIS_JSON=$CNODE_HOME/files/byron_genesis.json
 NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
 export CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
 MAGIC=$(jq -r .protocolMagicId < $GENESIS_JSON)

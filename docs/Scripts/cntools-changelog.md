@@ -5,6 +5,17 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2020-07-12
+### Added
+- Basic health check data on main menu
+  - Epoch, time until next epoch, node tip vs calculated reference tip and a warning if node is lagging behind.
+- Address era and encoding to `Wallet >> Show`
+
+### Changed
+- KES calculation, now take into account the byron era and the transition period until shelley start
+  - Credit to Martin @ ATADA for inspiration on how to calculate this
+
+
 ## [2.0.1] - 2020-07-12
 ### Fixed
 - Version fix to include patch version

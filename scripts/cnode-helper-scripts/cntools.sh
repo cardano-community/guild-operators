@@ -101,8 +101,16 @@ say " ) Pool    -  pool creation and management"
 say " ) Blocks  -  show core node leader slots"
 say " ) Update  -  update cntools script and library config files"
 say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-
-say " What would you like to do?\n"
+say "$(printf "%84s" "Epoch $(getEpoch) - $(timeUntilNextEpoch) until next")"
+tip_diff=$(getSlotTipDiff)
+if [[ ${tip_diff} -le $(slotInterval) ]]; then
+  say "$(printf " %-20s %73s" "What would you like to do?" "Ref/Node Tip DIFF: ${GREEN}${tip_diff}${NC} slots")"
+elif [[ ${tip_diff} -le $(slotInterval*3) ]]; then
+  say "$(printf " %-20s %73s" "What would you like to do?" "Ref/Node Tip DIFF: ${ORANGE}${tip_diff}${NC} slots")"
+else
+  say "$(printf " %-20s %73s" "What would you like to do?" "Ref/Node Tip DIFF: ${RED}${tip_diff}${NC} slots **WARNING**")"
+fi
+say ""
 case $(select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[b] Blocks" "[u] Update" "[q] Quit") in
   0) OPERATION="wallet" ;;
   1) OPERATION="funds" ;;
@@ -309,6 +317,9 @@ case $OPERATION in
     say ""
     say "$(printf "%-19s : %s" "Address" "${base_addr}")" "log"
     say "$(printf "%-19s : ${CYAN}%s${NC} ADA" "Funds" "$(formatLovelace ${base_lovelace})")" "log"
+    getAddressInfo "${base_addr}"
+    say "$(printf "%-19s : %s" "Era" "$(jq -r '.era' <<< ${address_info})")" "log"
+    say "$(printf "%-19s : %s" "Encoding" "$(jq -r '.encoding' <<< ${address_info})")" "log"
     say "$(printf "%-19s : %s" "Enterprise Address" "${pay_addr}")" "log"
     say "$(printf "%-19s : ${CYAN}%s${NC} ADA" "Enterprise Funds" "$(formatLovelace ${pay_lovelace})")" "log"
     getRewards ${wallet_name}
@@ -1441,10 +1452,7 @@ case $OPERATION in
     say "\n"
     say "# Register Stake Pool" "log"
     
-    #Calculate appropriate KES period
-    currSlot=$(getSlotTip)
-    slotsPerKESPeriod=$(jq -r .slotsPerKESPeriod $GENESIS_JSON)
-    start_kes_period=$(( currSlot / slotsPerKESPeriod  ))
+    start_kes_period=$(getCurrentKESperiod)
     echo "${start_kes_period}" > ${pool_saved_kes_start}
     say "creating operational certificate" 1 "log"
     ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${start_kes_period}" --out-file "${pool_opcert_file}"
@@ -2240,11 +2248,7 @@ case $OPERATION in
     pool_saved_kes_start="${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}"
     pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
 
-    #Calculate appropriate KES period
-    currSlot=$(getSlotTip)
-    slotsPerKESPeriod=$(jq -r .slotsPerKESPeriod $GENESIS_JSON)
-    start_kes_period=$(( currSlot / slotsPerKESPeriod  ))
-
+    start_kes_period=$(getCurrentKESperiod)
     echo "${start_kes_period}" > ${pool_saved_kes_start}
     
     say "creating new hot keys and certificate" 1
