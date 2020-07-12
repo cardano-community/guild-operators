@@ -155,13 +155,31 @@
 <p>All notable changes to this tool will be documented in this file.</p>
 <p>The format is based on <a href="https://keepachangelog.com/en/1.0.0/">Keep a Changelog</a>,
 and this adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
+<h2><a class="header" href="#211---2020-07-12" id="211---2020-07-12">[2.1.1] - 2020-07-12</a></h2>
+<h3><a class="header" href="#added" id="added">Added</a></h3>
+<ul>
+<li>Basic health check data on main menu
+<ul>
+<li>Epoch, time until next epoch, node tip vs calculated reference tip and a warning if node is lagging behind.</li>
+</ul>
+</li>
+<li>Address era and encoding to <code>Wallet &gt;&gt; Show</code></li>
+</ul>
+<h3><a class="header" href="#changed" id="changed">Changed</a></h3>
+<ul>
+<li>KES calculation, now take into account the byron era and the transition period until shelley start
+<ul>
+<li>Credit to Martin @ ATADA for inspiration on how to calculate this</li>
+</ul>
+</li>
+</ul>
 <h2><a class="header" href="#201---2020-07-12" id="201---2020-07-12">[2.0.1] - 2020-07-12</a></h2>
 <h3><a class="header" href="#fixed" id="fixed">Fixed</a></h3>
 <ul>
 <li>Version fix to include patch version</li>
 </ul>
 <h2><a class="header" href="#200---2020-07-12" id="200---2020-07-12">[2.0.0] - 2020-07-12</a></h2>
-<h3><a class="header" href="#added" id="added">Added</a></h3>
+<h3><a class="header" href="#added-1" id="added-1">Added</a></h3>
 <ul>
 <li>Support for cardano-node 1.15.x
 <ul>
@@ -189,7 +207,7 @@ A new config parameter added for output verbosity using say function.<br />
 <li>KES rotation notification/warning on startup and in pool list/show views</li>
 <li>Changelog </li>
 </ul>
-<h3><a class="header" href="#changed" id="changed">Changed</a></h3>
+<h3><a class="header" href="#changed-1" id="changed-1">Changed</a></h3>
 <ul>
 <li>op-cert creation moved from <code>Pool &gt;&gt; New</code> to <code>Pool &gt;&gt; Register</code>.</li>
 <li>Output changed in various places throughout.</li>
@@ -214,7 +232,7 @@ In-app update modified to reflect this change.</li>
 <li>Sometimes cardano-node log contain duplicate traces for the same slot at log file rollover, now filtered</li>
 </ul>
 <h2><a class="header" href="#120---2020-07-07" id="120---2020-07-07">[1.2.0] - 2020-07-07</a></h2>
-<h3><a class="header" href="#added-1" id="added-1">Added</a></h3>
+<h3><a class="header" href="#added-2" id="added-2">Added</a></h3>
 <ul>
 <li>Live stake and delegators in <code>Pool &gt;&gt; Show</code></li>
 </ul>
@@ -228,13 +246,13 @@ In-app update modified to reflect this change.</li>
 <li>Set script locale to fix format issue</li>
 </ul>
 <h2><a class="header" href="#100---2020-07-07" id="100---2020-07-07">[1.0.0] - 2020-07-07</a></h2>
-<h3><a class="header" href="#added-2" id="added-2">Added</a></h3>
+<h3><a class="header" href="#added-3" id="added-3">Added</a></h3>
 <ul>
 <li>Wallet upgrade option added for backwards compatibility.<br />
 <code>Wallet &gt;&gt; LIST</code> now offer an upgrade option if it finds a wallet with payment address that has funds in it. Special note added in case a genesis address is found.</li>
 <li>Update message on startup</li>
 </ul>
-<h3><a class="header" href="#changed-1" id="changed-1">Changed</a></h3>
+<h3><a class="header" href="#changed-2" id="changed-2">Changed</a></h3>
 <ul>
 <li>Support for payment address(aka enterprise) minimised to default on base address support, as Everything that can be done with a payment address can also be done with the base address.</li>
 <li>Reduce a step to Update (register) wallet keys, and moved this step to delegate/register pool step based on a check to see if the registration is required.</li>
@@ -254,12 +272,12 @@ In-app update modified to reflect this change.</li>
 <li>In-app update bugfix</li>
 </ul>
 <h2><a class="header" href="#020---2020-06-30" id="020---2020-06-30">[0.2.0] - 2020-06-30</a></h2>
-<h3><a class="header" href="#added-3" id="added-3">Added</a></h3>
+<h3><a class="header" href="#added-4" id="added-4">Added</a></h3>
 <ul>
 <li>Default values for relay on pool modify and re-registration</li>
 <li>New pool config parameter for relay type called <code>type</code> containing either IPv4 or DNS_A currently.</li>
 </ul>
-<h3><a class="header" href="#changed-2" id="changed-2">Changed</a></h3>
+<h3><a class="header" href="#changed-3" id="changed-3">Changed</a></h3>
 <ul>
 <li>Old relays table on modify/registration redone to include type. Also put together a little different to handle null values and omit quotation marks.</li>
 <li>Pool show updated to show type for relay</li>
@@ -270,13 +288,13 @@ In-app update modified to reflect this change.</li>
 <li>Minor alignment fix of main menu header</li>
 </ul>
 <h2><a class="header" href="#010---2020-06-29" id="010---2020-06-29">[0.1.0] - 2020-06-29</a></h2>
-<h3><a class="header" href="#added-4" id="added-4">Added</a></h3>
+<h3><a class="header" href="#added-5" id="added-5">Added</a></h3>
 <ul>
 <li>First versioned released<br />
 see github commit history for details before this release</li>
 <li>In-app update for cntools</li>
 </ul>
-<h3><a class="header" href="#changed-3" id="changed-3">Changed</a></h3>
+<h3><a class="header" href="#changed-4" id="changed-4">Changed</a></h3>
 <ul>
 <li>Update CNTools Doco to include Version on home screen</li>
 </ul>
