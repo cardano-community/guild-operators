@@ -9,7 +9,7 @@
 # Any breaking changes (eg: that requires change of cntools.config, env or a change in priv folder would be considered breaking and will be exempt from auto-update)
 CNTOOLS_MAJOR_VERSION=2
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
-CNTOOLS_MINOR_VERSION=0
+CNTOOLS_MINOR_VERSION=1
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
 CNTOOLS_PATCH_VERSION=1
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
@@ -359,24 +359,109 @@ getBlockTip() {
 getSlotTip() {
   $CCLI shelley query tip --cardano-mode --testnet-magic ${NWMAGIC} | jq -r '.slotNo'
 }
+# Command    : getSlotTipRef
+# Description: Get calculated slot number tip
+# Return     : string with tip on STDOUT
+getSlotTipRef() {
+  shelley_genesis_start_time_sec=$(date --date=$(jq -r .systemStart "${GENESIS_JSON}") +%s)
+  byron_genesis_start_time_sec=$(jq -r .startTime "${BYRON_GENESIS_JSON}")
+  epoch_length=$(jq -r .epochLength "${GENESIS_JSON}")
+  slot_length=$(jq -r .slotLength "${GENESIS_JSON}")
+  byron_slots=$(( ( shelley_genesis_start_time_sec - byron_genesis_start_time_sec ) / 20 ))
+  byron_shelley_trans_slots=$(( ( 2 * epoch_length ) / 20 ))
+  byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( 2 * epoch_length ) ))
+  current_time_sec=$(date -u +%s)
+
+  if [[ "${current_time_sec}" -lt "${transTimeEnd}" ]]; then 
+    # In Transistion Phase between Shelley and Byron
+    echo $(( byron_slots + ( current_time_sec - shelley_genesis_start_time_sec ) / 20 ))
+  else
+    # In Shelley Phase
+    echo $(( byron_slots + byron_shelley_trans_slots + (( current_time_sec - byron_shelley_trans_end ) / slot_length ) ))
+  fi
+}
+# Command    : getSlotTipDiff
+# Description: Get difference between current node slot tip and calculated tip based on genesis file
+# Return     : diff on STDOUT
+getSlotTipDiff() {
+  tip_ref=$(getSlotTipRef)
+  tip_node=$(getSlotTip)
+  echo $(( tip_ref - tip_node ))
+}
+
+slotInterval() {
+  slot_length=$(jq -r .slotLength "${GENESIS_JSON}")
+  active_slots_coeff=$(jq -r .activeSlotsCoeff "${GENESIS_JSON}")
+  echo "${slot_length} / ${active_slots_coeff}" | bc
+}
 
 # Command    : getEpoch
-# Description: Calculates current epoch based on slot tip
-# Parameters : null
-# Return     : epoch on STDOUT
-# Examples of Usage:
-#   >> epoch=$(getEpoch)
+# Description: Offline calculation of current epoch based on genesis file
+# Return     : current epoch on STDOUT
 getEpoch() {
-  echo $(( $(getSlotTip) / $(jq -r .epochLength ${GENESIS_JSON}) ))
+  genesis_start_time_sec=$(date --date=$(jq -r .systemStart "${GENESIS_JSON}") +%s)
+  current_time_sec=$(date -u +%s)
+  epoch_length=$(jq -r .epochLength "${GENESIS_JSON}")
+  current_epoch=$(( ( current_time_sec - genesis_start_time_sec ) / epoch_length ))
+  echo "${current_epoch}"
+}
+# Command    : getTimeUntilNextEpoch
+# Description: Offline calculation of time until next epoch
+# Return     : time left in hh:mm:ss
+timeUntilNextEpoch() {
+  getEpoch >/dev/null
+  showTimeLeft $(( epoch_length - ( current_time_sec - genesis_start_time_sec ) + ( current_epoch * epoch_length ) ))
+}
+
+# Command    : getCurrentKESperiod
+# Description: Offline calculation of the current KES period
+# Return     : current KES period on STDOUT
+getCurrentKESperiod() {
+  shelley_genesis_start_time_sec=$(date --date=$(jq -r .systemStart "${GENESIS_JSON}") +%s)
+  epoch_length=$(jq -r .epochLength "${GENESIS_JSON}")
+  slot_length=$(jq -r .slotLength "${GENESIS_JSON}")
+  byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( 2 * epoch_length ) ))
+  slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
+  current_time_sec=$(date -u +%s)
+  current_kes_period=$(( ( current_time_sec - byron_shelley_trans_end ) / ( slots_per_kes_period * slot_length ) ))
+  echo "${current_kes_period}"
+}
+
+# Command    : kesExpiration [current KES period]
+#
+# Description: Calculate KES expiration
+# Parameters : current KES period    >   KES start stored in POOL_CURRENT_KES_START file for pool in question
+# Return     : expiration date can be accessed through variable ${expiration_date} after function has been executed
+kesExpiration() {
+  if [[ -z "${1##*[!0-9]*}" ]]; then
+    say "${RED}ERROR${NC}: current KES period must be an integer number [$1]"
+    return 1
+  fi
+  max_kes_evolutions=$(jq -r .maxKESEvolutions "${GENESIS_JSON}")
+  kes_expiration_period=$(( ${1} + ${max_kes_evolutions} - 1 ))
+  shelley_genesis_start_time_sec=$(date --date=$(jq -r .systemStart "${GENESIS_JSON}") +%s)
+  epoch_length=$(jq -r .epochLength "${GENESIS_JSON}")
+  slot_length=$(jq -r .slotLength "${GENESIS_JSON}")
+  slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
+  byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( 2 * epoch_length ) ))
+  expiration_time_sec=$(( ${byron_shelley_trans_end} + ( ${slot_length} * ${kes_expiration_period} * ${slots_per_kes_period} ) ))
+  current_time_sec=$(date -u +%s)
+  expiration_time_sec_diff=$(( expiration_time_sec - current_time_sec ))
+  expiration_date=$(date --date=@${expiration_time_sec})
+}
+
+showTimeLeft() {
+  if [[ -z "${1##*[!0-9]*}" ]]; then
+    say "${RED}ERROR${NC}: time must be an integer number [$1]"
+    return 1
+  fi
+  printf '%02dh:%02dm:%02ds\n' $(($1/3600)) $(($1%3600/60)) $(($1%60))
 }
 
 
 # Command    : waitNewBlockCreated
 # Description: Wait for a new block to be created
-# Parameters : null
 # Return     : prints progress on STDOUT
-# Examples of Usage:
-#   >> waitNewBlockCreated
 waitNewBlockCreated() {
   SLOT_DURATION=$(jq -r .slotLength "$GENESIS_JSON")
   COUNTER=${TIMEOUT_NO_OF_SLOTS}
@@ -537,6 +622,13 @@ getRewardAddress() {
     reward_addr=""
     return 1
   fi
+}
+
+# Command    : getAddressInfo [address]
+# Description: get address info from from node
+# Return     : populates $address_info
+getAddressInfo() {
+  address_info=$(${CCLI} shelley address info --address $1)
 }
 
 # Command    : getBalance [address]
@@ -1504,39 +1596,6 @@ deRegisterPool() {
     say "$output"
     return 1
   fi
-}
-
-
-# Command    : kesExpiration [current KES period]
-#
-# Description: Calculate KES expiration
-# Parameters : current KES period    >   KES start stored in POOL_CURRENT_KES_START file for pool in question
-# Return     : expiration date can be accessed through variable ${expiration_date} after function has been executed
-# Examples of Usage:
-#   >> kesExpiration 1234
-#
-kesExpiration() {
-  if [[ -z "${1##*[!0-9]*}" ]]; then
-    say "${RED}ERROR${NC}: current KES period must be an integer number [$1]"
-    return 1
-  fi
-
-  max_kes_evolutions=$(jq -r .maxKESEvolutions "${GENESIS_JSON}")
-  genesis_start_time_sec=$(date --date=$(jq -r .systemStart "${GENESIS_JSON}") +%s)	# UTC
-  slot_duration=$(jq -r .slotLength "${GENESIS_JSON}")
-  slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
-  kes_expiration_period=$(( ${1} + ${max_kes_evolutions} - 1 ))
-  expiration_time_sec=$(( ${genesis_start_time_sec} + ( ${slot_duration} * ${kes_expiration_period} * ${slots_per_kes_period} ) ))
-  expiration_time_sec_diff=$(( expiration_time_sec - $(date +%s) ))
-  expiration_date=$(date --date=@${expiration_time_sec})
-}
-
-showTimeLeft() {
-  if [[ -z "${1##*[!0-9]*}" ]]; then
-    say "${RED}ERROR${NC}: time must be an integer number [$1]"
-    return 1
-  fi
-  printf '%02dh:%02dm:%02ds\n' $(($1/3600)) $(($1%3600/60)) $(($1%60))
 }
 
 
