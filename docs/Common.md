@@ -12,7 +12,7 @@ mkdir "$HOME/tmp";cd "$HOME/tmp"
 # Install wget
 # CentOS / RedHat - sudo dnf -y install wget
 # Ubuntu / Debian - sudo apt -y install wget
-wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/prereqs.sh
+wget -O prereqs.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/prereqs.sh
 chmod 755 prereqs.sh
 # Ensure you can run sudo commands with your user before execution
 ./prereqs.sh
