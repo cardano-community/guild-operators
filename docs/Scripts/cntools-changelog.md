@@ -5,6 +5,12 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2020-07-12
+### Changed
+- Release `2.1.1` included a change to env file and thus require a major version bump.
+- Modified output on Update screen slightly.
+
+
 ## [2.1.1] - 2020-07-12
 ### Added
 - Basic health check data on main menu
