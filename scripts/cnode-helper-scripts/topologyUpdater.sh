@@ -15,7 +15,7 @@ TESTNET_MAGIC=42
 export PATH="${CNODE_BIN}:${PATH}"
 export CARDANO_NODE_SOCKET_PATH="${CNODE_HOME}/sockets/node0.socket"
 
-blockNo=$(cardano-cli shelley query tip --cardano-mode --testnet-magic $TESTNET_MAGIC | grep -oP 'unBlockNo = \K\d+')
+blockNo=$(cardano-cli shelley query tip --cardano-mode --testnet-magic $TESTNET_MAGIC | jq -r .blockNo )
 
 # Note: 
 # if you run your node in IPv4/IPv6 dual stack network configuration and want announced the 
