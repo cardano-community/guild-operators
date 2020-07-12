@@ -2042,7 +2042,7 @@ case $OPERATION in
         elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
           say "$(printf "%-21s : %s - ${ORANGE}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "WARNING!" "$(showTimeLeft ${expiration_time_sec_diff})")" "log"
         else
-          say "$(printf "%-21s : %s" "KES key expiration date" "${expiration_date}")" "log"
+          say "$(printf "%-21s : %s" "KES expiration date" "${expiration_date}")" "log"
         fi
       fi
     done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
@@ -2127,7 +2127,7 @@ case $OPERATION in
         elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
           say "$(printf "%-21s : %s - ${ORANGE}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "WARNING!" "$(showTimeLeft ${expiration_time_sec_diff})")" "log"
         else
-          say "$(printf "%-21s : %s" "KES key expiration date" "${expiration_date}")" "log"
+          say "$(printf "%-21s : %s" "KES expiration date" "${expiration_date}")" "log"
         fi
       fi
       # get owners

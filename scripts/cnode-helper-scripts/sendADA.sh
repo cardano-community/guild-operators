@@ -69,7 +69,7 @@ fi
 
 getBalance ${S_ADDR}
 if [[ ${lovelace} -gt 0 ]]; then
-  say "$(printf "\n%s\t${CYAN}%s${NC} ADA" "Funds in source wallet:"  "$(numfmt --grouping ${ada})")" "log"
+  say "$(printf "\n%s\t${CYAN}%s${NC} ADA" "Funds in source wallet:"  "$(formatLovelace ${lovelace})")" "log"
 else
   say "${RED}ERROR${NC}: no funds available in source address"
   echo "" && exit 1
@@ -87,7 +87,7 @@ if [[ ${LOVELACE} != "all" ]]; then
   fi
 else
   LOVELACE=${lovelace}
-  say "$(printf "\n%s\t${CYAN}%s${NC} ADA" "ADA to send set to total supply:"  "$(numfmt --grouping ${ada})")" "log"
+  say "$(printf "\n%s\t${CYAN}%s${NC} ADA" "ADA to send set to total supply:"  "$(formatLovelace ${lovelace})")" "log"
   INCL_FEE="yes"
 fi
 
@@ -103,16 +103,16 @@ getBalance ${S_ADDR}
 
 while [[ ${lovelace} -ne ${newBalance} ]]; do
   say ""
-  say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(numfmt --grouping ${lovelace}) != $(numfmt --grouping ${newBalance}))"
+  say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
   if ! waitNewBlockCreated; then
     echo "" && exit 1
   fi
   getBalance ${S_ADDR}
 done
 
-say "$(printf "\n%s\t\t${CYAN}%s${NC} ADA" "Funds in source wallet:"  "$(numfmt --grouping ${ada})")" "log"
+say "$(printf "\n%s\t\t${CYAN}%s${NC} ADA" "Funds in source wallet:"  "$(formatLovelace ${lovelace})")" "log"
 
 getBalance ${D_ADDR}
-say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in destination wallet:"  "$(numfmt --grouping ${ada})")" "log"
+say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in destination wallet:"  "$(formatLovelace ${lovelace})")" "log"
 
 say "\n## Finished! ##\n"
