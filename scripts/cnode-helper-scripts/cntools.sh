@@ -103,9 +103,10 @@ say " ) Update  -  update cntools script and library config files"
 say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 say "$(printf "%84s" "Epoch $(getEpoch) - $(timeUntilNextEpoch) until next")"
 tip_diff=$(getSlotTipDiff)
-if [[ ${tip_diff} -le $(slotInterval) ]]; then
+slot_interval=$(slotInterval)
+if [[ ${tip_diff} -le ${slot_interval} ]]; then
   say "$(printf " %-20s %73s" "What would you like to do?" "Ref/Node Tip DIFF: ${GREEN}${tip_diff}${NC} slots")"
-elif [[ ${tip_diff} -le $(slotInterval*3) ]]; then
+elif [[ ${tip_diff} -le $(( slot_interval * 3 )) ]]; then
   say "$(printf " %-20s %73s" "What would you like to do?" "Ref/Node Tip DIFF: ${ORANGE}${tip_diff}${NC} slots")"
 else
   say "$(printf " %-20s %73s" "What would you like to do?" "Ref/Node Tip DIFF: ${RED}${tip_diff}${NC} slots **WARNING**")"
