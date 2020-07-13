@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1090
+# shellcheck disable=SC1090,SC2086
 # Only source env if not done already, this script is sourced from other scripts
 [ "$0" = "${BASH_SOURCE[*]}" ] && . "$(dirname "$0")"/env
 
