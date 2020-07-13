@@ -105,11 +105,11 @@ say "$(printf "%84s" "Epoch $(getEpoch) - $(timeUntilNextEpoch) until next")"
 tip_diff=$(getSlotTipDiff)
 slot_interval=$(slotInterval)
 if [[ ${tip_diff} -le ${slot_interval} ]]; then
-  say "$(printf " %-20s %73s" "What would you like to do?" "Ref/Node Tip DIFF: ${GREEN}${tip_diff}${NC} slots")"
+  say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${GREEN}-${tip_diff} :)${NC}")"
 elif [[ ${tip_diff} -le $(( slot_interval * 3 )) ]]; then
-  say "$(printf " %-20s %73s" "What would you like to do?" "Ref/Node Tip DIFF: ${ORANGE}${tip_diff}${NC} slots")"
+  say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${ORANGE}-${tip_diff} :|${NC}")"
 else
-  say "$(printf " %-20s %73s" "What would you like to do?" "Ref/Node Tip DIFF: ${RED}${tip_diff}${NC} slots **WARNING**")"
+  say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${RED}-${tip_diff} :(${NC}")"
 fi
 say ""
 case $(select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[b] Blocks" "[u] Update" "[q] Quit") in
