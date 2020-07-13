@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=4
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=0
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=2
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -426,7 +426,11 @@ getCurrentKESperiod() {
   byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( 2 * epoch_length ) ))
   slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
   current_time_sec=$(date -u +%s)
-  current_kes_period=$(( ( current_time_sec - byron_shelley_trans_end ) / ( slots_per_kes_period * slot_length ) ))
+  if [[ "${NETWORKID}" = "Testnet" ]]; then
+    current_kes_period=$(( ( current_time_sec - shelley_genesis_start_time_sec ) / ( slots_per_kes_period * slot_length ) ))
+  else
+    current_kes_period=$(( ( current_time_sec - byron_shelley_trans_end ) / ( slots_per_kes_period * slot_length ) ))
+  fi
   echo "${current_kes_period}"
 }
 
