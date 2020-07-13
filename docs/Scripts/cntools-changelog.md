@@ -5,6 +5,11 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2020-07-13
+- Add PROTOCOL_IDENTIFIER and NETWORK_IDENTIFIER instead of harcoded entries for combinator v/s TPraos & testnet v/s magic differentiators respectively.
+- Keep both ptn0.yaml and ptn0-combinator.yaml to keep validity with mainnet-combinator
+- Revert back default for Public network to Shelley_Testnet as per https://t.me/CardanoStakePoolWorkgroup/282606
+
 ## [3.0.0] - 2020-07-12
 ### Changed
 - Release `2.1.1` included a change to env file and thus require a major version bump.

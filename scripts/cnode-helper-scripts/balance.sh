@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1090
+# shellcheck disable=SC1090,SC2086
 # Only source env if not done already, this script is sourced from other scripts
 [ "$0" = "${BASH_SOURCE[*]}" ] && . "$(dirname "$0")"/env
 
@@ -23,8 +23,7 @@ function cleanup() {
 # start with a clean slate
 cleanup
 
-# The "testnet magic" is specific on the testnet and will not be needed for the mainnet.
-${CCLI} shelley query utxo --cardano-mode --testnet-magic "${NWMAGIC}" --address "${WALLET_ADDR}" > /tmp/fullUtxo.out
+${CCLI} shelley query utxo ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${WALLET_ADDR}" > /tmp/fullUtxo.out
 tail -n +3 /tmp/fullUtxo.out | sort -k3 -nr > /tmp/balance.txt
 
 TOTALBALANCE=0

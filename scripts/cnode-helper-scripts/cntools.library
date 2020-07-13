@@ -7,7 +7,7 @@
 # The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 # and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 # Any breaking changes (eg: that requires change of cntools.config, env or a change in priv folder would be considered breaking and will be exempt from auto-update)
-CNTOOLS_MAJOR_VERSION=3
+CNTOOLS_MAJOR_VERSION=4
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=0
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
@@ -351,13 +351,13 @@ decryptFile() {
 # Description: Get latest block number
 # Return     : string with tip on STDOUT
 getBlockTip() {
-  $CCLI shelley query tip --cardano-mode --testnet-magic ${NWMAGIC} | jq -r '.blockNo'
+  $CCLI shelley query tip ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | jq -r '.blockNo'
 }
 # Command    : getSlotTip
 # Description: Get latest slot number
 # Return     : string with tip on STDOUT
 getSlotTip() {
-  $CCLI shelley query tip --cardano-mode --testnet-magic ${NWMAGIC} | jq -r '.slotNo'
+  $CCLI shelley query tip ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | jq -r '.slotNo'
 }
 # Command    : getSlotTipRef
 # Description: Get calculated slot number tip
@@ -581,7 +581,7 @@ getPayAddress() {
   payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
   payment_addr_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_ADDR_FILENAME}"
   if [[ -f "${payment_vk_file}" ]]; then
-    if ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" --mainnet 2>/dev/null; then
+    if ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" ${NETWORK_IDENTIFIER} 2>/dev/null; then
       pay_addr=$(cat "${payment_addr_file}")
     else
       pay_addr=""
@@ -601,7 +601,7 @@ getBaseAddress() {
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
   base_addr_file="${WALLET_FOLDER}/${1}/${WALLET_BASE_ADDR_FILENAME}"
   if [[ -f "${payment_vk_file}" && -f "${stake_vk_file}" ]]; then
-    ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" --mainnet
+    ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER}
     base_addr=$(cat "${base_addr_file}")
   else
     base_addr=""
@@ -616,7 +616,7 @@ getRewardAddress() {
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
   stake_addr_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_ADDR_FILENAME}"
   if [[ -f "${stake_vk_file}" ]]; then
-    ${CCLI} shelley stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" --mainnet
+    ${CCLI} shelley stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" ${NETWORK_IDENTIFIER}
     reward_addr=$(cat "${stake_addr_file}")
   else
     reward_addr=""
@@ -640,7 +640,7 @@ getBalance() {
 
   [[ -z $1 ]] && return 1
 
-  ${CCLI} shelley query utxo --cardano-mode --testnet-magic "${NWMAGIC}" --address "${1}" > "${TMP_FOLDER}"/fullUtxo.out
+  ${CCLI} shelley query utxo ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${1}" > "${TMP_FOLDER}"/fullUtxo.out
   tail -n +3 "${TMP_FOLDER}"/fullUtxo.out | sort -k3 -nr > "${TMP_FOLDER}"/balance.out
 
   while read -r utxo; do
@@ -718,7 +718,7 @@ sendADA() {
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utxoCount}
     --tx-out-count ${outCount}
-    --mainnet
+    ${NETWORK_IDENTIFIER}
     --witness-count 1
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
@@ -773,15 +773,15 @@ sendADA() {
     shelley transaction sign
     --tx-body-file "${TMP_FOLDER}"/tx.raw
     --signing-key-file ${sKey}
-    --testnet-magic ${NWMAGIC}
+    ${NETWORK_IDENTIFIER}
     --out-file "${TMP_FOLDER}"/tx.signed
   )
 
   submitArgs=(
     shelley transaction submit
     --tx-file "${TMP_FOLDER}"/tx.signed
-    --cardano-mode
-    --testnet-magic ${NWMAGIC}
+    ${PROTOCOL_IDENTIFIER}
+    ${NETWORK_IDENTIFIER}
   )
 
   say "" 1
@@ -821,7 +821,7 @@ sendADA() {
 # Return     : 0 if registered, else 1
 isWalletRegistered() {
   if getRewardAddress $1; then
-    stakeAddressInfo=$(${CCLI} shelley query stake-address-info --cardano-mode --testnet-magic ${NWMAGIC} --address ${reward_addr} | jq -r '.[] // empty')
+    stakeAddressInfo=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${reward_addr} | jq -r '.[] // empty')
     [[ -n "${stakeAddressInfo}" ]] && return 0
   fi
   return 1
@@ -876,7 +876,7 @@ registerStakeWallet() {
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
-    --testnet-magic ${NWMAGIC}
+    ${NETWORK_IDENTIFIER}
     --witness-count 2
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
@@ -910,15 +910,15 @@ registerStakeWallet() {
     --tx-body-file "${TMP_FOLDER}"/tx.raw
     --signing-key-file ${payment_sk_file}
     --signing-key-file ${stake_sk_file}
-    --testnet-magic ${NWMAGIC}
+    ${NETWORK_IDENTIFIER}
     --out-file "${TMP_FOLDER}"/tx.signed
   )
 
   submitArgs=(
     shelley transaction submit
     --tx-file "${TMP_FOLDER}"/tx.signed
-    --cardano-mode
-    --testnet-magic ${NWMAGIC}
+    ${PROTOCOL_IDENTIFIER}
+    ${NETWORK_IDENTIFIER}
   )
 
   say "" 1
@@ -1033,7 +1033,7 @@ registerPool() {
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
-    --testnet-magic ${NWMAGIC}
+    ${NETWORK_IDENTIFIER}
     --witness-count 3
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
@@ -1068,15 +1068,15 @@ registerPool() {
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${pool_coldkey_sk_file}
     --signing-key-file ${stake_sk_file}
-    --testnet-magic ${NWMAGIC}
+    ${NETWORK_IDENTIFIER}
     --out-file "${TMP_FOLDER}"/tx.signed
   )
 
   submitArgs=(
     shelley transaction submit
     --tx-file "${TMP_FOLDER}"/tx.signed
-    --cardano-mode
-    --testnet-magic ${NWMAGIC}
+    ${PROTOCOL_IDENTIFIER}
+    ${NETWORK_IDENTIFIER}
   )
 
   say "" 1
@@ -1160,7 +1160,7 @@ modifyPool() {
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
-    --testnet-magic ${NWMAGIC}
+    ${NETWORK_IDENTIFIER}
     --witness-count 3
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
@@ -1194,15 +1194,15 @@ modifyPool() {
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${pool_coldkey_sk_file}
     --signing-key-file ${stake_sk_file}
-    --testnet-magic ${NWMAGIC}
+    ${NETWORK_IDENTIFIER}
     --out-file "${TMP_FOLDER}"/tx.signed
   )
 
   submitArgs=(
     shelley transaction submit
     --tx-file "${TMP_FOLDER}"/tx.signed
-    --cardano-mode
-    --testnet-magic ${NWMAGIC}
+    ${PROTOCOL_IDENTIFIER}
+    ${NETWORK_IDENTIFIER}
   )
 
   say "" 1
@@ -1277,7 +1277,7 @@ withdrawRewards() {
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
-    --testnet-magic ${NWMAGIC}
+    ${NETWORK_IDENTIFIER}
     --witness-count 2
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
@@ -1310,15 +1310,15 @@ withdrawRewards() {
     --tx-body-file "${TMP_FOLDER}"/tx.raw
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${stake_sk_file}
-    --testnet-magic ${NWMAGIC}
+    ${NETWORK_IDENTIFIER}
     --out-file "${TMP_FOLDER}"/tx.signed
   )
 
   submitArgs=(
     shelley transaction submit
     --tx-file "${TMP_FOLDER}"/tx.signed
-    --cardano-mode
-    --testnet-magic ${NWMAGIC}
+    ${PROTOCOL_IDENTIFIER}
+    ${NETWORK_IDENTIFIER}
   )
 
   say "" 1
@@ -1404,7 +1404,7 @@ delegate() {
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
-    --testnet-magic ${NWMAGIC}
+    ${NETWORK_IDENTIFIER}
     --witness-count 2
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
@@ -1437,15 +1437,15 @@ delegate() {
     --tx-body-file "${TMP_FOLDER}"/tx.raw
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${stake_sk_file}
-    --testnet-magic ${NWMAGIC}
+    ${NETWORK_IDENTIFIER}
     --out-file "${TMP_FOLDER}"/tx.signed
   )
 
   submitArgs=(
     shelley transaction submit
     --tx-file "${TMP_FOLDER}"/tx.signed
-    --cardano-mode
-    --testnet-magic ${NWMAGIC}
+    ${PROTOCOL_IDENTIFIER}
+    ${NETWORK_IDENTIFIER}
   )
 
   say "" 1
@@ -1523,7 +1523,7 @@ deRegisterPool() {
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
-    --testnet-magic ${NWMAGIC}
+    ${NETWORK_IDENTIFIER}
     --witness-count 2
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
@@ -1556,15 +1556,15 @@ deRegisterPool() {
     --tx-body-file "${TMP_FOLDER}"/tx.raw
     --signing-key-file ${wallet_payment_sk_file}
     --signing-key-file ${pool_coldkey_sk_file}
-    --testnet-magic ${NWMAGIC}
+    ${NETWORK_IDENTIFIER}
     --out-file "${TMP_FOLDER}"/tx.signed
   )
 
   submitArgs=(
     shelley transaction submit
     --tx-file "${TMP_FOLDER}"/tx.signed
-    --cardano-mode
-    --testnet-magic ${NWMAGIC}
+    ${PROTOCOL_IDENTIFIER}
+    ${NETWORK_IDENTIFIER}
   )
 
   say "" 1

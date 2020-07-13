@@ -23,7 +23,7 @@ if [[ ! -d "${TMP_FOLDER}" ]]; then
 fi
 
 # Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
-${CCLI} shelley query protocol-parameters --cardano-mode --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/protparams.json || {
+${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/protparams.json || {
   say "\n"
   say "${ORANGE}WARN${NC}: failed to query protocol parameters, node running and env parameters correct?"
   say "\n${BLUE}Press c to continue or any other key to quit${NC}"
@@ -911,7 +911,7 @@ case $OPERATION in
         getBalance ${base_addr}
         [[ ${lovelace} -eq 0 ]] && continue
         if getRewardAddress ${dir}; then
-          delegation_pool_id=$(${CCLI} shelley query stake-address-info --cardano-mode --testnet-magic ${NWMAGIC} --address "${reward_addr}" | jq -r '.[].delegation // empty')
+          delegation_pool_id=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[].delegation // empty')
           unset poolName
           if [[ -n ${delegation_pool_id} ]]; then
             while IFS= read -r -d '' pool; do
@@ -1129,7 +1129,7 @@ case $OPERATION in
     say "Dumping ledger-state from node, can take a while on larger networks...\n"
     
     pool_dirs=()
-    timeout -k 5 30 ${CCLI} shelley query ledger-state --cardano-mode --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
+    timeout -k 5 30 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
@@ -1365,7 +1365,7 @@ case $OPERATION in
         getBalance ${base_addr}
         [[ ${lovelace} -eq 0 ]] && continue
         if getRewardAddress ${dir}; then
-          delegation_pool_id=$(${CCLI} shelley query stake-address-info --cardano-mode --testnet-magic ${NWMAGIC} --address "${reward_addr}" | jq -r '.[].delegation // empty')
+          delegation_pool_id=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[].delegation // empty')
           unset poolName
           if [[ -n ${delegation_pool_id} ]]; then
             while IFS= read -r -d '' pool; do
@@ -1459,8 +1459,8 @@ case $OPERATION in
     ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${start_kes_period}" --out-file "${pool_opcert_file}"
     
     say "creating registration certificate" 1 "log"
-    say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${stake_vk_file} --pool-owner-stake-verification-key-file ${stake_vk_file} --out-file ${pool_regcert_file} --testnet-magic ${NWMAGIC} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output}" 2
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" --testnet-magic ${NWMAGIC} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output}
+    say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${stake_vk_file} --pool-owner-stake-verification-key-file ${stake_vk_file} --out-file ${pool_regcert_file} ${NETWORK_IDENTIFIER} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output}" 2
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" ${NETWORK_IDENTIFIER} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output}
     say "creating delegation certificate" 1 "log"
     say "$ ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file ${stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${pool_pledgecert_file}" 2
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
@@ -1526,7 +1526,7 @@ case $OPERATION in
     say "Dumping ledger-state from node, can take a while on larger networks...\n"
     
     pool_dirs=()
-    timeout -k 5 30 ${CCLI} shelley query ledger-state --cardano-mode --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
+    timeout -k 5 30 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
@@ -1574,7 +1574,7 @@ case $OPERATION in
         getBalance ${base_addr}
         [[ ${lovelace} -eq 0 ]] && continue
         if getRewardAddress ${dir}; then
-          delegation_pool_id=$(${CCLI} shelley query stake-address-info --cardano-mode --testnet-magic ${NWMAGIC} --address "${reward_addr}" | jq -r '.[].delegation // empty')
+          delegation_pool_id=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[].delegation // empty')
           unset poolName
           if [[ -n ${delegation_pool_id} ]]; then
             while IFS= read -r -d '' pool; do
@@ -1845,8 +1845,8 @@ case $OPERATION in
     say "\n"
     say "# Modify Stake Pool" "log"
     say "creating registration certificate" 1 "log"
-    say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${stake_vk_file} --pool-owner-stake-verification-key-file ${stake_vk_file} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output} --testnet-magic ${NWMAGIC} --out-file ${pool_regcert_file}" 2
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output} --testnet-magic ${NWMAGIC} --out-file "${pool_regcert_file}"
+    say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${stake_vk_file} --pool-owner-stake-verification-key-file ${stake_vk_file} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output} ${NETWORK_IDENTIFIER} --out-file ${pool_regcert_file}" 2
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output} ${NETWORK_IDENTIFIER} --out-file "${pool_regcert_file}"
     
     say "sending transaction to chain" 1 "log"
     if ! modifyPool "${base_addr}" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pay_payment_sk_file}"; then
@@ -1904,7 +1904,7 @@ case $OPERATION in
     say "Dumping ledger-state from node, can take a while on larger networks...\n"
     
     pool_dirs=()
-    timeout -k 5 30 ${CCLI} shelley query ledger-state --cardano-mode --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
+    timeout -k 5 30 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
@@ -2030,7 +2030,7 @@ case $OPERATION in
     say "Dumping ledger-state from node, can take a while on larger networks...\n"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     
-    timeout -k 5 30 ${CCLI} shelley query ledger-state --cardano-mode --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
+    timeout -k 5 30 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
     
     while IFS= read -r -d '' pool; do 
       say ""
@@ -2091,7 +2091,7 @@ case $OPERATION in
     pool_name="${dir_name}"
     
     say "Dumping ledger-state from node, can take a while on larger networks...\n"
-    timeout -k 5 45 ${CCLI} shelley query ledger-state --cardano-mode --testnet-magic ${NWMAGIC} --out-file "${TMP_FOLDER}"/ledger-state.json
+    timeout -k 5 45 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
     
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
@@ -2191,7 +2191,7 @@ case $OPERATION in
         say "$(printf "%-21s : ${stake_color}%s${NC} ADA (%s ADA)" " Stake (reward)" "$(formatLovelace ${stake})" "$(formatLovelace ${reward})")" "log"
       done
       say "$(printf "%-21s : ${GREEN}%s${NC} ADA" "Stake" "$(formatLovelace ${total_stake})")" "log"
-      stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} shelley query stake-distribution --cardano-mode --testnet-magic ${NWMAGIC} | grep "${pool_id}" | tr -s ' ' | cut -d ' ' -f 2)")")
+      stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} shelley query stake-distribution ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | grep "${pool_id}" | tr -s ' ' | cut -d ' ' -f 2)")")
       if validateDecimalNbr ${stake_pct}; then
         say "$(printf "%-21s : %s %%" "Stake distribution" "${stake_pct}")" "log"
       fi
