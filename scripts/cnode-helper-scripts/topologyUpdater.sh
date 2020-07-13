@@ -1,21 +1,31 @@
 #!/bin/bash
 
 USERNAME="${USERNAME}" # replace nonroot with your username
+CNODE_PORT=6000  # must match your relay node port as set in the startup command
+CNODE_HOSTNAME="CHANGE ME"  # optional. must resolve to the IP you are requesting from
 
 CNODE_BIN="${HOME}/.cabal/bin"
 CNODE_HOME="/opt/cardano/cnode"
 CNODE_LOG_DIR="${CNODE_HOME}/logs/"
-
-CNODE_PORT=6000  # must match your relay node port as set in the startup command
-CNODE_HOSTNAME="CHANGE ME"  # optional. must resolve to the IP you are requesting from
+CONFIG="$CNODE_HOME/files/ptn0.yaml"
+GENESIS_JSON="${CNODE_HOME}/files/genesis.json"
+NETWORKID=$(jq -r .networkId $GENESIS_JSON)
+PROTOCOL=$(grep -ri ^Protocol: "$CONFIG" | awk '{print $2}')
+if [[ "${PROTOCOL}" = "Cardano" ]]; then
+  PROTOCOL_IDENTIFIER="--cardano-mode"
+fi
 CNODE_VALENCY=1   # optional for multi-IP hostnames
-
-TESTNET_MAGIC=42
+NWMAGIC=$(jq -r .networkMagic < $GENESIS_JSON)
+if [[ "${NETWORKID}" = "Mainnet" ]]; then
+  NETWORK_IDENTIFIER="--mainnet"
+else
+  NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+fi
 
 export PATH="${CNODE_BIN}:${PATH}"
 export CARDANO_NODE_SOCKET_PATH="${CNODE_HOME}/sockets/node0.socket"
 
-blockNo=$(cardano-cli shelley query tip --cardano-mode --testnet-magic $TESTNET_MAGIC | jq -r .blockNo )
+blockNo=$(cardano-cli shelley query tip ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | jq -r .blockNo )
 
 # Note: 
 # if you run your node in IPv4/IPv6 dual stack network configuration and want announced the 
@@ -26,4 +36,4 @@ else
   T_HOSTNAME=''
 fi
 
-curl -s "https://api.clio.one/htopology/v1/?port=${CNODE_PORT}&blockNo=${blockNo}&valency=${CNODE_VALENCY}&magic=${TESTNET_MAGIC}${T_HOSTNAME}" | tee -a $CNODE_LOG_DIR/topologyUpdater_lastresult.json
+curl -s "https://api.clio.one/htopology/v1/?port=${CNODE_PORT}&blockNo=${blockNo}&valency=${CNODE_VALENCY}&magic=${NWMAGIC}${T_HOSTNAME}" | tee -a $CNODE_LOG_DIR/topologyUpdater_lastresult.json

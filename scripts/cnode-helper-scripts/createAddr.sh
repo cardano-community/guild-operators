@@ -9,4 +9,4 @@ fi
 
 WNAME=$1
 ${CCLI} shelley address key-gen --verification-key-file $WNAME.vkey --signing-key-file $WNAME.skey
-${CCLI} shelley address build --payment-verification-key-file $WNAME.vkey  --testnet-magic ${NWMAGIC} | tee $WNAME.addr
+${CCLI} shelley address build --payment-verification-key-file $WNAME.vkey  ${NETWORK_IDENTIFIER} | tee $WNAME.addr
