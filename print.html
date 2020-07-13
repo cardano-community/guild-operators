@@ -183,9 +183,13 @@ chmod 755 prereqs.sh
 </code></pre>
 <h4><a class="header" href="#connect-to-public-haskell-testnet-network-htn" id="connect-to-public-haskell-testnet-network-htn">Connect to public Haskell Testnet Network (HTN)</a></h4>
 <p>The prereqs script above will connect you to guild network. If you would like to connect to public HTN instead, kindly execute the below before you proceed after you've executed the above:</p>
-<pre><code class="language-bash">wget -O $CNODE_HOME/files/byron_genesis.json https://hydra.iohk.io/build/3416851/download/1/mainnet_candidate-byron-genesis.json
-wget -O $CNODE_HOME/files/topology.json https://hydra.iohk.io/build/3416851/download/1/mainnet_candidate-topology.json
-wget -O $CNODE_HOME/files/genesis.json https://hydra.iohk.io/build/3416851/download/1/mainnet_candidate-shelley-genesis.json
+<pre><code class="language-bash"># For mainnet-candidate:
+#wget -O $CNODE_HOME/files/byron_genesis.json https://hydra.iohk.io/build/3416851/download/1/mainnet_candidate-byron-genesis.json
+#wget -O $CNODE_HOME/files/topology.json https://hydra.iohk.io/build/3416851/download/1/mainnet_candidate-topology.json
+#wget -O $CNODE_HOME/files/genesis.json https://hydra.iohk.io/build/3416851/download/1/mainnet_candidate-shelley-genesis.json
+# For Shelley Testnet:
+wget -O $CNODE_HOME/files/genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/shelley_testnet-shelley-genesis.json
+wget -O $CNODE_HOME/files/topology.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/shelley_testnet-topology.json
 </code></pre>
 <p>If you were already running a node on guild network and would like to <em>replace</em> by moving to HTN, but continue using scripts - follow instructions below:</p>
 <ul>
@@ -606,6 +610,12 @@ chmod 640 cntools.config cntools.library env
 <p>All notable changes to this tool will be documented in this file.</p>
 <p>The format is based on <a href="https://keepachangelog.com/en/1.0.0/">Keep a Changelog</a>,
 and this adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
+<h2><a class="header" href="#400---2020-07-13" id="400---2020-07-13">[4.0.0] - 2020-07-13</a></h2>
+<ul>
+<li>Add PROTOCOL_IDENTIFIER and NETWORK_IDENTIFIER instead of harcoded entries for combinator v/s TPraos &amp; testnet v/s magic differentiators respectively.</li>
+<li>Keep both ptn0.yaml and ptn0-combinator.yaml to keep validity with mainnet-combinator</li>
+<li>Revert back default for Public network to Shelley_Testnet as per https://t.me/CardanoStakePoolWorkgroup/282606</li>
+</ul>
 <h2><a class="header" href="#300---2020-07-12" id="300---2020-07-12">[3.0.0] - 2020-07-12</a></h2>
 <h3><a class="header" href="#changed" id="changed">Changed</a></h3>
 <ul>
