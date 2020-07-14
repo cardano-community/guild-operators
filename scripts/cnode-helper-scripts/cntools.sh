@@ -1256,100 +1256,83 @@ case $OPERATION in
     say "\n${ORANGE}Please make sure you host your metadata JSON file (with contents as below) at ${meta_json_url} :${NC}\n"
     say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
     
-    relay_counter=0
     relay_output=""
-    relay_address=""
-    relay_port=""
     relay_array=()
     say "\n# Pool Relay Registration\n"
-    if [[ -f "${pool_config}" && -n $(jq '.relays //empty' "${pool_config}") ]]; then
-      say "Previous relay configuration:\n"
-      say 'TYPE ADDRESS PORT\n---- ------- ----' | cat - <(jq -r -c '.relays[] | [.type //"-",.address //"-",.port //"-"] | @tsv //empty' "${pool_config}") | column -t
-      say ""
-      
-    fi
     # ToDo SRV & IPv6 support
-    case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in 
-      0) if [[ -f "${pool_config}" ]]; then
-           relay_type=$(jq -r ".relays[${relay_counter}].type //empty" "${pool_config}")
-           if [[ ${relay_type} = "DNS_A" ]]; then
-             relay_address=$(jq -r ".relays[${relay_counter}].address //empty" "${pool_config}")
-             relay_port=$(jq -r ".relays[${relay_counter}].port //empty" "${pool_config}")
-           else
-             relay_address=""
-             relay_port=""
-           fi
-         fi
-         read -r -p "Enter relays's DNS record, only A or AAAA DNS records (default: ${relay_address}): " relay_dns_enter
-         if [[ -n "${relay_dns_enter}" ]]; then
-           relay_address="${relay_dns_enter}"
-         elif [[ -z "${relay_address}" ]]; then
-           say "${RED}ERROR${NC}: DNS record can not be empty!"
-           waitForInput && continue
-         fi
-         #ToDo - DNS format verficication?
-         read -r -p "Enter relays's port (default: ${relay_port}): " relay_port_enter
-         if [[ -n "${relay_port_enter}" ]]; then
-           if [[ "${relay_port_enter}" =~ ^[0-9]+$ && "${relay_port_enter}" -ge 1 && "${relay_port_enter}" -le 65535 ]]; then
-             relay_port="${relay_port_enter}"
-           else
-             say "${RED}ERROR${NC}: invalid port number!"
-             waitForInput && continue
-           fi
-         elif [[ -z "${relay_port}" ]]; then
-           say "${RED}ERROR${NC}: Port can not be empty!"
-           waitForInput && continue
-         fi
-         relay_array+=( "type" "DNS_A" "address" "${relay_address}" "port" "${relay_port}" )
-         relay_output="--single-host-pool-relay ${relay_address} --pool-relay-port ${relay_port}"
-         ;;
-      1) while true; do
-           if [[ -f "${pool_config}" ]]; then
-             relay_type=$(jq -r ".relays[${relay_counter}].type //empty" "${pool_config}")
-             if [[ ${relay_type} = "IPv4" ]]; then
-               relay_address=$(jq -r ".relays[${relay_counter}].address //empty" "${pool_config}")
-               relay_port=$(jq -r ".relays[${relay_counter}].port //empty" "${pool_config}")
-             else
-               relay_address=""
-               relay_port=""
+    if [[ -f "${pool_config}" && $(jq '.relays | length' "${pool_config}") -gt 0 ]]; then
+      say "Previous relay configuration:\n"
+      printTable ',' "$(say 'Type,Address,Port' | cat - <(jq -r -c '.relays[] | [.type //"-",.address //"-",.port //"-"] | @csv //empty' "${pool_config}") | tr -d '"')"
+      say "\nReuse previous configuration?\n"
+      case $(select_opt "[y] Yes" "[n] No" "[c] Cancel") in
+        0) while read -r type address port; do
+             relay_array+=( "type" "${type}" "address" "${address}" "port" "${port}" )
+             if [[ ${type} = "DNS_A" ]]; then
+               relay_output+="--single-host-pool-relay ${address} --pool-relay-port ${port} "
+             elif [[ ${type} = "IPv4" ]]; then
+               relay_output+="--pool-relay-port ${port} --pool-relay-ipv4 ${address} "
              fi
-           fi
-           read -r -p "Enter relays's IPv4 address (default: ${relay_address}): " relay_ipv4_enter
-           if [[ -n "${relay_ipv4_enter}" ]]; then
-             if validIP "${relay_ipv4_enter}"; then
-               relay_address="${relay_ipv4_enter}"
-             else
-               say "${RED}ERROR${NC}: invalid IPv4 address format!\n"
+           done< <(jq -r '.relays[] | "\(.type) \(.address) \(.port)"' "${pool_config}")
+           ;;
+        1) : ;; # Do nothing
+        2) continue ;;
+      esac
+    fi
+    if [[ -z ${relay_output} ]]; then
+      while true; do
+        case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in 
+          0) read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
+             if [[ -z "${relay_dns_enter}" ]]; then
+               say "\n${RED}ERROR${NC}: DNS record can not be empty!\n"
                continue
              fi
-           elif [[ -z "${relay_address}" ]]; then
-             say "${RED}ERROR${NC}: IPv4 address can not be empty!\n"
-             continue
-           fi
-           read -r -p "Enter relays's port (default: ${relay_port}): " relay_port_enter
-           if [[ -n "${relay_port_enter}" ]]; then
-             if [[ "${relay_port_enter}" =~ ^[0-9]+$ && "${relay_port_enter}" -ge 1 && "${relay_port_enter}" -le 65535 ]]; then
-               relay_port="${relay_port_enter}"
+             #ToDo - DNS format verficication?
+             read -r -p "Enter relays's port: " relay_port_enter
+             if [[ -n "${relay_port_enter}" ]]; then
+               if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
+                 say "\n${RED}ERROR${NC}: invalid port number!\n"
+                 continue
+               fi
              else
-               say "${RED}ERROR${NC}: invalid port number!\n"
+               say "\n${RED}ERROR${NC}: Port can not be empty!\n"
                continue
              fi
-           elif [[ -z "${relay_port}" ]]; then
-             say "${RED}ERROR${NC}: Port can not be empty!\n"
-             continue
-           fi
-           relay_array+=( "type" "IPv4" "address" "${relay_address}" "port" "${relay_port}" )
-           relay_output+="--pool-relay-port ${relay_port} --pool-relay-ipv4 ${relay_address} "
-           say "\nAdd more IPv4 entries?\n"
-           case $(select_opt "[n] No" "[y] Yes" "[c] Cancel") in
-             0) break ;;
-             1) ((relay_counter++)) && continue ;;
-             2) continue 2 ;;
-           esac
-         done
-         ;;
-      2) continue ;;
-    esac
+             relay_array+=( "type" "DNS_A" "address" "${relay_dns_enter}" "port" "${relay_port_enter}" )
+             relay_output+="--single-host-pool-relay ${relay_dns_enter} --pool-relay-port ${relay_port_enter} "
+             ;;
+          1) read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter
+             if [[ -n "${relay_ipv4_enter}" ]]; then
+               if ! validIP "${relay_ipv4_enter}"; then
+                 say "\n${RED}ERROR${NC}: invalid IPv4 address format!\n"
+                 continue
+               fi
+             else
+               say "\n${RED}ERROR${NC}: IPv4 address can not be empty!\n"
+               continue
+             fi
+             read -r -p "Enter relays's port: " relay_port_enter
+             if [[ -n "${relay_port_enter}" ]]; then
+               if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
+                 say "\n${RED}ERROR${NC}: invalid port number!\n"
+                 continue
+               fi
+             else
+               say "\n${RED}ERROR${NC}: Port can not be empty!\n"
+               continue
+             fi
+             relay_array+=( "type" "IPv4" "address" "${relay_ipv4_enter}" "port" "${relay_port_enter}" )
+             relay_output+="--pool-relay-port ${relay_port_enter} --pool-relay-ipv4 ${relay_ipv4_enter} "
+             ;;
+          2) continue 2 ;;
+        esac
+        say "\nAdd more relay entries?\n"
+        case $(select_opt "[n] No" "[y] Yes" "[c] Cancel") in
+          0) break ;;
+          1) continue ;;
+          2) continue 2 ;;
+        esac
+      done
+    fi
     
     say ""
 
@@ -1450,7 +1433,7 @@ case $OPERATION in
       waitForInput && continue
     }
 
-    say "\n"
+    say ""
     say "# Register Stake Pool" "log"
     
     start_kes_period=$(getCurrentKESperiod)
@@ -1711,100 +1694,83 @@ case $OPERATION in
     say "\n${ORANGE}Please host ${pool_meta_file} file as-is at ${meta_json_url}!${NC}\n"
     say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" > "${pool_meta_file}"
 
-    relay_counter=0
     relay_output=""
-    relay_address=""
-    relay_port=""
     relay_array=()
     say "\n# Pool Relay Registration\n"
-    if [[ -f "${pool_config}" && -n $(jq '.relays //empty' "${pool_config}") ]]; then
-      say "Previous relay configuration:\n"
-      say 'TYPE ADDRESS PORT\n---- ------- ----' | cat - <(jq -r -c '.relays[] | [.type //"-",.address //"-",.port //"-"] | @tsv //empty' "${pool_config}") | column -t
-      say ""
-      
-    fi
     # ToDo SRV & IPv6 support
-    case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in 
-      0) if [[ -f "${pool_config}" ]]; then
-           relay_type=$(jq -r ".relays[${relay_counter}].type //empty" "${pool_config}")
-           if [[ ${relay_type} = "DNS_A" ]]; then
-             relay_address=$(jq -r ".relays[${relay_counter}].address //empty" "${pool_config}")
-             relay_port=$(jq -r ".relays[${relay_counter}].port //empty" "${pool_config}")
-           else
-             relay_address=""
-             relay_port=""
-           fi
-         fi
-         read -r -p "Enter relays's DNS record, only A or AAAA DNS records (default: ${relay_address}): " relay_dns_enter
-         if [[ -n "${relay_dns_enter}" ]]; then
-           relay_address="${relay_dns_enter}"
-         elif [[ -z "${relay_address}" ]]; then
-           say "${RED}ERROR${NC}: DNS record can not be empty!"
-           waitForInput && continue
-         fi
-         #ToDo - DNS format verficication?
-         read -r -p "Enter relays's port (default: ${relay_port}): " relay_port_enter
-         if [[ -n "${relay_port_enter}" ]]; then
-           if [[ "${relay_port_enter}" =~ ^[0-9]+$ && "${relay_port_enter}" -ge 1 && "${relay_port_enter}" -le 65535 ]]; then
-             relay_port="${relay_port_enter}"
-           else
-             say "${RED}ERROR${NC}: invalid port number!"
-             waitForInput && continue
-           fi
-         elif [[ -z "${relay_port}" ]]; then
-           say "${RED}ERROR${NC}: Port can not be empty!"
-           waitForInput && continue
-         fi
-         relay_array+=( "type" "DNS_A" "address" "${relay_address}" "port" "${relay_port}" )
-         relay_output="--single-host-pool-relay ${relay_address} --pool-relay-port ${relay_port}"
-         ;;
-      1) while true; do
-           if [[ -f "${pool_config}" ]]; then
-             relay_type=$(jq -r ".relays[${relay_counter}].type //empty" "${pool_config}")
-             if [[ ${relay_type} = "IPv4" ]]; then
-               relay_address=$(jq -r ".relays[${relay_counter}].address //empty" "${pool_config}")
-               relay_port=$(jq -r ".relays[${relay_counter}].port //empty" "${pool_config}")
-             else
-               relay_address=""
-               relay_port=""
+    if [[ -f "${pool_config}" && $(jq '.relays | length' "${pool_config}") -gt 0 ]]; then
+      say "Previous relay configuration:\n"
+      printTable ',' "$(say 'Type,Address,Port' | cat - <(jq -r -c '.relays[] | [.type //"-",.address //"-",.port //"-"] | @csv //empty' "${pool_config}") | tr -d '"')"
+      say "\nReuse previous configuration?\n"
+      case $(select_opt "[y] Yes" "[n] No" "[c] Cancel") in
+        0) while read -r type address port; do
+             relay_array+=( "type" "${type}" "address" "${address}" "port" "${port}" )
+             if [[ ${type} = "DNS_A" ]]; then
+               relay_output+="--single-host-pool-relay ${address} --pool-relay-port ${port} "
+             elif [[ ${type} = "IPv4" ]]; then
+               relay_output+="--pool-relay-port ${port} --pool-relay-ipv4 ${address} "
              fi
-           fi
-           read -r -p "Enter relays's IPv4 address (default: ${relay_address}): " relay_ipv4_enter
-           if [[ -n "${relay_ipv4_enter}" ]]; then
-             if validIP "${relay_ipv4_enter}"; then
-               relay_address="${relay_ipv4_enter}"
-             else
-               say "${RED}ERROR${NC}: invalid IPv4 address format!\n"
+           done< <(jq -r '.relays[] | "\(.type) \(.address) \(.port)"' "${pool_config}")
+           ;;
+        1) : ;; # Do nothing
+        2) continue ;;
+      esac
+    fi
+    if [[ -z ${relay_output} ]]; then
+      while true; do
+        case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in 
+          0) read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
+             if [[ -z "${relay_dns_enter}" ]]; then
+               say "\n${RED}ERROR${NC}: DNS record can not be empty!\n"
                continue
              fi
-           elif [[ -z "${relay_address}" ]]; then
-             say "${RED}ERROR${NC}: IPv4 address can not be empty!\n"
-             continue
-           fi
-           read -r -p "Enter relays's port (default: ${relay_port}): " relay_port_enter
-           if [[ -n "${relay_port_enter}" ]]; then
-             if [[ "${relay_port_enter}" =~ ^[0-9]+$ && "${relay_port_enter}" -ge 1 && "${relay_port_enter}" -le 65535 ]]; then
-               relay_port="${relay_port_enter}"
+             #ToDo - DNS format verficication?
+             read -r -p "Enter relays's port: " relay_port_enter
+             if [[ -n "${relay_port_enter}" ]]; then
+               if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
+                 say "\n${RED}ERROR${NC}: invalid port number!\n"
+                 continue
+               fi
              else
-               say "${RED}ERROR${NC}: invalid port number!\n"
+               say "\n${RED}ERROR${NC}: Port can not be empty!\n"
                continue
              fi
-           elif [[ -z "${relay_port}" ]]; then
-             say "${RED}ERROR${NC}: Port can not be empty!\n"
-             continue
-           fi
-           relay_array+=( "type" "IPv4" "address" "${relay_address}" "port" "${relay_port}" )
-           relay_output+="--pool-relay-port ${relay_port} --pool-relay-ipv4 ${relay_address} "
-           say "\nAdd more IPv4 entries?\n"
-           case $(select_opt "[n] No" "[y] Yes" "[c] Cancel") in
-             0) break ;;
-             1) ((relay_counter++)) && continue ;;
-             2) continue 2 ;;
-           esac
-         done
-         ;;
-      2) continue ;;
-    esac
+             relay_array+=( "type" "DNS_A" "address" "${relay_dns_enter}" "port" "${relay_port_enter}" )
+             relay_output+="--single-host-pool-relay ${relay_dns_enter} --pool-relay-port ${relay_port_enter} "
+             ;;
+          1) read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter
+             if [[ -n "${relay_ipv4_enter}" ]]; then
+               if ! validIP "${relay_ipv4_enter}"; then
+                 say "\n${RED}ERROR${NC}: invalid IPv4 address format!\n"
+                 continue
+               fi
+             else
+               say "\n${RED}ERROR${NC}: IPv4 address can not be empty!\n"
+               continue
+             fi
+             read -r -p "Enter relays's port: " relay_port_enter
+             if [[ -n "${relay_port_enter}" ]]; then
+               if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
+                 say "\n${RED}ERROR${NC}: invalid port number!\n"
+                 continue
+               fi
+             else
+               say "\n${RED}ERROR${NC}: Port can not be empty!\n"
+               continue
+             fi
+             relay_array+=( "type" "IPv4" "address" "${relay_ipv4_enter}" "port" "${relay_port_enter}" )
+             relay_output+="--pool-relay-port ${relay_port_enter} --pool-relay-ipv4 ${relay_ipv4_enter} "
+             ;;
+          2) continue 2 ;;
+        esac
+        say "\nAdd more relay entries?\n"
+        case $(select_opt "[n] No" "[y] Yes" "[c] Cancel") in
+          0) break ;;
+          1) continue ;;
+          2) continue 2 ;;
+        esac
+      done
+    fi
     
     # Construct relay json array
     relay_json=$({
@@ -1842,7 +1808,7 @@ case $OPERATION in
     #Generated Files
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
     
-    say "\n"
+    say ""
     say "# Modify Stake Pool" "log"
     say "creating registration certificate" 1 "log"
     say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${stake_vk_file} --pool-owner-stake-verification-key-file ${stake_vk_file} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output} ${NETWORK_IDENTIFIER} --out-file ${pool_regcert_file}" 2
