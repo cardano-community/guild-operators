@@ -100,6 +100,7 @@ say " ) Funds   -  send, withdraw and delegate"
 say " ) Pool    -  pool creation and management"
 say " ) Blocks  -  show core node leader slots"
 say " ) Update  -  update cntools script and library config files"
+say " ) Refresh -  reload home screen content"
 say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 say "$(printf "%84s" "Epoch $(getEpoch) - $(timeUntilNextEpoch) until next")"
 tip_diff=$(getSlotTipDiff)
@@ -112,13 +113,14 @@ else
   say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${RED}-${tip_diff} :(${NC}")"
 fi
 say ""
-case $(select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[b] Blocks" "[u] Update" "[q] Quit") in
+case $(select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[b] Blocks" "[u] Update" "[r] Refresh" "[q] Quit") in
   0) OPERATION="wallet" ;;
   1) OPERATION="funds" ;;
   2) OPERATION="pool" ;;
   3) OPERATION="blocks" ;;
   4) OPERATION="update" ;;
-  5) clear && exit ;;
+  5) continue ;;
+  6) clear && exit ;;
 esac
 
 case $OPERATION in
@@ -922,14 +924,14 @@ case $OPERATION in
             done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
           fi
           if [[ -n ${poolName} ]]; then
-            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
+            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
           elif [[ -n ${delegation_pool_id} ]]; then
-            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to external address)")
+            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${RED}delegated${NC} to external address)")
           else
-            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA)")
+            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
           fi
         else
-          wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA)")
+          wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
         fi
       else
         wallet_dirs+=("${dir}")
@@ -1359,14 +1361,14 @@ case $OPERATION in
             done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
           fi
           if [[ -n ${poolName} ]]; then
-            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
+            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
           elif [[ -n ${delegation_pool_id} ]]; then
-            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to external address)")
+            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${RED}delegated${NC} to external address)")
           else
-            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA)")
+            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
           fi
         else
-          wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA)")
+          wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
         fi
       else
         wallet_dirs+=("${dir}")
@@ -1568,14 +1570,14 @@ case $OPERATION in
             done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
           fi
           if [[ -n ${poolName} ]]; then
-            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
+            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
           elif [[ -n ${delegation_pool_id} ]]; then
-            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA - ${RED}delegated${NC} to external address)")
+            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${RED}delegated${NC} to external address)")
           else
-            wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA)")
+            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
           fi
         else
-          wallet_dirs+=("${dir} (${CYAN}${ada}${NC} ADA)")
+          wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
         fi
       else
         wallet_dirs+=("${dir}")
