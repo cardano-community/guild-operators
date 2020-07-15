@@ -987,8 +987,7 @@ case $OPERATION in
          [[ -z "${vkey_cbor}" ]] && continue
          pool_name="${vkey_cbor}"
          pool_coldkey_vk_file="${TMP_FOLDER}"/pool_delegation.vkey
-         JSON_FMT='{"type":"Node operator verification key","description":"Stake Pool Operator Verification Key","cborHex":"%s"}'
-         printf "$JSON_FMT" "${vkey_cbor}"  > "${pool_coldkey_vk_file}"
+         printf '{"type":"Node operator verification key","description":"Stake Pool Operator Verification Key","cborHex":"%s"}" "${vkey_cbor}' > "${pool_coldkey_vk_file}"
          ;;
       2) continue ;;
     esac
