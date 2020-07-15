@@ -5,6 +5,14 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.0] - 2020-07-15
+### Added
+- Refresh option to home screen
+
+### Fixed
+- ADA not displayed in a couple of the wallet selection menus
+
+
 ## [4.1.0] - 2020-07-14
 ### Added
 - Ability to register multiple relay DNS A records as well as a mix of DNS A and IPv4
