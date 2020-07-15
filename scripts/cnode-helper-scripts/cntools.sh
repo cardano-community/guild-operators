@@ -37,8 +37,7 @@ if ! need_cmd "curl" || \
    ! need_cmd "jq" || \
    ! need_cmd "bc" || \
    ! need_cmd "sed" || \
-   ! need_cmd "awk" || \
-   ! need_cmd "numfmt"; then exit 1
+   ! need_cmd "awk"; then exit 1
 fi
 
 # check to see if there are any updates available
