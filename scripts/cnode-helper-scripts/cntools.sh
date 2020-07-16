@@ -1235,7 +1235,7 @@ case $OPERATION in
 
     fi
     if [ ${metadata_done} = false ]; then
-
+      # ToDo align with wallet and smash
       if [[ -f "${pool_meta_file}" ]]; then
         meta_name=$(jq -r .name "${pool_meta_file}")
         meta_ticker=$(jq -r .ticker "${pool_meta_file}")
@@ -1694,7 +1694,7 @@ case $OPERATION in
 
     fi
     if [ ${metadata_done} = false ]; then
-
+      # ToDo align with wallet and smash
       if [[ -f "${pool_meta_file}" ]]; then
         meta_name=$(jq -r .name "${pool_meta_file}")
         meta_ticker=$(jq -r .ticker "${pool_meta_file}")
