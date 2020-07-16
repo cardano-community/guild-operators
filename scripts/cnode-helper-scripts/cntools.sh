@@ -1188,7 +1188,7 @@ case $OPERATION in
       margin_fraction=$(pctToFraction "${margin}")
     fi
 
-    minPoolCost=$(jq -r '.minPoolCost //0' "${TMP_FOLDER}"/protparams.json)
+    minPoolCost=$(( $(jq -r '.minPoolCost //0' "${TMP_FOLDER}"/protparams.json) / 1000000 )) # convert to ADA
     [[ ${minPoolCost} -gt 0 ]] && cost_ada=${minPoolCost} || cost_ada=256 # default cost
     if [[ -f "${pool_config}" ]]; then
       cost_ada_saved=$(jq -r '.costADA //0' "${pool_config}")
@@ -1199,14 +1199,14 @@ case $OPERATION in
       if ! ADAtoLovelace "${cost_enter}" >/dev/null; then
         waitForInput && continue
       fi
-      if [[ ${cost_enter} -lt ${minPoolCost} ]]; then
-        say "${RED}ERROR${NC}: cost set lower than allowed"
-        waitForInput && continue
-      fi
       cost_lovelace=$(ADAtoLovelace "${cost_enter}")
       cost_ada="${cost_enter}"
     else
       cost_lovelace=$(ADAtoLovelace "${cost_ada}")
+    fi
+    if [[ ${cost_ada} -lt ${minPoolCost} ]]; then
+      say "\n${RED}ERROR${NC}: cost set lower than allowed"
+      waitForInput && continue
     fi
 
     say "\n# Pool Metadata\n"
@@ -1595,22 +1595,21 @@ case $OPERATION in
       margin_fraction=$(pctToFraction "${margin}")
     fi
 
-    minPoolCost=$(jq -r '.minPoolCost //0' "${TMP_FOLDER}"/protparams.json)
+    minPoolCost=$(( $(jq -r '.minPoolCost //0' "${TMP_FOLDER}"/protparams.json) / 1000000 )) # convert to ADA
     cost_ada=$(jq -r '.costADA //0' "${pool_config}")
-    [[ ${cost_ada} -lt ${minPoolCost} ]] && cost_ada=${minPoolCost}
     read -r -p "New Cost (in ADA, minimum: ${minPoolCost}, old: ${cost_ada}): " cost_enter
     if [[ -n "${cost_enter}" ]]; then
       if ! ADAtoLovelace "${cost_enter}" >/dev/null; then
-        waitForInput && continue
-      fi
-      if [[ ${cost_enter} -lt ${minPoolCost} ]]; then
-        say "${RED}ERROR${NC}: cost set lower than allowed"
         waitForInput && continue
       fi
       cost_lovelace=$(ADAtoLovelace "${cost_enter}")
       cost_ada="${cost_enter}"
     else
       cost_lovelace=$(ADAtoLovelace "${cost_ada}")
+    fi
+    if [[ ${cost_ada} -lt ${minPoolCost} ]]; then
+      say "\n${RED}ERROR${NC}: cost set lower than allowed"
+      waitForInput && continue
     fi
 
     say "\n# Pool Metadata\n"
