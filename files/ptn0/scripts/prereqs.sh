@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 get_input() {
   printf "%s (default: %s): " "$1" "$2" >&2; read -r answer
