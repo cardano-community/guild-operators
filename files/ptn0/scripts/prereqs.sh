@@ -196,13 +196,16 @@ chmod -R 755 "$CNODE_HOME"
 
 cd "$CNODE_HOME/files" || return
 
-curl -s -o ptn0.yaml https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0.yaml
+curl -s -o ptn0-praos.yaml https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0-praos.yaml
 curl -s -o ptn0-combinator.yaml https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0-combinator.yaml
 curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/genesis.json | jq '.' > genesis.json
+curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/byron-genesis.json | jq '.' > byron-genesis.json
 curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/topology.json | jq '.' > topology.json
 
+[[ "$1" = "p" ]] &&  cp ptn0-praos.yaml ptn0.yaml || cp ptn0-combinator.yaml ptn0.yaml
+
 # If using a different CNODE_HOME than in this example, execute the below:
-# sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/ptn0.yaml
+# sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/ptn*.yaml
 ## For future use:
 ## It generates random NodeID:
 ## -e "s#NodeId:.*#NodeId:$(od -A n -t u8 -N 8 /dev/urandom$(#" \

@@ -7,7 +7,7 @@ PROTOCOL=$(grep -ri ^Protocol: "$CONFIG" | awk '{print $2}')
 [[ "${PROTOCOL}" = "Cardano" ]] && PROTOCOL_IDENTIFIER="--cardano-mode" || PROTOCOL_IDENTIFIER="--shelley-mode"
 GENESIS_JSON=$CNODE_HOME/files/genesis.json
 NETWORKID=$(jq -r .networkId $GENESIS_JSON)
-BYRON_GENESIS_JSON=$CNODE_HOME/files/byron_genesis.json
+BYRON_GENESIS_JSON=$CNODE_HOME/files/byron-genesis.json
 NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
 export CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
 MAGIC=$(jq -r .protocolMagicId < $GENESIS_JSON)

@@ -90,7 +90,7 @@ options:
 # NodeId:
 Protocol: Cardano
 NetworkName: phtn
-ByronGenesisFile: /opt/cardano/cnode/files/byron_genesis.json
+ByronGenesisFile: /opt/cardano/cnode/files/byron-genesis.json
 ShelleyGenesisFile: /opt/cardano/cnode/files/genesis.json
 NumCoreNodes: 1
 RequiresNetworkMagic: RequiresNoMagic

@@ -1,0 +1,55 @@
+{ "bootStakeholders":
+    { "8367be39c7ee09f389cadfbd954347410df04b8337f76445e2e8b168": 1
+    , "bc0cce5c0b52c55a323bc456fecda46a03ebf4d75960c0da4724938c": 1
+    }
+, "heavyDelegation":
+    { "8367be39c7ee09f389cadfbd954347410df04b8337f76445e2e8b168":
+        { "omega": 0
+        , "issuerPk":
+            "mmTHK20oy3M6m+/4r69KDZsWn56TDWyQGPKEpHPGToINc1Nl0qBM1pyYfCnxWWCp3UGl4PC42BsRImK3xcz37w=="
+        , "delegatePk":
+            "9lWCtnyDp4r9t/YQNg/SHfkoFBfKIlKNFgCvMywWax8TAVEPXmlGvvtD8ru8z3GPOBkAQCMp4/zDa6NM4mGcww=="
+        , "cert":
+            "d65bb63ffe3b09befdfd3b055691692c4c7fabe8f53032e445dd5bc453d26ca1f8558522f9f4577f74e27df3f0d3feff8fead2cf652c5c241d00497e78cf180f"
+        }
+    , "bc0cce5c0b52c55a323bc456fecda46a03ebf4d75960c0da4724938c":
+        { "omega": 0
+        , "issuerPk":
+            "9a7lJvPseM1uvOJIWdoO+/IbCOcSD5Rf4cZrGeJB5S5sgAWNvod0qVCIUl+SGzCVLxiicLrEpPO+ANJbNBOEEA=="
+        , "delegatePk":
+            "bFH/O0cDRdzG88/sEc70GZiG5nO90jFkcPF7aI7yMizroVB5IAT89iLhclmXfEbcQDq6hlSH60eK1MmRCgNaBQ=="
+        , "cert":
+            "f330dd2d9e00293e7ac24158b17b4f41e94356779d779b69c97b1944d52910681bcf4c39556761313f9fba3f548b1206b2d75c63ca44b32034265c41cb7e4504"
+        }
+    }
+, "startTime": 1594713671
+, "nonAvvmBalances":
+    { "5oP9ib6ym3XXjawLbxXmmHWs1PUqyQodVsadr1sPgApwD1cJMMynzcnEy7zjGtxUrL":
+        "22500000000000000"
+    , "5oP9ib6ym3XgnLSMvYHjHbmuLTULkLnqNm7n2KfY7ZjaC7utsLxm7pCryoTyQae72S":
+        "22500000000000000"
+    }
+, "blockVersionData":
+    { "scriptVersion": 0
+    , "slotDuration": "100"
+    , "maxBlockSize": "2000000"
+    , "maxHeaderSize": "2000000"
+    , "maxTxSize": "4096"
+    , "maxProposalSize": "700"
+    , "mpcThd": "20000000000000"
+    , "heavyDelThd": "300000000000"
+    , "updateVoteThd": "1000000000000"
+    , "updateProposalThd": "100000000000000"
+    , "updateImplicit": "10000"
+    , "softforkRule":
+        { "initThd": "900000000000000"
+        , "minThd": "600000000000000"
+        , "thdDecrement": "50000000000000"
+        }
+    , "txFeePolicy":
+        { "summand": "155381000000000" , "multiplier": "43946000000" }
+    , "unlockStakeEpoch": "18446744073709551615"
+    }
+, "protocolConsts": { "k": 108 , "protocolMagic": 5005 }
+, "avvmDistr": {}
+}
