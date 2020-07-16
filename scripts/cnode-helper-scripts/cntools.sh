@@ -60,7 +60,7 @@ fi
 # check if there are pools in need of KES key rotation
 clear
 kes_rotation_needed="no"
-while IFS= read -r -d '' pool; do 
+while IFS= read -r -d '' pool; do
   if [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]]; then
     kesExpiration "$(cat "${pool}/${POOL_CURRENT_KES_START}")"
     if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
@@ -137,7 +137,7 @@ case $OPERATION in
   say " ) Decrypt  -  remove write protection and decrypt wallet"
   say " ) Encrypt  -  encrypt wallet keys and make all files immutable"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  
+
   say " Select wallet operation\n"
   case $(select_opt "[n] New" "[l] List" "[s] Show" "[r] Remove" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
     0) SUBCOMMAND="new" ;;
@@ -195,16 +195,16 @@ case $OPERATION in
     ;; ###################################################################
 
     list)
-    
+
     clear
     say " >> WALLET >> LIST" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    
+
     if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
-    
+
     while IFS= read -r -d '' wallet; do
       wallet_name=$(basename ${wallet})
       enc_files=$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -printf '.' | wc -c)
@@ -251,22 +251,22 @@ case $OPERATION in
     done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
     say ""
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    
+
     waitForInput
     ;; ###################################################################
 
     show)
-    
+
     clear
     say " >> WALLET >> SHOW" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
-    
+
     if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
-    
+
     wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     for dir in "${dirs[@]}"; do
@@ -283,7 +283,7 @@ case $OPERATION in
     if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
     wallet_name=${dir_name}
     enc_files=$(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -printf '.' | wc -c)
-    
+
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
     if [[ ${enc_files} -gt 0 ]]; then
@@ -305,7 +305,7 @@ case $OPERATION in
       head -n 10 "${TMP_FOLDER}"/balance.out
       [[ ${utx0_count} -gt 10 ]] && say "... (top 10 UTx0 with most lovelace)"
     fi
-    
+
     getBalance ${pay_addr}
     pay_lovelace=${lovelace}
     if [[ ${utx0_count} -gt 0 ]]; then
@@ -315,7 +315,7 @@ case $OPERATION in
       head -n 10 "${TMP_FOLDER}"/balance.out
       [[ ${utx0_count} -gt 10 ]] && say "... (top 10 UTx0 with most lovelace)"
     fi
-    
+
     say ""
     say "$(printf "%-19s : %s" "Address" "${base_addr}")" "log"
     say "$(printf "%-19s : ${CYAN}%s${NC} ADA" "Funds" "$(formatLovelace ${base_lovelace})")" "log"
@@ -343,21 +343,21 @@ case $OPERATION in
     say ""
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     waitForInput
-    
+
     ;; ###################################################################
 
     remove)
-    
+
     clear
     say " >> WALLET >> REMOVE" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
-    
+
     if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
-    
+
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     if [[ ${#dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No wallets available!"
@@ -366,7 +366,7 @@ case $OPERATION in
     say "Select Wallet:\n"
     if ! selectDir "${dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
     wallet_name="${dir_name}"
-    
+
     if ! getBaseAddress ${wallet_name} && ! getPayAddress ${wallet_name}; then
       say "${RED}WARN${NC}: unable to get address for wallet and do a balance check"
       say "\nAre you sure to delete wallet anyway?\n"
@@ -379,7 +379,7 @@ case $OPERATION in
       esac
       waitForInput && continue
     fi
-    
+
     if [[ -n ${base_addr} ]]; then
       getBalance ${base_addr}
       base_lovelace=${lovelace}
@@ -393,7 +393,7 @@ case $OPERATION in
       pay_lovelace=0
     fi
     getRewards ${wallet_name}
-    
+
     if [[ ${base_lovelace} -eq 0 && ${pay_lovelace} -eq 0 && ${reward_lovelace} -le 0 ]]; then
       say "INFO: This wallet appears to be empty"
       say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
@@ -433,14 +433,14 @@ case $OPERATION in
     ;; ###################################################################
 
     decrypt)
-    
+
     clear
     say " >> WALLET >> DECRYPT" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
-    
+
     protectionPreRequisites || continue
-    
+
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     if [[ ${#dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No wallets available!"
@@ -450,12 +450,12 @@ case $OPERATION in
     say "Select Wallet:\n"
     if ! selectDir "${dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
     wallet_name="${dir_name}"
-    
+
     filesUnlocked=0
     keysDecrypted=0
-    
+
     say "# Removing write protection from all wallet files" "log"
-    while IFS= read -r -d '' file; do 
+    while IFS= read -r -d '' file; do
       if [[ $(lsattr -R "$file") =~ -i- ]]; then
         sudo chattr -i "${file}" && \
         chmod 600 "${file}" && \
@@ -473,13 +473,13 @@ case $OPERATION in
       say "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
       waitForInput && continue
     fi
-    while IFS= read -r -d '' file; do 
+    while IFS= read -r -d '' file; do
       decryptFile "${file}" "${password}" && \
       chmod 600 "${file::-4}" && \
       keysDecrypted=$((++keysDecrypted))
     done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0)
     unset password
-    
+
     say ""
     say "Wallet unprotected: ${GREEN}${wallet_name}${NC}" "log"
     say "Files unlocked:     ${filesUnlocked}" "log"
@@ -496,14 +496,14 @@ case $OPERATION in
     ;; ###################################################################
 
     encrypt)
-    
+
     clear
     say " >> WALLET >> ENCRYPT" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
-    
+
     protectionPreRequisites || continue
-    
+
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     if [[ ${#dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No wallets available!"
@@ -516,7 +516,7 @@ case $OPERATION in
 
     filesLocked=0
     keysEncrypted=0
-    
+
     say "# Encrypting sensitive wallet keys with GPG" "log"
     say ""
     say "Wallet ${GREEN}${wallet_name}${NC} Password"
@@ -551,7 +551,7 @@ case $OPERATION in
         say "${file}"
       fi
     done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
-    
+
     say ""
     say "Wallet protected: ${GREEN}${wallet_name}${NC}" "log"
     say "Files locked:     ${filesLocked}" "log"
@@ -582,7 +582,7 @@ case $OPERATION in
   say " 2) Delegate  -  delegate stake wallet to a pool"
   say " 3) Withdraw  -  withdraw earned rewards to base address"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  
+
   say " Select funds operation\n"
   case $(select_opt "[s] Send" "[d] Delegate" "[w] Withdraw Rewards" "[h] Home") in
     0) SUBCOMMAND="send" ;;
@@ -603,7 +603,7 @@ case $OPERATION in
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
-    
+
     wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
@@ -627,21 +627,21 @@ case $OPERATION in
     say "Select Wallet:\n"
     if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
     wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
-      
+
     getBaseAddress ${wallet_name}
     stake_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_ADDR_FILENAME}"
     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
     stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
     pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-    
+
     getBalance ${base_addr}
     getRewards ${wallet_name}
-    
+
     if [[ ${reward_lovelace} -le 0 ]]; then
       say "Failed to locate any rewards associated with the chosen wallet, please try another one"
       waitForInput && continue
     fi
-    
+
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")" "log"
 
@@ -653,7 +653,7 @@ case $OPERATION in
     if ! waitNewBlockCreated; then
       waitForInput && continue
     fi
-    
+
     getBalance ${base_addr}
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
@@ -664,7 +664,7 @@ case $OPERATION in
       fi
       getBalance ${base_addr}
     done
-    
+
     if [[ ${lovelace} -ne ${newBalance} ]]; then
       waitForInput && continue
     fi
@@ -675,21 +675,21 @@ case $OPERATION in
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")" "log"
     waitForInput
-    
+
     ;; ###################################################################
 
     send)
-    
+
     clear
     say " >> FUNDS >> SEND" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
-    
+
     if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
-    
+
     s_wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
@@ -721,14 +721,14 @@ case $OPERATION in
     say "Select Source Wallet:\n"
     if ! selectDir "${s_wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
     s_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
-    
+
     getBaseAddress ${s_wallet}
     getPayAddress ${s_wallet}
     getBalance ${base_addr}
     base_lovelace=${lovelace}
     getBalance ${pay_addr}
     pay_lovelace=${lovelace}
-    
+
     if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
       # Both payment and base address available with funds, let user choose what to use
       say "Select source wallet address"
@@ -744,7 +744,7 @@ case $OPERATION in
       s_addr="${pay_addr}"
       say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
     elif [[ ${base_lovelace} -gt 0 ]]; then
-      s_addr="${base_addr}" 
+      s_addr="${base_addr}"
       say "$(printf "%s\t\t${CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
     else
       say "${RED}ERROR${NC}: no funds available for wallet ${GREEN}${s_wallet}${NC}"
@@ -785,7 +785,7 @@ case $OPERATION in
       say ""
       include_fee="yes"
     fi
-    
+
     # Destination
     d_wallet=""
     say "Is destination a local wallet or an address?\n"
@@ -800,10 +800,10 @@ case $OPERATION in
          say "Select Destination Wallet:\n"
          if ! selectDir "${d_wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
          d_wallet="${dir_name}"
-         
+
          getBaseAddress ${d_wallet}
          getPayAddress ${d_wallet}
-    
+
          if [[ -n "${base_addr}" && "${base_addr}" != "${s_addr}" && -n "${pay_addr}" && "${pay_addr}" != "${s_addr}" ]]; then
            # Both base and enterprise address available, let user choose what to use
            say "Select destination wallet address"
@@ -851,8 +851,8 @@ case $OPERATION in
       fi
       getBalance ${s_addr}
     done
-    
-    if [[ ${lovelace} -ne ${newBalance} ]]; then 
+
+    if [[ ${lovelace} -ne ${newBalance} ]]; then
       waitForInput && continue
     fi
 
@@ -861,12 +861,12 @@ case $OPERATION in
     getBalance ${d_addr}
 
     d_balance=${lovelace}
-    
+
     getPayAddress ${s_wallet}
     [[ "${pay_addr}" = "${s_addr}" ]] && s_wallet_type=" (Enterprise)" || s_wallet_type=""
     getPayAddress ${d_wallet}
     [[ "${pay_addr}" = "${d_addr}" ]] && d_wallet_type=" (Enterprise)" || d_wallet_type=""
-    
+
     say ""
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say "Transaction" "log"
@@ -894,12 +894,12 @@ case $OPERATION in
     say " >> FUNDS >> DELEGATE" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
-    
+
     if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
-    
+
     wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
@@ -943,7 +943,7 @@ case $OPERATION in
     say "Select Wallet:\n"
     if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
     wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
-    
+
     getBaseAddress ${wallet_name}
     getBalance ${base_addr}
     if [[ ${lovelace} -gt 0 ]]; then
@@ -953,15 +953,15 @@ case $OPERATION in
       waitForInput && continue
     fi
     getRewards ${wallet_name}
-    
+
     if [[ reward_lovelace -eq -1 ]] && ! registerStakeWallet ${wallet_name}; then
       waitForInput && continue
     fi
-    
+
     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
     stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
     pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-    
+
     say ""
     say "Do you want to delegate to a local pool or specify the pools cold vkey cbor-hex?\n"
     case $(select_opt "[p] Pool" "[v] Vkey" "[c] Cancel") in
@@ -982,7 +982,7 @@ case $OPERATION in
          pool_name="${dir_name}"
          pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
          ;;
-      1) read -r -p "vkey cbor-hex(blank to cancel): " vkey_cbor 
+      1) read -r -p "vkey cbor-hex(blank to cancel): " vkey_cbor
          [[ -z "${vkey_cbor}" ]] && continue
          pool_name="${vkey_cbor}"
          pool_coldkey_vk_file="${TMP_FOLDER}"/pool_delegation.vkey
@@ -1018,7 +1018,7 @@ case $OPERATION in
       fi
       getBalance ${base_addr}
     done
-    
+
     if [[ ${lovelace} -ne ${newBalance} ]]; then
       waitForInput && continue
     fi
@@ -1053,7 +1053,7 @@ case $OPERATION in
   say " ) Decrypt   -  remove write protection and decrypt pool"
   say " ) Encrypt   -  encrypt pool cold keys and make all files immutable"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  
+
   say " Select wallet operation\n"
   case $(select_opt "[n] New" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
     0) SUBCOMMAND="new" ;;
@@ -1114,7 +1114,7 @@ case $OPERATION in
     say "PoolPubKey: $(cat "${pool_id_file}")" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     waitForInput && continue
-    
+
     ;; ###################################################################
 
     register)
@@ -1123,14 +1123,14 @@ case $OPERATION in
     say " >> POOL >> REGISTER" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
-    
+
     if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
-    
+
     say "Dumping ledger-state from node, can take a while on larger networks...\n"
-    
+
     pool_dirs=()
     timeout -k 5 30 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
@@ -1199,7 +1199,7 @@ case $OPERATION in
     else
       cost_lovelace=$(ADAtoLovelace "${cost_ada}")
     fi
-    
+
     say "\n# Pool Metadata\n"
     meta_name="${pool_name}" # default name
     meta_ticker="${pool_name}" # default ticker
@@ -1207,45 +1207,12 @@ case $OPERATION in
     meta_homepage="https://foo.com" #default homepage
     meta_json_url="https://foo.bat/poolmeta.json" #default JSON
     pool_meta_file=${POOL_FOLDER}/${pool_name}/poolmeta.json
-    if [[ -f "${pool_meta_file}" ]]; then
-      meta_name=$(jq -r .name "${pool_meta_file}")
-      meta_ticker=$(jq -r .ticker "${pool_meta_file}")
-      meta_homepage=$(jq -r .homepage "${pool_meta_file}")
-      meta_description=$(jq -r .description "${pool_meta_file}")
-    fi
     if [[ -f "${pool_config}" ]]; then
       if [[ "$(jq -r .json_url ${pool_config})" ]]; then
         meta_json_url=$(jq -r .json_url "${pool_config}")
       fi
     fi
-    read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
-    name_enter=${name_enter//[^[:alnum:]]/_}
-    if [[ -n "${name_enter}" ]]; then
-      meta_name="${name_enter}"
-    fi
-    read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter
-    ticker_enter=${ticker_enter//[^[:alnum:]]/_}
-    if [[ -n "${ticker_enter}" ]]; then
-      meta_ticker="${ticker_enter}"
-    fi
-    if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
-      say "${RED}ERROR${NC}: ticker must be between 3-5 characters"
-      waitForInput && continue
-    fi
-    read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
-    desc_enter=${desc_enter}
-    if [[ -n "${desc_enter}" ]]; then
-      meta_description="${desc_enter}"
-    fi
-    read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter
-    homepage_enter="${homepage_enter}"
-    if [[ -n "${homepage_enter}" ]]; then
-      meta_homepage="${homepage_enter}"
-    fi
-    if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
-      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
-      waitForInput && continue
-    fi
+
     read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter
     json_url_enter="${json_url_enter}"
     if [[ -n "${json_url_enter}" ]]; then
@@ -1255,10 +1222,63 @@ case $OPERATION in
       say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
       waitForInput && continue
     fi
-    
-    say "\n${ORANGE}Please make sure you host your metadata JSON file (with contents as below) at ${meta_json_url} :${NC}\n"
-    say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
-    
+
+    metadata_done=false
+    if wget -q  $meta_json_url -O $TMP_FOLDER/url_poolmeta.json ; then
+      say "\nMetadata exists at URL.  Use existing data?\n"
+      case $(select_opt "[y] Yes" "[n] No") in
+        0) mv $TMP_FOLDER/url_poolmeta.json $pool_meta_file
+           metadata_done=true
+           ;;
+        1) rm $TMP_FOLDER/url_poolmeta.json ;; # clean up temp file
+      esac
+
+    fi
+    if [ ${metadata_done} = false ]; then
+      # ToDo align with wallet and smash
+      if [[ -f "${pool_meta_file}" ]]; then
+        meta_name=$(jq -r .name "${pool_meta_file}")
+        meta_ticker=$(jq -r .ticker "${pool_meta_file}")
+        meta_homepage=$(jq -r .homepage "${pool_meta_file}")
+        meta_description=$(jq -r .description "${pool_meta_file}")
+      fi
+
+
+
+      read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
+      name_enter=${name_enter//[^[:alnum:]]/_}
+      if [[ -n "${name_enter}" ]]; then
+        meta_name="${name_enter}"
+      fi
+      read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter
+      ticker_enter=${ticker_enter//[^[:alnum:]]/_}
+      if [[ -n "${ticker_enter}" ]]; then
+        meta_ticker="${ticker_enter}"
+      fi
+      if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
+        say "${RED}ERROR${NC}: ticker must be between 3-5 characters"
+        waitForInput && continue
+      fi
+      read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
+      desc_enter=${desc_enter}
+      if [[ -n "${desc_enter}" ]]; then
+        meta_description="${desc_enter}"
+      fi
+      read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter
+      homepage_enter="${homepage_enter}"
+      if [[ -n "${homepage_enter}" ]]; then
+        meta_homepage="${homepage_enter}"
+      fi
+      if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
+        say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
+        waitForInput && continue
+      fi
+
+
+      say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url} :${NC}\n"
+      say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
+    fi
+
     relay_output=""
     relay_array=()
     say "\n# Pool Relay Registration\n"
@@ -1283,7 +1303,7 @@ case $OPERATION in
     fi
     if [[ -z ${relay_output} ]]; then
       while true; do
-        case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in 
+        case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in
           0) read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
              if [[ -z "${relay_dns_enter}" ]]; then
                say "\n${RED}ERROR${NC}: DNS record can not be empty!\n"
@@ -1336,7 +1356,7 @@ case $OPERATION in
         esac
       done
     fi
-    
+
     say ""
 
     wallet_dirs=()
@@ -1384,7 +1404,7 @@ case $OPERATION in
     pledge_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
     getBaseAddress ${pledge_wallet}
     getBalance ${base_addr}
-    
+
     if [[ ${lovelace} -gt 0 ]]; then
       say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in pledge wallet:"  "$(formatLovelace ${lovelace})")" "log"
     else
@@ -1394,7 +1414,7 @@ case $OPERATION in
     if ! isWalletRegistered ${pledge_wallet} && ! registerStakeWallet ${pledge_wallet}; then
       waitForInput && continue
     fi
-    
+
     # Construct relay json array
     relay_json=$({
       say '['
@@ -1403,7 +1423,7 @@ case $OPERATION in
     } | jq -c .)
     # Save pool config
     echo "{\"pledgeWallet\":\"$pledge_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\",\"relays\": $relay_json}" > "${pool_config}"
-    
+
     pay_payment_sk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_PAY_SK_FILENAME}"
     stake_sk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_STAKE_SK_FILENAME}"
     stake_vk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_STAKE_VK_FILENAME}"
@@ -1438,19 +1458,19 @@ case $OPERATION in
 
     say ""
     say "# Register Stake Pool" "log"
-    
+
     start_kes_period=$(getCurrentKESperiod)
     echo "${start_kes_period}" > ${pool_saved_kes_start}
     say "creating operational certificate" 1 "log"
     ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${start_kes_period}" --out-file "${pool_opcert_file}"
-    
+
     say "creating registration certificate" 1 "log"
     say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${stake_vk_file} --pool-owner-stake-verification-key-file ${stake_vk_file} --out-file ${pool_regcert_file} ${NETWORK_IDENTIFIER} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output}" 2
     ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" ${NETWORK_IDENTIFIER} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output}
     say "creating delegation certificate" 1 "log"
     say "$ ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file ${stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${pool_pledgecert_file}" 2
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
-    
+
     say "sending transaction to chain" 1 "log"
     if ! registerPool "${base_addr}" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pool_pledgecert_file}" "${pay_payment_sk_file}"; then
       say "${RED}ERROR${NC}: failure during pool registration, removing newly created pledge and registration files"
@@ -1472,7 +1492,7 @@ case $OPERATION in
       fi
       getBalance ${base_addr}
     done
-    
+
     if [[ ${lovelace} -ne ${newBalance} ]]; then
       waitForInput && continue
     fi
@@ -1494,7 +1514,7 @@ case $OPERATION in
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     waitForInput && continue
-    
+
     ;; ###################################################################
 
     modify)
@@ -1503,14 +1523,14 @@ case $OPERATION in
     say " >> POOL >> MODIFY" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
-    
+
     if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
-    
+
     say "Dumping ledger-state from node, can take a while on larger networks...\n"
-    
+
     pool_dirs=()
     timeout -k 5 30 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
@@ -1534,7 +1554,7 @@ case $OPERATION in
     pool_name="${dir_name}"
 
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
-    
+
     if [[ ! -f ${pool_config} ]]; then
       say "${ORANGE}WARN${NC}: Missing pool config file, please first register your pool"
       say "${pool_config}"
@@ -1593,7 +1613,7 @@ case $OPERATION in
     pledge_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
     getBaseAddress ${pledge_wallet}
     getBalance ${base_addr}
-    
+
     if [[ ${lovelace} -gt 0 ]]; then
       say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in pledge wallet:"  "$(formatLovelace ${lovelace})")" "log"
     else
@@ -1603,10 +1623,10 @@ case $OPERATION in
     if ! isWalletRegistered ${pledge_wallet} && ! registerStakeWallet ${pledge_wallet}; then
       waitForInput && continue
     fi
-    
+
     say "\n# Pool Parameters\n"
     say "press enter to use old value\n"
-    
+
     pledge_ada=$(jq -r .pledgeADA "${pool_config}")
     read -r -p "New Pledge (in ADA, old: ${pledge_ada}): " pledge_enter
     if [[ -n "${pledge_enter}" ]]; then
@@ -1642,49 +1662,17 @@ case $OPERATION in
     else
       cost_lovelace=$(ADAtoLovelace "${cost_ada}")
     fi
-    
+
     say "\n# Pool Metadata\n"
-    say "press enter to use old value\n"
-    
+
     pool_meta_file=${POOL_FOLDER}/${pool_name}/poolmeta.json
-    if [[ -f "${pool_meta_file}" ]]; then
-      meta_name=$(jq -r .name "${pool_meta_file}")
-      meta_ticker=$(jq -r .ticker "${pool_meta_file}")
-      meta_homepage=$(jq -r .homepage "${pool_meta_file}")
-      meta_description=$(jq -r .description "${pool_meta_file}")
-    fi
     if [[ -f "${pool_config}" ]]; then
-      meta_json_url=$(jq -r .json_url "${pool_config}")
+      if [[ "$(jq -r .json_url ${pool_config})" ]]; then
+        meta_json_url=$(jq -r .json_url "${pool_config}")
+      fi
     fi
-    read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
-    name_enter=${name_enter//[^[:alnum:]]/_}
-    if [[ -n "${name_enter}" ]]; then
-      meta_name="${name_enter}"
-    fi
-    read -r -p "Enter Pool's Ticker (default: ${meta_ticker}): " ticker_enter
-    ticker_enter=${ticker_enter//[^[:alnum:]]/_}
-    if [[ -n "${ticker_enter}" ]]; then
-      meta_ticker="${ticker_enter}"
-    fi
-    if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
-      say "${RED}ERROR${NC}: ticker must be between 3-5 characters"
-      waitForInput && continue
-    fi
-    read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
-    desc_enter=${desc_enter}
-    if [[ -n "${desc_enter}" ]]; then
-      meta_description="${desc_enter}"
-    fi
-    read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter
-    homepage_enter="${homepage_enter}"
-    if [[ -n "${homepage_enter}" ]]; then
-      meta_homepage="${homepage_enter}"
-    fi
-    if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
-      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
-      waitForInput && continue
-    fi
-    read -r -p "Enter Pool's JSON URL to host metadata file (default: ${meta_json_url}): " json_url_enter
+
+    read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter
     json_url_enter="${json_url_enter}"
     if [[ -n "${json_url_enter}" ]]; then
       meta_json_url="${json_url_enter}"
@@ -1694,8 +1682,60 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    say "\n${ORANGE}Please host ${pool_meta_file} file as-is at ${meta_json_url}!${NC}\n"
-    say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" > "${pool_meta_file}"
+    metadata_done=false
+    if wget -q  $meta_json_url -O $TMP_FOLDER/url_poolmeta.json ; then
+      say "\nMetadata exists at URL.  Use existing data?\n"
+      case $(select_opt "[y] Yes" "[n] No") in
+        0) mv $TMP_FOLDER/url_poolmeta.json $pool_meta_file
+           metadata_done=true
+           ;;
+        1) rm $TMP_FOLDER/url_poolmeta.json ;; # clean up temp file
+      esac
+
+    fi
+    if [ ${metadata_done} = false ]; then
+      # ToDo align with wallet and smash
+      if [[ -f "${pool_meta_file}" ]]; then
+        meta_name=$(jq -r .name "${pool_meta_file}")
+        meta_ticker=$(jq -r .ticker "${pool_meta_file}")
+        meta_homepage=$(jq -r .homepage "${pool_meta_file}")
+        meta_description=$(jq -r .description "${pool_meta_file}")
+      fi
+
+      read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
+      name_enter=${name_enter//[^[:alnum:]]/_}
+      if [[ -n "${name_enter}" ]]; then
+        meta_name="${name_enter}"
+      fi
+      read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter
+      ticker_enter=${ticker_enter//[^[:alnum:]]/_}
+      if [[ -n "${ticker_enter}" ]]; then
+        meta_ticker="${ticker_enter}"
+      fi
+      if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
+        say "${RED}ERROR${NC}: ticker must be between 3-5 characters"
+        waitForInput && continue
+      fi
+      read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
+      desc_enter=${desc_enter}
+      if [[ -n "${desc_enter}" ]]; then
+        meta_description="${desc_enter}"
+      fi
+      read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter
+      homepage_enter="${homepage_enter}"
+      if [[ -n "${homepage_enter}" ]]; then
+        meta_homepage="${homepage_enter}"
+      fi
+      if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
+        say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
+        waitForInput && continue
+      fi
+
+
+      say "\n${ORANGE}Please host ${pool_meta_file} as-is at ${meta_json_url} :${NC}\n"
+      say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
+    fi
+
 
     relay_output=""
     relay_array=()
@@ -1721,7 +1761,7 @@ case $OPERATION in
     fi
     if [[ -z ${relay_output} ]]; then
       while true; do
-        case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in 
+        case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in
           0) read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
              if [[ -z "${relay_dns_enter}" ]]; then
                say "\n${RED}ERROR${NC}: DNS record can not be empty!\n"
@@ -1774,7 +1814,7 @@ case $OPERATION in
         esac
       done
     fi
-    
+
     # Construct relay json array
     relay_json=$({
       say '['
@@ -1810,13 +1850,13 @@ case $OPERATION in
 
     #Generated Files
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
-    
+
     say ""
     say "# Modify Stake Pool" "log"
     say "creating registration certificate" 1 "log"
     say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${stake_vk_file} --pool-owner-stake-verification-key-file ${stake_vk_file} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output} ${NETWORK_IDENTIFIER} --out-file ${pool_regcert_file}" 2
     ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output} ${NETWORK_IDENTIFIER} --out-file "${pool_regcert_file}"
-    
+
     say "sending transaction to chain" 1 "log"
     if ! modifyPool "${base_addr}" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pay_payment_sk_file}"; then
       say "${RED}ERROR${NC}: failure during pool update, removing newly created registration certificate"
@@ -1838,7 +1878,7 @@ case $OPERATION in
       fi
       getBalance ${base_addr}
     done
-    
+
     if [[ ${lovelace} -ne ${newBalance} ]]; then
       waitForInput && continue
     fi
@@ -1855,7 +1895,7 @@ case $OPERATION in
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     waitForInput && continue
-    
+
     ;; ###################################################################
 
     retire)
@@ -1864,14 +1904,14 @@ case $OPERATION in
     say " >> POOL >> RETIRE" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
-    
+
     if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
-    
+
     say "Dumping ledger-state from node, can take a while on larger networks...\n"
-    
+
     pool_dirs=()
     timeout -k 5 30 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
@@ -1893,24 +1933,24 @@ case $OPERATION in
     say "Select Pool:\n"
     if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
     pool_name="${dir_name}"
-    
+
     epoch=$(getEpoch)
     eMax=$(jq -r '.eMax' "${TMP_FOLDER}"/protparams.json)
-    
+
     say "Current epoch: ${BLUE}${epoch}${NC}" "log"
     epoch_start=$((epoch + 1))
     epoch_end=$((epoch + eMax))
     say "earlist epoch to retire pool is ${BLUE}${epoch_start}${NC} and latest ${BLUE}${epoch_end}${NC}" "log"
     say ""
-  
+
     read -r -p "Enter epoch in which to retire pool (blank for ${epoch_start}): " epoch_enter
     [[ -z "${epoch_enter}" ]] && epoch_enter=${epoch_start}
-    
+
     if [[ ${epoch_enter} -lt ${epoch_start} || ${epoch_enter} -gt ${epoch_end} ]]; then
       say "${RED}ERROR${NC}: epoch invalid, valid range: ${epoch_start}-${epoch_end}"
       waitForInput && continue
     fi
-    
+
     wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
@@ -1934,7 +1974,7 @@ case $OPERATION in
     wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
     getBaseAddress ${wallet_name}
     getBalance ${base_addr}
-    
+
     if [[ ${lovelace} -gt 0 ]]; then
       say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${lovelace})")" "log"
     else
@@ -1943,22 +1983,22 @@ case $OPERATION in
       waitForInput && continue
     fi
     say ""
-    
+
     pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
     pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
     pool_deregcert_file="${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}"
-    
+
     payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-    
+
     say "creating de-registration cert" 1 "log"
     say "$ ${CCLI} shelley stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file}" 2
     ${CCLI} shelley stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file}
-    
+
     if ! deRegisterPool "${pool_coldkey_sk_file}" "${pool_deregcert_file}" "${base_addr}" "${payment_sk_file}"; then
       say "\n${RED}ERROR${NC}: failure during pool de-registration"
       waitForInput && continue
     fi
-    
+
     if ! waitNewBlockCreated; then
       waitForInput && continue
     fi
@@ -1973,35 +2013,35 @@ case $OPERATION in
       fi
       getBalance ${base_addr}
     done
-    
+
     if [[ ${lovelace} -ne ${newBalance} ]]; then
       waitForInput && continue
     fi
-    
+
     say ""
     say "Pool ${GREEN}${pool_name}${NC} set to be retired in epoch ${BLUE}${epoch_enter}${NC}" "log"
-    
+
     waitForInput
-    
+
     ;; ###################################################################
 
     list)
-    
+
     clear
     say " >> POOL >> LIST" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    
+
     if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
-    
+
     say "Dumping ledger-state from node, can take a while on larger networks...\n"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    
+
     timeout -k 5 30 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
-    
-    while IFS= read -r -d '' pool; do 
+
+    while IFS= read -r -d '' pool; do
       say ""
       pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
       ledger_pool_state=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
@@ -2026,23 +2066,23 @@ case $OPERATION in
     done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
     say ""
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    
+
     waitForInput
-    
+
     ;; ###################################################################
 
     show)
-    
+
     clear
     say " >> POOL >> SHOW" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
-    
+
     if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
-    
+
     pool_dirs=()
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
@@ -2058,10 +2098,10 @@ case $OPERATION in
     say "Select Pool:\n"
     if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
     pool_name="${dir_name}"
-    
+
     say "Dumping ledger-state from node, can take a while on larger networks...\n"
     timeout -k 5 45 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
-    
+
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
     pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
@@ -2174,21 +2214,21 @@ case $OPERATION in
     say ""
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     waitForInput
-    
+
     ;; ###################################################################
-    
+
     rotate)
 
     clear
     say " >> POOL >> ROTATE KES" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
-    
+
     if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
       say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
       waitForInput && continue
     fi
-    
+
     pool_dirs=()
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
@@ -2220,13 +2260,13 @@ case $OPERATION in
 
     start_kes_period=$(getCurrentKESperiod)
     echo "${start_kes_period}" > ${pool_saved_kes_start}
-    
+
     say "creating new hot keys and certificate" 1
     say "$ ${CCLI} shelley node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}" 2
     ${CCLI} shelley node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
     say "$ ${CCLI} shelley node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${start_kes_period} --out-file ${pool_opcert_file}" 2
     ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${start_kes_period}" --out-file "${pool_opcert_file}"
-    
+
     kesExpiration "${start_kes_period}"
 
     say ""
@@ -2237,18 +2277,18 @@ case $OPERATION in
 
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     waitForInput && continue
-    
+
     ;; ###################################################################
-    
+
     decrypt)
-    
+
     clear
     say " >> POOL >> DECRYPT" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
-    
+
     protectionPreRequisites || continue
-    
+
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     if [[ ${#dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No pools available!"
@@ -2258,10 +2298,10 @@ case $OPERATION in
     say "Select Pool:\n"
     if ! selectDir "${dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
     pool_name="${dir_name}"
-    
+
     filesUnlocked=0
     keysDecrypted=0
-    
+
     say "# Removing write protection from all pool files" "log"
     while IFS= read -r -d '' file; do
       if [[ $(lsattr -R "$file") =~ -i- ]]; then
@@ -2271,7 +2311,7 @@ case $OPERATION in
         say "${file}"
       fi
     done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -print0)
-    
+
     say ""
     say "# Decrypting GPG encrypted pool files" "log"
     say ""
@@ -2281,18 +2321,18 @@ case $OPERATION in
       say "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
       waitForInput && continue
     fi
-    while IFS= read -r -d '' file; do 
+    while IFS= read -r -d '' file; do
       decryptFile "${file}" "${password}" && \
       chmod 600 "${file::-4}" && \
       keysDecrypted=$((++keysDecrypted))
     done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0)
     unset password
-    
+
     say ""
     say "Pool decrypted:  ${GREEN}${pool_name}${NC}" "log"
     say "Files unlocked:  ${filesUnlocked}" "log"
     say "Files decrypted: ${keysDecrypted}" "log"
-    if [[ ${filesUnlocked} -ne 0 || ${keysDecrypted} -ne 0 ]]; then 
+    if [[ ${filesUnlocked} -ne 0 || ${keysDecrypted} -ne 0 ]]; then
       say ""
       say "${ORANGE}Pool files are now unprotected${NC}" "log"
       say "Use 'POOL >> ENCRYPT / LOCK' to re-lock"
@@ -2304,14 +2344,14 @@ case $OPERATION in
     ;; ###################################################################
 
     encrypt)
-    
+
     clear
     say " >> POOL >> ENCRYPT" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
-    
+
     protectionPreRequisites || continue
-    
+
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     if [[ ${#dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No pools available!"
@@ -2345,7 +2385,7 @@ case $OPERATION in
       fi
     done
     unset password
-    
+
     say ""
     say "# Write protecting all pool files using 'chattr +i'" "log"
     while IFS= read -r -d '' file; do
@@ -2356,7 +2396,7 @@ case $OPERATION in
         say "$file"
       fi
     done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -print0)
-    
+
     say ""
     say "Pool encrypted:  ${GREEN}${pool_name}${NC}" "log"
     say "Files locked:    ${filesLocked}" "log"
@@ -2377,11 +2417,11 @@ case $OPERATION in
   ;; ###################################################################
 
   blocks)
-  
+
   clear
   say " >> BLOCKS" "log"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  
+
   if [[ ! -d "${BLOCK_LOG_DIR}" ]]; then
     say "${RED}ERROR${NC}: block log directory not found!"
     say "run cntoolsBlockCollector.sh script to start collecting blocks from json log file"
@@ -2390,11 +2430,11 @@ case $OPERATION in
     say "one file for each epoch created containing that epochs created blocks"
     waitForInput && continue
   fi
-  
+
   epoch=$(getEpoch)
-  
+
   say "Current epoch: ${epoch}\n"
-  
+
   say "Show a block summary for all epochs or a detailed view for a specific epoch?\n"
   case $(select_opt "[s] Summary" "[e] Epoch" "[c] Cancel") in
     0) block_table="Epoch,${BLUE}Leader Slots${NC},${GREEN}Adopted Blocks${NC},${RED}Invalid Blocks${NC}\n"
@@ -2441,15 +2481,15 @@ case $OPERATION in
        ;;
     2) continue ;;
   esac
-  
-  
+
+
 
   waitForInput
 
   ;; ###################################################################
-  
+
   update) # not ready yet
-  
+
   clear
   say " >> UPDATE" "log"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -2537,7 +2577,7 @@ case $OPERATION in
   waitForInput
 
   ;; ###################################################################
-  
+
 esac # main OPERATION
 done # main loop
 }
