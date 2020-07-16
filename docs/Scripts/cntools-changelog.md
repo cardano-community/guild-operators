@@ -5,6 +5,18 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.0] - 2020-07-16
+### Added
+- allow the use of pre-existing metadata from URL when registering or modifying pool
+- minimum pool cost check against protocol
+
+### Removed
+- NODE_SOCKET_PATH config parameter(replaced by CARDANO_NODE_SOCKET_PATH)
+
+### Changed
+- Pool metadata information to copy file as-is as well as wait for keypress to make sure file is copied before proceeding with registration.
+
+
 ## [4.2.2] - 2020-07-15
 ### Fixed
 - numfmt dependency removed in favor of printf formatting
