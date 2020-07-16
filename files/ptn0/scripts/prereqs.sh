@@ -202,7 +202,11 @@ curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/mast
 curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/byron-genesis.json | jq '.' > byron-genesis.json
 curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/topology.json | jq '.' > topology.json
 
-[[ "$1" = "p" ]] &&  cp ptn0-praos.yaml ptn0.yaml || cp ptn0-combinator.yaml ptn0.yaml
+if [[ "$1" = "p" ]]; then
+  cp ptn0-praos.yaml ptn0.yaml
+else
+  cp ptn0-combinator.yaml ptn0.yaml
+fi
 
 # If using a different CNODE_HOME than in this example, execute the below:
 # sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/ptn*.yaml
