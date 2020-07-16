@@ -1225,8 +1225,7 @@ case $OPERATION in
     fi
 
     metadata_done=false
-    wget -q  "$meta_json_url" -P "$pool_meta_save_location"
-    if [ $? -eq 0 ]; then
+    if wget -q  "$meta_json_url" -P "$pool_meta_save_location"; then
       say "\nMetadata exists at URL.  Use existing data?\n"
       case $(select_opt "[y] Yes" "[n] No") in
         0) filename=$(basename "$meta_json_url")
@@ -1687,8 +1686,7 @@ case $OPERATION in
     fi
 
     metadata_done=false
-    wget -q  "$meta_json_url" -P "$pool_meta_save_location"
-    if [ $? -eq 0 ]; then
+    if wget -q  "$meta_json_url" -P "$pool_meta_save_location"; then
       say "\nMetadata exists at URL.  Use existing data?\n"
       case $(select_opt "[y] Yes" "[n] No") in
         0) filename=$(basename "$meta_json_url")
