@@ -1277,7 +1277,7 @@ case $OPERATION in
       fi
 
 
-      say "\n${ORANGE}Please make sure you host your metadata JSON file (with contents as below) at ${meta_json_url} :${NC}\n"
+      say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url} :${NC}\n"
       say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
     fi
 
@@ -1736,7 +1736,7 @@ case $OPERATION in
       fi
 
 
-      say "\n${ORANGE}Please make sure you host your metadata JSON file (with contents as below) at ${meta_json_url} :${NC}\n"
+      say "\n${ORANGE}Please host ${pool_meta_file} as-is at ${meta_json_url} :${NC}\n"
       say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
     fi
 
