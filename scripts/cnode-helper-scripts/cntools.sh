@@ -1207,7 +1207,6 @@ case $OPERATION in
     meta_homepage="https://foo.com" #default homepage
     meta_json_url="https://foo.bat/poolmeta.json" #default JSON
     pool_meta_file=${POOL_FOLDER}/${pool_name}/poolmeta.json
-    pool_meta_save_location=${POOL_FOLDER}/${pool_name}/
     if [[ -f "${pool_config}" ]]; then
       if [[ "$(jq -r .json_url ${pool_config})" ]]; then
         meta_json_url=$(jq -r .json_url "${pool_config}")
@@ -1225,14 +1224,13 @@ case $OPERATION in
     fi
 
     metadata_done=false
-    if wget -q  "$meta_json_url" -P "$pool_meta_save_location"; then
+    if wget -q  $meta_json_url -O $TMP_FOLDER/url_poolmeta.json ; then
       say "\nMetadata exists at URL.  Use existing data?\n"
       case $(select_opt "[y] Yes" "[n] No") in
-        0) filename=$(basename "$meta_json_url")
-           pool_meta_file=${pool_meta_save_location}${filename}
+        0) mv $TMP_FOLDER/url_poolmeta.json $pool_meta_file
            metadata_done=true
            ;;
-        1) : ;; # Do nothing
+        1) rm $TMP_FOLDER/url_poolmeta.json ;; # clean up temp file
       esac
 
     fi
@@ -1668,7 +1666,6 @@ case $OPERATION in
     say "\n# Pool Metadata\n"
 
     pool_meta_file=${POOL_FOLDER}/${pool_name}/poolmeta.json
-    pool_meta_save_location=${POOL_FOLDER}/${pool_name}/
     if [[ -f "${pool_config}" ]]; then
       if [[ "$(jq -r .json_url ${pool_config})" ]]; then
         meta_json_url=$(jq -r .json_url "${pool_config}")
@@ -1686,14 +1683,13 @@ case $OPERATION in
     fi
 
     metadata_done=false
-    if wget -q  "$meta_json_url" -P "$pool_meta_save_location"; then
+    if wget -q  $meta_json_url -O $TMP_FOLDER/url_poolmeta.json ; then
       say "\nMetadata exists at URL.  Use existing data?\n"
       case $(select_opt "[y] Yes" "[n] No") in
-        0) filename=$(basename "$meta_json_url")
-           pool_meta_file=${pool_meta_save_location}${filename}
+        0) mv $TMP_FOLDER/url_poolmeta.json $pool_meta_file
            metadata_done=true
            ;;
-        1) : ;; # Do nothing
+        1) rm $TMP_FOLDER/url_poolmeta.json ;; # clean up temp file
       esac
 
     fi
