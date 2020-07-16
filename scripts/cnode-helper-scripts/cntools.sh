@@ -1154,10 +1154,13 @@ case $OPERATION in
     pool_name="${dir_name}"
 
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
-    say "# Pool Parameters\n"
+
+    say "\n# Pool Parameters\n"
+    say "press enter to use default value\n"
+
     pledge_ada=50000 # default pledge
     if [[ -f "${pool_config}" ]]; then
-      pledge_ada=$(jq -r .pledgeADA "${pool_config}")
+      pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
     fi
     read -r -p "Pledge (in ADA, default: ${pledge_ada}): " pledge_enter
     if [[ -n "${pledge_enter}" ]]; then
@@ -1172,7 +1175,7 @@ case $OPERATION in
 
     margin=7.5 # default margin in %
     if [[ -f "${pool_config}" ]]; then
-      margin=$(jq -r .margin "${pool_config}")
+      margin=$(jq -r '.margin //0' "${pool_config}")
     fi
     read -r -p "Margin (in %, default: ${margin}): " margin_enter
     if [[ -n "${margin_enter}" ]]; then
@@ -1185,13 +1188,19 @@ case $OPERATION in
       margin_fraction=$(pctToFraction "${margin}")
     fi
 
-    cost_ada=256 # default cost
+    minPoolCost=$(jq -r '.minPoolCost //0' "${TMP_FOLDER}"/protparams.json)
+    [[ ${minPoolCost} -gt 0 ]] && cost_ada=${minPoolCost} || cost_ada=256 # default cost
     if [[ -f "${pool_config}" ]]; then
-      cost_ada=$(jq -r .costADA "${pool_config}")
+      cost_ada_saved=$(jq -r '.costADA //0' "${pool_config}")
+      [[ ${cost_ada_saved} -gt ${minPoolCost} ]] && cost_ada=${cost_ada_saved}
     fi
-    read -r -p "Cost (in ADA, default: ${cost_ada}): " cost_enter
+    read -r -p "Cost (in ADA, minimum: ${minPoolCost}, default: ${cost_ada}): " cost_enter
     if [[ -n "${cost_enter}" ]]; then
       if ! ADAtoLovelace "${cost_enter}" >/dev/null; then
+        waitForInput && continue
+      fi
+      if [[ ${cost_enter} -lt ${minPoolCost} ]]; then
+        say "${RED}ERROR${NC}: cost set lower than allowed"
         waitForInput && continue
       fi
       cost_lovelace=$(ADAtoLovelace "${cost_enter}")
@@ -1243,8 +1252,6 @@ case $OPERATION in
         meta_description=$(jq -r .description "${pool_meta_file}")
       fi
 
-
-
       read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
       name_enter=${name_enter//[^[:alnum:]]/_}
       if [[ -n "${name_enter}" ]]; then
@@ -1274,9 +1281,9 @@ case $OPERATION in
         waitForInput && continue
       fi
 
-
       say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url} :${NC}\n"
       say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
+      waitForInput "Press any key to proceed with registration after metadata file is made available at ${meta_json_url}"
     fi
 
     relay_output=""
@@ -1561,73 +1568,10 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    # Pledge wallet, also used to pay for pool update fee
-    pledge_wallet=$(jq -r .pledgeWallet "${pool_config}") # old pledge wallet
-    say ""
-    say "Old pledge wallet: ${GREEN}${pledge_wallet}${NC}"
-    say ""
-    say "${ORANGE}If a new wallet is chosen as pledge a manual delegation to the pool with new wallet is needed${NC}"
-    say ""
-    wallet_dirs=()
-    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
-    wallet_count=${#dirs[@]}
-    for dir in "${dirs[@]}"; do
-      stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
-      stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
-      pay_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
-      if ! getBaseAddress ${dir} && [[ ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]]; then continue; fi
-      if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        getBalance ${base_addr}
-        [[ ${lovelace} -eq 0 ]] && continue
-        if getRewardAddress ${dir}; then
-          delegation_pool_id=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[].delegation // empty')
-          unset poolName
-          if [[ -n ${delegation_pool_id} ]]; then
-            while IFS= read -r -d '' pool; do
-              pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
-              if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
-                poolName=$(basename ${pool}) && break
-              fi
-            done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-          fi
-          if [[ -n ${poolName} ]]; then
-            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
-          elif [[ -n ${delegation_pool_id} ]]; then
-            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${RED}delegated${NC} to external address)")
-          else
-            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
-          fi
-        else
-          wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
-        fi
-      else
-        wallet_dirs+=("${dir}")
-      fi
-    done
-    if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No wallets available that can be used in pool registration as pledge wallet!"
-      waitForInput && continue
-    fi
-    say "Select Pledge Wallet:\n"
-    if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    pledge_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
-    getBaseAddress ${pledge_wallet}
-    getBalance ${base_addr}
-
-    if [[ ${lovelace} -gt 0 ]]; then
-      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in pledge wallet:"  "$(formatLovelace ${lovelace})")" "log"
-    else
-      say "${RED}ERROR${NC}: no funds available for wallet ${GREEN}${pledge_wallet}${NC}"
-      waitForInput && continue
-    fi
-    if ! isWalletRegistered ${pledge_wallet} && ! registerStakeWallet ${pledge_wallet}; then
-      waitForInput && continue
-    fi
-
     say "\n# Pool Parameters\n"
     say "press enter to use old value\n"
 
-    pledge_ada=$(jq -r .pledgeADA "${pool_config}")
+    pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
     read -r -p "New Pledge (in ADA, old: ${pledge_ada}): " pledge_enter
     if [[ -n "${pledge_enter}" ]]; then
       if ! ADAtoLovelace "${pledge_enter}" >/dev/null; then
@@ -1639,7 +1583,7 @@ case $OPERATION in
       pledge_lovelace=$(ADAtoLovelace "${pledge_ada}")
     fi
 
-    margin=$(jq -r .margin "${pool_config}")
+    margin=$(jq -r '.margin //0' "${pool_config}")
     read -r -p "New Margin (in %, old: ${margin}): " margin_enter
     if [[ -n "${margin_enter}" ]]; then
       if ! pctToFraction "${margin_enter}" >/dev/null; then
@@ -1651,10 +1595,16 @@ case $OPERATION in
       margin_fraction=$(pctToFraction "${margin}")
     fi
 
-    cost_ada=$(jq -r .costADA "${pool_config}")
-    read -r -p "New Cost (in ADA, old: ${cost_ada}): " cost_enter
+    minPoolCost=$(jq -r '.minPoolCost //0' "${TMP_FOLDER}"/protparams.json)
+    cost_ada=$(jq -r '.costADA //0' "${pool_config}")
+    [[ ${cost_ada} -lt ${minPoolCost} ]] && cost_ada=${minPoolCost}
+    read -r -p "New Cost (in ADA, minimum: ${minPoolCost}, old: ${cost_ada}): " cost_enter
     if [[ -n "${cost_enter}" ]]; then
       if ! ADAtoLovelace "${cost_enter}" >/dev/null; then
+        waitForInput && continue
+      fi
+      if [[ ${cost_enter} -lt ${minPoolCost} ]]; then
+        say "${RED}ERROR${NC}: cost set lower than allowed"
         waitForInput && continue
       fi
       cost_lovelace=$(ADAtoLovelace "${cost_enter}")
@@ -1731,11 +1681,10 @@ case $OPERATION in
         waitForInput && continue
       fi
 
-
       say "\n${ORANGE}Please host ${pool_meta_file} as-is at ${meta_json_url} :${NC}\n"
       say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
+      waitForInput "Press any key to proceed with re-registration after metadata file is made available at ${meta_json_url}"
     fi
-
 
     relay_output=""
     relay_array=()
@@ -1813,6 +1762,71 @@ case $OPERATION in
           2) continue 2 ;;
         esac
       done
+    fi
+    
+    say ""
+    
+    # Pledge wallet, also used to pay for pool update fee
+    pledge_wallet=$(jq -r .pledgeWallet "${pool_config}") # old pledge wallet
+    say ""
+    say "Old pledge wallet: ${GREEN}${pledge_wallet}${NC}"
+    say ""
+    say "${ORANGE}If a new wallet is chosen as pledge a manual delegation to the pool with new wallet is needed${NC}"
+    say ""
+    wallet_dirs=()
+    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
+    wallet_count=${#dirs[@]}
+    for dir in "${dirs[@]}"; do
+      stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
+      stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
+      pay_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
+      if ! getBaseAddress ${dir} && [[ ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]]; then continue; fi
+      if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+        getBalance ${base_addr}
+        [[ ${lovelace} -eq 0 ]] && continue
+        if getRewardAddress ${dir}; then
+          delegation_pool_id=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[].delegation // empty')
+          unset poolName
+          if [[ -n ${delegation_pool_id} ]]; then
+            while IFS= read -r -d '' pool; do
+              pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
+              if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
+                poolName=$(basename ${pool}) && break
+              fi
+            done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+          fi
+          if [[ -n ${poolName} ]]; then
+            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
+          elif [[ -n ${delegation_pool_id} ]]; then
+            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${RED}delegated${NC} to external address)")
+          else
+            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
+          fi
+        else
+          wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
+        fi
+      else
+        wallet_dirs+=("${dir}")
+      fi
+    done
+    if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No wallets available that can be used in pool registration as pledge wallet!"
+      waitForInput && continue
+    fi
+    say "Select Pledge Wallet:\n"
+    if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    pledge_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
+    getBaseAddress ${pledge_wallet}
+    getBalance ${base_addr}
+
+    if [[ ${lovelace} -gt 0 ]]; then
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in pledge wallet:"  "$(formatLovelace ${lovelace})")" "log"
+    else
+      say "${RED}ERROR${NC}: no funds available for wallet ${GREEN}${pledge_wallet}${NC}"
+      waitForInput && continue
+    fi
+    if ! isWalletRegistered ${pledge_wallet} && ! registerStakeWallet ${pledge_wallet}; then
+      waitForInput && continue
     fi
 
     # Construct relay json array
