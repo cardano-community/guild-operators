@@ -364,23 +364,26 @@ getSlotTip() {
 # Return     : string with tip on STDOUT
 getSlotTipRef() {
   shelley_genesis_start_time_sec=$(date --date=$(jq -r .systemStart "${GENESIS_JSON}") +%s)
-  byron_genesis_start_time_sec=$(jq -r .startTime "${BYRON_GENESIS_JSON}")
   epoch_length=$(jq -r .epochLength "${GENESIS_JSON}")
   slot_length=$(jq -r .slotLength "${GENESIS_JSON}")
-  byron_slots=$(( ( shelley_genesis_start_time_sec - byron_genesis_start_time_sec ) / 20 ))
-  byron_shelley_trans_slots=$(( ( 2 * epoch_length ) / 20 ))
-  byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( 2 * epoch_length ) ))
   current_time_sec=$(date -u +%s)
   
-  if [[ "${PROTOCOL_IDENTIFIER}" = "--shelley-mode" ]]; then
+  if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
+    # Combinator network
+    byron_genesis_start_time_sec=$(jq -r .startTime "${BYRON_GENESIS_JSON}")
+    byron_slots=$(( ( shelley_genesis_start_time_sec - byron_genesis_start_time_sec ) / 20 ))
+    byron_shelley_trans_slots=$(( ( 2 * epoch_length ) / 20 ))
+    byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( 2 * epoch_length ) ))
+    if [[ "${current_time_sec}" -lt "${byron_shelley_trans_slots}" ]]; then
+      # In Byron phase
+      echo $(( byron_slots + ( current_time_sec - shelley_genesis_start_time_sec ) / 20 ))
+    else
+      # In Shelley phase
+      echo $(( byron_slots + byron_shelley_trans_slots + (( current_time_sec - byron_shelley_trans_end ) / slot_length ) ))
+    fi
+  else
     # Shelley Mode only, no Byron slots
     echo $(( ( current_time_sec - shelley_genesis_start_time_sec ) / slot_length ))
-  elif [[ "${current_time_sec}" -lt "${byron_shelley_trans_slots}" ]]; then 
-    # Combinator network in Byron phase
-    echo $(( byron_slots + ( current_time_sec - shelley_genesis_start_time_sec ) / 20 ))
-  else
-    # Combinator network in Shelley Phase
-    echo $(( byron_slots + byron_shelley_trans_slots + (( current_time_sec - byron_shelley_trans_end ) / slot_length ) ))
   fi
 }
 # Command    : getSlotTipDiff
@@ -703,7 +706,7 @@ sendADA() {
   say "" 2
   say "Using UTxO's:" 2
   while read -r utxo; do
-    inAddr=$(awk '{ print $1 }' <<< "${utxo}")
+    inAddr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
     idx=$(awk '{ print $2 }' <<< "${utxo}")
     utxoBalance=$(awk '{ print $3 }' <<< "${utxo}")
     utxoCount=$(( utxoCount +1))
@@ -866,7 +869,7 @@ registerStakeWallet() {
   say "Using UTxO's:" 2
   tx_in=""
   while read -r utxo; do
-    in_addr=$(awk '{ print $1 }' <<< "${utxo}")
+    in_addr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
     idx=$(awk '{ print $2 }' <<< "${utxo}")
     utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
     say "TxHash: ${in_addr}#${idx}" 2
@@ -1023,7 +1026,7 @@ registerPool() {
   say "Using UTxO's:" 2
   tx_in=""
   while read -r utxo; do
-    in_addr=$(awk '{ print $1 }' <<< "${utxo}")
+    in_addr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
     idx=$(awk '{ print $2 }' <<< "${utxo}")
     utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
     say "TxHash: ${in_addr}#${idx}" 2
@@ -1150,7 +1153,7 @@ modifyPool() {
   say "Using UTxO's:" 2
   tx_in=""
   while read -r utxo; do
-    in_addr=$(awk '{ print $1 }' <<< "${utxo}")
+    in_addr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
     idx=$(awk '{ print $2 }' <<< "${utxo}")
     utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
     say "TxHash: ${in_addr}#${idx}" 2
@@ -1267,7 +1270,7 @@ withdrawRewards() {
   say "Using UTxO's:" 2
   tx_in=""
   while read -r utxo; do
-    in_addr=$(awk '{ print $1 }' <<< "${utxo}")
+    in_addr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
     idx=$(awk '{ print $2 }' <<< "${utxo}")
     utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
     say "TxHash: ${in_addr}#${idx}" 2
@@ -1394,7 +1397,7 @@ delegate() {
   say "Using UTxO's:" 2
   tx_in=""
   while read -r utxo; do
-    in_addr=$(awk '{ print $1 }' <<< "${utxo}")
+    in_addr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
     idx=$(awk '{ print $2 }' <<< "${utxo}")
     utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
     say "TxHash: ${in_addr}#${idx}" 2
@@ -1513,7 +1516,7 @@ deRegisterPool() {
   say "Using UTxO's:" 2
   tx_in=""
   while read -r utxo; do
-    in_addr=$(awk '{ print $1 }' <<< "${utxo}")
+    in_addr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
     idx=$(awk '{ print $2 }' <<< "${utxo}")
     utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
     say "TxHash: ${in_addr}#${idx}" 2
