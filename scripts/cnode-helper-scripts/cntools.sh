@@ -2531,7 +2531,7 @@ case $OPERATION in
     say " wget -O $CNODE_HOME/scripts/cntools.library ${URL}/cntools.library"
     say " wget -O $CNODE_HOME/scripts/cntoolsBlockCollector.sh ${URL}/cntoolsBlockCollector.sh"
     say " wget -O $CNODE_HOME/scripts/env ${URL}/env"
-    say " chmod 750 $CNODE_HOME/scripts/cntools.sh $CNODE_HOME/scripts/cntoolsBlockCollector.sh"
+    say " chmod 750 $CNODE_HOME/scripts/*.sh"
     say " chmod 640 $CNODE_HOME/scripts/cntools.library $CNODE_HOME/scripts/env"
     say "\n3) As the last step restore modified parameters in config/env file if needed"
   elif [[ "$CNTOOLS_MINOR_VERSION" != "$GIT_MINOR_VERSION" || "$CNTOOLS_PATCH_VERSION" != "$GIT_PATCH_VERSION" ]];then
@@ -2539,8 +2539,12 @@ case $OPERATION in
     say "Applying update (no changes required for operation)..."
     wget -q -O "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh"
     wget -q -O "$CNODE_HOME/scripts/cntools.library" "$URL/cntools.library"
-    rc=$(wget -q -O "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "$URL/cntoolsBlockCollector.sh")
+    wget -q -O "$CNODE_HOME/scripts/env" "$URL/env"
+    wget -q -O "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "$URL/cntoolsBlockCollector.sh"
+    rc=$?
     if [[ $rc == 0 ]]; then
+      chmod 750 "$CNODE_HOME/scripts/*.sh"
+      chmod 640 "$CNODE_HOME/scripts/cntools.library" "$CNODE_HOME/scripts/env"
       say "Update applied successfully! Please start CNTools again !\n"
       chmod +x "$CNODE_HOME/scripts/cntools.sh" "$CNODE_HOME/scripts/cntoolsBlockCollector.sh"
       exit

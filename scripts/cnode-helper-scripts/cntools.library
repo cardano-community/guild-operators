@@ -372,14 +372,14 @@ getSlotTipRef() {
   byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( 2 * epoch_length ) ))
   current_time_sec=$(date -u +%s)
   
-  if [[ "${NETWORKID}" = "Testnet" ]]; then
-    # Shelley testnet
+  if [[ "${PROTOCOL_IDENTIFIER}" = "--shelley-mode" ]]; then
+    # Shelley Mode only, no Byron slots
     echo $(( ( current_time_sec - shelley_genesis_start_time_sec ) / slot_length ))
-  elif [[ "${current_time_sec}" -lt "${transTimeEnd}" ]]; then 
-    # In Transistion Phase between Shelley and Byron
+  elif [[ "${current_time_sec}" -lt "${byron_shelley_trans_slots}" ]]; then 
+    # Combinator network in Byron phase
     echo $(( byron_slots + ( current_time_sec - shelley_genesis_start_time_sec ) / 20 ))
   else
-    # In Shelley Phase
+    # Combinator network in Shelley Phase
     echo $(( byron_slots + byron_shelley_trans_slots + (( current_time_sec - byron_shelley_trans_end ) / slot_length ) ))
   fi
 }
