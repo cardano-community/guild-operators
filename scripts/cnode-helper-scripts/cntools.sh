@@ -44,16 +44,20 @@ fi
 clear
 say "CNTools version check...\n"
 URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
-wget -q -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"
-GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-if [[ "${CNTOOLS_MAJOR_VERSION}" != "${GIT_MAJOR_VERSION}" || "${CNTOOLS_MINOR_VERSION}" != "${GIT_MINOR_VERSION}" || "${CNTOOLS_PATCH_VERSION}" != "${GIT_PATCH_VERSION}" ]]; then
-  say "A new version of CNTools is available" "log"
-  say ""
-  say "Installed Version : ${CNTOOLS_VERSION}" "log"
-  say "Available Version : ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC}" "log"
-  say "\nGo to Update section for upgrade"
+if wget -q -T 10 -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"; then
+  GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+  GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+  GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+  if [[ "${CNTOOLS_MAJOR_VERSION}" != "${GIT_MAJOR_VERSION}" || "${CNTOOLS_MINOR_VERSION}" != "${GIT_MINOR_VERSION}" || "${CNTOOLS_PATCH_VERSION}" != "${GIT_PATCH_VERSION}" ]]; then
+    say "A new version of CNTools is available" "log"
+    say ""
+    say "Installed Version : ${CNTOOLS_VERSION}" "log"
+    say "Available Version : ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC}" "log"
+    say "\nGo to Update section for upgrade"
+    waitForInput "press any key to proceed"
+  fi
+else
+  say "\n${RED}ERROR${NC}: download from GitHub failed, unable to perform version check!\n"
   waitForInput "press any key to proceed"
 fi
 
@@ -1233,7 +1237,7 @@ case $OPERATION in
     fi
 
     metadata_done=false
-    if wget -q  $meta_json_url -O $TMP_FOLDER/url_poolmeta.json ; then
+    if wget -q -T 10 $meta_json_url -O $TMP_FOLDER/url_poolmeta.json ; then
       say "\nMetadata exists at URL.  Use existing data?\n"
       case $(select_opt "[y] Yes" "[n] No") in
         0) mv $TMP_FOLDER/url_poolmeta.json $pool_meta_file
@@ -1632,7 +1636,7 @@ case $OPERATION in
     fi
 
     metadata_done=false
-    if wget -q  $meta_json_url -O $TMP_FOLDER/url_poolmeta.json ; then
+    if wget -q -T 10 $meta_json_url -O $TMP_FOLDER/url_poolmeta.json ; then
       say "\nMetadata exists at URL.  Use existing data?\n"
       case $(select_opt "[y] Yes" "[n] No") in
         0) mv $TMP_FOLDER/url_poolmeta.json $pool_meta_file
@@ -2511,46 +2515,56 @@ case $OPERATION in
   say ""
 
   URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
-  wget -q -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"
-  GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-  GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-  GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-  if [[ "$CNTOOLS_MAJOR_VERSION" != "$GIT_MAJOR_VERSION" ]];then
-    say "New major version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
-    say "${RED}WARNING${NC}: Breaking changes were made to CNTools!\n"
-    say "${ORANGE}Please visit CNTools changelog site to see whats new and possibly breaking.${NC}\n"
-    say "We will not overwrite your changes automatically."
-    say "\n1) Please backup config/env files if changes has been made as well as wallet/pool folders:"
-    say " $CNODE_HOME/scripts/cntools.config"
-    say " $CNODE_HOME/scripts/env"
-    say " $CNODE_HOME/priv/wallet"
-    say " $CNODE_HOME/priv/pool"
-    say "\n2) After backup, run:"
-    say " wget -O $CNODE_HOME/scripts/cntools.sh ${URL}/cntools.sh"
-    say " wget -O $CNODE_HOME/scripts/cntools.config ${URL}/cntools.config"
-    say " wget -O $CNODE_HOME/scripts/cntools.library ${URL}/cntools.library"
-    say " wget -O $CNODE_HOME/scripts/cntoolsBlockCollector.sh ${URL}/cntoolsBlockCollector.sh"
-    say " wget -O $CNODE_HOME/scripts/env ${URL}/env"
-    say " chmod 750 $CNODE_HOME/scripts/*.sh"
-    say " chmod 640 $CNODE_HOME/scripts/cntools.library $CNODE_HOME/scripts/env"
-    say "\n3) As the last step restore modified parameters in config/env file if needed"
-  elif [[ "$CNTOOLS_MINOR_VERSION" != "$GIT_MINOR_VERSION" || "$CNTOOLS_PATCH_VERSION" != "$GIT_PATCH_VERSION" ]];then
-    say "New minor/patch version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
-    say "Applying update (no changes required for operation)..."
-    wget -q -O "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh"
-    wget -q -O "$CNODE_HOME/scripts/cntools.library" "$URL/cntools.library"
-    wget -q -O "$CNODE_HOME/scripts/env" "$URL/env"
-    wget -q -O "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "$URL/cntoolsBlockCollector.sh"
-    rc=$?
-    if [[ $rc == 0 ]]; then
-      chmod 750 "$CNODE_HOME/scripts/*.sh"
-      chmod 640 "$CNODE_HOME/scripts/cntools.library" "$CNODE_HOME/scripts/env"
-      say "Update applied successfully! Please start CNTools again !\n"
-      chmod +x "$CNODE_HOME/scripts/cntools.sh" "$CNODE_HOME/scripts/cntoolsBlockCollector.sh"
-      exit
+  URL_DOCS="https://raw.githubusercontent.com/cardano-community/guild-operators/master/docs/Scripts"
+  if wget -q -T 10 -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"; then
+    GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+    GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+    GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+    if [[ "$CNTOOLS_MAJOR_VERSION" != "$GIT_MAJOR_VERSION" ]];then
+      say "New major version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
+      say "${RED}WARNING${NC}: Breaking changes were made to CNTools!\n"
+      say "Downloading changelog..."
+      if wget -q -T 10 -O "${TMP_FOLDER}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
+        waitForInput "Press any key to display changelog, use 'q' to quit viewer"
+        less "${TMP_FOLDER}"/cntools-changelog.md
+      else
+        say "\n${RED}ERROR${NC}: failed to download changelog from GitHub!\n"
+      fi
+      waitForInput "Press any key to continue"
+      say "\nWe will not overwrite your changes automatically."
+      say "\n1) Please backup config/env files if changes has been made as well as wallet/pool folders:"
+      say " $CNODE_HOME/scripts/cntools.config"
+      say " $CNODE_HOME/scripts/env"
+      say " $CNODE_HOME/priv/wallet"
+      say " $CNODE_HOME/priv/pool"
+      say "\n2) After backup, run:"
+      say " wget -O $CNODE_HOME/scripts/cntools.sh ${URL}/cntools.sh"
+      say " wget -O $CNODE_HOME/scripts/cntools.config ${URL}/cntools.config"
+      say " wget -O $CNODE_HOME/scripts/cntools.library ${URL}/cntools.library"
+      say " wget -O $CNODE_HOME/scripts/cntoolsBlockCollector.sh ${URL}/cntoolsBlockCollector.sh"
+      say " wget -O $CNODE_HOME/scripts/env ${URL}/env"
+      say " chmod 750 $CNODE_HOME/scripts/*.sh"
+      say " chmod 640 $CNODE_HOME/scripts/cntools.library $CNODE_HOME/scripts/env"
+      say "\n3) As the last step restore modified parameters in config/env file if needed"
+    elif [[ "$CNTOOLS_MINOR_VERSION" != "$GIT_MINOR_VERSION" || "$CNTOOLS_PATCH_VERSION" != "$GIT_PATCH_VERSION" ]];then
+      say "New minor/patch version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
+      say "Applying update (no changes required for operation)..."
+      if wget -q -T 10 -O "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh" &&
+         wget -q -T 10 -O "$CNODE_HOME/scripts/cntools.library" "$URL/cntools.library" &&
+         wget -q -T 10 -O "$CNODE_HOME/scripts/env" "$URL/env" &&
+         wget -q -T 10 -O "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "$URL/cntoolsBlockCollector.sh"; then
+        chmod 750 "$CNODE_HOME/scripts/*.sh"
+        chmod 640 "$CNODE_HOME/scripts/cntools.library" "$CNODE_HOME/scripts/env"
+        say "\nUpdate applied successfully! Please start CNTools again !\n"
+        exit
+      else
+        say "\n${RED}ERROR${NC}: update unsuccessful, GitHub download failed!\n"
+      fi
+    else
+      say "${GREEN}Up to Date${NC}: You're using the latest version. No updates required!"
     fi
   else
-    say "${GREEN}Up to Date${NC}: You're using the latest version. No updates required!"
+    say "\n${RED}ERROR${NC}: download from GitHub failed, unable to perform version check!\n"
   fi
   waitForInput && continue
 
