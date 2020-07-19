@@ -1242,6 +1242,7 @@ case $OPERATION in
     meta_ticker="${pool_name}" # default ticker
     meta_description="No Description" #default Description
     meta_homepage="https://foo.com" #default homepage
+    meta_extended="https://foo.com/metadata/extended.json" #default extended
     meta_json_url="https://foo.bat/poolmeta.json" #default JSON
     pool_meta_file=$(ls -t "${POOL_FOLDER}/${pool_name}"/poolmeta* 2>/dev/null | head -1)
     if [[ -z ${pool_meta_file} ]]; then
@@ -1281,12 +1282,17 @@ case $OPERATION in
         meta_ticker=$(jq -r .ticker "${pool_meta_file}")
         meta_homepage=$(jq -r .homepage "${pool_meta_file}")
         meta_description=$(jq -r .description "${pool_meta_file}")
+        meta_extended=$(jq -r .extended "${pool_meta_file}")
       fi
 
       read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
       name_enter=${name_enter//[^[:alnum:]]/_}
       if [[ -n "${name_enter}" ]]; then
         meta_name="${name_enter}"
+      fi
+      if [[ ${#name_enter} -gt 50 ]]; then
+        say "${RED}ERROR${NC}: Name cannot exceed 50 characters"
+        waitForInput && continue
       fi
       read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter
       ticker_enter=${ticker_enter//[^[:alnum:]]/_}
@@ -1311,17 +1317,33 @@ case $OPERATION in
         say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
         waitForInput && continue
       fi
-      
-      new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
-      echo -e "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${new_pool_meta_file}"
-      [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
-      metadata_size=$(stat -c%s "${new_pool_meta_file}")
-      if [[ ${metadata_size} -gt 512 ]]; then
-        say "${RED}ERROR${NC}: metadata file larger than 512 byte(${metadata_size} byte), please reduce number of characters"
+      say "\nOptionally set an extended metadata URL?\n"
+      case $(select_opt "[n] No" "[y] Yes") in
+        0) meta_extended_option=""
+           ;;
+        1) read -r -p "Enter URL to extended metadata (default: ${meta_extended}): " extended_enter
+          extended_enter="${extended_enter}"
+          if [[ -n "${extended_enter}" ]]; then
+            meta_extended="${extended_enter}"
+          fi
+          if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 64 ]]; then
+            say "${RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
+            waitForInput && continue
+          else
+            meta_extended_option=",\"extended\":\"${meta_extended}\"" 
+          fi
+      esac
+      meta_all="{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\"${meta_extended_option}}"
+      if [[ ${#meta_all} -gt 512 ]]; then
+        say "${RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length"
         waitForInput && continue
       fi
-
-      say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url} :${NC}\n"
+      
+      new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
+      echo ${meta_all} > "${new_pool_meta_file}"
+      jq "${new_pool_meta_file}"
+      [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
+      say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url}${NC}\n"
       waitForInput "Press any key to proceed with registration after metadata file is made available at ${meta_json_url}"
     fi
 
@@ -1652,6 +1674,7 @@ case $OPERATION in
     fi
 
     say "\n# Pool Metadata\n"
+
     pool_meta_file=$(ls -t "${POOL_FOLDER}/${pool_name}"/poolmeta* 2>/dev/null | head -1)
     if [[ -z ${pool_meta_file} ]]; then
       pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
@@ -1682,6 +1705,7 @@ case $OPERATION in
            ;;
         1) rm "$TMP_FOLDER/url_poolmeta.json" ;; # clean up temp file
       esac
+
     fi
     if [ ${metadata_done} = false ]; then
       # ToDo align with wallet and smash
@@ -1690,12 +1714,17 @@ case $OPERATION in
         meta_ticker=$(jq -r .ticker "${pool_meta_file}")
         meta_homepage=$(jq -r .homepage "${pool_meta_file}")
         meta_description=$(jq -r .description "${pool_meta_file}")
+        meta_extended=$(jq -r .extended "${pool_meta_file}")
       fi
 
       read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
       name_enter=${name_enter//[^[:alnum:]]/_}
       if [[ -n "${name_enter}" ]]; then
         meta_name="${name_enter}"
+      fi
+      if [[ ${#name_enter} -gt 50 ]]; then
+        say "${RED}ERROR${NC}: Name cannot exceed 50 characters"
+        waitForInput && continue
       fi
       read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter
       ticker_enter=${ticker_enter//[^[:alnum:]]/_}
@@ -1720,17 +1749,32 @@ case $OPERATION in
         say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
         waitForInput && continue
       fi
-      
-      new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
-      echo -e "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${new_pool_meta_file}"
-      [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
-      metadata_size=$(stat -c%s "${new_pool_meta_file}")
-      if [[ ${metadata_size} -gt 512 ]]; then
-        say "${RED}ERROR${NC}: metadata file larger than 512 byte(${metadata_size} byte), please reduce number of characters"
+      say "\nOptionally set an extended metadata URL?\n"
+      case $(select_opt "[n] No" "[y] Yes") in
+        0) meta_extended_option=""
+           ;;
+        1) read -r -p "Enter URL to extended metadata (default: ${meta_extended}): " extended_enter
+          extended_enter="${extended_enter}"
+          if [[ -n "${extended_enter}" ]]; then
+            meta_extended="${extended_enter}"
+          fi
+          if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 64 ]]; then
+            say "${RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
+            waitForInput && continue
+          else
+            meta_extended_option=",\"extended\":\"${meta_extended}\"" 
+          fi
+      esac
+      meta_all="{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\"${meta_extended_option}}"
+      if [[ ${#meta_all} -gt 512 ]]; then
+        say "${RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length"
         waitForInput && continue
       fi
-
-      say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url} :${NC}\n"
+      new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
+      echo ${meta_all} > "${new_pool_meta_file}"
+      jq "${new_pool_meta_file}"
+      [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
+      say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url}${NC}\n"
       waitForInput "Press any key to proceed with re-registration after metadata file is made available at ${meta_json_url}"
     fi
 
@@ -2568,6 +2612,7 @@ case $OPERATION in
     if [[ "$CNTOOLS_MAJOR_VERSION" != "$GIT_MAJOR_VERSION" ]];then
       say "New major version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
       say "${RED}WARNING${NC}: Breaking changes were made to CNTools!"
+																									 
       waitForInput "We will not overwrite your changes automatically, press any key to continue"
       say "\n\n1) Please backup config/env files if changes has been made as well as wallet/pool folders:"
       say " $CNODE_HOME/scripts/cntools.config"
