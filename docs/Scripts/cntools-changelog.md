@@ -11,6 +11,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - add ptn0-praos.yaml, make prereqs default to combinator, and accept p argument to indicate praos mode.
 - cardano-node 1.16.0 refers to txhash using quotes, sed them out
 - show what's new at startup after update
+- file size check for pool metadata file
 
 ### Changed
 - Default config switched to combinator instead of testnet

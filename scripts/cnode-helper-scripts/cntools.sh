@@ -1308,9 +1308,15 @@ case $OPERATION in
         say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
         waitForInput && continue
       fi
+      
+      echo -e "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
+      metadata_size=$(stat -c%s "${pool_meta_file}")
+      if [[ ${metadata_size} -gt 512 ]]; then
+        say "${RED}ERROR${NC}: metadata file larger than 512 byte(${metadata_size} byte), please reduce number of characters"
+        waitForInput && continue
+      fi
 
       say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url} :${NC}\n"
-      say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
       waitForInput "Press any key to proceed with registration after metadata file is made available at ${meta_json_url}"
     fi
 
@@ -1707,9 +1713,15 @@ case $OPERATION in
         say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
         waitForInput && continue
       fi
+      
+      echo -e "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
+      metadata_size=$(stat -c%s "${pool_meta_file}")
+      if [[ ${metadata_size} -gt 512 ]]; then
+        say "${RED}ERROR${NC}: metadata file larger than 512 byte(${metadata_size} byte), please reduce number of characters"
+        waitForInput && continue
+      fi
 
-      say "\n${ORANGE}Please host ${pool_meta_file} as-is at ${meta_json_url} :${NC}\n"
-      say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
+      say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url} :${NC}\n"
       waitForInput "Press any key to proceed with re-registration after metadata file is made available at ${meta_json_url}"
     fi
 
