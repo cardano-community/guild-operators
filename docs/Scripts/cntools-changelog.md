@@ -10,7 +10,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - HASH_IDENTIFIER where applicable to differentiate between network modes for commands used, required due to legacy Byron considerations
 - add ptn0-praos.yaml, make prereqs default to combinator, and accept p argument to indicate praos mode.
 - cardano-node 1.16.0 refers to txhash using quotes, sed them out
-- show changelog in update menu when new major version is available
+- show what's new at startup after update
 
 ### Changed
 - Default config switched to combinator instead of testnet

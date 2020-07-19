@@ -55,9 +55,33 @@ if wget -q -T 10 -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"; th
     say "Available Version : ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC}" "log"
     say "\nGo to Update section for upgrade"
     waitForInput "press any key to proceed"
+  else
+    # check if CNTools was recently updated, if so show whats new
+    URL_DOCS="https://raw.githubusercontent.com/cardano-community/guild-operators/master/docs/Scripts"
+    if wget -q -T 10 -O "${TMP_FOLDER}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
+      if ! cmp -s "${TMP_FOLDER}"/cntools-changelog.md "$CNODE_HOME/scripts/cntools-changelog.md"; then
+        # Latest changes not shown, show whats new and copy changelog
+        clear 
+        say "~ CNTools - What's New ~"
+        if [[ ! -f "$CNODE_HOME/scripts/cntools-changelog.md" ]]; then 
+          # special case for first installation or 5.0.0 upgrade, print release notes until previous major version
+          waitForInput "Press any key to show what's new in last major release, use 'q' to quit viewer"
+          sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_FOLDER}"/cntools-changelog.md | head -n -2 | less
+        else
+          # print release notes from current until previously installed version
+          waitForInput "Press any key to show what's new compared to currently installed release, use 'q' to quit viewer"
+          [[ $(cat "$CNODE_HOME/scripts/cntools-changelog.md") =~ \[([[:digit:]])\.([[:digit:]])\.([[:digit:]])\] ]]
+          sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}\.${BASH_REMATCH[3]}\]/p" "${TMP_FOLDER}"/cntools-changelog.md | head -n -2 | less
+        fi
+        cp "${TMP_FOLDER}"/cntools-changelog.md "$CNODE_HOME/scripts/cntools-changelog.md"
+      fi
+    else
+      say "\n${RED}ERROR${NC}: failed to download changelog from GitHub!\n"
+      waitForInput "press any key to proceed"
+    fi
   fi
 else
-  say "\n${RED}ERROR${NC}: download from GitHub failed, unable to perform version check!\n"
+  say "\n${RED}ERROR${NC}: failed to download cntools.library from GitHub, unable to perform version check!\n"
   waitForInput "press any key to proceed"
 fi
 
@@ -2511,7 +2535,7 @@ case $OPERATION in
   say " >> UPDATE" "log"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   say ""
-  say "Changelog available at: https://cardano-community.github.io/guild-operators/Scripts/cntools-changelog.html"
+  say "Full changelog available at:\nhttps://cardano-community.github.io/guild-operators/Scripts/cntools-changelog.html"
   say ""
 
   URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
@@ -2522,17 +2546,9 @@ case $OPERATION in
     GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
     if [[ "$CNTOOLS_MAJOR_VERSION" != "$GIT_MAJOR_VERSION" ]];then
       say "New major version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
-      say "${RED}WARNING${NC}: Breaking changes were made to CNTools!\n"
-      say "Downloading changelog..."
-      if wget -q -T 10 -O "${TMP_FOLDER}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
-        waitForInput "Press any key to display changelog, use 'q' to quit viewer"
-        less "${TMP_FOLDER}"/cntools-changelog.md
-      else
-        say "\n${RED}ERROR${NC}: failed to download changelog from GitHub!\n"
-      fi
-      waitForInput "Press any key to continue"
-      say "\nWe will not overwrite your changes automatically."
-      say "\n1) Please backup config/env files if changes has been made as well as wallet/pool folders:"
+      say "${RED}WARNING${NC}: Breaking changes were made to CNTools!"
+      waitForInput "We will not overwrite your changes automatically, press any key to continue"
+      say "\n\n1) Please backup config/env files if changes has been made as well as wallet/pool folders:"
       say " $CNODE_HOME/scripts/cntools.config"
       say " $CNODE_HOME/scripts/env"
       say " $CNODE_HOME/priv/wallet"
@@ -2553,7 +2569,7 @@ case $OPERATION in
          wget -q -T 10 -O "$CNODE_HOME/scripts/cntools.library" "$URL/cntools.library" &&
          wget -q -T 10 -O "$CNODE_HOME/scripts/env" "$URL/env" &&
          wget -q -T 10 -O "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "$URL/cntoolsBlockCollector.sh"; then
-        chmod 750 "$CNODE_HOME/scripts/*.sh"
+        chmod 750 "$CNODE_HOME/scripts/"*.sh
         chmod 640 "$CNODE_HOME/scripts/cntools.library" "$CNODE_HOME/scripts/env"
         say "\nUpdate applied successfully! Please start CNTools again !\n"
         exit
