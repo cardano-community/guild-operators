@@ -1243,7 +1243,10 @@ case $OPERATION in
     meta_description="No Description" #default Description
     meta_homepage="https://foo.com" #default homepage
     meta_json_url="https://foo.bat/poolmeta.json" #default JSON
-    pool_meta_file=${POOL_FOLDER}/${pool_name}/poolmeta.json
+    pool_meta_file=$(ls -t "${POOL_FOLDER}/${pool_name}"/poolmeta* 2>/dev/null | head -1)
+    if [[ -z ${pool_meta_file} ]]; then
+      pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
+    fi
     if [[ -f "${pool_config}" ]]; then
       if [[ "$(jq -r .json_url ${pool_config})" ]]; then
         meta_json_url=$(jq -r .json_url "${pool_config}")
@@ -1261,15 +1264,15 @@ case $OPERATION in
     fi
 
     metadata_done=false
-    if wget -q -T 10 $meta_json_url -O $TMP_FOLDER/url_poolmeta.json ; then
+    if wget -q -T 10 $meta_json_url -O "$TMP_FOLDER/url_poolmeta.json"; then
       say "\nMetadata exists at URL.  Use existing data?\n"
       case $(select_opt "[y] Yes" "[n] No") in
-        0) mv $TMP_FOLDER/url_poolmeta.json $pool_meta_file
+        0) mv "$TMP_FOLDER/url_poolmeta.json" "${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
+           [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
            metadata_done=true
            ;;
-        1) rm $TMP_FOLDER/url_poolmeta.json ;; # clean up temp file
+        1) rm "$TMP_FOLDER/url_poolmeta.json" ;; # clean up temp file
       esac
-
     fi
     if [ ${metadata_done} = false ]; then
       # ToDo align with wallet and smash
@@ -1309,8 +1312,10 @@ case $OPERATION in
         waitForInput && continue
       fi
       
-      echo -e "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
-      metadata_size=$(stat -c%s "${pool_meta_file}")
+      new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
+      echo -e "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${new_pool_meta_file}"
+      [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
+      metadata_size=$(stat -c%s "${new_pool_meta_file}")
       if [[ ${metadata_size} -gt 512 ]]; then
         say "${RED}ERROR${NC}: metadata file larger than 512 byte(${metadata_size} byte), please reduce number of characters"
         waitForInput && continue
@@ -1647,8 +1652,10 @@ case $OPERATION in
     fi
 
     say "\n# Pool Metadata\n"
-
-    pool_meta_file=${POOL_FOLDER}/${pool_name}/poolmeta.json
+    pool_meta_file=$(ls -t "${POOL_FOLDER}/${pool_name}"/poolmeta* 2>/dev/null | head -1)
+    if [[ -z ${pool_meta_file} ]]; then
+      pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
+    fi
     if [[ -f "${pool_config}" ]]; then
       if [[ "$(jq -r .json_url ${pool_config})" ]]; then
         meta_json_url=$(jq -r .json_url "${pool_config}")
@@ -1666,15 +1673,15 @@ case $OPERATION in
     fi
 
     metadata_done=false
-    if wget -q -T 10 $meta_json_url -O $TMP_FOLDER/url_poolmeta.json ; then
+    if wget -q -T 10 $meta_json_url -O "$TMP_FOLDER/url_poolmeta.json"; then
       say "\nMetadata exists at URL.  Use existing data?\n"
       case $(select_opt "[y] Yes" "[n] No") in
-        0) mv $TMP_FOLDER/url_poolmeta.json $pool_meta_file
+        0) mv "$TMP_FOLDER/url_poolmeta.json" "${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
+           [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
            metadata_done=true
            ;;
-        1) rm $TMP_FOLDER/url_poolmeta.json ;; # clean up temp file
+        1) rm "$TMP_FOLDER/url_poolmeta.json" ;; # clean up temp file
       esac
-
     fi
     if [ ${metadata_done} = false ]; then
       # ToDo align with wallet and smash
@@ -1714,8 +1721,10 @@ case $OPERATION in
         waitForInput && continue
       fi
       
-      echo -e "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
-      metadata_size=$(stat -c%s "${pool_meta_file}")
+      new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
+      echo -e "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${new_pool_meta_file}"
+      [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
+      metadata_size=$(stat -c%s "${new_pool_meta_file}")
       if [[ ${metadata_size} -gt 512 ]]; then
         say "${RED}ERROR${NC}: metadata file larger than 512 byte(${metadata_size} byte), please reduce number of characters"
         waitForInput && continue

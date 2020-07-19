@@ -17,6 +17,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Default config switched to combinator instead of testnet
 - Start maintaining seperate versions of praos and combinator config files.
 - Add 10s timeout to wget commmands in case of issue
+- timestamp added to pool metadata file to make every creation unique
 
 ### Fixed
 - Slots reference was mixing up for shelley testnet in absence of a combinator network
