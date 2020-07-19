@@ -36,7 +36,7 @@ wget -O cntools.config https://raw.githubusercontent.com/cardano-community/guild
 wget -O cntools.library https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.library
 wget -O cntoolsBlockCollector.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntoolsBlockCollector.sh
 wget -O env https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
-chmod 750 cntools.sh cntoolsBlockCollector.sh
+chmod 750 *.sh
 chmod 640 cntools.config cntools.library env
 ```
 
