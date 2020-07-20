@@ -131,9 +131,9 @@ function selectOption {
   print_selected()   { printf " $ESC[7m $1 $ESC[27m$2"; }
   get_cursor_row()   { IFS=';' read -sdR -p $'\E[6n' ROW COL; echo ${ROW#*[}; }
   key_input()        { read -rsn1 key   # get 1 character
-                       if [[ $key == $ESC ]]; then
-                         read -rsn2 key # read 2 more chars
-                       fi
+                       # if [[ $key == $ESC ]]; then
+                       #   read -rsn2 key # read 2 more chars
+                       # fi
                          if [[ $key = "[A" ]]; then echo up;
                        elif [[ $key = "[B" ]]; then echo down;
                        elif [[ $key = ""   ]]; then echo enter;
@@ -184,6 +184,8 @@ function selectOption {
              if [ $selected -lt 0 ]; then selected=$(($# - 1)); fi;;
       down)  ((selected++));
              if [ $selected -ge $# ]; then selected=0; fi;;
+      $'\e') selected="$(($# - 1))" && shortcut_found="yes";
+             ;;
       *)     # shortcut available for selected key?
              i=0
              for opt; do
@@ -259,17 +261,17 @@ function getDirs {
 
 # Command    : selectDir [dir1 dir2 ...]
 # Description: A helper function to selectOption() specifically for directory selection
-# Parameters : array of dirs    >   array of dirs to include in selection, '[c] Cancel' option added to all selections
+# Parameters : array of dirs    >   array of dirs to include in selection, '[Esc] Cancel' option added to all selections
 # Return     : populates ${dir_name} variable,
 # Examples of Usage:
 #   >> selectDir Wallet1 Wallet2 Wallet3
 #
 function selectDir {
   dirs=("$@")
-  dirs+=("[c] Cancel")
+  dirs+=("[Esc] Cancel")
   selectOption "${dirs[@]}" 1>&2
   dir_name=${dirs[$?]}
-  [[ "${dir_name}" = "[c] Cancel" ]] && return 1 || return 0
+  [[ "${dir_name}" = "[Esc] Cancel" ]] && return 1 || return 0
 }
 
 

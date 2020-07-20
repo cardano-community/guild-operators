@@ -735,7 +735,7 @@ case $OPERATION in
       say "$(printf "%s\t\t${CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
       say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
       say ""
-      case $(select_opt "[b] Base (default)" "[e] Enterprise" "[c] Cancel") in
+      case $(select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel") in
         0) s_addr="${base_addr}" ;;
         1) s_addr="${pay_addr}" ;;
         2) continue ;;
@@ -772,7 +772,7 @@ case $OPERATION in
       amountLovelace=$(ADAtoLovelace "${amountADA}")
       say ""
       say "Fee payed by sender? [else amount sent is reduced]\n"
-      case $(select_opt "[y] Yes" "[n] No" "[c] Cancel") in
+      case $(select_opt "[y] Yes" "[n] No" "[Esc] Cancel") in
         0) include_fee="no" ;;
         1) include_fee="yes" ;;
         2) continue ;;
@@ -789,7 +789,7 @@ case $OPERATION in
     # Destination
     d_wallet=""
     say "Is destination a local wallet or an address?\n"
-    case $(select_opt "[w] Wallet" "[a] Address" "[c] Cancel") in
+    case $(select_opt "[w] Wallet" "[a] Address" "[Esc] Cancel") in
       0) d_wallet_dirs=()
          if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
          for dir in "${dirs[@]}"; do
@@ -807,7 +807,7 @@ case $OPERATION in
          if [[ -n "${base_addr}" && "${base_addr}" != "${s_addr}" && -n "${pay_addr}" && "${pay_addr}" != "${s_addr}" ]]; then
            # Both base and enterprise address available, let user choose what to use
            say "Select destination wallet address"
-           case $(select_opt "[b] Base (default)" "[e] Enterprise" "[c] Cancel") in
+           case $(select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel") in
              0) d_addr="${base_addr}" ;;
              1) d_addr="${pay_addr}" ;;
              2) continue ;;
@@ -964,7 +964,7 @@ case $OPERATION in
 
     say ""
     say "Do you want to delegate to a local pool or specify the pools cold vkey cbor-hex?\n"
-    case $(select_opt "[p] Pool" "[v] Vkey" "[c] Cancel") in
+    case $(select_opt "[p] Pool" "[v] Vkey" "[Esc] Cancel") in
       0) pool_dirs=()
          if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
          for dir in "${dirs[@]}"; do
@@ -1189,7 +1189,7 @@ case $OPERATION in
     fi
 
     minPoolCost=$(( $(jq -r '.minPoolCost //0' "${TMP_FOLDER}"/protparams.json) / 1000000 )) # convert to ADA
-    [[ ${minPoolCost} -gt 0 ]] && cost_ada=${minPoolCost} || cost_ada=256 # default cost
+    [[ ${minPoolCost} -gt 0 ]] && cost_ada=${minPoolCost} || cost_ada=400 # default cost
     if [[ -f "${pool_config}" ]]; then
       cost_ada_saved=$(jq -r '.costADA //0' "${pool_config}")
       [[ ${cost_ada_saved} -gt ${minPoolCost} ]] && cost_ada=${cost_ada_saved}
@@ -1294,7 +1294,7 @@ case $OPERATION in
       say "Previous relay configuration:\n"
       printTable ',' "$(say 'Type,Address,Port' | cat - <(jq -r -c '.relays[] | [.type //"-",.address //"-",.port //"-"] | @csv //empty' "${pool_config}") | tr -d '"')"
       say "\nReuse previous configuration?\n"
-      case $(select_opt "[y] Yes" "[n] No" "[c] Cancel") in
+      case $(select_opt "[y] Yes" "[n] No" "[Esc] Cancel") in
         0) while read -r type address port; do
              relay_array+=( "type" "${type}" "address" "${address}" "port" "${port}" )
              if [[ ${type} = "DNS_A" ]]; then
@@ -1310,7 +1310,7 @@ case $OPERATION in
     fi
     if [[ -z ${relay_output} ]]; then
       while true; do
-        case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in
+        case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[Esc] Cancel") in
           0) read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
              if [[ -z "${relay_dns_enter}" ]]; then
                say "\n${RED}ERROR${NC}: DNS record can not be empty!\n"
@@ -1356,7 +1356,7 @@ case $OPERATION in
           2) continue 2 ;;
         esac
         say "\nAdd more relay entries?\n"
-        case $(select_opt "[n] No" "[y] Yes" "[c] Cancel") in
+        case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
           0) break ;;
           1) continue ;;
           2) continue 2 ;;
@@ -1693,7 +1693,7 @@ case $OPERATION in
       say "Previous relay configuration:\n"
       printTable ',' "$(say 'Type,Address,Port' | cat - <(jq -r -c '.relays[] | [.type //"-",.address //"-",.port //"-"] | @csv //empty' "${pool_config}") | tr -d '"')"
       say "\nReuse previous configuration?\n"
-      case $(select_opt "[y] Yes" "[n] No" "[c] Cancel") in
+      case $(select_opt "[y] Yes" "[n] No" "[Esc] Cancel") in
         0) while read -r type address port; do
              relay_array+=( "type" "${type}" "address" "${address}" "port" "${port}" )
              if [[ ${type} = "DNS_A" ]]; then
@@ -1709,7 +1709,7 @@ case $OPERATION in
     fi
     if [[ -z ${relay_output} ]]; then
       while true; do
-        case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in
+        case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[Esc] Cancel") in
           0) read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
              if [[ -z "${relay_dns_enter}" ]]; then
                say "\n${RED}ERROR${NC}: DNS record can not be empty!\n"
@@ -1755,7 +1755,7 @@ case $OPERATION in
           2) continue 2 ;;
         esac
         say "\nAdd more relay entries?\n"
-        case $(select_opt "[n] No" "[y] Yes" "[c] Cancel") in
+        case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
           0) break ;;
           1) continue ;;
           2) continue 2 ;;
@@ -2449,7 +2449,7 @@ case $OPERATION in
   say "Current epoch: ${epoch}\n"
 
   say "Show a block summary for all epochs or a detailed view for a specific epoch?\n"
-  case $(select_opt "[s] Summary" "[e] Epoch" "[c] Cancel") in
+  case $(select_opt "[s] Summary" "[e] Epoch" "[Esc] Cancel") in
     0) block_table="Epoch,${BLUE}Leader Slots${NC},${GREEN}Adopted Blocks${NC},${RED}Invalid Blocks${NC}\n"
        current_epoch=${epoch}
        read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter
