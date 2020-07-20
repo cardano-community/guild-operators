@@ -1268,7 +1268,7 @@ case $OPERATION in
       fi
 
       read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
-      name_enter=${name_enter//[^[:alnum:]]/_}
+      name_enter=${name_enter//[^-a-zA-Z0-9\ ]/_}
       [[ -n "${name_enter}" ]] && meta_name="${name_enter}"
       if [[ ${#name_enter} -gt 50 ]]; then
         say "${RED}ERROR${NC}: Name cannot exceed 50 characters"
@@ -1291,7 +1291,7 @@ case $OPERATION in
         say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
         waitForInput && continue
       fi
-      say "\nOptionally set an extended metadata URL (see https://cardano-community.github.io/guild-operators/Scripts/cntools-itnwitness.html for details)?\n"
+      say "\nOptionally set an extended metadata URL?\n"
       case $(select_opt "[n] No" "[y] Yes") in
         0) meta_extended_option=""
            ;;
@@ -1685,7 +1685,7 @@ case $OPERATION in
       fi
 
       read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
-      name_enter=${name_enter//[^[:alnum:]]/_}
+      name_enter=${name_enter//[^-a-zA-Z0-9\ ]/_}
       [[ -n "${name_enter}" ]] && meta_name="${name_enter}"
       if [[ ${#name_enter} -gt 50 ]]; then
         say "${RED}ERROR${NC}: Name cannot exceed 50 characters"
@@ -1708,7 +1708,7 @@ case $OPERATION in
         say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
         waitForInput && continue
       fi
-      say "\nOptionally set an extended metadata URL (see https://cardano-community.github.io/guild-operators/Scripts/cntools-itnwitness.html for details)?\n"
+      say "\nOptionally set an extended metadata URL?\n"
       case $(select_opt "[n] No" "[y] Yes") in
         0) meta_extended_option=""
            ;;
