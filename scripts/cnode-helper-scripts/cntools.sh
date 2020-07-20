@@ -435,15 +435,9 @@ case $OPERATION in
       esac
     else
       say "${RED}WARN${NC}: wallet not empty!"
-      if [[ ${base_lovelace} -gt 0 ]]; then
-        say "Funds : ${CYAN}$(formatLovelace ${base_lovelace})${NC} ADA"
-      fi
-      if [[ ${pay_lovelace} -gt 0 ]]; then
-        say "Enterprise Funds : ${CYAN}$(formatLovelace ${base_lovelace})${NC} ADA"
-      fi
-      if [[ ${reward_lovelace} -gt 0 ]]; then
-        say "Rewards : ${CYAN}$(formatLovelace ${reward_lovelace})${NC} ADA"
-      fi
+      [[ ${base_lovelace} -gt 0 ]] && say "Funds : ${CYAN}$(formatLovelace ${base_lovelace})${NC} ADA"
+      [[ ${pay_lovelace} -gt 0 ]] && say "Enterprise Funds : ${CYAN}$(formatLovelace ${base_lovelace})${NC} ADA"
+      [[ ${reward_lovelace} -gt 0 ]] && say "Rewards : ${CYAN}$(formatLovelace ${reward_lovelace})${NC} ADA"
       say ""
       say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
       say "Are you sure to delete wallet?\n"
@@ -1187,9 +1181,7 @@ case $OPERATION in
     say "press enter to use default value\n"
 
     pledge_ada=50000 # default pledge
-    if [[ -f "${pool_config}" ]]; then
-      pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
-    fi
+    [[ -f "${pool_config}" ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
     read -r -p "Pledge (in ADA, default: ${pledge_ada}): " pledge_enter
     if [[ -n "${pledge_enter}" ]]; then
       if ! ADAtoLovelace "${pledge_enter}" >/dev/null; then
@@ -1202,9 +1194,7 @@ case $OPERATION in
     fi
 
     margin=7.5 # default margin in %
-    if [[ -f "${pool_config}" ]]; then
-      margin=$(jq -r '.margin //0' "${pool_config}")
-    fi
+    [[ -f "${pool_config}" ]] && margin=$(jq -r '.margin //0' "${pool_config}")
     read -r -p "Margin (in %, default: ${margin}): " margin_enter
     if [[ -n "${margin_enter}" ]]; then
       if ! pctToFraction "${margin_enter}" >/dev/null; then
@@ -1301,15 +1291,13 @@ case $OPERATION in
         say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
         waitForInput && continue
       fi
-      say "\nOptionally set an extended metadata URL?\n"
+      say "\nOptionally set an extended metadata URL (see https://cardano-community.github.io/guild-operators/Scripts/cntools-itnwitness.html for details)?\n"
       case $(select_opt "[n] No" "[y] Yes") in
         0) meta_extended_option=""
            ;;
         1) read -r -p "Enter URL to extended metadata (default: ${meta_extended}): " extended_enter
           extended_enter="${extended_enter}"
-          if [[ -n "${extended_enter}" ]]; then
-            meta_extended="${extended_enter}"
-          fi
+          [[ -n "${extended_enter}" ]] && meta_extended="${extended_enter}"
           if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 64 ]]; then
             say "${RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
             waitForInput && continue
@@ -1319,7 +1307,7 @@ case $OPERATION in
       esac
 
       new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
-      echo -e "{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\"${meta_extended_option}}" | tee "${new_pool_meta_file}"
+      echo -e "{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\",\"nonce\":\"$(date +%s)\"${meta_extended_option}}" | tee "${new_pool_meta_file}"
       [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
       metadata_size=$(stat -c%s "${new_pool_meta_file}")
       if [[ ${metadata_size} -gt 512 ]]; then
@@ -1720,7 +1708,7 @@ case $OPERATION in
         say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
         waitForInput && continue
       fi
-      say "\nOptionally set an extended metadata URL?\n"
+      say "\nOptionally set an extended metadata URL (see https://cardano-community.github.io/guild-operators/Scripts/cntools-itnwitness.html for details)?\n"
       case $(select_opt "[n] No" "[y] Yes") in
         0) meta_extended_option=""
            ;;
@@ -1738,7 +1726,7 @@ case $OPERATION in
       esac
 
       new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
-      echo -e "{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\"${meta_extended_option}}" | tee "${new_pool_meta_file}"
+      echo -e "{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\",\"nonce\":\"$(date +%s)\"${meta_extended_option}}" | tee "${new_pool_meta_file}"
       [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
       metadata_size=$(stat -c%s "${new_pool_meta_file}")
       if [[ ${metadata_size} -gt 512 ]]; then

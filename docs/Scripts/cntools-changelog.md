@@ -2,22 +2,28 @@
 
 All notable changes to this tool will be documented in this file.
 
+**Note: Whenever you're updating between versions where format/hash of keys have changed , or you're changing networks - it is recommended to archive $CNODE_HOME/priv/wallet and $CNODE_HOME/priv/pool folders before you proceed with launching cntools on a fresh network.**
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.0.0] - 2020-07-17
+## [5.0.0] - 2020-07-20
 ### Added
 - HASH_IDENTIFIER where applicable to differentiate between network modes for commands used, required due to legacy Byron considerations
 - add ptn0-praos.yaml, make prereqs default to combinator, and accept p argument to indicate praos mode.
 - cardano-node 1.16.0 refers to txhash using quotes, sed them out
 - show what's new at startup after update
 - file size check for pool metadata file
+- Add nonce in pool metadata JSON to keep registration attempts unique, avoiding one hash pointing to multiple URLs
 
 ### Changed
 - Default config switched to combinator instead of testnet
 - Start maintaining seperate versions of praos and combinator config files.
 - Add 10s timeout to wget commmands in case of issue
 - timestamp added to pool metadata file to make every creation unique
+
+### Removed
+- Delete cntools-updater script
 
 ### Fixed
 - Slots reference was mixing up for shelley testnet in absence of a combinator network
