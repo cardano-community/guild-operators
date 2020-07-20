@@ -1268,9 +1268,8 @@ case $OPERATION in
       fi
 
       read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
-      name_enter=${name_enter//[^-a-zA-Z0-9\ ]/_}
       [[ -n "${name_enter}" ]] && meta_name="${name_enter}"
-      if [[ ${#name_enter} -gt 50 ]]; then
+      if [[ ${#meta_name} -gt 50 ]]; then
         say "${RED}ERROR${NC}: Name cannot exceed 50 characters"
         waitForInput && continue
       fi
