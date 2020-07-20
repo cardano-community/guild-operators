@@ -426,13 +426,13 @@ getCurrentKESperiod() {
   shelley_genesis_start_time_sec=$(date --date=$(jq -r .systemStart "${GENESIS_JSON}") +%s)
   epoch_length=$(jq -r .epochLength "${GENESIS_JSON}")
   slot_length=$(jq -r .slotLength "${GENESIS_JSON}")
-  byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( 2 * epoch_length ) ))
   slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
   current_time_sec=$(date -u +%s)
-  if [[ "${NETWORKID}" = "Testnet" ]]; then
-    current_kes_period=$(( ( current_time_sec - shelley_genesis_start_time_sec ) / ( slots_per_kes_period * slot_length ) ))
-  else
+  if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
+    byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( 2 * epoch_length ) ))
     current_kes_period=$(( ( current_time_sec - byron_shelley_trans_end ) / ( slots_per_kes_period * slot_length ) ))
+  else
+    current_kes_period=$(( ( current_time_sec - shelley_genesis_start_time_sec ) / ( slots_per_kes_period * slot_length ) ))
   fi
   echo "${current_kes_period}"
 }

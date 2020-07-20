@@ -1245,20 +1245,13 @@ case $OPERATION in
     meta_extended="https://foo.com/metadata/extended.json" #default extended
     meta_json_url="https://foo.bat/poolmeta.json" #default JSON
     pool_meta_file=$(ls -t "${POOL_FOLDER}/${pool_name}"/poolmeta* 2>/dev/null | head -1)
-    if [[ -z ${pool_meta_file} ]]; then
-      pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
-    fi
+    [[ -z ${pool_meta_file} ]] && pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
     if [[ -f "${pool_config}" ]]; then
-      if [[ "$(jq -r .json_url ${pool_config})" ]]; then
-        meta_json_url=$(jq -r .json_url "${pool_config}")
-      fi
+      [[ "$(jq -r .json_url ${pool_config})" ]] && meta_json_url=$(jq -r .json_url "${pool_config}")
     fi
 
     read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter
-    json_url_enter="${json_url_enter}"
-    if [[ -n "${json_url_enter}" ]]; then
-      meta_json_url="${json_url_enter}"
-    fi
+    [[ -n "${json_url_enter}" ]] && meta_json_url="${json_url_enter}"
     if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
       say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
       waitForInput && continue
@@ -1268,8 +1261,7 @@ case $OPERATION in
     if wget -q -T 10 $meta_json_url -O "$TMP_FOLDER/url_poolmeta.json"; then
       say "\nMetadata exists at URL.  Use existing data?\n"
       case $(select_opt "[y] Yes" "[n] No") in
-        0) mv "$TMP_FOLDER/url_poolmeta.json" "${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
-           [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
+        0) mv "$TMP_FOLDER/url_poolmeta.json" "${POOL_FOLDER}/${pool_name}/poolmeta.json"
            metadata_done=true
            ;;
         1) rm "$TMP_FOLDER/url_poolmeta.json" ;; # clean up temp file
@@ -1287,32 +1279,24 @@ case $OPERATION in
 
       read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
       name_enter=${name_enter//[^[:alnum:]]/_}
-      if [[ -n "${name_enter}" ]]; then
-        meta_name="${name_enter}"
-      fi
+      [[ -n "${name_enter}" ]] && meta_name="${name_enter}"
       if [[ ${#name_enter} -gt 50 ]]; then
         say "${RED}ERROR${NC}: Name cannot exceed 50 characters"
         waitForInput && continue
       fi
       read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter
       ticker_enter=${ticker_enter//[^[:alnum:]]/_}
-      if [[ -n "${ticker_enter}" ]]; then
-        meta_ticker="${ticker_enter}"
-      fi
+      [[ -n "${ticker_enter}" ]] && meta_ticker="${ticker_enter}"
       if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
         say "${RED}ERROR${NC}: ticker must be between 3-5 characters"
         waitForInput && continue
       fi
       read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
       desc_enter=${desc_enter}
-      if [[ -n "${desc_enter}" ]]; then
-        meta_description="${desc_enter}"
-      fi
+      [[ -n "${desc_enter}" ]] && meta_description="${desc_enter}"
       read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter
       homepage_enter="${homepage_enter}"
-      if [[ -n "${homepage_enter}" ]]; then
-        meta_homepage="${homepage_enter}"
-      fi
+      [[ -n "${homepage_enter}" ]] && meta_homepage="${homepage_enter}"
       if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
         say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
         waitForInput && continue
@@ -1333,16 +1317,18 @@ case $OPERATION in
             meta_extended_option=",\"extended\":\"${meta_extended}\"" 
           fi
       esac
-      meta_all="{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\"${meta_extended_option}}"
-      if [[ ${#meta_all} -gt 512 ]]; then
+
+      new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
+      echo -e "{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\"${meta_extended_option}}" | tee "${new_pool_meta_file}"
+      [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
+      metadata_size=$(stat -c%s "${new_pool_meta_file}")
+      if [[ ${metadata_size} -gt 512 ]]; then
         say "${RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length"
         waitForInput && continue
+      else
+        cp -f "${new_pool_meta_file}" "${pool_meta_file}"
       fi
-      
-      new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
-      echo ${meta_all} > "${new_pool_meta_file}"
-      jq "${new_pool_meta_file}"
-      [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
+
       say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url}${NC}\n"
       waitForInput "Press any key to proceed with registration after metadata file is made available at ${meta_json_url}"
     fi
@@ -1676,20 +1662,14 @@ case $OPERATION in
     say "\n# Pool Metadata\n"
 
     pool_meta_file=$(ls -t "${POOL_FOLDER}/${pool_name}"/poolmeta* 2>/dev/null | head -1)
-    if [[ -z ${pool_meta_file} ]]; then
-      pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
-    fi
+    [[ -z ${pool_meta_file} ]] && pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
     if [[ -f "${pool_config}" ]]; then
-      if [[ "$(jq -r .json_url ${pool_config})" ]]; then
-        meta_json_url=$(jq -r .json_url "${pool_config}")
-      fi
+      [[ "$(jq -r .json_url ${pool_config})" ]] && meta_json_url=$(jq -r .json_url "${pool_config}")
     fi
 
     read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter
     json_url_enter="${json_url_enter}"
-    if [[ -n "${json_url_enter}" ]]; then
-      meta_json_url="${json_url_enter}"
-    fi
+    [[ -n "${json_url_enter}" ]] && meta_json_url="${json_url_enter}"
     if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
       say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
       waitForInput && continue
@@ -1699,14 +1679,13 @@ case $OPERATION in
     if wget -q -T 10 $meta_json_url -O "$TMP_FOLDER/url_poolmeta.json"; then
       say "\nMetadata exists at URL.  Use existing data?\n"
       case $(select_opt "[y] Yes" "[n] No") in
-        0) mv "$TMP_FOLDER/url_poolmeta.json" "${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
-           [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
+        0) mv "$TMP_FOLDER/url_poolmeta.json" "${POOL_FOLDER}/${pool_name}/poolmeta.json"
            metadata_done=true
            ;;
         1) rm "$TMP_FOLDER/url_poolmeta.json" ;; # clean up temp file
       esac
-
     fi
+
     if [ ${metadata_done} = false ]; then
       # ToDo align with wallet and smash
       if [[ -f "${pool_meta_file}" ]]; then
@@ -1719,32 +1698,24 @@ case $OPERATION in
 
       read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
       name_enter=${name_enter//[^[:alnum:]]/_}
-      if [[ -n "${name_enter}" ]]; then
-        meta_name="${name_enter}"
-      fi
+      [[ -n "${name_enter}" ]] && meta_name="${name_enter}"
       if [[ ${#name_enter} -gt 50 ]]; then
         say "${RED}ERROR${NC}: Name cannot exceed 50 characters"
         waitForInput && continue
       fi
       read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter
       ticker_enter=${ticker_enter//[^[:alnum:]]/_}
-      if [[ -n "${ticker_enter}" ]]; then
-        meta_ticker="${ticker_enter}"
-      fi
+      [[ -n "${ticker_enter}" ]] && meta_ticker="${ticker_enter}"
       if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
         say "${RED}ERROR${NC}: ticker must be between 3-5 characters"
         waitForInput && continue
       fi
       read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
       desc_enter=${desc_enter}
-      if [[ -n "${desc_enter}" ]]; then
-        meta_description="${desc_enter}"
-      fi
+      [[ -n "${desc_enter}" ]] && meta_description="${desc_enter}"
       read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter
       homepage_enter="${homepage_enter}"
-      if [[ -n "${homepage_enter}" ]]; then
-        meta_homepage="${homepage_enter}"
-      fi
+      [[ -n "${homepage_enter}" ]] && meta_homepage="${homepage_enter}"
       if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
         say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
         waitForInput && continue
@@ -1765,15 +1736,18 @@ case $OPERATION in
             meta_extended_option=",\"extended\":\"${meta_extended}\"" 
           fi
       esac
-      meta_all="{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\"${meta_extended_option}}"
-      if [[ ${#meta_all} -gt 512 ]]; then
+
+      new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
+      echo -e "{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\"${meta_extended_option}}" | tee "${new_pool_meta_file}"
+      [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
+      metadata_size=$(stat -c%s "${new_pool_meta_file}")
+      if [[ ${metadata_size} -gt 512 ]]; then
         say "${RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length"
         waitForInput && continue
+      else
+        cp -f "${new_pool_meta_file}" "${pool_meta_file}"
       fi
-      new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
-      echo ${meta_all} > "${new_pool_meta_file}"
-      jq "${new_pool_meta_file}"
-      [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
+
       say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url}${NC}\n"
       waitForInput "Press any key to proceed with re-registration after metadata file is made available at ${meta_json_url}"
     fi
