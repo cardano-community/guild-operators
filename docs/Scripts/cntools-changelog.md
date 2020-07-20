@@ -21,6 +21,8 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Start maintaining seperate versions of praos and combinator config files.
 - Add 10s timeout to wget commmands in case of issue
 - timestamp added to pool metadata file to make every creation unique
+- Cancel shortcut changed from `[c]` to `[Esc]`
+- Default pool cost from 256 -> 400
 
 ### Removed
 - Delete cntools-updater script
