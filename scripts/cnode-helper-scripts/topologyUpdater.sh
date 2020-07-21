@@ -10,7 +10,7 @@ CNODE_LOG_DIR="${CNODE_HOME}/logs/"
 CONFIG="$CNODE_HOME/files/ptn0.yaml"
 GENESIS_JSON="${CNODE_HOME}/files/genesis.json"
 NETWORKID=$(jq -r .networkId $GENESIS_JSON)
-PROTOCOL=$(grep -ri ^Protocol: "$CONFIG" | awk '{print $2}')
+PROTOCOL=$(egrep '^.{0,1}Protocol.{0,1}:' "$CONFIG" | tr -d '"' | tr -d ',' | awk '{print $2}')
 if [[ "${PROTOCOL}" = "Cardano" ]]; then
   PROTOCOL_IDENTIFIER="--cardano-mode"
 fi
