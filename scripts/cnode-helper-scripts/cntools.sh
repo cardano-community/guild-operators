@@ -25,7 +25,7 @@ fi
 # Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
 ${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/protparams.json || {
   say "\n"
-  say "${ORANGE}WARN${NC}: failed to query protocol parameters, node running and env parameters correct?"
+  say "${ORANGE}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (and in shelley era)"
   say "\n${BLUE}Press c to continue or any other key to quit${NC}"
   say "only offline functions will be available if you continue\n"
   read -r -n 1 -s -p "" answer
