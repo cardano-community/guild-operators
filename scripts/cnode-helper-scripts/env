@@ -9,7 +9,6 @@ if [[ "${PROTOCOL}" = "Cardano" ]]; then
 fi
 GENESIS_JSON=$CNODE_HOME/files/genesis.json
 NETWORKID=$(jq -r .networkId $GENESIS_JSON)
-BYRON_GENESIS_JSON=$CNODE_HOME/files/byron_genesis.json
 export CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
 MAGIC=$(jq -r .protocolMagicId < $GENESIS_JSON)
 NWMAGIC=$(jq -r .networkMagic < $GENESIS_JSON)

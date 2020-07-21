@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=4
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=3
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=0
+CNTOOLS_PATCH_VERSION=1
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -364,24 +364,12 @@ getSlotTip() {
 # Return     : string with tip on STDOUT
 getSlotTipRef() {
   shelley_genesis_start_time_sec=$(date --date=$(jq -r .systemStart "${GENESIS_JSON}") +%s)
-  byron_genesis_start_time_sec=$(jq -r .startTime "${BYRON_GENESIS_JSON}")
   epoch_length=$(jq -r .epochLength "${GENESIS_JSON}")
   slot_length=$(jq -r .slotLength "${GENESIS_JSON}")
-  byron_slots=$(( ( shelley_genesis_start_time_sec - byron_genesis_start_time_sec ) / 20 ))
-  byron_shelley_trans_slots=$(( ( 2 * epoch_length ) / 20 ))
-  byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( 2 * epoch_length ) ))
   current_time_sec=$(date -u +%s)
   
-  if [[ "${NETWORKID}" = "Testnet" ]]; then
-    # Shelley testnet
-    echo $(( ( current_time_sec - shelley_genesis_start_time_sec ) / slot_length ))
-  elif [[ "${current_time_sec}" -lt "${transTimeEnd}" ]]; then 
-    # In Transistion Phase between Shelley and Byron
-    echo $(( byron_slots + ( current_time_sec - shelley_genesis_start_time_sec ) / 20 ))
-  else
-    # In Shelley Phase
-    echo $(( byron_slots + byron_shelley_trans_slots + (( current_time_sec - byron_shelley_trans_end ) / slot_length ) ))
-  fi
+  # Shelley testnet
+  echo $(( ( current_time_sec - shelley_genesis_start_time_sec ) / slot_length ))
 }
 # Command    : getSlotTipDiff
 # Description: Get difference between current node slot tip and calculated tip based on genesis file
