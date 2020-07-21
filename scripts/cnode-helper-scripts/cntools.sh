@@ -1176,7 +1176,7 @@ case $OPERATION in
 
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
 
-    say "\n# Pool Parameters\n"
+    say "# Pool Parameters\n"
     say "press enter to use default value\n"
 
     pledge_ada=50000 # default pledge
@@ -1233,8 +1233,7 @@ case $OPERATION in
     meta_homepage="https://foo.com" #default homepage
     meta_extended="https://foo.com/metadata/extended.json" #default extended
     meta_json_url="https://foo.bat/poolmeta.json" #default JSON
-    pool_meta_file=$(ls -t "${POOL_FOLDER}/${pool_name}"/poolmeta* 2>/dev/null | head -1)
-    [[ -z ${pool_meta_file} ]] && pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
+    pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
     if [[ -f "${pool_config}" ]]; then
       [[ "$(jq -r .json_url ${pool_config})" ]] && meta_json_url=$(jq -r .json_url "${pool_config}")
     fi
@@ -1305,18 +1304,18 @@ case $OPERATION in
       esac
 
       new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
-      echo -e "{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\",\"nonce\":\"$(date +%s)\"${meta_extended_option}}" | tee "${new_pool_meta_file}"
-      [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
+      echo -e "{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\",\"nonce\":\"$(date +%s)\"${meta_extended_option}}" > "${new_pool_meta_file}"
+      jq . "${new_pool_meta_file}"
       metadata_size=$(stat -c%s "${new_pool_meta_file}")
       if [[ ${metadata_size} -gt 512 ]]; then
-        say "${RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length"
+        say "${RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length, current length: ${metadata_size}"
         waitForInput && continue
       else
         cp -f "${new_pool_meta_file}" "${pool_meta_file}"
       fi
 
-      say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url}${NC}\n"
-      waitForInput "Press any key to proceed with registration after metadata file is made available at ${meta_json_url}"
+      say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url}${NC}"
+      waitForInput "Press any key to proceed with registration after metadata file is uploaded"
     fi
 
     relay_output=""
@@ -1601,7 +1600,7 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    say "\n# Pool Parameters\n"
+    say "# Pool Parameters\n"
     say "press enter to use old value\n"
 
     pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
@@ -1647,8 +1646,7 @@ case $OPERATION in
 
     say "\n# Pool Metadata\n"
 
-    pool_meta_file=$(ls -t "${POOL_FOLDER}/${pool_name}"/poolmeta* 2>/dev/null | head -1)
-    [[ -z ${pool_meta_file} ]] && pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
+    pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
     if [[ -f "${pool_config}" ]]; then
       [[ "$(jq -r .json_url ${pool_config})" ]] && meta_json_url=$(jq -r .json_url "${pool_config}")
     fi
@@ -1723,18 +1721,18 @@ case $OPERATION in
       esac
 
       new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
-      echo -e "{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\",\"nonce\":\"$(date +%s)\"${meta_extended_option}}" | tee "${new_pool_meta_file}"
-      [[ -f "${pool_meta_file}" ]] && rm "${pool_meta_file}" # remove old metadata file
+      echo -e "{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\",\"nonce\":\"$(date +%s)\"${meta_extended_option}}" > "${new_pool_meta_file}"
+      jq . "${new_pool_meta_file}"
       metadata_size=$(stat -c%s "${new_pool_meta_file}")
       if [[ ${metadata_size} -gt 512 ]]; then
-        say "${RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length"
+        say "${RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length, current length: ${metadata_size}"
         waitForInput && continue
       else
         cp -f "${new_pool_meta_file}" "${pool_meta_file}"
       fi
 
-      say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url}${NC}\n"
-      waitForInput "Press any key to proceed with re-registration after metadata file is made available at ${meta_json_url}"
+      say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url}${NC}"
+      waitForInput "Press any key to proceed with re-registration after metadata file is uploaded"
     fi
 
     relay_output=""
@@ -1814,12 +1812,9 @@ case $OPERATION in
         esac
       done
     fi
-    
-    say ""
-    
+
     # Pledge wallet, also used to pay for pool update fee
     pledge_wallet=$(jq -r .pledgeWallet "${pool_config}") # old pledge wallet
-    say ""
     say "Old pledge wallet: ${GREEN}${pledge_wallet}${NC}"
     say ""
     say "${ORANGE}If a new wallet is chosen as pledge a manual delegation to the pool with new wallet is needed${NC}"
