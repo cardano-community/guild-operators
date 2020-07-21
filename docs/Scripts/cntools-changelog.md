@@ -23,6 +23,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - timestamp added to pool metadata file to make every creation unique
 - Cancel shortcut changed from `[c]` to `[Esc]`
 - Default pool cost from 256 -> 400
+- slotinterval calculation to include decentralisation parameter
 
 ### Removed
 - Delete cntools-updater script

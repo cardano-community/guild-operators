@@ -400,7 +400,8 @@ getSlotTipDiff() {
 slotInterval() {
   slot_length=$(jq -r .slotLength "${GENESIS_JSON}")
   active_slots_coeff=$(jq -r .activeSlotsCoeff "${GENESIS_JSON}")
-  echo "${slot_length} / ${active_slots_coeff}" | bc
+  decentralisation=$(jq -r .protocolParams.decentralisationParam "${GENESIS_JSON}")
+  printf "%.0f" $(echo "(${slot_length} / ${active_slots_coeff} / ${decentralisation}) + 0.5" | bc -l)
 }
 
 # Command    : getEpoch

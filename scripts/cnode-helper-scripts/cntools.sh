@@ -24,7 +24,6 @@ fi
 
 # Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
 ${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/protparams.json || {
-  say "\n"
   say "${ORANGE}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (and in shelley era)"
   say "\n${BLUE}Press c to continue or any other key to quit${NC}"
   say "only offline functions will be available if you continue\n"
@@ -134,8 +133,8 @@ tip_diff=$(getSlotTipDiff)
 slot_interval=$(slotInterval)
 if [[ ${tip_diff} -le ${slot_interval} ]]; then
   say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${GREEN}-${tip_diff} :)${NC}")"
-elif [[ ${tip_diff} -le $(( slot_interval * 3 )) ]]; then
-  say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${ORANGE}-${tip_diff} :|${NC}")"
+elif [[ ${tip_diff} -le $(( slot_interval * 2 )) ]]; then
+  say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: -${tip_diff} :|")"
 else
   say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${RED}-${tip_diff} :(${NC}")"
 fi
