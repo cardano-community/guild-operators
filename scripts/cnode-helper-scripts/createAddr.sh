@@ -7,8 +7,15 @@ if  [ "$1" = "--help" ] || [ $# -ne 1 ]; then
   exit 1
 fi
 
+GREEN="\x1B[1;32m"
+NC="\x1B[0m"
+
 WNAME="$1"
-${CCLI} shelley address key-gen --verification-key-file ${WNAME}_pay.vkey --signing-key-file ${WNAME}_pay.skey
+${CCLI} shelley address key-gen --verification-key-file ${WNAME}_payment.vkey --signing-key-file ${WNAME}_payment.skey
 ${CCLI} shelley stake-address key-gen --verification-key-file ${WNAME}_stake.vkey --signing-key-file ${WNAME}_stake.skey
-${CCLI} shelley address build --payment-verification-key-file ${WNAME}_pay.vkey  ${HASH_IDENTIFIER} | tee ${WNAME}_pay.addr
-${CCLI} shelley address build --payment-verification-key-file ${WNAME}_pay.vkey --stake-verification-key-file ${WNAME}_stake.vkey ${HASH_IDENTIFIER} | tee ${WNAME}_stake.addr
+echo -e "${GREEN}Payment/Enterprise address:${NC}"
+${CCLI} shelley address build --payment-verification-key-file ${WNAME}_payment.vkey  ${HASH_IDENTIFIER} | tee ${WNAME}_payment.addr
+echo -e "${GREEN}Base address:${NC}"
+${CCLI} shelley address build --payment-verification-key-file ${WNAME}_payment.vkey --stake-verification-key-file ${WNAME}_stake.vkey ${HASH_IDENTIFIER} | tee ${WNAME}_base.addr
+echo -e "${GREEN}Reward address:${NC}"
+${CCLI} shelley stake-address build --stake-verification-key-file ${WNAME}_stake.vkey ${HASH_IDENTIFIER} | tee ${WNAME}_base.addr
