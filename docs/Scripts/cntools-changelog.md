@@ -24,6 +24,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Cancel shortcut changed from `[c]` to `[Esc]`
 - Default pool cost from 256 -> 400
 - slotinterval calculation to include decentralisation parameter
+- mainnet candidate compatible slot calculation, 17 fixed byron transition epochs (needs to be fixed for mainnet)
 
 ### Removed
 - Delete cntools-updater script
