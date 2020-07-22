@@ -18,6 +18,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - show what's new at startup after update
 - file size check for pool metadata file
 - Add nonce in pool metadata JSON to keep registration attempts unique, avoiding one hash pointing to multiple URLs
+- Change default network to `mainnet_candidate`, and add second argument (g) to run prereqs against guild network
 
 ### Changed
 - Default config switched to combinator instead of testnet

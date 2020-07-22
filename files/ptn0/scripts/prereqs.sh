@@ -198,9 +198,15 @@ cd "$CNODE_HOME/files" || return
 
 curl -s -o ptn0-praos.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0-praos.json
 curl -s -o ptn0-combinator.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0-combinator.json
-curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/genesis.json | jq '.' > genesis.json
-curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/byron-genesis.json | jq '.' > byron-genesis.json
-curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/topology.json | jq '.' > topology.json
+if [[ "$2" = "g" ]]; then
+  curl -s -o genesis.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/genesis.json
+  curl -s -o byron-genesis.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/byron-genesis.json
+  curl -s -o topology.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/topology.json
+else
+  curl -s -o byron-genesis.json https://hydra.iohk.io/build/3554884/download/1/mainnet_candidate-byron-genesis.json
+  curl -s -o genesis.json https://hydra.iohk.io/build/3554884/download/1/mainnet_candidate-shelley-genesis.json
+  curl -s -o topology.json https://hydra.iohk.io/build/3554884/download/1/mainnet_candidate-topology.json
+fi
 
 if [[ "$1" = "p" ]]; then
   cp ptn0-praos.json ptn0.json

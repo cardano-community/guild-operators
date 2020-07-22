@@ -22,16 +22,12 @@ chmod 755 prereqs.sh
 
 #### Connect to public Haskell Testnet Network (HTN)
 
-The prereqs script above will connect you to guild network. If you would like to connect to public HTN instead, kindly execute the below before you proceed after you've executed the above:
+The prereqs script above will connect you to `mainnet_candidate` network. If you would like to connect to shelley testnet instead, kindly execute the below before you proceed after you've executed the above:
 
 ``` bash
-## For mainnet-candidate:
-wget -O $CNODE_HOME/files/byron-genesis.json https://hydra.iohk.io/build/3556541/download/1/mainnet_candidate-byron-genesis.json
-wget -O $CNODE_HOME/files/topology.json https://hydra.iohk.io/build/3556541/download/1/mainnet_candidate-topology.json
-wget -O $CNODE_HOME/files/genesis.json https://hydra.iohk.io/build/3556541/download/1/mainnet_candidate-shelley-genesis.json
 ## For Shelley Testnet:
-# wget -O $CNODE_HOME/files/genesis.json https://hydra.iohk.io/build/3519218/download/1/shelley_testnet-shelley-genesis.json
-# wget -O $CNODE_HOME/files/topology.json https://hydra.iohk.io/build/3519218/download/1/shelley_testnet-topology.json
+wget -O $CNODE_HOME/files/genesis.json https://hydra.iohk.io/build/3519218/download/1/shelley_testnet-shelley-genesis.json
+wget -O $CNODE_HOME/files/topology.json https://hydra.iohk.io/build/3519218/download/1/shelley_testnet-topology.json
 ```
 
 If you were already running a node on guild network and would like to *replace* by moving to HTN, but continue using scripts - follow instructions below:
