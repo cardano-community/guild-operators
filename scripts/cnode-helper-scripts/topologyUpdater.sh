@@ -15,7 +15,6 @@ if [[ "${PROTOCOL}" = "Cardano" ]]; then
   PROTOCOL_IDENTIFIER="--cardano-mode"
 fi
 CNODE_VALENCY=1   # optional for multi-IP hostnames
-MAGIC=$(jq -r .protocolMagicId < $GENESIS_JSON)
 NWMAGIC=$(jq -r .networkMagic < $GENESIS_JSON)
 [[ "${NETWORKID}" = "Mainnet" ]] && HASH_IDENTIFIER="--mainnet" || HASH_IDENTIFIER="--testnet-magic ${NWMAGIC}"
 [[ "${NWMAGIC}" = "764824073" ]] && NETWORK_IDENTIFIER="--mainnet" || NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
