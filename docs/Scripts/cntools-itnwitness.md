@@ -10,6 +10,9 @@ Due to the expected Ticker spoofing attack for pools that were famous during ITN
 The actual implementation is pretty straightforward, we will keep it brisk - as we assume ones participating are fairly familiar with `jcli` usage.
 - You need to use your owner keys that was used to register your pool , and it should match the owner _public_ key you presented on [official cardano-foundation github](https://github.com/cardano-foundation/incentivized-testnet-stakepool-registry) while registering metadata.
 - Store your pool ID in a file (eg: `mainnet_pool.id`)
+``` bash
+echo "916a28d91c9c6e9ac60d6732823e2cb12800bc9fa955aa7a695a5052" > mainnet_pool.id
+```
 - Sign the file using your owner secret key from ITN (eg: `owner_skey`) as per below:
 ``` bash
 jcli key sign --secret-key owner_skey mainnet_pool.id --output mainnet_pool.sig
@@ -27,5 +30,18 @@ cat mainnet_pool.sig
 ```
 - Host this signature file online at a URL with raw contents easily accessible on internet (eg: https://my.pool.com/extended-metadata.json)
 - When you register/modify a pool using CNTools, use the above mentioned URL to add to your pool metadata.
+```
+Optionally set an extended metadata URL?
+
+  [n] No
+  [y] Yes <----
+```
+
+- Alternatively you can create your metadata in [pooltool](https://pooltool.io) and enter the owner/witness in the metadata section along with the rest of your metadata.  Pooltool will create and host both files for you (or you can download them).  You can then feed the metadata URL to CNTools
+``` bash
+# Pool Metadata
+
+Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: https://data.pooltool.io/md/02b43ba1-c9e4-45c4-8dab-73fe4073a1f3):
+```
 
 If the process is approved to appear for wallets, we may consider providing easier alternatives. If any queries about the process, or any additions please create a git issue/PR against guild repository - to capture common queries and update instructions/help text where appropriate.
