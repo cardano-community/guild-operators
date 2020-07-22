@@ -2,19 +2,14 @@
 # shellcheck disable=SC2034,SC2086,SC2230
 CCLI=$(which cardano-cli)
 CNODE_HOME=/opt/cardano/cnode
-CONFIG=$CNODE_HOME/files/ptn0.yaml
-PROTOCOL=$(grep -ri ^Protocol: "$CONFIG" | awk '{print $2}')
-if [[ "${PROTOCOL}" = "Cardano" ]]; then
-  PROTOCOL_IDENTIFIER="--cardano-mode"
-fi
+CONFIG=$CNODE_HOME/files/ptn0.json
+PROTOCOL=$(jq -r .Protocol "$CONFIG")
+[[ "${PROTOCOL}" = "Cardano" ]] && PROTOCOL_IDENTIFIER="--cardano-mode" || PROTOCOL_IDENTIFIER="--shelley-mode"
 GENESIS_JSON=$CNODE_HOME/files/genesis.json
 NETWORKID=$(jq -r .networkId $GENESIS_JSON)
-BYRON_GENESIS_JSON=$CNODE_HOME/files/byron_genesis.json
+BYRON_GENESIS_JSON=$CNODE_HOME/files/byron-genesis.json
 export CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
 MAGIC=$(jq -r .protocolMagicId < $GENESIS_JSON)
 NWMAGIC=$(jq -r .networkMagic < $GENESIS_JSON)
-if [[ "${NETWORKID}" = "Mainnet" ]]; then
-  NETWORK_IDENTIFIER="--mainnet"
-else
-  NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
-fi
+[[ "${NETWORKID}" = "Mainnet" ]] && HASH_IDENTIFIER="--mainnet" || HASH_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+[[ "${NWMAGIC}" = "764824073" ]] && NETWORK_IDENTIFIER="--mainnet" || NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"

@@ -22,16 +22,12 @@ chmod 755 prereqs.sh
 
 #### Connect to public Haskell Testnet Network (HTN)
 
-The prereqs script above will connect you to guild network. If you would like to connect to public HTN instead, kindly execute the below before you proceed after you've executed the above:
+The prereqs script above will connect you to `mainnet_candidate` network. If you would like to connect to shelley testnet instead, kindly execute the below before you proceed after you've executed the above:
 
 ``` bash
-# For mainnet-candidate:
-#wget -O $CNODE_HOME/files/byron_genesis.json https://hydra.iohk.io/build/3416851/download/1/mainnet_candidate-byron-genesis.json
-#wget -O $CNODE_HOME/files/topology.json https://hydra.iohk.io/build/3416851/download/1/mainnet_candidate-topology.json
-#wget -O $CNODE_HOME/files/genesis.json https://hydra.iohk.io/build/3416851/download/1/mainnet_candidate-shelley-genesis.json
-# For Shelley Testnet:
-wget -O $CNODE_HOME/files/genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/shelley_testnet-shelley-genesis.json
-wget -O $CNODE_HOME/files/topology.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/shelley_testnet-topology.json
+## For Shelley Testnet:
+wget -O $CNODE_HOME/files/genesis.json https://hydra.iohk.io/build/3519218/download/1/shelley_testnet-shelley-genesis.json
+wget -O $CNODE_HOME/files/topology.json https://hydra.iohk.io/build/3519218/download/1/shelley_testnet-topology.json
 ```
 
 If you were already running a node on guild network and would like to *replace* by moving to HTN, but continue using scripts - follow instructions below:
@@ -51,8 +47,8 @@ Running the script above will create the folder structure as per below, for your
     ├── ...
     ├── files                   # Config, genesis and topology files
     │   ├── ...
-    │   ├── genesis.json        # Genesis file referenced in ptn0.yaml
-    │   ├── ptn0.yaml           # Config file used by cardano-node
+    │   ├── genesis.json        # Genesis file referenced in ptn0.json
+    │   ├── ptn0.json           # Config file used by cardano-node
     │   └── topology.json       # Map of chain for cardano-node to boot from
     ├── db                      # DB Store for cardano-node
     ├── logs                    # Logs for cardano-node

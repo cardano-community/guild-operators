@@ -24,27 +24,26 @@
         "tau": 0.1,
         "a0": 0.3
     },
-    "protocolMagicId": 4005,
     "genDelegs": {
-        "e4a7e1aa98078f14e9e1b6cca1c147f0ba4070caef08fbcbf7439125": {
-            "delegate": "4fa19855175457898361fe350ba0f7023ac2e08254aede3e6ef9d0f9",
-            "vrf": "8ad2051b1735917d4da5e31000bc7e1f590aa9adc8338dc8ae042ca8923ba3a9"
+        "297b00b2a0d222bfd26f16d21ae6429a6695d074b8d547503ae9e2d6": {
+            "delegate": "bd834bf1f6127c265f51df458f31f10f857425c4cbc1d1f6b08d0eb7",
+            "vrf": "e5a263fd88d244180ac117ce70ceb16a08935ae0d65d117028891f512fd95053"
         }
     },
     "updateQuorum": 1,
-    "networkId": "Testnet",
+    "networkId": "Mainnet",
     "initialFunds": {
-        "60ba9b690f6698e1e40b4a4a56b13b4cebbce6f6b0410244086656a6a2": 10000000000000,
-        "604bde84fe6661cd5e8d6dd63fba7149048e460edee41f6ef87e506b73": 37000000000000000
+        "61d8a1114e063b0ca62682f0bbd6235fb471acf138627fd16865e64f23": 22500000000000000,
+        "619b886a9a5ad26be2e61265da447eea7555128129a019e0042fb08bd7": 22500000000000000
     },
     "maxLovelaceSupply": 45000000000000000,
-    "networkMagic": 4005,
+    "networkMagic": 4006,
     "epochLength": 1800,
     "staking": {
         "pools": {},
         "stake": {}
     },
-    "systemStart": "2020-07-13T08:01Z",
+    "systemStart": "2020-07-21T11:05Z",
     "slotsPerKESPeriod": 1600,
     "slotLength": 1,
     "maxKESEvolutions": 120,

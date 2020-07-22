@@ -7,10 +7,10 @@ CNODE_HOSTNAME="CHANGE ME"  # optional. must resolve to the IP you are requestin
 CNODE_BIN="${HOME}/.cabal/bin"
 CNODE_HOME="/opt/cardano/cnode"
 CNODE_LOG_DIR="${CNODE_HOME}/logs/"
-CONFIG="$CNODE_HOME/files/ptn0.yaml"
+CONFIG="$CNODE_HOME/files/ptn0.json"
 GENESIS_JSON="${CNODE_HOME}/files/genesis.json"
 NETWORKID=$(jq -r .networkId $GENESIS_JSON)
-PROTOCOL=$(grep -ri ^Protocol: "$CONFIG" | awk '{print $2}')
+PROTOCOL=$(jq -r .Protocol "$CONFIG")
 if [[ "${PROTOCOL}" = "Cardano" ]]; then
   PROTOCOL_IDENTIFIER="--cardano-mode"
 fi

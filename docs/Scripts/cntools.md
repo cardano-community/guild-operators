@@ -1,5 +1,5 @@
 # CNTools
-CNTools is a shell script that will simplify typical operations for wallets and pool management. The tool is developed against the latest master branch of [cardano-node](https://github.com/input-output-hk/cardano-node) and as such may contain breaking changes not compatible with all testnet networks running against a specific tag. As the code matures these breaking changes should be less frequent. Please note that this tool is tested on Linux platforms only at this point.
+CNTools is a shell script that will simplify typical operations for wallets and pool management. The tool is intended to be developed against the latest working commit on master branch of [cardano-node](https://github.com/input-output-hk/cardano-node) and as such may contain breaking changes not compatible with old testnet networks running against a specific tag. As the code matures these breaking changes should be less frequent. Please note that this tool is tested on Linux platforms only at this point and should **NOT** act as an excuse for Pool Operators to skip reading about how Staking works or basics of Linux operations. The skills highlighted in [official documentation](https://docs.cardano.org/en/latest/getting-started/stake-pool-operators/prerequisites.html) are paramount for a stake pool operator, and so is the understanding of configuration files and network.
 
 The script assumes the [Pre-Requisites](../Common.md#dependencies-and-folder-structure-setup) have already been run.
 
@@ -36,7 +36,7 @@ wget -O cntools.config https://raw.githubusercontent.com/cardano-community/guild
 wget -O cntools.library https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.library
 wget -O cntoolsBlockCollector.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntoolsBlockCollector.sh
 wget -O env https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
-chmod 750 cntools.sh cntoolsBlockCollector.sh
+chmod 750 *.sh
 chmod 640 cntools.config cntools.library env
 ```
 

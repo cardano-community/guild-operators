@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 get_input() {
   printf "%s (default: %s): " "$1" "$2" >&2; read -r answer
@@ -196,13 +196,26 @@ chmod -R 755 "$CNODE_HOME"
 
 cd "$CNODE_HOME/files" || return
 
-curl -s -o ptn0.yaml https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0.yaml
-curl -s -o ptn0-combinator.yaml https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0-combinator.yaml
-curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/genesis.json | jq '.' > genesis.json
-curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/topology.json | jq '.' > topology.json
+curl -s -o ptn0-praos.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0-praos.json
+curl -s -o ptn0-combinator.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0-combinator.json
+if [[ "$2" = "g" ]]; then
+  curl -s -o genesis.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/genesis.json
+  curl -s -o byron-genesis.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/byron-genesis.json
+  curl -s -o topology.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/topology.json
+else
+  curl -s -o byron-genesis.json https://hydra.iohk.io/build/3554884/download/1/mainnet_candidate-byron-genesis.json
+  curl -s -o genesis.json https://hydra.iohk.io/build/3554884/download/1/mainnet_candidate-shelley-genesis.json
+  curl -s -o topology.json https://hydra.iohk.io/build/3554884/download/1/mainnet_candidate-topology.json
+fi
+
+if [[ "$1" = "p" ]]; then
+  cp ptn0-praos.json ptn0.json
+else
+  cp ptn0-combinator.json ptn0.json
+fi
 
 # If using a different CNODE_HOME than in this example, execute the below:
-# sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/ptn0.yaml
+# sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/ptn*.json
 ## For future use:
 ## It generates random NodeID:
 ## -e "s#NodeId:.*#NodeId:$(od -A n -t u8 -N 8 /dev/urandom$(#" \

@@ -1,5 +1,5 @@
 #!/bin/bash
-# shellcheck disable=SC1090,SC2086,SC2154,SC2034
+# shellcheck disable=SC1090,SC2086,SC2154,SC2034,SC2012
 
 ########## Global tasks ###########################################
 
@@ -24,8 +24,7 @@ fi
 
 # Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
 ${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/protparams.json || {
-  say "\n"
-  say "${ORANGE}WARN${NC}: failed to query protocol parameters, node running and env parameters correct?"
+  say "${ORANGE}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (and in shelley era)"
   say "\n${BLUE}Press c to continue or any other key to quit${NC}"
   say "only offline functions will be available if you continue\n"
   read -r -n 1 -s -p "" answer
@@ -44,16 +43,44 @@ fi
 clear
 say "CNTools version check...\n"
 URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
-wget -q -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"
-GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-if [[ "${CNTOOLS_MAJOR_VERSION}" != "${GIT_MAJOR_VERSION}" || "${CNTOOLS_MINOR_VERSION}" != "${GIT_MINOR_VERSION}" || "${CNTOOLS_PATCH_VERSION}" != "${GIT_PATCH_VERSION}" ]]; then
-  say "A new version of CNTools is available" "log"
-  say ""
-  say "Installed Version : ${CNTOOLS_VERSION}" "log"
-  say "Available Version : ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC}" "log"
-  say "\nGo to Update section for upgrade"
+if wget -q -T 10 -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"; then
+  GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+  GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+  GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+  if [[ "${CNTOOLS_MAJOR_VERSION}" != "${GIT_MAJOR_VERSION}" || "${CNTOOLS_MINOR_VERSION}" != "${GIT_MINOR_VERSION}" || "${CNTOOLS_PATCH_VERSION}" != "${GIT_PATCH_VERSION}" ]]; then
+    say "A new version of CNTools is available" "log"
+    say ""
+    say "Installed Version : ${CNTOOLS_VERSION}" "log"
+    say "Available Version : ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC}" "log"
+    say "\nGo to Update section for upgrade"
+    waitForInput "press any key to proceed"
+  else
+    # check if CNTools was recently updated, if so show whats new
+    URL_DOCS="https://raw.githubusercontent.com/cardano-community/guild-operators/master/docs/Scripts"
+    if wget -q -T 10 -O "${TMP_FOLDER}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
+      if ! cmp -s "${TMP_FOLDER}"/cntools-changelog.md "$CNODE_HOME/scripts/cntools-changelog.md"; then
+        # Latest changes not shown, show whats new and copy changelog
+        clear 
+        say "~ CNTools - What's New ~"
+        if [[ ! -f "$CNODE_HOME/scripts/cntools-changelog.md" ]]; then 
+          # special case for first installation or 5.0.0 upgrade, print release notes until previous major version
+          waitForInput "Press any key to show what's new in last major release, use 'q' to quit viewer"
+          sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_FOLDER}"/cntools-changelog.md | head -n -2 | less
+        else
+          # print release notes from current until previously installed version
+          waitForInput "Press any key to show what's new compared to currently installed release, use 'q' to quit viewer"
+          [[ $(cat "$CNODE_HOME/scripts/cntools-changelog.md") =~ \[([[:digit:]])\.([[:digit:]])\.([[:digit:]])\] ]]
+          sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}\.${BASH_REMATCH[3]}\]/p" "${TMP_FOLDER}"/cntools-changelog.md | head -n -2 | less
+        fi
+        cp "${TMP_FOLDER}"/cntools-changelog.md "$CNODE_HOME/scripts/cntools-changelog.md"
+      fi
+    else
+      say "\n${RED}ERROR${NC}: failed to download changelog from GitHub!\n"
+      waitForInput "press any key to proceed"
+    fi
+  fi
+else
+  say "\n${RED}ERROR${NC}: failed to download cntools.library from GitHub, unable to perform version check!\n"
   waitForInput "press any key to proceed"
 fi
 
@@ -106,8 +133,8 @@ tip_diff=$(getSlotTipDiff)
 slot_interval=$(slotInterval)
 if [[ ${tip_diff} -le ${slot_interval} ]]; then
   say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${GREEN}-${tip_diff} :)${NC}")"
-elif [[ ${tip_diff} -le $(( slot_interval * 3 )) ]]; then
-  say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${ORANGE}-${tip_diff} :|${NC}")"
+elif [[ ${tip_diff} -le $(( slot_interval * 2 )) ]]; then
+  say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: -${tip_diff} :|")"
 else
   say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${RED}-${tip_diff} :(${NC}")"
 fi
@@ -407,15 +434,9 @@ case $OPERATION in
       esac
     else
       say "${RED}WARN${NC}: wallet not empty!"
-      if [[ ${base_lovelace} -gt 0 ]]; then
-        say "Funds : ${CYAN}$(formatLovelace ${base_lovelace})${NC} ADA"
-      fi
-      if [[ ${pay_lovelace} -gt 0 ]]; then
-        say "Enterprise Funds : ${CYAN}$(formatLovelace ${base_lovelace})${NC} ADA"
-      fi
-      if [[ ${reward_lovelace} -gt 0 ]]; then
-        say "Rewards : ${CYAN}$(formatLovelace ${reward_lovelace})${NC} ADA"
-      fi
+      [[ ${base_lovelace} -gt 0 ]] && say "Funds : ${CYAN}$(formatLovelace ${base_lovelace})${NC} ADA"
+      [[ ${pay_lovelace} -gt 0 ]] && say "Enterprise Funds : ${CYAN}$(formatLovelace ${base_lovelace})${NC} ADA"
+      [[ ${reward_lovelace} -gt 0 ]] && say "Rewards : ${CYAN}$(formatLovelace ${reward_lovelace})${NC} ADA"
       say ""
       say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
       say "Are you sure to delete wallet?\n"
@@ -735,7 +756,7 @@ case $OPERATION in
       say "$(printf "%s\t\t${CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
       say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
       say ""
-      case $(select_opt "[b] Base (default)" "[e] Enterprise" "[c] Cancel") in
+      case $(select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel") in
         0) s_addr="${base_addr}" ;;
         1) s_addr="${pay_addr}" ;;
         2) continue ;;
@@ -772,7 +793,7 @@ case $OPERATION in
       amountLovelace=$(ADAtoLovelace "${amountADA}")
       say ""
       say "Fee payed by sender? [else amount sent is reduced]\n"
-      case $(select_opt "[y] Yes" "[n] No" "[c] Cancel") in
+      case $(select_opt "[y] Yes" "[n] No" "[Esc] Cancel") in
         0) include_fee="no" ;;
         1) include_fee="yes" ;;
         2) continue ;;
@@ -789,7 +810,7 @@ case $OPERATION in
     # Destination
     d_wallet=""
     say "Is destination a local wallet or an address?\n"
-    case $(select_opt "[w] Wallet" "[a] Address" "[c] Cancel") in
+    case $(select_opt "[w] Wallet" "[a] Address" "[Esc] Cancel") in
       0) d_wallet_dirs=()
          if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
          for dir in "${dirs[@]}"; do
@@ -807,7 +828,7 @@ case $OPERATION in
          if [[ -n "${base_addr}" && "${base_addr}" != "${s_addr}" && -n "${pay_addr}" && "${pay_addr}" != "${s_addr}" ]]; then
            # Both base and enterprise address available, let user choose what to use
            say "Select destination wallet address"
-           case $(select_opt "[b] Base (default)" "[e] Enterprise" "[c] Cancel") in
+           case $(select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel") in
              0) d_addr="${base_addr}" ;;
              1) d_addr="${pay_addr}" ;;
              2) continue ;;
@@ -964,7 +985,7 @@ case $OPERATION in
 
     say ""
     say "Do you want to delegate to a local pool or specify the pools cold vkey cbor-hex?\n"
-    case $(select_opt "[p] Pool" "[v] Vkey" "[c] Cancel") in
+    case $(select_opt "[p] Pool" "[v] Vkey" "[Esc] Cancel") in
       0) pool_dirs=()
          if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
          for dir in "${dirs[@]}"; do
@@ -1155,13 +1176,11 @@ case $OPERATION in
 
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
 
-    say "\n# Pool Parameters\n"
+    say "# Pool Parameters\n"
     say "press enter to use default value\n"
 
     pledge_ada=50000 # default pledge
-    if [[ -f "${pool_config}" ]]; then
-      pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
-    fi
+    [[ -f "${pool_config}" ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
     read -r -p "Pledge (in ADA, default: ${pledge_ada}): " pledge_enter
     if [[ -n "${pledge_enter}" ]]; then
       if ! ADAtoLovelace "${pledge_enter}" >/dev/null; then
@@ -1174,9 +1193,7 @@ case $OPERATION in
     fi
 
     margin=7.5 # default margin in %
-    if [[ -f "${pool_config}" ]]; then
-      margin=$(jq -r '.margin //0' "${pool_config}")
-    fi
+    [[ -f "${pool_config}" ]] && margin=$(jq -r '.margin //0' "${pool_config}")
     read -r -p "Margin (in %, default: ${margin}): " margin_enter
     if [[ -n "${margin_enter}" ]]; then
       if ! pctToFraction "${margin_enter}" >/dev/null; then
@@ -1189,7 +1206,7 @@ case $OPERATION in
     fi
 
     minPoolCost=$(( $(jq -r '.minPoolCost //0' "${TMP_FOLDER}"/protparams.json) / 1000000 )) # convert to ADA
-    [[ ${minPoolCost} -gt 0 ]] && cost_ada=${minPoolCost} || cost_ada=256 # default cost
+    [[ ${minPoolCost} -gt 0 ]] && cost_ada=${minPoolCost} || cost_ada=400 # default cost
     if [[ -f "${pool_config}" ]]; then
       cost_ada_saved=$(jq -r '.costADA //0' "${pool_config}")
       [[ ${cost_ada_saved} -gt ${minPoolCost} ]] && cost_ada=${cost_ada_saved}
@@ -1214,34 +1231,29 @@ case $OPERATION in
     meta_ticker="${pool_name}" # default ticker
     meta_description="No Description" #default Description
     meta_homepage="https://foo.com" #default homepage
+    meta_extended="https://foo.com/metadata/extended.json" #default extended
     meta_json_url="https://foo.bat/poolmeta.json" #default JSON
-    pool_meta_file=${POOL_FOLDER}/${pool_name}/poolmeta.json
+    pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
     if [[ -f "${pool_config}" ]]; then
-      if [[ "$(jq -r .json_url ${pool_config})" ]]; then
-        meta_json_url=$(jq -r .json_url "${pool_config}")
-      fi
+      [[ "$(jq -r .json_url ${pool_config})" ]] && meta_json_url=$(jq -r .json_url "${pool_config}")
     fi
 
     read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter
-    json_url_enter="${json_url_enter}"
-    if [[ -n "${json_url_enter}" ]]; then
-      meta_json_url="${json_url_enter}"
-    fi
+    [[ -n "${json_url_enter}" ]] && meta_json_url="${json_url_enter}"
     if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
       say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
       waitForInput && continue
     fi
 
     metadata_done=false
-    if wget -q  $meta_json_url -O $TMP_FOLDER/url_poolmeta.json ; then
+    if wget -q -T 10 $meta_json_url -O "$TMP_FOLDER/url_poolmeta.json"; then
       say "\nMetadata exists at URL.  Use existing data?\n"
       case $(select_opt "[y] Yes" "[n] No") in
-        0) mv $TMP_FOLDER/url_poolmeta.json $pool_meta_file
+        0) mv "$TMP_FOLDER/url_poolmeta.json" "${POOL_FOLDER}/${pool_name}/poolmeta.json"
            metadata_done=true
            ;;
-        1) rm $TMP_FOLDER/url_poolmeta.json ;; # clean up temp file
+        1) rm "$TMP_FOLDER/url_poolmeta.json" ;; # clean up temp file
       esac
-
     fi
     if [ ${metadata_done} = false ]; then
       # ToDo align with wallet and smash
@@ -1250,40 +1262,60 @@ case $OPERATION in
         meta_ticker=$(jq -r .ticker "${pool_meta_file}")
         meta_homepage=$(jq -r .homepage "${pool_meta_file}")
         meta_description=$(jq -r .description "${pool_meta_file}")
+        meta_extended=$(jq -r .extended "${pool_meta_file}")
       fi
 
       read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
-      name_enter=${name_enter//[^[:alnum:]]/_}
-      if [[ -n "${name_enter}" ]]; then
-        meta_name="${name_enter}"
+      [[ -n "${name_enter}" ]] && meta_name="${name_enter}"
+      if [[ ${#meta_name} -gt 50 ]]; then
+        say "${RED}ERROR${NC}: Name cannot exceed 50 characters"
+        waitForInput && continue
       fi
       read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter
       ticker_enter=${ticker_enter//[^[:alnum:]]/_}
-      if [[ -n "${ticker_enter}" ]]; then
-        meta_ticker="${ticker_enter}"
-      fi
+      [[ -n "${ticker_enter}" ]] && meta_ticker="${ticker_enter}"
       if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
         say "${RED}ERROR${NC}: ticker must be between 3-5 characters"
         waitForInput && continue
       fi
       read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
       desc_enter=${desc_enter}
-      if [[ -n "${desc_enter}" ]]; then
-        meta_description="${desc_enter}"
-      fi
+      [[ -n "${desc_enter}" ]] && meta_description="${desc_enter}"
       read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter
       homepage_enter="${homepage_enter}"
-      if [[ -n "${homepage_enter}" ]]; then
-        meta_homepage="${homepage_enter}"
-      fi
+      [[ -n "${homepage_enter}" ]] && meta_homepage="${homepage_enter}"
       if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
         say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
         waitForInput && continue
       fi
+      say "\nOptionally set an extended metadata URL?\n"
+      case $(select_opt "[n] No" "[y] Yes") in
+        0) meta_extended_option=""
+           ;;
+        1) read -r -p "Enter URL to extended metadata (default: ${meta_extended}): " extended_enter
+          extended_enter="${extended_enter}"
+          [[ -n "${extended_enter}" ]] && meta_extended="${extended_enter}"
+          if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 64 ]]; then
+            say "${RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
+            waitForInput && continue
+          else
+            meta_extended_option=",\"extended\":\"${meta_extended}\"" 
+          fi
+      esac
 
-      say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url} :${NC}\n"
-      say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
-      waitForInput "Press any key to proceed with registration after metadata file is made available at ${meta_json_url}"
+      new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
+      echo -e "{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\",\"nonce\":\"$(date +%s)\"${meta_extended_option}}" > "${new_pool_meta_file}"
+      jq . "${new_pool_meta_file}"
+      metadata_size=$(stat -c%s "${new_pool_meta_file}")
+      if [[ ${metadata_size} -gt 512 ]]; then
+        say "${RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length, current length: ${metadata_size}"
+        waitForInput && continue
+      else
+        cp -f "${new_pool_meta_file}" "${pool_meta_file}"
+      fi
+
+      say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url}${NC}"
+      waitForInput "Press any key to proceed with registration after metadata file is uploaded"
     fi
 
     relay_output=""
@@ -1294,7 +1326,7 @@ case $OPERATION in
       say "Previous relay configuration:\n"
       printTable ',' "$(say 'Type,Address,Port' | cat - <(jq -r -c '.relays[] | [.type //"-",.address //"-",.port //"-"] | @csv //empty' "${pool_config}") | tr -d '"')"
       say "\nReuse previous configuration?\n"
-      case $(select_opt "[y] Yes" "[n] No" "[c] Cancel") in
+      case $(select_opt "[y] Yes" "[n] No" "[Esc] Cancel") in
         0) while read -r type address port; do
              relay_array+=( "type" "${type}" "address" "${address}" "port" "${port}" )
              if [[ ${type} = "DNS_A" ]]; then
@@ -1310,7 +1342,7 @@ case $OPERATION in
     fi
     if [[ -z ${relay_output} ]]; then
       while true; do
-        case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in
+        case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[Esc] Cancel") in
           0) read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
              if [[ -z "${relay_dns_enter}" ]]; then
                say "\n${RED}ERROR${NC}: DNS record can not be empty!\n"
@@ -1356,7 +1388,7 @@ case $OPERATION in
           2) continue 2 ;;
         esac
         say "\nAdd more relay entries?\n"
-        case $(select_opt "[n] No" "[y] Yes" "[c] Cancel") in
+        case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
           0) break ;;
           1) continue ;;
           2) continue 2 ;;
@@ -1568,7 +1600,7 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    say "\n# Pool Parameters\n"
+    say "# Pool Parameters\n"
     say "press enter to use old value\n"
 
     pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
@@ -1614,34 +1646,30 @@ case $OPERATION in
 
     say "\n# Pool Metadata\n"
 
-    pool_meta_file=${POOL_FOLDER}/${pool_name}/poolmeta.json
+    pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
     if [[ -f "${pool_config}" ]]; then
-      if [[ "$(jq -r .json_url ${pool_config})" ]]; then
-        meta_json_url=$(jq -r .json_url "${pool_config}")
-      fi
+      [[ "$(jq -r .json_url ${pool_config})" ]] && meta_json_url=$(jq -r .json_url "${pool_config}")
     fi
 
     read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter
     json_url_enter="${json_url_enter}"
-    if [[ -n "${json_url_enter}" ]]; then
-      meta_json_url="${json_url_enter}"
-    fi
+    [[ -n "${json_url_enter}" ]] && meta_json_url="${json_url_enter}"
     if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
       say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
       waitForInput && continue
     fi
 
     metadata_done=false
-    if wget -q  $meta_json_url -O $TMP_FOLDER/url_poolmeta.json ; then
+    if wget -q -T 10 $meta_json_url -O "$TMP_FOLDER/url_poolmeta.json"; then
       say "\nMetadata exists at URL.  Use existing data?\n"
       case $(select_opt "[y] Yes" "[n] No") in
-        0) mv $TMP_FOLDER/url_poolmeta.json $pool_meta_file
+        0) mv "$TMP_FOLDER/url_poolmeta.json" "${POOL_FOLDER}/${pool_name}/poolmeta.json"
            metadata_done=true
            ;;
-        1) rm $TMP_FOLDER/url_poolmeta.json ;; # clean up temp file
+        1) rm "$TMP_FOLDER/url_poolmeta.json" ;; # clean up temp file
       esac
-
     fi
+
     if [ ${metadata_done} = false ]; then
       # ToDo align with wallet and smash
       if [[ -f "${pool_meta_file}" ]]; then
@@ -1649,40 +1677,62 @@ case $OPERATION in
         meta_ticker=$(jq -r .ticker "${pool_meta_file}")
         meta_homepage=$(jq -r .homepage "${pool_meta_file}")
         meta_description=$(jq -r .description "${pool_meta_file}")
+        meta_extended=$(jq -r .extended "${pool_meta_file}")
       fi
 
       read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
-      name_enter=${name_enter//[^[:alnum:]]/_}
-      if [[ -n "${name_enter}" ]]; then
-        meta_name="${name_enter}"
+      [[ -n "${name_enter}" ]] && meta_name="${name_enter}"
+      if [[ ${#meta_name} -gt 50 ]]; then
+        say "${RED}ERROR${NC}: Name cannot exceed 50 characters"
+        waitForInput && continue
       fi
       read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter
       ticker_enter=${ticker_enter//[^[:alnum:]]/_}
-      if [[ -n "${ticker_enter}" ]]; then
-        meta_ticker="${ticker_enter}"
-      fi
+      [[ -n "${ticker_enter}" ]] && meta_ticker="${ticker_enter}"
       if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
         say "${RED}ERROR${NC}: ticker must be between 3-5 characters"
         waitForInput && continue
       fi
       read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
       desc_enter=${desc_enter}
-      if [[ -n "${desc_enter}" ]]; then
-        meta_description="${desc_enter}"
-      fi
+      [[ -n "${desc_enter}" ]] && meta_description="${desc_enter}"
       read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter
       homepage_enter="${homepage_enter}"
-      if [[ -n "${homepage_enter}" ]]; then
-        meta_homepage="${homepage_enter}"
-      fi
+      [[ -n "${homepage_enter}" ]] && meta_homepage="${homepage_enter}"
       if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
         say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
         waitForInput && continue
       fi
+      say "\nOptionally set an extended metadata URL?\n"
+      case $(select_opt "[n] No" "[y] Yes") in
+        0) meta_extended_option=""
+           ;;
+        1) read -r -p "Enter URL to extended metadata (default: ${meta_extended}): " extended_enter
+          extended_enter="${extended_enter}"
+          if [[ -n "${extended_enter}" ]]; then
+            meta_extended="${extended_enter}"
+          fi
+          if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 64 ]]; then
+            say "${RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
+            waitForInput && continue
+          else
+            meta_extended_option=",\"extended\":\"${meta_extended}\"" 
+          fi
+      esac
 
-      say "\n${ORANGE}Please host ${pool_meta_file} as-is at ${meta_json_url} :${NC}\n"
-      say "{\n  \"name\": \"${meta_name}\",\n  \"ticker\": \"${meta_ticker}\",\n  \"description\": \"${meta_description}\",\n  \"homepage\": \"${meta_homepage}\"\n}" | tee "${pool_meta_file}"
-      waitForInput "Press any key to proceed with re-registration after metadata file is made available at ${meta_json_url}"
+      new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
+      echo -e "{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\",\"nonce\":\"$(date +%s)\"${meta_extended_option}}" > "${new_pool_meta_file}"
+      jq . "${new_pool_meta_file}"
+      metadata_size=$(stat -c%s "${new_pool_meta_file}")
+      if [[ ${metadata_size} -gt 512 ]]; then
+        say "${RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length, current length: ${metadata_size}"
+        waitForInput && continue
+      else
+        cp -f "${new_pool_meta_file}" "${pool_meta_file}"
+      fi
+
+      say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url}${NC}"
+      waitForInput "Press any key to proceed with re-registration after metadata file is uploaded"
     fi
 
     relay_output=""
@@ -1693,7 +1743,7 @@ case $OPERATION in
       say "Previous relay configuration:\n"
       printTable ',' "$(say 'Type,Address,Port' | cat - <(jq -r -c '.relays[] | [.type //"-",.address //"-",.port //"-"] | @csv //empty' "${pool_config}") | tr -d '"')"
       say "\nReuse previous configuration?\n"
-      case $(select_opt "[y] Yes" "[n] No" "[c] Cancel") in
+      case $(select_opt "[y] Yes" "[n] No" "[Esc] Cancel") in
         0) while read -r type address port; do
              relay_array+=( "type" "${type}" "address" "${address}" "port" "${port}" )
              if [[ ${type} = "DNS_A" ]]; then
@@ -1709,7 +1759,7 @@ case $OPERATION in
     fi
     if [[ -z ${relay_output} ]]; then
       while true; do
-        case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[c] Cancel") in
+        case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[Esc] Cancel") in
           0) read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
              if [[ -z "${relay_dns_enter}" ]]; then
                say "\n${RED}ERROR${NC}: DNS record can not be empty!\n"
@@ -1755,19 +1805,16 @@ case $OPERATION in
           2) continue 2 ;;
         esac
         say "\nAdd more relay entries?\n"
-        case $(select_opt "[n] No" "[y] Yes" "[c] Cancel") in
+        case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
           0) break ;;
           1) continue ;;
           2) continue 2 ;;
         esac
       done
     fi
-    
-    say ""
-    
+
     # Pledge wallet, also used to pay for pool update fee
     pledge_wallet=$(jq -r .pledgeWallet "${pool_config}") # old pledge wallet
-    say ""
     say "Old pledge wallet: ${GREEN}${pledge_wallet}${NC}"
     say ""
     say "${ORANGE}If a new wallet is chosen as pledge a manual delegation to the pool with new wallet is needed${NC}"
@@ -2449,7 +2496,7 @@ case $OPERATION in
   say "Current epoch: ${epoch}\n"
 
   say "Show a block summary for all epochs or a detailed view for a specific epoch?\n"
-  case $(select_opt "[s] Summary" "[e] Epoch" "[c] Cancel") in
+  case $(select_opt "[s] Summary" "[e] Epoch" "[Esc] Cancel") in
     0) block_table="Epoch,${BLUE}Leader Slots${NC},${GREEN}Adopted Blocks${NC},${RED}Invalid Blocks${NC}\n"
        current_epoch=${epoch}
        read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter
@@ -2507,46 +2554,53 @@ case $OPERATION in
   say " >> UPDATE" "log"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   say ""
-  say "Changelog available at: https://cardano-community.github.io/guild-operators/Scripts/cntools-changelog.html"
+  say "Full changelog available at:\nhttps://cardano-community.github.io/guild-operators/Scripts/cntools-changelog.html"
   say ""
 
   URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
-  wget -q -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"
-  GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-  GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-  GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-  if [[ "$CNTOOLS_MAJOR_VERSION" != "$GIT_MAJOR_VERSION" ]];then
-    say "New major version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
-    say "${RED}WARNING${NC}: Breaking changes were made to CNTools!\n"
-    say "${ORANGE}Please visit CNTools changelog site to see whats new and possibly breaking.${NC}\n"
-    say "We will not overwrite your changes automatically."
-    say "\n1) Please backup config/env files if changes has been made as well as wallet/pool folders:"
-    say " $CNODE_HOME/scripts/cntools.config"
-    say " $CNODE_HOME/scripts/env"
-    say " $CNODE_HOME/priv/wallet"
-    say " $CNODE_HOME/priv/pool"
-    say "\n2) After backup, run:"
-    say " wget -O $CNODE_HOME/scripts/cntools.sh ${URL}/cntools.sh"
-    say " wget -O $CNODE_HOME/scripts/cntools.config ${URL}/cntools.config"
-    say " wget -O $CNODE_HOME/scripts/cntools.library ${URL}/cntools.library"
-    say " wget -O $CNODE_HOME/scripts/cntoolsBlockCollector.sh ${URL}/cntoolsBlockCollector.sh"
-    say " wget -O $CNODE_HOME/scripts/env ${URL}/env"
-    say " chmod 750 $CNODE_HOME/scripts/cntools.sh $CNODE_HOME/scripts/cntoolsBlockCollector.sh"
-    say " chmod 640 $CNODE_HOME/scripts/cntools.library $CNODE_HOME/scripts/env"
-    say "\n3) As the last step restore modified parameters in config/env file if needed"
-  elif [[ "$CNTOOLS_MINOR_VERSION" != "$GIT_MINOR_VERSION" || "$CNTOOLS_PATCH_VERSION" != "$GIT_PATCH_VERSION" ]];then
-    say "New minor/patch version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
-    say "Applying update (no changes required for operation)..."
-    wget -q -O "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh"
-    wget -q -O "$CNODE_HOME/scripts/cntools.library" "$URL/cntools.library"
-    rc=$(wget -q -O "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "$URL/cntoolsBlockCollector.sh")
-    if [[ $rc == 0 ]]; then
-      say "Update applied successfully! Please start CNTools again !\n"
-      chmod +x "$CNODE_HOME/scripts/cntools.sh" "$CNODE_HOME/scripts/cntoolsBlockCollector.sh"
-      exit
+  URL_DOCS="https://raw.githubusercontent.com/cardano-community/guild-operators/master/docs/Scripts"
+  if wget -q -T 10 -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"; then
+    GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+    GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+    GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+    if [[ "$CNTOOLS_MAJOR_VERSION" != "$GIT_MAJOR_VERSION" ]];then
+      say "New major version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
+      say "${RED}WARNING${NC}: Breaking changes were made to CNTools!"
+																									 
+      waitForInput "We will not overwrite your changes automatically, press any key to continue"
+      say "\n\n1) Please backup config/env files if changes has been made as well as wallet/pool folders:"
+      say " $CNODE_HOME/scripts/cntools.config"
+      say " $CNODE_HOME/scripts/env"
+      say " $CNODE_HOME/priv/wallet"
+      say " $CNODE_HOME/priv/pool"
+      say "\n2) After backup, run:"
+      say " wget -O $CNODE_HOME/scripts/cntools.sh ${URL}/cntools.sh"
+      say " wget -O $CNODE_HOME/scripts/cntools.config ${URL}/cntools.config"
+      say " wget -O $CNODE_HOME/scripts/cntools.library ${URL}/cntools.library"
+      say " wget -O $CNODE_HOME/scripts/cntoolsBlockCollector.sh ${URL}/cntoolsBlockCollector.sh"
+      say " wget -O $CNODE_HOME/scripts/env ${URL}/env"
+      say " chmod 750 $CNODE_HOME/scripts/*.sh"
+      say " chmod 640 $CNODE_HOME/scripts/cntools.library $CNODE_HOME/scripts/env"
+      say "\n3) As the last step restore modified parameters in config/env file if needed"
+    elif [[ "$CNTOOLS_MINOR_VERSION" != "$GIT_MINOR_VERSION" || "$CNTOOLS_PATCH_VERSION" != "$GIT_PATCH_VERSION" ]];then
+      say "New minor/patch version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
+      say "Applying update (no changes required for operation)..."
+      if wget -q -T 10 -O "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh" &&
+         wget -q -T 10 -O "$CNODE_HOME/scripts/cntools.library" "$URL/cntools.library" &&
+         wget -q -T 10 -O "$CNODE_HOME/scripts/env" "$URL/env" &&
+         wget -q -T 10 -O "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "$URL/cntoolsBlockCollector.sh"; then
+        chmod 750 "$CNODE_HOME/scripts/"*.sh
+        chmod 640 "$CNODE_HOME/scripts/cntools.library" "$CNODE_HOME/scripts/cntools.config" "$CNODE_HOME/scripts/env"
+        say "\nUpdate applied successfully! Please start CNTools again !\n"
+        exit
+      else
+        say "\n${RED}ERROR${NC}: update unsuccessful, GitHub download failed!\n"
+      fi
+    else
+      say "${GREEN}Up to Date${NC}: You're using the latest version. No updates required!"
     fi
   else
-    say "${GREEN}Up to Date${NC}: You're using the latest version. No updates required!"
+    say "\n${RED}ERROR${NC}: download from GitHub failed, unable to perform version check!\n"
   fi
   waitForInput && continue
 

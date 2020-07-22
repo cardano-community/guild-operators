@@ -1,0 +1,161 @@
+{
+   "minSeverity": "Info",
+   "rotation": {
+      "rpLogLimitBytes": 10000000,
+      "rpKeepFilesNum": 10,
+      "rpMaxAgeHours": 24
+   },
+   "setupBackends": [
+      "KatipBK",
+      "EKGViewBK"
+   ],
+   "defaultBackends": [
+      "KatipBK"
+   ],
+   "hasEKG": 12781,
+   "hasPrometheus": [
+      "127.0.0.1",
+      13788
+   ],
+   "setupScribes": [
+     {
+       "scKind": "FileSK",
+       "scName": "/opt/cardano/cnode/logs/node-0.json",
+       "scFormat": "ScJson",
+       "scRotation": null
+     }
+   ],
+   "defaultScribes": [
+      [
+        "FileSK",
+        "/opt/cardano/cnode/logs/node-0.json"
+      ]
+   ],
+   "options": {
+      "mapSubtrace": {
+         "#ekgview": {
+            "contents": [
+               [
+                  {
+                     "tag": "Contains",
+                     "contents": "cardano.epoch-validation.benchmark"
+                  },
+                  [
+                     {
+                        "tag": "Contains",
+                        "contents": ".monoclock.basic."
+                     }
+                  ]
+               ],
+               [
+                  {
+                     "tag": "Contains",
+                     "contents": "cardano.epoch-validation.benchmark"
+                  },
+                  [
+                     {
+                        "tag": "Contains",
+                        "contents": "diff.RTS.cpuNs.timed."
+                     }
+                  ]
+               ],
+               [
+                  {
+                     "tag": "StartsWith",
+                     "contents": "#ekgview.#aggregation.cardano.epoch-validation.benchmark"
+                  },
+                  [
+                     {
+                        "tag": "Contains",
+                        "contents": "diff.RTS.gcNum.timed."
+                     }
+                  ]
+               ]
+            ],
+            "subtrace": "FilterTrace"
+         },
+         "cardano.epoch-validation.utxo-stats": {
+            "subtrace": "NoTrace"
+         }
+      },
+      "mapBackends": {
+         "cardano.node.ChainDB.metrics": [
+            "EKGViewBK",
+            {
+               "kind": "UserDefinedBK",
+               "name": "LiveViewBackend"
+            }
+         ],
+         "cardano.node.metrics.Forge": [
+            "EKGViewBK"
+         ],
+         "cardano.node.metrics.Mempool": [
+            "EKGViewBK"
+         ],
+         "cardano.node.metrics": [
+            "EKGViewBK",
+            {
+               "kind": "UserDefinedBK",
+               "name": "LiveViewBackend"
+            }
+         ],
+         "cardano.node.peers": [
+            "EKGViewBK"
+         ],
+         "cardano.node.BlockFetchDecision.peers": [
+            "EKGViewBK",
+            {
+               "kind": "UserDefinedBK",
+               "name": "LiveViewBackend"
+            }
+         ]
+      }
+   },
+   "Protocol": "Cardano",
+   "NetworkName": "phtn",
+   "ByronGenesisFile": "/opt/cardano/cnode/files/byron-genesis.json",
+   "ShelleyGenesisFile": "/opt/cardano/cnode/files/genesis.json",
+   "NumCoreNodes": 1,
+   "RequiresNetworkMagic": "RequiresNoMagic",
+   "TurnOnLogging": true,
+   "ViewMode": "LiveView",
+   "TurnOnLogMetrics": false,
+   "SocketPath": "/opt/cardano/cnode/sockets/node0.socket",
+   "EnableLogging": true,
+   "EnableLogMetrics": false,
+   "GenesisHash": "",
+   "ApplicationName": "cardano-sl",
+   "ApplicationVersion": 0,
+   "LastKnownBlockVersion-Major": 2,
+   "LastKnownBlockVersion-Minor": 0,
+   "LastKnownBlockVersion-Alt": 0,
+   "MaxKnownMajorProtocolVersion": 2,
+   "PBftSignatureThreshold": 0.9,
+   "TracingVerbosity": "MaximalVerbosity",
+   "TraceBlockFetchClient": true,
+   "TraceBlockFetchDecisions": true,
+   "TraceBlockFetchProtocol": true,
+   "TraceBlockFetchProtocolSerialised": true,
+   "TraceBlockFetchServer": true,
+   "TraceChainDb": true,
+   "TraceChainSyncClient": true,
+   "TraceChainSyncBlockServer": true,
+   "TraceChainSyncHeaderServer": true,
+   "TraceChainSyncProtocol": true,
+   "TraceDNSResolver": false,
+   "TraceDNSSubscription": false,
+   "TraceErrorPolicy": true,
+   "TraceLocalErrorPolicy": true,
+   "TraceForge": true,
+   "TraceHandshake": true,
+   "TraceIpSubscription": true,
+   "TraceLocalChainSyncProtocol": true,
+   "TraceLocalHandshake": false,
+   "TraceLocalTxSubmissionProtocol": true,
+   "TraceLocalTxSubmissionServer": true,
+   "TraceMempool": true,
+   "TraceMux": false,
+   "TraceTxInbound": true,
+   "TraceTxOutbound": true,
+   "TraceTxSubmissionProtocol": true
+}

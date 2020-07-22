@@ -12,7 +12,7 @@ To start the node in passive mode, execute the steps as below:
 
 ``` bash
 cardano-node run \
-          --config $CNODE_HOME/files/ptn0.yaml \
+          --config $CNODE_HOME/files/ptn0.json \
           --database-path $CNODE_HOME/db \
           --host-addr 0.0.0.0 \
           --port 5001 \
@@ -28,7 +28,7 @@ To start the node as a block producing pool, execute the steps as below:
 # POOLNAME=POOL123
 POOLKEYSPATH=$CNODE_HOME/priv/pool/$POOLNAME
 cardano-node run \
-          --config $CNODE_HOME/files/ptn0.yaml \
+          --config $CNODE_HOME/files/ptn0.json \
           --database-path $CNODE_HOME/db \
           --host-addr 0.0.0.0 \
           --port 5001 \
