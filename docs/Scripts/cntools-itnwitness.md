@@ -37,7 +37,7 @@ Optionally set an extended metadata URL?
   [y] Yes <----
 ```
 
-- Alternatively you can create your metadata in pooltool and enter the owner/witness in the metadata section along with the rest of your metadata.  Pooltool will create and host both files for you (or you can download them).  You can then feed the metadata URL to CNTools
+- Alternatively you can create your metadata in [pooltool](https://pooltool.io) and enter the owner/witness in the metadata section along with the rest of your metadata.  Pooltool will create and host both files for you (or you can download them).  You can then feed the metadata URL to CNTools
 ``` bash
 # Pool Metadata
 
