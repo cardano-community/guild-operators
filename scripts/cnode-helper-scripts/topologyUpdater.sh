@@ -1,5 +1,6 @@
 #!/bin/bash
-# shellcheck disable=SC2086 
+# shellcheck disable=SC2086,SC2034
+
 USERNAME="${USERNAME}" # replace nonroot with your username
 CNODE_PORT=6000  # must match your relay node port as set in the startup command
 CNODE_HOSTNAME="CHANGE ME"  # optional. must resolve to the IP you are requesting from
