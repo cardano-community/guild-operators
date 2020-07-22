@@ -196,20 +196,20 @@ chmod -R 755 "$CNODE_HOME"
 
 cd "$CNODE_HOME/files" || return
 
-curl -s -o ptn0-praos.yaml https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0-praos.yaml
-curl -s -o ptn0-combinator.yaml https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0-combinator.yaml
+curl -s -o ptn0-praos.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0-praos.json
+curl -s -o ptn0-combinator.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0-combinator.json
 curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/genesis.json | jq '.' > genesis.json
 curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/byron-genesis.json | jq '.' > byron-genesis.json
 curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/topology.json | jq '.' > topology.json
 
 if [[ "$1" = "p" ]]; then
-  cp ptn0-praos.yaml ptn0.yaml
+  cp ptn0-praos.json ptn0.json
 else
-  cp ptn0-combinator.yaml ptn0.yaml
+  cp ptn0-combinator.json ptn0.json
 fi
 
 # If using a different CNODE_HOME than in this example, execute the below:
-# sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/ptn*.yaml
+# sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/ptn*.json
 ## For future use:
 ## It generates random NodeID:
 ## -e "s#NodeId:.*#NodeId:$(od -A n -t u8 -N 8 /dev/urandom$(#" \

@@ -51,8 +51,8 @@ Running the script above will create the folder structure as per below, for your
     ├── ...
     ├── files                   # Config, genesis and topology files
     │   ├── ...
-    │   ├── genesis.json        # Genesis file referenced in ptn0.yaml
-    │   ├── ptn0.yaml           # Config file used by cardano-node
+    │   ├── genesis.json        # Genesis file referenced in ptn0.json
+    │   ├── ptn0.json           # Config file used by cardano-node
     │   └── topology.json       # Map of chain for cardano-node to boot from
     ├── db                      # DB Store for cardano-node
     ├── logs                    # Logs for cardano-node

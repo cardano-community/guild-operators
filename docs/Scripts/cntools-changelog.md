@@ -8,9 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [5.0.0] - 2020-07-20
+
+**Note: Please re-run prereqs.sh, archive/delete old keys and pool folders if you're upgrading, the config files (+ crypto hash if upgrading to 1.16.*) have changed.**
+
 ### Added
 - HASH_IDENTIFIER where applicable to differentiate between network modes for commands used, required due to legacy Byron considerations
-- add ptn0-praos.yaml, make prereqs default to combinator, and accept p argument to indicate praos mode.
+- add ptn0-praos.json and ptn0-combinator.json to reduce confusion between formats, make prereqs default to combinator, and accept p argument to indicate praos mode.
 - cardano-node 1.16.0 refers to txhash using quotes, sed them out
 - show what's new at startup after update
 - file size check for pool metadata file
