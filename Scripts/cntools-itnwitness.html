@@ -163,6 +163,10 @@
 <ul>
 <li>You need to use your owner keys that was used to register your pool , and it should match the owner <em>public</em> key you presented on <a href="https://github.com/cardano-foundation/incentivized-testnet-stakepool-registry">official cardano-foundation github</a> while registering metadata.</li>
 <li>Store your pool ID in a file (eg: <code>mainnet_pool.id</code>)</li>
+</ul>
+<pre><code class="language-bash">echo &quot;916a28d91c9c6e9ac60d6732823e2cb12800bc9fa955aa7a695a5052&quot; &gt; mainnet_pool.id
+</code></pre>
+<ul>
 <li>Sign the file using your owner secret key from ITN (eg: <code>owner_skey</code>) as per below:</li>
 </ul>
 <pre><code class="language-bash">jcli key sign --secret-key owner_skey mainnet_pool.id --output mainnet_pool.sig
@@ -183,6 +187,18 @@ cat mainnet_pool.sig
 <li>Host this signature file online at a URL with raw contents easily accessible on internet (eg: https://my.pool.com/extended-metadata.json)</li>
 <li>When you register/modify a pool using CNTools, use the above mentioned URL to add to your pool metadata.</li>
 </ul>
+<pre><code>Optionally set an extended metadata URL?
+
+  [n] No
+  [y] Yes &lt;----
+</code></pre>
+<ul>
+<li>Alternatively you can create your metadata in <a href="https://pooltool.io">pooltool</a> and enter the owner/witness in the metadata section along with the rest of your metadata.  Pooltool will create and host both files for you (or you can download them).  You can then feed the metadata URL to CNTools</li>
+</ul>
+<pre><code class="language-bash"># Pool Metadata
+
+Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: https://data.pooltool.io/md/02b43ba1-c9e4-45c4-8dab-73fe4073a1f3):
+</code></pre>
 <p>If the process is approved to appear for wallets, we may consider providing easier alternatives. If any queries about the process, or any additions please create a git issue/PR against guild repository - to capture common queries and update instructions/help text where appropriate.</p>
 
                     </main>
