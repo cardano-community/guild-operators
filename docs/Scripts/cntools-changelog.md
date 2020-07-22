@@ -7,6 +7,12 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [5.0.1] - 2020-07-22
+### Fixed
+- Slot sync format improvement
+
+
 ## [5.0.0] - 2020-07-20
 
 **Note: Please re-run prereqs.sh, archive/delete old keys and pool folders if you're upgrading, the config files (+ crypto hash if upgrading to 1.16.*) have changed.**
