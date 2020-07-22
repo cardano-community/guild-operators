@@ -159,7 +159,7 @@ Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Req
 <h4><a class="header" href="#start-passive-node" id="start-passive-node">Start Passive Node</a></h4>
 <p>To start the node in passive mode, execute the steps as below:</p>
 <pre><code class="language-bash">cardano-node run \
-          --config $CNODE_HOME/files/ptn0.yaml \
+          --config $CNODE_HOME/files/ptn0.json \
           --database-path $CNODE_HOME/db \
           --host-addr 0.0.0.0 \
           --port 5001 \
@@ -172,7 +172,7 @@ Ensure the <a href="Common.html#dependencies-and-folder-structure-setup">Pre-Req
 # POOLNAME=POOL123
 POOLKEYSPATH=$CNODE_HOME/priv/pool/$POOLNAME
 cardano-node run \
-          --config $CNODE_HOME/files/ptn0.yaml \
+          --config $CNODE_HOME/files/ptn0.json \
           --database-path $CNODE_HOME/db \
           --host-addr 0.0.0.0 \
           --port 5001 \

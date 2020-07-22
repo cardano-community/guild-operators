@@ -152,7 +152,7 @@
                 <div id="content" class="content">
                     <main>
                         <h1><a class="header" href="#cntools" id="cntools">CNTools</a></h1>
-<p>CNTools is a shell script that will simplify typical operations for wallets and pool management. The tool is developed against the latest master branch of <a href="https://github.com/input-output-hk/cardano-node">cardano-node</a> and as such may contain breaking changes not compatible with all testnet networks running against a specific tag. As the code matures these breaking changes should be less frequent. Please note that this tool is tested on Linux platforms only at this point.</p>
+<p>CNTools is a shell script that will simplify typical operations for wallets and pool management. The tool is intended to be developed against the latest working commit on master branch of <a href="https://github.com/input-output-hk/cardano-node">cardano-node</a> and as such may contain breaking changes not compatible with old testnet networks running against a specific tag. As the code matures these breaking changes should be less frequent. Please note that this tool is tested on Linux platforms only at this point and should <strong>NOT</strong> act as an excuse for Pool Operators to skip reading about how Staking works or basics of Linux operations. The skills highlighted in <a href="https://docs.cardano.org/en/latest/getting-started/stake-pool-operators/prerequisites.html">official documentation</a> are paramount for a stake pool operator, and so is the understanding of configuration files and network.</p>
 <p>The script assumes the <a href="../Common.html#dependencies-and-folder-structure-setup">Pre-Requisites</a> have already been run.</p>
 <p>Visit the <a href="cntools-changelog.html">Changelog</a> section to see progress and current release.</p>
 <ul>
@@ -184,7 +184,7 @@ wget -O cntools.config https://raw.githubusercontent.com/cardano-community/guild
 wget -O cntools.library https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.library
 wget -O cntoolsBlockCollector.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntoolsBlockCollector.sh
 wget -O env https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
-chmod 750 cntools.sh cntoolsBlockCollector.sh
+chmod 750 *.sh
 chmod 640 cntools.config cntools.library env
 </code></pre>
 <h4><a class="header" href="#start" id="start">Start</a></h4>
