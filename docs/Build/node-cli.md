@@ -13,7 +13,7 @@ cd cardano-node
 
 ##### Temporary step for end-users, since master is often broken incompatible with new networks
 git fetch --tags --all
-git checkout release/1.14.x
+git checkout release/1.16.x
 #####
 
 ### Please ensure you have run the *UPDATED* prereqs.sh (see link at top of this document) before continuing
@@ -29,7 +29,7 @@ Execute cardano-cli and cardano-node to verify output as below:
 
 ```bash
 cardano-cli version
-# cardano-cli 1.11.0 - linux-x86_64 - ghc-8.6
+# cardano-cli 1.16.0 - linux-x86_64 - ghc-8.6
 cardano-node
 #Usage: cardano-node (run | run-mock) [--help]
 #  Start node of the Cardano blockchain.
