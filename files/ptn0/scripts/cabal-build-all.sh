@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # executes cabal build all
 # parses executables created from compiler output and copies it to ~./cabal/bin folder.
