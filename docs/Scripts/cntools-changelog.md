@@ -11,6 +11,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [5.0.1] - 2020-07-22
 ### Fixed
 - Slot sync format improvement
+- kesExpiration function to use 17 fixed byron transition epochs 
 
 
 ## [5.0.0] - 2020-07-20
