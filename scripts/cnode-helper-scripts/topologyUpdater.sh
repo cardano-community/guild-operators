@@ -1,5 +1,6 @@
 #!/bin/bash
-# shellcheck disable=SC2086 
+# shellcheck disable=SC2086,SC2034
+
 USERNAME="${USERNAME}" # replace nonroot with your username
 CNODE_PORT=6000  # must match your relay node port as set in the startup command
 CNODE_HOSTNAME="CHANGE ME"  # optional. must resolve to the IP you are requesting from
@@ -10,17 +11,14 @@ CNODE_LOG_DIR="${CNODE_HOME}/logs/"
 CONFIG="$CNODE_HOME/files/ptn0.json"
 GENESIS_JSON="${CNODE_HOME}/files/genesis.json"
 NETWORKID=$(jq -r .networkId $GENESIS_JSON)
-PROTOCOL=$(jq -r .Protocol "$CONFIG")
+PROTOCOL=$(grep -E '^.{0,1}Protocol.{0,1}:' "$CONFIG" | tr -d '"' | tr -d ',' | awk '{print $2}')
 if [[ "${PROTOCOL}" = "Cardano" ]]; then
   PROTOCOL_IDENTIFIER="--cardano-mode"
 fi
 CNODE_VALENCY=1   # optional for multi-IP hostnames
 NWMAGIC=$(jq -r .networkMagic < $GENESIS_JSON)
-if [[ "${NETWORKID}" = "Mainnet" ]]; then
-  NETWORK_IDENTIFIER="--mainnet"
-else
-  NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
-fi
+[[ "${NETWORKID}" = "Mainnet" ]] && HASH_IDENTIFIER="--mainnet" || HASH_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+[[ "${NWMAGIC}" = "764824073" ]] && NETWORK_IDENTIFIER="--mainnet" || NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
 
 export PATH="${CNODE_BIN}:${PATH}"
 export CARDANO_NODE_SOCKET_PATH="${CNODE_HOME}/sockets/node0.socket"
