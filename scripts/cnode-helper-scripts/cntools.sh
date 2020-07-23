@@ -2243,7 +2243,7 @@ case $OPERATION in
       for key in ${delegators}; do
         printf "\r"
         stake=$(jq ".esLState._utxoState._utxo | .[] | select(.address | contains(\"${key}\")) | .amount" "${TMP_FOLDER}"/ledger-state.json | awk 'BEGIN{total = 0} {total = total + $1} END{printf "%.0f", total}')
-        reward=$(jq -r ".esLState._delegationState._dstate._rewards | .[] | select(.[0][\"credential\"][\"key hash\"] == \"${key}\") | .[1]" "${TMP_FOLDER}"/ledger-state.json)
+        reward=$(jq -r ".esLState._delegationState._dstate._rewards | .[] | select(.[0][\"key hash\"] == \"${key}\") | .[1]" "${TMP_FOLDER}"/ledger-state.json)
         total_stake=$((total_stake + stake + reward))
         stake_color="${CYAN}"
         if echo "${owners}" | grep -q "${key}"; then
