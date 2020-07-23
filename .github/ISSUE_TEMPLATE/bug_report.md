@@ -25,7 +25,9 @@ If applicable, add screenshots to help explain your problem.
 
 **Version:**
  - OS: [e.g. CentOS 8]
- - Product version [e.g. CNTools 5.0.1]
+ - Product version: [e.g. CNTools 5.0.1]
+ - Cardano Node version: [e.g. output of `cardano-node version`]
+ - Network you're connecting to: [output of `jq -r .systemStart $CNODE_HOME/files/genesis.json`]
 
 **Additional context**
 Add any other context about the problem here.
