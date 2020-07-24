@@ -374,8 +374,8 @@ getSlotTipRef() {
     # Combinator network
     byron_genesis_start_time_sec=$(jq -r .startTime "${BYRON_GENESIS_JSON}")
     byron_slots=$(( ( shelley_genesis_start_time_sec - byron_genesis_start_time_sec ) / 20 ))
-    byron_shelley_trans_slots=$(( ( 17 * epoch_length ) / 20 )) # 17 epoch transition valid for mainnet candidate, fix for mainnet
-    byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( 17 * epoch_length ) ))
+    byron_shelley_trans_slots=$(( ( $(cat $SHELLEY_TRANS_FILENAME) * epoch_length ) / 20 ))
+    byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * epoch_length ) ))
     if [[ "${current_time_sec}" -lt "${byron_shelley_trans_end}" ]]; then
       # In Byron phase
       echo $(( byron_slots + ( current_time_sec - shelley_genesis_start_time_sec ) / 20 ))
@@ -432,7 +432,7 @@ getCurrentKESperiod() {
   slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
   current_time_sec=$(date -u +%s)
   if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
-    byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * epoch_length ) )) # 17 epoch transition valid for mainnet candidate, fix for mainnet
+    byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * epoch_length ) ))
     current_kes_period=$(( ( current_time_sec - byron_shelley_trans_end ) / ( slots_per_kes_period * slot_length ) ))
   else
     current_kes_period=$(( ( current_time_sec - shelley_genesis_start_time_sec ) / ( slots_per_kes_period * slot_length ) ))
