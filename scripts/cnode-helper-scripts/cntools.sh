@@ -1296,7 +1296,7 @@ case $OPERATION in
       fi
       read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
       [[ -n "${desc_enter}" ]] && meta_description="${desc_enter}"
-      if [[ ${#meta_name} -gt 255 ]]; then
+      if [[ ${#meta_description} -gt 255 ]]; then
         say "${RED}ERROR${NC}: Description cannot exceed 255 characters"
         waitForInput && continue
       fi
@@ -1713,7 +1713,7 @@ case $OPERATION in
       fi
       read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
       [[ -n "${desc_enter}" ]] && meta_description="${desc_enter}"
-      if [[ ${#meta_name} -gt 255 ]]; then
+      if [[ ${#meta_description} -gt 255 ]]; then
         say "${RED}ERROR${NC}: Description cannot exceed 255 characters"
         waitForInput && continue
       fi
