@@ -9,9 +9,6 @@ mv $CNODE_HOME/logs/*.json $CNODE_HOME/logs/archive/
 
 cardano-node run \
 	--topology $CNODE_HOME/files/topology.json \
-	--shelley-kes-key $CNODE_HOME/priv/kes.skey \
-	--shelley-operational-certificate $CNODE_HOME/priv/ops.cert \
-	--shelley-vrf-key $CNODE_HOME/priv/vrf.skey \
 	--config $CNODE_HOME/files/ptn0.json \
 	--database-path $CNODE_HOME/db \
 	--socket-path $CNODE_HOME/sockets/node0.socket \
