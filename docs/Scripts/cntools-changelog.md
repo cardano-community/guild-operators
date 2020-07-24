@@ -7,10 +7,19 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.3] - 2020-07-24
+
+**Due to recent changes, following is required:**
+1. prereqs.sh (default it will set you up against MC3)
+2. Clear db folder
+3. clear logs folder
+4. start using updated cnode.sh
+
+### Changed
+- moved update check to be one of the first things CNTools does after start to be able to show critical changes before anything else runs.
+
 
 ## [5.0.2] - 2020-07-24
-
-**Note: Please re-run prereqs.sh, use updated cnode.sh to start your node (you can edit the script to add keys if pool already created), and please ensure to clear your `$CNODE_HOME/db` folder once before you proceed
 
 ### Changed
 - Parse node logs to check the transition from Byron to shelley era, and save the epoch for transition in db folder. This is required for calculating KES keys.
