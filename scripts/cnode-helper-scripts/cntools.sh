@@ -22,38 +22,6 @@ if [[ ! -d "${TMP_FOLDER}" ]]; then
   exit 1
 fi
 
-# check for required command line tools
-if ! need_cmd "curl" || \
-   ! need_cmd "jq" || \
-   ! need_cmd "bc" || \
-   ! need_cmd "sed" || \
-   ! need_cmd "awk"; then exit 1
-fi
-
-# Verify if the combinator network is already on shelley and if so, the epoch of transition
-if [[ "${PROTOCOL}" == "Cardano" ]]; then
-  if [[ "$(cat $SHELLEY_TRANS_FILENAME 2>/dev/null)" == ""  ]]; then
-    shelleyTransitionEpoch=$(grep -i hardforkupdatetransitionconfirmed $CNODE_HOME/logs/*.json 2>/dev/null | cut -d: -f 2- | tail -1 | jq -r '.data.events[1].transitionEpoch')
-    if [[ "$shelleyTransitionEpoch" != "" ]]; then
-      echo "$shelleyTransitionEpoch" > "$SHELLEY_TRANS_FILENAME"
-    else
-      say "${ORANGE}WARN${NC}: The logs indicate that cardano-node has not yet synched to network or the network has not reached the hard fork from Byron to shelley , please wait to use CNTools until your node is in shelley era"
-      exit 1
-    fi
-  else
-    shelleyTransitionEpoch=$(cat "$SHELLEY_TRANS_FILENAME")
-  fi
-fi
-
-# Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
-${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/protparams.json 2>/dev/null|| {
-  say "${ORANGE}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)"
-  say "\n${BLUE}Press c to continue or any other key to quit${NC}"
-  say "only offline functions will be available if you continue\n"
-  read -r -n 1 -s -p "" answer
-  [[ "${answer}" != "c" ]] && exit 1
-}
-
 # check to see if there are any updates available
 clear
 say "CNTools version check...\n"
@@ -98,6 +66,38 @@ else
   say "\n${RED}ERROR${NC}: failed to download cntools.library from GitHub, unable to perform version check!\n"
   waitForInput "press any key to proceed"
 fi
+
+# check for required command line tools
+if ! need_cmd "curl" || \
+   ! need_cmd "jq" || \
+   ! need_cmd "bc" || \
+   ! need_cmd "sed" || \
+   ! need_cmd "awk"; then exit 1
+fi
+
+# Verify if the combinator network is already on shelley and if so, the epoch of transition
+if [[ "${PROTOCOL}" == "Cardano" ]]; then
+  if [[ "$(cat $SHELLEY_TRANS_FILENAME 2>/dev/null)" == ""  ]]; then
+    shelleyTransitionEpoch=$(grep -i hardforkupdatetransitionconfirmed $CNODE_HOME/logs/*.json 2>/dev/null | cut -d: -f 2- | tail -1 | jq -r '.data.events[1].transitionEpoch')
+    if [[ "$shelleyTransitionEpoch" != "" ]]; then
+      echo "$shelleyTransitionEpoch" > "$SHELLEY_TRANS_FILENAME"
+    else
+      say "${ORANGE}WARN${NC}: The logs indicate that cardano-node has not yet synched to network or the network has not reached the hard fork from Byron to shelley , please wait to use CNTools until your node is in shelley era"
+      exit 1
+    fi
+  else
+    shelleyTransitionEpoch=$(cat "$SHELLEY_TRANS_FILENAME")
+  fi
+fi
+
+# Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
+${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/protparams.json 2>/dev/null|| {
+  say "${ORANGE}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)"
+  say "\n${BLUE}Press c to continue or any other key to quit${NC}"
+  say "only offline functions will be available if you continue\n"
+  read -r -n 1 -s -p "" answer
+  [[ "${answer}" != "c" ]] && exit 1
+}
 
 # check if there are pools in need of KES key rotation
 clear
