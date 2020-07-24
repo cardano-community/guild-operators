@@ -156,9 +156,20 @@
 <p><strong>Note: Whenever you're updating between versions where format/hash of keys have changed , or you're changing networks - it is recommended to archive $CNODE_HOME/priv/wallet and $CNODE_HOME/priv/pool folders before you proceed with launching cntools on a fresh network.</strong></p>
 <p>The format is based on <a href="https://keepachangelog.com/en/1.0.0/">Keep a Changelog</a>,
 and this adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
-<h2><a class="header" href="#502---2020-07-24" id="502---2020-07-24">[5.0.2] - 2020-07-24</a></h2>
-<p>**Note: Please re-run prereqs.sh, use updated cnode.sh to start your node (you can edit the script to add keys if pool already created), and please ensure to clear your <code>$CNODE_HOME/db</code> folder once before you proceed</p>
+<h2><a class="header" href="#503---2020-07-24" id="503---2020-07-24">[5.0.3] - 2020-07-24</a></h2>
+<p><strong>Due to recent changes, following is required:</strong></p>
+<ol>
+<li>prereqs.sh (default it will set you up against MC3)</li>
+<li>Clear db folder</li>
+<li>clear logs folder</li>
+<li>start using updated cnode.sh</li>
+</ol>
 <h3><a class="header" href="#changed" id="changed">Changed</a></h3>
+<ul>
+<li>moved update check to be one of the first things CNTools does after start to be able to show critical changes before anything else runs.</li>
+</ul>
+<h2><a class="header" href="#502---2020-07-24" id="502---2020-07-24">[5.0.2] - 2020-07-24</a></h2>
+<h3><a class="header" href="#changed-1" id="changed-1">Changed</a></h3>
 <ul>
 <li>Parse node logs to check the transition from Byron to shelley era, and save the epoch for transition in db folder. This is required for calculating KES keys.
 <ul>
@@ -190,7 +201,7 @@ and this adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versi
 <li>Add nonce in pool metadata JSON to keep registration attempts unique, avoiding one hash pointing to multiple URLs</li>
 <li>Change default network to <code>mainnet_candidate</code>, and add second argument (g) to run prereqs against guild network</li>
 </ul>
-<h3><a class="header" href="#changed-1" id="changed-1">Changed</a></h3>
+<h3><a class="header" href="#changed-2" id="changed-2">Changed</a></h3>
 <ul>
 <li>Default config switched to combinator instead of testnet</li>
 <li>Start maintaining seperate versions of praos and combinator config files.</li>
@@ -219,7 +230,7 @@ and this adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versi
 <ul>
 <li>NODE_SOCKET_PATH config parameter(replaced by CARDANO_NODE_SOCKET_PATH)</li>
 </ul>
-<h3><a class="header" href="#changed-2" id="changed-2">Changed</a></h3>
+<h3><a class="header" href="#changed-3" id="changed-3">Changed</a></h3>
 <ul>
 <li>Pool metadata information to copy file as-is as well as wait for keypress to make sure file is copied before proceeding with registration.</li>
 </ul>
@@ -251,7 +262,7 @@ and this adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versi
 </ul>
 </li>
 </ul>
-<h3><a class="header" href="#changed-3" id="changed-3">Changed</a></h3>
+<h3><a class="header" href="#changed-4" id="changed-4">Changed</a></h3>
 <ul>
 <li>Now use internal table builder to display previous relays</li>
 <li>Instead of giving relays from previous registration as default values it will now ask if you want to re-register relays exactly as before to minimize steps and complexity</li>
@@ -272,12 +283,12 @@ and this adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versi
 <li>Add PROTOCOL_IDENTIFIER and NETWORK_IDENTIFIER instead of harcoded entries for combinator v/s TPraos &amp; testnet v/s magic differentiators respectively.</li>
 <li>Keep both ptn0.yaml and ptn0-combinator.yaml to keep validity with mainnet-combinator</li>
 </ul>
-<h3><a class="header" href="#changed-4" id="changed-4">Changed</a></h3>
+<h3><a class="header" href="#changed-5" id="changed-5">Changed</a></h3>
 <ul>
 <li>Revert back default for Public network to Shelley_Testnet as per https://t.me/CardanoStakePoolWorkgroup/282606</li>
 </ul>
 <h2><a class="header" href="#300---2020-07-12" id="300---2020-07-12">[3.0.0] - 2020-07-12</a></h2>
-<h3><a class="header" href="#changed-5" id="changed-5">Changed</a></h3>
+<h3><a class="header" href="#changed-6" id="changed-6">Changed</a></h3>
 <ul>
 <li>Release <code>2.1.1</code> included a change to env file and thus require a major version bump.</li>
 <li>Modified output on Update screen slightly.</li>
@@ -292,7 +303,7 @@ and this adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versi
 </li>
 <li>Address era and encoding to <code>Wallet &gt;&gt; Show</code></li>
 </ul>
-<h3><a class="header" href="#changed-6" id="changed-6">Changed</a></h3>
+<h3><a class="header" href="#changed-7" id="changed-7">Changed</a></h3>
 <ul>
 <li>KES calculation, now take into account the byron era and the transition period until shelley start
 <ul>
@@ -334,7 +345,7 @@ A new config parameter added for output verbosity using say function.<br />
 <li>KES rotation notification/warning on startup and in pool list/show views</li>
 <li>Changelog </li>
 </ul>
-<h3><a class="header" href="#changed-7" id="changed-7">Changed</a></h3>
+<h3><a class="header" href="#changed-8" id="changed-8">Changed</a></h3>
 <ul>
 <li>op-cert creation moved from <code>Pool &gt;&gt; New</code> to <code>Pool &gt;&gt; Register</code>.</li>
 <li>Output changed in various places throughout.</li>
@@ -379,7 +390,7 @@ In-app update modified to reflect this change.</li>
 <code>Wallet &gt;&gt; LIST</code> now offer an upgrade option if it finds a wallet with payment address that has funds in it. Special note added in case a genesis address is found.</li>
 <li>Update message on startup</li>
 </ul>
-<h3><a class="header" href="#changed-8" id="changed-8">Changed</a></h3>
+<h3><a class="header" href="#changed-9" id="changed-9">Changed</a></h3>
 <ul>
 <li>Support for payment address(aka enterprise) minimised to default on base address support, as Everything that can be done with a payment address can also be done with the base address.</li>
 <li>Reduce a step to Update (register) wallet keys, and moved this step to delegate/register pool step based on a check to see if the registration is required.</li>
@@ -404,7 +415,7 @@ In-app update modified to reflect this change.</li>
 <li>Default values for relay on pool modify and re-registration</li>
 <li>New pool config parameter for relay type called <code>type</code> containing either IPv4 or DNS_A currently.</li>
 </ul>
-<h3><a class="header" href="#changed-9" id="changed-9">Changed</a></h3>
+<h3><a class="header" href="#changed-10" id="changed-10">Changed</a></h3>
 <ul>
 <li>Old relays table on modify/registration redone to include type. Also put together a little different to handle null values and omit quotation marks.</li>
 <li>Pool show updated to show type for relay</li>
@@ -421,7 +432,7 @@ In-app update modified to reflect this change.</li>
 see github commit history for details before this release</li>
 <li>In-app update for cntools</li>
 </ul>
-<h3><a class="header" href="#changed-10" id="changed-10">Changed</a></h3>
+<h3><a class="header" href="#changed-11" id="changed-11">Changed</a></h3>
 <ul>
 <li>Update CNTools Doco to include Version on home screen</li>
 </ul>
