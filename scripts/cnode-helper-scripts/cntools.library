@@ -432,7 +432,7 @@ getCurrentKESperiod() {
   slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
   current_time_sec=$(date -u +%s)
   if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
-    byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( 17 * epoch_length ) )) # 17 epoch transition valid for mainnet candidate, fix for mainnet
+    byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * epoch_length ) )) # 17 epoch transition valid for mainnet candidate, fix for mainnet
     current_kes_period=$(( ( current_time_sec - byron_shelley_trans_end ) / ( slots_per_kes_period * slot_length ) ))
   else
     current_kes_period=$(( ( current_time_sec - shelley_genesis_start_time_sec ) / ( slots_per_kes_period * slot_length ) ))
@@ -456,7 +456,7 @@ kesExpiration() {
   epoch_length=$(jq -r .epochLength "${GENESIS_JSON}")
   slot_length=$(jq -r .slotLength "${GENESIS_JSON}")
   slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
-  byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( 17 * epoch_length ) ))
+  byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * epoch_length ) ))
   expiration_time_sec=$(( ${byron_shelley_trans_end} + ( ${slot_length} * ${kes_expiration_period} * ${slots_per_kes_period} ) ))
   current_time_sec=$(date -u +%s)
   expiration_time_sec_diff=$(( expiration_time_sec - current_time_sec ))

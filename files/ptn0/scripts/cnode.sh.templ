@@ -1,8 +1,11 @@
 #!/bin/bash
+# shellcheck disable=SC2086
 
-if [ -z "$CNODE_HOME" ]; then
-    CNODE_HOME="/opt/cardano/cnode"
-fi
+[[ -z "$CNODE_HOME" ]] && CNODE_HOME="/opt/cardano/cnode"
+
+[[ ! -d "$CNODE_HOME/logs/archive" ]] && mkdir -p "$CNODE_HOME/logs/archive"
+
+mv $CNODE_HOME/logs/*.json $CNODE_HOME/logs/archive/
 
 cardano-node run \
 	--topology $CNODE_HOME/files/topology.json \

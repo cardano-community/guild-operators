@@ -203,9 +203,9 @@ if [[ "$2" = "g" ]]; then
   curl -s -o byron-genesis.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/byron-genesis.json
   curl -s -o topology.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/topology.json
 else
-  curl -s -o byron-genesis.json https://hydra.iohk.io/build/3554884/download/1/mainnet_candidate-byron-genesis.json
-  curl -s -o genesis.json https://hydra.iohk.io/build/3554884/download/1/mainnet_candidate-shelley-genesis.json
-  curl -s -o topology.json https://hydra.iohk.io/build/3554884/download/1/mainnet_candidate-topology.json
+  curl -sL -o $CNODE_HOME/files/byron-genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet_candidate_3-byron-genesis.json
+  curl -sL -o $CNODE_HOME/files/genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet_candidate_3-shelley-genesis.json
+  curl -sL -o $CNODE_HOME/files/topology.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet_candidate_3-topology.json
 fi
 
 if [[ "$1" = "p" ]]; then
