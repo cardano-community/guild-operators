@@ -7,6 +7,15 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.4] - 2020-07-25
+### Fixed
+- column application added as a prereq, bsdmainutils/util-linux
+
+### Changed
+- Meta description now has a limit of 255 chars to match smash server limit
+- ledger-state timeout increased to 60s
+
+
 ## [5.0.3] - 2020-07-24
 
 **Due to recent changes, following is required:**

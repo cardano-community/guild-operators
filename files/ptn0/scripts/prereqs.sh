@@ -100,7 +100,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo apt-get -y install libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev yarn make g++ tmux git jq wget libncursesw5 gnupg aptitude libtool autoconf > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
-      echo "sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev npm yarn make g++ tmux git jq wget libncursesw5 gnupg libtool autoconf"
+      echo "sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev npm yarn make g++ tmux git jq wget libncursesw5 gnupg libtool autoconf bsdmainutils"
       echo "It would be best if you could submit an issue at https://github.com/cardano-community/guild-operators with the details to tackle in future, as some errors may be due to external/already present dependencies"
       exit;
     else
@@ -118,7 +118,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo yum -y install python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq gnupg libtool autoconf > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
-      echo "sudo yum -y install coreutils python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq gnupg libtool autoconf"
+      echo "sudo yum -y install coreutils python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq gnupg libtool autoconf util-linux"
       echo "It would be best if you could submit an issue at https://github.com/cardano-community/guild-operators with the details to tackle in future, as some errors may be due to external/already present dependencies"
       exit;
     fi
