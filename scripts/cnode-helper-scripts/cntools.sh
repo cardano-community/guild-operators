@@ -22,15 +22,6 @@ if [[ ! -d "${TMP_FOLDER}" ]]; then
   exit 1
 fi
 
-# Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
-${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/protparams.json || {
-  say "${ORANGE}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (and in shelley era)"
-  say "\n${BLUE}Press c to continue or any other key to quit${NC}"
-  say "only offline functions will be available if you continue\n"
-  read -r -n 1 -s -p "" answer
-  [[ "${answer}" != "c" ]] && exit 1
-}
-
 # check for required command line tools
 if ! need_cmd "curl" || \
    ! need_cmd "jq" || \
@@ -38,6 +29,30 @@ if ! need_cmd "curl" || \
    ! need_cmd "sed" || \
    ! need_cmd "awk"; then exit 1
 fi
+
+# Verify if the combinator network is already on shelley and if so, the epoch of transition
+if [[ "${PROTOCOL}" == "Cardano" ]]; then
+  if [[ "$(cat $SHELLEY_TRANS_FILENAME 2>/dev/null)" == ""  ]]; then
+    shelleyTransitionEpoch=$(grep -i hardforkupdatetransitionconfirmed $CNODE_HOME/logs/*.json 2>/dev/null | cut -d: -f 2- | tail -1 | jq -r '.data.events[1].transitionEpoch')
+    if [[ "$shelleyTransitionEpoch" != "" ]]; then
+      echo "$shelleyTransitionEpoch" > "$SHELLEY_TRANS_FILENAME"
+    else
+      say "${ORANGE}WARN${NC}: The logs indicate that cardano-node has not yet synched to network or the network has not reached the hard fork from Byron to shelley , please wait to use CNTools until your node is in shelley era"
+      exit 1
+    fi
+  else
+    shelleyTransitionEpoch=$(cat "$SHELLEY_TRANS_FILENAME")
+  fi
+fi
+
+# Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
+${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/protparams.json 2>/dev/null|| {
+  say "${ORANGE}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)"
+  say "\n${BLUE}Press c to continue or any other key to quit${NC}"
+  say "only offline functions will be available if you continue\n"
+  read -r -n 1 -s -p "" answer
+  [[ "${answer}" != "c" ]] && exit 1
+}
 
 # check to see if there are any updates available
 clear
@@ -2243,7 +2258,7 @@ case $OPERATION in
       for key in ${delegators}; do
         printf "\r"
         stake=$(jq ".esLState._utxoState._utxo | .[] | select(.address | contains(\"${key}\")) | .amount" "${TMP_FOLDER}"/ledger-state.json | awk 'BEGIN{total = 0} {total = total + $1} END{printf "%.0f", total}')
-        reward=$(jq -r ".esLState._delegationState._dstate._rewards | .[] | select(.[0][\"credential\"][\"key hash\"] == \"${key}\") | .[1]" "${TMP_FOLDER}"/ledger-state.json)
+        reward=$(jq -r ".esLState._delegationState._dstate._rewards | .[] | select(.[0][\"key hash\"] == \"${key}\") | .[1]" "${TMP_FOLDER}"/ledger-state.json)
         total_stake=$((total_stake + stake + reward))
         stake_color="${CYAN}"
         if echo "${owners}" | grep -q "${key}"; then

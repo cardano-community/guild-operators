@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [5.0.2] - 2020-07-24
+
+**Note: Please re-run prereqs.sh, use updated cnode.sh to start your node (you can edit the script to add keys if pool already created), and please ensure to clear your `$CNODE_HOME/db` folder once before you proceed
+
+### Changed
+- Parse node logs to check the transition from Byron to shelley era, and save the epoch for transition in db folder. This is required for calculating KES keys.
+  - Please make sure to use **config files created by the prereqs.sh, or enable JSON loggers for your config**.
+- Update cnode.sh.templ to archive logs every time node is restart, this ensures that we're not searching for previous log history when network was changed. Network being changed would automatically deduce db folder was deleted.
+- Update default network to MC3
+
+### Fixed
+- `Pool >> Show` delegator rewards parsing from ledger-state
+
 ## [5.0.1] - 2020-07-22
 ### Fixed
 - Slot sync format improvement
