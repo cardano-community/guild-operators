@@ -8,21 +8,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [5.0.4] - 2020-07-25
+
+**Due to recent changes, following is required if you're upgrading from a version before 5.0.2:
+1. prereqs.sh (default it will set you up against MC3), do not overwrite config please.
+2. Clear db folder
+3. clear logs folder
+4. start using updated cnode.sh
+
+### Added
+- cntools.sh: Drop an error if log not found, indicating config with no JSON being used
+
 ### Fixed
 - column application added as a prereq, bsdmainutils/util-linux
+- cntoolsBlockCollector.sh get epoch using function
+- KES count was not showing up in Katip
 
 ### Changed
 - Meta description now has a limit of 255 chars to match smash server limit
 - ledger-state timeout increased to 60s
+- Update ptn0 config to align with hydra config as much as possible, while keeping trace options on
 
+### Removed
+- Stale delegate.counter
 
 ## [5.0.3] - 2020-07-24
-
-**Due to recent changes, following is required:**
-1. prereqs.sh (default it will set you up against MC3)
-2. Clear db folder
-3. clear logs folder
-4. start using updated cnode.sh
 
 ### Changed
 - moved update check to be one of the first things CNTools does after start to be able to show critical changes before anything else runs.
