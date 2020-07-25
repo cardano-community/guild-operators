@@ -148,6 +148,7 @@ say " ) Funds   -  send, withdraw and delegate"
 say " ) Pool    -  pool creation and management"
 say " ) Blocks  -  show core node leader slots"
 say " ) Update  -  update cntools script and library config files"
+say " ) Backup  -  backup & restore of wallet/pool/config"
 say " ) Refresh -  reload home screen content"
 say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 say "$(printf "%84s" "Epoch $(getEpoch) - $(timeUntilNextEpoch) until next")"
@@ -161,14 +162,15 @@ else
   say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${RED}-${tip_diff} :(${NC}")"
 fi
 say ""
-case $(select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[b] Blocks" "[u] Update" "[r] Refresh" "[q] Quit") in
+case $(select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[b] Blocks" "[u] Update" "[z] Backup & Restore" "[r] Refresh" "[q] Quit") in
   0) OPERATION="wallet" ;;
   1) OPERATION="funds" ;;
   2) OPERATION="pool" ;;
   3) OPERATION="blocks" ;;
   4) OPERATION="update" ;;
-  5) continue ;;
-  6) clear && exit ;;
+  5) OPERATION="backup" ;;
+  6) continue ;;
+  7) clear && exit ;;
 esac
 
 case $OPERATION in
@@ -2574,7 +2576,7 @@ case $OPERATION in
 
   ;; ###################################################################
 
-  update) # not ready yet
+  update)
 
   clear
   say " >> UPDATE" "log"
@@ -2668,6 +2670,99 @@ case $OPERATION in
   fi
 
   waitForInput
+  
+  ;; ###################################################################
+
+  backup)
+
+  clear
+  say " >> BACKUP & RESTORE" "log"
+  say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+  say ""
+  say "Create or restore a backup of CNTools wallets, pools and configuration files"
+  say ""
+  say "Backup or Restore?\n"
+  case $(select_opt "[b] Backup" "[r] Restore" "[Esc] Cancel") in
+    0) read -r -p "Enter full path for backup directory(created if non existent): " backup_path
+       if [[ ! "${backup_path}" =~ ^/[[:alnum:]/-_]+ ]]; then
+         say "${RED}ERROR${NC}: invalid path, please specify the full path to backup directory (space not allowed)"
+         waitForInput && continue
+       fi
+       mkdir -p "${backup_path}" # Create if missing
+       if [[ ! -d "${backup_path}" ]]; then
+         say "${RED}ERROR${NC}: failed to create backup directory:"
+         say "${backup_path}"
+         waitForInput && continue
+       fi
+       backup_list=(
+         "${WALLET_FOLDER}"
+         "${POOL_FOLDER}"
+         "${BLOCK_LOG_DIR}"
+         "$(dirname $0)"/env
+         "$(dirname $0)"/cntools.config
+       )
+       backup_file="${backup_path}/cntools-$(date '+%Y%m%d%H%M%S').tgz"
+       if ! tar cfz "${backup_file}" --files-from <(ls -d "${backup_list[@]}" 2>/dev/null); then
+         say "${RED}ERROR${NC}: failure during backup creation :("
+         waitForInput && continue
+       fi
+       say "\nEncrypt backup?\n"
+       case $(select_opt "[y] Yes" "[n] No") in
+         0) if getPassword confirm; then # $password variable populated by getPassword function
+              encryptFile "${backup_file}" "${password}"
+              backup_file="${backup_file}.gpg"
+              unset password
+            else
+              say "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
+            fi
+            ;;
+         1) : ;; # do nothing
+       esac
+       say ""
+       say "Backup file ${backup_file} successfully created" "log"
+       ;;
+    1) say "Backups created contain absolute path to files and directories"
+       say "Restoring a backup does not replace existing files"
+       say "Please restore to a temporary directory and copy files to restore to appropriate folders\n"
+       read -r -p "Enter path to backup file to restore: " backup_file
+       if [[ ! -f "${backup_file}" ]]; then
+         say "${RED}ERROR${NC}: file not found: ${backup_file}"
+         waitForInput && continue
+       fi
+       read -r -p "Enter full path for restore directory(created if non existent): " restore_path
+       if [[ ! "${restore_path}" =~ ^/[[:alnum:]/-_]+ ]]; then
+         say "${RED}ERROR${NC}: invalid path, please specify the full path to restore directory (space not allowed)"
+         waitForInput && continue
+       fi
+       restore_path="${restore_path}/$(basename ${backup_file%%.*})"
+       mkdir -p "${restore_path}" # Create restore directory
+       if [[ ! -d "${restore_path}" ]]; then
+         say "${RED}ERROR${NC}: failed to create restore directory:"
+         say "${restore_path}"
+         waitForInput && continue
+       fi
+       if [ "${backup_file##*.}" = "gpg" ]; then
+         say "\nBackup GPG encrypted, enter password to decrypt"
+         if getPassword; then # $password variable populated by getPassword function
+           decryptFile "${backup_file}" "${password}"
+           backup_file="${backup_file%.*}"
+           unset password
+         else
+           say "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
+           waitForInput && continue
+         fi
+       fi
+       if ! tar xfzk "${backup_file}" -C "${restore_path}" >/dev/null; then
+         say "${RED}ERROR${NC}: failure during backup restore :("
+         waitForInput && continue
+       fi
+       say ""
+       say "Backup successfully restored to ${restore_path}" "log"
+       ;;
+    2) continue ;;
+  esac
+  
+  waitForInput && continue
 
   ;; ###################################################################
 

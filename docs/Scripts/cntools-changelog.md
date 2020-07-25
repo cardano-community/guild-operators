@@ -7,7 +7,7 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.0.5] - 2020-07-25
+## [5.1.0] - 2020-07-25
 
 **Due to recent changes, following is required if you're upgrading from a version before < 5.0.2:**
 1. prereqs.sh (default it will set you up against MC3), do not overwrite config please.
@@ -15,6 +15,11 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 3. Clear logs folder
 4. Start using updated cnode.sh
 
+### Added
+- Backup & Restore of wallets, pools and configuration files
+
+
+## [5.0.5] - 2020-07-25
 ### Fixed
 - CNTools block collector fix
 
