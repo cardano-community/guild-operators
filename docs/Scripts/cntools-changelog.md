@@ -9,7 +9,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [5.0.4] - 2020-07-25
 
-**Due to recent changes, following is required if you're upgrading from a version before 5.0.2:
+**Due to recent changes, following is required if you're upgrading from a version before < 5.0.2:
 1. prereqs.sh (default it will set you up against MC3), do not overwrite config please.
 2. Clear db folder
 3. clear logs folder
