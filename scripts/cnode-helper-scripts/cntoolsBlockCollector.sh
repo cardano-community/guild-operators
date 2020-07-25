@@ -72,7 +72,7 @@ while read -r logentry; do
     fi
   elif [[ $(_jq '.data.kind') = "TraceAdoptedBlock" ]]; then
     slot="$(_jq '.data.slot')"
-    [[ "$(_jq '.data."block hash"')" =~ unHashHeader.=.([[:alnum:]]+) ]] && block_hash="${BASH_REMATCH[1]}" || block_hash=""
+    [[ "$(_jq '.data."block hash"')" =~ ([[:alnum:]]+) ]] && block_hash="${BASH_REMATCH[1]}" || block_hash=""
     block_size="$(_jq '.data."block size"')"
     epoch=$(( slot / $(jq -r .epochLength "${GENESIS_JSON}") ))
     echo " ~~ ADOPTED BLOCK ~~"
