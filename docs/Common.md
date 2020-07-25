@@ -26,9 +26,9 @@ The prereqs script above will connect you to `mainnet_candidate_4` network. If y
 
 ``` bash
 ## For mainnet_candidate_4 network:
-curl -sL -o $CNODE_HOME/files/byron-genesis.json https://hydra.iohk.io/build/3623105/download/1/mainnet_candidate_4-byron-genesis.json
-curl -sL -o $CNODE_HOME/files/genesis.json https://hydra.iohk.io/build/3623105/download/1/mainnet_candidate_4-shelley-genesis.json
-curl -sL -o $CNODE_HOME/files/topology.json https://hydra.iohk.io/build/3623105/download/1/mainnet_candidate_4-topology.json
+curl -sL -o $CNODE_HOME/files/byron-genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet_candidate_4-byron-genesis.json
+curl -sL -o $CNODE_HOME/files/genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet_candidate_4-shelley-genesis.json
+curl -sL -o $CNODE_HOME/files/topology.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet_candidate_4-topology.json
 ```
 
 If you were already running a node on guild network and would like to *replace* by moving to HTN, but continue using scripts - follow instructions below:
