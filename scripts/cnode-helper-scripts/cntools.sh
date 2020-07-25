@@ -76,6 +76,12 @@ if ! need_cmd "curl" || \
    ! need_cmd "column"; then exit 1
 fi
 
+# Check if JSON logging is enabled, and exit if it isnt
+if [[ ! "$(ls -A $CNODE_HOME/logs/*.json 2>/dev/null)" ]]; then
+  say "\n\n${ORANGE}WARN${NC}: Please ensure that you've used $CNODE_HOME/files/scripts/cnode.sh to start the node, and that you've not overwritten the config file downloaded by prereqs.sh"
+  exit 1
+fi
+
 # Verify if the combinator network is already on shelley and if so, the epoch of transition
 if [[ "${PROTOCOL}" == "Cardano" ]]; then
   if [[ "$(cat $SHELLEY_TRANS_FILENAME 2>/dev/null)" == ""  ]]; then
@@ -83,7 +89,7 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
     if [[ "$shelleyTransitionEpoch" != "" ]]; then
       echo "$shelleyTransitionEpoch" > "$SHELLEY_TRANS_FILENAME"
     else
-      say "${ORANGE}WARN${NC}: The logs indicate that cardano-node has not yet synched to network or the network has not reached the hard fork from Byron to shelley , please wait to use CNTools until your node is in shelley era"
+      say "\n\n${ORANGE}WARN${NC}: The logs indicate that cardano-node has not yet synched to network or the network has not reached the hard fork from Byron to shelley , please wait to use CNTools until your node is in shelley era"
       exit 1
     fi
   else
@@ -93,7 +99,7 @@ fi
 
 # Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
 ${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/protparams.json 2>/dev/null|| {
-  say "${ORANGE}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)"
+  say "\n\n${ORANGE}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)"
   say "\n${BLUE}Press c to continue or any other key to quit${NC}"
   say "only offline functions will be available if you continue\n"
   read -r -n 1 -s -p "" answer
