@@ -53,7 +53,7 @@ while read -r logentry; do
     at="$(_jq '.at')"
     at_local="$(date '+%F_%T_%Z' -d "${at}")"
     slot="$(_jq '.data.slot')"
-    epoch=getEpoch
+    epoch=$(getEpoch)
     # create epoch block file if missing
     blocks_file="${BLOCK_LOG_DIR}/blocks_${epoch}.json"
     [[ ! -f "${blocks_file}" ]] && echo "[]" > "${blocks_file}"
