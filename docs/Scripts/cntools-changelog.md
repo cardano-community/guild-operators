@@ -32,7 +32,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - column application added as a prereq, bsdmainutils/util-linux
 - cntoolsBlockCollector.sh get epoch using function
 - KES count was not showing up in Katip
-- Fund -> Delegation was broken as per recent changes in 1.17, corrected key type for delegation certificate
+- Funds -> Delegation was broken as per recent changes in 1.17, corrected key type for delegation certificate
 
 ### Changed
 - Meta description now has a limit of 255 chars to match smash server limit
