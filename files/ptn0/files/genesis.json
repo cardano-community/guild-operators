@@ -1,51 +1,52 @@
 {
-    "activeSlotsCoeff": 0.3,
-    "protocolParams": {
-        "poolDeposit": 50000,
-        "protocolVersion": {
-            "minor": 2,
-            "major": 0
-        },
-        "minUTxOValue": 0,
-        "decentralisationParam": 0.5,
-        "maxTxSize": 16384,
-        "minPoolCost": 0,
-        "minFeeA": 10,
-        "maxBlockBodySize": 65536,
-        "minFeeB": 1,
-        "eMax": 100,
-        "extraEntropy": {
-            "tag": "NeutralNonce"
-        },
-        "maxBlockHeaderSize": 1100,
-        "keyDeposit": 40,
-        "nOpt": 30,
-        "rho": 2.2e-7,
-        "tau": 0.1,
-        "a0": 0.3
+  "activeSlotsCoeff": 0.05,
+  "protocolParams": {
+    "protocolVersion": {
+      "minor": 0,
+      "major": 2
     },
-    "genDelegs": {
-        "297b00b2a0d222bfd26f16d21ae6429a6695d074b8d547503ae9e2d6": {
-            "delegate": "bd834bf1f6127c265f51df458f31f10f857425c4cbc1d1f6b08d0eb7",
-            "vrf": "e5a263fd88d244180ac117ce70ceb16a08935ae0d65d117028891f512fd95053"
-        }
+    "decentralisationParam": 1,
+    "eMax": 18,
+    "extraEntropy": {
+      "tag": "NeutralNonce"
     },
-    "updateQuorum": 1,
-    "networkId": "Mainnet",
-    "initialFunds": {
-        "61d8a1114e063b0ca62682f0bbd6235fb471acf138627fd16865e64f23": 22500000000000000,
-        "619b886a9a5ad26be2e61265da447eea7555128129a019e0042fb08bd7": 22500000000000000
+    "maxTxSize": 16384,
+    "maxBlockBodySize": 65536,
+    "maxBlockHeaderSize": 1100,
+    "minFeeA": 44,
+    "minFeeB": 155381,
+    "minUTxOValue": 1000000,
+    "poolDeposit": 500000000,
+    "minPoolCost": 340000000,
+    "keyDeposit": 2000000,
+    "nOpt": 150,
+    "rho": 0.003,
+    "tau": 0.20,
+    "a0": 0.3
+  },
+  "genDelegs": {
+    "42d339844d4593edc456d1c80b256fa57e9b4b4dccda5b587ea7a958": {
+      "delegate": "53465dff1bf47517a5b354888b32972647d208cac07907aa8efa5a03",
+      "vrf": "61e67274fe923060e82635768ec21e62846023804cc0f080c5c2b475151c2770"
     },
-    "maxLovelaceSupply": 45000000000000000,
-    "networkMagic": 4006,
-    "epochLength": 1800,
-    "staking": {
-        "pools": {},
-        "stake": {}
+    "95dbfe2cf93a2db109863659c10dd5785201d71eb43ae4a264d2b731": {
+      "delegate": "2ca5c291c7f00776e8c6a2482198bb03ff90abd638dc650936739b8d",
+      "vrf": "7b6a8ba747c498db386227fe0747dba44197816d82bc662e92c32a00f0e4906e"
     },
-    "systemStart": "2020-07-21T11:05Z",
-    "slotsPerKESPeriod": 1600,
-    "slotLength": 1,
-    "maxKESEvolutions": 120,
-    "securityParam": 108
+    "28466494f218d24d9627c4ffcf55671f894f775ee782bfd61ca3a4e8": {
+      "delegate": "bd4a372503f35313c4f17e3cdc012f460119af1841c509c763218fc8",
+      "vrf": "4c6d14ca2697dd446d4963c99dcb2a02419052beaad3c9aa7e37c261c8138c94"
+    }
+  },
+  "updateQuorum": 3,
+  "networkId": "Mainnet",
+  "initialFunds": {},
+  "maxLovelaceSupply": 45000000000000000,
+  "networkMagic": 42,
+  "epochLength": 21600,
+  "systemStart": "2020-07-25T13:00:00Z",
+  "slotsPerKESPeriod": 7200,
+  "slotLength": 1,
+  "maxKESEvolutions": 62,
+  "securityParam": 108
 }
