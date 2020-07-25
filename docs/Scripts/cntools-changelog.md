@@ -2,19 +2,24 @@
 
 All notable changes to this tool will be documented in this file.
 
-**Note: Whenever you're updating between versions where format/hash of keys have changed , or you're changing networks - it is recommended to archive $CNODE_HOME/priv/wallet and $CNODE_HOME/priv/pool folders before you proceed with launching cntools on a fresh network.**
+**Note:** Whenever you're updating between versions where format/hash of keys have changed , or you're changing networks - it is recommended to archive $CNODE_HOME/priv/wallet and $CNODE_HOME/priv/pool folders before you proceed with launching cntools on a fresh network.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.0.4] - 2020-07-25
+## [5.0.5] - 2020-07-25
 
-**Due to recent changes, following is required if you're upgrading from a version before < 5.0.2:
+**Due to recent changes, following is required if you're upgrading from a version before < 5.0.2:**
 1. prereqs.sh (default it will set you up against MC3), do not overwrite config please.
 2. Clear db folder
-3. clear logs folder
-4. start using updated cnode.sh
+3. Clear logs folder
+4. Start using updated cnode.sh
 
+### Fixed
+- CNTools block collector fix
+
+
+## [5.0.4] - 2020-07-25
 ### Added
 - cntools.sh: Drop an error if log not found, indicating config with no JSON being used
 
