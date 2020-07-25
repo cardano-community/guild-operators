@@ -153,22 +153,27 @@
                     <main>
                         <h1><a class="header" href="#cntools-changelog" id="cntools-changelog">CNTools Changelog</a></h1>
 <p>All notable changes to this tool will be documented in this file.</p>
-<p><strong>Note: Whenever you're updating between versions where format/hash of keys have changed , or you're changing networks - it is recommended to archive $CNODE_HOME/priv/wallet and $CNODE_HOME/priv/pool folders before you proceed with launching cntools on a fresh network.</strong></p>
+<p><strong>Note:</strong> Whenever you're updating between versions where format/hash of keys have changed , or you're changing networks - it is recommended to archive $CNODE_HOME/priv/wallet and $CNODE_HOME/priv/pool folders before you proceed with launching cntools on a fresh network.</p>
 <p>The format is based on <a href="https://keepachangelog.com/en/1.0.0/">Keep a Changelog</a>,
 and this adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
-<h2><a class="header" href="#504---2020-07-25" id="504---2020-07-25">[5.0.4] - 2020-07-25</a></h2>
-<p>**Due to recent changes, following is required if you're upgrading from a version before &lt; 5.0.2:</p>
+<h2><a class="header" href="#505---2020-07-25" id="505---2020-07-25">[5.0.5] - 2020-07-25</a></h2>
+<p><strong>Due to recent changes, following is required if you're upgrading from a version before &lt; 5.0.2:</strong></p>
 <ol>
 <li>prereqs.sh (default it will set you up against MC3), do not overwrite config please.</li>
 <li>Clear db folder</li>
-<li>clear logs folder</li>
-<li>start using updated cnode.sh</li>
+<li>Clear logs folder</li>
+<li>Start using updated cnode.sh</li>
 </ol>
+<h3><a class="header" href="#fixed" id="fixed">Fixed</a></h3>
+<ul>
+<li>CNTools block collector fix</li>
+</ul>
+<h2><a class="header" href="#504---2020-07-25" id="504---2020-07-25">[5.0.4] - 2020-07-25</a></h2>
 <h3><a class="header" href="#added" id="added">Added</a></h3>
 <ul>
 <li>cntools.sh: Drop an error if log not found, indicating config with no JSON being used</li>
 </ul>
-<h3><a class="header" href="#fixed" id="fixed">Fixed</a></h3>
+<h3><a class="header" href="#fixed-1" id="fixed-1">Fixed</a></h3>
 <ul>
 <li>column application added as a prereq, bsdmainutils/util-linux</li>
 <li>cntoolsBlockCollector.sh get epoch using function</li>
@@ -201,12 +206,12 @@ and this adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versi
 <li>Update cnode.sh.templ to archive logs every time node is restart, this ensures that we're not searching for previous log history when network was changed. Network being changed would automatically deduce db folder was deleted.</li>
 <li>Update default network to MC3</li>
 </ul>
-<h3><a class="header" href="#fixed-1" id="fixed-1">Fixed</a></h3>
+<h3><a class="header" href="#fixed-2" id="fixed-2">Fixed</a></h3>
 <ul>
 <li><code>Pool &gt;&gt; Show</code> delegator rewards parsing from ledger-state</li>
 </ul>
 <h2><a class="header" href="#501---2020-07-22" id="501---2020-07-22">[5.0.1] - 2020-07-22</a></h2>
-<h3><a class="header" href="#fixed-2" id="fixed-2">Fixed</a></h3>
+<h3><a class="header" href="#fixed-3" id="fixed-3">Fixed</a></h3>
 <ul>
 <li>Slot sync format improvement</li>
 <li>kesExpiration function to use 17 fixed byron transition epochs </li>
@@ -238,7 +243,7 @@ and this adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versi
 <ul>
 <li>Delete cntools-updater script</li>
 </ul>
-<h3><a class="header" href="#fixed-3" id="fixed-3">Fixed</a></h3>
+<h3><a class="header" href="#fixed-4" id="fixed-4">Fixed</a></h3>
 <ul>
 <li>Slots reference was mixing up for shelley testnet in absence of a combinator network</li>
 </ul>
@@ -257,12 +262,12 @@ and this adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versi
 <li>Pool metadata information to copy file as-is as well as wait for keypress to make sure file is copied before proceeding with registration.</li>
 </ul>
 <h2><a class="header" href="#422---2020-07-15" id="422---2020-07-15">[4.2.2] - 2020-07-15</a></h2>
-<h3><a class="header" href="#fixed-4" id="fixed-4">Fixed</a></h3>
+<h3><a class="header" href="#fixed-5" id="fixed-5">Fixed</a></h3>
 <ul>
 <li>numfmt dependency removed in favor of printf formatting</li>
 </ul>
 <h2><a class="header" href="#421---2020-07-15" id="421---2020-07-15">[4.2.1] - 2020-07-15</a></h2>
-<h3><a class="header" href="#fixed-5" id="fixed-5">Fixed</a></h3>
+<h3><a class="header" href="#fixed-6" id="fixed-6">Fixed</a></h3>
 <ul>
 <li>Vkey delegation fix due to json format switch</li>
 </ul>
@@ -271,7 +276,7 @@ and this adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versi
 <ul>
 <li>Refresh option to home screen</li>
 </ul>
-<h3><a class="header" href="#fixed-6" id="fixed-6">Fixed</a></h3>
+<h3><a class="header" href="#fixed-7" id="fixed-7">Fixed</a></h3>
 <ul>
 <li>ADA not displayed in a couple of the wallet selection menus</li>
 </ul>
@@ -290,12 +295,12 @@ and this adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versi
 <li>Instead of giving relays from previous registration as default values it will now ask if you want to re-register relays exactly as before to minimize steps and complexity</li>
 </ul>
 <h2><a class="header" href="#402---2020-07-13" id="402---2020-07-13">[4.0.2] - 2020-07-13</a></h2>
-<h3><a class="header" href="#fixed-7" id="fixed-7">Fixed</a></h3>
+<h3><a class="header" href="#fixed-8" id="fixed-8">Fixed</a></h3>
 <ul>
 <li>KES calculation support for both MC and Shelley Testnet</li>
 </ul>
 <h2><a class="header" href="#401---2020-07-13" id="401---2020-07-13">[4.0.1] - 2020-07-13</a></h2>
-<h3><a class="header" href="#fixed-8" id="fixed-8">Fixed</a></h3>
+<h3><a class="header" href="#fixed-9" id="fixed-9">Fixed</a></h3>
 <ul>
 <li>Slot tip reference calculation for shelley testnet</li>
 </ul>
@@ -334,7 +339,7 @@ and this adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versi
 </li>
 </ul>
 <h2><a class="header" href="#201---2020-07-12" id="201---2020-07-12">[2.0.1] - 2020-07-12</a></h2>
-<h3><a class="header" href="#fixed-9" id="fixed-9">Fixed</a></h3>
+<h3><a class="header" href="#fixed-10" id="fixed-10">Fixed</a></h3>
 <ul>
 <li>Version fix to include patch version</li>
 </ul>
@@ -383,7 +388,7 @@ In-app update modified to reflect this change.</li>
 <li><code>Not a registered wallet on chain</code> information from Wallet listing</li>
 <li>en_US.UTF-8 locale dependency</li>
 </ul>
-<h3><a class="header" href="#fixed-10" id="fixed-10">Fixed</a></h3>
+<h3><a class="header" href="#fixed-11" id="fixed-11">Fixed</a></h3>
 <ul>
 <li>meta_json_url check</li>
 <li>Invalid tx_in when registering stake wallet</li>
@@ -396,12 +401,12 @@ In-app update modified to reflect this change.</li>
 <ul>
 <li>Live stake and delegators in <code>Pool &gt;&gt; Show</code></li>
 </ul>
-<h3><a class="header" href="#fixed-11" id="fixed-11">Fixed</a></h3>
+<h3><a class="header" href="#fixed-12" id="fixed-12">Fixed</a></h3>
 <ul>
 <li>Correct nwmagic - was hardcoded to 42</li>
 </ul>
 <h2><a class="header" href="#110---2020-07-07" id="110---2020-07-07">[1.1.0] - 2020-07-07</a></h2>
-<h3><a class="header" href="#fixed-12" id="fixed-12">Fixed</a></h3>
+<h3><a class="header" href="#fixed-13" id="fixed-13">Fixed</a></h3>
 <ul>
 <li>Set script locale to fix format issue</li>
 </ul>
@@ -421,13 +426,13 @@ In-app update modified to reflect this change.</li>
 <li>Replace pool JSON hosting instructions, from stout to copying file, to avoid user errors</li>
 <li>Do not give option or allow sending to same address as source. Base &lt;-&gt; Enterprise for same wallet ok.</li>
 </ul>
-<h3><a class="header" href="#fixed-13" id="fixed-13">Fixed</a></h3>
+<h3><a class="header" href="#fixed-14" id="fixed-14">Fixed</a></h3>
 <ul>
 <li>Removed debug code in tx</li>
 <li>A bug fixed for wallet not showing in some cases because reward address file was not generated at wallet creation</li>
 </ul>
 <h2><a class="header" href="#030---2020-07-01" id="030---2020-07-01">[0.3.0] - 2020-07-01</a></h2>
-<h3><a class="header" href="#fixed-14" id="fixed-14">Fixed</a></h3>
+<h3><a class="header" href="#fixed-15" id="fixed-15">Fixed</a></h3>
 <ul>
 <li>In-app update bugfix</li>
 </ul>
@@ -443,7 +448,7 @@ In-app update modified to reflect this change.</li>
 <li>Pool show updated to show type for relay</li>
 <li>On pool re-registration or modification the old relay valus are now read from pool config. If selection of type match old values the default values are set to old config.</li>
 </ul>
-<h3><a class="header" href="#fixed-15" id="fixed-15">Fixed</a></h3>
+<h3><a class="header" href="#fixed-16" id="fixed-16">Fixed</a></h3>
 <ul>
 <li>Minor alignment fix of main menu header</li>
 </ul>
@@ -458,7 +463,7 @@ see github commit history for details before this release</li>
 <ul>
 <li>Update CNTools Doco to include Version on home screen</li>
 </ul>
-<h3><a class="header" href="#fixed-16" id="fixed-16">Fixed</a></h3>
+<h3><a class="header" href="#fixed-17" id="fixed-17">Fixed</a></h3>
 <ul>
 <li>Align table for reading relays</li>
 </ul>
