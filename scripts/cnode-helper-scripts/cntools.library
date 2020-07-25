@@ -9,9 +9,9 @@
 # Any breaking changes (eg: that requires change of cntools.config, env or a change in priv folder would be considered breaking and will be exempt from auto-update)
 CNTOOLS_MAJOR_VERSION=5
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
-CNTOOLS_MINOR_VERSION=0
+CNTOOLS_MINOR_VERSION=1
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=4
+CNTOOLS_PATCH_VERSION=0
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -290,7 +290,7 @@ getPassword() {
       say "${RED}ERROR${NC}: password length too short, please use a minimum of 8 characters."
       say ""
       read -r -n 1 -s -p "Press q to abort or any other key to retry" abort
-      [[ ${abort} = "q" ]] && return 1
+      [[ ${abort} = "q" ]] && unset password && return 1
       say "\n"
       continue
     fi
@@ -301,7 +301,7 @@ getPassword() {
         say "${RED}ERROR${NC}: password missmatch!"
         say ""
         read -r -n 1 -s -p "Press q to abort or any other key to retry" abort
-        [[ ${abort} = "q" ]] && return 1
+        [[ ${abort} = "q" ]] && unset password && return 1
         say "\n"
       else
         say "" && return
