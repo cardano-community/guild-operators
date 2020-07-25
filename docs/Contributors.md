@@ -9,7 +9,7 @@ Everyone is welcome to contribute to the guide, as well as the repository. Below
 [Papacarp](https://github.com/papacarp)  
 [Bergr01](https://github.com/bergr01)  
 [Ola Ahlman](https://github.com/Scitz0)  
-[SmaugPool](https://github.com/SmaugPool)
+[SmaugPool](https://github.com/SmaugPool)  
 [Priyank](https://github.com/rdlrt)  
 [Psychomb](https://github.com/psychomb)  
 [PegasusPool](https://github.com/PegasusPool)  
