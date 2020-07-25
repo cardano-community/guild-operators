@@ -29,7 +29,7 @@ Execute cardano-cli and cardano-node to verify output as below:
 
 ```bash
 cardano-cli version
-# cardano-cli 1.16.0 - linux-x86_64 - ghc-8.6
+# cardano-cli 1.17.0 - linux-x86_64 - ghc-8.6
 cardano-node
 #Usage: cardano-node (run | run-mock) [--help]
 #  Start node of the Cardano blockchain.
