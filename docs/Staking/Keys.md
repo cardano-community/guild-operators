@@ -1,6 +1,6 @@
-## Key Types and their functions
-
 Keys are just simply asymmetric cryptography key pairs (private/public, signing/verifying) that are used for signing and validating payments and staking related certificates and identifying, defining addresses on the Cardano blockchain.
+
+#### Key Types and their functions {docsify-ignore}
 
 As it can be seen in the picture there are two main type of keys in Shelley:
 - __Node keys__ and

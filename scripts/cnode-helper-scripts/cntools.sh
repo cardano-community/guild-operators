@@ -191,7 +191,7 @@ case $OPERATION in
   say " ) Encrypt  -  encrypt wallet keys and make all files immutable"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-  say " Select wallet operation\n"
+  say " Select Wallet operation\n"
   case $(select_opt "[n] New" "[l] List" "[s] Show" "[r] Remove" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
     0) SUBCOMMAND="new" ;;
     1) SUBCOMMAND="list" ;;
@@ -1101,7 +1101,7 @@ case $OPERATION in
   say " ) Encrypt   -  encrypt pool cold keys and make all files immutable"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-  say " Select wallet operation\n"
+  say " Select Pool operation\n"
   case $(select_opt "[n] New" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
     0) SUBCOMMAND="new" ;;
     1) SUBCOMMAND="register" ;;

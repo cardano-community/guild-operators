@@ -1,5 +1,3 @@
-### Create Keys/Address
-
 This script assists you to create a Private key file and generates a corresponding address script for it
 ``` bash
 cd $CNODE_HOME/scripts

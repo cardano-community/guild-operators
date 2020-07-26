@@ -1,4 +1,4 @@
-### Operators
+!> The commands used on this page are out of date and will be updated soon
 
 The operator(s) is/are the stake holder(s) who operating a pools. The operators can define their operational costs in the pool certificate, that can be deducted from the rewards.
 

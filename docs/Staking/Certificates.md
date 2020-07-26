@@ -1,4 +1,3 @@
-## Certificates
 
 Shelley's PoS protocol requires different certificates posted to the blockhain; which will be pulbicyl available for all participants. Those are valids until explicitly overwritten or revoked.
 
@@ -14,7 +13,7 @@ The `operational key certificate`'s is created from a `staking key`
 used by stake pool operators for protecting their pool(s) and keys, signing bocke, participating in the lottery and not for delegating staking rights.
 This certificate needs for operating a node as a stake pool. 
 
-See [detailed example here](./Operators.md#run-a-node-with-operational-key-certificate)
+See [detailed example here](../Staking/Operators.md#run-a-node-with-operational-key-certificate)
 
 
 ### Stake Key registration certificates
@@ -23,13 +22,13 @@ All participants, who want to participate in staking, need to register a __stake
 
 The registration is revoked when a de-registration certificate signed by the account's `stake signing key` is posted to the blockchain, causing the account to be deleted (__Ask what is the impact of this__).
 
-See [detailed example here](./Operators.md#create-stake-key-registration-certificate)
+See [detailed example here](../Staking/Operators.md#create-stake-key-registration-certificate)
 
 ### Delegation certificates
 
 Delegation certificates uses a `staking key` to grant the right to sign blocks to another key. 
 
-See [detailed example here](./Operators.md#create-the-stake-owners-delegation-certificate)
+See [detailed example here](../Staking/Operators.md#create-the-stake-owners-delegation-certificate)
 
 ### Stake pool certificates
 
@@ -39,6 +38,6 @@ To revoke the certificate a `stake pool retirement certificate` must be posted t
 
 No owner(s) is/are required to sign the retirement certificate.
 
-See [detailed example here](./Operators.md#run-a-node-with-operational-key-certificate)
+See [detailed example here](../Staking/Operators.md#run-a-node-with-operational-key-certificate)
 
 

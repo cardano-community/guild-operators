@@ -1,3 +1,5 @@
+!> Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
+
 ### Check Balance
 
 This script will check balance of address specified as command line argument

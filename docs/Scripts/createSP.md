@@ -1,3 +1,0 @@
-### Create Stakepool
-
-< Coming Soon .. >

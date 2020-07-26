@@ -1,4 +1,4 @@
-### Cardano Node Tools
+!> The script may not be detailed enough at this stage, we will update the contents to be a lot more definitive soon
 
 This is a multi-purpose script to operate various activities (like creating keys, transactions, registering stake pool , delegating to a pool or updating binaries) using cardano node.
 
