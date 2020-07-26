@@ -7,13 +7,18 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.0.5] - 2020-07-25
+## [5.0.6] - 2020-07-26
 
 **Due to recent changes, following is required if you're upgrading from a version before < 5.0.2:**
 1. prereqs.sh (default it will set you up against MC3), do not overwrite config please.
 2. Clear db folder
 3. Clear logs folder
 4. Start using updated cnode.sh
+
+## Fixed
+- Parse Config for virtual forks, which adds supports for MC4
+
+## [5.0.5] - 2020-07-25
 
 ### Fixed
 - CNTools block collector fix
