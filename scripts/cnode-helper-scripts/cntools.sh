@@ -1193,7 +1193,7 @@ case $OPERATION in
     done
     if [[ ${#pool_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No pools available that can be registered!"
-      say "first create a pool"
+      say "first create a pool or decrypt existing if encrypted"
       waitForInput && continue
     fi
     say "Select Pool:\n"
@@ -1613,7 +1613,7 @@ case $OPERATION in
     done
     if [[ ${#pool_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No pools available that can be modified!"
-      say "first register a pool"
+      say "first register a pool or decrypt existing if encrypted"
       waitForInput && continue
     fi
     say "Select Pool:\n"
@@ -2017,7 +2017,7 @@ case $OPERATION in
     done
     if [[ ${#pool_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No pools available that can be retired!"
-      say "first register a pool"
+      say "first register a pool or decrypt existing if encrypted"
       waitForInput && continue
     fi
     say "Select Pool:\n"
@@ -2331,33 +2331,16 @@ case $OPERATION in
     done
     if [[ ${#pool_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No pools available to rotate KES keys for!"
-      say "first create a pool"
+      say "first create a pool or decrypt existing if encrypted"
       waitForInput && continue
     fi
     say "Select Pool:\n"
     if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
     pool_name="${dir_name}"
 
-    # cold keys
-    pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
-
-    # generated files
-    pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
-    pool_hotkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_SK_FILENAME}"
-    pool_opcert_counter_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_COUNTER_FILENAME}"
-    pool_saved_kes_start="${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}"
-    pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
-
-    start_kes_period=$(getCurrentKESperiod)
-    echo "${start_kes_period}" > ${pool_saved_kes_start}
-
-    say "creating new hot keys and certificate" 1
-    say "$ ${CCLI} shelley node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}" 2
-    ${CCLI} shelley node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
-    say "$ ${CCLI} shelley node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${start_kes_period} --out-file ${pool_opcert_file}" 2
-    ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${start_kes_period}" --out-file "${pool_opcert_file}"
-
-    kesExpiration "${start_kes_period}"
+    if ! rotatePoolKeys "${pool_name}"; then
+      waitForInput && continue
+    fi
 
     say ""
     say "Pool KES Keys Updated: ${GREEN}${pool_name}${NC}" "log"
