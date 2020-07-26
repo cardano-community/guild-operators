@@ -1,8 +1,8 @@
 ## Certificates
 
-Shelley's PoS protocol requires different certificates posted to the blockhain; which will be pulbicyl available for all participants. Those are valids until explicitly overwritten or revoked.
+Shelley's PoS protocol requires different certificates posted to the blockhain; which will be publicly available for all participants. Those are valid until explicitly overwritten or revoked.
 
-There are four main type of certificates are in Shelley:
+There are four main type of certificates in Shelley:
 1. Operational key certificates (__off chain__),
 2. Stake Key registration certificates (__on chain__),
 3. Delegation certificates (__on chain__) and
