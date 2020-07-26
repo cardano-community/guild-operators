@@ -22,7 +22,7 @@ chmod 755 prereqs.sh
 
 #### Connect to public Haskell Testnet Network (HTN)
 
-The prereqs script above will connect you to `mainnet_candidate_3` network. If you would like to connect to shelley testnet instead, kindly execute the below before you proceed after you've executed the above:
+The prereqs script above will connect you to `mainnet_candidate_4` network. If you would like to connect to shelley testnet instead, kindly execute the below before you proceed after you've executed the above:
 
 ``` bash
 ## For mainnet_candidate_4 network:

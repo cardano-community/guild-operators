@@ -13,7 +13,7 @@ cd cardano-node
 
 ##### Temporary step for end-users, since master is often broken incompatible with new networks
 git fetch --tags --all
-git checkout 1.17.0
+git checkout 1.18.0
 #####
 
 ### Please ensure you have run the *UPDATED* prereqs.sh (see link at top of this document) before continuing

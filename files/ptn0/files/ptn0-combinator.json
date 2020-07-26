@@ -10,6 +10,8 @@
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresNoMagic",
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/genesis.json",
+  "TestShelleyHardForkAtEpoch": 1,
+  "bfcMaxConcurrencyDeadline": 4,
   "TraceBlockFetchClient": true,
   "TraceBlockFetchDecisions": true,
   "TraceBlockFetchProtocol": true,
