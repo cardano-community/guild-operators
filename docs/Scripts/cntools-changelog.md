@@ -15,9 +15,15 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 3. Clear logs folder
 4. Start using updated cnode.sh
 
+=======
+
 ### Added
 - Backup & Restore of wallets, pools and configuration files
 
+
+## [5.0.6] - 2020-07-26
+## Fixed
+- Parse Config for virtual forks, which adds supports for MC4
 
 ## [5.0.5] - 2020-07-25
 ### Fixed

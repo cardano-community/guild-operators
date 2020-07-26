@@ -76,15 +76,17 @@ if ! need_cmd "curl" || \
    ! need_cmd "column"; then exit 1
 fi
 
-# Check if JSON logging is enabled, and exit if it isnt
-if [[ ! "$(ls -A $CNODE_HOME/logs/*.json 2>/dev/null)" ]]; then
-  say "\n\n${ORANGE}WARN${NC}: Please ensure that you've used $CNODE_HOME/files/scripts/cnode.sh to start the node, and that you've not overwritten the config file downloaded by prereqs.sh"
-  exit 1
-fi
-
 # Verify if the combinator network is already on shelley and if so, the epoch of transition
 if [[ "${PROTOCOL}" == "Cardano" ]]; then
-  if [[ "$(cat $SHELLEY_TRANS_FILENAME 2>/dev/null)" == ""  ]]; then
+  if grep \"TestShelleyHardForkAt ${CONFIG} | grep -v \#; then
+    # Check if Fork is virtual
+    shelleyTransitionEpoch=$(grep \"TestShelleyHardForkAt ${CONFIG} | grep -v \# | awk '{print $2}' | cut -d, -f1)
+    echo "$shelleyTransitionEpoch" > "$SHELLEY_TRANS_FILENAME"
+  elif [[ ! "$(ls -A $CNODE_HOME/logs/*.json 2>/dev/null)" ]]; then
+    # Check if JSON logging is enabled, and exit if it isnt
+    say "\n\n${ORANGE}WARN${NC}: Please ensure that you've used $CNODE_HOME/files/scripts/cnode.sh to start the node, and that you've not overwritten the config file downloaded by prereqs.sh"
+    exit 1
+  elif [[ "$(cat $SHELLEY_TRANS_FILENAME 2>/dev/null)" == ""  ]]; then
     shelleyTransitionEpoch=$(grep -i hardforkupdatetransitionconfirmed $CNODE_HOME/logs/*.json 2>/dev/null | cut -d: -f 2- | tail -1 | jq -r '.data.events[1].transitionEpoch')
     if [[ "$shelleyTransitionEpoch" != "" ]]; then
       echo "$shelleyTransitionEpoch" > "$SHELLEY_TRANS_FILENAME"
