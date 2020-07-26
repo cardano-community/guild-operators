@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC1090,SC2086,SC2154
 function usage() {
   printf "\n%s\n\n" "Usage: $(basename "$0") <Pool Name>"
   printf "  %-20s\t%s\n\n" "Pool Name" "Pool name used in CNTools, see cntools.config for pool folder"
