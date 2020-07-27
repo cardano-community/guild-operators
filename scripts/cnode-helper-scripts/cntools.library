@@ -1660,6 +1660,53 @@ rotatePoolKeys() {
   kesExpiration "${start_kes_period}"
 }
 
+# Command    : getDelegators [pool id]
+#
+# Description: parse ledger-state for pool delegators
+# Return     : json array in variable $delegators_json
+#
+getDelegators() {
+  pool_id=$1
+
+  timeout -k 5 60 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
+  say "\nLedger state dumped, parsing data..."
+  non_myopic_delegators=$(jq -r -c ".esNonMyopic.snapNM._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
+  snapshot_delegators=$(jq -r -c ".esSnapshots._pstakeSet._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
+  lstate=$(jq -r -c ".esLState" "${TMP_FOLDER}"/ledger-state.json)
+  lstate_dstate=$(jq -r -c "._delegationState._dstate" <<< "${lstate}")
+  ledger_pool_state=$(jq -r -c '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${lstate}")
+  lstate_rewards=$(jq -r -c "._rewards" <<< "${lstate_dstate}")
+  lstate_utxo=$(jq -r -c "._utxoState._utxo" <<< "${lstate}")
+  lstate_delegators=$(jq -r -c "._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" <<< "${lstate_dstate}")
+  delegators=$(echo "${non_myopic_delegators}" "${snapshot_delegators}" "${lstate_delegators}" | tr ' ' '\n' | sort -u)
+  say "\n$(wc -w <<< "${delegators}") delegators found, gathering data for each:"
+  pledge="$(jq -c -r '.pledge // 0' <<< "${ledger_pool_state}" | tr '\n' ' ')"
+  owners="$(jq -c -r '.owners[] // empty' <<< "${ledger_pool_state}" | tr '\n' ' ')"
+  owner_nbr=$(jq -r '(.owners | length) // 0' <<< "${ledger_pool_state}")
+  delegators_array=()
+  delegator_nbr=0
+  total_stake=0
+  total_pledged=0
+  for key in ${delegators}; do
+    stake=$(jq -r -c ".[] | select(.address | contains(\"${key}\")) | .amount" <<< "${lstate_utxo}" | awk 'BEGIN{total = 0} {total = total + $1} END{printf "%.0f", total}')
+    rewards=$(jq -r -c ".[] | select(.[0][\"key hash\"] == \"${key}\") | .[1]" <<< "${lstate_rewards}")
+    total_stake=$((total_stake + stake + reward))
+    say "Delegator $((++delegator_nbr)) processed"
+    if echo "${owners}" | grep -q "${key}"; then
+      key="${key} (owner)"
+      total_pledged=$((total_pledged + stake + reward))
+    fi
+    delegators_array+=( "hex_key" "${key}" "stake" "$(formatLovelace ${stake})" "rewards" "$(formatLovelace ${rewards})" )
+  done
+
+  # Construct delegator json array
+  delegators_json=$({
+    say '['
+    printf '{"%s":"%s","%s":"%s","%s":"%s"},\n' "${delegators_array[@]}" | sed '$s/,$//'
+    say ']'
+  } | jq -c .)
+}
+
 
 function printTable() {
   local -r delimiter="${1}"

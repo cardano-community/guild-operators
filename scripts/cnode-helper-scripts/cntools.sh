@@ -591,7 +591,6 @@ case $OPERATION in
       "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
       "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
       "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-      "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_CERT_FILENAME}"
     )
     for keyFile in "${keyFiles[@]}"; do
       if [[ -f "${keyFile}" ]]; then
@@ -1104,29 +1103,31 @@ case $OPERATION in
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   say " Pool Management"
   say ""
-  say " ) New       -  create a new pool"
-  say " ) Register  -  register created pool on chain using a stake wallet (pledge wallet)"
-  say " ) Modify    -  change pool parameters and register updated pool values on chain"
-  say " ) Retire    -  de-register stake pool from chain in specified epoch"
-  say " ) List      -  a compact list view of available local pools"
-  say " ) Show      -  detailed view of specified pool"
-  say " ) Rotate    -  rotate pool KES keys"
-  say " ) Decrypt   -  remove write protection and decrypt pool"
-  say " ) Encrypt   -  encrypt pool cold keys and make all files immutable"
+  say " ) New        -  create a new pool"
+  say " ) Register   -  register created pool on chain using a stake wallet (pledge wallet)"
+  say " ) Modify     -  change pool parameters and register updated pool values on chain"
+  say " ) Retire     -  de-register stake pool from chain in specified epoch"
+  say " ) List       -  a compact list view of available local pools"
+  say " ) Show       -  detailed view of specified pool"
+  say " ) Delegators -  list all delegators for pool"
+  say " ) Rotate     -  rotate pool KES keys"
+  say " ) Decrypt    -  remove write protection and decrypt pool"
+  say " ) Encrypt    -  encrypt pool cold keys and make all files immutable"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   say " Select Pool operation\n"
-  case $(select_opt "[n] New" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
+  case $(select_opt "[n] New" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[g] Delegators" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
     0) SUBCOMMAND="new" ;;
     1) SUBCOMMAND="register" ;;
     2) SUBCOMMAND="modify" ;;
     3) SUBCOMMAND="retire" ;;
     4) SUBCOMMAND="list" ;;
     5) SUBCOMMAND="show" ;;
-    6) SUBCOMMAND="rotate" ;;
-    7) SUBCOMMAND="decrypt" ;;
-    8) SUBCOMMAND="encrypt" ;;
-    9) continue ;;
+    6) SUBCOMMAND="delegators" ;;
+    7) SUBCOMMAND="rotate" ;;
+    8) SUBCOMMAND="decrypt" ;;
+    9) SUBCOMMAND="encrypt" ;;
+    10) continue ;;
   esac
 
   case $SUBCOMMAND in
@@ -2255,8 +2256,8 @@ case $OPERATION in
       # get owners
       while read -r owner; do
         owner_wallet=$(grep -r ${owner} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
-        owner_wallet="$(basename "$(dirname "${owner_wallet}")")"
         if [[ -n ${owner_wallet} ]]; then
+          owner_wallet="$(basename "$(dirname "${owner_wallet}")")"
           say "$(printf "%-21s : %s" "Owner wallet" "${GREEN}${owner_wallet}${NC}")" "log"
         else
           say "$(printf "%-21s : %s" "Owner account" "${owner}")" "log"
@@ -2265,45 +2266,13 @@ case $OPERATION in
       reward_account=$(jq -r '.rewardAccount.credential."key hash"' <<< "${ledger_pool_state}")
       if [[ -n ${reward_account} ]]; then
         reward_wallet=$(grep -r ${reward_account} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
-        reward_wallet="$(basename "$(dirname "${reward_wallet}")")"
         if [[ -n ${reward_wallet} ]]; then
+          reward_wallet="$(basename "$(dirname "${reward_wallet}")")"
           say "$(printf "%-21s : %s" "Reward wallet" "${GREEN}${reward_wallet}${NC}")" "log"
         else
           say "$(printf "%-21s : %s" "Reward account" "${reward_account}")" "log"
         fi
       fi
-      # Delegators
-      printf "Looking for delegators, please wait..."
-      non_myopic_delegators=$(jq -r ".esNonMyopic.snapNM._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
-      snapshot_delegators=$(jq -r ".esSnapshots._pstakeSet._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
-      lstate_delegators=$(jq -r ".esLState._delegationState._dstate._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
-      delegators=$(echo "${non_myopic_delegators}" "${snapshot_delegators}" "${lstate_delegators}" | tr ' ' '\n' | sort -u)
-      total_stake=0
-      delegator=1
-      owner=1
-      pledge="$(jq -c -r '.pledge // 0' <<< "${ledger_pool_state}" | tr '\n' ' ')"
-      owners="$(jq -c -r '.owners[] // empty' <<< "${ledger_pool_state}" | tr '\n' ' ')"
-      nr_owners=$(jq -r '(.owners | length) // 0' <<< "${ledger_pool_state}")
-      for key in ${delegators}; do
-        printf "\r"
-        stake=$(jq ".esLState._utxoState._utxo | .[] | select(.address | contains(\"${key}\")) | .amount" "${TMP_FOLDER}"/ledger-state.json | awk 'BEGIN{total = 0} {total = total + $1} END{printf "%.0f", total}')
-        reward=$(jq -r ".esLState._delegationState._dstate._rewards | .[] | select(.[0][\"key hash\"] == \"${key}\") | .[1]" "${TMP_FOLDER}"/ledger-state.json)
-        total_stake=$((total_stake + stake + reward))
-        stake_color="${CYAN}"
-        if echo "${owners}" | grep -q "${key}"; then
-            say "$(printf "%-21s : %s" "Owner ${owner} hex key" "${key}")" "log"
-            owner=$((owner + 1))
-            # ToDo: check multi-owner pledge
-            if [[ $((stake + reward)) -lt ${pledge} && ${nr_owners} -eq 1 ]]; then
-                stake_color="${RED}"
-            fi
-        else
-            say "$(printf "%-21s : %s" "Delegator ${delegator} hex key" "${key}")" "log"
-            delegator=$((delegator + 1))
-        fi
-        say "$(printf "%-21s : ${stake_color}%s${NC} ADA (%s ADA)" " Stake (reward)" "$(formatLovelace ${stake})" "$(formatLovelace ${reward})")" "log"
-      done
-      say "$(printf "%-21s : ${GREEN}%s${NC} ADA" "Stake" "$(formatLovelace ${total_stake})")" "log"
       stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} shelley query stake-distribution ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | grep "${pool_id}" | tr -s ' ' | cut -d ' ' -f 2)")")
       if validateDecimalNbr ${stake_pct}; then
         say "$(printf "%-21s : %s %%" "Stake distribution" "${stake_pct}")" "log"
@@ -2318,6 +2287,55 @@ case $OPERATION in
     say ""
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     waitForInput
+    
+    ;; ###################################################################
+
+    delegators)
+    
+    clear
+    say " >> POOL >> DELEGATORS" "log"
+    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    say ""
+
+    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
+      say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
+      waitForInput && continue
+    fi
+    
+    pool_dirs=()
+    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
+    for dir in "${dirs[@]}"; do
+      pool_id="${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}"
+      [[ ! -f "${pool_id}" ]] && continue
+      pool_dirs+=("${dir}")
+    done
+    if [[ ${#pool_dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No pools available!"
+      say "first create a pool"
+      waitForInput && continue
+    fi
+    say "Select Pool:\n"
+    if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    pool_name="${dir_name}"
+    pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
+    
+    say "Looking for delegators, please wait..."
+    getDelegators ${pool_id}
+    
+    clear
+    say " >> POOL >> DELEGATORS" "log"
+    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    say ""
+    say "${BLUE}${delegator_nbr}${NC} wallet(s) delegated to ${GREEN}${pool_name}${NC} of which ${ORANGE}${owner_nbr}${NC} are owner(s)\n"
+    say "Total Stake: $(formatLovelace ${total_stake}) ADA [ owners pledge: $(formatLovelace ${total_pledged}) | delegators: $(formatLovelace $((total_stake-total_pledged))) ]\n"
+    
+    if [[ ${total_pledged} -lt ${pledge} ]]; then
+      say "${ORANGE}WARN${NC}: Owners pledge does not cover registered pledge of $(formatLovelace ${pledge}) ADA\n"
+    fi
+    
+    printTable ';' "$(say 'Hex Key;Stake;Rewards' | cat - <(jq -r -c '.[] | "\(.hex_key);\(.stake);\(.rewards)"' <<< "${delegators_json}"))"
+    
+    waitForInput && continue
 
     ;; ###################################################################
 

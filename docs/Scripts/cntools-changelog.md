@@ -22,7 +22,10 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ##### Changed
 - Prometheus metrics used for various functions and now required to run CNTools, enabled by default
-- Allow prereqs.sh to avoid overwriting topology and genesis files.
+- Allow prereqs.sh to avoid overwriting topology and genesis files
+- Delegators previously displayed in `Pool >> Show` now moved to its own menu option
+  This to de-clutter and because it takes time to parse this data from ledger-state
+- stake.cert no longer encrypted in wallet
 
 #### [5.0.6] - 2020-07-26
 ##### Fixed
