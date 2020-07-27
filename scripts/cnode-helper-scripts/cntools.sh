@@ -76,26 +76,39 @@ if ! need_cmd "curl" || \
    ! need_cmd "column"; then exit 1
 fi
 
+# Verify that Prometheus is enabled in config file
+prom_port=$(jq '.hasPrometheus[1] //empty' ${CONFIG})
+if [[ -z "${prom_port}" ]]; then
+  say "\n${ORANGE}WARN${NC}: Please ensure that Prometheus is enabled in config file, default if you've not overwritten the config file downloaded by prereqs.sh\n"
+  exit 1
+fi
+
 # Verify if the combinator network is already on shelley and if so, the epoch of transition
 if [[ "${PROTOCOL}" == "Cardano" ]]; then
-  if grep \"TestShelleyHardForkAt ${CONFIG} | grep -v \#; then
-    # Check if Fork is virtual
-    shelleyTransitionEpoch=$(grep \"TestShelleyHardForkAt ${CONFIG} | grep -v \# | awk '{print $2}' | cut -d, -f1)
-    echo "$shelleyTransitionEpoch" > "$SHELLEY_TRANS_FILENAME"
-  elif [[ ! "$(ls -A $CNODE_HOME/logs/*.json 2>/dev/null)" ]]; then
-    # Check if JSON logging is enabled, and exit if it isnt
-    say "\n\n${ORANGE}WARN${NC}: Please ensure that you've used $CNODE_HOME/files/scripts/cnode.sh to start the node, and that you've not overwritten the config file downloaded by prereqs.sh"
-    exit 1
-  elif [[ "$(cat $SHELLEY_TRANS_FILENAME 2>/dev/null)" == ""  ]]; then
-    shelleyTransitionEpoch=$(grep -i hardforkupdatetransitionconfirmed $CNODE_HOME/logs/*.json 2>/dev/null | cut -d: -f 2- | tail -1 | jq -r '.data.events[1].transitionEpoch')
-    if [[ "$shelleyTransitionEpoch" != "" ]]; then
-      echo "$shelleyTransitionEpoch" > "$SHELLEY_TRANS_FILENAME"
-    else
-      say "\n\n${ORANGE}WARN${NC}: The logs indicate that cardano-node has not yet synched to network or the network has not reached the hard fork from Byron to shelley , please wait to use CNTools until your node is in shelley era"
+  shelleyTransitionEpoch=$(cat "${SHELLEY_TRANS_FILENAME}" 2>/dev/null)
+  if [[ -z "${shelleyTransitionEpoch}" ]]; then
+    getPromMetrics
+    slot_in_epoch=$(grep "cardano_node_ChainDB_metrics_slotInEpoch_int" <<< "${prom_metrics}" | awk '{print $2}')
+    slot_num=$(grep "cardano_node_ChainDB_metrics_slotNum_int" <<< "${prom_metrics}" | awk '{print $2}')
+    epoch=$(grep "cardano_node_ChainDB_metrics_epoch_int" <<< "${prom_metrics}" | awk '{print $2}')
+    calc_slot=0
+    byron_epochs=${epoch}
+    shelley_epochs=0
+    while [[ ${byron_epochs} -ge 0 ]]; do
+      calc_slot=$(( ((byron_epochs*epoch_length)/20) + (shelley_epochs*epoch_length) + slot_in_epoch ))
+      [[ ${calc_slot} -eq ${slot_num} ]] && break
+      ((byron_epochs--))
+      ((shelley_epochs++))
+    done
+    if [[ ${calc_slot} -ne ${slot_num} ]]; then
+      say "\n${ORANGE}WARN${NC}: Failed to calculate shelley transition epoch\n"
+      exit 1
+    elif [[ ${shelley_epochs} -eq 0 ]]; then
+      say "\n${ORANGE}WARN${NC}: The network has not reached the hard fork from Byron to shelley, please wait to use CNTools until your node is in shelley era\n"
       exit 1
     fi
-  else
-    shelleyTransitionEpoch=$(cat "$SHELLEY_TRANS_FILENAME")
+    shelleyTransitionEpoch=${byron_epochs}
+    echo "${shelleyTransitionEpoch}" > "${SHELLEY_TRANS_FILENAME}"
   fi
 fi
 

@@ -19,10 +19,16 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Backup & Restore of wallets, pools and configuration files
 - Minor typo in menu
 - Remove redundant sections in guide
+- external KES rotation script using CNTools library
+
+##### Changed
+- Prometheus metrics used for various functions and now required to run CNTools, enabled by default
+
 
 #### [5.0.6] - 2020-07-26
 ##### Fixed
 - Parse Config for virtual forks, which adds supports for MC4
+
 
 #### [5.0.5] - 2020-07-25
 ##### Fixed
@@ -47,6 +53,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ##### Removed
 - Stale delegate.counter
 
+
 #### [5.0.3] - 2020-07-24
 
 ##### Changed
@@ -63,6 +70,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ##### Fixed
 - `Pool >> Show` delegator rewards parsing from ledger-state
+
 
 #### [5.0.1] - 2020-07-22
 ##### Fixed
@@ -96,6 +104,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ##### Fixed
 - Slots reference was mixing up for shelley testnet in absence of a combinator network
+
 
 #### [4.3.0] - 2020-07-16
 ##### Added
