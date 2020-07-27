@@ -1,12 +1,11 @@
 !> The script may not be detailed enough at this stage, we will update the contents to be a lot more definitive soon
+> Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
 
 This is a multi-purpose script to operate various activities (like creating keys, transactions, registering stake pool , delegating to a pool or updating binaries) using cardano node.
 
-The script assumes the [Pre-Requisites](../Common.md#dependencies-and-folder-structure-setup) have already been run.
-
 #### Download setup_mon.sh
 
-If you have run `prereqs.sh`, this should already be available in your scripts folder. To download cntools.sh you can execute the commands below:
+If you have run `prereqs.sh`, this should already be available in your scripts folder. To download monitoring script, you can execute the commands below:
 ``` bash
 cd $CNODE_HOME/scripts
 wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/setup_mon.sh

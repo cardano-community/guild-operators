@@ -1,4 +1,4 @@
->Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
+> Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
 
 #### Build Instructions {docsify-ignore}
 

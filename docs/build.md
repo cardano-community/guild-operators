@@ -5,17 +5,16 @@ The documentation here uses instructions from [IOHK repositories](https://github
 For most Pool Operators, simply building [cardano-node](./Build/node-cli.md) should be enough. Use the below to decide whether you need other components:
 
 ```mermaid
-graph TD
-A(Need to interact with <br/>HD Wallets or query<br/> pool metadata locally?)
-B(Need to explore <br/> blockchain locally?)
-C(Interface to automate<br/>pool-ops tasks using <br/> menu navigations?)
-
-O(cardano-node)
-P(cardano-graphql)
-Q(cardano-dbsync)
-R(cardano-wallet)
-S(CNTools)
-T(cardano-rest)
+graph TB
+  A(Need to interact with <br/>HD Wallets or query<br/> pool metadata locally?)
+  B(Need to explore <br/> blockchain locally?)
+  C(Automate pool-ops <br/> tasks using <br/> menu navigations?)
+  O{{Node}}
+  P{{Graphql}}
+  Q{{DBSync }}
+  R{{Wallet}}
+  S{{CNTools}}
+  T{{Rest}}
 
 O --x A --x R
 O --x B

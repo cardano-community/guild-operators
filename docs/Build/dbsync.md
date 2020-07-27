@@ -1,6 +1,6 @@
 !> - An average pool operator may not require cardano-wallet at all. Please verify if it is required for your use as mentioned [here](../build.md#components)
 
->- Ensure the [Pre-Requisites](../Common.md#dependencies-and-folder-structure-setup) are in place before you proceed.
+> Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
 >- Cardano DB Sync tool relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to [Sample Local PostgreSQL Server Deployment instructions](../Appendix/postgres.md) for setting up Postgres instance.
 
 #### Build Instructions {docsify-ignore}

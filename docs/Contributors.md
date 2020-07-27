@@ -1,5 +1,3 @@
-### Contributors
-
 Everyone is welcome to contribute to the guide, as well as the repository. Below is just a thank you to people who have been contributing consistently:
 
 [Markus](https://github.com/gufmar)  
@@ -17,4 +15,4 @@ Everyone is welcome to contribute to the guide, as well as the repository. Below
 [Marek](https://github.com/mmahut)  
 
 
-**Hopefully we have more joining the list soon :) To start contributing, simply hit the [github repository](https://github.com/cardano-community/guild-operators) and raise Issue/Pull Request**
+> To start contributing, simply hit the [github repository](https://github.com/cardano-community/guild-operators) and raise Issue/Pull Request

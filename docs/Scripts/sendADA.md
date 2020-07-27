@@ -17,7 +17,7 @@ Total balance in 1 UTxO is 1000000000 Lovelace or 1000 ADA
 
 ### Make Transactions
 
-This script will create and submit a transaction to send ADA from source address to destination address, it assumes the [pre-requisites](Common.md#dependencies-and-folder-structure-setup) are already in place.  
+This script will create and submit a transaction to send ADA from source address to destination address.  
 The script can also be used to defrag address by setting destination and source address to the same and amount to the string 'all'
 
 ``` bash

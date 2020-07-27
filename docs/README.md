@@ -7,7 +7,7 @@ If there are any discrepancies/suggestions/contributions for this document, plea
 
 #### Getting Started {docsify-ignore}
 
-Use the sidebar to navigate through the topics. Note that the instructions assume the folder structure as per [here](common.md).
+Use the sidebar to navigate through the topics. Note that the instructions assume the folder structure as per [here](basics.md id=folder-structure).
 
 !> Note that the cardano codebase is still being cooked in the oven while we're trying to taste it, expect hand burns if not careful.
 Since we're just trying to keep up with codebase, expect rapid changes.
