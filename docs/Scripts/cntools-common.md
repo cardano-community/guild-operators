@@ -64,15 +64,16 @@ choose to delegate or pledge wallet when registering a stake pool.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  Pool Management
 
- ) New       -  create a new pool
- ) Register  -  register created pool on chain using a stake wallet (pledge wallet)
- ) Modify    -  change pool parameters and register updated pool values on chain
- ) Retire    -  de-register stake pool from chain in specified epoch
- ) List      -  a compact list view of available local pools
- ) Show      -  detailed view of specified pool
- ) Rotate    -  rotate pool KES keys
- ) Decrypt   -  remove write protection and decrypt pool
- ) Encrypt   -  encrypt pool cold keys and make all files immutable
+ ) New        -  create a new pool
+ ) Register   -  register created pool on chain using a stake wallet (pledge wallet)
+ ) Modify     -  change pool parameters and register updated pool values on chain
+ ) Retire     -  de-register stake pool from chain in specified epoch
+ ) List       -  a compact list view of available local pools
+ ) Show       -  detailed view of specified pool
+ ) Delegators -  list all delegators for pool
+ ) Rotate     -  rotate pool KES keys
+ ) Decrypt    -  remove write protection and decrypt pool
+ ) Encrypt    -  encrypt pool cold keys and make all files immutable
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  Select Pool operation
 
@@ -82,6 +83,7 @@ choose to delegate or pledge wallet when registering a stake pool.
   [x] Retire
   [l] List
   [s] Show
+  [g] Delegators
   [o] Rotate
   [d] Decrypt
   [e] Encrypt

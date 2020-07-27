@@ -15,7 +15,7 @@ CNTOOLS_PATCH_VERSION=0
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
-# Static shelley genesis variables                         #
+# Static genesis variables                                 #
 ############################################################
 shelley_genesis_start=$(jq -r .systemStart "${GENESIS_JSON}")
 shelley_genesis_start_sec=$(date --date=${shelley_genesis_start} +%s)
@@ -25,6 +25,12 @@ active_slots_coeff=$(jq -r .activeSlotsCoeff "${GENESIS_JSON}")
 decentralisation=$(jq -r .protocolParams.decentralisationParam "${GENESIS_JSON}")
 slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
 max_kes_evolutions=$(jq -r .maxKESEvolutions "${GENESIS_JSON}")
+if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
+  byron_genesis_start_sec=$(jq -r .startTime "${BYRON_GENESIS_JSON}")
+  byron_k=$(jq -r .protocolConsts.k "${BYRON_GENESIS_JSON}")
+  byron_slot_length=$(( $(jq -r .blockVersionData.slotDuration "${BYRON_GENESIS_JSON}" | sed -e 's#"##g') / 1000 ))
+  byron_epoch_length=$(( 10 * byron_k ))
+fi
 
 ############################################################
 # library sourced by cntools with common taskes to perform #
@@ -389,16 +395,14 @@ getSlotTipRef() {
   current_time_sec=$(date -u +%s)
   if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
     # Combinator network
-    byron_genesis_start_time_sec=$(jq -r .startTime "${BYRON_GENESIS_JSON}")
-    byron_slots=$(( ( shelley_genesis_start_sec - byron_genesis_start_time_sec ) / 20 ))
-    byron_shelley_trans_slots=$(( ( $(cat $SHELLEY_TRANS_FILENAME) * epoch_length ) / 20 ))
-    byron_shelley_trans_end=$(( shelley_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * epoch_length ) ))
-    if [[ "${current_time_sec}" -lt "${byron_shelley_trans_end}" ]]; then
+    byron_slots=$(( $(cat $SHELLEY_TRANS_FILENAME) * byron_epoch_length )) # since this point will only be reached once we're in Shelley phase
+    byron_end_time=$(( byron_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * byron_epoch_length * byron_slot_length ) ))
+    if [[ "${current_time_sec}" -lt "${byron_end_time}" ]]; then
       # In Byron phase
-      echo $(( byron_slots + ( current_time_sec - shelley_genesis_start_sec ) / 20 ))
+      echo $(( ( current_time_sec - byron_genesis_start_sec ) / byron_slot_length ))
     else
       # In Shelley phase
-      echo $(( byron_slots + byron_shelley_trans_slots + (( current_time_sec - byron_shelley_trans_end ) / slot_length ) ))
+      echo $(( byron_slots + (( current_time_sec - byron_end_time ) / slot_length ) ))
     fi
   else
     # Shelley Mode only, no Byron slots
@@ -422,8 +426,15 @@ slotInterval() {
 # Description: Offline calculation of current epoch based on genesis file
 # Return     : current epoch on STDOUT
 getEpoch() {
-  getPromMetrics
-  grep "cardano_node_ChainDB_metrics_epoch_int" <<< "${prom_metrics}" | awk '{print $2}'
+  #getPromMetrics
+  #grep "cardano_node_ChainDB_metrics_epoch_int" <<< "${prom_metrics}" | awk '{print $2}'
+  current_time_sec=$(date -u +%s)
+  if [[ "${PROTOCOL_IDENTIFIER}" == "--cardano-mode" ]]; then
+    byron_end_time=$(( byron_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * byron_epoch_length * byron_slot_length ) ))
+    echo $(( $(cat $SHELLEY_TRANS_FILENAME) + ( (current_time_sec - byron_end_time) / slot_length / epoch_length ) ))
+  else
+    echo $(( (current_time_sec - shelley_genesis_start_sec) / slot_length / epoch_length ))
+  fi
 }
 # Command    : getTimeUntilNextEpoch
 # Description: Offline calculation of time until next epoch
@@ -431,7 +442,11 @@ getEpoch() {
 timeUntilNextEpoch() {
   current_epoch=$(getEpoch)
   current_time_sec=$(date -u +%s)
-  showTimeLeft $(( epoch_length - ( current_time_sec - shelley_genesis_start_sec ) + ( current_epoch * epoch_length ) ))
+  if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
+    showTimeLeft $(( ($(cat $SHELLEY_TRANS_FILENAME) * byron_slot_length * byron_epoch_length) + ( ( current_epoch + 1 - $(cat $SHELLEY_TRANS_FILENAME) ) * slot_length * epoch_length ) - current_time_sec + byron_genesis_start_sec ))
+  else
+    showTimeLeft $(( ( ( ( (current_time_sec - shelley_genesis_start_sec) / slot_length / epoch_length ) + 1 ) * slot_length * epoch_length ) - current_time_sec + shelley_genesis_start_sec ))
+  fi
 }
 
 # Command    : getCurrentKESperiod
@@ -444,8 +459,8 @@ getCurrentKESperiod() {
     # lets calculate it instead
     current_time_sec=$(date -u +%s)
     if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
-      byron_shelley_trans_end=$(( shelley_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * epoch_length ) ))
-      current_kes_period=$(( ( current_time_sec - byron_shelley_trans_end ) / ( slots_per_kes_period * slot_length ) ))
+      byron_end_time=$(( byron_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * byron_epoch_length * byron_slot_length ) ))
+      current_kes_period=$(( ( current_time_sec - byron_end_time ) / ( slots_per_kes_period * slot_length ) ))
     else
       current_kes_period=$(( ( current_time_sec - shelley_genesis_start_sec ) / ( slots_per_kes_period * slot_length ) ))
     fi
@@ -464,8 +479,12 @@ kesExpiration() {
     return 1
   fi
   kes_expiration_period=$(( ${1} + ${max_kes_evolutions} - 1 ))
-  byron_shelley_trans_end=$(( shelley_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * epoch_length ) ))
-  expiration_time_sec=$(( ${byron_shelley_trans_end} + ( ${slot_length} * ${kes_expiration_period} * ${slots_per_kes_period} ) ))
+  if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
+    byron_end_time=$(( byron_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * byron_epoch_length * byron_slot_length ) ))
+    expiration_time_sec=$(( byron_end_time + ( slot_length * kes_expiration_period * slots_per_kes_period ) ))
+  else
+    expiration_time_sec=$(( shelley_genesis_start_sec + ( slot_length * kes_expiration_period * slots_per_kes_period ) ))
+  fi
   current_time_sec=$(date -u +%s)
   expiration_time_sec_diff=$(( expiration_time_sec - current_time_sec ))
   expiration_date=$(date --date=@${expiration_time_sec})
