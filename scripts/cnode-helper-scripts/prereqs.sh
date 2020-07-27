@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# shellcheck disable=SC2086
 get_input() {
   printf "%s (default: %s): " "$1" "$2" >&2; read -r answer
   if [ -z "$answer" ]; then echo "$2"; else echo "$answer"; fi
@@ -27,21 +27,39 @@ err_exit() {
 
 usage() {
   cat <<EOF >&2
-Usage: $(basename "$0") [-i]
-Install pre-requisites for 'cardano-node'
+Usage: $(basename "$0") [-o] [-s] [-i] [-g] [-p]
+Install pre-requisites for building cardano node and using cntools
 
--i                  Interactive mode
+-o    Do *NOT* overwrite existing cnode.sh, genesis.json, topology.json and topology-updater.sh files (Default: will overwrite)
+-s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
+-i    Interactive mode (Default: silent mode)
+-g    Connect to guild network instead of public network (Default: connect to public cardano network)
+-p    Copy Transitional Praos config as default instead of Combinator networks (Default: copies combinator network)
 EOF
   exit 1
 }
 
-while getopts "i" opt
-do
-  case "$opt" in
-    i)
+WANT_BUILD_DEPS='Y'
+OVERWRITE=' '
+
+while getopts :i:g:p:s:o opt; do
+  case ${opt} in
+    i )
       INTERACTIVE='Y'
       ;;
-    *)
+    g )
+      GUILD='Y'
+      ;;
+    p )
+      PRAOS='Y'
+      ;;
+    s )
+      WANT_BUILD_DEPS='N'
+      ;;
+    o )
+      OVERWRITE=' -C -'
+      ;;
+    \? )
       usage
       ;;
     esac
@@ -56,8 +74,6 @@ CNODE_PATH="/opt/cardano"
 CNODE_NAME="cnode"
 CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
 CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
-
-WANT_BUILD_DEPS='Y'
 
 #if [ $(id -u$( -eq 0 ]; then
 #  err_exit "Please run as non-root user."
@@ -198,17 +214,17 @@ cd "$CNODE_HOME/files" || return
 
 curl -s -o ptn0-praos.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0-praos.json
 curl -s -o ptn0-combinator.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0-combinator.json
-if [[ "$2" = "g" ]]; then
+if [[ "$GUILD" = "Y" ]]; then
   curl -s -o genesis.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/genesis.json
   curl -s -o byron-genesis.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/byron-genesis.json
   curl -s -o topology.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/topology.json
 else
-  curl -sL -o byron-genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet_candidate_4-byron-genesis.json
-  curl -sL -o genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet_candidate_4-shelley-genesis.json
-  curl -sL -o topology.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet_candidate_4-topology.json
+  curl -sL -o byron-genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet_candidate_4-byron-genesis.json
+  curl -sL -o genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet_candidate_4-shelley-genesis.json
+  curl -sL -o topology.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet_candidate_4-topology.json
 fi
 
-if [[ "$1" = "p" ]]; then
+if [[ "$PRAOS" = "Y" ]]; then
   cp ptn0-praos.json config.json
 else
   cp ptn0-combinator.json config.json
@@ -227,17 +243,17 @@ curl -s -o createAddr.sh https://raw.githubusercontent.com/cardano-community/gui
 curl -s -o sendADA.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/sendADA.sh
 curl -s -o balance.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/balance.sh
 curl -s -o rotatePoolKeys.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/rotatePoolKeys.sh
-curl -s -o cnode.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cnode.sh.templ
+curl -s -o cnode.sh ${OVERWRITE} https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cnode.sh.templ
 curl -s -o cntools.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.sh
 curl -s -o cntools.config https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.config
 curl -s -o cntools.library https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.library
 curl -s -o cntoolsBlockCollector.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntoolsBlockCollector.sh
 curl -s -o setup_mon.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/setup_mon.sh
-curl -s -o topologyUpdater.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/topologyUpdater.sh
+curl -s -o topologyUpdater.sh ${OVERWRITE} https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/topologyUpdater.sh
 sed -e "s@CNODE_HOME=.*@${CNODE_VNAME}_HOME=${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i cnode.sh
-curl -s -o cabal-build-all.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cabal-build-all.sh
-curl -s -o stack-build.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/stack-build.sh
-curl -s -o system-info.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/system-info.sh
+curl -s -o cabal-build-all.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cabal-build-all.sh
+curl -s -o stack-build.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/stack-build.sh
+curl -s -o system-info.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/system-info.sh
 chmod 755 ./*.sh
 # If you opt for an alternate CNODE_HOME, please run the below:
 # sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" *.sh

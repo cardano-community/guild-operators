@@ -16,7 +16,17 @@ mkdir "$HOME/tmp";cd "$HOME/tmp"
 cusl -sS -o prereqs.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh
 chmod 755 prereqs.sh
 # Ensure you can run sudo commands with your user before execution
+./prereqs.sh -h
+# -o    Do *NOT* overwrite existing genesis, topology.json and topology-updater.sh files (Default: will overwrite)
+# -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
+# -i    Interactive mode (Default: silent mode)
+# -g    Connect to guild network instead of public network (Default: connect to public cardano network)
+# -p    Copy Transitional Praos config as default instead of Combinator networks (Default: copies combinator network)
+
+# You can use one of the options above, if you'd like to defer from defaults (below).
+# Running without any parameters will run script in silent mode with OS Dependencies, and overwriting existing files.
 ./prereqs.sh
+
 ## Follow the prompts for execution. To make sure environment variables are available for session you're running, make sure to source bashrc
 . "${HOME}/.bashrc"
 ```

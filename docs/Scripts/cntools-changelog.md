@@ -7,11 +7,10 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [5.1.0] - 2020-07-25
 
-> Due to recent changes, following is required if you're upgrading from a version before < 5.0.2:
-> - prereqs.sh (default it will set you up against MC3), do not overwrite config please.
-> - Clear db folder
-> - Clear logs folder
-> - Start using updated cnode. to run a passive node
+> We have made quite a few changes to not use ptn0 in our scripts and source github structures (except template files), alongwith other changes listed beneath. Please follow steps below for upgrade:
+> - Execute the below (by default it will set you up against MC4 network), do not overwrite config please:
+>    `curl -sS -o https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh`
+> - Start using updated cnode.sh to run a passive node, or edit the cnode.sh to include your pool keys and run as pool owner.
 
 =======
 
@@ -23,7 +22,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ##### Changed
 - Prometheus metrics used for various functions and now required to run CNTools, enabled by default
-
+- Allow prereqs.sh to avoid overwriting topology and genesis files.
 
 #### [5.0.6] - 2020-07-26
 ##### Fixed

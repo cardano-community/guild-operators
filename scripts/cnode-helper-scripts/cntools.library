@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2034,SC2086,SC2230
+# shellcheck disable=SC2034,SC2086,SC2230,SC2206
 
 ############################################################
 # Variables to keep counter for versions                   #
@@ -365,7 +365,7 @@ decryptFile() {
 # Description: Get latest Prometheus metrics from the node
 # Return     : populates $prom_metrics variable
 getPromMetrics() {
-  prom_metrics=$(curl -s "http://127.0.0.1:${prom_port}/metrics")
+  prom_metrics=$(curl -s "http://${PROM_HOST}:${prom_port}/metrics")
 }
 
 # Command    : getBlockTip

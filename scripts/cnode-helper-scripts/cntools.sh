@@ -35,7 +35,7 @@ if wget -q -T 10 -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"; th
     say ""
     say "Installed Version : ${CNTOOLS_VERSION}" "log"
     say "Available Version : ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC}" "log"
-    say "\nGo to Update section for upgrade"
+    say "\nGo to Update section for upgrade\n\nAlternately, follow https://cardano-community.github.io/guild-operators/#/basics?id=pre-requisites to update cntools as well alongwith any other files"
     waitForInput "press any key to proceed"
   else
     # check if CNTools was recently updated, if so show whats new
@@ -76,10 +76,11 @@ if ! need_cmd "curl" || \
    ! need_cmd "column"; then exit 1
 fi
 
+
 # Verify that Prometheus is enabled in config file
-prom_port=$(jq '.hasPrometheus[1] //empty' ${CONFIG})
+prom_port=$(jq '.hasPrometheus[1] //empty' ${CONFIG} 2>/dev/null)
 if [[ -z "${prom_port}" ]]; then
-  say "\n${ORANGE}WARN${NC}: Please ensure that Prometheus is enabled in config file, default if you've not overwritten the config file downloaded by prereqs.sh\n"
+  say "\n${ORANGE}WARN${NC}: Please ensure that your config file is in JSON format and that hasPrometheus is enabled, if unsure - rerun prereqs.sh and do not overwrite the config file\n"
   exit 1
 fi
 
