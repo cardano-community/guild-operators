@@ -196,12 +196,12 @@ chmod -R 755 "$CNODE_HOME"
 
 cd "$CNODE_HOME/files" || return
 
-curl -s -o ptn0-praos.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0-praos.json
-curl -s -o ptn0-combinator.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/ptn0-combinator.json
+curl -s -o ptn0-praos.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0-praos.json
+curl -s -o ptn0-combinator.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0-combinator.json
 if [[ "$2" = "g" ]]; then
-  curl -s -o genesis.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/genesis.json
-  curl -s -o byron-genesis.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/byron-genesis.json
-  curl -s -o topology.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/files/topology.json
+  curl -s -o genesis.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/genesis.json
+  curl -s -o byron-genesis.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/byron-genesis.json
+  curl -s -o topology.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/topology.json
 else
   curl -sL -o byron-genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet_candidate_4-byron-genesis.json
   curl -sL -o genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet_candidate_4-shelley-genesis.json
@@ -209,13 +209,13 @@ else
 fi
 
 if [[ "$1" = "p" ]]; then
-  cp ptn0-praos.json ptn0.json
+  cp ptn0-praos.json config.json
 else
-  cp ptn0-combinator.json ptn0.json
+  cp ptn0-combinator.json config.json
 fi
 
 # If using a different CNODE_HOME than in this example, execute the below:
-# sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/ptn*.json
+# sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/*.json
 ## For future use:
 ## It generates random NodeID:
 ## -e "s#NodeId:.*#NodeId:$(od -A n -t u8 -N 8 /dev/urandom$(#" \
@@ -227,7 +227,7 @@ curl -s -o createAddr.sh https://raw.githubusercontent.com/cardano-community/gui
 curl -s -o sendADA.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/sendADA.sh
 curl -s -o balance.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/balance.sh
 curl -s -o rotatePoolKeys.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/rotatePoolKeys.sh
-curl -s -o cnode.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/cnode.sh.templ
+curl -s -o cnode.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cnode.sh.templ
 curl -s -o cntools.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.sh
 curl -s -o cntools.config https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.config
 curl -s -o cntools.library https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.library
@@ -235,9 +235,9 @@ curl -s -o cntoolsBlockCollector.sh https://raw.githubusercontent.com/cardano-co
 curl -s -o setup_mon.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/setup_mon.sh
 curl -s -o topologyUpdater.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/topologyUpdater.sh
 sed -e "s@CNODE_HOME=.*@${CNODE_VNAME}_HOME=${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i cnode.sh
-curl -s -o cabal-build-all.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/cabal-build-all.sh
-curl -s -o stack-build.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/stack-build.sh
-curl -s -o system-info.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0/scripts/system-info.sh
+curl -s -o cabal-build-all.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cabal-build-all.sh
+curl -s -o stack-build.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/stack-build.sh
+curl -s -o system-info.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/system-info.sh
 chmod 755 ./*.sh
 # If you opt for an alternate CNODE_HOME, please run the below:
 # sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" *.sh
