@@ -2613,29 +2613,19 @@ case $OPERATION in
       say "${RED}WARNING${NC}: Breaking changes were made to CNTools!"
 																									 
       waitForInput "We will not overwrite your changes automatically, press any key to continue"
-      say "\n\n1) Please backup config/env files if changes has been made as well as wallet/pool folders:"
-      say " $CNODE_HOME/scripts/cntools.config"
-      say " $CNODE_HOME/scripts/env"
-      say " $CNODE_HOME/priv/wallet"
-      say " $CNODE_HOME/priv/pool"
-      say "\n2) After backup, run:"
-      say " wget -O $CNODE_HOME/scripts/cntools.sh ${URL}/cntools.sh"
-      say " wget -O $CNODE_HOME/scripts/cntools.config ${URL}/cntools.config"
-      say " wget -O $CNODE_HOME/scripts/cntools.library ${URL}/cntools.library"
-      say " wget -O $CNODE_HOME/scripts/cntoolsBlockCollector.sh ${URL}/cntoolsBlockCollector.sh"
-      say " wget -O $CNODE_HOME/scripts/env ${URL}/env"
-      say " chmod 750 $CNODE_HOME/scripts/*.sh"
-      say " chmod 640 $CNODE_HOME/scripts/cntools.library $CNODE_HOME/scripts/env"
-      say "\n3) As the last step restore modified parameters in config/env file if needed"
+      say "\n\n1) Please backup cntools.config / env files if changes has been made as well as wallet / pool folders"
+      say "   Use the built in Backup option in CNTools to do this for you"
+      say "\n2) After backup, re-run updated prereqs.sh script with -o -s switches, follow directions here:"
+      say "   https://cardano-community.github.io/guild-operators/#/basics?id=pre-requisites"
+      say "\n3) As the last step, restore modified parameters in cntools.config / env files if needed"
     elif [[ "$CNTOOLS_MINOR_VERSION" != "$GIT_MINOR_VERSION" || "$CNTOOLS_PATCH_VERSION" != "$GIT_PATCH_VERSION" ]];then
       say "New minor/patch version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
       say "Applying update (no changes required for operation)..."
       if wget -q -T 10 -O "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh" &&
          wget -q -T 10 -O "$CNODE_HOME/scripts/cntools.library" "$URL/cntools.library" &&
-         wget -q -T 10 -O "$CNODE_HOME/scripts/env" "$URL/env" &&
          wget -q -T 10 -O "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "$URL/cntoolsBlockCollector.sh"; then
         chmod 750 "$CNODE_HOME/scripts/"*.sh
-        chmod 640 "$CNODE_HOME/scripts/cntools.library" "$CNODE_HOME/scripts/cntools.config" "$CNODE_HOME/scripts/env"
+        chmod 640 "$CNODE_HOME/scripts/cntools.library" "$CNODE_HOME/scripts/cntools.config"
         say "\nUpdate applied successfully! Please start CNTools again !\n"
         exit
       else
