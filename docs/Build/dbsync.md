@@ -1,7 +1,7 @@
-!> - An average pool operator may not require cardano-wallet at all. Please verify if it is required for your use as mentioned [here](../build.md#components)
+!> - An average pool operator may not require cardano-wallet at all. Please verify if it is required for your use as mentioned [here](build.md#components)
 
 > Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
->- Cardano DB Sync tool relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to [Sample Local PostgreSQL Server Deployment instructions](../Appendix/postgres.md) for setting up Postgres instance.
+>- Cardano DB Sync tool relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to [Sample Local PostgreSQL Server Deployment instructions](Appendix/postgres.md) for setting up Postgres instance.
 
 #### Build Instructions {docsify-ignore}
 
@@ -45,7 +45,7 @@ cd ~/git/cardano-db-sync
 PGPASSFILE=$CNODE_HOME/priv/.pgpass cardano-db-sync-extended --config $CNODE_HOME/files/config.json --genesis-file $CNODE_HOME/files/genesis.json --socket-path $CNODE_HOME/sockets/node0.socket --schema-dir schema/
 ```
 
-You can use same instructions above to repeat and execute `cardano-db-sync` as well, but [cardano-graphql](./graphql.md) uses `cardano-db-sync-extended`, so we'll stick to it
+You can use same instructions above to repeat and execute `cardano-db-sync` as well, but [cardano-graphql](Build/graphql.md) uses `cardano-db-sync-extended`, so we'll stick to it
 
 ##### Validation
 
