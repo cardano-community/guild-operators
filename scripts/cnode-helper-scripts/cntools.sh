@@ -78,8 +78,8 @@ fi
 
 
 # Verify that Prometheus is enabled in config file
-prom_port=$(jq '.hasPrometheus[1] //empty' ${CONFIG} 2>/dev/null)
-prom_host=$(jq '.hasPrometheus[0] //empty' ${CONFIG} 2>/dev/null | sed '#"##g')
+prom_port=$(jq -r '.hasPrometheus[1] //empty' ${CONFIG} 2>/dev/null)
+prom_host=$(jq -r '.hasPrometheus[0] //empty' ${CONFIG} 2>/dev/null)
 
 if [[ -z "${prom_port}" ]]; then
   say "\n${RED}ERROR${NC}: Please ensure that your config file is in JSON format and that hasPrometheus is enabled, if unsure - rerun "<path>/prereqs.sh -s" again - and it would overwrite the config file\n"
