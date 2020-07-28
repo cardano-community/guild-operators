@@ -13,7 +13,7 @@ mkdir "$HOME/tmp";cd "$HOME/tmp"
 # Install curl
 # CentOS / RedHat - sudo dnf -y install curl
 # Ubuntu / Debian - sudo apt -y install curl
-cusl -sS -o prereqs.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh
+curl -sS -o prereqs.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh
 chmod 755 prereqs.sh
 # Ensure you can run sudo commands with your user before execution
 ./prereqs.sh -h
