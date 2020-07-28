@@ -1,4 +1,4 @@
-!> Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
+!> Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
 
 For the core node (block producer) the `cntoolsBlockCollector.sh` script can be run to monitor the json log file created by cardano-node for traces related to leader slots and block creation. Data collected is stored in a json file, one for each epoch. To view the collected data the main CNTools script is used.  
 

@@ -4,7 +4,7 @@ The topologyupdater shell script must be executed on the relay node as a cronjob
 
 #### Download and Configure topologyUpdater.sh
 
-If you have run [prereqs.sh](../basics.md#pre-requisites), this should already be available in your scripts folder and make this step unnecessary. 
+If you have run [prereqs.sh](basics.md#pre-requisites), this should already be available in your scripts folder and make this step unnecessary. 
 
 Before the updater can make a valid request to the central topology service, he must query the current tip/blockNo from the well synced local node. It connects to your node through the configuration in the script (note: not the usual env file, as cronjobs don't run in the same environment). Customize this file for your needs.  
 

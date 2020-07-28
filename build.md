@@ -2,7 +2,7 @@ The documentation here uses instructions from [IOHK repositories](https://github
 
 ##### Components
 
-For most Pool Operators, simply building [cardano-node](./Build/node-cli.md) should be enough. Use the below to decide whether you need other components:
+For most Pool Operators, simply building [cardano-node](Build/node-cli.md) should be enough. Use the below to decide whether you need other components:
 
 ```mermaid
 graph TB
