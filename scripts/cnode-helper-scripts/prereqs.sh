@@ -42,7 +42,7 @@ EOF
 WANT_BUILD_DEPS='Y'
 OVERWRITE=' '
 
-while getopts :i:g:p:s:o opt; do
+while getopts :igpso opt; do
   case ${opt} in
     i )
       INTERACTIVE='Y'
@@ -64,6 +64,7 @@ while getopts :i:g:p:s:o opt; do
       ;;
     esac
 done
+shift $((OPTIND -1))
 
 # For who runs the script within containers and running it as root.
 U_ID=$(id -u)

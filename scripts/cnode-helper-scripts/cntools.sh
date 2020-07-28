@@ -78,10 +78,18 @@ fi
 
 
 # Verify that Prometheus is enabled in config file
-prom_port=$(jq '.hasPrometheus[1] //empty' ${CONFIG} 2>/dev/null)
+prom_port=$(jq -r '.hasPrometheus[1] //empty' ${CONFIG} 2>/dev/null)
+prom_host=$(jq -r '.hasPrometheus[0] //empty' ${CONFIG} 2>/dev/null)
+
 if [[ -z "${prom_port}" ]]; then
-  say "\n${ORANGE}WARN${NC}: Please ensure that your config file is in JSON format and that hasPrometheus is enabled, if unsure - rerun prereqs.sh and do not overwrite the config file\n"
+  say "\n${RED}ERROR${NC}: Please ensure that your config file is in JSON format and that hasPrometheus is enabled, if unsure - rerun "<path>/prereqs.sh -s" again - and it would overwrite the config file\n"
   exit 1
+fi
+
+# Verify that socket file pointed by env variable exists
+if [[ -f "${CARDANO_NODE_SOCKET_PATH}" ]]; then
+  say "\m${RED}ERROR${NC}: The file ${CARDANO_NODE_SOCKET_PATH} file does not exist. Make sure that cardano-node either points to this file and is restarted, or if you use an alternate path - be sure to update the env file"
+  exit
 fi
 
 # Verify if the combinator network is already on shelley and if so, the epoch of transition
@@ -96,7 +104,7 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
     byron_epochs=${epoch}
     shelley_epochs=0
     while [[ ${byron_epochs} -ge 0 ]]; do
-      calc_slot=$(( ((byron_epochs*byron_epoch_length)/20) + (shelley_epochs*epoch_length) + slot_in_epoch ))
+      calc_slot=$(( (byron_epochs*byron_epoch_length) + (shelley_epochs*epoch_length) + slot_in_epoch ))
       [[ ${calc_slot} -eq ${slot_num} ]] && break
       ((byron_epochs--))
       ((shelley_epochs++))
@@ -114,6 +122,7 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
 fi
 
 # Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
+[[ -f "${TMP_FOLDER}"/protparams.json ]] && rm -f "${TMP_FOLDER}"/protparams.json 2>/dev/null
 ${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/protparams.json 2>/dev/null|| {
   say "\n\n${ORANGE}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)"
   say "\n${BLUE}Press c to continue or any other key to quit${NC}"
