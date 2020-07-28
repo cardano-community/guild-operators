@@ -16,16 +16,22 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ##### Added
 - Backup & Restore of wallets, pools and configuration files
+- External KES rotation script using CNTools library
+- Add few flags to control prereqs to allow skipping overwriting files, deploying OS packages, etc
+
+##### Fixed
 - Minor typo in menu
-- Remove redundant sections in guide
-- external KES rotation script using CNTools library
 
 ##### Changed
 - Prometheus metrics used for various functions and now required to run CNTools, enabled by default
-- Allow prereqs.sh to avoid overwriting topology and genesis files
+- Changed references to ptn0 to generalize the usage
+- Change CNTools changelog heading format - +1 sublevels for headings (used by newer documentation)
 - Delegators previously displayed in `Pool >> Show` now moved to its own menu option
-  This to de-clutter and because it takes time to parse this data from ledger-state
+  This is to de-clutter and because it takes time to parse this data from ledger-state
 - stake.cert no longer encrypted in wallet
+
+##### Removed
+- Redundant sections in guide
 
 #### [5.0.6] - 2020-07-26
 ##### Fixed
