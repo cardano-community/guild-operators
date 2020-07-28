@@ -2599,7 +2599,7 @@ case $OPERATION in
   say " >> UPDATE" "log"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   say ""
-  say "Full changelog available at:\nhttps://cardano-community.github.io/guild-operators/Scripts/cntools-changelog.html"
+  say "Full changelog available at:\nhttps://rdlrt.github.io/guild-operators/#/Scripts/cntools-changelog"
   say ""
 
   URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
