@@ -7,5 +7,5 @@ The owners are the stake holders who have some funds deposited and want to own, 
 That means the the __operator__ is the __owner__.
 
 
-See [detailed example here](../Staking/Operators.md)
+See [detailed example here](Staking/Operators.md)
 

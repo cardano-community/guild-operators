@@ -1,5 +1,5 @@
 !> The script may not be detailed enough at this stage, we will update the contents to be a lot more definitive soon
-> Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
+> Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
 
 This is a multi-purpose script to operate various activities (like creating keys, transactions, registering stake pool , delegating to a pool or updating binaries) using cardano node.
 
