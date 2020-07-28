@@ -96,7 +96,7 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
     byron_epochs=${epoch}
     shelley_epochs=0
     while [[ ${byron_epochs} -ge 0 ]]; do
-      calc_slot=$(( ((byron_epochs*epoch_length)/20) + (shelley_epochs*epoch_length) + slot_in_epoch ))
+      calc_slot=$(( ((byron_epochs*byron_epoch_length)/20) + (shelley_epochs*epoch_length) + slot_in_epoch ))
       [[ ${calc_slot} -eq ${slot_num} ]] && break
       ((byron_epochs--))
       ((shelley_epochs++))
