@@ -54,7 +54,7 @@
       maxLevel   : 5,
       name: 'Guild Operators',
       pagination: {
-        crossChapter: false,
+        crossChapter: true,
         crossChapterText: true
       },
       plugins: [
@@ -94,11 +94,11 @@
         }
       }
     }
-    const isDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches
+    //const isDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches
 
-    const conf = { logLevel:4, startOnLoad: false, securityLevel: 'lose', themeCSS:'.label { font-family: Source Sans Pro,Helvetica Neue,Arial,sans-serif; }' };
-    if(isDarkMode && false) conf.theme = 'dark';conf.width='100%';
-    mermaid.initialize(conf);
+    //const conf = { logLevel:4, startOnLoad: false, securityLevel: 'lose', themeCSS:'.label { font-family: Source Sans Pro,Helvetica Neue,Arial,sans-serif; }' };
+    //if(isDarkMode && false) conf.theme = 'dark';conf.width='100%';
+    //mermaid.initialize(conf);
   </script>
   <!--script src="//cdn.jsdelivr.net/npm/docsify/lib/docsify.min.js"></script-->
   <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/emoji.min.js"></script>
