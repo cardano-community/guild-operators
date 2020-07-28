@@ -5,14 +5,24 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.2.0] - 2020-07-28
 
-> We have made quite a few changes to not use ptn0 in our scripts and source github structures (except template files), alongwith other changes listed beneath. Please follow steps below for upgrade:
+## [5.2.1] - 2020-07-29
+
+> We have made quite a few changes to not use ptn0 in our scripts and source github structures (except template files), alongwith other changes listed beneath. Please follow steps below for upgrade (from 5.1.0 or earlier):
 > - Execute the below (by default it will set you up against MC4 network), do not overwrite config please:
 >    `curl -sS -o https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh`
 > - Start using updated cnode.sh to run a passive node, or edit the cnode.sh to include your pool keys and run as pool owner.
 
 =======
+
+##### Added
+- Basic sanity checks for socket file
+
+##### Fixed
+- calc_slots to be network independent
+- prom_host should be calculated from config file, instead of having to update a config
+
+## [5.2.0] - 2020-07-28
 
 ##### Changed
 - Major update description updated
