@@ -11,7 +11,7 @@
 	    - [Common tasks](Scripts/cntools-common.md)
 	    - [Block Collector](Scripts/cntools-blocks.md)
 	    - [Changelog](Scripts/cntools-changelog.md)
-    * [ITN Metadata Proof](Scripts/cntools-itnwitness.md)
+    * [ITN Metadata Proof](Scripts/itnwitness.md)
     * [Topology Updater](Scripts/topologyupdater.md)
     * [Create Keys/Address](Scripts/createAddr.md)
     * [Balance and Transactions](Scripts/sendADA.md)

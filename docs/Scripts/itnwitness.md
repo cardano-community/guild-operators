@@ -1,6 +1,5 @@
 > ##### Disclaimer:
-> - We have not yet received a confirmation of whether this will be adopted by CF/IOHK/Emurgo, and as long as Daedalus/Yoroi does not use this information, it is not gonna be fully usable. But this is to be prepared in case the proposal goes through.
-> - This is not about awarding special recognition to ITN pools, but about preventing scammers from fooling delegators using the performance from ITN to attract wrong delegations. In future this information could be extended further to verify legitimacy of newer pools too - this is yet to be discussed, and this may be addressed using a curation/report process (eg: via CF/IOHK as default Wallet receivers, but can also be hosted by anyone).
+> - Currently this is to protect the existing pools from ITN who have already a delegator base to prevent spoofing against - to avoid scammers building on results of ITN from known pools. There would be a solution in future for Mainnet nodes too - but it doesnt apply to those in its current form.
 
 
 #### Concept
@@ -29,7 +28,7 @@ The actual implementation is pretty straightforward, we will keep it brisk - as 
 - Store your pool ID in a file (eg: `mainnet_pool.id`)
 - Sign the file using your owner secret key from ITN (eg: `owner_skey`) as per below:
 ``` bash
-jcli key sign --secret-key owner_skey mainnet_pool.id --output mainnet_pool.sig
+jcli key sign --secret-key ~/jormu/account/priv/owner.sk $CNODE_HOME/priv/pool/TEST/pool.id --output mainnet_pool.sig
 cat mainnet_pool.sig
 # ed25519_sig1sn32v3z...d72rg7rc6gs
 ```
