@@ -13,10 +13,15 @@ mkdir "$HOME/tmp";cd "$HOME/tmp"
 # Install curl
 # CentOS / RedHat - sudo dnf -y install curl
 # Ubuntu / Debian - sudo apt -y install curl
-cusl -sS -o prereqs.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh
+curl -sS -o prereqs.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh
 chmod 755 prereqs.sh
+
 # Ensure you can run sudo commands with your user before execution
-./prereqs.sh -h
+# You can check the syntax for prereqs.sh using command below:
+#
+# ./prereqs.sh -h
+# Usage: prereqs.sh [-o] [-s] [-i] [-g] [-p]
+# Install pre-requisites for building cardano node and using cntools
 # -o    Do *NOT* overwrite existing genesis, topology.json and topology-updater.sh files (Default: will overwrite)
 # -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
 # -i    Interactive mode (Default: silent mode)
@@ -25,6 +30,7 @@ chmod 755 prereqs.sh
 
 # You can use one of the options above, if you'd like to defer from defaults (below).
 # Running without any parameters will run script in silent mode with OS Dependencies, and overwriting existing files.
+
 ./prereqs.sh
 
 ## Follow the prompts for execution. To make sure environment variables are available for session you're running, make sure to source bashrc
