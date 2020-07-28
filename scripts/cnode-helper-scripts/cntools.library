@@ -371,7 +371,7 @@ decryptFile() {
 # Description: Get latest Prometheus metrics from the node
 # Return     : populates $prom_metrics variable
 getPromMetrics() {
-  prom_metrics=$(curl -s "http://${PROM_HOST}:${prom_port}/metrics")
+  prom_metrics=$(curl -s "http://${prom_host}:${prom_port}/metrics")
 }
 
 # Command    : getBlockTip
