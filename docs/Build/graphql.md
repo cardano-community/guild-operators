@@ -1,8 +1,8 @@
-### GraphQL
+!> - An average pool operator may not require cardano-wallet at all. Please verify if it is required for your use as mentioned [here](../build.md#components)
 
-Ensure the [Pre-Requisites](Common.md#dependencies-and-folder-structure-setup) are in place before you proceed.
+> Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
 
-#### Build Hasura graphql-engine
+#### Build Hasura graphql-engine {docsify-ignore}
 
 Going with the spirit of the documentation here, instruction to build the graphql-engine binary :)
 ``` bash
@@ -13,7 +13,7 @@ $CNODE_HOME/scripts/cabal-build-all.sh
 ```
 This should make `graphql-engine` available at ~/.cabal/bin.
 
-#### Build cardano-graphql
+##### Build cardano-graphql
 
 The build will fail if you are running a version of node.js earlier than 10.0.0 (which could happen if you have a conflicting version in your $PATH). You can verify your node version by executing the below:
 
@@ -57,7 +57,7 @@ cd dist
 rsync -arvh ../node_modules ./
 ```
 
-#### Set up environment for cardano-graphql
+##### Set up environment for cardano-graphql
 
 cardano-graphql requires cardano-node, cardano-db-sync-extended, postgresql and graphql-engine to be set up and running.
 The below will help you map the components:

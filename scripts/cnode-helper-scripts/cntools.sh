@@ -35,7 +35,7 @@ if wget -q -T 10 -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"; th
     say ""
     say "Installed Version : ${CNTOOLS_VERSION}" "log"
     say "Available Version : ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC}" "log"
-    say "\nGo to Update section for upgrade"
+    say "\nGo to Update section for upgrade\n\nAlternately, follow https://cardano-community.github.io/guild-operators/#/basics?id=pre-requisites to update cntools as well alongwith any other files"
     waitForInput "press any key to proceed"
   else
     # check if CNTools was recently updated, if so show whats new
@@ -76,26 +76,40 @@ if ! need_cmd "curl" || \
    ! need_cmd "column"; then exit 1
 fi
 
+
+# Verify that Prometheus is enabled in config file
+prom_port=$(jq '.hasPrometheus[1] //empty' ${CONFIG} 2>/dev/null)
+if [[ -z "${prom_port}" ]]; then
+  say "\n${ORANGE}WARN${NC}: Please ensure that your config file is in JSON format and that hasPrometheus is enabled, if unsure - rerun prereqs.sh and do not overwrite the config file\n"
+  exit 1
+fi
+
 # Verify if the combinator network is already on shelley and if so, the epoch of transition
 if [[ "${PROTOCOL}" == "Cardano" ]]; then
-  if grep \"TestShelleyHardForkAt ${CONFIG} | grep -v \#; then
-    # Check if Fork is virtual
-    shelleyTransitionEpoch=$(grep \"TestShelleyHardForkAt ${CONFIG} | grep -v \# | awk '{print $2}' | cut -d, -f1)
-    echo "$shelleyTransitionEpoch" > "$SHELLEY_TRANS_FILENAME"
-  elif [[ ! "$(ls -A $CNODE_HOME/logs/*.json 2>/dev/null)" ]]; then
-    # Check if JSON logging is enabled, and exit if it isnt
-    say "\n\n${ORANGE}WARN${NC}: Please ensure that you've used $CNODE_HOME/files/scripts/cnode.sh to start the node, and that you've not overwritten the config file downloaded by prereqs.sh"
-    exit 1
-  elif [[ "$(cat $SHELLEY_TRANS_FILENAME 2>/dev/null)" == ""  ]]; then
-    shelleyTransitionEpoch=$(grep -i hardforkupdatetransitionconfirmed $CNODE_HOME/logs/*.json 2>/dev/null | cut -d: -f 2- | tail -1 | jq -r '.data.events[1].transitionEpoch')
-    if [[ "$shelleyTransitionEpoch" != "" ]]; then
-      echo "$shelleyTransitionEpoch" > "$SHELLEY_TRANS_FILENAME"
-    else
-      say "\n\n${ORANGE}WARN${NC}: The logs indicate that cardano-node has not yet synched to network or the network has not reached the hard fork from Byron to shelley , please wait to use CNTools until your node is in shelley era"
+  shelleyTransitionEpoch=$(cat "${SHELLEY_TRANS_FILENAME}" 2>/dev/null)
+  if [[ -z "${shelleyTransitionEpoch}" ]]; then
+    getPromMetrics
+    slot_in_epoch=$(grep "cardano_node_ChainDB_metrics_slotInEpoch_int" <<< "${prom_metrics}" | awk '{print $2}')
+    slot_num=$(grep "cardano_node_ChainDB_metrics_slotNum_int" <<< "${prom_metrics}" | awk '{print $2}')
+    epoch=$(grep "cardano_node_ChainDB_metrics_epoch_int" <<< "${prom_metrics}" | awk '{print $2}')
+    calc_slot=0
+    byron_epochs=${epoch}
+    shelley_epochs=0
+    while [[ ${byron_epochs} -ge 0 ]]; do
+      calc_slot=$(( ((byron_epochs*byron_epoch_length)/20) + (shelley_epochs*epoch_length) + slot_in_epoch ))
+      [[ ${calc_slot} -eq ${slot_num} ]] && break
+      ((byron_epochs--))
+      ((shelley_epochs++))
+    done
+    if [[ ${calc_slot} -ne ${slot_num} ]]; then
+      say "\n${ORANGE}WARN${NC}: Failed to calculate shelley transition epoch\n"
+      exit 1
+    elif [[ ${shelley_epochs} -eq 0 ]]; then
+      say "\n${ORANGE}WARN${NC}: The network has not reached the hard fork from Byron to shelley, please wait to use CNTools until your node is in shelley era\n"
       exit 1
     fi
-  else
-    shelleyTransitionEpoch=$(cat "$SHELLEY_TRANS_FILENAME")
+    shelleyTransitionEpoch=${byron_epochs}
+    echo "${shelleyTransitionEpoch}" > "${SHELLEY_TRANS_FILENAME}"
   fi
 fi
 
@@ -150,6 +164,7 @@ say " ) Funds   -  send, withdraw and delegate"
 say " ) Pool    -  pool creation and management"
 say " ) Blocks  -  show core node leader slots"
 say " ) Update  -  update cntools script and library config files"
+say " ) Backup  -  backup & restore of wallet/pool/config"
 say " ) Refresh -  reload home screen content"
 say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 say "$(printf "%84s" "Epoch $(getEpoch) - $(timeUntilNextEpoch) until next")"
@@ -163,14 +178,15 @@ else
   say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${RED}-${tip_diff} :(${NC}")"
 fi
 say ""
-case $(select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[b] Blocks" "[u] Update" "[r] Refresh" "[q] Quit") in
+case $(select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[b] Blocks" "[u] Update" "[z] Backup & Restore" "[r] Refresh" "[q] Quit") in
   0) OPERATION="wallet" ;;
   1) OPERATION="funds" ;;
   2) OPERATION="pool" ;;
   3) OPERATION="blocks" ;;
   4) OPERATION="update" ;;
-  5) continue ;;
-  6) clear && exit ;;
+  5) OPERATION="backup" ;;
+  6) continue ;;
+  7) clear && exit ;;
 esac
 
 case $OPERATION in
@@ -189,7 +205,7 @@ case $OPERATION in
   say " ) Encrypt  -  encrypt wallet keys and make all files immutable"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-  say " Select wallet operation\n"
+  say " Select Wallet operation\n"
   case $(select_opt "[n] New" "[l] List" "[s] Show" "[r] Remove" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
     0) SUBCOMMAND="new" ;;
     1) SUBCOMMAND="list" ;;
@@ -575,7 +591,6 @@ case $OPERATION in
       "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
       "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
       "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-      "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_CERT_FILENAME}"
     )
     for keyFile in "${keyFiles[@]}"; do
       if [[ -f "${keyFile}" ]]; then
@@ -1088,29 +1103,31 @@ case $OPERATION in
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   say " Pool Management"
   say ""
-  say " ) New       -  create a new pool"
-  say " ) Register  -  register created pool on chain using a stake wallet (pledge wallet)"
-  say " ) Modify    -  change pool parameters and register updated pool values on chain"
-  say " ) Retire    -  de-register stake pool from chain in specified epoch"
-  say " ) List      -  a compact list view of available local pools"
-  say " ) Show      -  detailed view of specified pool"
-  say " ) Rotate    -  rotate pool KES keys"
-  say " ) Decrypt   -  remove write protection and decrypt pool"
-  say " ) Encrypt   -  encrypt pool cold keys and make all files immutable"
+  say " ) New        -  create a new pool"
+  say " ) Register   -  register created pool on chain using a stake wallet (pledge wallet)"
+  say " ) Modify     -  change pool parameters and register updated pool values on chain"
+  say " ) Retire     -  de-register stake pool from chain in specified epoch"
+  say " ) List       -  a compact list view of available local pools"
+  say " ) Show       -  detailed view of specified pool"
+  say " ) Delegators -  list all delegators for pool"
+  say " ) Rotate     -  rotate pool KES keys"
+  say " ) Decrypt    -  remove write protection and decrypt pool"
+  say " ) Encrypt    -  encrypt pool cold keys and make all files immutable"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-  say " Select wallet operation\n"
-  case $(select_opt "[n] New" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
+  say " Select Pool operation\n"
+  case $(select_opt "[n] New" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[g] Delegators" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
     0) SUBCOMMAND="new" ;;
     1) SUBCOMMAND="register" ;;
     2) SUBCOMMAND="modify" ;;
     3) SUBCOMMAND="retire" ;;
     4) SUBCOMMAND="list" ;;
     5) SUBCOMMAND="show" ;;
-    6) SUBCOMMAND="rotate" ;;
-    7) SUBCOMMAND="decrypt" ;;
-    8) SUBCOMMAND="encrypt" ;;
-    9) continue ;;
+    6) SUBCOMMAND="delegators" ;;
+    7) SUBCOMMAND="rotate" ;;
+    8) SUBCOMMAND="decrypt" ;;
+    9) SUBCOMMAND="encrypt" ;;
+    10) continue ;;
   esac
 
   case $SUBCOMMAND in
@@ -1191,7 +1208,7 @@ case $OPERATION in
     done
     if [[ ${#pool_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No pools available that can be registered!"
-      say "first create a pool"
+      say "first create a pool or decrypt existing if encrypted"
       waitForInput && continue
     fi
     say "Select Pool:\n"
@@ -1611,7 +1628,7 @@ case $OPERATION in
     done
     if [[ ${#pool_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No pools available that can be modified!"
-      say "first register a pool"
+      say "first register a pool or decrypt existing if encrypted"
       waitForInput && continue
     fi
     say "Select Pool:\n"
@@ -2015,7 +2032,7 @@ case $OPERATION in
     done
     if [[ ${#pool_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No pools available that can be retired!"
-      say "first register a pool"
+      say "first register a pool or decrypt existing if encrypted"
       waitForInput && continue
     fi
     say "Select Pool:\n"
@@ -2239,8 +2256,8 @@ case $OPERATION in
       # get owners
       while read -r owner; do
         owner_wallet=$(grep -r ${owner} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
-        owner_wallet="$(basename "$(dirname "${owner_wallet}")")"
         if [[ -n ${owner_wallet} ]]; then
+          owner_wallet="$(basename "$(dirname "${owner_wallet}")")"
           say "$(printf "%-21s : %s" "Owner wallet" "${GREEN}${owner_wallet}${NC}")" "log"
         else
           say "$(printf "%-21s : %s" "Owner account" "${owner}")" "log"
@@ -2249,45 +2266,13 @@ case $OPERATION in
       reward_account=$(jq -r '.rewardAccount.credential."key hash"' <<< "${ledger_pool_state}")
       if [[ -n ${reward_account} ]]; then
         reward_wallet=$(grep -r ${reward_account} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
-        reward_wallet="$(basename "$(dirname "${reward_wallet}")")"
         if [[ -n ${reward_wallet} ]]; then
+          reward_wallet="$(basename "$(dirname "${reward_wallet}")")"
           say "$(printf "%-21s : %s" "Reward wallet" "${GREEN}${reward_wallet}${NC}")" "log"
         else
           say "$(printf "%-21s : %s" "Reward account" "${reward_account}")" "log"
         fi
       fi
-      # Delegators
-      printf "Looking for delegators, please wait..."
-      non_myopic_delegators=$(jq -r ".esNonMyopic.snapNM._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
-      snapshot_delegators=$(jq -r ".esSnapshots._pstakeSet._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
-      lstate_delegators=$(jq -r ".esLState._delegationState._dstate._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
-      delegators=$(echo "${non_myopic_delegators}" "${snapshot_delegators}" "${lstate_delegators}" | tr ' ' '\n' | sort -u)
-      total_stake=0
-      delegator=1
-      owner=1
-      pledge="$(jq -c -r '.pledge // 0' <<< "${ledger_pool_state}" | tr '\n' ' ')"
-      owners="$(jq -c -r '.owners[] // empty' <<< "${ledger_pool_state}" | tr '\n' ' ')"
-      nr_owners=$(jq -r '(.owners | length) // 0' <<< "${ledger_pool_state}")
-      for key in ${delegators}; do
-        printf "\r"
-        stake=$(jq ".esLState._utxoState._utxo | .[] | select(.address | contains(\"${key}\")) | .amount" "${TMP_FOLDER}"/ledger-state.json | awk 'BEGIN{total = 0} {total = total + $1} END{printf "%.0f", total}')
-        reward=$(jq -r ".esLState._delegationState._dstate._rewards | .[] | select(.[0][\"key hash\"] == \"${key}\") | .[1]" "${TMP_FOLDER}"/ledger-state.json)
-        total_stake=$((total_stake + stake + reward))
-        stake_color="${CYAN}"
-        if echo "${owners}" | grep -q "${key}"; then
-            say "$(printf "%-21s : %s" "Owner ${owner} hex key" "${key}")" "log"
-            owner=$((owner + 1))
-            # ToDo: check multi-owner pledge
-            if [[ $((stake + reward)) -lt ${pledge} && ${nr_owners} -eq 1 ]]; then
-                stake_color="${RED}"
-            fi
-        else
-            say "$(printf "%-21s : %s" "Delegator ${delegator} hex key" "${key}")" "log"
-            delegator=$((delegator + 1))
-        fi
-        say "$(printf "%-21s : ${stake_color}%s${NC} ADA (%s ADA)" " Stake (reward)" "$(formatLovelace ${stake})" "$(formatLovelace ${reward})")" "log"
-      done
-      say "$(printf "%-21s : ${GREEN}%s${NC} ADA" "Stake" "$(formatLovelace ${total_stake})")" "log"
       stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} shelley query stake-distribution ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | grep "${pool_id}" | tr -s ' ' | cut -d ' ' -f 2)")")
       if validateDecimalNbr ${stake_pct}; then
         say "$(printf "%-21s : %s %%" "Stake distribution" "${stake_pct}")" "log"
@@ -2302,6 +2287,55 @@ case $OPERATION in
     say ""
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     waitForInput
+    
+    ;; ###################################################################
+
+    delegators)
+    
+    clear
+    say " >> POOL >> DELEGATORS" "log"
+    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    say ""
+
+    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
+      say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
+      waitForInput && continue
+    fi
+    
+    pool_dirs=()
+    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
+    for dir in "${dirs[@]}"; do
+      pool_id="${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}"
+      [[ ! -f "${pool_id}" ]] && continue
+      pool_dirs+=("${dir}")
+    done
+    if [[ ${#pool_dirs[@]} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No pools available!"
+      say "first create a pool"
+      waitForInput && continue
+    fi
+    say "Select Pool:\n"
+    if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+    pool_name="${dir_name}"
+    pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
+    
+    say "Looking for delegators, please wait..."
+    getDelegators ${pool_id}
+    
+    clear
+    say " >> POOL >> DELEGATORS" "log"
+    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    say ""
+    say "${BLUE}${delegator_nbr}${NC} wallet(s) delegated to ${GREEN}${pool_name}${NC} of which ${ORANGE}${owner_nbr}${NC} are owner(s)\n"
+    say "Total Stake: $(formatLovelace ${total_stake}) ADA [ owners pledge: $(formatLovelace ${total_pledged}) | delegators: $(formatLovelace $((total_stake-total_pledged))) ]\n"
+    
+    if [[ ${total_pledged} -lt ${pledge} ]]; then
+      say "${ORANGE}WARN${NC}: Owners pledge does not cover registered pledge of $(formatLovelace ${pledge}) ADA\n"
+    fi
+    
+    printTable ';' "$(say 'Hex Key;Stake;Rewards' | cat - <(jq -r -c '.[] | "\(.hex_key);\(.stake);\(.rewards)"' <<< "${delegators_json}"))"
+    
+    waitForInput && continue
 
     ;; ###################################################################
 
@@ -2329,33 +2363,16 @@ case $OPERATION in
     done
     if [[ ${#pool_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No pools available to rotate KES keys for!"
-      say "first create a pool"
+      say "first create a pool or decrypt existing if encrypted"
       waitForInput && continue
     fi
     say "Select Pool:\n"
     if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
     pool_name="${dir_name}"
 
-    # cold keys
-    pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
-
-    # generated files
-    pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
-    pool_hotkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_SK_FILENAME}"
-    pool_opcert_counter_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_COUNTER_FILENAME}"
-    pool_saved_kes_start="${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}"
-    pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
-
-    start_kes_period=$(getCurrentKESperiod)
-    echo "${start_kes_period}" > ${pool_saved_kes_start}
-
-    say "creating new hot keys and certificate" 1
-    say "$ ${CCLI} shelley node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}" 2
-    ${CCLI} shelley node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
-    say "$ ${CCLI} shelley node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${start_kes_period} --out-file ${pool_opcert_file}" 2
-    ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${start_kes_period}" --out-file "${pool_opcert_file}"
-
-    kesExpiration "${start_kes_period}"
+    if ! rotatePoolKeys "${pool_name}"; then
+      waitForInput && continue
+    fi
 
     say ""
     say "Pool KES Keys Updated: ${GREEN}${pool_name}${NC}" "log"
@@ -2576,13 +2593,13 @@ case $OPERATION in
 
   ;; ###################################################################
 
-  update) # not ready yet
+  update)
 
   clear
   say " >> UPDATE" "log"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   say ""
-  say "Full changelog available at:\nhttps://cardano-community.github.io/guild-operators/Scripts/cntools-changelog.html"
+  say "Full changelog available at:\nhttps://rdlrt.github.io/guild-operators/#/Scripts/cntools-changelog"
   say ""
 
   URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
@@ -2670,6 +2687,99 @@ case $OPERATION in
   fi
 
   waitForInput
+  
+  ;; ###################################################################
+
+  backup)
+
+  clear
+  say " >> BACKUP & RESTORE" "log"
+  say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+  say ""
+  say "Create or restore a backup of CNTools wallets, pools and configuration files"
+  say ""
+  say "Backup or Restore?\n"
+  case $(select_opt "[b] Backup" "[r] Restore" "[Esc] Cancel") in
+    0) read -r -p "Enter full path for backup directory(created if non existent): " backup_path
+       if [[ ! "${backup_path}" =~ ^/[[:alnum:]/-_]+ ]]; then
+         say "${RED}ERROR${NC}: invalid path, please specify the full path to backup directory (space not allowed)"
+         waitForInput && continue
+       fi
+       mkdir -p "${backup_path}" # Create if missing
+       if [[ ! -d "${backup_path}" ]]; then
+         say "${RED}ERROR${NC}: failed to create backup directory:"
+         say "${backup_path}"
+         waitForInput && continue
+       fi
+       backup_list=(
+         "${WALLET_FOLDER}"
+         "${POOL_FOLDER}"
+         "${BLOCK_LOG_DIR}"
+         "$(dirname $0)"/env
+         "$(dirname $0)"/cntools.config
+       )
+       backup_file="${backup_path}/cntools-$(date '+%Y%m%d%H%M%S').tgz"
+       if ! tar cfz "${backup_file}" --files-from <(ls -d "${backup_list[@]}" 2>/dev/null); then
+         say "${RED}ERROR${NC}: failure during backup creation :("
+         waitForInput && continue
+       fi
+       say "\nEncrypt backup?\n"
+       case $(select_opt "[y] Yes" "[n] No") in
+         0) if getPassword confirm; then # $password variable populated by getPassword function
+              encryptFile "${backup_file}" "${password}"
+              backup_file="${backup_file}.gpg"
+              unset password
+            else
+              say "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
+            fi
+            ;;
+         1) : ;; # do nothing
+       esac
+       say ""
+       say "Backup file ${backup_file} successfully created" "log"
+       ;;
+    1) say "Backups created contain absolute path to files and directories"
+       say "Restoring a backup does not replace existing files"
+       say "Please restore to a temporary directory and copy files to restore to appropriate folders\n"
+       read -r -p "Enter path to backup file to restore: " backup_file
+       if [[ ! -f "${backup_file}" ]]; then
+         say "${RED}ERROR${NC}: file not found: ${backup_file}"
+         waitForInput && continue
+       fi
+       read -r -p "Enter full path for restore directory(created if non existent): " restore_path
+       if [[ ! "${restore_path}" =~ ^/[[:alnum:]/-_]+ ]]; then
+         say "${RED}ERROR${NC}: invalid path, please specify the full path to restore directory (space not allowed)"
+         waitForInput && continue
+       fi
+       restore_path="${restore_path}/$(basename ${backup_file%%.*})"
+       mkdir -p "${restore_path}" # Create restore directory
+       if [[ ! -d "${restore_path}" ]]; then
+         say "${RED}ERROR${NC}: failed to create restore directory:"
+         say "${restore_path}"
+         waitForInput && continue
+       fi
+       if [ "${backup_file##*.}" = "gpg" ]; then
+         say "\nBackup GPG encrypted, enter password to decrypt"
+         if getPassword; then # $password variable populated by getPassword function
+           decryptFile "${backup_file}" "${password}"
+           backup_file="${backup_file%.*}"
+           unset password
+         else
+           say "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
+           waitForInput && continue
+         fi
+       fi
+       if ! tar xfzk "${backup_file}" -C "${restore_path}" >/dev/null; then
+         say "${RED}ERROR${NC}: failure during backup restore :("
+         waitForInput && continue
+       fi
+       say ""
+       say "Backup successfully restored to ${restore_path}" "log"
+       ;;
+    2) continue ;;
+  esac
+  
+  waitForInput && continue
 
   ;; ###################################################################
 

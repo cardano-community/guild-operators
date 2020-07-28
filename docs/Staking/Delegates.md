@@ -1,4 +1,4 @@
-### Delegates
+!> The commands used on this page are out of date and will be updated soon
 
 The delegates are the stake holders who have some funds deposited and want to participate in staking.
 Therefore the steps for delegating stakes are the following:

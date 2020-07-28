@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2034,SC2086,SC2230
+# shellcheck disable=SC2034,SC2086,SC2230,SC2206
 
 ############################################################
 # Variables to keep counter for versions                   #
@@ -9,10 +9,28 @@
 # Any breaking changes (eg: that requires change of cntools.config, env or a change in priv folder would be considered breaking and will be exempt from auto-update)
 CNTOOLS_MAJOR_VERSION=5
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
-CNTOOLS_MINOR_VERSION=0
+CNTOOLS_MINOR_VERSION=1
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=6
+CNTOOLS_PATCH_VERSION=0
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
+
+############################################################
+# Static genesis variables                                 #
+############################################################
+shelley_genesis_start=$(jq -r .systemStart "${GENESIS_JSON}")
+shelley_genesis_start_sec=$(date --date=${shelley_genesis_start} +%s)
+epoch_length=$(jq -r .epochLength "${GENESIS_JSON}")
+slot_length=$(jq -r .slotLength "${GENESIS_JSON}")
+active_slots_coeff=$(jq -r .activeSlotsCoeff "${GENESIS_JSON}")
+decentralisation=$(jq -r .protocolParams.decentralisationParam "${GENESIS_JSON}")
+slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
+max_kes_evolutions=$(jq -r .maxKESEvolutions "${GENESIS_JSON}")
+if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
+  byron_genesis_start_sec=$(jq -r .startTime "${BYRON_GENESIS_JSON}")
+  byron_k=$(jq -r .protocolConsts.k "${BYRON_GENESIS_JSON}")
+  byron_slot_length=$(( $(jq -r .blockVersionData.slotDuration "${BYRON_GENESIS_JSON}" | sed -e 's#"##g') / 1000 ))
+  byron_epoch_length=$(( 10 * byron_k ))
+fi
 
 ############################################################
 # library sourced by cntools with common taskes to perform #
@@ -290,7 +308,7 @@ getPassword() {
       say "${RED}ERROR${NC}: password length too short, please use a minimum of 8 characters."
       say ""
       read -r -n 1 -s -p "Press q to abort or any other key to retry" abort
-      [[ ${abort} = "q" ]] && return 1
+      [[ ${abort} = "q" ]] && unset password && return 1
       say "\n"
       continue
     fi
@@ -301,7 +319,7 @@ getPassword() {
         say "${RED}ERROR${NC}: password missmatch!"
         say ""
         read -r -n 1 -s -p "Press q to abort or any other key to retry" abort
-        [[ ${abort} = "q" ]] && return 1
+        [[ ${abort} = "q" ]] && unset password && return 1
         say "\n"
       else
         say "" && return
@@ -349,43 +367,46 @@ decryptFile() {
 }
 
 
+# Command    : getPromMetrics
+# Description: Get latest Prometheus metrics from the node
+# Return     : populates $prom_metrics variable
+getPromMetrics() {
+  prom_metrics=$(curl -s "http://${PROM_HOST}:${prom_port}/metrics")
+}
+
 # Command    : getBlockTip
 # Description: Get latest block number
 # Return     : string with tip on STDOUT
 getBlockTip() {
-  $CCLI shelley query tip ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | jq -r '.blockNo'
+  getPromMetrics
+  grep "cardano_node_ChainDB_metrics_blockNum_int" <<< "${prom_metrics}" | awk '{print $2}'
 }
 # Command    : getSlotTip
 # Description: Get latest slot number
 # Return     : string with tip on STDOUT
 getSlotTip() {
-  $CCLI shelley query tip ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | jq -r '.slotNo'
+  getPromMetrics
+  grep "cardano_node_ChainDB_metrics_slotNum_int" <<< "${prom_metrics}" | awk '{print $2}'
 }
 # Command    : getSlotTipRef
 # Description: Get calculated slot number tip
 # Return     : string with tip on STDOUT
 getSlotTipRef() {
-  shelley_genesis_start_time_sec=$(date --date=$(jq -r .systemStart "${GENESIS_JSON}") +%s)
-  epoch_length=$(jq -r .epochLength "${GENESIS_JSON}")
-  slot_length=$(jq -r .slotLength "${GENESIS_JSON}")
   current_time_sec=$(date -u +%s)
-  
   if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
     # Combinator network
-    byron_genesis_start_time_sec=$(jq -r .startTime "${BYRON_GENESIS_JSON}")
-    byron_slots=$(( ( shelley_genesis_start_time_sec - byron_genesis_start_time_sec ) / 20 ))
-    byron_shelley_trans_slots=$(( ( $(cat $SHELLEY_TRANS_FILENAME) * epoch_length ) / 20 ))
-    byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * epoch_length ) ))
-    if [[ "${current_time_sec}" -lt "${byron_shelley_trans_end}" ]]; then
+    byron_slots=$(( $(cat $SHELLEY_TRANS_FILENAME) * byron_epoch_length )) # since this point will only be reached once we're in Shelley phase
+    byron_end_time=$(( byron_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * byron_epoch_length * byron_slot_length ) ))
+    if [[ "${current_time_sec}" -lt "${byron_end_time}" ]]; then
       # In Byron phase
-      echo $(( byron_slots + ( current_time_sec - shelley_genesis_start_time_sec ) / 20 ))
+      echo $(( ( current_time_sec - byron_genesis_start_sec ) / byron_slot_length ))
     else
       # In Shelley phase
-      echo $(( byron_slots + byron_shelley_trans_slots + (( current_time_sec - byron_shelley_trans_end ) / slot_length ) ))
+      echo $(( byron_slots + (( current_time_sec - byron_end_time ) / slot_length ) ))
     fi
   else
     # Shelley Mode only, no Byron slots
-    echo $(( ( current_time_sec - shelley_genesis_start_time_sec ) / slot_length ))
+    echo $(( ( current_time_sec - shelley_genesis_start_sec ) / slot_length ))
   fi
 }
 # Command    : getSlotTipDiff
@@ -398,9 +419,6 @@ getSlotTipDiff() {
 }
 
 slotInterval() {
-  slot_length=$(jq -r .slotLength "${GENESIS_JSON}")
-  active_slots_coeff=$(jq -r .activeSlotsCoeff "${GENESIS_JSON}")
-  decentralisation=$(jq -r .protocolParams.decentralisationParam "${GENESIS_JSON}")
   echo "(${slot_length} / ${active_slots_coeff} / ${decentralisation}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}'
 }
 
@@ -408,34 +426,44 @@ slotInterval() {
 # Description: Offline calculation of current epoch based on genesis file
 # Return     : current epoch on STDOUT
 getEpoch() {
-  genesis_start_time_sec=$(date --date=$(jq -r .systemStart "${GENESIS_JSON}") +%s)
+  #getPromMetrics
+  #grep "cardano_node_ChainDB_metrics_epoch_int" <<< "${prom_metrics}" | awk '{print $2}'
   current_time_sec=$(date -u +%s)
-  epoch_length=$(jq -r .epochLength "${GENESIS_JSON}")
-  current_epoch=$(( ( current_time_sec - genesis_start_time_sec ) / epoch_length ))
-  echo "${current_epoch}"
+  if [[ "${PROTOCOL_IDENTIFIER}" == "--cardano-mode" ]]; then
+    byron_end_time=$(( byron_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * byron_epoch_length * byron_slot_length ) ))
+    echo $(( $(cat $SHELLEY_TRANS_FILENAME) + ( (current_time_sec - byron_end_time) / slot_length / epoch_length ) ))
+  else
+    echo $(( (current_time_sec - shelley_genesis_start_sec) / slot_length / epoch_length ))
+  fi
 }
 # Command    : getTimeUntilNextEpoch
 # Description: Offline calculation of time until next epoch
 # Return     : time left in hh:mm:ss
 timeUntilNextEpoch() {
-  getEpoch >/dev/null
-  showTimeLeft $(( epoch_length - ( current_time_sec - genesis_start_time_sec ) + ( current_epoch * epoch_length ) ))
+  current_epoch=$(getEpoch)
+  current_time_sec=$(date -u +%s)
+  if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
+    showTimeLeft $(( ($(cat $SHELLEY_TRANS_FILENAME) * byron_slot_length * byron_epoch_length) + ( ( current_epoch + 1 - $(cat $SHELLEY_TRANS_FILENAME) ) * slot_length * epoch_length ) - current_time_sec + byron_genesis_start_sec ))
+  else
+    showTimeLeft $(( ( ( ( (current_time_sec - shelley_genesis_start_sec) / slot_length / epoch_length ) + 1 ) * slot_length * epoch_length ) - current_time_sec + shelley_genesis_start_sec ))
+  fi
 }
 
 # Command    : getCurrentKESperiod
 # Description: Offline calculation of the current KES period
 # Return     : current KES period on STDOUT
 getCurrentKESperiod() {
-  shelley_genesis_start_time_sec=$(date --date=$(jq -r .systemStart "${GENESIS_JSON}") +%s)
-  epoch_length=$(jq -r .epochLength "${GENESIS_JSON}")
-  slot_length=$(jq -r .slotLength "${GENESIS_JSON}")
-  slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
-  current_time_sec=$(date -u +%s)
-  if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
-    byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * epoch_length ) ))
-    current_kes_period=$(( ( current_time_sec - byron_shelley_trans_end ) / ( slots_per_kes_period * slot_length ) ))
-  else
-    current_kes_period=$(( ( current_time_sec - shelley_genesis_start_time_sec ) / ( slots_per_kes_period * slot_length ) ))
+  getPromMetrics
+  current_kes_period=$(grep "cardano_node_Forge_metrics_currentKESPeriod_int" <<< "${prom_metrics}" | awk '{print $2}')
+  if [[ -z "${current_kes_period}" ]]; then
+    # lets calculate it instead
+    current_time_sec=$(date -u +%s)
+    if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
+      byron_end_time=$(( byron_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * byron_epoch_length * byron_slot_length ) ))
+      current_kes_period=$(( ( current_time_sec - byron_end_time ) / ( slots_per_kes_period * slot_length ) ))
+    else
+      current_kes_period=$(( ( current_time_sec - shelley_genesis_start_sec ) / ( slots_per_kes_period * slot_length ) ))
+    fi
   fi
   echo "${current_kes_period}"
 }
@@ -450,14 +478,13 @@ kesExpiration() {
     say "${RED}ERROR${NC}: current KES period must be an integer number [$1]"
     return 1
   fi
-  max_kes_evolutions=$(jq -r .maxKESEvolutions "${GENESIS_JSON}")
   kes_expiration_period=$(( ${1} + ${max_kes_evolutions} - 1 ))
-  shelley_genesis_start_time_sec=$(date --date=$(jq -r .systemStart "${GENESIS_JSON}") +%s)
-  epoch_length=$(jq -r .epochLength "${GENESIS_JSON}")
-  slot_length=$(jq -r .slotLength "${GENESIS_JSON}")
-  slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
-  byron_shelley_trans_end=$(( shelley_genesis_start_time_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * epoch_length ) ))
-  expiration_time_sec=$(( ${byron_shelley_trans_end} + ( ${slot_length} * ${kes_expiration_period} * ${slots_per_kes_period} ) ))
+  if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
+    byron_end_time=$(( byron_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * byron_epoch_length * byron_slot_length ) ))
+    expiration_time_sec=$(( byron_end_time + ( slot_length * kes_expiration_period * slots_per_kes_period ) ))
+  else
+    expiration_time_sec=$(( shelley_genesis_start_sec + ( slot_length * kes_expiration_period * slots_per_kes_period ) ))
+  fi
   current_time_sec=$(date -u +%s)
   expiration_time_sec_diff=$(( expiration_time_sec - current_time_sec ))
   expiration_date=$(date --date=@${expiration_time_sec})
@@ -476,10 +503,9 @@ showTimeLeft() {
 # Description: Wait for a new block to be created
 # Return     : prints progress on STDOUT
 waitNewBlockCreated() {
-  SLOT_DURATION=$(jq -r .slotLength "$GENESIS_JSON")
   COUNTER=${TIMEOUT_NO_OF_SLOTS}
   say ""
-  say "Waiting for new block to be created (timeout = ${COUNTER} slots, $(( COUNTER * SLOT_DURATION ))s)" "log"
+  say "Waiting for new block to be created (timeout = ${COUNTER} slots, $(( COUNTER * slot_length ))s)" "log"
   say ""
   say "${BLUE}INFO${NC}: press any key to cancel balance check and return"
   say ""
@@ -487,15 +513,15 @@ waitNewBlockCreated() {
   actualTip=${initialTip}
 
   while [ "${actualTip}" = "${initialTip}" ]; do
-    read -r -n 1 -s -t ${SLOT_DURATION} -p "" abort
+    read -r -n 1 -s -t ${slot_length} -p "" abort
     if [[ $? -eq 0 ]]; then
       say "${BLUE}INFO${NC}: Balance check aborted!" "log"
       return 1
     fi
     actualTip=$(getBlockTip)
-    COUNTER=$((COUNTER - SLOT_DURATION))
-    if [ ${COUNTER} -lt ${SLOT_DURATION} ]; then
-      say "${ORANGE}WARN${NC}: waited $(( TIMEOUT_NO_OF_SLOTS * SLOT_DURATION )) secs and no new block created" "log"
+    COUNTER=$((COUNTER - slot_length))
+    if [ ${COUNTER} -lt ${slot_length} ]; then
+      say "${ORANGE}WARN${NC}: waited $(( TIMEOUT_NO_OF_SLOTS * slot_length )) secs and no new block created" "log"
       return 1
     fi
   done
@@ -1609,6 +1635,95 @@ deRegisterPool() {
     say "$output"
     return 1
   fi
+}
+
+# Command    : rotatePoolKeys [pool name]
+#
+# Description: Rotate pool's KES keys
+# Return     : null
+# Examples of Usage:
+#   >> rotatePoolKeys MyPool
+#
+rotatePoolKeys() {
+  pool_name="${1}"
+
+  # cold keys
+  pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
+
+  # generated files
+  pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
+  pool_hotkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_SK_FILENAME}"
+  pool_opcert_counter_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_COUNTER_FILENAME}"
+  pool_saved_kes_start="${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}"
+  pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
+  
+  if [[ ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_hotkey_vk_file}"  || ! -f "${pool_hotkey_sk_file}" || ! -f "${pool_opcert_counter_file}" ]]; then
+    say "${RED}ERROR${NC}: missing pool keys, pool encrypted?\n"
+    say "Files needed to rotate KES keys:"
+    say "${pool_coldkey_sk_file}"
+    say "${pool_hotkey_vk_file}"
+    say "${pool_hotkey_sk_file}"
+    say "${pool_opcert_counter_file}"
+    return 1
+  fi
+
+  start_kes_period=$(getCurrentKESperiod)
+  echo "${start_kes_period}" > ${pool_saved_kes_start}
+
+  say "creating new hot keys and certificate" 1
+  say "$ ${CCLI} shelley node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}" 2
+  ${CCLI} shelley node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
+  say "$ ${CCLI} shelley node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${start_kes_period} --out-file ${pool_opcert_file}" 2
+  ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${start_kes_period}" --out-file "${pool_opcert_file}"
+
+  kesExpiration "${start_kes_period}"
+}
+
+# Command    : getDelegators [pool id]
+#
+# Description: parse ledger-state for pool delegators
+# Return     : json array in variable $delegators_json
+#
+getDelegators() {
+  pool_id=$1
+
+  timeout -k 5 60 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
+  say "\nLedger state dumped, parsing data..."
+  non_myopic_delegators=$(jq -r -c ".esNonMyopic.snapNM._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
+  snapshot_delegators=$(jq -r -c ".esSnapshots._pstakeSet._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
+  lstate=$(jq -r -c ".esLState" "${TMP_FOLDER}"/ledger-state.json)
+  lstate_dstate=$(jq -r -c "._delegationState._dstate" <<< "${lstate}")
+  ledger_pool_state=$(jq -r -c '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${lstate}")
+  lstate_rewards=$(jq -r -c "._rewards" <<< "${lstate_dstate}")
+  lstate_utxo=$(jq -r -c "._utxoState._utxo" <<< "${lstate}")
+  lstate_delegators=$(jq -r -c "._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" <<< "${lstate_dstate}")
+  delegators=$(echo "${non_myopic_delegators}" "${snapshot_delegators}" "${lstate_delegators}" | tr ' ' '\n' | sort -u)
+  say "\n$(wc -w <<< "${delegators}") delegators found, gathering data for each:"
+  pledge="$(jq -c -r '.pledge // 0' <<< "${ledger_pool_state}" | tr '\n' ' ')"
+  owners="$(jq -c -r '.owners[] // empty' <<< "${ledger_pool_state}" | tr '\n' ' ')"
+  owner_nbr=$(jq -r '(.owners | length) // 0' <<< "${ledger_pool_state}")
+  delegators_array=()
+  delegator_nbr=0
+  total_stake=0
+  total_pledged=0
+  for key in ${delegators}; do
+    stake=$(jq -r -c ".[] | select(.address | contains(\"${key}\")) | .amount" <<< "${lstate_utxo}" | awk 'BEGIN{total = 0} {total = total + $1} END{printf "%.0f", total}')
+    rewards=$(jq -r -c ".[] | select(.[0][\"key hash\"] == \"${key}\") | .[1]" <<< "${lstate_rewards}")
+    total_stake=$((total_stake + stake + reward))
+    say "Delegator $((++delegator_nbr)) processed"
+    if echo "${owners}" | grep -q "${key}"; then
+      key="${key} (owner)"
+      total_pledged=$((total_pledged + stake + reward))
+    fi
+    delegators_array+=( "hex_key" "${key}" "stake" "$(formatLovelace ${stake})" "rewards" "$(formatLovelace ${rewards})" )
+  done
+
+  # Construct delegator json array
+  delegators_json=$({
+    say '['
+    printf '{"%s":"%s","%s":"%s","%s":"%s"},\n' "${delegators_array[@]}" | sed '$s/,$//'
+    say ']'
+  } | jq -c .)
 }
 
 
