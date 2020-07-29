@@ -1,4 +1,3 @@
-!> The script may not be detailed enough at this stage, we will update the contents to be a lot more definitive soon
 > Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
 
 This is an easy-to-use script to automate setting up of monitoring tools. Tasks automates the following tasks:
