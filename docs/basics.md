@@ -39,16 +39,15 @@ chmod 755 prereqs.sh
 
 ##### Connecting to other Haskell Networks
 
-The prereqs script above will connect you to `mainnet_candidate_4` network. If you would like to connect to one of the other networks instead (see [here](https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/index.html) for list), you can select the filename of the network and execute the below before you proceed (eg: to switch to `testnet`):
+The prereqs script above will connect you to `mainnet_candidate_4` network. If you would like to connect to one of the other networks instead (see [here](https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/index.html) for list), you can select the filename of the network and execute the below before you proceed (eg: to switch to `mainnet` - usable only after fork):
 
 !> Note that you do **NOT** need to replace the config file, and doing so without proper consideration may result in issues
 
 ```bash
-## For mainnet_candidate_4 network:
-curl -sL -o $CNODE_HOME/files/byron-genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json
-curl -sL -o $CNODE_HOME/files/genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json
-curl -sL -o $CNODE_HOME/files/topology.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-topology.json
-
+curl -sL -o $CNODE_HOME/files/byron-genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
+curl -sL -o $CNODE_HOME/files/genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
+curl -sL -o $CNODE_HOME/files/topology.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
+curl -sL -o $CNODE_HOME/files/config.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0-mainnet.json
 ```
 
 ##### Folder structure
