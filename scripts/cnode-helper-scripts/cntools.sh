@@ -1490,21 +1490,43 @@ case $OPERATION in
       say "${ORANGE}WARN${NC}: No wallets available that can be used in pool registration as pledge wallet!"
       waitForInput && continue
     fi
-    say "Select Pledge Wallet:\n"
+    say "Select Owner Wallet:\n"
     if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    pledge_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
-    getBaseAddress ${pledge_wallet}
+    owner_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
+    getBaseAddress ${owner_wallet}
     getBalance ${base_addr}
 
     if [[ ${lovelace} -gt 0 ]]; then
-      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in pledge wallet:"  "$(formatLovelace ${lovelace})")" "log"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in owner wallet:"  "$(formatLovelace ${lovelace})")" "log"
     else
-      say "${RED}ERROR${NC}: no funds available for wallet ${GREEN}${pledge_wallet}${NC}"
+      say "${RED}ERROR${NC}: no funds available in base address for wallet ${GREEN}${owner_wallet}${NC}"
       waitForInput && continue
     fi
-    if ! isWalletRegistered ${pledge_wallet} && ! registerStakeWallet ${pledge_wallet}; then
+    if ! isWalletRegistered ${owner_wallet} && ! registerStakeWallet ${owner_wallet}; then
       waitForInput && continue
     fi
+
+    say "\nUse a different wallet for rewards?\n"
+    case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
+      0) reward_wallet="${owner_wallet}" ;;
+      1) if ! selectDir "${wallet_dirs[@]}"; then continue; fi
+         reward_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
+         if ! isWalletRegistered ${reward_wallet}; then
+           getBaseAddress ${reward_wallet}
+           getBalance ${base_addr}
+           if [[ ${lovelace} -gt 0 ]]; then
+             say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in reward wallet:"  "$(formatLovelace ${lovelace})")" "log"
+           else
+             say "${RED}ERROR${NC}: no funds available in base address for wallet ${GREEN}${reward_wallet}${NC}, needed to pay for registration fee"
+             waitForInput && continue
+           fi
+           if ! registerStakeWallet ${reward_wallet}; then
+             waitForInput && continue
+           fi
+         fi
+         ;;
+      2) continue ;;
+    esac
 
     # Construct relay json array
     relay_json=$({
@@ -1513,11 +1535,15 @@ case $OPERATION in
       say ']'
     } | jq -c .)
     # Save pool config
-    echo "{\"pledgeWallet\":\"$pledge_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\",\"relays\": $relay_json}" > "${pool_config}"
+    echo "{\"ownerWallet\":\"$owner_wallet\",\"rewardWallet\":\"$reward_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\",\"relays\": $relay_json}" > "${pool_config}"
 
-    pay_payment_sk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_PAY_SK_FILENAME}"
-    stake_sk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_STAKE_SK_FILENAME}"
-    stake_vk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_STAKE_VK_FILENAME}"
+    pay_payment_sk_file="${WALLET_FOLDER}/${owner_wallet}/${WALLET_PAY_SK_FILENAME}"
+    owner_stake_sk_file="${WALLET_FOLDER}/${owner_wallet}/${WALLET_STAKE_SK_FILENAME}"
+    owner_stake_vk_file="${WALLET_FOLDER}/${owner_wallet}/${WALLET_STAKE_VK_FILENAME}"
+    owner_delegation_cert_file="${WALLET_FOLDER}/${owner_wallet}/${WALLET_DELEGCERT_FILENAME}"
+    reward_stake_sk_file="${WALLET_FOLDER}/${reward_wallet}/${WALLET_STAKE_SK_FILENAME}"
+    reward_stake_vk_file="${WALLET_FOLDER}/${reward_wallet}/${WALLET_STAKE_VK_FILENAME}"
+    reward_delegation_cert_file="${WALLET_FOLDER}/${reward_wallet}/${WALLET_DELEGCERT_FILENAME}"
 
     pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
     pool_hotkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_SK_FILENAME}"
@@ -1529,23 +1555,6 @@ case $OPERATION in
     pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
     pool_saved_kes_start="${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}"
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
-    pool_pledgecert_file="${POOL_FOLDER}/${pool_name}/${POOL_PLEDGECERT_FILENAME}"
-
-    if [[ ! -f "${pay_payment_sk_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" ]]; then
-      say "${RED}ERROR${NC}: Source pledge wallet files missing, expecting these files to be available:"
-      say "${pay_payment_sk_file}"
-      say "${stake_sk_file}"
-      say "${stake_vk_file}"
-      waitForInput && continue
-    fi
-
-    [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}"  || ! -f "${pool_vrf_vk_file}" ]] && {
-      say "${RED}ERROR${NC}: pool files missing, expecting these files to be available:"
-      say "${pool_coldkey_vk_file}"
-      say "${pool_coldkey_sk_file}"
-      say "${pool_vrf_vk_file}"
-      waitForInput && continue
-    }
 
     say ""
     say "# Register Stake Pool" "log"
@@ -1556,16 +1565,29 @@ case $OPERATION in
     ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${start_kes_period}" --out-file "${pool_opcert_file}"
 
     say "creating registration certificate" 1 "log"
-    say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${stake_vk_file} --pool-owner-stake-verification-key-file ${stake_vk_file} --out-file ${pool_regcert_file} ${NETWORK_IDENTIFIER} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output}" 2
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --out-file "${pool_regcert_file}" ${NETWORK_IDENTIFIER} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output}
-    say "creating delegation certificate" 1 "log"
-    say "$ ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file ${stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${pool_pledgecert_file}" 2
-    ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_pledgecert_file}"
+    say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${reward_stake_vk_file} --pool-owner-stake-verification-key-file ${owner_stake_vk_file} --out-file ${pool_regcert_file} ${NETWORK_IDENTIFIER} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output}" 2
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${reward_stake_vk_file}" --pool-owner-stake-verification-key-file "${owner_stake_vk_file}" --out-file "${pool_regcert_file}" ${NETWORK_IDENTIFIER} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output}
+    say "creating delegation certificate for owner wallet" 1 "log"
+    say "$ ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file ${owner_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${owner_delegation_cert_file}" 2
+    ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${owner_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${owner_delegation_cert_file}"
+    delegate_reward_wallet="false"
+    if [[ ! "${owner_wallet}" = "${reward_wallet}" ]]; then
+      say "\nRe-stake reward wallet to pool?\n"
+      case $(select_opt "[y] Yes" "[n] No") in
+        0) delegate_reward_wallet="true"
+           say "creating delegation certificate for reward wallet" 1 "log"
+           say "$ ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file ${reward_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${reward_delegation_cert_file}" 2
+           ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${reward_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${reward_delegation_cert_file}" 
+           ;;
+        1) : ;;
+      esac
+    fi
 
     say "sending transaction to chain" 1 "log"
-    if ! registerPool "${base_addr}" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pool_pledgecert_file}" "${pay_payment_sk_file}"; then
+    if ! registerPool "${pool_name}" "${reward_wallet}" "${delegate_reward_wallet}" "${owner_wallet}"; then
       say "${RED}ERROR${NC}: failure during pool registration, removing newly created pledge and registration files"
-      rm -f "${pool_regcert_file}" "${pool_pledgecert_file}"
+      rm -f "${pool_regcert_file}" "${owner_delegation_cert_file}"
+      [[ "${delegate_reward_wallet}" = "true" ]] && rm -f "${reward_delegation_cert_file}"
       waitForInput && continue
     fi
 
@@ -1573,6 +1595,7 @@ case $OPERATION in
       waitForInput && continue
     fi
 
+    getBaseAddress ${owner_wallet}
     getBalance ${base_addr}
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
@@ -1589,7 +1612,9 @@ case $OPERATION in
     fi
 
     say ""
-    say "Pool ${GREEN}${pool_name}${NC} successfully registered using wallet ${GREEN}${pledge_wallet}${NC} for pledge" "log"
+    say "Pool ${GREEN}${pool_name}${NC} successfully registered using wallet ${GREEN}${owner_wallet}${NC} for pledge" "log"
+    say "Owner  : ${GREEN}${owner_wallet}${NC}" "log"
+    say "Reward : ${GREEN}${reward_wallet}${NC}" "log"
     say "Pledge : $(formatLovelace ${pledge_lovelace}) ADA" "log"
     say "Margin : ${margin}%" "log"
     say "Cost   : $(formatLovelace ${cost_lovelace}) ADA" "log"
@@ -1867,11 +1892,13 @@ case $OPERATION in
       done
     fi
 
-    # Pledge wallet, also used to pay for pool update fee
-    pledge_wallet=$(jq -r .pledgeWallet "${pool_config}") # old pledge wallet
-    say "Old pledge wallet: ${GREEN}${pledge_wallet}${NC}"
+    # Owner wallet, also used to pay for pool update fee
+    owner_wallet=$(jq -r .ownerWallet "${pool_config}")
+    reward_wallet=$(jq -r .rewardWallet "${pool_config}")
+    say "Old owner wallet:  ${GREEN}${owner_wallet}${NC}"
+    say "Old reward wallet: ${GREEN}${reward_wallet}${NC}"
     say ""
-    say "${ORANGE}If a new wallet is chosen as pledge a manual delegation to the pool with new wallet is needed${NC}"
+    say "${ORANGE}If a new wallet is chosen for owner/reward, a manual delegation to the pool with new wallet is needed${NC}"
     say ""
     wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
@@ -1910,24 +1937,46 @@ case $OPERATION in
       fi
     done
     if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No wallets available that can be used in pool registration as pledge wallet!"
+      say "${ORANGE}WARN${NC}: No wallets available that can be used in pool registration as owner wallet!"
       waitForInput && continue
     fi
-    say "Select Pledge Wallet:\n"
+    say "Select Owner Wallet:\n"
     if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    pledge_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
-    getBaseAddress ${pledge_wallet}
+    owner_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
+    getBaseAddress ${owner_wallet}
     getBalance ${base_addr}
 
     if [[ ${lovelace} -gt 0 ]]; then
-      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in pledge wallet:"  "$(formatLovelace ${lovelace})")" "log"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in base address for owner wallet:"  "$(formatLovelace ${lovelace})")" "log"
     else
-      say "${RED}ERROR${NC}: no funds available for wallet ${GREEN}${pledge_wallet}${NC}"
+      say "${RED}ERROR${NC}: no funds available for wallet ${GREEN}${owner_wallet}${NC}"
       waitForInput && continue
     fi
-    if ! isWalletRegistered ${pledge_wallet} && ! registerStakeWallet ${pledge_wallet}; then
+    if ! isWalletRegistered ${owner_wallet} && ! registerStakeWallet ${owner_wallet}; then
       waitForInput && continue
     fi
+
+    say "\nUse a different wallet for rewards?\n"
+    case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
+      0) reward_wallet="${owner_wallet}" ;;
+      1) if ! selectDir "${wallet_dirs[@]}"; then continue; fi
+         reward_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
+         if ! isWalletRegistered ${reward_wallet}; then
+           getBaseAddress ${reward_wallet}
+           getBalance ${base_addr}
+           if [[ ${lovelace} -gt 0 ]]; then
+             say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in reward wallet:"  "$(formatLovelace ${lovelace})")" "log"
+           else
+             say "${RED}ERROR${NC}: no funds available in base address for wallet ${GREEN}${reward_wallet}${NC}, needed to pay for registration fee"
+             waitForInput && continue
+           fi
+           if ! registerStakeWallet ${reward_wallet}; then
+             waitForInput && continue
+           fi
+         fi
+         ;;
+      2) continue ;;
+    esac
 
     # Construct relay json array
     relay_json=$({
@@ -1936,31 +1985,17 @@ case $OPERATION in
       say ']'
     } | jq -c .)
     # Update pool config
-    say "{\"pledgeWallet\":\"$pledge_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\",\"relays\": $relay_json}" > "${pool_config}"
+    say "{\"ownerWallet\":\"$owner_wallet\",\"rewardWallet\":\"$reward_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\",\"relays\": $relay_json}" > "${pool_config}"
 
-    pay_payment_sk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_PAY_SK_FILENAME}"
-    stake_sk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_STAKE_SK_FILENAME}"
-    stake_vk_file="${WALLET_FOLDER}/${pledge_wallet}/${WALLET_STAKE_VK_FILENAME}"
+    pay_payment_sk_file="${WALLET_FOLDER}/${owner_wallet}/${WALLET_PAY_SK_FILENAME}"
+    owner_stake_sk_file="${WALLET_FOLDER}/${owner_wallet}/${WALLET_STAKE_SK_FILENAME}"
+    owner_stake_vk_file="${WALLET_FOLDER}/${owner_wallet}/${WALLET_STAKE_VK_FILENAME}"
+    reward_stake_sk_file="${WALLET_FOLDER}/${reward_wallet}/${WALLET_STAKE_SK_FILENAME}"
+    reward_stake_vk_file="${WALLET_FOLDER}/${reward_wallet}/${WALLET_STAKE_VK_FILENAME}"
 
     pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
     pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
     pool_vrf_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_VK_FILENAME}"
-
-    if [[ ! -f "${pay_payment_sk_file}" || ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" ]]; then
-      say "${RED}ERROR${NC}: ${GREEN}${pledge_wallet}${NC} wallet files missing, expecting these files to be available:"
-      say "${pay_payment_sk_file}"
-      say "${stake_sk_file}"
-      say "${stake_vk_file}"
-      waitForInput && continue
-    fi
-
-    [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}"  || ! -f "${pool_vrf_vk_file}" ]] && {
-      say "${RED}ERROR${NC}: ${GREEN}${pool_name}${NC} pool files missing, expecting these files to be available:"
-      say "${pool_coldkey_vk_file}"
-      say "${pool_coldkey_sk_file}"
-      say "${pool_vrf_vk_file}"
-      waitForInput && continue
-    }
 
     #Generated Files
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
@@ -1968,11 +2003,11 @@ case $OPERATION in
     say ""
     say "# Modify Stake Pool" "log"
     say "creating registration certificate" 1 "log"
-    say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${stake_vk_file} --pool-owner-stake-verification-key-file ${stake_vk_file} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output} ${NETWORK_IDENTIFIER} --out-file ${pool_regcert_file}" 2
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${stake_vk_file}" --pool-owner-stake-verification-key-file "${stake_vk_file}" --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output} ${NETWORK_IDENTIFIER} --out-file "${pool_regcert_file}"
+    say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${reward_stake_vk_file} --pool-owner-stake-verification-key-file ${owner_stake_vk_file} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output} ${NETWORK_IDENTIFIER} --out-file ${pool_regcert_file}" 2
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${reward_stake_vk_file}" --pool-owner-stake-verification-key-file "${owner_stake_vk_file}" --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output} ${NETWORK_IDENTIFIER} --out-file "${pool_regcert_file}"
 
     say "sending transaction to chain" 1 "log"
-    if ! modifyPool "${base_addr}" "${pool_coldkey_sk_file}" "${stake_sk_file}" "${pool_regcert_file}" "${pay_payment_sk_file}"; then
+    if ! modifyPool "${pool_name}" "${reward_wallet}" "${owner_wallet}"; then
       say "${RED}ERROR${NC}: failure during pool update, removing newly created registration certificate"
       rm -f "${pool_regcert_file}"
       waitForInput && continue
@@ -1982,6 +2017,7 @@ case $OPERATION in
       waitForInput && continue
     fi
 
+    getBaseAddress ${owner_wallet}
     getBalance ${base_addr}
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
@@ -1998,7 +2034,9 @@ case $OPERATION in
     fi
 
     say ""
-    say "Pool ${GREEN}${pool_name}${NC} successfully updated with new parameters using wallet ${GREEN}${pledge_wallet}${NC} to pay for registration fee" "log"
+    say "Pool ${GREEN}${pool_name}${NC} successfully updated with new parameters using wallet ${GREEN}${owner_wallet}${NC} to pay for registration fee" "log"
+    say "Owner  : ${GREEN}${owner_wallet}${NC}" "log"
+    say "Reward : ${GREEN}${reward_wallet}${NC}" "log"
     say "Pledge : $(formatLovelace ${pledge_lovelace}) ADA" "log"
     say "Margin : ${margin}%" "log"
     say "Cost   : $(formatLovelace ${cost_lovelace}) ADA" "log"

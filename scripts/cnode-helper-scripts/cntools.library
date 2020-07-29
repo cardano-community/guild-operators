@@ -9,9 +9,9 @@
 # Any breaking changes (eg: that requires change of cntools.config, env or a change in priv folder would be considered breaking and will be exempt from auto-update)
 CNTOOLS_MAJOR_VERSION=5
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
-CNTOOLS_MINOR_VERSION=2
+CNTOOLS_MINOR_VERSION=3
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=0
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -1014,28 +1014,29 @@ registerStakeWallet() {
 }
 
 
-# Command    : registerPool [pledge wallet base address] [pool cold sign key] [pledge wallet stake sign key] [pool registration cert file] [delegation certificate] [pledge wallet payment sign key]
+# Command    : registerPool [pool name] [reward wallet] [delegate reward wallet] [owner wallet]
 #
 # Description: Register pool with pledge on chain
-# Parameters : pledge wallet base address      >   payment address, funds needed to pay tx fee for pool registration
-#              pool cold sign key              >   pool cold sign key
-#              pledge wallet stake sign key    >   stake signature key
-#              pool registration cert file     >   pool registration cert file
-#              delegation certificate          >   stake certificate
-#              pledge wallet payment sign key  >   payment signature key
+# Parameters : pool name                 >   pool to register on chain
+#              reward wallet             >   name of wallet that collects the pool rewards
+#              delegate reward wallet    >   true or false, should reward wallet be delegated to pool
+#              owner wallet              >   the pool owner, also pays for the pool registration fee
 # Return     : prints progress on STDOUT
 # Examples of Usage:
-#   >> registerPool 00d9d57cb....ssL7fzhq "../pools/MyPool/cold.skey" "../wallet/MyWallet/stake.skey" "pool.cert" "delegation.cert" "../wallet/MyWallet/payment.skey"
+#   >> registerPool "MyPool" "MyRewardWallet" "true" "MyOwnerWallet"
 #
 registerPool() {
 
-  # script arguments
-  base_addr="$1"
-  pool_coldkey_sk_file="$2"
-  stake_sk_file="$3"
-  pool_regcert_file="$4"
-  pool_pledgecert_file="$5"
-  pay_payment_sk_file="$6"
+  pool_coldkey_sk_file="${POOL_FOLDER}/${1}/${POOL_COLDKEY_SK_FILENAME}"
+  pool_regcert_file="${POOL_FOLDER}/${1}/${POOL_REGCERT_FILENAME}"
+  reward_stake_sk_file="${WALLET_FOLDER}/${2}/${WALLET_STAKE_SK_FILENAME}"
+  reward_delegation_cert_file="${WALLET_FOLDER}/${2}/${WALLET_DELEGCERT_FILENAME}"
+  delegate_reward_wallet="${3}"
+  pay_payment_sk_file="${WALLET_FOLDER}/${4}/${WALLET_PAY_SK_FILENAME}"
+  owner_stake_sk_file="${WALLET_FOLDER}/${4}/${WALLET_STAKE_SK_FILENAME}"
+  owner_delegation_cert_file="${WALLET_FOLDER}/${4}/${WALLET_DELEGCERT_FILENAME}"
+  getBaseAddress "${4}"
+  getBalance ${base_addr}
 
   if [[ ! -s "${TMP_FOLDER}"/balance.out ]]; then
     say "${RED}ERROR${NC}: wallet empty"
@@ -1062,18 +1063,29 @@ registerPool() {
     say "ADA: $(formatLovelace ${utxo_balance})" 2
     tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
   done <"${TMP_FOLDER}"/balance.out
+  
+  reward_delegation_cert=""
+  reward_wallet_signing=""
+  witness_count=3
+  if [[ "${delegate_reward_wallet}" = "true" ]]; then
+    reward_delegation_cert="--certificate-file ${reward_delegation_cert_file}"
+  fi
+  if [[ ! "${owner_stake_sk_file}" = "${reward_stake_sk_file}" ]]; then
+    reward_wallet_signing="--signing-key-file ${reward_stake_sk_file}"
+    ((witness_count++))
+  fi
 
   say "" 1
   say "# Calculate fee, new amount and remaining balance" 1 "log"
-  say "$ ${CCLI} shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$(( lovelace - poolDeposit )) --ttl ${ttlValue} --certificate-file ${pool_regcert_file} --certificate-file ${pool_pledgecert_file} --fee 0 --out-file ${TMP_FOLDER}/tx0.tmp" 2
-  ${CCLI} shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$(( lovelace - poolDeposit )) --ttl ${ttlValue} --certificate-file ${pool_regcert_file} --certificate-file ${pool_pledgecert_file} --fee 0 --out-file "${TMP_FOLDER}"/tx0.tmp
+  say "$ ${CCLI} shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$(( lovelace - poolDeposit )) --ttl ${ttlValue} --certificate-file ${pool_regcert_file} --certificate-file ${owner_delegation_cert_file} ${reward_delegation_cert} --fee 0 --out-file ${TMP_FOLDER}/tx0.tmp" 2
+  ${CCLI} shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$(( lovelace - poolDeposit )) --ttl ${ttlValue} --certificate-file ${pool_regcert_file} --certificate-file ${owner_delegation_cert_file} ${reward_delegation_cert} --fee 0 --out-file "${TMP_FOLDER}"/tx0.tmp
   minFeeArgs=(
     shelley transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
     ${NETWORK_IDENTIFIER}
-    --witness-count 3
+    --witness-count ${witness_count}
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
@@ -1097,7 +1109,8 @@ registerPool() {
     --ttl ${ttlValue}
     --fee ${minFee}
     --certificate-file ${pool_regcert_file}
-    --certificate-file ${pool_pledgecert_file}
+    --certificate-file ${owner_delegation_cert_file}
+    ${reward_delegation_cert}
     --out-file "${TMP_FOLDER}"/tx.raw
   )
 
@@ -1106,7 +1119,8 @@ registerPool() {
     --tx-body-file "${TMP_FOLDER}"/tx.raw
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${pool_coldkey_sk_file}
-    --signing-key-file ${stake_sk_file}
+    --signing-key-file ${owner_stake_sk_file}
+    ${reward_wallet_signing}
     ${NETWORK_IDENTIFIER}
     --out-file "${TMP_FOLDER}"/tx.signed
   )
@@ -1150,26 +1164,25 @@ registerPool() {
 }
 
 
-# Command    : modifyPool [pledge wallet base address] [pool cold sign key] [pledge wallet stake sign key] [pool registration cert file] [pledge wallet payment sign key]
+# Command    : modifyPool [pool name] [reward wallet] [delegate reward wallet] [owner wallet]
 #
 # Description: Register pool with pledge on chain
-# Parameters : pledge wallet base address      >   payment address, funds needed to pay tx fee for pool registration
-#              pool cold sign key              >   pool cold sign key
-#              pledge wallet stake sign key    >   stake signature key
-#              pool registration cert file     >   pool registration cert file
-#              pledge wallet payment sign key  >   payment signature key
+# Parameters : pool name                 >   pool to register on chain
+#              reward wallet             >   name of wallet that collects the pool rewards
+#              owner wallet              >   the pool owner, also pays for the pool registration fee
 # Return     : prints progress on STDOUT
 # Examples of Usage:
-#   >> modifyPool 00d9d57cb....ssL7fzhq "../pools/MyPool/cold.skey" "../wallet/MyWallet/stake.skey" "pool.cert" "../wallet/MyWallet/payment.skey"
+#   >> modifyPool "MyPool" "MyRewardWallet" "MyOwnerWallet"
 #
 modifyPool() {
 
-  # script arguments
-  base_addr="$1"
-  pool_coldkey_sk_file="$2"
-  stake_sk_file="$3"
-  pool_regcert_file="$4"
-  pay_payment_sk_file="$5"
+  pool_coldkey_sk_file="${POOL_FOLDER}/${1}/${POOL_COLDKEY_SK_FILENAME}"
+  pool_regcert_file="${POOL_FOLDER}/${1}/${POOL_REGCERT_FILENAME}"
+  reward_stake_sk_file="${WALLET_FOLDER}/${2}/${WALLET_STAKE_SK_FILENAME}"
+  pay_payment_sk_file="${WALLET_FOLDER}/${3}/${WALLET_PAY_SK_FILENAME}"
+  owner_stake_sk_file="${WALLET_FOLDER}/${3}/${WALLET_STAKE_SK_FILENAME}"
+  getBaseAddress "${3}"
+  getBalance ${base_addr}
 
   say "" 1
   say "# Protocol Parameters" 1 "log"
@@ -1190,6 +1203,13 @@ modifyPool() {
     tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
   done <"${TMP_FOLDER}"/balance.out
 
+  reward_wallet_signing=""
+  witness_count=3
+  if [[ ! "${owner_stake_sk_file}" = "${reward_stake_sk_file}" ]]; then
+    reward_wallet_signing="--signing-key-file ${reward_stake_sk_file}"
+    ((witness_count++))
+  fi
+
   say "" 1
   say "# Calculate fee, new amount and remaining balance" 1 "log"
   say "$ ${CCLI} shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$lovelace --ttl ${ttlValue} --certificate-file ${pool_regcert_file} --fee 0 --out-file ${TMP_FOLDER}/tx0.tmp" 2
@@ -1200,7 +1220,7 @@ modifyPool() {
     --tx-in-count ${utx0_count}
     --tx-out-count 1
     ${NETWORK_IDENTIFIER}
-    --witness-count 3
+    --witness-count ${witness_count}
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
@@ -1232,7 +1252,8 @@ modifyPool() {
     --tx-body-file "${TMP_FOLDER}"/tx.raw
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${pool_coldkey_sk_file}
-    --signing-key-file ${stake_sk_file}
+    --signing-key-file ${owner_stake_sk_file}
+    ${reward_wallet_signing}
     ${NETWORK_IDENTIFIER}
     --out-file "${TMP_FOLDER}"/tx.signed
   )
