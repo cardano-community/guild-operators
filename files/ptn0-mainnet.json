@@ -9,7 +9,7 @@
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresNoMagic",
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/genesis.json",
-  "bfcMaxConcurrencyDeadline": 4,
+  "bfcMaxConcurrencyDeadline": 2,
   "TraceBlockFetchClient": true,
   "TraceBlockFetchDecisions": true,
   "TraceBlockFetchProtocol": true,
