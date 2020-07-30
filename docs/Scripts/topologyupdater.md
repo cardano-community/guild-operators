@@ -45,19 +45,24 @@ Engineers of cardano-node network stack suggested to use around 20 peers. More p
 
 The URL to fetch the peer list is [https://api.clio.one/htopology/v1/fetch/](https://api.clio.one/htopology/v1/fetch/)
 
-In it's default setting it returns a list of 15 remote peers. The `max` parameter allows to define a number between 1 and 20 remote peers.
+In it's default setting it returns a list of 15 remote peers. 
+
+The **max** parameter allows to define a number between 1 and 20 remote peers.
+
+The **magic** parameter is optional and useful if you run a testnet node on the same IP. (not recommended)
+If not specified, the endpoint assumes you want to fetch mainnet's networkMagic 764824073.
 
 you can request the file from you node by using the curl command
 
 ``` bash
-curl -s -o path/to/topology.json "https://api.clio.one/htopology/v1/fetch/?max=14"
+curl -s -o path/to/topology.json "https://api.clio.one/htopology/v1/fetch/?max=14&magic=1234"
 ```
 
 Don't forget to restart your node to load the new topology. 
 
 #### Can I add custom peers (internal pools) ?
 
-There is also a `customPeers` parameter, to include also some custom peers you want included in the topology json file.  Every custom peer is defined in the form [address]:[port] and optional :[valancy]. Multiple custom peers are separated by | 
+There is also a **customPeers** parameter, to include also some custom peers you want included in the topology json file.  Every custom peer is defined in the form [address]:[port] and optional :[valancy]. Multiple custom peers are separated by | 
 
 A complete example looks like
 
