@@ -371,7 +371,7 @@ decryptFile() {
 # Description: Get latest Prometheus metrics from the node
 # Return     : populates $prom_metrics variable
 getPromMetrics() {
-  prom_metrics=$(curl -s "http://${prom_host}:${prom_port}/metrics")
+  curl -s "http://${prom_host}:${prom_port}/metrics" > "${TMP_FOLDER}"/prom_metrics
 }
 
 # Command    : getBlockTip
@@ -379,14 +379,14 @@ getPromMetrics() {
 # Return     : string with tip on STDOUT
 getBlockTip() {
   getPromMetrics
-  grep "cardano_node_ChainDB_metrics_blockNum_int" <<< "${prom_metrics}" | awk '{print $2}'
+  grep "cardano_node_ChainDB_metrics_blockNum_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}'
 }
 # Command    : getSlotTip
 # Description: Get latest slot number
 # Return     : string with tip on STDOUT
 getSlotTip() {
   getPromMetrics
-  grep "cardano_node_ChainDB_metrics_slotNum_int" <<< "${prom_metrics}" | awk '{print $2}'
+  grep "cardano_node_ChainDB_metrics_slotNum_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}'
 }
 # Command    : getSlotTipRef
 # Description: Get calculated slot number tip
@@ -427,7 +427,7 @@ slotInterval() {
 # Return     : current epoch on STDOUT
 getEpoch() {
   #getPromMetrics
-  #grep "cardano_node_ChainDB_metrics_epoch_int" <<< "${prom_metrics}" | awk '{print $2}'
+  #grep "cardano_node_ChainDB_metrics_epoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}'
   current_time_sec=$(date -u +%s)
   if [[ "${PROTOCOL_IDENTIFIER}" == "--cardano-mode" ]]; then
     byron_end_time=$(( byron_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * byron_epoch_length * byron_slot_length ) ))
@@ -450,42 +450,34 @@ timeUntilNextEpoch() {
 }
 
 # Command    : getCurrentKESperiod
-# Description: Offline calculation of the current KES period
+# Description: Get current KES period from prom metrics or calculated based on slot tip
 # Return     : current KES period on STDOUT
 getCurrentKESperiod() {
   getPromMetrics
-  current_kes_period=$(grep "cardano_node_Forge_metrics_currentKESPeriod_int" <<< "${prom_metrics}" | awk '{print $2}')
+  current_kes_period=$(grep "cardano_node_Forge_metrics_currentKESPeriod_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
   if [[ -z "${current_kes_period}" ]]; then
     # lets calculate it instead
-    current_time_sec=$(date -u +%s)
-    if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
-      byron_end_time=$(( byron_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * byron_epoch_length * byron_slot_length ) ))
-      current_kes_period=$(( ( current_time_sec - byron_end_time ) / ( slots_per_kes_period * slot_length ) ))
-    else
-      current_kes_period=$(( ( current_time_sec - shelley_genesis_start_sec ) / ( slots_per_kes_period * slot_length ) ))
-    fi
+    current_kes_period=$(( $(getSlotTip) / slots_per_kes_period ))
   fi
   echo "${current_kes_period}"
 }
 
-# Command    : kesExpiration [current KES period]
+# Command    : kesExpiration [Pool KES start period]
 #
 # Description: Calculate KES expiration
-# Parameters : current KES period    >   KES start stored in POOL_CURRENT_KES_START file for pool in question
+# Parameters : Pool KES start period    >   KES start stored in POOL_CURRENT_KES_START file for pool in question
 # Return     : expiration date can be accessed through variable ${expiration_date} after function has been executed
 kesExpiration() {
   if [[ -z "${1##*[!0-9]*}" ]]; then
-    say "${RED}ERROR${NC}: current KES period must be an integer number [$1]"
+    say "${RED}ERROR${NC}: KES start period must be an integer number [$1]"
     return 1
   fi
-  kes_expiration_period=$(( ${1} + ${max_kes_evolutions} - 1 ))
-  if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
-    byron_end_time=$(( byron_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * byron_epoch_length * byron_slot_length ) ))
-    expiration_time_sec=$(( byron_end_time + ( slot_length * kes_expiration_period * slots_per_kes_period ) ))
-  else
-    expiration_time_sec=$(( shelley_genesis_start_sec + ( slot_length * kes_expiration_period * slots_per_kes_period ) ))
-  fi
+  pool_kes_start_period=$1
+  current_kes_period=$(getCurrentKESperiod)
+  remaining_kes_periods=$(( max_kes_evolutions - ( current_kes_period - pool_kes_start_period ) ))
   current_time_sec=$(date -u +%s)
+  slot_in_epoch=$(grep "cardano_node_ChainDB_metrics_slotInEpoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
+  expiration_time_sec=$(( current_time_sec - ( slot_length * slot_in_epoch ) + ( slot_length * slots_per_kes_period * remaining_kes_periods ) ))
   expiration_time_sec_diff=$(( expiration_time_sec - current_time_sec ))
   expiration_date=$(date --date=@${expiration_time_sec})
 }

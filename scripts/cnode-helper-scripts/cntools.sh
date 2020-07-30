@@ -97,9 +97,9 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
   shelleyTransitionEpoch=$(cat "${SHELLEY_TRANS_FILENAME}" 2>/dev/null)
   if [[ -z "${shelleyTransitionEpoch}" ]]; then
     getPromMetrics
-    slot_in_epoch=$(grep "cardano_node_ChainDB_metrics_slotInEpoch_int" <<< "${prom_metrics}" | awk '{print $2}')
-    slot_num=$(grep "cardano_node_ChainDB_metrics_slotNum_int" <<< "${prom_metrics}" | awk '{print $2}')
-    epoch=$(grep "cardano_node_ChainDB_metrics_epoch_int" <<< "${prom_metrics}" | awk '{print $2}')
+    slot_in_epoch=$(grep "cardano_node_ChainDB_metrics_slotInEpoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
+    slot_num=$(grep "cardano_node_ChainDB_metrics_slotNum_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
+    epoch=$(grep "cardano_node_ChainDB_metrics_epoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
     calc_slot=0
     byron_epochs=${epoch}
     shelley_epochs=0
