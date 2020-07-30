@@ -109,14 +109,17 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
       ((byron_epochs--))
       ((shelley_epochs++))
     done
-    if [[ ${calc_slot} -ne ${slot_num} ]]; then
+    if [[ "${NETWORK_IDENTIFIER}" == "--mainnet" ]]; then
+      shelleyTransitionEpoch="208"
+    elif [[ ${calc_slot} -ne ${slot_num} ]]; then
       say "\n${ORANGE}WARN${NC}: Failed to calculate shelley transition epoch\n"
       exit 1
     elif [[ ${shelley_epochs} -eq 0 ]]; then
       say "\n${ORANGE}WARN${NC}: The network has not reached the hard fork from Byron to shelley, please wait to use CNTools until your node is in shelley era\n"
       exit 1
+    else
+      shelleyTransitionEpoch=${byron_epochs}
     fi
-    shelleyTransitionEpoch=${byron_epochs}
     echo "${shelleyTransitionEpoch}" > "${SHELLEY_TRANS_FILENAME}"
   fi
 fi
@@ -1203,7 +1206,7 @@ case $OPERATION in
     say "Dumping ledger-state from node, can take a while on larger networks...\n"
 
     pool_dirs=()
-    timeout -k 5 60 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
+    timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
@@ -1648,7 +1651,7 @@ case $OPERATION in
     say "Dumping ledger-state from node, can take a while on larger networks...\n"
 
     pool_dirs=()
-    timeout -k 5 60 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
+    timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
@@ -2065,7 +2068,7 @@ case $OPERATION in
     say "Dumping ledger-state from node, can take a while on larger networks...\n"
 
     pool_dirs=()
-    timeout -k 5 60 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
+    timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
@@ -2191,7 +2194,7 @@ case $OPERATION in
     say "Dumping ledger-state from node, can take a while on larger networks...\n"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    timeout -k 5 60 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
+    timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
 
     while IFS= read -r -d '' pool; do
       say ""
@@ -2252,7 +2255,7 @@ case $OPERATION in
     pool_name="${dir_name}"
 
     say "Dumping ledger-state from node, can take a while on larger networks...\n"
-    timeout -k 5 60 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
+    timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
 
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""

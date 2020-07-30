@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [5.2.1] - 2020-07-29
+## [5.3.0] - 2020-07-30
 
 > We have made quite a few changes to not use ptn0 in our scripts and source github structures (except template files), alongwith other changes listed beneath. Please follow steps below for upgrade (from 5.1.0 or earlier):
 > - Execute the below (by default it will set you up against MC4 network), do not overwrite config please:
@@ -15,6 +15,18 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 =======
 
+##### Added
+- Ability to select a different pool owner and reward wallet
+- Added TIMEOUT_LEDGER_STATE in cntools.config to be used instead of static 60 seconds for querying shelley ledger-state.
+
+##### Changed
+- POOL_PLEDGECERT_FILENAME removed from config, WALLET_DELEGCERT_FILENAME is used instead for delegation cert to pool, no need to keep a separate cert in pool folder for this, its the wallet that is delegated.
+
+##### Fixed
+- Mainnet uses dedicated condition for slot checks
+- Timeout moved to a variable in cntools.library
+
+## [5.2.1] - 2020-07-29
 ##### Added
 - Basic sanity checks for socket file
 

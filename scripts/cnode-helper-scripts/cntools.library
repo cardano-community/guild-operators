@@ -1708,7 +1708,7 @@ rotatePoolKeys() {
 getDelegators() {
   pool_id=$1
 
-  timeout -k 5 60 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
+  timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
   say "\nLedger state dumped, parsing data..."
   non_myopic_delegators=$(jq -r -c ".esNonMyopic.snapNM._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
   snapshot_delegators=$(jq -r -c ".esSnapshots._pstakeSet._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
