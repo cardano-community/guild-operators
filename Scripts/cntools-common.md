@@ -101,7 +101,6 @@ Pool: TEST
 PoolPubKey: 88367d5f4fde9c6b3c3c7c0a17ec4a9e46039cb01032cc2baa738b41
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ```
-**4.**  Start or restart your cardano-node with the parameters as shown.  This will ensure your node has all the information necessary to create blocks.  
 
 #### Register Pool
 
@@ -185,13 +184,6 @@ Cost   : 500 ADA
 ```
 
 
+**8.**  Start or restart your cardano-node (eg: if using cnode.sh, update parameters in that file) with the parameters as shown.  This will ensure your node has all the information necessary to create blocks.
 
-
-
-
-
-
-
-
- 
 
