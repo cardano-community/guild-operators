@@ -599,9 +599,7 @@ case $OPERATION in
       waitForInput && continue
     fi
     keyFiles=(
-      "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
       "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-      "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
       "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
     )
     for keyFile in "${keyFiles[@]}"; do
@@ -2837,8 +2835,32 @@ case $OPERATION in
             ;;
          1) : ;; # do nothing
        esac
-       say ""
        say "Backup file ${backup_file} successfully created" "log"
+       say "\nDo you want to delete private keys?\n"
+       case $(select_opt "[n] No" "[y] Yes") in
+         0) : ;; # do nothing
+         1) while IFS= read -r -d '' file; do
+              sudo chattr -i "${file}" && \
+              rm -f "${file}" && \
+              say "Deleted: ${file}"
+            done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_PAY_SK_FILENAME}"* -print0)
+            while IFS= read -r -d '' file; do
+              sudo chattr -i "${file}" && \
+              rm -f "${file}" && \
+              say "Deleted: ${file}"
+            done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_STAKE_SK_FILENAME}"* -print0)
+            while IFS= read -r -d '' file; do
+              sudo chattr -i "${file}" && \
+              rm -f "${file}" && \
+              say "Deleted: ${file}"
+            done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_VK_FILENAME}"* -print0)
+            while IFS= read -r -d '' file; do
+              sudo chattr -i "${file}" && \
+              rm -f "${file}" && \
+              say "Deleted: ${file}"
+            done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}"* -print0)
+            ;;
+       esac
        ;;
     1) say "Backups created contain absolute path to files and directories"
        say "Restoring a backup does not replace existing files"
