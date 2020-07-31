@@ -18,7 +18,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ##### Added
 - Ability to select a different pool owner and reward wallet
 - Multi-owner support using stake vkey/skey files
-- Added TIMEOUT_LEDGER_STATE in cntools.config to be used instead of static 60 seconds for querying shelley ledger-state.
+- Added TIMEOUT_LEDGER_STATE(default 300s) in cntools.config to be used instead of static 60 seconds for querying shelley ledger-state.
 
 ##### Changed
 - POOL_PLEDGECERT_FILENAME removed from config, WALLET_DELEGCERT_FILENAME is used instead for delegation cert to pool, no need to keep a separate cert in pool folder for this, its the wallet that is delegated.

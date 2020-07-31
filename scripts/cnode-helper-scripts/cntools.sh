@@ -1564,7 +1564,7 @@ case $OPERATION in
       say ']'
     } | jq -c .)
     # Save pool config
-    echo "{\"ownerWallet\":\"$owner_wallet\",\"rewardWallet\":\"$reward_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\",\"relays\": $relay_json}" > "${pool_config}"
+    echo "{\"pledgeWallet\":\"$owner_wallet\",\"rewardWallet\":\"$reward_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\",\"relays\": $relay_json}" > "${pool_config}"
 
     pay_payment_sk_file="${WALLET_FOLDER}/${owner_wallet}/${WALLET_PAY_SK_FILENAME}"
     owner_stake_sk_file="${WALLET_FOLDER}/${owner_wallet}/${WALLET_STAKE_SK_FILENAME}"
@@ -1657,6 +1657,10 @@ case $OPERATION in
       say ""
       say "${ORANGE}WARN${NC}: Balance in pledge wallet is less than set pool pledge"
       say "      make sure to put enough funds in wallet to honor pledge"
+    fi
+    if [[ ${multi_owner_count} -gt 0 ]]; then
+      say ""
+      say "${BLUE}INFO${NC}: All multi-owner wallets added by keys need to be manually delegated to pool!"
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     waitForInput && continue
@@ -2041,7 +2045,7 @@ case $OPERATION in
       say ']'
     } | jq -c .)
     # Update pool config
-    say "{\"ownerWallet\":\"$owner_wallet\",\"rewardWallet\":\"$reward_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\",\"relays\": $relay_json}" > "${pool_config}"
+    say "{\"pledgeWallet\":\"$owner_wallet\",\"rewardWallet\":\"$reward_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\",\"relays\": $relay_json}" > "${pool_config}"
 
     pay_payment_sk_file="${WALLET_FOLDER}/${owner_wallet}/${WALLET_PAY_SK_FILENAME}"
     owner_stake_sk_file="${WALLET_FOLDER}/${owner_wallet}/${WALLET_STAKE_SK_FILENAME}"
@@ -2101,6 +2105,10 @@ case $OPERATION in
       say ""
       say "${ORANGE}WARN${NC}: Balance in pledge wallet is less than set pool pledge"
       say "      make sure to put enough funds in wallet to honor pledge"
+    fi
+    if [[ ${multi_owner_count} -gt 0 ]]; then
+      say ""
+      say "${BLUE}INFO${NC}: All multi-owner wallets added by keys need to be manually delegated to pool if not done already!"
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     waitForInput && continue
