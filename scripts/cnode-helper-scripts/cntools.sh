@@ -37,12 +37,13 @@ if wget -q -T 10 -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"; th
   fi
   if [[ "$CNTOOLS_PATCH_VERSION" -eq 999  ]]; then
     # CNTools was updated using special 999 patch tag, apply correct version in cntools.library and update variables already sourced
-    sed -i "s/CNTOOLS_MAJOR_VERSION.*/CNTOOLS_MAJOR_VERSION=$((++CNTOOLS_MAJOR_VERSION))/" "$CNODE_HOME/scripts/cntools.library"
-    sed -i "s/CNTOOLS_MINOR_VERSION.*/CNTOOLS_MINOR_VERSION=0/" "$CNODE_HOME/scripts/cntools.library"
-    sed -i "s/CNTOOLS_PATCH_VERSION.*/CNTOOLS_PATCH_VERSION=0/" "$CNODE_HOME/scripts/cntools.library"
+    sed -i "s/CNTOOLS_MAJOR_VERSION=[[:digit:]]\+/CNTOOLS_MAJOR_VERSION=$((++CNTOOLS_MAJOR_VERSION))/" "$CNODE_HOME/scripts/cntools.library"
+    sed -i "s/CNTOOLS_MINOR_VERSION=[[:digit:]]\+/CNTOOLS_MINOR_VERSION=0/" "$CNODE_HOME/scripts/cntools.library"
+    sed -i "s/CNTOOLS_PATCH_VERSION=[[:digit:]]\+/CNTOOLS_PATCH_VERSION=0/" "$CNODE_HOME/scripts/cntools.library"
     # CNTOOLS_MAJOR_VERSION variable already updated in sed replace command
     CNTOOLS_MINOR_VERSION=0
     CNTOOLS_PATCH_VERSION=0
+    CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
   fi
   if [[ "${CNTOOLS_MAJOR_VERSION}" != "${GIT_MAJOR_VERSION}" || "${CNTOOLS_MINOR_VERSION}" != "${GIT_MINOR_VERSION}" || "${CNTOOLS_PATCH_VERSION}" != "${GIT_PATCH_VERSION}" ]]; then
     say "A new version of CNTools is available" "log"
@@ -2750,7 +2751,7 @@ case $OPERATION in
         GIT_PATCH_VERSION=0
       fi
       say "New version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
-      say "\n${BLUE}INFO${NC}: The following files will be overwritte:"
+      say "${BLUE}INFO${NC} - The following files will be overwritten:"
       say "$CNODE_HOME/scripts/cntools.sh"
       say "$CNODE_HOME/scripts/cntools.config"
       say "$CNODE_HOME/scripts/cntools.library"
