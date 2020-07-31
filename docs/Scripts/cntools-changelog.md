@@ -17,6 +17,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ##### Added
 - Ability to select a different pool owner and reward wallet
+- Multi-owner support using stake vkey/skey files
 - Added TIMEOUT_LEDGER_STATE in cntools.config to be used instead of static 60 seconds for querying shelley ledger-state.
 
 ##### Changed
@@ -25,6 +26,8 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ##### Fixed
 - Mainnet uses dedicated condition for slot checks
 - Timeout moved to a variable in cntools.library
+- KES Calculation for current KES period and KES expiration date
+  **Please re-check expiration date using Pool >> Show**
 
 ## [5.2.1] - 2020-07-29
 ##### Added

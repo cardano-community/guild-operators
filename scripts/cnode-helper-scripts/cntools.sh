@@ -1531,6 +1531,32 @@ case $OPERATION in
       2) continue ;;
     esac
 
+    multi_owner_output=""
+    multi_owner_skeys=()
+    say "\nRegister a multi-owner pool using stake vkey/skey files?\n"
+    case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
+      0) : ;;
+      1) while true; do
+           read -r -p "Enter full path to stake vkey file: " stake_vk_file_enter
+           read -r -p "Enter full path to stake skey file: " stake_sk_file_enter
+           if [[ ! -f "${stake_vk_file_enter}" || ! -f "${stake_sk_file_enter}" ]]; then
+             say "${RED}ERROR${NC}: One or both files missing, please try again"
+             waitForInput
+           else
+             multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
+             multi_owner_skeys+=( "${stake_sk_file_enter}" )
+           fi
+           say "\nAdd more owners?\n"
+           case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
+             0) break ;;
+             1) : ;;
+             2) continue 2 ;;
+           esac
+         done
+         ;;
+      2) continue ;;
+    esac
+
     # Construct relay json array
     relay_json=$({
       say '['
@@ -1568,8 +1594,8 @@ case $OPERATION in
     ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${start_kes_period}" --out-file "${pool_opcert_file}"
 
     say "creating registration certificate" 1 "log"
-    say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${reward_stake_vk_file} --pool-owner-stake-verification-key-file ${owner_stake_vk_file} --out-file ${pool_regcert_file} ${NETWORK_IDENTIFIER} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output}" 2
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${reward_stake_vk_file}" --pool-owner-stake-verification-key-file "${owner_stake_vk_file}" --out-file "${pool_regcert_file}" ${NETWORK_IDENTIFIER} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output}
+    say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${reward_stake_vk_file} --pool-owner-stake-verification-key-file ${owner_stake_vk_file} ${multi_owner_output} --out-file ${pool_regcert_file} ${NETWORK_IDENTIFIER} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output}" 2
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${reward_stake_vk_file}" --pool-owner-stake-verification-key-file "${owner_stake_vk_file}" "${multi_owner_output}" --out-file "${pool_regcert_file}" ${NETWORK_IDENTIFIER} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output}
     say "creating delegation certificate for owner wallet" 1 "log"
     say "$ ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file ${owner_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${owner_delegation_cert_file}" 2
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${owner_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${owner_delegation_cert_file}"
@@ -1587,7 +1613,7 @@ case $OPERATION in
     fi
 
     say "sending transaction to chain" 1 "log"
-    if ! registerPool "${pool_name}" "${reward_wallet}" "${delegate_reward_wallet}" "${owner_wallet}"; then
+    if ! registerPool "${pool_name}" "${reward_wallet}" "${delegate_reward_wallet}" "${owner_wallet}" ${multi_owner_skeys[@]}; then
       say "${RED}ERROR${NC}: failure during pool registration, removing newly created pledge and registration files"
       rm -f "${pool_regcert_file}" "${owner_delegation_cert_file}"
       [[ "${delegate_reward_wallet}" = "true" ]] && rm -f "${reward_delegation_cert_file}"
@@ -1617,6 +1643,7 @@ case $OPERATION in
     say ""
     say "Pool ${GREEN}${pool_name}${NC} successfully registered using wallet ${GREEN}${owner_wallet}${NC} for pledge" "log"
     say "Owner  : ${GREEN}${owner_wallet}${NC}" "log"
+    [[ ${multi_owner_count} -gt 0 ]] && say "         ${BLUE}${multi_owner_count}${NC} extra owner(s) using stake keys" "log"
     say "Reward : ${GREEN}${reward_wallet}${NC}" "log"
     say "Pledge : $(formatLovelace ${pledge_lovelace}) ADA" "log"
     say "Margin : ${margin}%" "log"
@@ -1981,6 +2008,32 @@ case $OPERATION in
       2) continue ;;
     esac
 
+    multi_owner_output=""
+    multi_owner_skeys=()
+    say "\nRegister a multi-owner pool using stake vkey/skey files?\n"
+    case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
+      0) : ;;
+      1) while true; do
+           read -r -p "Enter full path to stake vkey file: " stake_vk_file_enter
+           read -r -p "Enter full path to stake skey file: " stake_sk_file_enter
+           if [[ ! -f "${stake_vk_file_enter}" || ! -f "${stake_sk_file_enter}" ]]; then
+             say "${RED}ERROR${NC}: One or both files missing, please try again"
+             waitForInput
+           else
+             multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
+             multi_owner_skeys+=( "${stake_sk_file_enter}" )
+           fi
+           say "\nAdd more owners?\n"
+           case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
+             0) break ;;
+             1) : ;;
+             2) continue 2 ;;
+           esac
+         done
+         ;;
+      2) continue ;;
+    esac
+
     # Construct relay json array
     relay_json=$({
       say '['
@@ -2006,11 +2059,11 @@ case $OPERATION in
     say ""
     say "# Modify Stake Pool" "log"
     say "creating registration certificate" 1 "log"
-    say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${reward_stake_vk_file} --pool-owner-stake-verification-key-file ${owner_stake_vk_file} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output} ${NETWORK_IDENTIFIER} --out-file ${pool_regcert_file}" 2
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${reward_stake_vk_file}" --pool-owner-stake-verification-key-file "${owner_stake_vk_file}" --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output} ${NETWORK_IDENTIFIER} --out-file "${pool_regcert_file}"
+    say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${reward_stake_vk_file} --pool-owner-stake-verification-key-file ${owner_stake_vk_file} ${multi_owner_output} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output} ${NETWORK_IDENTIFIER} --out-file ${pool_regcert_file}" 2
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${reward_stake_vk_file}" --pool-owner-stake-verification-key-file "${owner_stake_vk_file}" ${multi_owner_output} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output} ${NETWORK_IDENTIFIER} --out-file "${pool_regcert_file}"
 
     say "sending transaction to chain" 1 "log"
-    if ! modifyPool "${pool_name}" "${reward_wallet}" "${owner_wallet}"; then
+    if ! modifyPool "${pool_name}" "${reward_wallet}" "${owner_wallet}" ${multi_owner_skeys[@]}; then
       say "${RED}ERROR${NC}: failure during pool update, removing newly created registration certificate"
       rm -f "${pool_regcert_file}"
       waitForInput && continue
@@ -2039,6 +2092,7 @@ case $OPERATION in
     say ""
     say "Pool ${GREEN}${pool_name}${NC} successfully updated with new parameters using wallet ${GREEN}${owner_wallet}${NC} to pay for registration fee" "log"
     say "Owner  : ${GREEN}${owner_wallet}${NC}" "log"
+    [[ ${multi_owner_count} -gt 0 ]] && say "         ${BLUE}${multi_owner_count}${NC} extra owner(s) using stake keys" "log"
     say "Reward : ${GREEN}${reward_wallet}${NC}" "log"
     say "Pledge : $(formatLovelace ${pledge_lovelace}) ADA" "log"
     say "Margin : ${margin}%" "log"
