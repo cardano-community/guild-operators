@@ -2843,22 +2843,22 @@ case $OPERATION in
               sudo chattr -i "${file}" && \
               rm -f "${file}" && \
               say "Deleted: ${file}"
-            done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_PAY_SK_FILENAME}"* -print0)
+            done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_PAY_SK_FILENAME}*" -print0)
             while IFS= read -r -d '' file; do
               sudo chattr -i "${file}" && \
               rm -f "${file}" && \
               say "Deleted: ${file}"
-            done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_STAKE_SK_FILENAME}"* -print0)
+            done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_STAKE_SK_FILENAME}*" -print0)
             while IFS= read -r -d '' file; do
               sudo chattr -i "${file}" && \
               rm -f "${file}" && \
               say "Deleted: ${file}"
-            done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_VK_FILENAME}"* -print0)
+            done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_VK_FILENAME}*" -print0)
             while IFS= read -r -d '' file; do
               sudo chattr -i "${file}" && \
               rm -f "${file}" && \
               say "Deleted: ${file}"
-            done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}"* -print0)
+            done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}*" -print0)
             ;;
        esac
        ;;
