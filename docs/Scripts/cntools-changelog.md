@@ -24,6 +24,9 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ##### Changed
 - POOL_PLEDGECERT_FILENAME removed from config, WALLET_DELEGCERT_FILENAME is used instead for delegation cert to pool, no need to keep a separate cert in pool folder for this, its the wallet that is delegated.
 - Wallet vkeys no longer encrypted as skeys are the only ones in need of protection
+- Update command change (change applied after this release is active):
+  - Minor/Patch release: it will warn, backup and replace CNTools script files including cntools.config
+  - Major release: No change, prompt user to backup and run prereqs.sh according to instructions.
 
 ##### Fixed
 - Mainnet uses dedicated condition for slot checks

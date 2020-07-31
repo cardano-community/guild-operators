@@ -30,6 +30,20 @@ if wget -q -T 10 -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"; th
   GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
   GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
   GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+  if [[ "$GIT_PATCH_VERSION" -eq 999  ]]; then
+    ((GIT_MAJOR_VERSION++))
+    GIT_MINOR_VERSION=0
+    GIT_PATCH_VERSION=0
+  fi
+  if [[ "$CNTOOLS_PATCH_VERSION" -eq 999  ]]; then
+    # CNTools was updated using special 999 patch tag, apply correct version in cntools.library and update variables already sourced
+    sed -i "s/CNTOOLS_MAJOR_VERSION.*/CNTOOLS_MAJOR_VERSION=$((++CNTOOLS_MAJOR_VERSION))/" "$CNODE_HOME/scripts/cntools.library"
+    sed -i "s/CNTOOLS_MINOR_VERSION.*/CNTOOLS_MINOR_VERSION=0/" "$CNODE_HOME/scripts/cntools.library"
+    sed -i "s/CNTOOLS_PATCH_VERSION.*/CNTOOLS_PATCH_VERSION=0/" "$CNODE_HOME/scripts/cntools.library"
+    # CNTOOLS_MAJOR_VERSION variable already updated in sed replace command
+    CNTOOLS_MINOR_VERSION=0
+    CNTOOLS_PATCH_VERSION=0
+  fi
   if [[ "${CNTOOLS_MAJOR_VERSION}" != "${GIT_MAJOR_VERSION}" || "${CNTOOLS_MINOR_VERSION}" != "${GIT_MINOR_VERSION}" || "${CNTOOLS_PATCH_VERSION}" != "${GIT_PATCH_VERSION}" ]]; then
     say "A new version of CNTools is available" "log"
     say ""
@@ -2721,25 +2735,49 @@ case $OPERATION in
     if [[ "$CNTOOLS_MAJOR_VERSION" != "$GIT_MAJOR_VERSION" ]];then
       say "New major version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
       say "${RED}WARNING${NC}: Breaking changes were made to CNTools!"
+      say "\nPlease read changelog available at the above URL carefully and then follow directions below"
 																									 
-      waitForInput "We will not overwrite your changes automatically, press any key to continue"
+      waitForInput "We will not overwrite your changes automatically, press any key for update instructions"
       say "\n\n1) Please backup cntools.config / env files if changes has been made as well as wallet / pool folders"
       say "   Use the built in Backup option in CNTools to do this for you"
       say "\n2) After backup, re-run updated prereqs.sh script with -o -s switches, follow directions here:"
       say "   https://cardano-community.github.io/guild-operators/#/basics?id=pre-requisites"
       say "\n3) As the last step, restore modified parameters in cntools.config / env files if needed"
     elif [[ "$CNTOOLS_MINOR_VERSION" != "$GIT_MINOR_VERSION" || "$CNTOOLS_PATCH_VERSION" != "$GIT_PATCH_VERSION" ]];then
-      say "New minor/patch version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
-      say "Applying update (no changes required for operation)..."
-      if wget -q -T 10 -O "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh" &&
+      if [[ "$GIT_PATCH_VERSION" -eq 999  ]]; then
+        ((GIT_MAJOR_VERSION++))
+        GIT_MINOR_VERSION=0
+        GIT_PATCH_VERSION=0
+      fi
+      say "New version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
+      say "\n${BLUE}INFO${NC}: The following files will be overwritte:"
+      say "$CNODE_HOME/scripts/cntools.sh"
+      say "$CNODE_HOME/scripts/cntools.config"
+      say "$CNODE_HOME/scripts/cntools.library"
+      say "$CNODE_HOME/scripts/cntoolsBlockCollector.sh"
+      backup_folder="$CNODE_HOME/scripts/cntools_${CNTOOLS_VERSION}"
+      say "\nA backup of current files will be saved in ${backup_folder} as <file>_${CNTOOLS_VERSION}"
+      say "\nProceed with update?\n"
+      case $(select_opt "[y] Yes" "[n] No") in
+        0) : ;; # do nothing
+        1) continue ;; 
+      esac
+      say "Applying update..."
+      if mkdir -p "${backup_folder}" &&
+         cp -f "$CNODE_HOME/scripts/cntools.sh" "${backup_folder}/cntools.sh_${CNTOOLS_VERSION}" &&
+         cp -f "$CNODE_HOME/scripts/cntools.config" "${backup_folder}/cntools.config_${CNTOOLS_VERSION}" &&
+         cp -f "$CNODE_HOME/scripts/cntools.library" "${backup_folder}/cntools.library_${CNTOOLS_VERSION}" &&
+         cp -f "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "${backup_folder}/cntoolsBlockCollector.sh_${CNTOOLS_VERSION}" &&
+         wget -q -T 10 -O "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh" &&
+         wget -q -T 10 -O "$CNODE_HOME/scripts/cntools.config" "$URL/cntools.config" &&
          wget -q -T 10 -O "$CNODE_HOME/scripts/cntools.library" "$URL/cntools.library" &&
          wget -q -T 10 -O "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "$URL/cntoolsBlockCollector.sh"; then
         chmod 750 "$CNODE_HOME/scripts/"*.sh
         chmod 640 "$CNODE_HOME/scripts/cntools.library" "$CNODE_HOME/scripts/cntools.config"
-        say "\nUpdate applied successfully! Please start CNTools again !\n"
+        say "\nUpdate applied successfully!\n\nPlease start CNTools again !\n"
         exit
       else
-        say "\n${RED}ERROR${NC}: update unsuccessful, GitHub download failed!\n"
+        say "\n${RED}ERROR${NC}: update unsuccessful, backup or GitHub download failed!\n"
       fi
     else
       say "${GREEN}Up to Date${NC}: You're using the latest version. No updates required!"
@@ -2748,45 +2786,6 @@ case $OPERATION in
     say "\n${RED}ERROR${NC}: download from GitHub failed, unable to perform version check!\n"
   fi
   waitForInput && continue
-
-  if [ -f "${CCLI}" ]; then
-    CURRENT_VERSION=$(${CCLI} --version | cut -f 2 -d " ")
-
-    say "Currently installed: ${CURRENT_VERSION}" "log"
-    say "Desired release:      ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})" "log"
-    if [ "${DESIRED_RELEASE_CLEAN}" != "${CURRENT_VERSION}" ]; then
-      say "Would you like to upgrade to this release?\n"
-      case $(select_opt "[y] Yes" "[n] No") in
-        0) FILE="cardano-node-${DESIRED_RELEASE}-${ASSET_PLATTFORM}.tar.gz"
-           URL="https://github.com/input-output-hk/cardano-node/releases/download/${DESIRED_RELEASE}/"${FILE}
-           say "\nDownload $FILE ..."
-           curl --proto '=https' --tlsv1.2 -L -URL ${URL} -O ${CNODE_HOME}${FILE}
-           tar -C ${CNODE_BIN_HOME} -xzf $FILE
-           rm $FILE
-           say "updated cardano-node from ${CURRENT_VERSION} to ${DESIRED_RELEASE_CLEAN}" "log"
-           ;;
-        1) say "upgrade canceled" ;;
-      esac
-    fi
-  else #
-    say "No cardano-cli binary found"
-    say "Desired available release: ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})" "log"
-    say "Would you like to install this release?\n"
-    case $(select_opt "[y] Yes" "[n] No") in
-      0) FILE="cardano-node-${DESIRED_RELEASE}-${ASSET_PLATTFORM}.tar.gz"
-         URL="https://github.com/input-output-hk/cardano-node/releases/download/${DESIRED_RELEASE}/"${FILE}
-         say "\nDownload $FILE ..."
-         curl --proto '=https' --tlsv1.2 -L -URL ${URL} -O ${CNODE_HOME}${FILE}
-         mkdir -p ${CNODE_BIN_HOME}
-         tar -C ${CNODE_BIN_HOME} -xzf $FILE
-         rm $FILE
-         say "installed cardano-node ${DESIRED_RELEASE_CLEAN}" "log"
-         ;;
-      1) say "Well, that was a pleasant but brief pleasure. Bye bye!" ;;
-    esac
-  fi
-
-  waitForInput
   
   ;; ###################################################################
 
