@@ -27,6 +27,9 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Update command change (change applied after this release is active):
   - Minor/Patch release: it will warn, backup and replace CNTools script files including cntools.config
   - Major release: No change, prompt user to backup and run prereqs.sh according to instructions.
+- Troubleshooting improvements:
+  - Split 'config in json format' and 'hasPrometheus' checks
+  - Output node sync stats if Shelley transition epoch is to be calculated
 
 ##### Fixed
 - Mainnet uses dedicated condition for slot checks

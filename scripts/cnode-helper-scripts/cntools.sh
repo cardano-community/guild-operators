@@ -81,6 +81,7 @@ else
   say "\n${RED}ERROR${NC}: failed to download cntools.library from GitHub, unable to perform version check!\n"
   waitForInput "press any key to proceed"
 fi
+clear
 
 # check for required command line tools
 if ! need_cmd "curl" || \
@@ -91,13 +92,19 @@ if ! need_cmd "curl" || \
    ! need_cmd "column"; then exit 1
 fi
 
+# Check if config is a valid json file
+if ! jq -e . >/dev/null 2>&1 "${CONFIG}"; then
+  say "\n${RED}ERROR${NC}: Please ensure that your config file is in JSON format\n"
+  say "Config file: ${CONFIG}"
+  exit 1
+fi
 
 # Verify that Prometheus is enabled in config file
 prom_port=$(jq -r '.hasPrometheus[1] //empty' ${CONFIG} 2>/dev/null)
 prom_host=$(jq -r '.hasPrometheus[0] //empty' ${CONFIG} 2>/dev/null)
 
 if [[ -z "${prom_port}" ]]; then
-  say "\n${RED}ERROR${NC}: Please ensure that your config file is in JSON format and that hasPrometheus is enabled, if unsure - rerun "<path>/prereqs.sh -s" again - and it would overwrite the config file\n"
+  say "\n${RED}ERROR${NC}: Please ensure that hasPrometheus is enabled, if unsure - rerun \"<path>/prereqs.sh -s\" again - and it would overwrite the config file\n"
   exit 1
 fi
 
@@ -124,6 +131,8 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
       ((byron_epochs--))
       ((shelley_epochs++))
     done
+    say "\nNODE SYNC:"
+    printTable ',' "$(echo -e "Epoch,Slot in Epoch,Slot\n${epoch},${slot_in_epoch},${slot_num}")"
     if [[ "${NETWORK_IDENTIFIER}" == "--mainnet" ]]; then
       shelleyTransitionEpoch="208"
     elif [[ ${calc_slot} -ne ${slot_num} ]]; then
