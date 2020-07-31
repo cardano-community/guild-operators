@@ -1613,7 +1613,7 @@ case $OPERATION in
     fi
 
     say "sending transaction to chain" 1 "log"
-    if ! registerPool "${pool_name}" "${reward_wallet}" "${delegate_reward_wallet}" "${owner_wallet}" ${multi_owner_skeys[@]}; then
+    if ! registerPool "${pool_name}" "${reward_wallet}" "${delegate_reward_wallet}" "${owner_wallet}" "${multi_owner_skeys[@]}"; then
       say "${RED}ERROR${NC}: failure during pool registration, removing newly created pledge and registration files"
       rm -f "${pool_regcert_file}" "${owner_delegation_cert_file}"
       [[ "${delegate_reward_wallet}" = "true" ]] && rm -f "${reward_delegation_cert_file}"
@@ -2063,7 +2063,7 @@ case $OPERATION in
     ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${reward_stake_vk_file}" --pool-owner-stake-verification-key-file "${owner_stake_vk_file}" ${multi_owner_output} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output} ${NETWORK_IDENTIFIER} --out-file "${pool_regcert_file}"
 
     say "sending transaction to chain" 1 "log"
-    if ! modifyPool "${pool_name}" "${reward_wallet}" "${owner_wallet}" ${multi_owner_skeys[@]}; then
+    if ! modifyPool "${pool_name}" "${reward_wallet}" "${owner_wallet}" "${multi_owner_skeys[@]}"; then
       say "${RED}ERROR${NC}: failure during pool update, removing newly created registration certificate"
       rm -f "${pool_regcert_file}"
       waitForInput && continue
