@@ -2386,8 +2386,8 @@ case $OPERATION in
       else
         say "$(printf "%-15s (${ORANGE}%s${NC}) : %s ADA" "Pledge" "new" "$(formatLovelace "${fPParams_pledge}")" )" "log"
       fi
-      pParams_margin=$(LC_NUMERIC=C printf "%.4f" $(jq -r '.margin //0' <<< "${ledger_pParams}"))
-      fPParams_margin=$(LC_NUMERIC=C printf "%.4f" $(jq -r '.margin //0' <<< "${ledger_fPParams}"))
+      pParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_pParams}")")
+      fPParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_fPParams}")")
       if [[ "${pParams_margin}" = "${fPParams_margin}" ]]; then
         say "$(printf "%-21s : %s %%" "Margin" "$(fractionToPCT "${pParams_margin}")")" "log"
       else
