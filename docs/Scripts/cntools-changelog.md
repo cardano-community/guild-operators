@@ -32,6 +32,9 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Split 'config in json format' and 'hasPrometheus' checks
   - Output node sync stats if Shelley transition epoch is to be calculated
   - Protocol parameters output check to give an improved error message
+- Pool >> Show view updated to show modified pool values if Pool >> Modify has been used to update pool parameters
+  - The section has also been updated to make it a little bit easier to read
+- Pool >> Delegators view also use updated pledge value if a pool modification has been registered to check if pledge is met
 
 ##### Fixed
 - Mainnet uses dedicated condition for slot checks

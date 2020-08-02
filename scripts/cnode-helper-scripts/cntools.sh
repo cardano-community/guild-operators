@@ -1889,7 +1889,7 @@ case $OPERATION in
              elif [[ ${type} = "IPv4" ]]; then
                relay_output+="--pool-relay-port ${port} --pool-relay-ipv4 ${address} "
              fi
-           done< <(jq -r '.relays[] | "\(.type) \(.address) \(.port)"' "${pool_config}")
+           done < <(jq -r '.relays[] | "\(.type) \(.address) \(.port)"' "${pool_config}")
            ;;
         1) : ;; # Do nothing
         2) continue ;;
@@ -2347,35 +2347,80 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
     pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
-    ledger_pool_state=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
-    [[ -n "${ledger_pool_state}" ]] && pool_registered="YES" || pool_registered="NO"
+    ledger_pParams=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
+    ledger_fPParams=$(jq -r '.esLState._delegationState._pstate._fPParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
+    [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
+    [[ -n "${ledger_pParams}" ]] && pool_registered="YES" || pool_registered="NO"
     say "${GREEN}${pool_name}${NC} "
     say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
+    say "$(printf "%-21s : %s" "Registered" "${pool_registered}")" "log"
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
     if [[ -f "${pool_config}" ]]; then
-      pledge_lovelace=$(ADAtoLovelace "$(jq -r .pledgeADA "${pool_config}")")
-      say "$(printf "%-21s : %s ADA" "Pledge" "$(formatLovelace "${pledge_lovelace}")")" "log"
-      say "$(printf "%-21s : %s %%" "Margin" "$(jq -r .margin "${pool_config}")")" "log"
-      cost_lovelace=$(ADAtoLovelace "$(jq -r .costADA "${pool_config}")")
-      say "$(printf "%-21s : %s ADA" "Cost" "$(formatLovelace "${cost_lovelace}")")" "log"
-    fi
-    pool_meta_file=${POOL_FOLDER}/${pool_name}/poolmeta.json
-    if [[ -f "${pool_meta_file}" ]]; then
-      say "$(printf "%-21s : %s" "Meta Name" "$(jq -r .name "${pool_meta_file}")")" "log"
-      say "$(printf "%-21s : %s" "Meta Ticker" "$(jq -r .ticker "${pool_meta_file}")")" "log"
-      say "$(printf "%-21s : %s" "Meta Homepage" "$(jq -r .homepage "${pool_meta_file}")")" "log"
-      say "$(printf "%-21s : %s" "Meta Description" "$(jq -r .description "${pool_meta_file}")")" "log"
-    fi
-    if [[ -f "${pool_config}" ]]; then
-      say "$(printf "%-21s : %s" "Meta Json URL" "$(jq -r .json_url "${pool_config}")")" "log"
-      if [[ -n $(jq '.relays //empty' "${pool_config}") ]]; then
-        jq -c '.relays[]' "${pool_config}" | while read -r relay; do
-          say "$(printf "%-21s : %s" "Relay ($(jq -r '.type' <<< ${relay}))" "$(jq -r '. | .address + ":" + .port' <<< ${relay})")" "log"
-        done
+      meta_json_url=$(jq -r .json_url "${pool_config}")
+      if wget -q -T 10 ${meta_json_url} -O "$TMP_FOLDER/url_poolmeta.json"; then
+        say "Metadata" "log"
+        say "$(printf "  %-19s : %s" "Name" "$(jq -r .name "$TMP_FOLDER/url_poolmeta.json")")" "log"
+        say "$(printf "  %-19s : %s" "Ticker" "$(jq -r .ticker "$TMP_FOLDER/url_poolmeta.json")")" "log"
+        say "$(printf "  %-19s : %s" "Homepage" "$(jq -r .homepage "$TMP_FOLDER/url_poolmeta.json")")" "log"
+        say "$(printf "  %-19s : %s" "Description" "$(jq -r .description "$TMP_FOLDER/url_poolmeta.json")")" "log"
+        say "$(printf "  %-19s : %s" "URL" "$(jq -r .json_url "${pool_config}")")" "log"
+        meta_hash_url="$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file "$TMP_FOLDER/url_poolmeta.json" )"
+        meta_hash_pParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_pParams}")
+        meta_hash_fPParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_fPParams}")
+        say "$(printf "  %-19s : %s" "Hash URL" "${meta_hash_url}")" "log"
+        if [[ "${meta_hash_pParams}" = "${meta_hash_fPParams}" ]]; then
+          say "$(printf "  %-19s : %s" "Hash Ledger" "${meta_hash_pParams}")" "log"
+        else
+          say "$(printf "  %-13s (${ORANGE}%s${NC}) : %s" "Hash Ledger" "old" "${meta_hash_pParams}")" "log"
+          say "$(printf "  %-13s (${ORANGE}%s${NC}) : %s" "Hash Ledger" "new" "${meta_hash_fPParams}")" "log"
+        fi
+      else
+        say "$(printf "%-21s : %s" "Metadata" "download failed for ${meta_json_url}")" "log"
       fi
     fi
-    say "$(printf "%-21s : %s" "Registered" "${pool_registered}")" "log"
     if [[ "${pool_registered}" = "YES" ]]; then
+      pParams_pledge=$(jq -r '.pledge //0' <<< "${ledger_pParams}")
+      fPParams_pledge=$(jq -r '.pledge //0' <<< "${ledger_fPParams}")
+      if [[ ${pParams_pledge} -eq ${fPParams_pledge} ]]; then
+        say "$(printf "%-21s : %s ADA" "Pledge" "$(formatLovelace "${pParams_pledge}")")" "log"
+      else
+        say "$(printf "%-15s (${ORANGE}%s${NC}) : %s ADA" "Pledge" "new" "$(formatLovelace "${fPParams_pledge}")" )" "log"
+      fi
+      pParams_margin=$(LC_NUMERIC=C printf "%.4f" $(jq -r '.margin //0' <<< "${ledger_pParams}"))
+      fPParams_margin=$(LC_NUMERIC=C printf "%.4f" $(jq -r '.margin //0' <<< "${ledger_fPParams}"))
+      if [[ "${pParams_margin}" = "${fPParams_margin}" ]]; then
+        say "$(printf "%-21s : %s %%" "Margin" "$(fractionToPCT "${pParams_margin}")")" "log"
+      else
+        say "$(printf "%-15s (${ORANGE}%s${NC}) : %s %%" "Margin" "new" "$(fractionToPCT "${fPParams_margin}")" )" "log"
+      fi
+      pParams_cost=$(jq -r '.cost //0' <<< "${ledger_pParams}")
+      fPParams_cost=$(jq -r '.cost //0' <<< "${ledger_fPParams}")
+      if [[ ${pParams_cost} -eq ${fPParams_cost} ]]; then
+        say "$(printf "%-21s : %s ADA" "Cost" "$(formatLovelace "${pParams_cost}")")" "log"
+      else
+        say "$(printf "%-15s (${ORANGE}%s${NC}) : %s ADA" "Cost" "new" "$(formatLovelace "${fPParams_cost}")" )" "log"
+      fi
+      if [[ ! $(jq -c '.relays[] //empty' <<< "${ledger_pParams}") = $(jq -c '.relays[] //empty' <<< "${ledger_fPParams}") ]]; then
+        say "$(printf "%-23s ${ORANGE}%s${NC}" "" "Relay(s) updated, showing latest registered")" "log"
+      fi
+      ledger_relays=$(jq -c '.relays[] //empty' <<< "${ledger_fPParams}")
+      relay_title="Relay(s)"
+      if [[ -n "${ledger_relays}" ]]; then
+        while read -r relay; do
+          relay_ipv4="$(jq -r '."single host address".IPv4 //empty' <<< ${relay})"
+          relay_dns="$(jq -r '."single host name".dnsName //empty' <<< ${relay})"
+          if [[ -n ${relay_ipv4} ]]; then
+            relay_port="$(jq -r '."single host address".port //empty' <<< ${relay})"
+            say "$(printf "%-21s : %s:%s" "${relay_title}" "${relay_ipv4}" "${relay_port}")" "log"
+          elif [[ -n ${relay_dns} ]]; then
+            relay_port="$(jq -r '."single host name".port //empty' <<< ${relay})"
+            say "$(printf "%-21s : %s:%s" "${relay_title}" "${relay_dns}" "${relay_port}")" "log"
+          else
+            say "$(printf "%-21s : %s" "${relay_title}" "unknown type (only IPv4/DNS supported in CNTools)")" "log"
+          fi
+          relay_title=""
+        done <<< "${ledger_relays}"
+      fi
       if [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]]; then
         kesExpiration "$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
         if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
@@ -2391,16 +2436,24 @@ case $OPERATION in
         fi
       fi
       # get owners
+      if [[ ! $(jq -c -r '.owners[] // empty' <<< "${ledger_pParams}") = $(jq -c -r '.owners[] // empty' <<< "${ledger_fPParams}") ]]; then
+        say "$(printf "%-23s ${ORANGE}%s${NC}" "" "Owner(s) updated, showing latest registered")" "log"
+      fi
+      owner_title="Owners(s)"
       while read -r owner; do
         owner_wallet=$(grep -r ${owner} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
         if [[ -n ${owner_wallet} ]]; then
           owner_wallet="$(basename "$(dirname "${owner_wallet}")")"
-          say "$(printf "%-21s : %s" "Owner wallet" "${GREEN}${owner_wallet}${NC}")" "log"
+          say "$(printf "%-21s : %s" "${owner_title}" "${GREEN}${owner_wallet}${NC}")" "log"
         else
-          say "$(printf "%-21s : %s" "Owner account" "${owner}")" "log"
+          say "$(printf "%-21s : %s" "${owner_title}" "${owner}")" "log"
         fi
-      done < <(jq -c -r '.owners[] // empty' <<< "${ledger_pool_state}")
-      reward_account=$(jq -r '.rewardAccount.credential."key hash"' <<< "${ledger_pool_state}")
+        owner_title=""
+      done < <(jq -c -r '.owners[] // empty' <<< "${ledger_fPParams}")
+      if [[ ! $(jq -r '.rewardAccount.credential."key hash" // empty' <<< "${ledger_pParams}") = $(jq -r '.rewardAccount.credential."key hash" // empty' <<< "${ledger_fPParams}") ]]; then
+        say "$(printf "%-23s ${ORANGE}%s${NC}" "" "Reward account updated, showing latest registered")" "log"
+      fi
+      reward_account=$(jq -r '.rewardAccount.credential."key hash" // empty' <<< "${ledger_fPParams}")
       if [[ -n ${reward_account} ]]; then
         reward_wallet=$(grep -r ${reward_account} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
         if [[ -n ${reward_wallet} ]]; then

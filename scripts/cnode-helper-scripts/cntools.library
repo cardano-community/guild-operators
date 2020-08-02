@@ -1726,15 +1726,26 @@ getDelegators() {
   snapshot_delegators=$(jq -r -c ".esSnapshots._pstakeSet._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
   lstate=$(jq -r -c ".esLState" "${TMP_FOLDER}"/ledger-state.json)
   lstate_dstate=$(jq -r -c "._delegationState._dstate" <<< "${lstate}")
-  ledger_pool_state=$(jq -r -c '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${lstate}")
+  ledger_pParams=$(jq -r -c '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${lstate}")
+  ledger_fPParams=$(jq -r -c '._delegationState._pstate._fPParams."'"${pool_id}"'" // empty' <<< "${lstate}")
+  [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
   lstate_rewards=$(jq -r -c "._rewards" <<< "${lstate_dstate}")
   lstate_utxo=$(jq -r -c "._utxoState._utxo" <<< "${lstate}")
   lstate_delegators=$(jq -r -c "._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" <<< "${lstate_dstate}")
   delegators=$(echo "${non_myopic_delegators}" "${snapshot_delegators}" "${lstate_delegators}" | tr ' ' '\n' | sort -u)
   say "\n$(wc -w <<< "${delegators}") delegators found, gathering data for each:"
-  pledge="$(jq -c -r '.pledge // 0' <<< "${ledger_pool_state}" | tr '\n' ' ')"
-  owners="$(jq -c -r '.owners[] // empty' <<< "${ledger_pool_state}" | tr '\n' ' ')"
-  owner_nbr=$(jq -r '(.owners | length) // 0' <<< "${ledger_pool_state}")
+  pledge_pParams="$(jq -c -r '.pledge // 0' <<< "${ledger_pParams}")"
+  pledge_fPParams="$(jq -c -r '.pledge // 0' <<< "${ledger_fPParams}")"
+  [[ ${pledge_pParams} -eq ${pledge_fPParams} ]] && pledge=${pledge_pParams} || pledge=${pledge_fPParams}
+  owners_pParams="$(jq -c -r '.owners[] // empty' <<< "${ledger_pParams}")"
+  owners_fPParams="$(jq -c -r '.owners[] // empty' <<< "${ledger_fPParams}")"
+  if [[ ${owners_pParams} = ${owners_fPParams} ]]; then
+    owners=${owners_pParams}
+    owner_nbr=$(jq -r '(.owners | length) // 0' <<< "${ledger_pParams}")
+  else
+    owners=${owners_fPParams}
+    owner_nbr=$(jq -r '(.owners | length) // 0' <<< "${ledger_fPParams}")
+  fi
   delegators_array=()
   delegator_nbr=0
   total_stake=0
