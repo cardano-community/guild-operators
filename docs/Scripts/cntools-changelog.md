@@ -20,6 +20,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Multi-owner support using stake vkey/skey files
 - Added TIMEOUT_LEDGER_STATE(default 300s) in cntools.config to be used instead of static 60 seconds for querying shelley ledger-state.
 - Option to delete private keys after successful backup
+- itnRewards.sh script to claim ITN rewards incl docs update
 
 ##### Changed
 - POOL_PLEDGECERT_FILENAME removed from config, WALLET_DELEGCERT_FILENAME is used instead for delegation cert to pool, no need to keep a separate cert in pool folder for this, its the wallet that is delegated.
@@ -30,6 +31,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Troubleshooting improvements:
   - Split 'config in json format' and 'hasPrometheus' checks
   - Output node sync stats if Shelley transition epoch is to be calculated
+  - Protocol parameters output check to give an improved error message
 
 ##### Fixed
 - Mainnet uses dedicated condition for slot checks

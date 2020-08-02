@@ -108,16 +108,29 @@ if [[ -z "${prom_port}" ]]; then
   exit 1
 fi
 
-# Verify that socket file pointed by env variable exists
-if [[ -f "${CARDANO_NODE_SOCKET_PATH}" ]]; then
-  say "\m${RED}ERROR${NC}: The file ${CARDANO_NODE_SOCKET_PATH} file does not exist. Make sure that cardano-node either points to this file and is restarted, or if you use an alternate path - be sure to update the env file"
-  exit
+# Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
+[[ -f "${TMP_FOLDER}"/protparams.json ]] && rm -f "${TMP_FOLDER}"/protparams.json 2>/dev/null
+${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} >"${TMP_FOLDER}/protparams.json" 2>&1
+if grep -q "Network.Socket.connect" "${TMP_FOLDER}/protparams.json"; then
+  say "\n${ORANGE}WARN${NC}: node socket path wrongly configured or node not running, please verify that socket set in env file match what is used to run the node"
+  say "\n${BLUE}Press c to continue or any other key to quit${NC}"
+  say "only offline functions will be available if you continue\n"
+  read -r -n 1 -s -p "" answer
+  [[ "${answer}" != "c" ]] && exit 1
+elif ! jq . "${TMP_FOLDER}/protparams.json" &>/dev/null; then
+  say "\n${ORANGE}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)"
+  say "\nError message: $(cat "${TMP_FOLDER}/protparams.json")"
+  say "\n${BLUE}Press c to continue or any other key to quit${NC}"
+  say "only offline functions will be available if you continue\n"
+  read -r -n 1 -s -p "" answer
+  [[ "${answer}" != "c" ]] && exit 1
 fi
 
 # Verify if the combinator network is already on shelley and if so, the epoch of transition
 if [[ "${PROTOCOL}" == "Cardano" ]]; then
   shelleyTransitionEpoch=$(cat "${SHELLEY_TRANS_FILENAME}" 2>/dev/null)
   if [[ -z "${shelleyTransitionEpoch}" ]]; then
+    clear
     getPromMetrics
     slot_in_epoch=$(grep "cardano_node_ChainDB_metrics_slotInEpoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
     slot_num=$(grep "cardano_node_ChainDB_metrics_slotNum_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
@@ -147,16 +160,6 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
     echo "${shelleyTransitionEpoch}" > "${SHELLEY_TRANS_FILENAME}"
   fi
 fi
-
-# Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
-[[ -f "${TMP_FOLDER}"/protparams.json ]] && rm -f "${TMP_FOLDER}"/protparams.json 2>/dev/null
-${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/protparams.json 2>/dev/null|| {
-  say "\n\n${ORANGE}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)"
-  say "\n${BLUE}Press c to continue or any other key to quit${NC}"
-  say "only offline functions will be available if you continue\n"
-  read -r -n 1 -s -p "" answer
-  [[ "${answer}" != "c" ]] && exit 1
-}
 
 # check if there are pools in need of KES key rotation
 clear
