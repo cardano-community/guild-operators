@@ -12,6 +12,7 @@
 	    - [Block Collector](Scripts/cntools-blocks.md)
 	    - [Changelog](Scripts/cntools-changelog.md)
     * [ITN Metadata Proof](Scripts/itnwitness.md)
+	* [ITN Rewards](Scripts/itnrewards.md)
     * [Topology Updater](Scripts/topologyupdater.md)
     * [Create Keys/Address](Scripts/createAddr.md)
     * [Balance and Transactions](Scripts/sendADA.md)
