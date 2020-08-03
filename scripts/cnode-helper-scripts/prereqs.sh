@@ -228,7 +228,7 @@ fi
 if [[ "$PRAOS" = "Y" ]]; then
   cp ptn0-praos.json config.json
 else
-  cp ptn0-combinator.json config.json
+  cp ptn0-mainmet.json config.json
 fi
 
 # If using a different CNODE_HOME than in this example, execute the below:
