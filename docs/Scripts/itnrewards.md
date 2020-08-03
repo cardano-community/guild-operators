@@ -7,9 +7,9 @@ To claim rewards earned during the Incentivized TestNet the private and public k
 
 ```mermaid
 graph TB
-    A(["itnRewards.sh .."])
-    A --x B{{"ITN Owner skey (ed25519_sk/ed25519e_sk)"}} --x D(["cardano-cli shelley key convert-itn-key .."])
-    A --x C{{"ITN Owner vkey (ed25519_pk)"}} --x D
+    A(["<font size=5>itnRewards.sh"])
+    A --x B{{"ITN Owner skey (ed25519[e]_sk).."}} --x D(["cardano-cli shelley key <br>convert-itn-key .."])
+    A --x C{{"ITN Owner vkey (ed25519_pk).."}} --x D
     D --x E{{"Stake skey/vkey"}} --x L
     A --x F(["cardano-cli shelley .."])
     F --x G{{"Payment skey/vkey/addr"}} --x L
@@ -22,23 +22,22 @@ graph TB
 <!--/details-->
 
 #### Steps
-- Run the `itnRewards.sh` script providing the name for CNTools wallet and ITN owner _public_/_secret_ keys that was used to register your pool as below.
+
+- If secret key used for jcli account in ITN was ed25519_sk (not extended), you can run the `itnRewards.sh` script providing the name for CNTools wallet and ITN owner _public_/_secret_ keys that was used to register your pool as below.
 ``` bash
-itnRewards.sh MyITNWallet ~/jormu/account/priv/owner.sk ~/jormu/account/priv/owner.pk
+cd $CNODE_HOME/scripts
+./itnRewards.sh MyITNWallet ~/jormu/account/priv/owner.sk ~/jormu/account/priv/owner.pk
 ```
-- If an extended secret key was used(ed25519e_sk) a special version of cardano-cli is needed to convert the key.
-- Follow these instructions to build this version of cardano-cli:
+- However, if an extended secret key was used(ed25519e_sk), a special version of cardano-cli is needed to convert the key.
+  - Follow these instructions to build this version of cardano-cli:
 ``` bash
-# Go to folder where you normally build cardano-node
+cd ~/git # Go to folder where you normally build cardano-node
 git checkout -b jordan/cli-handle-extended-itn-keys
 git branch --set-upstream-to origin/jordan/cli-handle-extended-itn-keys jordan/cli-handle-extended-itn-keys
 git pull
-cabal clean
-cabal update
-cabal build cardano-cli 2>&1 | tee /tmp/build.log
-cp -f $(grep "^Linking.*cardano-cli" /tmp/build.log  | awk '{print $2}') "$HOME/.cabal/bin/cardano-cli-itn"
+$CNODE_HOME/scripts/cabal-build-all.sh
 ```
-- Re-run `itnRewards.sh` and provide the path $HOME/.cabal/bin/cardano-cli-itn when asked
+  - Re-run `itnRewards.sh` and provide the path $HOME/.cabal/bin/cardano-cli-itn when asked
 - Start CNTools and verify that correct balance is shown in the wallet reward address
 - Fund base address of wallet with enough funds to pay for withdraw tx fee
 - Use FUNDS >> WITHDRAW to move rewards to base address of wallet
