@@ -31,7 +31,7 @@ cd $CNODE_HOME/scripts
 - However, if an extended secret key was used(ed25519e_sk), a special version of cardano-cli is needed to convert the key.
   - Follow these instructions to build this version of cardano-cli:
 ``` bash
-cd ~/git # Go to folder where you normally build cardano-node
+cd ~/git/cardano-node # Go to folder where you normally build cardano-node
 git checkout -b jordan/cli-handle-extended-itn-keys
 git branch --set-upstream-to origin/jordan/cli-handle-extended-itn-keys jordan/cli-handle-extended-itn-keys
 git pull
