@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [5.3.0] - 2020-07-30
+## [5.3.0] - 2020-08-03
 
 > We have made quite a few changes to not use ptn0 in our scripts and source github structures (except template files), alongwith other changes listed beneath. Please follow steps below for upgrade (from 5.1.0 or earlier):
 > - Execute the below (by default it will set you up against MC4 network), do not overwrite config please:
