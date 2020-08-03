@@ -7,7 +7,7 @@ To claim rewards earned during the Incentivized TestNet the private and public k
 
 ```mermaid
 graph TB
-    A(["<font size=5>itnRewards.sh"])
+    A(["itnRewards.sh"])
     A --x B{{"ITN Owner skey (ed25519[e]_sk).."}} --x D(["cardano-cli shelley key <br>convert-itn-key .."])
     A --x C{{"ITN Owner vkey (ed25519_pk).."}} --x D
     D --x E{{"Stake skey/vkey"}} --x L
