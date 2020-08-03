@@ -5,7 +5,7 @@
 
 [[ ! -d "$CNODE_HOME/logs/archive" ]] && mkdir -p "$CNODE_HOME/logs/archive"
 
-mv $CNODE_HOME/logs/*.json $CNODE_HOME/logs/archive/
+[[ $(find "$CNODE_HOME"/logs/*.json | wc -l) -gt 0 ]] && mv $CNODE_HOME/logs/*.json $CNODE_HOME/logs/archive/
 
 cardano-node run \
 	--topology $CNODE_HOME/files/topology.json \

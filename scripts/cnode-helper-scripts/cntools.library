@@ -9,9 +9,9 @@
 # Any breaking changes (eg: that requires change of cntools.config, env or a change in priv folder would be considered breaking and will be exempt from auto-update)
 CNTOOLS_MAJOR_VERSION=5
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
-CNTOOLS_MINOR_VERSION=2
+CNTOOLS_MINOR_VERSION=3
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=0
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -371,7 +371,7 @@ decryptFile() {
 # Description: Get latest Prometheus metrics from the node
 # Return     : populates $prom_metrics variable
 getPromMetrics() {
-  prom_metrics=$(curl -s "http://${prom_host}:${prom_port}/metrics")
+  curl -s "http://${prom_host}:${prom_port}/metrics" > "${TMP_FOLDER}"/prom_metrics
 }
 
 # Command    : getBlockTip
@@ -379,14 +379,14 @@ getPromMetrics() {
 # Return     : string with tip on STDOUT
 getBlockTip() {
   getPromMetrics
-  grep "cardano_node_ChainDB_metrics_blockNum_int" <<< "${prom_metrics}" | awk '{print $2}'
+  grep "cardano_node_ChainDB_metrics_blockNum_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}'
 }
 # Command    : getSlotTip
 # Description: Get latest slot number
 # Return     : string with tip on STDOUT
 getSlotTip() {
   getPromMetrics
-  grep "cardano_node_ChainDB_metrics_slotNum_int" <<< "${prom_metrics}" | awk '{print $2}'
+  grep "cardano_node_ChainDB_metrics_slotNum_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}'
 }
 # Command    : getSlotTipRef
 # Description: Get calculated slot number tip
@@ -427,7 +427,7 @@ slotInterval() {
 # Return     : current epoch on STDOUT
 getEpoch() {
   #getPromMetrics
-  #grep "cardano_node_ChainDB_metrics_epoch_int" <<< "${prom_metrics}" | awk '{print $2}'
+  #grep "cardano_node_ChainDB_metrics_epoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}'
   current_time_sec=$(date -u +%s)
   if [[ "${PROTOCOL_IDENTIFIER}" == "--cardano-mode" ]]; then
     byron_end_time=$(( byron_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * byron_epoch_length * byron_slot_length ) ))
@@ -450,42 +450,34 @@ timeUntilNextEpoch() {
 }
 
 # Command    : getCurrentKESperiod
-# Description: Offline calculation of the current KES period
+# Description: Get current KES period from prom metrics or calculated based on slot tip
 # Return     : current KES period on STDOUT
 getCurrentKESperiod() {
   getPromMetrics
-  current_kes_period=$(grep "cardano_node_Forge_metrics_currentKESPeriod_int" <<< "${prom_metrics}" | awk '{print $2}')
+  current_kes_period=$(grep "cardano_node_Forge_metrics_currentKESPeriod_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
   if [[ -z "${current_kes_period}" ]]; then
     # lets calculate it instead
-    current_time_sec=$(date -u +%s)
-    if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
-      byron_end_time=$(( byron_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * byron_epoch_length * byron_slot_length ) ))
-      current_kes_period=$(( ( current_time_sec - byron_end_time ) / ( slots_per_kes_period * slot_length ) ))
-    else
-      current_kes_period=$(( ( current_time_sec - shelley_genesis_start_sec ) / ( slots_per_kes_period * slot_length ) ))
-    fi
+    current_kes_period=$(( $(getSlotTip) / slots_per_kes_period ))
   fi
   echo "${current_kes_period}"
 }
 
-# Command    : kesExpiration [current KES period]
+# Command    : kesExpiration [Pool KES start period]
 #
 # Description: Calculate KES expiration
-# Parameters : current KES period    >   KES start stored in POOL_CURRENT_KES_START file for pool in question
+# Parameters : Pool KES start period    >   KES start stored in POOL_CURRENT_KES_START file for pool in question
 # Return     : expiration date can be accessed through variable ${expiration_date} after function has been executed
 kesExpiration() {
   if [[ -z "${1##*[!0-9]*}" ]]; then
-    say "${RED}ERROR${NC}: current KES period must be an integer number [$1]"
+    say "${RED}ERROR${NC}: KES start period must be an integer number [$1]"
     return 1
   fi
-  kes_expiration_period=$(( ${1} + ${max_kes_evolutions} - 1 ))
-  if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
-    byron_end_time=$(( byron_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * byron_epoch_length * byron_slot_length ) ))
-    expiration_time_sec=$(( byron_end_time + ( slot_length * kes_expiration_period * slots_per_kes_period ) ))
-  else
-    expiration_time_sec=$(( shelley_genesis_start_sec + ( slot_length * kes_expiration_period * slots_per_kes_period ) ))
-  fi
+  pool_kes_start_period=$1
+  current_kes_period=$(getCurrentKESperiod)
+  remaining_kes_periods=$(( max_kes_evolutions - ( current_kes_period - pool_kes_start_period ) ))
   current_time_sec=$(date -u +%s)
+  slot_in_epoch=$(grep "cardano_node_ChainDB_metrics_slotInEpoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
+  expiration_time_sec=$(( current_time_sec - ( slot_length * slot_in_epoch ) + ( slot_length * slots_per_kes_period * remaining_kes_periods ) ))
   expiration_time_sec_diff=$(( expiration_time_sec - current_time_sec ))
   expiration_date=$(date --date=@${expiration_time_sec})
 }
@@ -1014,28 +1006,39 @@ registerStakeWallet() {
 }
 
 
-# Command    : registerPool [pledge wallet base address] [pool cold sign key] [pledge wallet stake sign key] [pool registration cert file] [delegation certificate] [pledge wallet payment sign key]
+# Command    : registerPool [pool name] [reward wallet] [delegate reward wallet] [owner wallet] [multi-owner skeys ...]
 #
 # Description: Register pool with pledge on chain
-# Parameters : pledge wallet base address      >   payment address, funds needed to pay tx fee for pool registration
-#              pool cold sign key              >   pool cold sign key
-#              pledge wallet stake sign key    >   stake signature key
-#              pool registration cert file     >   pool registration cert file
-#              delegation certificate          >   stake certificate
-#              pledge wallet payment sign key  >   payment signature key
+# Parameters : pool name                 >   pool to register on chain
+#              reward wallet             >   name of wallet that collects the pool rewards
+#              delegate reward wallet    >   true or false, should reward wallet be delegated to pool
+#              owner wallet              >   the pool owner, also pays for the pool registration fee
+#              multi-owner skeys         >   a list of extra extra owner skeys to sign pool registration with
 # Return     : prints progress on STDOUT
 # Examples of Usage:
-#   >> registerPool 00d9d57cb....ssL7fzhq "../pools/MyPool/cold.skey" "../wallet/MyWallet/stake.skey" "pool.cert" "delegation.cert" "../wallet/MyWallet/payment.skey"
+#   >> registerPool "MyPool" "MyRewardWallet" "true" "MyOwnerWallet" "/path/to/secondOwner.skey"
 #
 registerPool() {
 
-  # script arguments
-  base_addr="$1"
-  pool_coldkey_sk_file="$2"
-  stake_sk_file="$3"
-  pool_regcert_file="$4"
-  pool_pledgecert_file="$5"
-  pay_payment_sk_file="$6"
+  pool_coldkey_sk_file="${POOL_FOLDER}/${1}/${POOL_COLDKEY_SK_FILENAME}"
+  pool_regcert_file="${POOL_FOLDER}/${1}/${POOL_REGCERT_FILENAME}"
+  reward_stake_sk_file="${WALLET_FOLDER}/${2}/${WALLET_STAKE_SK_FILENAME}"
+  reward_delegation_cert_file="${WALLET_FOLDER}/${2}/${WALLET_DELEGCERT_FILENAME}"
+  delegate_reward_wallet="${3}"
+  pay_payment_sk_file="${WALLET_FOLDER}/${4}/${WALLET_PAY_SK_FILENAME}"
+  owner_stake_sk_file="${WALLET_FOLDER}/${4}/${WALLET_STAKE_SK_FILENAME}"
+  owner_delegation_cert_file="${WALLET_FOLDER}/${4}/${WALLET_DELEGCERT_FILENAME}"
+  getBaseAddress "${4}"
+  getBalance ${base_addr}
+  shift 4
+  multi_owner_count=0
+  multi_owner_signing=()
+  for multi_owner_skey in "$@"; do
+    if [[ -f "${multi_owner_skey}" ]]; then
+      multi_owner_signing+=( --signing-key-file ${multi_owner_skey} )
+      ((multi_owner_count++))
+    fi
+  done
 
   if [[ ! -s "${TMP_FOLDER}"/balance.out ]]; then
     say "${RED}ERROR${NC}: wallet empty"
@@ -1062,18 +1065,29 @@ registerPool() {
     say "ADA: $(formatLovelace ${utxo_balance})" 2
     tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
   done <"${TMP_FOLDER}"/balance.out
+  
+  reward_delegation_cert=""
+  reward_wallet_signing=""
+  witness_count=$(( 3 + multi_owner_count ))
+  if [[ "${delegate_reward_wallet}" = "true" ]]; then
+    reward_delegation_cert="--certificate-file ${reward_delegation_cert_file}"
+  fi
+  if [[ ! "${owner_stake_sk_file}" = "${reward_stake_sk_file}" ]]; then
+    reward_wallet_signing="--signing-key-file ${reward_stake_sk_file}"
+    ((witness_count++))
+  fi
 
   say "" 1
   say "# Calculate fee, new amount and remaining balance" 1 "log"
-  say "$ ${CCLI} shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$(( lovelace - poolDeposit )) --ttl ${ttlValue} --certificate-file ${pool_regcert_file} --certificate-file ${pool_pledgecert_file} --fee 0 --out-file ${TMP_FOLDER}/tx0.tmp" 2
-  ${CCLI} shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$(( lovelace - poolDeposit )) --ttl ${ttlValue} --certificate-file ${pool_regcert_file} --certificate-file ${pool_pledgecert_file} --fee 0 --out-file "${TMP_FOLDER}"/tx0.tmp
+  say "$ ${CCLI} shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$(( lovelace - poolDeposit )) --ttl ${ttlValue} --certificate-file ${pool_regcert_file} --certificate-file ${owner_delegation_cert_file} ${reward_delegation_cert} --fee 0 --out-file ${TMP_FOLDER}/tx0.tmp" 2
+  ${CCLI} shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$(( lovelace - poolDeposit )) --ttl ${ttlValue} --certificate-file ${pool_regcert_file} --certificate-file ${owner_delegation_cert_file} ${reward_delegation_cert} --fee 0 --out-file "${TMP_FOLDER}"/tx0.tmp
   minFeeArgs=(
     shelley transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
     --tx-out-count 1
     ${NETWORK_IDENTIFIER}
-    --witness-count 3
+    --witness-count ${witness_count}
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
@@ -1097,7 +1111,8 @@ registerPool() {
     --ttl ${ttlValue}
     --fee ${minFee}
     --certificate-file ${pool_regcert_file}
-    --certificate-file ${pool_pledgecert_file}
+    --certificate-file ${owner_delegation_cert_file}
+    ${reward_delegation_cert}
     --out-file "${TMP_FOLDER}"/tx.raw
   )
 
@@ -1106,7 +1121,8 @@ registerPool() {
     --tx-body-file "${TMP_FOLDER}"/tx.raw
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${pool_coldkey_sk_file}
-    --signing-key-file ${stake_sk_file}
+    --signing-key-file ${owner_stake_sk_file}
+    ${reward_wallet_signing}
     ${NETWORK_IDENTIFIER}
     --out-file "${TMP_FOLDER}"/tx.signed
   )
@@ -1131,10 +1147,10 @@ registerPool() {
   fi
 
   say "Signing transaction" 1
-  say "$ ${CCLI} ${signArgs[*]}" 2
-  output=$(${CCLI} ${signArgs[*]})
+  say "$ ${CCLI} ${signArgs[*]} ${multi_owner_signing[*]}" 2
+  output=$(${CCLI} ${signArgs[*]} ${multi_owner_signing[*]})
   if [[ -n $output ]]; then
-    say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]}"
+    say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]} ${multi_owner_signing[*]}"
     say "$output"
     return 1
   fi
@@ -1150,26 +1166,35 @@ registerPool() {
 }
 
 
-# Command    : modifyPool [pledge wallet base address] [pool cold sign key] [pledge wallet stake sign key] [pool registration cert file] [pledge wallet payment sign key]
+# Command    : modifyPool [pool name] [reward wallet] [delegate reward wallet] [owner wallet] [multi-owner skeys ...]
 #
 # Description: Register pool with pledge on chain
-# Parameters : pledge wallet base address      >   payment address, funds needed to pay tx fee for pool registration
-#              pool cold sign key              >   pool cold sign key
-#              pledge wallet stake sign key    >   stake signature key
-#              pool registration cert file     >   pool registration cert file
-#              pledge wallet payment sign key  >   payment signature key
+# Parameters : pool name                 >   pool to register on chain
+#              reward wallet             >   name of wallet that collects the pool rewards
+#              owner wallet              >   the pool owner, also pays for the pool registration fee
+#              multi-owner skeys         >   a list of extra extra owner skeys to sign pool registration with
 # Return     : prints progress on STDOUT
 # Examples of Usage:
-#   >> modifyPool 00d9d57cb....ssL7fzhq "../pools/MyPool/cold.skey" "../wallet/MyWallet/stake.skey" "pool.cert" "../wallet/MyWallet/payment.skey"
+#   >> modifyPool "MyPool" "MyRewardWallet" "MyOwnerWallet" "/path/to/secondOwner.skey"
 #
 modifyPool() {
 
-  # script arguments
-  base_addr="$1"
-  pool_coldkey_sk_file="$2"
-  stake_sk_file="$3"
-  pool_regcert_file="$4"
-  pay_payment_sk_file="$5"
+  pool_coldkey_sk_file="${POOL_FOLDER}/${1}/${POOL_COLDKEY_SK_FILENAME}"
+  pool_regcert_file="${POOL_FOLDER}/${1}/${POOL_REGCERT_FILENAME}"
+  reward_stake_sk_file="${WALLET_FOLDER}/${2}/${WALLET_STAKE_SK_FILENAME}"
+  pay_payment_sk_file="${WALLET_FOLDER}/${3}/${WALLET_PAY_SK_FILENAME}"
+  owner_stake_sk_file="${WALLET_FOLDER}/${3}/${WALLET_STAKE_SK_FILENAME}"
+  getBaseAddress "${3}"
+  getBalance ${base_addr}
+  shift 3
+  multi_owner_count=0
+  multi_owner_signing=()
+  for multi_owner_skey in "$@"; do
+    if [[ -f "${multi_owner_skey}" ]]; then
+      multi_owner_signing+=( --signing-key-file ${multi_owner_skey} )
+      ((multi_owner_count++))
+    fi
+  done
 
   say "" 1
   say "# Protocol Parameters" 1 "log"
@@ -1190,6 +1215,13 @@ modifyPool() {
     tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
   done <"${TMP_FOLDER}"/balance.out
 
+  reward_wallet_signing=""
+  witness_count=$(( 3 + multi_owner_count ))
+  if [[ ! "${owner_stake_sk_file}" = "${reward_stake_sk_file}" ]]; then
+    reward_wallet_signing="--signing-key-file ${reward_stake_sk_file}"
+    ((witness_count++))
+  fi
+
   say "" 1
   say "# Calculate fee, new amount and remaining balance" 1 "log"
   say "$ ${CCLI} shelley transaction build-raw ${tx_in} --tx-out ${base_addr}+$lovelace --ttl ${ttlValue} --certificate-file ${pool_regcert_file} --fee 0 --out-file ${TMP_FOLDER}/tx0.tmp" 2
@@ -1200,7 +1232,7 @@ modifyPool() {
     --tx-in-count ${utx0_count}
     --tx-out-count 1
     ${NETWORK_IDENTIFIER}
-    --witness-count 3
+    --witness-count ${witness_count}
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
@@ -1232,7 +1264,8 @@ modifyPool() {
     --tx-body-file "${TMP_FOLDER}"/tx.raw
     --signing-key-file ${pay_payment_sk_file}
     --signing-key-file ${pool_coldkey_sk_file}
-    --signing-key-file ${stake_sk_file}
+    --signing-key-file ${owner_stake_sk_file}
+    ${reward_wallet_signing}
     ${NETWORK_IDENTIFIER}
     --out-file "${TMP_FOLDER}"/tx.signed
   )
@@ -1257,10 +1290,10 @@ modifyPool() {
   fi
 
   say "Signing transaction" 1
-  say "$ ${CCLI} ${signArgs[*]}" 2
-  output=$(${CCLI} ${signArgs[*]})
+  say "$ ${CCLI} ${signArgs[*]} ${multi_owner_signing[*]}" 2
+  output=$(${CCLI} ${signArgs[*]} ${multi_owner_signing[*]})
   if [[ -n $output ]]; then
-    say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]}"
+    say "${RED}ERROR${NC}: 2. Problem during signing with args ${signArgs[*]} ${multi_owner_signing[*]}"
     say "$output"
     return 1
   fi
@@ -1687,21 +1720,32 @@ rotatePoolKeys() {
 getDelegators() {
   pool_id=$1
 
-  timeout -k 5 60 ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
+  timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
   say "\nLedger state dumped, parsing data..."
   non_myopic_delegators=$(jq -r -c ".esNonMyopic.snapNM._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
   snapshot_delegators=$(jq -r -c ".esSnapshots._pstakeSet._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
   lstate=$(jq -r -c ".esLState" "${TMP_FOLDER}"/ledger-state.json)
   lstate_dstate=$(jq -r -c "._delegationState._dstate" <<< "${lstate}")
-  ledger_pool_state=$(jq -r -c '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${lstate}")
+  ledger_pParams=$(jq -r -c '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${lstate}")
+  ledger_fPParams=$(jq -r -c '._delegationState._pstate._fPParams."'"${pool_id}"'" // empty' <<< "${lstate}")
+  [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
   lstate_rewards=$(jq -r -c "._rewards" <<< "${lstate_dstate}")
   lstate_utxo=$(jq -r -c "._utxoState._utxo" <<< "${lstate}")
   lstate_delegators=$(jq -r -c "._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" <<< "${lstate_dstate}")
   delegators=$(echo "${non_myopic_delegators}" "${snapshot_delegators}" "${lstate_delegators}" | tr ' ' '\n' | sort -u)
   say "\n$(wc -w <<< "${delegators}") delegators found, gathering data for each:"
-  pledge="$(jq -c -r '.pledge // 0' <<< "${ledger_pool_state}" | tr '\n' ' ')"
-  owners="$(jq -c -r '.owners[] // empty' <<< "${ledger_pool_state}" | tr '\n' ' ')"
-  owner_nbr=$(jq -r '(.owners | length) // 0' <<< "${ledger_pool_state}")
+  pledge_pParams="$(jq -c -r '.pledge // 0' <<< "${ledger_pParams}")"
+  pledge_fPParams="$(jq -c -r '.pledge // 0' <<< "${ledger_fPParams}")"
+  [[ ${pledge_pParams} -eq ${pledge_fPParams} ]] && pledge=${pledge_pParams} || pledge=${pledge_fPParams}
+  owners_pParams="$(jq -c -r '.owners[] // empty' <<< "${ledger_pParams}")"
+  owners_fPParams="$(jq -c -r '.owners[] // empty' <<< "${ledger_fPParams}")"
+  if [[ ${owners_pParams} = ${owners_fPParams} ]]; then
+    owners=${owners_pParams}
+    owner_nbr=$(jq -r '(.owners | length) // 0' <<< "${ledger_pParams}")
+  else
+    owners=${owners_fPParams}
+    owner_nbr=$(jq -r '(.owners | length) // 0' <<< "${ledger_fPParams}")
+  fi
   delegators_array=()
   delegator_nbr=0
   total_stake=0
