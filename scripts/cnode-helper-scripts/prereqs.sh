@@ -220,9 +220,9 @@ if [[ "$GUILD" = "Y" ]]; then
   curl -s -o byron-genesis.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/byron-genesis.json
   curl -s -o topology.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/topology.json
 else
-  curl -sL -o byron-genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet_candidate-byron-genesis.json
-  curl -sL -o genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet_candidate-shelley-genesis.json
-  curl -sL -o topology.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet_candidate-topology.json
+  curl -sL -o byron-genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
+  curl -sL -o genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
+  curl -sL -o topology.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
 fi
 
 if [[ "$PRAOS" = "Y" ]]; then
