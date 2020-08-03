@@ -18,8 +18,8 @@ You can use the instructions below to build the cardano-node, same steps can be 
 
 ``` bash
 git fetch --tags --all
-# Replace tag 1.18 with the version/branch you'd like to build
-git checkout 1.18.0
+# Replace release 1.18.x with the version/branch/tag you'd like to build
+git checkout release/1.18.x
 git pull
 
 echo -e "package cardano-crypto-praos\n  flags: -external-libsodium-vrf" > cabal.project.local
