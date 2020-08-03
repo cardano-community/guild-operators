@@ -2473,7 +2473,7 @@ case $OPERATION in
     pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
     say "$(printf "%-21s : %s" "Run arguments" "--shelley-kes-key ${pool_hotkey_sk_file} \\")" "log"
     say "$(printf "%-21s   %s" "" "--shelley-vrf-key ${pool_vrf_sk_file} \\")" "log"
-    say "$(printf "%-21s   %s" "" "--shelley-operational-certificate ${pool_opcert_file} \\")" "log"
+    say "$(printf "%-21s   %s" "" "--shelley-operational-certificate ${pool_opcert_file}")" "log"
     say ""
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     waitForInput

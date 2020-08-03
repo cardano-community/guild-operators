@@ -37,7 +37,7 @@ git branch --set-upstream-to origin/jordan/cli-handle-extended-itn-keys jordan/c
 git pull
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
-  - Re-run `itnRewards.sh` and provide the path $HOME/.cabal/bin/cardano-cli-itn when asked
+  - Re-run `itnRewards.sh`
 - Start CNTools and verify that correct balance is shown in the wallet reward address
 - Fund base address of wallet with enough funds to pay for withdraw tx fee
 - Use FUNDS >> WITHDRAW to move rewards to base address of wallet
