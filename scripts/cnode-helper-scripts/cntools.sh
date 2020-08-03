@@ -639,9 +639,9 @@ case $OPERATION in
     unset password
 
     say ""
-    say "# Write protecting all wallet files using 'chattr +i'" "log"
+    say "# Write protecting all wallet keys using 'chattr +i'" "log"
     while IFS= read -r -d '' file; do
-      if [[ ! $(lsattr -R "$file") =~ -i- ]]; then
+      if [[ ${file} != *.addr && ! $(lsattr -R "$file") =~ -i- ]]; then
         chmod 400 "${file}" && \
         sudo chattr +i "${file}" && \
         filesLocked=$((++filesLocked)) && \
@@ -736,6 +736,9 @@ case $OPERATION in
 
     if [[ ${reward_lovelace} -le 0 ]]; then
       say "Failed to locate any rewards associated with the chosen wallet, please try another one"
+      waitForInput && continue
+    elif [[ ${lovelace} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No funds in base address, please send funds to base address of wallet to cover withdraw transaction fee"
       waitForInput && continue
     fi
 
