@@ -36,14 +36,14 @@ if [[ ! -d "${WALLET_FOLDER}/${wallet_name}" ]]; then
 fi
 
 if [[ $(cat "${itn_signing_key_file}") == ed25519e_* ]]; then
-  if ${CCLI} shelley key 2>&1 | grep -q "convert-itn-extended-key"; then
+  if ! ${CCLI} shelley key 2>&1 | grep -q "convert-itn-extended-key"; then
     echo -e "\n${ORANGE}WARNING${NC}: cardano-cli lacks support for extended ITN key conversion: ${CCLI}\n"
     echo -e "If a special version of cardano-cli is built with this support, please specify path below, else follow instructions available at:"
     echo -e "  https://cardano-community.github.io/guild-operators/#/Scripts/itnrewards\n"
     while true; do
       read -r -p "Enter path to cardano-cli with support for extended key conversion or press enter to quit: " CCLI
-      [[ -z "${CCLI}" ]] && exit 1
-      if ${CCLI} shelley key 2>&1 | grep -q "convert-itn-extended-key"; then
+      [[ -z "${CCLI}" ]] && rm -rf "${WALLET_FOLDER}/${wallet_name}" && exit 1
+      if ! ${CCLI} shelley key 2>&1 | grep -q "convert-itn-extended-key"; then
         echo -e "\n${ORANGE}ERROR${NC}: specified file lacks support for extended ITN key conversion, please try again\n"
         continue
       fi
