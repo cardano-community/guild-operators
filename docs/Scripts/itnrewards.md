@@ -28,12 +28,11 @@ graph TB
 cd $CNODE_HOME/scripts
 ./itnRewards.sh MyITNWallet ~/jormu/account/priv/owner.sk ~/jormu/account/priv/owner.pk
 ```
-- However, if an extended secret key was used(ed25519e_sk), a special version of cardano-cli is needed to convert the key.
+- However, if an extended secret key was used(ed25519e_sk), a recent version (min 1.18.x) of cardano-cli is needed to convert the key.
   - Follow these instructions to build this version of cardano-cli:
 ``` bash
-cd ~/git # Go to folder where you normally build cardano-node
-git checkout -b jordan/cli-handle-extended-itn-keys
-git branch --set-upstream-to origin/jordan/cli-handle-extended-itn-keys jordan/cli-handle-extended-itn-keys
+cd ~/git/cardano-node # Go to folder where you normally build cardano-node
+git checkout release/1.18.x
 git pull
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
