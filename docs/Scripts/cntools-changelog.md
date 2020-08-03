@@ -11,6 +11,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > We have made quite a few changes to not use ptn0 in our scripts and source github structures (except template files), alongwith other changes listed beneath. Please follow steps below for upgrade (from 5.1.0 or earlier):
 > - Execute the below (by default it will set you up against MC4 network), do not overwrite config please:
 >    `curl -sS -o https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh`
+>    ./prereqs.sh -s
 > - Start using updated cnode.sh to run a passive node, or edit the cnode.sh to include your pool keys and run as pool owner.
 
 =======
@@ -21,10 +22,12 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Added TIMEOUT_LEDGER_STATE(default 300s) in cntools.config to be used instead of static 60 seconds for querying shelley ledger-state.
 - Option to delete private keys after successful backup
 - itnRewards.sh script to claim ITN rewards incl docs update
+- More explicit error messages at startup
 
 ##### Changed
 - POOL_PLEDGECERT_FILENAME removed from config, WALLET_DELEGCERT_FILENAME is used instead for delegation cert to pool, no need to keep a separate cert in pool folder for this, its the wallet that is delegated.
 - Wallet vkeys no longer encrypted as skeys are the only ones in need of protection
+- Pool >> Show view updated to show modified pool values if Pool >> Modify has been used to update pool parameters
 - Update command change (change applied after this release is active):
   - Minor/Patch release: it will warn, backup and replace CNTools script files including cntools.config
   - Major release: No change, prompt user to backup and run prereqs.sh according to instructions.
@@ -35,6 +38,8 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Pool >> Show view updated to show modified pool values if Pool >> Modify has been used to update pool parameters
   - The section has also been updated to make it a little bit easier to read
 - Pool >> Delegators view also use updated pledge value if a pool modification has been registered to check if pledge is met
+- Use mainnet as default, since other testnets are either retired or not being maintained :(
+- Backup original files when doing upgrades, so that users do not lose their changes.
 
 ##### Fixed
 - Mainnet uses dedicated condition for slot checks
