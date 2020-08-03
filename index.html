@@ -60,7 +60,7 @@
       plugins: [
         function(hook, vm){
           var custommarkdown = [
-            '<style>.markdown-section{margin-top:25px}</style><style>.sidebar-toggle {top:0px;left:0px;height:40px;width:40px}</style>'
+            '<style>.markdown-section{margin-top:25px}</style><style>.sidebar-toggle {top:0px;left:0px;height:40px;width:40px}</style><style>#mermaid-svg-0{width:100%;}</style>'
             ].join('');
           hook.beforeEach(function(content) {
             // Invoked each time before parsing the Markdown file.
@@ -96,9 +96,9 @@
     }
     //const isDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches
 
-    //const conf = { logLevel:4, startOnLoad: false, securityLevel: 'lose', themeCSS:'.label { font-family: Source Sans Pro,Helvetica Neue,Arial,sans-serif; }' };
+    const conf = { logLevel:4, startOnLoad: false, securityLevel: 'lose',themeCSS:'.label foreignObject { font-family: Source Sans Pro,Helvetica Neue,Arial,sans-serif;font-size: 90%;overflow: visible;}'};
     //if(isDarkMode && false) conf.theme = 'dark';conf.width='100%';
-    //mermaid.initialize(conf);
+    mermaid.initialize(conf);
   </script>
   <!--script src="//cdn.jsdelivr.net/npm/docsify/lib/docsify.min.js"></script-->
   <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/emoji.min.js"></script>
