@@ -9,8 +9,8 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [5.3.0] - 2020-08-03
 
 > We have made quite a few changes to not use ptn0 in our scripts and source github structures (except template files), alongwith other changes listed beneath. Please follow steps below for upgrade (from 5.1.0 or earlier):
-> - Execute the below (by default it will set you up against MC4 network), do not overwrite config please:
->    `curl -sS -o https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh`
+> - Execute the below (by default it will set you up against `mainnet` network), do not overwrite config please:
+>    `curl -sS -o prereqs.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh`
 >    ./prereqs.sh -s
 > - Start using updated cnode.sh to run a passive node, or edit the cnode.sh to include your pool keys and run as pool owner.
 
