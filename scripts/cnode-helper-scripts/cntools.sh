@@ -1955,7 +1955,7 @@ case $OPERATION in
     fi
 
     # Owner wallet, also used to pay for pool update fee
-    owner_wallet=$(jq -r .ownerWallet "${pool_config}")
+    owner_wallet=$(jq -r .pledgeWallet "${pool_config}")
     reward_wallet=$(jq -r .rewardWallet "${pool_config}")
     say "Old owner wallet:  ${GREEN}${owner_wallet}${NC}"
     say "Old reward wallet: ${GREEN}${reward_wallet}${NC}"
