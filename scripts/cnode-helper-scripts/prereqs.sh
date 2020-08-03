@@ -215,6 +215,7 @@ cd "$CNODE_HOME/files" || return
 
 curl -s -o ptn0-praos.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0-praos.json
 curl -s -o ptn0-combinator.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0-combinator.json
+curl -s -o ptn0-mainnet.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0-mainnet.json
 if [[ "$GUILD" = "Y" ]]; then
   curl -s -o genesis.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/genesis.json
   curl -s -o byron-genesis.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/byron-genesis.json
