@@ -704,6 +704,7 @@ case $OPERATION in
     wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
+    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
     for dir in "${dirs[@]}"; do
       stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
       stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
@@ -719,6 +720,7 @@ case $OPERATION in
     done
     if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No wallets available that have rewards to withdraw!"
+      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
       waitForInput && continue
     fi
     say "Select Wallet:\n"
@@ -793,6 +795,7 @@ case $OPERATION in
     s_wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
+    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
     for dir in "${dirs[@]}"; do
       s_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
       [[ ! -f "${s_payment_sk_file}" ]] && continue
@@ -816,6 +819,7 @@ case $OPERATION in
     done
     if [[ ${#s_wallet_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No wallets available that have funds to send!"
+      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
       waitForInput && continue
     fi
     say "Select Source Wallet:\n"
@@ -1003,6 +1007,7 @@ case $OPERATION in
     wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
+    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
     for dir in "${dirs[@]}"; do
       stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
       stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
@@ -1038,6 +1043,7 @@ case $OPERATION in
     done
     if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No wallets available that can be delegated!"
+      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
       waitForInput && continue
     fi
     say "Select Wallet:\n"
@@ -1484,6 +1490,7 @@ case $OPERATION in
     wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
+    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
     for dir in "${dirs[@]}"; do
       stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
       stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
@@ -1519,6 +1526,7 @@ case $OPERATION in
     done
     if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No wallets available that can be used in pool registration as pledge wallet!"
+      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
       waitForInput && continue
     fi
     say "Select Owner Wallet:\n"
@@ -1965,6 +1973,7 @@ case $OPERATION in
     wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
+    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
     for dir in "${dirs[@]}"; do
       stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
       stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
@@ -2000,6 +2009,7 @@ case $OPERATION in
     done
     if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No wallets available that can be used in pool registration as owner wallet!"
+      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
       waitForInput && continue
     fi
     say "Select Owner Wallet:\n"
@@ -2199,6 +2209,7 @@ case $OPERATION in
     wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
+    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
     for dir in "${dirs[@]}"; do
       if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
         if getBaseAddress ${dir}; then
@@ -2212,6 +2223,7 @@ case $OPERATION in
     done
     if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No wallets available that have funds to pay for pool retirement transaction fee!"
+      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
       waitForInput && continue
     fi
     say "Select wallet for pool de-registration transaction fee:\n"
