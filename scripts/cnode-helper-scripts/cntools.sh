@@ -2341,7 +2341,11 @@ case $OPERATION in
     pool_name="${dir_name}"
 
     say "Dumping ledger-state from node, can take a while on larger networks...\n"
-    timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
+    if ! timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json; then
+      say "${RED}ERROR${NC}: ledger dump failed/timed out"
+      say "increase timeout value in cntools.config"
+      waitForInput && continue
+    fi
 
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
@@ -2509,7 +2513,9 @@ case $OPERATION in
     pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
     
     say "Looking for delegators, please wait..."
-    getDelegators ${pool_id}
+    if ! getDelegators ${pool_id}; then
+      waitForInput && continue
+    fi
     
     clear
     say " >> POOL >> DELEGATORS" "log"
