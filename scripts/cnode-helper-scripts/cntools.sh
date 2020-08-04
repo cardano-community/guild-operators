@@ -1237,19 +1237,14 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    say "Dumping ledger-state from node, can take a while on larger networks...\n"
-
     pool_dirs=()
-    timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
       pool_coldkey_sk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_SK_FILENAME}"
       pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
-      [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
-      pool_id=$(cat "${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}")
-      ledger_pool_state=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
-      [[ -n "${ledger_pool_state}" ]] && continue
+      pool_regcert_file="${POOL_FOLDER}/${dir}/${POOL_REGCERT_FILENAME}"
+      [[ -f "${pool_regcert_file}" || ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
       pool_dirs+=("${dir}")
     done
     if [[ ${#pool_dirs[@]} -eq 0 ]]; then
@@ -1715,19 +1710,14 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    say "Dumping ledger-state from node, can take a while on larger networks...\n"
-
     pool_dirs=()
-    timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
       pool_coldkey_sk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_SK_FILENAME}"
       pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
-      [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
-      pool_id=$(cat "${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}")
-      ledger_pool_state=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
-      [[ -z "${ledger_pool_state}" ]] && continue
+      pool_regcert_file="${POOL_FOLDER}/${dir}/${POOL_REGCERT_FILENAME}"
+      [[ ! -f "${pool_regcert_file}" || ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
       pool_dirs+=("${dir}")
     done
     if [[ ${#pool_dirs[@]} -eq 0 ]]; then
@@ -2097,6 +2087,8 @@ case $OPERATION in
 
     #Generated Files
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
+    # Make a backup of current reg cert
+    cp -f "${pool_regcert_file}" "${pool_regcert_file}.tmp"
 
     say ""
     say "# Modify Stake Pool" "log"
@@ -2107,8 +2099,10 @@ case $OPERATION in
     say "sending transaction to chain" 1 "log"
     if ! modifyPool "${pool_name}" "${reward_wallet}" "${owner_wallet}" "${multi_owner_skeys[@]}"; then
       say "${RED}ERROR${NC}: failure during pool update, removing newly created registration certificate"
-      rm -f "${pool_regcert_file}"
+      mv -f "${pool_regcert_file}.tmp" "${pool_regcert_file}" # restore reg cert backup
       waitForInput && continue
+    else
+      rm -f "${pool_regcert_file}.tmp" # remove backup of old reg cert
     fi
 
     if ! waitNewBlockCreated; then
@@ -2165,19 +2159,14 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    say "Dumping ledger-state from node, can take a while on larger networks...\n"
-
     pool_dirs=()
-    timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
       pool_coldkey_sk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_SK_FILENAME}"
       pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
-      [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
-      pool_id=$(cat "${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}")
-      ledger_pool_state=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
-      [[ -z "${ledger_pool_state}" ]] && continue
+      pool_regcert_file="${POOL_FOLDER}/${dir}/${POOL_REGCERT_FILENAME}"
+      [[ ! -f "${pool_regcert_file}" || ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
       pool_dirs+=("${dir}")
     done
     if [[ ${#pool_dirs[@]} -eq 0 ]]; then
@@ -2293,16 +2282,11 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    say "Dumping ledger-state from node, can take a while on larger networks...\n"
-    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-
-    timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
-
     while IFS= read -r -d '' pool; do
       say ""
       pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
-      ledger_pool_state=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
-      [[ -n "${ledger_pool_state}" ]] && pool_registered="YES" || pool_registered="NO"
+      pool_regcert_file="${pool}/${POOL_REGCERT_FILENAME}"
+      [[ -f "${pool_regcert_file}" ]] && pool_registered="YES" || pool_registered="NO"
       say "${GREEN}$(basename ${pool})${NC} "
       say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
       say "$(printf "%-21s : %s" "Registered" "${pool_registered}")" "log"

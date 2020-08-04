@@ -21,6 +21,11 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ##### Added
 - Balance check notification added before wallet selection menus are shown to know that work is done in the background 
 
+##### Changed
+- Removed ledger dump dependency from Pool Register, Modify, Retire and List.
+  - The cost of the ledger dump is too high, replaced with a simple check if pools registration certificate exist in pool folder
+  - Pool >> Show|Delegators are now the only options dumping the ledger-state
+
 ##### Fixed
 - Removed +i file locking on .addr files when using `Wallet >> Encrypt` as these are re-generated from keys and need to be writable
 - Balance check added to `Funds >> Withdraw` for base address as this is used to pay the withdraw transaction fee
