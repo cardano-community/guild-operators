@@ -6,9 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [5.3.0] - 2020-08-03
+## [5.3.1] - 2020-08-04
 
-> We have made quite a few changes to not use ptn0 in our scripts and source github structures (except template files), alongwith other changes listed beneath. Please follow steps below for upgrade (from 5.1.0 or earlier):  
+> If you're coming version 5.2.1 (not required if you're on 5.3.0), We have made quite a few changes to not use ptn0 in our scripts and source github structures (except template files), alongwith other changes listed beneath. Please follow steps below for upgrade:  
 > - Execute the below (by default it will set you up against mainnet network), do not overwrite config please:  
 >    `cd "$CNODE_HOME"/scripts`  
 >    `curl -sS -o prereqs.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh`  
@@ -18,6 +18,20 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 =======
 
+##### Added
+- Balance check notification added before wallet selection menus are shown to know that work is done in the background 
+
+##### Changed
+- Removed ledger dump dependency from Pool Register, Modify, Retire and List.
+  - The cost of the ledger dump is too high, replaced with a simple check if pools registration certificate exist in pool folder
+  - Pool >> Show|Delegators are now the only options dumping the ledger-state
+
+##### Fixed
+- Removed +i file locking on .addr files when using `Wallet >> Encrypt` as these are re-generated from keys and need to be writable
+- Balance check added to `Funds >> Withdraw` for base address as this is used to pay the withdraw transaction fee
+- Resolve issue with Multi Owner causing an error with new pool registration (error was due to quotes)
+
+## [5.3.0] - 2020-08-03
 ##### Added
 - Ability to select a different pool owner and reward wallet
 - Multi-owner support using stake vkey/skey files
@@ -48,6 +62,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - KES Calculation for current KES period and KES expiration date
   **Please re-check expiration date using Pool >> Show**
 
+
 ## [5.2.1] - 2020-07-29
 ##### Added
 - Basic sanity checks for socket file
@@ -55,6 +70,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ##### Fixed
 - calc_slots to be network independent
 - prom_host should be calculated from config file, instead of having to update a config
+
 
 ## [5.2.0] - 2020-07-28
 
