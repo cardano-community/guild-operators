@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=5
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=3
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=0
+CNTOOLS_PATCH_VERSION=1
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -614,14 +614,11 @@ getPayAddress() {
   if [[ -f "${payment_vk_file}" ]]; then
     if ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" ${HASH_IDENTIFIER} 2>/dev/null; then
       pay_addr=$(cat "${payment_addr_file}")
-    else
-      pay_addr=""
-      return 1
+      return 0
     fi
-  else
-    pay_addr=""
-    return 1
   fi
+  pay_addr=""
+  return 1
 }
 
 # Command    : getBaseAddress [wallet name]
@@ -632,12 +629,13 @@ getBaseAddress() {
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
   base_addr_file="${WALLET_FOLDER}/${1}/${WALLET_BASE_ADDR_FILENAME}"
   if [[ -f "${payment_vk_file}" && -f "${stake_vk_file}" ]]; then
-    ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${HASH_IDENTIFIER}
-    base_addr=$(cat "${base_addr_file}")
-  else
-    base_addr=""
-    return 1
+    if ${CCLI} shelley address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${HASH_IDENTIFIER} 2>/dev/null; then
+      base_addr=$(cat "${base_addr_file}")
+      return 0
+    fi
   fi
+  base_addr=""
+  return 1
 }
 
 # Command    : getRewardAddress [wallet name]
@@ -647,12 +645,13 @@ getRewardAddress() {
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
   stake_addr_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_ADDR_FILENAME}"
   if [[ -f "${stake_vk_file}" ]]; then
-    ${CCLI} shelley stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" ${HASH_IDENTIFIER}
-    reward_addr=$(cat "${stake_addr_file}")
-  else
-    reward_addr=""
-    return 1
+    if ${CCLI} shelley stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" ${HASH_IDENTIFIER} 2>/dev/null; then
+      reward_addr=$(cat "${stake_addr_file}")
+      return 0
+    fi
   fi
+  reward_addr=""
+  return 1
 }
 
 # Command    : getAddressInfo [address]
@@ -1720,7 +1719,11 @@ rotatePoolKeys() {
 getDelegators() {
   pool_id=$1
 
-  timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
+  if ! timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json; then
+    say "${RED}ERROR${NC}: ledger dump failed/timed out"
+    say "increase timeout value in cntools.config"
+    return 1
+  fi
   say "\nLedger state dumped, parsing data..."
   non_myopic_delegators=$(jq -r -c ".esNonMyopic.snapNM._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
   snapshot_delegators=$(jq -r -c ".esSnapshots._pstakeSet._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)

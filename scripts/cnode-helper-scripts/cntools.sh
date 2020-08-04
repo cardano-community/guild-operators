@@ -639,9 +639,9 @@ case $OPERATION in
     unset password
 
     say ""
-    say "# Write protecting all wallet files using 'chattr +i'" "log"
+    say "# Write protecting all wallet keys using 'chattr +i'" "log"
     while IFS= read -r -d '' file; do
-      if [[ ! $(lsattr -R "$file") =~ -i- ]]; then
+      if [[ ${file} != *.addr && ! $(lsattr -R "$file") =~ -i- ]]; then
         chmod 400 "${file}" && \
         sudo chattr +i "${file}" && \
         filesLocked=$((++filesLocked)) && \
@@ -704,6 +704,7 @@ case $OPERATION in
     wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
+    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
     for dir in "${dirs[@]}"; do
       stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
       stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
@@ -719,6 +720,7 @@ case $OPERATION in
     done
     if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No wallets available that have rewards to withdraw!"
+      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
       waitForInput && continue
     fi
     say "Select Wallet:\n"
@@ -736,6 +738,9 @@ case $OPERATION in
 
     if [[ ${reward_lovelace} -le 0 ]]; then
       say "Failed to locate any rewards associated with the chosen wallet, please try another one"
+      waitForInput && continue
+    elif [[ ${lovelace} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No funds in base address, please send funds to base address of wallet to cover withdraw transaction fee"
       waitForInput && continue
     fi
 
@@ -790,6 +795,7 @@ case $OPERATION in
     s_wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
+    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
     for dir in "${dirs[@]}"; do
       s_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
       [[ ! -f "${s_payment_sk_file}" ]] && continue
@@ -813,6 +819,7 @@ case $OPERATION in
     done
     if [[ ${#s_wallet_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No wallets available that have funds to send!"
+      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
       waitForInput && continue
     fi
     say "Select Source Wallet:\n"
@@ -1000,6 +1007,7 @@ case $OPERATION in
     wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
+    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
     for dir in "${dirs[@]}"; do
       stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
       stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
@@ -1035,6 +1043,7 @@ case $OPERATION in
     done
     if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No wallets available that can be delegated!"
+      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
       waitForInput && continue
     fi
     say "Select Wallet:\n"
@@ -1228,19 +1237,14 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    say "Dumping ledger-state from node, can take a while on larger networks...\n"
-
     pool_dirs=()
-    timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
       pool_coldkey_sk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_SK_FILENAME}"
       pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
-      [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
-      pool_id=$(cat "${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}")
-      ledger_pool_state=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
-      [[ -n "${ledger_pool_state}" ]] && continue
+      pool_regcert_file="${POOL_FOLDER}/${dir}/${POOL_REGCERT_FILENAME}"
+      [[ -f "${pool_regcert_file}" || ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
       pool_dirs+=("${dir}")
     done
     if [[ ${#pool_dirs[@]} -eq 0 ]]; then
@@ -1481,6 +1485,7 @@ case $OPERATION in
     wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
+    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
     for dir in "${dirs[@]}"; do
       stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
       stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
@@ -1516,6 +1521,7 @@ case $OPERATION in
     done
     if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No wallets available that can be used in pool registration as pledge wallet!"
+      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
       waitForInput && continue
     fi
     say "Select Owner Wallet:\n"
@@ -1620,7 +1626,7 @@ case $OPERATION in
 
     say "creating registration certificate" 1 "log"
     say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${reward_stake_vk_file} --pool-owner-stake-verification-key-file ${owner_stake_vk_file} ${multi_owner_output} --out-file ${pool_regcert_file} ${NETWORK_IDENTIFIER} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output}" 2
-    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${reward_stake_vk_file}" --pool-owner-stake-verification-key-file "${owner_stake_vk_file}" "${multi_owner_output}" --out-file "${pool_regcert_file}" ${NETWORK_IDENTIFIER} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output}
+    ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${reward_stake_vk_file}" --pool-owner-stake-verification-key-file "${owner_stake_vk_file}" ${multi_owner_output} --out-file "${pool_regcert_file}" ${NETWORK_IDENTIFIER} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output}
     say "creating delegation certificate for owner wallet" 1 "log"
     say "$ ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file ${owner_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${owner_delegation_cert_file}" 2
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${owner_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${owner_delegation_cert_file}"
@@ -1704,19 +1710,14 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    say "Dumping ledger-state from node, can take a while on larger networks...\n"
-
     pool_dirs=()
-    timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
       pool_coldkey_sk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_SK_FILENAME}"
       pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
-      [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
-      pool_id=$(cat "${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}")
-      ledger_pool_state=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
-      [[ -z "${ledger_pool_state}" ]] && continue
+      pool_regcert_file="${POOL_FOLDER}/${dir}/${POOL_REGCERT_FILENAME}"
+      [[ ! -f "${pool_regcert_file}" || ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
       pool_dirs+=("${dir}")
     done
     if [[ ${#pool_dirs[@]} -eq 0 ]]; then
@@ -1952,7 +1953,7 @@ case $OPERATION in
     fi
 
     # Owner wallet, also used to pay for pool update fee
-    owner_wallet=$(jq -r .ownerWallet "${pool_config}")
+    owner_wallet=$(jq -r .pledgeWallet "${pool_config}")
     reward_wallet=$(jq -r .rewardWallet "${pool_config}")
     say "Old owner wallet:  ${GREEN}${owner_wallet}${NC}"
     say "Old reward wallet: ${GREEN}${reward_wallet}${NC}"
@@ -1962,6 +1963,7 @@ case $OPERATION in
     wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
+    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
     for dir in "${dirs[@]}"; do
       stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
       stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
@@ -1997,6 +1999,7 @@ case $OPERATION in
     done
     if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No wallets available that can be used in pool registration as owner wallet!"
+      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
       waitForInput && continue
     fi
     say "Select Owner Wallet:\n"
@@ -2084,6 +2087,8 @@ case $OPERATION in
 
     #Generated Files
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
+    # Make a backup of current reg cert
+    cp -f "${pool_regcert_file}" "${pool_regcert_file}.tmp"
 
     say ""
     say "# Modify Stake Pool" "log"
@@ -2094,8 +2099,10 @@ case $OPERATION in
     say "sending transaction to chain" 1 "log"
     if ! modifyPool "${pool_name}" "${reward_wallet}" "${owner_wallet}" "${multi_owner_skeys[@]}"; then
       say "${RED}ERROR${NC}: failure during pool update, removing newly created registration certificate"
-      rm -f "${pool_regcert_file}"
+      mv -f "${pool_regcert_file}.tmp" "${pool_regcert_file}" # restore reg cert backup
       waitForInput && continue
+    else
+      rm -f "${pool_regcert_file}.tmp" # remove backup of old reg cert
     fi
 
     if ! waitNewBlockCreated; then
@@ -2152,19 +2159,14 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    say "Dumping ledger-state from node, can take a while on larger networks...\n"
-
     pool_dirs=()
-    timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
       pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
       pool_coldkey_sk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_SK_FILENAME}"
       pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
-      [[ ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
-      pool_id=$(cat "${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}")
-      ledger_pool_state=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
-      [[ -z "${ledger_pool_state}" ]] && continue
+      pool_regcert_file="${POOL_FOLDER}/${dir}/${POOL_REGCERT_FILENAME}"
+      [[ ! -f "${pool_regcert_file}" || ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
       pool_dirs+=("${dir}")
     done
     if [[ ${#pool_dirs[@]} -eq 0 ]]; then
@@ -2196,6 +2198,7 @@ case $OPERATION in
     wallet_dirs=()
     if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
     wallet_count=${#dirs[@]}
+    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
     for dir in "${dirs[@]}"; do
       if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
         if getBaseAddress ${dir}; then
@@ -2209,6 +2212,7 @@ case $OPERATION in
     done
     if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
       say "${ORANGE}WARN${NC}: No wallets available that have funds to pay for pool retirement transaction fee!"
+      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
       waitForInput && continue
     fi
     say "Select wallet for pool de-registration transaction fee:\n"
@@ -2278,16 +2282,11 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    say "Dumping ledger-state from node, can take a while on larger networks...\n"
-    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-
-    timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
-
     while IFS= read -r -d '' pool; do
       say ""
       pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
-      ledger_pool_state=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
-      [[ -n "${ledger_pool_state}" ]] && pool_registered="YES" || pool_registered="NO"
+      pool_regcert_file="${pool}/${POOL_REGCERT_FILENAME}"
+      [[ -f "${pool_regcert_file}" ]] && pool_registered="YES" || pool_registered="NO"
       say "${GREEN}$(basename ${pool})${NC} "
       say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
       say "$(printf "%-21s : %s" "Registered" "${pool_registered}")" "log"
@@ -2342,7 +2341,11 @@ case $OPERATION in
     pool_name="${dir_name}"
 
     say "Dumping ledger-state from node, can take a while on larger networks...\n"
-    timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json
+    if ! timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json; then
+      say "${RED}ERROR${NC}: ledger dump failed/timed out"
+      say "increase timeout value in cntools.config"
+      waitForInput && continue
+    fi
 
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
@@ -2510,7 +2513,9 @@ case $OPERATION in
     pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
     
     say "Looking for delegators, please wait..."
-    getDelegators ${pool_id}
+    if ! getDelegators ${pool_id}; then
+      waitForInput && continue
+    fi
     
     clear
     say " >> POOL >> DELEGATORS" "log"
