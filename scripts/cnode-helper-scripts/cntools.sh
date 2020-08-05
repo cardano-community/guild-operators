@@ -2871,7 +2871,7 @@ case $OPERATION in
   say "Backup or Restore?\n"
   case $(select_opt "[b] Backup" "[r] Restore" "[Esc] Cancel") in
     0) read -r -p "Enter full path for backup directory(created if non existent): " backup_path
-       if [[ ! "${backup_path}" =~ ^/[[:alnum:]/-_]+ ]]; then
+       if [[ ! "${backup_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
          say "${RED}ERROR${NC}: invalid path, please specify the full path to backup directory (space not allowed)"
          waitForInput && continue
        fi
@@ -2941,7 +2941,7 @@ case $OPERATION in
          waitForInput && continue
        fi
        read -r -p "Enter full path for restore directory(created if non existent): " restore_path
-       if [[ ! "${restore_path}" =~ ^/[[:alnum:]/-_]+ ]]; then
+       if [[ ! "${restore_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
          say "${RED}ERROR${NC}: invalid path, please specify the full path to restore directory (space not allowed)"
          waitForInput && continue
        fi
