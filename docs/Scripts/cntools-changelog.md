@@ -20,6 +20,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 #### Fixed
 - Backup & Restore paths were failing on machines due to alnum class availability on certain interpreters.
+- Rewards were not counted in stake and pledge
 
 ## [5.3.1] - 2020-08-04
 ##### Added
