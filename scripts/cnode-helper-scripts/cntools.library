@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=5
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=3
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=2
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -1756,11 +1756,11 @@ getDelegators() {
   for key in ${delegators}; do
     stake=$(jq -r -c ".[] | select(.address | contains(\"${key}\")) | .amount" <<< "${lstate_utxo}" | awk 'BEGIN{total = 0} {total = total + $1} END{printf "%.0f", total}')
     rewards=$(jq -r -c ".[] | select(.[0][\"key hash\"] == \"${key}\") | .[1]" <<< "${lstate_rewards}")
-    total_stake=$((total_stake + stake + reward))
+    total_stake=$((total_stake + stake + rewards))
     say "Delegator $((++delegator_nbr)) processed"
     if echo "${owners}" | grep -q "${key}"; then
       key="${key} (owner)"
-      total_pledged=$((total_pledged + stake + reward))
+      total_pledged=$((total_pledged + stake + rewards))
     fi
     delegators_array+=( "hex_key" "${key}" "stake" "$(formatLovelace ${stake})" "rewards" "$(formatLovelace ${rewards})" )
   done
