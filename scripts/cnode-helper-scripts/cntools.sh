@@ -2911,23 +2911,23 @@ case $OPERATION in
          0) : ;; # do nothing
          1) while IFS= read -r -d '' file; do
               sudo chattr -i "${file}" && \
-              rm -f "${file}" && \
-              say "Deleted: ${file}"
+              srm -f "${file}" && \
+              say "Securely deleted: ${file}"
             done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_PAY_SK_FILENAME}*" -print0)
             while IFS= read -r -d '' file; do
               sudo chattr -i "${file}" && \
-              rm -f "${file}" && \
-              say "Deleted: ${file}"
+              srm -f "${file}" && \
+              say "Securely deleted: ${file}"
             done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_STAKE_SK_FILENAME}*" -print0)
             while IFS= read -r -d '' file; do
               sudo chattr -i "${file}" && \
-              rm -f "${file}" && \
-              say "Deleted: ${file}"
+              srm -f "${file}" && \
+              say "Securely deleted: ${file}"
             done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_VK_FILENAME}*" -print0)
             while IFS= read -r -d '' file; do
               sudo chattr -i "${file}" && \
-              rm -f "${file}" && \
-              say "Deleted: ${file}"
+              srm -f "${file}" && \
+              say "Securely deleted: ${file}"
             done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}*" -print0)
             ;;
        esac
