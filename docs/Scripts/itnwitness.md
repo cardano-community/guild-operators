@@ -61,7 +61,7 @@ If the process is approved to appear for wallets, we may consider providing easi
 }
 ```
 
-- Extended Metadata JSON used for hosting additional metadata  (hosted at URL referred in `extended` field above, thus - eg : https://hosting.site/poolmeta.json)
+- Extended Metadata JSON used for hosting additional metadata  (hosted at URL referred in `extended` field above, thus - eg : https://hosting.site/poolmeta_extended.json)
 
 ``` json
 {
