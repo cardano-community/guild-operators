@@ -18,8 +18,8 @@ export PATH="${CNODE_BIN}:${PATH}"
 ###
 start_node() {
 
-echo $(date) "cardano node is NOT running" >> $LOGFILE;
-echo $(date) "starting cardano node" >> $LOGFILE;
+echo "$(date) cardano node is NOT running" >> $LOGFILE;
+echo "$(date) starting cardano node" >> $LOGFILE;
 
 
 [[ ! -d "$CNODE_HOME/logs/archive" ]] && mkdir -p "$CNODE_HOME/logs/archive"
@@ -39,5 +39,11 @@ tmux new-session -d -s cardano-node \
 
 }
 
-pidof cardano-node >/dev/null && echo $(date) "cardano-node is running" >> $LOGFILE \
-                              || start_node &
+pidof cardano-node > /dev/null
+
+if [[ $? -eq 0 ]]
+then
+    echo "$(date) cardano-node is running" >> $LOGFILE
+else
+    start_node &
+fi
