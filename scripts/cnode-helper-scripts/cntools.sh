@@ -2909,33 +2909,17 @@ case $OPERATION in
        say "\nDo you want to delete private keys?\n"
        case $(select_opt "[n] No" "[y] Yes") in
          0) : ;; # do nothing
-         1) delcommand='rm'
-            if ! command -v "srm" > /dev/null 2>&1; then
-                say "${ORANGE}WARN${NC}: 'srm' command not found to delete securely. Try 'sudo apt install secure-delete' or re-run prereq"
-                say "please install with your packet manager of choice(apt/yum etc..) and relaunch cntools"
-            else 
-                delcommand='srm'
-            fi
-
-            while IFS= read -r -d '' file; do
-              sudo chattr -i "${file}" && \
-              "${delcommand}" -f "${file}" && \
-              say "Deleted: ${file}"
+         1) while IFS= read -r -d '' file; do
+              safeDel "${file}"
             done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_PAY_SK_FILENAME}*" -print0)
             while IFS= read -r -d '' file; do
-              sudo chattr -i "${file}" && \
-              "${delcommand}" -f "${file}" && \
-              say "Deleted: ${file}"
+              safeDel "${file}"
             done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_STAKE_SK_FILENAME}*" -print0)
             while IFS= read -r -d '' file; do
-              sudo chattr -i "${file}" && \
-              "${delcommand}" -f "${file}" && \
-              say "Deleted: ${file}"
+              safeDel "${file}"
             done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_VK_FILENAME}*" -print0)
             while IFS= read -r -d '' file; do
-              sudo chattr -i "${file}" && \
-              "${delcommand}" -f "${file}" && \
-              say "Deleted: ${file}"
+              safeDel "${file}"
             done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}*" -print0)
             ;;
        esac

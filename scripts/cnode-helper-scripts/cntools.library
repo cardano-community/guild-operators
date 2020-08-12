@@ -130,6 +130,21 @@ protectionPreRequisites() {
   rm -f "${TMP_FOLDER}"/test
 }
 
+# Command    : safeDel [file]
+# Description: unlock and use secure delete (srm) if available to delete file
+# Note       : srm mainly effective for traditional magnetic HDDs and non copy-on-write or journal file systems
+safeDel() {
+  file=$1
+  [[ $(lsattr -R "${file}") =~ -i- ]] && sudo chattr -i "${file}"
+  command -v "srm" > /dev/null 2>&1 && delcommand='srm' || delcommand='rm'
+  if "${delcommand}" -f "${file}"; then
+    say "Deleted: ${file}"
+  else
+    say "${RED}ERROR${NC}: delete failed for ${file}"
+    return 1
+  fi
+}
+
 
 # Command    : selectOption [opt1] [opt2] ...
 #
@@ -341,7 +356,7 @@ getPassword() {
 #   >> encryptFile "$CNODE_HOME/priv/wallet/MyWallet/SigningKeyShelley.skey"
 encryptFile() {
   echo "${2}" | gpg --symmetric --yes --batch --cipher-algo AES256 --passphrase-fd 0 --output "${1}.gpg" "${1}" >/dev/null && \
-  rm -f "${1}" || {
+  safeDel "${1}" || {
     say "${RED}ERROR${NC}: failed to encrypt ${1}"
     return 1
   }
