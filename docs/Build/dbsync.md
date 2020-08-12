@@ -1,15 +1,16 @@
 !> - An average pool operator may not require cardano-wallet at all. Please verify if it is required for your use as mentioned [here](build.md#components)
 
 > Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
->- Cardano DB Sync tool relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to [Sample Local PostgreSQL Server Deployment instructions](Appendix/postgres.md) for setting up Postgres instance.
+>
+> - Cardano DB Sync tool relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to [Sample Local PostgreSQL Server Deployment instructions](Appendix/postgres.md) for setting up Postgres instance.
 
 #### Build Instructions {docsify-ignore}
 
 ##### Clone the repository
 
-Execute the below to clone the cardano-rest repository to $HOME/git folder on your system:
+Execute the below to clone the cardano-rest repository to \$HOME/git folder on your system:
 
-``` bash
+```bash
 cd ~/git
 git clone https://github.com/input-output-hk/cardano-db-sync
 cd cardano-db-sync
@@ -19,17 +20,20 @@ cd cardano-db-sync
 
 You can use the instructions below to build the cardano-db-sync, same steps can be executed in future to update the binaries (replacing appropriate tag) as well.
 
-``` bash
+```bash
 git fetch --tags --all
 git pull
 # Replace master with appropriate tag if you'd like to avoid compiling against master
 git checkout master
+echo -e "package cardano-crypto-praos\n  flags: -external-libsodium-vrf" > cabal.project.local
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
+
 The above would copy the binaries into `~/.cabal/bin` folder.
 
 ##### Prepare DB for cardano-db-sync :
-``` bash
+
+```bash
 cd ~/git/cardano-db-sync
 # scripts/postgresql-setup.sh --dropdb #if exists already, will fail if it doesnt - thats OK
 scripts/postgresql-setup.sh --createdb
@@ -40,9 +44,10 @@ scripts/postgresql-setup.sh --createdb
 ```
 
 ##### Start cardano-db-sync-tool
-``` bash
+
+```bash
 cd ~/git/cardano-db-sync
-PGPASSFILE=$CNODE_HOME/priv/.pgpass cardano-db-sync-extended --config $CNODE_HOME/files/config.json --genesis-file $CNODE_HOME/files/genesis.json --socket-path $CNODE_HOME/sockets/node0.socket --schema-dir schema/
+PGPASSFILE=$CNODE_HOME/priv/.pgpass cardano-db-sync-extended --config ./config/mainnet-config.yaml --socket-path $CNODE_HOME/sockets/node0.socket --schema-dir schema/
 ```
 
 You can use same instructions above to repeat and execute `cardano-db-sync` as well, but [cardano-graphql](Build/graphql.md) uses `cardano-db-sync-extended`, so we'll stick to it
@@ -51,14 +56,14 @@ You can use same instructions above to repeat and execute `cardano-db-sync` as w
 
 To validate, connect to postgres instance and execute commands as per below:
 
-``` bash
+```bash
 export PGPASSFILE=$CNODE_HOME/priv/.pgpass
 psql cexplorer_phtn
 ```
 
 You should be at the psql prompt, you can check the tables and verify they're populated:
 
-``` sql
+```sql
 \dt
 #            List of relations
 # Schema |      Name      | Type  | Owner
