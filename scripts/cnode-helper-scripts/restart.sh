@@ -39,9 +39,9 @@ tmux new-session -d -s cardano-node \
 
 }
 
-pidof cardano-node > /dev/null
 
-if [[ $? -eq 0 ]]
+
+if pidof cardano-node > /dev/null;
 then
     echo "$(date) cardano-node is running" >> $LOGFILE
 else
