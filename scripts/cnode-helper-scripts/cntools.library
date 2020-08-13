@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=5
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=3
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=2
+CNTOOLS_PATCH_VERSION=3
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -140,7 +140,7 @@ safeDel() {
   if "${delcommand}" -f "${file}"; then
     say "Deleted: ${file}"
   else
-    say "${RED}ERROR${NC}: delete failed for ${file}"
+    say "${RED}ERROR${NC}: delete failed for ${file}" 1>&2
     return 1
   fi
 }
@@ -356,7 +356,7 @@ getPassword() {
 #   >> encryptFile "$CNODE_HOME/priv/wallet/MyWallet/SigningKeyShelley.skey"
 encryptFile() {
   echo "${2}" | gpg --symmetric --yes --batch --cipher-algo AES256 --passphrase-fd 0 --output "${1}.gpg" "${1}" >/dev/null && \
-  safeDel "${1}" || {
+  safeDel "${1}" >/dev/null || {
     say "${RED}ERROR${NC}: failed to encrypt ${1}"
     return 1
   }
