@@ -5,8 +5,12 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.3] - 2020-08-14
 
-## [5.3.1] - 2020-08-04
+##### Added
+- Use secure remove (`srm`) when available when deleting files.
+
+## [5.3.2] - 2020-08-05
 
 > If you're coming version 5.2.1 (not required if you're on 5.3.0), We have made quite a few changes to not use ptn0 in our scripts and source github structures (except template files), alongwith other changes listed beneath. Please follow steps below for upgrade:  
 > - Execute the below (by default it will set you up against mainnet network), do not overwrite config please:  
@@ -18,6 +22,11 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 =======
 
+#### Fixed
+- Backup & Restore paths were failing on machines due to alnum class availability on certain interpreters.
+- Rewards were not counted in stake and pledge
+
+## [5.3.1] - 2020-08-04
 ##### Added
 - Balance check notification added before wallet selection menus are shown to know that work is done in the background 
 
