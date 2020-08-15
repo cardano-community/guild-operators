@@ -49,10 +49,3 @@ To start the node in passive mode, you can use the pre-built script below:
 cd $CNODE_HOME/scripts
 ./cnode.sh
 ```
-
-Once you have registered a pool, you might want to use the script below, edit the file to update the paths to the files/keys before execution. If you're using defaults, you only need to specify a POOLNAME to the start of the file:
-
-```bash
-cd $CNODE_HOME/scripts
-./cnode.sh
-```
