@@ -49,3 +49,4 @@ To start the node in passive mode, you can use the pre-built script below:
 cd $CNODE_HOME/scripts
 ./cnode.sh
 ```
+

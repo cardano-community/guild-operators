@@ -101,4 +101,4 @@ You should now be able to Login to grafana dashboard, using the public IP of you
 The initial credentials to login would be *admin/admin*, and you will be asked to update your password upon first login.
 Once logged on, you should be able to go to `Manage > Dashboards` and select the dashboard you'd like to view. Note that if you've just started the server, you might see graphs as empty, as initial interval for dashboards is 12 hours. You can change it to 5 minutes by looking at top right section of the page.
 
-Thanks to [Pal Dorogit](https://github.com/ilap) for the original setup instructions used for modifying.
+Thanks to [Pal Dorogi](https://github.com/ilap) for the original setup instructions used for modifying.
