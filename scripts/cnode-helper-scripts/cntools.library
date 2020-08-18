@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=5
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=3
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=3
+CNTOOLS_PATCH_VERSION=4
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -465,15 +465,10 @@ timeUntilNextEpoch() {
 }
 
 # Command    : getCurrentKESperiod
-# Description: Get current KES period from prom metrics or calculated based on slot tip
+# Description: Get current KES period calculated based on slot tip
 # Return     : current KES period on STDOUT
 getCurrentKESperiod() {
-  getPromMetrics
-  current_kes_period=$(grep "cardano_node_Forge_metrics_currentKESPeriod_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
-  if [[ -z "${current_kes_period}" ]]; then
-    # lets calculate it instead
-    current_kes_period=$(( $(getSlotTip) / slots_per_kes_period ))
-  fi
+  current_kes_period=$(( $(getSlotTip) / slots_per_kes_period ))
   echo "${current_kes_period}"
 }
 
