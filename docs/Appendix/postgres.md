@@ -1,6 +1,4 @@
-### Sample Postgres Deployment instructions
-
-These deployment instructions used for reference while building [cardano-db-sync](dbsync.md) tool. These are just for reference and ease of set up and consistency for those who are new to Postgres DB.
+These deployment instructions used for reference while building [cardano-db-sync](Build/dbsync.md) tool. These are just for reference and ease of set up and consistency for those who are new to Postgres DB.
 It is recommended to customise these as per your needs for Production builds.
 
 #### Install PostgreSQL Server

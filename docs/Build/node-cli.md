@@ -1,44 +1,52 @@
-### Cardano Node and Cardano CLI
+> Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
 
-Ensure the [Pre-Requisites](../Common.md#dependencies-and-folder-structure-setup) are in place before you proceed.
+#### Build Instructions {docsify-ignore}
 
-#### Build Instructions
+##### Clone the repository
 
-Run the commands below to clone the Cardano Node git repository and build the binaries:
+Execute the below to clone the cardano-node repository to $HOME/git folder on your system:
 
 ``` bash
 cd ~/git
 git clone https://github.com/input-output-hk/cardano-node
 cd cardano-node
+```
 
-##### Temporary step for end-users, since master is often broken incompatible with new networks
+##### Build Cardano Node
+
+You can use the instructions below to build the cardano-node, same steps can be executed in future to update the binaries (replacing appropriate tag) as well.
+
+``` bash
 git fetch --tags --all
-git checkout 1.17.0
-#####
+# Replace release 1.18.1 with the version/branch/tag you'd like to build
+git checkout tags/1.18.1
+git pull
 
-### Please ensure you have run the *UPDATED* prereqs.sh (see link at top of this document) before continuing
 echo -e "package cardano-crypto-praos\n  flags: -external-libsodium-vrf" > cabal.project.local
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
 
-The above would copy the binaries built into ~/.cabal/bin folder.
+The above would copy the binaries built into `~/.cabal/bin` folder.
 
-#### Verify
+##### Verify
 
 Execute cardano-cli and cardano-node to verify output as below:
 
 ```bash
 cardano-cli version
-# cardano-cli 1.17.0 - linux-x86_64 - ghc-8.6
-cardano-node
-#Usage: cardano-node (run | run-mock) [--help]
-#  Start node of the Cardano blockchain.
-#
-#Available options:
-#  --help                   Show this help text
-#
-#Execute node with a real protocol.
-#  run                      Execute node with a real protocol.
-#
-#Execute node with a mock protocol.
-#  run-mock                 Execute node with a mock protocol.
+# cardano-cli 1.18.1 - linux-x86_64 - ghc-8.6
+# git rev a4b6dae699fa21dc3c025c8a83d1718475cb3afc
+cardano-node version
+# cardano-node 1.18.1 - linux-x86_64 - ghc-8.6
+# git rev a4b6dae699fa21dc3c025c8a83d1718475cb3afc
+```
+
+##### Start a passive node
+
+To start the node in passive mode, you can use the pre-built script below:
+
+```bash
+cd $CNODE_HOME/scripts
+./cnode.sh
+```
+

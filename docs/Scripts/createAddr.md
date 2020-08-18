@@ -1,14 +1,16 @@
-### Create Keys/Address
-
 This script assists you to create a Private key file and generates a corresponding address script for it
 ``` bash
 cd $CNODE_HOME/scripts
 ./createAddr.sh
 # Usage: ./createAddr.sh <Path with name (prefix) for keys to be created>
 # Example:
-# ./createAddr.sh ~/priv/key_2107
-# addr1vyxqqy9ndyvx3l5scgf5j79y6xjdq6rcdrtlxrxgdygl3hqmuw794
-# addr1qyxqqy9ndyvx3l5scgf5j79y6xjdq6rcdrtlxrxgdygl3hzzsvhw2z3m2se7pr2x30zs9d5pa300cftd77exfteqyhnqe2t7rc
+# createAddr.sh ~/priv/key_2107
+# Payment/Enterprise address:
+# addr1v9964nsrwp6tr2mr4e3ed3mlwdgug6ajxnnad9q4d4vemzcd0j097
+# Base address:
+# addr1q9964nsrwp6tr2mr4e3ed3mlwdgug6ajxnnad9q4d4vemz6vfm8a5aq96c0wkrxr5ru3a3xut5qzacfmslakv8yzujfqf0fqhk
+# Reward address:
+# stake1u9xyan76wszav8htpnp6p7g7cnw96qpwuyac07mxrjpwfysw8j7e8
 # ls -1 ~/priv/key_2107*
-# key_2107_pay.addr  key_2107_pay.skey  key_2107_pay.vkey  key_2107_stake.addr  key_2107_stake.skey  key_2107_stake.vkey
+# key_2107_base.addr key_2107_payment.skey key_2107_payment.vkey key_2107_payment.addr key_2107_stake.skey key_2107_stake.vkey key_2107_reward.addr
 ```

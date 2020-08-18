@@ -1,22 +1,13 @@
-# Block Collector
-For the core node(block producer) the `cntoolsBlockCollector.sh` script can be run to monitor the json log file created by cardano-node for traces related to leader slots and block creation. Data collected is stored in a json file, one for each epoch. To view the collected data the main CNTools script is used.  
+!> Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
+
+For the core node (block producer) the `cntoolsBlockCollector.sh` script can be run to monitor the json log file created by cardano-node for traces related to leader slots and block creation. Data collected is stored in a json file, one for each epoch. To view the collected data the main CNTools script is used.  
 
 This collector does not in any way replace a proper database like db-sync but can be a good lightweight way of keeping track of slots assigned and if blocks were successfully created. It currently does not verify that the block created makes it onto the chain. If possible this will be added at a later stage.
 
-* [Prerequisites](#prerequisites)
 * [Installation and Configuration](#installation-and-configuration)
 * [View Collected Blocks](#view-collected-blocks)
 
-### Prerequisites
-It's assumed the [Pre-Requisites](../Common.md#dependencies-and-folder-structure-setup) have already been run.
-
-As the block collector relies on the cardano-node log file for block traces the node configuration file has to be set up in a certain way for it to work. The file used comes from `CONFIG` parameter in `env` file.
-
-* setupScribes configured with `scKind: FileSK` and `scFormat: ScJson` as well as a file extension of `.json`
-* Blocks traces enabled. The script is looking for the following block traces in the log file, more block traces might be added in the future.  
-`TraceNodeIsLeader TraceAdoptedBlock TraceForgedInvalidBlock`  
-
-### Installation and Configuration
+#### Installation and Configuration
 The script is best run as a background process. This can be accomplished in many ways but the preferred method is to run it as a  systemd service. A terminal multiplexer like tmux or screen could also be used but not covered here.
 
 sudo/root access needed to configure systemd.
@@ -58,7 +49,7 @@ Run below commands to enable automatic start of service on startup and start it.
 sudo systemctl enable cntools-blockcollector.service
 sudo systemctl start cntools-blockcollector.service
 ```
-### View Collected Blocks
+#### View Collected Blocks
 Start CNTools and choose `Blocks [b]` to open the block viewer.  
 Either select `Epoch` and enter the epoch you want to see a detailed view for or choose `Summary` to display leader slots, adopted blocks and invalid blocks for last x epochs.
 

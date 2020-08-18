@@ -18,4 +18,4 @@ ${CCLI} shelley address build --payment-verification-key-file ${WNAME}_payment.v
 echo -e "${GREEN}Base address:${NC}"
 ${CCLI} shelley address build --payment-verification-key-file ${WNAME}_payment.vkey --stake-verification-key-file ${WNAME}_stake.vkey ${HASH_IDENTIFIER} | tee ${WNAME}_base.addr
 echo -e "${GREEN}Reward address:${NC}"
-${CCLI} shelley stake-address build --stake-verification-key-file ${WNAME}_stake.vkey ${HASH_IDENTIFIER} | tee ${WNAME}_base.addr
+${CCLI} shelley stake-address build --stake-verification-key-file ${WNAME}_stake.vkey ${HASH_IDENTIFIER} | tee ${WNAME}_reward.addr

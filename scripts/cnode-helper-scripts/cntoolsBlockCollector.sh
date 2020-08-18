@@ -7,6 +7,9 @@
 # get cntools config parameters
 . "$(dirname $0)"/cntools.config
 
+# get cntools helper functions
+. "$(dirname $0)"/cntools.library
+
 # get log file from config file specified in env
 unset logfile
 if [[ "${CONFIG##*.}" = "yaml" ]]; then
@@ -50,13 +53,13 @@ while read -r logentry; do
     at="$(_jq '.at')"
     at_local="$(date '+%F_%T_%Z' -d "${at}")"
     slot="$(_jq '.data.slot')"
-    epoch=$(( slot / $(jq -r .epochLength "${GENESIS_JSON}") ))
+    epoch=$(getEpoch)
     # create epoch block file if missing
     blocks_file="${BLOCK_LOG_DIR}/blocks_${epoch}.json"
     [[ ! -f "${blocks_file}" ]] && echo "[]" > "${blocks_file}"
     echo " "
     echo " ~~ LEADER EVENT ~~"
-    echo -e "Epoch Slot At\n${epoch} ${slot} ${at_local}" | column -t
+    printTable ',' "Epoch,Slot,At\n${epoch},${slot},${at_local}"
     # check if entry already exist, bug noticed at log rollover that block traces can repeat
     slot_search=$(jq --arg _slot "${slot}" '.[] | select(.slot == $_slot)' "${blocks_file}")
     if [[ -n ${slot_search} ]]; then
@@ -69,11 +72,11 @@ while read -r logentry; do
     fi
   elif [[ $(_jq '.data.kind') = "TraceAdoptedBlock" ]]; then
     slot="$(_jq '.data.slot')"
-    [[ "$(_jq '.data."block hash"')" =~ unHashHeader.=.([[:alnum:]]+) ]] && block_hash="${BASH_REMATCH[1]}" || block_hash=""
+    [[ "$(_jq '.data."block hash"')" =~ ([[:alnum:]]+) ]] && block_hash="${BASH_REMATCH[1]}" || block_hash=""
     block_size="$(_jq '.data."block size"')"
     epoch=$(( slot / $(jq -r .epochLength "${GENESIS_JSON}") ))
     echo " ~~ ADOPTED BLOCK ~~"
-    echo -e "Size Hash\n${block_size} ${block_hash}" | column -t
+    printTable ',' "Size,Hash\n${block_size},${block_hash}"
     jq --arg _slot "${slot}" \
     --arg _block_size "${block_size}" \
     --arg _block_hash "${block_hash}" \

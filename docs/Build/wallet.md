@@ -1,34 +1,47 @@
-### Cardano Wallet
+!> - An average pool operator may not require cardano-wallet at all. Please verify if it is required for your use as mentioned [here](build.md#components)
 
-**Note: Cardano Wallet does not support TPraos network yet (it does support BFT networks and ITN Praos) - but as soon as it does, instructions below should still remain valid**
+> Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
 
-Ensure the [Pre-Requisites](../Common.md#dependencies-and-folder-structure-setup) are in place before you proceed.
-
-#### Build Instructions
+#### Build Instructions {docsify-ignore}
 
 Follow instructions below for building the cardano-wallet binary:
+
+##### Clone the repository
+
+Execute the below to clone the cardano-wallet repository to $HOME/git folder on your system:
 
 ``` bash
 cd ~/git
 git clone https://github.com/input-output-hk/cardano-wallet
 cd cardano-wallet
+```
 
-# Note: The cardano-wallet repo does not work yet with cabal, hence alternate for now is using stack to build
-# In case you do not have stack installed, you can install it using command below:
-#    curl -sSL https://get.haskellstack.org/ | sh
+##### Build Cardano Wallet
+
+You can use the instructions below to build the cardano-node, same steps can be executed in future to update the node (replacing appropriate tag) as well.
+
+> The cardano-wallet repo does not work yet with cabal, hence alternate for now is using stack to build
+
+``` bash
+git fetch --tags --all
+git pull
+# Replace master with appropriate tag if you'd like to avoid compiling against master
+git checkout master
 $CNODE_HOME/scripts/stack-build.sh
-
-```
-The above would copy the binaries into ~/.cabal/bin folder.
-
-#### Start the wallet server
-```bash
-cardano-wallet-byron serve --node-socket $CNODE_HOME/sockets/node0.socket --testnet $CNODE_HOME/files/genesis.json --database $CNODE_HOME/priv/wallet
 ```
 
-#### Verify the wallet is handling requests
+The above would copy the binaries into `~/.cabal/bin` folder.
+
+##### Start the wallet
+
+You can run the below to connect to a `cardano-node` instance that is expected to be already running
 ```bash
-cardano-wallet-byron network information
+cardano-wallet-shelley serve --node-socket $CNODE_HOME/sockets/node0.socket --testnet $CNODE_HOME/files/genesis.json --database $CNODE_HOME/priv/wallet
+```
+
+##### Verify the wallet is handling requests
+```bash
+cardano-wallet-shelley network information
 ```
 Expected output should be similar to the following
 ```json
@@ -55,53 +68,27 @@ Ok.
     }
 }
 ```
-#### Create a new wallet
-##### First generate a mnemonic phrase
+##### Creating/Restoring Wallet
+
+If you're creating a new wallet, you'd first want to generate a mnemonic for use (see below):
+
 ```bash
-cardano-wallet-byron mnemonic generate
+cardano-wallet-shelley recovery-phrase generate
 # false brother typical saddle settle phrase foster sauce ask sunset firm gate service render burger
 ```
-##### Generate a new byron wallet from your mnemonic phrase
+You can use the above mnemonic to then restore a wallet as per below:
 ```bash
-cardano-wallet-byron wallet create from-mnemonic --wallet-style icarus "Guild Test Wallet"
+cardano-wallet-shelley.exe wallet create from-recovery-phrase
 ```
 ##### Expected output:
 ```text
-Please enter 15 mnemonic words : false brother typical saddle settle phrase foster sauce ask sunset firm gate service render burger
-Please enter a passphrase: ******************
-Enter the passphrase a second time: ******************
+Please enter a 15–24 word recovery phrase: false brother typical saddle settle phrase foster sauce ask sunset firm gate service render burger
+(Enter a blank line if you do not wish to use a second factor.)
+Please enter a 9–12 word second factor:
+Please enter a passphrase: **********
+Enter the passphrase a second time: **********
 Ok.
 {
-    "passphrase": {
-        "last_updated_at": "2020-04-27T06:35:19.48354187Z"
-    },
-    "state": {
-        "status": "syncing",
-        "progress": {
-            "quantity": 0,
-            "unit": "percent"
-        }
-    },
-    "discovery": "sequential",
-    "balance": {
-        "total": {
-            "quantity": 0,
-            "unit": "lovelace"
-        },
-        "available": {
-            "quantity": 0,
-            "unit": "lovelace"
-        }
-    },
-    "name": "Guild Test Wallet",
-    "id": "0854da56dd00ae2099a499303681826506527ac7",
-    "tip": {
-        "height": {
-            "quantity": 0,
-            "unit": "block"
-        },
-        "epoch_number": 0,
-        "slot_number": 0
-    }
+    ...
 }
 ```

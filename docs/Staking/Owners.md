@@ -1,5 +1,3 @@
-### Owners
-
 The owners are the stake holders who have some funds deposited and want to own, in some extent, a staking pool. The owner's objectives are the following:
   - Create `payment key(s)` for generating `base` payment addresses.
   - Create `stake key(s)` for generating  __pool__ `reward address`.
@@ -9,5 +7,5 @@ The owners are the stake holders who have some funds deposited and want to own, 
 That means the the __operator__ is the __owner__.
 
 
-See [detailed example here](./Operators.md)
+See [detailed example here](Staking/Operators.md)
 
