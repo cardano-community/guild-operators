@@ -7,6 +7,11 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [5.3.3] - 2020-08-14
 
+##### Changed
+- Use manual calculation based on slot tip to get KES period
+
+## [5.3.3] - 2020-08-14
+
 ##### Added
 - Use secure remove (`srm`) when available when deleting files.
 
