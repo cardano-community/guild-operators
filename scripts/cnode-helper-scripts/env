@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034,SC2086,SC2230
-CCLI=$(which cardano-cli 2>/dev/null)
+CCLI=$(command -v cardano-cli)
 if [[ -z "${CCLI}" ]]; then
   echo "You do not have a cardano-cli binary available in \$PATH. Please make it available before using CNTools. Refer to guild-operators documentation for the same."
   exit 1
