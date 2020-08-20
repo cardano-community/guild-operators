@@ -11,7 +11,9 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - CNTools now uses and works with `cardano-node 1.19.0`, please upgrade if you're not using this version.
 
 ##### Fixed
-- Added `--output-format hex` when extracting pool ID.
+- A new getPoolID helper function added to extract both hex and bech32 pool ID
+  - Added `--output-format hex` when extracting pool ID in hex format
+  - A new pool.id-bech32 file gets created if cold.vkey is available and decrypted
 - Added error check to see if cardano-cli is in $PATH before continuing.
 
 ## [5.3.4] - 2020-08-18
