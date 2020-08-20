@@ -5,6 +5,17 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.5] - 2020-08-20
+
+##### Changed
+- CNTools now uses and works with `cardano-node 1.19.0`, please upgrade if you're not using this version.
+
+##### Fixed
+- A new getPoolID helper function added to extract both hex and bech32 pool ID
+  - Added `--output-format hex` when extracting pool ID in hex format
+  - A new pool.id-bech32 file gets created if cold.vkey is available and decrypted
+- Added error check to see if cardano-cli is in $PATH before continuing.
+
 ## [5.3.4] - 2020-08-18
 
 ##### Changed

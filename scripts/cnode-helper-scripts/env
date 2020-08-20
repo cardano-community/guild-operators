@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034,SC2086,SC2230
-CCLI=$(which cardano-cli)
+CCLI=$(command -v cardano-cli)
+if [[ -z "${CCLI}" ]]; then
+  echo "You do not have a cardano-cli binary available in \$PATH. Please make it available before using CNTools. Refer to guild-operators documentation for the same."
+  exit 1
+fi
 CNODE_HOME=/opt/cardano/cnode
 CONFIG=$CNODE_HOME/files/config.json
 PROTOCOL=$(jq -r .Protocol "$CONFIG")

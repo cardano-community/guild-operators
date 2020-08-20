@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=5
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=3
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=4
+CNTOOLS_PATCH_VERSION=5
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -615,6 +615,25 @@ fractionToPCT() {
 }
 
 
+# Command    : getPoolID [pool name]
+# Description: create and save pool id in hex & bech32 encoded format
+# Return     : populates $pool_id & $pool_id_bech32
+getPoolID() {
+  pool_id_file="${POOL_FOLDER}/${1}/${POOL_ID_FILENAME}"
+  pool_id=""
+  pool_id_bech32_file="${POOL_FOLDER}/${1}/${POOL_ID_FILENAME}-bech32"
+  pool_id_bech32=""
+  pool_coldkey_vk_file="${POOL_FOLDER}/${1}/${POOL_COLDKEY_VK_FILENAME}"
+  if [[ -f ${pool_coldkey_vk_file} ]]; then
+    pool_id=$(${CCLI} shelley stake-pool id --verification-key-file "${pool_coldkey_vk_file}" --output-format hex 2>/dev/null | tee "${pool_id_file}") && \
+    pool_id_bech32=$(${CCLI} shelley stake-pool id --verification-key-file "${pool_coldkey_vk_file}" 2>/dev/null | tee "${pool_id_bech32_file}") && \
+    return 0 || return 1
+  fi
+  [[ -f ${pool_id_file} ]] && pool_id=$(cat ${pool_id_file})
+  [[ -f ${pool_id_bech32_file} ]] && pool_id_bech32=$(cat ${pool_id_bech32_file})
+}
+
+
 # Command    : getPayAddress [wallet name]
 # Description: create and save payment address
 # Return     : populates $pay_addr
@@ -861,7 +880,7 @@ sendADA() {
 # Return     : 0 if registered, else 1
 isWalletRegistered() {
   if getRewardAddress $1; then
-    stakeAddressInfo=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${reward_addr} | jq -r '.[] // empty')
+    stakeAddressInfo=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${reward_addr} | jq -r '.[0] // empty')
     [[ -n "${stakeAddressInfo}" ]] && return 0
   fi
   return 1
