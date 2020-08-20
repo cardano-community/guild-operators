@@ -1214,7 +1214,7 @@ case $OPERATION in
       rm -r ${POOL_FOLDER}'-pregen/'${pool_name}
     else
       ${CCLI} shelley node key-gen --cold-verification-key-file "${pool_coldkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
-      ${CCLI} shelley stake-pool id --verification-key-file "${pool_coldkey_vk_file}" > "${pool_id_file}"
+      ${CCLI} shelley stake-pool id --verification-key-file "${pool_coldkey_vk_file}" --output-format hex > "${pool_id_file}"
     fi
     ${CCLI} shelley node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
 

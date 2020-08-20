@@ -5,6 +5,15 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.5] - 2020-08-20
+
+##### Changed
+- CNTools now uses and works with `cardano-node 1.19.0`, please upgrade if you're not using this version.
+
+##### Fixed
+- Added `--output-format hex` when extracting pool ID.
+- Added error check to see if cardano-cli is in $PATH before continuing.
+
 ## [5.3.4] - 2020-08-18
 
 ##### Changed

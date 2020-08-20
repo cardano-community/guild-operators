@@ -18,8 +18,8 @@ You can use the instructions below to build the cardano-node, same steps can be 
 
 ``` bash
 git fetch --tags --all
-# Replace release 1.18.1 with the version/branch/tag you'd like to build
-git checkout tags/1.18.1
+# Replace release tags/1.19.0 with the version/branch/tag you'd like to build
+git checkout tags/1.19.0
 git pull
 
 echo -e "package cardano-crypto-praos\n  flags: -external-libsodium-vrf" > cabal.project.local
@@ -34,11 +34,11 @@ Execute cardano-cli and cardano-node to verify output as below:
 
 ```bash
 cardano-cli version
-# cardano-cli 1.18.1 - linux-x86_64 - ghc-8.6
-# git rev a4b6dae699fa21dc3c025c8a83d1718475cb3afc
+# cardano-cli 1.19.0 - linux-x86_64 - ghc-8.6
+# git rev 4814003f14340d5a1fc02f3ac15437387a7ada9f
 cardano-node version
-# cardano-node 1.18.1 - linux-x86_64 - ghc-8.6
-# git rev a4b6dae699fa21dc3c025c8a83d1718475cb3afc
+# cardano-node 1.19.0 - linux-x86_64 - ghc-8.6
+# git rev 4814003f14340d5a1fc02f3ac15437387a7ada9f
 ```
 
 ##### Start a passive node
