@@ -346,7 +346,7 @@ case $OPERATION in
         if [[ -n ${delegation_pool_id} ]]; then
           unset poolName
           while IFS= read -r -d '' pool; do
-            getPoolID $(basename ${pool})
+            getPoolID "$(basename ${pool})"
             if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
               poolName=$(basename ${pool}) && break
             fi
@@ -437,7 +437,7 @@ case $OPERATION in
       if [[ -n ${delegation_pool_id} ]]; then
         unset poolName
         while IFS= read -r -d '' pool; do
-          getPoolID $(basename ${pool})
+          getPoolID "$(basename ${pool})"
           if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
             poolName=$(basename ${pool}) && break
           fi
@@ -1021,7 +1021,7 @@ case $OPERATION in
           unset poolName
           if [[ -n ${delegation_pool_id} ]]; then
             while IFS= read -r -d '' pool; do
-              getPoolID $(basename ${pool})
+              getPoolID "$(basename ${pool})"
               if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
                 poolName=$(basename ${pool}) && break
               fi
@@ -1499,7 +1499,7 @@ case $OPERATION in
           unset poolName
           if [[ -n ${delegation_pool_id} ]]; then
             while IFS= read -r -d '' pool; do
-              getPoolID $(basename ${pool})
+              getPoolID "$(basename ${pool})"
               if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
                 poolName=$(basename ${pool}) && break
               fi
@@ -1977,7 +1977,7 @@ case $OPERATION in
           unset poolName
           if [[ -n ${delegation_pool_id} ]]; then
             while IFS= read -r -d '' pool; do
-              getPoolID $(basename ${pool})
+              getPoolID "$(basename ${pool})"
               if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
                 poolName=$(basename ${pool}) && break
               fi
@@ -2284,7 +2284,7 @@ case $OPERATION in
 
     while IFS= read -r -d '' pool; do
       say ""
-      getPoolID $(basename ${pool})
+      getPoolID "$(basename ${pool})"
       pool_regcert_file="${pool}/${POOL_REGCERT_FILENAME}"
       [[ -f "${pool_regcert_file}" ]] && pool_registered="YES" || pool_registered="NO"
       say "${GREEN}$(basename ${pool})${NC} "
