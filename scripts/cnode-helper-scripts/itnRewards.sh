@@ -23,6 +23,16 @@ wallet_name="$1"
 itn_signing_key_file="$2"
 itn_verification_key_file="$3"
 
+if [[ ! -f "${itn_signing_key_file}" || ! $(cat "${itn_signing_key_file}") =~ ^ed25519e?_sk* ]]; then
+  echo -e "\n${RED}ERROR${NC}: Invalid ITN Signing Key provided\n"
+  exit 1
+fi
+
+if [[ ! -f "${itn_verification_key_file}" || $(cat "${itn_verification_key_file}") != ed25519_pk* ]]; then
+  echo -e "\n${RED}ERROR${NC}: Invalid ITN Verification Key provided\n"
+  exit 1
+fi
+
 if [[ -d "${WALLET_FOLDER}/${wallet_name}" ]]; then
   echo -e "\n${RED}ERROR${NC}: Wallet already exist, please use another name"
   echo -e "${WALLET_FOLDER}/${wallet_name}\n"
