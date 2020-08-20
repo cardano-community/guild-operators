@@ -23,12 +23,12 @@ wallet_name="$1"
 itn_signing_key_file="$2"
 itn_verification_key_file="$3"
 
-if ! [[ $(cat "${itn_signing_key_file}") == ed25519e_sk* ]] || ! [[ $(cat "${itn_signing_key_file}") != ed25519_sk* ]]; then
-  echo -e "\n${RED}ERROR${NC}: Invalid ITN Signing Key provided"
+if [[ ! -f "${itn_signing_key_file}" || ! $(cat "${itn_signing_key_file}") =~ ^ed25519e?_sk* ]]; then
+  echo -e "\n${RED}ERROR${NC}: Invalid ITN Signing Key provided\n"
   exit 1
 fi
 
-if [[ $(cat "${itn_verification_key_file}") != ed25519_pk* ]]; then
+if [[ ! -f "${itn_verification_key_file}" || $(cat "${itn_verification_key_file}") != ed25519_pk* ]]; then
   echo -e "\n${RED}ERROR${NC}: Invalid ITN Verification Key provided\n"
   exit 1
 fi
