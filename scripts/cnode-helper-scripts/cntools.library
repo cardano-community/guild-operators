@@ -1728,7 +1728,7 @@ rotatePoolKeys() {
     return 1
   fi
 
-  start_kes_period=$(getCurrentKESperiod)
+  start_kes_period=$(( $(getCurrentKESperiod) - 1 ))
   echo "${start_kes_period}" > ${pool_saved_kes_start}
 
   say "creating new hot keys and certificate" 1
