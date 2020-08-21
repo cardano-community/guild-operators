@@ -5,6 +5,11 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.6] - 2020-08-22
+
+##### Fixed
+- cardano-node 1.19.0 introduced an issue that required us to use KES as current - 1 while rotating.
+
 ## [5.3.5] - 2020-08-20
 
 ##### Changed
