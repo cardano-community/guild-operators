@@ -3,6 +3,11 @@
 
 [[ -z "$CNODE_HOME" ]] && CNODE_HOME="/opt/cardano/cnode"
 
+if [[ -S "$CNODE_HOME/sockets/node0.socket" ]]; then
+    echo "ERROR: A Cardano node is already running, please terminate this node before starting a new one with this script."
+    exit 1
+fi
+
 [[ ! -d "$CNODE_HOME/logs/archive" ]] && mkdir -p "$CNODE_HOME/logs/archive"
 
 [[ $(find "$CNODE_HOME"/logs/*.json | wc -l) -gt 0 ]] && mv $CNODE_HOME/logs/*.json $CNODE_HOME/logs/archive/
