@@ -46,13 +46,10 @@ echo "monitoring json logfile for block traces"
 
 # Continuously parse cardano-node json log file for block traces
 while read -r logentry; do
-  _jq() {
-    echo "${logentry}" | base64 --decode | jq -r "${1}"
-  }
-  if [[ $(_jq '.data.kind') = "TraceNodeIsLeader" ]]; then
-    at="$(_jq '.at')"
+  if grep -q "TraceNodeIsLeader" <<< "${logentry}"; then
+    at="$(jq -r '.at' <<< ${logentry})"
     at_local="$(date '+%F_%T_%Z' -d "${at}")"
-    slot="$(_jq '.data.slot')"
+    slot="$(jq -r '.data.slot' <<< ${logentry})"
     epoch=$(getEpoch)
     # create epoch block file if missing
     blocks_file="${BLOCK_LOG_DIR}/blocks_${epoch}.json"
@@ -70,10 +67,10 @@ while read -r logentry; do
       '. += [{"at": $_at,"slot": $_slot}]' \
       "${blocks_file}" > "${TMP_FOLDER}/blocks.json" && mv -f "${TMP_FOLDER}/blocks.json" "${blocks_file}"
     fi
-  elif [[ $(_jq '.data.kind') = "TraceAdoptedBlock" ]]; then
-    slot="$(_jq '.data.slot')"
-    [[ "$(_jq '.data."block hash"')" =~ ([[:alnum:]]+) ]] && block_hash="${BASH_REMATCH[1]}" || block_hash=""
-    block_size="$(_jq '.data."block size"')"
+  elif grep -q "TraceAdoptedBlock" <<< "${logentry}"; then
+    slot="$(jq -r '.data.slot' <<< ${logentry})"
+    [[ "$(jq -r '.data.blockHash' <<< ${logentry})" =~ ([[:alnum:]]+) ]] && block_hash="${BASH_REMATCH[1]}" || block_hash=""
+    block_size="$(jq -r '.data.blockSize' <<< ${logentry})"
     epoch=$(( slot / $(jq -r .epochLength "${GENESIS_JSON}") ))
     echo " ~~ ADOPTED BLOCK ~~"
     printTable ',' "Size,Hash\n${block_size},${block_hash}"
@@ -82,15 +79,15 @@ while read -r logentry; do
     --arg _block_hash "${block_hash}" \
     '[.[] | select(.slot == $_slot) += {"size": $_block_size,"hash": $_block_hash}]' \
     "${blocks_file}" > "${TMP_FOLDER}/blocks.json" && mv -f "${TMP_FOLDER}/blocks.json" "${blocks_file}"
-  elif [[ $(_jq '.data.kind') = "TraceForgedInvalidBlock" ]]; then
-    slot="$(_jq '.data.slot')"
+  elif grep -q "TraceForgedInvalidBlock" <<< "${logentry}"; then
+    slot="$(jq -r '.data.slot' <<< ${logentry})"
     epoch=$(( slot / $(jq -r .epochLength "${GENESIS_JSON}") ))
     echo " ~~ INVALID BLOCK ~~"
     echo "Base 64 encoded json trace"
     echo -e "run this command to decode:\necho ${logentry} | base64 -d | jq -r"
     jq --arg _slot "${slot}" \
-    --arg _json_trace "Invalid Block (base64 enc json): ${logentry}" \
+    --arg _json_trace "Invalid Block (base64 enc json): $(jq -c -r '. | @base64' <<< ${logentry})" \
     '[.[] | select(.slot == $_slot) += {"hash": $_json_trace}]' \
     "${blocks_file}" > "${TMP_FOLDER}/blocks.json" && mv -f "${TMP_FOLDER}/blocks.json" "${blocks_file}"
   fi
-done < <(tail -F -n0 "${logfile}" | jq -c -r '. | @base64')
+done < <(tail -F -n0 "${logfile}")
