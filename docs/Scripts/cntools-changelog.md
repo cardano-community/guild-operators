@@ -30,6 +30,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Block hash is now truncated in log, issue https://github.com/input-output-hk/cardano-node/issues/1738
 - High cpu usage reported in a few cases when running Block Collector
   - Depending on log level, parsing and byte64 enc each entry with jq could potentially put high load on weaker systems. Replaced with grep to only parse entries containing specific traces.
+- Docs for creating systemd block collector service file updated to include user env in run command
 
 
 ## [5.3.6] - 2020-08-22
