@@ -59,7 +59,7 @@ Replace `$USER` with the correct user for your system. Copy & paste all code bel
 ``` bash
 sudo bash -c "cat << 'EOF' > /etc/systemd/system/cnode.service
 [Unit]
-Description=C
+Description=Cardano Node
 After=network.target
 
 [Service]
