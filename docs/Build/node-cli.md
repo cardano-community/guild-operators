@@ -23,6 +23,9 @@ git pull
 git checkout 1.19.0
 
 echo -e "package cardano-crypto-praos\n  flags: -external-libsodium-vrf" > cabal.project.local
+# On CentOS 7 (GCC 4.8.5) we should also do
+# echo -e "package cryptonite\n  flags: -use_target_attributes" >> cabal.project.local
+
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
 
