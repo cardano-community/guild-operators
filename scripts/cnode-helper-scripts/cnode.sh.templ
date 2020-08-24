@@ -4,8 +4,13 @@
 [[ -z "$CNODE_HOME" ]] && CNODE_HOME="/opt/cardano/cnode"
 
 if [[ -S "$CNODE_HOME/sockets/node0.socket" ]]; then
-    echo "ERROR: A Cardano node is already running, please terminate this node before starting a new one with this script."
-    exit 1
+    if [ `ps -ef | grep -c [c]ardano-node` -gt 0 ]; then
+       echo "ERROR: A Cardano node is already running, please terminate this node before starting a new one with this script."
+       exit 1
+    else
+      echo "WARN: A prior running Cardano node was not cleanly shutdown, socket file still exists. Cleaning up."
+      unlink $CNODE_HOME/sockets/node0.socket
+    fi       
 fi
 
 [[ ! -d "$CNODE_HOME/logs/archive" ]] && mkdir -p "$CNODE_HOME/logs/archive"
