@@ -19,6 +19,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ##### Added
 - Sanity check before launching a second instance of cnode.sh
+- Doc update to run cnode.sh as a systemd service
 
 ##### Removed
 - `Pool >> Delegators` removed.
