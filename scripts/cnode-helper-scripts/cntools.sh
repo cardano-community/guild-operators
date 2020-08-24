@@ -1155,25 +1155,23 @@ case $OPERATION in
   say " ) Retire     -  de-register stake pool from chain in specified epoch"
   say " ) List       -  a compact list view of available local pools"
   say " ) Show       -  detailed view of specified pool"
-  say " ) Delegators -  list all delegators for pool"
   say " ) Rotate     -  rotate pool KES keys"
   say " ) Decrypt    -  remove write protection and decrypt pool"
   say " ) Encrypt    -  encrypt pool cold keys and make all files immutable"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   say " Select Pool operation\n"
-  case $(select_opt "[n] New" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[g] Delegators" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
+  case $(select_opt "[n] New" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
     0) SUBCOMMAND="new" ;;
     1) SUBCOMMAND="register" ;;
     2) SUBCOMMAND="modify" ;;
     3) SUBCOMMAND="retire" ;;
     4) SUBCOMMAND="list" ;;
     5) SUBCOMMAND="show" ;;
-    6) SUBCOMMAND="delegators" ;;
-    7) SUBCOMMAND="rotate" ;;
-    8) SUBCOMMAND="decrypt" ;;
-    9) SUBCOMMAND="encrypt" ;;
-    10) continue ;;
+    6) SUBCOMMAND="rotate" ;;
+    7) SUBCOMMAND="decrypt" ;;
+    8) SUBCOMMAND="encrypt" ;;
+    9) continue ;;
   esac
 
   case $SUBCOMMAND in
@@ -2483,57 +2481,6 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     waitForInput
     
-    ;; ###################################################################
-
-    delegators)
-    
-    clear
-    say " >> POOL >> DELEGATORS" "log"
-    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    say ""
-
-    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
-      say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
-      waitForInput && continue
-    fi
-    
-    pool_dirs=()
-    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
-    for dir in "${dirs[@]}"; do
-      pool_id_file="${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}"
-      [[ ! -f "${pool_id_file}" ]] && continue
-      pool_dirs+=("${dir}")
-    done
-    if [[ ${#pool_dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No pools available!"
-      say "first create a pool"
-      waitForInput && continue
-    fi
-    say "Select Pool:\n"
-    if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    pool_name="${dir_name}"
-    getPoolID ${pool_name}
-    
-    say "Looking for delegators, please wait..."
-    if ! getDelegators ${pool_id}; then
-      waitForInput && continue
-    fi
-    
-    clear
-    say " >> POOL >> DELEGATORS" "log"
-    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    say ""
-    say "${BLUE}${delegator_nbr}${NC} wallet(s) delegated to ${GREEN}${pool_name}${NC} of which ${ORANGE}${owner_nbr}${NC} are owner(s)\n"
-    say "Total Stake: $(formatLovelace ${total_stake}) ADA [ owners pledge: $(formatLovelace ${total_pledged}) | delegators: $(formatLovelace $((total_stake-total_pledged))) ]\n"
-    
-    if [[ ${total_pledged} -lt ${pledge} ]]; then
-      say "${ORANGE}WARN${NC}: Owners pledge does not cover registered pledge of $(formatLovelace ${pledge}) ADA\n"
-    fi
-    
-    printTable ';' "$(say 'Hex Key;Stake;Rewards' | cat - <(jq -r -c '.[] | "\(.hex_key);\(.stake);\(.rewards)"' <<< "${delegators_json}"))"
-    
-    waitForInput && continue
-
     ;; ###################################################################
 
     rotate)

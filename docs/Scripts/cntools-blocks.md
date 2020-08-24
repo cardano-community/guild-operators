@@ -17,7 +17,7 @@ In this example normal output from the `cntoolsBlockCollector.sh` script is igno
 **1. Create systemd service file**  
 Replace `$USER` with the correct user for your system. Copy & paste all code below to create the service file.
 ``` bash
-sudo bash -c 'cat <<EOF > /etc/systemd/system/cntools-blockcollector.service
+sudo bash -c "cat << 'EOF' > /etc/systemd/system/cntools-blockcollector.service
 [Unit]
 Description=CNTools - Block Collector
 After=network.target
@@ -28,7 +28,7 @@ Restart=on-failure
 RestartSec=10
 User=$USER
 WorkingDirectory=/opt/cardano/cnode/scripts
-ExecStart=/opt/cardano/cnode/scripts/cntoolsBlockCollector.sh
+ExecStart=/bin/bash -l -c 'exec \"\$@\"' _ /opt/cardano/cnode/scripts/cntoolsBlockCollector.sh
 SuccessExitStatus=143
 StandardOutput=null
 StandardError=syslog
@@ -36,7 +36,7 @@ SyslogIdentifier=cntools-blockcollector
 
 [Install]
 WantedBy=multi-user.target
-EOF'
+EOF"
 ```
 
 **2. Reload systemd**  

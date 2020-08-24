@@ -5,10 +5,40 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.4.0] - 2020-08-23
+
+> A non-breaking change have been made to files outside of CNTools. Internal update function is not enough to update all files.  
+> - Execute the below (by default it will set you up against mainnet network), do not overwrite config please:  
+>    `cd "$CNODE_HOME"/scripts`  
+>    `curl -sS -o prereqs.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh`  
+>    `chmod 755 prereqs.sh`  
+>    `./prereqs.sh -s`  
+> - Start using updated cnode.sh to run a passive node, or edit the cnode.sh to include your pool keys and run as pool owner.
+
+=======
+
+##### Added
+- Sanity check before launching a second instance of cnode.sh
+- Doc update to run cnode.sh as a systemd service
+
+##### Removed
+- `Pool >> Delegators` removed.
+  - If/when a better option than dumping and parsing ledger-state dump arise re-adding it will be considered. 
+  - Utilize the community explorers listed at https://cardano-community.github.io/support-faq/#/explorers 
+
+##### Fixed
+- Block Collector script adapted for cardano-node 1.19.0.
+  - Block hash is now truncated in log, issue https://github.com/input-output-hk/cardano-node/issues/1738
+- High cpu usage reported in a few cases when running Block Collector
+  - Depending on log level, parsing and byte64 enc each entry with jq could potentially put high load on weaker systems. Replaced with grep to only parse entries containing specific traces.
+- Docs for creating systemd block collector service file updated to include user env in run command
+
+
 ## [5.3.6] - 2020-08-22
 
 ##### Fixed
 - cardano-node 1.19.0 introduced an issue that required us to use KES as current - 1 while rotating.
+
 
 ## [5.3.5] - 2020-08-20
 
@@ -21,6 +51,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - A new pool.id-bech32 file gets created if cold.vkey is available and decrypted
 - Added error check to see if cardano-cli is in $PATH before continuing.
 
+
 ## [5.3.4] - 2020-08-18
 
 ##### Changed
@@ -31,17 +62,8 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ##### Added
 - Use secure remove (`srm`) when available when deleting files.
 
+
 ## [5.3.2] - 2020-08-05
-
-> If you're coming version 5.2.1 (not required if you're on 5.3.0), We have made quite a few changes to not use ptn0 in our scripts and source github structures (except template files), alongwith other changes listed beneath. Please follow steps below for upgrade:  
-> - Execute the below (by default it will set you up against mainnet network), do not overwrite config please:  
->    `cd "$CNODE_HOME"/scripts`  
->    `curl -sS -o prereqs.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh`  
->    `chmod 755 prereqs.sh`  
->    `./prereqs.sh -s`  
-> - Start using updated cnode.sh to run a passive node, or edit the cnode.sh to include your pool keys and run as pool owner.
-
-=======
 
 #### Fixed
 - Backup & Restore paths were failing on machines due to alnum class availability on certain interpreters.
@@ -60,6 +82,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Removed +i file locking on .addr files when using `Wallet >> Encrypt` as these are re-generated from keys and need to be writable
 - Balance check added to `Funds >> Withdraw` for base address as this is used to pay the withdraw transaction fee
 - Resolve issue with Multi Owner causing an error with new pool registration (error was due to quotes)
+
 
 ## [5.3.0] - 2020-08-03
 ##### Added
