@@ -71,8 +71,15 @@ Restart=on-failure
 RestartSec=5
 User=$USER
 LimitNOFILE=1048576
-WorkingDirectory=/opt/cardano/cnode/scripts
-ExecStart=/bin/bash -l -c 'exec \"\$@\"' _ cnode.sh
+Environment=CNODE_HOME=/opt/cardano/cnode
+WorkingDirectory=/home/cardano/.cabal/bin
+ExecStart=cardano-node run \
+  --topology ${CNODE_HOME}/files/topology.json \
+  --config ${CNODE_HOME}/files/config.json \
+  --database-path ${CNODE_HOME}/db \
+  --socket-path ${CNODE_HOME}/sockets/node0.socket \
+  --host-addr 0.0.0.0 \
+  --port 6000
 KillSignal=SIGINT
 SuccessExitStatus=143
 StandardOutput=syslog
