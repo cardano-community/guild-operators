@@ -39,7 +39,7 @@
   "TracingVerbosity": "NormalVerbosity",
   "TurnOnLogMetrics": true,
   "TurnOnLogging": true,
-  "ViewMode": "LiveView",
+  "ViewMode": "SimpleView",
   "defaultBackends": [
     "KatipBK"
   ],
@@ -154,7 +154,7 @@
   },
   "rotation": {
     "rpKeepFilesNum": 10,
-    "rpLogLimitBytes": 5000000,
+    "rpLogLimitBytes": 50000000,
     "rpMaxAgeHours": 24
   },
   "setupBackends": [

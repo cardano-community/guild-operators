@@ -46,7 +46,7 @@ cardano-node version
 
 ##### Start a passive node
 
-To start the node in passive mode, you can use the pre-built script below:
+To test starting the node in interactive mode, you can use the pre-built script below (note that the config now uses `SimpleView` so you may not see much output):
 
 ```bash
 cd $CNODE_HOME/scripts
@@ -71,20 +71,16 @@ Restart=on-failure
 RestartSec=5
 User=$USER
 LimitNOFILE=1048576
-Environment=CNODE_HOME=/opt/cardano/cnode
-WorkingDirectory=/home/cardano/.cabal/bin
-ExecStart=cardano-node run \\
-  --topology ${CNODE_HOME}/files/topology.json \\
-  --config ${CNODE_HOME}/files/config.json \\
-  --database-path ${CNODE_HOME}/db \\
-  --socket-path ${CNODE_HOME}/sockets/node0.socket \\
-  --host-addr 0.0.0.0 \\
-  --port 6000
+WorkingDirectory=$CNODE_HOME/scripts
+ExecStart=/bin/bash -l -c \"exec $CNODE_HOME/scripts/cnode.sh\"
+ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep [c]ardano-node.*.node0.socket | tr -s ' ' | cut -d ' ' -f2)\"
 KillSignal=SIGINT
 SuccessExitStatus=143
 StandardOutput=syslog
 StandardError=syslog
 SyslogIdentifier=cnode
+TimeoutStopSec=5
+KillMode=mixed
 
 [Install]
 WantedBy=multi-user.target
@@ -92,27 +88,28 @@ EOF"
 ```
 
 **2. Reload systemd and enable automatic start of service on startup**  
-```
+``` bash
 sudo systemctl daemon-reload
 sudo systemctl enable cnode.service
 ```
 
-**3. Modify configuration to run with view mode SimpleView**  
-```
-pushd $CNODE_HOME/files >/dev/null && \
-tmpConfig=$(mktemp) && \
-jq '.ViewMode = "SimpleView"' config.json > "${tmpConfig}" && mv -f "${tmpConfig}" config.json && \
-popd >/dev/null
-```
-
-**4. Start the node**  
+**3. Start the node**  
 Run below commands to enable automatic start of service on startup and start it.
-```
+``` bash
 sudo systemctl start cnode.service
 ```
 
-**5. Check status and stop/start commands** 
+**4. Check status and stop/start commands** 
 Replace `status` with `stop`/`start`/`restart` depending on what action to take.
-```
+``` bash
 sudo systemctl status cnode.service
+```
+
+#### Monitor Simplistic equivalent of LiveView
+
+You can use the below to start a basic monitor script that gives output similar to LiveView (but more restricted):
+
+``` bash
+cd $CNODE_HOME/scripts
+./sLiveView.sh
 ```
