@@ -22,37 +22,35 @@ For most standard deployments, this should lead you to a stage where you can now
 
 ```bash
 ./sLiveView.sh
-+--------------------------------------+
-|           Simple Node Stats          |
-+---------------------+----------------+
-| Name:                TESTPOOL - Core |
-+---------------------+----------------+
-| Version             |         1.19.0 |
-+---------------------+----------------+
-| Revision            |       49536693 |
-+---------------------+----------------+
-| Peers (Out / In)    |         8 / 16 |
-+---------------------+----------------+
-| Epoch / Block       |  213 / 4611703 |
-+---------------------+----------------+
-| Slot                |        6933466 |
-+---------------------+----------------+
-| Density             |            5 % |
-+---------------------+----------------+
-| Uptime (D:H:M:S)    |    13:02:43:16 |
-+---------------------+----------------+
-| Transactions        |          71814 |
-+---------------------+----------------+
-|  RUNNING IN BLOCK PRODUCER MODE! :)  |
-+---------------------+----------------+
-| KES PERIOD          |             53 |
-+---------------------+----------------+
-| KES REMAINING       |             53 |
-+---------------------+----------------+
-| SLOTS LED           |             61 |
-+---------------------+----------------+
-| BLOCKS FORGED       |             61 |
-+---------------------+----------------+
++----------------------------------------+
+|            Simple Node Stats           |
++-----------------------+----------------+
+| Name:                  TESTPOOL - Core |
++-----------------------+----------------+
+| Version               |         1.19.0 |
++-----------------------+----------------+
+| Revision              |       49536693 |
++-----------------------+----------------+
+| Peers (Out / In)      |         8 / 16 |
++-----------------------+----------------+
+| Epoch / Slot          |   213 / 296153 |
++-----------------------+----------------+
+| Block                 |        4612464 |
++-----------------------+----------------+
+| Density               |         4.99 % |
++-----------------------+----------------+
+| Uptime (D:H:M:S)      |    13:07:01:04 |
++-----------------------+----------------+
+| Transactions          |          72528 |
++-----------------------+----------------+
+| KES PERIOD            |             53 |
++-----------------------+----------------+
+| KES REMAINING         |             53 |
++-----------------------+----------------+
+| SLOTS LED             |             62 |
++-----------------------+----------------+
+| BLOCKS FORGED/ADOPTED |          62/62 |
++-----------------------+----------------+
 
 Press [CTRL+C] to stop...
 ```
@@ -69,12 +67,13 @@ In case you run into trouble while running the script, you might want to edit `s
 # The commands below will try to detect the information assuming you run single node on a machine. Please override values if they dont match your system
 
 cardanoport=$(ps -ef | grep "[c]ardano-node.*.port" | awk -F 'port ' '{print $2}' | awk '{print $1}') # example value: 6000
-nodename="TESTPOOL" # Change your node's name prefix here, 22 character limit!!!
+nodename="TESTPOOL" # Change your node's name prefix here, 24 character limit!!!
 refreshrate=2 # How often (in seconds) to refresh the view
 config=$(ps -ef | grep "[c]ardano-node.*.config" | awk -F 'config ' '{print $2}' | awk '{print $1}') # example: /opt/cardano/cnode/files/config.json
-if [[ -f "$config" ]]; then
-  promport=$(jq -r '.hasPrometheus[1] //empty' "$config" 2>/dev/null)
+ekghost=127.0.0.1
+if [[ -f "${config}" ]]; then
+  ekgport=$(jq -r '.hasEKG //empty' "${config}" 2>/dev/null)
 else
-  promport=12798
+  ekgport=12788
 fi
 ```
