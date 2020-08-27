@@ -6,7 +6,7 @@ The tool is independent from other files and can run as a standalone utility tha
 
 ##### Download & Setup
 
-The tool in itself should only require a single file. If you've used [pre-reqs.sh](basics.md#pre-requisites), you can skip this part , as this is already set up for you.
+The tool in itself should only require a single file. If you've used [prereqs.sh](basics.md#pre-requisites), you can skip this part , as this is already set up for you.
 
 ?> For those who follow guild's [folder structure](basics.md#folder-structure) and do not wish to run prereqs.sh, you can run the below in `$CNODE_HOME/scripts` folder
 

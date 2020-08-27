@@ -106,3 +106,12 @@ sudo systemctl status cnode.service
 ```
 
 You can use [sLiveView](Scripts/sliveview.md) to monitor your pool that was started as systemd, if you miss the LiveView functionality.
+
+##### Steps to transition from LiveView in tmux to systemd setup
+
+If you've followed guide from this repo previously and would like to transfer to systemd usage, please checkout the steps below:
+
+1. Stop previous instance of node if already running (eg: in tmux)
+2. Run `prereqs.sh` OR simply replace `LiveView` to `SimpleView` in your $CNODE_HOME/files/config.json.
+3. Follow the instructions [above](#run-as-systemd-service) to setup your node as a service and start it using systemctl as directed.
+4. If you need to monitor via interactive terminal as before, use [sLiveView](Scripts/sliveview.md).
