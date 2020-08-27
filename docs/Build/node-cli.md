@@ -105,11 +105,4 @@ Replace `status` with `stop`/`start`/`restart` depending on what action to take.
 sudo systemctl status cnode.service
 ```
 
-#### Monitor Simplistic equivalent of LiveView
-
-You can use the below to start a basic monitor script that gives output similar to LiveView (but more restricted):
-
-``` bash
-cd $CNODE_HOME/scripts
-./sLiveView.sh
-```
+You can use [sLiveView](Scripts/sliveview.md) to monitor your pool that was started as systemd, if you miss the LiveView functionality.

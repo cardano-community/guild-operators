@@ -9,8 +9,8 @@
 
 # The commands below will try to detect the information assuming you run single node on a machine. Please override values if they dont match your system
 
-cardanoport=$(ps -ef | grep "[c]ardano-node.*.port" | awk -F 'port ' '{print $2}') # example value: 6000
-nodename="Lazy Guy" # Change your node's name prefix here, 22 character limit!!!
+cardanoport=$(ps -ef | grep "[c]ardano-node.*.port" | awk -F 'port ' '{print $2}' | awk '{print $1}') # example value: 6000
+nodename="RTFM Lazy Guy" # Change your node's name prefix here, 22 character limit!!!
 refreshrate=2 # How often (in seconds) to refresh the view
 config=$(ps -ef | grep "[c]ardano-node.*.config" | awk -F 'config ' '{print $2}' | awk '{print $1}') # example: /opt/cardano/cnode/files/config.json
 if [[ -f "$config" ]]; then
