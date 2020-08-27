@@ -46,7 +46,7 @@ cardano-node version
 
 ##### Start a passive node
 
-To start the node in passive mode, you can use the pre-built script below:
+To test starting the node in interactive mode, you can use the pre-built script below (note that the config now uses `SimpleView` so you may not see much output):
 
 ```bash
 cd $CNODE_HOME/scripts
@@ -71,13 +71,16 @@ Restart=on-failure
 RestartSec=5
 User=$USER
 LimitNOFILE=1048576
-WorkingDirectory=/opt/cardano/cnode/scripts
-ExecStart=/bin/bash -l -c 'exec \"\$@\"' _ cnode.sh
+WorkingDirectory=$CNODE_HOME/scripts
+ExecStart=/bin/bash -l -c \"exec $CNODE_HOME/scripts/cnode.sh\"
+ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep [c]ardano-node.*.node0.socket | tr -s ' ' | cut -d ' ' -f2)\"
 KillSignal=SIGINT
 SuccessExitStatus=143
 StandardOutput=syslog
 StandardError=syslog
 SyslogIdentifier=cnode
+TimeoutStopSec=5
+KillMode=mixed
 
 [Install]
 WantedBy=multi-user.target
@@ -85,27 +88,30 @@ EOF"
 ```
 
 **2. Reload systemd and enable automatic start of service on startup**  
-```
+``` bash
 sudo systemctl daemon-reload
 sudo systemctl enable cnode.service
 ```
 
-**3. Modify configuration to run with view mode SimpleView**  
-```
-pushd $CNODE_HOME/files >/dev/null && \
-tmpConfig=$(mktemp) && \
-jq '.ViewMode = "SimpleView"' config.json > "${tmpConfig}" && mv -f "${tmpConfig}" config.json && \
-popd >/dev/null
-```
-
-**4. Start the node**  
+**3. Start the node**  
 Run below commands to enable automatic start of service on startup and start it.
-```
+``` bash
 sudo systemctl start cnode.service
 ```
 
-**5. Check status and stop/start commands** 
+**4. Check status and stop/start commands** 
 Replace `status` with `stop`/`start`/`restart` depending on what action to take.
-```
+``` bash
 sudo systemctl status cnode.service
 ```
+
+You can use [sLiveView](Scripts/sliveview.md) to monitor your pool that was started as systemd, if you miss the LiveView functionality.
+
+##### Steps to transition from LiveView in tmux to systemd setup
+
+If you've followed guide from this repo previously and would like to transfer to systemd usage, please checkout the steps below:
+
+1. Stop previous instance of node if already running (eg: in tmux)
+2. Run `prereqs.sh` OR simply replace `LiveView` to `SimpleView` in your $CNODE_HOME/files/config.json.
+3. Follow the instructions [above](#run-as-systemd-service) to setup your node as a service and start it using systemctl as directed.
+4. If you need to monitor via interactive terminal as before, use [sLiveView](Scripts/sliveview.md).

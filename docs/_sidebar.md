@@ -11,6 +11,7 @@
       - [Common tasks](Scripts/cntools-common.md)
       - [Block Collector](Scripts/cntools-blocks.md)
       - [Changelog](Scripts/cntools-changelog.md)
+    * [Simple LiveView](Scripts/sliveview.md)
     * [ITN Metadata Proof](Scripts/itnwitness.md)
     * [ITN Rewards](Scripts/itnrewards.md)
     * [Topology Updater](Scripts/topologyupdater.md)
