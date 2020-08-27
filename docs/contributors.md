@@ -8,14 +8,13 @@ Everyone is welcome to contribute to the guide, as well as the repository. Below
 [Bergr01](https://github.com/bergr01)  
 [Ola Ahlman](https://github.com/Scitz0)  
 [SmaugPool](https://github.com/SmaugPool)  
-[Adam](https://github.com/Crypto2099)
-[Chris](https://github.com/Straightpool)
-[Damjan](https://github.com/DamjanOstrelic)
+[Adam](https://github.com/Crypto2099)  
+[Chris](https://github.com/Straightpool)  
+[Damjan](https://github.com/DamjanOstrelic)  
 [Priyank](https://github.com/rdlrt)  
 [Psychomb](https://github.com/psychomb)  
 [PegasusPool](https://github.com/PegasusPool)  
 [Matthijs](https://github.com/matthijs-aeon)  
 [Marek](https://github.com/mmahut)  
-
 
 > To start contributing, simply hit the [github repository](https://github.com/cardano-community/guild-operators) and raise Issue/Pull Request
