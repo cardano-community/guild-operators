@@ -1,5 +1,5 @@
 #!/bin/bash
-#shellcheck disable=SC2009
+#shellcheck disable=SC2009,SC2034
 
 # Credits to original Author of the script : Adam Dean (from BUFFY | SPIKE pool) by Crypto2099
 
@@ -42,19 +42,19 @@ while true
 do
   data=$(curl -s -H 'Accept: application/json' http://${ekghost}:${ekgport}/ 2>/dev/null)
   remotepeers=$(netstat -an|awk "\$4 ~ /${cardanoport}/"|grep -c ESTABLISHED)
-  peers=$(jq '.cardano.node.BlockFetchDecision.peers.connectedPeers.int.val //0' <<< ${data})
-  blocknum=$(jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< ${data})
-  epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< ${data})
-  slotnum=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< ${data})
-  density=$(jq -r '.cardano.node.ChainDB.metrics.density.real.val //0' <<< ${data})
-  uptimens=$(jq '.cardano.node.metrics.upTime.ns.val //0' <<< ${data})
-  transactions=$(jq '.cardano.node.metrics.txsProcessedNum.int.val //0' <<< ${data})
-  kesperiod=$(jq '.cardano.node.Forge.metrics.currentKESPeriod.int.val //0' <<< ${data})
-  kesremain=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< ${data})
-  isleader=$(jq '.cardano.node.metrics.Forge["node-is-leader"].int.val //0' <<< ${data})
-  abouttolead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0' <<< ${data})
-  forged=$(jq '.cardano.node.metrics.Forge.forged.int.val //0' <<< ${data})
-  adopted=$(jq '.cardano.node.metrics.Forge.adopted.int.val //0' <<< ${data})
+  peers=$(jq '.cardano.node.BlockFetchDecision.peers.connectedPeers.int.val //0' <<< "${data}")
+  blocknum=$(jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${data}")
+  epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
+  slotnum=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
+  density=$(jq -r '.cardano.node.ChainDB.metrics.density.real.val //0' <<< "${data}")
+  uptimens=$(jq '.cardano.node.metrics.upTime.ns.val //0' <<< "${data}")
+  transactions=$(jq '.cardano.node.metrics.txsProcessedNum.int.val //0' <<< "${data}")
+  kesperiod=$(jq '.cardano.node.Forge.metrics.currentKESPeriod.int.val //0' <<< "${data}")
+  kesremain=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
+  isleader=$(jq '.cardano.node.metrics.Forge["node-is-leader"].int.val //0' <<< "${data}")
+  abouttolead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0' <<< "${data}")
+  forged=$(jq '.cardano.node.metrics.Forge.forged.int.val //0' <<< "${data}")
+  adopted=$(jq '.cardano.node.metrics.Forge.adopted.int.val //0' <<< "${data}")
 
   if [[ ${abouttolead} -gt 0 ]]; then
     name=$(printf "%s - Core\n" "${nodename}")
@@ -72,7 +72,7 @@ do
   epoch=$(printf "%14s" "${epochnum} / ${slotnum}")
   block=$(printf "%14s" "${blocknum}")
   txcount=$(printf "%14s" "${transactions}")
-  density=$(printf "%12.4s %%" $density*100)
+  density=$(printf "%12.4s %%" "${density}"*100)
 
   if [[ isleader -lt 0 ]]; then
     isleader=0
