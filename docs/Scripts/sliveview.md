@@ -1,6 +1,6 @@
 !> Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
 
-**Simple LiveView - sLiveView** is a small utility to display an equivalent of LiveView interface that cardano-node users have accustomed to. This is useful when changing to `SimpleView` and moving to a systemd deployment - if you havnt so already - while looking out for a familiar UI to monitor node status of the node.
+**Simple LiveView - sLiveView** is a small utility to display an equivalent subset of LiveView interface that cardano-node users have grown accustomed to. This is useful when changing to `SimpleView` and moving to a systemd deployment - if you havn't done so already - while looking for a familiar UI to monitor the node status.
 
 The tool is independent from other files and can run as a standalone utility that can be stopped/started without affecting the status of cardano-node.
 
