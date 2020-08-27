@@ -42,19 +42,19 @@ while true
 do
   data=$(curl -s -H 'Accept: application/json' http://${ekghost}:${ekgport}/ 2>/dev/null)
   remotepeers=$(netstat -an|awk "\$4 ~ /${cardanoport}/"|grep -c ESTABLISHED)
-  peers=$(jq -r .cardano.node.BlockFetchDecision.peers.connectedPeers.int.val <<< ${data})
-  blocknum=$(jq -r .cardano.node.ChainDB.metrics.blockNum.int.val <<< ${data})
-  epochnum=$(jq -r .cardano.node.ChainDB.metrics.epoch.int.val <<< ${data})
-  slotnum=$(jq -r .cardano.node.ChainDB.metrics.slotInEpoch.int.val <<< ${data})
-  density=$(jq -r .cardano.node.ChainDB.metrics.density.real.val <<< ${data})
-  uptimens=$(jq -r .cardano.node.metrics.upTime.ns.val <<< ${data})
-  transactions=$(jq -r .cardano.node.metrics.txsProcessedNum.int.val <<< ${data})
-  kesperiod=$(jq -r .cardano.node.Forge.metrics.currentKESPeriod.int.val <<< ${data})
-  kesremain=$(jq -r .cardano.node.Forge.metrics.remainingKESPeriods.int.val <<< ${data})
-  isleader=$(jq '.cardano.node.metrics.Forge["node-is-leader"].int.val' <<< ${data})
-  abouttolead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val' <<< ${data})
-  forged=$(jq '.cardano.node.metrics.Forge.forged.int.val' <<< ${data})
-  adopted=$(jq '.cardano.node.metrics.Forge.adopted.int.val' <<< ${data})
+  peers=$(jq '.cardano.node.BlockFetchDecision.peers.connectedPeers.int.val //0' <<< ${data})
+  blocknum=$(jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< ${data})
+  epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< ${data})
+  slotnum=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< ${data})
+  density=$(jq -r '.cardano.node.ChainDB.metrics.density.real.val //0' <<< ${data})
+  uptimens=$(jq '.cardano.node.metrics.upTime.ns.val //0' <<< ${data})
+  transactions=$(jq '.cardano.node.metrics.txsProcessedNum.int.val //0' <<< ${data})
+  kesperiod=$(jq '.cardano.node.Forge.metrics.currentKESPeriod.int.val //0' <<< ${data})
+  kesremain=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< ${data})
+  isleader=$(jq '.cardano.node.metrics.Forge["node-is-leader"].int.val //0' <<< ${data})
+  abouttolead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0' <<< ${data})
+  forged=$(jq '.cardano.node.metrics.Forge.forged.int.val //0' <<< ${data})
+  adopted=$(jq '.cardano.node.metrics.Forge.adopted.int.val //0' <<< ${data})
 
   if [[ ${abouttolead} -gt 0 ]]; then
     name=$(printf "%s - Core\n" "${nodename}")
@@ -149,7 +149,7 @@ do
     echo -e "| BLOCKS FORGED/ADOPTED | ${forged} |"
     echo -e "+-----------------------+----------------+"
   else
-    echo -e '+----------------------------------------+'
+    echo -e "+----------------------------------------+"
   fi
 
 
