@@ -3,7 +3,7 @@
 
 [[ -z "$CNODE_HOME" ]] && CNODE_HOME="/opt/cardano/cnode"
 
-. "${CNODE_HOME}/scripts/env
+. "${CNODE_HOME}"/scripts/env
 
 if [[ -S "$CNODE_HOME/sockets/node0.socket" ]]; then
   if [ `ps -ef | grep -c [c]ardano-node.*.$CNODE_HOME/sockets/node0.socket` -gt 0 ]; then
