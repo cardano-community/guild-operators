@@ -113,5 +113,6 @@ If you've followed guide from this repo previously and would like to transfer to
 
 1. Stop previous instance of node if already running (eg: in tmux)
 2. Run `prereqs.sh` OR simply replace `LiveView` to `SimpleView` in your $CNODE_HOME/files/config.json.
+   (PS: Remember to preserve your customisations to cnode.sh, topology.json, env files - you can refer to changes in [PR-449](https://github.com/cardano-community/guild-operators/pull/449/files) to manually apply changes without affecting your setup much)
 3. Follow the instructions [above](#run-as-systemd-service) to setup your node as a service and start it using systemctl as directed.
 4. If you need to monitor via interactive terminal as before, use [sLiveView](Scripts/sliveview.md).
