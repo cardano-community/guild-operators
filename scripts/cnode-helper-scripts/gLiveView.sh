@@ -593,7 +593,7 @@ while true; do
     bdivider_line=${line}
   fi
   tput cup ${bdivider_line} 0
-  echo ${bdivider}
+  echo "${bdivider}"
   printf " ${FG_YELLOW}[esc/q] Quit${NC} | ${FG_YELLOW}[p] Peer Analysis${NC}"
   if [[ ${check_peers} = "true" ]]; then
     printf " | ${FG_YELLOW}[h] Hide Peers${NC}"
