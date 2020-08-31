@@ -22,9 +22,9 @@ For most standard deployments, this should lead you to a stage where you can now
 
 ```bash
     >> Cardano Node - Core : 1.19.0 [4814003f] <<
-┌────────────────────────────────────────────────────┐
-│ Uptime: 7 days 01:06:54                            │
-├----------------------------------------------------┤
+┌───────────────────────────────────┬────────────────┐
+│ Uptime: 7 days 01:06:54           │ Guild LiveView │
+├-----------------------------------└────────────────┤
 │ Epoch 214 [55.8%] (node)                           │
 │ 2 days 05:02:47 until epoch boundary (chain)       │
 │ ▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▖▖▖▖▖▖▖▖▖▖▖▖▖▖▖▖▖▖▖▖▖▖ │
@@ -43,13 +43,13 @@ For most standard deployments, this should lead you to a stage where you can now
 │ Blocks since node start : 53 / 52 / 1              │
 │ Blocks this epoch       : 21 / 21 / 0              │
 └────────────────────────────────────────────────────┘
- [esc/q] Quit | [p] Peer Analysis      Guild LiveView
+ [esc/q] Quit | [p] Peer Analysis
 ```
 ```bash
     >> Cardano Node - Relay : 1.19.0 [4814003f] <<
-┌────────────────────────────────────────────────────┐
-│ Uptime: 06:46:13                                   │
-├----------------------------------------------------┤
+┌───────────────────────────────────┬────────────────┐
+│ Uptime: 06:46:13                  │ Guild LiveView │
+├-----------------------------------└────────────────┤
 │ Epoch 214 [55.8%] (node)                           │
 │ 2 days 04:58:32 until epoch boundary (chain)       │
 │ ▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▖▖▖▖▖▖▖▖▖▖▖▖▖▖▖▖▖▖▖▖▖▖ │
@@ -79,9 +79,7 @@ For most standard deployments, this should lead you to a stage where you can now
 ├----------------------------------------------------┤
 │ Peers Total / Unreachable / Skipped : 71 / 29 / 0  │
 └────────────────────────────────────────────────────┘
- [esc/q] Quit | [p] Peer Analysis      Guild LiveView
-              | [h] Hide Peer Analysis
-
+ [esc/q] Quit | [p] Peer Analysis | [h] Hide Peers
 ```
 
 
