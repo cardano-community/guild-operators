@@ -46,23 +46,13 @@ stty -echo # Disable user input
 
 # Style
 width=53
-second_col=30
-FG_BLACK=$(tput setaf 0)
+second_col=28
 FG_RED=$(tput setaf 1)
 FG_GREEN=$(tput setaf 2)
 FG_YELLOW=$(tput setaf 3)
 FG_BLUE=$(tput setaf 4)
 FG_MAGENTA=$(tput setaf 5)
 FG_CYAN=$(tput setaf 6)
-FG_WHITE=$(tput setaf 7)
-BG_BLACK=$(tput setab 0)
-BG_RED=$(tput setab 1)
-BG_GREEN=$(tput setab 2)
-BG_YELLOW=$(tput setab 3)
-BG_BLUE=$(tput setab 4)
-BG_MAGENTA=$(tput setab 5)
-BG_CYAN=$(tput setab 6)
-BG_WHITE=$(tput setab 7)
 STANDOUT=$(tput smso)
 BOLD=$(tput bold)
 VL="\\u2502"
@@ -476,11 +466,11 @@ while true; do
   ((line++))
   
   printf "${VL} Processed TX     : ${FG_BLUE}%s${NC}" "${tx_processed}"
-  tput cup ${line} $((second_col+5))
+  tput cup ${line} $((second_col+7))
   printf "        In / Out"
   endLine $((line++))
   printf "${VL} Mempool TX/Bytes : ${FG_BLUE}%s${NC} / ${FG_BLUE}%s${NC}" "${mempool_tx}" "${mempool_bytes}"
-  tput el; tput cup ${line} $((second_col+5))
+  tput el; tput cup ${line} $((second_col+7))
   printf "Peers : ${FG_BLUE}%s${NC} / ${FG_BLUE}%s${NC}" "${peers_in}" "${peers_out}"
   endLine $((line++))
   
