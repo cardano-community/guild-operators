@@ -18,10 +18,12 @@ if [[ -f "${CONFIG}" ]]; then
 else
   EKG_PORT=12788
 fi
+PROTOCOL=$(jq -r '.Protocol //empty' "${CONFIG}" 2>/dev/null)
 [[ -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"
 
 ######################################
 # User Variables - Change as desired #
+# Leave as is if usure               #
 ######################################
 
 #CNODE_HOME="/opt/cardano/cnode"          # Override default CNODE_HOME path
@@ -31,6 +33,7 @@ REFRESH_RATE=2                            # How often (in seconds) to refresh th
 #CONFIG="${CNODE_HOME}/files/config.json" # Override automatic detection of node config path
 EKG_HOST=127.0.0.1                        # Set node EKG host
 #EKG_PORT=12788                           # Override automatic detection of node EKG port
+#PROTOCOL="Cardano"                       # Default: Combinator network. Leave commented if unsure.
 #BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"  # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
 
 #####################################
@@ -143,10 +146,40 @@ timeLeft() {
 
 # Command    : getEpoch
 # Description: Offline calculation of current epoch based on genesis file
+getShelleyTransitionEpoch() {
+  calc_slot=0
+  byron_epochs=${epochnum}
+  shelley_epochs=0
+  while [[ ${byron_epochs} -ge 0 ]]; do
+    calc_slot=$(( (byron_epochs*byron_epoch_length) + (shelley_epochs*epoch_length) + slotinepoch ))
+    [[ ${calc_slot} -eq ${slotnum} ]] && break
+    ((byron_epochs--))
+    ((shelley_epochs++))
+  done
+  if [[ "${nwmagic}" = "764824073" ]]; then
+    echo "208"
+  elif [[ ${calc_slot} -ne ${slotnum} || ${shelley_epochs} -eq 0 ]]; then
+    printf "\n ${FG_RED}ERROR${NC}: Failed to calculate shelley transition epoch!"
+    printf "\n        calculations for tip and epoch might not work correctly"
+    printf "\n\n ${FG_BLUE}Press c to continue or any other key to quit${NC}"
+    read -r -n 1 -s -p "" answer
+    [[ "${answer}" != "c" ]] && myExit 1
+    echo "0"
+  else
+    echo "${byron_epochs}"
+  fi
+}
+
+# Command    : getEpoch
+# Description: Offline calculation of current epoch based on genesis file
 getEpoch() {
   current_time_sec=$(date -u +%s)
-  byron_end_time=$(( byron_genesis_start_sec + ( shelley_transition_epoch * byron_epoch_length * byron_slot_length ) ))
-  echo $(( shelley_transition_epoch + ( (current_time_sec - byron_end_time) / slot_length / epoch_length ) ))
+  if [[ "${PROTOCOL}" = "Cardano" ]]; then
+    byron_end_time=$(( byron_genesis_start_sec + ( shelley_transition_epoch * byron_epoch_length * byron_slot_length ) ))
+    echo $(( shelley_transition_epoch + ( (current_time_sec - byron_end_time) / slot_length / epoch_length ) ))
+  else
+    echo $(( (current_time_sec - shelley_genesis_start_sec) / slot_length / epoch_length ))
+  fi
 }
 
 # Command    : getTimeUntilNextEpoch
@@ -158,9 +191,22 @@ timeUntilNextEpoch() {
 # Command    : getSlotTipRef
 # Description: Get calculated slot number tip
 getSlotTipRef() {
-  byron_slots=$(( shelley_transition_epoch * byron_epoch_length ))
-  byron_end_time=$(( byron_genesis_start_sec + ( shelley_transition_epoch * byron_epoch_length * byron_slot_length ) ))
-  echo $(( byron_slots + (( $(date -u +%s) - byron_end_time ) / slot_length ) ))
+  current_time_sec=$(date -u +%s)
+  if [[ "${PROTOCOL}" = "Cardano" ]]; then
+    # Combinator network
+    byron_slots=$(( shelley_transition_epoch * byron_epoch_length )) # since this point will only be reached once we're in Shelley phase
+    byron_end_time=$(( byron_genesis_start_sec + ( shelley_transition_epoch * byron_epoch_length * byron_slot_length ) ))
+    if [[ "${current_time_sec}" -lt "${byron_end_time}" ]]; then
+      # In Byron phase
+      echo $(( ( current_time_sec - byron_genesis_start_sec ) / byron_slot_length ))
+    else
+      # In Shelley phase
+      echo $(( byron_slots + (( current_time_sec - byron_end_time ) / slot_length ) ))
+    fi
+  else
+    # Shelley Mode only, no Byron slots
+    echo $(( ( current_time_sec - shelley_genesis_start_sec ) / slot_length ))
+  fi
 }
 
 # Command    : kesExpiration [pools remaining KES periods]
@@ -264,26 +310,6 @@ checkPeers() {
 }
 
 #####################################
-# Static genesis variables          #
-#####################################
-shelley_genesis_file=$(jq -r .ShelleyGenesisFile "${CONFIG}")
-byron_genesis_file=$(jq -r .ByronGenesisFile "${CONFIG}")
-shelley_genesis_start=$(jq -r .systemStart "${shelley_genesis_file}")
-shelley_genesis_start_sec=$(date --date="${shelley_genesis_start}" +%s)
-epoch_length=$(jq -r .epochLength "${shelley_genesis_file}")
-slot_length=$(jq -r .slotLength "${shelley_genesis_file}")
-active_slots_coeff=$(jq -r .activeSlotsCoeff "${shelley_genesis_file}")
-decentralisation=$(jq -r .protocolParams.decentralisationParam "${shelley_genesis_file}")
-slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${shelley_genesis_file}")
-max_kes_evolutions=$(jq -r .maxKESEvolutions "${shelley_genesis_file}")
-byron_genesis_start_sec=$(jq -r .startTime "${byron_genesis_file}")
-byron_k=$(jq -r .protocolConsts.k "${byron_genesis_file}")
-byron_slot_length=$(( $(jq -r .blockVersionData.slotDuration "${byron_genesis_file}") / 1000 ))
-byron_epoch_length=$(( 10 * byron_k ))
-shelley_transition_epoch=208
-slot_interval=$(echo "(${slot_length} / ${active_slots_coeff} / ${decentralisation}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}')
-
-#####################################
 # Static variables/calculations     #
 #####################################
 version=$("$(command -v cardano-node)" version)
@@ -294,10 +320,35 @@ show_peers="false"
 line_end=0
 data=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ 2>/dev/null)
 abouttolead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0' <<< "${data}")
-[[ ${abouttolead} -gt 0 ]] && nodemode="Core" || nodemode="Relay"
-kesremain=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
+epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
 slotinepoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
+slotnum=$(jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${data}")
+kesremain=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
+[[ ${abouttolead} -gt 0 ]] && nodemode="Core" || nodemode="Relay"
 kes_expiration="$(kesExpiration "${kesremain}" "${slotinepoch}")" # Wont change until KES rotation and node restart
+
+#####################################
+# Static genesis variables          #
+#####################################
+shelley_genesis_file=$(jq -r .ShelleyGenesisFile "${CONFIG}")
+byron_genesis_file=$(jq -r .ByronGenesisFile "${CONFIG}")
+nwmagic=$(jq -r .networkMagic < $shelley_genesis_file)
+shelley_genesis_start=$(jq -r .systemStart "${shelley_genesis_file}")
+shelley_genesis_start_sec=$(date --date="${shelley_genesis_start}" +%s)
+epoch_length=$(jq -r .epochLength "${shelley_genesis_file}")
+slot_length=$(jq -r .slotLength "${shelley_genesis_file}")
+active_slots_coeff=$(jq -r .activeSlotsCoeff "${shelley_genesis_file}")
+decentralisation=$(jq -r .protocolParams.decentralisationParam "${shelley_genesis_file}")
+slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${shelley_genesis_file}")
+max_kes_evolutions=$(jq -r .maxKESEvolutions "${shelley_genesis_file}")
+if [[ "${PROTOCOL}" = "Cardano" ]]; then
+  byron_genesis_start_sec=$(jq -r .startTime "${byron_genesis_file}")
+  byron_k=$(jq -r .protocolConsts.k "${byron_genesis_file}")
+  byron_slot_length=$(( $(jq -r .blockVersionData.slotDuration "${byron_genesis_file}") / 1000 ))
+  byron_epoch_length=$(( 10 * byron_k ))
+  shelley_transition_epoch=$(getShelleyTransitionEpoch)
+fi
+slot_interval=$(echo "(${slot_length} / ${active_slots_coeff} / ${decentralisation}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}')
 #####################################
 
 clear
