@@ -332,7 +332,7 @@ kes_expiration="$(kesExpiration "${kesremain}" "${slotinepoch}")" # Wont change 
 #####################################
 shelley_genesis_file=$(jq -r .ShelleyGenesisFile "${CONFIG}")
 byron_genesis_file=$(jq -r .ByronGenesisFile "${CONFIG}")
-nwmagic=$(jq -r .networkMagic < $shelley_genesis_file)
+nwmagic=$(jq -r .networkMagic < "${shelley_genesis_file}")
 shelley_genesis_start=$(jq -r .systemStart "${shelley_genesis_file}")
 shelley_genesis_start_sec=$(date --date="${shelley_genesis_start}" +%s)
 epoch_length=$(jq -r .epochLength "${shelley_genesis_file}")
