@@ -118,8 +118,8 @@ waitForInput() {
   ESC=$(printf "\033")
   if ! read -rsn1 -t ${REFRESH_RATE} key1; then return; fi
   [[ ${key1} = "${ESC}" ]] && read -rsn2 -t 0.3 key2 # read 2 more chars
-  [[ ${key1} = "p" ]] && check_peers="true" && return
-  [[ ${key1} = "h" ]] && check_peers_hide="true" && return
+  [[ ${key1} = "p" ]] && check_peers="true" && show_peers="true" && return
+  [[ ${key1} = "h" ]] && show_peers="hide" && return
   [[ ${key1} = "q" ]] && myExit 0 "Guild LiveView stopped!"
   [[ ${key1} = "${ESC}" && ${key2} = "" ]] && myExit 0 "Guild LiveView stopped!"
   sleep 1
@@ -290,8 +290,8 @@ version=$("$(command -v cardano-node)" version)
 node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
 node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
 check_peers="false"
-check_peers_hide="false"
-bdivider_line=0
+show_peers="false"
+line_end=0
 data=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ 2>/dev/null)
 abouttolead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0' <<< "${data}")
 [[ ${abouttolead} -gt 0 ]] && nodemode="Core" || nodemode="Relay"
@@ -301,13 +301,43 @@ kes_expiration="$(kesExpiration "${kesremain}" "${slotinepoch}")" # Wont change 
 #####################################
 
 clear
+tlines=$(tput lines) # set initial terminal lines
+tcols=$(tput cols)   # set initial terminal columns
 
 #####################################
 # MAIN LOOP                         #
 #####################################
 while true; do
+  [[ ${tlines} -ne $(tput lines) || ${tcols} -ne $(tput cols) ]] && redraw_peers=true || redraw_peers=false
+  tlines=$(tput lines) # update terminal lines
+  tcols=$(tput cols)   # update terminal columns
+  [[ ${width} -ge $((tcols-1)) || ${line_end} -ge $((tlines-1)) ]] && clear
+  while [[ ${width} -ge $((tcols-1)) ]]; do
+    tput cup 1 1
+    printf "${FG_RED}Terminal width too small!${NC}"
+    tput cup 3 1
+    printf "Please increase by ${FG_MAGENTA}$(( width - tcols + 2 ))${NC} columns"
+    tput cup 5 1
+    printf "${FG_CYAN}Use CTRL + C to force quit${NC}"
+    sleep 2
+    tlines=$(tput lines) # update terminal lines
+    tcols=$(tput cols)   # update terminal columns
+    redraw_peers=true
+  done
+  while [[ ${line_end} -ge $((tlines-1)) ]]; do
+    tput cup 1 1
+    printf "${FG_RED}Terminal height too small!${NC}"
+    tput cup 3 1
+    printf "Please increase by ${FG_MAGENTA}$(( line_end - tlines + 2 ))${NC} lines"
+    tput cup 5 1
+    printf "${FG_CYAN}Use CTRL + C to force quit${NC}"
+    sleep 2
+    tlines=$(tput lines) # update terminal lines
+    tcols=$(tput cols)   # update terminal columns
+    redraw_peers=true
+  done
+  
   line=0; tput cup 0 0 # reset position
-  tput el
 
   # Gather some data
   data=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ 2>/dev/null)
@@ -335,8 +365,8 @@ while true; do
 
   header_length=$(( ${#NODE_NAME} + ${#nodemode} + ${#node_version} + ${#node_rev} + 16 ))
   [[ ${header_length} -gt ${width} ]] && header_padding=0 || header_padding=$(( (width - header_length) / 2 ))
-  printf "\n%${header_padding}s >> ${FG_GREEN}%s${NC} - ${FG_GREEN}%s${NC} : ${FG_BLUE}%s${NC} [${FG_BLUE}%s${NC}] <<\n" "" "${NODE_NAME}" "${nodemode}" "${node_version}" "${node_rev}"
-  line=$((line+2))
+  printf "%${header_padding}s >> ${FG_GREEN}%s${NC} - ${FG_GREEN}%s${NC} : ${FG_BLUE}%s${NC} [${FG_BLUE}%s${NC}] <<\n" "" "${NODE_NAME}" "${nodemode}" "${node_version}" "${node_rev}"
+  ((line++))
 
   ## Base section ##
   printf "${tdivider}"
@@ -466,139 +496,158 @@ while true; do
   line_wo_peers=${line}
   
   ## Peer Analysis ##
-  if [[ ${check_peers} = "true" ]]; then
-    tput ed
+  if [[ ${show_peers} = "true" ]]; then
     echo "${mdivider}"
     ((line++))
-    printf "${VL} ${FG_YELLOW}Output peer analysis started... update paused${NC}"
-    endLine ${line}
-    echo "${bdivider}"
     
-    checkPeers out
+    if [[ ${check_peers} = "true" ]]; then
+      redraw_peers=true
+      tput ed
+      printf "${VL} ${FG_YELLOW}Output peer analysis started... update paused${NC}"
+      endLine ${line}
+      echo "${bdivider}"
+      checkPeers out
+      # Save values
+      peerCNT0_out=${peerCNT0}; peerCNT1_out=${peerCNT1}; peerCNT2_out=${peerCNT2}; peerCNT3_out=${peerCNT3}; peerCNT4_out=${peerCNT4}
+      peerPCT1_out=${peerPCT1}; peerPCT2_out=${peerPCT2}; peerPCT3_out=${peerPCT3}; peerPCT4_out=${peerPCT4}
+      peerPCT1items_out=${peerPCT1items}; peerPCT2items_out=${peerPCT2items}; peerPCT3items_out=${peerPCT3items}; peerPCT4items_out=${peerPCT4items}
+      peerRTT_out=${peerRTT}; peerRTTAVG_out=${peerRTTAVG}; peerCNTABS_out=${peerCNTABS}; peerCNTSKIPPED_out=${peerCNTSKIPPED}
+    fi
     
-    tput cup ${line} 0
-    
-    printf "${VL}${STANDOUT} OUT ${NC}  RTT : Peers / Percent - %s" "$(date -u '+%F %T Z')"
-    endLine $((line++))
-    printf "${VL}    0-50ms : %5s / %.f%% ${FG_GREEN}" "${peerCNT1}" "${peerPCT1}"
-    tput el && tput cup ${line} ${bar_col_small}
-    for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT1items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-    done
-    printf "${NC}"
-    endLine $((line++))
+    if [[ ${redraw_peers} = "true" ]]; then
 
-    printf "${VL}  50-100ms : %5s / %.f%% ${FG_YELLOW}" "${peerCNT2}" "${peerPCT2}"
-    tput el && tput cup ${line} ${bar_col_small}
-    for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT2items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-    done
-    printf "${NC}"
-    endLine $((line++))
+      tput cup ${line} 0
+      
+      printf "${VL}${STANDOUT} OUT ${NC}  RTT : Peers / Percent - %s" "$(date -u '+%F %T Z')"
+      endLine $((line++))
+      printf "${VL}    0-50ms : %5s / %.f%% ${FG_GREEN}" "${peerCNT1_out}" "${peerPCT1_out}"
+      tput el && tput cup ${line} ${bar_col_small}
+      for i in $(seq 0 $((granularity_small-1))); do
+        [[ $i -lt ${peerPCT1items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
+      done
+      printf "${NC}"
+      endLine $((line++))
 
-    printf "${VL} 100-200ms : %5s / %.f%% ${FG_RED}" "${peerCNT3}" "${peerPCT3}"
-    tput el && tput cup ${line} ${bar_col_small}
-    for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT3items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-    done
-    printf "${NC}"
-    endLine $((line++))
+      printf "${VL}  50-100ms : %5s / %.f%% ${FG_YELLOW}" "${peerCNT2_out}" "${peerPCT2_out}"
+      tput el && tput cup ${line} ${bar_col_small}
+      for i in $(seq 0 $((granularity_small-1))); do
+        [[ $i -lt ${peerPCT2items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
+      done
+      printf "${NC}"
+      endLine $((line++))
 
-    printf "${VL}   200ms < : %5s / %.f%% ${FG_MAGENTA}" "${peerCNT4}" "${peerPCT4}"
-    tput el && tput cup ${line} ${bar_col_small}
-    for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT4items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-    done
-    printf "${NC}"
-    endLine $((line++))
-      if [[ ${peerRTT} -ge 200 ]]; then printf "${VL}   Average : ${FG_MAGENTA}%s${NC} ms" "${peerRTTAVG}"
-    elif [[ ${peerRTT} -ge 100 ]]; then printf "${VL}   Average : ${FG_RED}%s${NC} ms" "${peerRTTAVG}"
-    elif [[ ${peerRTT} -ge 50  ]]; then printf "${VL}   Average : ${FG_YELLOW}%s${NC} ms" "${peerRTTAVG}"
-    elif [[ ${peerRTT} -ge 0   ]]; then printf "${VL}   Average : ${FG_GREEN}%s${NC} ms" "${peerRTTAVG}"; fi
-    endLine $((line++))
-    
-    echo "${m2divider}"
-    ((line++))
-    
-    printf "${VL} Peers Total / Unreachable / Skipped : ${FG_BLUE}%s${NC} / " "${peerCNTABS}"
-    [[ ${peerCNT0} -eq 0 ]] && printf "${FG_BLUE}%s${NC} / " "${peerCNT0}" || printf "${FG_RED}%s${NC} / " "${peerCNT0}"
-    [[ ${peerCNTSKIPPED} -eq 0 ]] && printf "${FG_BLUE}%s${NC}" "${peerCNTSKIPPED}" || printf "${FG_YELLOW}%s${NC}" "${peerCNTSKIPPED}"
-    endLine $((line++))
-    
-    echo "${m2divider}"
-    ((line++))
-    
-    printf "${VL} ${FG_YELLOW}Input peer analysis started... update paused${NC}"
-    endLine ${line}
-    echo "${bdivider}"
-    
-    checkPeers in
-    
-    tput cup ${line} 0
-    
-    printf "${VL}${STANDOUT} In ${NC}   RTT : Peers / Percent"
-    endLine $((line++))
-    printf "${VL}    0-50ms : %5s / %.f%% ${FG_GREEN}" "${peerCNT1}" "${peerPCT1}"
-    tput el && tput cup ${line} ${bar_col_small}
-    for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT1items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-    done
-    printf "${NC}"
-    endLine $((line++))
+      printf "${VL} 100-200ms : %5s / %.f%% ${FG_RED}" "${peerCNT3_out}" "${peerPCT3_out}"
+      tput el && tput cup ${line} ${bar_col_small}
+      for i in $(seq 0 $((granularity_small-1))); do
+        [[ $i -lt ${peerPCT3items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
+      done
+      printf "${NC}"
+      endLine $((line++))
 
-    printf "${VL}  50-100ms : %5s / %.f%% ${FG_YELLOW}" "${peerCNT2}" "${peerPCT2}"
-    tput el && tput cup ${line} ${bar_col_small}
-    for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT2items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-    done
-    printf "${NC}"
-    endLine $((line++))
+      printf "${VL}   200ms < : %5s / %.f%% ${FG_MAGENTA}" "${peerCNT4_out}" "${peerPCT4_out}"
+      tput el && tput cup ${line} ${bar_col_small}
+      for i in $(seq 0 $((granularity_small-1))); do
+        [[ $i -lt ${peerPCT4items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
+      done
+      printf "${NC}"
+      endLine $((line++))
+        if [[ ${peerRTT_out} -ge 200 ]]; then printf "${VL}   Average : ${FG_MAGENTA}%s${NC} ms" "${peerRTTAVG_out}"
+      elif [[ ${peerRTT_out} -ge 100 ]]; then printf "${VL}   Average : ${FG_RED}%s${NC} ms" "${peerRTTAVG_out}"
+      elif [[ ${peerRTT_out} -ge 50  ]]; then printf "${VL}   Average : ${FG_YELLOW}%s${NC} ms" "${peerRTTAVG_out}"
+      elif [[ ${peerRTT_out} -ge 0   ]]; then printf "${VL}   Average : ${FG_GREEN}%s${NC} ms" "${peerRTTAVG_out}"; fi
+      endLine $((line++))
+      
+      echo "${m2divider}"
+      ((line++))
+      
+      printf "${VL} Peers Total / Unreachable / Skipped : ${FG_BLUE}%s${NC} / " "${peerCNTABS_out}"
+      [[ ${peerCNT0_out} -eq 0 ]] && printf "${FG_BLUE}%s${NC} / " "${peerCNT0_out}" || printf "${FG_RED}%s${NC} / " "${peerCNT0_out}"
+      [[ ${peerCNTSKIPPED_out} -eq 0 ]] && printf "${FG_BLUE}%s${NC}" "${peerCNTSKIPPED_out}" || printf "${FG_YELLOW}%s${NC}" "${peerCNTSKIPPED_out}"
+      endLine $((line++))
+      
+      echo "${m2divider}"
+      ((line++))
+      
+      if [[ ${check_peers} = "true" ]]; then
+        printf "${VL} ${FG_YELLOW}Input peer analysis started... update paused${NC}"
+        endLine ${line}
+        echo "${bdivider}"
+        checkPeers in
+        # Save values
+        peerCNT0_in=${peerCNT0}; peerCNT1_in=${peerCNT1}; peerCNT2_in=${peerCNT2}; peerCNT3_in=${peerCNT3}; peerCNT4_in=${peerCNT4}
+        peerPCT1_in=${peerPCT1}; peerPCT2_in=${peerPCT2}; peerPCT3_in=${peerPCT3}; peerPCT4_in=${peerPCT4}
+        peerPCT1items_in=${peerPCT1items}; peerPCT2items_in=${peerPCT2items}; peerPCT3items_in=${peerPCT3items}; peerPCT4items_in=${peerPCT4items}
+        peerRTT_in=${peerRTT}; peerRTTAVG_in=${peerRTTAVG}; peerCNTABS_in=${peerCNTABS}; peerCNTSKIPPED_in=${peerCNTSKIPPED}
+      fi
+      
+      tput cup ${line} 0
+      
+      printf "${VL}${STANDOUT} In ${NC}   RTT : Peers / Percent"
+      endLine $((line++))
+      printf "${VL}    0-50ms : %5s / %.f%% ${FG_GREEN}" "${peerCNT1_in}" "${peerPCT1_in}"
+      tput el && tput cup ${line} ${bar_col_small}
+      for i in $(seq 0 $((granularity_small-1))); do
+        [[ $i -lt ${peerPCT1items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
+      done
+      printf "${NC}"
+      endLine $((line++))
 
-    printf "${VL} 100-200ms : %5s / %.f%% ${FG_RED}" "${peerCNT3}" "${peerPCT3}"
-    tput el && tput cup ${line} ${bar_col_small}
-    for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT3items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-    done
-    printf "${NC}"
-    endLine $((line++))
+      printf "${VL}  50-100ms : %5s / %.f%% ${FG_YELLOW}" "${peerCNT2_in}" "${peerPCT2_in}"
+      tput el && tput cup ${line} ${bar_col_small}
+      for i in $(seq 0 $((granularity_small-1))); do
+        [[ $i -lt ${peerPCT2items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
+      done
+      printf "${NC}"
+      endLine $((line++))
 
-    printf "${VL}   200ms < : %5s / %.f%% ${FG_MAGENTA}" "${peerCNT4}" "${peerPCT4}"
-    tput el && tput cup ${line} ${bar_col_small}
-    for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT4items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-    done
-    printf "${NC}"
-    endLine $((line++))
-      if [[ ${peerRTT} -ge 200 ]]; then printf "${VL}   Average : ${FG_MAGENTA}%s${NC} ms" "${peerRTTAVG}"
-    elif [[ ${peerRTT} -ge 100 ]]; then printf "${VL}   Average : ${FG_RED}%s${NC} ms" "${peerRTTAVG}"
-    elif [[ ${peerRTT} -ge 50  ]]; then printf "${VL}   Average : ${FG_YELLOW}%s${NC} ms" "${peerRTTAVG}"
-    elif [[ ${peerRTT} -ge 0   ]]; then printf "${VL}   Average : ${FG_GREEN}%s${NC} ms" "${peerRTTAVG}"; fi
-    endLine $((line++))
-    
-    echo "${m2divider}"
-    ((line++))
-    
-    printf "${VL} Peers Total / Unreachable / Skipped : ${FG_BLUE}%s${NC} / " "${peerCNTABS}"
-    [[ ${peerCNT0} -eq 0 ]] && printf "${FG_BLUE}%s${NC} / " "${peerCNT0}" || printf "${FG_RED}%s${NC} / " "${peerCNT0}"
-    [[ ${peerCNTSKIPPED} -eq 0 ]] && printf "${FG_BLUE}%s${NC}" "${peerCNTSKIPPED}" || printf "${FG_YELLOW}%s${NC}" "${peerCNTSKIPPED}"
-    endLine $((line++))
+      printf "${VL} 100-200ms : %5s / %.f%% ${FG_RED}" "${peerCNT3_in}" "${peerPCT3_in}"
+      tput el && tput cup ${line} ${bar_col_small}
+      for i in $(seq 0 $((granularity_small-1))); do
+        [[ $i -lt ${peerPCT3items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
+      done
+      printf "${NC}"
+      endLine $((line++))
+
+      printf "${VL}   200ms < : %5s / %.f%% ${FG_MAGENTA}" "${peerCNT4_in}" "${peerPCT4_in}"
+      tput el && tput cup ${line} ${bar_col_small}
+      for i in $(seq 0 $((granularity_small-1))); do
+        [[ $i -lt ${peerPCT4items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
+      done
+      printf "${NC}"
+      endLine $((line++))
+        if [[ ${peerRTT_in} -ge 200 ]]; then printf "${VL}   Average : ${FG_MAGENTA}%s${NC} ms" "${peerRTTAVG_in}"
+      elif [[ ${peerRTT_in} -ge 100 ]]; then printf "${VL}   Average : ${FG_RED}%s${NC} ms" "${peerRTTAVG_in}"
+      elif [[ ${peerRTT_in} -ge 50  ]]; then printf "${VL}   Average : ${FG_YELLOW}%s${NC} ms" "${peerRTTAVG_in}"
+      elif [[ ${peerRTT_in} -ge 0   ]]; then printf "${VL}   Average : ${FG_GREEN}%s${NC} ms" "${peerRTTAVG_in}"; fi
+      endLine $((line++))
+      
+      echo "${m2divider}"
+      ((line++))
+      
+      printf "${VL} Peers Total / Unreachable / Skipped : ${FG_BLUE}%s${NC} / " "${peerCNTABS_in}"
+      [[ ${peerCNT0_in} -eq 0 ]] && printf "${FG_BLUE}%s${NC} / " "${peerCNT0_in}" || printf "${FG_RED}%s${NC} / " "${peerCNT0_in}"
+      [[ ${peerCNTSKIPPED_in} -eq 0 ]] && printf "${FG_BLUE}%s${NC}" "${peerCNTSKIPPED_in}" || printf "${FG_YELLOW}%s${NC}" "${peerCNTSKIPPED_in}"
+      endLine $((line++))
+    fi
   fi
   
-  if [[ ${check_peers_hide} = "true" ]]; then
-    check_peers_hide=false
-    bdivider_line=${line_wo_peers}
-    tput cup ${bdivider_line} 0
+  if [[ ${show_peers} = "hide" ]]; then
+    show_peers=false
     tput ed
-  elif [[ ${bdivider_line} -lt ${line} ]]; then
-    bdivider_line=${line}
+    line_end=${line_wo_peers}
+  elif [[ ${line_end} -lt ${line} ]]; then
+    line_end=${line}
   fi
-  tput cup ${bdivider_line} 0
+  tput cup ${line_end} 0
   echo "${bdivider}"
   printf " ${FG_YELLOW}[esc/q] Quit${NC} | ${FG_YELLOW}[p] Peer Analysis${NC}"
-  if [[ ${check_peers} = "true" ]]; then
+  if [[ "${check_peers}" = "true" ]]; then
+    check_peers="false"
+  fi
+  if [[ "${show_peers}" = "true" ]]; then
     printf " | ${FG_YELLOW}[h] Hide Peers${NC}"
-    check_peers=false
+  else
+    tput el
   fi
   waitForInput
 done
-
