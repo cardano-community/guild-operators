@@ -9,9 +9,9 @@
 # The commands below will try to detect the information assuming you run single node on a machine. 
 # Please override values if they dont match your system in the 'User Variables' section below 
 [[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
-[[ "$(ps -ef | grep "[c]ardano-node")" =~ --port[[:space:]]([[:digit:]]+) ]]
+[[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --port[[:space:]]([[:digit:]]+) ]]
 CNODE_PORT=${BASH_REMATCH[1]:-6000} # default value: 6000
-[[ "$(ps -ef | grep "[c]ardano-node")" =~ --config[[:space:]]([^[:space:]]+) ]]
+[[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --config[[:space:]]([^[:space:]]+) ]]
 CONFIG="${BASH_REMATCH[1]:-${CNODE_HOME}/files/config.json}" # default value: /opt/cardano/cnode/files/config.json
 if [[ -f "${CONFIG}" ]]; then
   EKG_PORT=$(jq -r '.hasEKG //empty' "${CONFIG}" 2>/dev/null)
