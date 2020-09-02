@@ -149,11 +149,12 @@ getShelleyTransitionEpoch() {
   if [[ "${nwmagic}" = "764824073" ]]; then
     echo "208"
   elif [[ ${calc_slot} -ne ${slotnum} || ${shelley_epochs} -eq 0 ]]; then
+    clear
     printf "\n ${FG_RED}ERROR${NC}: Failed to calculate shelley transition epoch!"
     printf "\n        calculations for tip and epoch might not work correctly"
     printf "\n\n ${FG_BLUE}Press c to continue or any other key to quit${NC}"
     read -r -n 1 -s -p "" answer
-    [[ "${answer}" != "c" ]] && myExit 1
+    [[ "${answer}" != "c" ]] && myExit 1 "Guild LiveView terminated!"
     echo "0"
   else
     echo "${byron_epochs}"
@@ -337,6 +338,8 @@ if [[ "${PROTOCOL}" = "Cardano" ]]; then
   byron_slot_length=$(( $(jq -r .blockVersionData.slotDuration "${byron_genesis_file}") / 1000 ))
   byron_epoch_length=$(( 10 * byron_k ))
   shelley_transition_epoch=$(getShelleyTransitionEpoch)
+else
+  shelley_transition_epoch=-1
 fi
 slot_interval=$(echo "(${slot_length} / ${active_slots_coeff} / ${decentralisation}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}')
 #####################################
@@ -426,7 +429,11 @@ while true; do
   printf "\\u2524\n"
   ((line++))
 
-  epoch_progress=$(echo "(${slotinepoch}/${epoch_length})*100" | bc -l)
+  if [[ ${shelley_transition_epoch} = -1 || ${epochnum} -ge ${shelley_transition_epoch} ]]; then
+    epoch_progress=$(echo "(${slotinepoch}/${epoch_length})*100" | bc -l)        # in Shelley era or Shelley only TestNet
+  else
+    epoch_progress=$(echo "(${slotinepoch}/${byron_epoch_length})*100" | bc -l)  # in Byron era
+  fi
   printf "${VL} Epoch ${FG_BLUE}%s${NC} [%2.1f%%] (node)" "${epochnum}" "${epoch_progress}"
   endLine $((line++))
   printf "${VL} %s until epoch boundary (chain)" "$(timeLeft "$(timeUntilNextEpoch)")"
