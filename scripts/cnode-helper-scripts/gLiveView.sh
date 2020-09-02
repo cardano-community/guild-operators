@@ -147,17 +147,17 @@ getShelleyTransitionEpoch() {
     ((shelley_epochs++))
   done
   if [[ "${nwmagic}" = "764824073" ]]; then
-    echo "208"
+    shelley_transition_epoch=208
   elif [[ ${calc_slot} -ne ${slotnum} || ${shelley_epochs} -eq 0 ]]; then
     clear
-    printf "\n ${FG_RED}ERROR${NC}: Failed to calculate shelley transition epoch!"
-    printf "\n        calculations for tip and epoch might not work correctly"
+    printf "\n ${FG_RED}Failed${NC} to calculate shelley transition epoch!"
+    printf "\n Calculations might not work correctly until Shelley era is reached."
     printf "\n\n ${FG_BLUE}Press c to continue or any other key to quit${NC}"
     read -r -n 1 -s -p "" answer
     [[ "${answer}" != "c" ]] && myExit 1 "Guild LiveView terminated!"
-    echo "0"
+    shelley_transition_epoch=0
   else
-    echo "${byron_epochs}"
+    shelley_transition_epoch=${byron_epochs}
   fi
 }
 
@@ -337,7 +337,7 @@ if [[ "${PROTOCOL}" = "Cardano" ]]; then
   byron_k=$(jq -r .protocolConsts.k "${byron_genesis_file}")
   byron_slot_length=$(( $(jq -r .blockVersionData.slotDuration "${byron_genesis_file}") / 1000 ))
   byron_epoch_length=$(( 10 * byron_k ))
-  shelley_transition_epoch=$(getShelleyTransitionEpoch)
+  getShelleyTransitionEpoch
 else
   shelley_transition_epoch=-1
 fi
