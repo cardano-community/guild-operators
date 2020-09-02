@@ -1,5 +1,8 @@
 #!/bin/bash
 # shellcheck disable=SC2086
+
+unset CNODE_HOME
+
 get_input() {
   printf "%s (default: %s): " "$1" "$2" >&2; read -r answer
   if [ -z "$answer" ]; then echo "$2"; else echo "$answer"; fi
@@ -35,6 +38,7 @@ Install pre-requisites for building cardano node and using cntools
 -i    Interactive mode (Default: silent mode)
 -g    Connect to guild network instead of public network (Default: connect to public cardano network)
 -p    Copy Transitional Praos config as default instead of Combinator networks (Default: copies combinator network)
+-t    Alternate name for top level folder
 EOF
   exit 1
 }
@@ -42,7 +46,7 @@ EOF
 WANT_BUILD_DEPS='Y'
 OVERWRITE=' '
 
-while getopts :igpso opt; do
+while getopts :igpsot: opt; do
   case ${opt} in
     i )
       INTERACTIVE='Y'
@@ -59,6 +63,9 @@ while getopts :igpso opt; do
     o )
       OVERWRITE=' -C -'
       ;;
+    t )
+      CNODE_NAME=${OPTARG}
+      ;;
     \? )
       usage
       ;;
@@ -72,7 +79,7 @@ G_ID=$(id -g)
 
 # Defaults
 CNODE_PATH="/opt/cardano"
-CNODE_NAME="cnode"
+[[ -z "${CNODE_NAME}" ]] && CNODE_NAME="cnode"
 CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
 CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
 
