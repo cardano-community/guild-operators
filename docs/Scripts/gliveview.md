@@ -13,7 +13,7 @@ To get current epoch blocks, [cntoolsBlockCollector.sh](Scripts/cntools-blocks.m
 
 To download the script:
 ```bash
-curl -s -o gLiveView.sh curl -s -o gLiveView.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/gLiveView.sh
+curl -s -o gLiveView.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/gLiveView.sh
 chmod 755 gLiveView.sh
 ```
 
