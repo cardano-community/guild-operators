@@ -1,5 +1,8 @@
 #!/bin/bash
 # shellcheck disable=SC2086
+
+unset CNODE_HOME
+
 get_input() {
   printf "%s (default: %s): " "$1" "$2" >&2; read -r answer
   if [ -z "$answer" ]; then echo "$2"; else echo "$answer"; fi
@@ -35,6 +38,7 @@ Install pre-requisites for building cardano node and using cntools
 -i    Interactive mode (Default: silent mode)
 -g    Connect to guild network instead of public network (Default: connect to public cardano network)
 -p    Copy Transitional Praos config as default instead of Combinator networks (Default: copies combinator network)
+-t    Alternate name for top level folder
 EOF
   exit 1
 }
@@ -42,7 +46,7 @@ EOF
 WANT_BUILD_DEPS='Y'
 OVERWRITE=' '
 
-while getopts :igpso opt; do
+while getopts :igpsot: opt; do
   case ${opt} in
     i )
       INTERACTIVE='Y'
@@ -59,6 +63,9 @@ while getopts :igpso opt; do
     o )
       OVERWRITE=' -C -'
       ;;
+    t )
+      CNODE_NAME=${OPTARG}
+      ;;
     \? )
       usage
       ;;
@@ -72,7 +79,7 @@ G_ID=$(id -g)
 
 # Defaults
 CNODE_PATH="/opt/cardano"
-CNODE_NAME="cnode"
+[[ -z "${CNODE_NAME}" ]] && CNODE_NAME="cnode"
 CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
 CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
 
@@ -114,10 +121,11 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     echo "deb https://dl.yarnpkg.com/debian/ stable main" | $sudo tee /etc/apt/sources.list.d/yarn.list > /dev/null
     $sudo apt-get -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    $sudo apt-get -y install libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev yarn make g++ tmux git jq wget libncursesw5 gnupg aptitude libtool autoconf secure-delete net-tools > /dev/null;rc=$?
+    pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev yarn make g++ tmux git jq wget libncursesw5 gnupg aptitude libtool autoconf secure-delete net-tools bc tcptraceroute"
+    $sudo apt-get -y install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
-      echo "sudo apt-get -y install python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev npm yarn make g++ tmux git jq wget libncursesw5 gnupg libtool autoconf bsdmainutils"
+      echo "sudo apt-get -y install ${pkg_list}"
       echo "It would be best if you could submit an issue at https://github.com/cardano-community/guild-operators with the details to tackle in future, as some errors may be due to external/already present dependencies"
       exit;
     else
@@ -132,10 +140,11 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo rpm --import https://dl.yarnpkg.com/rpm/pubkey.gpg > /dev/null
     $sudo yum -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    $sudo yum -y install python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq gnupg libtool autoconf srm net-tools > /dev/null;rc=$?
+    pkg_list="python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq gnupg libtool autoconf srm net-tools bc tcptraceroute"
+    $sudo yum -y install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
-      echo "sudo yum -y install coreutils python3 pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel npm yarn make gcc-c++ tmux git wget epel-release jq gnupg libtool autoconf util-linux"
+      echo "sudo yum -y ${pkg_list}"
       echo "It would be best if you could submit an issue at https://github.com/cardano-community/guild-operators with the details to tackle in future, as some errors may be due to external/already present dependencies"
       exit;
     fi
@@ -232,15 +241,11 @@ else
   cp ptn0-mainnet.json config.json
 fi
 
-# If using a different CNODE_HOME than in this example, execute the below:
-# sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/*.json
-## For future use:
-## It generates random NodeID:
-## -e "s#NodeId:.*#NodeId:$(od -A n -t u8 -N 8 /dev/urandom$(#" \
+sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/*.json
 
 cd "$CNODE_HOME"/scripts || return
 curl -s -o env https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
-sed -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i env
+sed -e "s@CNODE_HOME=.*@${CNODE_VNAME}_HOME=${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i env
 curl -s -o createAddr.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/createAddr.sh
 curl -s -o sendADA.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/sendADA.sh
 curl -s -o balance.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/balance.sh
@@ -253,12 +258,13 @@ curl -s -o cntoolsBlockCollector.sh https://raw.githubusercontent.com/cardano-co
 curl -s -o setup_mon.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/setup_mon.sh
 curl -s -o topologyUpdater.sh ${OVERWRITE} https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/topologyUpdater.sh
 curl -s -o itnRewards.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/itnRewards.sh
-sed -e "s@CNODE_HOME=.*@${CNODE_VNAME}_HOME=${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i cnode.sh
 curl -s -o cabal-build-all.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cabal-build-all.sh
 curl -s -o stack-build.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/stack-build.sh
 curl -s -o system-info.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/system-info.sh
 curl -s -o sLiveView.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/sLiveView.sh
+curl -s -o gLiveView.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/gLiveView.sh
+curl -s -o deploy-as-systemd.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/deploy-as-systemd.sh
+sed -e "s@SyslogIdentifier=.*@SyslogIdentifier=${CNODE_NAME}@g" -e "s@cnode.service@${CNODE_NAME}.service@g" -i deploy-as-systemd.sh
+sed -e "s@CNODE_HOME=.*@${CNODE_VNAME}_HOME=${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*.*
 chmod 755 ./*.sh
-# If you opt for an alternate CNODE_HOME, please run the below:
-# sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" *.sh
 cd - || return

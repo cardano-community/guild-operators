@@ -57,62 +57,34 @@ cd $CNODE_HOME/scripts
 
 The preferred way to run the node is through a service manager like systemd. This section explains how to setup a systemd service file.
 
-**1. Create systemd service file** 
-Replace `$USER` with the correct user for your system. Copy & paste all code below to create the service file.
-``` bash
-sudo bash -c "cat << 'EOF' > /etc/systemd/system/cnode.service
-[Unit]
-Description=Cardano Node
-After=network.target
-
-[Service]
-Type=simple
-Restart=on-failure
-RestartSec=5
-User=$USER
-LimitNOFILE=1048576
-WorkingDirectory=$CNODE_HOME/scripts
-ExecStart=/bin/bash -l -c \"exec $CNODE_HOME/scripts/cnode.sh\"
-ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep [c]ardano-node.*.node0.socket | tr -s ' ' | cut -d ' ' -f2)\"
-KillSignal=SIGINT
-SuccessExitStatus=143
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=cnode
-TimeoutStopSec=5
-KillMode=mixed
-
-[Install]
-WantedBy=multi-user.target
-EOF"
+**1. Deploy as a systemd service**  
+Execute the below command to deploy your node as a systemd service (from the respective scripts folder):
+```bash
+cd $CNODE_HOME/scripts
+./deploy-as-systemd.sh
 ```
 
-**2. Reload systemd and enable automatic start of service on startup**  
-``` bash
-sudo systemctl daemon-reload
-sudo systemctl enable cnode.service
-```
-
-**3. Start the node**  
+**2. Start the node**  
 Run below commands to enable automatic start of service on startup and start it.
 ``` bash
 sudo systemctl start cnode.service
 ```
 
-**4. Check status and stop/start commands** 
+**3. Check status and stop/start commands** 
 Replace `status` with `stop`/`start`/`restart` depending on what action to take.
 ``` bash
 sudo systemctl status cnode.service
 ```
 
-You can use [sLiveView](Scripts/sliveview.md) to monitor your pool that was started as systemd, if you miss the LiveView functionality.
+?> In case you see the node exit unsuccessfully upon checking status, please verify you've followed the transition process correctly as documented below, and that you do not have another instance of node already running. It would help to check your system logs (/var/log/syslog for debian-based and /var/log/messages for redhat/CentOS/Fedora systems) for any errors while starting node.
+
+You can use [gLiveView](Scripts/gliveview.md) to monitor your pool that was started as systemd, if you miss the LiveView functionality.
 
 ##### Steps to transition from LiveView in tmux to systemd setup
 
 If you've followed guide from this repo previously and would like to transfer to systemd usage, please checkout the steps below:
 
 1. Stop previous instance of node if already running (eg: in tmux)
-2. Run `prereqs.sh` OR simply replace `LiveView` to `SimpleView` in your $CNODE_HOME/files/config.json.
-   (PS: Remember to preserve your customisations to cnode.sh, topology.json, env files - you can refer to changes in [PR-449](https://github.com/cardano-community/guild-operators/pull/449/files) to manually apply changes without affecting your setup much)
+2. Run `prereqs.sh`, but remember to preserve your customisations to cnode.sh, topology.json, env files.
 3. Follow the instructions [above](#run-as-systemd-service) to setup your node as a service and start it using systemctl as directed.
 4. If you need to monitor via interactive terminal as before, use [sLiveView](Scripts/sliveview.md).
