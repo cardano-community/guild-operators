@@ -134,14 +134,14 @@ timeLeft() {
   printf '%02d:%02d:%02d' $H $M $S
 }
 
-# Command    : getEpoch
-# Description: Offline calculation of current epoch based on genesis file
+# Command    : getShelleyTransitionEpoch
+# Description: Calculate shelley transition epoch
 getShelleyTransitionEpoch() {
   calc_slot=0
   byron_epochs=${epochnum}
   shelley_epochs=0
   while [[ ${byron_epochs} -ge 0 ]]; do
-    calc_slot=$(( (byron_epochs*byron_epoch_length) + (shelley_epochs*epoch_length) + slotinepoch ))
+    calc_slot=$(( (byron_epochs*byron_epoch_length) + (shelley_epochs*epoch_length) + slot_in_epoch ))
     [[ ${calc_slot} -eq ${slotnum} ]] && break
     ((byron_epochs--))
     ((shelley_epochs++))
@@ -203,11 +203,9 @@ getSlotTipRef() {
 # Command    : kesExpiration [pools remaining KES periods]
 # Description: Calculate KES expiration
 kesExpiration() {
-  remaining_kes_periods=$1
-  slot_in_epoch=$2
   current_time_sec=$(date -u +%s)
   expiration_time_sec=$(( current_time_sec - ( slot_length * slot_in_epoch ) + ( slot_length * slots_per_kes_period * remaining_kes_periods ) ))
-  date '+%F %T Z' --date=@${expiration_time_sec}
+  kes_expiration=$(date '+%F %T Z' --date=@${expiration_time_sec})
 }
 
 endLine() {
@@ -310,13 +308,12 @@ check_peers="false"
 show_peers="false"
 line_end=0
 data=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ 2>/dev/null)
-abouttolead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0' <<< "${data}")
+about_to_lead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0' <<< "${data}")
 epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
-slotinepoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
+slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
 slotnum=$(jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${data}")
-kesremain=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
-[[ ${abouttolead} -gt 0 ]] && nodemode="Core" || nodemode="Relay"
-kes_expiration="$(kesExpiration "${kesremain}" "${slotinepoch}")" # Wont change until KES rotation and node restart
+remaining_kes_periods=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
+[[ ${about_to_lead} -gt 0 ]] && nodemode="Core" || nodemode="Relay"
 
 #####################################
 # Static genesis variables          #
@@ -341,7 +338,9 @@ if [[ "${PROTOCOL}" = "Cardano" ]]; then
 else
   shelley_transition_epoch=-1
 fi
+#####################################
 slot_interval=$(echo "(${slot_length} / ${active_slots_coeff} / ${decentralisation}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}')
+kesExpiration # Static and wont change until KES rotation and node restart
 #####################################
 
 clear
@@ -393,7 +392,7 @@ while true; do
   peers_out=$(jq '.cardano.node.BlockFetchDecision.peers.connectedPeers.int.val //0' <<< "${data}")
   blocknum=$(jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${data}")
   epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
-  slotinepoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
+  slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
   slotnum=$(jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${data}")
   density=$(jq -r '.cardano.node.ChainDB.metrics.density.real.val //0' <<< "${data}")
   density=$(printf "%3.3e" "${density}"| cut -d 'e' -f1)
@@ -401,7 +400,7 @@ while true; do
   mempool_tx=$(jq '.cardano.node.metrics.txsInMempool.int.val //0' <<< "${data}")
   mempool_bytes=$(jq '.cardano.node.metrics.mempoolBytes.int.val //0' <<< "${data}")
   kesperiod=$(jq '.cardano.node.Forge.metrics.currentKESPeriod.int.val //0' <<< "${data}")
-  kesremain=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
+  remaining_kes_periods=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
   isleader=$(jq '.cardano.node.metrics.Forge["node-is-leader"].int.val //0' <<< "${data}")
   forged=$(jq '.cardano.node.metrics.Forge.forged.int.val //0' <<< "${data}")
   adopted=$(jq '.cardano.node.metrics.Forge.adopted.int.val //0' <<< "${data}")
@@ -430,9 +429,9 @@ while true; do
   ((line++))
 
   if [[ ${shelley_transition_epoch} = -1 || ${epochnum} -ge ${shelley_transition_epoch} ]]; then
-    epoch_progress=$(echo "(${slotinepoch}/${epoch_length})*100" | bc -l)        # in Shelley era or Shelley only TestNet
+    epoch_progress=$(echo "(${slot_in_epoch}/${epoch_length})*100" | bc -l)        # in Shelley era or Shelley only TestNet
   else
-    epoch_progress=$(echo "(${slotinepoch}/${byron_epoch_length})*100" | bc -l)  # in Byron era
+    epoch_progress=$(echo "(${slot_in_epoch}/${byron_epoch_length})*100" | bc -l)  # in Byron era
   fi
   printf "${VL} Epoch ${FG_BLUE}%s${NC} [%2.1f%%] (node)" "${epochnum}" "${epoch_progress}"
   endLine $((line++))
@@ -454,7 +453,7 @@ while true; do
   tput cup ${line} ${second_col}
   printf "Tip (ref)  : ${FG_BLUE}%s${NC}" "${tip_ref}"
   endLine $((line++))
-  printf "${VL} Slot    : ${FG_BLUE}%s${NC}" "${slotinepoch}"
+  printf "${VL} Slot    : ${FG_BLUE}%s${NC}" "${slot_in_epoch}"
   tput cup ${line} ${second_col}
   printf "Tip (node) : ${FG_BLUE}%s${NC}" "${slotnum}"
   endLine $((line++))
@@ -487,12 +486,12 @@ while true; do
     ((line++))
     
     printf "${VL} KES current/remaining   : ${FG_BLUE}%s${NC} / " "${kesperiod}"
-    if [[ ${kesremain} -le 0 ]]; then
-      printf "${FG_RED}%s${NC}" "${kesremain}"
-    elif [[ ${kesremain} -le 8 ]]; then
-      printf "${FG_YELLOW}%s${NC}" "${kesremain}"
+    if [[ ${remaining_kes_periods} -le 0 ]]; then
+      printf "${FG_RED}%s${NC}" "${remaining_kes_periods}"
+    elif [[ ${remaining_kes_periods} -le 8 ]]; then
+      printf "${FG_YELLOW}%s${NC}" "${remaining_kes_periods}"
     else
-      printf "${FG_BLUE}%s${NC}" "${kesremain}"
+      printf "${FG_BLUE}%s${NC}" "${remaining_kes_periods}"
     fi
     endLine $((line++))
     printf "${VL} KES expiration date     : ${FG_BLUE}%s${NC}" "${kes_expiration}"
