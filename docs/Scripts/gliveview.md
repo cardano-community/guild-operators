@@ -1,12 +1,12 @@
 !> Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
 
-**Guild LiveView - gLiveView** is a utility to display an equivalent subset of LiveView interface that cardano-node users have grown accustomed to. This is useful when changing to `SimpleView` and moving to a systemd deployment - if you haven't done so already - while looking for a familiar UI to monitor the node status.
+**Guild LiveView - gLiveView** is a utility to display an equivalent subset of LiveView interface that cardano-node users have grown accustomed to. This is especially useful when moving to a systemd deployment - if you haven't done so already - while looking for a familiar UI to monitor the node status.
 
 The tool is independent from other files and can run as a standalone utility that can be stopped/started without affecting the status of cardano-node.
 
 ##### Download & Setup
 
-The tool in itself should only require a single file. If you've used [prereqs.sh](basics.md#pre-requisites), you can skip this part , as this is already set up for you.
+The tool in itself should only require a single file. If you've used [prereqs.sh](basics.md#pre-requisites), you can skip this part , as this is already set up for you.  
 To get current epoch blocks, [cntoolsBlockCollector.sh](Scripts/cntools-blocks.md) script is needed. This is optional and **Guild LiveView** will function without it.
 
 ?> For those who follow guild's [folder structure](basics.md#folder-structure) and do not wish to run prereqs.sh, you can run the below in `$CNODE_HOME/scripts` folder
@@ -19,7 +19,7 @@ chmod 755 gLiveView.sh
 
 ##### Startup
 
-For most standard deployments, this should lead you to a stage where you can now start running gLiveView.sh - it will automatically detect when you're running as a Core or Relay and show fields accordingly.  
+For most standard deployments, this should lead you to a stage where you can now start running `./gLiveView.sh` in the folder you downloaded the script (default location for cntools users would be `$CNODE_HOME/scripts`). Note that the script is smart enough to automatically detect when you're running as a Core or Relay and will show fields accordingly.  
 A sample output from both core and relay(with peer analysis run):
 
 ![Core](https://raw.githubusercontent.com/cardano-community/guild-operators/images/gliveview-core.png)
