@@ -48,7 +48,7 @@
   "defaultScribes": [
     [
       "FileSK",
-      "/opt/cardano/cnode/logs/node-0.json"
+      "/opt/cardano/cnode/logs/node0.json"
     ]
   ],
   "hasEKG": 12788,
@@ -166,7 +166,7 @@
   "setupScribes": [
     {
       "scKind": "FileSK",
-      "scName": "/opt/cardano/cnode/logs/node-0.json",
+      "scName": "/opt/cardano/cnode/logs/node0.json",
       "scFormat": "ScJson",
       "scRotation": null
     }
