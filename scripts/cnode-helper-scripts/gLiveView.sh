@@ -224,32 +224,30 @@ checkPeers() {
   peerCNT=0; peerCNT0=0; peerCNT1=0; peerCNT2=0; peerCNT3=0; peerCNT4=0
   peerPCT1=0; peerPCT2=0; peerPCT3=0; peerPCT4=0
   peerPCT1items=0; peerPCT2items=0; peerPCT3items=0; peerPCT4items=0
-  peerRTTSUM=0; peerCNTSKIPPED=0; peerCNTABS=0; peerRTTAVG=0
-  uniqPeers=()
+  peerRTTSUM=0; peerCNTSKIPPED=0; peerCNTUnique=0; peerCNTABS=0; peerRTTAVG=0
+  uniquePeers=()
   direction=$1
-  
-  pid=$(netstat -lnp 2>/dev/null | grep -e ":${CNODE_PORT}" | awk '{print $7}' | tail -n 1 | cut -d"/" -f1)
-  [[ -z ${pid} || ${pid} = "-" ]] && return
 
   if [[ ${direction} = "out" ]]; then
-    netstatPeers=$(netstat -np 2>/dev/null | grep -e "ESTABLISHED.* ${pid}/" | grep -v ":${CNODE_PORT}" | awk '{print $5}')
+    netstatPeers=$(netstat -np 2>/dev/null | grep -e "ESTABLISHED.* ${pid}/" | awk -v port=":${CNODE_PORT}" '$4 !~ port {print $5}')
   else
-    netstatPeers=$(netstat -np 2>/dev/null | grep -e "ESTABLISHED.* ${pid}/" | grep ":${CNODE_PORT}" | awk '{print $5}')
+    netstatPeers=$(netstat -np 2>/dev/null | grep -e "ESTABLISHED.* ${pid}/" | awk -v port=":${CNODE_PORT}" '$4 ~ port {print $5}')
   fi
   netstatSorted=$(printf '%s\n' "${netstatPeers[@]}" | sort )
+  peerCNTABS=$(printf '%s\n' "${netstatPeers[@]}" | wc -l)
   
   # Sort/filter peers
   lastpeerIP=""; lastpeerPORT=""
-  for peer in $netstatSorted; do
+  for peer in ${netstatSorted}; do
     peerIP=$(echo "${peer}" | cut -d: -f1); peerPORT=$(echo "${peer}" | cut -d: -f2)
-    if [[ ! "$peerIP" = "$lastpeerIP" ]]; then
+    if [[ ! "${peerIP}" = "${lastpeerIP}" ]]; then
       lastpeerIP=${peerIP}
       lastpeerPORT=${peerPORT}
-      uniqPeers+=("${peerIP}:${peerPORT} ")
-      ((peerCNTABS++))
+      uniquePeers+=("${peerIP}:${peerPORT} ")
+      ((peerCNTUnique++))
     fi
   done
-  netstatPeers=$(printf '%s\n' "${uniqPeers[@]}")
+  netstatPeers=$(printf '%s\n' "${uniquePeers[@]}")
   
   # Ping every node in the list
   for peer in ${netstatPeers}; do
@@ -283,7 +281,7 @@ checkPeers() {
   if [[ ${peerCNT} -gt 0 ]]; then 
     peerRTTAVG=$((peerRTTSUM / peerCNT))
   fi
-  peerCNTSKIPPED=$((peerCNTABS - peerCNT - peerCNT0))
+  peerCNTSKIPPED=$(( peerCNTABS - peerCNTUnique ))
   
   peerMAX=0
   if [[ ${peerCNT} -gt 0 ]]; then
@@ -304,6 +302,8 @@ checkPeers() {
 version=$("$(command -v cardano-node)" version)
 node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
 node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
+pid=$(ps -ef | grep "[-]-port ${CNODE_PORT}" | awk '{print $2}')
+[[ -z ${pid} ]] && myExit 1 "Failed to locate cardano-node process ID, make sure CNODE_PORT is correctly set in script!"
 check_peers="false"
 show_peers="false"
 line_end=0
@@ -388,7 +388,7 @@ while true; do
   if ((uptimens<=0)); then
     myExit 1 "${FG_RED}COULD NOT CONNECT TO A RUNNING INSTANCE!${NC}\nPLEASE CHECK THE EKG PORT AND TRY AGAIN!"
   fi
-  peers_in=$(netstat -an|awk "\$4 ~ /${CNODE_PORT}/"|grep -c ESTABLISHED)
+  peers_in=$(netstat -np 2>/dev/null | grep -e "ESTABLISHED.* ${pid}/" | awk -v port=":${CNODE_PORT}" '$4 ~ port {print}' | wc -l)
   peers_out=$(jq '.cardano.node.BlockFetchDecision.peers.connectedPeers.int.val //0' <<< "${data}")
   blocknum=$(jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${data}")
   epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
@@ -558,15 +558,19 @@ while true; do
       peerCNT0_out=${peerCNT0}; peerCNT1_out=${peerCNT1}; peerCNT2_out=${peerCNT2}; peerCNT3_out=${peerCNT3}; peerCNT4_out=${peerCNT4}
       peerPCT1_out=${peerPCT1}; peerPCT2_out=${peerPCT2}; peerPCT3_out=${peerPCT3}; peerPCT4_out=${peerPCT4}
       peerPCT1items_out=${peerPCT1items}; peerPCT2items_out=${peerPCT2items}; peerPCT3items_out=${peerPCT3items}; peerPCT4items_out=${peerPCT4items}
-      peerRTT_out=${peerRTT}; peerRTTAVG_out=${peerRTTAVG}; peerCNTABS_out=${peerCNTABS}; peerCNTSKIPPED_out=${peerCNTSKIPPED}
+      peerRTT_out=${peerRTT}; peerRTTAVG_out=${peerRTTAVG}; peerCNTUnique_out=${peerCNTUnique}; peerCNTSKIPPED_out=${peerCNTSKIPPED}
+      time_out=$(date -u '+%T Z')
     fi
     
     if [[ ${redraw_peers} = "true" ]]; then
 
       tput cup ${line} 0
       
-      printf "${VL}${STANDOUT} OUT ${NC}  RTT : Peers / Percent - %s" "$(date -u '+%F %T Z')"
-      endLine $((line++))
+      printf "${VL}${STANDOUT} OUT ${NC}  RTT : Peers / Percent"
+      tput el && tput cup ${line} $(( width - 20 ))
+      printf "Updated: ${FG_YELLOW}%s${NC} ${VL}\n" "${time_out}"
+      ((line++))
+
       printf "${VL}    0-50ms : %5s / %.f%% ${FG_GREEN}" "${peerCNT1_out}" "${peerPCT1_out}"
       tput el && tput cup ${line} ${bar_col_small}
       for i in $(seq 0 $((granularity_small-1))); do
@@ -607,7 +611,7 @@ while true; do
       echo "${m2divider}"
       ((line++))
       
-      printf "${VL} Peers Total / Unreachable / Skipped : ${FG_BLUE}%s${NC} / " "${peerCNTABS_out}"
+      printf "${VL} Unique Peers / Unreachable / Skipped : ${FG_BLUE}%s${NC} / " "${peerCNTUnique_out}"
       [[ ${peerCNT0_out} -eq 0 ]] && printf "${FG_BLUE}%s${NC} / " "${peerCNT0_out}" || printf "${FG_RED}%s${NC} / " "${peerCNT0_out}"
       [[ ${peerCNTSKIPPED_out} -eq 0 ]] && printf "${FG_BLUE}%s${NC}" "${peerCNTSKIPPED_out}" || printf "${FG_YELLOW}%s${NC}" "${peerCNTSKIPPED_out}"
       endLine $((line++))
@@ -624,13 +628,17 @@ while true; do
         peerCNT0_in=${peerCNT0}; peerCNT1_in=${peerCNT1}; peerCNT2_in=${peerCNT2}; peerCNT3_in=${peerCNT3}; peerCNT4_in=${peerCNT4}
         peerPCT1_in=${peerPCT1}; peerPCT2_in=${peerPCT2}; peerPCT3_in=${peerPCT3}; peerPCT4_in=${peerPCT4}
         peerPCT1items_in=${peerPCT1items}; peerPCT2items_in=${peerPCT2items}; peerPCT3items_in=${peerPCT3items}; peerPCT4items_in=${peerPCT4items}
-        peerRTT_in=${peerRTT}; peerRTTAVG_in=${peerRTTAVG}; peerCNTABS_in=${peerCNTABS}; peerCNTSKIPPED_in=${peerCNTSKIPPED}
+        peerRTT_in=${peerRTT}; peerRTTAVG_in=${peerRTTAVG}; peerCNTUnique_in=${peerCNTUnique}; peerCNTSKIPPED_in=${peerCNTSKIPPED}
+        time_in=$(date -u '+%T Z')
       fi
       
       tput cup ${line} 0
       
       printf "${VL}${STANDOUT} In ${NC}   RTT : Peers / Percent"
-      endLine $((line++))
+      tput el && tput cup ${line} $(( width - 20 ))
+      printf "Updated: ${FG_YELLOW}%s${NC} ${VL}\n" "${time_in}"
+      ((line++))
+
       printf "${VL}    0-50ms : %5s / %.f%% ${FG_GREEN}" "${peerCNT1_in}" "${peerPCT1_in}"
       tput el && tput cup ${line} ${bar_col_small}
       for i in $(seq 0 $((granularity_small-1))); do
@@ -671,7 +679,7 @@ while true; do
       echo "${m2divider}"
       ((line++))
       
-      printf "${VL} Peers Total / Unreachable / Skipped : ${FG_BLUE}%s${NC} / " "${peerCNTABS_in}"
+      printf "${VL} Unique Peers / Unreachable / Skipped : ${FG_BLUE}%s${NC} / " "${peerCNTUnique_in}"
       [[ ${peerCNT0_in} -eq 0 ]] && printf "${FG_BLUE}%s${NC} / " "${peerCNT0_in}" || printf "${FG_RED}%s${NC} / " "${peerCNT0_in}"
       [[ ${peerCNTSKIPPED_in} -eq 0 ]] && printf "${FG_BLUE}%s${NC}" "${peerCNTSKIPPED_in}" || printf "${FG_YELLOW}%s${NC}" "${peerCNTSKIPPED_in}"
       endLine $((line++))
