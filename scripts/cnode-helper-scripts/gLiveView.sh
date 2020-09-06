@@ -15,7 +15,7 @@ EKG_HOST=127.0.0.1                        # Set node EKG host
 #EKG_PORT=12788                           # Override automatic detection of node EKG port
 #PROTOCOL="Cardano"                       # Default: Combinator network (leave commented if unsure)
 #BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"  # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
-legacy_mode=false                         # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
+LEGACY_MODE=false                         # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
 THEME="dark"                              # dark  = suited for terminals with a dark background
                                           # light = suited for terminals with a bright background
 
@@ -98,7 +98,7 @@ EOF
 while getopts :l opt; do
   case ${opt} in
     l )
-      legacy_mode="true"
+      LEGACY_MODE="true"
       ;;
     \? )
       myExit 1 "$(usage)"
@@ -165,7 +165,7 @@ setTheme # call function to set theme colors
 NC=$(tput sgr0 && printf "${style_base}") # reset style and set base color
 
 # Progressbar
-if [[ ${legacy_mode} = "true" ]]; then
+if [[ ${LEGACY_MODE} = "true" ]]; then
   char_marked="#"
   char_unmarked="."
 else
@@ -179,7 +179,7 @@ step_size_small=$((100/granularity_small))
 bar_col_small=$((width - granularity_small))
 
 # Lines
-if [[ ${legacy_mode} = "true" ]]; then
+if [[ ${LEGACY_MODE} = "true" ]]; then
   VL=$(printf "${NC}|")
   HL=$(printf "${NC}=")
   LVL=$(printf "${NC}|")
