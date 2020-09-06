@@ -22,6 +22,8 @@ You can use the instructions below to build the cardano-db-sync, same steps can 
 ``` bash
 git fetch --tags --all
 git pull
+# Include the cardano-crypto-praos and libsodium components for db-sync
+echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > cabal.project.local
 # Replace master with appropriate tag if you'd like to avoid compiling against master
 git checkout master
 $CNODE_HOME/scripts/cabal-build-all.sh
