@@ -1,25 +1,5 @@
 #!/bin/bash
-#shellcheck disable=SC2009,SC2034,SC2059
-
-###################################################################
-# Automatically grab a few parameters                             #
-# Do NOT modify, can be overridden 'User Variables' section below #
-###################################################################
-
-# The commands below will try to detect the information assuming you run single node on a machine. 
-# Please override values if they dont match your system in the 'User Variables' section below 
-[[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
-[[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --port[[:space:]]([[:digit:]]+) ]]
-CNODE_PORT=${BASH_REMATCH[1]:-6000} # default value: 6000
-[[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --config[[:space:]]([^[:space:]]+) ]]
-CONFIG="${BASH_REMATCH[1]:-${CNODE_HOME}/files/config.json}" # default value: /opt/cardano/cnode/files/config.json
-if [[ -f "${CONFIG}" ]]; then
-  EKG_PORT=$(jq -r '.hasEKG //empty' "${CONFIG}" 2>/dev/null)
-else
-  EKG_PORT=12788
-fi
-PROTOCOL=$(jq -r '.Protocol //empty' "${CONFIG}" 2>/dev/null)
-[[ -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"
+#shellcheck disable=SC2009,SC2034,SC2059,SC2206
 
 ######################################
 # User Variables - Change as desired #
@@ -28,13 +8,46 @@ PROTOCOL=$(jq -r '.Protocol //empty' "${CONFIG}" 2>/dev/null)
 
 #CNODE_HOME="/opt/cardano/cnode"          # Override default CNODE_HOME path
 #CNODE_PORT=6000                          # Override automatic detection of node port
-NODE_NAME="Cardano Node"                  # Change your node's name prefix here, keep at or below 19 characters for proper formatting
+NODE_NAME="Cardano Node"                  # Change your node's name prefix here, keep at or below 19 characters!
 REFRESH_RATE=2                            # How often (in seconds) to refresh the view
 #CONFIG="${CNODE_HOME}/files/config.json" # Override automatic detection of node config path
 EKG_HOST=127.0.0.1                        # Set node EKG host
 #EKG_PORT=12788                           # Override automatic detection of node EKG port
-#PROTOCOL="Cardano"                       # Default: Combinator network. Leave commented if unsure.
+#PROTOCOL="Cardano"                       # Default: Combinator network (leave commented if unsure)
 #BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"  # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
+LEGACY_MODE=false                         # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
+THEME="dark"                              # dark  = suited for terminals with a dark background
+                                          # light = suited for terminals with a bright background
+
+#####################################
+# Themes                            #
+#####################################
+
+setTheme() {
+  if [[ ${THEME} = "dark" ]]; then
+    style_title=${FG_MAGENTA}${BOLD}      # style of title
+    style_base=${FG_WHITE}                # default color for text and lines
+    style_values_1=${FG_CYAN}             # color of most live values
+    style_values_2=${FG_GREEN}            # color of node name
+    style_info=${FG_YELLOW}               # info messages
+    style_status_1=${FG_GREEN}            # :)
+    style_status_2=${FG_YELLOW}           # :|
+    style_status_3=${FG_RED}              # :(
+    style_status_4=${FG_MAGENTA}          # :((
+  elif [[ ${THEME} = "light" ]]; then
+    style_title=${FG_MAGENTA}${BOLD}      # style of title
+    style_base=${FG_BLACK}                # default color for text and lines
+    style_values_1=${FG_BLUE}             # color of most live values
+    style_values_2=${FG_GREEN}            # color of node name
+    style_info=${FG_YELLOW}               # info messages
+    style_status_1=${FG_GREEN}            # :)
+    style_status_2=${FG_YELLOW}           # :|
+    style_status_3=${FG_RED}              # :(
+    style_status_4=${FG_MAGENTA}          # :((
+  else
+    myExit 1 "Please specify a valid THEME name!"
+  fi
+}
 
 #####################################
 # Do NOT Modify below               #
@@ -44,51 +57,14 @@ tput smcup # Save screen
 tput civis # Disable cursor
 stty -echo # Disable user input
 
-# Style
-width=53
-second_col=28
-FG_RED=$(tput setaf 1)
-FG_GREEN=$(tput setaf 2)
-FG_YELLOW=$(tput setaf 3)
-FG_BLUE=$(tput setaf 4)
-FG_MAGENTA=$(tput setaf 5)
-FG_CYAN=$(tput setaf 6)
-STANDOUT=$(tput smso)
-BOLD=$(tput bold)
-VL="\\u2502"
-HL="\\u2500"
-NC=$(tput sgr0)
-
-# Progressbar
-char_marked=$(printf "\\u258C")
-char_unmarked=$(printf "\\u2596")
-granularity=50
-granularity_small=25
-step_size=$((100/granularity))
-step_size_small=$((100/granularity_small))
-bar_col_small=$((width - granularity_small))
-
-# Lines
-tdivider=$(printf "\\u250C" && printf "%0.s${HL}" $(seq $((width-1))) && printf "\\u2510")
-mdivider=$(printf "\\u251C" && printf "%0.s${HL}" $(seq $((width-1))) && printf "\\u2524")
-m2divider=$(printf "\\u251C" && printf "%0.s-" $(seq $((width-1))) && printf "\\u2524")
-bdivider=$(printf "\\u2514" && printf "%0.s${HL}" $(seq $((width-1))) && printf "\\u2518")
-
-# Title
-title=$(printf "${FG_MAGENTA}${BOLD}Guild LiveView${NC}")
-
-#####################################
-# Helper functions                  #
-#####################################
-
 # Command     : myExit [message]
 # Description : gracefully handle an exit and restore terminal to original state
 myExit() {
   tput rmcup # restore screen
-  [[ -n $2 ]] && echo -e "\n$2"
-  stty echo # Enable user input
+  [[ -n $2 ]] && echo -e "\n$2\n"
+  stty echo  # Enable user input
   tput cnorm # restore cursor
-  echo -e "${NC}" # turn off all attributes
+  tput sgr0  # turn off all attributes
   exit "$1"
 }
 
@@ -105,6 +81,147 @@ sig_cleanup() {
 }
 trap sig_cleanup INT TERM
 
+#######################################################
+# Automatically grab a few parameters                 #
+# Can be overridden in 'User Variables' section above #
+#######################################################
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [-l]
+Guild LiveView - An alternative cardano-node LiveView
+
+-l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
+EOF
+}
+
+while getopts :l opt; do
+  case ${opt} in
+    l )
+      LEGACY_MODE="true"
+      ;;
+    \? )
+      myExit 1 "$(usage)"
+      ;;
+    esac
+done
+shift $((OPTIND -1))
+
+# The commands below will try to detect the information assuming you run single node on a machine. 
+# Please override values if they dont match your system in the 'User Variables' section below 
+[[ ${#NODE_NAME} -gt 19 ]] && myExit 1 "Please keep node name at or below 19 characters in length!"
+[[ ! ${REFRESH_RATE} =~ ^[0-9]+$ ]] && myExit 1 "Please set a valid refresh rate number!"
+if [[ ${EKG_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+  OIFS=$IFS
+  IFS='.'
+  EKG_OCTETS=(${EKG_HOST})
+  IFS=$OIFS
+  if ! [[ ${EKG_OCTETS[0]} -le 255 && ${EKG_OCTETS[1]} -le 255 && ${EKG_OCTETS[2]} -le 255 && ${EKG_OCTETS[3]} -le 255 ]]; then
+    myExit 1 "Not a valid IP range set for EKG host, please check configuration!"
+  fi
+else
+  myExit 1 "Not a valid IP format set for EKG host, please check configuration!"
+fi
+[[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
+if [[ -z "${CNODE_PORT}" ]]; then
+  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --port[[:space:]]([[:digit:]]+) ]]; then
+    CNODE_PORT=${BASH_REMATCH[1]}
+  else
+    myExit 1 "Node port not set and automatic detection failed!"
+  fi
+fi
+if [[ -z "${CONFIG}" ]]; then
+  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --config[[:space:]]([^[:space:]]+) ]]; then
+    CONFIG=${BASH_REMATCH[1]}
+  else
+    myExit 1 "Node config not set and automatic detection failed!"
+  fi
+fi
+if [[ -f "${CONFIG}" ]]; then
+  if ! EKG_PORT=$(jq -er '.hasEKG' "${CONFIG}" 2>/dev/null); then
+    myExit 1 "Could not get 'hasEKG' port from the node configuration file"
+  fi
+  if ! PROTOCOL=$(jq -er '.Protocol' "${CONFIG}" 2>/dev/null); then
+    myExit 1 "Could not get 'Protocol' from the node configuration file"
+  fi
+else
+  myExit 1 "Node config not found: ${CONFIG}"
+fi
+[[ -z ${BLOCK_LOG_DIR} && -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks" # optional
+
+# Style
+width=53
+second_col=28
+FG_BLACK=$(tput setaf 0)
+FG_RED=$(tput setaf 1)
+FG_GREEN=$(tput setaf 2)
+FG_YELLOW=$(tput setaf 3)
+FG_BLUE=$(tput setaf 4)
+FG_MAGENTA=$(tput setaf 5)
+FG_CYAN=$(tput setaf 6)
+FG_WHITE=$(tput setaf 7)
+STANDOUT=$(tput smso)
+BOLD=$(tput bold)
+
+setTheme # call function to set theme colors
+NC=$(tput sgr0 && printf "${style_base}") # reset style and set base color
+
+# Progressbar
+if [[ ${LEGACY_MODE} = "true" ]]; then
+  char_marked="#"
+  char_unmarked="."
+else
+  char_marked=$(printf "\\u258C")
+  char_unmarked=$(printf "\\u2596")
+fi
+granularity=50
+granularity_small=25
+step_size=$((100/granularity))
+step_size_small=$((100/granularity_small))
+bar_col_small=$((width - granularity_small))
+
+# Lines
+if [[ ${LEGACY_MODE} = "true" ]]; then
+  VL=$(printf "${NC}|")
+  HL=$(printf "${NC}=")
+  LVL=$(printf "${NC}|")
+  RVL=$(printf "${NC}|")
+  UHL=$(printf "${NC}=")
+  DHL=$(printf "${NC}=")
+  UR=$(printf "${NC}=")
+  UL=$(printf "${NC}|")
+  DR=$(printf "${NC}|")
+  DL=$(printf "${NC}|")
+  tdivider=$(printf "${NC}|" && printf "%0.s=" $(seq $((width-1))) && printf "|")
+  mdivider=$(printf "${NC}|" && printf "%0.s=" $(seq $((width-1))) && printf "|")
+  m2divider=$(printf "${NC}|" && printf "%0.s-" $(seq $((width-1))) && printf "|")
+  m3divider=$(printf "${NC}|" && printf "%0.s- " $(seq $((width/2))) && printf "|")
+  bdivider=$(printf "${NC}|" && printf "%0.s=" $(seq $((width-1))) && printf "|")
+else
+  VL=$(printf "${NC}\\u2502")
+  HL=$(printf "${NC}\\u2500")
+  LVL=$(printf "${NC}\\u2524")
+  RVL=$(printf "${NC}\\u251C")
+  UHL=$(printf "${NC}\\u2534")
+  DHL=$(printf "${NC}\\u252C")
+  UR=$(printf "${NC}\\u2514")
+  UL=$(printf "${NC}\\u2518")
+  DR=$(printf "${NC}\\u250C")
+  DL=$(printf "${NC}\\u2510")
+  tdivider=$(printf "${NC}\\u250C" && printf "%0.s\\u2500" $(seq $((width-1))) && printf "\\u2510")
+  mdivider=$(printf "${NC}\\u251C" && printf "%0.s\\u2500" $(seq $((width-1))) && printf "\\u2524")
+  m2divider=$(printf "${NC}\\u2502" && printf "%0.s-" $(seq $((width-1))) && printf "\\u2502")
+  m3divider=$(printf "${NC}\\u2502" && printf "%0.s- " $(seq $((width/2))) && printf "\\u2502")
+  bdivider=$(printf "${NC}\\u2514" && printf "%0.s\\u2500" $(seq $((width-1))) && printf "\\u2518")
+fi
+
+# Title
+title="Guild LiveView"
+
+#####################################
+# Helper functions                  #
+#####################################
+
 # Command     : waitForInput
 # Description : wait for user keypress to quit, else do nothing if timeout expire
 waitForInput() {
@@ -117,8 +234,6 @@ waitForInput() {
   [[ ${key1} = "${ESC}" && ${key2} = "" ]] && myExit 0 "Guild LiveView stopped!"
   sleep 1
 }
-
-
 
 # Command    : showTimeLeft time_in_seconds
 # Description: calculation of days, hours, minutes and seconds
@@ -150,9 +265,9 @@ getShelleyTransitionEpoch() {
     shelley_transition_epoch=208
   elif [[ ${calc_slot} -ne ${slotnum} || ${shelley_epochs} -eq 0 ]]; then
     clear
-    printf "\n ${FG_RED}Failed${NC} to calculate shelley transition epoch!"
+    printf "\n ${style_status_3}Failed${NC} to calculate shelley transition epoch!"
     printf "\n Calculations might not work correctly until Shelley era is reached."
-    printf "\n\n ${FG_BLUE}Press c to continue or any other key to quit${NC}"
+    printf "\n\n ${style_info}Press c to continue or any other key to quit${NC}"
     read -r -n 1 -s -p "" answer
     [[ "${answer}" != "c" ]] && myExit 1 "Guild LiveView terminated!"
     shelley_transition_epoch=0
@@ -307,7 +422,7 @@ pid=$(ps -ef | grep "[-]-port ${CNODE_PORT}" | awk '{print $2}')
 check_peers="false"
 show_peers="false"
 line_end=0
-data=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ 2>/dev/null)
+data=$(curl -s -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
 about_to_lead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0' <<< "${data}")
 epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
 slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
@@ -319,7 +434,9 @@ remaining_kes_periods=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.
 # Static genesis variables          #
 #####################################
 shelley_genesis_file=$(jq -r .ShelleyGenesisFile "${CONFIG}")
+[[ ! ${shelley_genesis_file} =~ ^/ ]] && shelley_genesis_file="$(dirname "${CONFIG}")/${shelley_genesis_file}"
 byron_genesis_file=$(jq -r .ByronGenesisFile "${CONFIG}")
+[[ ! ${byron_genesis_file} =~ ^/ ]] && byron_genesis_file="$(dirname "${CONFIG}")/${byron_genesis_file}"
 nwmagic=$(jq -r .networkMagic < "${shelley_genesis_file}")
 shelley_genesis_start=$(jq -r .systemStart "${shelley_genesis_file}")
 shelley_genesis_start_sec=$(date --date="${shelley_genesis_start}" +%s)
@@ -346,6 +463,7 @@ kesExpiration # Static and wont change until KES rotation and node restart
 clear
 tlines=$(tput lines) # set initial terminal lines
 tcols=$(tput cols)   # set initial terminal columns
+printf "${NC}"       # reset and set default color
 
 #####################################
 # MAIN LOOP                         #
@@ -357,11 +475,11 @@ while true; do
   [[ ${width} -ge $((tcols-1)) || ${line_end} -ge $((tlines-1)) ]] && clear
   while [[ ${width} -ge $((tcols-1)) ]]; do
     tput cup 1 1
-    printf "${FG_RED}Terminal width too small!${NC}"
+    printf "${style_status_3}Terminal width too small!${NC}"
     tput cup 3 1
-    printf "Please increase by ${FG_MAGENTA}$(( width - tcols + 2 ))${NC} columns"
+    printf "Please increase by ${style_info}$(( width - tcols + 2 ))${NC} columns"
     tput cup 5 1
-    printf "${FG_CYAN}Use CTRL + C to force quit${NC}"
+    printf "${style_info}Use CTRL + C to force quit${NC}"
     sleep 2
     tlines=$(tput lines) # update terminal lines
     tcols=$(tput cols)   # update terminal columns
@@ -369,11 +487,11 @@ while true; do
   done
   while [[ ${line_end} -ge $((tlines-1)) ]]; do
     tput cup 1 1
-    printf "${FG_RED}Terminal height too small!${NC}"
+    printf "${style_status_3}Terminal height too small!${NC}"
     tput cup 3 1
-    printf "Please increase by ${FG_MAGENTA}$(( line_end - tlines + 2 ))${NC} lines"
+    printf "Please increase by ${style_info}$(( line_end - tlines + 2 ))${NC} lines"
     tput cup 5 1
-    printf "${FG_CYAN}Use CTRL + C to force quit${NC}"
+    printf "${style_info}Use CTRL + C to force quit${NC}"
     sleep 2
     tlines=$(tput lines) # update terminal lines
     tcols=$(tput cols)   # update terminal columns
@@ -383,10 +501,10 @@ while true; do
   line=0; tput cup 0 0 # reset position
 
   # Gather some data
-  data=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ 2>/dev/null)
+  data=$(curl -s -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
   uptimens=$(jq '.cardano.node.metrics.upTime.ns.val //0' <<< "${data}")
   if ((uptimens<=0)); then
-    myExit 1 "${FG_RED}COULD NOT CONNECT TO A RUNNING INSTANCE!${NC}\nPLEASE CHECK THE EKG PORT AND TRY AGAIN!"
+    myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE!${NC}"
   fi
   peers_in=$(netstat -np 2>/dev/null | grep -e "ESTABLISHED.* ${pid}/" | awk -v port=":${CNODE_PORT}" '$4 ~ port {print}' | wc -l)
   peers_out=$(jq '.cardano.node.BlockFetchDecision.peers.connectedPeers.int.val //0' <<< "${data}")
@@ -408,24 +526,24 @@ while true; do
 
   header_length=$(( ${#NODE_NAME} + ${#nodemode} + ${#node_version} + ${#node_rev} + 16 ))
   [[ ${header_length} -gt ${width} ]] && header_padding=0 || header_padding=$(( (width - header_length) / 2 ))
-  printf "%${header_padding}s >> ${FG_GREEN}%s${NC} - ${FG_GREEN}%s${NC} : ${FG_BLUE}%s${NC} [${FG_BLUE}%s${NC}] <<\n" "" "${NODE_NAME}" "${nodemode}" "${node_version}" "${node_rev}"
+  printf "%${header_padding}s >> ${style_values_2}%s${NC} - ${style_info}%s${NC} : ${style_values_1}%s${NC} [${style_values_1}%s${NC}] <<\n" "" "${NODE_NAME}" "${nodemode}" "${node_version}" "${node_rev}"
   ((line++))
 
   ## Base section ##
   printf "${tdivider}"
-  tput cup ${line} $(( width - 17 ))
-  printf "\\u252C"
+  tput cup ${line} $(( width - ${#title} - 3 ))
+  printf "${DHL}"
   tput cup $((++line)) 0
   
   printf "${VL} Uptime: $(timeLeft $(( uptimens/1000000000 )))"
-  tput cup ${line} $(( width - 17 ))
-  printf "${VL} ${title} ${VL}\n"
+  tput cup ${line} $(( width - ${#title} - 3 ))
+  printf "${VL} ${style_title}${title} ${VL}\n"
   ((line++))
   printf "${m2divider}"
-  tput cup ${line} $(( width - 17 ))
-  printf "\\u2514"
-  printf "%0.s${HL}" $(seq 16)
-  printf "\\u2524\n"
+  tput cup ${line} $(( width - ${#title} - 3 ))
+  printf "${UR}"
+  printf "%0.s${HL}" $(seq $(( ${#title} + 2 )))
+  printf "${LVL}\n"
   ((line++))
 
   if [[ ${shelley_transition_epoch} = -1 || ${epochnum} -ge ${shelley_transition_epoch} ]]; then
@@ -433,13 +551,13 @@ while true; do
   else
     epoch_progress=$(echo "(${slot_in_epoch}/${byron_epoch_length})*100" | bc -l)  # in Byron era
   fi
-  printf "${VL} Epoch ${FG_BLUE}%s${NC} [%2.1f%%] (node)" "${epochnum}" "${epoch_progress}"
+  printf "${VL} Epoch ${style_values_1}%s${NC} [${style_values_1}%2.1f%%${NC}] (node)" "${epochnum}" "${epoch_progress}"
   endLine $((line++))
-  printf "${VL} %s until epoch boundary (chain)" "$(timeLeft "$(timeUntilNextEpoch)")"
+  printf "${VL} ${style_values_1}%s${NC} until epoch boundary (chain)" "$(timeLeft "$(timeUntilNextEpoch)")"
   endLine $((line++))
 
   epoch_items=$(( $(printf %.0f "${epoch_progress}") / step_size ))
-  printf "${VL} ${FG_BLUE}"
+  printf "${VL} ${style_values_1}"
   for i in $(seq 0 $((granularity-1))); do
     [[ $i -lt ${epoch_items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
   done
@@ -449,35 +567,35 @@ while true; do
   
   tip_ref=$(getSlotTipRef)
   tip_diff=$(( tip_ref - slotnum ))
-  printf "${VL} Block   : ${FG_BLUE}%s${NC}" "${blocknum}"
+  printf "${VL} Block   : ${style_values_1}%s${NC}" "${blocknum}"
   tput cup ${line} ${second_col}
-  printf "Tip (ref)  : ${FG_BLUE}%s${NC}" "${tip_ref}"
+  printf "Tip (ref)  : ${style_values_1}%s${NC}" "${tip_ref}"
   endLine $((line++))
-  printf "${VL} Slot    : ${FG_BLUE}%s${NC}" "${slot_in_epoch}"
+  printf "${VL} Slot    : ${style_values_1}%s${NC}" "${slot_in_epoch}"
   tput cup ${line} ${second_col}
-  printf "Tip (node) : ${FG_BLUE}%s${NC}" "${slotnum}"
+  printf "Tip (node) : ${style_values_1}%s${NC}" "${slotnum}"
   endLine $((line++))
-  printf "${VL} Density : ${FG_BLUE}%s${NC}" "${density}"
+  printf "${VL} Density : ${style_values_1}%s${NC}%%" "${density}"
   tput cup ${line} ${second_col}
   if [[ ${tip_diff} -le $(( slot_interval * 2 )) ]]; then
-    printf "Tip (diff) : ${FG_GREEN}%s${NC}" "-${tip_diff} :)"
+    printf "Tip (diff) : ${style_status_1}%s${NC}" "-${tip_diff} :)"
   elif [[ ${tip_diff} -le $(( slot_interval * 3 )) ]]; then
-    printf "Tip (diff) : %s" "-${tip_diff} :|"
+    printf "Tip (diff) : ${style_status_2}%s${NC}" "-${tip_diff} :|"
   else
-    printf "Tip (diff) : ${FG_RED}%s${NC}" "-${tip_diff} :("
+    printf "Tip (diff) : ${style_status_3}%s${NC}" "-${tip_diff} :("
   fi
   endLine $((line++))
   
   echo "${m2divider}"
   ((line++))
   
-  printf "${VL} Processed TX     : ${FG_BLUE}%s${NC}" "${tx_processed}"
+  printf "${VL} Processed TX     : ${style_values_1}%s${NC}" "${tx_processed}"
   tput cup ${line} $((second_col+7))
   printf "        In / Out"
   endLine $((line++))
-  printf "${VL} Mempool TX/Bytes : ${FG_BLUE}%s${NC} / ${FG_BLUE}%s${NC}" "${mempool_tx}" "${mempool_bytes}"
+  printf "${VL} Mempool TX/Bytes : ${style_values_1}%s${NC} / ${style_values_1}%s${NC}" "${mempool_tx}" "${mempool_bytes}"
   tput el; tput cup ${line} $((second_col+7))
-  printf "Peers : ${FG_BLUE}%s${NC} / ${FG_BLUE}%s${NC}" "${peers_in}" "${peers_out}"
+  printf "Peers : ${style_values_1}%s${NC} / ${style_values_1}%s${NC}" "${peers_in}" "${peers_out}"
   endLine $((line++))
   
   ## Core section ##
@@ -485,16 +603,16 @@ while true; do
     echo "${mdivider}"
     ((line++))
     
-    printf "${VL} KES current/remaining   : ${FG_BLUE}%s${NC} / " "${kesperiod}"
+    printf "${VL} KES current/remaining   : ${style_values_1}%s${NC} / " "${kesperiod}"
     if [[ ${remaining_kes_periods} -le 0 ]]; then
-      printf "${FG_RED}%s${NC}" "${remaining_kes_periods}"
+      printf "${style_status_4}%s${NC}" "${remaining_kes_periods}"
     elif [[ ${remaining_kes_periods} -le 8 ]]; then
-      printf "${FG_YELLOW}%s${NC}" "${remaining_kes_periods}"
+      printf "${style_status_3}%s${NC}" "${remaining_kes_periods}"
     else
-      printf "${FG_BLUE}%s${NC}" "${remaining_kes_periods}"
+      printf "${style_values_1}%s${NC}" "${remaining_kes_periods}"
     fi
     endLine $((line++))
-    printf "${VL} KES expiration date     : ${FG_BLUE}%s${NC}" "${kes_expiration}"
+    printf "${VL} KES expiration date     : ${style_values_1}%s${NC}" "${kes_expiration}"
     endLine $((line++))
     
     echo "${m2divider}"
@@ -502,16 +620,16 @@ while true; do
     
     printf "${VL} %49s" "IsLeader/Adopted/Missed"
     endLine $((line++))
-    printf "${VL} Blocks since node start : ${FG_BLUE}%s${NC} / " "${isleader}"
+    printf "${VL} Blocks since node start : ${style_values_1}%s${NC} / " "${isleader}"
     if [[ ${adopted} -ne ${isleader} ]]; then
-      printf "${FG_YELLOW}%s${NC} / " "${adopted}"
+      printf "${style_status_2}%s${NC} / " "${adopted}"
     else
-      printf "${FG_BLUE}%s${NC} / " "${adopted}"
+      printf "${style_values_1}%s${NC} / " "${adopted}"
     fi
     if [[ ${didntadopt} -gt 0 ]]; then
-      printf "${FG_RED}%s${NC}" "${didntadopt}"
+      printf "${style_status_3}%s${NC}" "${didntadopt}"
     else
-      printf "${FG_BLUE}%s${NC}" "${didntadopt}"
+      printf "${style_values_1}%s${NC}" "${didntadopt}"
     fi
     endLine $((line++))
     
@@ -526,16 +644,16 @@ while true; do
         invalid_epoch=0
         adopted_epoch=0
       fi
-      printf "${VL} Blocks this epoch       : ${FG_BLUE}%s${NC} / " "${isleader_epoch}"
+      printf "${VL} Blocks this epoch       : ${style_values_1}%s${NC} / " "${isleader_epoch}"
       if [[ ${adopted_epoch} -ne ${isleader_epoch} ]]; then
-        printf "${FG_YELLOW}%s${NC} / " "${adopted_epoch}"
+        printf "${style_status_2}%s${NC} / " "${adopted_epoch}"
       else
-        printf "${FG_BLUE}%s${NC} / " "${adopted_epoch}"
+        printf "${style_values_1}%s${NC} / " "${adopted_epoch}"
       fi
       if [[ ${invalid_epoch} -gt 0 ]]; then
-        printf "${FG_RED}%s${NC}" "${invalid_epoch}"
+        printf "${style_status_3}%s${NC}" "${invalid_epoch}"
       else
-        printf "${FG_BLUE}%s${NC}" "${invalid_epoch}"
+        printf "${style_values_1}%s${NC}" "${invalid_epoch}"
       fi
       endLine $((line++))
     fi
@@ -550,7 +668,7 @@ while true; do
     if [[ ${check_peers} = "true" ]]; then
       redraw_peers=true
       tput ed
-      printf "${VL} ${FG_YELLOW}Output peer analysis started... update paused${NC}"
+      printf "${VL} ${style_info}Output peer analysis started... update paused${NC}"
       endLine ${line}
       echo "${bdivider}"
       checkPeers out
@@ -568,10 +686,10 @@ while true; do
       
       printf "${VL}${STANDOUT} OUT ${NC}  RTT : Peers / Percent"
       tput el && tput cup ${line} $(( width - 20 ))
-      printf "Updated: ${FG_YELLOW}%s${NC} ${VL}\n" "${time_out}"
+      printf "Updated: ${style_info}%s${NC} ${VL}\n" "${time_out}"
       ((line++))
 
-      printf "${VL}    0-50ms : %5s / %.f%% ${FG_GREEN}" "${peerCNT1_out}" "${peerPCT1_out}"
+      printf "${VL}    0-50ms : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_1}" "${peerCNT1_out}" "${peerPCT1_out}"
       tput el && tput cup ${line} ${bar_col_small}
       for i in $(seq 0 $((granularity_small-1))); do
         [[ $i -lt ${peerPCT1items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
@@ -579,7 +697,7 @@ while true; do
       printf "${NC}"
       endLine $((line++))
 
-      printf "${VL}  50-100ms : %5s / %.f%% ${FG_YELLOW}" "${peerCNT2_out}" "${peerPCT2_out}"
+      printf "${VL}  50-100ms : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_2}" "${peerCNT2_out}" "${peerPCT2_out}"
       tput el && tput cup ${line} ${bar_col_small}
       for i in $(seq 0 $((granularity_small-1))); do
         [[ $i -lt ${peerPCT2items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
@@ -587,7 +705,7 @@ while true; do
       printf "${NC}"
       endLine $((line++))
 
-      printf "${VL} 100-200ms : %5s / %.f%% ${FG_RED}" "${peerCNT3_out}" "${peerPCT3_out}"
+      printf "${VL} 100-200ms : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_3}" "${peerCNT3_out}" "${peerPCT3_out}"
       tput el && tput cup ${line} ${bar_col_small}
       for i in $(seq 0 $((granularity_small-1))); do
         [[ $i -lt ${peerPCT3items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
@@ -595,32 +713,32 @@ while true; do
       printf "${NC}"
       endLine $((line++))
 
-      printf "${VL}   200ms < : %5s / %.f%% ${FG_MAGENTA}" "${peerCNT4_out}" "${peerPCT4_out}"
+      printf "${VL}   200ms < : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_4}" "${peerCNT4_out}" "${peerPCT4_out}"
       tput el && tput cup ${line} ${bar_col_small}
       for i in $(seq 0 $((granularity_small-1))); do
         [[ $i -lt ${peerPCT4items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
       done
       printf "${NC}"
       endLine $((line++))
-        if [[ ${peerRTT_out} -ge 200 ]]; then printf "${VL}   Average : ${FG_MAGENTA}%s${NC} ms" "${peerRTTAVG_out}"
-      elif [[ ${peerRTT_out} -ge 100 ]]; then printf "${VL}   Average : ${FG_RED}%s${NC} ms" "${peerRTTAVG_out}"
-      elif [[ ${peerRTT_out} -ge 50  ]]; then printf "${VL}   Average : ${FG_YELLOW}%s${NC} ms" "${peerRTTAVG_out}"
-      elif [[ ${peerRTT_out} -ge 0   ]]; then printf "${VL}   Average : ${FG_GREEN}%s${NC} ms" "${peerRTTAVG_out}"; fi
+        if [[ ${peerRTT_out} -ge 200 ]]; then printf "${VL}   Average : ${style_status_4}%s${NC} ms" "${peerRTTAVG_out}"
+      elif [[ ${peerRTT_out} -ge 100 ]]; then printf "${VL}   Average : ${style_status_3}%s${NC} ms" "${peerRTTAVG_out}"
+      elif [[ ${peerRTT_out} -ge 50  ]]; then printf "${VL}   Average : ${style_status_2}%s${NC} ms" "${peerRTTAVG_out}"
+      elif [[ ${peerRTT_out} -ge 0   ]]; then printf "${VL}   Average : ${style_status_1}%s${NC} ms" "${peerRTTAVG_out}"; fi
       endLine $((line++))
       
-      echo "${m2divider}"
+      echo "${m3divider}"
       ((line++))
       
-      printf "${VL} Unique Peers / Unreachable / Skipped : ${FG_BLUE}%s${NC} / " "${peerCNTUnique_out}"
-      [[ ${peerCNT0_out} -eq 0 ]] && printf "${FG_BLUE}%s${NC} / " "${peerCNT0_out}" || printf "${FG_RED}%s${NC} / " "${peerCNT0_out}"
-      [[ ${peerCNTSKIPPED_out} -eq 0 ]] && printf "${FG_BLUE}%s${NC}" "${peerCNTSKIPPED_out}" || printf "${FG_YELLOW}%s${NC}" "${peerCNTSKIPPED_out}"
+      printf "${VL} Unique Peers / Unreachable / Skipped : ${style_values_1}%s${NC} / " "${peerCNTUnique_out}"
+      [[ ${peerCNT0_out} -eq 0 ]] && printf "${style_values_1}%s${NC} / " "${peerCNT0_out}" || printf "${style_status_3}%s${NC} / " "${peerCNT0_out}"
+      [[ ${peerCNTSKIPPED_out} -eq 0 ]] && printf "${style_values_1}%s${NC}" "${peerCNTSKIPPED_out}" || printf "${style_status_2}%s${NC}" "${peerCNTSKIPPED_out}"
       endLine $((line++))
       
       echo "${m2divider}"
       ((line++))
       
       if [[ ${check_peers} = "true" ]]; then
-        printf "${VL} ${FG_YELLOW}Input peer analysis started... update paused${NC}"
+        printf "${VL} ${style_info}Input peer analysis started... update paused${NC}"
         endLine ${line}
         echo "${bdivider}"
         checkPeers in
@@ -636,10 +754,10 @@ while true; do
       
       printf "${VL}${STANDOUT} In ${NC}   RTT : Peers / Percent"
       tput el && tput cup ${line} $(( width - 20 ))
-      printf "Updated: ${FG_YELLOW}%s${NC} ${VL}\n" "${time_in}"
+      printf "Updated: ${style_info}%s${NC} ${VL}\n" "${time_in}"
       ((line++))
 
-      printf "${VL}    0-50ms : %5s / %.f%% ${FG_GREEN}" "${peerCNT1_in}" "${peerPCT1_in}"
+      printf "${VL}    0-50ms : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_1}" "${peerCNT1_in}" "${peerPCT1_in}"
       tput el && tput cup ${line} ${bar_col_small}
       for i in $(seq 0 $((granularity_small-1))); do
         [[ $i -lt ${peerPCT1items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
@@ -647,7 +765,7 @@ while true; do
       printf "${NC}"
       endLine $((line++))
 
-      printf "${VL}  50-100ms : %5s / %.f%% ${FG_YELLOW}" "${peerCNT2_in}" "${peerPCT2_in}"
+      printf "${VL}  50-100ms : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_2}" "${peerCNT2_in}" "${peerPCT2_in}"
       tput el && tput cup ${line} ${bar_col_small}
       for i in $(seq 0 $((granularity_small-1))); do
         [[ $i -lt ${peerPCT2items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
@@ -655,7 +773,7 @@ while true; do
       printf "${NC}"
       endLine $((line++))
 
-      printf "${VL} 100-200ms : %5s / %.f%% ${FG_RED}" "${peerCNT3_in}" "${peerPCT3_in}"
+      printf "${VL} 100-200ms : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_3}" "${peerCNT3_in}" "${peerPCT3_in}"
       tput el && tput cup ${line} ${bar_col_small}
       for i in $(seq 0 $((granularity_small-1))); do
         [[ $i -lt ${peerPCT3items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
@@ -663,25 +781,25 @@ while true; do
       printf "${NC}"
       endLine $((line++))
 
-      printf "${VL}   200ms < : %5s / %.f%% ${FG_MAGENTA}" "${peerCNT4_in}" "${peerPCT4_in}"
+      printf "${VL}   200ms < : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_4}" "${peerCNT4_in}" "${peerPCT4_in}"
       tput el && tput cup ${line} ${bar_col_small}
       for i in $(seq 0 $((granularity_small-1))); do
         [[ $i -lt ${peerPCT4items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
       done
       printf "${NC}"
       endLine $((line++))
-        if [[ ${peerRTT_in} -ge 200 ]]; then printf "${VL}   Average : ${FG_MAGENTA}%s${NC} ms" "${peerRTTAVG_in}"
-      elif [[ ${peerRTT_in} -ge 100 ]]; then printf "${VL}   Average : ${FG_RED}%s${NC} ms" "${peerRTTAVG_in}"
-      elif [[ ${peerRTT_in} -ge 50  ]]; then printf "${VL}   Average : ${FG_YELLOW}%s${NC} ms" "${peerRTTAVG_in}"
-      elif [[ ${peerRTT_in} -ge 0   ]]; then printf "${VL}   Average : ${FG_GREEN}%s${NC} ms" "${peerRTTAVG_in}"; fi
+        if [[ ${peerRTT_in} -ge 200 ]]; then printf "${VL}   Average : ${style_status_4}%s${NC} ms" "${peerRTTAVG_in}"
+      elif [[ ${peerRTT_in} -ge 100 ]]; then printf "${VL}   Average : ${style_status_3}%s${NC} ms" "${peerRTTAVG_in}"
+      elif [[ ${peerRTT_in} -ge 50  ]]; then printf "${VL}   Average : ${style_status_2}%s${NC} ms" "${peerRTTAVG_in}"
+      elif [[ ${peerRTT_in} -ge 0   ]]; then printf "${VL}   Average : ${style_status_1}%s${NC} ms" "${peerRTTAVG_in}"; fi
       endLine $((line++))
       
-      echo "${m2divider}"
+      echo "${m3divider}"
       ((line++))
       
-      printf "${VL} Unique Peers / Unreachable / Skipped : ${FG_BLUE}%s${NC} / " "${peerCNTUnique_in}"
-      [[ ${peerCNT0_in} -eq 0 ]] && printf "${FG_BLUE}%s${NC} / " "${peerCNT0_in}" || printf "${FG_RED}%s${NC} / " "${peerCNT0_in}"
-      [[ ${peerCNTSKIPPED_in} -eq 0 ]] && printf "${FG_BLUE}%s${NC}" "${peerCNTSKIPPED_in}" || printf "${FG_YELLOW}%s${NC}" "${peerCNTSKIPPED_in}"
+      printf "${VL} Unique Peers / Unreachable / Skipped : ${style_values_1}%s${NC} / " "${peerCNTUnique_in}"
+      [[ ${peerCNT0_in} -eq 0 ]] && printf "${style_values_1}%s${NC} / " "${peerCNT0_in}" || printf "${style_status_3}%s${NC} / " "${peerCNT0_in}"
+      [[ ${peerCNTSKIPPED_in} -eq 0 ]] && printf "${style_values_1}%s${NC}" "${peerCNTSKIPPED_in}" || printf "${style_status_2}%s${NC}" "${peerCNTSKIPPED_in}"
       endLine $((line++))
     fi
   fi
@@ -695,12 +813,12 @@ while true; do
   fi
   tput cup ${line_end} 0
   echo "${bdivider}"
-  printf " ${FG_YELLOW}[esc/q] Quit${NC} | ${FG_YELLOW}[p] Peer Analysis${NC}"
+  printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[p] Peer Analysis${NC}"
   if [[ "${check_peers}" = "true" ]]; then
     check_peers="false"
   fi
   if [[ "${show_peers}" = "true" ]]; then
-    printf " | ${FG_YELLOW}[h] Hide Peers${NC}"
+    printf " | ${style_info}[h] Hide Peers${NC}"
   else
     tput el
   fi
