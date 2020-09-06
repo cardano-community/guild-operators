@@ -144,6 +144,8 @@ if [[ -f "${CONFIG}" ]]; then
   if ! PROTOCOL=$(jq -er '.Protocol' "${CONFIG}" 2>/dev/null); then
     myExit 1 "Could not get 'Protocol' from the node configuration file"
   fi
+else
+  myExit 1 "Node config not found: ${CONFIG}"
 fi
 [[ -z ${BLOCK_LOG_DIR} && -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks" # optional
 
@@ -432,7 +434,9 @@ remaining_kes_periods=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.
 # Static genesis variables          #
 #####################################
 shelley_genesis_file=$(jq -r .ShelleyGenesisFile "${CONFIG}")
+[[ ! ${shelley_genesis_file} =~ ^/ ]] && shelley_genesis_file="$(dirname "${CONFIG}")/${shelley_genesis_file}"
 byron_genesis_file=$(jq -r .ByronGenesisFile "${CONFIG}")
+[[ ! ${byron_genesis_file} =~ ^/ ]] && byron_genesis_file="$(dirname "${CONFIG}")/${byron_genesis_file}"
 nwmagic=$(jq -r .networkMagic < "${shelley_genesis_file}")
 shelley_genesis_start=$(jq -r .systemStart "${shelley_genesis_file}")
 shelley_genesis_start_sec=$(date --date="${shelley_genesis_start}" +%s)
