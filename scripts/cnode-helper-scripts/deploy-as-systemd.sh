@@ -25,4 +25,4 @@ WantedBy=multi-user.target
 EOF"
 
 sudo systemctl daemon-reload
-sudo systemctl enable
+sudo systemctl cnode enable
