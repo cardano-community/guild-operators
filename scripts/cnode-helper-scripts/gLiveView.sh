@@ -86,6 +86,27 @@ trap sig_cleanup INT TERM
 # Can be overridden in 'User Variables' section above #
 #######################################################
 
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [-l]
+Guild LiveView - An alternative cardano-node LiveView
+
+-l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
+EOF
+}
+
+while getopts :l opt; do
+  case ${opt} in
+    l )
+      legacy_mode="true"
+      ;;
+    \? )
+      myExit 1 "$(usage)"
+      ;;
+    esac
+done
+shift $((OPTIND -1))
+
 # The commands below will try to detect the information assuming you run single node on a machine. 
 # Please override values if they dont match your system in the 'User Variables' section below 
 [[ ${#NODE_NAME} -gt 19 ]] && myExit 1 "Please keep node name at or below 19 characters in length!"
