@@ -1,5 +1,5 @@
 #!/bin/bash
-#shellcheck disable=SC2009,SC2034,SC2059
+#shellcheck disable=SC2009,SC2034,SC2059,SC2206
 
 ######################################
 # User Variables - Change as desired #
@@ -399,7 +399,7 @@ pid=$(ps -ef | grep "[-]-port ${CNODE_PORT}" | awk '{print $2}')
 check_peers="false"
 show_peers="false"
 line_end=0
-data=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ 2>/dev/null)
+data=$(curl -s -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
 about_to_lead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0' <<< "${data}")
 epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
 slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
@@ -476,7 +476,7 @@ while true; do
   line=0; tput cup 0 0 # reset position
 
   # Gather some data
-  data=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ 2>/dev/null)
+  data=$(curl -s -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
   uptimens=$(jq '.cardano.node.metrics.upTime.ns.val //0' <<< "${data}")
   if ((uptimens<=0)); then
     myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE!${NC}"
