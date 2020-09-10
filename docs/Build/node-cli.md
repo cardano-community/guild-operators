@@ -85,6 +85,6 @@ You can use [gLiveView](Scripts/gliveview.md) to monitor your pool that was star
 If you've followed guide from this repo previously and would like to transfer to systemd usage, please checkout the steps below:
 
 1. Stop previous instance of node if already running (eg: in tmux)
-2. Run `prereqs.sh`, but remember to preserve your customisations to cnode.sh, topology.json, env files.
+2. Run `prereqs.sh`, but remember to preserve your customisations to cnode.sh, topology.json, env files (you can also compare and update cnode.sh and env files from github repo).
 3. Follow the instructions [above](#run-as-systemd-service) to setup your node as a service and start it using systemctl as directed.
-4. If you need to monitor via interactive terminal as before, use [sLiveView](Scripts/sliveview.md).
+4. If you need to monitor via interactive terminal as before, use [gLiveView](Scripts/gliveview.md).
