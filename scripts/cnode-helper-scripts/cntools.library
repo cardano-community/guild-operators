@@ -486,7 +486,6 @@ kesExpiration() {
   current_kes_period=$(getCurrentKESperiod)
   remaining_kes_periods=$(( max_kes_evolutions - ( current_kes_period - pool_kes_start_period ) ))
   current_time_sec=$(date -u +%s)
-  slot_in_epoch=$(grep "cardano_node_ChainDB_metrics_slotInEpoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
   expiration_time_sec=$(( current_time_sec - ( slot_length * slots_per_kes_period ) + ( slot_length * slots_per_kes_period * remaining_kes_periods ) ))
   expiration_time_sec_diff=$(( expiration_time_sec - current_time_sec ))
   expiration_date=$(date --date=@${expiration_time_sec})
