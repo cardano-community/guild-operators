@@ -319,7 +319,7 @@ getSlotTipRef() {
 # Description: Calculate KES expiration
 kesExpiration() {
   current_time_sec=$(date -u +%s)
-  expiration_time_sec=$(( current_time_sec - ( slot_length * slot_in_epoch ) + ( slot_length * slots_per_kes_period * remaining_kes_periods ) ))
+  expiration_time_sec=$(( current_time_sec - ( slot_length * slots_per_kes_period ) + ( slot_length * slots_per_kes_period * remaining_kes_periods ) ))
   kes_expiration=$(date '+%F %T Z' --date=@${expiration_time_sec})
 }
 
