@@ -96,8 +96,7 @@ say() {
 #   >> need_cmd "jq"
 need_cmd() {
   if ! command -v "$1" > /dev/null 2>&1; then
-    say "${RED}ERROR${NC}: need '$1' (command not found)" "try 'sudo apt install $1'"
-    say "please install with your packet manager of choice(apt/yum etc..) and relaunch cntools"
+    need_cmd_error="${RED}ERROR${NC}: need '$1' (command not found)" "try 'sudo apt install $1'\nplease install with your packet manager of choice(apt/yum etc..) and relaunch CNTools"
     return 1
   fi
 }
@@ -183,8 +182,6 @@ function selectOption {
   local lastrow=$(get_cursor_row)
   local startrow=$(($lastrow - $#))
 
-  # ensure cursor and input echoing back on upon a ctrl+c during read -s
-  trap "cursor_blink_on; stty echo; printf '\n'; exit" 2
   cursor_blink_off
 
   local shortcut_found="no"

@@ -3,6 +3,57 @@
 
 ########## Global tasks ###########################################
 
+tput smcup # Save screen
+
+# Command     : myExit [message]
+# Description : gracefully handle an exit and restore terminal to original state
+myExit() {
+  tput rmcup # restore screen
+  [[ -n $2 ]] && echo -e "\n$2\n"
+  stty echo  # Enable user input
+  tput cnorm # restore cursor
+  tput sgr0  # turn off all attributes
+  exit "$1"
+}
+
+# General exit handler
+cleanup() {
+    err=$?
+    trap '' INT TERM
+    myExit ${err} "CNTools terminated, cleaning up..."
+}
+sig_cleanup() {
+    trap '' EXIT # some shells will call EXIT after the INT handler
+    false # sets $?
+    cleanup
+}
+trap sig_cleanup INT TERM
+
+clear
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [-o]
+CNTools - The Cardano SPOs best friend
+
+-o    Activate offline mode - run CNTools in offline mode without node access, only a limited set of functions available
+EOF
+}
+
+OFL_MODE="false"
+
+while getopts :o opt; do
+  case ${opt} in
+    o )
+      OFL_MODE="true"
+      ;;
+    \? )
+      myExit 1 "$(usage)"
+      ;;
+    esac
+done
+shift $((OPTIND -1))
+
 # get common env variables
 . "$(dirname $0)"/env
 
@@ -15,73 +66,8 @@
 # create temporary directory if missing
 mkdir -p "${TMP_FOLDER}" # Create if missing
 if [[ ! -d "${TMP_FOLDER}" ]]; then
-  say ""
-  say "${RED}ERROR${NC}: Failed to create directory for temporary files:"
-  say "${TMP_FOLDER}"
-  say ""
-  exit 1
+  myExit 1 "${RED}ERROR${NC}: Failed to create directory for temporary files:\n${TMP_FOLDER}"
 fi
-
-# check to see if there are any updates available
-clear
-say "CNTools version check...\n"
-URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
-if wget -q -T 10 -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"; then
-  GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-  GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-  GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-  if [[ "$GIT_PATCH_VERSION" -eq 999  ]]; then
-    ((GIT_MAJOR_VERSION++))
-    GIT_MINOR_VERSION=0
-    GIT_PATCH_VERSION=0
-  fi
-  if [[ "$CNTOOLS_PATCH_VERSION" -eq 999  ]]; then
-    # CNTools was updated using special 999 patch tag, apply correct version in cntools.library and update variables already sourced
-    sed -i "s/CNTOOLS_MAJOR_VERSION=[[:digit:]]\+/CNTOOLS_MAJOR_VERSION=$((++CNTOOLS_MAJOR_VERSION))/" "$CNODE_HOME/scripts/cntools.library"
-    sed -i "s/CNTOOLS_MINOR_VERSION=[[:digit:]]\+/CNTOOLS_MINOR_VERSION=0/" "$CNODE_HOME/scripts/cntools.library"
-    sed -i "s/CNTOOLS_PATCH_VERSION=[[:digit:]]\+/CNTOOLS_PATCH_VERSION=0/" "$CNODE_HOME/scripts/cntools.library"
-    # CNTOOLS_MAJOR_VERSION variable already updated in sed replace command
-    CNTOOLS_MINOR_VERSION=0
-    CNTOOLS_PATCH_VERSION=0
-    CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
-  fi
-  if [[ "${CNTOOLS_MAJOR_VERSION}" != "${GIT_MAJOR_VERSION}" || "${CNTOOLS_MINOR_VERSION}" != "${GIT_MINOR_VERSION}" || "${CNTOOLS_PATCH_VERSION}" != "${GIT_PATCH_VERSION}" ]]; then
-    say "A new version of CNTools is available" "log"
-    say ""
-    say "Installed Version : ${CNTOOLS_VERSION}" "log"
-    say "Available Version : ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC}" "log"
-    say "\nGo to Update section for upgrade\n\nAlternately, follow https://cardano-community.github.io/guild-operators/#/basics?id=pre-requisites to update cntools as well alongwith any other files"
-    waitForInput "press any key to proceed"
-  else
-    # check if CNTools was recently updated, if so show whats new
-    URL_DOCS="https://raw.githubusercontent.com/cardano-community/guild-operators/master/docs/Scripts"
-    if wget -q -T 10 -O "${TMP_FOLDER}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
-      if ! cmp -s "${TMP_FOLDER}"/cntools-changelog.md "$CNODE_HOME/scripts/cntools-changelog.md"; then
-        # Latest changes not shown, show whats new and copy changelog
-        clear 
-        say "~ CNTools - What's New ~"
-        if [[ ! -f "$CNODE_HOME/scripts/cntools-changelog.md" ]]; then 
-          # special case for first installation or 5.0.0 upgrade, print release notes until previous major version
-          waitForInput "Press any key to show what's new in last major release, use 'q' to quit viewer"
-          sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_FOLDER}"/cntools-changelog.md | head -n -2 | less
-        else
-          # print release notes from current until previously installed version
-          waitForInput "Press any key to show what's new compared to currently installed release, use 'q' to quit viewer"
-          [[ $(cat "$CNODE_HOME/scripts/cntools-changelog.md") =~ \[([[:digit:]])\.([[:digit:]])\.([[:digit:]])\] ]]
-          sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}\.${BASH_REMATCH[3]}\]/p" "${TMP_FOLDER}"/cntools-changelog.md | head -n -2 | less
-        fi
-        cp "${TMP_FOLDER}"/cntools-changelog.md "$CNODE_HOME/scripts/cntools-changelog.md"
-      fi
-    else
-      say "\n${RED}ERROR${NC}: failed to download changelog from GitHub!\n"
-      waitForInput "press any key to proceed"
-    fi
-  fi
-else
-  say "\n${RED}ERROR${NC}: failed to download cntools.library from GitHub, unable to perform version check!\n"
-  waitForInput "press any key to proceed"
-fi
-clear
 
 # check for required command line tools
 if ! need_cmd "curl" || \
@@ -89,41 +75,118 @@ if ! need_cmd "curl" || \
    ! need_cmd "bc" || \
    ! need_cmd "sed" || \
    ! need_cmd "awk" || \
-   ! need_cmd "column"; then exit 1
+   ! need_cmd "column"; then myExit 1 "${need_cmd_error}"
 fi
 
-# Check if config is a valid json file
-if ! jq -e . >/dev/null 2>&1 "${CONFIG}"; then
-  say "\n${RED}ERROR${NC}: Please ensure that your config file is in JSON format\n"
-  say "Config file: ${CONFIG}"
-  exit 1
-fi
+# Do some checks when run in online mode
+if [[ ${OFL_MODE} = "false" ]]; then
+  # check to see if there are any updates available
+  clear
+  say "CNTools version check...\n"
+  URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
+  if wget -q -T 10 -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"; then
+    GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+    GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+    GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+    if [[ "$GIT_PATCH_VERSION" -eq 999  ]]; then
+      ((GIT_MAJOR_VERSION++))
+      GIT_MINOR_VERSION=0
+      GIT_PATCH_VERSION=0
+    fi
+    if [[ "$CNTOOLS_PATCH_VERSION" -eq 999  ]]; then
+      # CNTools was updated using special 999 patch tag, apply correct version in cntools.library and update variables already sourced
+      sed -i "s/CNTOOLS_MAJOR_VERSION=[[:digit:]]\+/CNTOOLS_MAJOR_VERSION=$((++CNTOOLS_MAJOR_VERSION))/" "$CNODE_HOME/scripts/cntools.library"
+      sed -i "s/CNTOOLS_MINOR_VERSION=[[:digit:]]\+/CNTOOLS_MINOR_VERSION=0/" "$CNODE_HOME/scripts/cntools.library"
+      sed -i "s/CNTOOLS_PATCH_VERSION=[[:digit:]]\+/CNTOOLS_PATCH_VERSION=0/" "$CNODE_HOME/scripts/cntools.library"
+      # CNTOOLS_MAJOR_VERSION variable already updated in sed replace command
+      CNTOOLS_MINOR_VERSION=0
+      CNTOOLS_PATCH_VERSION=0
+      CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
+    fi
+    if [[ "${CNTOOLS_MAJOR_VERSION}" != "${GIT_MAJOR_VERSION}" || "${CNTOOLS_MINOR_VERSION}" != "${GIT_MINOR_VERSION}" || "${CNTOOLS_PATCH_VERSION}" != "${GIT_PATCH_VERSION}" ]]; then
+      say "A new version of CNTools is available" "log"
+      say ""
+      say "Installed Version : ${CNTOOLS_VERSION}" "log"
+      say "Available Version : ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC}" "log"
+      say "\nGo to Update section for upgrade\n\nAlternately, follow https://cardano-community.github.io/guild-operators/#/basics?id=pre-requisites to update cntools as well alongwith any other files"
+      waitForInput "press any key to proceed"
+    else
+      # check if CNTools was recently updated, if so show whats new
+      URL_DOCS="https://raw.githubusercontent.com/cardano-community/guild-operators/master/docs/Scripts"
+      if wget -q -T 10 -O "${TMP_FOLDER}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
+        if ! cmp -s "${TMP_FOLDER}"/cntools-changelog.md "$CNODE_HOME/scripts/cntools-changelog.md"; then
+          # Latest changes not shown, show whats new and copy changelog
+          clear 
+          say "~ CNTools - What's New ~"
+          if [[ ! -f "$CNODE_HOME/scripts/cntools-changelog.md" ]]; then 
+            # special case for first installation or 5.0.0 upgrade, print release notes until previous major version
+            waitForInput "Press any key to show what's new in last major release, use 'q' to quit viewer"
+            sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_FOLDER}"/cntools-changelog.md | head -n -2 | less
+          else
+            # print release notes from current until previously installed version
+            waitForInput "Press any key to show what's new compared to currently installed release, use 'q' to quit viewer"
+            [[ $(cat "$CNODE_HOME/scripts/cntools-changelog.md") =~ \[([[:digit:]])\.([[:digit:]])\.([[:digit:]])\] ]]
+            sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}\.${BASH_REMATCH[3]}\]/p" "${TMP_FOLDER}"/cntools-changelog.md | head -n -2 | less
+          fi
+          cp "${TMP_FOLDER}"/cntools-changelog.md "$CNODE_HOME/scripts/cntools-changelog.md"
+        fi
+      else
+        say "\n${RED}ERROR${NC}: failed to download changelog from GitHub!\n"
+        waitForInput "press any key to proceed"
+      fi
+    fi
+  else
+    say "\n${RED}ERROR${NC}: failed to download cntools.library from GitHub, unable to perform version check!\n"
+    waitForInput "press any key to proceed"
+  fi
 
-# Verify that Prometheus is enabled in config file
-prom_port=$(jq -r '.hasPrometheus[1] //empty' ${CONFIG} 2>/dev/null)
-prom_host=$(jq -r '.hasPrometheus[0] //empty' ${CONFIG} 2>/dev/null)
+  # Check if config is a valid json file
+  if ! jq -e . >/dev/null 2>&1 "${CONFIG}"; then
+    myExit 1 "${RED}ERROR${NC}: Please ensure that your config file is in JSON format\nConfig file: ${CONFIG}"
+  fi
 
-if [[ -z "${prom_port}" ]]; then
-  say "\n${RED}ERROR${NC}: Please ensure that hasPrometheus is enabled, if unsure - rerun \"<path>/prereqs.sh -s\" again - and it would overwrite the config file\n"
-  exit 1
-fi
+  # Verify that Prometheus is enabled in config file
+  prom_port=$(jq -r '.hasPrometheus[1] //empty' ${CONFIG} 2>/dev/null)
+  prom_host=$(jq -r '.hasPrometheus[0] //empty' ${CONFIG} 2>/dev/null)
 
-# Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
-[[ -f "${TMP_FOLDER}"/protparams.json ]] && rm -f "${TMP_FOLDER}"/protparams.json 2>/dev/null
-${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} >"${TMP_FOLDER}/protparams.json" 2>&1
-if grep -q "Network.Socket.connect" "${TMP_FOLDER}/protparams.json"; then
-  say "\n${ORANGE}WARN${NC}: node socket path wrongly configured or node not running, please verify that socket set in env file match what is used to run the node"
-  say "\n${BLUE}Press c to continue or any other key to quit${NC}"
-  say "only offline functions will be available if you continue\n"
-  read -r -n 1 -s -p "" answer
-  [[ "${answer}" != "c" ]] && exit 1
-elif ! jq . "${TMP_FOLDER}/protparams.json" &>/dev/null; then
-  say "\n${ORANGE}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)"
-  say "\nError message: $(cat "${TMP_FOLDER}/protparams.json")"
-  say "\n${BLUE}Press c to continue or any other key to quit${NC}"
-  say "only offline functions will be available if you continue\n"
-  read -r -n 1 -s -p "" answer
-  [[ "${answer}" != "c" ]] && exit 1
+  if [[ -z "${prom_port}" ]]; then
+    myExit 1 "${RED}ERROR${NC}: Please ensure that hasPrometheus is enabled, if unsure - rerun \"<path>/prereqs.sh -s\" again - and it would overwrite the config file"
+  fi
+
+  # Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
+  [[ -f "${TMP_FOLDER}"/protparams.json ]] && rm -f "${TMP_FOLDER}"/protparams.json 2>/dev/null
+  ${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} >"${TMP_FOLDER}/protparams.json" 2>&1
+  if grep -q "Network.Socket.connect" "${TMP_FOLDER}/protparams.json"; then
+    myExit 1 "${ORANGE}WARN${NC}: node socket path wrongly configured or node not running, please verify that socket set in env file match what is used to run the node\n\n\
+  ${BLUE}Re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality${NC}"
+  elif ! jq . "${TMP_FOLDER}/protparams.json" &>/dev/null; then
+    myExit 1 "${ORANGE}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)\n\n\
+  Error message: $(cat "${TMP_FOLDER}/protparams.json")\n\n\
+  ${BLUE}Re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality${NC}"
+  fi
+
+  # check if there are pools in need of KES key rotation
+  clear
+  kes_rotation_needed="no"
+  while IFS= read -r -d '' pool; do
+    if [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]]; then
+      kesExpiration "$(cat "${pool}/${POOL_CURRENT_KES_START}")"
+      if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
+        kes_rotation_needed="yes"
+        say "\n** WARNING **\nPool ${GREEN}$(basename ${pool})${NC} in need of KES key rotation"
+        if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
+          say "${RED}Keys expired!${NC} : ${RED}$(showTimeLeft ${expiration_time_sec_diff:1})${NC} ago"
+        else
+          say "Time left : ${RED}$(showTimeLeft ${expiration_time_sec_diff})${NC}"
+        fi
+      elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
+        kes_rotation_needed="yes"
+        say "\nPool ${GREEN}$(basename ${pool})${NC} soon in need of KES key rotation"
+        say "Time left : ${ORANGE}$(showTimeLeft ${expiration_time_sec_diff})${NC}"
+      fi
+    fi
+  done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+  [[ ${kes_rotation_needed} = "yes" ]] && waitForInput "press any key to proceed"
 fi
 
 # Verify if the combinator network is already on shelley and if so, the epoch of transition
@@ -131,58 +194,36 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
   shelleyTransitionEpoch=$(cat "${SHELLEY_TRANS_FILENAME}" 2>/dev/null)
   if [[ -z "${shelleyTransitionEpoch}" ]]; then
     clear
-    getPromMetrics
-    slot_in_epoch=$(grep "cardano_node_ChainDB_metrics_slotInEpoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
-    slot_num=$(grep "cardano_node_ChainDB_metrics_slotNum_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
-    epoch=$(grep "cardano_node_ChainDB_metrics_epoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
-    calc_slot=0
-    byron_epochs=${epoch}
-    shelley_epochs=0
-    while [[ ${byron_epochs} -ge 0 ]]; do
-      calc_slot=$(( (byron_epochs*byron_epoch_length) + (shelley_epochs*epoch_length) + slot_in_epoch ))
-      [[ ${calc_slot} -eq ${slot_num} ]] && break
-      ((byron_epochs--))
-      ((shelley_epochs++))
-    done
-    say "\nNODE SYNC:"
-    printTable ',' "$(echo -e "Epoch,Slot in Epoch,Slot\n${epoch},${slot_in_epoch},${slot_num}")"
     if [[ "${NETWORK_IDENTIFIER}" == "--mainnet" ]]; then
       shelleyTransitionEpoch="208"
-    elif [[ ${calc_slot} -ne ${slot_num} ]]; then
-      say "\n${ORANGE}WARN${NC}: Failed to calculate shelley transition epoch\n"
-      exit 1
-    elif [[ ${shelley_epochs} -eq 0 ]]; then
-      say "\n${ORANGE}WARN${NC}: The network has not reached the hard fork from Byron to shelley, please wait to use CNTools until your node is in shelley era\n"
-      exit 1
+    elif [[ ${OFL_MODE} = "false" ]]; then
+      getPromMetrics
+      slot_in_epoch=$(grep "cardano_node_ChainDB_metrics_slotInEpoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
+      slot_num=$(grep "cardano_node_ChainDB_metrics_slotNum_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
+      epoch=$(grep "cardano_node_ChainDB_metrics_epoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
+      calc_slot=0
+      byron_epochs=${epoch}
+      shelley_epochs=0
+      while [[ ${byron_epochs} -ge 0 ]]; do
+        calc_slot=$(( (byron_epochs*byron_epoch_length) + (shelley_epochs*epoch_length) + slot_in_epoch ))
+        [[ ${calc_slot} -eq ${slot_num} ]] && break
+        ((byron_epochs--))
+        ((shelley_epochs++))
+      done
+      node_sync="NODE SYNC: $(printTable ',' "$(echo -e "Epoch,Slot in Epoch,Slot\n${epoch},${slot_in_epoch},${slot_num}")")"
+      if [[ ${calc_slot} -ne ${slot_num} ]]; then
+        myExit 1 "${ORANGE}WARN${NC}: Failed to calculate shelley transition epoch\n\n${node_sync}"
+      elif [[ ${shelley_epochs} -eq 0 ]]; then
+        myExit 1 "${ORANGE}WARN${NC}: The network has not reached the hard fork from Byron to shelley, please wait to use CNTools until your node is in shelley era\n\n${node_sync}"
+      else
+        shelleyTransitionEpoch=${byron_epochs}
+      fi
     else
-      shelleyTransitionEpoch=${byron_epochs}
+      myExit 1 "${ORANGE}WARN${NC}: Offline mode enabled and config set to TestNet, please manually create and set shelley transition epoch in:\n${SHELLEY_TRANS_FILENAME}"
     fi
     echo "${shelleyTransitionEpoch}" > "${SHELLEY_TRANS_FILENAME}"
   fi
 fi
-
-# check if there are pools in need of KES key rotation
-clear
-kes_rotation_needed="no"
-while IFS= read -r -d '' pool; do
-  if [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]]; then
-    kesExpiration "$(cat "${pool}/${POOL_CURRENT_KES_START}")"
-    if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
-      kes_rotation_needed="yes"
-      say "\n** WARNING **\nPool ${GREEN}$(basename ${pool})${NC} in need of KES key rotation"
-      if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
-        say "${RED}Keys expired!${NC} : ${RED}$(showTimeLeft ${expiration_time_sec_diff:1})${NC} ago"
-      else
-        say "Time left : ${RED}$(showTimeLeft ${expiration_time_sec_diff})${NC}"
-      fi
-    elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
-      kes_rotation_needed="yes"
-      say "\nPool ${GREEN}$(basename ${pool})${NC} soon in need of KES key rotation"
-      say "Time left : ${ORANGE}$(showTimeLeft ${expiration_time_sec_diff})${NC}"
-    fi
-  fi
-done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-[[ ${kes_rotation_needed} = "yes" ]] && waitForInput "press any key to proceed"
 
 ###################################################################
 
@@ -207,14 +248,18 @@ say " ) Backup  -  backup & restore of wallet/pool/config"
 say " ) Refresh -  reload home screen content"
 say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 say "$(printf "%84s" "Epoch $(getEpoch) - $(timeUntilNextEpoch) until next")"
-tip_diff=$(getSlotTipDiff)
-slot_interval=$(slotInterval)
-if [[ ${tip_diff} -le ${slot_interval} ]]; then
-  say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${GREEN}-${tip_diff} :)${NC}")"
-elif [[ ${tip_diff} -le $(( slot_interval * 2 )) ]]; then
-  say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${LGRAY1}-${tip_diff} :|${NC}")"
+if [[ ${OFL_MODE} = "true" ]]; then
+  say "$(printf " %-20s %73s" "What would you like to do?" "Ref Tip: ${LGRAY1}-$(getSlotTipRef)${NC}")"
 else
-  say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${RED}-${tip_diff} :(${NC}")"
+  tip_diff=$(getSlotTipDiff)
+  slot_interval=$(slotInterval)
+  if [[ ${tip_diff} -le ${slot_interval} ]]; then
+    say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${GREEN}-${tip_diff} :)${NC}")"
+  elif [[ ${tip_diff} -le $(( slot_interval * 2 )) ]]; then
+    say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${LGRAY1}-${tip_diff} :|${NC}")"
+  else
+    say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${RED}-${tip_diff} :(${NC}")"
+  fi
 fi
 say ""
 case $(select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[b] Blocks" "[u] Update" "[z] Backup & Restore" "[r] Refresh" "[q] Quit") in
@@ -225,7 +270,7 @@ case $(select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[b] Blocks" "[u] Update" 
   4) OPERATION="update" ;;
   5) OPERATION="backup" ;;
   6) continue ;;
-  7) clear && exit ;;
+  7) myExit 0 "CNTools closed!" ;;
 esac
 
 case $OPERATION in
@@ -306,8 +351,8 @@ case $OPERATION in
     say " >> WALLET >> LIST" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
-      say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
+    if [[ ${OFL_MODE} = "true" ]]; then
+      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     fi
 
@@ -368,8 +413,8 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
 
-    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
-      say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
+    if [[ ${OFL_MODE} = "true" ]]; then
+      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     fi
 
@@ -459,8 +504,8 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
 
-    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
-      say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
+    if [[ ${OFL_MODE} = "true" ]]; then
+      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     fi
 
@@ -696,8 +741,8 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
 
-    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
-      say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
+    if [[ ${OFL_MODE} = "true" ]]; then
+      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     fi
 
@@ -787,8 +832,8 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
 
-    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
-      say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
+    if [[ ${OFL_MODE} = "true" ]]; then
+      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     fi
 
@@ -999,8 +1044,8 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
 
-    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
-      say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
+    if [[ ${OFL_MODE} = "true" ]]; then
+      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     fi
 
@@ -1230,8 +1275,8 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
 
-    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
-      say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
+    if [[ ${OFL_MODE} = "true" ]]; then
+      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     fi
 
@@ -1703,8 +1748,8 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
 
-    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
-      say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
+    if [[ ${OFL_MODE} = "true" ]]; then
+      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     fi
 
@@ -2152,8 +2197,8 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
 
-    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
-      say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
+    if [[ ${OFL_MODE} = "true" ]]; then
+      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     fi
 
@@ -2275,8 +2320,8 @@ case $OPERATION in
     say " >> POOL >> LIST" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
-      say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
+    if [[ ${OFL_MODE} = "true" ]]; then
+      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     fi
 
@@ -2318,8 +2363,8 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
 
-    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
-      say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
+    if [[ ${OFL_MODE} = "true" ]]; then
+      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     fi
 
@@ -2490,8 +2535,8 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
 
-    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
-      say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
+    if [[ ${OFL_MODE} = "true" ]]; then
+      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     fi
 
@@ -2794,8 +2839,7 @@ case $OPERATION in
          wget -q -T 10 -O "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "$URL/cntoolsBlockCollector.sh"; then
         chmod 750 "$CNODE_HOME/scripts/"*.sh
         chmod 640 "$CNODE_HOME/scripts/cntools.library" "$CNODE_HOME/scripts/cntools.config"
-        say "\nUpdate applied successfully!\n\nPlease start CNTools again !\n"
-        exit
+        myExit 0 "Update applied successfully!\n\nPlease start CNTools again!"
       else
         say "\n${RED}ERROR${NC}: update unsuccessful, backup or GitHub download failed!\n"
       fi
