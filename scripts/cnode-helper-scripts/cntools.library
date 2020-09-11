@@ -401,7 +401,7 @@ getSlotTip() {
   grep "cardano_node_ChainDB_metrics_slotNum_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}'
 }
 # Command    : getSlotTipRef
-# Description: Get calculated slot number tip
+# Description: Offline calculation of reference tip
 # Return     : string with tip on STDOUT
 getSlotTipRef() {
   current_time_sec=$(date -u +%s)
@@ -438,8 +438,6 @@ slotInterval() {
 # Description: Offline calculation of current epoch based on genesis file
 # Return     : current epoch on STDOUT
 getEpoch() {
-  #getPromMetrics
-  #grep "cardano_node_ChainDB_metrics_epoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}'
   current_time_sec=$(date -u +%s)
   if [[ "${PROTOCOL_IDENTIFIER}" == "--cardano-mode" ]]; then
     byron_end_time=$(( byron_genesis_start_sec + ( $(cat $SHELLEY_TRANS_FILENAME) * byron_epoch_length * byron_slot_length ) ))
@@ -462,10 +460,10 @@ timeUntilNextEpoch() {
 }
 
 # Command    : getCurrentKESperiod
-# Description: Get current KES period calculated based on slot tip
+# Description: Offline calculation of current KES period based on reference tip
 # Return     : current KES period on STDOUT
 getCurrentKESperiod() {
-  current_kes_period=$(( $(getSlotTip) / slots_per_kes_period ))
+  current_kes_period=$(( $(getSlotTipRef) / slots_per_kes_period ))
   echo "${current_kes_period}"
 }
 
@@ -1713,16 +1711,6 @@ rotatePoolKeys() {
   pool_opcert_counter_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_COUNTER_FILENAME}"
   pool_saved_kes_start="${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}"
   pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
-  
-  if [[ ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_hotkey_vk_file}"  || ! -f "${pool_hotkey_sk_file}" || ! -f "${pool_opcert_counter_file}" ]]; then
-    say "${RED}ERROR${NC}: missing pool keys, pool encrypted?\n"
-    say "Files needed to rotate KES keys:"
-    say "${pool_coldkey_sk_file}"
-    say "${pool_hotkey_vk_file}"
-    say "${pool_hotkey_sk_file}"
-    say "${pool_opcert_counter_file}"
-    return 1
-  fi
 
   start_kes_period=$(( $(getCurrentKESperiod) - 1 ))
   echo "${start_kes_period}" > ${pool_saved_kes_start}

@@ -164,30 +164,32 @@ if [[ ${OFL_MODE} = "false" ]]; then
   Error message: $(cat "${TMP_FOLDER}/protparams.json")\n\n\
   ${BLUE}Re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality${NC}"
   fi
-
-  # check if there are pools in need of KES key rotation
-  clear
-  kes_rotation_needed="no"
-  while IFS= read -r -d '' pool; do
-    if [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]]; then
-      kesExpiration "$(cat "${pool}/${POOL_CURRENT_KES_START}")"
-      if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
-        kes_rotation_needed="yes"
-        say "\n** WARNING **\nPool ${GREEN}$(basename ${pool})${NC} in need of KES key rotation"
-        if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
-          say "${RED}Keys expired!${NC} : ${RED}$(showTimeLeft ${expiration_time_sec_diff:1})${NC} ago"
-        else
-          say "Time left : ${RED}$(showTimeLeft ${expiration_time_sec_diff})${NC}"
-        fi
-      elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
-        kes_rotation_needed="yes"
-        say "\nPool ${GREEN}$(basename ${pool})${NC} soon in need of KES key rotation"
-        say "Time left : ${ORANGE}$(showTimeLeft ${expiration_time_sec_diff})${NC}"
-      fi
-    fi
-  done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-  [[ ${kes_rotation_needed} = "yes" ]] && waitForInput "press any key to proceed"
 fi
+
+# check if there are pools in need of KES key rotation
+clear
+kes_rotation_needed="no"
+while IFS= read -r -d '' pool; do
+  if [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]]; then
+    kesExpiration "$(cat "${pool}/${POOL_CURRENT_KES_START}")"
+    if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
+      kes_rotation_needed="yes"
+      say "\n** WARNING **\nPool ${GREEN}$(basename ${pool})${NC} in need of KES key rotation"
+      if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
+        say "${RED}Keys expired!${NC} : ${RED}$(showTimeLeft ${expiration_time_sec_diff:1})${NC} ago"
+      else
+        say "Remaining KES periods : ${RED}${remaining_kes_periods}${NC}"
+        say "Time left             : ${RED}$(showTimeLeft ${expiration_time_sec_diff})${NC}"
+      fi
+    elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
+      kes_rotation_needed="yes"
+      say "\nPool ${GREEN}$(basename ${pool})${NC} soon in need of KES key rotation"
+      say "Remaining KES periods : ${ORANGE}${remaining_kes_periods}${NC}"
+      say "Time left             : ${ORANGE}$(showTimeLeft ${expiration_time_sec_diff})${NC}"
+    fi
+  fi
+done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+[[ ${kes_rotation_needed} = "yes" ]] && waitForInput "press any key to proceed"
 
 # Verify if the combinator network is already on shelley and if so, the epoch of transition
 if [[ "${PROTOCOL}" == "Cardano" ]]; then
@@ -2535,11 +2537,6 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
 
-    if [[ ${OFL_MODE} = "true" ]]; then
-      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-      waitForInput && continue
-    fi
-
     pool_dirs=()
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
@@ -2567,6 +2564,13 @@ case $OPERATION in
     say "Pool KES Keys Updated: ${GREEN}${pool_name}${NC}" "log"
     say "New KES start period: ${start_kes_period}" "log"
     say "KES keys will expire on kes period ${kes_expiration_period}, ${expiration_date}" "log"
+    say ""
+    if [[ ${OFL_MODE} = "true" ]]; then
+      say "Copy updated files to pool node replacing existing files (vrf.skey not changed):" "log"
+      say "${pool_hotkey_sk_file}" "log"
+      say "${pool_opcert_counter_file}" "log"
+      say ""
+    fi
     say "Restart your pool node for changes to take effect"
 
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
