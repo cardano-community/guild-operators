@@ -107,6 +107,12 @@ while getopts :l opt; do
 done
 shift $((OPTIND -1))
 
+if ! command -v "ss" &>/dev/null; then
+  myExit 1 "'ss' command missing, please install using latest prereqs.sh script or with your packet manager of choice.\nhttps://command-not-found.com/ss can be used to check package name to install."
+elif ! command -v "tcptraceroute" &>/dev/null; then
+  myExit 1 "'tcptraceroute' command missing, please install using latest prereqs.sh script or with your packet manager of choice.\nhttps://command-not-found.com/tcptraceroute can be used to check package name to install."
+fi
+
 # The commands below will try to detect the information assuming you run single node on a machine. 
 # Please override values if they dont match your system in the 'User Variables' section below 
 [[ ${#NODE_NAME} -gt 19 ]] && myExit 1 "Please keep node name at or below 19 characters in length!"
@@ -344,9 +350,9 @@ checkPeers() {
   direction=$1
 
   if [[ ${direction} = "out" ]]; then
-    netstatPeers=$(netstat -np 2>/dev/null | grep -e "ESTABLISHED.* ${pid}/" | awk -v port=":${CNODE_PORT}" '$4 !~ port {print $5}')
+    netstatPeers=$(ss -tnp state established 2>/dev/null | grep "${pid}," | awk -v port=":${CNODE_PORT}" '$3 !~ port {print $4}')
   else
-    netstatPeers=$(netstat -np 2>/dev/null | grep -e "ESTABLISHED.* ${pid}/" | awk -v port=":${CNODE_PORT}" '$4 ~ port {print $5}')
+    netstatPeers=$(ss -tnp state established 2>/dev/null | grep "${pid}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print $4}')
   fi
   netstatSorted=$(printf '%s\n' "${netstatPeers[@]}" | sort )
   peerCNTABS=$(printf '%s\n' "${netstatPeers[@]}" | wc -l)
@@ -506,7 +512,7 @@ while true; do
   if ((uptimens<=0)); then
     myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE!${NC}"
   fi
-  peers_in=$(netstat -np 2>/dev/null | grep -e "ESTABLISHED.* ${pid}/" | awk -v port=":${CNODE_PORT}" '$4 ~ port {print}' | wc -l)
+  peers_in=$(ss -tnp state established 2>/dev/null | grep "${pid}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
   peers_out=$(jq '.cardano.node.BlockFetchDecision.peers.connectedPeers.int.val //0' <<< "${data}")
   blocknum=$(jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${data}")
   epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
