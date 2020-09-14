@@ -17,12 +17,33 @@ fi
 
 [[ ! -d "$CNODE_HOME/logs/archive" ]] && mkdir -p "$CNODE_HOME/logs/archive"
 
-[[ $(find "$CNODE_HOME"/logs/*.json | wc -l) -gt 0 ]] && mv $CNODE_HOME/logs/*.json $CNODE_HOME/logs/archive/
+[[ $(find "$CNODE_HOME"/logs/*.json 2>/dev/null | wc -l) -gt 0 ]] && mv $CNODE_HOME/logs/*.json $CNODE_HOME/logs/archive/
 
-cardano-node run \
+## Static - Begin (not overwritten by prereqs.sh)
+
+POOL_NAME="TEST"
+CNODE_PORT=6000
+POOL_DIR="$CNODE_HOME/priv/pool/$POOL_NAME"
+
+if [[ -f "$POOL_DIR/op.cert" && -f "$POOL_DIR/vrf.skey" && -f "$POOL_DIR/hot.skey" ]]; then
+  echo cardano-node run \
 	--topology $CNODE_HOME/files/topology.json \
 	--config $CNODE_HOME/files/config.json \
 	--database-path $CNODE_HOME/db \
 	--socket-path $CNODE_HOME/sockets/node0.socket \
 	--host-addr 0.0.0.0 \
-	--port 6000
+        --shelley-kes-key $POOL_DIR/hot.skey \
+        --shelley-vrf-key $POOL_DIR/vrf.skey \
+        --shelley-operational-certificate $POOL_DIR/op.cert \
+	--port $CNODE_PORT
+else
+  echo cardano-node run \
+        --topology $CNODE_HOME/files/topology.json \
+        --config $CNODE_HOME/files/config.json \
+        --database-path $CNODE_HOME/db \
+        --socket-path $CNODE_HOME/sockets/node0.socket \
+        --host-addr 0.0.0.0 \
+        --port $CNODE_PORT
+fi
+
+## Static - End
