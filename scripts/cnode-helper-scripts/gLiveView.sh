@@ -77,7 +77,7 @@ trap 'stty echo' EXIT
 # Description : gracefully handle an exit and restore terminal to original state
 myExit() {
   exit_msg="$2"
-  cleanup $1
+  cleanup "$1"
 }
 
 usage() {
