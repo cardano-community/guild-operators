@@ -112,7 +112,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
   OS_ID=$(grep -i ^id_like= /etc/os-release | cut -d= -f 2)
   DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
 
-  if [ -z "${OS_ID##*debian*}" ]; then
+  if [[ "${OS_ID}" =~ "ebian" ]]; then
     #Debian/Ubuntu
     echo "Using apt to prepare packages for ${DISTRO} system"
     echo "  Updating system packages..."
@@ -127,7 +127,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
       echo "It would be best if you could submit an issue at https://github.com/cardano-community/guild-operators with the details to tackle in future, as some errors may be due to external/already present dependencies"
       exit;
     fi
-  elif [ -z "${OS_ID##*rhel*}" ] || [[ "${DISTRO}" =~ "Fedora" ]]; then
+  elif [[ "${OS_ID}" =~ "rhel" ]] || [[ "${DISTRO}" =~ "Fedora" ]]; then
     #CentOS/RHEL/Fedora
     echo "Using yum to prepare packages for ${DISTRO} system"
     echo "  Updating system packages..."
