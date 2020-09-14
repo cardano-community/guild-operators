@@ -227,7 +227,7 @@ if [[ "$GUILD" = "Y" ]]; then
 else
   curl -sL -o byron-genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
   curl -sL -o genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
-  cp topology.json "topology.json_bkp$(date +%s)"
+  [[ -f topology.json ]] && cp topology.json "topology.json_bkp$(date +%s)"
   curl -sL -o topology.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
 fi
 
@@ -252,7 +252,7 @@ curl -s -o cntools.config https://raw.githubusercontent.com/cardano-community/gu
 curl -s -o cntools.library https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.library
 curl -s -o cntoolsBlockCollector.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntoolsBlockCollector.sh
 curl -s -o setup_mon.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/setup_mon.sh
-cp topologyUpdater.sh "topologyUpdater.sh_bkp$(date +%s)"
+[[ -f topologyUpdater.sh ]] && cp topologyUpdater.sh "topologyUpdater.sh_bkp$(date +%s)"
 curl -s -o topologyUpdater.sh ${OVERWRITE} https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/topologyUpdater.sh
 curl -s -o itnRewards.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/itnRewards.sh
 curl -s -o cabal-build-all.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cabal-build-all.sh
