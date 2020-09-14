@@ -129,17 +129,17 @@ protectionPreRequisites() {
   rm -f "${TMP_FOLDER}"/test
 }
 
-# Command    : safeDel [file]
-# Description: unlock and use secure delete (srm) if available to delete file
+# Command    : safeDel [path]
+# Description: unlock and use secure delete (srm) if available to delete file|dir
 # Note       : srm mainly effective for traditional magnetic HDDs and non copy-on-write or journal file systems
 safeDel() {
-  file=$1
-  [[ $(lsattr -R "${file}") =~ -i- ]] && sudo chattr -i "${file}"
+  path=$1
+  [[ -f "${path}" && $(lsattr -R "${path}") =~ -i- ]] && sudo chattr -i "${path}"
   command -v "srm" > /dev/null 2>&1 && delcommand='srm' || delcommand='rm'
-  if "${delcommand}" -f "${file}"; then
-    say "Deleted: ${file}"
+  if "${delcommand}" -rf "${path}"; then
+    say "Deleted: ${path}" "log"
   else
-    say "${RED}ERROR${NC}: delete failed for ${file}" 1>&2
+    say "${RED}ERROR${NC}: delete failed for ${path}" 1>&2
     return 1
   fi
 }
@@ -1012,7 +1012,7 @@ registerStakeWallet() {
     fi
     getBalance ${base_addr}
     if [[ ${lovelace} -ne ${newBalance} ]]; then
-      say ""
+      echo
       say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
     else
       break
