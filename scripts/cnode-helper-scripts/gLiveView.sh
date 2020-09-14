@@ -125,8 +125,8 @@ if wget -q -T 10 -O /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
     echo -e "\nPress 'u' to update to latest version, or any other key to continue\n"
     read -r -n 1 -s -p "" answer
     if [[ "${answer}" = "u" ]]; then
-      cp -f /tmp/gLiveView.sh "$CNODE_HOME/scripts/gLiveView.sh"
-      chmod 750 "$CNODE_HOME/scripts/gLiveView.sh"
+      cp -f /tmp/gLiveView.sh "${CNODE_HOME}/scripts/gLiveView.sh"
+      chmod 750 "${CNODE_HOME}/scripts/gLiveView.sh"
       myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!"
     fi
   fi
