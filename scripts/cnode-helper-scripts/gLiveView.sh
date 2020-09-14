@@ -398,7 +398,7 @@ checkPeers() {
   [[ -z ${netstatPeers} ]] && return
   
   netstatSorted=$(printf '%s\n' "${netstatPeers[@]}" | sort )
-  peerCNTABS=$(wc -w <<< ${netstatPeers})
+  peerCNTABS=$(wc -w <<< "${netstatPeers}")
   
   # Sort/filter peers
   lastpeerIP=""; lastpeerPORT=""
