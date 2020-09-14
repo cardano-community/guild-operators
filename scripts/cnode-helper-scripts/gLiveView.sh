@@ -1,6 +1,10 @@
 #!/bin/bash
 #shellcheck disable=SC2009,SC2034,SC2059,SC2206
 
+GLV_MAJOR_VERSION=1
+GLV_MINOR_VERSION=0
+GLV_VERSION="${GLV_MAJOR_VERSION}.${GLV_MINOR_VERSION}"
+
 ######################################
 # User Variables - Change as desired #
 # Leave as is if usure               #
@@ -57,34 +61,24 @@ tput smcup # Save screen
 tput civis # Disable cursor
 stty -echo # Disable user input
 
-# Command     : myExit [message]
-# Description : gracefully handle an exit and restore terminal to original state
-myExit() {
-  tput rmcup # restore screen
-  [[ -n $2 ]] && echo -e "\n$2\n"
-  stty echo  # Enable user input
-  tput cnorm # restore cursor
-  tput sgr0  # turn off all attributes
-  exit "$1"
-}
-
 # General exit handler
 cleanup() {
-    err=$?
-    trap '' INT TERM
-    myExit $err "Guild LiveView terminated, cleaning up..."
+  [[ -n $1 ]] && err=$1 || err=$?
+  tput rmcup # restore screen
+  tput cnorm # restore cursor
+  tput sgr0  # turn off all attributes
+  [[ -n ${exit_msg} ]] && echo -e "\n${exit_msg}\n" || echo -e "\nGuild LiveView terminated, cleaning up...\n"
+  exit $err
 }
-sig_cleanup() {
-    trap '' EXIT # some shells will call EXIT after the INT handler
-    false # sets $?
-    cleanup
-}
-trap sig_cleanup INT TERM
+trap cleanup HUP INT TERM
+trap 'stty echo' EXIT
 
-#######################################################
-# Automatically grab a few parameters                 #
-# Can be overridden in 'User Variables' section above #
-#######################################################
+# Command     : myExit [exit code] [message]
+# Description : gracefully handle an exit and restore terminal to original state
+myExit() {
+  exit_msg="$2"
+  cleanup $1
+}
 
 usage() {
   cat <<EOF
@@ -112,6 +106,39 @@ if ! command -v "ss" &>/dev/null; then
 elif ! command -v "tcptraceroute" &>/dev/null; then
   myExit 1 "'tcptraceroute' command missing, please install using latest prereqs.sh script or with your packet manager of choice.\nhttps://command-not-found.com/tcptraceroute can be used to check package name to install."
 fi
+
+#######################################################
+# Version Check                                       #
+#######################################################
+clear
+echo "Guild LiveView version check..."
+URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
+if wget -q -T 10 -O /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
+  GIT_MAJOR_VERSION=$(grep -r ^GLV_MAJOR_VERSION= /tmp/gLiveView.sh | cut -d'=' -f2)
+  GIT_MINOR_VERSION=$(grep -r ^GLV_MINOR_VERSION= /tmp/gLiveView.sh | cut -d'=' -f2)
+  : "${GIT_MAJOR_VERSION:=0}"
+  : "${GIT_MINOR_VERSION:=0}"
+  if [[ "${GLV_MAJOR_VERSION}" != "${GIT_MAJOR_VERSION}" || "${GLV_MINOR_VERSION}" != "${GIT_MINOR_VERSION}" ]]; then
+    echo -e "\nA new version of Guild LiveView is available"
+    echo "Installed Version : ${GLV_VERSION}"
+    echo "Available Version : ${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}"
+    echo -e "\nPress 'u' to update to latest version, or any other key to continue\n"
+    read -r -n 1 -s -p "" answer
+    if [[ "${answer}" = "u" ]]; then
+      cp -f /tmp/gLiveView.sh "$CNODE_HOME/scripts/gLiveView.sh"
+      chmod 750 "$CNODE_HOME/scripts/gLiveView.sh"
+      myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!"
+    fi
+  fi
+else
+  echo -e "\nFailed to download gLiveView.sh from GitHub, unable to perform version check!\n"
+  read -r -n 1 -s -p "press any key to proceed" answer
+fi
+
+#######################################################
+# Automatically grab a few parameters                 #
+# Can be overridden in 'User Variables' section above #
+#######################################################
 
 # The commands below will try to detect the information assuming you run single node on a machine. 
 # Please override values if they dont match your system in the 'User Variables' section below 
@@ -222,7 +249,7 @@ else
 fi
 
 # Title
-title="Guild LiveView"
+title="Guild LiveView v${GLV_VERSION}"
 
 #####################################
 # Helper functions                  #
