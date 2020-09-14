@@ -730,7 +730,7 @@ while true; do
       peerCNT0_out=${peerCNT0}; peerCNT1_out=${peerCNT1}; peerCNT2_out=${peerCNT2}; peerCNT3_out=${peerCNT3}; peerCNT4_out=${peerCNT4}
       peerPCT1_out=${peerPCT1}; peerPCT2_out=${peerPCT2}; peerPCT3_out=${peerPCT3}; peerPCT4_out=${peerPCT4}
       peerPCT1items_out=${peerPCT1items}; peerPCT2items_out=${peerPCT2items}; peerPCT3items_out=${peerPCT3items}; peerPCT4items_out=${peerPCT4items}
-      peerRTT_out=${peerRTT}; peerRTTAVG_out=${peerRTTAVG}; peerCNTUnique_out=${peerCNTUnique}; peerCNTSKIPPED_out=${peerCNTSKIPPED}
+      peerRTTAVG_out=${peerRTTAVG}; peerCNTUnique_out=${peerCNTUnique}; peerCNTSKIPPED_out=${peerCNTSKIPPED}
       time_out=$(date -u '+%T Z')
     fi
     
@@ -774,10 +774,11 @@ while true; do
       done
       printf "${NC}"
       endLine $((line++))
-        if [[ ${peerRTT_out} -ge 200 ]]; then printf "${VL}   Average : ${style_status_4}%s${NC} ms" "${peerRTTAVG_out}"
-      elif [[ ${peerRTT_out} -ge 100 ]]; then printf "${VL}   Average : ${style_status_3}%s${NC} ms" "${peerRTTAVG_out}"
-      elif [[ ${peerRTT_out} -ge 50  ]]; then printf "${VL}   Average : ${style_status_2}%s${NC} ms" "${peerRTTAVG_out}"
-      elif [[ ${peerRTT_out} -ge 0   ]]; then printf "${VL}   Average : ${style_status_1}%s${NC} ms" "${peerRTTAVG_out}"; fi
+        if [[ ${peerRTTAVG_out} -ge 200 ]]; then printf "${VL}   Average : ${style_status_4}%s${NC} ms" "${peerRTTAVG_out}"
+      elif [[ ${peerRTTAVG_out} -ge 100 ]]; then printf "${VL}   Average : ${style_status_3}%s${NC} ms" "${peerRTTAVG_out}"
+      elif [[ ${peerRTTAVG_out} -ge 50  ]]; then printf "${VL}   Average : ${style_status_2}%s${NC} ms" "${peerRTTAVG_out}"
+      elif [[ ${peerRTTAVG_out} -ge 0   ]]; then printf "${VL}   Average : ${style_status_1}%s${NC} ms" "${peerRTTAVG_out}"
+      else printf "${VL}   Average : - ms"; fi
       endLine $((line++))
       
       echo "${m3divider}"
@@ -800,7 +801,7 @@ while true; do
         peerCNT0_in=${peerCNT0}; peerCNT1_in=${peerCNT1}; peerCNT2_in=${peerCNT2}; peerCNT3_in=${peerCNT3}; peerCNT4_in=${peerCNT4}
         peerPCT1_in=${peerPCT1}; peerPCT2_in=${peerPCT2}; peerPCT3_in=${peerPCT3}; peerPCT4_in=${peerPCT4}
         peerPCT1items_in=${peerPCT1items}; peerPCT2items_in=${peerPCT2items}; peerPCT3items_in=${peerPCT3items}; peerPCT4items_in=${peerPCT4items}
-        peerRTT_in=${peerRTT}; peerRTTAVG_in=${peerRTTAVG}; peerCNTUnique_in=${peerCNTUnique}; peerCNTSKIPPED_in=${peerCNTSKIPPED}
+        peerRTTAVG_in=${peerRTTAVG}; peerCNTUnique_in=${peerCNTUnique}; peerCNTSKIPPED_in=${peerCNTSKIPPED}
         time_in=$(date -u '+%T Z')
       fi
       
@@ -842,10 +843,11 @@ while true; do
       done
       printf "${NC}"
       endLine $((line++))
-        if [[ ${peerRTT_in} -ge 200 ]]; then printf "${VL}   Average : ${style_status_4}%s${NC} ms" "${peerRTTAVG_in}"
-      elif [[ ${peerRTT_in} -ge 100 ]]; then printf "${VL}   Average : ${style_status_3}%s${NC} ms" "${peerRTTAVG_in}"
-      elif [[ ${peerRTT_in} -ge 50  ]]; then printf "${VL}   Average : ${style_status_2}%s${NC} ms" "${peerRTTAVG_in}"
-      elif [[ ${peerRTT_in} -ge 0   ]]; then printf "${VL}   Average : ${style_status_1}%s${NC} ms" "${peerRTTAVG_in}"; fi
+        if [[ ${peerRTTAVG_in} -ge 200 ]]; then printf "${VL}   Average : ${style_status_4}%s${NC} ms" "${peerRTTAVG_in}"
+      elif [[ ${peerRTTAVG_in} -ge 100 ]]; then printf "${VL}   Average : ${style_status_3}%s${NC} ms" "${peerRTTAVG_in}"
+      elif [[ ${peerRTTAVG_in} -ge 50  ]]; then printf "${VL}   Average : ${style_status_2}%s${NC} ms" "${peerRTTAVG_in}"
+      elif [[ ${peerRTTAVG_in} -ge 0   ]]; then printf "${VL}   Average : ${style_status_1}%s${NC} ms" "${peerRTTAVG_in}"
+      else printf "${VL}   Average : - ms"; fi
       endLine $((line++))
       
       echo "${m3divider}"
