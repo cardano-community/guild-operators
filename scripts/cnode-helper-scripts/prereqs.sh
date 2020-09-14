@@ -112,7 +112,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
   OS_ID=$(grep -i ^id_like= /etc/os-release | cut -d= -f 2)
   DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
 
-  if [[ "${OS_ID}" =~ ebian ]]; then
+if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
     #Debian/Ubuntu
     echo "Using apt to prepare packages for ${DISTRO} system"
     echo "  Updating system packages..."
