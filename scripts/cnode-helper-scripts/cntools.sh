@@ -251,11 +251,11 @@ else
   tip_diff=$(getSlotTipDiff)
   slot_interval=$(slotInterval)
   if [[ ${tip_diff} -le $(( slot_interval * 2 )) ]]; then
-    say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${GREEN}-${tip_diff} :)${NC}")"
+    say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${GREEN}${tip_diff} :)${NC}")"
   elif [[ ${tip_diff} -le $(( slot_interval * 3 )) ]]; then
-    say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${ORANGE}-${tip_diff} :|${NC}")"
+    say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${ORANGE}${tip_diff} :|${NC}")"
   else
-    say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${RED}-${tip_diff} :(${NC}")"
+    say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${RED}${tip_diff} :(${NC}")"
   fi
 fi
 echo
