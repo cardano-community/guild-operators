@@ -1,6 +1,8 @@
 #!/bin/bash
 #shellcheck disable=SC2009,SC2034,SC2059,SC2206
 
+GLV_VERSION=v1.0
+
 ######################################
 # User Variables - Change as desired #
 # Leave as is if usure               #
@@ -57,34 +59,24 @@ tput smcup # Save screen
 tput civis # Disable cursor
 stty -echo # Disable user input
 
-# Command     : myExit [message]
-# Description : gracefully handle an exit and restore terminal to original state
-myExit() {
-  tput rmcup # restore screen
-  [[ -n $2 ]] && echo -e "\n$2\n"
-  stty echo  # Enable user input
-  tput cnorm # restore cursor
-  tput sgr0  # turn off all attributes
-  exit "$1"
-}
-
 # General exit handler
 cleanup() {
-    err=$?
-    trap '' INT TERM
-    myExit $err "Guild LiveView terminated, cleaning up..."
+  [[ -n $1 ]] && err=$1 || err=$?
+  tput rmcup # restore screen
+  tput cnorm # restore cursor
+  tput sgr0  # turn off all attributes
+  [[ -n ${exit_msg} ]] && echo -e "\n${exit_msg}\n" || echo -e "\nGuild LiveView terminated, cleaning up...\n"
+  exit $err
 }
-sig_cleanup() {
-    trap '' EXIT # some shells will call EXIT after the INT handler
-    false # sets $?
-    cleanup
-}
-trap sig_cleanup INT TERM
+trap cleanup HUP INT TERM
+trap 'stty echo' EXIT
 
-#######################################################
-# Automatically grab a few parameters                 #
-# Can be overridden in 'User Variables' section above #
-#######################################################
+# Command     : myExit [exit code] [message]
+# Description : gracefully handle an exit and restore terminal to original state
+myExit() {
+  exit_msg="$2"
+  cleanup "$1"
+}
 
 usage() {
   cat <<EOF
@@ -112,6 +104,38 @@ if ! command -v "ss" &>/dev/null; then
 elif ! command -v "tcptraceroute" &>/dev/null; then
   myExit 1 "'tcptraceroute' command missing, please install using latest prereqs.sh script or with your packet manager of choice.\nhttps://command-not-found.com/tcptraceroute can be used to check package name to install."
 fi
+
+#######################################################
+# Version Check                                       #
+#######################################################
+clear
+echo "Guild LiveView version check..."
+URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
+if wget -q -T 10 -O /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
+  GIT_VERSION=$(grep -r ^GLV_VERSION= /tmp/gLiveView.sh | cut -d'=' -f2)
+  : "${GIT_VERSION:=v0.0}"
+  if [[ "${GLV_VERSION}" != "${GIT_VERSION}" ]]; then
+    echo -e "\nA new version of Guild LiveView is available"
+    echo "Installed Version : ${GLV_VERSION}"
+    echo "Available Version : ${GIT_VERSION}"
+    echo -e "\nPress 'u' to update to latest version, or any other key to continue\n"
+    read -r -n 1 -s -p "" answer
+    if [[ "${answer}" = "u" ]]; then
+      mv "${CNODE_HOME}/scripts/gLiveView.sh" "${CNODE_HOME}/scripts/gLiveView.sh.bkp_$(date +%s)"
+      cp -f /tmp/gLiveView.sh "${CNODE_HOME}/scripts/gLiveView.sh"
+      chmod 750 "${CNODE_HOME}/scripts/gLiveView.sh"
+      myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!"
+    fi
+  fi
+else
+  echo -e "\nFailed to download gLiveView.sh from GitHub, unable to perform version check!\n"
+  read -r -n 1 -s -p "press any key to proceed" answer
+fi
+
+#######################################################
+# Automatically grab a few parameters                 #
+# Can be overridden in 'User Variables' section above #
+#######################################################
 
 # The commands below will try to detect the information assuming you run single node on a machine. 
 # Please override values if they dont match your system in the 'User Variables' section below 
@@ -222,7 +246,7 @@ else
 fi
 
 # Title
-title="Guild LiveView"
+title="Guild LiveView ${GLV_VERSION}"
 
 #####################################
 # Helper functions                  #
@@ -255,7 +279,7 @@ timeLeft() {
   printf '%02d:%02d:%02d' $H $M $S
 }
 
-# Command    : getShelleyTransitionEpoch
+# Command    : getShelleyTransitionEpoch [1 = no user verification]
 # Description: Calculate shelley transition epoch
 getShelleyTransitionEpoch() {
   calc_slot=0
@@ -270,13 +294,18 @@ getShelleyTransitionEpoch() {
   if [[ "${nwmagic}" = "764824073" ]]; then
     shelley_transition_epoch=208
   elif [[ ${calc_slot} -ne ${slotnum} || ${shelley_epochs} -eq 0 ]]; then
-    clear
-    printf "\n ${style_status_3}Failed${NC} to calculate shelley transition epoch!"
-    printf "\n Calculations might not work correctly until Shelley era is reached."
-    printf "\n\n ${style_info}Press c to continue or any other key to quit${NC}"
-    read -r -n 1 -s -p "" answer
-    [[ "${answer}" != "c" ]] && myExit 1 "Guild LiveView terminated!"
-    shelley_transition_epoch=0
+    if [[ $1 -ne 1 ]]; then
+      clear
+      printf "\n ${style_status_3}Failed${NC} to get shelley transition epoch, calculations will not work correctly!"
+      printf "\n\n Possible causes:"
+      printf "\n   - Node in startup mode"
+      printf "\n   - Shelley era not reached"
+      printf "\n After successful node boot or when sync to shelley era has been reached, calculations will be correct"
+      printf "\n\n ${style_info}Press c to continue or any other key to quit${NC}"
+      read -r -n 1 -s -p "" answer
+      [[ "${answer}" != "c" ]] && myExit 1 "Guild LiveView terminated!"
+    fi
+    shelley_transition_epoch=-1
   else
     shelley_transition_epoch=${byron_epochs}
   fi
@@ -287,6 +316,7 @@ getShelleyTransitionEpoch() {
 getEpoch() {
   current_time_sec=$(date -u +%s)
   if [[ "${PROTOCOL}" = "Cardano" ]]; then
+    [[ shelley_transition_epoch -eq -1 ]] && echo 0 && return
     byron_end_time=$(( byron_genesis_start_sec + ( shelley_transition_epoch * byron_epoch_length * byron_slot_length ) ))
     echo $(( shelley_transition_epoch + ( (current_time_sec - byron_end_time) / slot_length / epoch_length ) ))
   else
@@ -297,7 +327,13 @@ getEpoch() {
 # Command    : getTimeUntilNextEpoch
 # Description: Offline calculation of time in seconds until next epoch
 timeUntilNextEpoch() {
-  echo $(( (shelley_transition_epoch * byron_slot_length * byron_epoch_length) + ( ( $(getEpoch) + 1 - shelley_transition_epoch ) * slot_length * epoch_length ) - $(date -u +%s) + byron_genesis_start_sec ))
+  current_time_sec=$(date -u +%s)
+  if [[ "${PROTOCOL}" = "Cardano" ]]; then
+    [[ shelley_transition_epoch -eq -1 ]] && echo 0 && return
+    echo $(( (shelley_transition_epoch * byron_slot_length * byron_epoch_length) + ( ( $(getEpoch) + 1 - shelley_transition_epoch ) * slot_length * epoch_length ) - current_time_sec + byron_genesis_start_sec ))
+  else
+    echo $(( ( ( ( (current_time_sec - shelley_genesis_start_sec) / slot_length / epoch_length ) + 1 ) * slot_length * epoch_length ) - current_time_sec + shelley_genesis_start_sec ))
+  fi
 }
 
 # Command    : getSlotTipRef
@@ -305,6 +341,7 @@ timeUntilNextEpoch() {
 getSlotTipRef() {
   current_time_sec=$(date -u +%s)
   if [[ "${PROTOCOL}" = "Cardano" ]]; then
+    [[ shelley_transition_epoch -eq -1 ]] && echo 0 && return
     # Combinator network
     byron_slots=$(( shelley_transition_epoch * byron_epoch_length )) # since this point will only be reached once we're in Shelley phase
     byron_end_time=$(( byron_genesis_start_sec + ( shelley_transition_epoch * byron_epoch_length * byron_slot_length ) ))
@@ -325,7 +362,8 @@ getSlotTipRef() {
 # Description: Calculate KES expiration
 kesExpiration() {
   current_time_sec=$(date -u +%s)
-  expiration_time_sec=$(( current_time_sec - ( slot_length * slots_per_kes_period ) + ( slot_length * slots_per_kes_period * remaining_kes_periods ) ))
+  tip_ref=$(getSlotTipRef)
+  expiration_time_sec=$(( current_time_sec - ( slot_length * (tip_ref % slots_per_kes_period) ) + ( slot_length * slots_per_kes_period * remaining_kes_periods ) ))
   kes_expiration=$(date '+%F %T Z' --date=@${expiration_time_sec})
 }
 
@@ -354,8 +392,10 @@ checkPeers() {
   else
     netstatPeers=$(ss -tnp state established 2>/dev/null | grep "${pid}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print $4}')
   fi
+  [[ -z ${netstatPeers} ]] && return
+  
   netstatSorted=$(printf '%s\n' "${netstatPeers[@]}" | sort )
-  peerCNTABS=$(printf '%s\n' "${netstatPeers[@]}" | wc -l)
+  peerCNTABS=$(wc -w <<< "${netstatPeers}")
   
   # Sort/filter peers
   lastpeerIP=""; lastpeerPORT=""
@@ -429,12 +469,10 @@ check_peers="false"
 show_peers="false"
 line_end=0
 data=$(curl -s -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
-about_to_lead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0' <<< "${data}")
 epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
 slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
 slotnum=$(jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${data}")
 remaining_kes_periods=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
-[[ ${about_to_lead} -gt 0 ]] && nodemode="Core" || nodemode="Relay"
 
 #####################################
 # Static genesis variables          #
@@ -459,11 +497,11 @@ if [[ "${PROTOCOL}" = "Cardano" ]]; then
   byron_epoch_length=$(( 10 * byron_k ))
   getShelleyTransitionEpoch
 else
-  shelley_transition_epoch=-1
+  shelley_transition_epoch=-2
 fi
 #####################################
 slot_interval=$(echo "(${slot_length} / ${active_slots_coeff} / ${decentralisation}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}')
-kesExpiration # Static and wont change until KES rotation and node restart
+kesExpiration
 #####################################
 
 clear
@@ -529,6 +567,13 @@ while true; do
   forged=$(jq '.cardano.node.metrics.Forge.forged.int.val //0' <<< "${data}")
   adopted=$(jq '.cardano.node.metrics.Forge.adopted.int.val //0' <<< "${data}")
   didntadopt=$(jq '.cardano.node.metrics.Forge["didnt-adopt"].int.val //0' <<< "${data}")
+  about_to_lead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0' <<< "${data}")
+  
+  [[ ${about_to_lead} -gt 0 ]] && nodemode="Core" || nodemode="Relay"
+  if [[ "${PROTOCOL}" = "Cardano" && ${shelley_transition_epoch} -eq -1 ]]; then # if Shelley transition epoch calc failed during start, try until successful
+    getShelleyTransitionEpoch 1 
+    kesExpiration
+  fi
 
   header_length=$(( ${#NODE_NAME} + ${#nodemode} + ${#node_version} + ${#node_rev} + 16 ))
   [[ ${header_length} -gt ${width} ]] && header_padding=0 || header_padding=$(( (width - header_length) / 2 ))
@@ -552,7 +597,7 @@ while true; do
   printf "${LVL}\n"
   ((line++))
 
-  if [[ ${shelley_transition_epoch} = -1 || ${epochnum} -ge ${shelley_transition_epoch} ]]; then
+  if [[ ${shelley_transition_epoch} -eq -2 ]] || [[ ${shelley_transition_epoch} -ne -1 && ${epochnum} -ge ${shelley_transition_epoch} ]]; then
     epoch_progress=$(echo "(${slot_in_epoch}/${epoch_length})*100" | bc -l)        # in Shelley era or Shelley only TestNet
   else
     epoch_progress=$(echo "(${slot_in_epoch}/${byron_epoch_length})*100" | bc -l)  # in Byron era
@@ -583,12 +628,16 @@ while true; do
   endLine $((line++))
   printf "${VL} Density : ${style_values_1}%s${NC}%%" "${density}"
   tput cup ${line} ${second_col}
-  if [[ ${tip_diff} -le $(( slot_interval * 2 )) ]]; then
-    printf "Tip (diff) : ${style_status_1}%s${NC}" "-${tip_diff} :)"
+  if [[ ${slotnum} -eq 0 ]]; then
+    printf "Status     : ${style_info}starting...${NC}"
+  elif [[ "${PROTOCOL}" = "Cardano" && ${shelley_transition_epoch} -eq -1 ]]; then
+    printf "Status     : ${style_info}syncing...${NC}"
+  elif [[ ${tip_diff} -le $(( slot_interval * 2 )) ]]; then
+    printf "Tip (diff) : ${style_status_1}%s${NC}" "${tip_diff} :)"
   elif [[ ${tip_diff} -le $(( slot_interval * 3 )) ]]; then
-    printf "Tip (diff) : ${style_status_2}%s${NC}" "-${tip_diff} :|"
+    printf "Tip (diff) : ${style_status_2}%s${NC}" "${tip_diff} :|"
   else
-    printf "Tip (diff) : ${style_status_3}%s${NC}" "-${tip_diff} :("
+    printf "Tip (diff) : ${style_status_3}%s${NC}" "${tip_diff} :("
   fi
   endLine $((line++))
   
@@ -597,11 +646,11 @@ while true; do
   
   printf "${VL} Processed TX     : ${style_values_1}%s${NC}" "${tx_processed}"
   tput cup ${line} $((second_col+7))
-  printf "        In / Out"
+  printf "        Out / In"
   endLine $((line++))
   printf "${VL} Mempool TX/Bytes : ${style_values_1}%s${NC} / ${style_values_1}%s${NC}" "${mempool_tx}" "${mempool_bytes}"
   tput el; tput cup ${line} $((second_col+7))
-  printf "Peers : ${style_values_1}%s${NC} / ${style_values_1}%s${NC}" "${peers_in}" "${peers_out}"
+  printf "Peers : ${style_values_1}%s${NC} / ${style_values_1}%s${NC}" "${peers_out}" "${peers_in}"
   endLine $((line++))
   
   ## Core section ##
@@ -682,7 +731,7 @@ while true; do
       peerCNT0_out=${peerCNT0}; peerCNT1_out=${peerCNT1}; peerCNT2_out=${peerCNT2}; peerCNT3_out=${peerCNT3}; peerCNT4_out=${peerCNT4}
       peerPCT1_out=${peerPCT1}; peerPCT2_out=${peerPCT2}; peerPCT3_out=${peerPCT3}; peerPCT4_out=${peerPCT4}
       peerPCT1items_out=${peerPCT1items}; peerPCT2items_out=${peerPCT2items}; peerPCT3items_out=${peerPCT3items}; peerPCT4items_out=${peerPCT4items}
-      peerRTT_out=${peerRTT}; peerRTTAVG_out=${peerRTTAVG}; peerCNTUnique_out=${peerCNTUnique}; peerCNTSKIPPED_out=${peerCNTSKIPPED}
+      peerRTTAVG_out=${peerRTTAVG}; peerCNTUnique_out=${peerCNTUnique}; peerCNTSKIPPED_out=${peerCNTSKIPPED}
       time_out=$(date -u '+%T Z')
     fi
     
@@ -726,10 +775,11 @@ while true; do
       done
       printf "${NC}"
       endLine $((line++))
-        if [[ ${peerRTT_out} -ge 200 ]]; then printf "${VL}   Average : ${style_status_4}%s${NC} ms" "${peerRTTAVG_out}"
-      elif [[ ${peerRTT_out} -ge 100 ]]; then printf "${VL}   Average : ${style_status_3}%s${NC} ms" "${peerRTTAVG_out}"
-      elif [[ ${peerRTT_out} -ge 50  ]]; then printf "${VL}   Average : ${style_status_2}%s${NC} ms" "${peerRTTAVG_out}"
-      elif [[ ${peerRTT_out} -ge 0   ]]; then printf "${VL}   Average : ${style_status_1}%s${NC} ms" "${peerRTTAVG_out}"; fi
+        if [[ ${peerRTTAVG_out} -ge 200 ]]; then printf "${VL}   Average : ${style_status_4}%s${NC} ms" "${peerRTTAVG_out}"
+      elif [[ ${peerRTTAVG_out} -ge 100 ]]; then printf "${VL}   Average : ${style_status_3}%s${NC} ms" "${peerRTTAVG_out}"
+      elif [[ ${peerRTTAVG_out} -ge 50  ]]; then printf "${VL}   Average : ${style_status_2}%s${NC} ms" "${peerRTTAVG_out}"
+      elif [[ ${peerRTTAVG_out} -ge 0   ]]; then printf "${VL}   Average : ${style_status_1}%s${NC} ms" "${peerRTTAVG_out}"
+      else printf "${VL}   Average : - ms"; fi
       endLine $((line++))
       
       echo "${m3divider}"
@@ -752,7 +802,7 @@ while true; do
         peerCNT0_in=${peerCNT0}; peerCNT1_in=${peerCNT1}; peerCNT2_in=${peerCNT2}; peerCNT3_in=${peerCNT3}; peerCNT4_in=${peerCNT4}
         peerPCT1_in=${peerPCT1}; peerPCT2_in=${peerPCT2}; peerPCT3_in=${peerPCT3}; peerPCT4_in=${peerPCT4}
         peerPCT1items_in=${peerPCT1items}; peerPCT2items_in=${peerPCT2items}; peerPCT3items_in=${peerPCT3items}; peerPCT4items_in=${peerPCT4items}
-        peerRTT_in=${peerRTT}; peerRTTAVG_in=${peerRTTAVG}; peerCNTUnique_in=${peerCNTUnique}; peerCNTSKIPPED_in=${peerCNTSKIPPED}
+        peerRTTAVG_in=${peerRTTAVG}; peerCNTUnique_in=${peerCNTUnique}; peerCNTSKIPPED_in=${peerCNTSKIPPED}
         time_in=$(date -u '+%T Z')
       fi
       
@@ -794,10 +844,11 @@ while true; do
       done
       printf "${NC}"
       endLine $((line++))
-        if [[ ${peerRTT_in} -ge 200 ]]; then printf "${VL}   Average : ${style_status_4}%s${NC} ms" "${peerRTTAVG_in}"
-      elif [[ ${peerRTT_in} -ge 100 ]]; then printf "${VL}   Average : ${style_status_3}%s${NC} ms" "${peerRTTAVG_in}"
-      elif [[ ${peerRTT_in} -ge 50  ]]; then printf "${VL}   Average : ${style_status_2}%s${NC} ms" "${peerRTTAVG_in}"
-      elif [[ ${peerRTT_in} -ge 0   ]]; then printf "${VL}   Average : ${style_status_1}%s${NC} ms" "${peerRTTAVG_in}"; fi
+        if [[ ${peerRTTAVG_in} -ge 200 ]]; then printf "${VL}   Average : ${style_status_4}%s${NC} ms" "${peerRTTAVG_in}"
+      elif [[ ${peerRTTAVG_in} -ge 100 ]]; then printf "${VL}   Average : ${style_status_3}%s${NC} ms" "${peerRTTAVG_in}"
+      elif [[ ${peerRTTAVG_in} -ge 50  ]]; then printf "${VL}   Average : ${style_status_2}%s${NC} ms" "${peerRTTAVG_in}"
+      elif [[ ${peerRTTAVG_in} -ge 0   ]]; then printf "${VL}   Average : ${style_status_1}%s${NC} ms" "${peerRTTAVG_in}"
+      else printf "${VL}   Average : - ms"; fi
       endLine $((line++))
       
       echo "${m3divider}"
