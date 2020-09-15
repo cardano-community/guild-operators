@@ -1,9 +1,7 @@
 #!/bin/bash
 #shellcheck disable=SC2009,SC2034,SC2059,SC2206
 
-GLV_MAJOR_VERSION=1
-GLV_MINOR_VERSION=0-rc1
-GLV_VERSION="${GLV_MAJOR_VERSION}.${GLV_MINOR_VERSION}"
+GLV_VERSION=v1.0
 
 ######################################
 # User Variables - Change as desired #
@@ -114,14 +112,12 @@ clear
 echo "Guild LiveView version check..."
 URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
 if wget -q -T 10 -O /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
-  GIT_MAJOR_VERSION=$(grep -r ^GLV_MAJOR_VERSION= /tmp/gLiveView.sh | cut -d'=' -f2)
-  GIT_MINOR_VERSION=$(grep -r ^GLV_MINOR_VERSION= /tmp/gLiveView.sh | cut -d'=' -f2)
-  : "${GIT_MAJOR_VERSION:=0}"
-  : "${GIT_MINOR_VERSION:=0}"
-  if [[ "${GLV_MAJOR_VERSION}" != "${GIT_MAJOR_VERSION}" || "${GLV_MINOR_VERSION}" != "${GIT_MINOR_VERSION}" ]]; then
+  GIT_VERSION=$(grep -r ^GLV_VERSION= /tmp/gLiveView.sh | cut -d'=' -f2)
+  : "${GIT_VERSION:=v0.0}"
+  if [[ "${GLV_VERSION}" != "${GIT_VERSION}" ]]; then
     echo -e "\nA new version of Guild LiveView is available"
     echo "Installed Version : ${GLV_VERSION}"
-    echo "Available Version : ${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}"
+    echo "Available Version : ${GIT_VERSION}"
     echo -e "\nPress 'u' to update to latest version, or any other key to continue\n"
     read -r -n 1 -s -p "" answer
     if [[ "${answer}" = "u" ]]; then
@@ -250,7 +246,7 @@ else
 fi
 
 # Title
-title="Guild LiveView v${GLV_VERSION}"
+title="Guild LiveView ${GLV_VERSION}"
 
 #####################################
 # Helper functions                  #
