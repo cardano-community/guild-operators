@@ -574,7 +574,7 @@ while true; do
   about_to_lead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0' <<< "${data}")
   
   [[ ${about_to_lead} -gt 0 ]] && nodemode="Core" || nodemode="Relay"
-  if [[ "${PROTOCOL}" = "Cardano" && shelley_transition_epoch -eq -1 ]]; then # if Shelley transition epoch calc failed during start, try until successful
+  if [[ "${PROTOCOL}" = "Cardano" && ${shelley_transition_epoch} -eq -1 ]]; then # if Shelley transition epoch calc failed during start, try until successful
     getShelleyTransitionEpoch 1 
     kesExpiration
   fi
@@ -601,7 +601,7 @@ while true; do
   printf "${LVL}\n"
   ((line++))
 
-  if [[ ${shelley_transition_epoch} -eq -2 || ${epochnum} -ge ${shelley_transition_epoch} ]]; then
+  if [[ ${shelley_transition_epoch} -eq -2 ]] || [[ ${shelley_transition_epoch} -ne -1 && ${epochnum} -ge ${shelley_transition_epoch} ]]; then
     epoch_progress=$(echo "(${slot_in_epoch}/${epoch_length})*100" | bc -l)        # in Shelley era or Shelley only TestNet
   else
     epoch_progress=$(echo "(${slot_in_epoch}/${byron_epoch_length})*100" | bc -l)  # in Byron era
@@ -632,7 +632,11 @@ while true; do
   endLine $((line++))
   printf "${VL} Density : ${style_values_1}%s${NC}%%" "${density}"
   tput cup ${line} ${second_col}
-  if [[ ${tip_diff} -le $(( slot_interval * 2 )) ]]; then
+  if [[ ${slotnum} -eq 0 ]]; then
+    printf "Status     : ${style_info}starting...${NC}"
+  elif [[ "${PROTOCOL}" = "Cardano" && ${shelley_transition_epoch} -eq -1 ]]; then
+    printf "Status     : ${style_info}syncing...${NC}"
+  elif [[ ${tip_diff} -le $(( slot_interval * 2 )) ]]; then
     printf "Tip (diff) : ${style_status_1}%s${NC}" "${tip_diff} :)"
   elif [[ ${tip_diff} -le $(( slot_interval * 3 )) ]]; then
     printf "Tip (diff) : ${style_status_2}%s${NC}" "${tip_diff} :|"
