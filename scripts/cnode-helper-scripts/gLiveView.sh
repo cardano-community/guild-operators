@@ -2,7 +2,7 @@
 #shellcheck disable=SC2009,SC2034,SC2059,SC2206
 
 GLV_MAJOR_VERSION=1
-GLV_MINOR_VERSION=0
+GLV_MINOR_VERSION=0-rc1
 GLV_VERSION="${GLV_MAJOR_VERSION}.${GLV_MINOR_VERSION}"
 
 ######################################
@@ -125,6 +125,7 @@ if wget -q -T 10 -O /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
     echo -e "\nPress 'u' to update to latest version, or any other key to continue\n"
     read -r -n 1 -s -p "" answer
     if [[ "${answer}" = "u" ]]; then
+      mv "${CNODE_HOME}/scripts/gLiveView.sh" "${CNODE_HOME}/scripts/gLiveView.sh.bkp_$(date +%s)"
       cp -f /tmp/gLiveView.sh "${CNODE_HOME}/scripts/gLiveView.sh"
       chmod 750 "${CNODE_HOME}/scripts/gLiveView.sh"
       myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!"
