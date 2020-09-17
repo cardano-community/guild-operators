@@ -1,7 +1,7 @@
 #!/bin/bash
 #shellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015
 
-GLV_VERSION=v1.1
+GLV_VERSION=v1.0
 
 ######################################
 # User Variables - Change as desired #
@@ -180,8 +180,8 @@ fi
 [[ -z ${BLOCK_LOG_DIR} && -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks" # optional
 
 # Style
-width=53
-second_col=28
+width=63
+second_col=33
 FG_BLACK=$(tput setaf 0)
 FG_RED=$(tput setaf 1)
 FG_GREEN=$(tput setaf 2)
@@ -204,10 +204,10 @@ else
   char_marked=$(printf "\\u258C")
   char_unmarked=$(printf "\\u2596")
 fi
-granularity=50
-granularity_small=25
-step_size=$((100/granularity))
-step_size_small=$((100/granularity_small))
+granularity=$((width-3))
+granularity_small=30
+step_size=$((120/granularity))
+step_size_small=$((120/granularity_small))
 bar_col_small=$((width - granularity_small))
 
 # Lines
@@ -568,16 +568,16 @@ while true; do
   adopted=$(jq '.cardano.node.metrics.Forge.adopted.int.val //0' <<< "${data}")
   didntadopt=$(jq '.cardano.node.metrics.Forge["didnt-adopt"].int.val //0' <<< "${data}")
   about_to_lead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0' <<< "${data}")
-  
+  [[ "${nwmagic}" == "764824073" ]] && NWNAME="Mainnet" || { [[ "${nwmagic}" = "1097911063" ]] && NWNAME="Testnet" || NWNAME="Custom"; }  
   [[ ${about_to_lead} -gt 0 ]] && nodemode="Core" || nodemode="Relay"
   if [[ "${PROTOCOL}" = "Cardano" && ${shelley_transition_epoch} -eq -1 ]]; then # if Shelley transition epoch calc failed during start, try until successful
     getShelleyTransitionEpoch 1 
     kesExpiration
   fi
 
-  header_length=$(( ${#NODE_NAME} + ${#nodemode} + ${#node_version} + ${#node_rev} + 16 ))
+  header_length=$(( ${#NODE_NAME} + ${#nodemode} + ${#node_version} + ${#node_rev} + ${#NWNAME} + 20 ))
   [[ ${header_length} -gt ${width} ]] && header_padding=0 || header_padding=$(( (width - header_length) / 2 ))
-  printf "%${header_padding}s >> ${style_values_2}%s${NC} - ${style_info}%s${NC} : ${style_values_1}%s${NC} [${style_values_1}%s${NC}] <<\n" "" "${NODE_NAME}" "${nodemode}" "${node_version}" "${node_rev}"
+  printf "%${header_padding}s > ${style_values_2}%s${NC} - ${style_info}(%s - %s)${NC} : ${style_values_1}%s${NC} [${style_values_1}%s${NC}] < \n" "" "${NODE_NAME}" "${nodemode}" "${NWNAME}" "${node_version}" "${node_rev}"
   ((line++))
 
   ## Base section ##
@@ -603,9 +603,9 @@ while true; do
     epoch_progress=$(echo "(${slot_in_epoch}/${byron_epoch_length})*100" | bc -l)  # in Byron era
   fi
   printf "${VL} Epoch ${style_values_1}%s${NC} [${style_values_1}%2.1f%%${NC}] (node)" "${epochnum}" "${epoch_progress}"
-  tput cup ${line} ${second_col}
-  [[ "${nwmagic}" == "764824073" ]] && NWNAME="Mainnet" || { [[ "${nwmagic}" = "1097911063" ]] && NWNAME="Testnet" || NWNAME="Custom"; }
-  printf "Network    : ${NWNAME}"
+  #tput cup ${line} ${second_col}
+  #[[ "${nwmagic}" == "764824073" ]] && NWNAME="Mainnet" || { [[ "${nwmagic}" = "1097911063" ]] && NWNAME="Testnet" || NWNAME="Custom"; }
+  #printf "Network    : ${NWNAME}"
   endLine $((line++))
   printf "${VL} ${style_values_1}%s${NC} until epoch boundary (chain)" "$(timeLeft "$(timeUntilNextEpoch)")"
   endLine $((line++))
@@ -648,11 +648,11 @@ while true; do
   ((line++))
   
   printf "${VL} Processed TX     : ${style_values_1}%s${NC}" "${tx_processed}"
-  tput cup ${line} $((second_col+7))
+  tput cup ${line} $((second_col))
   printf "        Out / In"
   endLine $((line++))
   printf "${VL} Mempool TX/Bytes : ${style_values_1}%s${NC} / ${style_values_1}%s${NC}" "${mempool_tx}" "${mempool_bytes}"
-  tput el; tput cup ${line} $((second_col+7))
+  tput el; tput cup ${line} $((second_col))
   printf "Peers : ${style_values_1}%s${NC} / ${style_values_1}%s${NC}" "${peers_out}" "${peers_in}"
   endLine $((line++))
   
@@ -661,7 +661,7 @@ while true; do
     echo "${mdivider}"
     ((line++))
     
-    printf "${VL} KES current/remaining   : ${style_values_1}%s${NC} / " "${kesperiod}"
+    printf "${VL} KES current/remaining        : ${style_values_1}%s${NC} / " "${kesperiod}"
     if [[ ${remaining_kes_periods} -le 0 ]]; then
       printf "${style_status_4}%s${NC}" "${remaining_kes_periods}"
     elif [[ ${remaining_kes_periods} -le 8 ]]; then
@@ -670,15 +670,15 @@ while true; do
       printf "${style_values_1}%s${NC}" "${remaining_kes_periods}"
     fi
     endLine $((line++))
-    printf "${VL} KES expiration date     : ${style_values_1}%s${NC}" "${kes_expiration}"
+    printf "${VL} KES expiration date          : ${style_values_1}%s${NC}" "${kes_expiration}"
     endLine $((line++))
     
     echo "${m2divider}"
     ((line++))
     
-    printf "${VL} %49s" "IsLeader/Adopted/Missed"
+    printf "${VL} %54s" "IsLeader/Adopted/Missed"
     endLine $((line++))
-    printf "${VL} Blocks since node start : ${style_values_1}%s${NC} / " "${isleader}"
+    printf "${VL} Blocks since node start      : ${style_values_1}%s${NC} / " "${isleader}"
     if [[ ${adopted} -ne ${isleader} ]]; then
       printf "${style_status_2}%s${NC} / " "${adopted}"
     else
