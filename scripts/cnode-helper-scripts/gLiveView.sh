@@ -256,7 +256,7 @@ waitForInput() {
   ESC=$(printf "\033")
   if ! read -rsn1 -t ${REFRESH_RATE} key1; then return; fi
   [[ ${key1} = "${ESC}" ]] && read -rsn2 -t 0.3 key2 # read 2 more chars
-  [[ ${key1} = "p" && ${show_peers} = "false" ]] && check_peers="true" && return
+  [[ ${key1} = "p" && ${show_peers} = "false" ]] && check_peers="true" && clear && return
   [[ ${key1} = "h" && ${show_peers} = "true" ]] && show_peers="false" && clear && return
   [[ ${key1} = "q" ]] && myExit 0 "Guild LiveView stopped!"
   [[ ${key1} = "${ESC}" && ${key2} = "" ]] && myExit 0 "Guild LiveView stopped!"
@@ -467,7 +467,6 @@ pid=$(ps -ef | grep "[-]-port ${CNODE_PORT}" | awk '{print $2}')
 [[ -z ${pid} ]] && myExit 1 "Failed to locate cardano-node process ID, make sure CNODE_PORT is correctly set in script!"
 check_peers="false"
 show_peers="false"
-line_end=0
 data=$(curl -s -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
 epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
 slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
@@ -516,26 +515,26 @@ printf "${NC}"       # reset and set default color
 while true; do
   tlines=$(tput lines) # update terminal lines
   tcols=$(tput cols)   # update terminal columns
-  [[ ${width} -ge $((tcols-1)) || ${line_end} -ge $((tlines-1)) ]] && clear
-  while [[ ${width} -ge $((tcols-1)) ]]; do
+  [[ ${width} -ge $((tcols)) || ${line} -ge $((tlines)) ]] && clear
+  while [[ ${width} -ge $((tcols)) ]]; do
     tput cup 1 1
     printf "${style_status_3}Terminal width too small!${NC}"
     tput cup 3 1
-    printf "Please increase by ${style_info}$(( width - tcols + 2 ))${NC} columns"
+    printf "Please increase by ${style_info}$(( width - tcols + 1 ))${NC} columns"
     tput cup 5 1
-    printf "${style_info}Use CTRL + C to force quit${NC}"
-    sleep 2
+    printf "${style_info}[esc/q] Quit${NC}"
+    waitForInput
     tlines=$(tput lines) # update terminal lines
     tcols=$(tput cols)   # update terminal columns
   done
-  while [[ ${line_end} -ge $((tlines-1)) ]]; do
+  while [[ ${line} -ge $((tlines)) ]]; do
     tput cup 1 1
     printf "${style_status_3}Terminal height too small!${NC}"
     tput cup 3 1
-    printf "Please increase by ${style_info}$(( line_end - tlines + 2 ))${NC} lines"
+    printf "Please increase by ${style_info}$(( line - tlines + 1 ))${NC} lines"
     tput cup 5 1
-    printf "${style_info}Use CTRL + C to force quit${NC}"
-    sleep 2
+    printf "${style_info}[esc/q] Quit${NC}"
+    waitForInput
     tlines=$(tput lines) # update terminal lines
     tcols=$(tput cols)   # update terminal columns
   done
@@ -581,20 +580,51 @@ while true; do
 
   ## Base section ##
   printf "${tdivider}"
-  if [[ ${show_peers} = "false" ]]; then
+  if [[ ${show_peers} = "false" && ${check_peers} = "false" ]]; then
     tput cup ${line} $(( width - ${#title} - 3 ))
     printf "${DHL}"
   fi
   tput cup $((++line)) 0
   
-  if [[ ${show_peers} = "true" ]]; then
+  if [[ ${check_peers} = "true" ]]; then
+    tput ed
+    printf "${VL} ${style_info}Output peer analysis started... please wait!${NC}"
+    endLine ${line}
+    echo "${bdivider}"
+    checkPeers out
+    # Save values
+    peerCNT0_out=${peerCNT0}; peerCNT1_out=${peerCNT1}; peerCNT2_out=${peerCNT2}; peerCNT3_out=${peerCNT3}; peerCNT4_out=${peerCNT4}
+    peerPCT1_out=${peerPCT1}; peerPCT2_out=${peerPCT2}; peerPCT3_out=${peerPCT3}; peerPCT4_out=${peerPCT4}
+    peerPCT1items_out=${peerPCT1items}; peerPCT2items_out=${peerPCT2items}; peerPCT3items_out=${peerPCT3items}; peerPCT4items_out=${peerPCT4items}
+    peerRTTAVG_out=${peerRTTAVG}; peerCNTUnique_out=${peerCNTUnique}; peerCNTSKIPPED_out=${peerCNTSKIPPED}; rttResultsSorted_out=${rttResultsSorted}
+    time_out=$(date -u '+%T Z')
+    tput cup ${line} 0
+    tput ed
+    printf "${VL} ${style_info}Output peer analysis done!${NC}"
+    endLine $((line++))
+      
+    echo "${m2divider}"
+    ((line++))
+      
+    printf "${VL} ${style_info}Input peer analysis started... please wait!${NC}"
+    endLine $((line++))
+    echo "${bdivider}"
+    ((line++))
+    checkPeers in
+    # Save values
+    peerCNT0_in=${peerCNT0}; peerCNT1_in=${peerCNT1}; peerCNT2_in=${peerCNT2}; peerCNT3_in=${peerCNT3}; peerCNT4_in=${peerCNT4}
+    peerPCT1_in=${peerPCT1}; peerPCT2_in=${peerPCT2}; peerPCT3_in=${peerPCT3}; peerPCT4_in=${peerPCT4}
+    peerPCT1items_in=${peerPCT1items}; peerPCT2items_in=${peerPCT2items}; peerPCT3items_in=${peerPCT3items}; peerPCT4items_in=${peerPCT4items}
+    peerRTTAVG_in=${peerRTTAVG}; peerCNTUnique_in=${peerCNTUnique}; peerCNTSKIPPED_in=${peerCNTSKIPPED}; rttResultsSorted_in=${rttResultsSorted}
+    time_in=$(date -u '+%T Z')
+  elif [[ ${show_peers} = "true" ]]; then
     printf "${VL}${STANDOUT} OUT ${NC}  RTT : Peers / Percent"
-    tput el && tput cup ${line} $(( width - 20 ))
+    tput cup ${line} $(( width - 20 ))
     printf "Updated: ${style_info}%s${NC} ${VL}\n" "${time_out}"
     ((line++))
 
     printf "${VL}    0-50ms : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_1}" "${peerCNT1_out}" "${peerPCT1_out}"
-    tput el && tput cup ${line} ${bar_col_small}
+    tput cup ${line} ${bar_col_small}
     for i in $(seq 0 $((granularity_small-1))); do
       [[ $i -lt ${peerPCT1items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
     done
@@ -602,7 +632,7 @@ while true; do
     endLine $((line++))
 
     printf "${VL}  50-100ms : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_2}" "${peerCNT2_out}" "${peerPCT2_out}"
-    tput el && tput cup ${line} ${bar_col_small}
+    tput cup ${line} ${bar_col_small}
     for i in $(seq 0 $((granularity_small-1))); do
       [[ $i -lt ${peerPCT2items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
     done
@@ -610,7 +640,7 @@ while true; do
     endLine $((line++))
 
     printf "${VL} 100-200ms : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_3}" "${peerCNT3_out}" "${peerPCT3_out}"
-    tput el && tput cup ${line} ${bar_col_small}
+    tput cup ${line} ${bar_col_small}
     for i in $(seq 0 $((granularity_small-1))); do
       [[ $i -lt ${peerPCT3items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
     done
@@ -618,7 +648,7 @@ while true; do
     endLine $((line++))
 
     printf "${VL}   200ms < : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_4}" "${peerCNT4_out}" "${peerPCT4_out}"
-    tput el && tput cup ${line} ${bar_col_small}
+    tput cup ${line} ${bar_col_small}
     for i in $(seq 0 $((granularity_small-1))); do
       [[ $i -lt ${peerPCT4items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
     done
@@ -665,12 +695,12 @@ while true; do
     ((line++))
     
     printf "${VL}${STANDOUT} In ${NC}   RTT : Peers / Percent"
-    tput el && tput cup ${line} $(( width - 20 ))
+    tput cup ${line} $(( width - 20 ))
     printf "Updated: ${style_info}%s${NC} ${VL}\n" "${time_in}"
     ((line++))
 
     printf "${VL}    0-50ms : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_1}" "${peerCNT1_in}" "${peerPCT1_in}"
-    tput el && tput cup ${line} ${bar_col_small}
+    tput cup ${line} ${bar_col_small}
     for i in $(seq 0 $((granularity_small-1))); do
       [[ $i -lt ${peerPCT1items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
     done
@@ -678,7 +708,7 @@ while true; do
     endLine $((line++))
 
     printf "${VL}  50-100ms : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_2}" "${peerCNT2_in}" "${peerPCT2_in}"
-    tput el && tput cup ${line} ${bar_col_small}
+    tput cup ${line} ${bar_col_small}
     for i in $(seq 0 $((granularity_small-1))); do
       [[ $i -lt ${peerPCT2items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
     done
@@ -686,7 +716,7 @@ while true; do
     endLine $((line++))
 
     printf "${VL} 100-200ms : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_3}" "${peerCNT3_in}" "${peerPCT3_in}"
-    tput el && tput cup ${line} ${bar_col_small}
+    tput cup ${line} ${bar_col_small}
     for i in $(seq 0 $((granularity_small-1))); do
       [[ $i -lt ${peerPCT3items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
     done
@@ -694,7 +724,7 @@ while true; do
     endLine $((line++))
 
     printf "${VL}   200ms < : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_4}" "${peerCNT4_in}" "${peerPCT4_in}"
-    tput el && tput cup ${line} ${bar_col_small}
+    tput cup ${line} ${bar_col_small}
     for i in $(seq 0 $((granularity_small-1))); do
       [[ $i -lt ${peerPCT4items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
     done
@@ -866,59 +896,14 @@ while true; do
         endLine $((line++))
       fi
     fi
-    
-    ## Peer Analysis ##
-    if [[ ${check_peers} = "true" ]]; then
-      echo "${mdivider}"
-      ((line++))
-
-      tput ed
-      printf "${VL} ${style_info}Output peer analysis started... update paused${NC}"
-      endLine ${line}
-      echo "${bdivider}"
-      checkPeers out
-      # Save values
-      peerCNT0_out=${peerCNT0}; peerCNT1_out=${peerCNT1}; peerCNT2_out=${peerCNT2}; peerCNT3_out=${peerCNT3}; peerCNT4_out=${peerCNT4}
-      peerPCT1_out=${peerPCT1}; peerPCT2_out=${peerPCT2}; peerPCT3_out=${peerPCT3}; peerPCT4_out=${peerPCT4}
-      peerPCT1items_out=${peerPCT1items}; peerPCT2items_out=${peerPCT2items}; peerPCT3items_out=${peerPCT3items}; peerPCT4items_out=${peerPCT4items}
-      peerRTTAVG_out=${peerRTTAVG}; peerCNTUnique_out=${peerCNTUnique}; peerCNTSKIPPED_out=${peerCNTSKIPPED}; rttResultsSorted_out=${rttResultsSorted}
-      time_out=$(date -u '+%T Z')
-      tput cup ${line} 0
-      tput ed
-      printf "${VL} ${style_info}Output peer analysis done!${NC}"
-      endLine $((line++))
-        
-      echo "${m2divider}"
-      ((line++))
-        
-      printf "${VL} ${style_info}Input peer analysis started... update paused${NC}"
-      endLine $((line++))
-      echo "${bdivider}"
-      checkPeers in
-      # Save values
-      peerCNT0_in=${peerCNT0}; peerCNT1_in=${peerCNT1}; peerCNT2_in=${peerCNT2}; peerCNT3_in=${peerCNT3}; peerCNT4_in=${peerCNT4}
-      peerPCT1_in=${peerPCT1}; peerPCT2_in=${peerPCT2}; peerPCT3_in=${peerPCT3}; peerPCT4_in=${peerPCT4}
-      peerPCT1items_in=${peerPCT1items}; peerPCT2items_in=${peerPCT2items}; peerPCT3items_in=${peerPCT3items}; peerPCT4items_in=${peerPCT4items}
-      peerRTTAVG_in=${peerRTTAVG}; peerCNTUnique_in=${peerCNTUnique}; peerCNTSKIPPED_in=${peerCNTSKIPPED}; rttResultsSorted_in=${rttResultsSorted}
-      time_in=$(date -u '+%T Z')
-    fi
   fi
   
   [[ ${check_peers} = "true" ]] && check_peers=false && show_peers=true && clear && continue
   
   echo "${bdivider}"
-  if [[ ${show_peers} = "true" ]]; then
-    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[h] Home${NC}"
-    while true; do
-      waitForInput
-      [[ ${key1} = "h" ]] && break
-      [[ ${tlines} -ne $(tput lines) || ${tcols} -ne $(tput cols) ]] && show_peers=true && clear && break # re-draw
-      tlines=$(tput lines) # update terminal lines
-      tcols=$(tput cols)   # update terminal columns
-    done
-  else
-    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[p] Peer Analysis${NC}"
-    tput el
-    waitForInput
-  fi
+  ((line++))
+  [[ ${show_peers} = "true" ]] && printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[h] Home${NC}" || \
+                                  printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[p] Peer Analysis${NC}"
+  tput el
+  waitForInput
 done
