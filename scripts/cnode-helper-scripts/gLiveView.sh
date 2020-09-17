@@ -480,6 +480,7 @@ shelley_genesis_file=$(jq -r .ShelleyGenesisFile "${CONFIG}")
 byron_genesis_file=$(jq -r .ByronGenesisFile "${CONFIG}")
 [[ ! ${byron_genesis_file} =~ ^/ ]] && byron_genesis_file="$(dirname "${CONFIG}")/${byron_genesis_file}"
 nwmagic=$(jq -r .networkMagic < "${shelley_genesis_file}")
+[[ "${nwmagic}" == "764824073" ]] && NWNAME="Mainnet" || { [[ "${nwmagic}" = "1097911063" ]] && NWNAME="Testnet" || NWNAME="Custom"; }
 shelley_genesis_start=$(jq -r .systemStart "${shelley_genesis_file}")
 shelley_genesis_start_sec=$(date --date="${shelley_genesis_start}" +%s)
 epoch_length=$(jq -r .epochLength "${shelley_genesis_file}")
@@ -549,7 +550,7 @@ while true; do
     myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE!${NC}"
   fi
   peers_in=$(ss -tnp state established 2>/dev/null | grep "${pid}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
-  peers_out=$(jq '.cardano.node.BlockFetchDecision.peers.connectedPeers.int.val //0' <<< "${data}")
+  peers_out=$(ss -tnp state established 2>/dev/null | grep "${pid}," | awk -v port=":${CNODE_PORT}" '$3 !~ port {print}' | wc -l)
   blocknum=$(jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${data}")
   epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
   slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
@@ -566,7 +567,6 @@ while true; do
   adopted=$(jq '.cardano.node.metrics.Forge.adopted.int.val //0' <<< "${data}")
   didntadopt=$(jq '.cardano.node.metrics.Forge["didnt-adopt"].int.val //0' <<< "${data}")
   about_to_lead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0' <<< "${data}")
-  [[ "${nwmagic}" == "764824073" ]] && NWNAME="Mainnet" || { [[ "${nwmagic}" = "1097911063" ]] && NWNAME="Testnet" || NWNAME="Custom"; }  
   [[ ${about_to_lead} -gt 0 ]] && nodemode="Core" || nodemode="Relay"
   if [[ "${PROTOCOL}" = "Cardano" && ${shelley_transition_epoch} -eq -1 ]]; then # if Shelley transition epoch calc failed during start, try until successful
     getShelleyTransitionEpoch 1 
@@ -584,7 +584,7 @@ while true; do
   printf "${DHL}"
   tput cup $((++line)) 0
   
-  printf "${VL} Uptime: $(timeLeft $(( uptimens/1000000000 )))"
+  printf "${VL} Uptime: ${style_values_1}%s${NC}" "$(timeLeft $(( uptimens/1000000000 )))"
   tput cup ${line} $(( width - ${#title} - 3 ))
   printf "${VL} ${style_title}${title} ${VL}\n"
   ((line++))
@@ -601,9 +601,6 @@ while true; do
     epoch_progress=$(echo "(${slot_in_epoch}/${byron_epoch_length})*100" | bc -l)  # in Byron era
   fi
   printf "${VL} Epoch ${style_values_1}%s${NC} [${style_values_1}%2.1f%%${NC}] (node)" "${epochnum}" "${epoch_progress}"
-  #tput cup ${line} ${second_col}
-  #[[ "${nwmagic}" == "764824073" ]] && NWNAME="Mainnet" || { [[ "${nwmagic}" = "1097911063" ]] && NWNAME="Testnet" || NWNAME="Custom"; }
-  #printf "Network    : ${NWNAME}"
   endLine $((line++))
   printf "${VL} ${style_values_1}%s${NC} until epoch boundary (chain)" "$(timeLeft "$(timeUntilNextEpoch)")"
   endLine $((line++))
@@ -651,7 +648,7 @@ while true; do
   endLine $((line++))
   printf "${VL} Mempool TX/Bytes : ${style_values_1}%s${NC} / ${style_values_1}%s${NC}" "${mempool_tx}" "${mempool_bytes}"
   tput el; tput cup ${line} $((second_col))
-  printf "Peers : ${style_values_1}%s${NC} / ${style_values_1}%s${NC}" "${peers_out}" "${peers_in}"
+  printf "Peers : ${style_values_1}%3s${NC}   ${style_values_1}%s${NC}" "${peers_out}" "${peers_in}"
   endLine $((line++))
   
   ## Core section ##
@@ -674,18 +671,20 @@ while true; do
     echo "${m2divider}"
     ((line++))
     
-    printf "${VL} %54s" "IsLeader/Adopted/Missed"
+    printf "${VL}"
+    tput cup ${line} ${second_col}
+    printf "IsLeader / Adopted / Missed"
     endLine $((line++))
-    printf "${VL} Blocks since node start      : ${style_values_1}%s${NC} / " "${isleader}"
+    printf "${VL} Blocks since node start      : ${style_values_1}%-11s${NC}" "${isleader}"
     if [[ ${adopted} -ne ${isleader} ]]; then
-      printf "${style_status_2}%s${NC} / " "${adopted}"
+      printf "${style_status_2}%-10s${NC}" "${adopted}"
     else
-      printf "${style_values_1}%s${NC} / " "${adopted}"
+      printf "${style_values_1}%-10s${NC}" "${adopted}"
     fi
     if [[ ${didntadopt} -gt 0 ]]; then
-      printf "${style_status_3}%s${NC}" "${didntadopt}"
+      printf "${style_status_3}%-9s${NC}" "${didntadopt}"
     else
-      printf "${style_values_1}%s${NC}" "${didntadopt}"
+      printf "${style_values_1}%-9s${NC}" "${didntadopt}"
     fi
     endLine $((line++))
     
@@ -700,16 +699,16 @@ while true; do
         invalid_epoch=0
         adopted_epoch=0
       fi
-      printf "${VL} Blocks this epoch       : ${style_values_1}%s${NC} / " "${isleader_epoch}"
+      printf "${VL} Blocks this epoch            : ${style_values_1}%-11s${NC}" "${isleader_epoch}"
       if [[ ${adopted_epoch} -ne ${isleader_epoch} ]]; then
-        printf "${style_status_2}%s${NC} / " "${adopted_epoch}"
+        printf "${style_status_2}%-10s${NC}" "${adopted_epoch}"
       else
-        printf "${style_values_1}%s${NC} / " "${adopted_epoch}"
+        printf "${style_values_1}%-10s${NC}" "${adopted_epoch}"
       fi
       if [[ ${invalid_epoch} -gt 0 ]]; then
-        printf "${style_status_3}%s${NC}" "${invalid_epoch}"
+        printf "${style_status_3}%-9s${NC}" "${invalid_epoch}"
       else
-        printf "${style_values_1}%s${NC}" "${invalid_epoch}"
+        printf "${style_values_1}%-9s${NC}" "${invalid_epoch}"
       fi
       endLine $((line++))
     fi
