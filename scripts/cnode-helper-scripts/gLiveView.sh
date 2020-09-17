@@ -205,9 +205,7 @@ else
   char_unmarked=$(printf "\\u2596")
 fi
 granularity=$((width-3))
-granularity_small=30
-step_size=2 # Step size of 50%
-step_size_small=4 # Step size of 25%
+granularity_small=$((granularity/2))
 bar_col_small=$((width - granularity_small))
 
 # Lines
@@ -447,13 +445,13 @@ checkPeers() {
   peerMAX=0
   if [[ ${peerCNT} -gt 0 ]]; then
     peerPCT1=$(echo "scale=4;(${peerCNT1}/${peerCNT})*100" | bc -l)
-    peerPCT1items=$(printf %.0f "$(echo "scale=4;${peerPCT1}/${step_size_small}" | bc -l)")
+    peerPCT1items=$(printf %.0f "$(echo "scale=4;${peerPCT1}*${granularity_small}/100" | bc -l)")
     peerPCT2=$(echo "scale=4;(${peerCNT2}/${peerCNT})*100" | bc -l)
-    peerPCT2items=$(printf %.0f "$(echo "scale=4;${peerPCT2}/${step_size_small}" | bc -l)")
+    peerPCT2items=$(printf %.0f "$(echo "scale=4;${peerPCT2}*${granularity_small}/100" | bc -l)")
     peerPCT3=$(echo "scale=4;(${peerCNT3}/${peerCNT})*100" | bc -l)
-    peerPCT3items=$(printf %.0f "$(echo "scale=4;${peerPCT3}/${step_size_small}" | bc -l)")
+    peerPCT3items=$(printf %.0f "$(echo "scale=4;${peerPCT3}*${granularity_small}/100" | bc -l)")
     peerPCT4=$(echo "scale=4;(${peerCNT4}/${peerCNT})*100" | bc -l)
-    peerPCT4items=$(printf %.0f "$(echo "scale=4;${peerPCT4}/${step_size_small}" | bc -l)")
+    peerPCT4items=$(printf %.0f "$(echo "scale=4;${peerPCT4}*${granularity_small}/100" | bc -l)")
   fi
 }
 
@@ -610,7 +608,7 @@ while true; do
   printf "${VL} ${style_values_1}%s${NC} until epoch boundary (chain)" "$(timeLeft "$(timeUntilNextEpoch)")"
   endLine $((line++))
 
-  epoch_items=$(( $(printf %.0f "${epoch_progress}") / step_size ))
+  epoch_items=$(( $(printf %.0f "${epoch_progress}") * granularity / 100 ))
   printf "${VL} ${style_values_1}"
   for i in $(seq 0 $((granularity-1))); do
     [[ $i -lt ${epoch_items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
