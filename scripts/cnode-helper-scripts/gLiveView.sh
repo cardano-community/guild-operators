@@ -1,7 +1,7 @@
 #!/bin/bash
-#shellcheck disable=SC2009,SC2034,SC2059,SC2206
+#shellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015
 
-GLV_VERSION=v1.0
+GLV_VERSION=v1.1
 
 ######################################
 # User Variables - Change as desired #
@@ -603,6 +603,9 @@ while true; do
     epoch_progress=$(echo "(${slot_in_epoch}/${byron_epoch_length})*100" | bc -l)  # in Byron era
   fi
   printf "${VL} Epoch ${style_values_1}%s${NC} [${style_values_1}%2.1f%%${NC}] (node)" "${epochnum}" "${epoch_progress}"
+  tput cup ${line} ${second_col}
+  [[ "${nwmagic}" == "764824073" ]] && NWNAME="Mainnet" || { [[ "${nwmagic}" = "1097911063" ]] && NWNAME="Testnet" || NWNAME="Custom"; }
+  printf "Network    : ${NWNAME}"
   endLine $((line++))
   printf "${VL} ${style_values_1}%s${NC} until epoch boundary (chain)" "$(timeLeft "$(timeUntilNextEpoch)")"
   endLine $((line++))
