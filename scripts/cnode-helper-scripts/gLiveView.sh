@@ -1,7 +1,7 @@
 #!/bin/bash
 #shellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015
 
-GLV_VERSION=v1.0
+GLV_VERSION=v1.1
 
 ######################################
 # User Variables - Change as desired #
