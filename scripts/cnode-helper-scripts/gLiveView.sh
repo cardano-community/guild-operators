@@ -390,7 +390,7 @@ checkPeers() {
   peerPCT1=0; peerPCT2=0; peerPCT3=0; peerPCT4=0
   peerPCT1items=0; peerPCT2items=0; peerPCT3items=0; peerPCT4items=0
   peerRTTSUM=0; peerCNTSKIPPED=0; peerCNTUnique=0; peerCNTABS=0; peerRTTAVG=0
-  uniquePeers=(); rttResults=()
+  uniquePeers=(); rttResults=(); rttResultsSorted=""
   direction=$1
 
   if [[ ${direction} = "out" ]]; then
@@ -446,7 +446,7 @@ checkPeers() {
     else ((peerCNT0++)); fi
     rttResults+=("${peerRTT}:${peerIP}:${peerPORT} ")
   done
-  rttResults=$(printf '%s\n' "${rttResults[@]}" | sort -n)
+  rttResultsSorted=$(printf '%s\n' "${rttResults[@]}" | sort -n)
   if [[ ${peerCNT} -gt 0 ]]; then 
     peerRTTAVG=$((peerRTTSUM / peerCNT))
   fi
@@ -608,7 +608,7 @@ while true; do
     printf "${VL}${style_info}   # : %20s   : RTT (ms)${NC}" "REMOTE PEER"
     endLine $((line++))
     peerCNT=1
-    for peer in ${rttResults_out}; do
+    for peer in ${rttResultsSorted_out}; do
       peerRTT=$(echo ${peer} | cut -d: -f1)
       peerIP=$(echo ${peer} | cut -d: -f2)
       peerPORT=$(echo ${peer} | cut -d: -f3)
@@ -633,7 +633,7 @@ while true; do
     printf "${VL}${style_info}   # : %20s   : RTT (ms)${NC}" "REMOTE PEER"
     endLine $((line++))
     peerCNT=1
-    for peer in ${rttResults_in}; do
+    for peer in ${rttResultsSorted_in}; do
       peerRTT=$(echo ${peer} | cut -d: -f1)
       peerIP=$(echo ${peer} | cut -d: -f2)
       peerPORT=$(echo ${peer} | cut -d: -f3)
@@ -793,7 +793,7 @@ while true; do
         peerCNT0_out=${peerCNT0}; peerCNT1_out=${peerCNT1}; peerCNT2_out=${peerCNT2}; peerCNT3_out=${peerCNT3}; peerCNT4_out=${peerCNT4}
         peerPCT1_out=${peerPCT1}; peerPCT2_out=${peerPCT2}; peerPCT3_out=${peerPCT3}; peerPCT4_out=${peerPCT4}
         peerPCT1items_out=${peerPCT1items}; peerPCT2items_out=${peerPCT2items}; peerPCT3items_out=${peerPCT3items}; peerPCT4items_out=${peerPCT4items}
-        peerRTTAVG_out=${peerRTTAVG}; peerCNTUnique_out=${peerCNTUnique}; peerCNTSKIPPED_out=${peerCNTSKIPPED}; rttResults_out=${rttResults}
+        peerRTTAVG_out=${peerRTTAVG}; peerCNTUnique_out=${peerCNTUnique}; peerCNTSKIPPED_out=${peerCNTSKIPPED}; rttResultsSorted_out=${rttResultsSorted}
         time_out=$(date -u '+%T Z')
       fi
       
@@ -864,7 +864,7 @@ while true; do
           peerCNT0_in=${peerCNT0}; peerCNT1_in=${peerCNT1}; peerCNT2_in=${peerCNT2}; peerCNT3_in=${peerCNT3}; peerCNT4_in=${peerCNT4}
           peerPCT1_in=${peerPCT1}; peerPCT2_in=${peerPCT2}; peerPCT3_in=${peerPCT3}; peerPCT4_in=${peerPCT4}
           peerPCT1items_in=${peerPCT1items}; peerPCT2items_in=${peerPCT2items}; peerPCT3items_in=${peerPCT3items}; peerPCT4items_in=${peerPCT4items}
-          peerRTTAVG_in=${peerRTTAVG}; peerCNTUnique_in=${peerCNTUnique}; peerCNTSKIPPED_in=${peerCNTSKIPPED}; rttResults_in=${rttResults}
+          peerRTTAVG_in=${peerRTTAVG}; peerCNTUnique_in=${peerCNTUnique}; peerCNTSKIPPED_in=${peerCNTSKIPPED}; rttResultsSorted_in=${rttResultsSorted}
           time_in=$(date -u '+%T Z')
         fi
         
