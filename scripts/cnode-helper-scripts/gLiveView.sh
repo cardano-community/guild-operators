@@ -206,8 +206,8 @@ else
 fi
 granularity=$((width-3))
 granularity_small=30
-step_size=$((120/granularity))
-step_size_small=$((120/granularity_small))
+step_size=2 # Step size of 50%
+step_size_small=4 # Step size of 25%
 bar_col_small=$((width - granularity_small))
 
 # Lines
