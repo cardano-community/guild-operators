@@ -181,7 +181,7 @@ fi
 
 # Style
 width=63
-second_col=33
+second_col=$((width/2 + 3))
 FG_BLACK=$(tput setaf 0)
 FG_RED=$(tput setaf 1)
 FG_GREEN=$(tput setaf 2)
@@ -839,7 +839,9 @@ while true; do
       echo "${mdivider}"
       ((line++))
       
-      printf "${VL} KES current/remaining        : ${style_values_1}%s${NC} / " "${kesperiod}"
+      printf "${VL} KES current/remaining"
+      tput cup ${line} $((second_col-2))
+      printf ": ${style_values_1}%s${NC} / " "${kesperiod}"
       if [[ ${remaining_kes_periods} -le 0 ]]; then
         printf "${style_status_4}%s${NC}" "${remaining_kes_periods}"
       elif [[ ${remaining_kes_periods} -le 8 ]]; then
@@ -848,7 +850,9 @@ while true; do
         printf "${style_values_1}%s${NC}" "${remaining_kes_periods}"
       fi
       endLine $((line++))
-      printf "${VL} KES expiration date          : ${style_values_1}%s${NC}" "${kes_expiration}"
+      printf "${VL} KES expiration date"
+      tput cup ${line} $((second_col-2))
+      printf ": ${style_values_1}%s${NC}" "${kes_expiration}"
       endLine $((line++))
       
       echo "${m2divider}"
@@ -858,7 +862,9 @@ while true; do
       tput cup ${line} ${second_col}
       printf "IsLeader / Adopted / Missed"
       endLine $((line++))
-      printf "${VL} Blocks since node start      : ${style_values_1}%-11s${NC}" "${isleader}"
+      printf "${VL} Blocks since node start"
+      tput cup ${line} $((second_col-2))
+      printf ": ${style_values_1}%-11s${NC}" "${isleader}"
       if [[ ${adopted} -ne ${isleader} ]]; then
         printf "${style_status_2}%-10s${NC}" "${adopted}"
       else
