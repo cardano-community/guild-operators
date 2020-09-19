@@ -41,14 +41,14 @@
   "TracingVerbosity": "MaximalVerbosity",
   "TurnOnLogMetrics": true,
   "TurnOnLogging": true,
-  "ViewMode": "LiveView",
+  "ViewMode": "SimpleView",
   "defaultBackends": [
     "KatipBK"
   ],
   "defaultScribes": [
     [
       "FileSK",
-      "/opt/cardano/cnode/logs/node-0.json"
+      "/opt/cardano/cnode/logs/node0.json"
     ]
   ],
   "hasEKG": 12788,
@@ -156,7 +156,7 @@
   },
   "rotation": {
     "rpKeepFilesNum": 10,
-    "rpLogLimitBytes": 5000000,
+    "rpLogLimitBytes": 50000000,
     "rpMaxAgeHours": 24
   },
   "setupBackends": [
@@ -166,7 +166,7 @@
   "setupScribes": [
     {
       "scKind": "FileSK",
-      "scName": "/opt/cardano/cnode/logs/node-0.json",
+      "scName": "/opt/cardano/cnode/logs/node0.json",
       "scFormat": "ScJson",
       "scRotation": null
     }

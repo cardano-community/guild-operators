@@ -9,9 +9,9 @@
 # Any breaking changes (eg: that requires change of cntools.config, env or a change in priv folder would be considered breaking and will be exempt from auto-update)
 CNTOOLS_MAJOR_VERSION=5
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
-CNTOOLS_MINOR_VERSION=3
+CNTOOLS_MINOR_VERSION=4
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=4
+CNTOOLS_PATCH_VERSION=1
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -486,8 +486,7 @@ kesExpiration() {
   current_kes_period=$(getCurrentKESperiod)
   remaining_kes_periods=$(( max_kes_evolutions - ( current_kes_period - pool_kes_start_period ) ))
   current_time_sec=$(date -u +%s)
-  slot_in_epoch=$(grep "cardano_node_ChainDB_metrics_slotInEpoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
-  expiration_time_sec=$(( current_time_sec - ( slot_length * slot_in_epoch ) + ( slot_length * slots_per_kes_period * remaining_kes_periods ) ))
+  expiration_time_sec=$(( current_time_sec - ( slot_length * slots_per_kes_period ) + ( slot_length * slots_per_kes_period * remaining_kes_periods ) ))
   expiration_time_sec_diff=$(( expiration_time_sec - current_time_sec ))
   expiration_date=$(date --date=@${expiration_time_sec})
 }
@@ -612,6 +611,25 @@ fractionToPCT() {
     say "${RED}ERROR${NC}: must be a valid decimal number"
     return 1
   fi
+}
+
+
+# Command    : getPoolID [pool name]
+# Description: create and save pool id in hex & bech32 encoded format
+# Return     : populates $pool_id & $pool_id_bech32
+getPoolID() {
+  pool_id_file="${POOL_FOLDER}/${1}/${POOL_ID_FILENAME}"
+  pool_id=""
+  pool_id_bech32_file="${POOL_FOLDER}/${1}/${POOL_ID_FILENAME}-bech32"
+  pool_id_bech32=""
+  pool_coldkey_vk_file="${POOL_FOLDER}/${1}/${POOL_COLDKEY_VK_FILENAME}"
+  if [[ -f ${pool_coldkey_vk_file} ]]; then
+    pool_id=$(${CCLI} shelley stake-pool id --verification-key-file "${pool_coldkey_vk_file}" --output-format hex 2>/dev/null | tee "${pool_id_file}") && \
+    pool_id_bech32=$(${CCLI} shelley stake-pool id --verification-key-file "${pool_coldkey_vk_file}" 2>/dev/null | tee "${pool_id_bech32_file}") && \
+    return 0 || return 1
+  fi
+  [[ -f ${pool_id_file} ]] && pool_id=$(cat ${pool_id_file})
+  [[ -f ${pool_id_bech32_file} ]] && pool_id_bech32=$(cat ${pool_id_bech32_file})
 }
 
 
@@ -861,7 +879,7 @@ sendADA() {
 # Return     : 0 if registered, else 1
 isWalletRegistered() {
   if getRewardAddress $1; then
-    stakeAddressInfo=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${reward_addr} | jq -r '.[] // empty')
+    stakeAddressInfo=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${reward_addr} | jq -r '.[0] // empty')
     [[ -n "${stakeAddressInfo}" ]] && return 0
   fi
   return 1
@@ -1709,7 +1727,7 @@ rotatePoolKeys() {
     return 1
   fi
 
-  start_kes_period=$(getCurrentKESperiod)
+  start_kes_period=$(( $(getCurrentKESperiod) - 1 ))
   echo "${start_kes_period}" > ${pool_saved_kes_start}
 
   say "creating new hot keys and certificate" 1

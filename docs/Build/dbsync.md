@@ -22,6 +22,10 @@ You can use the instructions below to build the cardano-db-sync, same steps can 
 ``` bash
 git fetch --tags --all
 git pull
+# Include the cardano-crypto-praos and libsodium components for db-sync
+# On CentOS 7 (GCC 4.8.5) we should also do
+# echo -e "package cryptonite\n  flags: -use_target_attributes" >> cabal.project.local
+echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > cabal.project.local
 # Replace master with appropriate tag if you'd like to avoid compiling against master
 git checkout master
 $CNODE_HOME/scripts/cabal-build-all.sh
@@ -42,7 +46,7 @@ scripts/postgresql-setup.sh --createdb
 ##### Start cardano-db-sync-tool
 ``` bash
 cd ~/git/cardano-db-sync
-PGPASSFILE=$CNODE_HOME/priv/.pgpass cardano-db-sync-extended --config $CNODE_HOME/files/config.json --genesis-file $CNODE_HOME/files/genesis.json --socket-path $CNODE_HOME/sockets/node0.socket --schema-dir schema/
+PGPASSFILE=$CNODE_HOME/priv/.pgpass cardano-db-sync-extended --config $CNODE_HOME/files/config.json --socket-path $CNODE_HOME/sockets/node0.socket --schema-dir schema/
 ```
 
 You can use same instructions above to repeat and execute `cardano-db-sync` as well, but [cardano-graphql](Build/graphql.md) uses `cardano-db-sync-extended`, so we'll stick to it
