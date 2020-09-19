@@ -1,4 +1,4 @@
-!> - An average pool operator may not require cardano-wallet at all. Please verify if it is required for your use as mentioned [here](build.md#components)
+!> We have temporarily disabled updating build documentation for Cardano-GraphQL. The specific component does not follow the process/technology/language (requires npm, yarn) used by other components (cabal/stack), and the value provided by `cardano-graphql` over the (haskell-based) hasura instance has been negligible. Also, an average pool operator may not require cardano-graphql at all, please verify if it is required for your use as mentioned [here](build.md#components). The instructions below are `out of date`.
 
 > Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
 

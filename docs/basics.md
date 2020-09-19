@@ -27,13 +27,11 @@ chmod 755 prereqs.sh
 # -i    Interactive mode (Default: silent mode)
 # -g    Connect to guild network instead of public network (Default: connect to public cardano network)
 # -p    Copy Transitional Praos config as default instead of Combinator networks (Default: copies combinator network)
-
+# -t    Alternate name for top level folder
 # You can use one of the options above, if you'd like to defer from defaults (below).
 # Running without any parameters will run script in silent mode with OS Dependencies, and overwriting existing files.
 
 ./prereqs.sh
-
-## Follow the prompts for execution. To make sure environment variables are available for session you're running, make sure to source bashrc
 . "${HOME}/.bashrc"
 ```
 

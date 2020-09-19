@@ -28,15 +28,6 @@ graph TB
 cd $CNODE_HOME/scripts
 ./itnRewards.sh MyITNWallet ~/jormu/account/priv/owner.sk ~/jormu/account/priv/owner.pk
 ```
-- However, if an extended secret key was used(ed25519e_sk), a recent version (min 1.18.x) of cardano-cli is needed to convert the key.
-  - Follow these instructions to build this version of cardano-cli:
-``` bash
-cd ~/git/cardano-node # Go to folder where you normally build cardano-node
-git checkout release/1.18.x
-git pull
-$CNODE_HOME/scripts/cabal-build-all.sh
-```
-  - Re-run `itnRewards.sh`
 - Start CNTools and verify that correct balance is shown in the wallet reward address
 - Fund base address of wallet with enough funds to pay for withdraw tx fee
 - Use FUNDS >> WITHDRAW to move rewards to base address of wallet

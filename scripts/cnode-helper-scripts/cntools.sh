@@ -346,8 +346,8 @@ case $OPERATION in
         if [[ -n ${delegation_pool_id} ]]; then
           unset poolName
           while IFS= read -r -d '' pool; do
-            pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
-            if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
+            getPoolID "$(basename ${pool})"
+            if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
               poolName=$(basename ${pool}) && break
             fi
           done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
@@ -437,8 +437,8 @@ case $OPERATION in
       if [[ -n ${delegation_pool_id} ]]; then
         unset poolName
         while IFS= read -r -d '' pool; do
-          pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
-          if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
+          getPoolID "$(basename ${pool})"
+          if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
             poolName=$(basename ${pool}) && break
           fi
         done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
@@ -1017,12 +1017,12 @@ case $OPERATION in
         getBalance ${base_addr}
         [[ ${lovelace} -eq 0 ]] && continue
         if getRewardAddress ${dir}; then
-          delegation_pool_id=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[].delegation // empty')
+          delegation_pool_id=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].delegation // empty')
           unset poolName
           if [[ -n ${delegation_pool_id} ]]; then
             while IFS= read -r -d '' pool; do
-              pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
-              if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
+              getPoolID "$(basename ${pool})"
+              if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
                 poolName=$(basename ${pool}) && break
               fi
             done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
@@ -1155,25 +1155,23 @@ case $OPERATION in
   say " ) Retire     -  de-register stake pool from chain in specified epoch"
   say " ) List       -  a compact list view of available local pools"
   say " ) Show       -  detailed view of specified pool"
-  say " ) Delegators -  list all delegators for pool"
   say " ) Rotate     -  rotate pool KES keys"
   say " ) Decrypt    -  remove write protection and decrypt pool"
   say " ) Encrypt    -  encrypt pool cold keys and make all files immutable"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   say " Select Pool operation\n"
-  case $(select_opt "[n] New" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[g] Delegators" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
+  case $(select_opt "[n] New" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
     0) SUBCOMMAND="new" ;;
     1) SUBCOMMAND="register" ;;
     2) SUBCOMMAND="modify" ;;
     3) SUBCOMMAND="retire" ;;
     4) SUBCOMMAND="list" ;;
     5) SUBCOMMAND="show" ;;
-    6) SUBCOMMAND="delegators" ;;
-    7) SUBCOMMAND="rotate" ;;
-    8) SUBCOMMAND="decrypt" ;;
-    9) SUBCOMMAND="encrypt" ;;
-    10) continue ;;
+    6) SUBCOMMAND="rotate" ;;
+    7) SUBCOMMAND="decrypt" ;;
+    8) SUBCOMMAND="encrypt" ;;
+    9) continue ;;
   esac
 
   case $SUBCOMMAND in
@@ -1193,7 +1191,6 @@ case $OPERATION in
     say ""
     mkdir -p "${POOL_FOLDER}/${pool_name}"
 
-    pool_id_file="${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}"
     pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
     pool_hotkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_SK_FILENAME}"
     pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
@@ -1214,12 +1211,13 @@ case $OPERATION in
       rm -r ${POOL_FOLDER}'-pregen/'${pool_name}
     else
       ${CCLI} shelley node key-gen --cold-verification-key-file "${pool_coldkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
-      ${CCLI} shelley stake-pool id --verification-key-file "${pool_coldkey_vk_file}" > "${pool_id_file}"
     fi
     ${CCLI} shelley node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
+    getPoolID ${pool_name}
 
     say "Pool: ${GREEN}${pool_name}${NC}" "log"
-    say "PoolPubKey: $(cat "${pool_id_file}")" "log"
+    [[ -n ${pool_id} ]] && say "ID (hex)    : ${pool_id}" "log"
+    [[ -n ${pool_id_bech32} ]] && say "ID (bech32) : ${pool_id_bech32}" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     waitForInput && continue
 
@@ -1495,12 +1493,12 @@ case $OPERATION in
         getBalance ${base_addr}
         [[ ${lovelace} -eq 0 ]] && continue
         if getRewardAddress ${dir}; then
-          delegation_pool_id=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[].delegation // empty')
+          delegation_pool_id=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].delegation // empty')
           unset poolName
           if [[ -n ${delegation_pool_id} ]]; then
             while IFS= read -r -d '' pool; do
-              pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
-              if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
+              getPoolID "$(basename ${pool})"
+              if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
                 poolName=$(basename ${pool}) && break
               fi
             done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
@@ -1973,12 +1971,12 @@ case $OPERATION in
         getBalance ${base_addr}
         [[ ${lovelace} -eq 0 ]] && continue
         if getRewardAddress ${dir}; then
-          delegation_pool_id=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[].delegation // empty')
+          delegation_pool_id=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].delegation // empty')
           unset poolName
           if [[ -n ${delegation_pool_id} ]]; then
             while IFS= read -r -d '' pool; do
-              pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
-              if [[ "${pool_id}" = "${delegation_pool_id}" ]]; then
+              getPoolID "$(basename ${pool})"
+              if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
                 poolName=$(basename ${pool}) && break
               fi
             done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
@@ -2284,11 +2282,12 @@ case $OPERATION in
 
     while IFS= read -r -d '' pool; do
       say ""
-      pool_id=$(cat "${pool}/${POOL_ID_FILENAME}")
+      getPoolID "$(basename ${pool})"
       pool_regcert_file="${pool}/${POOL_REGCERT_FILENAME}"
       [[ -f "${pool_regcert_file}" ]] && pool_registered="YES" || pool_registered="NO"
       say "${GREEN}$(basename ${pool})${NC} "
-      say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
+      say "$(printf "%-21s : %s" "ID (hex)" "${pool_id}")" "log"
+      [[ -n ${pool_id_bech32} ]] && say "$(printf "%-21s : %s" "ID (bech32)" "${pool_id_bech32}")" "log"
       say "$(printf "%-21s : %s" "Registered" "${pool_registered}")" "log"
       if [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]]; then
         kesExpiration "$(cat "${pool}/${POOL_CURRENT_KES_START}")"
@@ -2327,8 +2326,8 @@ case $OPERATION in
     pool_dirs=()
     if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
     for dir in "${dirs[@]}"; do
-      pool_id="${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}"
-      [[ ! -f "${pool_id}" ]] && continue
+      pool_id_file="${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}"
+      [[ ! -f "${pool_id_file}" ]] && continue
       pool_dirs+=("${dir}")
     done
     if [[ ${#pool_dirs[@]} -eq 0 ]]; then
@@ -2349,13 +2348,14 @@ case $OPERATION in
 
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say ""
-    pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
+    getPoolID ${pool_name}
     ledger_pParams=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
     ledger_fPParams=$(jq -r '.esLState._delegationState._pstate._fPParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
     [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
     [[ -n "${ledger_pParams}" ]] && pool_registered="YES" || pool_registered="NO"
     say "${GREEN}${pool_name}${NC} "
-    say "$(printf "%-21s : %s" "ID" "${pool_id}")" "log"
+    say "$(printf "%-21s : %s" "ID (hex)" "${pool_id}")" "log"
+    [[ -n ${pool_id_bech32} ]] && say "$(printf "%-21s : %s" "ID (bech32)" "${pool_id_bech32}")" "log"
     say "$(printf "%-21s : %s" "Registered" "${pool_registered}")" "log"
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
     if [[ -f "${pool_config}" ]]; then
@@ -2481,57 +2481,6 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     waitForInput
     
-    ;; ###################################################################
-
-    delegators)
-    
-    clear
-    say " >> POOL >> DELEGATORS" "log"
-    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    say ""
-
-    if [[ ! -f "${TMP_FOLDER}"/protparams.json ]]; then
-      say "${RED}ERROR${NC}: CNTools started without node access, only offline functions available!"
-      waitForInput && continue
-    fi
-    
-    pool_dirs=()
-    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
-    for dir in "${dirs[@]}"; do
-      pool_id="${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}"
-      [[ ! -f "${pool_id}" ]] && continue
-      pool_dirs+=("${dir}")
-    done
-    if [[ ${#pool_dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No pools available!"
-      say "first create a pool"
-      waitForInput && continue
-    fi
-    say "Select Pool:\n"
-    if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    pool_name="${dir_name}"
-    pool_id=$(cat "${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME}")
-    
-    say "Looking for delegators, please wait..."
-    if ! getDelegators ${pool_id}; then
-      waitForInput && continue
-    fi
-    
-    clear
-    say " >> POOL >> DELEGATORS" "log"
-    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    say ""
-    say "${BLUE}${delegator_nbr}${NC} wallet(s) delegated to ${GREEN}${pool_name}${NC} of which ${ORANGE}${owner_nbr}${NC} are owner(s)\n"
-    say "Total Stake: $(formatLovelace ${total_stake}) ADA [ owners pledge: $(formatLovelace ${total_pledged}) | delegators: $(formatLovelace $((total_stake-total_pledged))) ]\n"
-    
-    if [[ ${total_pledged} -lt ${pledge} ]]; then
-      say "${ORANGE}WARN${NC}: Owners pledge does not cover registered pledge of $(formatLovelace ${pledge}) ADA\n"
-    fi
-    
-    printTable ';' "$(say 'Hex Key;Stake;Rewards' | cat - <(jq -r -c '.[] | "\(.hex_key);\(.stake);\(.rewards)"' <<< "${delegators_json}"))"
-    
-    waitForInput && continue
-
     ;; ###################################################################
 
     rotate)
