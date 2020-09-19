@@ -34,10 +34,10 @@ if [[ ! -f "${itn_verification_key_file}" || $(cat "${itn_verification_key_file}
 fi
 
 if [[ -d "${WALLET_FOLDER}/${wallet_name}" ]]; then
-  echo -e "\n${RED}ERROR${NC}: Wallet already exist, please use another name\n"
+  echo -e "\n${RED}ERROR${NC}: Wallet already exist, please use another name"
+  echo -e "${WALLET_FOLDER}/${wallet_name}\n"
   exit 1
 fi
-
 mkdir -p "${WALLET_FOLDER}/${wallet_name}"
 if [[ ! -d "${WALLET_FOLDER}/${wallet_name}" ]]; then
   echo -e "\n${RED}ERROR${NC}: Failed to create wallet directory?"
