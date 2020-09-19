@@ -896,7 +896,7 @@ while true; do
   [[ ${check_peers} = "true" ]] && check_peers=false && show_peers=true && clear && continue
   
   echo "${bdivider}" && ((line++))
-  [[ ${show_peers} = "true" ]] && printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[h] Home${NC} | Select Peer List : ${style_info}[o] Out${NC} - ${style_info}[i] In${NC}" || \
+  [[ ${show_peers} = "true" ]] && printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[h] Home${NC} | Select Peer List : ${style_info}[o] Out${NC} - ${style_info}[i] In${NC}\n%27s%s" "" "Use left/right arrow key to navigate" || \
                                   printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[p] Peer Analysis${NC}"
   tput el
   waitForInput
