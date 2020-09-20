@@ -15,7 +15,6 @@ cleanup() {
   exit $err
 }
 trap cleanup HUP INT TERM
-trap 'stty echo' EXIT
 
 # Command     : myExit [exit code] [message]
 # Description : gracefully handle an exit and restore terminal to original state
@@ -116,12 +115,14 @@ if [[ ${OFL_MODE} = "false" ]]; then
           if [[ ! -f "$CNODE_HOME/scripts/cntools-changelog.md" ]]; then 
             # special case for first installation or 5.0.0 upgrade, print release notes until previous major version
             waitForInput "Press any key to show what's new in last major release, use 'q' to quit viewer"
-            sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_FOLDER}"/cntools-changelog.md | head -n -2 | less
+            clear
+            sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_FOLDER}"/cntools-changelog.md | head -n -2 | less -X
           else
             # print release notes from current until previously installed version
             waitForInput "Press any key to show what's new compared to currently installed release, use 'q' to quit viewer"
+            clear
             [[ $(cat "$CNODE_HOME/scripts/cntools-changelog.md") =~ \[([[:digit:]])\.([[:digit:]])\.([[:digit:]])\] ]]
-            sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}\.${BASH_REMATCH[3]}\]/p" "${TMP_FOLDER}"/cntools-changelog.md | head -n -2 | less
+            sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}\.${BASH_REMATCH[3]}\]/p" "${TMP_FOLDER}"/cntools-changelog.md | head -n -2 | less -X
           fi
           cp "${TMP_FOLDER}"/cntools-changelog.md "$CNODE_HOME/scripts/cntools-changelog.md"
         fi
@@ -2932,7 +2933,7 @@ case $OPERATION in
          "$(dirname $0)"/cntools.config
        )
        backup_file="${backup_path}/cntools-$(date '+%Y%m%d%H%M%S').tgz"
-       if ! tar cfz "${backup_file}" --files-from <(ls -d "${backup_list[@]}" 2>/dev/null); then
+       if ! tar cfz "${backup_file}" --files-from <(ls -d "${backup_list[@]}" 2>/dev/null) &>/dev/null; then
          say "${RED}ERROR${NC}: failure during backup creation :("
          waitForInput && continue
        fi
@@ -2948,24 +2949,45 @@ case $OPERATION in
             ;;
          1) : ;; # do nothing
        esac
-       say "Backup file ${backup_file} successfully created" "log"
-       say "\nDo you want to delete private keys?\n"
-       case $(select_opt "[n] No" "[y] Yes") in
-         0) : ;; # do nothing
-         1) while IFS= read -r -d '' file; do
-              safeDel "${file}"
-            done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_PAY_SK_FILENAME}*" -print0)
-            while IFS= read -r -d '' file; do
-              safeDel "${file}"
-            done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_STAKE_SK_FILENAME}*" -print0)
-            while IFS= read -r -d '' file; do
-              safeDel "${file}"
-            done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_VK_FILENAME}*" -print0)
-            while IFS= read -r -d '' file; do
-              safeDel "${file}"
-            done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}*" -print0)
-            ;;
-       esac
+       # Start by checking that all wallets contain signing keys and pools cold keys
+       missing_keys="false"
+       while IFS= read -r -d '' wallet; do
+         wallet_name=$(basename ${wallet})
+         [[ -z "$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name "${WALLET_PAY_SK_FILENAME}*" -print)" ]] && \
+           say "${ORANGE}WARN${NC}: Wallet ${GREEN}${wallet_name}${NC} missing file ${WALLET_PAY_SK_FILENAME}" && missing_keys="true"
+         [[ -z "$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name "${WALLET_STAKE_SK_FILENAME}*" -print)" ]] && \
+           say "${ORANGE}WARN${NC}: Wallet ${GREEN}${wallet_name}${NC} missing file ${WALLET_STAKE_SK_FILENAME}" && missing_keys="true"
+       done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+       while IFS= read -r -d '' pool; do
+         pool_name=$(basename ${pool})
+         [[ -z "$(find "${pool}" -mindepth 1 -maxdepth 1 -type f -name "${POOL_COLDKEY_VK_FILENAME}*" -print)" ]] && \
+           say "${ORANGE}WARN${NC}: Pool ${GREEN}${pool_name}${NC} missing file ${POOL_COLDKEY_VK_FILENAME}" && missing_keys="true"
+         [[ -z "$(find "${pool}" -mindepth 1 -maxdepth 1 -type f -name "${POOL_COLDKEY_SK_FILENAME}*" -print)" ]] && \
+           say "${ORANGE}WARN${NC}: Pool ${GREEN}${pool_name}${NC} missing file ${POOL_COLDKEY_SK_FILENAME}" && missing_keys="true"
+       done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+       if [[ ${missing_keys} = "true" ]]; then
+         echo && say "${ORANGE}There are wallets and/or pools with missing keys.\nIf removed in a previous backup, make sure to keep that master backup safe!${NC}"
+         echo && say "Incremental backup file ${backup_file} successfully created" "log"
+       else
+         say "Backup file ${backup_file} successfully created" "log"
+         say "\nDo you want to delete private keys?\n"
+         case $(select_opt "[n] No" "[y] Yes") in
+           0) : ;; # do nothing
+           1) while IFS= read -r -d '' file; do
+                safeDel "${file}"
+              done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_PAY_SK_FILENAME}*" -print0)
+              while IFS= read -r -d '' file; do
+                safeDel "${file}"
+              done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_STAKE_SK_FILENAME}*" -print0)
+              while IFS= read -r -d '' file; do
+                safeDel "${file}"
+              done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_VK_FILENAME}*" -print0)
+              while IFS= read -r -d '' file; do
+                safeDel "${file}"
+              done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}*" -print0)
+              ;;
+         esac
+       fi
        ;;
     1) say "Backups created contain absolute path to files and directories"
        say "Restoring a backup does not replace existing files"
