@@ -38,24 +38,32 @@ cat stake.addr
 cardano-cli shelley address key-gen \
 --verification-key-file payment.vkey \
 --signing-key-file payment.skey
+```
 
+> **NOTE**: The following command use `--mainnet`. For testnet usage, use `--testnet-magic 1097911063` instead!
+
+```bash
 # Generate the Shelley address with both payment and stake keys
+
 cardano-cli shelley address build \
 --payment-verification-key-file payment.vkey \
 --stake-verification-key-file stake.vkey \
 --out-file payment.addr \
---mainnet
+--mainnet # for testnet use, replace this with `--testnet-magic 1097911063`
 
 cat payment.addr
+
 # addr1q8mhchxehfs42erc33wdxrwvjalpc262tw4lus8dz30ts5tmzh2xs6mhtjvrylesgdwv3zjktc3v5xf5x2a5twltnm4s28w6nf
 
 # Query the newly created address (need to export CARDANO_NODE_SOCKET_PATH first)
+
 export CARDANO_NODE_SOCKET_PATH=path/to/your/node.socket (e.g. $CNODE_HOME/sockets/node0.socket)
 cardano-cli shelley query utxo \
 --address $(cat payment.addr) \
 --mainnet
 
-#                           TxHash                                 TxIx        Lovelace
+# TxHash TxIx Lovelace
+
 #----------------------------------------------------------------------------------------
 
 ```
