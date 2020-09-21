@@ -22,7 +22,6 @@ shelley_genesis_start_sec=$(date --date=${shelley_genesis_start} +%s)
 epoch_length=$(jq -r .epochLength "${GENESIS_JSON}")
 slot_length=$(jq -r .slotLength "${GENESIS_JSON}")
 active_slots_coeff=$(jq -r .activeSlotsCoeff "${GENESIS_JSON}")
-decentralisation=$(jq -r .protocolParams.decentralisationParam "${GENESIS_JSON}")
 slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
 max_kes_evolutions=$(jq -r .maxKESEvolutions "${GENESIS_JSON}")
 if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
@@ -142,6 +141,38 @@ safeDel() {
     say "${RED}ERROR${NC}: delete failed for ${path}" 1>&2
     return 1
   fi
+}
+
+
+# Command    : fileDialog [show help: 0=no|1=yes] [dialog title] [optional: start dir]
+# Description: open a file dialog
+fileDialog() {
+  [[ -n $3 ]] && start_path="$3/" || start_path="/tmp/"
+  if [[ $1 -eq 1 ]]; then
+    say "\nFile Explorer:"
+    say "  Tab        -  Select area to navigate"
+    say "  Arrow keys -  Move up/down"
+    say "  Space      -  Append the currently-selected item into the work-area"
+    say "  Enter      -  OK and exit by default if not Cancel is selected"
+  fi
+  waitForInput "Press any key to open the file explorer"
+  file=$(dialog --stdout --clear --keep-tite --title "$2" --fselect "${start_path}" 14 48)
+  say "\n"
+}
+# Command    : dirDialog [show help: 0=no|1=yes] [dialog title] [optional: start dir]
+# Description: open a directory dialog
+dirDialog() {
+  [[ -n $3 ]] && start_path="$3/" || start_path="/tmp/"
+  if [[ $1 -eq 1 ]]; then
+    say "\nFile Explorer:"
+    say "  Tab        -  Select area to navigate"
+    say "  Arrow keys -  Move up/down"
+    say "  Space      -  Append the currently-selected item into the work-area"
+    say "  Enter      -  OK and exit by default if not Cancel is selected"
+  fi
+  waitForInput "Press any key to open the directory explorer"
+  dir=$(dialog --stdout --clear --keep-tite --title "$2" --dselect "${start_path}" 14 48)
+  say "\n"
 }
 
 
@@ -430,8 +461,11 @@ getSlotTipDiff() {
   echo $(( tip_ref - tip_node ))
 }
 
+# Command    : slotInterval
+# Description: Calculate expected interval between blocks
 slotInterval() {
-  echo "(${slot_length} / ${active_slots_coeff} / ${decentralisation}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}'
+  [[ $(echo "${decentralisation} < 0.5" | bc) -eq 1 ]] && local d=0.5 || local d=${decentralisation}
+  echo "(${slot_length} / ${active_slots_coeff} / ${d}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}'
 }
 
 # Command    : getEpoch
@@ -740,7 +774,18 @@ sendADA() {
   say "" 1
   say "# Protocol Parameters" 1 "log"
   currSlot=$(getSlotTip)
-  ttlValue=$(( currSlot + 1000 ))
+  if [[ ${op_mode} = "hybrid" ]]; then
+    say "\nHow long do you want the transaction to be valid?"
+    read -r -p "TTL (in seconds, default: 1800/30min): " ttl_enter
+    if [[ -n ${ttl_enter} && ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
+      say "\n${RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}" 1>&2
+      return 1
+    fi
+    ttlValue=$(( currSlot + (${ttl_enter:-1800}/slot_length) ))
+    echo
+  else
+    ttlValue=$(( currSlot + (600/slot_length) )) # TTL default: 10min
+  fi
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" 1 "log"
   getBalance ${sAddr}
 
@@ -848,6 +893,17 @@ sendADA() {
     say "${RED}ERROR${NC}: 1. Problem during tx creation with args ${buildArgs[*]}" 1>&2
     say "$output"
     return 1
+  fi
+  
+  if [[ ${op_mode} = "hybrid" ]]; then
+    tx_tmp="/tmp/tx.raw_$(date +%s)"
+    if ! cp -f "${TMP_FOLDER}/tx.raw" "${tx_tmp}"; then
+      say "${RED}ERROR${NC}: unable to copy tx file to: ${tx_tmp}" 1>&2
+      return 1
+    fi
+    say "Transaction successfully built and saved to: ${CYAN}${tx_tmp}${NC}" "log"
+    say "Copy file to offline computer and sign it using CNTools in offline mode" "log"
+    return 1 # return as failed to stop main processing and return to home menu
   fi
 
   say "Signing transaction" 1
@@ -1688,6 +1744,71 @@ deRegisterPool() {
   output=$(${CCLI} ${submitArgs[*]})
   if [[ -n $output ]]; then
     say "${RED}ERROR${NC}: 3. Problem during tx submission with args ${submitArgs[*]}"
+    say "$output"
+    return 1
+  fi
+}
+
+# Command    : signTx [raw tx file] [signing keys ...]
+#
+# Description: Helper function to offline sign a raw transaction
+# Return     : prints progress on STDOUT
+# Examples of Usage:
+#   >> signTx "/tmp/tx.raw" "../wallet/MyWallet/payment.skey" "../wallet/MyWallet/stake.skey"
+#
+signTx() {
+  tx_raw="$1"
+  tx_signed="/tmp/tx.signed_$(date +%s)"
+  shift
+  skey_count=0
+  tx_sign_keys=()
+  for skey in "$@"; do
+    if [[ -f "${skey}" ]]; then
+      tx_sign_keys+=( --signing-key-file ${skey} )
+      ((skey_count++))
+    fi
+  done
+  
+  signArgs=(
+    shelley transaction sign
+    --tx-body-file "${tx_raw}"
+    ${tx_sign_keys[*]}
+    ${NETWORK_IDENTIFIER}
+    --out-file "${tx_signed}"
+  )
+  
+  say "Signing transaction" 1
+  say "$ ${CCLI} ${signArgs[*]} " 2
+  output=$(${CCLI} ${signArgs[*]} 2>&1)
+  if [[ -n $output ]]; then
+    say "${RED}ERROR${NC}: Problem during signing with args ${signArgs[*]}"
+    say "$output"
+    return 1
+  fi
+}
+
+# Command    : submitTx [signed tx file]
+#
+# Description: Helper function to submit an offline signed transaction file
+# Return     : prints progress on STDOUT
+# Examples of Usage:
+#   >> signTx "/tmp/tx.signed"
+#
+submitTx() {
+  tx_signed="$1"
+
+  submitArgs=(
+    shelley transaction submit
+    --tx-file "${tx_signed}"
+    ${PROTOCOL_IDENTIFIER}
+    ${NETWORK_IDENTIFIER}
+  )
+  
+  say "Sending transaction" 1
+  say "$ ${CCLI} ${submitArgs[*]}" 2
+  output=$(${CCLI} ${submitArgs[*]} 2>&1)
+  if [[ -n $output ]]; then
+    say "${RED}ERROR${NC}: Problem during tx submission with args ${submitArgs[*]}"
     say "$output"
     return 1
   fi

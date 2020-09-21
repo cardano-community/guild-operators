@@ -3,14 +3,11 @@
 
 ########## Global tasks ###########################################
 
-tput smcup # Save screen
-
 # General exit handler
 cleanup() {
   [[ -n $1 ]] && err=$1 || err=$?
-  tput rmcup # restore screen
-  tput cnorm # restore cursor
   tput sgr0  # turn off all attributes
+  clear
   [[ -n ${exit_msg} ]] && echo -e "\n${exit_msg}\n" || echo -e "\nCNTools terminated, cleaning up...\n"
   exit $err
 }
@@ -154,12 +151,13 @@ if [[ ${OFL_MODE} = "false" ]]; then
   ${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} >"${TMP_FOLDER}/protparams.json" 2>&1
   if grep -q "Network.Socket.connect" "${TMP_FOLDER}/protparams.json"; then
     myExit 1 "${ORANGE}WARN${NC}: node socket path wrongly configured or node not running, please verify that socket set in env file match what is used to run the node\n\n\
-  ${BLUE}Re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality${NC}"
+${BLUE}Re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality${NC}"
   elif ! jq . "${TMP_FOLDER}/protparams.json" &>/dev/null; then
     myExit 1 "${ORANGE}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)\n\n\
-  Error message: $(cat "${TMP_FOLDER}/protparams.json")\n\n\
-  ${BLUE}Re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality${NC}"
+Error message: $(cat "${TMP_FOLDER}/protparams.json")\n\n\
+${BLUE}Re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality${NC}"
   fi
+  decentralisation=$(jq -r .decentralisationParam "${TMP_FOLDER}"/protparams.json)
 fi
 
 # check if there are pools in need of KES key rotation
@@ -237,13 +235,14 @@ say "$(printf "%-52s %s" " >> CNTools $CNTOOLS_VERSION << " "A Guild Operators c
 say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 say " Main Menu"
 echo
-say " ) Wallet  -  create, show, remove and protect wallets"
-say " ) Funds   -  send, withdraw and delegate"
-say " ) Pool    -  pool creation and management"
-say " ) Blocks  -  show core node leader slots"
-say " ) Update  -  update cntools script and library config files"
-say " ) Backup  -  backup & restore of wallet/pool/config"
-say " ) Refresh -  reload home screen content"
+say " ) Wallet    -  create, show, remove and protect wallets"
+say " ) Funds     -  send, withdraw and delegate"
+say " ) Pool      -  pool creation and management"
+say " ) Submit Tx -  Submit an offline signed transaction file"
+say " ) Blocks    -  show core node leader slots"
+say " ) Update    -  update cntools script and library config files"
+say " ) Backup    -  backup & restore of wallet/pool/config"
+say " ) Refresh   -  reload home screen content"
 say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 say "$(printf "%84s" "Epoch $(getEpoch) - $(timeUntilNextEpoch) until next")"
 if [[ ${OFL_MODE} = "true" ]]; then
@@ -251,24 +250,25 @@ if [[ ${OFL_MODE} = "true" ]]; then
 else
   tip_diff=$(getSlotTipDiff)
   slot_interval=$(slotInterval)
-  if [[ ${tip_diff} -le $(( slot_interval * 2 )) ]]; then
+  if [[ ${tip_diff} -le ${slot_interval} ]]; then
     say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${GREEN}${tip_diff} :)${NC}")"
-  elif [[ ${tip_diff} -le $(( slot_interval * 3 )) ]]; then
+  elif [[ ${tip_diff} -le $(( slot_interval * 2 )) ]]; then
     say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${ORANGE}${tip_diff} :|${NC}")"
   else
     say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${RED}${tip_diff} :(${NC}")"
   fi
 fi
 echo
-case $(select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[b] Blocks" "[u] Update" "[z] Backup & Restore" "[r] Refresh" "[q] Quit") in
+case $(select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[s] Submit Tx" "[b] Blocks" "[u] Update" "[z] Backup & Restore" "[r] Refresh" "[q] Quit") in
   0) OPERATION="wallet" ;;
   1) OPERATION="funds" ;;
   2) OPERATION="pool" ;;
-  3) OPERATION="blocks" ;;
-  4) OPERATION="update" ;;
-  5) OPERATION="backup" ;;
-  6) continue ;;
-  7) myExit 0 "CNTools closed!" ;;
+  3) OPERATION="submitTx" ;;
+  4) OPERATION="blocks" ;;
+  5) OPERATION="update" ;;
+  6) OPERATION="backup" ;;
+  7) continue ;;
+  8) myExit 0 "CNTools closed!" ;;
 esac
 
 case $OPERATION in
@@ -739,9 +739,9 @@ case $OPERATION in
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   say " Handle Funds"
   echo
-  say " 1) Send      -  send ADA from a local wallet to an address or a wallet"
-  say " 2) Delegate  -  delegate stake wallet to a pool"
-  say " 3) Withdraw  -  withdraw earned rewards to base address"
+  say " ) Send      -  send ADA from a local wallet to an address or a wallet"
+  say " ) Delegate  -  delegate stake wallet to a pool"
+  say " ) Withdraw  -  withdraw earned rewards to base address"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   say " Select funds operation\n"
@@ -851,8 +851,65 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
     if [[ ${OFL_MODE} = "true" ]]; then
-      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+      say "${CYAN}OFFLINE MODE${NC}: CNTools started in offline mode!"
+      say "              In this mode you can sign a pre-made transaction file"
+      echo
+      say "Enter/select path for tx file to sign:"
+      fileDialog 1 "Enter/select path for tx file to sign"
+      tx_raw=${file}
+      [[ -z "${tx_raw}" ]] && continue
+      if [[ ! -f "${tx_raw}" ]]; then
+        say "${RED}ERROR${NC}: file not found: ${tx_raw}"
+        waitForInput && continue
+      fi
+      
+      say "\nSelect signing method\n"
+      case $(select_opt "[w] Wallet" "[p] Path to payment signing key" "[Esc] Cancel") in
+        0) wallet_dirs=()
+           if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
+           for dir in "${dirs[@]}"; do
+             payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
+             [[ ! -f "${payment_sk_file}" ]] && continue
+             wallet_dirs+=("${dir}")
+           done
+           if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
+             say "${ORANGE}WARN${NC}: No wallets available!"
+             say "Encrypted wallets not listed, please decrypt wallet first if encrypted"
+             waitForInput && continue
+           fi
+           say "Select Wallet:\n"
+           if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
+           payment_sk_file="${WALLET_FOLDER}/${dir_name}/${WALLET_PAY_SK_FILENAME}"
+           ;;
+        1) say "Enter/select path to payment.skey file:"
+           fileDialog 0 "Enter/select path to payment.skey file"
+           payment_sk_file=${file}
+           [[ -z "${payment_sk_file}" ]] && continue
+           if [[ ! -f "${payment_sk_file}" ]]; then
+             say "${RED}ERROR${NC}: file not found: ${payment_sk_file}"
+             waitForInput && continue
+           fi
+           ;;
+        2) continue ;;
+      esac
+      if signTx "${tx_raw}" "${payment_sk_file}"; then
+        say "Tx file successfully signed and available at: ${CYAN}${tx_signed}${NC}" "log"
+        say "Transfer file to online CNTools and use 'Submit Tx' option to submit transaction on chain"
+      fi
       waitForInput && continue
+    else
+      echo
+      say "Online mode  -  The default mode to use if all keys are available"
+      echo
+      say "Hybrid mode  -  1) Create a payment tx file and copy to offline computer"
+      say "                2) Sign it with payment.skey on offline computer using CNTools in offline mode '-o' and Funds >> Send"
+      say "                3) Copy the signed tx file back to online computer and submit using 'Submit Tx'"
+      echo
+      case $(select_opt "[o] Online" "[h] Hybrid" "[Esc] Cancel") in
+        0) op_mode="online" ;;
+        1) op_mode="hybrid" ;;
+        2) continue ;;
+      esac
     fi
     echo
 
@@ -862,7 +919,7 @@ case $OPERATION in
     [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
     for dir in "${dirs[@]}"; do
       s_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
-      [[ ! -f "${s_payment_sk_file}" ]] && continue
+      [[ ! -f "${s_payment_sk_file}" && ${op_mode} = "online" ]] && continue
       if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
         getBaseAddress ${dir}
         getPayAddress ${dir}
@@ -1633,8 +1690,12 @@ case $OPERATION in
     case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
       0) : ;;
       1) while true; do
-           read -r -p "Enter full path to stake vkey file: " stake_vk_file_enter
-           read -r -p "Enter full path to stake skey file: " stake_sk_file_enter
+           say "Enter/select path to stake ${CYAN}vkey${NC} file:"
+           fileDialog 1 "Enter/select path to stake vkey file"
+           stake_vk_file_enter=${file}
+           say "Enter/select path to stake ${CYAN}skey${NC} file:"
+           fileDialog 0 "Enter/select path to stake skey file"
+           stake_sk_file_enter=${file}
            if [[ ! -f "${stake_vk_file_enter}" || ! -f "${stake_sk_file_enter}" ]]; then
              say "${RED}ERROR${NC}: One or both files missing, please try again"
              waitForInput
@@ -2110,8 +2171,12 @@ case $OPERATION in
     case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
       0) : ;;
       1) while true; do
-           read -r -p "Enter full path to stake vkey file: " stake_vk_file_enter
-           read -r -p "Enter full path to stake skey file: " stake_sk_file_enter
+           say "Enter/select path to stake ${CYAN}vkey${NC} file:"
+           fileDialog 1 "Enter/select path to stake vkey file"
+           stake_vk_file_enter=${file}
+           say "Enter/select path to stake ${CYAN}skey${NC} file:"
+           fileDialog 0 "Enter/select path to stake skey file"
+           stake_sk_file_enter=${file}
            if [[ ! -f "${stake_vk_file_enter}" || ! -f "${stake_sk_file_enter}" ]]; then
              say "${RED}ERROR${NC}: One or both files missing, please try again"
              waitForInput
@@ -2758,6 +2823,33 @@ case $OPERATION in
     ;; ###################################################################
 
   esac
+  
+  ;; ###################################################################
+
+  submitTx)
+  
+  clear
+  say " >> SUBMIT TX" "log"
+  say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+
+  if [[ ${OFL_MODE} = "true" ]]; then
+    say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+    waitForInput && continue
+  fi
+  echo
+  say "Please enter/choose signed tx file to submit:"
+  fileDialog 1 "Please enter/choose signed tx file to submit"
+  [[ -z "${file}" ]] && continue
+  if [[ ! -f "${file}" ]]; then
+    say "${RED}ERROR${NC}: file not found: ${file}"
+    waitForInput && continue
+  fi
+
+  if submitTx "${file}"; then
+    say "${CYAN}${file}${NC} successfully submitted!" "log"
+  fi
+  
+  waitForInput
 
   ;; ###################################################################
 
@@ -2826,8 +2918,6 @@ case $OPERATION in
        ;;
     2) continue ;;
   esac
-
-
 
   waitForInput
 
@@ -2900,7 +2990,7 @@ case $OPERATION in
   else
     say "\n${RED}ERROR${NC}: download from GitHub failed, unable to perform version check!\n"
   fi
-  waitForInput && continue
+  waitForInput
   
   ;; ###################################################################
 
@@ -2914,7 +3004,9 @@ case $OPERATION in
   echo
   say "Backup or Restore?\n"
   case $(select_opt "[b] Backup" "[r] Restore" "[Esc] Cancel") in
-    0) read -r -p "Enter full path for backup directory(created if non existent): " backup_path
+    0) say "Select backup directory(created if non existent):"
+       dirDialog 1 "Select backup directory"
+       backup_path=${dir}
        if [[ ! "${backup_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
          say "${RED}ERROR${NC}: invalid path, please specify the full path to backup directory (space not allowed)"
          waitForInput && continue
@@ -2992,12 +3084,16 @@ case $OPERATION in
     1) say "Backups created contain absolute path to files and directories"
        say "Restoring a backup does not replace existing files"
        say "Please restore to a temporary directory and copy files to restore to appropriate folders\n"
-       read -r -p "Enter path to backup file to restore: " backup_file
+       say "Select backup directory:"
+       fileDialog 1 "Select backup file to restore"
+       backup_file=${file}
        if [[ ! -f "${backup_file}" ]]; then
          say "${RED}ERROR${NC}: file not found: ${backup_file}"
          waitForInput && continue
        fi
-       read -r -p "Enter full path for restore directory(created if non existent): " restore_path
+       say "Select/enter restore directory(created if non existent):"
+       dirDialog 1 "Select restore directory"
+       restore_path=${dir}
        if [[ ! "${restore_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
          say "${RED}ERROR${NC}: invalid path, please specify the full path to restore directory (space not allowed)"
          waitForInput && continue
@@ -3030,7 +3126,7 @@ case $OPERATION in
     2) continue ;;
   esac
   
-  waitForInput && continue
+  waitForInput
 
   ;; ###################################################################
 
