@@ -164,7 +164,7 @@ fileDialog() {
 dirDialog() {
   [[ -n $3 ]] && start_path="$3/" || start_path="/tmp/"
   if [[ $1 -eq 1 ]]; then
-    say "\nFile Explorer:"
+    say "\nDirectory Explorer:"
     say "  Tab        -  Select area to navigate"
     say "  Arrow keys -  Move up/down"
     say "  Space      -  Append the currently-selected item into the work-area"
