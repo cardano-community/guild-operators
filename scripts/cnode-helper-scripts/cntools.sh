@@ -2977,12 +2977,12 @@ case $OPERATION in
          wget -q -T 10 -O "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh" &&
          wget -q -T 10 -O "$CNODE_HOME/scripts/cntools.config" "$URL/cntools.config" &&
          wget -q -T 10 -O "$CNODE_HOME/scripts/cntools.library" "$URL/cntools.library" &&
-         wget -q -T 10 -O "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "$URL/cntoolsBlockCollector.sh"; then
-        chmod 750 "$CNODE_HOME/scripts/"*.sh
-        chmod 640 "$CNODE_HOME/scripts/cntools.library" "$CNODE_HOME/scripts/cntools.config"
-        myExit 0 "Update applied successfully!\n\nPlease start CNTools again!"
+         wget -q -T 10 -O "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "$URL/cntoolsBlockCollector.sh" &&
+         [[ $(grep "_HOME=" "$CNODE_HOME/scripts/env") =~ ^([^[:space:]]+)_HOME ]] &&
+         sed -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "$CNODE_HOME/scripts/cntools."*; then
+         myExit 0 "Update applied successfully!\n\nPlease start CNTools again!"
       else
-        say "\n${RED}ERROR${NC}: update unsuccessful, backup or GitHub download failed!\n"
+        say "\n${RED}ERROR${NC}: update unsuccessful, backup, GitHub download or vname update failed!\n"
       fi
     else
       say "${GREEN}Up to Date${NC}: You're using the latest version. No updates required!"
