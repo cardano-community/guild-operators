@@ -1,25 +1,27 @@
 #!/bin/bash
 #shellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015
 
-GLV_VERSION=v1.2
+GLV_VERSION=v1.3
 
 ######################################
 # User Variables - Change as desired #
 # Leave as is if usure               #
 ######################################
 
-#CNODE_HOME="/opt/cardano/cnode"          # Override default CNODE_HOME path
-#CNODE_PORT=6000                          # Override automatic detection of node port
-NODE_NAME="Cardano Node"                  # Change your node's name prefix here, keep at or below 19 characters!
-REFRESH_RATE=2                            # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
-#CONFIG="${CNODE_HOME}/files/config.json" # Override automatic detection of node config path
-EKG_HOST=127.0.0.1                        # Set node EKG host
-#EKG_PORT=12788                           # Override automatic detection of node EKG port
-#PROTOCOL="Cardano"                       # Default: Combinator network (leave commented if unsure)
-#BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"  # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
-LEGACY_MODE=false                         # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
-THEME="dark"                              # dark  = suited for terminals with a dark background
-                                          # light = suited for terminals with a bright background
+#CCLI=$HOME/.cabal/bin/cardano-cli         # Override automatic detection of path to cardano-cli executable
+#SOCKET=${CNODE_HOME}/sockets/node0.socket # Override automatic detection of path to socket
+#CNODE_HOME="/opt/cardano/cnode"           # Override default CNODE_HOME path
+#CNODE_PORT=6000                           # Override automatic detection of node port
+NODE_NAME="Cardano Node"                   # Change your node's name prefix here, keep at or below 19 characters!
+REFRESH_RATE=2                             # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
+#CONFIG="${CNODE_HOME}/files/config.json"  # Override automatic detection of node config path
+EKG_HOST=127.0.0.1                         # Set node EKG host
+#EKG_PORT=12788                            # Override automatic detection of node EKG port
+#PROTOCOL="Cardano"                        # Default: Combinator network (leave commented if unsure)
+#BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"   # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
+LEGACY_MODE=false                          # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
+THEME="dark"                               # dark  = suited for terminals with a dark background
+                                           # light = suited for terminals with a bright background
 
 #####################################
 # Themes                            #
@@ -123,10 +125,16 @@ if wget -q -T 10 -O /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
     echo -e "\nPress 'u' to update to latest version, or any other key to continue\n"
     read -r -n 1 -s -p "" answer
     if [[ "${answer}" = "u" ]]; then
-      mv "${CNODE_HOME}/scripts/gLiveView.sh" "${CNODE_HOME}/scripts/gLiveView.sh.bkp_$(date +%s)"
-      cp -f /tmp/gLiveView.sh "${CNODE_HOME}/scripts/gLiveView.sh"
-      chmod 750 "${CNODE_HOME}/scripts/gLiveView.sh"
-      myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!"
+      if [[ $(grep "_HOME=" "${BASH_SOURCE[0]}") =~ [[:space:]]([^[:space:]]+)_HOME ]]; then
+        sed -e "s@[C]NODE_HOME=[^ ]*\\(.*\\)@${BASH_REMATCH[1]}_HOME=\"${CNODE_HOME}\"\\1@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i /tmp/gLiveView.sh
+      else
+        myExit 1 "${RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
+      fi
+      mv -f "${CNODE_HOME}/scripts/gLiveView.sh" "${CNODE_HOME}/scripts/gLiveView.sh.bkp_$(date +%s)" && \
+      cp -f /tmp/gLiveView.sh "${CNODE_HOME}/scripts/gLiveView.sh" && \
+      chmod 750 "${CNODE_HOME}/scripts/gLiveView.sh" && \
+      myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!" || \
+      myExit 1 "${RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
     fi
   fi
 else
@@ -140,7 +148,21 @@ fi
 #######################################################
 
 # The commands below will try to detect the information assuming you run single node on a machine. 
-# Please override values if they dont match your system in the 'User Variables' section below 
+# Please override values if they dont match your system in the 'User Variables' section above
+if [[ -z "${CCLI}" ]]; then
+  CCLI=$(command -v cardano-cli)
+  [[ -z "${CCLI}" && -f "${HOME}/.cabal/bin/cardano-cli" ]] && CCLI="${HOME}/.cabal/bin/cardano-cli"
+  [[ -z "${CCLI}" ]] && myExit 1 "You do not have a cardano-cli binary available in \$PATH. Please make it available before using gLiveView."
+fi 
+if [[ -n "${SOCKET}" ]]; then
+  export CARDANO_NODE_SOCKET_PATH="${SOCKET}"
+else
+  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
+    export CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
+  else
+    myExit 1 "Node socket not set and automatic detection failed!"
+  fi
+fi
 [[ ${#NODE_NAME} -gt 19 ]] && myExit 1 "Please keep node name at or below 19 characters in length!"
 [[ ! ${REFRESH_RATE} =~ ^[0-9]+$ ]] && myExit 1 "Please set a valid refresh rate number!"
 if [[ ${EKG_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
@@ -176,6 +198,7 @@ if [[ -f "${CONFIG}" ]]; then
   if ! PROTOCOL=$(jq -er '.Protocol' "${CONFIG}" 2>/dev/null); then
     myExit 1 "Could not get 'Protocol' from the node configuration file"
   fi
+  [[ "${PROTOCOL}" = "Cardano" ]] && PROTOCOL_IDENTIFIER="--cardano-mode" || PROTOCOL_IDENTIFIER="--shelley-mode"
 else
   myExit 1 "Node config not found: ${CONFIG}"
 fi
@@ -376,6 +399,13 @@ kesExpiration() {
   kes_expiration=$(date '+%F %T Z' --date=@${expiration_time_sec})
 }
 
+# Command    : slotInterval
+# Description: Calculate expected interval between blocks
+slotInterval() {
+  [[ $(echo "${decentralisation} < 0.5" | bc) -eq 1 ]] && local d=0.5 || local d=${decentralisation}
+  echo "(${slot_length} / ${active_slots_coeff} / ${d}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}'
+}
+
 # Command    : checkPeers [direction: in|out]
 # Description: Check outgoing peers
 #              Inspired by ping script from Martin @ ATADA pool
@@ -472,6 +502,7 @@ show_peers="false"
 selected_direction="out"
 data=$(curl -s -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
 epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
+curr_epoch=${epochnum}
 slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
 slotnum=$(jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${data}")
 remaining_kes_periods=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
@@ -485,12 +516,12 @@ byron_genesis_file=$(jq -r .ByronGenesisFile "${CONFIG}")
 [[ ! ${byron_genesis_file} =~ ^/ ]] && byron_genesis_file="$(dirname "${CONFIG}")/${byron_genesis_file}"
 nwmagic=$(jq -r .networkMagic < "${shelley_genesis_file}")
 [[ "${nwmagic}" == "764824073" ]] && NWNAME="Mainnet" || { [[ "${nwmagic}" = "1097911063" ]] && NWNAME="Testnet" || NWNAME="Custom"; }
+[[ "${nwmagic}" == "764824073" ]] && NETWORK_IDENTIFIER="--mainnet" || NETWORK_IDENTIFIER="--testnet-magic ${nwmagic}"
 shelley_genesis_start=$(jq -r .systemStart "${shelley_genesis_file}")
 shelley_genesis_start_sec=$(date --date="${shelley_genesis_start}" +%s)
 epoch_length=$(jq -r .epochLength "${shelley_genesis_file}")
 slot_length=$(jq -r .slotLength "${shelley_genesis_file}")
 active_slots_coeff=$(jq -r .activeSlotsCoeff "${shelley_genesis_file}")
-decentralisation=$(jq -r .protocolParams.decentralisationParam "${shelley_genesis_file}")
 slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${shelley_genesis_file}")
 max_kes_evolutions=$(jq -r .maxKESEvolutions "${shelley_genesis_file}")
 if [[ "${PROTOCOL}" = "Cardano" ]]; then
@@ -503,7 +534,8 @@ else
   shelley_transition_epoch=-2
 fi
 #####################################
-slot_interval=$(echo "(${slot_length} / ${active_slots_coeff} / ${decentralisation}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}')
+prot_params="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER})"
+decentralisation=$(jq -r .decentralisationParam <<< ${prot_params})
 kesExpiration
 #####################################
 
@@ -573,6 +605,11 @@ while true; do
     if [[ "${PROTOCOL}" = "Cardano" && ${shelley_transition_epoch} -eq -1 ]]; then # if Shelley transition epoch calc failed during start, try until successful
       getShelleyTransitionEpoch 1 
       kesExpiration
+    fi
+    if [[ ${curr_epoch} -ne ${epochnum} ]]; then # only update on new epoch to save on processing
+      curr_epoch=${epochnum}
+      prot_params="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER})"
+      decentralisation=$(jq -r .decentralisationParam <<< ${prot_params})
     fi
   fi
 
@@ -806,9 +843,9 @@ while true; do
       printf "Status     : ${style_info}%-${sec_col_value_size}s${NC}${VL}\n" "starting..."
     elif [[ "${PROTOCOL}" = "Cardano" && ${shelley_transition_epoch} -eq -1 ]]; then
       printf "Status     : ${style_info}%-${sec_col_value_size}s${NC}${VL}\n" "syncing..."
-    elif [[ ${tip_diff} -le $(( slot_interval * 2 )) ]]; then
+    elif [[ ${tip_diff} -le $(slotInterval) ]]; then
       printf "Tip (diff) : ${style_status_1}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_diff} :)"
-    elif [[ ${tip_diff} -le $(( slot_interval * 3 )) ]]; then
+    elif [[ ${tip_diff} -le $(( $(slotInterval) * 2 )) ]]; then
       printf "Tip (diff) : ${style_status_2}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_diff} :|"
     else
       printf "Tip (diff) : ${style_status_3}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_diff} :("
