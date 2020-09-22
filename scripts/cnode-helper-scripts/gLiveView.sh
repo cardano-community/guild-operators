@@ -1,7 +1,7 @@
 #!/bin/bash
 #shellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015
 
-GLV_VERSION=v1.3
+GLV_VERSION=v1.4
 
 ######################################
 # User Variables - Change as desired #
@@ -9,8 +9,8 @@ GLV_VERSION=v1.3
 ######################################
 
 #CCLI=$HOME/.cabal/bin/cardano-cli         # Override automatic detection of path to cardano-cli executable
-#SOCKET=${CNODE_HOME}/sockets/node0.socket # Override automatic detection of path to socket
 #CNODE_HOME="/opt/cardano/cnode"           # Override default CNODE_HOME path
+#SOCKET=${CNODE_HOME}/sockets/node0.socket # Override automatic detection of path to socket
 #CNODE_PORT=6000                           # Override automatic detection of node port
 NODE_NAME="Cardano Node"                   # Change your node's name prefix here, keep at or below 19 characters!
 REFRESH_RATE=2                             # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
