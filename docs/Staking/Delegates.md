@@ -1,268 +1,310 @@
-!> The commands used on this page are out of date and will be updated soon
-
 The delegates are the stake holders who have some funds deposited and want to participate in staking.
 Therefore the steps for delegating stakes are the following:
-  - Create `stake key(s)` for generating the __delegate__'s `reward address(es)` for collecting their `stake rewards`.
-  - Create `payment key(s)` for generating the __delegate__'s `payment address(es)` for payments that will participate in stake delegation and also deposititing some funds.
-  - Register `stake address` on the blockhain, __with__ key deposit, which is required for participatin in staking and 
-  - Create and submit the __stake delegation certificate__ for the selected pool.
+
+- Create `stake key(s)` for generating the **delegate**'s `reward address(es)` for collecting their `stake rewards`.
+- Create `payment key(s)` for generating the **delegate**'s `payment address(es)` for payments that will participate in stake delegation and also deposititing some funds.
+- Register `stake address` on the blockhain, **with** key deposit, which is required for participation in staking, and
+- Create and submit the **stake delegation certificate** for the selected pool.
 
 #### Create _delegate's_ staking keys and addresses
 
-Stake address, derived from a `stake verification key`, is a simple `reward (account) address` which is not a `payment address` therefore it cannot be used as an output of a transaction.
+A **stake address**, derived from a `stake verification key`, is a simple `reward (account) address` which is not a `payment address` therefore it cannot be used as an output of a transaction.
 In the `cardano-cli` they use a CBOR format for preventing it to be added as the input into a transaction.
 
-> Keep in mind, that only the __reward__ addresses and the __base___, __pointer__ and some __script__ (not available yet) addresses can participate in the staking.
+> Keep in mind, that only the **reward** addresses and the **base\_**, **pointer** and some **script** (not available yet) addresses can participate in the staking.
 
-First, we need to create the relevant `payment` and `stake` keys and the related addresses for the delegate. The payment address for paying the transactions for sending the `registration certificate` (which is just simply the reward account address in some CBOR encoded format) to the chain.
+First, we need to create the relevant `payment` and `stake` keys and the related addresses for the delegate. The payment address will be used for paying the transactions for sending the `registration certificate` (which is just simply the reward account address in some CBOR encoded format) to the chain.
 
-``` bash
+```bash
 # Delegate's staking/acount key, then Staking/Account address
 ############################################################
 mkdir delegate && pushd delegate
-cardano-cli shelley stake-address key-gen --verification-key-file stake.vkey --signing-key-file stake.skey
 
-cardano-cli shelley stake-address build --stake-verification-key-file stake.vkey --testnet-magic 42 > stake.addr
+# Generate the stake address key-pair
+cardano-cli shelley stake-address key-gen \
+--verification-key-file stake.vkey \
+--signing-key-file stake.skey
+
+# Generate the actual stake address with the stake key-pair
+cardano-cli shelley stake-address build \
+--stake-verification-key-file stake.vkey \
+--out-file stake.addr \
+--mainnet
+
 cat stake.addr
-#-------v 32 bytes key starts from here
-8200582032a8c3f17ae5dafc3e947f82b0b418483f0a8680def9418c87397f2bd3d35efb
-# It's a CBOR representation of the vkey
-#82                                      # array(2)
-#   00                                   # unsigned(0)
-#   58 20                                # bytes(32)
-#      32A8C3F17AE5DAFC3E947F82B0B418483F0A8680DEF9418C87397F2BD3D35EFB # 
-# "2\xA8\xC3\xF1z\xE5\xDA\xFC>\x94\x7F\x82\xB0\xB4\x18H?\n\x86\x80\xDE\xF9A\x8C\x879\x7F+\xD3\xD3^\xFB"
+# stake1u9a3t4rgddm4expj0ucyxhxg3ft9ugk2ry6r9w69h04ea6cfj887f
 
-
-# Delegates payment key -> payment address (a.k.a legacy UtxO a.k.a enterprise address).
-# Ur use some address that already has some fund on it.
-############################################################
-cardano-cli shelley address build --payment-verification-key-file pay.vkey --testnet-magic 42 > pay.addr
-cat pay.addr
-# As a single Shelley UtXO address and (no CBOR repr)
-# header(1) | address(32), so no hash224
-# 0x61 = 0110 0001 || 0x47eb...2907 therefore an UtXO enterprise address
-6147ebc8bf8714dcf6700ac482a5d42624ffca6afb51ae23930ea6591119a12907
-
-####################################################################
-# Generate the delegate's base address (0x01...) from 
-# 1. the `pay.vkey` (used for enterprise address `0x61...`)
-# 2. and from the `stake.key`
-# It's a combination of the payment and reward address, with
-# the 0b0000 0b0001, as a base address prefix
-####################################################################
-cardano-cli shelley address build \
-    --payment-verification-key-file pay.vkey \
-    --stake-verification-key-file stake.vkey \
-    --testnet-magic 42 > stake.base
+# Generate the payment address key-pair
+cardano-cli shelley address key-gen \
+--verification-key-file payment.vkey \
+--signing-key-file payment.skey
 ```
+
+> **NOTE**: The following command use `--mainnet`. For testnet usage, use `--testnet-magic 1097911063` instead!
+
+```bash
+# Generate the Shelley address with both payment and stake keys
+
+cardano-cli shelley address build \
+--payment-verification-key-file payment.vkey \
+--stake-verification-key-file stake.vkey \
+--out-file payment.addr \
+--mainnet # for testnet use, replace this with `--testnet-magic 1097911063`
+
+cat payment.addr
+
+# addr1q8mhchxehfs42erc33wdxrwvjalpc262tw4lus8dz30ts5tmzh2xs6mhtjvrylesgdwv3zjktc3v5xf5x2a5twltnm4s28w6nf
+
+# Query the newly created address (need to export CARDANO_NODE_SOCKET_PATH first)
+
+export CARDANO_NODE_SOCKET_PATH=path/to/your/node.socket (e.g. $CNODE_HOME/sockets/node0.socket)
+cardano-cli shelley query utxo \
+--address $(cat payment.addr) \
+--mainnet
+
+# TxHash TxIx Lovelace
+
+#----------------------------------------------------------------------------------------
+
+```
+
+Now that we have our stake and Shelley addresses, we need to register our stake address on the blockchain.
+
+> **NOTE**: to continue, you will need to have some ADA funds on the address to cover transaction costs!
 
 #### Generating the Staking key certificate
 
-``` bash
+```bash
 # First we need to generate the stake address registration
 # certificate using the stake verification key
 ############################################################
 cardano-cli shelley stake-address registration-certificate \
---stake-verification-key-file stake.vkey \
---out-file stake.cert
+    --stake-verification-key-file stake.vkey \
+    --out-file stake.cert
 
 cat stake.cert
-cbor-hex:
- 18b482008200582032a8c3f17ae5dafc3e947f82b0b418483f0a8680def9418c87397f2bd3d35efb
-# 18 B4 # unsigned(180)
-# 
-#82                                      # array(2)
-#   00                                   # unsigned(0)
-#   82                                   # array(2)
-#      00                                # unsigned(0)
-#      58 20                             # bytes(32)
-#         32A8C3F17AE5DAFC3E947F82B0B418483F0A8680DEF9418C87397F2BD3D35EFB  
-# "2\xA8\xC3\xF1z\xE5\xDA\xFC>\x94\x7F\x82\xB0\xB4\x18H?\n\x86\x80\xDE\xF9A\x8C\x879\x7F+\xD3\xD3^\xFB"
+# {
+#     "type": "CertificateShelley",
+#     "description": "Stake Address Registration Certificate",
+#     "cborHex": "82008200581c7b15d4686b775c98327f30435cc88a565e22ca193432bb45bbeb9eeb"
+# }
+
 ```
 
 #### Registering the delegate's staking key on chain
 
-The delegate's staking key needs to be registered in the blockchain, which just need a simple transaction using any payment address.
+The delegate's staking key needs to be registered in the blockchain. To register it we need to make a simple transaction including our `stake.cert` using any payment address.
 
-Keep, in mind that the any stake key registration certificates needs a deposit for the costs of tracking the key and the corresponding reward account. Also, it does not require any witness to register the certificate, but only the witness for the fees from the input of the transaction.
+Keep in mind that any stake key registration certificate needs a deposit for the costs of tracking the key and the corresponding reward account. Also, it does not require any witness to register the certificate, but only the witness for the fees from the input of the transaction.
 
-
-``` bash
+```bash
 # Get param files
 export CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
 cardano-cli shelley query protocol-parameters \
---testnet-magic 42 \
+--mainnet \
 --out-file params.json
 
-# 3. Calc tx fee
-# You need only one singing keys included in fee calculation:
-# 1. the `payment` address signing key of the input
-# as the stake key reg cert does not need witness
-# One UtxO is enough for the change, but I will move some fund from genesis to the delegates address
-FEE=$(cardano-cli shelley transaction calculate-min-fee \
---protocol-params-file params.json \
---certificate-file stake.cert \
---tx-in-count 1 \
---tx-out-count 2 \
---ttl 500000 \
---testnet-magic 42 \
---signing-key-file $CNODE_HOME/priv/genesis.skey \
-| awk '{ print $2}')
+# CALCULATE TRANSACTION FEES + REGISTRATION KEY DEPOSIT
+# You need only one signing key included in fee calculation:
+# the `payment` address signing key of the input
+# as the stake key reg cert does not need a witness
 
-# I will use the the genesis address as input for paying the fee.
-#################################################################
-FROM=$( cat $CNODE_HOME/priv/genesis.addr )
-# i.e. FROM=617190446876aed298ee207c6b5a335e832e2169a060b8167ef3ba9caff6fa3393
-
-
-TX=$(cardano-cli shelley query utxo --testnet-magic 42 --address "$FROM"  | grep "^[^- ]" | sort -k 2n | tail -1)
+# Setup variables for building transactions:
+FROM=$( cat payment.addr ) # the address we will pay the fees from
+TX=$(cardano-cli shelley query utxo --mainnet --address "$FROM"  | grep "^[^- ]" | sort -k 2n | tail -1)
 UTXO=$( echo "$TX" | awk '{ print $1 }')
 ID=$( echo "$TX" | awk '{ print $2 }')
 BALANCE=$( echo "$TX" | awk '{ print $3 }')
 INPUT="${UTXO}#${ID}"
 
-# This 500K ADA amount is going to the delegates UtxO style address for its delegated stakes
-TO=$(cat pay.addr)
-AMOUNT=500000000000
+echo "$INPUT"
+# 55be4bb91c6469ba419b102e703a5f20d1c022351e64cf75033f7d83c6aebbdc#0
 
-OUTPUT1="${FROM}+${CHANGE}"
-OUTPUT2="${TO}+${AMOUNT}"
-# It also needs a key deposit specified in the genesis e.g.
-# grep keyD
-#    "keyDeposit": 400000,
-#    "keyDecayRate": 0, Means the key won't decay, i.e. all money will
-# get back when  the key is de-registered from the chain
-KEYDEP=400000
-
-# This means that change will less by 400K Lovelace that will be 
-# probably (need to check) taken by the treasury 
-CHANGE=$(( $BALANCE -  $FEE - $AMOUNT - $KEYDEP ))
-
-echo "Balance: $BALANCE, Amount: "$AMOUNT",  Change: $CHANGE, runTxCalculateMinFee: $FEE"
-echo "Input  : $INPUT"
-echo "Output1: $OUTPUT1"
-echo "Output2: $OUTPUT2"
-
-# Build
+# First, we need to build a draft transaction in order to calculate minimum fees
 cardano-cli shelley transaction build-raw \
-	--tx-in "$INPUT" \
-	--tx-out "${FROM}+${CHANGE}" \
-	--tx-out "${TO}+${AMOUNT}" \
-	--ttl 500000 \
-	--fee "$FEE" \
-	--out-file stake-cert-tx
-# Sign
+--tx-in "$INPUT" \
+--tx-out $(cat payment.addr)+0 \
+--ttl 0 \
+--fee 0 \
+--out-file tx.raw \
+--certificate-file stake.cert
+
+
+FEE=$(cardano-cli shelley transaction calculate-min-fee \
+--tx-body-file tx.raw \
+--tx-in-count 1 \
+--tx-out-count 1 \
+--witness-count 1 \
+--byron-witness-count 0 \
+--mainnet \
+--protocol-params-file params.json \
+| awk '{ print $1}')
+
+echo "$FEE"
+
+# 172453 - transaction fee in Lovelace
+
+# Now, we need to get the registration fee - the "keyDeposit" specified in the protocol params.json
+# This is the amount we can get back when we de-register the stake key
+
+cat params.json | grep keyDeposit
+
+# "keyDeposit": 2000000
+
+KEYDEP=2000000
+
+# Now we have everything needed to calculate the change:
+
+CHANGE=$(( $BALANCE - $FEE - $KEYDEP ))
+
+echo "$CHANGE"
+
+# 2827547 <- 5000000 - 172453 - 2000000
+
+OUTPUT="${FROM}+${CHANGE}"
+
+# You can run the following to confirm all the variables are right
+echo "Balance: $BALANCE, Change: $CHANGE, runTxCalculateMinFee: $FEE"
+# Balance: 5000000, Change: 2827547, runTxCalculateMinFee: 172453
+echo "Input: $INPUT"
+# Input: 55be4bb91c6469ba419b102e703a5f20d1c022351e64cf75033f7d83c6aebbdc#0
+echo "Output: $OUTPUT"
+# Output: addr1q8mhchxehfs42erc33wdxrwvjalpc262tw4lus8dz30ts5tmzh2xs6mhtjvrylesgdwv3zjktc3v5xf5x2a5twltnm4s28w6nf+2827547
+
+
+# Now, we need to determine the --ttl (time to Live) for the transaction. We query the blockchain tip and look for the 'slotNo':
+cardano-cli shelley query tip --mainnet
+# {
+#     "blockNo": 4711506,
+#     "headerHash": "1e95d9ebe29db6db8f8ae5ccf15351f41eddc8505716310c7471ff31b025878b",
+#     "slotNo": 8967182 <- this is the tip we are looking for
+# }
+
+# Set TTL to be current tip + 500 (that gives us 500 seconds, ~ 8 minutes to complete the transaction)
+TTL=$((8967182+500)) # **replace this accordingly with the current tip**
+
+# Finally, build the transaction
+cardano-cli shelley transaction build-raw \
+    --tx-in "$INPUT" \
+    --tx-out "${FROM}+${CHANGE}" \
+    --ttl "$TTL" \
+    --fee "$FEE" \
+    --out-file tx.raw \
+    --certificate-file stake.cert
+# Sign it
 cardano-cli shelley transaction sign \
-    --tx-body-file stake-cert-tx \
-    --signing-key-file $CNODE_HOME/priv/genesis.skey \
+    --tx-body-file tx.raw \
+    --signing-key-file payment.skey \
     --signing-key-file stake.skey \
-    --out-file stake-cert-tx \
-    --testnet-magic 42
-
-# Submit
-# Wait some minutes
-# Get the stake address
-# cut -c 9-  stake.addr 
-# 32a8c3f17ae5dafc3e947f82b0b418483f0a8680def9418c87397f2bd3d35efb
-STAKE_ADDR=$( cut -c 9-  stake.addr )
-
-# Before 
-export CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket 
-cardano-cli shelley query ledger-state  --testnet-magic 42 | grep "$STAKE_ADDR"
-
-
+    --mainnet \
+    --out-file tx.signed
+# And submit it
 cardano-cli shelley transaction submit \
-    --tx-file signed-stake-key-registration.tx \
-    --testnet-magic 42
+    --tx-file tx.signed \
+    --mainnet
 
-# After 
-cardano-cli shelley query ledger-state  --testnet-magic 42 | grep "$STAKE_ADDR"
-#                        "contents": "32a8c3f17ae5dafc3e947f82b0b418483f0a8680def9418c87397f2bd3d35efb"
-#                        "contents": "32a8c3f17ae5dafc3e947f82b0b418483f0a8680def9418c87397f2bd3d35efb"
-#                        "contents": "32a8c3f17ae5dafc3e947f82b0b418483f0a8680def9418c87397f2bd3d35efb"
-
-# Ready to delegate now.
+# Your stake key will now be registered on the blockchain once the transaction goes through.
+# Now, we are ready to delegate.
 ```
 
 #### Create a delegation certificate and submit to the network
 
-``` bash
-# You can use aither some pool from the google's spreadsheet 
-echo "type: Node operator verification key
-title: Stake pool operator key
-cbor-hex:
- 5820<the 32 bytes length of the pool's operational verification key from the google sheet without the 5820 CBOR tag.>
- " > pool.vkey
+To delegate to a pool, we need to create a delegation certificate using our `stake.vkey` and the stake pool's details. We will then submit this certificate to the network in a transaction much like we registered our staking address.
 
-# or delegate to your own pool by getting its `operational verifycation key` (the cold key)
-# !! BE AWARE!! that the `stake.key` must have been already registered on the chain.
+```bash
+# You will need either a stake pool's cold.vkey or a stake pool's ID
+POOL_ID=5271fc86fd9c25613c138c4aef6f8593b2952c95897b079facebbc9e
+
+# !! BE AWARE!! that the `stake.key` must be already registered on the chain at this point.
 cardano-cli shelley stake-address delegation-certificate \
     --stake-verification-key-file stake.vkey \
-    --cold-verification-key-file ~/cold-keys/pool.vkey \
-    --out-file pool-delegation.cert
+    --stake-pool-id "$POOL_ID" \
+    --out-file delegation.cert
 
 ####################################################################
 ####################################################################
 
-# Calculate the minimum fee.
-cardano-cli shelley transaction calculate-min-fee \
-    --tx-in-count 1 \
-    --tx-out-count 1 \
-    --ttl 500000 \
-    --testnet-magic 42 \
-    --signing-key-file pay.skey \
-    --signing-key-file stake.skey \
-    --certificate-file pool-delegation.cert \
-    --protocol-params-file params.json
-# runTxCalculateMinFee: 172805
-FEE=172805
-# Get the intput and balance
-cardano-cli shelley query utxo --testnet-magic 42 --address $(cat stake.base)
-#                           TxHash                                 TxIx        Lovelace
-#----------------------------------------------------------------------------------------
-#1c089abfd6d56c73ac57aa94c403991041a383956f1f8fd4141a8e03a678a24c     0      499999260330
+# Calculate the minimum fee. Again, we build a draft transaction, but we need to update our variables beforehand.
+TX=$(cardano-cli shelley query utxo --mainnet --address "$FROM"  | grep "^[^- ]" | sort -k 2n | tail -1)
+UTXO=$( echo "$TX" | awk '{ print $1 }')
+ID=$( echo "$TX" | awk '{ print $2 }')
+BALANCE=$( echo "$TX" | awk '{ print $3 }')
+INPUT="${UTXO}#${ID}"
 
-INPUT="1c089abfd6d56c73ac57aa94c403991041a383956f1f8fd4141a8e03a678a24c#0"
-BAL=499999260330
-CHANGE=$(( $BAL - $FEE))
-# The new `base address`
-OUTPUT="$( cat stake.base)+$CHANGE"
+echo "$INPUT"
+# 21190c4dd72173e5b78c0c766379e97339fa2f5fa96a47fc1c2db45605fb7e5e#0
 
-# Build
-# Input: Your `base` payment address e.g. `stake.base` with "0x01...."
-# Output: change back to the base address.
+cardano-cli shelley transaction build-raw \
+--tx-in "$INPUT" \
+--tx-out $(cat payment.addr)+0 \
+--ttl 0 \
+--fee 0 \
+--out-file tx.raw \
+--certificate-file delegation.cert
+
+
+FEE=$(cardano-cli shelley transaction calculate-min-fee \
+--tx-body-file tx.raw \
+--tx-in-count 1 \
+--tx-out-count 1 \
+--witness-count 1 \
+--byron-witness-count 0 \
+--mainnet \
+--protocol-params-file params.json \
+| awk '{ print $1}')
+
+echo "$FEE"
+
+# 172453 - transaction fee in Lovelace
+
+CHANGE=$(( $BALANCE - $FEE))
+OUTPUT="${FROM}+${CHANGE}"
+
+# Determine TTL:
+cardano-cli shelley query tip --mainnet
+# {
+#     "blockNo": 4711631,
+#     "headerHash": "253570b12db0f6810d2a9f62ef79f7d5101a8f5de3743b26a0257b0e2c0290a7",
+#     "slotNo": 8969917
+# }
+
+
+# Set TTL to be current tip + 500 (that gives us 500 seconds, ~ 8 minutes to complete the transaction)
+TTL=$((8969917+500)) # **replace this accordingly with the current tip**
+
+# Build the transaction
 cardano-cli shelley transaction build-raw \
      --tx-in "$INPUT" \
      --tx-out "$OUTPUT" \
-     --ttl 500000 \
+     --ttl "$TTL" \
      --fee "$FEE" \
-     --out-file pool-delegation.tx \
-     --certificate-file pool-delegation.cert
+     --out-file delegation.raw \
+     --certificate-file delegation.cert
 
 # Sign
 # You need 2 signing keys
-# 1. the `pay.skey` for wittness the input and
-# 2. the `staking signing key` for signing the delegation certificate.
+# 1. the `payment.skey` for wittness the input and
+# 2. the `stake.skey` for signing the delegation certificate.
 cardano-cli shelley transaction sign \
-    --tx-body-file pool-delegation.tx \
+    --tx-body-file delegation.raw \
     --signing-key-file stake.skey \
-    --signing-key-file pay.skey \
-    --testnet-magic 42 \
-    --out-file signed-pool-delegation.tx
+    --signing-key-file payment.skey \
+    --mainnet \
+    --out-file delegation.signed
 
 # Before
 
 # Submit:
 cardano-cli shelley transaction submit \
-    --tx-file signed-pool-delegation.tx \
-    --testnet-magic 42
+    --tx-file delegation.signed \
+    --mainnet
 
-# Done As less money is there.
-# you need to wait two epochs to be receiving rewards
-cardano-cli shelley query utxo --testnet-magic 42 --address $(cat stake.base)
+# Delegation done, you need to wait two epochs before your delegation becomes active and 4 epochs to start receiving rewards.
+# To confirm, you can query your address to make sure the transaction went through.
+
+cardano-cli shelley query utxo --mainnet --address $(cat payment.addr)
 #                           TxHash                                 TxIx        Lovelace
-#----------------------------------------------------------------------------------------
-#ba544d056f94e559076c0c7a0406f37ed7182a6d0fdc0cf2569498353f9dd797     0      499999087525
+# ----------------------------------------------------------------------------------------
+# 0bcdf4f6378b2183d738b17c8a2daa6a94f0ddf78133b73fccea0eece3ab1b56     0           2653774 <- change from the last transaction
 
 ```
