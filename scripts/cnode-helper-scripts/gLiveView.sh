@@ -153,18 +153,40 @@ if [[ -z "${CCLI}" ]]; then
   CCLI=$(command -v cardano-cli)
   [[ -z "${CCLI}" && -f "${HOME}/.cabal/bin/cardano-cli" ]] && CCLI="${HOME}/.cabal/bin/cardano-cli"
   [[ -z "${CCLI}" ]] && myExit 1 "You do not have a cardano-cli binary available in \$PATH. Please make it available before using gLiveView."
-fi 
-if [[ -n "${SOCKET}" ]]; then
-  export CARDANO_NODE_SOCKET_PATH="${SOCKET}"
-else
+fi
+
+[[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
+
+if [[ -z "${SOCKET}" ]]; then
   if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
     export CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
   else
     myExit 1 "Node socket not set and automatic detection failed!"
   fi
+else
+  export CARDANO_NODE_SOCKET_PATH="${SOCKET}"
 fi
+
+if [[ -z "${CNODE_PORT}" ]]; then
+  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --port[[:space:]]([[:digit:]]+) ]]; then
+    CNODE_PORT=${BASH_REMATCH[1]}
+  else
+    myExit 1 "Node port not set and automatic detection failed!"
+  fi
+fi
+
 [[ ${#NODE_NAME} -gt 19 ]] && myExit 1 "Please keep node name at or below 19 characters in length!"
+
 [[ ! ${REFRESH_RATE} =~ ^[0-9]+$ ]] && myExit 1 "Please set a valid refresh rate number!"
+
+if [[ -z "${CONFIG}" ]]; then
+  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --config[[:space:]]([^[:space:]]+) ]]; then
+    CONFIG=${BASH_REMATCH[1]}
+  else
+    myExit 1 "Node config not set and automatic detection failed!"
+  fi
+fi
+
 if [[ ${EKG_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
   OIFS=$IFS
   IFS='.'
@@ -176,33 +198,28 @@ if [[ ${EKG_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
 else
   myExit 1 "Not a valid IP format set for EKG host, please check configuration!"
 fi
-[[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
-if [[ -z "${CNODE_PORT}" ]]; then
-  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --port[[:space:]]([[:digit:]]+) ]]; then
-    CNODE_PORT=${BASH_REMATCH[1]}
-  else
-    myExit 1 "Node port not set and automatic detection failed!"
-  fi
-fi
-if [[ -z "${CONFIG}" ]]; then
-  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --config[[:space:]]([^[:space:]]+) ]]; then
-    CONFIG=${BASH_REMATCH[1]}
-  else
-    myExit 1 "Node config not set and automatic detection failed!"
-  fi
-fi
-if [[ -f "${CONFIG}" ]]; then
+
+if [[ -z ${EKG_PORT} && -f "${CONFIG}" ]]; then
   if ! EKG_PORT=$(jq -er '.hasEKG' "${CONFIG}" 2>/dev/null); then
     myExit 1 "Could not get 'hasEKG' port from the node configuration file"
   fi
+elif [[ ! ${EKG_PORT} =~ ^[0-9]+$ ]]; then
+  myExit 1 "Please set a valid EKG port number!"
+else
+  myExit 1 "EKG_PORT not set and node config not found: ${CONFIG}"
+fi
+
+if [[ -z ${PROTOCOL} && -f "${CONFIG}" ]]; then
   if ! PROTOCOL=$(jq -er '.Protocol' "${CONFIG}" 2>/dev/null); then
     myExit 1 "Could not get 'Protocol' from the node configuration file"
   fi
   [[ "${PROTOCOL}" = "Cardano" ]] && PROTOCOL_IDENTIFIER="--cardano-mode" || PROTOCOL_IDENTIFIER="--shelley-mode"
 else
-  myExit 1 "Node config not found: ${CONFIG}"
+  myExit 1 "PROTOCOL not set and node config not found: ${CONFIG}"
 fi
-[[ -z ${BLOCK_LOG_DIR} && -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks" # optional
+
+[[ -z ${BLOCK_LOG_DIR} && -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"
+
 
 # Style
 width=63
