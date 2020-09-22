@@ -148,7 +148,7 @@ fi
 #######################################################
 
 # The commands below will try to detect the information assuming you run single node on a machine. 
-# Please override values if they dont match your system in the 'User Variables' section below
+# Please override values if they dont match your system in the 'User Variables' section above
 if [[ -z "${CCLI}" ]]; then
   CCLI=$(command -v cardano-cli)
   [[ -z "${CCLI}" && -f "${HOME}/.cabal/bin/cardano-cli" ]] && CCLI="${HOME}/.cabal/bin/cardano-cli"
