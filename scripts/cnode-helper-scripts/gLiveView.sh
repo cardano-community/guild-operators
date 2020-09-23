@@ -1,11 +1,9 @@
 #!/bin/bash
 #shellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015
 
-GLV_VERSION=v1.4
-
 ######################################
 # User Variables - Change as desired #
-# Leave as is if usure               #
+# Leave as is if unsure              #
 ######################################
 
 #CCLI=$HOME/.cabal/bin/cardano-cli         # Override automatic detection of path to cardano-cli executable
@@ -55,9 +53,12 @@ setTheme() {
   fi
 }
 
-#####################################
-# Do NOT Modify below               #
-#####################################
+########################################
+# Do NOT modify code below, it will be #
+# overwritten during future upgrades   #
+########################################
+
+GLV_VERSION=v1.4
 
 tput smcup # Save screen
 tput civis # Disable cursor
@@ -130,6 +131,9 @@ if wget -q -T 10 -O /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
       else
         myExit 1 "${RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
       fi
+      TEMPL_CMD=$(awk '/^# Do NOT modify/,0' /tmp/gLiveView.sh)
+      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${CNODE_HOME}/scripts/gLiveView.sh")
+      printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > /tmp/gLiveView.sh
       mv -f "${CNODE_HOME}/scripts/gLiveView.sh" "${CNODE_HOME}/scripts/gLiveView.sh.bkp_$(date +%s)" && \
       cp -f /tmp/gLiveView.sh "${CNODE_HOME}/scripts/gLiveView.sh" && \
       chmod 750 "${CNODE_HOME}/scripts/gLiveView.sh" && \
