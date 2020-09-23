@@ -280,7 +280,7 @@ fi
 ### Update gLiveView.sh retaining existing custom configs
 if grep '^# Do NOT modify' gLiveView.sh >/dev/null 2>&1; then
   TEMPL_CMD=$(awk '/^# Do NOT modify/,0' gLiveView.sh.tmp)
-  STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' gLiveView.sh
+  STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' gLiveView.sh)
   printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > gLiveView.sh.tmp
 fi
 
