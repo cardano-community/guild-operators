@@ -556,7 +556,8 @@ else
 fi
 #####################################
 prot_params="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER})"
-decentralisation=$(jq -r .decentralisationParam <<< ${prot_params})
+[[ -n "${prot_params}" ]] && decentralisation=$(jq -r .decentralisationParam <<< ${prot_params}) || decentralisation=0.5
+
 kesExpiration
 #####################################
 
@@ -630,7 +631,7 @@ while true; do
     if [[ ${curr_epoch} -ne ${epochnum} ]]; then # only update on new epoch to save on processing
       curr_epoch=${epochnum}
       prot_params="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER})"
-      decentralisation=$(jq -r .decentralisationParam <<< ${prot_params})
+      [[ -n "${prot_params}" ]] && decentralisation=$(jq -r .decentralisationParam <<< ${prot_params}) || decentralisation=0.5
     fi
   fi
 
