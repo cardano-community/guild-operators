@@ -58,7 +58,7 @@ setTheme() {
 # overwritten during future upgrades   #
 ########################################
 
-GLV_VERSION=v1.4
+GLV_VERSION=v1.5
 
 tput smcup # Save screen
 tput civis # Disable cursor
@@ -203,23 +203,19 @@ else
   myExit 1 "Not a valid IP format set for EKG host, please check configuration!"
 fi
 
-if [[ -z ${EKG_PORT} && -f "${CONFIG}" ]]; then
+if [[ -z ${EKG_PORT} ]]; then
   if ! EKG_PORT=$(jq -er '.hasEKG' "${CONFIG}" 2>/dev/null); then
     myExit 1 "Could not get 'hasEKG' port from the node configuration file"
   fi
 elif [[ ! ${EKG_PORT} =~ ^[0-9]+$ ]]; then
   myExit 1 "Please set a valid EKG port number!"
-else
-  myExit 1 "EKG_PORT not set and node config not found: ${CONFIG}"
 fi
 
-if [[ -z ${PROTOCOL} && -f "${CONFIG}" ]]; then
+if [[ -z ${PROTOCOL} ]]; then
   if ! PROTOCOL=$(jq -er '.Protocol' "${CONFIG}" 2>/dev/null); then
     myExit 1 "Could not get 'Protocol' from the node configuration file"
   fi
   [[ "${PROTOCOL}" = "Cardano" ]] && PROTOCOL_IDENTIFIER="--cardano-mode" || PROTOCOL_IDENTIFIER="--shelley-mode"
-else
-  myExit 1 "PROTOCOL not set and node config not found: ${CONFIG}"
 fi
 
 [[ -z ${BLOCK_LOG_DIR} && -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"
