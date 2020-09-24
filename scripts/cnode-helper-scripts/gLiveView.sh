@@ -630,14 +630,16 @@ while true; do
       [[ ${nodemode} != "Relay" ]] && clear && nodemode="Relay"
     fi
     if [[ "${PROTOCOL}" = "Cardano" && ${shelley_transition_epoch} -eq -1 ]]; then # if Shelley transition epoch calc failed during start, try until successful
-      getShelleyTransitionEpoch 1 
+      getShelleyTransitionEpoch 1
+      kes_expiration="---"
+    else
+      kesExpiration
     fi
     if [[ ${curr_epoch} -ne ${epochnum} ]]; then # only update on new epoch to save on processing
       curr_epoch=${epochnum}
       prot_params="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
       [[ -n "${prot_params}" ]] && decentralisation=$(jq -r .decentralisationParam <<< ${prot_params}) || decentralisation=0.5
     fi
-    kesExpiration
   fi
 
   header_length=$(( ${#NODE_NAME} + ${#nodemode} + ${#node_version} + ${#node_rev} + ${#NWNAME} + 19 ))
