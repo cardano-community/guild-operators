@@ -58,7 +58,7 @@ setTheme() {
 # overwritten during future upgrades   #
 ########################################
 
-GLV_VERSION=v1.5
+GLV_VERSION=v1.6
 
 tput smcup # Save screen
 tput civis # Disable cursor
@@ -69,8 +69,8 @@ cleanup() {
   [[ -n $1 ]] && err=$1 || err=$?
   tput rmcup # restore screen
   tput cnorm # restore cursor
-  tput sgr0  # turn off all attributes
   [[ -n ${exit_msg} ]] && echo -e "\n${exit_msg}\n" || echo -e "\nGuild LiveView terminated, cleaning up...\n"
+  tput sgr0  # turn off all attributes
   exit $err
 }
 trap cleanup HUP INT TERM
@@ -551,16 +551,15 @@ else
   shelley_transition_epoch=-2
 fi
 #####################################
+
 prot_params="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
 [[ -n "${prot_params}" ]] && decentralisation=$(jq -r .decentralisationParam <<< ${prot_params}) || decentralisation=0.5
-
-kesExpiration
-#####################################
 
 clear
 tlines=$(tput lines) # set initial terminal lines
 tcols=$(tput cols)   # set initial terminal columns
 printf "${NC}"       # reset and set default color
+fail_count=0
 
 #####################################
 # MAIN LOOP                         #
@@ -597,8 +596,14 @@ while true; do
   # Gather some data
   data=$(curl -s -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
   uptimens=$(jq '.cardano.node.metrics.upTime.ns.val //0' <<< "${data}")
-  if ((uptimens<=0)); then
-    myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE!${NC}"
+  [[ ${fail_count} -eq 3 ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, THREE FAILED ATTEMPTS IN A ROW!${NC}"
+  if [[ ${uptimens} -le 0 ]]; then
+    ((fail_count++))
+    clear && tput cup 1 1
+    printf "${style_status_3}Connection to node lost, retrying (${fail_count}/3)!${NC}"
+    waitForInput && continue
+  else
+    fail_count=0
   fi
   if [[ ${show_peers} = "false" ]]; then
     peers_in=$(ss -tnp state established 2>/dev/null | grep "${pid}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
@@ -619,9 +624,15 @@ while true; do
     adopted=$(jq '.cardano.node.metrics.Forge.adopted.int.val //0' <<< "${data}")
     didntadopt=$(jq '.cardano.node.metrics.Forge["didnt-adopt"].int.val //0' <<< "${data}")
     about_to_lead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0' <<< "${data}")
-    [[ ${about_to_lead} -gt 0 ]] && nodemode="Core" || nodemode="Relay"
+    if [[ ${about_to_lead} -gt 0 ]]; then
+      [[ ${nodemode} != "Core" ]] && clear && nodemode="Core"
+    else
+      [[ ${nodemode} != "Relay" ]] && clear && nodemode="Relay"
+    fi
     if [[ "${PROTOCOL}" = "Cardano" && ${shelley_transition_epoch} -eq -1 ]]; then # if Shelley transition epoch calc failed during start, try until successful
-      getShelleyTransitionEpoch 1 
+      getShelleyTransitionEpoch 1
+      kes_expiration="---"
+    else
       kesExpiration
     fi
     if [[ ${curr_epoch} -ne ${epochnum} ]]; then # only update on new epoch to save on processing
