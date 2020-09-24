@@ -135,7 +135,7 @@ if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
     $sudo yum -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
     pkg_list="python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git wget jq gnupg libtool autoconf srm iproute bc tcptraceroute"
-    [[ ! "${DISTRO}" =~ Fedora ]] && sudo yum -y install epel-release > /dev/null
+    [[ ! "${DISTRO}" =~ Fedora ]] && $sudo yum -y install epel-release > /dev/null
     $sudo yum -y install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
