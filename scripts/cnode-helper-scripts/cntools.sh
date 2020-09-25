@@ -6,12 +6,14 @@
 # General exit handler
 cleanup() {
   [[ -n $1 ]] && err=$1 || err=$?
-  tput sgr0  # turn off all attributes
   clear
   [[ -n ${exit_msg} ]] && echo -e "\n${exit_msg}\n" || echo -e "\nCNTools terminated, cleaning up...\n"
+  tput cnorm # restore cursor
+  tput sgr0  # turn off all attributes
   exit $err
 }
 trap cleanup HUP INT TERM
+trap 'stty echo' EXIT
 
 # Command     : myExit [exit code] [message]
 # Description : gracefully handle an exit and restore terminal to original state
@@ -215,7 +217,7 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
         shelleyTransitionEpoch=${byron_epochs}
       fi
     else
-      myExit 1 "${ORANGE}WARN${NC}: Offline mode enabled and config set to TestNet, please manually create and set shelley transition epoch in:\n${SHELLEY_TRANS_FILENAME}"
+      myExit 1 "${ORANGE}WARN${NC}: Offline mode enabled and config set to TestNet, please manually create and set shelley transition epoch:\nE.g. : ${CYAN}echo 208 > \"${SHELLEY_TRANS_FILENAME}\"${NC}"
     fi
     echo "${shelleyTransitionEpoch}" > "${SHELLEY_TRANS_FILENAME}"
   fi
