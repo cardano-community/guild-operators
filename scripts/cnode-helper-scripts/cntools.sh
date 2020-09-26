@@ -781,8 +781,14 @@ case $OPERATION in
     fi
     echo
 
-    if ! selectWallet "reward" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-      waitForInput && continue
+    if [[ ${op_mode} = "online" ]]; then
+      if ! selectWallet "reward" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+        waitForInput && continue
+      fi
+    else
+      if ! selectWallet "reward"; then # ${wallet_name} populated by selectWallet function
+        waitForInput && continue
+      fi
     fi
 
     getBaseAddress ${wallet_name}
@@ -883,8 +889,14 @@ case $OPERATION in
     fi
     echo
 
-    if ! selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-      waitForInput && continue
+    if [[ ${op_mode} = "online" ]]; then
+      if ! selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+        waitForInput && continue
+      fi
+    else
+      if ! selectWallet "balance"; then # ${wallet_name} populated by selectWallet function
+        waitForInput && continue
+      fi
     fi
     s_wallet="${wallet_name}"
 
@@ -957,7 +969,7 @@ case $OPERATION in
     d_wallet=""
     say "Is destination a local wallet or an address?\n"
     case $(select_opt "[w] Wallet" "[a] Address" "[Esc] Cancel") in
-      0) if ! selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+      0) if ! selectWallet "balance"; then # ${wallet_name} populated by selectWallet function
            waitForInput && continue
          fi
          d_wallet="${wallet_name}"
@@ -1105,8 +1117,14 @@ case $OPERATION in
     fi
     echo
 
-    if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-      waitForInput && continue
+    if [[ ${op_mode} = "online" ]]; then
+      if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+        waitForInput && continue
+      fi
+    else
+      if ! selectWallet "delegate" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+        waitForInput && continue
+      fi
     fi
 
     getBaseAddress ${wallet_name}

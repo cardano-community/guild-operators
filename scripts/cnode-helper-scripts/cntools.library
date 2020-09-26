@@ -349,7 +349,7 @@ function selectWallet {
   mode=$1 && shift
   enc_req_files=0
   if ! getDirs "${WALLET_FOLDER}"; then return 1; fi # dirs() array populated with all wallet folders
-  if [[ ${op_mode} = "online" && ${mode} != "none" ]]; then
+  if [[ ${OFL_MODE} = "false" && ${mode} != "none" ]]; then
     wallet_count=${#dirs[@]}
     [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
   fi
@@ -358,7 +358,7 @@ function selectWallet {
       [[ -f "${WALLET_FOLDER}/${dir}/${req_file}.gpg" ]] && ((enc_req_files++))
       [[ ! -f "${WALLET_FOLDER}/${dir}/${req_file}" ]] && continue 2
     done
-    if [[ ${op_mode} = "online" && ${mode} != "none" && ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+    if [[ ${OFL_MODE} = "false" && ${mode} != "none" && ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
       if [[ ${mode} = "balance" ]]; then
         getBaseAddress ${dir}
         getPayAddress ${dir}
