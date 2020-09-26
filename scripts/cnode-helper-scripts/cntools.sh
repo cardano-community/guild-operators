@@ -423,23 +423,10 @@ case $OPERATION in
       say "${CYAN}OFFLINE MODE${NC}: CNTools started in offline mode, limited wallet info shown!\n"
     fi
 
-    wallet_dirs=()
-    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
-    for dir in "${dirs[@]}"; do
-      enc_files=$(find "${WALLET_FOLDER}/${dir}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -printf '.' | wc -c)
-      if ! getBaseAddress "${dir}" && ! getPayAddress "${dir}" && [[ ${enc_files} -eq 0 ]]; then continue; fi
-      wallet_dirs+=("${dir}")
-    done
-    if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
-      echo
-      say "${ORANGE}No wallets available!${NC}" "log"
-      echo
-      say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    if ! selectWallet "none" "${WALLET_PAY_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
       waitForInput && continue
     fi
-    say "Select Wallet:\n"
-    if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    wallet_name=${dir_name}
+    
     enc_files=$(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -printf '.' | wc -c)
 
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -522,14 +509,9 @@ case $OPERATION in
     fi
 
     echo
-    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
-    if [[ ${#dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No wallets available!"
+    if ! selectWallet "none"; then # ${wallet_name} populated by selectWallet function
       waitForInput && continue
     fi
-    say "Select Wallet:\n"
-    if ! selectDir "${dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    wallet_name="${dir_name}"
     
     if [[ ${OFL_MODE} = "true" ]]; then
       say "\nAre you sure to delete wallet?\n"
@@ -607,15 +589,9 @@ case $OPERATION in
 
     protectionPreRequisites || continue
 
-    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
-    if [[ ${#dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No wallets available!"
-      say "first create a wallet"
+    if ! selectWallet "none"; then # ${wallet_name} populated by selectWallet function
       waitForInput && continue
     fi
-    say "Select Wallet:\n"
-    if ! selectDir "${dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    wallet_name="${dir_name}"
 
     filesUnlocked=0
     keysDecrypted=0
@@ -670,15 +646,9 @@ case $OPERATION in
 
     protectionPreRequisites || continue
 
-    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
-    if [[ ${#dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No wallets available!"
-      say "first create a wallet"
+    if ! selectWallet "none"; then # ${wallet_name} populated by selectWallet function
       waitForInput && continue
     fi
-    say "Select Wallet:\n"
-    if ! selectDir "${dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    wallet_name="${dir_name}"
 
     filesLocked=0
     keysEncrypted=0
@@ -762,41 +732,62 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
     if [[ ${OFL_MODE} = "true" ]]; then
-      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+      say "${CYAN}OFFLINE MODE${NC}: CNTools started in offline mode!"
+      say "              In this mode you can sign a pre-made transaction file to withdraw funds"
+      echo
+      say "Enter/select path for tx file to sign:"
+      fileDialog 1 "Enter/select path for tx file to sign"
+      tx_raw=${file}
+      [[ -z "${tx_raw}" ]] && continue
+      if [[ ! -f "${tx_raw}" ]]; then
+        say "${RED}ERROR${NC}: file not found: ${tx_raw}"
+        waitForInput && continue
+      fi
+      
+      say "\nSelect signing method\n"
+      case $(select_opt "[w] Wallet" "[p] Path to payment/stake signing keys" "[Esc] Cancel") in
+        0) if ! selectWallet "none" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+             waitForInput && continue
+           fi
+           payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+           stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+           ;;
+        1) say "Enter/select path to ${CYAN}payment.skey${NC} file:"
+           fileDialog 0 "Enter/select path to payment.skey file"
+           payment_sk_file=${file}
+           [[ -z "${payment_sk_file}" ]] && continue
+           if [[ ! -f "${payment_sk_file}" ]]; then
+             say "${RED}ERROR${NC}: file not found: ${payment_sk_file}"
+             waitForInput && continue
+           fi
+           say "Enter/select path to ${CYAN}stake.skey${NC} file:"
+           fileDialog 0 "Enter/select path to payment.skey file"
+           stake_sk_file=${file}
+           [[ -z "${stake_sk_file}" ]] && continue
+           if [[ ! -f "${stake_sk_file}" ]]; then
+             say "${RED}ERROR${NC}: file not found: ${stake_sk_file}"
+             waitForInput && continue
+           fi
+           ;;
+        2) continue ;;
+      esac
+      if signTx "${tx_raw}" "${payment_sk_file}" "${stake_sk_file}"; then
+        say "Tx file successfully signed and available at: ${CYAN}${tx_signed}${NC}" "log"
+        say "Transfer file to online CNTools and use 'Submit Tx' option to submit transaction on chain"
+      fi
       waitForInput && continue
+    else
+      if ! selectOpMode; then continue; fi
     fi
     echo
 
-    wallet_dirs=()
-    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
-    wallet_count=${#dirs[@]}
-    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
-    for dir in "${dirs[@]}"; do
-      stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
-      stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
-      pay_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
-      [[ ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]] && continue
-      if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        getRewards ${dir}
-        [[ ${reward_lovelace} -le 0 ]] && continue
-        wallet_dirs+=("${dir} (Rewards: ${CYAN}$(formatLovelace ${reward_lovelace})${NC} ADA)")
-      else
-        wallet_dirs+=("${dir}")
-      fi
-    done
-    if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No wallets available that have rewards to withdraw!"
-      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
+    if ! selectWallet "reward" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
       waitForInput && continue
     fi
-    say "Select Wallet:\n"
-    if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
 
     getBaseAddress ${wallet_name}
     stake_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_ADDR_FILENAME}"
     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
     pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
 
     getBalance ${base_addr}
@@ -813,8 +804,7 @@ case $OPERATION in
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
     say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")" "log"
 
-    if ! withdrawRewards "${stake_vk_file}" "${stake_sk_file}" "${pay_payment_sk_file}" "${base_addr}" "${reward_addr}" ${reward_lovelace}; then
-      echo && say "${RED}ERROR${NC}: failure during withdrawal of rewards"
+    if ! withdrawRewards "${stake_sk_file}" "${pay_payment_sk_file}" "${base_addr}" "${reward_addr}" ${reward_lovelace}; then
       waitForInput && continue
     fi
 
@@ -867,23 +857,12 @@ case $OPERATION in
       
       say "\nSelect signing method\n"
       case $(select_opt "[w] Wallet" "[p] Path to payment signing key" "[Esc] Cancel") in
-        0) wallet_dirs=()
-           if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
-           for dir in "${dirs[@]}"; do
-             payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
-             [[ ! -f "${payment_sk_file}" ]] && continue
-             wallet_dirs+=("${dir}")
-           done
-           if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
-             say "${ORANGE}WARN${NC}: No wallets available!"
-             say "Encrypted wallets not listed, please decrypt wallet first if encrypted"
+        0) if ! selectWallet "none" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
              waitForInput && continue
            fi
-           say "Select Wallet:\n"
-           if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-           payment_sk_file="${WALLET_FOLDER}/${dir_name}/${WALLET_PAY_SK_FILENAME}"
+           payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
            ;;
-        1) say "Enter/select path to payment.skey file:"
+        1) say "Enter/select path to ${CYAN}payment.skey${NC} file:"
            fileDialog 0 "Enter/select path to payment.skey file"
            payment_sk_file=${file}
            [[ -z "${payment_sk_file}" ]] && continue
@@ -900,54 +879,14 @@ case $OPERATION in
       fi
       waitForInput && continue
     else
-      echo
-      say "Online mode  -  The default mode to use if all keys are available"
-      echo
-      say "Hybrid mode  -  1) Create a payment tx file and copy to offline computer"
-      say "                2) Sign it with payment.skey on offline computer using CNTools in offline mode '-o' and Funds >> Send"
-      say "                3) Copy the signed tx file back to online computer and submit using 'Submit Tx'"
-      echo
-      case $(select_opt "[o] Online" "[h] Hybrid" "[Esc] Cancel") in
-        0) op_mode="online" ;;
-        1) op_mode="hybrid" ;;
-        2) continue ;;
-      esac
+      if ! selectOpMode; then continue; fi
     fi
     echo
 
-    s_wallet_dirs=()
-    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
-    wallet_count=${#dirs[@]}
-    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
-    for dir in "${dirs[@]}"; do
-      s_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
-      [[ ! -f "${s_payment_sk_file}" && ${op_mode} = "online" ]] && continue
-      if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        getBaseAddress ${dir}
-        getPayAddress ${dir}
-        getBalance ${base_addr}
-        base_lovelace=${lovelace}
-        getBalance ${pay_addr}
-        pay_lovelace=${lovelace}
-        if [[ ${base_lovelace} -gt 0 && ${pay_lovelace} -gt 0 ]]; then
-          s_wallet_dirs+=("${dir} (Funds: ${CYAN}$(formatLovelace ${base_lovelace})${NC} ADA | Enterprise Funds: ${CYAN}$(formatLovelace ${pay_lovelace})${NC} ADA)")
-        elif [[ ${base_lovelace} -gt 0 ]]; then
-          s_wallet_dirs+=("${dir} (Funds: ${CYAN}$(formatLovelace ${base_lovelace})${NC} ADA)")
-        elif [[ ${pay_lovelace} -gt 0 ]]; then
-          s_wallet_dirs+=("${dir} (Enterprise Funds: ${CYAN}$(formatLovelace ${pay_lovelace})${NC} ADA)")
-        fi
-      else
-        s_wallet_dirs+=("${dir}")
-      fi
-    done
-    if [[ ${#s_wallet_dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No wallets available that have funds to send!"
-      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
+    if ! selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
       waitForInput && continue
     fi
-    say "Select Source Wallet:\n"
-    if ! selectDir "${s_wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    s_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
+    s_wallet="${wallet_name}"
 
     getBaseAddress ${s_wallet}
     getPayAddress ${s_wallet}
@@ -1018,16 +957,10 @@ case $OPERATION in
     d_wallet=""
     say "Is destination a local wallet or an address?\n"
     case $(select_opt "[w] Wallet" "[a] Address" "[Esc] Cancel") in
-      0) d_wallet_dirs=()
-         if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
-         for dir in "${dirs[@]}"; do
-           if getBaseAddress ${dir} || getPayAddress ${dir}; then
-             d_wallet_dirs+=("${dir}")
-           fi
-         done
-         say "Select Destination Wallet:\n"
-         if ! selectDir "${d_wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-         d_wallet="${dir_name}"
+      0) if ! selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+           waitForInput && continue
+         fi
+         d_wallet="${wallet_name}"
 
          getBaseAddress ${d_wallet}
          getPayAddress ${d_wallet}
@@ -1123,56 +1056,58 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
     if [[ ${OFL_MODE} = "true" ]]; then
-      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+      say "${CYAN}OFFLINE MODE${NC}: CNTools started in offline mode!"
+      say "              In this mode you can sign a pre-made transaction file to delegate a wallet"
+      echo
+      say "Enter/select path for tx file to sign:"
+      fileDialog 1 "Enter/select path for tx file to sign"
+      tx_raw=${file}
+      [[ -z "${tx_raw}" ]] && continue
+      if [[ ! -f "${tx_raw}" ]]; then
+        say "${RED}ERROR${NC}: file not found: ${tx_raw}"
+        waitForInput && continue
+      fi
+      
+      say "\nSelect signing method\n"
+      case $(select_opt "[w] Wallet" "[p] Path to payment/stake signing keys" "[Esc] Cancel") in
+        0) if ! selectWallet "none" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+             waitForInput && continue
+           fi
+           payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+           stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+           ;;
+        1) say "Enter/select path to ${CYAN}payment.skey${NC} file:"
+           fileDialog 0 "Enter/select path to payment.skey file"
+           payment_sk_file=${file}
+           [[ -z "${payment_sk_file}" ]] && continue
+           if [[ ! -f "${payment_sk_file}" ]]; then
+             say "${RED}ERROR${NC}: file not found: ${payment_sk_file}"
+             waitForInput && continue
+           fi
+           say "Enter/select path to ${CYAN}stake.skey${NC} file:"
+           fileDialog 0 "Enter/select path to payment.skey file"
+           stake_sk_file=${file}
+           [[ -z "${stake_sk_file}" ]] && continue
+           if [[ ! -f "${stake_sk_file}" ]]; then
+             say "${RED}ERROR${NC}: file not found: ${stake_sk_file}"
+             waitForInput && continue
+           fi
+           ;;
+        2) continue ;;
+      esac
+      if signTx "${tx_raw}" "${payment_sk_file}" "${stake_sk_file}"; then
+        say "Tx file successfully signed and available at: ${CYAN}${tx_signed}${NC}" "log"
+        say "Transfer file to online CNTools and use 'Submit Tx' option to submit transaction on chain"
+      fi
       waitForInput && continue
+    else
+      if ! selectOpMode; then continue; fi
     fi
     echo
 
-    wallet_dirs=()
-    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
-    wallet_count=${#dirs[@]}
-    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
-    for dir in "${dirs[@]}"; do
-      stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
-      stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
-      pay_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
-      if ! getBaseAddress ${dir} && [[ ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]]; then continue; fi
-      if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        getBalance ${base_addr}
-        [[ ${lovelace} -eq 0 ]] && continue
-        if getRewardAddress ${dir}; then
-          delegation_pool_id=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].delegation // empty')
-          unset poolName
-          if [[ -n ${delegation_pool_id} ]]; then
-            while IFS= read -r -d '' pool; do
-              getPoolID "$(basename ${pool})"
-              if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
-                poolName=$(basename ${pool}) && break
-              fi
-            done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-          fi
-          if [[ -n ${poolName} ]]; then
-            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
-          elif [[ -n ${delegation_pool_id} ]]; then
-            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${RED}delegated${NC} to external address)")
-          else
-            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
-          fi
-        else
-          wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
-        fi
-      else
-        wallet_dirs+=("${dir}")
-      fi
-    done
-    if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No wallets available that can be delegated!"
-      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
+    if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
       waitForInput && continue
     fi
-    say "Select Wallet:\n"
-    if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
 
     getBaseAddress ${wallet_name}
     getBalance ${base_addr}
@@ -1195,21 +1130,9 @@ case $OPERATION in
     echo
     say "Do you want to delegate to a local pool or specify the pools cold vkey cbor-hex?\n"
     case $(select_opt "[p] Pool" "[v] Vkey" "[Esc] Cancel") in
-      0) pool_dirs=()
-         if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
-         for dir in "${dirs[@]}"; do
-           pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
-           [[ ! -f "${pool_coldkey_vk_file}" ]] && continue
-           pool_dirs+=("${dir}")
-         done
-         if [[ ${#pool_dirs[@]} -eq 0 ]]; then
-           say "${ORANGE}WARN${NC}: No pools available to delegate to!"
-           say "first create and register a pool or choose to delegate using pools cold vkey cbor-hex"
+      0) if ! selectPool "${POOL_COLDKEY_VK_FILENAME}"; then # ${pool_name} populated by selectPool function
            waitForInput && continue
          fi
-         say "Select Pool:\n"
-         if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-         pool_name="${dir_name}"
          pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
          ;;
       1) read -r -p "vkey cbor-hex(blank to cancel): " vkey_cbor
@@ -1359,24 +1282,9 @@ case $OPERATION in
     fi
     echo
 
-    pool_dirs=()
-    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
-    for dir in "${dirs[@]}"; do
-      pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
-      pool_coldkey_sk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_SK_FILENAME}"
-      pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
-      pool_regcert_file="${POOL_FOLDER}/${dir}/${POOL_REGCERT_FILENAME}"
-      [[ -f "${pool_regcert_file}" || ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
-      pool_dirs+=("${dir}")
-    done
-    if [[ ${#pool_dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No pools available that can be registered!"
-      say "first create a pool or decrypt existing if encrypted"
+    if ! selectPool "${POOL_COLDKEY_VK_FILENAME}" "${POOL_COLDKEY_SK_FILENAME}" "${POOL_VRF_VK_FILENAME}" "${POOL_REGCERT_FILENAME}"; then # ${pool_name} populated by selectPool function
       waitForInput && continue
     fi
-    say "Select Pool:\n"
-    if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    pool_name="${dir_name}"
 
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
 
@@ -1606,51 +1514,11 @@ case $OPERATION in
 
     echo
 
-    wallet_dirs=()
-    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
-    wallet_count=${#dirs[@]}
-    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
-    for dir in "${dirs[@]}"; do
-      stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
-      stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
-      pay_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
-      if ! getBaseAddress ${dir} && [[ ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]]; then continue; fi
-      if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        getBalance ${base_addr}
-        [[ ${lovelace} -eq 0 ]] && continue
-        if getRewardAddress ${dir}; then
-          delegation_pool_id=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].delegation // empty')
-          unset poolName
-          if [[ -n ${delegation_pool_id} ]]; then
-            while IFS= read -r -d '' pool; do
-              getPoolID "$(basename ${pool})"
-              if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
-                poolName=$(basename ${pool}) && break
-              fi
-            done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-          fi
-          if [[ -n ${poolName} ]]; then
-            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
-          elif [[ -n ${delegation_pool_id} ]]; then
-            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${RED}delegated${NC} to external address)")
-          else
-            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
-          fi
-        else
-          wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
-        fi
-      else
-        wallet_dirs+=("${dir}")
-      fi
-    done
-    if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No wallets available that can be used in pool registration as pledge wallet!"
-      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
+    if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
       waitForInput && continue
     fi
-    say "Select Owner Wallet:\n"
-    if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    owner_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
+    
+    owner_wallet="${wallet_name}"
     getBaseAddress ${owner_wallet}
     getBalance ${base_addr}
 
@@ -1667,8 +1535,10 @@ case $OPERATION in
     say "\nUse a different wallet for rewards?\n"
     case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
       0) reward_wallet="${owner_wallet}" ;;
-      1) if ! selectDir "${wallet_dirs[@]}"; then continue; fi
-         reward_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
+      1) if ! selectWallet "none" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+           waitForInput && continue
+         fi
+         reward_wallet="${wallet_name}"
          if ! isWalletRegistered ${reward_wallet}; then
            getBaseAddress ${reward_wallet}
            getBalance ${base_addr}
@@ -1835,24 +1705,9 @@ case $OPERATION in
     fi
     echo
 
-    pool_dirs=()
-    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
-    for dir in "${dirs[@]}"; do
-      pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
-      pool_coldkey_sk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_SK_FILENAME}"
-      pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
-      pool_regcert_file="${POOL_FOLDER}/${dir}/${POOL_REGCERT_FILENAME}"
-      [[ ! -f "${pool_regcert_file}" || ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
-      pool_dirs+=("${dir}")
-    done
-    if [[ ${#pool_dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No pools available that can be modified!"
-      say "first register a pool or decrypt existing if encrypted"
+    if ! selectPool "${POOL_COLDKEY_VK_FILENAME}" "${POOL_COLDKEY_SK_FILENAME}" "${POOL_VRF_VK_FILENAME}" "${POOL_REGCERT_FILENAME}"; then # ${pool_name} populated by selectPool function
       waitForInput && continue
     fi
-    say "Select Pool:\n"
-    if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    pool_name="${dir_name}"
 
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
 
@@ -2087,51 +1942,12 @@ case $OPERATION in
     echo
     say "${ORANGE}If a new wallet is chosen for owner/reward, a manual delegation to the pool with new wallet is needed${NC}"
     echo
-    wallet_dirs=()
-    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
-    wallet_count=${#dirs[@]}
-    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
-    for dir in "${dirs[@]}"; do
-      stake_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_SK_FILENAME}"
-      stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_STAKE_VK_FILENAME}"
-      pay_payment_sk_file="${WALLET_FOLDER}/${dir}/${WALLET_PAY_SK_FILENAME}"
-      if ! getBaseAddress ${dir} && [[ ! -f "${stake_sk_file}" || ! -f "${stake_vk_file}" || ! -f "${pay_payment_sk_file}" ]]; then continue; fi
-      if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        getBalance ${base_addr}
-        [[ ${lovelace} -eq 0 ]] && continue
-        if getRewardAddress ${dir}; then
-          delegation_pool_id=$(${CCLI} shelley query stake-address-info ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].delegation // empty')
-          unset poolName
-          if [[ -n ${delegation_pool_id} ]]; then
-            while IFS= read -r -d '' pool; do
-              getPoolID "$(basename ${pool})"
-              if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
-                poolName=$(basename ${pool}) && break
-              fi
-            done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-          fi
-          if [[ -n ${poolName} ]]; then
-            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${RED}delegated${NC} to ${BLUE}${poolName}${NC})")
-          elif [[ -n ${delegation_pool_id} ]]; then
-            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${RED}delegated${NC} to external address)")
-          else
-            wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
-          fi
-        else
-          wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
-        fi
-      else
-        wallet_dirs+=("${dir}")
-      fi
-    done
-    if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No wallets available that can be used in pool registration as owner wallet!"
-      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
+    
+    if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
       waitForInput && continue
     fi
-    say "Select Owner Wallet:\n"
-    if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    owner_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
+    
+    owner_wallet="${wallet_name}"
     getBaseAddress ${owner_wallet}
     getBalance ${base_addr}
 
@@ -2148,8 +1964,10 @@ case $OPERATION in
     say "\nUse a different wallet for rewards?\n"
     case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
       0) reward_wallet="${owner_wallet}" ;;
-      1) if ! selectDir "${wallet_dirs[@]}"; then continue; fi
-         reward_wallet="$(echo ${dir_name} | cut -d' ' -f1)"
+      1) if ! selectWallet "none" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+           waitForInput && continue
+         fi
+         reward_wallet="${wallet_name}"
          if ! isWalletRegistered ${reward_wallet}; then
            getBaseAddress ${reward_wallet}
            getBalance ${base_addr}
@@ -2290,24 +2108,9 @@ case $OPERATION in
     fi
     echo
 
-    pool_dirs=()
-    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
-    for dir in "${dirs[@]}"; do
-      pool_coldkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_VK_FILENAME}"
-      pool_coldkey_sk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_SK_FILENAME}"
-      pool_vrf_vk_file="${POOL_FOLDER}/${dir}/${POOL_VRF_VK_FILENAME}"
-      pool_regcert_file="${POOL_FOLDER}/${dir}/${POOL_REGCERT_FILENAME}"
-      [[ ! -f "${pool_regcert_file}" || ! -f "${pool_coldkey_vk_file}" || ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_vrf_vk_file}" ]] && continue
-      pool_dirs+=("${dir}")
-    done
-    if [[ ${#pool_dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No pools available that can be retired!"
-      say "first register a pool or decrypt existing if encrypted"
+    if ! selectPool "${POOL_COLDKEY_VK_FILENAME}" "${POOL_COLDKEY_SK_FILENAME}"; then # ${pool_name} populated by selectPool function
       waitForInput && continue
     fi
-    say "Select Pool:\n"
-    if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    pool_name="${dir_name}"
 
     epoch=$(getEpoch)
     eMax=$(jq -r '.eMax' "${TMP_FOLDER}"/protparams.json)
@@ -2326,37 +2129,38 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    wallet_dirs=()
-    if ! getDirs "${WALLET_FOLDER}"; then continue; fi # dirs() array populated with all wallet folders
-    wallet_count=${#dirs[@]}
-    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && say "Balance checking wallets...\n"
-    for dir in "${dirs[@]}"; do
-      if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        if getBaseAddress ${dir}; then
-          getBalance ${base_addr}
-          [[ ${lovelace} -eq 0 ]] && continue
-          wallet_dirs+=("${dir} (${CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
-        fi
-      else
-        wallet_dirs+=("${dir}")
-      fi
-    done
-    if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No wallets available that have funds to pay for pool retirement transaction fee!"
-      say "Encrypted wallets not checked, please decrypt wallet first if encrypted"
+    say "Wallet for pool de-registration transaction fee\n"
+    
+    if ! selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
       waitForInput && continue
     fi
-    say "Select wallet for pool de-registration transaction fee:\n"
-    if ! selectDir "${wallet_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
-    getBaseAddress ${wallet_name}
-    getBalance ${base_addr}
 
-    if [[ ${lovelace} -gt 0 ]]; then
-      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${lovelace})")" "log"
+    getBaseAddress ${wallet_name}
+    getPayAddress ${wallet_name}
+    getBalance ${base_addr}
+    base_lovelace=${lovelace}
+    getBalance ${pay_addr}
+    pay_lovelace=${lovelace}
+
+    if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
+      # Both payment and base address available with funds, let user choose what to use
+      say "Select wallet address to use"
+      say "$(printf "%s\t\t${CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
+      echo
+      case $(select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel") in
+        0) addr="${base_addr}" ;;
+        1) addr="${pay_addr}" ;;
+        2) continue ;;
+      esac
+    elif [[ ${pay_lovelace} -gt 0 ]]; then
+      addr="${pay_addr}"
+      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
+    elif [[ ${base_lovelace} -gt 0 ]]; then
+      addr="${base_addr}"
+      say "$(printf "%s\t\t${CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
     else
       say "${RED}ERROR${NC}: no funds available for wallet ${GREEN}${wallet_name}${NC}"
-      say "funds needed to pay for tx fee sending deregistration certificate to chain"
       waitForInput && continue
     fi
     echo
@@ -2371,7 +2175,7 @@ case $OPERATION in
     say "$ ${CCLI} shelley stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file}" 2
     ${CCLI} shelley stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file}
 
-    if ! deRegisterPool "${pool_coldkey_sk_file}" "${pool_deregcert_file}" "${base_addr}" "${payment_sk_file}"; then
+    if ! deRegisterPool "${pool_coldkey_sk_file}" "${pool_deregcert_file}" "${addr}" "${payment_sk_file}"; then
       say "\n${RED}ERROR${NC}: failure during pool de-registration"
       waitForInput && continue
     fi
@@ -2380,7 +2184,7 @@ case $OPERATION in
       waitForInput && continue
     fi
 
-    getBalance ${base_addr}
+    getBalance ${addr}
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
       echo
@@ -2388,7 +2192,7 @@ case $OPERATION in
       if ! waitNewBlockCreated; then
         break
       fi
-      getBalance ${base_addr}
+      getBalance ${addr}
     done
 
     if [[ ${lovelace} -ne ${newBalance} ]]; then
@@ -2450,21 +2254,9 @@ case $OPERATION in
     fi
     echo
 
-    pool_dirs=()
-    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
-    for dir in "${dirs[@]}"; do
-      pool_id_file="${POOL_FOLDER}/${dir}/${POOL_ID_FILENAME}"
-      [[ ! -f "${pool_id_file}" ]] && continue
-      pool_dirs+=("${dir}")
-    done
-    if [[ ${#pool_dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No pools available!"
-      say "first create a pool"
+    if ! selectPool "${POOL_ID_FILENAME}"; then # ${pool_name} populated by selectPool function
       waitForInput && continue
     fi
-    say "Select Pool:\n"
-    if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    pool_name="${dir_name}"
 
     if [[ ${OFL_MODE} = "false" ]]; then
       say "Dumping ledger-state from node, can take a while on larger networks...\n"
@@ -2650,25 +2442,10 @@ case $OPERATION in
     say " >> POOL >> ROTATE KES" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
-
-    pool_dirs=()
-    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
-    for dir in "${dirs[@]}"; do
-      pool_coldkey_sk_file="${POOL_FOLDER}/${dir}/${POOL_COLDKEY_SK_FILENAME}"
-      pool_hotkey_vk_file="${POOL_FOLDER}/${dir}/${POOL_HOTKEY_VK_FILENAME}"
-      pool_hotkey_sk_file="${POOL_FOLDER}/${dir}/${POOL_HOTKEY_SK_FILENAME}"
-      pool_opcert_counter_file="${POOL_FOLDER}/${dir}/${POOL_OPCERT_COUNTER_FILENAME}"
-      [[ ! -f "${pool_coldkey_sk_file}" || ! -f "${pool_hotkey_vk_file}"  || ! -f "${pool_hotkey_sk_file}" || ! -f "${pool_opcert_counter_file}" ]] && continue
-      pool_dirs+=("${dir}")
-    done
-    if [[ ${#pool_dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No pools available to rotate KES keys for!"
-      say "first create a pool or decrypt existing if encrypted"
+    
+    if ! selectPool "${POOL_COLDKEY_SK_FILENAME}" "${POOL_HOTKEY_SK_FILENAME}" "${POOL_HOTKEY_VK_FILENAME}" "${POOL_OPCERT_COUNTER_FILENAME}"; then # ${pool_name} populated by selectPool function
       waitForInput && continue
     fi
-    say "Select Pool:\n"
-    if ! selectDir "${pool_dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    pool_name="${dir_name}"
 
     if ! rotatePoolKeys "${pool_name}"; then
       waitForInput && continue
@@ -2701,15 +2478,9 @@ case $OPERATION in
 
     protectionPreRequisites || continue
 
-    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
-    if [[ ${#dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No pools available!"
-      say "first create a pool"
+    if ! selectPool; then # ${pool_name} populated by selectPool function
       waitForInput && continue
     fi
-    say "Select Pool:\n"
-    if ! selectDir "${dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    pool_name="${dir_name}"
 
     filesUnlocked=0
     keysDecrypted=0
@@ -2764,15 +2535,9 @@ case $OPERATION in
 
     protectionPreRequisites || continue
 
-    if ! getDirs "${POOL_FOLDER}"; then continue; fi # dirs() array populated with all pool folders
-    if [[ ${#dirs[@]} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No pools available!"
-      say "first create a pool"
+    if ! selectPool; then # ${pool_name} populated by selectPool function
       waitForInput && continue
     fi
-    say "Select Pool:\n"
-    if ! selectDir "${dirs[@]}"; then continue; fi # ${dir_name} populated by selectDir function
-    pool_name="${dir_name}"
 
     filesLocked=0
     keysEncrypted=0
