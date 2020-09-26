@@ -1151,9 +1151,11 @@ case $OPERATION in
     say "$ ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file ${stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${delegation_cert_file}" 2
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${delegation_cert_file}"
 
-    if ! delegate "${stake_vk_file}" "${stake_sk_file}" "${pay_payment_sk_file}" "${base_addr}" "${pool_coldkey_vk_file}" "${delegation_cert_file}" ; then
-      echo && say "${RED}ERROR${NC}: failure during delegation, removing newly created delegation certificate file"
-      rm -f "${delegation_cert_file}"
+    if ! delegate "${stake_sk_file}" "${pay_payment_sk_file}" "${base_addr}" "${pool_coldkey_vk_file}" "${delegation_cert_file}" ; then
+      if [[ ${op_mode} = "online" ]]; then
+        echo && say "${RED}ERROR${NC}: failure during delegation, removing newly created delegation certificate file"
+        rm -f "${delegation_cert_file}"
+      fi
       waitForInput && continue
     fi
 

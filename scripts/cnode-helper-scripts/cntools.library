@@ -1569,11 +1569,10 @@ withdrawRewards() {
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
-# Command    : Delegate [stake vkey] [stake skey] [pay skey] [pay addr] [pool vkey] [deleg cert]
+# Command    : Delegate [stake skey] [pay skey] [pay addr] [pool vkey] [deleg cert]
 #
 # Description: Register pool with pledge on chain
-# Parameters : stake vkey    >   wallet stake vkey
-#              stake skey    >   wallet stake skey
+# Parameters : stake skey    >   wallet stake skey
 #              pay skey      >   wallet payment skey
 #              base addr     >   wallet base address
 #              pool vkey     >   pool you are delegating to vkey
@@ -1581,17 +1580,16 @@ withdrawRewards() {
 #
 # Return     : prints progress on STDOUT
 # Examples of Usage:
-#   >> registerPool   "../wallet/MyWallet/stake.vkey" "../wallet/MyWallet/stake.skey" "../wallet/MyWallet/payment.skey" 00d9d57c....ssL7fzhq "../pools/MyPool/cold.vkey" "delegation.cert"
+#   >> registerPool "../wallet/MyWallet/stake.skey" "../wallet/MyWallet/payment.skey" 00d9d57c....ssL7fzhq "../pools/MyPool/cold.vkey" "delegation.cert"
 #
 delegate() {
 
   # script arguments
-  stake_vk_file="$1"
-  stake_sk_file="$2"
-  pay_payment_sk_file="$3"
-  base_addr="$4"
-  pool_coldkey_vk_file="$5"
-  pool_delegcert_file="$6"
+  stake_sk_file="$1"
+  pay_payment_sk_file="$2"
+  base_addr="$3"
+  pool_coldkey_vk_file="$4"
+  pool_delegcert_file="$5"
 
   say "" 1
   say "# Protocol Parameters" 1 "log"
