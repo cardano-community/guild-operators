@@ -1,6 +1,8 @@
 #!/bin/bash
 # shellcheck disable=SC2086
 
+[[ -z "$CNODE_HOME" ]] && CNODE_HOME="/opt/cardano/cnode"
+
 . "${CNODE_HOME}"/scripts/env
 
 [[ -z "$CNODE_HOME" ]] && CNODE_HOME="/opt/cardano/cnode"
