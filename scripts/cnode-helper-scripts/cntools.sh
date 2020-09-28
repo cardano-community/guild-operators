@@ -383,7 +383,7 @@ case $OPERATION in
       say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${lovelace})")" "log"
     else
       say "${RED}ERROR${NC}: no funds available in base address for wallet ${GREEN}${wallet_name}${NC}"
-      keyDeposit=$(cat "${TMP_FOLDER}"/protparams.json | jq -r '.keyDeposit')
+      keyDeposit=$(jq -r '.keyDeposit' "${TMP_FOLDER}"/protparams.json)
       say "Funds for key deposit($(formatLovelace ${keyDeposit}) ADA) + transaction fee needed to register the wallet"
       waitForInput && continue
     fi

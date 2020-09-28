@@ -1068,7 +1068,7 @@ registerStakeWallet() {
   else
     ttlValue=$(( currSlot + (600/slot_length) )) # TTL default: 10min
   fi
-  keyDeposit=$(cat "${TMP_FOLDER}"/protparams.json | jq -r '.keyDeposit')
+  keyDeposit=$(jq -r '.keyDeposit' "${TMP_FOLDER}"/protparams.json)
   say "Key Deposit is ${keyDeposit}" 1 "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" 1 "log"
 
@@ -1217,7 +1217,7 @@ registerPool() {
   else
     ttlValue=$(( currSlot + (600/slot_length) )) # TTL default: 10min
   fi
-  poolDeposit=$(cat "${TMP_FOLDER}"/protparams.json | jq -r '.poolDeposit')
+  poolDeposit=$(jq -r '.poolDeposit' "${TMP_FOLDER}"/protparams.json)
   say "Pool Deposit is ${poolDeposit}" 1 "log"
   say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" 1 "log"
 
