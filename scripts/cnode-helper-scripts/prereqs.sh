@@ -135,7 +135,7 @@ if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
     $sudo yum -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
     pkg_list="python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git wget jq gnupg libtool autoconf srm iproute bc tcptraceroute"
-    [[ ! "${DISTRO}" =~ Fedora ]] && sudo yum -y install epel-release > /dev/null
+    [[ ! "${DISTRO}" =~ Fedora ]] && $sudo yum -y install epel-release > /dev/null
     $sudo yum -y install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
@@ -259,7 +259,7 @@ curl -s -o cabal-build-all.sh https://raw.githubusercontent.com/cardano-communit
 curl -s -o stack-build.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/stack-build.sh
 curl -s -o system-info.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/system-info.sh
 curl -s -o sLiveView.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/sLiveView.sh
-curl -s -o gLiveView.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/gLiveView.sh
+curl -s -o gLiveView.sh.tmp https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/gLiveView.sh
 curl -s -o deploy-as-systemd.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/deploy-as-systemd.sh
 sed -e "s@SyslogIdentifier=.*@SyslogIdentifier=${CNODE_NAME}@g" -e "s@cnode.service@${CNODE_NAME}.service@g" -i deploy-as-systemd.sh
 sed -e "s@CNODE_HOME=[^ ]*\\(.*\\)@${CNODE_VNAME}_HOME=\"${CNODE_HOME}\"\\1@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*.*
@@ -276,6 +276,16 @@ elif grep 'cardano-node' cnode.sh >/dev/null 2>&1;then
 else
   cp -f cnode.sh.templ cnode.sh
 fi
+
+### Update gLiveView.sh retaining existing custom configs
+if grep '^# Do NOT modify' gLiveView.sh >/dev/null 2>&1; then
+  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' gLiveView.sh.tmp)
+  STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' gLiveView.sh)
+  printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > gLiveView.sh.tmp
+fi
+
+mv gLiveView.sh.tmp gLiveView.sh
+
 chmod 755 ./*.sh
 
 cd - || return

@@ -1,16 +1,14 @@
 #!/bin/bash
 #shellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015
 
-GLV_VERSION=v1.3
-
 ######################################
 # User Variables - Change as desired #
-# Leave as is if usure               #
+# Leave as is if unsure              #
 ######################################
 
 #CCLI=$HOME/.cabal/bin/cardano-cli         # Override automatic detection of path to cardano-cli executable
-#SOCKET=${CNODE_HOME}/sockets/node0.socket # Override automatic detection of path to socket
 #CNODE_HOME="/opt/cardano/cnode"           # Override default CNODE_HOME path
+#SOCKET=${CNODE_HOME}/sockets/node0.socket # Override automatic detection of path to socket
 #CNODE_PORT=6000                           # Override automatic detection of node port
 NODE_NAME="Cardano Node"                   # Change your node's name prefix here, keep at or below 19 characters!
 REFRESH_RATE=2                             # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
@@ -55,9 +53,12 @@ setTheme() {
   fi
 }
 
-#####################################
-# Do NOT Modify below               #
-#####################################
+########################################
+# Do NOT modify code below, it will be #
+# overwritten during future upgrades   #
+########################################
+
+GLV_VERSION=v1.6
 
 tput smcup # Save screen
 tput civis # Disable cursor
@@ -68,8 +69,8 @@ cleanup() {
   [[ -n $1 ]] && err=$1 || err=$?
   tput rmcup # restore screen
   tput cnorm # restore cursor
-  tput sgr0  # turn off all attributes
   [[ -n ${exit_msg} ]] && echo -e "\n${exit_msg}\n" || echo -e "\nGuild LiveView terminated, cleaning up...\n"
+  tput sgr0  # turn off all attributes
   exit $err
 }
 trap cleanup HUP INT TERM
@@ -130,6 +131,9 @@ if wget -q -T 10 -O /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
       else
         myExit 1 "${RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
       fi
+      TEMPL_CMD=$(awk '/^# Do NOT modify/,0' /tmp/gLiveView.sh)
+      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${CNODE_HOME}/scripts/gLiveView.sh")
+      printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > /tmp/gLiveView.sh
       mv -f "${CNODE_HOME}/scripts/gLiveView.sh" "${CNODE_HOME}/scripts/gLiveView.sh.bkp_$(date +%s)" && \
       cp -f /tmp/gLiveView.sh "${CNODE_HOME}/scripts/gLiveView.sh" && \
       chmod 750 "${CNODE_HOME}/scripts/gLiveView.sh" && \
@@ -153,18 +157,40 @@ if [[ -z "${CCLI}" ]]; then
   CCLI=$(command -v cardano-cli)
   [[ -z "${CCLI}" && -f "${HOME}/.cabal/bin/cardano-cli" ]] && CCLI="${HOME}/.cabal/bin/cardano-cli"
   [[ -z "${CCLI}" ]] && myExit 1 "You do not have a cardano-cli binary available in \$PATH. Please make it available before using gLiveView."
-fi 
-if [[ -n "${SOCKET}" ]]; then
-  export CARDANO_NODE_SOCKET_PATH="${SOCKET}"
-else
+fi
+
+[[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
+
+if [[ -z "${SOCKET}" ]]; then
   if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
     export CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
   else
     myExit 1 "Node socket not set and automatic detection failed!"
   fi
+else
+  export CARDANO_NODE_SOCKET_PATH="${SOCKET}"
 fi
+
+if [[ -z "${CNODE_PORT}" ]]; then
+  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --port[[:space:]]([[:digit:]]+) ]]; then
+    CNODE_PORT=${BASH_REMATCH[1]}
+  else
+    myExit 1 "Node port not set and automatic detection failed!"
+  fi
+fi
+
 [[ ${#NODE_NAME} -gt 19 ]] && myExit 1 "Please keep node name at or below 19 characters in length!"
+
 [[ ! ${REFRESH_RATE} =~ ^[0-9]+$ ]] && myExit 1 "Please set a valid refresh rate number!"
+
+if [[ -z "${CONFIG}" ]]; then
+  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --config[[:space:]]([^[:space:]]+) ]]; then
+    CONFIG=${BASH_REMATCH[1]}
+  else
+    myExit 1 "Node config not set and automatic detection failed!"
+  fi
+fi
+
 if [[ ${EKG_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
   OIFS=$IFS
   IFS='.'
@@ -176,33 +202,24 @@ if [[ ${EKG_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
 else
   myExit 1 "Not a valid IP format set for EKG host, please check configuration!"
 fi
-[[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
-if [[ -z "${CNODE_PORT}" ]]; then
-  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --port[[:space:]]([[:digit:]]+) ]]; then
-    CNODE_PORT=${BASH_REMATCH[1]}
-  else
-    myExit 1 "Node port not set and automatic detection failed!"
-  fi
-fi
-if [[ -z "${CONFIG}" ]]; then
-  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --config[[:space:]]([^[:space:]]+) ]]; then
-    CONFIG=${BASH_REMATCH[1]}
-  else
-    myExit 1 "Node config not set and automatic detection failed!"
-  fi
-fi
-if [[ -f "${CONFIG}" ]]; then
+
+if [[ -z ${EKG_PORT} ]]; then
   if ! EKG_PORT=$(jq -er '.hasEKG' "${CONFIG}" 2>/dev/null); then
     myExit 1 "Could not get 'hasEKG' port from the node configuration file"
   fi
+elif [[ ! ${EKG_PORT} =~ ^[0-9]+$ ]]; then
+  myExit 1 "Please set a valid EKG port number!"
+fi
+
+if [[ -z ${PROTOCOL} ]]; then
   if ! PROTOCOL=$(jq -er '.Protocol' "${CONFIG}" 2>/dev/null); then
     myExit 1 "Could not get 'Protocol' from the node configuration file"
   fi
   [[ "${PROTOCOL}" = "Cardano" ]] && PROTOCOL_IDENTIFIER="--cardano-mode" || PROTOCOL_IDENTIFIER="--shelley-mode"
-else
-  myExit 1 "Node config not found: ${CONFIG}"
 fi
-[[ -z ${BLOCK_LOG_DIR} && -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks" # optional
+
+[[ -z ${BLOCK_LOG_DIR} && -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"
+
 
 # Style
 width=63
@@ -534,15 +551,15 @@ else
   shelley_transition_epoch=-2
 fi
 #####################################
-prot_params="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER})"
-decentralisation=$(jq -r .decentralisationParam <<< ${prot_params})
-kesExpiration
-#####################################
+
+prot_params="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
+[[ -n "${prot_params}" ]] && decentralisation=$(jq -r .decentralisationParam <<< ${prot_params}) || decentralisation=0.5
 
 clear
 tlines=$(tput lines) # set initial terminal lines
 tcols=$(tput cols)   # set initial terminal columns
 printf "${NC}"       # reset and set default color
+fail_count=0
 
 #####################################
 # MAIN LOOP                         #
@@ -579,8 +596,14 @@ while true; do
   # Gather some data
   data=$(curl -s -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
   uptimens=$(jq '.cardano.node.metrics.upTime.ns.val //0' <<< "${data}")
-  if ((uptimens<=0)); then
-    myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE!${NC}"
+  [[ ${fail_count} -eq 3 ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, THREE FAILED ATTEMPTS IN A ROW!${NC}"
+  if [[ ${uptimens} -le 0 ]]; then
+    ((fail_count++))
+    clear && tput cup 1 1
+    printf "${style_status_3}Connection to node lost, retrying (${fail_count}/3)!${NC}"
+    waitForInput && continue
+  else
+    fail_count=0
   fi
   if [[ ${show_peers} = "false" ]]; then
     peers_in=$(ss -tnp state established 2>/dev/null | grep "${pid}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
@@ -601,15 +624,21 @@ while true; do
     adopted=$(jq '.cardano.node.metrics.Forge.adopted.int.val //0' <<< "${data}")
     didntadopt=$(jq '.cardano.node.metrics.Forge["didnt-adopt"].int.val //0' <<< "${data}")
     about_to_lead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0' <<< "${data}")
-    [[ ${about_to_lead} -gt 0 ]] && nodemode="Core" || nodemode="Relay"
+    if [[ ${about_to_lead} -gt 0 ]]; then
+      [[ ${nodemode} != "Core" ]] && clear && nodemode="Core"
+    else
+      [[ ${nodemode} != "Relay" ]] && clear && nodemode="Relay"
+    fi
     if [[ "${PROTOCOL}" = "Cardano" && ${shelley_transition_epoch} -eq -1 ]]; then # if Shelley transition epoch calc failed during start, try until successful
-      getShelleyTransitionEpoch 1 
+      getShelleyTransitionEpoch 1
+      kes_expiration="---"
+    else
       kesExpiration
     fi
     if [[ ${curr_epoch} -ne ${epochnum} ]]; then # only update on new epoch to save on processing
       curr_epoch=${epochnum}
-      prot_params="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER})"
-      decentralisation=$(jq -r .decentralisationParam <<< ${prot_params})
+      prot_params="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
+      [[ -n "${prot_params}" ]] && decentralisation=$(jq -r .decentralisationParam <<< ${prot_params}) || decentralisation=0.5
     fi
   fi
 
