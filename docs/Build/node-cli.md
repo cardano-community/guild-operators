@@ -22,11 +22,8 @@ git fetch --tags --all
 git pull
 git checkout 1.19.0
 
-echo -e "package cardano-crypto-praos\n  flags: -external-libsodium-vrf" > cabal.project.local
-# On CentOS 7 (GCC 4.8.5) we should also do
-# echo -e "package cryptonite\n  flags: -use_target_attributes" >> cabal.project.local
-
-$CNODE_HOME/scripts/cabal-build-all.sh
+# The "-o" flag against script below will download cabal.project.local to depend on system libSodium package, and include cardano-address and bech32 binaries to your build
+$CNODE_HOME/scripts/cabal-build-all.sh -o
 ```
 
 The above would copy the binaries built into `~/.cabal/bin` folder.
