@@ -2698,7 +2698,7 @@ EOF
             say "$(printf "%-21s : %s" "Reward account" "${reward_account}")" "log"
           fi
         fi
-        stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} shelley query stake-distribution ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | grep "${pool_id}" | tr -s ' ' | cut -d ' ' -f 2)")")
+        stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} shelley query stake-distribution ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | grep "${pool_id_bech32}" | tr -s ' ' | cut -d ' ' -f 2)")")
         if validateDecimalNbr ${stake_pct}; then
           say "$(printf "%-21s : %s %%" "Stake distribution" "${stake_pct}")" "log"
         fi
