@@ -374,14 +374,6 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    read -r -p "24 word mnemonic(space separated): " mnemonic
-    echo
-    words=( ${mnemonic} )
-    if [[ ${#words[@]} -ne 24 ]]; then
-      say "${RED}ERROR${NC}: 24 words expected, found ${RED}${#words[@]}${NC}"
-      waitForInput && continue
-    fi
-    
     read -r -p "Name of imported wallet: " wallet_name
     # Remove unwanted characters from wallet name
     wallet_name=${wallet_name//[^[:alnum:]]/_}
@@ -395,19 +387,37 @@ case $OPERATION in
       waitForInput && continue
     fi
     
+    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -printf '.' | wc -c) -gt 0 ]]; then
+      say "${RED}WARN${NC}: A wallet ${GREEN}$wallet_name${NC} already exists"
+      say "      Choose another name or delete the existing one"
+      waitForInput && continue
+    fi
+    
+    read -r -p "24 word mnemonic(space separated): " mnemonic
+    echo
+    IFS=" " read -r -a words <<< "${mnemonic}"
+    if [[ ${#words[@]} -ne 24 ]]; then
+      say "${RED}ERROR${NC}: 24 words expected, found ${RED}${#words[@]}${NC}"
+      echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
+      waitForInput && continue
+    fi
+    
     payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
     payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
     stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"  
     
-    root_prv=$(cardano-address key from-recovery-phrase Shelley <<< ${mnemonic})
+    if ! root_prv=$(cardano-address key from-recovery-phrase Shelley <<< ${mnemonic}); then
+      echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
+      waitForInput && continue
+    fi
     payment_xprv=$(cardano-address key child 1852H/1815H/0H/0/0 <<< ${root_prv})
     stake_xprv=$(cardano-address key child 1852H/1815H/0H/2/0 <<< ${root_prv})
     
     payment_xpub=$(cardano-address key public <<< ${payment_xprv})
     stake_xpub=$(cardano-address key public <<< ${stake_xprv})
     [[ "${NETWORKID}" = "Mainnet" ]] && network_tag=1 || network_tag=0
-    base_addr_candidate=$(cardano-address address delegation ${stake_xpub} <<< $(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub}))
+    base_addr_candidate=$(cardano-address address delegation ${stake_xpub} <<< "$(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub})")
     if [[ "${NETWORKID}" = "Testnet" ]]; then
       say "TestNet, converting address to 'addr_test'" 1
       base_addr_candidate=$(bech32 <<< ${base_addr_candidate} | bech32 addr_test)
@@ -445,11 +455,11 @@ EOF
     getPayAddress ${wallet_name}
     getRewardAddress ${wallet_name}
     
-    if [[ ${base_addr} != ${base_addr_candidate} ]]; then
+    if [[ ${base_addr} != "${base_addr_candidate}" ]]; then
       say "${RED}ERROR${NC}: base address generated doesn't match base address candidate."
       say "base_addr[${CYAN}${base_addr}${NC}]\n!=\nbase_addr_candidate[${CYAN}${base_addr_candidate}${NC}]" 1
       say "Run CNTools in verbose mode(VERBOSITY=2) and paste output to a GitHub issue."
-      safeDel "${WALLET_FOLDER}/${wallet_name}"
+      echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
       waitForInput && continue
     fi
     
