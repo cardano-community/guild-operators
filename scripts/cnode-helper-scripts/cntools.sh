@@ -229,7 +229,7 @@ function main {
 while true; do # Main loop
 
 # Start with a clean slate after each completed or canceled command excluding protparams.json from purge
-find "${TMP_FOLDER:?}" -type f -not -name 'protparams.json' -delete
+find "${TMP_FOLDER:?}" -type f -not \( -name 'protparams.json' -o -name '.dialogrc' \) -delete
 
 clear
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
@@ -265,7 +265,8 @@ else
   fi
 fi
 echo
-case $(select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[s] Sign Tx" "[t] Submit Tx" "[b] Blocks" "[u] Update" "[z] Backup & Restore" "[r] Refresh" "[q] Quit") in
+select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[s] Sign Tx" "[t] Submit Tx" "[b] Blocks" "[u] Update" "[z] Backup & Restore" "[r] Refresh" "[q] Quit"
+case $? in
   0) OPERATION="wallet" ;;
   1) OPERATION="funds" ;;
   2) OPERATION="pool" ;;
@@ -287,6 +288,7 @@ case $OPERATION in
   say " Wallet Management"
   echo
   say " ) New      -  create a new wallet"
+  say " ) Import   -  import a Daedalus/Yoroi 24 word Shelley mnemonic created wallet"
   say " ) Register -  register a wallet on chain (hybrid/offline mode)"
   say " ) List     -  list all available wallets in a compact view"
   say " ) Show     -  show detailed view of a specific wallet"
@@ -296,15 +298,17 @@ case $OPERATION in
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   say " Select Wallet operation\n"
-  case $(select_opt "[n] New" "[r] Register" "[l] List" "[s] Show" "[x] Remove" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
+  select_opt "[n] New" "[i] Import" "[r] Register" "[l] List" "[s] Show" "[x] Remove" "[d] Decrypt" "[e] Encrypt" "[h] Home"
+  case $? in
     0) SUBCOMMAND="new" ;;
-    1) SUBCOMMAND="register" ;;
-    2) SUBCOMMAND="list" ;;
-    3) SUBCOMMAND="show" ;;
-    4) SUBCOMMAND="remove" ;;
-    5) SUBCOMMAND="decrypt" ;;
-    6) SUBCOMMAND="encrypt" ;;
-    7) continue ;;
+    1) SUBCOMMAND="import" ;;
+    2) SUBCOMMAND="register" ;;
+    3) SUBCOMMAND="list" ;;
+    4) SUBCOMMAND="show" ;;
+    5) SUBCOMMAND="remove" ;;
+    6) SUBCOMMAND="decrypt" ;;
+    7) SUBCOMMAND="encrypt" ;;
+    8) continue ;;
   esac
 
   case $SUBCOMMAND in
@@ -322,7 +326,10 @@ case $OPERATION in
       waitForInput && continue
     fi
     echo
-    mkdir -p "${WALLET_FOLDER}/${wallet_name}"
+    if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
+      say "${RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
+      waitForInput && continue
+    fi
 
     # Wallet key filenames
     payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
@@ -353,6 +360,128 @@ case $OPERATION in
 
     ;; ###################################################################
     
+    import)
+
+    clear
+    say " >> WALLET >> IMPORT" "log"
+    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo
+    
+    if ! need_cmd "bech32" || \
+       ! need_cmd "cardano-address"; then
+      say "${RED}ERROR${NC}: cardano-address and/or bech32 executables not found in path!"
+      say "Please run updated prereqs.sh and re-build cardano-node"
+      waitForInput && continue
+    fi
+    
+    read -r -p "24 word mnemonic(space separated): " mnemonic
+    echo
+    words=( ${mnemonic} )
+    if [[ ${#words[@]} -ne 24 ]]; then
+      say "${RED}ERROR${NC}: 24 words expected, found ${RED}${#words[@]}${NC}"
+      waitForInput && continue
+    fi
+    
+    read -r -p "Name of imported wallet: " wallet_name
+    # Remove unwanted characters from wallet name
+    wallet_name=${wallet_name//[^[:alnum:]]/_}
+    if [[ -z "${wallet_name}" ]]; then
+      say "${RED}ERROR${NC}: Empty wallet name, please retry!"
+      waitForInput && continue
+    fi
+    echo
+    if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
+      say "${RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
+      waitForInput && continue
+    fi
+    
+    payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+    payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
+    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"  
+    
+    root_prv=$(cardano-address key from-recovery-phrase Shelley <<< ${mnemonic})
+    payment_xprv=$(cardano-address key child 1852H/1815H/0H/0/0 <<< ${root_prv})
+    stake_xprv=$(cardano-address key child 1852H/1815H/0H/2/0 <<< ${root_prv})
+    
+    payment_xpub=$(cardano-address key public <<< ${payment_xprv})
+    stake_xpub=$(cardano-address key public <<< ${stake_xprv})
+    [[ "${NETWORKID}" = "Mainnet" ]] && network_tag=1 || network_tag=0
+    base_addr_candidate=$(cardano-address address delegation ${stake_xpub} <<< $(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub}))
+    if [[ "${NETWORKID}" = "Testnet" ]]; then
+      say "TestNet, converting address to 'addr_test'" 1
+      base_addr_candidate=$(bech32 <<< ${base_addr_candidate} | bech32 addr_test)
+    fi
+    say "Base address candidate = ${base_addr_candidate}" 2
+    say "Generated from 1852H/1815H/0H/0/0" 2
+    say "Address Inspection:\n$(cardano-address address inspect <<< ${base_addr_candidate})" 2
+    
+    pes_key=$(bech32 <<< ${payment_xprv} | cut -b -128)$(bech32 <<< ${payment_xpub})
+    ses_key=$(bech32 <<< ${stake_xprv} | cut -b -128)$(bech32 <<< ${stake_xpub})
+    
+    cat << EOF > "${payment_sk_file}"
+{
+    "type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
+    "description": "Payment Signing Key",
+    "cborHex": "5880${pes_key}"
+}
+EOF
+    
+    cat << EOF > "${stake_sk_file}"
+{
+    "type": "StakeExtendedSigningKeyShelley_ed25519_bip32",
+    "description": "",
+    "cborHex": "5880${ses_key}"
+}
+EOF
+    
+    ${CCLI} shelley key verification-key --signing-key-file "${payment_sk_file}" --verification-key-file "${TMP_FOLDER}"/payment.evkey
+    ${CCLI} shelley key verification-key --signing-key-file "${stake_sk_file}" --verification-key-file "${TMP_FOLDER}"/stake.evkey
+
+    ${CCLI} shelley key non-extended-key --extended-verification-key-file "${TMP_FOLDER}"/payment.evkey --verification-key-file "${payment_vk_file}"
+    ${CCLI} shelley key non-extended-key --extended-verification-key-file "${TMP_FOLDER}"/stake.evkey --verification-key-file "${stake_vk_file}"
+    
+    getBaseAddress ${wallet_name}
+    getPayAddress ${wallet_name}
+    getRewardAddress ${wallet_name}
+    
+    if [[ ${base_addr} != ${base_addr_candidate} ]]; then
+      say "${RED}ERROR${NC}: base address generated doesn't match base address candidate."
+      say "base_addr[${CYAN}${base_addr}${NC}]\n!=\nbase_addr_candidate[${CYAN}${base_addr_candidate}${NC}]" 1
+      say "Run CNTools in verbose mode(VERBOSITY=2) and paste output to a GitHub issue."
+      safeDel "${WALLET_FOLDER}/${wallet_name}"
+      waitForInput && continue
+    fi
+    
+    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo
+    say "Wallet Imported     : ${GREEN}${wallet_name}${NC}" "log"
+    say "Address             : ${base_addr}" "log"
+    say "Enterprise Address  : ${pay_addr}" "log"
+    echo
+    say "You can now send and receive ADA using the above addresses. Note that Enterprise Address will not take part in staking"
+    say "Wallet will be automatically registered on chain if you choose to delegate or pledge wallet when registering a stake pool"
+    echo
+    say "${ORANGE}Using a mnemonic imported wallet in CNTools comes with a few limitation.${NC}"
+    echo
+    say "Only the first address in the HD wallet is extracted and because of this the following apply:"
+    say " ${CYAN}>${NC} Address above should match the first address seen in Daedalus/Yoroi, please verify!!!"
+    say " ${CYAN}>${NC} If restored wallet contain funds since before, send all Ada through Daedalus/Yoroi to address shown in CNTools"
+    say " ${CYAN}>${NC} Only use receive address shown in CNTools"
+    say " ${CYAN}>${NC} Only spend Ada from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
+    echo
+    say "Some of the advantages of using a mnemonic imported wallet instead of CLI are:"
+    say " ${CYAN}>${NC} Wallet can be restored from saved 24 word mnemonic if keys are lost/deleted"
+    say " ${CYAN}>${NC} Track rewards in Daedalus/Yoroi"
+    echo
+    say "Please read more about HD wallets at:"
+    say "https://cardano-community.github.io/support-faq/#/wallets?id=heirarchical-deterministic-hd-wallets"
+    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    
+    waitForInput && continue
+
+    ;; ###################################################################
+    
     register)
 
     clear
@@ -366,15 +495,17 @@ case $OPERATION in
     fi
     echo
     
+    say "# Select wallet to register (only non-registered wallets shown)"
     if [[ ${op_mode} = "online" ]]; then
-      if ! selectWallet "non-reg" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        waitForInput && continue
+      if ! selectWallet "non-reg" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}"; then
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     else
-      if ! selectWallet "non-reg"; then # ${wallet_name} populated by selectWallet function
-        waitForInput && continue
+      if ! selectWallet "non-reg"; then
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     fi
+    echo
     
     getBaseAddress ${wallet_name}
     getBalance ${base_addr}
@@ -479,24 +610,22 @@ case $OPERATION in
     clear
     say " >> WALLET >> SHOW" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo
 
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
       say "${CYAN}OFFLINE MODE${NC}: CNTools started in offline mode, limited wallet info shown!"
     fi
-    echo
-
-    if ! selectWallet "none" "${WALLET_PAY_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-      waitForInput && continue
+    
+    if ! selectWallet "none" "${WALLET_PAY_VK_FILENAME}" >/dev/null; then
+      [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
     fi
     
     enc_files=$(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -printf '.' | wc -c)
 
-    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo
     if [[ ${enc_files} -gt 0 ]]; then
-      say "$(printf "%-8s ${GREEN}%s${NC} ${ORANGE}%s${NC}" "Wallet" "${wallet_name}" "(encrypted)")" "log"
+      say "Wallet: ${GREEN}${wallet_name}${NC} (${ORANGE}encrypted${NC})" "log"
     else
-      say "$(printf "%-8s ${GREEN}%s${NC}" "Wallet" "${wallet_name}")" "log"
+      say "Wallet: ${GREEN}${wallet_name}${NC}" "log"
     fi
 
     getBaseAddress ${wallet_name}
@@ -578,16 +707,19 @@ case $OPERATION in
     fi
 
     echo
+    say "# Select wallet to remove"
     if ! selectWallet "none"; then # ${wallet_name} populated by selectWallet function
-      waitForInput && continue
+      [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
     fi
+    echo
     
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      say "\nAre you sure to delete wallet ${GREEN}${wallet_name}${NC}?\n"
-      case $(select_opt "[y] Yes" "[n] No") in
-        0) safeDel "${WALLET_FOLDER:?}/${wallet_name}"
+      say "Are you sure to delete wallet ${GREEN}${wallet_name}${NC}?"
+      select_opt "[y] Yes" "[n] No"
+      case $? in
+        0) echo && safeDel "${WALLET_FOLDER:?}/${wallet_name}"
            ;;
-        1) say "skipped removal process for ${GREEN}$wallet_name${NC}"
+        1) echo && say "skipped removal process for ${GREEN}$wallet_name${NC}"
            ;;
       esac
       waitForInput && continue
@@ -595,11 +727,12 @@ case $OPERATION in
 
     if ! getBaseAddress ${wallet_name} && ! getPayAddress ${wallet_name}; then
       say "${RED}WARN${NC}: unable to get address for wallet and do a balance check"
-      say "\nAre you sure to delete wallet ${GREEN}${wallet_name}${NC} anyway?\n"
-      case $(select_opt "[y] Yes" "[n] No") in
-        0) safeDel "${WALLET_FOLDER:?}/${wallet_name}"
+      say "\nAre you sure to delete wallet ${GREEN}${wallet_name}${NC} anyway?"
+      select_opt "[y] Yes" "[n] No"
+      case $? in
+        0) echo && safeDel "${WALLET_FOLDER:?}/${wallet_name}"
            ;;
-        1) say "skipped removal process for ${GREEN}$wallet_name${NC}"
+        1) echo && say "skipped removal process for ${GREEN}$wallet_name${NC}"
            ;;
       esac
       waitForInput && continue
@@ -622,11 +755,12 @@ case $OPERATION in
     if [[ ${base_lovelace} -eq 0 && ${pay_lovelace} -eq 0 && ${reward_lovelace} -le 0 ]]; then
       say "INFO: This wallet appears to be empty"
       say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
-      say "Are you sure to delete wallet ${GREEN}${wallet_name}${NC}?\n"
-      case $(select_opt "[y] Yes" "[n] No") in
-        0) safeDel "${WALLET_FOLDER:?}/${wallet_name}"
+      say "Are you sure to delete wallet ${GREEN}${wallet_name}${NC}?"
+      select_opt "[y] Yes" "[n] No"
+      case $? in
+        0) echo && safeDel "${WALLET_FOLDER:?}/${wallet_name}"
            ;;
-        1) say "skipped removal process for ${GREEN}$wallet_name${NC}"
+        1) echo && say "skipped removal process for ${GREEN}$wallet_name${NC}"
            ;;
       esac
     else
@@ -636,11 +770,12 @@ case $OPERATION in
       [[ ${reward_lovelace} -gt 0 ]] && say "Rewards : ${CYAN}$(formatLovelace ${reward_lovelace})${NC} ADA"
       echo
       say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
-      say "Are you sure to delete wallet ${GREEN}${wallet_name}${NC}?\n"
-      case $(select_opt "[y] Yes" "[n] No") in
-        0) safeDel "${WALLET_FOLDER:?}/${wallet_name}"
+      say "Are you sure to delete wallet ${GREEN}${wallet_name}${NC}?"
+      select_opt "[y] Yes" "[n] No"
+      case $? in
+        0) echo && safeDel "${WALLET_FOLDER:?}/${wallet_name}"
            ;;
-        1) say "skipped removal process for ${GREEN}$wallet_name${NC}"
+        1) echo && say "skipped removal process for ${GREEN}$wallet_name${NC}"
            ;;
       esac
     fi
@@ -658,13 +793,15 @@ case $OPERATION in
 
     protectionPreRequisites || continue
 
+    say "# Select wallet to decrypt"
     if ! selectWallet "none"; then # ${wallet_name} populated by selectWallet function
-      waitForInput && continue
+      [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
     fi
 
     filesUnlocked=0
     keysDecrypted=0
-
+    
+    echo
     say "# Removing write protection from all wallet files" "log"
     while IFS= read -r -d '' file; do
       if [[ $(lsattr -R "$file") =~ -i- ]]; then
@@ -677,8 +814,6 @@ case $OPERATION in
 
     echo
     say "# Decrypting GPG encrypted wallet files" "log"
-    echo
-    say "Wallet ${GREEN}${wallet_name}${NC} Password"
     echo
     if ! getPassword; then # $password variable populated by getPassword function
       say "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
@@ -715,16 +850,16 @@ case $OPERATION in
 
     protectionPreRequisites || continue
 
+    say "# Select wallet to encrypt"
     if ! selectWallet "none"; then # ${wallet_name} populated by selectWallet function
-      waitForInput && continue
+      [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
     fi
 
     filesLocked=0
     keysEncrypted=0
 
-    say "# Encrypting sensitive wallet keys with GPG" "log"
     echo
-    say "Wallet ${GREEN}${wallet_name}${NC} Password"
+    say "# Encrypting sensitive wallet keys with GPG" "log"
     echo
     if ! getPassword confirm; then # $password variable populated by getPassword function
       say "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
@@ -786,7 +921,8 @@ case $OPERATION in
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   say " Select funds operation\n"
-  case $(select_opt "[s] Send" "[d] Delegate" "[w] Withdraw Rewards" "[h] Home") in
+  select_opt "[s] Send" "[d] Delegate" "[w] Withdraw Rewards" "[h] Home"
+  case $? in
     0) SUBCOMMAND="send" ;;
     1) SUBCOMMAND="delegate" ;;
     2) SUBCOMMAND="withdrawrewards" ;;
@@ -794,79 +930,6 @@ case $OPERATION in
   esac
 
   case $SUBCOMMAND in
-    withdrawrewards)
-
-    clear
-    say " >> FUNDS >> WITHDRAW REWARDS" "log"
-    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-
-    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-      waitForInput && continue
-    else
-      if ! selectOpMode; then continue; fi
-    fi
-
-    if [[ ${op_mode} = "online" ]]; then
-      if ! selectWallet "reward" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        waitForInput && continue
-      fi
-    else
-      if ! selectWallet "reward"; then # ${wallet_name} populated by selectWallet function
-        waitForInput && continue
-      fi
-    fi
-
-    getBaseAddress ${wallet_name}
-    stake_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_ADDR_FILENAME}"
-    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-    pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-
-    getBalance ${base_addr}
-    getRewards ${wallet_name}
-
-    if [[ ${reward_lovelace} -le 0 ]]; then
-      say "Failed to locate any rewards associated with the chosen wallet, please try another one"
-      waitForInput && continue
-    elif [[ ${lovelace} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No funds in base address, please send funds to base address of wallet to cover withdraw transaction fee"
-      waitForInput && continue
-    fi
-
-    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
-    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")" "log"
-
-    if ! withdrawRewards "${stake_sk_file}" "${pay_payment_sk_file}" "${base_addr}" "${reward_addr}" ${reward_lovelace}; then
-      waitForInput && continue
-    fi
-
-    if ! waitNewBlockCreated; then
-      waitForInput && continue
-    fi
-
-    getBalance ${base_addr}
-
-    while [[ ${lovelace} -ne ${newBalance} ]]; do
-      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
-      if ! waitNewBlockCreated; then
-        break
-      fi
-      getBalance ${base_addr}
-    done
-
-    if [[ ${lovelace} -ne ${newBalance} ]]; then
-      waitForInput && continue
-    fi
-
-    getRewards ${wallet_name}
-
-    echo
-    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
-    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")" "log"
-    waitForInput
-
-    ;; ###################################################################
-
     send)
 
     clear
@@ -879,18 +942,20 @@ case $OPERATION in
     else
       if ! selectOpMode; then continue; fi
     fi
+    echo
 
-    say "# Source\n"
+    say "# Select ${CYAN}source${NC} wallet"
     if [[ ${op_mode} = "online" ]]; then
       if ! selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        waitForInput && continue
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     else
       if ! selectWallet "balance"; then # ${wallet_name} populated by selectWallet function
-        waitForInput && continue
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     fi
     s_wallet="${wallet_name}"
+    echo
 
     getBaseAddress ${s_wallet}
     getPayAddress ${s_wallet}
@@ -907,7 +972,8 @@ case $OPERATION in
         say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
       fi
       echo
-      case $(select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel") in
+      select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+      case $? in
         0) s_addr="${base_addr}" ;;
         1) s_addr="${pay_addr}" ;;
         2) continue ;;
@@ -942,33 +1008,34 @@ case $OPERATION in
     read -r -p "Amount (ADA): " amountADA
     amountADA="${amountADA//,}"
 
+    echo
     if  [[ "${amountADA}" != "all" ]]; then
       if ! ADAtoLovelace "${amountADA}" >/dev/null; then
         waitForInput && continue
       fi
       amountLovelace=$(ADAtoLovelace "${amountADA}")
-      echo
-      say "Fee payed by sender? [else amount sent is reduced]\n"
-      case $(select_opt "[y] Yes" "[n] No" "[Esc] Cancel") in
+      say "Fee payed by sender? [else amount sent is reduced]"
+      select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
+      case $? in
         0) include_fee="no" ;;
         1) include_fee="yes" ;;
         2) continue ;;
       esac
     else
-      echo
       getBalance ${s_addr}
       amountLovelace=${lovelace}
       say "ADA to send set to total supply: $(formatLovelace ${amountLovelace})" "log"
-      echo
       include_fee="yes"
     fi
+    echo
 
     # Destination
     d_wallet=""
-    say "# Destination\n"
-    case $(select_opt "[w] Wallet" "[a] Address" "[Esc] Cancel") in
+    say "# Select ${CYAN}destination${NC} type"
+    select_opt "[w] Wallet" "[a] Address" "[Esc] Cancel"
+    case $? in
       0) if ! selectWallet "balance"; then # ${wallet_name} populated by selectWallet function
-           waitForInput && continue
+           [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
          fi
          d_wallet="${wallet_name}"
 
@@ -977,8 +1044,8 @@ case $OPERATION in
 
          if [[ -n "${base_addr}" && "${base_addr}" != "${s_addr}" && -n "${pay_addr}" && "${pay_addr}" != "${s_addr}" ]]; then
            # Both base and enterprise address available, let user choose what to use
-           say "Select destination wallet address"
-           case $(select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel") in
+           select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+           case $? in
              0) d_addr="${base_addr}" ;;
              1) d_addr="${pay_addr}" ;;
              2) continue ;;
@@ -988,10 +1055,10 @@ case $OPERATION in
          elif [[ -n "${pay_addr}" && "${pay_addr}" != "${s_addr}" ]]; then
            d_addr="${pay_addr}"
          elif [[ "${base_addr}" = "${s_addr}" || "${pay_addr}" = "${s_addr}" ]]; then
-           say "${RED}ERROR${NC}: sending to same address as source not supported"
+           say "\n${RED}ERROR${NC}: sending to same address as source not supported"
            waitForInput && continue
          else
-           say "${RED}ERROR${NC}: no address found for wallet ${GREEN}${d_wallet}${NC} :("
+           say "\n${RED}ERROR${NC}: no address found for wallet ${GREEN}${d_wallet}${NC} :("
            waitForInput && continue
          fi
          ;;
@@ -1070,16 +1137,19 @@ case $OPERATION in
     else
       if ! selectOpMode; then continue; fi
     fi
+    echo
 
+    say "# Select wallet to delegate"
     if [[ ${op_mode} = "online" ]]; then
       if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        waitForInput && continue
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     else
       if ! selectWallet "delegate" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        waitForInput && continue
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     fi
+    echo
 
     getBaseAddress ${wallet_name}
     getBalance ${base_addr}
@@ -1105,11 +1175,12 @@ case $OPERATION in
 
     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
     stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-    pay_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+    payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
 
     echo
-    say "Do you want to delegate to a local pool or specify the pools cold vkey cbor-hex?\n"
-    case $(select_opt "[p] Pool" "[v] Vkey" "[Esc] Cancel") in
+    say "Do you want to delegate to a local pool or specify the pools cold vkey cbor-hex?"
+    select_opt "[p] Pool" "[v] Vkey" "[Esc] Cancel"
+    case $? in
       0) if ! selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}"; then # ${pool_name} populated by selectPool function
            waitForInput && continue
          fi
@@ -1127,11 +1198,12 @@ case $OPERATION in
     #Generated Files
     delegation_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DELEGCERT_FILENAME}"
 
+    say "" 1
     say "creating delegation cert" 1 "log"
     say "$ ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file ${stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${delegation_cert_file}" 2
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${delegation_cert_file}"
 
-    if ! delegate "${stake_sk_file}" "${pay_payment_sk_file}" "${base_addr}" "${pool_coldkey_vk_file}" "${delegation_cert_file}" ; then
+    if ! delegate "${stake_sk_file}" "${payment_sk_file}" "${base_addr}" "${pool_coldkey_vk_file}" "${delegation_cert_file}" ; then
       if [[ ${op_mode} = "online" ]]; then
         echo && say "${RED}ERROR${NC}: failure during delegation, removing newly created delegation certificate file"
         rm -f "${delegation_cert_file}"
@@ -1165,6 +1237,84 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
     waitForInput && continue
+    
+    ;; ###################################################################
+    
+    withdrawrewards)
+
+    clear
+    say " >> FUNDS >> WITHDRAW REWARDS" "log"
+    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+
+    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+      waitForInput && continue
+    else
+      if ! selectOpMode; then continue; fi
+    fi
+    echo
+
+    say "# Select wallet to withdraw funds from"
+    if [[ ${op_mode} = "online" ]]; then
+      if ! selectWallet "reward" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+      fi
+    else
+      if ! selectWallet "reward"; then # ${wallet_name} populated by selectWallet function
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+      fi
+    fi
+    echo
+
+    getBaseAddress ${wallet_name}
+    stake_addr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_ADDR_FILENAME}"
+    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+    payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+
+    getBalance ${base_addr}
+    getRewards ${wallet_name}
+
+    if [[ ${reward_lovelace} -le 0 ]]; then
+      say "Failed to locate any rewards associated with the chosen wallet, please try another one"
+      waitForInput && continue
+    elif [[ ${lovelace} -eq 0 ]]; then
+      say "${ORANGE}WARN${NC}: No funds in base address, please send funds to base address of wallet to cover withdraw transaction fee"
+      waitForInput && continue
+    fi
+
+    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
+    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")" "log"
+
+    if ! withdrawRewards "${stake_sk_file}" "${payment_sk_file}" "${base_addr}" "${reward_addr}" ${reward_lovelace}; then
+      waitForInput && continue
+    fi
+
+    if ! waitNewBlockCreated; then
+      waitForInput && continue
+    fi
+
+    getBalance ${base_addr}
+
+    while [[ ${lovelace} -ne ${newBalance} ]]; do
+      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+      if ! waitNewBlockCreated; then
+        break
+      fi
+      getBalance ${base_addr}
+    done
+
+    if [[ ${lovelace} -ne ${newBalance} ]]; then
+      waitForInput && continue
+    fi
+
+    getRewards ${wallet_name}
+
+    echo
+    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
+    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")" "log"
+    
+    waitForInput && continue
+
     ;; ###################################################################
 
   esac
@@ -1190,7 +1340,8 @@ case $OPERATION in
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   say " Select Pool operation\n"
-  case $(select_opt "[n] New" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home") in
+  select_opt "[n] New" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home"
+  case $? in
     0) SUBCOMMAND="new" ;;
     1) SUBCOMMAND="register" ;;
     2) SUBCOMMAND="modify" ;;
@@ -1266,6 +1417,7 @@ case $OPERATION in
     fi
     echo
 
+    say "# Select pool to register" "log"
     if [[ ${op_mode} = "online" ]]; then
       if ! selectPool "non-reg" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_COLDKEY_SK_FILENAME}" "${POOL_VRF_VK_FILENAME}"; then # ${pool_name} populated by selectPool function
         waitForInput && continue
@@ -1275,6 +1427,7 @@ case $OPERATION in
         waitForInput && continue
       fi
     fi
+    echo
     
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
 
@@ -1351,8 +1504,9 @@ case $OPERATION in
 
     metadata_done=false
     if wget -q -T 10 $meta_json_url -O "$TMP_FOLDER/url_poolmeta.json"; then
-      say "\nMetadata exists at URL.  Use existing data?\n"
-      case $(select_opt "[y] Yes" "[n] No") in
+      say "\nMetadata exists at URL.  Use existing data?"
+      select_opt "[y] Yes" "[n] No"
+      case $? in
         0) mv "$TMP_FOLDER/url_poolmeta.json" "${POOL_FOLDER}/${pool_name}/poolmeta.json"
            metadata_done=true
            ;;
@@ -1360,6 +1514,7 @@ case $OPERATION in
       esac
     fi
     if [ ${metadata_done} = false ]; then
+      echo
       # ToDo align with wallet and smash
       if [[ -f "${pool_meta_file}" ]]; then
         meta_name=$(jq -r .name "${pool_meta_file}")
@@ -1394,19 +1549,20 @@ case $OPERATION in
         say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
         waitForInput && continue
       fi
-      say "\nOptionally set an extended metadata URL?\n"
-      case $(select_opt "[n] No" "[y] Yes") in
+      say "\nOptionally set an extended metadata URL?"
+      select_opt "[n] No" "[y] Yes"
+      case $? in
         0) meta_extended_option=""
            ;;
-        1) read -r -p "Enter URL to extended metadata (default: ${meta_extended}): " extended_enter
-          extended_enter="${extended_enter}"
-          [[ -n "${extended_enter}" ]] && meta_extended="${extended_enter}"
-          if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 64 ]]; then
-            say "${RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
-            waitForInput && continue
-          else
-            meta_extended_option=",\"extended\":\"${meta_extended}\"" 
-          fi
+        1) echo && read -r -p "Enter URL to extended metadata (default: ${meta_extended}): " extended_enter
+           extended_enter="${extended_enter}"
+           [[ -n "${extended_enter}" ]] && meta_extended="${extended_enter}"
+           if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 64 ]]; then
+             say "${RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
+             waitForInput && continue
+           else
+             meta_extended_option=",\"extended\":\"${meta_extended}\"" 
+           fi
       esac
 
       new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
@@ -1414,7 +1570,7 @@ case $OPERATION in
       jq . "${new_pool_meta_file}"
       metadata_size=$(stat -c%s "${new_pool_meta_file}")
       if [[ ${metadata_size} -gt 512 ]]; then
-        say "${RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length, current length: ${metadata_size}"
+        say "\n${RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length, current length: ${metadata_size}"
         waitForInput && continue
       else
         cp -f "${new_pool_meta_file}" "${pool_meta_file}"
@@ -1426,13 +1582,14 @@ case $OPERATION in
 
     relay_output=""
     relay_array=()
-    say "\n# Pool Relay Registration\n"
+    say "\n# Pool Relay Registration"
     # ToDo SRV & IPv6 support
     if [[ -f "${pool_config}" && $(jq '.relays | length' "${pool_config}") -gt 0 ]]; then
-      say "Previous relay configuration:\n"
+      say "\nPrevious relay configuration:\n"
       printTable ',' "$(say 'Type,Address,Port' | cat - <(jq -r -c '.relays[] | [.type //"-",.address //"-",.port //"-"] | @csv //empty' "${pool_config}") | tr -d '"')"
-      say "\nReuse previous configuration?\n"
-      case $(select_opt "[y] Yes" "[n] No" "[Esc] Cancel") in
+      say "\nReuse previous configuration?"
+      select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
+      case $? in
         0) while read -r type address port; do
              relay_array+=( "type" "${type}" "address" "${address}" "port" "${port}" )
              if [[ ${type} = "DNS_A" ]]; then
@@ -1448,8 +1605,9 @@ case $OPERATION in
     fi
     if [[ -z ${relay_output} ]]; then
       while true; do
-        case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[Esc] Cancel") in
-          0) read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
+        select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[Esc] Cancel"
+        case $? in
+          0) echo && read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
              if [[ -z "${relay_dns_enter}" ]]; then
                say "\n${RED}ERROR${NC}: DNS record can not be empty!\n"
                continue
@@ -1468,7 +1626,7 @@ case $OPERATION in
              relay_array+=( "type" "DNS_A" "address" "${relay_dns_enter}" "port" "${relay_port_enter}" )
              relay_output+="--single-host-pool-relay ${relay_dns_enter} --pool-relay-port ${relay_port_enter} "
              ;;
-          1) read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter
+          1) echo && read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter
              if [[ -n "${relay_ipv4_enter}" ]]; then
                if ! validIP "${relay_ipv4_enter}"; then
                  say "\n${RED}ERROR${NC}: invalid IPv4 address format!\n"
@@ -1493,8 +1651,9 @@ case $OPERATION in
              ;;
           2) continue 2 ;;
         esac
-        say "\nAdd more relay entries?\n"
-        case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
+        say "\nAdd more relay entries?"
+        select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+        case $? in
           0) break ;;
           1) continue ;;
           2) continue 2 ;;
@@ -1502,16 +1661,17 @@ case $OPERATION in
       done
     fi
     
-    say "# Owner / Pledge\n"
+    say "\n# Select ${CYAN}owner/pledge${NC} wallet"
     if [[ ${op_mode} = "online" ]]; then
       if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        waitForInput && continue
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     else
       if ! selectWallet "delegate" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        waitForInput && continue
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     fi
+    echo
     
     owner_wallet="${wallet_name}"
     getBaseAddress ${owner_wallet}
@@ -1520,6 +1680,7 @@ case $OPERATION in
     if [[ ${lovelace} -gt 0 ]]; then
       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
         say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in owner wallet:"  "$(formatLovelace ${lovelace})")" "log"
+        echo
       fi
     else
       say "${RED}ERROR${NC}: no funds available in base address for wallet ${GREEN}${owner_wallet}${NC}"
@@ -1535,16 +1696,17 @@ case $OPERATION in
       fi
     fi
 
-    say "\nUse a different wallet for rewards?\n"
-    case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
-      0) reward_wallet="${owner_wallet}" ;;
+    say "Use a different wallet for rewards?"
+    select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+    case $? in
+      0) reward_wallet="${owner_wallet}" && echo ;;
       1) if ! selectWallet "none" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-           waitForInput && continue
+           [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
          fi
          reward_wallet="${wallet_name}"
          if ! isWalletRegistered ${reward_wallet}; then
            if [[ ${op_mode} = "hybrid" ]]; then
-             say "Owner wallet not a registered wallet on chain and CNTools run in hybrid mode"
+             say "\nOwner wallet not a registered wallet on chain and CNTools run in hybrid mode"
              say "Please first register all wallets to use in pool registration using 'Wallet >> Register'"
              waitForInput && continue
            fi
@@ -1552,6 +1714,7 @@ case $OPERATION in
            getBalance ${base_addr}
            if [[ ${lovelace} -gt 0 ]]; then
              say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in reward wallet:"  "$(formatLovelace ${lovelace})")" "log"
+             echo
            else
              say "${RED}ERROR${NC}: no funds available in base address for wallet ${GREEN}${reward_wallet}${NC}, needed to pay for registration fee"
              waitForInput && continue
@@ -1566,17 +1729,19 @@ case $OPERATION in
 
     multi_owner_output=""
     multi_owner_skeys=()
-    say "\nRegister a multi-owner pool using stake vkey/skey files?\n"
-    case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
+    say "Register a multi-owner pool using stake vkey/skey files?"
+    select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+    case $? in
       0) : ;;
       1) while true; do
-           say "Enter/select path to stake ${CYAN}vkey${NC} file:"
-           fileDialog 1 "Enter/select path to stake vkey file" "${WALLET_FOLDER}"
+           say "\nEnter path to stake ${CYAN}vkey${NC} file:"
+           fileDialog 1 "Enter path to stake vkey file" "${WALLET_FOLDER}"
+           say "${file}\n"
            stake_vk_file_enter=${file}
            if [[ ${op_mode} = "online" ]]; then
-             say "Enter/select path to stake ${CYAN}skey${NC} file:"
-             waitForInput "Press any key to open the file explorer"
-             fileDialog 0 "Enter/select path to stake skey file" "${WALLET_FOLDER}"
+             say "Enter path to stake ${CYAN}skey${NC} file:"
+             fileDialog 0 "Enter path to stake skey file" "${WALLET_FOLDER}"
+             say "${file}\n"
              stake_sk_file_enter=${file}
              if [[ ! -f "${stake_vk_file_enter}" || ! -f "${stake_sk_file_enter}" ]]; then
                say "${RED}ERROR${NC}: One or both files not found, please try again"
@@ -1593,8 +1758,9 @@ case $OPERATION in
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
              fi
            fi
-           say "\nAdd more owners?\n"
-           case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
+           say "\nAdd more owners?"
+           select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+           case $? in
              0) break ;;
              1) : ;;
              2) continue 2 ;;
@@ -1632,10 +1798,10 @@ case $OPERATION in
     say "# Register Stake Pool" "log"
 
     if [[ ${op_mode} = "online" ]]; then
-      start_kes_period=$(getCurrentKESperiod)
-      echo "${start_kes_period}" > ${pool_saved_kes_start}
+      getCurrentKESperiod
+      echo "${current_kes_period}" > ${pool_saved_kes_start}
       say "creating operational certificate" 1 "log"
-      ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${start_kes_period}" --out-file "${pool_opcert_file}"
+      ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}"
     else
       say "\n${ORANGE}Pool operational certificate not generated in hybrid mode,\nplease use 'Pool >> Rotate' in offline mode to generate new hot keys, op cert and KES start period and transfer to online node!${NC}" "log"
       say "${CYAN}${pool_hotkey_vk_file}${NC}" "log"
@@ -1657,12 +1823,13 @@ case $OPERATION in
     
     delegate_reward_wallet="false"
     if [[ ! "${owner_wallet}" = "${reward_wallet}" ]]; then
-      say "\nRe-stake reward wallet to pool?\n"
-      case $(select_opt "[y] Yes" "[n] No") in
+      say "\nRe-stake reward wallet to pool?"
+      select_opt "[y] Yes" "[n] No"
+      case $? in
         0) delegate_reward_wallet="true"
+           say "" 1
            say "creating delegation certificate for reward wallet" 1 "log"
            say "$ ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file ${reward_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${reward_delegation_cert_file}" 2
-           say "" 2
            ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${reward_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${reward_delegation_cert_file}" 
            ;;
         1) : ;;
@@ -1670,6 +1837,7 @@ case $OPERATION in
     fi
 
     say "sending transaction to chain" 1 "log"
+    echo
     if ! registerPool "${pool_name}" "${reward_wallet}" "${delegate_reward_wallet}" "${owner_wallet}" "${multi_owner_skeys[@]}"; then
       if [[ $? -eq 1 ]]; then
         echo && say "${RED}ERROR${NC}: failure during pool registration, removing newly created pledge and registration files"
@@ -1744,6 +1912,7 @@ case $OPERATION in
     fi
     echo
 
+    say "# Select pool to modify"
     if [[ ${op_mode} = "online" ]]; then
       if ! selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_COLDKEY_SK_FILENAME}" "${POOL_VRF_VK_FILENAME}"; then # ${pool_name} populated by selectPool function
         waitForInput && continue
@@ -1753,6 +1922,7 @@ case $OPERATION in
         waitForInput && continue
       fi
     fi
+    echo
 
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
 
@@ -1822,8 +1992,9 @@ case $OPERATION in
 
     metadata_done=false
     if wget -q -T 10 $meta_json_url -O "$TMP_FOLDER/url_poolmeta.json"; then
-      say "\nMetadata exists at URL.  Use existing data?\n"
-      case $(select_opt "[y] Yes" "[n] No") in
+      say "\nMetadata exists at URL.  Use existing data?"
+      select_opt "[y] Yes" "[n] No"
+      case $? in
         0) mv "$TMP_FOLDER/url_poolmeta.json" "${POOL_FOLDER}/${pool_name}/poolmeta.json"
            metadata_done=true
            ;;
@@ -1832,6 +2003,7 @@ case $OPERATION in
     fi
 
     if [ ${metadata_done} = false ]; then
+      echo
       # ToDo align with wallet and smash
       if [[ -f "${pool_meta_file}" ]]; then
         meta_name=$(jq -r .name "${pool_meta_file}")
@@ -1866,11 +2038,12 @@ case $OPERATION in
         say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
         waitForInput && continue
       fi
-      say "\nOptionally set an extended metadata URL?\n"
-      case $(select_opt "[n] No" "[y] Yes") in
+      say "\nOptionally set an extended metadata URL?"
+      select_opt "[n] No" "[y] Yes"
+      case $? in
         0) meta_extended_option=""
            ;;
-        1) read -r -p "Enter URL to extended metadata (default: ${meta_extended}): " extended_enter
+        1) echo && read -r -p "Enter URL to extended metadata (default: ${meta_extended}): " extended_enter
           extended_enter="${extended_enter}"
           if [[ -n "${extended_enter}" ]]; then
             meta_extended="${extended_enter}"
@@ -1888,7 +2061,7 @@ case $OPERATION in
       jq . "${new_pool_meta_file}"
       metadata_size=$(stat -c%s "${new_pool_meta_file}")
       if [[ ${metadata_size} -gt 512 ]]; then
-        say "${RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length, current length: ${metadata_size}"
+        say "\n${RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length, current length: ${metadata_size}"
         waitForInput && continue
       else
         cp -f "${new_pool_meta_file}" "${pool_meta_file}"
@@ -1900,13 +2073,14 @@ case $OPERATION in
 
     relay_output=""
     relay_array=()
-    say "\n# Pool Relay Registration\n"
+    say "\n# Pool Relay Registration"
     # ToDo SRV & IPv6 support
     if [[ $(jq '.relays | length' "${pool_config}") -gt 0 ]]; then
-      say "Previous relay configuration:\n"
+      say "\nPrevious relay configuration:\n"
       printTable ',' "$(say 'Type,Address,Port' | cat - <(jq -r -c '.relays[] | [.type //"-",.address //"-",.port //"-"] | @csv //empty' "${pool_config}") | tr -d '"')"
-      say "\nReuse previous configuration?\n"
-      case $(select_opt "[y] Yes" "[n] No" "[Esc] Cancel") in
+      say "\nReuse previous configuration?"
+      select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
+      case $? in
         0) while read -r type address port; do
              relay_array+=( "type" "${type}" "address" "${address}" "port" "${port}" )
              if [[ ${type} = "DNS_A" ]]; then
@@ -1922,8 +2096,9 @@ case $OPERATION in
     fi
     if [[ -z ${relay_output} ]]; then
       while true; do
-        case $(select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[Esc] Cancel") in
-          0) read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
+        select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[Esc] Cancel"
+        case $? in
+          0) echo && read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
              if [[ -z "${relay_dns_enter}" ]]; then
                say "\n${RED}ERROR${NC}: DNS record can not be empty!\n"
                continue
@@ -1942,7 +2117,7 @@ case $OPERATION in
              relay_array+=( "type" "DNS_A" "address" "${relay_dns_enter}" "port" "${relay_port_enter}" )
              relay_output+="--single-host-pool-relay ${relay_dns_enter} --pool-relay-port ${relay_port_enter} "
              ;;
-          1) read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter
+          1) echo && read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter
              if [[ -n "${relay_ipv4_enter}" ]]; then
                if ! validIP "${relay_ipv4_enter}"; then
                  say "\n${RED}ERROR${NC}: invalid IPv4 address format!\n"
@@ -1967,8 +2142,9 @@ case $OPERATION in
              ;;
           2) continue 2 ;;
         esac
-        say "\nAdd more relay entries?\n"
-        case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
+        say "\nAdd more relay entries?"
+        select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+        case $? in
           0) break ;;
           1) continue ;;
           2) continue 2 ;;
@@ -1985,15 +2161,17 @@ case $OPERATION in
     say "${ORANGE}If a new wallet is chosen for owner/reward, a manual delegation to the pool with new wallet is needed${NC}"
     echo
     
+    say "# Select ${CYAN}owner/pledge${NC} wallet"
     if [[ ${op_mode} = "online" ]]; then
       if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        waitForInput && continue
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     else
       if ! selectWallet "delegate" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        waitForInput && continue
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     fi
+    echo
     
     owner_wallet="${wallet_name}"
     getBaseAddress ${owner_wallet}
@@ -2002,6 +2180,7 @@ case $OPERATION in
     if [[ ${lovelace} -gt 0 ]]; then
       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
         say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in base address for owner wallet:"  "$(formatLovelace ${lovelace})")" "log"
+        echo
       fi
     else
       say "${RED}ERROR${NC}: no funds available in base address for wallet ${GREEN}${owner_wallet}${NC}"
@@ -2017,16 +2196,17 @@ case $OPERATION in
       fi
     fi
 
-    say "\nUse a different wallet for rewards?\n"
-    case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
-      0) reward_wallet="${owner_wallet}" ;;
+    say "Use a different wallet for rewards?"
+    select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+    case $? in
+      0) reward_wallet="${owner_wallet}" && echo ;;
       1) if ! selectWallet "none" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-           waitForInput && continue
+           [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
          fi
          reward_wallet="${wallet_name}"
          if ! isWalletRegistered ${reward_wallet}; then
            if [[ ${op_mode} = "hybrid" ]]; then
-             say "Owner wallet not a registered wallet on chain and CNTools run in hybrid mode"
+             say "\nOwner wallet not a registered wallet on chain and CNTools run in hybrid mode"
              say "Please first register all wallets to use in pool registration using 'Wallet >> Register'"
              waitForInput && continue
            fi
@@ -2048,17 +2228,19 @@ case $OPERATION in
 
     multi_owner_output=""
     multi_owner_skeys=()
-    say "\nRegister a multi-owner pool using stake vkey/skey files?\n"
-    case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
+    say "Register a multi-owner pool using stake vkey/skey files?"
+    select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+    case $? in
       0) : ;;
       1) while true; do
-           say "Enter/select path to stake ${CYAN}vkey${NC} file:"
-           fileDialog 1 "Enter/select path to stake vkey file" "${WALLET_FOLDER}"
+           say "\nEnter path to stake ${CYAN}vkey${NC} file:"
+           fileDialog 1 "Enter path to stake vkey file" "${WALLET_FOLDER}"
+           say "${file}\n"
            stake_vk_file_enter=${file}
            if [[ ${op_mode} = "online" ]]; then
-             say "Enter/select path to stake ${CYAN}skey${NC} file:"
-             waitForInput "Press any key to open the file explorer"
-             fileDialog 0 "Enter/select path to stake skey file" "${WALLET_FOLDER}"
+             say "Enter path to stake ${CYAN}skey${NC} file:"
+             fileDialog 0 "Enter path to stake skey file" "${WALLET_FOLDER}"
+             say "${file}\n"
              stake_sk_file_enter=${file}
              if [[ ! -f "${stake_vk_file_enter}" || ! -f "${stake_sk_file_enter}" ]]; then
                say "${RED}ERROR${NC}: One or both files not found, please try again"
@@ -2075,8 +2257,9 @@ case $OPERATION in
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
              fi
            fi
-           say "\nAdd more owners?\n"
-           case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
+           say "\nAdd more owners?"
+           select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+           case $? in
              0) break ;;
              1) : ;;
              2) continue 2 ;;
@@ -2184,6 +2367,7 @@ case $OPERATION in
     fi
     echo
 
+    say "# Select pool to retire"
     if [[ ${op_mode} = "online" ]]; then
       if ! selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_COLDKEY_SK_FILENAME}"; then # ${pool_name} populated by selectPool function
         waitForInput && continue
@@ -2193,6 +2377,7 @@ case $OPERATION in
         waitForInput && continue
       fi
     fi
+    echo
 
     epoch=$(getEpoch)
     eMax=$(jq -r '.eMax' "${TMP_FOLDER}"/protparams.json)
@@ -2210,18 +2395,18 @@ case $OPERATION in
       say "${RED}ERROR${NC}: epoch invalid, valid range: ${epoch_start}-${epoch_end}"
       waitForInput && continue
     fi
-
-    say "Wallet for pool de-registration transaction fee\n"
     
+    say "# Select wallet for pool de-registration transaction fee"
     if [[ ${op_mode} = "online" ]]; then
       if ! selectWallet "balance" "${WALLET_PAY_VK_FILENAME}" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        waitForInput && continue
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     else
       if ! selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        waitForInput && continue
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     fi
+    echo
 
     getBaseAddress ${wallet_name}
     getPayAddress ${wallet_name}
@@ -2232,12 +2417,13 @@ case $OPERATION in
 
     if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
       # Both payment and base address available with funds, let user choose what to use
-      say "Select wallet address to use"
+      say "# Select wallet address to use"
       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
         say "$(printf "%s\t\t${CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
         say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
       fi
-      case $(select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel") in
+      select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+      case $? in
         0) addr="${base_addr}" ;;
         1) addr="${pay_addr}" ;;
         2) continue ;;
@@ -2263,6 +2449,7 @@ case $OPERATION in
 
     payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
 
+    say "" 1
     say "creating de-registration cert" 1 "log"
     say "$ ${CCLI} shelley stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file}" 2
     ${CCLI} shelley stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file}
@@ -2343,9 +2530,8 @@ case $OPERATION in
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
       say "${CYAN}OFFLINE MODE${NC}: CNTools started in offline mode, locally saved info shown!"
     fi
-    echo
 
-    if ! selectPool "all" "${POOL_ID_FILENAME}"; then # ${pool_name} populated by selectPool function
+    if ! selectPool "all" "${POOL_ID_FILENAME}" >/dev/null; then # ${pool_name} populated by selectPool function
       waitForInput && continue
     fi
 
@@ -2360,7 +2546,6 @@ case $OPERATION in
       tput rc && tput ed
     fi
 
-    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
     getPoolID ${pool_name}
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
@@ -2371,7 +2556,7 @@ case $OPERATION in
       [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
       [[ -n "${ledger_pParams}" ]] && pool_registered="YES" || pool_registered="NO"
     fi
-    say "${GREEN}${pool_name}${NC} "
+    say "$(printf "%-21s : ${GREEN}%s${NC}" "Pool" "${pool_name}")" "log"
     say "$(printf "%-21s : %s" "ID (hex)" "${pool_id}")" "log"
     [[ -n ${pool_id_bech32} ]] && say "$(printf "%-21s : %s" "ID (bech32)" "${pool_id_bech32}")" "log"
     say "$(printf "%-21s : %s" "Registered" "${pool_registered}")" "log"
@@ -2536,6 +2721,7 @@ case $OPERATION in
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
     
+    say "# Select pool to rotate KES keys on"
     if ! selectPool "all" "${POOL_COLDKEY_SK_FILENAME}" "${POOL_HOTKEY_SK_FILENAME}" "${POOL_HOTKEY_VK_FILENAME}" "${POOL_OPCERT_COUNTER_FILENAME}"; then # ${pool_name} populated by selectPool function
       waitForInput && continue
     fi
@@ -2545,9 +2731,9 @@ case $OPERATION in
     fi
 
     echo
-    say "Pool KES Keys Updated: ${GREEN}${pool_name}${NC}" "log"
-    say "New KES start period: ${start_kes_period}" "log"
-    say "KES keys will expire on kes period ${kes_expiration_period}, ${expiration_date}" "log"
+    say "Pool KES keys successfully updated"
+    say "New KES start period  : ${current_kes_period}" "log"
+    say "KES keys will expire  : $(( current_kes_period + max_kes_evolutions )) - ${expiration_date}" "log"
     echo
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
       say "Copy updated files to pool node replacing existing files:" "log"
@@ -2571,6 +2757,7 @@ case $OPERATION in
 
     protectionPreRequisites || continue
 
+    say "# Select pool to decrypt"
     if ! selectPool "all"; then # ${pool_name} populated by selectPool function
       waitForInput && continue
     fi
@@ -2590,8 +2777,6 @@ case $OPERATION in
 
     echo
     say "# Decrypting GPG encrypted pool files" "log"
-    echo
-    say "Pool ${GREEN}${pool_name}${NC} Password"
     echo
     if ! getPassword; then # $password variable populated by getPassword function
       say "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
@@ -2628,6 +2813,7 @@ case $OPERATION in
 
     protectionPreRequisites || continue
 
+    say "# Select pool to encrypt"
     if ! selectPool "all"; then # ${pool_name} populated by selectPool function
       waitForInput && continue
     fi
@@ -2636,8 +2822,6 @@ case $OPERATION in
     keysEncrypted=0
 
     say "# Encrypting sensitive pool keys with GPG" "log"
-    echo
-    say "Pool ${GREEN}${pool_name}${NC} Password"
     echo
     if ! getPassword confirm; then # $password variable populated by getPassword function
       say "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
@@ -2692,37 +2876,38 @@ case $OPERATION in
   say " >> SIGN TX" "log"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   echo
-  say "Enter/select path for ${CYAN}tx file${NC} to sign:"
-  fileDialog 1 "Enter/select path for tx file to sign"
+  say "Enter path for Tx file to sign:"
+  fileDialog 1 "Enter path for Tx file to sign"
+  say "${CYAN}${file}${NC}\n" "log"
   tx_raw=${file}
   [[ -z "${tx_raw}" ]] && continue
   if [[ ! -f "${tx_raw}" ]]; then
     say "${RED}ERROR${NC}: file not found: ${tx_raw}"
     waitForInput && continue
   fi
-  say "${GREEN}${tx_raw}${NC} selected to be signed!" "log"
   
-  say "\n# Sign the transaction with all keys needed"
-  waitForInput "Press any key to open the file explorer"
+  say "# Sign the transaction with all keys needed"
   ofl_sign_keys=()
   while true; do
-    fileDialog 0 "Enter/select path to signing key file" "${WALLET_FOLDER}"
+    fileDialog 0 "Enter path to signing key file" "${WALLET_FOLDER}"
     if [[ -z "${file}" ]]; then
+      say "${ORANGE}EMPTY${NC}: no file selected, how do you want to proceed?"
       : # do nothing
     elif [[ ! -f "${file}" ]]; then
-      say "${RED}ERROR${NC}: file not found, please try again! [${file}]\n"
+      say "${RED}ERROR${NC}: file not found, please try again! [${file}]"
     else
       ofl_sign_keys+=( "${file}" )
       say "${GREEN}${file}${NC} added!" "log"
-      echo
     fi
-    say "Add more keys?\n"
-    case $(select_opt "[n] No" "[y] Yes" "[Esc] Cancel") in
-      0) break ;;
+    say "\nAdd more keys?"
+    select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+    case $? in
+      0) echo && break ;;
       1) : ;;
       2) continue 2 ;;
     esac
   done
+  echo
 
   if signTx "${tx_raw}" "${ofl_sign_keys[@]}"; then
     say "Tx file successfully signed and available at: ${CYAN}${tx_signed}${NC}" "log"
@@ -2744,8 +2929,9 @@ case $OPERATION in
     waitForInput && continue
   fi
   echo
-  say "Please enter/choose signed tx file to submit:"
-  fileDialog 1 "Please enter/choose signed tx file to submit"
+  say "Please enter signed Tx file to submit:"
+  fileDialog 1 "Please enter signed Tx file to submit"
+  say "${CYAN}${file}${NC}\n" "log"
   [[ -z "${file}" ]] && continue
   if [[ ! -f "${file}" ]]; then
     say "${RED}ERROR${NC}: file not found: ${file}"
@@ -2779,9 +2965,11 @@ case $OPERATION in
 
   say "Current epoch: ${epoch}\n"
 
-  say "Show a block summary for all epochs or a detailed view for a specific epoch?\n"
-  case $(select_opt "[s] Summary" "[e] Epoch" "[Esc] Cancel") in
-    0) block_table="Epoch,${BLUE}Leader Slots${NC},${GREEN}Adopted Blocks${NC},${RED}Invalid Blocks${NC}\n"
+  say "Show a block summary for all epochs or a detailed view for a specific epoch?"
+  select_opt "[s] Summary" "[e] Epoch" "[Esc] Cancel"
+  case $? in
+    0) echo
+       block_table="Epoch,${BLUE}Leader Slots${NC},${GREEN}Adopted Blocks${NC},${RED}Invalid Blocks${NC}\n"
        current_epoch=${epoch}
        read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter
        echo
@@ -2806,7 +2994,7 @@ case $OPERATION in
        done
        printTable ',' "$(echo -e ${block_table})"
        ;;
-    1) read -r -p "Enter epoch to list (enter for current): " epoch_enter
+    1) echo && read -r -p "Enter epoch to list (enter for current): " epoch_enter
        [[ -z "${epoch_enter}" ]] && epoch_enter=${epoch}
        blocks_file="${BLOCK_LOG_DIR}/blocks_${epoch_enter}.json"
        if [[ ! -f "${blocks_file}" ]]; then
@@ -2870,12 +3058,13 @@ case $OPERATION in
       say "$CNODE_HOME/scripts/cntoolsBlockCollector.sh"
       backup_folder="$CNODE_HOME/scripts/cntools_${CNTOOLS_VERSION}"
       say "\nA backup of current files will be saved in ${backup_folder} as <file>_${CNTOOLS_VERSION}"
-      say "\nProceed with update?\n"
-      case $(select_opt "[y] Yes" "[n] No") in
+      say "\nProceed with update?"
+      select_opt "[y] Yes" "[n] No"
+      case $? in
         0) : ;; # do nothing
         1) continue ;; 
       esac
-      say "Applying update..."
+      say "\nApplying update..."
       if mkdir -p "${backup_folder}" &&
          cp -f "$CNODE_HOME/scripts/cntools.sh" "${backup_folder}/cntools.sh_${CNTOOLS_VERSION}" &&
          cp -f "$CNODE_HOME/scripts/cntools.config" "${backup_folder}/cntools.config_${CNTOOLS_VERSION}" &&
@@ -2909,11 +3098,13 @@ case $OPERATION in
   echo
   say "Create or restore a backup of CNTools wallets, pools and configuration files"
   echo
-  say "Backup or Restore?\n"
-  case $(select_opt "[b] Backup" "[r] Restore" "[Esc] Cancel") in
-    0) say "Select backup directory(created if non existent):"
+  say "Backup or Restore?"
+  select_opt "[b] Backup" "[r] Restore" "[Esc] Cancel"
+  case $? in
+    0) say "\nSelect backup directory(created if non existent):"
        dirDialog 1 "Select backup directory"
-       backup_path=${dir}
+       [[ "${dir}" != */ ]] && backup_path="${dir}/" || backup_path="${dir}"
+       say "${backup_path}\n"
        if [[ ! "${backup_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
          say "${RED}ERROR${NC}: invalid path, please specify the full path to backup directory (space not allowed)"
          waitForInput && continue
@@ -2931,13 +3122,14 @@ case $OPERATION in
          "$(dirname $0)"/env
          "$(dirname $0)"/cntools.config
        )
-       backup_file="${backup_path}/cntools-$(date '+%Y%m%d%H%M%S').tgz"
+       backup_file="${backup_path}cntools-$(date '+%Y%m%d%H%M%S').tgz"
        if ! tar cfz "${backup_file}" --files-from <(ls -d "${backup_list[@]}" 2>/dev/null) &>/dev/null; then
          say "${RED}ERROR${NC}: failure during backup creation :("
          waitForInput && continue
        fi
-       say "\nEncrypt backup?\n"
-       case $(select_opt "[y] Yes" "[n] No") in
+       say "Encrypt backup?"
+       select_opt "[y] Yes" "[n] No"
+       case $? in
          0) if getPassword confirm; then # $password variable populated by getPassword function
               encryptFile "${backup_file}" "${password}"
               backup_file="${backup_file}.gpg"
@@ -2969,8 +3161,9 @@ case $OPERATION in
          echo && say "Incremental backup file ${backup_file} successfully created" "log"
        else
          say "Backup file ${backup_file} successfully created" "log"
-         say "\nDo you want to delete private keys?\n"
-         case $(select_opt "[n] No" "[y] Yes") in
+         say "\nDo you want to delete private keys?"
+         select_opt "[n] No" "[y] Yes"
+         case $? in
            0) : ;; # do nothing
            1) while IFS= read -r -d '' file; do
                 safeDel "${file}"
@@ -2993,6 +3186,7 @@ case $OPERATION in
        say "Please restore to a temporary directory and copy files to restore to appropriate folders\n"
        say "Select backup directory:"
        fileDialog 1 "Select backup file to restore"
+       say "${file}\n"
        backup_file=${file}
        if [[ ! -f "${backup_file}" ]]; then
          say "${RED}ERROR${NC}: file not found: ${backup_file}"
@@ -3000,12 +3194,13 @@ case $OPERATION in
        fi
        say "Select/enter restore directory(created if non existent):"
        dirDialog 1 "Select restore directory"
-       restore_path=${dir}
+       [[ "${dir}" != */ ]] && restore_path="${dir}/" || restore_path="${dir}"
+       say "${restore_path}\n"
        if [[ ! "${restore_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
          say "${RED}ERROR${NC}: invalid path, please specify the full path to restore directory (space not allowed)"
          waitForInput && continue
        fi
-       restore_path="${restore_path}/$(basename ${backup_file%%.*})"
+       restore_path="${restore_path}$(basename ${backup_file%%.*})"
        mkdir -p "${restore_path}" # Create restore directory
        if [[ ! -d "${restore_path}" ]]; then
          say "${RED}ERROR${NC}: failed to create restore directory:"
