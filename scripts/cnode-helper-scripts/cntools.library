@@ -399,8 +399,8 @@ function selectDir {
   dirs+=("[Esc] Cancel")
   selectOption "${dirs[@]}" 1>&2
   dir_name=${dirs[$?]}
+  [[ "${dir_name}" = "[Esc] Cancel" ]] && return 1
   say "Selected ${type}: ${GREEN}${dir_name}${NC}"
-  [[ "${dir_name}" = "[Esc] Cancel" ]] && return 1 || return 0
 }
 
 # Command    : selectWallet [mode] [file1 file2 ...]

@@ -1803,6 +1803,7 @@ EOF
     pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
     pool_saved_kes_start="${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}"
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
+    pool_deregcert_file="${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}"
 
     echo
     say "# Register Stake Pool" "log"
@@ -1856,6 +1857,8 @@ EOF
         waitForInput && continue
       fi
     fi
+    
+    [[ -f "${pool_deregcert_file}" ]] && rm -f ${pool_deregcert_file} # delete de-registration cert if available
 
     if [[ ${op_mode} = "online" ]]; then
       if ! waitNewBlockCreated; then
@@ -2296,6 +2299,7 @@ EOF
 
     #Generated Files
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
+    pool_deregcert_file="${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}"
     # Make a backup of current reg cert
     cp -f "${pool_regcert_file}" "${pool_regcert_file}.tmp"
 
@@ -2316,6 +2320,7 @@ EOF
       fi
     else
       rm -f "${pool_regcert_file}.tmp" # remove backup of old reg cert
+      [[ -f "${pool_deregcert_file}" ]] && rm -f ${pool_deregcert_file} # delete de-registration cert if available
     fi
 
     if [[ ${op_mode} = "online" ]]; then
@@ -2456,6 +2461,7 @@ EOF
     pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
     pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
     pool_deregcert_file="${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}"
+    pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
 
     payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
 
@@ -2467,6 +2473,8 @@ EOF
     if ! deRegisterPool "${pool_coldkey_sk_file}" "${pool_deregcert_file}" "${addr}" "${payment_sk_file}"; then
       waitForInput && continue
     fi
+    
+    [[ -f "${pool_regcert_file}" ]] && rm -f ${pool_regcert_file} # delete registration cert
 
     if ! waitNewBlockCreated; then
       waitForInput && continue
@@ -2504,11 +2512,16 @@ EOF
       echo
       getPoolID "$(basename ${pool})"
       pool_regcert_file="${pool}/${POOL_REGCERT_FILENAME}"
-      [[ -f "${pool_regcert_file}" ]] && pool_registered="YES" || pool_registered="NO"
+      pool_deregcert_file="${pool}/${POOL_DEREGCERT_FILENAME}"
+      [[ -f "${pool_regcert_file}" ]] && pool_registered="${GREEN}YES${NC}" || pool_registered="${RED}NO${NC}"
       say "${GREEN}$(basename ${pool})${NC} "
       say "$(printf "%-21s : %s" "ID (hex)" "${pool_id}")" "log"
       [[ -n ${pool_id_bech32} ]] && say "$(printf "%-21s : %s" "ID (bech32)" "${pool_id_bech32}")" "log"
-      say "$(printf "%-21s : %s" "Registered" "${pool_registered}")" "log"
+      if [[ -f "${pool_deregcert_file}" ]]; then
+        say "$(printf "%-21s : %s" "Registered" "${RED}DE-REGISTERED${NC} - check 'Pool >> Show' for ledger registration status")" "log"
+      else
+        say "$(printf "%-21s : %s" "Registered" "${pool_registered} - check 'Pool >> Show' for ledger registration status")" "log"
+      fi
       if [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]]; then
         kesExpiration "$(cat "${pool}/${POOL_CURRENT_KES_START}")"
         if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
@@ -2569,7 +2582,11 @@ EOF
     say "$(printf "%-21s : ${GREEN}%s${NC}" "Pool" "${pool_name}")" "log"
     say "$(printf "%-21s : %s" "ID (hex)" "${pool_id}")" "log"
     [[ -n ${pool_id_bech32} ]] && say "$(printf "%-21s : %s" "ID (bech32)" "${pool_id_bech32}")" "log"
-    say "$(printf "%-21s : %s" "Registered" "${pool_registered}")" "log"
+    if [[ "${pool_registered}" = "YES" ]]; then
+      say "$(printf "%-21s : ${GREEN}%s${NC}" "Registered" "${pool_registered}")" "log"
+    else
+      say "$(printf "%-21s : ${RED}%s${NC}" "Registered" "${pool_registered}")" "log"
+    fi
     pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
     if [[ ${CNTOOLS_MODE} = "OFFLINE" && -f "${pool_meta_file}" ]]; then
@@ -2594,11 +2611,13 @@ EOF
         meta_hash_pParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_pParams}")
         meta_hash_fPParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_fPParams}")
         say "$(printf "  %-19s : %s" "Hash URL" "${meta_hash_url}")" "log"
-        if [[ "${meta_hash_pParams}" = "${meta_hash_fPParams}" ]]; then
-          say "$(printf "  %-19s : %s" "Hash Ledger" "${meta_hash_pParams}")" "log"
-        else
-          say "$(printf "  %-13s (${ORANGE}%s${NC}) : %s" "Hash Ledger" "old" "${meta_hash_pParams}")" "log"
-          say "$(printf "  %-13s (${ORANGE}%s${NC}) : %s" "Hash Ledger" "new" "${meta_hash_fPParams}")" "log"
+        if [[ "${pool_registered}" = "YES" ]]; then
+          if [[ "${meta_hash_pParams}" = "${meta_hash_fPParams}" ]]; then
+            say "$(printf "  %-19s : %s" "Hash Ledger" "${meta_hash_pParams}")" "log"
+          else
+            say "$(printf "  %-13s (${ORANGE}%s${NC}) : %s" "Hash Ledger" "old" "${meta_hash_pParams}")" "log"
+            say "$(printf "  %-13s (${ORANGE}%s${NC}) : %s" "Hash Ledger" "new" "${meta_hash_fPParams}")" "log"
+          fi
         fi
       else
         say "$(printf "%-21s : %s" "Metadata" "download failed for ${meta_json_url}")" "log"
