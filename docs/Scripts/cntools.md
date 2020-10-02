@@ -24,29 +24,71 @@ In addition to the above files, there is also a dependency on the common `env` f
 
 The update functionality is provided from within cntools. In case of breaking changes, please follow the prompts post upgrade. If stuck, its always best to re-run latest prereqs before proceeding.
 
-##### Start
+CNTools can be run in online and offline mode. At a very high level, for working with offline devices, remember that you need to use cntools on an online node to generate a staging transaction for the desired type of transaction, and then move the staging transaction to offline mode to sign (authorize) using your offline node keys - and then bring back updated transaction to the online node for submission to chain.
+
+!> It is important that you familiarise yourself with the usage using Testnet network (on a seperate machine) first, read the warnings/messages, maintain your keys and backups with passwords (no one other than yourself can retrieve the funds if you make an accident), before performing actions on mainnet.
+
+##### Start CNTools in Online Mode
 `$ ./cntools.sh`
 
 You should get a screen that looks something like this:
 ```
- >> CNTools X.X.X <<                                 A Guild Operators collaboration
+ >> CNTools vX.X.X - CONNECTED <<                    A Guild Operators collaboration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  Main Menu
 
- ) Wallet  -  create, show, remove and protect wallets
- ) Funds   -  send, withdraw and delegate
- ) Pool    -  pool creation and management
- ) Blocks  -  show core node leader slots
- ) Update  -  update cntools script and library config files
- ) Backup  -  backup & restore of wallet/pool/config
- ) Refresh -  reload home screen content
+ ) Wallet    -  create, show, remove and protect wallets
+ ) Funds     -  send, withdraw and delegate
+ ) Pool      -  pool creation and management
+ ) Sign Tx   -  Sign a built transaction file (hybrid/offline mode)
+ ) Submit Tx -  Submit a signed transaction file (hybrid/offline mode)
+ ) Blocks    -  show core node leader slots
+ ) Update    -  update cntools script and library config files
+ ) Backup    -  backup & restore of wallet/pool/config
+ ) Refresh   -  reload home screen content
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                                                    Epoch 3 - 01h:03m:38s until next
- What would you like to do?                                        Node Sync: -22 :|
+                                                  Epoch 87 - 114h:10m:30s until next
+ What would you like to do?                                         Node Sync: 28 :)
 
   [w] Wallet
   [f] Funds
   [p] Pool
+  [s] Sign Tx
+  [t] Submit Tx
+  [b] Blocks
+  [u] Update
+  [z] Backup & Restore
+  [r] Refresh
+  [q] Quit
+```
+
+##### Start CNTools in Offline Mode
+`$ ./cntools.sh -o`
+
+You should get a screen that looks something like this:
+```
+ >> CNTools vX.X.X - OFFLINE <<                      A Guild Operators collaboration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ Main Menu
+
+ ) Wallet    -  create, show, remove and protect wallets
+ ) Funds     -  send, withdraw and delegate
+ ) Pool      -  pool creation and management
+ ) Sign Tx   -  Sign a built transaction file (hybrid/offline mode)
+ ) Submit Tx -  Submit a signed transaction file (hybrid/offline mode)
+ ) Blocks    -  show core node leader slots
+ ) Update    -  update cntools script and library config files
+ ) Backup    -  backup & restore of wallet/pool/config
+ ) Refresh   -  reload home screen content
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                                                  Epoch 87 - 114h:02m:21s until next
+ What would you like to do?
+
+  [w] Wallet
+  [f] Funds
+  [p] Pool
+  [s] Sign Tx
+  [t] Submit Tx
   [b] Blocks
   [u] Update
   [z] Backup & Restore

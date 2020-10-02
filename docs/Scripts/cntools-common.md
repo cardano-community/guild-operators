@@ -1,4 +1,6 @@
-This chapter describes some common tasks for wallet and pool creation.  
+!> Note that if you'd like to use Import function to import a Daedalus/Yoroi based 15 or 24 word wallet seed, please ensure that you've rebuilt your `cardano-node` using instructions [here]() or alternately ensure that `cardano-address` and `bech32` are available in your $PATH environment variable.
+
+This chapter describes some common tasks for wallet and pool creation when running CNTools in ONLINE mode only.  
 CNTools contains more functionality not described here. 
 
 Step by Step guide to create a pool with CNTools
@@ -12,23 +14,27 @@ Step by Step guide to create a pool with CNTools
 
 **1.** `Choose Wallet [w]` and you will be presented with the following menu:
 ```
-  >> WALLET
+ >> WALLET
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  Wallet Management
 
  ) New      -  create a new wallet
+ ) Import   -  import a Daedalus/Yoroi 15/24 word Shelley mnemonic created wallet
+ ) Register -  register a wallet on chain (hybrid/offline mode)
  ) List     -  list all available wallets in a compact view
  ) Show     -  show detailed view of a specific wallet
  ) Remove   -  remove a wallet
  ) Decrypt  -  remove write protection and decrypt wallet
  ) Encrypt  -  encrypt wallet keys and make all files immutable
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- Select wallet operation
+ Select Wallet operation
 
   [n] New
+  [i] Import
+  [r] Register
   [l] List
   [s] Show
-  [r] Remove
+  [x] Remove
   [d] Decrypt
   [e] Encrypt
   [h] Home

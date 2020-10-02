@@ -5,6 +5,28 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.0.0] - 2020-10-05
+
+> This is a major release with a lot of changes. It is highly recommended that you familiarise yourself with the usage for Hybrid or Online v/s Offline mode on a testnet environment before doing it on production.
+
+##### Added
+- Allow CNTools to operate in offline mode. Offline features include:
+  - Simplified Walet Show/List menu
+  - Wallet delete without balance check option
+  - Pool KES Rotation
+  - Sign a staging transaction.
+- Allow creation of staging tx files using ttl as input in an online/offline-hybrid mode, that can be sent to offline server to sign.
+  - To Transfer Funds
+  - Withdraw Rewards
+  - Delegate
+  - Register/Modify/Retire pool
+- Allow import of a signed transaction to submit in online mode
+- Allow import of 15/24 words based wallets. Note that you'd need `cardano-address` and `bech32` in yout $PATH to use this feature (available if you rebuild `cardano-node` using updated `cabal-build-all.sh`), reusing [guide from @ilap](https://gist.github.com/ilap/3fd57e39520c90f084d25b0ef2b96894).
+
+##### Fixed
+- Check `pool >> show` stake distribution showing up as always 0.
+
+
 ## [5.4.1] - 2020-09-10
 
 ##### Fixed
