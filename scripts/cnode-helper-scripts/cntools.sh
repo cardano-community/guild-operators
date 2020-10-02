@@ -288,7 +288,7 @@ case $OPERATION in
   say " Wallet Management"
   echo
   say " ) New      -  create a new wallet"
-  say " ) Import   -  import a Daedalus/Yoroi 24 word Shelley mnemonic created wallet"
+  say " ) Import   -  import a Daedalus/Yoroi 24 or 15 word Shelley mnemonic created wallet"
   say " ) Register -  register a wallet on chain (hybrid/offline mode)"
   say " ) List     -  list all available wallets in a compact view"
   say " ) Show     -  show detailed view of a specific wallet"
@@ -393,11 +393,11 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    read -r -p "24 word mnemonic(space separated): " mnemonic
+    read -r -p "24 or 15 word mnemonic(space separated): " mnemonic
     echo
     IFS=" " read -r -a words <<< "${mnemonic}"
-    if [[ ${#words[@]} -ne 24 ]]; then
-      say "${RED}ERROR${NC}: 24 words expected, found ${RED}${#words[@]}${NC}"
+    if [[ ${#words[@]} -ne 24 ]] && [[ ${#words[@]} -ne 15 ]]; then
+      say "${RED}ERROR${NC}: 24 or 15 words expected, found ${RED}${#words[@]}${NC}"
       echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
       waitForInput && continue
     fi
@@ -481,7 +481,7 @@ EOF
     say " ${CYAN}>${NC} Only spend Ada from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
     echo
     say "Some of the advantages of using a mnemonic imported wallet instead of CLI are:"
-    say " ${CYAN}>${NC} Wallet can be restored from saved 24 word mnemonic if keys are lost/deleted"
+    say " ${CYAN}>${NC} Wallet can be restored from saved 24 or 15 word mnemonic if keys are lost/deleted"
     say " ${CYAN}>${NC} Track rewards in Daedalus/Yoroi"
     echo
     say "Please read more about HD wallets at:"
