@@ -3144,53 +3144,62 @@ EOF
          say "${backup_path}"
          waitForInput && continue
        fi
+       
+       missing_keys="false"
+       excluded_files=()
+       say "Include private keys in backup?"
+       say "- No  > create a backup excluding wallets ${WALLET_PAY_SK_FILENAME}/${WALLET_STAKE_SK_FILENAME} and pools ${POOL_COLDKEY_SK_FILENAME}"
+       say "- Yes > create a backup including all available files"
+       select_opt "[n] No" "[y] Yes"
+       case $? in
+         0) excluded_files=(
+              "--delete *${WALLET_PAY_SK_FILENAME}"
+              "--delete *${WALLET_STAKE_SK_FILENAME}"
+              "--delete *${POOL_COLDKEY_SK_FILENAME}"
+            )
+            backup_file="${backup_path}online_cntools-$(date '+%Y%m%d%H%M%S').tar"
+            ;;
+         1) backup_file="${backup_path}offline_cntools-$(date '+%Y%m%d%H%M%S').tar" ;;
+       esac
+       echo
+       
+       script_path="$( cd "$(dirname "$0")" &>/dev/null; pwd -P )"
        backup_list=(
          "${WALLET_FOLDER}"
          "${POOL_FOLDER}"
          "${BLOCK_LOG_DIR}"
-         "$(dirname $0)"/env
-         "$(dirname $0)"/cntools.config
+         "${script_path}/env"
+         "${script_path}/cntools.config"
        )
-       backup_file="${backup_path}cntools-$(date '+%Y%m%d%H%M%S').tgz"
-       if ! tar cfz "${backup_file}" --files-from <(ls -d "${backup_list[@]}" 2>/dev/null) &>/dev/null; then
+       say "Backup job include:"
+       for item in "${backup_list[@]}"; do
+         say "${item}"
+       done
+       echo
+
+       if ! tar cf "${backup_file}" --files-from <(ls -d "${backup_list[@]}" 2>/dev/null) &>/dev/null; then
          say "${RED}ERROR${NC}: failure during backup creation :("
          waitForInput && continue
        fi
-       say "Encrypt backup?"
-       select_opt "[y] Yes" "[n] No"
-       case $? in
-         0) if getPassword confirm; then # $password variable populated by getPassword function
-              encryptFile "${backup_file}" "${password}"
-              backup_file="${backup_file}.gpg"
-              unset password
-            else
-              say "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
-            fi
-            ;;
-         1) : ;; # do nothing
-       esac
-       # Start by checking that all wallets contain signing keys and pools cold keys
-       missing_keys="false"
-       while IFS= read -r -d '' wallet; do
-         wallet_name=$(basename ${wallet})
-         [[ -z "$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name "${WALLET_PAY_SK_FILENAME}*" -print)" ]] && \
-           say "${ORANGE}WARN${NC}: Wallet ${GREEN}${wallet_name}${NC} missing file ${WALLET_PAY_SK_FILENAME}" && missing_keys="true"
-         [[ -z "$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name "${WALLET_STAKE_SK_FILENAME}*" -print)" ]] && \
-           say "${ORANGE}WARN${NC}: Wallet ${GREEN}${wallet_name}${NC} missing file ${WALLET_STAKE_SK_FILENAME}" && missing_keys="true"
-       done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-       while IFS= read -r -d '' pool; do
-         pool_name=$(basename ${pool})
-         [[ -z "$(find "${pool}" -mindepth 1 -maxdepth 1 -type f -name "${POOL_COLDKEY_VK_FILENAME}*" -print)" ]] && \
-           say "${ORANGE}WARN${NC}: Pool ${GREEN}${pool_name}${NC} missing file ${POOL_COLDKEY_VK_FILENAME}" && missing_keys="true"
-         [[ -z "$(find "${pool}" -mindepth 1 -maxdepth 1 -type f -name "${POOL_COLDKEY_SK_FILENAME}*" -print)" ]] && \
-           say "${ORANGE}WARN${NC}: Pool ${GREEN}${pool_name}${NC} missing file ${POOL_COLDKEY_SK_FILENAME}" && missing_keys="true"
-       done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-       if [[ ${missing_keys} = "true" ]]; then
-         echo && say "${ORANGE}There are wallets and/or pools with missing keys.\nIf removed in a previous backup, make sure to keep that master backup safe!${NC}"
-         echo && say "Incremental backup file ${backup_file} successfully created" "log"
+       if [[ ${#excluded_files[@]} -gt 0 ]]; then
+         tar --wildcards --file="${backup_file}" ${excluded_files[*]} &>/dev/null
+         gzip "${backup_file}" && backup_file+=".gz"
        else
-         say "Backup file ${backup_file} successfully created" "log"
-         say "\nDo you want to delete private keys?"
+         gzip "${backup_file}" && backup_file+=".gz"
+         while IFS= read -r -d '' wallet; do # check for missing signing keys
+           wallet_name=$(basename ${wallet})
+           [[ -z "$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name "${WALLET_PAY_SK_FILENAME}*" -print)" ]] && \
+             say "${ORANGE}WARN${NC}: Wallet ${GREEN}${wallet_name}${NC} missing file ${WALLET_PAY_SK_FILENAME}" && missing_keys="true"
+           [[ -z "$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name "${WALLET_STAKE_SK_FILENAME}*" -print)" ]] && \
+             say "${ORANGE}WARN${NC}: Wallet ${GREEN}${wallet_name}${NC} missing file ${WALLET_STAKE_SK_FILENAME}" && missing_keys="true"
+         done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+         while IFS= read -r -d '' pool; do
+           pool_name=$(basename ${pool})
+           [[ -z "$(find "${pool}" -mindepth 1 -maxdepth 1 -type f -name "${POOL_COLDKEY_SK_FILENAME}*" -print)" ]] && \
+             say "${ORANGE}WARN${NC}: Pool ${GREEN}${pool_name}${NC} missing file ${POOL_COLDKEY_SK_FILENAME}" && missing_keys="true"
+         done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+         [[ ${missing_keys} = "true" ]] && echo
+         say "Do you want to delete private keys?"
          select_opt "[n] No" "[y] Yes"
          case $? in
            0) : ;; # do nothing
@@ -3202,12 +3211,33 @@ EOF
               done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_STAKE_SK_FILENAME}*" -print0)
               while IFS= read -r -d '' file; do
                 safeDel "${file}"
-              done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_VK_FILENAME}*" -print0)
-              while IFS= read -r -d '' file; do
-                safeDel "${file}"
               done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}*" -print0)
               ;;
          esac
+         echo
+       fi
+       
+       say "Encrypt backup?"
+       select_opt "[y] Yes" "[n] No"
+       case $? in
+         0) echo
+            if getPassword confirm; then # $password variable populated by getPassword function
+              encryptFile "${backup_file}" "${password}"
+              backup_file="${backup_file}.gpg"
+              unset password
+            else
+              say "${RED}ERROR${NC}: password input aborted!"
+            fi
+            ;;
+         1) : ;; # do nothing
+       esac
+       echo
+       
+       if [[ ${missing_keys} = "true" ]]; then
+         say "${ORANGE}There are wallets and/or pools with missing keys.\nIf removed in a previous backup, make sure to keep that master backup safe!${NC}"
+         echo && say "Incremental backup file ${backup_file} successfully created" "log"
+       else
+         say "Backup file ${backup_file} successfully created" "log"
        fi
        ;;
     1) say "Backups created contain absolute path to files and directories"
