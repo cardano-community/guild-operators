@@ -1,5 +1,24 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034,SC2086,SC2230
+
+######################################
+# User Variables - Change as desired #
+# Leave as is if unsure              #
+######################################
+
+#CCLI="${HOME}/.cabal/bin/cardano-cli"			# Override automatic detection of path to cardano-cli executable
+#CNODE_HOME="/opt/cardano/cnode"			# Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
+#CNODE_PORT=6000					# Override automatic detection of node port
+#CONFIG="${CNODE_HOME}/files/config.json		# Override automatic detection of node config path
+#SOCKET=${CNODE_HOME}/sockets/node0.socket		# Override automatic detection of path to socket
+EKG_HOST=127.0.0.1                                      # Set node EKG host
+#EKG_PORT=12788                                         # Override automatic detection of node EKG port
+#BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"                # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
+
+######################################
+# Do NOT modify code below           #
+######################################
+
 CCLI=$(command -v cardano-cli)
 if [[ -z "${CCLI}" ]]; then
   if [[ -f "${HOME}/.cabal/bin/cardano-cli" ]]; then
@@ -11,10 +30,67 @@ if [[ -z "${CCLI}" ]]; then
     exit 1
   fi
 fi
-CNODE_HOME=/opt/cardano/cnode
-CONFIG=$CNODE_HOME/files/config.json
+
+[[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
+
+if [[ -z "${SOCKET}" ]]; then
+  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
+    export CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
+  else
+    echo "Node socket not set and automatic detection failed!"
+    exit 1
+  fi
+else
+  export CARDANO_NODE_SOCKET_PATH="${SOCKET}"
+fi
+
+if [[ -z "${CNODE_PORT}" ]]; then
+  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --port[[:space:]]([[:digit:]]+) ]]; then
+    CNODE_PORT=${BASH_REMATCH[1]}
+  else
+    echo "Node port not set and automatic detection failed!"
+    exit 1
+  fi
+fi
+
+if [[ -z "${CONFIG}" ]]; then
+  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --config[[:space:]]([^[:space:]]+) ]]; then
+    CONFIG=${BASH_REMATCH[1]}
+  else
+    echo "Node config not set and automatic detection failed!"
+    exit 1
+  fi
+fi
+
+if [[ ${EKG_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+  OIFS=$IFS
+  IFS='.'
+  EKG_OCTETS=(${EKG_HOST})
+  IFS=$OIFS
+  if ! [[ ${EKG_OCTETS[0]} -le 255 && ${EKG_OCTETS[1]} -le 255 && ${EKG_OCTETS[2]} -le 255 && ${EKG_OCTETS[3]} -le 255 ]]; then
+    echo "Not a valid IP range set for EKG host, please check configuration!"
+    exit 1
+  fi
+else
+  echo "Not a valid IP format set for EKG host, please check configuration!"
+  exit 1
+fi
+
+if [[ -z ${EKG_PORT} ]]; then
+  if ! EKG_PORT=$(jq -er '.hasEKG' "${CONFIG}" 2>/dev/null); then
+    echo "Could not get 'hasEKG' port from the node configuration file"
+    exit 1
+  fi
+elif [[ ! ${EKG_PORT} =~ ^[0-9]+$ ]]; then
+  echo "Please set a valid EKG port number!"
+  exit 1
+fi
+
 PROTOCOL=$(jq -r .Protocol "$CONFIG")
 [[ "${PROTOCOL}" = "Cardano" ]] && PROTOCOL_IDENTIFIER="--cardano-mode" || PROTOCOL_IDENTIFIER="--shelley-mode"
+
+[[ -z ${BLOCK_LOG_DIR} && -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"
+
 GENESIS_JSON=$CNODE_HOME/files/genesis.json
 NETWORKID=$(jq -r .networkId $GENESIS_JSON)
 BYRON_GENESIS_JSON=$CNODE_HOME/files/byron-genesis.json
