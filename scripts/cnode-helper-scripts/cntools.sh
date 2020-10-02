@@ -3163,13 +3163,12 @@ EOF
        esac
        echo
        
-       script_path="$( cd "$(dirname "$0")" &>/dev/null; pwd -P )"
        backup_list=(
          "${WALLET_FOLDER}"
          "${POOL_FOLDER}"
          "${BLOCK_LOG_DIR}"
-         "${script_path}/env"
-         "${script_path}/cntools.config"
+         "$(realpath $0)/env"
+         "$(realpath $0)/cntools.config"
        )
        say "Backup job include:"
        for item in "${backup_list[@]}"; do
