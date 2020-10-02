@@ -1,7 +1,8 @@
-!> - An average pool operator may not require cardano-wallet at all. Please verify if it is required for your use as mentioned [here](build.md#components)
+!> - An average pool operator may not require cardano-db-sync at all. Please verify if it is required for your use as mentioned [here](build.md#components)
 
 > Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
 >- Cardano DB Sync tool relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to [Sample Local PostgreSQL Server Deployment instructions](Appendix/postgres.md) for setting up Postgres instance.
+>- The instructions are not maintained daily, but will be with major releases (expect a bit of time post new release to get those updated)
 
 #### Build Instructions {docsify-ignore}
 
@@ -27,7 +28,7 @@ git pull
 # echo -e "package cryptonite\n  flags: -use_target_attributes" >> cabal.project.local
 echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > cabal.project.local
 # Replace master with appropriate tag if you'd like to avoid compiling against master
-git checkout master
+git checkout 5.0.1
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
 The above would copy the binaries into `~/.cabal/bin` folder.
