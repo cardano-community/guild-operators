@@ -6,11 +6,11 @@
 # Leave as is if unsure              #
 ######################################
 
-#CCLI="${HOME}/.cabal/bin/cardano-cli"			# Override automatic detection of path to cardano-cli executable
-#CNODE_HOME="/opt/cardano/cnode"			# Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
-#CNODE_PORT=6000					# Override automatic detection of node port
-#CONFIG="${CNODE_HOME}/files/config.json		# Override automatic detection of node config path
-#SOCKET=${CNODE_HOME}/sockets/node0.socket		# Override automatic detection of path to socket
+#CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of path to cardano-cli executable
+#CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
+#CNODE_PORT=6000                                        # Override automatic detection of node port
+#CONFIG="${CNODE_HOME}/files/config.json                # Override automatic detection of node config path
+#SOCKET=${CNODE_HOME}/sockets/node0.socket              # Override automatic detection of path to socket
 EKG_HOST=127.0.0.1                                      # Set node EKG host
 #EKG_PORT=12788                                         # Override automatic detection of node EKG port
 #BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"                # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
@@ -86,16 +86,22 @@ elif [[ ! ${EKG_PORT} =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
-PROTOCOL=$(jq -r .Protocol "$CONFIG")
+if ! GENESIS_JSON=$(jq -er '.ShelleyGenesisFile' "${CONFIG}" 2>/dev/null); then
+  echo "Could not get 'ShelleyGenesisFile' from the node configuration file"
+  exit 1
+fi
+
+if ! BYRON_GENESIS_JSON=$(jq -er '.ByronGenesisFile' "${CONFIG}" 2>/dev/null); then
+  echo "Could not get 'ByronGenesisFile' from the node configuration file"
+  exit 1
+fi
+
+PROTOCOL=$(jq -r .Protocol "${CONFIG}")
+NETWORKID=$(jq -r .networkId ${GENESIS_JSON})
+MAGIC=$(jq -r .protocolMagicId < ${GENESIS_JSON})
+NWMAGIC=$(jq -r .networkMagic < ${GENESIS_JSON})
 [[ "${PROTOCOL}" = "Cardano" ]] && PROTOCOL_IDENTIFIER="--cardano-mode" || PROTOCOL_IDENTIFIER="--shelley-mode"
-
-[[ -z ${BLOCK_LOG_DIR} && -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"
-
-GENESIS_JSON=$CNODE_HOME/files/genesis.json
-NETWORKID=$(jq -r .networkId $GENESIS_JSON)
-BYRON_GENESIS_JSON=$CNODE_HOME/files/byron-genesis.json
-export CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket
-MAGIC=$(jq -r .protocolMagicId < $GENESIS_JSON)
-NWMAGIC=$(jq -r .networkMagic < $GENESIS_JSON)
 [[ "${NETWORKID}" = "Mainnet" ]] && HASH_IDENTIFIER="--mainnet" || HASH_IDENTIFIER="--testnet-magic ${NWMAGIC}"
 [[ "${NWMAGIC}" = "764824073" ]] && NETWORK_IDENTIFIER="--mainnet" || NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+
+[[ -z ${BLOCK_LOG_DIR} && -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"
