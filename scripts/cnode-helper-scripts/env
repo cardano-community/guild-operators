@@ -37,7 +37,7 @@ if [[ -z "${SOCKET}" ]]; then
   if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
     export CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
   else
-    echo "Node socket not set and automatic detection failed!"
+    echo "Node socket not set in env file and automatic detection failed!"
     exit 1
   fi
 else
@@ -48,7 +48,7 @@ if [[ -z "${CNODE_PORT}" ]]; then
   if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --port[[:space:]]([[:digit:]]+) ]]; then
     CNODE_PORT=${BASH_REMATCH[1]}
   else
-    echo "Node port not set and automatic detection failed!"
+    echo "Node port not set in env file and automatic detection failed!"
     exit 1
   fi
 fi
@@ -57,7 +57,7 @@ if [[ -z "${CONFIG}" ]]; then
   if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --config[[:space:]]([^[:space:]]+) ]]; then
     CONFIG=${BASH_REMATCH[1]}
   else
-    echo "Node config not set and automatic detection failed!"
+    echo "Node config not set in env file and automatic detection failed!"
     exit 1
   fi
 fi
@@ -68,11 +68,11 @@ if [[ ${EKG_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
   EKG_OCTETS=(${EKG_HOST})
   IFS=$OIFS
   if ! [[ ${EKG_OCTETS[0]} -le 255 && ${EKG_OCTETS[1]} -le 255 && ${EKG_OCTETS[2]} -le 255 && ${EKG_OCTETS[3]} -le 255 ]]; then
-    echo "Not a valid IP range set for EKG host, please check configuration!"
+    echo "Not a valid IP range set for EKG host, please check env file!"
     exit 1
   fi
 else
-  echo "Not a valid IP format set for EKG host, please check configuration!"
+  echo "Not a valid IP format set for EKG host, please check env file!"
   exit 1
 fi
 
@@ -82,21 +82,30 @@ if [[ -z ${EKG_PORT} ]]; then
     exit 1
   fi
 elif [[ ! ${EKG_PORT} =~ ^[0-9]+$ ]]; then
-  echo "Please set a valid EKG port number!"
+  echo "Please set a valid EKG port number in env file!"
   exit 1
 fi
 
 if ! GENESIS_JSON=$(jq -er '.ShelleyGenesisFile' "${CONFIG}" 2>/dev/null); then
   echo "Could not get 'ShelleyGenesisFile' from the node configuration file"
   exit 1
+else
+  # if relative path is used, assume same parent dir as config
+  [[ ! ${GENESIS_JSON} =~ ^/ ]] && GENESIS_JSON="$(dirname "${CONFIG}")/${GENESIS_JSON}"
+  [[ ! -f "${GENESIS_JSON}" ]] && echo "Shelley genesis file not found: ${GENESIS_JSON}" && exit 1
 fi
 
 if ! BYRON_GENESIS_JSON=$(jq -er '.ByronGenesisFile' "${CONFIG}" 2>/dev/null); then
   echo "Could not get 'ByronGenesisFile' from the node configuration file"
   exit 1
+else
+  # if relative path is used, assume same parent dir as config
+  [[ ! ${BYRON_GENESIS_JSON} =~ ^/ ]] && BYRON_GENESIS_JSON="$(dirname "${CONFIG}")/${BYRON_GENESIS_JSON}"
+  [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && exit 1
 fi
 
 CNODE_PID=$(ps -ef | grep "[-]-port ${CNODE_PORT}" | awk '{print $2}')
+[[ -z ${CNODE_PID} ]] && echo "Failed to locate cardano-node process ID, make sure CNODE_PORT is correctly set in env file!" && exit 1 
 
 PROT_PARAMS="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
 [[ -n "${PROT_PARAMS}" ]] && DECENTRALISATION=$(jq -r .decentralisationParam <<< ${PROT_PARAMS}) || DECENTRALISATION=0.5
@@ -107,7 +116,13 @@ MAGIC=$(jq -r .protocolMagicId < ${GENESIS_JSON})
 NWMAGIC=$(jq -r .networkMagic < ${GENESIS_JSON})
 [[ "${PROTOCOL}" = "Cardano" ]] && PROTOCOL_IDENTIFIER="--cardano-mode" || PROTOCOL_IDENTIFIER="--shelley-mode"
 [[ "${NETWORKID}" = "Mainnet" ]] && HASH_IDENTIFIER="--mainnet" || HASH_IDENTIFIER="--testnet-magic ${NWMAGIC}"
-[[ "${NWMAGIC}" = "764824073" ]] && NETWORK_IDENTIFIER="--mainnet" || NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+if [[ "${NWMAGIC}" = "764824073"; then
+  NETWORK_IDENTIFIER="--mainnet"
+  NETWORK_NAME="Mainnet"
+else
+  NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+  [[ "${NWMAGIC}" = "1097911063" ]] && NETWORK_NAME="Testnet" || NETWORK_NAME="Custom"
+fi
 
 SHELLEY_GENESIS_START_SEC=$(date --date="$(jq -r .systemStart "${GENESIS_JSON}")" +%s)
 EPOCH_LENGTH=$(jq -r .epochLength "${GENESIS_JSON}")

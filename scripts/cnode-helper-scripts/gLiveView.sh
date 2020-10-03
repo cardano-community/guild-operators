@@ -6,17 +6,8 @@
 # Leave as is if unsure              #
 ######################################
 
-#CCLI=$HOME/.cabal/bin/cardano-cli         # Override automatic detection of path to cardano-cli executable
-#CNODE_HOME="/opt/cardano/cnode"           # Override default CNODE_HOME path
-#SOCKET=${CNODE_HOME}/sockets/node0.socket # Override automatic detection of path to socket
-#CNODE_PORT=6000                           # Override automatic detection of node port
 NODE_NAME="Cardano Node"                   # Change your node's name prefix here, keep at or below 19 characters!
 REFRESH_RATE=2                             # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
-#CONFIG="${CNODE_HOME}/files/config.json"  # Override automatic detection of node config path
-EKG_HOST=127.0.0.1                         # Set node EKG host
-#EKG_PORT=12788                            # Override automatic detection of node EKG port
-#PROTOCOL="Cardano"                        # Default: Combinator network (leave commented if unsure)
-#BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"   # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
 LEGACY_MODE=false                          # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
 THEME="dark"                               # dark  = suited for terminals with a dark background
                                            # light = suited for terminals with a bright background
@@ -58,7 +49,10 @@ setTheme() {
 # overwritten during future upgrades   #
 ########################################
 
-GLV_VERSION=v1.6
+GLV_VERSION=v1.7
+
+# get common env variables
+. "$(dirname $0)"/env
 
 tput smcup # Save screen
 tput civis # Disable cursor
@@ -147,96 +141,20 @@ else
 fi
 
 #######################################################
-# Automatically grab a few parameters                 #
+# Validate config variables                           #
 # Can be overridden in 'User Variables' section above #
 #######################################################
-
-# The commands below will try to detect the information assuming you run single node on a machine. 
-# Please override values if they dont match your system in the 'User Variables' section above
-if [[ -z "${CCLI}" ]]; then
-  CCLI=$(command -v cardano-cli)
-  [[ -z "${CCLI}" && -f "${HOME}/.cabal/bin/cardano-cli" ]] && CCLI="${HOME}/.cabal/bin/cardano-cli"
-  [[ -z "${CCLI}" ]] && myExit 1 "You do not have a cardano-cli binary available in \$PATH. Please make it available before using gLiveView."
-fi
-
-[[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
-
-if [[ -z "${SOCKET}" ]]; then
-  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
-    export CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
-  else
-    myExit 1 "Node socket not set and automatic detection failed!"
-  fi
-else
-  export CARDANO_NODE_SOCKET_PATH="${SOCKET}"
-fi
-
-if [[ -z "${CNODE_PORT}" ]]; then
-  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --port[[:space:]]([[:digit:]]+) ]]; then
-    CNODE_PORT=${BASH_REMATCH[1]}
-  else
-    myExit 1 "Node port not set and automatic detection failed!"
-  fi
-fi
 
 [[ ${#NODE_NAME} -gt 19 ]] && myExit 1 "Please keep node name at or below 19 characters in length!"
 
 [[ ! ${REFRESH_RATE} =~ ^[0-9]+$ ]] && myExit 1 "Please set a valid refresh rate number!"
 
-if [[ -z "${CONFIG}" ]]; then
-  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --config[[:space:]]([^[:space:]]+) ]]; then
-    CONFIG=${BASH_REMATCH[1]}
-  else
-    myExit 1 "Node config not set and automatic detection failed!"
-  fi
-fi
-
-if [[ ${EKG_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-  OIFS=$IFS
-  IFS='.'
-  EKG_OCTETS=(${EKG_HOST})
-  IFS=$OIFS
-  if ! [[ ${EKG_OCTETS[0]} -le 255 && ${EKG_OCTETS[1]} -le 255 && ${EKG_OCTETS[2]} -le 255 && ${EKG_OCTETS[3]} -le 255 ]]; then
-    myExit 1 "Not a valid IP range set for EKG host, please check configuration!"
-  fi
-else
-  myExit 1 "Not a valid IP format set for EKG host, please check configuration!"
-fi
-
-if [[ -z ${EKG_PORT} ]]; then
-  if ! EKG_PORT=$(jq -er '.hasEKG' "${CONFIG}" 2>/dev/null); then
-    myExit 1 "Could not get 'hasEKG' port from the node configuration file"
-  fi
-elif [[ ! ${EKG_PORT} =~ ^[0-9]+$ ]]; then
-  myExit 1 "Please set a valid EKG port number!"
-fi
-
-if [[ -z ${PROTOCOL} ]]; then
-  if ! PROTOCOL=$(jq -er '.Protocol' "${CONFIG}" 2>/dev/null); then
-    myExit 1 "Could not get 'Protocol' from the node configuration file"
-  fi
-  [[ "${PROTOCOL}" = "Cardano" ]] && PROTOCOL_IDENTIFIER="--cardano-mode" || PROTOCOL_IDENTIFIER="--shelley-mode"
-fi
-
-[[ -z ${BLOCK_LOG_DIR} && -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"
-
-
 # Style
 width=63
 second_col=$((width/2 + 3))
-FG_BLACK=$(tput setaf 0)
-FG_RED=$(tput setaf 1)
-FG_GREEN=$(tput setaf 2)
-FG_YELLOW=$(tput setaf 3)
-FG_BLUE=$(tput setaf 4)
-FG_MAGENTA=$(tput setaf 5)
-FG_CYAN=$(tput setaf 6)
-FG_WHITE=$(tput setaf 7)
-STANDOUT=$(tput smso)
-BOLD=$(tput bold)
+NC=$(tput sgr0 && printf "${style_base}") # override default NC in env
 
 setTheme # call function to set theme colors
-NC=$(tput sgr0 && printf "${style_base}") # reset style and set base color
 
 # Progressbar
 if [[ ${LEGACY_MODE} = "true" ]]; then
@@ -335,12 +253,12 @@ getShelleyTransitionEpoch() {
   byron_epochs=${epochnum}
   shelley_epochs=0
   while [[ ${byron_epochs} -ge 0 ]]; do
-    calc_slot=$(( (byron_epochs*byron_epoch_length) + (shelley_epochs*epoch_length) + slot_in_epoch ))
+    calc_slot=$(( (byron_epochs * BYRON_EPOCH_LENGTH) + (shelley_epochs * EPOCH_LENGTH) + slot_in_epoch ))
     [[ ${calc_slot} -eq ${slotnum} ]] && break
     ((byron_epochs--))
     ((shelley_epochs++))
   done
-  if [[ "${nwmagic}" = "764824073" ]]; then
+  if [[ "${NWMAGIC}" = "764824073" ]]; then
     shelley_transition_epoch=208
   elif [[ ${calc_slot} -ne ${slotnum} || ${shelley_epochs} -eq 0 ]]; then
     if [[ $1 -ne 1 ]]; then
@@ -366,10 +284,10 @@ getEpoch() {
   current_time_sec=$(date -u +%s)
   if [[ "${PROTOCOL}" = "Cardano" ]]; then
     [[ shelley_transition_epoch -eq -1 ]] && echo 0 && return
-    byron_end_time=$(( byron_genesis_start_sec + ( shelley_transition_epoch * byron_epoch_length * byron_slot_length ) ))
-    echo $(( shelley_transition_epoch + ( (current_time_sec - byron_end_time) / slot_length / epoch_length ) ))
+    byron_end_time=$(( BYRON_GENESIS_START_SEC + ( shelley_transition_epoch * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH ) ))
+    echo $(( shelley_transition_epoch + ( (current_time_sec - byron_end_time) / SLOT_LENGTH / EPOCH_LENGTH ) ))
   else
-    echo $(( (current_time_sec - shelley_genesis_start_sec) / slot_length / epoch_length ))
+    echo $(( (current_time_sec - SHELLEY_GENESIS_START_SEC) / SLOT_LENGTH / EPOCH_LENGTH ))
   fi
 }
 
@@ -379,9 +297,9 @@ timeUntilNextEpoch() {
   current_time_sec=$(date -u +%s)
   if [[ "${PROTOCOL}" = "Cardano" ]]; then
     [[ shelley_transition_epoch -eq -1 ]] && echo 0 && return
-    echo $(( (shelley_transition_epoch * byron_slot_length * byron_epoch_length) + ( ( $(getEpoch) + 1 - shelley_transition_epoch ) * slot_length * epoch_length ) - current_time_sec + byron_genesis_start_sec ))
+    echo $(( (shelley_transition_epoch * BYRON_SLOT_LENGTH * BYRON_EPOCH_LENGTH) + ( ( $(getEpoch) + 1 - shelley_transition_epoch ) * SLOT_LENGTH * EPOCH_LENGTH ) - current_time_sec + BYRON_GENESIS_START_SEC ))
   else
-    echo $(( ( ( ( (current_time_sec - shelley_genesis_start_sec) / slot_length / epoch_length ) + 1 ) * slot_length * epoch_length ) - current_time_sec + shelley_genesis_start_sec ))
+    echo $(( ( ( ( (current_time_sec - SHELLEY_GENESIS_START_SEC) / SLOT_LENGTH / EPOCH_LENGTH ) + 1 ) * SLOT_LENGTH * EPOCH_LENGTH ) - current_time_sec + SHELLEY_GENESIS_START_SEC ))
   fi
 }
 
@@ -392,18 +310,18 @@ getSlotTipRef() {
   if [[ "${PROTOCOL}" = "Cardano" ]]; then
     [[ shelley_transition_epoch -eq -1 ]] && echo 0 && return
     # Combinator network
-    byron_slots=$(( shelley_transition_epoch * byron_epoch_length )) # since this point will only be reached once we're in Shelley phase
-    byron_end_time=$(( byron_genesis_start_sec + ( shelley_transition_epoch * byron_epoch_length * byron_slot_length ) ))
+    byron_slots=$(( shelley_transition_epoch * BYRON_EPOCH_LENGTH )) # since this point will only be reached once we're in Shelley phase
+    byron_end_time=$(( BYRON_GENESIS_START_SEC + ( shelley_transition_epoch * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH ) ))
     if [[ "${current_time_sec}" -lt "${byron_end_time}" ]]; then
       # In Byron phase
-      echo $(( ( current_time_sec - byron_genesis_start_sec ) / byron_slot_length ))
+      echo $(( ( current_time_sec - BYRON_GENESIS_START_SEC ) / BYRON_SLOT_LENGTH ))
     else
       # In Shelley phase
-      echo $(( byron_slots + (( current_time_sec - byron_end_time ) / slot_length ) ))
+      echo $(( byron_slots + (( current_time_sec - byron_end_time ) / SLOT_LENGTH ) ))
     fi
   else
     # Shelley Mode only, no Byron slots
-    echo $(( ( current_time_sec - shelley_genesis_start_sec ) / slot_length ))
+    echo $(( ( current_time_sec - SHELLEY_GENESIS_START_SEC ) / SLOT_LENGTH ))
   fi
 }
 
@@ -412,15 +330,15 @@ getSlotTipRef() {
 kesExpiration() {
   current_time_sec=$(date -u +%s)
   tip_ref=$(getSlotTipRef)
-  expiration_time_sec=$(( current_time_sec - ( slot_length * (tip_ref % slots_per_kes_period) ) + ( slot_length * slots_per_kes_period * remaining_kes_periods ) ))
+  expiration_time_sec=$(( current_time_sec - ( SLOT_LENGTH * (tip_ref % SLOTS_PER_KES_PERIOD) ) + ( SLOT_LENGTH * SLOTS_PER_KES_PERIOD * remaining_kes_periods ) ))
   kes_expiration=$(date '+%F %T Z' --date=@${expiration_time_sec})
 }
 
 # Command    : slotInterval
 # Description: Calculate expected interval between blocks
 slotInterval() {
-  [[ $(echo "${decentralisation} < 0.5" | bc) -eq 1 ]] && local d=0.5 || local d=${decentralisation}
-  echo "(${slot_length} / ${active_slots_coeff} / ${d}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}'
+  [[ $(echo "${DECENTRALISATION} < 0.5" | bc) -eq 1 ]] && local d=0.5 || local d=${DECENTRALISATION}
+  echo "(${SLOT_LENGTH} / ${ACTIVE_SLOTS_COEFF} / ${d}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}'
 }
 
 # Command    : checkPeers [direction: in|out]
@@ -436,9 +354,9 @@ checkPeers() {
   direction=$1
 
   if [[ ${direction} = "out" ]]; then
-    netstatPeers=$(ss -tnp state established 2>/dev/null | grep "${pid}," | awk -v port=":${CNODE_PORT}" '$3 !~ port {print $4}')
+    netstatPeers=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 !~ port {print $4}')
   else
-    netstatPeers=$(ss -tnp state established 2>/dev/null | grep "${pid}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print $4}')
+    netstatPeers=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print $4}')
   fi
   [[ -z ${netstatPeers} ]] && return
   
@@ -512,8 +430,6 @@ checkPeers() {
 version=$("$(command -v cardano-node)" version)
 node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
 node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
-pid=$(ps -ef | grep "[-]-port ${CNODE_PORT}" | awk '{print $2}')
-[[ -z ${pid} ]] && myExit 1 "Failed to locate cardano-node process ID, make sure CNODE_PORT is correctly set in script!"
 check_peers="false"
 show_peers="false"
 selected_direction="out"
@@ -523,37 +439,8 @@ curr_epoch=${epochnum}
 slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
 slotnum=$(jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${data}")
 remaining_kes_periods=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
-
+[[ "${PROTOCOL}" = "Cardano" ]] && getShelleyTransitionEpoch || shelley_transition_epoch=-2
 #####################################
-# Static genesis variables          #
-#####################################
-shelley_genesis_file=$(jq -r .ShelleyGenesisFile "${CONFIG}")
-[[ ! ${shelley_genesis_file} =~ ^/ ]] && shelley_genesis_file="$(dirname "${CONFIG}")/${shelley_genesis_file}"
-byron_genesis_file=$(jq -r .ByronGenesisFile "${CONFIG}")
-[[ ! ${byron_genesis_file} =~ ^/ ]] && byron_genesis_file="$(dirname "${CONFIG}")/${byron_genesis_file}"
-nwmagic=$(jq -r .networkMagic < "${shelley_genesis_file}")
-[[ "${nwmagic}" == "764824073" ]] && NWNAME="Mainnet" || { [[ "${nwmagic}" = "1097911063" ]] && NWNAME="Testnet" || NWNAME="Custom"; }
-[[ "${nwmagic}" == "764824073" ]] && NETWORK_IDENTIFIER="--mainnet" || NETWORK_IDENTIFIER="--testnet-magic ${nwmagic}"
-shelley_genesis_start=$(jq -r .systemStart "${shelley_genesis_file}")
-shelley_genesis_start_sec=$(date --date="${shelley_genesis_start}" +%s)
-epoch_length=$(jq -r .epochLength "${shelley_genesis_file}")
-slot_length=$(jq -r .slotLength "${shelley_genesis_file}")
-active_slots_coeff=$(jq -r .activeSlotsCoeff "${shelley_genesis_file}")
-slots_per_kes_period=$(jq -r .slotsPerKESPeriod "${shelley_genesis_file}")
-max_kes_evolutions=$(jq -r .maxKESEvolutions "${shelley_genesis_file}")
-if [[ "${PROTOCOL}" = "Cardano" ]]; then
-  byron_genesis_start_sec=$(jq -r .startTime "${byron_genesis_file}")
-  byron_k=$(jq -r .protocolConsts.k "${byron_genesis_file}")
-  byron_slot_length=$(( $(jq -r .blockVersionData.slotDuration "${byron_genesis_file}") / 1000 ))
-  byron_epoch_length=$(( 10 * byron_k ))
-  getShelleyTransitionEpoch
-else
-  shelley_transition_epoch=-2
-fi
-#####################################
-
-prot_params="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
-[[ -n "${prot_params}" ]] && decentralisation=$(jq -r .decentralisationParam <<< ${prot_params}) || decentralisation=0.5
 
 clear
 tlines=$(tput lines) # set initial terminal lines
@@ -606,8 +493,8 @@ while true; do
     fail_count=0
   fi
   if [[ ${show_peers} = "false" ]]; then
-    peers_in=$(ss -tnp state established 2>/dev/null | grep "${pid}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
-    peers_out=$(ss -tnp state established 2>/dev/null | grep "${pid}," | awk -v port=":${CNODE_PORT}" '$3 !~ port {print}' | wc -l)
+    peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
+    peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 !~ port {print}' | wc -l)
     blocknum=$(jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${data}")
     epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
     slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
@@ -637,14 +524,14 @@ while true; do
     fi
     if [[ ${curr_epoch} -ne ${epochnum} ]]; then # only update on new epoch to save on processing
       curr_epoch=${epochnum}
-      prot_params="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
-      [[ -n "${prot_params}" ]] && decentralisation=$(jq -r .decentralisationParam <<< ${prot_params}) || decentralisation=0.5
+      PROT_PARAMS="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
+      [[ -n "${PROT_PARAMS}" ]] && DECENTRALISATION=$(jq -r .decentralisationParam <<< ${PROT_PARAMS}) || DECENTRALISATION=0.5
     fi
   fi
 
-  header_length=$(( ${#NODE_NAME} + ${#nodemode} + ${#node_version} + ${#node_rev} + ${#NWNAME} + 19 ))
+  header_length=$(( ${#NODE_NAME} + ${#nodemode} + ${#node_version} + ${#node_rev} + ${#NETWORK_NAME} + 19 ))
   [[ ${header_length} -gt ${width} ]] && header_padding=0 || header_padding=$(( (width - header_length) / 2 ))
-  printf "%${header_padding}s > ${style_values_2}%s${NC} - ${style_info}(%s - %s)${NC} : ${style_values_1}%s${NC} [${style_values_1}%s${NC}] < \n" "" "${NODE_NAME}" "${nodemode}" "${NWNAME}" "${node_version}" "${node_rev}" && ((line++))
+  printf "%${header_padding}s > ${style_values_2}%s${NC} - ${style_info}(%s - %s)${NC} : ${style_values_1}%s${NC} [${style_values_1}%s${NC}] < \n" "" "${NODE_NAME}" "${nodemode}" "${NETWORK_NAME}" "${node_version}" "${node_rev}" && ((line++))
 
   ## main section ##
   printf "${tdivider}\n" && ((line++))
@@ -839,9 +726,9 @@ while true; do
     fi
   else
     if [[ ${shelley_transition_epoch} -eq -2 ]] || [[ ${shelley_transition_epoch} -ne -1 && ${epochnum} -ge ${shelley_transition_epoch} ]]; then
-      epoch_progress=$(echo "(${slot_in_epoch}/${epoch_length})*100" | bc -l)        # in Shelley era or Shelley only TestNet
+      epoch_progress=$(echo "(${slot_in_epoch}/${EPOCH_LENGTH})*100" | bc -l)        # in Shelley era or Shelley only TestNet
     else
-      epoch_progress=$(echo "(${slot_in_epoch}/${byron_epoch_length})*100" | bc -l)  # in Byron era
+      epoch_progress=$(echo "(${slot_in_epoch}/${BYRON_EPOCH_LENGTH})*100" | bc -l)  # in Byron era
     fi
     epoch_progress_1dec=$(printf "%2.1f" "${epoch_progress}")
     printf "${VL} Epoch ${style_values_1}%s${NC} [${style_values_1}%s%%${NC}] (node)%$((width-19-${#epochnum}-${#epoch_progress_1dec}))s${VL}\n" "${epochnum}" "${epoch_progress_1dec}" && ((line++))
