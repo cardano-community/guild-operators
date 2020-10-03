@@ -96,6 +96,11 @@ if ! BYRON_GENESIS_JSON=$(jq -er '.ByronGenesisFile' "${CONFIG}" 2>/dev/null); t
   exit 1
 fi
 
+CNODE_PID=$(ps -ef | grep "[-]-port ${CNODE_PORT}" | awk '{print $2}')
+
+PROT_PARAMS="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
+[[ -n "${PROT_PARAMS}" ]] && DECENTRALISATION=$(jq -r .decentralisationParam <<< ${PROT_PARAMS}) || DECENTRALISATION=0.5
+
 PROTOCOL=$(jq -r .Protocol "${CONFIG}")
 NETWORKID=$(jq -r .networkId ${GENESIS_JSON})
 MAGIC=$(jq -r .protocolMagicId < ${GENESIS_JSON})
@@ -103,5 +108,30 @@ NWMAGIC=$(jq -r .networkMagic < ${GENESIS_JSON})
 [[ "${PROTOCOL}" = "Cardano" ]] && PROTOCOL_IDENTIFIER="--cardano-mode" || PROTOCOL_IDENTIFIER="--shelley-mode"
 [[ "${NETWORKID}" = "Mainnet" ]] && HASH_IDENTIFIER="--mainnet" || HASH_IDENTIFIER="--testnet-magic ${NWMAGIC}"
 [[ "${NWMAGIC}" = "764824073" ]] && NETWORK_IDENTIFIER="--mainnet" || NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+
+SHELLEY_GENESIS_START_SEC=$(date --date=$(jq -r .systemStart "${GENESIS_JSON}") +%s)
+EPOCH_LENGTH=$(jq -r .epochLength "${GENESIS_JSON}")
+SLOT_LENGTH=$(jq -r .slotLength "${GENESIS_JSON}")
+ACTIVE_SLOTS_COEFF=$(jq -r .activeSlotsCoeff "${GENESIS_JSON}")
+SLOTS_PER_KES_PERIOD=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
+MAX_KES_EVOLUTIONS=$(jq -r .maxKESEvolutions "${GENESIS_JSON}")
+if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
+  BYRON_GENESIS_START_SEC=$(jq -r .startTime "${BYRON_GENESIS_JSON}")
+  BYRON_K=$(jq -r .protocolConsts.k "${BYRON_GENESIS_JSON}")
+  BYRON_SLOT_LENGTH=$(( $(jq -r .blockVersionData.slotDuration "${BYRON_GENESIS_JSON}") / 1000 ))
+  BYRON_EPOCH_LENGTH=$(( 10 * BYRON_K ))
+fi
+
+FG_BLACK=$(tput setaf 0)
+FG_RED=$(tput setaf 1)
+FG_GREEN=$(tput setaf 2)
+FG_YELLOW=$(tput setaf 3)
+FG_BLUE=$(tput setaf 4)
+FG_MAGENTA=$(tput setaf 5)
+FG_CYAN=$(tput setaf 6)
+FG_WHITE=$(tput setaf 7)
+STANDOUT=$(tput smso)
+BOLD=$(tput bold)
+NC=$(tput sgr0)
 
 [[ -z ${BLOCK_LOG_DIR} && -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"
