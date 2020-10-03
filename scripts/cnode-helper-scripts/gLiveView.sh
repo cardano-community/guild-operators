@@ -1,5 +1,6 @@
 #!/bin/bash
 #shellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015
+#shellcheck source=/dev/null
 
 ######################################
 # User Variables - Change as desired #

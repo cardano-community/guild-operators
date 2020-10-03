@@ -116,7 +116,7 @@ MAGIC=$(jq -r .protocolMagicId < ${GENESIS_JSON})
 NWMAGIC=$(jq -r .networkMagic < ${GENESIS_JSON})
 [[ "${PROTOCOL}" = "Cardano" ]] && PROTOCOL_IDENTIFIER="--cardano-mode" || PROTOCOL_IDENTIFIER="--shelley-mode"
 [[ "${NETWORKID}" = "Mainnet" ]] && HASH_IDENTIFIER="--mainnet" || HASH_IDENTIFIER="--testnet-magic ${NWMAGIC}"
-if [[ "${NWMAGIC}" = "764824073"; then
+if [[ "${NWMAGIC}" = "764824073" ]]; then
   NETWORK_IDENTIFIER="--mainnet"
   NETWORK_NAME="Mainnet"
 else
