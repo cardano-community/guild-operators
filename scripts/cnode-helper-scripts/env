@@ -109,7 +109,7 @@ NWMAGIC=$(jq -r .networkMagic < ${GENESIS_JSON})
 [[ "${NETWORKID}" = "Mainnet" ]] && HASH_IDENTIFIER="--mainnet" || HASH_IDENTIFIER="--testnet-magic ${NWMAGIC}"
 [[ "${NWMAGIC}" = "764824073" ]] && NETWORK_IDENTIFIER="--mainnet" || NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
 
-SHELLEY_GENESIS_START_SEC=$(date --date=$(jq -r .systemStart "${GENESIS_JSON}") +%s)
+SHELLEY_GENESIS_START_SEC=$(date --date="$(jq -r .systemStart "${GENESIS_JSON}")" +%s)
 EPOCH_LENGTH=$(jq -r .epochLength "${GENESIS_JSON}")
 SLOT_LENGTH=$(jq -r .slotLength "${GENESIS_JSON}")
 ACTIVE_SLOTS_COEFF=$(jq -r .activeSlotsCoeff "${GENESIS_JSON}")
