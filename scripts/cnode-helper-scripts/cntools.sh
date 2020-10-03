@@ -2573,19 +2573,22 @@ EOF
     getPoolID ${pool_name}
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
       [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}" ]] && pool_registered="YES" || pool_registered="NO"
+      [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}" ]] && ledger_retiring="?" || ledger_retiring=""
     else
       ledger_pParams=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
       ledger_fPParams=$(jq -r '.esLState._delegationState._pstate._fPParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
+      ledger_retiring=$(jq -r '.esLState._delegationState._pstate._retiring."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
       [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
       [[ -n "${ledger_pParams}" ]] && pool_registered="YES" || pool_registered="NO"
     fi
     say "$(printf "%-21s : ${GREEN}%s${NC}" "Pool" "${pool_name}")" "log"
     say "$(printf "%-21s : %s" "ID (hex)" "${pool_id}")" "log"
     [[ -n ${pool_id_bech32} ]] && say "$(printf "%-21s : %s" "ID (bech32)" "${pool_id_bech32}")" "log"
-    if [[ "${pool_registered}" = "YES" ]]; then
-      say "$(printf "%-21s : ${GREEN}%s${NC}" "Registered" "${pool_registered}")" "log"
+    [[ "${pool_registered}" = "YES" ]] && pool_reg_color="${GREEN}" || pool_reg_color="${RED}"
+    if [[ -z "${ledger_retiring}" ]]; then
+      say "$(printf "%-21s : ${pool_reg_color}%s${NC}" "Registered" "${pool_registered}")" "log"
     else
-      say "$(printf "%-21s : ${RED}%s${NC}" "Registered" "${pool_registered}")" "log"
+      say "$(printf "%-21s : ${pool_reg_color}%s${NC} - ${RED}Retired in epoch %s${NC}" "Registered" "${pool_registered}" "${ledger_retiring}")" "log"
     fi
     pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
