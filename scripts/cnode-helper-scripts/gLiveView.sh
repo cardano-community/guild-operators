@@ -802,7 +802,7 @@ while true; do
     
     echo "${m3divider}" && ((line++))
     
-    printf "${VL} Total / Unique / Unreachable / Skipped : ${style_values_1}%s${NC} / " "${peers_out} / ${peerCNTUnique_in}"
+    printf "${VL} Total / Unique / Unreachable / Skipped : ${style_values_1}%s${NC} / " "${peers_in} / ${peerCNTUnique_in}"
     [[ ${peerCNT0_in} -eq 0 ]] && printf "${style_values_1}%s${NC} / " "${peerCNT0_in}" || printf "${style_status_3}%s${NC} / " "${peerCNT0_in}"
     [[ ${peerCNTSKIPPED_in} -eq 0 ]] && printf "${style_values_1}%s${NC}" "${peerCNTSKIPPED_in}" || printf "${style_status_2}%s${NC}" "${peerCNTSKIPPED_in}"
     tput cup ${line} ${width}
