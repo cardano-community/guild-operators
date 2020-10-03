@@ -526,7 +526,7 @@ while true; do
     if [[ ${curr_epoch} -ne ${epochnum} ]]; then # only update on new epoch to save on processing
       curr_epoch=${epochnum}
       PROT_PARAMS="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
-      [[ -n "${PROT_PARAMS}" ]] && DECENTRALISATION=$(jq -r .decentralisationParam <<< ${PROT_PARAMS}) || DECENTRALISATION=0.5
+      if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
     fi
   fi
 

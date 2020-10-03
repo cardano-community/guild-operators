@@ -107,8 +107,8 @@ fi
 CNODE_PID=$(ps -ef | grep "[-]-port ${CNODE_PORT}" | awk '{print $2}')
 [[ -z ${CNODE_PID} ]] && echo "Failed to locate cardano-node process ID, make sure CNODE_PORT is correctly set in env file!" && exit 1 
 
-PROT_PARAMS="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
-[[ -n "${PROT_PARAMS}" ]] && DECENTRALISATION=$(jq -r .decentralisationParam <<< ${PROT_PARAMS}) || DECENTRALISATION=0.5
+PROT_PARAMS="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>&1)"
+if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
 
 PROTOCOL=$(jq -r .Protocol "${CONFIG}")
 NETWORKID=$(jq -r .networkId ${GENESIS_JSON})
