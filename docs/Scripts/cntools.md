@@ -16,7 +16,7 @@ The tool consist of four files.
 * `cntools.config` - configuration file to modify certain behaviours, paths and name schema used.
 * `cntoolsBlockCollector.sh` - a script to be run in background on core node parsing log file for block traces, see [Block Collector](Scripts/cntools-blocks.md) section for more details.
 
-In addition to the above files, there is also a dependency on the common `env` file. CNTools connects to your node through the configuration in the `env` file located in the same directory as the script. Customize `env` and `cntools.config` files for your needs. CNTools will start even if your node is offline, but don't expect to get very far.
+In addition to the above files, there is also a dependency on the common `env` file. CNTools connects to your node through the configuration in the `env` file located in the same directory as the script. Customize `env` and `cntools.config` files for your needs. CNTools can operate in an Offline mode without node access by providing the `-o` runtime argument. This launches CNTools with a limited set of features with Hybrid or Online v/s Offline workflow in mind.
 
 > The tool in its default state uses the folder structure [here](basics.md#folder-structure). Everyone is free to customise, but while doing so beware that you may introduce changes that were not tested.
 

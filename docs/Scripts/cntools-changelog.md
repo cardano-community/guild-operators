@@ -22,9 +22,21 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Register/Modify/Retire pool
 - Allow import of a signed transaction to submit in online mode
 - Allow import of 15/24 words based wallets. Note that you'd need `cardano-address` and `bech32` in yout $PATH to use this feature (available if you rebuild `cardano-node` using updated `cabal-build-all.sh`), reusing [guide from @ilap](https://gist.github.com/ilap/3fd57e39520c90f084d25b0ef2b96894).
+- Backup now offer the ability to create an online backup without wallet payment/stake and pool cold sign keys
+- Regular(offline) backup now display a warning if wallet payment/stake and pool cold sign keys are missing due to being deleted manually or by previous backup
+- Retire notification in pool >> show
+
+##### Changed
+- Improved trap/exit handling
+- Allow thousand separator(`,`) in user input for sending ADA and pledge/cost at pool registration to make it easier to count the zeros
+- User input for files and directories now open a dialog gui to make it easier to find the correct path
 
 ##### Fixed
 - Check `pool >> show` stake distribution showing up as always 0.
+- KES expiration calculation
+- Slot interval calculation
+- Custom vname replacement(when using `prereqs.sh -t`) fix for internal update
+- Pool registration and de-registration certificates removed in case of retire/re-registration
 
 
 ## [5.4.1] - 2020-09-10
