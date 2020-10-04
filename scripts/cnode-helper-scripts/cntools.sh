@@ -58,7 +58,7 @@ shift $((OPTIND -1))
 # create temporary directory if missing
 mkdir -p "${TMP_FOLDER}" # Create if missing
 if [[ ! -d "${TMP_FOLDER}" ]]; then
-  myExit 1 "${RED}ERROR${NC}: Failed to create directory for temporary files:\n${TMP_FOLDER}"
+  myExit 1 "${FG_RED}ERROR${NC}: Failed to create directory for temporary files:\n${TMP_FOLDER}"
 fi
 
 # check for required command line tools
@@ -99,7 +99,7 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       say "A new version of CNTools is available" "log"
       echo
       say "Installed Version : ${CNTOOLS_VERSION}" "log"
-      say "Available Version : ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC}" "log"
+      say "Available Version : ${FG_GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC}" "log"
       say "\nGo to Update section for upgrade\n\nAlternately, follow https://cardano-community.github.io/guild-operators/#/basics?id=pre-requisites to update cntools as well alongwith any other files"
       waitForInput "press any key to proceed"
     else
@@ -125,40 +125,33 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
           cp "${TMP_FOLDER}"/cntools-changelog.md "$CNODE_HOME/scripts/cntools-changelog.md"
         fi
       else
-        say "\n${RED}ERROR${NC}: failed to download changelog from GitHub!\n"
+        say "\n${FG_RED}ERROR${NC}: failed to download changelog from GitHub!\n"
         waitForInput "press any key to proceed"
       fi
     fi
   else
-    say "\n${RED}ERROR${NC}: failed to download cntools.library from GitHub, unable to perform version check!\n"
+    say "\n${FG_RED}ERROR${NC}: failed to download cntools.library from GitHub, unable to perform version check!\n"
     waitForInput "press any key to proceed"
   fi
 
-  # Check if config is a valid json file
-  if ! jq -e . >/dev/null 2>&1 "${CONFIG}"; then
-    myExit 1 "${RED}ERROR${NC}: Please ensure that your config file is in JSON format\nConfig file: ${CONFIG}"
-  fi
-
   # Verify that Prometheus is enabled in config file
+  # TODO: Change to EKG
   prom_port=$(jq -r '.hasPrometheus[1] //empty' ${CONFIG} 2>/dev/null)
   prom_host=$(jq -r '.hasPrometheus[0] //empty' ${CONFIG} 2>/dev/null)
 
   if [[ -z "${prom_port}" ]]; then
-    myExit 1 "${RED}ERROR${NC}: Please ensure that hasPrometheus is enabled, if unsure - rerun \"<path>/prereqs.sh -s\" again - and it would overwrite the config file"
+    myExit 1 "${FG_RED}ERROR${NC}: Please ensure that hasPrometheus is enabled, if unsure - rerun \"<path>/prereqs.sh -s\" again - and it would overwrite the config file"
   fi
 
-  # Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
-  [[ -f "${TMP_FOLDER}"/protparams.json ]] && rm -f "${TMP_FOLDER}"/protparams.json 2>/dev/null
-  ${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} >"${TMP_FOLDER}/protparams.json" 2>&1
-  if grep -q "Network.Socket.connect" "${TMP_FOLDER}/protparams.json"; then
-    myExit 1 "${ORANGE}WARN${NC}: node socket path wrongly configured or node not running, please verify that socket set in env file match what is used to run the node\n\n\
-${BLUE}Re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality${NC}"
-  elif ! jq . "${TMP_FOLDER}/protparams.json" &>/dev/null; then
-    myExit 1 "${ORANGE}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)\n\n\
-Error message: $(cat "${TMP_FOLDER}/protparams.json")\n\n\
-${BLUE}Re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality${NC}"
+  # Validate protocol parameters
+  if grep -q "Network.Socket.connect" <<< "${PROT_PARAMS}"; then
+    myExit 1 "${FG_YELLOW}WARN${NC}: node socket path wrongly configured or node not running, please verify that socket set in env file match what is used to run the node\n\n\
+${FG_BLUE}Re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality${NC}"
+  elif [[ -z "${PROT_PARAMS}" ]] || ! jq -er . <<< "${PROT_PARAMS}" &>/dev/null; then
+    myExit 1 "${FG_YELLOW}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)\n\n\
+Error message: ${PROT_PARAMS}\n\n\
+${FG_BLUE}Re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality${NC}"
   fi
-  decentralisation=$(jq -r .decentralisationParam "${TMP_FOLDER}"/protparams.json)
 fi
 
 # check if there are pools in need of KES key rotation
@@ -169,18 +162,18 @@ while IFS= read -r -d '' pool; do
     kesExpiration "$(cat "${pool}/${POOL_CURRENT_KES_START}")"
     if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
       kes_rotation_needed="yes"
-      say "\n** WARNING **\nPool ${GREEN}$(basename ${pool})${NC} in need of KES key rotation"
+      say "\n** WARNING **\nPool ${FG_GREEN}$(basename ${pool})${NC} in need of KES key rotation"
       if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
-        say "${RED}Keys expired!${NC} : ${RED}$(showTimeLeft ${expiration_time_sec_diff:1})${NC} ago"
+        say "${FG_RED}Keys expired!${NC} : ${FG_RED}$(showTimeLeft ${expiration_time_sec_diff:1})${NC} ago"
       else
-        say "Remaining KES periods : ${RED}${remaining_kes_periods}${NC}"
-        say "Time left             : ${RED}$(showTimeLeft ${expiration_time_sec_diff})${NC}"
+        say "Remaining KES periods : ${FG_RED}${remaining_kes_periods}${NC}"
+        say "Time left             : ${FG_RED}$(showTimeLeft ${expiration_time_sec_diff})${NC}"
       fi
     elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
       kes_rotation_needed="yes"
-      say "\nPool ${GREEN}$(basename ${pool})${NC} soon in need of KES key rotation"
-      say "Remaining KES periods : ${ORANGE}${remaining_kes_periods}${NC}"
-      say "Time left             : ${ORANGE}$(showTimeLeft ${expiration_time_sec_diff})${NC}"
+      say "\nPool ${FG_GREEN}$(basename ${pool})${NC} soon in need of KES key rotation"
+      say "Remaining KES periods : ${FG_YELLOW}${remaining_kes_periods}${NC}"
+      say "Time left             : ${FG_YELLOW}$(showTimeLeft ${expiration_time_sec_diff})${NC}"
     fi
   fi
 done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
@@ -202,21 +195,21 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
       byron_epochs=${epoch}
       shelley_epochs=0
       while [[ ${byron_epochs} -ge 0 ]]; do
-        calc_slot=$(( (byron_epochs*byron_epoch_length) + (shelley_epochs*epoch_length) + slot_in_epoch ))
+        calc_slot=$(( (byron_epochs*BYRON_SLOT_LENGTH) + (shelley_epochs*EPOCH_LENGTH) + slot_in_epoch ))
         [[ ${calc_slot} -eq ${slot_num} ]] && break
         ((byron_epochs--))
         ((shelley_epochs++))
       done
       node_sync="NODE SYNC: $(printTable ',' "$(echo -e "Epoch,Slot in Epoch,Slot\n${epoch},${slot_in_epoch},${slot_num}")")"
       if [[ ${calc_slot} -ne ${slot_num} ]]; then
-        myExit 1 "${ORANGE}WARN${NC}: Failed to calculate shelley transition epoch\n\n${node_sync}"
+        myExit 1 "${FG_YELLOW}WARN${NC}: Failed to calculate shelley transition epoch\n\n${node_sync}"
       elif [[ ${shelley_epochs} -eq 0 ]]; then
-        myExit 1 "${ORANGE}WARN${NC}: The network has not reached the hard fork from Byron to shelley, please wait to use CNTools until your node is in shelley era\n\n${node_sync}"
+        myExit 1 "${FG_YELLOW}WARN${NC}: The network has not reached the hard fork from Byron to shelley, please wait to use CNTools until your node is in shelley era\n\n${node_sync}"
       else
         shelleyTransitionEpoch=${byron_epochs}
       fi
     else
-      myExit 1 "${ORANGE}WARN${NC}: Offline mode enabled and config set to TestNet, please manually create and set shelley transition epoch:\nE.g. : ${CYAN}echo 208 > \"${SHELLEY_TRANS_FILENAME}\"${NC}"
+      myExit 1 "${FG_YELLOW}WARN${NC}: Offline mode enabled and config set to TestNet, please manually create and set shelley transition epoch:\nE.g. : ${FG_CYAN}echo 74 > \"${SHELLEY_TRANS_FILENAME}\"${NC}"
     fi
     echo "${shelleyTransitionEpoch}" > "${SHELLEY_TRANS_FILENAME}"
   fi
@@ -233,9 +226,9 @@ find "${TMP_FOLDER:?}" -type f -not \( -name 'protparams.json' -o -name '.dialog
 
 clear
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-  say "$(printf " >> CNTools v%s - ${GREEN}%s${NC} << %$((84-20-${#CNTOOLS_VERSION}-${#CNTOOLS_MODE}))s" "${CNTOOLS_VERSION}" "${CNTOOLS_MODE}" "A Guild Operators collaboration")" "log"
+  say "$(printf " >> CNTools v%s - ${FG_GREEN}%s${NC} << %$((84-20-${#CNTOOLS_VERSION}-${#CNTOOLS_MODE}))s" "${CNTOOLS_VERSION}" "${CNTOOLS_MODE}" "A Guild Operators collaboration")" "log"
 else
-  say "$(printf " >> CNTools v%s - ${CYAN}%s${NC} << %$((84-20-${#CNTOOLS_VERSION}-${#CNTOOLS_MODE}))s" "${CNTOOLS_VERSION}" "${CNTOOLS_MODE}" "A Guild Operators collaboration")" "log"
+  say "$(printf " >> CNTools v%s - ${FG_CYAN}%s${NC} << %$((84-20-${#CNTOOLS_VERSION}-${#CNTOOLS_MODE}))s" "${CNTOOLS_VERSION}" "${CNTOOLS_MODE}" "A Guild Operators collaboration")" "log"
 fi
 say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 say " Main Menu"
@@ -257,11 +250,11 @@ else
   tip_diff=$(getSlotTipDiff)
   slot_interval=$(slotInterval)
   if [[ ${tip_diff} -le ${slot_interval} ]]; then
-    say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${GREEN}${tip_diff} :)${NC}")"
+    say "$(printf " What would you like to do? %$((84-29-${#tip_diff}-3))s ${FG_GREEN}%s${NC}" "Node Sync:" "${tip_diff} :)")"
   elif [[ ${tip_diff} -le $(( slot_interval * 2 )) ]]; then
-    say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${ORANGE}${tip_diff} :|${NC}")"
+    say "$(printf " What would you like to do? %$((84-29-${#tip_diff}-3))s ${FG_YELLOW}%s${NC}" "Node Sync:" "${tip_diff} :|")"
   else
-    say "$(printf " %-20s %73s" "What would you like to do?" "Node Sync: ${RED}${tip_diff} :(${NC}")"
+    say "$(printf " What would you like to do? %$((84-29-${#tip_diff}-3))s ${FG_RED}%s${NC}" "Node Sync:" "${tip_diff} :(")"
   fi
 fi
 echo
@@ -322,12 +315,12 @@ case $OPERATION in
     # Remove unwanted characters from wallet name
     wallet_name=${wallet_name//[^[:alnum:]]/_}
     if [[ -z "${wallet_name}" ]]; then
-      say "${RED}ERROR${NC}: Empty wallet name, please retry!"
+      say "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
       waitForInput && continue
     fi
     echo
     if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
-      say "${RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
+      say "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
       waitForInput && continue
     fi
 
@@ -338,7 +331,7 @@ case $OPERATION in
     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
 
     if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -printf '.' | wc -c) -gt 0 ]]; then
-      say "${RED}WARN${NC}: A wallet ${GREEN}$wallet_name${NC} already exists"
+      say "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
       say "      Choose another name or delete the existing one"
       waitForInput && continue
     fi
@@ -349,7 +342,7 @@ case $OPERATION in
     getPayAddress ${wallet_name}
     getRewardAddress ${wallet_name}
 
-    say "New Wallet          : ${GREEN}${wallet_name}${NC}" "log"
+    say "New Wallet          : ${FG_GREEN}${wallet_name}${NC}" "log"
     say "Address             : ${base_addr}" "log"
     say "Enterprise Address  : ${pay_addr}" "log"
     say "\nYou can now send and receive ADA using the above addresses."
@@ -369,7 +362,7 @@ case $OPERATION in
     
     if ! need_cmd "bech32" || \
        ! need_cmd "cardano-address"; then
-      say "${RED}ERROR${NC}: cardano-address and/or bech32 executables not found in path!"
+      say "${FG_RED}ERROR${NC}: cardano-address and/or bech32 executables not found in path!"
       say "Please run updated prereqs.sh and re-build cardano-node"
       waitForInput && continue
     fi
@@ -378,17 +371,17 @@ case $OPERATION in
     # Remove unwanted characters from wallet name
     wallet_name=${wallet_name//[^[:alnum:]]/_}
     if [[ -z "${wallet_name}" ]]; then
-      say "${RED}ERROR${NC}: Empty wallet name, please retry!"
+      say "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
       waitForInput && continue
     fi
     echo
     if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
-      say "${RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
+      say "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
       waitForInput && continue
     fi
     
     if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -printf '.' | wc -c) -gt 0 ]]; then
-      say "${RED}WARN${NC}: A wallet ${GREEN}$wallet_name${NC} already exists"
+      say "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
       say "      Choose another name or delete the existing one"
       waitForInput && continue
     fi
@@ -397,7 +390,7 @@ case $OPERATION in
     echo
     IFS=" " read -r -a words <<< "${mnemonic}"
     if [[ ${#words[@]} -ne 24 ]] && [[ ${#words[@]} -ne 15 ]]; then
-      say "${RED}ERROR${NC}: 24 or 15 words expected, found ${RED}${#words[@]}${NC}"
+      say "${FG_RED}ERROR${NC}: 24 or 15 words expected, found ${FG_RED}${#words[@]}${NC}"
       echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
       waitForInput && continue
     fi
@@ -456,8 +449,8 @@ EOF
     getRewardAddress ${wallet_name}
     
     if [[ ${base_addr} != "${base_addr_candidate}" ]]; then
-      say "${RED}ERROR${NC}: base address generated doesn't match base address candidate."
-      say "base_addr[${CYAN}${base_addr}${NC}]\n!=\nbase_addr_candidate[${CYAN}${base_addr_candidate}${NC}]" 1
+      say "${FG_RED}ERROR${NC}: base address generated doesn't match base address candidate."
+      say "base_addr[${FG_CYAN}${base_addr}${NC}]\n!=\nbase_addr_candidate[${FG_CYAN}${base_addr_candidate}${NC}]" 1
       say "Run CNTools in verbose mode(VERBOSITY=2) and paste output to a GitHub issue."
       echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
       waitForInput && continue
@@ -465,24 +458,24 @@ EOF
     
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
-    say "Wallet Imported     : ${GREEN}${wallet_name}${NC}" "log"
+    say "Wallet Imported     : ${FG_GREEN}${wallet_name}${NC}" "log"
     say "Address             : ${base_addr}" "log"
     say "Enterprise Address  : ${pay_addr}" "log"
     echo
     say "You can now send and receive ADA using the above addresses. Note that Enterprise Address will not take part in staking"
     say "Wallet will be automatically registered on chain if you choose to delegate or pledge wallet when registering a stake pool"
     echo
-    say "${ORANGE}Using a mnemonic imported wallet in CNTools comes with a few limitation.${NC}"
+    say "${FG_YELLOW}Using a mnemonic imported wallet in CNTools comes with a few limitation.${NC}"
     echo
     say "Only the first address in the HD wallet is extracted and because of this the following apply:"
-    say " ${CYAN}>${NC} Address above should match the first address seen in Daedalus/Yoroi, please verify!!!"
-    say " ${CYAN}>${NC} If restored wallet contain funds since before, send all Ada through Daedalus/Yoroi to address shown in CNTools"
-    say " ${CYAN}>${NC} Only use receive address shown in CNTools"
-    say " ${CYAN}>${NC} Only spend Ada from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
+    say " ${FG_CYAN}>${NC} Address above should match the first address seen in Daedalus/Yoroi, please verify!!!"
+    say " ${FG_CYAN}>${NC} If restored wallet contain funds since before, send all Ada through Daedalus/Yoroi to address shown in CNTools"
+    say " ${FG_CYAN}>${NC} Only use receive address shown in CNTools"
+    say " ${FG_CYAN}>${NC} Only spend Ada from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
     echo
     say "Some of the advantages of using a mnemonic imported wallet instead of CLI are:"
-    say " ${CYAN}>${NC} Wallet can be restored from saved 24 or 15 word mnemonic if keys are lost/deleted"
-    say " ${CYAN}>${NC} Track rewards in Daedalus/Yoroi"
+    say " ${FG_CYAN}>${NC} Wallet can be restored from saved 24 or 15 word mnemonic if keys are lost/deleted"
+    say " ${FG_CYAN}>${NC} Track rewards in Daedalus/Yoroi"
     echo
     say "Please read more about HD wallets at:"
     say "https://cardano-community.github.io/support-faq/#/wallets?id=heirarchical-deterministic-hd-wallets"
@@ -498,7 +491,7 @@ EOF
     say " >> WALLET >> REGISTER" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+      say "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     else
       if ! selectOpMode; then continue; fi
@@ -521,9 +514,9 @@ EOF
     getBalance ${base_addr}
 
     if [[ ${lovelace} -gt 0 ]]; then
-      say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${lovelace})")" "log"
+      say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${lovelace})")" "log"
     else
-      say "${RED}ERROR${NC}: no funds available in base address for wallet ${GREEN}${wallet_name}${NC}"
+      say "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
       keyDeposit=$(jq -r '.keyDeposit' "${TMP_FOLDER}"/protparams.json)
       say "Funds for key deposit($(formatLovelace ${keyDeposit}) ADA) + transaction fee needed to register the wallet"
       waitForInput && continue
@@ -534,10 +527,10 @@ EOF
         waitForInput && continue
       fi
     else
-      echo && say "${GREEN}${wallet_name}${NC} already registered on chain!" "log"
+      echo && say "${FG_GREEN}${wallet_name}${NC} already registered on chain!" "log"
     fi
 
-    echo && say "${GREEN}${wallet_name}${NC} successfully registered on chain!" "log"
+    echo && say "${FG_GREEN}${wallet_name}${NC} successfully registered on chain!" "log"
     
     waitForInput && continue
 
@@ -550,10 +543,10 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      say "${CYAN}OFFLINE MODE${NC}: CNTools started in offline mode, wallet balance not shown!"
+      say "${FG_CYAN}OFFLINE MODE${NC}: CNTools started in offline mode, wallet balance not shown!"
     fi
     
-    [[ ! "$(ls -A "${WALLET_FOLDER}")" ]] && echo && say "${ORANGE}No wallets available!${NC}" "log"
+    [[ ! "$(ls -A "${WALLET_FOLDER}")" ]] && echo && say "${FG_YELLOW}No wallets available!${NC}" "log"
 
     while IFS= read -r -d '' wallet; do
       wallet_name=$(basename ${wallet})
@@ -561,13 +554,13 @@ EOF
       if [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && isWalletRegistered ${wallet_name}; then registered="yes"; else registered="no"; fi
       echo
       if [[ ${enc_files} -gt 0 && ${registered} = "yes" ]]; then
-        say "${GREEN}${wallet_name}${NC} - ${CYAN}REGISTERED${NC} (${ORANGE}encrypted${NC})" "log"
+        say "${FG_GREEN}${wallet_name}${NC} - ${FG_CYAN}REGISTERED${NC} (${FG_YELLOW}encrypted${NC})" "log"
       elif [[ ${registered} = "yes" ]]; then
-        say "${GREEN}${wallet_name}${NC} - ${CYAN}REGISTERED${NC}" "log"
+        say "${FG_GREEN}${wallet_name}${NC} - ${FG_CYAN}REGISTERED${NC}" "log"
       elif [[ ${enc_files} -gt 0 ]]; then
-        say "${GREEN}${wallet_name}${NC} (${ORANGE}encrypted${NC})" "log"
+        say "${FG_GREEN}${wallet_name}${NC} (${FG_YELLOW}encrypted${NC})" "log"
       else
-        say "${GREEN}${wallet_name}${NC}" "log"
+        say "${FG_GREEN}${wallet_name}${NC}" "log"
       fi
       getBaseAddress ${wallet_name}
       getPayAddress ${wallet_name}
@@ -578,23 +571,23 @@ EOF
         if [[ -n ${base_addr} ]]; then
           getBalance ${base_addr}
           say "$(printf "%-16s : %s" "Address"  "${base_addr}")" "log"
-          say "$(printf "%-16s : ${CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
+          say "$(printf "%-16s : ${FG_CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
         fi
         if [[ -n ${pay_addr} ]]; then
           getBalance ${pay_addr}
           if [[ ${lovelace} -gt 0 ]]; then
             say "$(printf "%-16s : %s" "Enterprise Addr"  "${pay_addr}")" "log"
-            say "$(printf "%-16s : ${CYAN}%s${NC} ADA" "Enterprise Funds"  "$(formatLovelace ${lovelace})")" "log"
+            say "$(printf "%-16s : ${FG_CYAN}%s${NC} ADA" "Enterprise Funds"  "$(formatLovelace ${lovelace})")" "log"
           fi
         fi
         if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
-          say "${RED}Not a supporeted wallet${NC} - genesis address?"
+          say "${FG_RED}Not a supporeted wallet${NC} - genesis address?"
           say "Use an external script to send funds to a CNTools compatible wallet"
           continue
         fi
         getRewards ${wallet_name}
         if [[ "${reward_lovelace}" -ge 0 ]]; then
-          say "$(printf "%-16s : ${CYAN}%s${NC} ADA" "Rewards" "$(formatLovelace ${reward_lovelace})")" "log"
+          say "$(printf "%-16s : ${FG_CYAN}%s${NC} ADA" "Rewards" "$(formatLovelace ${reward_lovelace})")" "log"
           delegation_pool_id=$(jq -r '.delegation // empty' <<< "${stakeAddressInfo}")
           if [[ -n ${delegation_pool_id} ]]; then
             unset poolName
@@ -604,7 +597,7 @@ EOF
                 poolName=$(basename ${pool}) && break
               fi
             done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-            say "${RED}Delegated to${NC} ${BLUE}${poolName}${NC} ${RED}(${delegation_pool_id})${NC}" "log"
+            say "${FG_RED}Delegated to${NC} ${FG_BLUE}${poolName}${NC} ${FG_RED}(${delegation_pool_id})${NC}" "log"
           fi
         fi
       fi
@@ -623,7 +616,7 @@ EOF
     echo
 
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      say "${CYAN}OFFLINE MODE${NC}: CNTools started in offline mode, limited wallet info shown!"
+      say "${FG_CYAN}OFFLINE MODE${NC}: CNTools started in offline mode, limited wallet info shown!"
     fi
     
     if ! selectWallet "none" "${WALLET_PAY_VK_FILENAME}" >/dev/null; then
@@ -633,9 +626,9 @@ EOF
     enc_files=$(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -printf '.' | wc -c)
 
     if [[ ${enc_files} -gt 0 ]]; then
-      say "Wallet: ${GREEN}${wallet_name}${NC} (${ORANGE}encrypted${NC})" "log"
+      say "Wallet: ${FG_GREEN}${wallet_name}${NC} (${FG_YELLOW}encrypted${NC})" "log"
     else
-      say "Wallet: ${GREEN}${wallet_name}${NC}" "log"
+      say "Wallet: ${FG_GREEN}${wallet_name}${NC}" "log"
     fi
 
     getBaseAddress ${wallet_name}
@@ -646,7 +639,7 @@ EOF
       base_lovelace=${lovelace}
       if [[ ${utx0_count} -gt 0 ]]; then
         echo
-        say "${BLUE}UTxOs${NC}"
+        say "${FG_BLUE}UTxOs${NC}"
         head -n 2 "${TMP_FOLDER}"/fullUtxo.out
         head -n 10 "${TMP_FOLDER}"/balance.out
         [[ ${utx0_count} -gt 10 ]] && say "... (top 10 UTx0 with most lovelace)"
@@ -656,7 +649,7 @@ EOF
       pay_lovelace=${lovelace}
       if [[ ${utx0_count} -gt 0 ]]; then
         echo
-        say "${BLUE}Enterprise UTxOs${NC}"
+        say "${FG_BLUE}Enterprise UTxOs${NC}"
         head -n 2 "${TMP_FOLDER}"/fullUtxo.out
         head -n 10 "${TMP_FOLDER}"/balance.out
         [[ ${utx0_count} -gt 10 ]] && say "... (top 10 UTx0 with most lovelace)"
@@ -666,26 +659,26 @@ EOF
     echo
     if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       if isWalletRegistered ${wallet_name}; then
-        say "$(printf "%-19s : ${GREEN}%s${NC}" "Registered" "YES")" "log"
+        say "$(printf "%-19s : ${FG_GREEN}%s${NC}" "Registered" "YES")" "log"
       else
-        say "$(printf "%-19s : ${RED}%s${NC}" "Registered" "NO")" "log"
+        say "$(printf "%-19s : ${FG_RED}%s${NC}" "Registered" "NO")" "log"
       fi
     else
       say "$(printf "%-19s : %s" "Registered" "Unknown")" "log"
     fi
     say "$(printf "%-19s : %s" "Address" "${base_addr}")" "log"
     if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-      say "$(printf "%-19s : ${CYAN}%s${NC} ADA" "Funds" "$(formatLovelace ${base_lovelace})")" "log"
+      say "$(printf "%-19s : ${FG_CYAN}%s${NC} ADA" "Funds" "$(formatLovelace ${base_lovelace})")" "log"
       getAddressInfo "${base_addr}"
       say "$(printf "%-19s : %s" "Era" "$(jq -r '.era' <<< ${address_info})")" "log"
       say "$(printf "%-19s : %s" "Encoding" "$(jq -r '.encoding' <<< ${address_info})")" "log"
     fi
     say "$(printf "%-19s : %s" "Enterprise Address" "${pay_addr}")" "log"
     if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-      say "$(printf "%-19s : ${CYAN}%s${NC} ADA" "Enterprise Funds" "$(formatLovelace ${pay_lovelace})")" "log"
+      say "$(printf "%-19s : ${FG_CYAN}%s${NC} ADA" "Enterprise Funds" "$(formatLovelace ${pay_lovelace})")" "log"
       getRewards ${wallet_name}
       if [[ "${reward_lovelace}" -ge 0 ]]; then
-        say "$(printf "%-19s : ${CYAN}%s${NC} ADA" "Rewards" "$(formatLovelace ${reward_lovelace})")" "log"
+        say "$(printf "%-19s : ${FG_CYAN}%s${NC} ADA" "Rewards" "$(formatLovelace ${reward_lovelace})")" "log"
         delegation_pool_id=$(jq -r '.delegation  // empty' <<< "${stakeAddressInfo}")
         if [[ -n ${delegation_pool_id} ]]; then
           unset poolName
@@ -696,7 +689,7 @@ EOF
             fi
           done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
           echo
-          say "${RED}Delegated to${NC} ${BLUE}${poolName}${NC} ${RED}(${delegation_pool_id})${NC}" "log"
+          say "${FG_RED}Delegated to${NC} ${FG_BLUE}${poolName}${NC} ${FG_RED}(${delegation_pool_id})${NC}" "log"
         fi
       fi
     fi
@@ -713,7 +706,7 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      say "${CYAN}OFFLINE MODE${NC}: CNTools started in offline mode, unable to verify wallet balance"
+      say "${FG_CYAN}OFFLINE MODE${NC}: CNTools started in offline mode, unable to verify wallet balance"
     fi
 
     echo
@@ -724,25 +717,25 @@ EOF
     echo
     
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      say "Are you sure to delete wallet ${GREEN}${wallet_name}${NC}?"
+      say "Are you sure to delete wallet ${FG_GREEN}${wallet_name}${NC}?"
       select_opt "[y] Yes" "[n] No"
       case $? in
         0) echo && safeDel "${WALLET_FOLDER:?}/${wallet_name}"
            ;;
-        1) echo && say "skipped removal process for ${GREEN}$wallet_name${NC}"
+        1) echo && say "skipped removal process for ${FG_GREEN}$wallet_name${NC}"
            ;;
       esac
       waitForInput && continue
     fi
 
     if ! getBaseAddress ${wallet_name} && ! getPayAddress ${wallet_name}; then
-      say "${RED}WARN${NC}: unable to get address for wallet and do a balance check"
-      say "\nAre you sure to delete wallet ${GREEN}${wallet_name}${NC} anyway?"
+      say "${FG_RED}WARN${NC}: unable to get address for wallet and do a balance check"
+      say "\nAre you sure to delete wallet ${FG_GREEN}${wallet_name}${NC} anyway?"
       select_opt "[y] Yes" "[n] No"
       case $? in
         0) echo && safeDel "${WALLET_FOLDER:?}/${wallet_name}"
            ;;
-        1) echo && say "skipped removal process for ${GREEN}$wallet_name${NC}"
+        1) echo && say "skipped removal process for ${FG_GREEN}$wallet_name${NC}"
            ;;
       esac
       waitForInput && continue
@@ -764,28 +757,28 @@ EOF
 
     if [[ ${base_lovelace} -eq 0 && ${pay_lovelace} -eq 0 && ${reward_lovelace} -le 0 ]]; then
       say "INFO: This wallet appears to be empty"
-      say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
-      say "Are you sure to delete wallet ${GREEN}${wallet_name}${NC}?"
+      say "${FG_RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
+      say "Are you sure to delete wallet ${FG_GREEN}${wallet_name}${NC}?"
       select_opt "[y] Yes" "[n] No"
       case $? in
         0) echo && safeDel "${WALLET_FOLDER:?}/${wallet_name}"
            ;;
-        1) echo && say "skipped removal process for ${GREEN}$wallet_name${NC}"
+        1) echo && say "skipped removal process for ${FG_GREEN}$wallet_name${NC}"
            ;;
       esac
     else
-      say "${RED}WARN${NC}: wallet ${GREEN}${wallet_name}${NC} not empty!"
-      [[ ${base_lovelace} -gt 0 ]] && say "Funds : ${CYAN}$(formatLovelace ${base_lovelace})${NC} ADA"
-      [[ ${pay_lovelace} -gt 0 ]] && say "Enterprise Funds : ${CYAN}$(formatLovelace ${base_lovelace})${NC} ADA"
-      [[ ${reward_lovelace} -gt 0 ]] && say "Rewards : ${CYAN}$(formatLovelace ${reward_lovelace})${NC} ADA"
+      say "${FG_RED}WARN${NC}: wallet ${FG_GREEN}${wallet_name}${NC} not empty!"
+      [[ ${base_lovelace} -gt 0 ]] && say "Funds : ${FG_CYAN}$(formatLovelace ${base_lovelace})${NC} ADA"
+      [[ ${pay_lovelace} -gt 0 ]] && say "Enterprise Funds : ${FG_CYAN}$(formatLovelace ${base_lovelace})${NC} ADA"
+      [[ ${reward_lovelace} -gt 0 ]] && say "Rewards : ${FG_CYAN}$(formatLovelace ${reward_lovelace})${NC} ADA"
       echo
-      say "${RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
-      say "Are you sure to delete wallet ${GREEN}${wallet_name}${NC}?"
+      say "${FG_RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
+      say "Are you sure to delete wallet ${FG_GREEN}${wallet_name}${NC}?"
       select_opt "[y] Yes" "[n] No"
       case $? in
         0) echo && safeDel "${WALLET_FOLDER:?}/${wallet_name}"
            ;;
-        1) echo && say "skipped removal process for ${GREEN}$wallet_name${NC}"
+        1) echo && say "skipped removal process for ${FG_GREEN}$wallet_name${NC}"
            ;;
       esac
     fi
@@ -826,7 +819,7 @@ EOF
     say "# Decrypting GPG encrypted wallet files" "log"
     echo
     if ! getPassword; then # $password variable populated by getPassword function
-      say "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
+      say "\n\n" && say "${FG_RED}ERROR${NC}: password input aborted!"
       waitForInput && continue
     fi
     while IFS= read -r -d '' file; do
@@ -837,12 +830,12 @@ EOF
     unset password
 
     echo
-    say "Wallet unprotected: ${GREEN}${wallet_name}${NC}" "log"
+    say "Wallet unprotected: ${FG_GREEN}${wallet_name}${NC}" "log"
     say "Files unlocked:     ${filesUnlocked}" "log"
     say "Files decrypted:    ${keysDecrypted}" "log"
     if [[ ${filesUnlocked} -ne 0 || ${keysDecrypted} -ne 0 ]]; then
       echo
-      say "${ORANGE}Wallet files are now unprotected${NC}"
+      say "${FG_YELLOW}Wallet files are now unprotected${NC}"
       say "Use 'WALLET >> ENCRYPT' to re-lock"
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -872,7 +865,7 @@ EOF
     say "# Encrypting sensitive wallet keys with GPG" "log"
     echo
     if ! getPassword confirm; then # $password variable populated by getPassword function
-      say "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
+      say "\n\n" && say "${FG_RED}ERROR${NC}: password input aborted!"
       waitForInput && continue
     fi
     keyFiles=(
@@ -900,12 +893,12 @@ EOF
     done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
 
     echo
-    say "Wallet protected: ${GREEN}${wallet_name}${NC}" "log"
+    say "Wallet protected: ${FG_GREEN}${wallet_name}${NC}" "log"
     say "Files locked:     ${filesLocked}" "log"
     say "Files encrypted:  ${keysEncrypted}" "log"
     if [[ ${filesLocked} -ne 0 || ${keysEncrypted} -ne 0 ]]; then
       echo
-      say "${BLUE}Wallet files are now protected${NC}"
+      say "${FG_BLUE}Wallet files are now protected${NC}"
       say "Use 'WALLET >> DECRYPT' to unlock"
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -947,14 +940,14 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+      say "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     else
       if ! selectOpMode; then continue; fi
     fi
     echo
 
-    say "# Select ${CYAN}source${NC} wallet"
+    say "# Select ${FG_CYAN}source${NC} wallet"
     if [[ ${op_mode} = "online" ]]; then
       if ! selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
         [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
@@ -978,8 +971,8 @@ EOF
       # Both payment and base address available with funds, let user choose what to use
       say "Select source wallet address"
       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        say "$(printf "%s\t\t${CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
-        say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
+        say "$(printf "%s\t\t${FG_CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
+        say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
       fi
       echo
       select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
@@ -991,15 +984,15 @@ EOF
     elif [[ ${pay_lovelace} -gt 0 ]]; then
       s_addr="${pay_addr}"
       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
+        say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
       fi
     elif [[ ${base_lovelace} -gt 0 ]]; then
       s_addr="${base_addr}"
       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        say "$(printf "%s\t\t${CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
+        say "$(printf "%s\t\t${FG_CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
       fi
     else
-      say "${RED}ERROR${NC}: no funds available for wallet ${GREEN}${s_wallet}${NC}"
+      say "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${s_wallet}${NC}"
       waitForInput && continue
     fi
 
@@ -1009,8 +1002,8 @@ EOF
     echo
     say "# Amount to Send (in ADA)"
     echo
-    say "Valid entry:  ${BLUE}Integer (e.g. 15) or Decimal (e.g. 956.1235) - commas allowed as thousand separator${NC}"
-    say "              The string '${BLUE}all${NC}' to send all available funds in source wallet"
+    say "Valid entry:  ${FG_BLUE}Integer (e.g. 15) or Decimal (e.g. 956.1235) - commas allowed as thousand separator${NC}"
+    say "              The string '${FG_BLUE}all${NC}' to send all available funds in source wallet"
     echo
     say "Info:         If destination and source wallet is the same and amount set to 'all',"
     say "              wallet will be defraged, ie converts multiple UTxO's to one"
@@ -1041,7 +1034,7 @@ EOF
 
     # Destination
     d_wallet=""
-    say "# Select ${CYAN}destination${NC} type"
+    say "# Select ${FG_CYAN}destination${NC} type"
     select_opt "[w] Wallet" "[a] Address" "[Esc] Cancel"
     case $? in
       0) if ! selectWallet "balance"; then # ${wallet_name} populated by selectWallet function
@@ -1065,10 +1058,10 @@ EOF
          elif [[ -n "${pay_addr}" && "${pay_addr}" != "${s_addr}" ]]; then
            d_addr="${pay_addr}"
          elif [[ "${base_addr}" = "${s_addr}" || "${pay_addr}" = "${s_addr}" ]]; then
-           say "\n${RED}ERROR${NC}: sending to same address as source not supported"
+           say "\n${FG_RED}ERROR${NC}: sending to same address as source not supported"
            waitForInput && continue
          else
-           say "\n${RED}ERROR${NC}: no address found for wallet ${GREEN}${d_wallet}${NC} :("
+           say "\n${FG_RED}ERROR${NC}: no address found for wallet ${FG_GREEN}${d_wallet}${NC} :("
            waitForInput && continue
          fi
          ;;
@@ -1077,7 +1070,7 @@ EOF
     esac
     # Destination could be empty, if so without getting a valid address
     if [[ -z ${d_addr} ]]; then
-      say "${RED}ERROR${NC}: destination address field empty"
+      say "${FG_RED}ERROR${NC}: destination address field empty"
       waitForInput && continue
     fi
 
@@ -1093,7 +1086,7 @@ EOF
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
       echo
-      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
       if ! waitNewBlockCreated; then
         break
       fi
@@ -1118,10 +1111,10 @@ EOF
     echo
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     say "Transaction" "log"
-    say "  From          : ${GREEN}${s_wallet}${NC}${s_wallet_type}" "log"
+    say "  From          : ${FG_GREEN}${s_wallet}${NC}${s_wallet_type}" "log"
     say "  Amount        : $(formatLovelace ${amountLovelace}) ADA" "log"
     if [[ -n "${d_wallet}" ]]; then
-      say "  To            : ${GREEN}${d_wallet}${NC}${d_wallet_type}" "log"
+      say "  To            : ${FG_GREEN}${d_wallet}${NC}${d_wallet_type}" "log"
     else
       say "  To            : ${d_addr}" "log"
     fi
@@ -1142,7 +1135,7 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+      say "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     else
       if ! selectOpMode; then continue; fi
@@ -1165,10 +1158,10 @@ EOF
     getBalance ${base_addr}
     if [[ ${lovelace} -gt 0 ]]; then
       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${lovelace})")" "log"
+        say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${lovelace})")" "log"
       fi
     else
-      say "${RED}ERROR${NC}: no funds available for wallet ${GREEN}${wallet_name}${NC}"
+      say "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
       waitForInput && continue
     fi
     getRewards ${wallet_name}
@@ -1215,7 +1208,7 @@ EOF
 
     if ! delegate "${stake_sk_file}" "${payment_sk_file}" "${base_addr}" "${pool_coldkey_vk_file}" "${delegation_cert_file}" ; then
       if [[ ${op_mode} = "online" ]]; then
-        echo && say "${RED}ERROR${NC}: failure during delegation, removing newly created delegation certificate file"
+        echo && say "${FG_RED}ERROR${NC}: failure during delegation, removing newly created delegation certificate file"
         rm -f "${delegation_cert_file}"
       fi
       waitForInput && continue
@@ -1229,7 +1222,7 @@ EOF
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
       echo
-      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
       if ! waitNewBlockCreated; then
         break
       fi
@@ -1241,8 +1234,8 @@ EOF
     fi
 
     say "Delegation successfully registered"
-    say "Wallet : ${GREEN}${wallet_name}${NC}"
-    say "Pool   : ${GREEN}${pool_name}${NC}" "log"
+    say "Wallet : ${FG_GREEN}${wallet_name}${NC}"
+    say "Pool   : ${FG_GREEN}${pool_name}${NC}" "log"
     say "Amount : $(formatLovelace ${lovelace}) ADA" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
@@ -1257,7 +1250,7 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+      say "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     else
       if ! selectOpMode; then continue; fi
@@ -1288,12 +1281,12 @@ EOF
       say "Failed to locate any rewards associated with the chosen wallet, please try another one"
       waitForInput && continue
     elif [[ ${lovelace} -eq 0 ]]; then
-      say "${ORANGE}WARN${NC}: No funds in base address, please send funds to base address of wallet to cover withdraw transaction fee"
+      say "${FG_YELLOW}WARN${NC}: No funds in base address, please send funds to base address of wallet to cover withdraw transaction fee"
       waitForInput && continue
     fi
 
-    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
-    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")" "log"
+    say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
+    say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")" "log"
 
     if ! withdrawRewards "${stake_sk_file}" "${payment_sk_file}" "${base_addr}" "${reward_addr}" ${reward_lovelace}; then
       waitForInput && continue
@@ -1306,7 +1299,7 @@ EOF
     getBalance ${base_addr}
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
-      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
       if ! waitNewBlockCreated; then
         break
       fi
@@ -1320,8 +1313,8 @@ EOF
     getRewards ${wallet_name}
 
     echo
-    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
-    say "$(printf "%s\t${CYAN}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")" "log"
+    say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
+    say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")" "log"
     
     waitForInput && continue
 
@@ -1375,7 +1368,7 @@ EOF
     # Remove unwanted characters from pool name
     pool_name=${pool_name//[^[:alnum:]]/_}
     if [[ -z "${pool_name}" ]]; then
-      say "${RED}ERROR${NC}: Empty pool name, please retry!"
+      say "${FG_RED}ERROR${NC}: Empty pool name, please retry!"
       waitForInput && continue
     fi
     echo
@@ -1390,7 +1383,7 @@ EOF
     pool_vrf_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_SK_FILENAME}"
 
     if [[ -f "${pool_hotkey_vk_file}" ]]; then
-      say "${RED}WARN${NC}: A pool ${GREEN}$pool_name${NC} already exists"
+      say "${FG_RED}WARN${NC}: A pool ${FG_GREEN}$pool_name${NC} already exists"
       say "      Choose another name or delete the existing one"
       waitForInput && continue
     fi
@@ -1405,7 +1398,7 @@ EOF
     ${CCLI} shelley node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
     getPoolID ${pool_name}
 
-    say "Pool: ${GREEN}${pool_name}${NC}" "log"
+    say "Pool: ${FG_GREEN}${pool_name}${NC}" "log"
     [[ -n ${pool_id} ]] && say "ID (hex)    : ${pool_id}" "log"
     [[ -n ${pool_id_bech32} ]] && say "ID (bech32) : ${pool_id_bech32}" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -1420,7 +1413,7 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+      say "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     else
       if ! selectOpMode; then continue; fi
@@ -1489,7 +1482,7 @@ EOF
       cost_lovelace=$(ADAtoLovelace "${cost_ada}")
     fi
     if [[ ${cost_ada} -lt ${minPoolCost} ]]; then
-      say "\n${RED}ERROR${NC}: cost set lower than allowed"
+      say "\n${FG_RED}ERROR${NC}: cost set lower than allowed"
       waitForInput && continue
     fi
 
@@ -1508,7 +1501,7 @@ EOF
     read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter
     [[ -n "${json_url_enter}" ]] && meta_json_url="${json_url_enter}"
     if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
-      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
+      say "${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
       waitForInput && continue
     fi
 
@@ -1537,26 +1530,26 @@ EOF
       read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
       [[ -n "${name_enter}" ]] && meta_name="${name_enter}"
       if [[ ${#meta_name} -gt 50 ]]; then
-        say "${RED}ERROR${NC}: Name cannot exceed 50 characters"
+        say "${FG_RED}ERROR${NC}: Name cannot exceed 50 characters"
         waitForInput && continue
       fi
       read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter
       ticker_enter=${ticker_enter//[^[:alnum:]]/_}
       [[ -n "${ticker_enter}" ]] && meta_ticker="${ticker_enter}"
       if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
-        say "${RED}ERROR${NC}: ticker must be between 3-5 characters"
+        say "${FG_RED}ERROR${NC}: ticker must be between 3-5 characters"
         waitForInput && continue
       fi
       read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
       [[ -n "${desc_enter}" ]] && meta_description="${desc_enter}"
       if [[ ${#meta_description} -gt 255 ]]; then
-        say "${RED}ERROR${NC}: Description cannot exceed 255 characters"
+        say "${FG_RED}ERROR${NC}: Description cannot exceed 255 characters"
         waitForInput && continue
       fi
       read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter
       [[ -n "${homepage_enter}" ]] && meta_homepage="${homepage_enter}"
       if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
-        say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
+        say "${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
         waitForInput && continue
       fi
       say "\nOptionally set an extended metadata URL?"
@@ -1568,7 +1561,7 @@ EOF
            extended_enter="${extended_enter}"
            [[ -n "${extended_enter}" ]] && meta_extended="${extended_enter}"
            if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 64 ]]; then
-             say "${RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
+             say "${FG_RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
              waitForInput && continue
            else
              meta_extended_option=",\"extended\":\"${meta_extended}\"" 
@@ -1580,13 +1573,13 @@ EOF
       jq . "${new_pool_meta_file}"
       metadata_size=$(stat -c%s "${new_pool_meta_file}")
       if [[ ${metadata_size} -gt 512 ]]; then
-        say "\n${RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length, current length: ${metadata_size}"
+        say "\n${FG_RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length, current length: ${metadata_size}"
         waitForInput && continue
       else
         cp -f "${new_pool_meta_file}" "${pool_meta_file}"
       fi
 
-      say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url}${NC}"
+      say "\n${FG_YELLOW}Please host file ${pool_meta_file} as-is at ${meta_json_url}${NC}"
       waitForInput "Press any key to proceed with registration after metadata file is uploaded"
     fi
 
@@ -1619,18 +1612,18 @@ EOF
         case $? in
           0) echo && read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
              if [[ -z "${relay_dns_enter}" ]]; then
-               say "\n${RED}ERROR${NC}: DNS record can not be empty!\n"
+               say "\n${FG_RED}ERROR${NC}: DNS record can not be empty!\n"
                continue
              fi
              #ToDo - DNS format verficication?
              read -r -p "Enter relays's port: " relay_port_enter
              if [[ -n "${relay_port_enter}" ]]; then
                if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
-                 say "\n${RED}ERROR${NC}: invalid port number!\n"
+                 say "\n${FG_RED}ERROR${NC}: invalid port number!\n"
                  continue
                fi
              else
-               say "\n${RED}ERROR${NC}: Port can not be empty!\n"
+               say "\n${FG_RED}ERROR${NC}: Port can not be empty!\n"
                continue
              fi
              relay_array+=( "type" "DNS_A" "address" "${relay_dns_enter}" "port" "${relay_port_enter}" )
@@ -1639,21 +1632,21 @@ EOF
           1) echo && read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter
              if [[ -n "${relay_ipv4_enter}" ]]; then
                if ! validIP "${relay_ipv4_enter}"; then
-                 say "\n${RED}ERROR${NC}: invalid IPv4 address format!\n"
+                 say "\n${FG_RED}ERROR${NC}: invalid IPv4 address format!\n"
                  continue
                fi
              else
-               say "\n${RED}ERROR${NC}: IPv4 address can not be empty!\n"
+               say "\n${FG_RED}ERROR${NC}: IPv4 address can not be empty!\n"
                continue
              fi
              read -r -p "Enter relays's port: " relay_port_enter
              if [[ -n "${relay_port_enter}" ]]; then
                if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
-                 say "\n${RED}ERROR${NC}: invalid port number!\n"
+                 say "\n${FG_RED}ERROR${NC}: invalid port number!\n"
                  continue
                fi
              else
-               say "\n${RED}ERROR${NC}: Port can not be empty!\n"
+               say "\n${FG_RED}ERROR${NC}: Port can not be empty!\n"
                continue
              fi
              relay_array+=( "type" "IPv4" "address" "${relay_ipv4_enter}" "port" "${relay_port_enter}" )
@@ -1671,7 +1664,7 @@ EOF
       done
     fi
     
-    say "\n# Select ${CYAN}owner/pledge${NC} wallet"
+    say "\n# Select ${FG_CYAN}owner/pledge${NC} wallet"
     if [[ ${op_mode} = "online" ]]; then
       if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
         [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
@@ -1689,11 +1682,11 @@ EOF
 
     if [[ ${lovelace} -gt 0 ]]; then
       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in owner wallet:"  "$(formatLovelace ${lovelace})")" "log"
+        say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds in owner wallet:"  "$(formatLovelace ${lovelace})")" "log"
         echo
       fi
     else
-      say "${RED}ERROR${NC}: no funds available in base address for wallet ${GREEN}${owner_wallet}${NC}"
+      say "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${owner_wallet}${NC}"
       waitForInput && continue
     fi
     if ! isWalletRegistered ${owner_wallet}; then
@@ -1723,10 +1716,10 @@ EOF
            getBaseAddress ${reward_wallet}
            getBalance ${base_addr}
            if [[ ${lovelace} -gt 0 ]]; then
-             say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in reward wallet:"  "$(formatLovelace ${lovelace})")" "log"
+             say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds in reward wallet:"  "$(formatLovelace ${lovelace})")" "log"
              echo
            else
-             say "${RED}ERROR${NC}: no funds available in base address for wallet ${GREEN}${reward_wallet}${NC}, needed to pay for registration fee"
+             say "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${reward_wallet}${NC}, needed to pay for registration fee"
              waitForInput && continue
            fi
            if ! registerStakeWallet ${reward_wallet}; then
@@ -1744,17 +1737,17 @@ EOF
     case $? in
       0) : ;;
       1) while true; do
-           say "\nEnter path to stake ${CYAN}vkey${NC} file:"
+           say "\nEnter path to stake ${FG_CYAN}vkey${NC} file:"
            fileDialog 1 "Enter path to stake vkey file" "${WALLET_FOLDER}"
            say "${file}\n"
            stake_vk_file_enter=${file}
            if [[ ${op_mode} = "online" ]]; then
-             say "Enter path to stake ${CYAN}skey${NC} file:"
+             say "Enter path to stake ${FG_CYAN}skey${NC} file:"
              fileDialog 0 "Enter path to stake skey file" "${WALLET_FOLDER}"
              say "${file}\n"
              stake_sk_file_enter=${file}
              if [[ ! -f "${stake_vk_file_enter}" || ! -f "${stake_sk_file_enter}" ]]; then
-               say "${RED}ERROR${NC}: One or both files not found, please try again"
+               say "${FG_RED}ERROR${NC}: One or both files not found, please try again"
                waitForInput && continue
              else
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
@@ -1762,7 +1755,7 @@ EOF
              fi
            else
              if [[ ! -f "${stake_vk_file_enter}" ]]; then
-               say "${RED}ERROR${NC}: file not found, please try again"
+               say "${FG_RED}ERROR${NC}: file not found, please try again"
                waitForInput && continue
              else
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
@@ -1814,11 +1807,11 @@ EOF
       say "creating operational certificate" 1 "log"
       ${CCLI} shelley node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}"
     else
-      say "\n${ORANGE}Pool operational certificate not generated in hybrid mode,\nplease use 'Pool >> Rotate' in offline mode to generate new hot keys, op cert and KES start period and transfer to online node!${NC}" "log"
-      say "${CYAN}${pool_hotkey_vk_file}${NC}" "log"
-      say "${CYAN}${pool_hotkey_sk_file}${NC}" "log"
-      say "${CYAN}${pool_opcert_file}${NC}" "log"
-      say "${CYAN}${pool_saved_kes_start}${NC}" "log"
+      say "\n${FG_YELLOW}Pool operational certificate not generated in hybrid mode,\nplease use 'Pool >> Rotate' in offline mode to generate new hot keys, op cert and KES start period and transfer to online node!${NC}" "log"
+      say "${FG_CYAN}${pool_hotkey_vk_file}${NC}" "log"
+      say "${FG_CYAN}${pool_hotkey_sk_file}${NC}" "log"
+      say "${FG_CYAN}${pool_opcert_file}${NC}" "log"
+      say "${FG_CYAN}${pool_saved_kes_start}${NC}" "log"
       waitForInput "press any key to continue" && echo
     fi
 
@@ -1851,7 +1844,7 @@ EOF
     echo
     if ! registerPool "${pool_name}" "${reward_wallet}" "${delegate_reward_wallet}" "${owner_wallet}" "${multi_owner_skeys[@]}"; then
       if [[ $? -eq 1 ]]; then
-        echo && say "${RED}ERROR${NC}: failure during pool registration, removing newly created pledge and registration files"
+        echo && say "${FG_RED}ERROR${NC}: failure during pool registration, removing newly created pledge and registration files"
         rm -f "${pool_regcert_file}" "${owner_delegation_cert_file}"
         [[ "${delegate_reward_wallet}" = "true" ]] && rm -f "${reward_delegation_cert_file}"
         waitForInput && continue
@@ -1870,7 +1863,7 @@ EOF
 
       while [[ ${lovelace} -ne ${newBalance} ]]; do
         echo
-        say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+        say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
         if ! waitNewBlockCreated; then
           break
         fi
@@ -1882,16 +1875,16 @@ EOF
       fi
 
       echo
-      say "Pool ${GREEN}${pool_name}${NC} successfully registered!" "log"
+      say "Pool ${FG_GREEN}${pool_name}${NC} successfully registered!" "log"
     else
       echo
-      say "Pool ${GREEN}${pool_name}${NC} built!" "log"
-      say "${ORANGE}Follow the steps above to sign and submit transaction to complete the pool registration!${NC}" "log"
+      say "Pool ${FG_GREEN}${pool_name}${NC} built!" "log"
+      say "${FG_YELLOW}Follow the steps above to sign and submit transaction to complete the pool registration!${NC}" "log"
       echo
     fi
-    say "Owner  : ${GREEN}${owner_wallet}${NC}" "log"
-    [[ ${multi_owner_count} -gt 0 ]] && say "         ${BLUE}${multi_owner_count}${NC} extra owner(s) using stake keys" "log"
-    say "Reward : ${GREEN}${reward_wallet}${NC}" "log"
+    say "Owner  : ${FG_GREEN}${owner_wallet}${NC}" "log"
+    [[ ${multi_owner_count} -gt 0 ]] && say "         ${FG_BLUE}${multi_owner_count}${NC} extra owner(s) using stake keys" "log"
+    say "Reward : ${FG_GREEN}${reward_wallet}${NC}" "log"
     say "Pledge : $(formatLovelace ${pledge_lovelace}) ADA" "log"
     say "Margin : ${margin}%" "log"
     say "Cost   : $(formatLovelace ${cost_lovelace}) ADA" "log"
@@ -1899,12 +1892,12 @@ EOF
     say "Substitute value for POOL_NAME in $CNODE_HOME/scripts/cnode.sh with '${pool_name}'" "log"
     if [[ ${op_mode} = "online" && ${lovelace} -lt ${pledge_lovelace} ]]; then
       echo
-      say "${ORANGE}WARN${NC}: Balance in pledge wallet is less than set pool pledge"
+      say "${FG_YELLOW}WARN${NC}: Balance in pledge wallet is less than set pool pledge"
       say "      make sure to put enough funds in wallet to honor pledge"
     fi
     if [[ ${multi_owner_count} -gt 0 ]]; then
       echo
-      say "${BLUE}INFO${NC}: All multi-owner wallets added by keys need to be manually delegated to pool if not done already!"
+      say "${FG_BLUE}INFO${NC}: All multi-owner wallets added by keys need to be manually delegated to pool if not done already!"
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     waitForInput && continue
@@ -1918,7 +1911,7 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+      say "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     else
       if ! selectOpMode; then continue; fi
@@ -1940,7 +1933,7 @@ EOF
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
 
     if [[ ! -f ${pool_config} ]]; then
-      say "${ORANGE}WARN${NC}: Missing pool config file: ${pool_config}"
+      say "${FG_YELLOW}WARN${NC}: Missing pool config file: ${pool_config}"
       waitForInput && continue
     fi
 
@@ -1986,7 +1979,7 @@ EOF
       cost_lovelace=$(ADAtoLovelace "${cost_ada}")
     fi
     if [[ ${cost_ada} -lt ${minPoolCost} ]]; then
-      say "\n${RED}ERROR${NC}: cost set lower than allowed"
+      say "\n${FG_RED}ERROR${NC}: cost set lower than allowed"
       waitForInput && continue
     fi
 
@@ -1999,7 +1992,7 @@ EOF
     json_url_enter="${json_url_enter}"
     [[ -n "${json_url_enter}" ]] && meta_json_url="${json_url_enter}"
     if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
-      say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
+      say "${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
       waitForInput && continue
     fi
 
@@ -2029,26 +2022,26 @@ EOF
       read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter
       [[ -n "${name_enter}" ]] && meta_name="${name_enter}"
       if [[ ${#meta_name} -gt 50 ]]; then
-        say "${RED}ERROR${NC}: Name cannot exceed 50 characters"
+        say "${FG_RED}ERROR${NC}: Name cannot exceed 50 characters"
         waitForInput && continue
       fi
       read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter
       ticker_enter=${ticker_enter//[^[:alnum:]]/_}
       [[ -n "${ticker_enter}" ]] && meta_ticker="${ticker_enter}"
       if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
-        say "${RED}ERROR${NC}: ticker must be between 3-5 characters"
+        say "${FG_RED}ERROR${NC}: ticker must be between 3-5 characters"
         waitForInput && continue
       fi
       read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter
       [[ -n "${desc_enter}" ]] && meta_description="${desc_enter}"
       if [[ ${#meta_description} -gt 255 ]]; then
-        say "${RED}ERROR${NC}: Description cannot exceed 255 characters"
+        say "${FG_RED}ERROR${NC}: Description cannot exceed 255 characters"
         waitForInput && continue
       fi
       read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter
       [[ -n "${homepage_enter}" ]] && meta_homepage="${homepage_enter}"
       if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
-        say "${RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
+        say "${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
         waitForInput && continue
       fi
       say "\nOptionally set an extended metadata URL?"
@@ -2062,7 +2055,7 @@ EOF
             meta_extended="${extended_enter}"
           fi
           if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 64 ]]; then
-            say "${RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
+            say "${FG_RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
             waitForInput && continue
           else
             meta_extended_option=",\"extended\":\"${meta_extended}\"" 
@@ -2074,13 +2067,13 @@ EOF
       jq . "${new_pool_meta_file}"
       metadata_size=$(stat -c%s "${new_pool_meta_file}")
       if [[ ${metadata_size} -gt 512 ]]; then
-        say "\n${RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length, current length: ${metadata_size}"
+        say "\n${FG_RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length, current length: ${metadata_size}"
         waitForInput && continue
       else
         cp -f "${new_pool_meta_file}" "${pool_meta_file}"
       fi
 
-      say "\n${ORANGE}Please host file ${pool_meta_file} as-is at ${meta_json_url}${NC}"
+      say "\n${FG_YELLOW}Please host file ${pool_meta_file} as-is at ${meta_json_url}${NC}"
       waitForInput "Press any key to proceed with re-registration after metadata file is uploaded"
     fi
 
@@ -2113,18 +2106,18 @@ EOF
         case $? in
           0) echo && read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
              if [[ -z "${relay_dns_enter}" ]]; then
-               say "\n${RED}ERROR${NC}: DNS record can not be empty!\n"
+               say "\n${FG_RED}ERROR${NC}: DNS record can not be empty!\n"
                continue
              fi
              #ToDo - DNS format verficication?
              read -r -p "Enter relays's port: " relay_port_enter
              if [[ -n "${relay_port_enter}" ]]; then
                if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
-                 say "\n${RED}ERROR${NC}: invalid port number!\n"
+                 say "\n${FG_RED}ERROR${NC}: invalid port number!\n"
                  continue
                fi
              else
-               say "\n${RED}ERROR${NC}: Port can not be empty!\n"
+               say "\n${FG_RED}ERROR${NC}: Port can not be empty!\n"
                continue
              fi
              relay_array+=( "type" "DNS_A" "address" "${relay_dns_enter}" "port" "${relay_port_enter}" )
@@ -2133,21 +2126,21 @@ EOF
           1) echo && read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter
              if [[ -n "${relay_ipv4_enter}" ]]; then
                if ! validIP "${relay_ipv4_enter}"; then
-                 say "\n${RED}ERROR${NC}: invalid IPv4 address format!\n"
+                 say "\n${FG_RED}ERROR${NC}: invalid IPv4 address format!\n"
                  continue
                fi
              else
-               say "\n${RED}ERROR${NC}: IPv4 address can not be empty!\n"
+               say "\n${FG_RED}ERROR${NC}: IPv4 address can not be empty!\n"
                continue
              fi
              read -r -p "Enter relays's port: " relay_port_enter
              if [[ -n "${relay_port_enter}" ]]; then
                if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
-                 say "\n${RED}ERROR${NC}: invalid port number!\n"
+                 say "\n${FG_RED}ERROR${NC}: invalid port number!\n"
                  continue
                fi
              else
-               say "\n${RED}ERROR${NC}: Port can not be empty!\n"
+               say "\n${FG_RED}ERROR${NC}: Port can not be empty!\n"
                continue
              fi
              relay_array+=( "type" "IPv4" "address" "${relay_ipv4_enter}" "port" "${relay_port_enter}" )
@@ -2168,13 +2161,13 @@ EOF
     # Owner wallet, also used to pay for pool update fee
     owner_wallet=$(jq -r .pledgeWallet "${pool_config}")
     reward_wallet=$(jq -r .rewardWallet "${pool_config}")
-    say "Old owner wallet:  ${GREEN}${owner_wallet}${NC}"
-    say "Old reward wallet: ${GREEN}${reward_wallet}${NC}"
+    say "Old owner wallet:  ${FG_GREEN}${owner_wallet}${NC}"
+    say "Old reward wallet: ${FG_GREEN}${reward_wallet}${NC}"
     echo
-    say "${ORANGE}If a new wallet is chosen for owner/reward, a manual delegation to the pool with new wallet is needed${NC}"
+    say "${FG_YELLOW}If a new wallet is chosen for owner/reward, a manual delegation to the pool with new wallet is needed${NC}"
     echo
     
-    say "# Select ${CYAN}owner/pledge${NC} wallet"
+    say "# Select ${FG_CYAN}owner/pledge${NC} wallet"
     if [[ ${op_mode} = "online" ]]; then
       if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
         [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
@@ -2192,11 +2185,11 @@ EOF
 
     if [[ ${lovelace} -gt 0 ]]; then
       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in base address for owner wallet:"  "$(formatLovelace ${lovelace})")" "log"
+        say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds in base address for owner wallet:"  "$(formatLovelace ${lovelace})")" "log"
         echo
       fi
     else
-      say "${RED}ERROR${NC}: no funds available in base address for wallet ${GREEN}${owner_wallet}${NC}"
+      say "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${owner_wallet}${NC}"
       waitForInput && continue
     fi
     if ! isWalletRegistered ${owner_wallet}; then
@@ -2226,9 +2219,9 @@ EOF
            getBaseAddress ${reward_wallet}
            getBalance ${base_addr}
            if [[ ${lovelace} -gt 0 ]]; then
-             say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in reward wallet:"  "$(formatLovelace ${lovelace})")" "log"
+             say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds in reward wallet:"  "$(formatLovelace ${lovelace})")" "log"
            else
-             say "${RED}ERROR${NC}: no funds available in base address for wallet ${GREEN}${reward_wallet}${NC}, needed to pay for registration fee"
+             say "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${reward_wallet}${NC}, needed to pay for registration fee"
              waitForInput && continue
            fi
            if ! registerStakeWallet ${reward_wallet}; then
@@ -2246,17 +2239,17 @@ EOF
     case $? in
       0) : ;;
       1) while true; do
-           say "\nEnter path to stake ${CYAN}vkey${NC} file:"
+           say "\nEnter path to stake ${FG_CYAN}vkey${NC} file:"
            fileDialog 1 "Enter path to stake vkey file" "${WALLET_FOLDER}"
            say "${file}\n"
            stake_vk_file_enter=${file}
            if [[ ${op_mode} = "online" ]]; then
-             say "Enter path to stake ${CYAN}skey${NC} file:"
+             say "Enter path to stake ${FG_CYAN}skey${NC} file:"
              fileDialog 0 "Enter path to stake skey file" "${WALLET_FOLDER}"
              say "${file}\n"
              stake_sk_file_enter=${file}
              if [[ ! -f "${stake_vk_file_enter}" || ! -f "${stake_sk_file_enter}" ]]; then
-               say "${RED}ERROR${NC}: One or both files not found, please try again"
+               say "${FG_RED}ERROR${NC}: One or both files not found, please try again"
                waitForInput && continue
              else
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
@@ -2264,7 +2257,7 @@ EOF
              fi
            else
              if [[ ! -f "${stake_vk_file_enter}" ]]; then
-               say "${RED}ERROR${NC}: file not found, please try again"
+               say "${FG_RED}ERROR${NC}: file not found, please try again"
                waitForInput && continue
              else
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
@@ -2314,7 +2307,7 @@ EOF
     say "sending transaction to chain" 1 "log"
     if ! modifyPool "${pool_name}" "${reward_wallet}" "${owner_wallet}" "${multi_owner_skeys[@]}"; then
       if [[ $? -eq 1 ]]; then
-        echo && say "${RED}ERROR${NC}: failure during pool update, removing newly created registration certificate"
+        echo && say "${FG_RED}ERROR${NC}: failure during pool update, removing newly created registration certificate"
         mv -f "${pool_regcert_file}.tmp" "${pool_regcert_file}" # restore reg cert backup
         waitForInput && continue
       fi
@@ -2331,7 +2324,7 @@ EOF
       getBalance ${base_addr}
       while [[ ${lovelace} -ne ${newBalance} ]]; do
         echo
-        say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+        say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
         if ! waitNewBlockCreated; then
           break
         fi
@@ -2341,27 +2334,27 @@ EOF
         waitForInput && continue
       fi
       echo
-      say "Pool ${GREEN}${pool_name}${NC} successfully updated with new parameters!" "log"
+      say "Pool ${FG_GREEN}${pool_name}${NC} successfully updated with new parameters!" "log"
     else
       echo
-      say "Pool ${GREEN}${pool_name}${NC} built!" "log"
-      say "${ORANGE}Follow the steps above to sign and submit transaction to complete the pool update!${NC}" "log"
+      say "Pool ${FG_GREEN}${pool_name}${NC} built!" "log"
+      say "${FG_YELLOW}Follow the steps above to sign and submit transaction to complete the pool update!${NC}" "log"
       echo
     fi
-    say "Owner  : ${GREEN}${owner_wallet}${NC}" "log"
-    [[ ${multi_owner_count} -gt 0 ]] && say "         ${BLUE}${multi_owner_count}${NC} extra owner(s) using stake keys" "log"
-    say "Reward : ${GREEN}${reward_wallet}${NC}" "log"
+    say "Owner  : ${FG_GREEN}${owner_wallet}${NC}" "log"
+    [[ ${multi_owner_count} -gt 0 ]] && say "         ${FG_BLUE}${multi_owner_count}${NC} extra owner(s) using stake keys" "log"
+    say "Reward : ${FG_GREEN}${reward_wallet}${NC}" "log"
     say "Pledge : $(formatLovelace ${pledge_lovelace}) ADA" "log"
     say "Margin : ${margin}%" "log"
     say "Cost   : $(formatLovelace ${cost_lovelace}) ADA" "log"
     if [[ ${op_mode} = "online" && ${lovelace} -lt ${pledge_lovelace} ]]; then
       echo
-      say "${ORANGE}WARN${NC}: Balance in pledge wallet is less than set pool pledge"
+      say "${FG_YELLOW}WARN${NC}: Balance in pledge wallet is less than set pool pledge"
       say "      make sure to put enough funds in wallet to honor pledge"
     fi
     if [[ ${multi_owner_count} -gt 0 ]]; then
       echo
-      say "${BLUE}INFO${NC}: All multi-owner wallets added by keys need to be manually delegated to pool if not done already!"
+      say "${FG_BLUE}INFO${NC}: All multi-owner wallets added by keys need to be manually delegated to pool if not done already!"
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     waitForInput && continue
@@ -2375,7 +2368,7 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+      say "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
     else
       if ! selectOpMode; then continue; fi
@@ -2397,17 +2390,17 @@ EOF
     epoch=$(getEpoch)
     eMax=$(jq -r '.eMax' "${TMP_FOLDER}"/protparams.json)
 
-    say "Current epoch: ${BLUE}${epoch}${NC}" "log"
+    say "Current epoch: ${FG_BLUE}${epoch}${NC}" "log"
     epoch_start=$((epoch + 1))
     epoch_end=$((epoch + eMax))
-    say "earlist epoch to retire pool is ${BLUE}${epoch_start}${NC} and latest ${BLUE}${epoch_end}${NC}" "log"
+    say "earlist epoch to retire pool is ${FG_BLUE}${epoch_start}${NC} and latest ${FG_BLUE}${epoch_end}${NC}" "log"
     echo
 
     read -r -p "Enter epoch in which to retire pool (blank for ${epoch_start}): " epoch_enter
     [[ -z "${epoch_enter}" ]] && epoch_enter=${epoch_start}
 
     if [[ ${epoch_enter} -lt ${epoch_start} || ${epoch_enter} -gt ${epoch_end} ]]; then
-      say "${RED}ERROR${NC}: epoch invalid, valid range: ${epoch_start}-${epoch_end}"
+      say "${FG_RED}ERROR${NC}: epoch invalid, valid range: ${epoch_start}-${epoch_end}"
       waitForInput && continue
     fi
     
@@ -2434,8 +2427,8 @@ EOF
       # Both payment and base address available with funds, let user choose what to use
       say "# Select wallet address to use"
       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        say "$(printf "%s\t\t${CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
-        say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
+        say "$(printf "%s\t\t${FG_CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
+        say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
       fi
       select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
       case $? in
@@ -2446,15 +2439,15 @@ EOF
     elif [[ ${pay_lovelace} -gt 0 ]]; then
       addr="${pay_addr}"
       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        say "$(printf "%s\t${CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
+        say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
       fi
     elif [[ ${base_lovelace} -gt 0 ]]; then
       addr="${base_addr}"
       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        say "$(printf "%s\t\t${CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
+        say "$(printf "%s\t\t${FG_CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
       fi
     else
-      say "${RED}ERROR${NC}: no funds available for wallet ${GREEN}${wallet_name}${NC}"
+      say "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
       waitForInput && continue
     fi
 
@@ -2484,7 +2477,7 @@ EOF
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
       echo
-      say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
       if ! waitNewBlockCreated; then
         break
       fi
@@ -2496,7 +2489,7 @@ EOF
     fi
 
     echo
-    say "Pool ${GREEN}${pool_name}${NC} set to be retired in epoch ${BLUE}${epoch_enter}${NC}" "log"
+    say "Pool ${FG_GREEN}${pool_name}${NC} set to be retired in epoch ${FG_BLUE}${epoch_enter}${NC}" "log"
 
     waitForInput
 
@@ -2513,12 +2506,12 @@ EOF
       getPoolID "$(basename ${pool})"
       pool_regcert_file="${pool}/${POOL_REGCERT_FILENAME}"
       pool_deregcert_file="${pool}/${POOL_DEREGCERT_FILENAME}"
-      [[ -f "${pool_regcert_file}" ]] && pool_registered="${GREEN}YES${NC}" || pool_registered="${RED}NO${NC}"
-      say "${GREEN}$(basename ${pool})${NC} "
+      [[ -f "${pool_regcert_file}" ]] && pool_registered="${FG_GREEN}YES${NC}" || pool_registered="${FG_RED}NO${NC}"
+      say "${FG_GREEN}$(basename ${pool})${NC} "
       say "$(printf "%-21s : %s" "ID (hex)" "${pool_id}")" "log"
       [[ -n ${pool_id_bech32} ]] && say "$(printf "%-21s : %s" "ID (bech32)" "${pool_id_bech32}")" "log"
       if [[ -f "${pool_deregcert_file}" ]]; then
-        say "$(printf "%-21s : %s" "Registered" "${RED}DE-REGISTERED${NC} - check 'Pool >> Show' for ledger registration status")" "log"
+        say "$(printf "%-21s : %s" "Registered" "${FG_RED}DE-REGISTERED${NC} - check 'Pool >> Show' for ledger registration status")" "log"
       else
         say "$(printf "%-21s : %s" "Registered" "${pool_registered} - check 'Pool >> Show' for ledger registration status")" "log"
       fi
@@ -2526,12 +2519,12 @@ EOF
         kesExpiration "$(cat "${pool}/${POOL_CURRENT_KES_START}")"
         if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
           if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
-            say "$(printf "%-21s : %s - ${RED}%s${NC} %s ago" "KES expiration date" "${expiration_date}" "EXPIRED!" "$(showTimeLeft ${expiration_time_sec_diff:1})")" "log"
+            say "$(printf "%-21s : %s - ${FG_RED}%s${NC} %s ago" "KES expiration date" "${expiration_date}" "EXPIRED!" "$(showTimeLeft ${expiration_time_sec_diff:1})")" "log"
           else
-            say "$(printf "%-21s : %s - ${RED}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "ALERT!" "$(showTimeLeft ${expiration_time_sec_diff})")" "log"
+            say "$(printf "%-21s : %s - ${FG_RED}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "ALERT!" "$(showTimeLeft ${expiration_time_sec_diff})")" "log"
           fi
         elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
-          say "$(printf "%-21s : %s - ${ORANGE}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "WARNING!" "$(showTimeLeft ${expiration_time_sec_diff})")" "log"
+          say "$(printf "%-21s : %s - ${FG_YELLOW}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "WARNING!" "$(showTimeLeft ${expiration_time_sec_diff})")" "log"
         else
           say "$(printf "%-21s : %s" "KES expiration date" "${expiration_date}")" "log"
         fi
@@ -2551,7 +2544,7 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      say "${CYAN}OFFLINE MODE${NC}: CNTools started in offline mode, locally saved info shown!"
+      say "${FG_CYAN}OFFLINE MODE${NC}: CNTools started in offline mode, locally saved info shown!"
     fi
 
     if ! selectPool "all" "${POOL_ID_FILENAME}" >/dev/null; then # ${pool_name} populated by selectPool function
@@ -2562,7 +2555,7 @@ EOF
       tput sc && say "Dumping ledger-state from node, can take a while on larger networks...\n"
       if ! timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json; then
         tput rc && tput ed
-        say "${RED}ERROR${NC}: ledger dump failed/timed out"
+        say "${FG_RED}ERROR${NC}: ledger dump failed/timed out"
         say "increase timeout value in cntools.config"
         waitForInput && continue
       fi
@@ -2581,14 +2574,14 @@ EOF
       [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
       [[ -n "${ledger_pParams}" ]] && pool_registered="YES" || pool_registered="NO"
     fi
-    say "$(printf "%-21s : ${GREEN}%s${NC}" "Pool" "${pool_name}")" "log"
+    say "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Pool" "${pool_name}")" "log"
     say "$(printf "%-21s : %s" "ID (hex)" "${pool_id}")" "log"
     [[ -n ${pool_id_bech32} ]] && say "$(printf "%-21s : %s" "ID (bech32)" "${pool_id_bech32}")" "log"
-    [[ "${pool_registered}" = "YES" ]] && pool_reg_color="${GREEN}" || pool_reg_color="${RED}"
+    [[ "${pool_registered}" = "YES" ]] && pool_reg_color="${FG_GREEN}" || pool_reg_color="${FG_RED}"
     if [[ -z "${ledger_retiring}" ]]; then
       say "$(printf "%-21s : ${pool_reg_color}%s${NC}" "Registered" "${pool_registered}")" "log"
     else
-      say "$(printf "%-21s : ${pool_reg_color}%s${NC} - ${RED}Retired in epoch %s${NC}" "Registered" "${pool_registered}" "${ledger_retiring}")" "log"
+      say "$(printf "%-21s : ${pool_reg_color}%s${NC} - ${FG_RED}Retired in epoch %s${NC}" "Registered" "${pool_registered}" "${ledger_retiring}")" "log"
     fi
     pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
@@ -2618,8 +2611,8 @@ EOF
           if [[ "${meta_hash_pParams}" = "${meta_hash_fPParams}" ]]; then
             say "$(printf "  %-19s : %s" "Hash Ledger" "${meta_hash_pParams}")" "log"
           else
-            say "$(printf "  %-13s (${ORANGE}%s${NC}) : %s" "Hash Ledger" "old" "${meta_hash_pParams}")" "log"
-            say "$(printf "  %-13s (${ORANGE}%s${NC}) : %s" "Hash Ledger" "new" "${meta_hash_fPParams}")" "log"
+            say "$(printf "  %-13s (${FG_YELLOW}%s${NC}) : %s" "Hash Ledger" "old" "${meta_hash_pParams}")" "log"
+            say "$(printf "  %-13s (${FG_YELLOW}%s${NC}) : %s" "Hash Ledger" "new" "${meta_hash_fPParams}")" "log"
           fi
         fi
       else
@@ -2637,8 +2630,8 @@ EOF
           say "$(printf "%-21s : %s ADA" "Pledge" "$(formatLovelace "${conf_pledge}")")" "log"
           say "$(printf "%-21s : %s %%" "Margin" "${conf_margin}")" "log"
           say "$(printf "%-21s : %s ADA" "Cost" "$(formatLovelace "${conf_cost}")")" "log"
-          say "$(printf "%-21s : %s (%s)" "Owner Wallet" "${GREEN}${conf_owner}${NC}" "primary only, use online mode for multi-owner")" "log"
-          say "$(printf "%-21s : %s" "Reward Wallet" "${GREEN}${conf_reward}${NC}")" "log"
+          say "$(printf "%-21s : %s (%s)" "Owner Wallet" "${FG_GREEN}${conf_owner}${NC}" "primary only, use online mode for multi-owner")" "log"
+          say "$(printf "%-21s : %s" "Reward Wallet" "${FG_GREEN}${conf_reward}${NC}")" "log"
           relay_title="Relay(s)"
           while read -r type address port; do
             if [[ ${type} != "DNS_A" && ${type} != "IPv4" ]]; then
@@ -2655,24 +2648,24 @@ EOF
         if [[ ${pParams_pledge} -eq ${fPParams_pledge} ]]; then
           say "$(printf "%-21s : %s ADA" "Pledge" "$(formatLovelace "${pParams_pledge}")")" "log"
         else
-          say "$(printf "%-15s (${ORANGE}%s${NC}) : %s ADA" "Pledge" "new" "$(formatLovelace "${fPParams_pledge}")" )" "log"
+          say "$(printf "%-15s (${FG_YELLOW}%s${NC}) : %s ADA" "Pledge" "new" "$(formatLovelace "${fPParams_pledge}")" )" "log"
         fi
         pParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_pParams}")")
         fPParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_fPParams}")")
         if [[ "${pParams_margin}" = "${fPParams_margin}" ]]; then
           say "$(printf "%-21s : %s %%" "Margin" "$(fractionToPCT "${pParams_margin}")")" "log"
         else
-          say "$(printf "%-15s (${ORANGE}%s${NC}) : %s %%" "Margin" "new" "$(fractionToPCT "${fPParams_margin}")" )" "log"
+          say "$(printf "%-15s (${FG_YELLOW}%s${NC}) : %s %%" "Margin" "new" "$(fractionToPCT "${fPParams_margin}")" )" "log"
         fi
         pParams_cost=$(jq -r '.cost //0' <<< "${ledger_pParams}")
         fPParams_cost=$(jq -r '.cost //0' <<< "${ledger_fPParams}")
         if [[ ${pParams_cost} -eq ${fPParams_cost} ]]; then
           say "$(printf "%-21s : %s ADA" "Cost" "$(formatLovelace "${pParams_cost}")")" "log"
         else
-          say "$(printf "%-15s (${ORANGE}%s${NC}) : %s ADA" "Cost" "new" "$(formatLovelace "${fPParams_cost}")" )" "log"
+          say "$(printf "%-15s (${FG_YELLOW}%s${NC}) : %s ADA" "Cost" "new" "$(formatLovelace "${fPParams_cost}")" )" "log"
         fi
         if [[ ! $(jq -c '.relays[] //empty' <<< "${ledger_pParams}") = $(jq -c '.relays[] //empty' <<< "${ledger_fPParams}") ]]; then
-          say "$(printf "%-23s ${ORANGE}%s${NC}" "" "Relay(s) updated, showing latest registered")" "log"
+          say "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Relay(s) updated, showing latest registered")" "log"
         fi
         ledger_relays=$(jq -c '.relays[] //empty' <<< "${ledger_fPParams}")
         relay_title="Relay(s)"
@@ -2694,28 +2687,28 @@ EOF
         fi
         # get owners
         if [[ ! $(jq -c -r '.owners[] // empty' <<< "${ledger_pParams}") = $(jq -c -r '.owners[] // empty' <<< "${ledger_fPParams}") ]]; then
-          say "$(printf "%-23s ${ORANGE}%s${NC}" "" "Owner(s) updated, showing latest registered")" "log"
+          say "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Owner(s) updated, showing latest registered")" "log"
         fi
         owner_title="Owner(s)"
         while read -r owner; do
           owner_wallet=$(grep -r ${owner} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
           if [[ -n ${owner_wallet} ]]; then
             owner_wallet="$(basename "$(dirname "${owner_wallet}")")"
-            say "$(printf "%-21s : %s" "${owner_title}" "${GREEN}${owner_wallet}${NC}")" "log"
+            say "$(printf "%-21s : %s" "${owner_title}" "${FG_GREEN}${owner_wallet}${NC}")" "log"
           else
             say "$(printf "%-21s : %s" "${owner_title}" "${owner}")" "log"
           fi
           owner_title=""
         done < <(jq -c -r '.owners[] // empty' <<< "${ledger_fPParams}")
         if [[ ! $(jq -r '.rewardAccount.credential."key hash" // empty' <<< "${ledger_pParams}") = $(jq -r '.rewardAccount.credential."key hash" // empty' <<< "${ledger_fPParams}") ]]; then
-          say "$(printf "%-23s ${ORANGE}%s${NC}" "" "Reward account updated, showing latest registered")" "log"
+          say "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Reward account updated, showing latest registered")" "log"
         fi
         reward_account=$(jq -r '.rewardAccount.credential."key hash" // empty' <<< "${ledger_fPParams}")
         if [[ -n ${reward_account} ]]; then
           reward_wallet=$(grep -r ${reward_account} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
           if [[ -n ${reward_wallet} ]]; then
             reward_wallet="$(basename "$(dirname "${reward_wallet}")")"
-            say "$(printf "%-21s : %s" "Reward wallet" "${GREEN}${reward_wallet}${NC}")" "log"
+            say "$(printf "%-21s : %s" "Reward wallet" "${FG_GREEN}${reward_wallet}${NC}")" "log"
           else
             say "$(printf "%-21s : %s" "Reward account" "${reward_account}")" "log"
           fi
@@ -2729,12 +2722,12 @@ EOF
         kesExpiration "$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
         if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
           if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
-            say "$(printf "%-21s : %s - ${RED}%s${NC} %s ago" "KES expiration date" "${expiration_date}" "EXPIRED!" "$(showTimeLeft ${expiration_time_sec_diff:1})")" "log"
+            say "$(printf "%-21s : %s - ${FG_RED}%s${NC} %s ago" "KES expiration date" "${expiration_date}" "EXPIRED!" "$(showTimeLeft ${expiration_time_sec_diff:1})")" "log"
           else
-            say "$(printf "%-21s : %s - ${RED}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "ALERT!" "$(showTimeLeft ${expiration_time_sec_diff})")" "log"
+            say "$(printf "%-21s : %s - ${FG_RED}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "ALERT!" "$(showTimeLeft ${expiration_time_sec_diff})")" "log"
           fi
         elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
-          say "$(printf "%-21s : %s - ${ORANGE}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "WARNING!" "$(showTimeLeft ${expiration_time_sec_diff})")" "log"
+          say "$(printf "%-21s : %s - ${FG_YELLOW}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "WARNING!" "$(showTimeLeft ${expiration_time_sec_diff})")" "log"
         else
           say "$(printf "%-21s : %s" "KES expiration date" "${expiration_date}")" "log"
         fi
@@ -2765,7 +2758,7 @@ EOF
     echo
     say "Pool KES keys successfully updated"
     say "New KES start period  : ${current_kes_period}" "log"
-    say "KES keys will expire  : $(( current_kes_period + max_kes_evolutions )) - ${expiration_date}" "log"
+    say "KES keys will expire  : $(( current_kes_period + MAX_KES_EVOLUTIONS )) - ${expiration_date}" "log"
     echo
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
       say "Copy updated files to pool node replacing existing files:" "log"
@@ -2811,7 +2804,7 @@ EOF
     say "# Decrypting GPG encrypted pool files" "log"
     echo
     if ! getPassword; then # $password variable populated by getPassword function
-      say "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
+      say "\n\n" && say "${FG_RED}ERROR${NC}: password input aborted!"
       waitForInput && continue
     fi
     while IFS= read -r -d '' file; do
@@ -2822,12 +2815,12 @@ EOF
     unset password
 
     echo
-    say "Pool decrypted:  ${GREEN}${pool_name}${NC}" "log"
+    say "Pool decrypted:  ${FG_GREEN}${pool_name}${NC}" "log"
     say "Files unlocked:  ${filesUnlocked}" "log"
     say "Files decrypted: ${keysDecrypted}" "log"
     if [[ ${filesUnlocked} -ne 0 || ${keysDecrypted} -ne 0 ]]; then
       echo
-      say "${ORANGE}Pool files are now unprotected${NC}" "log"
+      say "${FG_YELLOW}Pool files are now unprotected${NC}" "log"
       say "Use 'POOL >> ENCRYPT / LOCK' to re-lock"
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -2856,7 +2849,7 @@ EOF
     say "# Encrypting sensitive pool keys with GPG" "log"
     echo
     if ! getPassword confirm; then # $password variable populated by getPassword function
-      say "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
+      say "\n\n" && say "${FG_RED}ERROR${NC}: password input aborted!"
       waitForInput && continue
     fi
     keyFiles=(
@@ -2884,12 +2877,12 @@ EOF
     done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -print0)
 
     echo
-    say "Pool encrypted:  ${GREEN}${pool_name}${NC}" "log"
+    say "Pool encrypted:  ${FG_GREEN}${pool_name}${NC}" "log"
     say "Files locked:    ${filesLocked}" "log"
     say "Files encrypted: ${keysEncrypted}" "log"
     if [[ ${filesLocked} -ne 0 || ${keysEncrypted} -ne 0 ]]; then
       echo
-      say "${BLUE}Pool files are now protected${NC}" "log"
+      say "${FG_BLUE}Pool files are now protected${NC}" "log"
       say "Use 'POOL >> DECRYPT / UNLOCK' to unlock"
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -2910,11 +2903,11 @@ EOF
   echo
   say "Enter path for Tx file to sign:"
   fileDialog 1 "Enter path for Tx file to sign"
-  say "${CYAN}${file}${NC}\n" "log"
+  say "${FG_CYAN}${file}${NC}\n" "log"
   tx_raw=${file}
   [[ -z "${tx_raw}" ]] && continue
   if [[ ! -f "${tx_raw}" ]]; then
-    say "${RED}ERROR${NC}: file not found: ${tx_raw}"
+    say "${FG_RED}ERROR${NC}: file not found: ${tx_raw}"
     waitForInput && continue
   fi
   
@@ -2923,13 +2916,13 @@ EOF
   while true; do
     fileDialog 0 "Enter path to signing key file" "${WALLET_FOLDER}"
     if [[ -z "${file}" ]]; then
-      say "${ORANGE}EMPTY${NC}: no file selected, how do you want to proceed?"
+      say "${FG_YELLOW}EMPTY${NC}: no file selected, how do you want to proceed?"
       : # do nothing
     elif [[ ! -f "${file}" ]]; then
-      say "${RED}ERROR${NC}: file not found, please try again! [${file}]"
+      say "${FG_RED}ERROR${NC}: file not found, please try again! [${file}]"
     else
       ofl_sign_keys+=( "${file}" )
-      say "${GREEN}${file}${NC} added!" "log"
+      say "${FG_GREEN}${file}${NC} added!" "log"
     fi
     say "\nAdd more keys?"
     select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
@@ -2942,7 +2935,7 @@ EOF
   echo
 
   if signTx "${tx_raw}" "${ofl_sign_keys[@]}"; then
-    say "Tx file successfully signed and available at: ${CYAN}${tx_signed}${NC}" "log"
+    say "Tx file successfully signed and available at: ${FG_CYAN}${tx_signed}${NC}" "log"
     say "Transfer file to online CNTools and use 'Submit Tx' option to submit pool registration transaction on chain"
   fi
   
@@ -2957,21 +2950,21 @@ EOF
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-    say "${RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+    say "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
     waitForInput && continue
   fi
   echo
   say "Please enter signed Tx file to submit:"
   fileDialog 1 "Please enter signed Tx file to submit"
-  say "${CYAN}${file}${NC}\n" "log"
+  say "${FG_CYAN}${file}${NC}\n" "log"
   [[ -z "${file}" ]] && continue
   if [[ ! -f "${file}" ]]; then
-    say "${RED}ERROR${NC}: file not found: ${file}"
+    say "${FG_RED}ERROR${NC}: file not found: ${file}"
     waitForInput && continue
   fi
 
   if submitTx "${file}"; then
-    say "${CYAN}${file}${NC} successfully submitted!" "log"
+    say "${FG_CYAN}${file}${NC} successfully submitted!" "log"
   fi
   
   waitForInput
@@ -2985,7 +2978,7 @@ EOF
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   if [[ ! -d "${BLOCK_LOG_DIR}" ]]; then
-    say "${RED}ERROR${NC}: block log directory not found!"
+    say "${FG_RED}ERROR${NC}: block log directory not found!"
     say "run cntoolsBlockCollector.sh script to start collecting blocks from json log file"
     say "log file to parse grabbed from node config file specified in env"
     say "if BLOCK_LOG_DIR has been modified cntoolsBlockCollector.sh script has to be restarted"
@@ -3001,13 +2994,13 @@ EOF
   select_opt "[s] Summary" "[e] Epoch" "[Esc] Cancel"
   case $? in
     0) echo
-       block_table="Epoch,${BLUE}Leader Slots${NC},${GREEN}Adopted Blocks${NC},${RED}Invalid Blocks${NC}\n"
+       block_table="Epoch,${FG_BLUE}Leader Slots${NC},${FG_GREEN}Adopted Blocks${NC},${FG_RED}Invalid Blocks${NC}\n"
        current_epoch=${epoch}
        read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter
        echo
        epoch_enter=${epoch_enter:-10}
        if ! [[ ${epoch_enter} =~ ^[0-9]+$ ]]; then
-         say "${RED}ERROR${NC}: not a number"
+         say "${FG_RED}ERROR${NC}: not a number"
          waitForInput && continue
        fi
        first_epoch=$(( epoch - epoch_enter ))
@@ -3036,7 +3029,7 @@ EOF
        leader_count=$(jq -c '[.[].slot //empty] | length' "${blocks_file}")
        invalid_count=$(jq -c '[.[].hash //empty | select(startswith("Invalid"))] | length' "${blocks_file}")
        adopted_count=$(( $(jq -c '[.[].hash //empty] | length' "${blocks_file}") - invalid_count ))
-       say "\nLeader: ${BLUE}${leader_count}${NC}  -  Adopted: ${GREEN}${adopted_count}${NC}  -  Invalid: ${RED}${invalid_count}${NC}" "log"
+       say "\nLeader: ${FG_BLUE}${leader_count}${NC}  -  Adopted: ${FG_GREEN}${adopted_count}${NC}  -  Invalid: ${FG_RED}${invalid_count}${NC}" "log"
        if [[ ${leader_count} -gt 0 ]]; then
          echo
          # print block table
@@ -3066,8 +3059,8 @@ EOF
     GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
     GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
     if [[ "$CNTOOLS_MAJOR_VERSION" != "$GIT_MAJOR_VERSION" ]];then
-      say "New major version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
-      say "${RED}WARNING${NC}: Breaking changes were made to CNTools!"
+      say "New major version available: ${FG_GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
+      say "${FG_RED}WARNING${NC}: Breaking changes were made to CNTools!"
       say "\nPlease read changelog available at the above URL carefully and then follow directions below"
 																									 
       waitForInput "We will not overwrite your changes automatically, press any key for update instructions"
@@ -3082,8 +3075,8 @@ EOF
         GIT_MINOR_VERSION=0
         GIT_PATCH_VERSION=0
       fi
-      say "New version available: ${GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
-      say "${BLUE}INFO${NC} - The following files will be overwritten:"
+      say "New version available: ${FG_GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
+      say "${FG_BLUE}INFO${NC} - The following files will be overwritten:"
       say "$CNODE_HOME/scripts/cntools.sh"
       say "$CNODE_HOME/scripts/cntools.config"
       say "$CNODE_HOME/scripts/cntools.library"
@@ -3110,13 +3103,13 @@ EOF
          sed -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "$CNODE_HOME/scripts/cntools."*; then
          myExit 0 "Update applied successfully!\n\nPlease start CNTools again!"
       else
-        say "\n${RED}ERROR${NC}: update unsuccessful, backup, GitHub download or vname update failed!\n"
+        say "\n${FG_RED}ERROR${NC}: update unsuccessful, backup, GitHub download or vname update failed!\n"
       fi
     else
-      say "${GREEN}Up to Date${NC}: You're using the latest version. No updates required!"
+      say "${FG_GREEN}Up to Date${NC}: You're using the latest version. No updates required!"
     fi
   else
-    say "\n${RED}ERROR${NC}: download from GitHub failed, unable to perform version check!\n"
+    say "\n${FG_RED}ERROR${NC}: download from GitHub failed, unable to perform version check!\n"
   fi
   waitForInput
   
@@ -3138,12 +3131,12 @@ EOF
        [[ "${dir}" != */ ]] && backup_path="${dir}/" || backup_path="${dir}"
        say "${backup_path}\n"
        if [[ ! "${backup_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
-         say "${RED}ERROR${NC}: invalid path, please specify the full path to backup directory (space not allowed)"
+         say "${FG_RED}ERROR${NC}: invalid path, please specify the full path to backup directory (space not allowed)"
          waitForInput && continue
        fi
        mkdir -p "${backup_path}" # Create if missing
        if [[ ! -d "${backup_path}" ]]; then
-         say "${RED}ERROR${NC}: failed to create backup directory:"
+         say "${FG_RED}ERROR${NC}: failed to create backup directory:"
          say "${backup_path}"
          waitForInput && continue
        fi
@@ -3180,7 +3173,7 @@ EOF
        echo
 
        if ! tar cf "${backup_file}" --files-from <(ls -d "${backup_list[@]}" 2>/dev/null) &>/dev/null; then
-         say "${RED}ERROR${NC}: failure during backup creation :("
+         say "${FG_RED}ERROR${NC}: failure during backup creation :("
          waitForInput && continue
        fi
        if [[ ${#excluded_files[@]} -gt 0 ]]; then
@@ -3191,14 +3184,14 @@ EOF
          while IFS= read -r -d '' wallet; do # check for missing signing keys
            wallet_name=$(basename ${wallet})
            [[ -z "$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name "${WALLET_PAY_SK_FILENAME}*" -print)" ]] && \
-             say "${ORANGE}WARN${NC}: Wallet ${GREEN}${wallet_name}${NC} missing file ${WALLET_PAY_SK_FILENAME}" && missing_keys="true"
+             say "${FG_YELLOW}WARN${NC}: Wallet ${FG_GREEN}${wallet_name}${NC} missing file ${WALLET_PAY_SK_FILENAME}" && missing_keys="true"
            [[ -z "$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name "${WALLET_STAKE_SK_FILENAME}*" -print)" ]] && \
-             say "${ORANGE}WARN${NC}: Wallet ${GREEN}${wallet_name}${NC} missing file ${WALLET_STAKE_SK_FILENAME}" && missing_keys="true"
+             say "${FG_YELLOW}WARN${NC}: Wallet ${FG_GREEN}${wallet_name}${NC} missing file ${WALLET_STAKE_SK_FILENAME}" && missing_keys="true"
          done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
          while IFS= read -r -d '' pool; do
            pool_name=$(basename ${pool})
            [[ -z "$(find "${pool}" -mindepth 1 -maxdepth 1 -type f -name "${POOL_COLDKEY_SK_FILENAME}*" -print)" ]] && \
-             say "${ORANGE}WARN${NC}: Pool ${GREEN}${pool_name}${NC} missing file ${POOL_COLDKEY_SK_FILENAME}" && missing_keys="true"
+             say "${FG_YELLOW}WARN${NC}: Pool ${FG_GREEN}${pool_name}${NC} missing file ${POOL_COLDKEY_SK_FILENAME}" && missing_keys="true"
          done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
          [[ ${missing_keys} = "true" ]] && echo
          say "Do you want to delete private keys?"
@@ -3228,7 +3221,7 @@ EOF
               backup_file="${backup_file}.gpg"
               unset password
             else
-              say "${RED}ERROR${NC}: password input aborted!"
+              say "${FG_RED}ERROR${NC}: password input aborted!"
             fi
             ;;
          1) : ;; # do nothing
@@ -3236,7 +3229,7 @@ EOF
        echo
        
        if [[ ${missing_keys} = "true" ]]; then
-         say "${ORANGE}There are wallets and/or pools with missing keys.\nIf removed in a previous backup, make sure to keep that master backup safe!${NC}"
+         say "${FG_YELLOW}There are wallets and/or pools with missing keys.\nIf removed in a previous backup, make sure to keep that master backup safe!${NC}"
          echo && say "Incremental backup file ${backup_file} successfully created" "log"
        else
          say "Backup file ${backup_file} successfully created" "log"
@@ -3250,7 +3243,7 @@ EOF
        say "${file}\n"
        backup_file=${file}
        if [[ ! -f "${backup_file}" ]]; then
-         say "${RED}ERROR${NC}: file not found: ${backup_file}"
+         say "${FG_RED}ERROR${NC}: file not found: ${backup_file}"
          waitForInput && continue
        fi
        say "Select/enter restore directory(created if non existent):"
@@ -3258,13 +3251,13 @@ EOF
        [[ "${dir}" != */ ]] && restore_path="${dir}/" || restore_path="${dir}"
        say "${restore_path}\n"
        if [[ ! "${restore_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
-         say "${RED}ERROR${NC}: invalid path, please specify the full path to restore directory (space not allowed)"
+         say "${FG_RED}ERROR${NC}: invalid path, please specify the full path to restore directory (space not allowed)"
          waitForInput && continue
        fi
        restore_path="${restore_path}$(basename ${backup_file%%.*})"
        mkdir -p "${restore_path}" # Create restore directory
        if [[ ! -d "${restore_path}" ]]; then
-         say "${RED}ERROR${NC}: failed to create restore directory:"
+         say "${FG_RED}ERROR${NC}: failed to create restore directory:"
          say "${restore_path}"
          waitForInput && continue
        fi
@@ -3275,12 +3268,12 @@ EOF
            backup_file="${backup_file%.*}"
            unset password
          else
-           say "\n\n" && say "${RED}ERROR${NC}: password input aborted!"
+           say "\n\n" && say "${FG_RED}ERROR${NC}: password input aborted!"
            waitForInput && continue
          fi
        fi
        if ! tar xfzk "${backup_file}" -C "${restore_path}" >/dev/null; then
-         say "${RED}ERROR${NC}: failure during backup restore :("
+         say "${FG_RED}ERROR${NC}: failure during backup restore :("
          waitForInput && continue
        fi
        echo
