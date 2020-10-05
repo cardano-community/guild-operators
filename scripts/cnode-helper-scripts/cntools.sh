@@ -47,13 +47,18 @@ done
 shift $((OPTIND -1))
 
 # get common env variables
-. "$(dirname $0)"/env
+if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+  if ! . "${CNODE_HOME}"/scripts/env; then exit 1; fi
+else
+  . "${CNODE_HOME}"/scripts/env &>/dev/null
+  [[ -z "${CONFIG}" ]] && myExit 1 "${FG_RED}ERROR${NC}: CNTools run in offline mode and failed to automatically grab common env variables\nPlease uncomment all variables in 'User Variables' section and set values manually"
+fi
 
 # get cntools config parameters
-. "$(dirname $0)"/cntools.config
+. "${CNODE_HOME}"/scripts/cntools.config
 
 # get helper functions from library file
-. "$(dirname $0)"/cntools.library
+. "${CNODE_HOME}"/scripts/cntools.library
 
 # create temporary directory if missing
 mkdir -p "${TMP_FOLDER}" # Create if missing
