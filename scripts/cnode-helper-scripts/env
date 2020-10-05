@@ -115,7 +115,6 @@ else
 fi
 
 CNODE_PID=$(ps -ef | grep "[-]-port ${CNODE_PORT}" | awk '{print $2}')
-[[ -z ${CNODE_PID} ]] && echo "Failed to locate cardano-node process ID, make sure CNODE_PORT is correctly set in env file!" && return 1 
 
 PROTOCOL=$(jq -r .Protocol "${CONFIG}")
 NETWORKID=$(jq -r .networkId ${GENESIS_JSON})
@@ -159,3 +158,5 @@ BOLD=$(tput bold)
 NC=$(tput sgr0)
 
 [[ -z ${BLOCK_LOG_DIR} && -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"
+
+return 0
