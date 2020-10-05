@@ -1,18 +1,20 @@
 !> Note that if you'd like to use Import function to import a Daedalus/Yoroi based 15 or 24 word wallet seed, please ensure that you've rebuilt your `cardano-node` using instructions [here]() or alternately ensure that `cardano-address` and `bech32` are available in your $PATH environment variable.
 
-This chapter describes some common tasks for wallet and pool creation when running CNTools in ONLINE mode only.  
-CNTools contains more functionality not described here. 
+This chapter describes some common tasks for wallet and pool creation when running CNTools in Online mode.  
+CNTools contains more functionality not described here.
 
-Step by Step guide to create a pool with CNTools
+!> Familiarize yourself with the Online workflow of creating wallets and pools on the TestNet. You can then move on to test the [Offline Workflow](#offline-workflow). The Offline workflow means that the private keys never touch the Online node. First when comfortable with both the online and offline CNTools workflow, it's time to deploy what you learnt on MainNet.
+
+Step by Step guide to create a pool with CNTools in Online mode
 
 * [Create Wallet](#create-wallet) - a wallet is needed for pledge and to pay for pool registration fee
 * [Create Pool](#create-pool) - create the necessary pool keys 
 * [Register Pool](#create-pool) - register the pool on-chain
 
 
-#### Create Wallet
+##### Create Wallet
 
-**1.** `Choose Wallet [w]` and you will be presented with the following menu:
+**1.** Choose `[w] Wallet` and you will be presented with the following menu:
 ```
  >> WALLET
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -39,7 +41,7 @@ Step by Step guide to create a pool with CNTools
   [e] Encrypt
   [h] Home
 ```
-**2.** Choose `New [n]` to create a new wallet
+**2.** Choose `[n] New` to create a new wallet. `[i] Import` can also be used to import a Daedalus/Yoroi based 15 or 24 word wallet seed  
 **3.** Give the wallet a name  
 **4.** CNTools will give you the wallet address.  For example:
 ```
@@ -62,9 +64,9 @@ choose to delegate or pledge wallet when registering a stake pool.
 !> The wallet must have funds in it before you can proceed.  
 
 
-#### Create Pool
+##### Create Pool
 
-**1.** From the main menu select `Pool [p]`
+**1.** From the main menu select `[p] Pool`
 ```
  >> POOL
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -95,7 +97,7 @@ choose to delegate or pledge wallet when registering a stake pool.
   [e] Encrypt
   [h] Home
 ``` 
-**2.**  Select `New [n]` to create a new pool  
+**2.**  Select `[n] New` to create a new pool  
 **3.**  Give the pool a name. In our case, we call it LOVE.  The result should look something like this:
 ```
  >> POOL >> NEW
@@ -108,10 +110,10 @@ PoolPubKey: 88367d5f4fde9c6b3c3c7c0a17ec4a9e46039cb01032cc2baa738b41
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ```
 
-#### Register Pool
+##### Register Pool
 
-**1.**  From the main menu select `Pool [p]`  
-**2.**  Select `Register [r]`  
+**1.**  From the main menu select `[p] Pool`  
+**2.**  Select `[r] Register`  
 **3.**  Select the pool you just created  
 **4.**  CNTools will give you prompts to set pledge, margin, cost, metadata, and relays. Enter values that are useful to you.  
 
@@ -192,4 +194,23 @@ Cost   : 500 ADA
 
 **8.**  Start or restart your cardano-node (eg: if using cnode.sh, update parameters in that file) with the parameters as shown.  This will ensure your node has all the information necessary to create blocks.
 
-
+#### Offline Workflow
+```mermaid
+sequenceDiagram
+    Note over Offline: Create/Import a new wallet
+    Note over Offline: Create a new pool
+    Note over Offline: Rotate KES keys to generate op.cert
+    Note over Offline: Create a backup w/o private keys
+    Offline->>Online: Transfer backup to online node
+    Note over Online: Fund the wallet base address with enough Ada
+    Note over Online: Register wallet using ' Wallet » Register ' in hybrid mode
+    Online->>Offline: Transfer built tx back to offline node
+    Note over Offline: Use ' Sign Tx ' with payment.skey from wallet to sign transaction
+    Offline->>Online: Transfer signed tx back to online node
+    Note over Online: Use ' Submit Tx ' to send signed transaction to blockchain
+    Note over Online: Register pool in hybrid mode
+    loop
+        Offline-->Online: Repeat steps to sign and submit built pool registration transaction
+    end
+    Note over Online: Verify that pool was successfully registered with ' Pool » Show '
+```
