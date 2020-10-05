@@ -9,9 +9,9 @@
 #CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of path to cardano-cli executable
 #CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
 #CNODE_PORT=6000                                        # Override automatic detection of node port
-#CONFIG="${CNODE_HOME}/files/config.json                # Override automatic detection of node config path
-#TOPOLOGY="${CNODE_HOME}/files/topology.json            # Override automatic detection of node topology path
-#SOCKET=${CNODE_HOME}/sockets/node0.socket              # Override automatic detection of path to socket
+#CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path
+#TOPOLOGY="${CNODE_HOME}/files/topology.json"           # Override automatic detection of node topology path
+#SOCKET="${CNODE_HOME}/sockets/node0.socket"            # Override automatic detection of path to socket
 EKG_HOST=127.0.0.1                                      # Set node EKG host
 #EKG_PORT=12788                                         # Override automatic detection of node EKG port
 #BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"                # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
