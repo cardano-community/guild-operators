@@ -47,11 +47,10 @@ done
 shift $((OPTIND -1))
 
 # get common env variables
-if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-  if ! . "${CNODE_HOME}"/scripts/env; then exit 1; fi
-else
-  . "${CNODE_HOME}"/scripts/env &>/dev/null
-  [[ -z "${CONFIG}" ]] && myExit 1 "${FG_RED}ERROR${NC}: CNTools run in offline mode and failed to automatically grab common env variables\nPlease uncomment all variables in 'User Variables' section and set values manually"
+if ! . "${CNODE_HOME}"/scripts/env; then
+  [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && exit 1
+  echo -e "\n${FG_RED}ERROR${NC}: CNTools run in offline mode and failed to automatically grab common env variables\nPlease uncomment all variables in 'User Variables' section and set values manually\n"
+  exit 1
 fi
 
 # get cntools config parameters
@@ -226,8 +225,8 @@ function main {
 
 while true; do # Main loop
 
-# Start with a clean slate after each completed or canceled command excluding protparams.json from purge
-find "${TMP_FOLDER:?}" -type f -not \( -name 'protparams.json' -o -name '.dialogrc' \) -delete
+# Start with a clean slate after each completed or canceled command excluding .dialogrc from purge
+find "${TMP_FOLDER:?}" -type f -not \( -name '.dialogrc' \) -delete
 
 clear
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
