@@ -31,9 +31,11 @@ err_exit() {
 usage() {
   cat <<EOF >&2
 Usage: $(basename "$0") [-o] [-s] [-i] [-g] [-p]
-Install pre-requisites for building cardano node and using cntools
+Install pre-requisites for building cardano node and using CNTools
 
 -o    Do *NOT* overwrite existing genesis.json, topology.json and topology-updater.sh files (Default: will overwrite)
+-f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
+      '-o' and '-f' are independent of each other, and can be used together
 -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
 -i    Interactive mode (Default: silent mode)
 -g    Connect to guild network instead of public network (Default: connect to public cardano network)
@@ -46,29 +48,16 @@ EOF
 WANT_BUILD_DEPS='Y'
 OVERWRITE=' '
 
-while getopts :igpsot: opt; do
+while getopts :igpsoft: opt; do
   case ${opt} in
-    i )
-      INTERACTIVE='Y'
-      ;;
-    g )
-      GUILD='Y'
-      ;;
-    p )
-      PRAOS='Y'
-      ;;
-    s )
-      WANT_BUILD_DEPS='N'
-      ;;
-    o )
-      OVERWRITE=' -C -'
-      ;;
-    t )
-      CNODE_NAME=${OPTARG}
-      ;;
-    \? )
-      usage
-      ;;
+    i ) INTERACTIVE='Y' ;;
+    g ) GUILD='Y' ;;
+    p ) PRAOS='Y' ;;
+    s ) WANT_BUILD_DEPS='N' ;;
+    o ) OVERWRITE=' -C -' ;;
+    f ) FORCE_OVERWRITE='Y' ;;
+    t ) CNODE_NAME=${OPTARG} ;;
+    \? ) usage ;;
     esac
 done
 shift $((OPTIND -1))
@@ -265,7 +254,7 @@ sed -e "s@CNODE_HOME=[^ ]*\\(.*\\)@${CNODE_VNAME}_HOME=\"${CNODE_HOME}\"\\1@g" -
 
 ### Update env retaining existing custom configs
 [[ -f env ]] && cp -f env "env.bkp_$(date +%s)"
-if grep '#force update=true' env.tmp >/dev/null 2>&1; then
+if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
   echo "Forced full upgrade! Please edit ${CNODE_HOME}/scripts/env for User Variables"
 elif grep '^# Do NOT modify' env.tmp >/dev/null 2>&1; then
   TEMPL_CMD=$(awk '/^# Do NOT modify/,0' env.tmp)
@@ -275,7 +264,7 @@ fi
 mv -f env.tmp env
 
 ### Update cnode.sh retaining existing custom configs
-if grep '#force update=true' cnode.sh.templ >/dev/null 2>&1; then
+if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
   if [[ -f cnode.sh ]]; then
     cp cnode.sh "cnode.sh.bkp_$(date +%s)"
     echo "Forced full upgrade! Please edit ${CNODE_HOME}/scripts/cnode.sh for values against POOL_NAME and POOL_DIR variables"
@@ -294,7 +283,7 @@ else
 fi
 
 ### Update gLiveView.sh retaining existing custom configs
-if grep '#force update=true' gLiveView.sh.tmp >/dev/null 2>&1; then
+if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
   echo "Forced full upgrade! Please edit ${CNODE_HOME}/scripts/gLiveView.sh for User Variables"
 elif grep '^# Do NOT modify' gLiveView.sh >/dev/null 2>&1; then
   TEMPL_CMD=$(awk '/^# Do NOT modify/,0' gLiveView.sh.tmp)
