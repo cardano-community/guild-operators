@@ -1,6 +1,7 @@
 #!/bin/bash
 #shellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015
 #shellcheck source=/dev/null
+#force update=true
 
 ######################################
 # User Variables - Change as desired #
@@ -53,7 +54,7 @@ setTheme() {
 GLV_VERSION=v1.7
 
 # get common env variables
-. "$(dirname $0)"/env
+if ! . "${CNODE_HOME}"/scripts/env; then exit 1; fi
 
 tput smcup # Save screen
 tput civis # Disable cursor

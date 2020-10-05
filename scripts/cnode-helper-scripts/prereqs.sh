@@ -240,9 +240,7 @@ fi
 sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/*.json
 
 cd "$CNODE_HOME"/scripts || return
-[[ -f env ]] && cp env "env.bkp_$(date +%s)"
-curl -s -o env https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
-sed -e "s@CNODE_HOME=.*@${CNODE_VNAME}_HOME=${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i env
+curl -s -o env.tmp https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
 curl -s -o createAddr.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/createAddr.sh
 curl -s -o sendADA.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/sendADA.sh
 curl -s -o balance.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/balance.sh
@@ -265,27 +263,45 @@ curl -s -o deploy-as-systemd.sh https://raw.githubusercontent.com/cardano-commun
 sed -e "s@SyslogIdentifier=.*@SyslogIdentifier=${CNODE_NAME}@g" -e "s@cnode.service@${CNODE_NAME}.service@g" -i deploy-as-systemd.sh
 sed -e "s@CNODE_HOME=[^ ]*\\(.*\\)@${CNODE_VNAME}_HOME=\"${CNODE_HOME}\"\\1@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*.*
 
+### Update env retaining existing custom configs
+[[ -f env ]] && cp -f env "env.bkp_$(date +%s)"
+if grep '#force update=true' env.tmp >/dev/null 2>&1; then
+  echo "Forced full upgrade! Please edit ${CNODE_HOME}/scripts/env for User Variables"
+elif grep '^# Do NOT modify' env.tmp >/dev/null 2>&1; then
+  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' env.tmp)
+  STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' env.tmp)
+  printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > env.tmp
+fi
+mv -f env.tmp env
+
 ### Update cnode.sh retaining existing custom configs
-if grep '## Static' cnode.sh >/dev/null 2>&1; then
+if grep '#force update=true' cnode.sh.templ >/dev/null 2>&1; then
+  if [[ -f cnode.sh ]]; then
+    cp cnode.sh "cnode.sh.bkp_$(date +%s)"
+    echo "Forced full upgrade! Please edit ${CNODE_HOME}/scripts/cnode.sh for values against POOL_NAME and POOL_DIR variables"
+  fi
+  cp -f cnode.sh.templ cnode.sh
+elif grep '## Static' cnode.sh >/dev/null 2>&1; then
   TEMPL_CMD=$(awk '/#!/,/## Static/' cnode.sh.templ)
   STATIC_CMD=$(awk '/## Begin/,/## End/' cnode.sh)
   printf '%s\n%s\n' "$TEMPL_CMD" "$STATIC_CMD" > cnode.sh
 elif grep 'cardano-node' cnode.sh >/dev/null 2>&1;then
   cp cnode.sh "cnode.sh.bkp_$(date +%s)"
   cp -f cnode.sh.templ cnode.sh
-  echo "One-time upgrade! Please edit ${CNODE_HOME}/scripts/cnode.sh for values against POOL_NAME and CNODE_PORT variables"
+  echo "One-time upgrade! Please edit ${CNODE_HOME}/scripts/cnode.sh for values against POOL_NAME and POOL_DIR variables"
 else
   cp -f cnode.sh.templ cnode.sh
 fi
 
 ### Update gLiveView.sh retaining existing custom configs
-if grep '^# Do NOT modify' gLiveView.sh >/dev/null 2>&1; then
+if grep '#force update=true' gLiveView.sh.tmp >/dev/null 2>&1; then
+  echo "Forced full upgrade! Please edit ${CNODE_HOME}/scripts/gLiveView.sh for User Variables"
+elif grep '^# Do NOT modify' gLiveView.sh >/dev/null 2>&1; then
   TEMPL_CMD=$(awk '/^# Do NOT modify/,0' gLiveView.sh.tmp)
   STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' gLiveView.sh)
   printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > gLiveView.sh.tmp
 fi
-
-mv gLiveView.sh.tmp gLiveView.sh
+mv -f gLiveView.sh.tmp gLiveView.sh
 
 chmod 755 ./*.sh
 
