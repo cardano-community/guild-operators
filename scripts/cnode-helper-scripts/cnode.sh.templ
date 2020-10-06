@@ -5,6 +5,7 @@
 
 . "${CNODE_HOME}"/scripts/env
 
+[[ -z "${CNODE_PORT}" ]] && CNODE_PORT=6000
 [[ -z "${SOCKET}" ]] && SOCKET="${CNODE_HOME}/sockets/node0.socket"
 [[ -z "${CONFIG}" ]] && CONFIG="${CNODE_HOME}/files/config.json"
 [[ -z "${TOPOLOGY}" ]] && TOPOLOGY="${CNODE_HOME}/files/topology.json"

@@ -8,7 +8,7 @@
 
 #CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of path to cardano-cli executable
 #CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
-#CNODE_PORT=6000                                        # Override automatic detection of node port
+CNODE_PORT=6000                                         # Set node port
 #CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path
 #TOPOLOGY="${CNODE_HOME}/files/topology.json"           # Override automatic detection of node topology path
 #SOCKET="${CNODE_HOME}/sockets/node0.socket"            # Override automatic detection of path to socket
@@ -43,15 +43,6 @@ if [[ -z "${SOCKET}" ]]; then
   fi
 else
   export CARDANO_NODE_SOCKET_PATH="${SOCKET}"
-fi
-
-if [[ -z "${CNODE_PORT}" ]]; then
-  if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}")" =~ --port[[:space:]]([[:digit:]]+) ]]; then
-    CNODE_PORT=${BASH_REMATCH[1]}
-  else
-    echo "Node port not set in env file and automatic detection failed!"
-    return 1
-  fi
 fi
 
 if [[ -z "${CONFIG}" ]]; then
