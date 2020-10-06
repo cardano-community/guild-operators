@@ -5,7 +5,7 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [6.0.0] - 2020-10-05
+## [6.0.0] - 2020-10-07
 
 > This is a major release with a lot of changes. It is highly recommended that you familiarise yourself with the usage for Hybrid or Online v/s Offline mode on a testnet environment before doing it on production.
 
@@ -105,7 +105,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [5.3.2] - 2020-08-05
 
-#### Fixed
+##### Fixed
 - Backup & Restore paths were failing on machines due to alnum class availability on certain interpreters.
 - Rewards were not counted in stake and pledge
 
