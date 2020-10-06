@@ -428,9 +428,6 @@ checkPeers() {
 #####################################
 # Static variables/calculations     #
 #####################################
-version=$("$(command -v cardano-node)" version)
-node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
-node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
 check_peers="false"
 show_peers="false"
 selected_direction="out"
@@ -482,6 +479,9 @@ while true; do
   line=0; tput cup 0 0 # reset position
 
   # Gather some data
+  version=$("$(command -v cardano-node)" version)
+  node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
+  node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
   data=$(curl -s -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
   uptimens=$(jq '.cardano.node.metrics.upTime.ns.val //0' <<< "${data}")
   [[ ${fail_count} -eq 3 ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, THREE FAILED ATTEMPTS IN A ROW!${NC}"
