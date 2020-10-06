@@ -195,7 +195,9 @@ Cost   : 500 ADA
 **8.**  Start or restart your cardano-node (eg: if using cnode.sh, update parameters in that file) with the parameters as shown.  This will ensure your node has all the information necessary to create blocks.
 
 #### Offline Workflow
-```mermaid
+
+``` mermaid
+
 sequenceDiagram
     Note over Offline: Create/Import a new wallet
     Note over Offline: Create a new pool
@@ -213,4 +215,5 @@ sequenceDiagram
         Offline-->Online: Repeat steps to sign and submit built pool registration transaction
     end
     Note over Online: Verify that pool was successfully registered with ' Pool » Show '
+
 ```
