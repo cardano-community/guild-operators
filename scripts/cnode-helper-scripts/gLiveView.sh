@@ -10,6 +10,7 @@
 NODE_NAME="Cardano Node"                   # Change your node's name prefix here, keep at or below 19 characters!
 REFRESH_RATE=2                             # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
 LEGACY_MODE=false                          # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
+RETRIES=3                                  # How many attempts to connect to running Cardano node before erroring out and quitting
 THEME="dark"                               # dark  = suited for terminals with a dark background
                                            # light = suited for terminals with a bright background
 
@@ -484,11 +485,11 @@ while true; do
   node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
   data=$(curl -s -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
   uptimens=$(jq '.cardano.node.metrics.upTime.ns.val //0' <<< "${data}")
-  [[ ${fail_count} -eq 3 ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, THREE FAILED ATTEMPTS IN A ROW!${NC}"
+  [[ ${fail_count} -eq ${RETRIES} ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}"
   if [[ ${uptimens} -le 0 ]]; then
     ((fail_count++))
     clear && tput cup 1 1
-    printf "${style_status_3}Connection to node lost, retrying (${fail_count}/3)!${NC}"
+    printf "${style_status_3}Connection to node lost, retrying (${fail_count}/${RETRIES})!${NC}"
     waitForInput && continue
   else
     fail_count=0
