@@ -56,6 +56,11 @@ GLV_VERSION=v1.7
 # get common env variables
 if ! . "${CNODE_HOME}"/scripts/env; then exit 1; fi
 
+[[ -z "${TOPOLOGY}" ]] && echo -e "\nFailed to detect TOPOLOGY variable!\n\n\
+Please update to latest prereqs.sh script and run with 'prereqs.sh -o -f' to force an overwrite of scripts under ${CNODE_HOME}/scripts/ while retaining topology.json and genesis files(config.json overwritten). \
+If run stand-alone without prereqs, manually download env file as its a required configuration file from v1.7->.\n\n\
+After update, edit 'User Variables' in env and gLiveView.sh files as required.\n" && exit 1
+
 tput smcup # Save screen
 tput civis # Disable cursor
 stty -echo # Disable user input
