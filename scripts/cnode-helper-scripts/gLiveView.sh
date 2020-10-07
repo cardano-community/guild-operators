@@ -18,8 +18,8 @@ EKG_HOST=127.0.0.1                         # Set node EKG host
 #PROTOCOL="Cardano"                        # Default: Combinator network (leave commented if unsure)
 #BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"   # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
 LEGACY_MODE=false                          # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
-THEME="dark"                               # dark  = suited for terminals with a dark background
 RETRIES=3                                  # How many attempts to connect to running Cardano node before erroring out and quitting
+THEME="dark"                               # dark  = suited for terminals with a dark background
                                            # light = suited for terminals with a bright background
 
 #####################################
