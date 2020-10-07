@@ -31,9 +31,11 @@ err_exit() {
 usage() {
   cat <<EOF >&2
 Usage: $(basename "$0") [-o] [-s] [-i] [-g] [-p]
-Install pre-requisites for building cardano node and using cntools
+Install pre-requisites for building cardano node and using CNTools
 
 -o    Do *NOT* overwrite existing genesis.json, topology.json and topology-updater.sh files (Default: will overwrite)
+-f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
+      '-o' and '-f' are independent of each other, and can be used together
 -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
 -i    Interactive mode (Default: silent mode)
 -g    Connect to guild network instead of public network (Default: connect to public cardano network)
@@ -46,29 +48,16 @@ EOF
 WANT_BUILD_DEPS='Y'
 OVERWRITE=' '
 
-while getopts :igpsot: opt; do
+while getopts :igpsoft: opt; do
   case ${opt} in
-    i )
-      INTERACTIVE='Y'
-      ;;
-    g )
-      GUILD='Y'
-      ;;
-    p )
-      PRAOS='Y'
-      ;;
-    s )
-      WANT_BUILD_DEPS='N'
-      ;;
-    o )
-      OVERWRITE=' -C -'
-      ;;
-    t )
-      CNODE_NAME=${OPTARG}
-      ;;
-    \? )
-      usage
-      ;;
+    i ) INTERACTIVE='Y' ;;
+    g ) GUILD='Y' ;;
+    p ) PRAOS='Y' ;;
+    s ) WANT_BUILD_DEPS='N' ;;
+    o ) OVERWRITE=' -C -' ;;
+    f ) FORCE_OVERWRITE='Y' ;;
+    t ) CNODE_NAME=${OPTARG} ;;
+    \? ) usage ;;
     esac
 done
 shift $((OPTIND -1))
@@ -119,7 +108,7 @@ if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
     $sudo apt-get -y install curl > /dev/null
     $sudo apt-get -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute"
+    pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute dialog"
     $sudo apt-get -y install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
@@ -134,7 +123,7 @@ if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
     $sudo yum -y install curl > /dev/null
     $sudo yum -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git wget jq gnupg libtool autoconf srm iproute bc tcptraceroute"
+    pkg_list="python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git wget jq gnupg libtool autoconf srm iproute bc tcptraceroute dialog"
     [[ ! "${DISTRO}" =~ Fedora ]] && $sudo yum -y install epel-release > /dev/null
     $sudo yum -y install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
@@ -240,8 +229,7 @@ fi
 sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/*.json
 
 cd "$CNODE_HOME"/scripts || return
-curl -s -o env https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
-sed -e "s@CNODE_HOME=.*@${CNODE_VNAME}_HOME=${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i env
+curl -s -o env.tmp https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
 curl -s -o createAddr.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/createAddr.sh
 curl -s -o sendADA.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/sendADA.sh
 curl -s -o balance.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/balance.sh
@@ -264,27 +252,45 @@ curl -s -o deploy-as-systemd.sh https://raw.githubusercontent.com/cardano-commun
 sed -e "s@SyslogIdentifier=.*@SyslogIdentifier=${CNODE_NAME}@g" -e "s@cnode.service@${CNODE_NAME}.service@g" -i deploy-as-systemd.sh
 sed -e "s@CNODE_HOME=[^ ]*\\(.*\\)@${CNODE_VNAME}_HOME=\"${CNODE_HOME}\"\\1@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*.*
 
+### Update env retaining existing custom configs
+[[ -f env ]] && cp -f env "env.bkp_$(date +%s)"
+if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
+  echo "Forced full upgrade! Please edit ${CNODE_HOME}/scripts/env for User Variables"
+elif grep '^# Do NOT modify' env.tmp >/dev/null 2>&1; then
+  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' env.tmp)
+  STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' env.tmp)
+  printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > env.tmp
+fi
+mv -f env.tmp env
+
 ### Update cnode.sh retaining existing custom configs
-if grep '## Static' cnode.sh >/dev/null 2>&1; then
+if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
+  if [[ -f cnode.sh ]]; then
+    cp cnode.sh "cnode.sh.bkp_$(date +%s)"
+    echo "Forced full upgrade! Please edit ${CNODE_HOME}/scripts/cnode.sh for values against POOL_NAME and POOL_DIR variables"
+  fi
+  cp -f cnode.sh.templ cnode.sh
+elif grep '## Static' cnode.sh >/dev/null 2>&1; then
   TEMPL_CMD=$(awk '/#!/,/## Static/' cnode.sh.templ)
   STATIC_CMD=$(awk '/## Begin/,/## End/' cnode.sh)
   printf '%s\n%s\n' "$TEMPL_CMD" "$STATIC_CMD" > cnode.sh
 elif grep 'cardano-node' cnode.sh >/dev/null 2>&1;then
   cp cnode.sh "cnode.sh.bkp_$(date +%s)"
   cp -f cnode.sh.templ cnode.sh
-  echo "One-time upgrade! Please edit ${CNODE_HOME}/scripts/cnode.sh for values against POOL_NAME and CNODE_PORT variables"
+  echo "One-time upgrade! Please edit ${CNODE_HOME}/scripts/cnode.sh for values against POOL_NAME and POOL_DIR variables"
 else
   cp -f cnode.sh.templ cnode.sh
 fi
 
 ### Update gLiveView.sh retaining existing custom configs
-if grep '^# Do NOT modify' gLiveView.sh >/dev/null 2>&1; then
+if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
+  echo "Forced full upgrade! Please edit ${CNODE_HOME}/scripts/gLiveView.sh for User Variables"
+elif grep '^# Do NOT modify' gLiveView.sh >/dev/null 2>&1; then
   TEMPL_CMD=$(awk '/^# Do NOT modify/,0' gLiveView.sh.tmp)
   STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' gLiveView.sh)
   printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > gLiveView.sh.tmp
 fi
-
-mv gLiveView.sh.tmp gLiveView.sh
+mv -f gLiveView.sh.tmp gLiveView.sh
 
 chmod 755 ./*.sh
 
