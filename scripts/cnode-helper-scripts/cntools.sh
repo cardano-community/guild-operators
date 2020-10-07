@@ -156,6 +156,7 @@ ${FG_BLUE}Re-run CNTools in offline mode with -o parameter if you want to access
 Error message: ${PROT_PARAMS}\n\n\
 ${FG_BLUE}Re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality${NC}"
   fi
+  echo "${PROT_PARAMS}" > "${TMP_FOLDER}"/protparams.json
 fi
 
 # check if there are pools in need of KES key rotation
@@ -226,7 +227,7 @@ function main {
 while true; do # Main loop
 
 # Start with a clean slate after each completed or canceled command excluding .dialogrc from purge
-find "${TMP_FOLDER:?}" -type f -not \( -name '.dialogrc' \) -delete
+find "${TMP_FOLDER:?}" -type f -not \( -name 'protparams.json' -o -name '.dialogrc' \) -delete
 
 clear
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
