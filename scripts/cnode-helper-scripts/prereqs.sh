@@ -284,4 +284,4 @@ updateWithCustomConfig "gLiveView.sh"
 
 chmod 755 ./*.sh
 
-popd >/dev/null
+popd >/dev/null || return
