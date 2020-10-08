@@ -343,6 +343,7 @@ case $OPERATION in
 
     ${CCLI} shelley address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}"
     ${CCLI} shelley stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}"
+    chmod 700 ${WALLET_FOLDER}/${wallet_name}/*
     getBaseAddress ${wallet_name}
     getPayAddress ${wallet_name}
     getRewardAddress ${wallet_name}
@@ -448,7 +449,8 @@ EOF
 
     ${CCLI} shelley key non-extended-key --extended-verification-key-file "${TMP_FOLDER}"/payment.evkey --verification-key-file "${payment_vk_file}"
     ${CCLI} shelley key non-extended-key --extended-verification-key-file "${TMP_FOLDER}"/stake.evkey --verification-key-file "${stake_vk_file}"
-    
+    chmod 700 ${WALLET_FOLDER}/${wallet_name}/*
+
     getBaseAddress ${wallet_name}
     getPayAddress ${wallet_name}
     getRewardAddress ${wallet_name}
@@ -1401,6 +1403,7 @@ EOF
       ${CCLI} shelley node key-gen --cold-verification-key-file "${pool_coldkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
     fi
     ${CCLI} shelley node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
+    chmod 700 ${POOL_FOLDER}/${pool_name}/*
     getPoolID ${pool_name}
 
     say "Pool: ${FG_GREEN}${pool_name}${NC}" "log"
@@ -1855,7 +1858,8 @@ EOF
         waitForInput && continue
       fi
     fi
-    
+    chmod 700 ${POOL_FOLDER}/${pool_name}/*
+
     [[ -f "${pool_deregcert_file}" ]] && rm -f ${pool_deregcert_file} # delete de-registration cert if available
 
     if [[ ${op_mode} = "online" ]]; then
@@ -2320,6 +2324,7 @@ EOF
       rm -f "${pool_regcert_file}.tmp" # remove backup of old reg cert
       [[ -f "${pool_deregcert_file}" ]] && rm -f ${pool_deregcert_file} # delete de-registration cert if available
     fi
+    chmod 700 ${POOL_FOLDER}/${pool_name}/*
 
     if [[ ${op_mode} = "online" ]]; then
       if ! waitNewBlockCreated; then

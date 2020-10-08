@@ -207,6 +207,7 @@ mkdir "${HOME}/git" > /dev/null 2>&1 # To hold git repositories that will be use
 $sudo mkdir -p "$CNODE_HOME"/files "$CNODE_HOME"/db "$CNODE_HOME"/logs "$CNODE_HOME"/scripts "$CNODE_HOME"/sockets "$CNODE_HOME"/priv
 $sudo chown -R "$U_ID":"$G_ID" "$CNODE_HOME"
 chmod -R 755 "$CNODE_HOME"
+chmod -R 700 "$CNODE_HOME/priv"
 
 cd "$CNODE_HOME/files" || return
 
