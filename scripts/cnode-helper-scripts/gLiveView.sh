@@ -53,24 +53,31 @@ setTheme() {
 GLV_VERSION=v1.7
 
 PARENT="$(dirname $0)"
+
 # TODO: Rename cntools-offline to master
 URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/cntools-offline"
-curl -s -m 10 -o "${PARENT}/env.tmp" ${URL_RAW}/scripts/cnode-helper-scripts/env
-if [[ -f "${PARENT}/env" ]]; then
-  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}/env")
-  TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}/env.tmp")
+curl -s -m 10 -o "${PARENT}"/env.tmp ${URL_RAW}/scripts/cnode-helper-scripts/env
+if [[ -f "${PARENT}"/env ]]; then
+  if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
+    sed -e "s@[C]NODE_HOME=[^ ]*\\(.*\\)@${BASH_REMATCH[1]}_HOME=\"${CNODE_HOME}\"\\1@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
+  else
+    echo -e "Update failed! Please use prereqs.sh to force an update"
+    exit 1
+  fi
+  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
+  TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
   if [[ "$(echo ${TEMPL_CMD} | shasum)" != "$(echo ${TEMPL2_CMD} | shasum)" ]]; then
-    cp "${PARENT}/env" "${PARENT}/env.bkp_$(date +%s)"
-    STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/env")
-    printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}/env.tmp"
-    mv "${PARENT}/env.tmp" "${PARENT}/env"
+    cp "${PARENT}"/env "${PARENT}/env.bkp_$(date +%s)"
+    STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
+    printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
+    mv "${PARENT}"/env.tmp "${PARENT}"/env
   fi
 else
-  mv "${PARENT}/env.tmp" "${PARENT}/env"
+  mv "${PARENT}"/env.tmp "${PARENT}"/env
 fi
-rm -f "${PARENT}/env.tmp"
+rm -f "${PARENT}"/env.tmp
 
-# get common env variables
+# source common env variables in case it was updated
 if ! . "${PARENT}"/env; then exit 1; fi
 
 tput smcup # Save screen

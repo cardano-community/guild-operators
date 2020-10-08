@@ -53,14 +53,14 @@ EOF
 }
 
 WANT_BUILD_DEPS='Y'
-OVERWRITE=''
+OVERWRITE='Y'
 
 while getopts :in:soft:m: opt; do
   case ${opt} in
     i ) INTERACTIVE='Y' ;;
     n ) NETWORK=${OPTARG} ;;
     s ) WANT_BUILD_DEPS='N' ;;
-    o ) OVERWRITE='-C -' ;;
+    o ) OVERWRITE='N' ;;
     f ) FORCE_OVERWRITE='Y' ;;
     t ) CNODE_NAME=${OPTARG} ;;
     m ) CURL_TIMEOUT=${OPTARG} ;;
@@ -216,23 +216,25 @@ chmod -R 700 "${CNODE_HOME}"/priv
 echo "Downloading files..."
 
 pushd "${CNODE_HOME}"/files >/dev/null || return
-[[ -z ${OVERWRITE} && -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
-[[ -z ${OVERWRITE} && -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
-if [[ ${NETWORK} = "testnet" ]]; then
-  curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
-  curl -sL -m ${CURL_TIMEOUT} -o genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
-  curl -sL -m ${CURL_TIMEOUT} -o topology.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
-  curl -s -m ${CURL_TIMEOUT} -o config.json ${OVERWRITE} ${URL_RAW}/files/config-combinator.json
-elif [[ ${NETWORK} = "guild" ]]; then
-  curl -s -m ${CURL_TIMEOUT} -o genesis.json ${OVERWRITE} ${URL_RAW}/files/genesis.json
-  curl -s -m ${CURL_TIMEOUT} -o byron-genesis.json ${OVERWRITE} ${URL_RAW}/files/byron-genesis.json
-  curl -s -m ${CURL_TIMEOUT} -o topology.json ${OVERWRITE} ${URL_RAW}/files/topology.json
-  curl -s -m ${CURL_TIMEOUT} -o config.json ${OVERWRITE} ${URL_RAW}/files/config-praos.json
-else
-  curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
-  curl -sL -m ${CURL_TIMEOUT} -o genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
-  curl -sL -m ${CURL_TIMEOUT} -o topology.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
-  curl -s -m ${CURL_TIMEOUT} -o config.json ${OVERWRITE} ${URL_RAW}/files/config-mainnet.json
+if [[ ${OVERWRITE} = 'Y' ]]; then
+  [[ -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
+  [[ -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
+  if [[ ${NETWORK} = "testnet" ]]; then
+    curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
+    curl -sL -m ${CURL_TIMEOUT} -o genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
+    curl -sL -m ${CURL_TIMEOUT} -o topology.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
+    curl -s -m ${CURL_TIMEOUT} -o config.json ${URL_RAW}/files/config-combinator.json
+  elif [[ ${NETWORK} = "guild" ]]; then
+    curl -s -m ${CURL_TIMEOUT} -o genesis.json ${URL_RAW}/files/genesis.json
+    curl -s -m ${CURL_TIMEOUT} -o byron-genesis.json ${URL_RAW}/files/byron-genesis.json
+    curl -s -m ${CURL_TIMEOUT} -o topology.json ${URL_RAW}/files/topology.json
+    curl -s -m ${CURL_TIMEOUT} -o config.json ${URL_RAW}/files/config-praos.json
+  else
+    curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
+    curl -sL -m ${CURL_TIMEOUT} -o genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
+    curl -sL -m ${CURL_TIMEOUT} -o topology.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
+    curl -s -m ${CURL_TIMEOUT} -o config.json ${URL_RAW}/files/config-mainnet.json
+  fi
 fi
 sed -e "s#/opt/cardano/cnode#${CNODE_HOME}#" -i ./*.json
 
@@ -244,12 +246,14 @@ curl -s -m ${CURL_TIMEOUT} -o balance.sh ${URL_RAW}/scripts/cnode-helper-scripts
 curl -s -m ${CURL_TIMEOUT} -o rotatePoolKeys.sh ${URL_RAW}/scripts/cnode-helper-scripts/rotatePoolKeys.sh
 curl -s -m ${CURL_TIMEOUT} -o cnode.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cnode.sh
 curl -s -m ${CURL_TIMEOUT} -o cntools.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntools.sh
-curl -s -m ${CURL_TIMEOUT} -o cntools.config ${OVERWRITE} ${URL_RAW}/scripts/cnode-helper-scripts/cntools.config
+[[ ${OVERWRITE} = 'Y' ]] && curl -s -m ${CURL_TIMEOUT} -o cntools.config ${URL_RAW}/scripts/cnode-helper-scripts/cntools.config
 curl -s -m ${CURL_TIMEOUT} -o cntools.library ${URL_RAW}/scripts/cnode-helper-scripts/cntools.library
 curl -s -m ${CURL_TIMEOUT} -o cntoolsBlockCollector.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntoolsBlockCollector.sh
 curl -s -m ${CURL_TIMEOUT} -o setup_mon.sh ${URL_RAW}/scripts/cnode-helper-scripts/setup_mon.sh
-[[ -z ${OVERWRITE} && -f topologyUpdater.sh ]] && cp -f topologyUpdater.sh "topologyUpdater.sh_bkp$(date +%s)"
-curl -s -m ${CURL_TIMEOUT} -o topologyUpdater.sh ${OVERWRITE} ${URL_RAW}/scripts/cnode-helper-scripts/topologyUpdater.sh
+if [[ ${OVERWRITE} = 'Y' ]]; then
+  [[ -f topologyUpdater.sh ]] && cp -f topologyUpdater.sh "topologyUpdater.sh_bkp$(date +%s)"
+  curl -s -m ${CURL_TIMEOUT} -o topologyUpdater.sh ${URL_RAW}/scripts/cnode-helper-scripts/topologyUpdater.sh
+fi
 curl -s -m ${CURL_TIMEOUT} -o itnRewards.sh ${URL_RAW}/scripts/cnode-helper-scripts/itnRewards.sh
 curl -s -m ${CURL_TIMEOUT} -o cabal-build-all.sh ${URL_RAW}/scripts/cnode-helper-scripts/cabal-build-all.sh
 curl -s -m ${CURL_TIMEOUT} -o stack-build.sh ${URL_RAW}/scripts/cnode-helper-scripts/stack-build.sh
@@ -258,7 +262,7 @@ curl -s -m ${CURL_TIMEOUT} -o sLiveView.sh ${URL_RAW}/scripts/cnode-helper-scrip
 curl -s -m ${CURL_TIMEOUT} -o gLiveView.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/gLiveView.sh
 curl -s -m ${CURL_TIMEOUT} -o deploy-as-systemd.sh ${URL_RAW}/scripts/cnode-helper-scripts/deploy-as-systemd.sh
 sed -e "s@SyslogIdentifier=.*@SyslogIdentifier=${CNODE_NAME}@g" -e "s@cnode.service@${CNODE_NAME}.service@g" -i deploy-as-systemd.sh
-sed -e "s@CNODE_HOME=[^ ]*\\(.*\\)@${CNODE_VNAME}_HOME=\"${CNODE_HOME}\"\\1@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*.*
+sed -e "s@CNODE_HOME=[^ ]*\\(.*\\)@${CNODE_VNAME}_HOME=\"${CNODE_HOME}\"\\1@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*
 
 ### Update file retaining existing custom configs
 updateWithCustomConfig() {
