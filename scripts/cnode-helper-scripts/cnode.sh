@@ -1,5 +1,6 @@
 #!/bin/bash
 # shellcheck disable=SC2086
+#shellcheck source=/dev/null
 
 [[ -z "${CNODE_HOME}" ]] && CNODE_HOME="/opt/cardano/cnode"
 
@@ -24,7 +25,7 @@ TOPOLOGY="${CNODE_HOME}/files/topology.json"
 [[ -z "${TOPOLOGY}" ]] && TOPOLOGY="${CNODE_HOME}/files/topology.json"
 
 if [[ -S "${SOCKET}" ]]; then
-  if [[ $(ps -ef | grep -c [c]ardano-node.*.${SOCKET}) -gt 0 ]]; then
+  if pgrep -f "[c]ardano-node.*.${SOCKET}"; then
      echo "ERROR: A Cardano node is already running, please terminate this node before starting a new one with this script."
      exit 1
   else
