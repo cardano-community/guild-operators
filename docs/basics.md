@@ -31,6 +31,7 @@ chmod 755 prereqs.sh
 # -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
 # -i    Interactive mode (Default: silent mode)
 # -n    Connect to specified network instead of public network (Default: connect to public cardano network)
+#       eg: -n testnet
 # -t    Alternate name for top level folder (Default: cnode)
 # -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 10s)
 # You can use one of the options above, if you'd like to defer from defaults (below).

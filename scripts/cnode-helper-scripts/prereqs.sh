@@ -43,6 +43,7 @@ Install pre-requisites for building cardano node and using CNTools
 -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
 -i    Interactive mode (Default: silent mode)
 -n    Connect to specified network instead of public network (Default: connect to public cardano network)
+      eg: -n testnet
 -t    Alternate name for top level folder (Default: cnode)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 10s)
 EOF
@@ -217,12 +218,12 @@ if [[ ${NETWORK} = "testnet" ]]; then
   curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
   curl -sL -m ${CURL_TIMEOUT} -o genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
   curl -sL -m ${CURL_TIMEOUT} -o topology.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
-  curl -s -m ${CURL_TIMEOUT} -o config.json ${OVERWRITE} ${URL_RAW}/files/config-testnet.json
+  curl -s -m ${CURL_TIMEOUT} -o config.json ${OVERWRITE} ${URL_RAW}/files/config-combinator.json
 elif [[ ${NETWORK} = "guild" ]]; then
   curl -s -m ${CURL_TIMEOUT} -o genesis.json ${OVERWRITE} ${URL_RAW}/files/genesis.json
   curl -s -m ${CURL_TIMEOUT} -o byron-genesis.json ${OVERWRITE} ${URL_RAW}/files/byron-genesis.json
   curl -s -m ${CURL_TIMEOUT} -o topology.json ${OVERWRITE} ${URL_RAW}/files/topology.json
-  curl -s -m ${CURL_TIMEOUT} -o config.json ${OVERWRITE} ${URL_RAW}/files/config-guild.json
+  curl -s -m ${CURL_TIMEOUT} -o config.json ${OVERWRITE} ${URL_RAW}/files/config-praos.json
 else
   curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
   curl -sL -m ${CURL_TIMEOUT} -o genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
