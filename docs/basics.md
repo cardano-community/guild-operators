@@ -22,18 +22,17 @@ chmod 755 prereqs.sh
 # You can check the syntax for prereqs.sh using command below:
 #
 # ./prereqs.sh -h
-# Usage: prereqs.sh [-o] [-f] [-s] [-i] [-g] [-p] [-t <name>] [-m <seconds>]
+# Usage: $(basename "$0") [-o] [-f] [-s] [-i] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
 # Install pre-requisites for building cardano node and using CNTools
 #
-# -o    Do *NOT* overwrite existing genesis.json, topology.json and topology-updater.sh files (Default: will overwrite)
+# -o    Do *NOT* overwrite existing genesis.json, topology.json, config.json, cntools.config and topology-updater.sh files (Default: will overwrite)
 # -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
 #      '-o' and '-f' are independent of each other, and can be used together
 # -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
 # -i    Interactive mode (Default: silent mode)
-# -g    Connect to guild network instead of public network (Default: connect to public cardano network)
-# -p    Copy Transitional Praos config as default instead of Combinator networks (Default: copies combinator network)
-# -t    Alternate name for top level folder
-# -m    Maximum time in seconds that you allow the file download operation to take before aborting
+# -n    Connect to specified network instead of public network (Default: connect to public cardano network)
+# -t    Alternate name for top level folder (Default: cnode)
+# -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 10s)
 # You can use one of the options above, if you'd like to defer from defaults (below).
 # Running without any parameters will run script in silent mode with OS Dependencies, and overwriting existing files.
 

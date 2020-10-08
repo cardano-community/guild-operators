@@ -34,32 +34,30 @@ err_exit() {
 
 usage() {
   cat <<EOF >&2
-Usage: $(basename "$0") [-o] [-f] [-s] [-i] [-g] [-p] [-t <name>] [-m <seconds>]
+Usage: $(basename "$0") [-o] [-f] [-s] [-i] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano node and using CNTools
 
--o    Do *NOT* overwrite existing genesis.json, topology.json and topology-updater.sh files (Default: will overwrite)
+-o    Do *NOT* overwrite existing genesis.json, topology.json, config.json, cntools.config and topology-updater.sh files (Default: will overwrite)
 -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
       '-o' and '-f' are independent of each other, and can be used together
 -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
 -i    Interactive mode (Default: silent mode)
--g    Connect to guild network instead of public network (Default: connect to public cardano network)
--p    Copy Transitional Praos config as default instead of Combinator networks (Default: copies combinator network)
--t    Alternate name for top level folder
--m    Maximum time in seconds that you allow the file download operation to take before aborting
+-n    Connect to specified network instead of public network (Default: connect to public cardano network)
+-t    Alternate name for top level folder (Default: cnode)
+-m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 10s)
 EOF
   exit 1
 }
 
 WANT_BUILD_DEPS='Y'
-OVERWRITE=' '
+OVERWRITE=''
 
-while getopts :igpsoft:m: opt; do
+while getopts :in:soft:m: opt; do
   case ${opt} in
     i ) INTERACTIVE='Y' ;;
-    g ) GUILD='Y' ;;
-    p ) PRAOS='Y' ;;
+    n ) NETWORK=${OPTARG}
     s ) WANT_BUILD_DEPS='N' ;;
-    o ) OVERWRITE=' -C -' ;;
+    o ) OVERWRITE='-C -' ;;
     f ) FORCE_OVERWRITE='Y' ;;
     t ) CNODE_NAME=${OPTARG} ;;
     m ) CURL_TIMEOUT=${OPTARG} ;;
@@ -213,27 +211,24 @@ chmod -R 755 "$CNODE_HOME"
 chmod -R 700 "$CNODE_HOME/priv"
 
 cd "$CNODE_HOME/files" || return
-
-curl -s -m ${CURL_TIMEOUT} -o ptn0-praos.json ${URL_RAW}/files/ptn0-praos.json
-curl -s -m ${CURL_TIMEOUT} -o ptn0-combinator.json ${URL_RAW}/files/ptn0-combinator.json
-curl -s -m ${CURL_TIMEOUT} -o ptn0-mainnet.json ${URL_RAW}/files/ptn0-mainnet.json
-if [[ "$GUILD" = "Y" ]]; then
-  curl -s -m ${CURL_TIMEOUT} -o genesis.json ${URL_RAW}/files/genesis.json
-  curl -s -m ${CURL_TIMEOUT} -o byron-genesis.json ${URL_RAW}/files/byron-genesis.json
-  curl -s -m ${CURL_TIMEOUT} -o topology.json ${URL_RAW}/files/topology.json
+[[ -z ${OVERWRITE} && -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
+[[ -z ${OVERWRITE} && -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
+if [[ ${NETWORK} = "testnet" ]]; then
+  curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
+  curl -sL -m ${CURL_TIMEOUT} -o genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
+  curl -sL -m ${CURL_TIMEOUT} -o topology.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
+  curl -s -m ${CURL_TIMEOUT} -o config.json ${OVERWRITE} ${URL_RAW}/files/config-testnet.json
+elif [[ ${NETWORK} = "guild" ]]; then
+  curl -s -m ${CURL_TIMEOUT} -o genesis.json ${OVERWRITE} ${URL_RAW}/files/genesis.json
+  curl -s -m ${CURL_TIMEOUT} -o byron-genesis.json ${OVERWRITE} ${URL_RAW}/files/byron-genesis.json
+  curl -s -m ${CURL_TIMEOUT} -o topology.json ${OVERWRITE} ${URL_RAW}/files/topology.json
+  curl -s -m ${CURL_TIMEOUT} -o config.json ${OVERWRITE} ${URL_RAW}/files/config-guild.json
 else
   curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
   curl -sL -m ${CURL_TIMEOUT} -o genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
-  [[ -f topology.json ]] && cp topology.json "topology.json_bkp$(date +%s)"
   curl -sL -m ${CURL_TIMEOUT} -o topology.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
+  curl -s -m ${CURL_TIMEOUT} -o config.json ${OVERWRITE} ${URL_RAW}/files/config-mainnet.json
 fi
-
-if [[ "$PRAOS" = "Y" ]]; then
-  cp ptn0-praos.json config.json
-else
-  cp ptn0-mainnet.json config.json
-fi
-
 sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/*.json
 
 cd "${CNODE_HOME}"/scripts || return
@@ -248,7 +243,7 @@ curl -s -m ${CURL_TIMEOUT} -o cntools.config ${OVERWRITE} ${URL_RAW}/scripts/cno
 curl -s -m ${CURL_TIMEOUT} -o cntools.library ${URL_RAW}/scripts/cnode-helper-scripts/cntools.library
 curl -s -m ${CURL_TIMEOUT} -o cntoolsBlockCollector.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntoolsBlockCollector.sh
 curl -s -m ${CURL_TIMEOUT} -o setup_mon.sh ${URL_RAW}/scripts/cnode-helper-scripts/setup_mon.sh
-[[ -f topologyUpdater.sh ]] && cp topologyUpdater.sh "topologyUpdater.sh_bkp$(date +%s)"
+[[ -z ${OVERWRITE} && -f topologyUpdater.sh ]] && cp -f topologyUpdater.sh "topologyUpdater.sh_bkp$(date +%s)"
 curl -s -m ${CURL_TIMEOUT} -o topologyUpdater.sh ${OVERWRITE} ${URL_RAW}/scripts/cnode-helper-scripts/topologyUpdater.sh
 curl -s -m ${CURL_TIMEOUT} -o itnRewards.sh ${URL_RAW}/scripts/cnode-helper-scripts/itnRewards.sh
 curl -s -m ${CURL_TIMEOUT} -o cabal-build-all.sh ${URL_RAW}/scripts/cnode-helper-scripts/cabal-build-all.sh
