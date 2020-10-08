@@ -55,7 +55,7 @@ OVERWRITE=''
 while getopts :in:soft:m: opt; do
   case ${opt} in
     i ) INTERACTIVE='Y' ;;
-    n ) NETWORK=${OPTARG}
+    n ) NETWORK=${OPTARG} ;;
     s ) WANT_BUILD_DEPS='N' ;;
     o ) OVERWRITE='-C -' ;;
     f ) FORCE_OVERWRITE='Y' ;;
