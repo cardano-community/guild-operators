@@ -34,6 +34,7 @@ err_exit() {
 
 usage() {
   cat <<EOF >&2
+
 Usage: $(basename "$0") [-o] [-f] [-s] [-i] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano node and using CNTools
 
@@ -46,6 +47,7 @@ Install pre-requisites for building cardano node and using CNTools
       eg: -n testnet
 -t    Alternate name for top level folder (Default: cnode)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 10s)
+
 EOF
   exit 1
 }
@@ -107,7 +109,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
   OS_ID=$(grep -i ^id_like= /etc/os-release | cut -d= -f 2)
   DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
 
-if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
+  if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
     #Debian/Ubuntu
     echo "Using apt to prepare packages for ${DISTRO} system"
     echo "  Updating system packages..."
@@ -206,12 +208,14 @@ mkdir "${HOME}/git" > /dev/null 2>&1 # To hold git repositories that will be use
 #   $sudo make install > install.log 2>&1
 # fi
 
-$sudo mkdir -p "$CNODE_HOME"/files "$CNODE_HOME"/db "$CNODE_HOME"/logs "$CNODE_HOME"/scripts "$CNODE_HOME"/sockets "$CNODE_HOME"/priv
-$sudo chown -R "$U_ID":"$G_ID" "$CNODE_HOME"
-chmod -R 755 "$CNODE_HOME"
-chmod -R 700 "$CNODE_HOME/priv"
+$sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv
+$sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}"
+chmod -R 755 "${CNODE_HOME}"
+chmod -R 700 "${CNODE_HOME}"/priv
 
-cd "$CNODE_HOME/files" || return
+echo "Downloading files..."
+
+pushd "${CNODE_HOME}"/files >/dev/null || return
 [[ -z ${OVERWRITE} && -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
 [[ -z ${OVERWRITE} && -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
 if [[ ${NETWORK} = "testnet" ]]; then
@@ -230,9 +234,9 @@ else
   curl -sL -m ${CURL_TIMEOUT} -o topology.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
   curl -s -m ${CURL_TIMEOUT} -o config.json ${OVERWRITE} ${URL_RAW}/files/config-mainnet.json
 fi
-sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/*.json
+sed -e "s#/opt/cardano/cnode#${CNODE_HOME}#" -i ./*.json
 
-cd "${CNODE_HOME}"/scripts || return
+pushd "${CNODE_HOME}"/scripts >/dev/null || return
 curl -s -m ${CURL_TIMEOUT} -o env.tmp ${URL_RAW}/scripts/cnode-helper-scripts/env
 curl -s -m ${CURL_TIMEOUT} -o createAddr.sh ${URL_RAW}/scripts/cnode-helper-scripts/createAddr.sh
 curl -s -m ${CURL_TIMEOUT} -o sendADA.sh ${URL_RAW}/scripts/cnode-helper-scripts/sendADA.sh
@@ -260,9 +264,7 @@ sed -e "s@CNODE_HOME=[^ ]*\\(.*\\)@${CNODE_VNAME}_HOME=\"${CNODE_HOME}\"\\1@g" -
 updateWithCustomConfig() {
   file=$1
   [[ -f ${file} ]] && cp -f ${file} "${file}.bkp_$(date +%s)"
-  if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
-    echo "Forced full upgrade! Please edit ${file} for User Variables"
-  elif grep '^# Do NOT modify' ${file}.tmp >/dev/null 2>&1; then
+  if [[ ${FORCE_OVERWRITE} != 'Y' ]] && grep '^# Do NOT modify' ${file} >/dev/null 2>&1; then
     TEMPL_CMD=$(awk '/^# Do NOT modify/,0' ${file}.tmp)
     STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' ${file})
     printf '%s\n%s\n' "${STATIC_CMD}" "${TEMPL_CMD}" > ${file}.tmp
@@ -270,10 +272,12 @@ updateWithCustomConfig() {
   mv -f ${file}.tmp ${file}
 }
 
+[[ ${FORCE_OVERWRITE} = 'Y' ]] && echo "Forced full upgrade! Please edit scripts/env, scripts/cnode.sh and scripts/gLiveView.sh for User Variables"
+
 updateWithCustomConfig "env"
 updateWithCustomConfig "cnode.sh"
 updateWithCustomConfig "gLiveView.sh"
 
 chmod 755 ./*.sh
 
-cd - || return
+popd >/dev/null
