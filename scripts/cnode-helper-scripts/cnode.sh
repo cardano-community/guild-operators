@@ -5,6 +5,19 @@
 
 . "${CNODE_HOME}"/scripts/env
 
+######################################
+# User Variables - Change as desired #
+# Common variables set in env file   #
+######################################
+
+POOL_NAME="TEST"
+POOL_DIR="${CNODE_HOME}/priv/pool/${POOL_NAME}"
+TOPOLOGY="${CNODE_HOME}/files/topology.json"
+
+######################################
+# Do NOT modify code below           #
+######################################
+
 [[ -z "${CNODE_PORT}" ]] && CNODE_PORT=6000
 [[ -z "${SOCKET}" ]] && SOCKET="${CNODE_HOME}/sockets/node0.socket"
 [[ -z "${CONFIG}" ]] && CONFIG="${CNODE_HOME}/files/config.json"
@@ -23,12 +36,6 @@ fi
 [[ ! -d "${CNODE_HOME}/logs/archive" ]] && mkdir -p "${CNODE_HOME}/logs/archive"
 
 [[ $(find "${CNODE_HOME}"/logs/*.json 2>/dev/null | wc -l) -gt 0 ]] && mv ${CNODE_HOME}/logs/*.json ${CNODE_HOME}/logs/archive/
-
-## Static (content that will not be overwritten by prereqs.sh)
-## Begin
-
-POOL_NAME="TEST"
-POOL_DIR="${CNODE_HOME}/priv/pool/${POOL_NAME}"
 
 if [[ -f "${POOL_DIR}/op.cert" && -f "${POOL_DIR}/vrf.skey" && -f "${POOL_DIR}/hot.skey" ]]; then
   cardano-node run \
@@ -50,5 +57,3 @@ else
         --host-addr 0.0.0.0 \
         --port ${CNODE_PORT}
 fi
-
-## End

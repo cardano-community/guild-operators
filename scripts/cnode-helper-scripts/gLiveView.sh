@@ -4,7 +4,7 @@
 
 ######################################
 # User Variables - Change as desired #
-# Leave as is if unsure              #
+# Common variables set in env file   #
 ######################################
 
 NODE_NAME="Cardano Node"                   # Change your node's name prefix here, keep at or below 19 characters!
@@ -46,22 +46,21 @@ setTheme() {
   fi
 }
 
-########################################
-# Do NOT modify code below, it will be #
-# overwritten during future upgrades   #
-########################################
+######################################
+# Do NOT modify code below           #
+######################################
 
 GLV_VERSION=v1.7
 
 PARENT="$(dirname $0)"
 # TODO: Rename cntools-offline to master
 URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/cntools-offline"
-curl -s -o "${PARENT}/env.tmp" ${URL_RAW}/scripts/cnode-helper-scripts/env
+curl -s -m 10 -o "${PARENT}/env.tmp" ${URL_RAW}/scripts/cnode-helper-scripts/env
 if [[ -f "${PARENT}/env" ]]; then
   TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}/env")
   TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}/env.tmp")
   if [[ "$(echo ${TEMPL_CMD} | shasum)" != "$(echo ${TEMPL2_CMD} | shasum)" ]]; then
-    cp "${PARENT}/env" "${PARENT}/env_bkp_$(date +%s)"
+    cp "${PARENT}/env" "${PARENT}/env.bkp_$(date +%s)"
     STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/env")
     printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}/env.tmp"
     mv "${PARENT}/env.tmp" "${PARENT}/env"
@@ -73,11 +72,6 @@ rm -f "${PARENT}/env.tmp"
 
 # get common env variables
 if ! . "${PARENT}"/env; then exit 1; fi
-
-[[ -z "${TOPOLOGY}" ]] && echo -e "\nFailed to detect TOPOLOGY variable!\n\n\
-Please update to latest prereqs.sh script and run with 'prereqs.sh -o -f' to force an overwrite of scripts under ${CNODE_HOME}/scripts/ while retaining topology.json and genesis files(config.json overwritten). \
-If run stand-alone without prereqs, manually download env file as its a required configuration file from v1.7->.\n\n\
-After update, edit 'User Variables' in env and gLiveView.sh files as required.\n" && exit 1
 
 tput smcup # Save screen
 tput civis # Disable cursor
@@ -135,7 +129,7 @@ fi
 clear
 echo "Guild LiveView version check..."
 URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
-if wget -q -T 10 -O /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
+if curl -s -m ${CURL_TIMEOUT} -o /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
   GIT_VERSION=$(grep -r ^GLV_VERSION= /tmp/gLiveView.sh | cut -d'=' -f2)
   : "${GIT_VERSION:=v0.0}"
   if [[ "${GLV_VERSION}" != "${GIT_VERSION}" ]]; then
@@ -455,7 +449,7 @@ checkPeers() {
 check_peers="false"
 show_peers="false"
 selected_direction="out"
-data=$(curl -s -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
+data=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
 epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
 curr_epoch=${epochnum}
 slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
@@ -506,7 +500,7 @@ while true; do
   version=$("$(command -v cardano-node)" version)
   node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
   node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
-  data=$(curl -s -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
+  data=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
   uptimens=$(jq '.cardano.node.metrics.upTime.ns.val //0' <<< "${data}")
   [[ ${fail_count} -eq ${RETRIES} ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}"
   if [[ ${uptimens} -le 0 ]]; then

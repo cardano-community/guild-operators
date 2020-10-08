@@ -80,7 +80,7 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   clear
   say "CNTools version check...\n"
   URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
-  if wget -q -T 10 -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library" && [[ -f "${TMP_FOLDER}"/cntools.library ]]; then
+  if curl -s -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library" && [[ -f "${TMP_FOLDER}"/cntools.library ]]; then
     GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
     GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
     GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
@@ -109,7 +109,7 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     else
       # check if CNTools was recently updated, if so show whats new
       URL_DOCS="https://raw.githubusercontent.com/cardano-community/guild-operators/master/docs/Scripts"
-      if wget -q -T 10 -O "${TMP_FOLDER}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
+      if curl -s -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
         if ! cmp -s "${TMP_FOLDER}"/cntools-changelog.md "$CNODE_HOME/scripts/cntools-changelog.md"; then
           # Latest changes not shown, show whats new and copy changelog
           clear 
@@ -1514,7 +1514,7 @@ EOF
     fi
 
     metadata_done=false
-    if wget -q -T 10 $meta_json_url -O "$TMP_FOLDER/url_poolmeta.json"; then
+    if curl -s -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
       say "\nMetadata exists at URL.  Use existing data?"
       select_opt "[y] Yes" "[n] No"
       case $? in
@@ -2006,7 +2006,7 @@ EOF
     fi
 
     metadata_done=false
-    if wget -q -T 10 $meta_json_url -O "$TMP_FOLDER/url_poolmeta.json"; then
+    if curl -s -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
       say "\nMetadata exists at URL.  Use existing data?"
       select_opt "[y] Yes" "[n] No"
       case $? in
@@ -2606,7 +2606,7 @@ EOF
       say "$(printf "  %-19s : %s" "Hash" "${meta_hash}")" "log"
     elif [[ -f "${pool_config}" ]]; then
       meta_json_url=$(jq -r .json_url "${pool_config}")
-      if wget -q -T 10 ${meta_json_url} -O "$TMP_FOLDER/url_poolmeta.json"; then
+      if curl -s -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
         say "Metadata" "log"
         say "$(printf "  %-19s : %s" "Name" "$(jq -r .name "$TMP_FOLDER/url_poolmeta.json")")" "log"
         say "$(printf "  %-19s : %s" "Ticker" "$(jq -r .ticker "$TMP_FOLDER/url_poolmeta.json")")" "log"
@@ -3064,7 +3064,7 @@ EOF
 
   URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
   URL_DOCS="https://raw.githubusercontent.com/cardano-community/guild-operators/master/docs/Scripts"
-  if wget -q -T 10 -O "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"; then
+  if curl -s -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"; then
     GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
     GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
     GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
@@ -3074,11 +3074,10 @@ EOF
       say "\nPlease read changelog available at the above URL carefully and then follow directions below"
 																									 
       waitForInput "We will not overwrite your changes automatically, press any key for update instructions"
-      say "\n\n1) Please backup cntools.config / env files if changes has been made as well as wallet / pool folders"
-      say "   Use the built in Backup option in CNTools to do this for you"
-      say "\n2) After backup, re-run updated prereqs.sh script with -o -s switches, follow directions here:"
+      say "\n\n1) Please use the built in Backup option in CNTools before proceeding"
+      say "\n2) After backup, re-run updated prereqs.sh script with -o -s -f switches to force overwrite script files, info and directions available at:"
       say "   https://cardano-community.github.io/guild-operators/#/basics?id=pre-requisites"
-      say "\n3) As the last step, restore modified parameters in cntools.config / env files if needed"
+      say "\n3) As the last step, restore any modified parameters in cntools.config / env if needed"
     elif [[ "$CNTOOLS_MINOR_VERSION" != "$GIT_MINOR_VERSION" || "$CNTOOLS_PATCH_VERSION" != "$GIT_PATCH_VERSION" ]];then
       if [[ "$GIT_PATCH_VERSION" -eq 999  ]]; then
         ((GIT_MAJOR_VERSION++))
@@ -3088,9 +3087,7 @@ EOF
       say "New version available: ${FG_GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
       say "${FG_BLUE}INFO${NC} - The following files will be overwritten:"
       say "$CNODE_HOME/scripts/cntools.sh"
-      say "$CNODE_HOME/scripts/cntools.config"
       say "$CNODE_HOME/scripts/cntools.library"
-      say "$CNODE_HOME/scripts/cntoolsBlockCollector.sh"
       backup_folder="$CNODE_HOME/scripts/cntools_${CNTOOLS_VERSION}"
       say "\nA backup of current files will be saved in ${backup_folder} as <file>_${CNTOOLS_VERSION}"
       say "\nProceed with update?"
@@ -3104,11 +3101,8 @@ EOF
          cp -f "$CNODE_HOME/scripts/cntools.sh" "${backup_folder}/cntools.sh_${CNTOOLS_VERSION}" &&
          cp -f "$CNODE_HOME/scripts/cntools.config" "${backup_folder}/cntools.config_${CNTOOLS_VERSION}" &&
          cp -f "$CNODE_HOME/scripts/cntools.library" "${backup_folder}/cntools.library_${CNTOOLS_VERSION}" &&
-         cp -f "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "${backup_folder}/cntoolsBlockCollector.sh_${CNTOOLS_VERSION}" &&
-         wget -q -T 10 -O "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh" &&
-         wget -q -T 10 -O "$CNODE_HOME/scripts/cntools.config" "$URL/cntools.config" &&
-         wget -q -T 10 -O "$CNODE_HOME/scripts/cntools.library" "$URL/cntools.library" &&
-         wget -q -T 10 -O "$CNODE_HOME/scripts/cntoolsBlockCollector.sh" "$URL/cntoolsBlockCollector.sh" &&
+         curl -s -m ${CURL_TIMEOUT} -o "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh" &&
+         curl -s -m ${CURL_TIMEOUT} -o "$CNODE_HOME/scripts/cntools.library" "$URL/cntools.library" &&
          [[ $(grep "_HOME=" "$CNODE_HOME/scripts/env") =~ ^([^[:space:]]+)_HOME ]] &&
          sed -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "$CNODE_HOME/scripts/cntools."*; then
          myExit 0 "Update applied successfully!\n\nPlease start CNTools again!"

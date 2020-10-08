@@ -34,7 +34,7 @@ err_exit() {
 
 usage() {
   cat <<EOF >&2
-Usage: $(basename "$0") [-o] [-s] [-i] [-g] [-p]
+Usage: $(basename "$0") [-o] [-f] [-s] [-i] [-g] [-p] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano node and using CNTools
 
 -o    Do *NOT* overwrite existing genesis.json, topology.json and topology-updater.sh files (Default: will overwrite)
@@ -45,6 +45,7 @@ Install pre-requisites for building cardano node and using CNTools
 -g    Connect to guild network instead of public network (Default: connect to public cardano network)
 -p    Copy Transitional Praos config as default instead of Combinator networks (Default: copies combinator network)
 -t    Alternate name for top level folder
+-m    Maximum time in seconds that you allow the file download operation to take before aborting
 EOF
   exit 1
 }
@@ -52,7 +53,7 @@ EOF
 WANT_BUILD_DEPS='Y'
 OVERWRITE=' '
 
-while getopts :igpsoft: opt; do
+while getopts :igpsoft:m: opt; do
   case ${opt} in
     i ) INTERACTIVE='Y' ;;
     g ) GUILD='Y' ;;
@@ -61,6 +62,7 @@ while getopts :igpsoft: opt; do
     o ) OVERWRITE=' -C -' ;;
     f ) FORCE_OVERWRITE='Y' ;;
     t ) CNODE_NAME=${OPTARG} ;;
+    m ) CURL_TIMEOUT=${OPTARG} ;;
     \? ) usage ;;
     esac
 done
@@ -75,6 +77,7 @@ CNODE_PATH="/opt/cardano"
 [[ -z "${CNODE_NAME}" ]] && CNODE_NAME="cnode"
 CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
 CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
+[[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
 
 #if [ $(id -u$( -eq 0 ]; then
 #  err_exit "Please run as non-root user."
@@ -112,7 +115,7 @@ if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
     $sudo apt-get -y install curl > /dev/null
     $sudo apt-get -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute dialog shasum"
+    pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute dialog shasum"
     $sudo apt-get -y install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
@@ -127,7 +130,7 @@ if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
     $sudo yum -y install curl > /dev/null
     $sudo yum -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git wget jq gnupg libtool autoconf srm iproute bc tcptraceroute dialog shasum"
+    pkg_list="python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git jq gnupg libtool autoconf srm iproute bc tcptraceroute dialog shasum"
     [[ ! "${DISTRO}" =~ Fedora ]] && $sudo yum -y install epel-release > /dev/null
     $sudo yum -y install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
@@ -158,7 +161,7 @@ if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
     # TMP: Dirty hack to prevent ghcup interactive setup, yet allow profile set up
     unset BOOTSTRAP_HASKELL_NONINTERACTIVE
     export BOOTSTRAP_HASKELL_NO_UPGRADE=1
-    curl -s --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sed -e 's#read.*#answer=Y;next_answer=Y;hls_answer=N#' | bash
+    curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sed -e 's#read.*#answer=Y;next_answer=Y;hls_answer=N#' | bash
     # shellcheck source=/dev/null
     . ~/.ghcup/env
 
@@ -211,18 +214,18 @@ chmod -R 700 "$CNODE_HOME/priv"
 
 cd "$CNODE_HOME/files" || return
 
-curl -s -o ptn0-praos.json ${URL_RAW}/files/ptn0-praos.json
-curl -s -o ptn0-combinator.json ${URL_RAW}/files/ptn0-combinator.json
-curl -s -o ptn0-mainnet.json ${URL_RAW}/files/ptn0-mainnet.json
+curl -s -m ${CURL_TIMEOUT} -o ptn0-praos.json ${URL_RAW}/files/ptn0-praos.json
+curl -s -m ${CURL_TIMEOUT} -o ptn0-combinator.json ${URL_RAW}/files/ptn0-combinator.json
+curl -s -m ${CURL_TIMEOUT} -o ptn0-mainnet.json ${URL_RAW}/files/ptn0-mainnet.json
 if [[ "$GUILD" = "Y" ]]; then
-  curl -s -o genesis.json ${URL_RAW}/files/genesis.json
-  curl -s -o byron-genesis.json ${URL_RAW}/files/byron-genesis.json
-  curl -s -o topology.json ${URL_RAW}/files/topology.json
+  curl -s -m ${CURL_TIMEOUT} -o genesis.json ${URL_RAW}/files/genesis.json
+  curl -s -m ${CURL_TIMEOUT} -o byron-genesis.json ${URL_RAW}/files/byron-genesis.json
+  curl -s -m ${CURL_TIMEOUT} -o topology.json ${URL_RAW}/files/topology.json
 else
-  curl -sL -o byron-genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
-  curl -sL -o genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
+  curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
+  curl -sL -m ${CURL_TIMEOUT} -o genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
   [[ -f topology.json ]] && cp topology.json "topology.json_bkp$(date +%s)"
-  curl -sL -o topology.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
+  curl -sL -m ${CURL_TIMEOUT} -o topology.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
 fi
 
 if [[ "$PRAOS" = "Y" ]]; then
@@ -233,69 +236,47 @@ fi
 
 sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/*.json
 
-cd "$CNODE_HOME"/scripts || return
-curl -s -o env.tmp ${URL_RAW}/scripts/cnode-helper-scripts/env
-curl -s -o createAddr.sh ${URL_RAW}/scripts/cnode-helper-scripts/createAddr.sh
-curl -s -o sendADA.sh ${URL_RAW}/scripts/cnode-helper-scripts/sendADA.sh
-curl -s -o balance.sh ${URL_RAW}/scripts/cnode-helper-scripts/balance.sh
-curl -s -o rotatePoolKeys.sh ${URL_RAW}/scripts/cnode-helper-scripts/rotatePoolKeys.sh
-curl -s -o cnode.sh.templ ${URL_RAW}/scripts/cnode-helper-scripts/cnode.sh.templ
-curl -s -o cntools.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntools.sh
-curl -s -o cntools.config ${URL_RAW}/scripts/cnode-helper-scripts/cntools.config
-curl -s -o cntools.library ${URL_RAW}/scripts/cnode-helper-scripts/cntools.library
-curl -s -o cntoolsBlockCollector.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntoolsBlockCollector.sh
-curl -s -o setup_mon.sh ${URL_RAW}/scripts/cnode-helper-scripts/setup_mon.sh
+cd "${CNODE_HOME}"/scripts || return
+curl -s -m ${CURL_TIMEOUT} -o env.tmp ${URL_RAW}/scripts/cnode-helper-scripts/env
+curl -s -m ${CURL_TIMEOUT} -o createAddr.sh ${URL_RAW}/scripts/cnode-helper-scripts/createAddr.sh
+curl -s -m ${CURL_TIMEOUT} -o sendADA.sh ${URL_RAW}/scripts/cnode-helper-scripts/sendADA.sh
+curl -s -m ${CURL_TIMEOUT} -o balance.sh ${URL_RAW}/scripts/cnode-helper-scripts/balance.sh
+curl -s -m ${CURL_TIMEOUT} -o rotatePoolKeys.sh ${URL_RAW}/scripts/cnode-helper-scripts/rotatePoolKeys.sh
+curl -s -m ${CURL_TIMEOUT} -o cnode.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cnode.sh
+curl -s -m ${CURL_TIMEOUT} -o cntools.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntools.sh
+curl -s -m ${CURL_TIMEOUT} -o cntools.config ${OVERWRITE} ${URL_RAW}/scripts/cnode-helper-scripts/cntools.config
+curl -s -m ${CURL_TIMEOUT} -o cntools.library ${URL_RAW}/scripts/cnode-helper-scripts/cntools.library
+curl -s -m ${CURL_TIMEOUT} -o cntoolsBlockCollector.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntoolsBlockCollector.sh
+curl -s -m ${CURL_TIMEOUT} -o setup_mon.sh ${URL_RAW}/scripts/cnode-helper-scripts/setup_mon.sh
 [[ -f topologyUpdater.sh ]] && cp topologyUpdater.sh "topologyUpdater.sh_bkp$(date +%s)"
-curl -s -o topologyUpdater.sh ${OVERWRITE} ${URL_RAW}/scripts/cnode-helper-scripts/topologyUpdater.sh
-curl -s -o itnRewards.sh ${URL_RAW}/scripts/cnode-helper-scripts/itnRewards.sh
-curl -s -o cabal-build-all.sh ${URL_RAW}/scripts/cnode-helper-scripts/cabal-build-all.sh
-curl -s -o stack-build.sh ${URL_RAW}/scripts/cnode-helper-scripts/stack-build.sh
-curl -s -o system-info.sh ${URL_RAW}/scripts/cnode-helper-scripts/system-info.sh
-curl -s -o sLiveView.sh ${URL_RAW}/scripts/cnode-helper-scripts/sLiveView.sh
-curl -s -o gLiveView.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/gLiveView.sh
-curl -s -o deploy-as-systemd.sh ${URL_RAW}/scripts/cnode-helper-scripts/deploy-as-systemd.sh
+curl -s -m ${CURL_TIMEOUT} -o topologyUpdater.sh ${OVERWRITE} ${URL_RAW}/scripts/cnode-helper-scripts/topologyUpdater.sh
+curl -s -m ${CURL_TIMEOUT} -o itnRewards.sh ${URL_RAW}/scripts/cnode-helper-scripts/itnRewards.sh
+curl -s -m ${CURL_TIMEOUT} -o cabal-build-all.sh ${URL_RAW}/scripts/cnode-helper-scripts/cabal-build-all.sh
+curl -s -m ${CURL_TIMEOUT} -o stack-build.sh ${URL_RAW}/scripts/cnode-helper-scripts/stack-build.sh
+curl -s -m ${CURL_TIMEOUT} -o system-info.sh ${URL_RAW}/scripts/cnode-helper-scripts/system-info.sh
+curl -s -m ${CURL_TIMEOUT} -o sLiveView.sh ${URL_RAW}/scripts/cnode-helper-scripts/sLiveView.sh
+curl -s -m ${CURL_TIMEOUT} -o gLiveView.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/gLiveView.sh
+curl -s -m ${CURL_TIMEOUT} -o deploy-as-systemd.sh ${URL_RAW}/scripts/cnode-helper-scripts/deploy-as-systemd.sh
 sed -e "s@SyslogIdentifier=.*@SyslogIdentifier=${CNODE_NAME}@g" -e "s@cnode.service@${CNODE_NAME}.service@g" -i deploy-as-systemd.sh
 sed -e "s@CNODE_HOME=[^ ]*\\(.*\\)@${CNODE_VNAME}_HOME=\"${CNODE_HOME}\"\\1@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*.*
 
-### Update env retaining existing custom configs
-[[ -f env ]] && cp -f env "env.bkp_$(date +%s)"
-if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
-  echo "Forced full upgrade! Please edit ${CNODE_HOME}/scripts/env for User Variables"
-elif grep '^# Do NOT modify' env.tmp >/dev/null 2>&1; then
-  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' env.tmp)
-  STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' env.tmp)
-  printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > env.tmp
-fi
-mv -f env.tmp env
-
-### Update cnode.sh retaining existing custom configs
-if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
-  if [[ -f cnode.sh ]]; then
-    cp cnode.sh "cnode.sh.bkp_$(date +%s)"
-    echo "Forced full upgrade! Please edit ${CNODE_HOME}/scripts/cnode.sh for values against POOL_NAME and POOL_DIR variables"
+### Update file retaining existing custom configs
+updateWithCustomConfig() {
+  file=$1
+  [[ -f ${file} ]] && cp -f ${file} "${file}.bkp_$(date +%s)"
+  if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
+    echo "Forced full upgrade! Please edit ${file} for User Variables"
+  elif grep '^# Do NOT modify' ${file}.tmp >/dev/null 2>&1; then
+    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' ${file}.tmp)
+    STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' ${file})
+    printf '%s\n%s\n' "${STATIC_CMD}" "${TEMPL_CMD}" > ${file}.tmp
   fi
-  cp -f cnode.sh.templ cnode.sh
-elif grep '## Static' cnode.sh >/dev/null 2>&1; then
-  TEMPL_CMD=$(awk '/#!/,/## Static/' cnode.sh.templ)
-  STATIC_CMD=$(awk '/## Begin/,/## End/' cnode.sh)
-  printf '%s\n%s\n' "$TEMPL_CMD" "$STATIC_CMD" > cnode.sh
-elif grep 'cardano-node' cnode.sh >/dev/null 2>&1;then
-  cp cnode.sh "cnode.sh.bkp_$(date +%s)"
-  cp -f cnode.sh.templ cnode.sh
-  echo "One-time upgrade! Please edit ${CNODE_HOME}/scripts/cnode.sh for values against POOL_NAME and POOL_DIR variables"
-else
-  cp -f cnode.sh.templ cnode.sh
-fi
+  mv -f ${file}.tmp ${file}
+}
 
-### Update gLiveView.sh retaining existing custom configs
-if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
-  echo "Forced full upgrade! Please edit ${CNODE_HOME}/scripts/gLiveView.sh for User Variables"
-elif grep '^# Do NOT modify' gLiveView.sh >/dev/null 2>&1; then
-  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' gLiveView.sh.tmp)
-  STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' gLiveView.sh)
-  printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > gLiveView.sh.tmp
-fi
-mv -f gLiveView.sh.tmp gLiveView.sh
+updateWithCustomConfig "env"
+updateWithCustomConfig "cnode.sh"
+updateWithCustomConfig "gLiveView.sh"
 
 chmod 755 ./*.sh
 
