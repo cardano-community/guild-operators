@@ -4,7 +4,7 @@
 unset CNODE_HOME
 REPO="https://github.com/cardano-community/guild-operators"
 REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
-BRANCH="master"
+BRANCH="cntools-offline"
 URL_RAW="${REPO_RAW}/${BRANCH}"
 
 get_input() {
