@@ -34,14 +34,12 @@ EOF
 }
 
 CNTOOLS_MODE="CONNECTED"
-while getopts :o opt; do
+BRANCH="MASTER"
+while getopts :oa opt; do
   case ${opt} in
-    o )
-      CNTOOLS_MODE="OFFLINE"
-      ;;
-    \? )
-      myExit 1 "$(usage)"
-      ;;
+    o ) CNTOOLS_MODE="OFFLINE" ;;
+    a ) BRANCH="alpha" ;;
+    \? ) myExit 1 "$(usage)" ;;
     esac
 done
 shift $((OPTIND -1))
@@ -58,6 +56,10 @@ fi
 
 # get helper functions from library file
 . "${CNODE_HOME}"/scripts/cntools.library
+
+URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
+URL="${URL_RAW}/scripts/cnode-helper-scripts"
+URL_DOCS="${URL_RAW}/docs/Scripts"
 
 # create temporary directory if missing
 mkdir -p "${TMP_FOLDER}" # Create if missing
@@ -79,7 +81,6 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   # check to see if there are any updates available
   clear
   say "CNTools version check...\n"
-  URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
   if curl -s -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library" && [[ -f "${TMP_FOLDER}"/cntools.library ]]; then
     GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
     GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
@@ -108,7 +109,6 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       waitForInput "press any key to proceed"
     else
       # check if CNTools was recently updated, if so show whats new
-      URL_DOCS="https://raw.githubusercontent.com/cardano-community/guild-operators/master/docs/Scripts"
       if curl -s -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
         if ! cmp -s "${TMP_FOLDER}"/cntools-changelog.md "$CNODE_HOME/scripts/cntools-changelog.md"; then
           # Latest changes not shown, show whats new and copy changelog
@@ -3062,8 +3062,6 @@ EOF
   say "Full changelog available at:\nhttps://cardano-community.github.io/guild-operators/#/Scripts/cntools-changelog"
   echo
 
-  URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
-  URL_DOCS="https://raw.githubusercontent.com/cardano-community/guild-operators/master/docs/Scripts"
   if curl -s -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"; then
     GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
     GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
