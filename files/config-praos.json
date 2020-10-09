@@ -1,17 +1,12 @@
 {
   "ApplicationName": "cardano-sl",
   "ApplicationVersion": 0,
-  "ByronGenesisFile": "/opt/cardano/cnode/files/byron-genesis.json",
   "LastKnownBlockVersion-Alt": 0,
-  "LastKnownBlockVersion-Major": 2,
+  "LastKnownBlockVersion-Major": 0,
   "LastKnownBlockVersion-Minor": 0,
-  "MaxKnownMajorProtocolVersion": 2,
-  "PBftSignatureThreshold": 0.9,
-  "Protocol": "Cardano",
+  "Protocol": "TPraos",
   "RequiresNetworkMagic": "RequiresNoMagic",
-  "ShelleyGenesisFile": "/opt/cardano/cnode/files/genesis.json",
-  "TestShelleyHardForkAtEpoch": 1,
-  "bfcMaxConcurrencyDeadline": 4,
+  "GenesisFile": "/opt/cardano/cnode/files/genesis.json",
   "TraceBlockFetchClient": true,
   "TraceBlockFetchDecisions": true,
   "TraceBlockFetchProtocol": true,
@@ -172,6 +167,7 @@
     }
   ],
   "SocketPath": "/opt/cardano/cnode/sockets/node0.socket",
+  "NetworkName": "testnet",
   "EnableLogging": true,
   "EnableLogMetrics": false
 }

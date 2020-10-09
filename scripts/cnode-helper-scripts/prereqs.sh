@@ -2,6 +2,9 @@
 # shellcheck disable=SC2086
 
 unset CNODE_HOME
+REPO="https://github.com/cardano-community/guild-operators"
+REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
+BRANCH="master"
 
 get_input() {
   printf "%s (default: %s): " "$1" "$2" >&2; read -r answer
@@ -30,45 +33,39 @@ err_exit() {
 
 usage() {
   cat <<EOF >&2
-Usage: $(basename "$0") [-o] [-s] [-i] [-g] [-p]
-Install pre-requisites for building cardano node and using cntools
 
--o    Do *NOT* overwrite existing genesis.json, topology.json and topology-updater.sh files (Default: will overwrite)
+Usage: $(basename "$0") [-o] [-f] [-s] [-i] [-a] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
+Install pre-requisites for building cardano node and using CNTools
+
+-o    Do *NOT* overwrite existing genesis.json, topology.json, config.json, cntools.config and topology-updater.sh files (Default: will overwrite)
+-f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
+      '-o' and '-f' are independent of each other, and can be used together
 -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
 -i    Interactive mode (Default: silent mode)
--g    Connect to guild network instead of public network (Default: connect to public cardano network)
--p    Copy Transitional Praos config as default instead of Combinator networks (Default: copies combinator network)
--t    Alternate name for top level folder
+-n    Connect to specified network instead of public network (Default: connect to public cardano network)
+      eg: -n testnet
+-t    Alternate name for top level folder (Default: cnode)
+-m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 10s)
+-a    Use alpha branch of scripts (only recommended for testing/development)
+
 EOF
   exit 1
 }
 
 WANT_BUILD_DEPS='Y'
-OVERWRITE=' '
+OVERWRITE='Y'
 
-while getopts :igpsot: opt; do
+while getopts :in:sofat:m: opt; do
   case ${opt} in
-    i )
-      INTERACTIVE='Y'
-      ;;
-    g )
-      GUILD='Y'
-      ;;
-    p )
-      PRAOS='Y'
-      ;;
-    s )
-      WANT_BUILD_DEPS='N'
-      ;;
-    o )
-      OVERWRITE=' -C -'
-      ;;
-    t )
-      CNODE_NAME=${OPTARG}
-      ;;
-    \? )
-      usage
-      ;;
+    i ) INTERACTIVE='Y' ;;
+    n ) NETWORK=${OPTARG} ;;
+    s ) WANT_BUILD_DEPS='N' ;;
+    o ) OVERWRITE='N' ;;
+    f ) FORCE_OVERWRITE='Y' ;;
+    t ) CNODE_NAME=${OPTARG} ;;
+    m ) CURL_TIMEOUT=${OPTARG} ;;
+    a ) BRANCH="alpha" ;;
+    \? ) usage ;;
     esac
 done
 shift $((OPTIND -1))
@@ -82,6 +79,7 @@ CNODE_PATH="/opt/cardano"
 [[ -z "${CNODE_NAME}" ]] && CNODE_NAME="cnode"
 CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
 CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
+[[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
 
 #if [ $(id -u$( -eq 0 ]; then
 #  err_exit "Please run as non-root user."
@@ -112,19 +110,19 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
   OS_ID=$(grep -i ^id_like= /etc/os-release | cut -d= -f 2)
   DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
 
-if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
+  if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
     #Debian/Ubuntu
     echo "Using apt to prepare packages for ${DISTRO} system"
     echo "  Updating system packages..."
     $sudo apt-get -y install curl > /dev/null
     $sudo apt-get -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute"
+    pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute dialog"
     $sudo apt-get -y install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
       echo "sudo apt-get -y install ${pkg_list}"
-      echo "It would be best if you could submit an issue at https://github.com/cardano-community/guild-operators with the details to tackle in future, as some errors may be due to external/already present dependencies"
+      echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
       exit;
     fi
   elif [[ "${OS_ID}" =~ rhel ]] || [[ "${DISTRO}" =~ Fedora ]]; then
@@ -134,13 +132,13 @@ if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
     $sudo yum -y install curl > /dev/null
     $sudo yum -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git wget jq gnupg libtool autoconf srm iproute bc tcptraceroute"
+    pkg_list="python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git jq gnupg libtool autoconf srm iproute bc tcptraceroute dialog"
     [[ ! "${DISTRO}" =~ Fedora ]] && $sudo yum -y install epel-release > /dev/null
     $sudo yum -y install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
       echo "sudo yum -y install ${pkg_list}"
-      echo "It would be best if you could submit an issue at https://github.com/cardano-community/guild-operators with the details to tackle in future, as some errors may be due to external/already present dependencies"
+      echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
       exit;
     fi
     if [ -f /usr/lib64/libtinfo.so ] && [ -f /usr/lib64/libtinfo.so.5 ]; then
@@ -165,7 +163,7 @@ if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
     # TMP: Dirty hack to prevent ghcup interactive setup, yet allow profile set up
     unset BOOTSTRAP_HASKELL_NONINTERACTIVE
     export BOOTSTRAP_HASKELL_NO_UPGRADE=1
-    curl -s --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sed -e 's#read.*#answer=Y;next_answer=Y;hls_answer=N#' | bash
+    curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sed -e 's#read.*#answer=Y;next_answer=Y;hls_answer=N#' | bash
     # shellcheck source=/dev/null
     . ~/.ghcup/env
 
@@ -211,81 +209,81 @@ mkdir "${HOME}/git" > /dev/null 2>&1 # To hold git repositories that will be use
 #   $sudo make install > install.log 2>&1
 # fi
 
-$sudo mkdir -p "$CNODE_HOME"/files "$CNODE_HOME"/db "$CNODE_HOME"/logs "$CNODE_HOME"/scripts "$CNODE_HOME"/sockets "$CNODE_HOME"/priv
-$sudo chown -R "$U_ID":"$G_ID" "$CNODE_HOME"
-chmod -R 755 "$CNODE_HOME"
+$sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv
+$sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}"
+chmod -R 755 "${CNODE_HOME}"
+chmod -R 700 "${CNODE_HOME}"/priv
 
-cd "$CNODE_HOME/files" || return
+echo "Downloading files..."
 
-curl -s -o ptn0-praos.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0-praos.json
-curl -s -o ptn0-combinator.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0-combinator.json
-curl -s -o ptn0-mainnet.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0-mainnet.json
-if [[ "$GUILD" = "Y" ]]; then
-  curl -s -o genesis.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/genesis.json
-  curl -s -o byron-genesis.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/byron-genesis.json
-  curl -s -o topology.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/topology.json
-else
-  curl -sL -o byron-genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
-  curl -sL -o genesis.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
-  [[ -f topology.json ]] && cp topology.json "topology.json_bkp$(date +%s)"
-  curl -sL -o topology.json ${OVERWRITE} https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
+URL_RAW="${REPO_RAW}/${BRANCH}"
+pushd "${CNODE_HOME}"/files >/dev/null || return
+if [[ ${OVERWRITE} = 'Y' ]]; then
+  [[ -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
+  [[ -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
+  if [[ ${NETWORK} = "testnet" ]]; then
+    curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json
+    curl -sL -m ${CURL_TIMEOUT} -o genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json
+    curl -sL -m ${CURL_TIMEOUT} -o topology.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-topology.json
+    curl -s -m ${CURL_TIMEOUT} -o config.json ${URL_RAW}/files/config-combinator.json
+  elif [[ ${NETWORK} = "guild" ]]; then
+    curl -s -m ${CURL_TIMEOUT} -o genesis.json ${URL_RAW}/files/genesis.json
+    curl -s -m ${CURL_TIMEOUT} -o byron-genesis.json ${URL_RAW}/files/byron-genesis.json
+    curl -s -m ${CURL_TIMEOUT} -o topology.json ${URL_RAW}/files/topology.json
+    curl -s -m ${CURL_TIMEOUT} -o config.json ${URL_RAW}/files/config-praos.json
+  else
+    curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
+    curl -sL -m ${CURL_TIMEOUT} -o genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
+    curl -sL -m ${CURL_TIMEOUT} -o topology.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
+    curl -s -m ${CURL_TIMEOUT} -o config.json ${URL_RAW}/files/config-mainnet.json
+  fi
 fi
+sed -e "s#/opt/cardano/cnode#${CNODE_HOME}#" -i ./*.json
 
-if [[ "$PRAOS" = "Y" ]]; then
-  cp ptn0-praos.json config.json
-else
-  cp ptn0-mainnet.json config.json
+pushd "${CNODE_HOME}"/scripts >/dev/null || return
+curl -s -m ${CURL_TIMEOUT} -o env.tmp ${URL_RAW}/scripts/cnode-helper-scripts/env
+curl -s -m ${CURL_TIMEOUT} -o createAddr.sh ${URL_RAW}/scripts/cnode-helper-scripts/createAddr.sh
+curl -s -m ${CURL_TIMEOUT} -o sendADA.sh ${URL_RAW}/scripts/cnode-helper-scripts/sendADA.sh
+curl -s -m ${CURL_TIMEOUT} -o balance.sh ${URL_RAW}/scripts/cnode-helper-scripts/balance.sh
+curl -s -m ${CURL_TIMEOUT} -o rotatePoolKeys.sh ${URL_RAW}/scripts/cnode-helper-scripts/rotatePoolKeys.sh
+curl -s -m ${CURL_TIMEOUT} -o cnode.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cnode.sh
+curl -s -m ${CURL_TIMEOUT} -o cntools.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntools.sh
+[[ ${OVERWRITE} = 'Y' ]] && curl -s -m ${CURL_TIMEOUT} -o cntools.config ${URL_RAW}/scripts/cnode-helper-scripts/cntools.config
+curl -s -m ${CURL_TIMEOUT} -o cntools.library ${URL_RAW}/scripts/cnode-helper-scripts/cntools.library
+curl -s -m ${CURL_TIMEOUT} -o cntoolsBlockCollector.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntoolsBlockCollector.sh
+curl -s -m ${CURL_TIMEOUT} -o setup_mon.sh ${URL_RAW}/scripts/cnode-helper-scripts/setup_mon.sh
+if [[ ${OVERWRITE} = 'Y' ]]; then
+  [[ -f topologyUpdater.sh ]] && cp -f topologyUpdater.sh "topologyUpdater.sh_bkp$(date +%s)"
+  curl -s -m ${CURL_TIMEOUT} -o topologyUpdater.sh ${URL_RAW}/scripts/cnode-helper-scripts/topologyUpdater.sh
 fi
-
-sed -i -e "s#/opt/cardano/cnode#${CNODE_HOME}#" $CNODE_HOME/files/*.json
-
-cd "$CNODE_HOME"/scripts || return
-curl -s -o env https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
-sed -e "s@CNODE_HOME=.*@${CNODE_VNAME}_HOME=${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i env
-curl -s -o createAddr.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/createAddr.sh
-curl -s -o sendADA.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/sendADA.sh
-curl -s -o balance.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/balance.sh
-curl -s -o rotatePoolKeys.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/rotatePoolKeys.sh
-curl -s -o cnode.sh.templ https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cnode.sh.templ
-curl -s -o cntools.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.sh
-curl -s -o cntools.config https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.config
-curl -s -o cntools.library https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntools.library
-curl -s -o cntoolsBlockCollector.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cntoolsBlockCollector.sh
-curl -s -o setup_mon.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/setup_mon.sh
-[[ -f topologyUpdater.sh ]] && cp topologyUpdater.sh "topologyUpdater.sh_bkp$(date +%s)"
-curl -s -o topologyUpdater.sh ${OVERWRITE} https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/topologyUpdater.sh
-curl -s -o itnRewards.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/itnRewards.sh
-curl -s -o cabal-build-all.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/cabal-build-all.sh
-curl -s -o stack-build.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/stack-build.sh
-curl -s -o system-info.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/system-info.sh
-curl -s -o sLiveView.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/sLiveView.sh
-curl -s -o gLiveView.sh.tmp https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/gLiveView.sh
-curl -s -o deploy-as-systemd.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/deploy-as-systemd.sh
+curl -s -m ${CURL_TIMEOUT} -o itnRewards.sh ${URL_RAW}/scripts/cnode-helper-scripts/itnRewards.sh
+curl -s -m ${CURL_TIMEOUT} -o cabal-build-all.sh ${URL_RAW}/scripts/cnode-helper-scripts/cabal-build-all.sh
+curl -s -m ${CURL_TIMEOUT} -o stack-build.sh ${URL_RAW}/scripts/cnode-helper-scripts/stack-build.sh
+curl -s -m ${CURL_TIMEOUT} -o system-info.sh ${URL_RAW}/scripts/cnode-helper-scripts/system-info.sh
+curl -s -m ${CURL_TIMEOUT} -o sLiveView.sh ${URL_RAW}/scripts/cnode-helper-scripts/sLiveView.sh
+curl -s -m ${CURL_TIMEOUT} -o gLiveView.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/gLiveView.sh
+curl -s -m ${CURL_TIMEOUT} -o deploy-as-systemd.sh ${URL_RAW}/scripts/cnode-helper-scripts/deploy-as-systemd.sh
 sed -e "s@SyslogIdentifier=.*@SyslogIdentifier=${CNODE_NAME}@g" -e "s@cnode.service@${CNODE_NAME}.service@g" -i deploy-as-systemd.sh
-sed -e "s@CNODE_HOME=[^ ]*\\(.*\\)@${CNODE_VNAME}_HOME=\"${CNODE_HOME}\"\\1@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*.*
+sed -e "s@CNODE_HOME=[^ ]*\\(.*\\)@${CNODE_VNAME}_HOME=\"${CNODE_HOME}\"\\1@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*
 
-### Update cnode.sh retaining existing custom configs
-if grep '## Static' cnode.sh >/dev/null 2>&1; then
-  TEMPL_CMD=$(awk '/#!/,/## Static/' cnode.sh.templ)
-  STATIC_CMD=$(awk '/## Begin/,/## End/' cnode.sh)
-  printf '%s\n%s\n' "$TEMPL_CMD" "$STATIC_CMD" > cnode.sh
-elif grep 'cardano-node' cnode.sh >/dev/null 2>&1;then
-  cp cnode.sh "cnode.sh.bkp_$(date +%s)"
-  cp -f cnode.sh.templ cnode.sh
-  echo "One-time upgrade! Please edit ${CNODE_HOME}/scripts/cnode.sh for values against POOL_NAME and CNODE_PORT variables"
-else
-  cp -f cnode.sh.templ cnode.sh
-fi
+### Update file retaining existing custom configs
+updateWithCustomConfig() {
+  file=$1
+  [[ -f ${file} ]] && cp -f ${file} "${file}.bkp_$(date +%s)"
+  if [[ ${FORCE_OVERWRITE} != 'Y' ]] && grep '^# Do NOT modify' ${file} >/dev/null 2>&1; then
+    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' ${file}.tmp)
+    STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' ${file})
+    printf '%s\n%s\n' "${STATIC_CMD}" "${TEMPL_CMD}" > ${file}.tmp
+  fi
+  mv -f ${file}.tmp ${file}
+}
 
-### Update gLiveView.sh retaining existing custom configs
-if grep '^# Do NOT modify' gLiveView.sh >/dev/null 2>&1; then
-  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' gLiveView.sh.tmp)
-  STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' gLiveView.sh)
-  printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > gLiveView.sh.tmp
-fi
+[[ ${FORCE_OVERWRITE} = 'Y' ]] && echo "Forced full upgrade! Please edit scripts/env, scripts/cnode.sh and scripts/gLiveView.sh for User Variables"
 
-mv gLiveView.sh.tmp gLiveView.sh
+updateWithCustomConfig "env"
+updateWithCustomConfig "cnode.sh"
+updateWithCustomConfig "gLiveView.sh"
 
 chmod 755 ./*.sh
 
-cd - || return
+popd >/dev/null || return

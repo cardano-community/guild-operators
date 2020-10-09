@@ -1,3 +1,5 @@
+#!/bin/bash
+
 sudo bash -c "cat << 'EOF' > /etc/systemd/system/cnode.service
 [Unit]
 Description=Cardano Node

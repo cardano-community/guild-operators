@@ -6,7 +6,7 @@ The architecture and description of various components are best described at [Ad
 
 ##### Set up OS packages, folder structure and fetch files from repo
 
-!> You're expected to run the commands below from same session, using same working directories as indicated and using a non-root user with passwordless sudo access. You'd be expected to be familiar with this as part of pre-requisite skillsets expected off a stake pool operator.
+!> You're expected to run the commands below from same session, using same working directories as indicated and using a `non-root user with passwordless sudo access`. You'd be expected to be familiar with this as part of pre-requisite skillsets expected off a stake pool operator.
 
 The pre-requisites for Linux systems are automated to be executed as a single script. Follow the instructions below to deploy the same:
 
@@ -22,14 +22,19 @@ chmod 755 prereqs.sh
 # You can check the syntax for prereqs.sh using command below:
 #
 # ./prereqs.sh -h
-# Usage: prereqs.sh [-o] [-s] [-i] [-g] [-p]
-# Install pre-requisites for building cardano node and using cntools
-# -o    Do *NOT* overwrite existing genesis, topology.json and topology-updater.sh files (Default: will overwrite)
+# Usage: prereqs.sh [-o] [-f] [-s] [-i] [-a] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
+# Install pre-requisites for building cardano node and using CNTools
+#
+# -o    Do *NOT* overwrite existing genesis.json, topology.json, config.json, cntools.config and topology-updater.sh files (Default: will overwrite)
+# -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
+#       '-o' and '-f' are independent of each other, and can be used together
 # -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
 # -i    Interactive mode (Default: silent mode)
-# -g    Connect to guild network instead of public network (Default: connect to public cardano network)
-# -p    Copy Transitional Praos config as default instead of Combinator networks (Default: copies combinator network)
-# -t    Alternate name for top level folder
+# -n    Connect to specified network instead of public network (Default: connect to public cardano network)
+#       eg: -n testnet
+# -t    Alternate name for top level folder (Default: cnode)
+# -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 10s)
+# -a    Use alpha branch of scripts (only recommended for testing/development)
 # You can use one of the options above, if you'd like to defer from defaults (below).
 # Running without any parameters will run script in silent mode with OS Dependencies, and overwriting existing files.
 
