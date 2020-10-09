@@ -26,15 +26,16 @@ clear
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-o]
+Usage: $(basename "$0") [-o] [-a]
 CNTools - The Cardano SPOs best friend
 
 -o    Activate offline mode - run CNTools in offline mode without node access, a limited set of functions available
+-a    Run CNTools and look for updates on alpha branch instead of master of guild repository (only for testing/development purposes)
 EOF
 }
 
 CNTOOLS_MODE="CONNECTED"
-BRANCH="MASTER"
+BRANCH="master"
 while getopts :oa opt; do
   case ${opt} in
     o ) CNTOOLS_MODE="OFFLINE" ;;
