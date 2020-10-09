@@ -49,7 +49,7 @@ shift $((OPTIND -1))
 # get common env variables
 if ! . "${CNODE_HOME}"/scripts/env; then
   [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && exit 1
-  echo -e "\n${FG_RED}ERROR${NC}: CNTools run in offline mode and failed to automatically grab common env variables\nPlease uncomment all variables in 'User Variables' section and set values manually\n"
+  echo -e "\nERROR: CNTools run in offline mode and failed to automatically grab common env variables\nPlease uncomment all variables in 'User Variables' section and set values manually\n"
   exit 1
 fi
 
