@@ -220,9 +220,9 @@ if [[ ${OVERWRITE} = 'Y' ]]; then
   [[ -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
   [[ -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
   if [[ ${NETWORK} = "testnet" ]]; then
-    curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
-    curl -sL -m ${CURL_TIMEOUT} -o genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
-    curl -sL -m ${CURL_TIMEOUT} -o topology.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
+    curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json
+    curl -sL -m ${CURL_TIMEOUT} -o genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json
+    curl -sL -m ${CURL_TIMEOUT} -o topology.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-topology.json
     curl -s -m ${CURL_TIMEOUT} -o config.json ${URL_RAW}/files/config-combinator.json
   elif [[ ${NETWORK} = "guild" ]]; then
     curl -s -m ${CURL_TIMEOUT} -o genesis.json ${URL_RAW}/files/genesis.json
