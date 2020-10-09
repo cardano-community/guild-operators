@@ -53,10 +53,30 @@ setTheme() {
 GLV_VERSION=v1.7
 
 PARENT="$(dirname $0)"
+BRANCH="master"
 
-# TODO: Rename cntools-offline to master
-URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/cntools-offline"
-curl -s -m 10 -o "${PARENT}"/env.tmp ${URL_RAW}/scripts/cnode-helper-scripts/env
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [-l] [-a]
+Guild LiveView - An alternative cardano-node LiveView
+
+-l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
+-a    Use alpha branch to check for updates - only for testing/development
+EOF
+  exit 1
+}
+
+while getopts :la opt; do
+  case ${opt} in
+    l ) LEGACY_MODE="true" ;;
+    a ) BRANCH="alpha" ;;
+    \? ) usage ;;
+    esac
+done
+shift $((OPTIND -1))
+
+URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
+curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env
 if [[ -f "${PARENT}"/env ]]; then
   if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
     sed -e "s@[C]NODE_HOME=[^ ]*\\(.*\\)@${BASH_REMATCH[1]}_HOME=\"${CNODE_HOME}\"\\1@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
@@ -66,7 +86,7 @@ if [[ -f "${PARENT}"/env ]]; then
   fi
   TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
   TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
-  if [[ "$(echo ${TEMPL_CMD} | shasum)" != "$(echo ${TEMPL2_CMD} | shasum)" ]]; then
+  if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
     cp "${PARENT}"/env "${PARENT}/env.bkp_$(date +%s)"
     STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
     printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
@@ -103,27 +123,6 @@ myExit() {
   cleanup "$1"
 }
 
-usage() {
-  cat <<EOF
-Usage: $(basename "$0") [-l]
-Guild LiveView - An alternative cardano-node LiveView
-
--l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
-EOF
-}
-
-while getopts :l opt; do
-  case ${opt} in
-    l )
-      LEGACY_MODE="true"
-      ;;
-    \? )
-      myExit 1 "$(usage)"
-      ;;
-    esac
-done
-shift $((OPTIND -1))
-
 if ! command -v "ss" &>/dev/null; then
   myExit 1 "'ss' command missing, please install using latest prereqs.sh script or with your packet manager of choice.\nhttps://command-not-found.com/ss can be used to check package name to install."
 elif ! command -v "tcptraceroute" &>/dev/null; then
@@ -135,7 +134,6 @@ fi
 #######################################################
 clear
 echo "Guild LiveView version check..."
-URL="https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts"
 if curl -s -m ${CURL_TIMEOUT} -o /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
   GIT_VERSION=$(grep -r ^GLV_VERSION= /tmp/gLiveView.sh | cut -d'=' -f2)
   : "${GIT_VERSION:=v0.0}"

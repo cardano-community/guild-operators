@@ -4,8 +4,7 @@
 unset CNODE_HOME
 REPO="https://github.com/cardano-community/guild-operators"
 REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
-BRANCH="cntools-offline"
-URL_RAW="${REPO_RAW}/${BRANCH}"
+BRANCH="master"
 
 get_input() {
   printf "%s (default: %s): " "$1" "$2" >&2; read -r answer
@@ -35,7 +34,7 @@ err_exit() {
 usage() {
   cat <<EOF >&2
 
-Usage: $(basename "$0") [-o] [-f] [-s] [-i] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
+Usage: $(basename "$0") [-o] [-f] [-s] [-i] [-a] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano node and using CNTools
 
 -o    Do *NOT* overwrite existing genesis.json, topology.json, config.json, cntools.config and topology-updater.sh files (Default: will overwrite)
@@ -47,6 +46,7 @@ Install pre-requisites for building cardano node and using CNTools
       eg: -n testnet
 -t    Alternate name for top level folder (Default: cnode)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 10s)
+-a    Use alpha branch of scripts (only recommended for testing/development)
 
 EOF
   exit 1
@@ -55,7 +55,7 @@ EOF
 WANT_BUILD_DEPS='Y'
 OVERWRITE='Y'
 
-while getopts :in:soft:m: opt; do
+while getopts :in:sofat:m: opt; do
   case ${opt} in
     i ) INTERACTIVE='Y' ;;
     n ) NETWORK=${OPTARG} ;;
@@ -64,6 +64,7 @@ while getopts :in:soft:m: opt; do
     f ) FORCE_OVERWRITE='Y' ;;
     t ) CNODE_NAME=${OPTARG} ;;
     m ) CURL_TIMEOUT=${OPTARG} ;;
+    a ) BRANCH="alpha" ;;
     \? ) usage ;;
     esac
 done
@@ -215,6 +216,7 @@ chmod -R 700 "${CNODE_HOME}"/priv
 
 echo "Downloading files..."
 
+URL_RAW="${REPO_RAW}/${BRANCH}"
 pushd "${CNODE_HOME}"/files >/dev/null || return
 if [[ ${OVERWRITE} = 'Y' ]]; then
   [[ -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
