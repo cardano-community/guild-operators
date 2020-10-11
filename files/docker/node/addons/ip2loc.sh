@@ -6,8 +6,8 @@ truncate -s 0  /tmp/ip2trace_out.log;
 truncate -s 0  /tmp/ip2trace_in.log;
 
 pHOST=$HOSTNAME
-pIP=$(ifconfig eth0  | grep inet | grep -v inet6 | awk '{print $2}')
-pPORT=$(netstat -ntlp 2>/dev/null | grep cardano-node | grep -v "127.0.0.1" | grep -v "12798" | cut -d ":" -f 2 | awk '{print $1}')
+pIP=$(/usr/sbin/ifconfig eth0  | grep inet | grep -v inet6 | awk '{print $2}')
+pPORT=$(ps ax | grep "cardano-node run" | grep -v grep |sed 's/[^ ].*port //' | awk '{print $1}')
 
 netstat -nt  | grep tcp | grep EST | grep "$pIP:$pPORT" | awk '{ print $5 }' | cut -d ':' -f 1 | grep -v 172 > /tmp/iptrace_list_in.csv
 netstat -nt  | grep tcp | grep EST | grep "$pIP:$pPORT" | awk '{ print $5 }' | cut -d ':' -f 1 | grep 172 > /tmp/iptrace_list_in_local.csv

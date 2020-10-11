@@ -2,10 +2,21 @@ FROM debian:stable-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
 
+# COPY NODE BINS AND DEPS 
 COPY --from=cardanocommunity/cardano-node:stage2 /root/.cabal/bin/* /usr/local/bin/
-COPY --from=cardanocommunity/cardano-node:stage2 /usr/lib /usr/lib
-COPY --from=cardanocommunity/cardano-node:stage2 /lib /lib
-COPY --from=cardanocommunity/cardano-node:stage2 /lib64 /lib64
+COPY --from=cardanocommunity/cardano-node:stage2 /lib/x86_64-linux-gnu/lib* /lib/x86_64-linux-gnu/
+COPY --from=cardanocommunity/cardano-node:stage2 /lib64/ld-linux-x86-64* /lib64/
+COPY --from=cardanocommunity/cardano-node:stage2 /usr/lib/x86_64-linux-gnu/libgmp.* /usr/lib/x86_64-linux-gnu/
+COPY --from=cardanocommunity/cardano-node:stage2 /usr/lib/x86_64-linux-gnu/liblz4.* /usr/lib/x86_64-linux-gnu/
+COPY --from=cardanocommunity/cardano-node:stage2 /usr/lib/x86_64-linux-gnu/libsodium.* /usr/lib/x86_64-linux-gnu/
+
+# COPY WALLET DEP 
+COPY --from=cardanocommunity/cardano-wallet:stage2 /root/.cabal/bin/* /usr/local/bin/
+COPY --from=cardanocommunity/cardano-wallet:stage2 /lib/x86_64-linux-gnu/lib* /lib/x86_64-linux-gnu/
+COPY --from=cardanocommunity/cardano-wallet:stage2 /lib64/ld-linux-x86-64* /lib64/
+COPY --from=cardanocommunity/cardano-wallet:stage2 /usr/lib/x86_64-linux-gnu/libgmp.* /usr/lib/x86_64-linux-gnu/
+COPY --from=cardanocommunity/cardano-wallet:stage2 /usr/lib/x86_64-linux-gnu/liblz4.* /usr/lib/x86_64-linux-gnu/
+COPY --from=cardanocommunity/cardano-wallet:stage2 /usr/lib/x86_64-linux-gnu/libsodium.* /usr/lib/x86_64-linux-gnu/
 
 RUN chmod a+x /usr/local/bin/*
 
@@ -26,7 +37,7 @@ ENV \
     LANGUAGE=en_US.UTF-8 \
     USER=guild \
     CNODE_HOME=/opt/cardano/cnode \
-    PATH=/nix/var/nix/profiles/per-user/guild/profile/bin:/nix/var/nix/profiles/per-user/guild/profile/sbin:/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.cabal/bin \
+    PATH=/home/guild/.local/bin:/nix/var/nix/profiles/per-user/guild/profile/bin:/nix/var/nix/profiles/per-user/guild/profile/sbin:/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.cabal/bin \
     GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
     NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     NIX_PATH=/nix/var/nix/profiles/per-user/guild/channels
@@ -60,10 +71,13 @@ RUN sudo curl -sL https://nixos.org/nix/install | sh \
 RUN /nix/var/nix/profiles/per-user/guild/profile/bin/nix-channel --update \
     && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -i python3 systemd libsodium tmux jq ncurses libtool autoconf git wget gnupg column less openssl vim \
     && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -u --always \
-    && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-collect-garbage -d
+    && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-collect-garbage -d 
 
 # GUILD SKAffold
-RUN sudo mkdir -p $CNODE_HOME/files $CNODE_HOME/db $CNODE_HOME/db/blocks $CNODE_HOME/logs $CNODE_HOME/scripts $CNODE_HOME/sockets $CNODE_HOME/priv/files 
+RUN sudo mkdir -p $CNODE_HOME/files $CNODE_HOME/db $CNODE_HOME/db/blocks $CNODE_HOME/logs $CNODE_HOME/scripts $CNODE_HOME/sockets $CNODE_HOME/priv/files \
+    && echo "export PATH=/nix/var/nix/profiles/per-user/guild/profile/bin:/nix/var/nix/profiles/per-user/guild/profile/sbin:/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.cabal/bin" >> ~/.bashrc \
+    && echo "alias cntools=/opt/cardano/cnode/scripts/cntools.sh" >> ~/.bashrc \
+    && echo "alias gLiveView=/opt/cardano/cnode/scripts/gLiveView.sh" >> ~/.bashrc
 
 # HYDRA CFG
 ADD https://hydra.iohk.io/build/3670619/download/1/mainnet-shelley-genesis.json $CNODE_HOME/priv/files/
