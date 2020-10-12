@@ -1,11 +1,6 @@
 #!/bin/bash
 # shellcheck disable=SC2086
 
-unset CNODE_HOME
-REPO="https://github.com/cardano-community/guild-operators"
-REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
-BRANCH="master"
-
 get_input() {
   printf "%s (default: %s): " "$1" "$2" >&2; read -r answer
   if [ -z "$answer" ]; then echo "$2"; else echo "$answer"; fi
@@ -52,7 +47,15 @@ EOF
   exit 1
 }
 
+# Initialize defaults
+INTERACTIVE='N'
+NETWORK='mainnet'
 WANT_BUILD_DEPS='Y'
+FORCE_OVERWRITE='N'
+LIBSODIUM_FORK='N'
+CNODE_NAME='cnode'
+CURL_TIMEOUT=10
+BRANCH='master'
 
 while getopts :in:sfalt:m: opt; do
   case ${opt} in
@@ -73,12 +76,11 @@ shift $((OPTIND -1))
 U_ID=$(id -u)
 G_ID=$(id -g)
 
-# Defaults
 CNODE_PATH="/opt/cardano"
-[[ -z "${CNODE_NAME}" ]] && CNODE_NAME="cnode"
 CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
 CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
-[[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
+REPO="https://github.com/cardano-community/guild-operators"
+REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
 
 #if [ $(id -u$( -eq 0 ]; then
 #  err_exit "Please run as non-root user."
@@ -248,7 +250,7 @@ curl -s -m ${CURL_TIMEOUT} -o balance.sh ${URL_RAW}/scripts/cnode-helper-scripts
 curl -s -m ${CURL_TIMEOUT} -o rotatePoolKeys.sh ${URL_RAW}/scripts/cnode-helper-scripts/rotatePoolKeys.sh
 curl -s -m ${CURL_TIMEOUT} -o cnode.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cnode.sh
 curl -s -m ${CURL_TIMEOUT} -o cntools.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntools.sh
-[[ ${FORCE_OVERWRITE} = 'Y' ]] && curl -s -m ${CURL_TIMEOUT} -o cntools.config ${URL_RAW}/scripts/cnode-helper-scripts/cntools.config
+curl -s -m ${CURL_TIMEOUT} -o cntools.config.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cntools.config
 curl -s -m ${CURL_TIMEOUT} -o cntools.library ${URL_RAW}/scripts/cnode-helper-scripts/cntools.library
 curl -s -m ${CURL_TIMEOUT} -o cntoolsBlockCollector.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntoolsBlockCollector.sh
 curl -s -m ${CURL_TIMEOUT} -o setup_mon.sh ${URL_RAW}/scripts/cnode-helper-scripts/setup_mon.sh
@@ -266,12 +268,17 @@ sed -e "s@CNODE_HOME=[^ ]*\\(.*\\)@${CNODE_VNAME}_HOME=\"${CNODE_HOME}\"\\1@g" -
 ### Update file retaining existing custom configs
 updateWithCustomConfig() {
   file=$1
-  [[ -f ${file} ]] && cp -f ${file} "${file}.bkp_$(date +%s)"
-  if [[ ${FORCE_OVERWRITE} != 'Y' ]] && grep '^# Do NOT modify' ${file} >/dev/null 2>&1; then
-    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' ${file}.tmp)
-    STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' ${file})
-    printf '%s\n%s\n' "${STATIC_CMD}" "${TEMPL_CMD}" > ${file}.tmp
+  if [[ -f ${file} && ${FORCE_OVERWRITE} = 'N' ]]; then
+    if grep '^# Do NOT modify' ${file} >/dev/null 2>&1; then
+      TEMPL_CMD=$(awk '/^# Do NOT modify/,0' ${file}.tmp)
+      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' ${file})
+      printf '%s\n%s\n' "${STATIC_CMD}" "${TEMPL_CMD}" > ${file}.tmp
+    else
+      rm -f ${file}.tmp
+      return
+    fi
   fi
+  [[ -f ${file} ]] && cp -f ${file} "${file}.bkp_$(date +%s)"
   mv -f ${file}.tmp ${file}
 }
 
@@ -281,6 +288,7 @@ updateWithCustomConfig "env"
 updateWithCustomConfig "cnode.sh"
 updateWithCustomConfig "gLiveView.sh"
 updateWithCustomConfig "topologyUpdater.sh"
+updateWithCustomConfig "cntools.config"
 
 chmod 755 ./*.sh
 
