@@ -34,7 +34,7 @@ err_exit() {
 usage() {
   cat <<EOF >&2
 
-Usage: $(basename "$0") [-o] [-f] [-s] [-i] [-a] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
+Usage: $(basename "$0") [-o] [-f] [-s] [-i] [-a] [-l] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano node and using CNTools
 
 -o    Do *NOT* overwrite existing genesis.json, topology.json, config.json, cntools.config and topology-updater.sh files (Default: will overwrite)
@@ -46,6 +46,7 @@ Install pre-requisites for building cardano node and using CNTools
       eg: -n testnet
 -t    Alternate name for top level folder (Default: cnode)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 10s)
+-l    Use IOG fork of libsodium (Recommended as per IOG instructions)
 -a    Use alpha branch of scripts (only recommended for testing/development)
 
 EOF
@@ -55,13 +56,14 @@ EOF
 WANT_BUILD_DEPS='Y'
 OVERWRITE='Y'
 
-while getopts :in:sofat:m: opt; do
+while getopts :in:sofalt:m: opt; do
   case ${opt} in
     i ) INTERACTIVE='Y' ;;
     n ) NETWORK=${OPTARG} ;;
     s ) WANT_BUILD_DEPS='N' ;;
     o ) OVERWRITE='N' ;;
     f ) FORCE_OVERWRITE='Y' ;;
+    l ) LIBSODIUM_FORK='Y' ;;
     t ) CNODE_NAME=${OPTARG} ;;
     m ) CURL_TIMEOUT=${OPTARG} ;;
     a ) BRANCH="alpha" ;;
@@ -88,7 +90,7 @@ CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
 SUDO="Y";
 if [ "${SUDO}" = "Y" ] || [ "${SUDO}" = "y" ] ; then sudo="sudo"; else sudo="" ; fi
 
-if [ "$INTERACTIVE" = 'Y' ]; then
+if [ "${INTERACTIVE}" = 'Y' ]; then
   clear;
   CNODE_PATH=$(get_input "Please enter the project path" ${CNODE_PATH})
   CNODE_NAME=$(get_input "Please enter directory name" ${CNODE_NAME})
@@ -193,21 +195,21 @@ fi
 
 mkdir "${HOME}/git" > /dev/null 2>&1 # To hold git repositories that will be used for building binaries
 
-# This part is commented out as if-and-when libsodium at system causes a conflict with fork, IOHK would need to fix this in a more acceptable manner.
-
-# if grep -q "/usr/local/lib:$LD_LIBRARY_PATH" ~/.bashrc; then
-#   echo "Load Library Paths already set up!"
-# else
-#   echo "export LD_LIBRARY_PATH=/usr/lib64\:\$LD_LIBRARY_PATH" >> ~/.bashrc
-#   cd "$HOME/git" || return
-#   git clone https://github.com/input-output-hk/libsodium >/dev/null 2>&1
-#   cd libsodium
-#   git checkout 66f017f1
-#   ./autogen.sh > autogen.log 2&1
-#   ./configure > configure.log 2&1
-#   make > make.log 2>&1
-#   $sudo make install > install.log 2>&1
-# fi
+if [[ "${LIBSODIUM_FORK}" = "Y" ]]; then
+  if grep -q "/usr/local/lib:$LD_LIBRARY_PATH" ~/.bashrc; then
+    echo "Load Library Paths already set up!"
+  else
+    echo "export LD_LIBRARY_PATH=/usr/lib64\:\$LD_LIBRARY_PATH" >> ~/.bashrc
+    cd "${HOME}"/git || return
+    git clone https://github.com/input-output-hk/libsodium >/dev/null 2>&1
+    cd libsodium || return
+    git checkout 66f017f1 > /dev/null
+    ./autogen.sh > autogen.log > /tmp/libsodium.log 2>&1
+    ./configure > configure.log >> /tmp/libsodium.log 2>&1
+    make > make.log 2>&1
+    $sudo make install > install.log 2>&1
+  fi
+fi
 
 $sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv
 $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}"
@@ -264,7 +266,7 @@ curl -s -m ${CURL_TIMEOUT} -o sLiveView.sh ${URL_RAW}/scripts/cnode-helper-scrip
 curl -s -m ${CURL_TIMEOUT} -o gLiveView.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/gLiveView.sh
 curl -s -m ${CURL_TIMEOUT} -o deploy-as-systemd.sh ${URL_RAW}/scripts/cnode-helper-scripts/deploy-as-systemd.sh
 sed -e "s@SyslogIdentifier=.*@SyslogIdentifier=${CNODE_NAME}@g" -e "s@cnode.service@${CNODE_NAME}.service@g" -i deploy-as-systemd.sh
-sed -e "s@CNODE_HOME=[^ ]*\\(.*\\)@${CNODE_VNAME}_HOME=\"${CNODE_HOME}\"\\1@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*
+sed -e "s@CNODE_HOME=[^ ]*\\(.*\\)@${CNODE_VNAME}_HOME=\"${CNODE_HOME}\"\\1@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*.* ./env
 
 ### Update file retaining existing custom configs
 updateWithCustomConfig() {
