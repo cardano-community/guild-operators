@@ -9,33 +9,53 @@ If you have run [prereqs.sh](basics.md#pre-requisites), this should already be a
 Before the updater can make a valid request to the central topology service, he must query the current tip/blockNo from the well synced local node. It connects to your node through the configuration in the script (note: not the usual env file, as cronjobs don't run in the same environment). Customize this file for your needs.  
 
 
-To download topologyupdater.sh manually you can execute the commands below:
+To download topologyupdater.sh manually you can execute the commands below and test executing topology Updater once:
 ``` bash
 cd $CNODE_HOME/scripts
 curl -s -o topologyUpdater.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/topologyUpdater.sh
 chmod 750 topologyUpdater.sh
+./topologyUpdater.sh
 ```
 
 #### Examine and modify the variables within topologyUpdater.sh script
 
-Out of the box, the scripts might come with some assumptions, that may or may not be valid for your environment. It is best for you to check and update section below in the file:
+Out of the box, the scripts might come with some assumptions, that may or may not be valid for your environment. It is best for you to check and update section below in the files:
 
 ``` bash
+### topologyUpdater.sh
+
 ######################################
 # User Variables - Change as desired #
 ######################################
 
-CNODE_PORT=6000                                           # Must match your relay node port as set in the startup command
 CNODE_HOSTNAME="CHANGE ME"                                # (Optional) Must resolve to the IP you are requesting from
-CNODE_BIN="${HOME}/.cabal/bin"                            # Path where your cardano-cli and cardano-node binaries are
-CNODE_HOME="/opt/cardano/cnode"                           # (Optional) Top-level folder to auto populate file locations under, useful if using guild repo instructions
 CNODE_LOG_DIR="${CNODE_HOME}/logs/"                       # Folder where your logs will be sent to (must pre-exist)
-CONFIG="$CNODE_HOME/files/config.json"                    # Filename with path for config used by node
-GENESIS_JSON=$(jq -er '.ShelleyGenesisFile' "${CONFIG}")  # Filename with path for Shelley genesis file used by node (auto detected if your config is in JSON format)
-SOCKET="${CNODE_HOME}/sockets/node0.socket"               # Path to socket file for your cardano node instance
 CNODE_VALENCY=1                                           # (Optional) for multi-IP hostnames
 
 ```
+
+``` bash
+### env
+
+######################################
+# User Variables - Change as desired #
+# Leave as is if unsure              #
+######################################
+
+#CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of path to cardano-cli executable
+#CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
+CNODE_PORT=6000                                         # Set node port
+#CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path
+#SOCKET="${CNODE_HOME}/sockets/node0.socket"            # Override automatic detection of path to socket
+#EKG_HOST=127.0.0.1                                     # Set node EKG host
+#EKG_PORT=12788                                         # Override automatic detection of node EKG port
+#EKG_TIMEOUT=3                                          # Maximum time in seconds that you allow EKG request to take before aborting (node metrics)
+#BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"                # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
+#CURL_TIMEOUT=10                                        # Maximum time in seconds that you allow curl file download to take before aborting (GitHub update process)
+
+```
+
+Upon first run,
 
 !> Any customisations you add above, will be saved across future prereqs.sh executions , unless you specify `-f` flag to overwrite completely.
 
