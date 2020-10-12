@@ -199,7 +199,7 @@ fileDialog() {
     say "  Enter      -  OK and exit by default if not Cancel is selected"
   fi
   waitForInput "Press any key to open the file explorer"
-  file=$(dialog --stdout --clear --keep-tite --title "$2" --fselect "${start_path}" 15 75)
+  file=$(dialog --stdout --clear --keep-tite --title "$2" --fselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)))
   cursor_to ${firstrow}
   tput ed
 }
@@ -217,7 +217,7 @@ dirDialog() {
     say "  Enter      -  OK and exit by default if not Cancel is selected"
   fi
   waitForInput "Press any key to open the directory explorer"
-  dir=$(dialog --stdout --clear --keep-tite --title "$2" --dselect "${start_path}" 15 75)
+  dir=$(dialog --stdout --clear --keep-tite --title "$2" --dselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)))
   cursor_to ${firstrow}
   tput ed
 }
