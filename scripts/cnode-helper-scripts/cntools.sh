@@ -3094,10 +3094,12 @@ EOF
         1) continue ;; 
       esac
       say "\nApplying update..."
-      if curl -s -m ${CURL_TIMEOUT} -o "${CNODE_HOME}/scripts/cntools.sh" "${URL}/cntools.sh" &&
-         curl -s -m ${CURL_TIMEOUT} -o "${CNODE_HOME}/scripts/cntools.library" "${URL}/cntools.library" &&
+      if curl -s -m ${CURL_TIMEOUT} -o "${CNODE_HOME}/scripts/cntools.sh.tmp" "${URL}/cntools.sh" &&
+         curl -s -m ${CURL_TIMEOUT} -o "${CNODE_HOME}/scripts/cntools.library.tmp" "${URL}/cntools.library" &&
          [[ $(grep "_HOME=" "${CNODE_HOME}"/env) =~ ^#?([^[:space:]]+)_HOME ]] &&
-         sed -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "$CNODE_HOME/scripts/cntools."*; then
+         sed -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${CNODE_HOME}/scripts/cntools".*.tmp; then
+        mv -f "${CNODE_HOME}/scripts/cntools.sh.tmp" "${CNODE_HOME}/scripts/cntools.sh"
+        mv -f "${CNODE_HOME}/scripts/cntools.library.tmp" "${CNODE_HOME}/scripts/cntools.library"
         myExit 0 "Update applied successfully!\n\nPlease start CNTools again!"
       else
         say "\n${FG_RED}ERROR${NC}: update failed! :(\n"
