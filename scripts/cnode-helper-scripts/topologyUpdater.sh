@@ -51,6 +51,9 @@ else
 fi
 rm -f "${PARENT}"/env.tmp
 
+# source common env variables in case it was updated
+if ! . "${PARENT}"/env; then exit 1; fi
+
 blockNo=$(cardano-cli shelley query tip ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | jq -r .blockNo )
 
 # Note: 
