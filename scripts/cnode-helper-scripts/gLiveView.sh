@@ -87,7 +87,7 @@ if [[ -f "${PARENT}"/env ]]; then
   TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
   TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
   if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-    cp "${PARENT}"/env "${PARENT}/env.bkp_$(date +%s)"
+    cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
     STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
     printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
     mv "${PARENT}"/env.tmp "${PARENT}"/env
@@ -152,7 +152,7 @@ if curl -s -m ${CURL_TIMEOUT} -o /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/
       TEMPL_CMD=$(awk '/^# Do NOT modify/,0' /tmp/gLiveView.sh)
       STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${CNODE_HOME}/scripts/gLiveView.sh")
       printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > /tmp/gLiveView.sh
-      mv -f "${CNODE_HOME}/scripts/gLiveView.sh" "${CNODE_HOME}/scripts/gLiveView.sh.bkp_$(date +%s)" && \
+      mv -f "${CNODE_HOME}/scripts/gLiveView.sh" "${CNODE_HOME}/scripts/gLiveView.sh_bkp$(date +%s)" && \
       cp -f /tmp/gLiveView.sh "${CNODE_HOME}/scripts/gLiveView.sh" && \
       chmod 750 "${CNODE_HOME}/scripts/gLiveView.sh" && \
       myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!" || \
