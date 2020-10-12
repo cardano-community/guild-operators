@@ -45,7 +45,7 @@ if [[ -f "${PARENT}"/env ]]; then
   TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
   TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
   if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-    cp "${PARENT}"/env "${PARENT}/env.bkp_$(date +%s)"
+    cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
     STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
     printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
     mv "${PARENT}"/env.tmp "${PARENT}"/env
