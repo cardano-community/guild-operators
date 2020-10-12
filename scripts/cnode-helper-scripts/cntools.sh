@@ -1747,7 +1747,7 @@ EOF
       0) : ;;
       1) while true; do
            say "\nEnter path to stake ${FG_CYAN}vkey${NC} file:"
-           fileDialog 1 "Enter path to stake vkey file" "${WALLET_FOLDER}"
+           fileDialog 0 "Enter path to stake vkey file" "${WALLET_FOLDER}"
            say "${file}\n"
            stake_vk_file_enter=${file}
            if [[ ${op_mode} = "online" ]]; then
@@ -2250,7 +2250,7 @@ EOF
       0) : ;;
       1) while true; do
            say "\nEnter path to stake ${FG_CYAN}vkey${NC} file:"
-           fileDialog 1 "Enter path to stake vkey file" "${WALLET_FOLDER}"
+           fileDialog 0 "Enter path to stake vkey file" "${WALLET_FOLDER}"
            say "${file}\n"
            stake_vk_file_enter=${file}
            if [[ ${op_mode} = "online" ]]; then
@@ -2913,7 +2913,7 @@ EOF
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   echo
   say "Enter path for Tx file to sign:"
-  fileDialog 1 "Enter path for Tx file to sign"
+  fileDialog 0 "Enter path for Tx file to sign"
   say "${FG_CYAN}${file}${NC}\n" "log"
   tx_raw=${file}
   [[ -z "${tx_raw}" ]] && continue
@@ -2966,7 +2966,7 @@ EOF
   fi
   echo
   say "Please enter signed Tx file to submit:"
-  fileDialog 1 "Please enter signed Tx file to submit"
+  fileDialog 0 "Please enter signed Tx file to submit"
   say "${FG_CYAN}${file}${NC}\n" "log"
   [[ -z "${file}" ]] && continue
   if [[ ! -f "${file}" ]]; then
@@ -3067,7 +3067,7 @@ EOF
     GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
     GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
     GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-    if [[ "$CNTOOLS_MAJOR_VERSION" != "$GIT_MAJOR_VERSION" ]];then
+    if [[ "${CNTOOLS_MAJOR_VERSION}" != "${GIT_MAJOR_VERSION}" ]];then
       say "New major version available: ${FG_GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
       say "${FG_RED}WARNING${NC}: Breaking changes were made to CNTools!"
       say "\nPlease read changelog available at the above URL carefully and then follow directions below"
@@ -3077,18 +3077,16 @@ EOF
       say "\n2) After backup, re-run updated prereqs.sh script with -o -s -f switches to force overwrite script files, info and directions available at:"
       say "   https://cardano-community.github.io/guild-operators/#/basics?id=pre-requisites"
       say "\n3) As the last step, restore any modified parameters in cntools.config / env if needed"
-    elif [[ "$CNTOOLS_MINOR_VERSION" != "$GIT_MINOR_VERSION" || "$CNTOOLS_PATCH_VERSION" != "$GIT_PATCH_VERSION" ]];then
-      if [[ "$GIT_PATCH_VERSION" -eq 999  ]]; then
+    elif [[ "${CNTOOLS_MINOR_VERSION}" != "${GIT_MINOR_VERSION}" || "${CNTOOLS_PATCH_VERSION}" != "${GIT_PATCH_VERSION}" ]];then
+      if [[ "${GIT_PATCH_VERSION}" -eq 999  ]]; then
         ((GIT_MAJOR_VERSION++))
         GIT_MINOR_VERSION=0
         GIT_PATCH_VERSION=0
       fi
       say "New version available: ${FG_GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
       say "${FG_BLUE}INFO${NC} - The following files will be overwritten:"
-      say "$CNODE_HOME/scripts/cntools.sh"
-      say "$CNODE_HOME/scripts/cntools.library"
-      backup_folder="$CNODE_HOME/scripts/cntools_${CNTOOLS_VERSION}"
-      say "\nA backup of current files will be saved in ${backup_folder} as <file>_${CNTOOLS_VERSION}"
+      say "${CNODE_HOME}/scripts/cntools.sh"
+      say "${CNODE_HOME}/scripts/cntools.library"
       say "\nProceed with update?"
       select_opt "[y] Yes" "[n] No"
       case $? in
@@ -3096,17 +3094,13 @@ EOF
         1) continue ;; 
       esac
       say "\nApplying update..."
-      if mkdir -p "${backup_folder}" &&
-         cp -f "$CNODE_HOME/scripts/cntools.sh" "${backup_folder}/cntools.sh_${CNTOOLS_VERSION}" &&
-         cp -f "$CNODE_HOME/scripts/cntools.config" "${backup_folder}/cntools.config_${CNTOOLS_VERSION}" &&
-         cp -f "$CNODE_HOME/scripts/cntools.library" "${backup_folder}/cntools.library_${CNTOOLS_VERSION}" &&
-         curl -s -m ${CURL_TIMEOUT} -o "$CNODE_HOME/scripts/cntools.sh" "$URL/cntools.sh" &&
-         curl -s -m ${CURL_TIMEOUT} -o "$CNODE_HOME/scripts/cntools.library" "$URL/cntools.library" &&
-         [[ $(grep "_HOME=" "$CNODE_HOME/scripts/env") =~ ^([^[:space:]]+)_HOME ]] &&
+      if curl -s -m ${CURL_TIMEOUT} -o "${CNODE_HOME}/scripts/cntools.sh" "${URL}/cntools.sh" &&
+         curl -s -m ${CURL_TIMEOUT} -o "${CNODE_HOME}/scripts/cntools.library" "${URL}/cntools.library" &&
+         [[ $(grep "_HOME=" "${CNODE_HOME}"/env) =~ ^#?([^[:space:]]+)_HOME ]] &&
          sed -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "$CNODE_HOME/scripts/cntools."*; then
-         myExit 0 "Update applied successfully!\n\nPlease start CNTools again!"
+        myExit 0 "Update applied successfully!\n\nPlease start CNTools again!"
       else
-        say "\n${FG_RED}ERROR${NC}: update unsuccessful, backup, GitHub download or vname update failed!\n"
+        say "\n${FG_RED}ERROR${NC}: update failed! :(\n"
       fi
     else
       say "${FG_GREEN}Up to Date${NC}: You're using the latest version. No updates required!"
@@ -3130,9 +3124,9 @@ EOF
   select_opt "[b] Backup" "[r] Restore" "[Esc] Cancel"
   case $? in
     0) say "\nSelect backup directory(created if non existent):"
-       dirDialog 1 "Select backup directory"
+       dirDialog 0 "Select backup directory"
        [[ "${dir}" != */ ]] && backup_path="${dir}/" || backup_path="${dir}"
-       say "${backup_path}\n"
+       say "${FG_GREEN}${backup_path}${NC}\n"
        if [[ ! "${backup_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
          say "${FG_RED}ERROR${NC}: invalid path, please specify the full path to backup directory (space not allowed)"
          waitForInput && continue
@@ -3166,8 +3160,8 @@ EOF
          "${WALLET_FOLDER}"
          "${POOL_FOLDER}"
          "${BLOCK_LOG_DIR}"
-         "$(realpath $0)/env"
-         "$(realpath $0)/cntools.config"
+         "${CNODE_HOME}/files"
+         "${CNODE_HOME}/scripts"
        )
        say "Backup job include:"
        for item in "${backup_list[@]}"; do
@@ -3238,25 +3232,26 @@ EOF
          say "Backup file ${backup_file} successfully created" "log"
        fi
        ;;
-    1) say "Backups created contain absolute path to files and directories"
+    1) say "\nBackups created contain absolute path to files and directories"
        say "Restoring a backup does not replace existing files"
        say "Please restore to a temporary directory and copy files to restore to appropriate folders\n"
-       say "Select backup directory:"
-       fileDialog 1 "Select backup file to restore"
-       say "${file}\n"
+       say "Select file to restore:"
+       fileDialog 0 "Select backup file to restore"
        backup_file=${file}
        if [[ ! -f "${backup_file}" ]]; then
          say "${FG_RED}ERROR${NC}: file not found: ${backup_file}"
          waitForInput && continue
        fi
+       say "${FG_GREEN}${backup_file}${NC}\n"
        say "Select/enter restore directory(created if non existent):"
-       dirDialog 1 "Select restore directory"
+       dirDialog 0 "Select restore directory"
        [[ "${dir}" != */ ]] && restore_path="${dir}/" || restore_path="${dir}"
-       say "${restore_path}\n"
        if [[ ! "${restore_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
-         say "${FG_RED}ERROR${NC}: invalid path, please specify the full path to restore directory (space not allowed)"
+         say "${FG_RED}ERROR${NC}: invalid path, please specify the full path to restore directory (space not allowed):"
+         say "${restore_path}"
          waitForInput && continue
        fi
+       say "${FG_GREEN}${restore_path}${NC}\n"
        restore_path="${restore_path}$(basename ${backup_file%%.*})"
        mkdir -p "${restore_path}" # Create restore directory
        if [[ ! -d "${restore_path}" ]]; then
