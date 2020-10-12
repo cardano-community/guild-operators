@@ -54,7 +54,7 @@ rm -f "${PARENT}"/env.tmp
 # source common env variables in case it was updated
 if ! . "${PARENT}"/env; then exit 1; fi
 
-blockNo=$(cardano-cli shelley query tip ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | jq -r .blockNo )
+blockNo=$(${CCLI} shelley query tip ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | jq -r .blockNo )
 
 # Note: 
 # if you run your node in IPv4/IPv6 dual stack network configuration and want announced the 
