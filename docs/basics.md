@@ -22,10 +22,9 @@ chmod 755 prereqs.sh
 Please familiarise with the syntax of prereqs.sh before proceeding. The usage syntax can be checked using `./prereqs.sh -h` , sample output below:
 
 ```
-Usage: prereqs.sh [-o] [-f] [-s] [-i] [-a] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
+Usage: prereqs.sh [-f] [-s] [-i] [-a] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano node and using CNTools
 
--o    Do *NOT* overwrite existing genesis.json, topology.json, config.json, cntools.config and topology-updater.sh files (Default: will overwrite)
 -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
       '-o' and '-f' are independent of each other, and can be used together
 -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
@@ -38,7 +37,7 @@ Install pre-requisites for building cardano node and using CNTools
 -a    Use alpha branch of scripts (only recommended for testing/development)
 ```
 
-Running without any parameters will run script in silent mode with OS Dependencies, no libsodium fork, and overwriting existing files:
+Running without any parameters will run script in silent mode with OS Dependencies, no libsodium fork, and *NOT* overwrite existing files (except dynamic updates for `cnode.sh`, `topologyUpdater.sh` and `gLiveView.sh`:
 
 ``` bash
 ./prereqs.sh

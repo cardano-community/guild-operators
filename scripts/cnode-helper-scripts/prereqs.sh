@@ -34,34 +34,31 @@ err_exit() {
 usage() {
   cat <<EOF >&2
 
-Usage: $(basename "$0") [-o] [-f] [-s] [-i] [-a] [-l] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
+Usage: $(basename "$0") [-f] [-s] [-i] [-a] [-l] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano node and using CNTools
 
--o    Do *NOT* overwrite existing genesis.json, topology.json, config.json, cntools.config and topology-updater.sh files (Default: will overwrite)
 -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
       '-o' and '-f' are independent of each other, and can be used together
 -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
--i    Interactive mode (Default: silent mode)
 -n    Connect to specified network instead of public network (Default: connect to public cardano network)
       eg: -n testnet
 -t    Alternate name for top level folder (Default: cnode)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 10s)
 -l    Use IOG fork of libsodium (Recommended as per IOG instructions)
 -a    Use alpha branch of scripts (only recommended for testing/development)
+-i    Interactive mode (Default: silent mode)
 
 EOF
   exit 1
 }
 
 WANT_BUILD_DEPS='Y'
-OVERWRITE='Y'
 
-while getopts :in:sofalt:m: opt; do
+while getopts :in:sfalt:m: opt; do
   case ${opt} in
     i ) INTERACTIVE='Y' ;;
     n ) NETWORK=${OPTARG} ;;
     s ) WANT_BUILD_DEPS='N' ;;
-    o ) OVERWRITE='N' ;;
     f ) FORCE_OVERWRITE='Y' ;;
     l ) LIBSODIUM_FORK='Y' ;;
     t ) CNODE_NAME=${OPTARG} ;;
@@ -220,7 +217,7 @@ echo "Downloading files..."
 
 URL_RAW="${REPO_RAW}/${BRANCH}"
 pushd "${CNODE_HOME}"/files >/dev/null || return
-if [[ ${OVERWRITE} = 'Y' ]]; then
+if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
   [[ -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
   [[ -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
   if [[ ${NETWORK} = "testnet" ]]; then
@@ -250,7 +247,7 @@ curl -s -m ${CURL_TIMEOUT} -o balance.sh ${URL_RAW}/scripts/cnode-helper-scripts
 curl -s -m ${CURL_TIMEOUT} -o rotatePoolKeys.sh ${URL_RAW}/scripts/cnode-helper-scripts/rotatePoolKeys.sh
 curl -s -m ${CURL_TIMEOUT} -o cnode.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cnode.sh
 curl -s -m ${CURL_TIMEOUT} -o cntools.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntools.sh
-[[ ${OVERWRITE} = 'Y' ]] && curl -s -m ${CURL_TIMEOUT} -o cntools.config ${URL_RAW}/scripts/cnode-helper-scripts/cntools.config
+[[ ${FORCE_OVERWRITE} = 'Y' ]] && curl -s -m ${CURL_TIMEOUT} -o cntools.config ${URL_RAW}/scripts/cnode-helper-scripts/cntools.config
 curl -s -m ${CURL_TIMEOUT} -o cntools.library ${URL_RAW}/scripts/cnode-helper-scripts/cntools.library
 curl -s -m ${CURL_TIMEOUT} -o cntoolsBlockCollector.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntoolsBlockCollector.sh
 curl -s -m ${CURL_TIMEOUT} -o setup_mon.sh ${URL_RAW}/scripts/cnode-helper-scripts/setup_mon.sh
@@ -277,7 +274,7 @@ updateWithCustomConfig() {
   mv -f ${file}.tmp ${file}
 }
 
-[[ ${FORCE_OVERWRITE} = 'Y' ]] && echo "Forced full upgrade! Please edit scripts/env, scripts/cnode.sh and scripts/gLiveView.sh for User Variables"
+[[ ${FORCE_OVERWRITE} = 'Y' ]] && echo "Forced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/gLiveView.sh and scripts/topologyUpdater.sh (alongwith files/topology.json, files/config.json) as required/"
 
 updateWithCustomConfig "env"
 updateWithCustomConfig "cnode.sh"
