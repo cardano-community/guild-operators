@@ -236,10 +236,10 @@ fi
 sed -e "s#/opt/cardano/cnode#${CNODE_HOME}#" -i ./*.json.tmp
 [[ ${FORCE_OVERWRITE} = 'Y' && -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
 [[ ${FORCE_OVERWRITE} = 'Y' && -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
-[[ ${FORCE_OVERWRITE} = 'Y' || ! -f byron-genesis.json ]] && mv -f byron-genesis.json.tmp byron-genesis.json || rm -f byron-genesis.json.tmp
-[[ ${FORCE_OVERWRITE} = 'Y' || ! -f genesis.json ]] && mv -f genesis.json.tmp genesis.json || rm -f genesis.json.tmp
-[[ ${FORCE_OVERWRITE} = 'Y' || ! -f topology.json ]] && mv -f topology.json.tmp topology.json || rm -f topology.json.tmp
-[[ ${FORCE_OVERWRITE} = 'Y' || ! -f config.json ]] && mv -f config.json.tmp config.json || rm -f config.json.tmp
+if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f byron-genesis.json ]]; then mv -f byron-genesis.json.tmp byron-genesis.json; else rm -f byron-genesis.json.tmp; fi
+if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f genesis.json ]]; then mv -f genesis.json.tmp genesis.json; else rm -f genesis.json.tmp; fi
+if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f topology.json ]]; then mv -f topology.json.tmp topology.json; else rm -f topology.json.tmp; fi
+if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f config.json ]]; then mv -f config.json.tmp config.json; else rm -f config.json.tmp; fi
 
 pushd "${CNODE_HOME}"/scripts >/dev/null || return
 curl -s -m ${CURL_TIMEOUT} -o env.tmp ${URL_RAW}/scripts/cnode-helper-scripts/env
