@@ -10,14 +10,6 @@ COPY --from=cardanocommunity/cardano-node:stage2 /usr/lib/x86_64-linux-gnu/libgm
 COPY --from=cardanocommunity/cardano-node:stage2 /usr/lib/x86_64-linux-gnu/liblz4.* /usr/lib/x86_64-linux-gnu/
 COPY --from=cardanocommunity/cardano-node:stage2 /usr/lib/x86_64-linux-gnu/libsodium.* /usr/lib/x86_64-linux-gnu/
 
-# COPY WALLET DEP 
-COPY --from=cardanocommunity/cardano-wallet:stage2 /root/.cabal/bin/* /usr/local/bin/
-COPY --from=cardanocommunity/cardano-wallet:stage2 /lib/x86_64-linux-gnu/lib* /lib/x86_64-linux-gnu/
-COPY --from=cardanocommunity/cardano-wallet:stage2 /lib64/ld-linux-x86-64* /lib64/
-COPY --from=cardanocommunity/cardano-wallet:stage2 /usr/lib/x86_64-linux-gnu/libgmp.* /usr/lib/x86_64-linux-gnu/
-COPY --from=cardanocommunity/cardano-wallet:stage2 /usr/lib/x86_64-linux-gnu/liblz4.* /usr/lib/x86_64-linux-gnu/
-COPY --from=cardanocommunity/cardano-wallet:stage2 /usr/lib/x86_64-linux-gnu/libsodium.* /usr/lib/x86_64-linux-gnu/
-
 RUN chmod a+x /usr/local/bin/*
 
 # Install locales package
