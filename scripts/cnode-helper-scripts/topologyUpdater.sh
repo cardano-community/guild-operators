@@ -58,7 +58,7 @@ rm -f "${PARENT}"/env.tmp
 # source common env variables in case it was updated
 if ! . "${PARENT}"/env; then exit 1; fi
 
-blockNo=$(${CCLI} shelley query tip ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | jq -r .blockNo )
+blockNo=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null | jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' )
 
 # Note: 
 # if you run your node in IPv4/IPv6 dual stack network configuration and want announced the 
