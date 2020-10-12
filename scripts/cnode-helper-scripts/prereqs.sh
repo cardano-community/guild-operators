@@ -54,7 +54,7 @@ WANT_BUILD_DEPS='Y'
 FORCE_OVERWRITE='N'
 LIBSODIUM_FORK='N'
 CNODE_NAME='cnode'
-CURL_TIMEOUT=10
+CURL_TIMEOUT=60
 BRANCH='master'
 
 while getopts :in:sfalt:m: opt; do
@@ -212,35 +212,34 @@ fi
 
 $sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv
 $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}"
-chmod -R 755 "${CNODE_HOME}"
-chmod -R 700 "${CNODE_HOME}"/priv
 
 echo "Downloading files..."
 
 URL_RAW="${REPO_RAW}/${BRANCH}"
 pushd "${CNODE_HOME}"/files >/dev/null || return
-if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
-  [[ -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
-  [[ -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
-  [[ -f "${CNODE_HOME}"/scripts ]] && cp -f cntools.config "cntools.config_bkp$(date +%s)"
-  if [[ ${NETWORK} = "testnet" ]]; then
-    curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json
-    curl -sL -m ${CURL_TIMEOUT} -o genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json
-    curl -sL -m ${CURL_TIMEOUT} -o topology.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-topology.json
-    curl -s -m ${CURL_TIMEOUT} -o config.json ${URL_RAW}/files/config-combinator.json
-  elif [[ ${NETWORK} = "guild" ]]; then
-    curl -s -m ${CURL_TIMEOUT} -o genesis.json ${URL_RAW}/files/genesis.json
-    curl -s -m ${CURL_TIMEOUT} -o byron-genesis.json ${URL_RAW}/files/byron-genesis.json
-    curl -s -m ${CURL_TIMEOUT} -o topology.json ${URL_RAW}/files/topology.json
-    curl -s -m ${CURL_TIMEOUT} -o config.json ${URL_RAW}/files/config-praos.json
-  else
-    curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
-    curl -sL -m ${CURL_TIMEOUT} -o genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
-    curl -sL -m ${CURL_TIMEOUT} -o topology.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
-    curl -s -m ${CURL_TIMEOUT} -o config.json ${URL_RAW}/files/config-mainnet.json
-  fi
+if [[ ${NETWORK} = "testnet" ]]; then
+  curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json
+  curl -sL -m ${CURL_TIMEOUT} -o genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json
+  curl -sL -m ${CURL_TIMEOUT} -o topology.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-topology.json
+  curl -s -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-combinator.json
+elif [[ ${NETWORK} = "guild" ]]; then
+  curl -s -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp ${URL_RAW}/files/byron-genesis.json
+  curl -s -m ${CURL_TIMEOUT} -o genesis.json.tmp ${URL_RAW}/files/genesis.json
+  curl -s -m ${CURL_TIMEOUT} -o topology.json.tmp ${URL_RAW}/files/topology.json
+  curl -s -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-praos.json
+else
+  curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
+  curl -sL -m ${CURL_TIMEOUT} -o genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
+  curl -sL -m ${CURL_TIMEOUT} -o topology.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/mainnet-topology.json
+  curl -s -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-mainnet.json
 fi
-sed -e "s#/opt/cardano/cnode#${CNODE_HOME}#" -i ./*.json
+sed -e "s#/opt/cardano/cnode#${CNODE_HOME}#" -i ./*.json.tmp
+[[ ${FORCE_OVERWRITE} = 'Y' && -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
+[[ ${FORCE_OVERWRITE} = 'Y' && -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
+[[ ${FORCE_OVERWRITE} = 'Y' || ! -f byron-genesis.json ]] && mv -f byron-genesis.json.tmp byron-genesis.json || rm -f byron-genesis.json.tmp
+[[ ${FORCE_OVERWRITE} = 'Y' || ! -f genesis.json ]] && mv -f genesis.json.tmp genesis.json || rm -f genesis.json.tmp
+[[ ${FORCE_OVERWRITE} = 'Y' || ! -f topology.json ]] && mv -f topology.json.tmp topology.json || rm -f topology.json.tmp
+[[ ${FORCE_OVERWRITE} = 'Y' || ! -f config.json ]] && mv -f config.json.tmp config.json || rm -f config.json.tmp
 
 pushd "${CNODE_HOME}"/scripts >/dev/null || return
 curl -s -m ${CURL_TIMEOUT} -o env.tmp ${URL_RAW}/scripts/cnode-helper-scripts/env
@@ -263,7 +262,7 @@ curl -s -m ${CURL_TIMEOUT} -o sLiveView.sh ${URL_RAW}/scripts/cnode-helper-scrip
 curl -s -m ${CURL_TIMEOUT} -o gLiveView.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/gLiveView.sh
 curl -s -m ${CURL_TIMEOUT} -o deploy-as-systemd.sh ${URL_RAW}/scripts/cnode-helper-scripts/deploy-as-systemd.sh
 sed -e "s@SyslogIdentifier=.*@SyslogIdentifier=${CNODE_NAME}@g" -e "s@cnode.service@${CNODE_NAME}.service@g" -i deploy-as-systemd.sh
-sed -e "s@CNODE_HOME=[^ ]*\\(.*\\)@${CNODE_VNAME}_HOME=\"${CNODE_HOME}\"\\1@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*.* ./env
+sed -e "s@CNODE_HOME=[^ ]*\\(.*\\)@${CNODE_VNAME}_HOME=\"${CNODE_HOME}\"\\1@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*.* ./env.tmp
 
 ### Update file retaining existing custom configs
 updateWithCustomConfig() {
@@ -278,7 +277,7 @@ updateWithCustomConfig() {
       return
     fi
   fi
-  [[ -f ${file} ]] && cp -f ${file} "${file}.bkp_$(date +%s)"
+  [[ -f ${file} ]] && cp -f ${file} "${file}_bkp$(date +%s)"
   mv -f ${file}.tmp ${file}
 }
 
@@ -290,6 +289,7 @@ updateWithCustomConfig "gLiveView.sh"
 updateWithCustomConfig "topologyUpdater.sh"
 updateWithCustomConfig "cntools.config"
 
-chmod 755 ./*.sh
+chmod -R 755 "${CNODE_HOME}"
+chmod -R 700 "${CNODE_HOME}"/priv
 
 popd >/dev/null || return
