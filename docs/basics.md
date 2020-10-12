@@ -8,7 +8,7 @@ The architecture and description of various components are best described at [Ad
 
 !> You're expected to run the commands below from same session, using same working directories as indicated and using a `non-root user with passwordless sudo access`. You'd be expected to be familiar with this as part of pre-requisite skillsets expected off a stake pool operator.
 
-The pre-requisites for Linux systems are automated to be executed as a single script. Follow the instructions below to deploy the same:
+The pre-requisites for Linux systems are automated to be executed as a single script. To download the pre-requisites scripts, execute the below:
 
 ``` bash
 mkdir "$HOME/tmp";cd "$HOME/tmp"
@@ -17,42 +17,32 @@ mkdir "$HOME/tmp";cd "$HOME/tmp"
 # Ubuntu / Debian - sudo apt -y install curl
 curl -sS -o prereqs.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh
 chmod 755 prereqs.sh
-
-# Ensure you can run sudo commands with your user before execution
-# You can check the syntax for prereqs.sh using command below:
-#
-# ./prereqs.sh -h
-# Usage: prereqs.sh [-o] [-f] [-s] [-i] [-a] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
-# Install pre-requisites for building cardano node and using CNTools
-#
-# -o    Do *NOT* overwrite existing genesis.json, topology.json, config.json, cntools.config and topology-updater.sh files (Default: will overwrite)
-# -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
-#       '-o' and '-f' are independent of each other, and can be used together
-# -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
-# -i    Interactive mode (Default: silent mode)
-# -n    Connect to specified network instead of public network (Default: connect to public cardano network)
-#       eg: -n testnet
-# -t    Alternate name for top level folder (Default: cnode)
-# -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 10s)
-# -a    Use alpha branch of scripts (only recommended for testing/development)
-# You can use one of the options above, if you'd like to defer from defaults (below).
-# Running without any parameters will run script in silent mode with OS Dependencies, and overwriting existing files.
-
-./prereqs.sh
-. "${HOME}/.bashrc"
 ```
 
-##### Connecting to other Haskell Networks
+Please familiarise with the syntax of prereqs.sh before proceeding. The usage syntax can be checked using `./prereqs.sh -h` , sample output below:
 
-The prereqs script above will connect you to `mainnet` network. If you would like to connect to one of the other networks instead (see [here](https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/index.html) for list), you can select the filename of the network and execute the below before you proceed (eg: to switch to `testnet`):
+```
+Usage: prereqs.sh [-o] [-f] [-s] [-i] [-a] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
+Install pre-requisites for building cardano node and using CNTools
 
-!> Note that you should **NOT** replace the config file further from hydra - you can use the one provided below, and carefully customize it if needed to avoid issues
+-o    Do *NOT* overwrite existing genesis.json, topology.json, config.json, cntools.config and topology-updater.sh files (Default: will overwrite)
+-f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
+      '-o' and '-f' are independent of each other, and can be used together
+-s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
+-i    Interactive mode (Default: silent mode)
+-n    Connect to specified network instead of public network (Default: connect to public cardano network)
+      eg: -n testnet
+-t    Alternate name for top level folder (Default: cnode)
+-m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 10s)
+-l    Use IOG fork of libsodium (Recommended as per IOG instructions)
+-a    Use alpha branch of scripts (only recommended for testing/development)
+```
 
-```bash
-curl -sL -o $CNODE_HOME/files/byron-genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json
-curl -sL -o $CNODE_HOME/files/genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json
-curl -sL -o $CNODE_HOME/files/topology.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-topology.json
-curl -sL -o $CNODE_HOME/files/config.json https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/ptn0-combinator.json
+Running without any parameters will run script in silent mode with OS Dependencies, no libsodium fork, and overwriting existing files:
+
+``` bash
+./prereqs.sh
+. "${HOME}/.bashrc"
 ```
 
 ##### Folder structure

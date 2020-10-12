@@ -254,10 +254,7 @@ curl -s -m ${CURL_TIMEOUT} -o cntools.sh ${URL_RAW}/scripts/cnode-helper-scripts
 curl -s -m ${CURL_TIMEOUT} -o cntools.library ${URL_RAW}/scripts/cnode-helper-scripts/cntools.library
 curl -s -m ${CURL_TIMEOUT} -o cntoolsBlockCollector.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntoolsBlockCollector.sh
 curl -s -m ${CURL_TIMEOUT} -o setup_mon.sh ${URL_RAW}/scripts/cnode-helper-scripts/setup_mon.sh
-if [[ ${OVERWRITE} = 'Y' ]]; then
-  [[ -f topologyUpdater.sh ]] && cp -f topologyUpdater.sh "topologyUpdater.sh_bkp$(date +%s)"
-  curl -s -m ${CURL_TIMEOUT} -o topologyUpdater.sh ${URL_RAW}/scripts/cnode-helper-scripts/topologyUpdater.sh
-fi
+curl -s -m ${CURL_TIMEOUT} -o topologyUpdater.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/topologyUpdater.sh
 curl -s -m ${CURL_TIMEOUT} -o itnRewards.sh ${URL_RAW}/scripts/cnode-helper-scripts/itnRewards.sh
 curl -s -m ${CURL_TIMEOUT} -o cabal-build-all.sh ${URL_RAW}/scripts/cnode-helper-scripts/cabal-build-all.sh
 curl -s -m ${CURL_TIMEOUT} -o stack-build.sh ${URL_RAW}/scripts/cnode-helper-scripts/stack-build.sh
@@ -285,6 +282,7 @@ updateWithCustomConfig() {
 updateWithCustomConfig "env"
 updateWithCustomConfig "cnode.sh"
 updateWithCustomConfig "gLiveView.sh"
+updateWithCustomConfig "topologyUpdater.sh"
 
 chmod 755 ./*.sh
 

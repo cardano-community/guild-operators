@@ -16,7 +16,31 @@ curl -s -o topologyUpdater.sh https://raw.githubusercontent.com/cardano-communit
 chmod 750 topologyUpdater.sh
 ```
 
+#### Examine and modify the variables within topologyUpdater.sh script
+
+Out of the box, the scripts might come with some assumptions, that may or may not be valid for your environment. It is best for you to check and update section below in the file:
+
+``` bash
+######################################
+# User Variables - Change as desired #
+######################################
+
+CNODE_PORT=6000                                           # Must match your relay node port as set in the startup command
+CNODE_HOSTNAME="CHANGE ME"                                # (Optional) Must resolve to the IP you are requesting from
+CNODE_BIN="${HOME}/.cabal/bin"                            # Path where your cardano-cli and cardano-node binaries are
+CNODE_HOME="/opt/cardano/cnode"                           # (Optional) Top-level folder to auto populate file locations under, useful if using guild repo instructions
+CNODE_LOG_DIR="${CNODE_HOME}/logs/"                       # Folder where your logs will be sent to (must pre-exist)
+CONFIG="$CNODE_HOME/files/config.json"                    # Filename with path for config used by node
+GENESIS_JSON=$(jq -er '.ShelleyGenesisFile' "${CONFIG}")  # Filename with path for Shelley genesis file used by node (auto detected if your config is in JSON format)
+SOCKET="${CNODE_HOME}/sockets/node0.socket"               # Path to socket file for your cardano node instance
+CNODE_VALENCY=1                                           # (Optional) for multi-IP hostnames
+
+```
+
+!> Any customisations you add above, will be saved across future prereqs.sh executions , unless you specify `-f` flag to overwrite completely.
+
 #### Start the script
+
 Then add the script to be executed once per hour at a minute of your choice (eg xx:25 o'clock in the example below)
 
 ``` bash
