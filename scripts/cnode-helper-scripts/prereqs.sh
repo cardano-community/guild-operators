@@ -220,6 +220,7 @@ pushd "${CNODE_HOME}"/files >/dev/null || return
 if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
   [[ -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
   [[ -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
+  [[ -f "${CNODE_HOME}"/scripts ]] && cp -f cntools.config "cntools.config_bkp$(date +%s)"
   if [[ ${NETWORK} = "testnet" ]]; then
     curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json
     curl -sL -m ${CURL_TIMEOUT} -o genesis.json https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json

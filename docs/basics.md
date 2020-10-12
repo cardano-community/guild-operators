@@ -37,7 +37,7 @@ Install pre-requisites for building cardano node and using CNTools
 -a    Use alpha branch of scripts (only recommended for testing/development)
 ```
 
-Running without any parameters will run script in silent mode with OS Dependencies, no libsodium fork, and *NOT* overwrite existing files (except dynamic updates for `cnode.sh`, `topologyUpdater.sh` and `gLiveView.sh`:
+Running without any parameters will run script in silent mode with OS Dependencies, no libsodium fork, and *NOT* force overwrite of all files (only static files will be overwritten, which should not contain user modifications):
 
 ``` bash
 ./prereqs.sh
