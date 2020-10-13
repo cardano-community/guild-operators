@@ -53,23 +53,23 @@ setTheme() {
 GLV_VERSION=v1.7
 
 PARENT="$(dirname $0)"
-BRANCH="master"
+[[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-l] [-a]
+Usage: $(basename "$0") [-l] [-b <branch name>]
 Guild LiveView - An alternative cardano-node LiveView
 
 -l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
--a    Use alpha branch to check for updates - only for testing/development
+-b    Use alternate branch to check for updates - only for testing/development (Default: Master)
 EOF
   exit 1
 }
 
-while getopts :la opt; do
+while getopts :lb: opt; do
   case ${opt} in
     l ) LEGACY_MODE="true" ;;
-    a ) BRANCH="alpha" ;;
+    b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
     esac
 done

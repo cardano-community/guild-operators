@@ -29,7 +29,7 @@ err_exit() {
 usage() {
   cat <<EOF >&2
 
-Usage: $(basename "$0") [-f] [-s] [-i] [-a] [-l] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
+Usage: $(basename "$0") [-f] [-s] [-i] [-l] [-b <branch>] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano node and using CNTools
 
 -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
@@ -39,8 +39,8 @@ Install pre-requisites for building cardano node and using CNTools
       eg: -n testnet
 -t    Alternate name for top level folder (Default: cnode)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 10s)
--l    Use IOG fork of libsodium (Recommended as per IOG instructions)
--a    Use alpha branch of scripts (only recommended for testing/development)
+-l    Use IOG fork of libsodium - Recommended as per IOG instructions (Default: system build)
+-b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 -i    Interactive mode (Default: silent mode)
 
 EOF
@@ -55,9 +55,10 @@ FORCE_OVERWRITE='N'
 LIBSODIUM_FORK='N'
 CNODE_NAME='cnode'
 CURL_TIMEOUT=60
-BRANCH='master'
+[[ -f "${CNODE_HOME}"/scripts/.env_branch ]] && BRANCH="$(cat ${CNODE_HOME}/scripts/.env_branch)" || BRANCH="master"
 
-while getopts :in:sfalt:m: opt; do
+
+while getopts :in:sflt:m:b: opt; do
   case ${opt} in
     i ) INTERACTIVE='Y' ;;
     n ) NETWORK=${OPTARG} ;;
@@ -66,7 +67,7 @@ while getopts :in:sfalt:m: opt; do
     l ) LIBSODIUM_FORK='Y' ;;
     t ) CNODE_NAME=${OPTARG} ;;
     m ) CURL_TIMEOUT=${OPTARG} ;;
-    a ) BRANCH="alpha" ;;
+    b ) BRANCH=${OPTARG} ;;
     \? ) usage ;;
     esac
 done
@@ -211,12 +212,21 @@ if [[ "${LIBSODIUM_FORK}" = "Y" ]]; then
 fi
 
 $sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv
-$sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}"
+$sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
 
 echo "Downloading files..."
 
 URL_RAW="${REPO_RAW}/${BRANCH}"
 pushd "${CNODE_HOME}"/files >/dev/null || return
+curl -s -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-combinator.json 2>/dev/null
+
+if grep -i '404: Not Found' config.json.tmp >/dev/null ; then
+  echo "ERROR!! Specified branch could not be found! Kindly re-check the branch name and internet connection from the server"
+  exit 1
+else
+  echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
+fi
+
 if [[ ${NETWORK} = "testnet" ]]; then
   curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json
   curl -sL -m ${CURL_TIMEOUT} -o genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json
@@ -290,6 +300,6 @@ updateWithCustomConfig "topologyUpdater.sh"
 updateWithCustomConfig "cntools.config"
 
 chmod -R 755 "${CNODE_HOME}"
-chmod -R 700 "${CNODE_HOME}"/priv
+chmod -R 700 "${CNODE_HOME}"/priv 2>/dev/null
 
 popd >/dev/null || return
