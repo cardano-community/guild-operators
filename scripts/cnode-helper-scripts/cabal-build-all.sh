@@ -5,7 +5,7 @@
 
 OVERWRITE_LOCAL="N"
 
-[[ -f "${CNODE_HOME}"/scripts/.env_branch ]] && BRANCH="$(cat ${CNODE_HOME}/scripts/.env_branch)" || BRANCH="master"
+[[ -f "${CNODE_HOME}"/scripts/.env_branch ]] && BRANCH="$(cat "${CNODE_HOME}"/scripts/.env_branch)" || BRANCH="master"
 URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/files/cabal.project.local"
 [[ "$1" == "-o" ]] && OVERWRITE_LOCAL="Y"
 
