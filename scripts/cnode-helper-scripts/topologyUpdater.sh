@@ -18,22 +18,22 @@ CUSTOM_PEERS="None"                                       # Additional custom pe
 ######################################
 
 PARENT="$(dirname $0)"
-BRANCH="master"
+[[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-a]
+Usage: $(basename "$0") [-b <branch name>]
 Topology Updater - Build topology with community pools
 
--a    Use alpha branch to check for updates - only for testing/development
+-b    Use alternate branch to check for updates - only for testing/development (Default: master)
 
 EOF
   exit 1
 }
 
-while getopts :a opt; do
+while getopts :b: opt; do
   case ${opt} in
-    a ) BRANCH="alpha" ;;
+    b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
     esac
 done

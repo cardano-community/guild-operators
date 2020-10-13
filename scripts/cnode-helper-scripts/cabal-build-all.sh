@@ -5,12 +5,14 @@
 
 OVERWRITE_LOCAL="N"
 
+[[ -f "${CNODE_HOME}"/scripts/.env_branch ]] && BRANCH="$(cat "${CNODE_HOME}"/scripts/.env_branch)" || BRANCH="master"
+URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/files/cabal.project.local"
 [[ "$1" == "-o" ]] && OVERWRITE_LOCAL="Y"
 
 if [[ "${PWD##*/}" == "cardano-node" ]] && [[ "${OVERWRITE_LOCAL}" == "Y" ]]; then
   echo "Overwriting cabal.project.local with latest file from guild-repo (previous file, if any, will be saved as cabal.project.local.swp).."
   [[ -f cabal.project.local ]] && mv cabal.project.local cabal.project.local.swp
-  curl -s -o cabal.project.local -C - https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/cabal.project.local
+  curl -s -o cabal.project.local -C - "${URL_RAW}"
   chmod 640 cabal.project.local
 fi
 

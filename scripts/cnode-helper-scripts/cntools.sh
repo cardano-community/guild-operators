@@ -26,20 +26,21 @@ clear
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-o] [-a]
+Usage: $(basename "$0") [-o] [-b <branch name>]
 CNTools - The Cardano SPOs best friend
 
 -o    Activate offline mode - run CNTools in offline mode without node access, a limited set of functions available
--a    Run CNTools and look for updates on alpha branch instead of master of guild repository (only for testing/development purposes)
+-b    Run CNTools and look for updates on alternate branch instead of master of guild repository (only for testing/development purposes)
 EOF
 }
 
 CNTOOLS_MODE="CONNECTED"
-BRANCH="master"
-while getopts :oa opt; do
+[[ -f "${CNODE_HOME}"/scripts/.env_branch ]] && BRANCH="$(cat ${CNODE_HOME}/scripts/.env_branch)" || BRANCH="master"
+
+while getopts :ob: opt; do
   case ${opt} in
     o ) CNTOOLS_MODE="OFFLINE" ;;
-    a ) BRANCH="alpha" ;;
+    b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch ;;
     \? ) myExit 1 "$(usage)" ;;
     esac
 done
