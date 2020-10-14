@@ -21,7 +21,7 @@ Some or all of the above required us to rewrite some artifacts in a way that is 
 
 !> Remember that same as before, you're running these as non root user with passwordless sudo access for the session.
 
-- Download the latest prereqs.sh (tip: do checkout new features in `prereqs.sh -h`) to update all the scripts and files from the guild template. Most of the files modified with user content (env, gLiveView.sh, topologyUpdater.sh, cnode.sh, etc) will be backed up before overwriting. More static files (genesis files or some of the scripts themselves) will not be backed up, as they're not expected to be modified.
+- Download the latest prereqs.sh (tip: do checkout new features in `prereqs.sh -h`) to update all the scripts and files from the guild template. Most of the files modified with user content (env, gLiveView.sh, topologyUpdater.sh, cnode.sh, etc) will be backed up before overwriting. The backed up files will be in the same folder as the original files, and will be named as *${filename}_bkp<timestamp>*. More static files (genesis files or some of the scripts themselves) will not be backed up, as they're not expected to be modified.
 
 ``` bash
 mkdir "$HOME/tmp";cd "$HOME/tmp"
@@ -36,10 +36,10 @@ Below is a list of files that you will typically customise against each script. 
 |User-Defined customisations :arrow_down: \ Applies to :arrow_right: | gLiveView.sh |   cntools.sh   | topologyUpdater.sh | cnode.sh | topology.json | config.json |
 |:-------------------------------------------------------------------|:------------:|:--------------:|:------------------:|:--------:|:-------------:|:-----------:|
 |env                                                                 |:heavy_check_mark:|:heavy_check_mark:|:heavy_check_mark:|:heavy_check_mark:|:x:|:x:          |
-|Script/File itself                                                  |:eyes:        |:x:             |:heavy_check_mark:  |:eyes:    |:heavy_check_mark:|:heavy_check_mark:|
+|Script/File itself                                                  |:eyes:        |:x:             |:heavy_check_mark:  |:heavy_check_mark:    |:heavy_check_mark:|:heavy_check_mark:|
 |Others                                                              |:x:           |*cntools.config*|:x:                 |:x:       |:x:            |:x:          |
 
-:heavy_check_mark: - It is likely that you may need customisation for file in column to use script in row.  
+:heavy_check_mark: - It is likely that you'd want to visit/update customisations.  
 :eyes: - Usually users dont need to touch, but it is supported for scenarios when they're applying non-standard customisations.  
 :x: - No customisations required.
 
