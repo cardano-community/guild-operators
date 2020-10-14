@@ -31,14 +31,42 @@ chmod 700 prereqs.sh
 ```
 
 - Check and add back your customisations.
-Below is a list of files that you will typically customise - depending on scripts that you use:  
-|Script|env |Self|Others|
-|:-----|:--:|:--:|-----:|
-|gLiveView.sh|:heavy_check_mark:|:eyes:|:x:|
-|CNTools|:heavy_check_mark:|:x:|*cntools.config*|
-|topologyUpdater.sh|:heavy_check_mark:|:heavy_check_mark:|:x:|
-|cnode.sh|:heavy_check_mark:|:heavy_check_mark:|:x:|
-|topology.json|:x:|:heavy_check_mark:|:x:|
+Below is a list of files that you will typically customise against each script. `env` file is usually the common place for most user variables, while there may be a few scripts which may have variables within themselves:  
+
+|User-Defined customisations :arrow_down: \ Applies to :arrow_right: | gLiveView.sh |   cntools.sh   | topologyUpdater.sh | cnode.sh | topology.json | config.json |
+|:-------------------------------------------------------------------|:------------:|:--------------:|:------------------:|:--------:|:-------------:|:-----------:|
+|env                                                                 |:heavy_check_mark:|:heavy_check_mark:|:heavy_check_mark:|:heavy_check_mark:|:x:|:x:          |
+|Script/File itself                                                  |:eyes:        |:x:             |:heavy_check_mark:  |:eyes:    |:heavy_check_mark:|:heavy_check_mark:|
+|Others                                                              |:x:           |*cntools.config*|:x:                 |:x:       |:x:            |:x:          |
+
+:heavy_check_mark: - It is likely that you may need customisation for file in column to use script in row.  
+:eyes: - Usually users dont need to touch, but it is supported for scenarios when they're applying non-standard customisations.  
+:x: - No customisations required.
+
+Typical section that you may want to modify (if defaults dont work for you):
+
+``` bash
+######################################
+# User Variables - Change as desired #
+# Leave as is if unsure              #
+######################################
+
+#CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of path to cardano-cli executable
+#CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
+CNODE_PORT=6000                                         # Set node port
+#CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path
+#SOCKET="${CNODE_HOME}/sockets/node0.socket"            # Override automatic detection of path to socket
+#EKG_HOST=127.0.0.1                                     # Set node EKG host
+#EKG_PORT=12788                                         # Override automatic detection of node EKG port
+#EKG_TIMEOUT=3                                          # Maximum time in seconds that you allow EKG request to take before aborting (node metrics)
+#BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"                # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
+#CURL_TIMEOUT=10                                        # Maximum time in seconds that you allow curl file download to take before aborting (GitHub update process)
+
+######################################
+# Do NOT modify code below           #
+######################################
+```
+
 
 !> The way user content is retained during future upgrades is all the user customisations are to be retained above the line stating `DO NOT MODIFY`, anything after that line will be overwritten with the latest code from github.
 
