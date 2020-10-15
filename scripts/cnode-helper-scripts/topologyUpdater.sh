@@ -2,6 +2,9 @@
 # shellcheck disable=SC2086,SC2034
 # shellcheck source=/dev/null
 
+PARENT="$(dirname $0)"
+[[ -f "${PARENT}"/env ]] && . "${PARENT}"/env
+
 ######################################
 # User Variables - Change as desired #
 ######################################
@@ -44,7 +47,7 @@ curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env
 if [[ -f "${PARENT}"/env ]]; then
   if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
     vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
-    sed -e "s@/opt/cardano/cnode@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
+    sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
   else
     echo -e "Update failed! Please use prereqs.sh to force an update or manually download $(basename $0) + env from GitHub"
     exit 1

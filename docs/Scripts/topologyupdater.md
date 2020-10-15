@@ -6,13 +6,14 @@ The topologyupdater shell script must be executed on the relay node as a cronjob
 
 If you have run [prereqs.sh](basics.md#pre-requisites), this should already be available in your scripts folder and make this step unnecessary. 
 
-Before the updater can make a valid request to the central topology service, he must query the current tip/blockNo from the well synced local node. It connects to your node through the configuration in the script (note: not the usual env file, as cronjobs don't run in the same environment). Customize this file for your needs.  
+Before the updater can make a valid request to the central topology service, he must query the current tip/blockNo from the well synced local node. It connects to your node through the configuration in the script as well as the common env configuration file. Customize these files for your needs.  
 
 
 To download topologyupdater.sh manually you can execute the commands below and test executing topology Updater once (it's OK if first execution gives back an error):
 ``` bash
 cd $CNODE_HOME/scripts
 curl -s -o topologyUpdater.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/topologyUpdater.sh
+curl -s -o env https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
 chmod 750 topologyUpdater.sh
 ./topologyUpdater.sh
 ```

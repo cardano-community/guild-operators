@@ -23,14 +23,14 @@ CNODE_PORT=6000                                         # Set node port
 
 [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
 
-CCLI=$(command -v cardano-cli)
+[[ -z "${CCLI}" ]] && CCLI=$(command -v cardano-cli)
 if [[ -z "${CCLI}" ]]; then
   if [[ -f "${HOME}/.cabal/bin/cardano-cli" ]]; then
     # Assumption being made that cardano-cli and cardano-node are both present, if not - prereqs and build instructions were not followed
     export PATH="${HOME}/.cabal/bin":$PATH
     CCLI=$(command -v cardano-cli)
   else
-    echo "You do not have a cardano-cli binary available in \$PATH. Please make it available before using CNTools. Refer to guild-operators documentation for the same."
+    echo "You do not have a cardano-cli binary available in \$PATH."
     return 1
   fi
 fi
