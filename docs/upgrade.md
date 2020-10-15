@@ -73,7 +73,7 @@ CNODE_PORT=6000                                         # Set node port
 
 #### Advanced Users/Testers only
 
-For folks who would like to try out an unreleased feature by using a specific branch (`alpha` for example), you can now do so. While setting up your repository, use `prereqs.sh -b alpha` where alpha is the name of the branch.
+For folks who would like to try out an unreleased feature by using a specific branch (`alpha` for example), you can now do so. While setting up your repository, use `prereqs.sh -b alpha -f` where alpha is the name of the branch.
 The `-b branch` argument is also extended to cntools, gLiveView and topologyUpdater scripts.
 
 Just beware, that using this option may mean you test against a branch that may have breaking changes. Always take extra care when using this option.
