@@ -1,12 +1,17 @@
 {
   "ApplicationName": "cardano-sl",
   "ApplicationVersion": 0,
+  "ByronGenesisFile": "/opt/cardano/cnode/files/byron-genesis.json",
+  "ByronGenesisHash": "96fceff972c2c06bd3bb5243c39215333be6d56aaf4823073dca31afe5038471",
   "LastKnownBlockVersion-Alt": 0,
-  "LastKnownBlockVersion-Major": 0,
+  "LastKnownBlockVersion-Major": 2,
   "LastKnownBlockVersion-Minor": 0,
-  "Protocol": "TPraos",
-  "RequiresNetworkMagic": "RequiresNoMagic",
-  "GenesisFile": "/opt/cardano/cnode/files/genesis.json",
+  "MaxKnownMajorProtocolVersion": 2,
+  "Protocol": "Cardano",
+  "RequiresNetworkMagic": "RequiresMagic",
+  "ShelleyGenesisFile": "/opt/cardano/cnode/files/genesis.json",
+  "ShelleyGenesisHash": "849a1764f152e1b09c89c0dfdbcbdd38d711d1fec2db5dfa0f87cf2737a0eaf4",
+  "bfcMaxConcurrencyDeadline": 2,
   "TraceBlockFetchClient": true,
   "TraceBlockFetchDecisions": true,
   "TraceBlockFetchProtocol": true,
@@ -33,7 +38,7 @@
   "TraceTxInbound": true,
   "TraceTxOutbound": true,
   "TraceTxSubmissionProtocol": true,
-  "TracingVerbosity": "MaximalVerbosity",
+  "TracingVerbosity": "NormalVerbosity",
   "TurnOnLogMetrics": true,
   "TurnOnLogging": true,
   "ViewMode": "SimpleView",
@@ -167,6 +172,7 @@
     }
   ],
   "SocketPath": "/opt/cardano/cnode/sockets/node0.socket",
+  "NetworkName": "testnet",
   "EnableLogging": true,
   "EnableLogMetrics": false
 }
