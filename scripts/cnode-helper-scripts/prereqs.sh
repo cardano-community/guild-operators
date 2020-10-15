@@ -48,6 +48,7 @@ EOF
 }
 
 # Initialize defaults
+unset CNODE_HOME
 INTERACTIVE='N'
 NETWORK='mainnet'
 WANT_BUILD_DEPS='Y'
@@ -55,8 +56,6 @@ FORCE_OVERWRITE='N'
 LIBSODIUM_FORK='N'
 CNODE_NAME='cnode'
 CURL_TIMEOUT=60
-[[ -f "${CNODE_HOME}"/scripts/.env_branch ]] && BRANCH="$(cat ${CNODE_HOME}/scripts/.env_branch)" || BRANCH="master"
-
 
 while getopts :in:sflt:m:b: opt; do
   case ${opt} in
@@ -80,6 +79,8 @@ G_ID=$(id -g)
 CNODE_PATH="/opt/cardano"
 CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
 CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
+[[ -z "${BRANCH}" && -f "${CNODE_HOME}"/scripts/.env_branch ]] && BRANCH="$(cat ${CNODE_HOME}/scripts/.env_branch)" || BRANCH="master"
+
 REPO="https://github.com/cardano-community/guild-operators"
 REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
 
