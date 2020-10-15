@@ -13,6 +13,7 @@ To download topologyupdater.sh manually you can execute the commands below and t
 ``` bash
 cd $CNODE_HOME/scripts
 curl -s -o topologyUpdater.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/topologyUpdater.sh
+curl -s -o env https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
 chmod 750 topologyUpdater.sh
 ./topologyUpdater.sh
 ```
