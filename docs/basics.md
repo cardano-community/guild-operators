@@ -26,12 +26,12 @@ Usage: prereqs.sh [-f] [-s] [-i] [-l] [-b <branch>] [-n <testnet|guild>] [-t <na
 Install pre-requisites for building cardano node and using CNTools
 
 -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
-      '-o' and '-f' are independent of each other, and can be used together
+      topology.json, config.json and genesis files normally saved will also be overwritten
 -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
 -n    Connect to specified network instead of public network (Default: connect to public cardano network)
       eg: -n testnet
 -t    Alternate name for top level folder (Default: cnode)
--m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 10s)
+-m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
 -l    Use IOG fork of libsodium - Recommended as per IOG instructions (Default: system build)
 -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 -i    Interactive mode (Default: silent mode)
