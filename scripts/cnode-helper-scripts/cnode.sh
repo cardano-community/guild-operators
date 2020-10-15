@@ -11,9 +11,8 @@
 # Common variables set in env file   #
 ######################################
 
-POOL_NAME="TEST"
-POOL_DIR="${CNODE_HOME}/priv/pool/${POOL_NAME}"
-TOPOLOGY="${CNODE_HOME}/files/topology.json"
+#POOL_DIR="${CNODE_HOME}/priv/pool/TEST"                 # set pool dir to run node as a core node
+#TOPOLOGY="${CNODE_HOME}/files/topology.json"            # override default topology.json path
 
 ######################################
 # Do NOT modify code below           #
@@ -23,6 +22,7 @@ TOPOLOGY="${CNODE_HOME}/files/topology.json"
 [[ -z "${SOCKET}" ]] && SOCKET="${CNODE_HOME}/sockets/node0.socket"
 [[ -z "${CONFIG}" ]] && CONFIG="${CNODE_HOME}/files/config.json"
 [[ -z "${TOPOLOGY}" ]] && TOPOLOGY="${CNODE_HOME}/files/topology.json"
+[[ -z "${POOL_DIR}" ]] && POOL_DIR="${CNODE_HOME}/priv/pool/TEST"
 
 if [[ -S "${SOCKET}" ]]; then
   if pgrep -f "[c]ardano-node.*.${SOCKET}"; then
