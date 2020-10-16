@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=6
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=0
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=2
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -832,9 +832,16 @@ getPoolID() {
   pool_id_bech32=""
   pool_coldkey_vk_file="${POOL_FOLDER}/${1}/${POOL_COLDKEY_VK_FILENAME}"
   if [[ -f ${pool_coldkey_vk_file} ]]; then
-    pool_id=$(${CCLI} shelley stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" --output-format hex 2>/dev/null | tee "${pool_id_file}") && \
-    pool_id_bech32=$(${CCLI} shelley stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" 2>/dev/null | tee "${pool_id_bech32_file}") && \
-    return 0 || return 1
+    if ! pool_id=$(${CCLI} shelley stake-pool id --verification-key-file "${pool_coldkey_vk_file}" --output-format hex 2>/dev/null) || \
+       ! pool_id_bech32=$(${CCLI} shelley stake-pool id --verification-key-file "${pool_coldkey_vk_file}" 2>/dev/null); then
+      if ! pool_id=$(${CCLI} shelley stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" --output-format hex 2>/dev/null) || \
+         ! pool_id_bech32=$(${CCLI} shelley stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" 2>/dev/null); then
+        return 1
+      fi
+    fi
+    echo ${pool_id} > "${pool_id_file}"
+    echo ${pool_id_bech32} > "${pool_id_bech32_file}"
+    return 0
   fi
   [[ -f ${pool_id_file} ]] && pool_id=$(cat ${pool_id_file})
   [[ -f ${pool_id_bech32_file} ]] && pool_id_bech32=$(cat ${pool_id_bech32_file})

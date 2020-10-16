@@ -3097,7 +3097,7 @@ EOF
       say "\nApplying update..."
       if curl -s -m ${CURL_TIMEOUT} -o "${CNODE_HOME}/scripts/cntools.sh.tmp" "${URL}/cntools.sh" &&
          curl -s -m ${CURL_TIMEOUT} -o "${CNODE_HOME}/scripts/cntools.library.tmp" "${URL}/cntools.library" &&
-         [[ $(grep "_HOME=" "${CNODE_HOME}"/env) =~ ^#?([^[:space:]]+)_HOME ]] &&
+         [[ $(grep "_HOME=" "${CNODE_HOME}"/scripts/env) =~ ^#?([^[:space:]]+)_HOME ]] &&
          sed -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${CNODE_HOME}/scripts/cntools".*.tmp; then
         mv -f "${CNODE_HOME}/scripts/cntools.sh.tmp" "${CNODE_HOME}/scripts/cntools.sh"
         mv -f "${CNODE_HOME}/scripts/cntools.library.tmp" "${CNODE_HOME}/scripts/cntools.library"
