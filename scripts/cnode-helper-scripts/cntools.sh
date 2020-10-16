@@ -202,12 +202,12 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
       byron_epochs=${epoch}
       shelley_epochs=0
       while [[ ${byron_epochs} -ge 0 ]]; do
-        calc_slot=$(( (byron_epochs*BYRON_SLOT_LENGTH) + (shelley_epochs*EPOCH_LENGTH) + slot_in_epoch ))
+        calc_slot=$(( (byron_epochs*BYRON_EPOCH_LENGTH) + (shelley_epochs*EPOCH_LENGTH) + slot_in_epoch ))
         [[ ${calc_slot} -eq ${slot_num} ]] && break
         ((byron_epochs--))
         ((shelley_epochs++))
       done
-      node_sync="NODE SYNC: $(printTable ',' "$(echo -e "Epoch,Slot in Epoch,Slot\n${epoch},${slot_in_epoch},${slot_num}")")"
+      node_sync="NODE SYNC:\n$(printTable ',' "$(echo -e "Epoch,Slot in Epoch,Slot\n${epoch},${slot_in_epoch},${slot_num}")")"
       if [[ ${calc_slot} -ne ${slot_num} ]]; then
         myExit 1 "${FG_YELLOW}WARN${NC}: Failed to calculate shelley transition epoch\n\n${node_sync}"
       elif [[ ${shelley_epochs} -eq 0 ]]; then
