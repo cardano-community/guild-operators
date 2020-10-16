@@ -14,7 +14,7 @@ CNODE_LOG_DIR="${CNODE_HOME}/logs/"                       # Folder where your lo
 CNODE_VALENCY=1                                           # (Optional) for multi-IP hostnames
 CNODE_TOPOLOGY="${CNODE_HOME}/files/topology.json"        # Destination topology.json file you'd want to write output to
 MAX_PEERS=15                                              # Maximum number of peers to return on successful fetch
-CUSTOM_PEERS="None"                                       # Additional custom peers to (IP:port[:valency]) to add to your target topology.json, eg: "10.0.0.1:3001|10.0.0.2:3002|relays.mydomain.com:3003:3"
+#CUSTOM_PEERS="None"                                      # Additional custom peers to (IP:port[:valency]) to add to your target topology.json, eg: "10.0.0.1:3001|10.0.0.2:3002|relays.mydomain.com:3003:3"
 
 ######################################
 # Do NOT modify code below           #
@@ -79,7 +79,7 @@ else
   T_HOSTNAME=''
 fi
 
-[[ "${CUSTOM_PEERS}" = "None" ]] && CUSTOM_PEERS_PARAM="" || CUSTOM_PEERS_PARAM="&customPeers=${CUSTOM_PEERS}"
+[[ -z "${CUSTOM_PEERS}" ]] && CUSTOM_PEERS_PARAM="" || CUSTOM_PEERS_PARAM="&customPeers=${CUSTOM_PEERS}"
 
 curl -s "https://api.clio.one/htopology/v1/?port=${CNODE_PORT}&blockNo=${blockNo}&valency=${CNODE_VALENCY}&magic=${NWMAGIC}${T_HOSTNAME}" | tee -a $CNODE_LOG_DIR/topologyUpdater_lastresult.json && \
 curl -s -o "${CNODE_TOPOLOGY}".tmp "https://api.clio.one/htopology/v1/fetch/?max=${MAX_PEERS}&magic=${NWMAGIC}${CUSTOM_PEERS_PARAM}" && \
