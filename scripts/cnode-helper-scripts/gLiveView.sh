@@ -53,23 +53,23 @@ setTheme() {
 GLV_VERSION=v1.7
 
 PARENT="$(dirname $0)"
-BRANCH="master"
+[[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-l] [-a]
+Usage: $(basename "$0") [-l] [-b <branch name>]
 Guild LiveView - An alternative cardano-node LiveView
 
 -l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
--a    Use alpha branch to check for updates - only for testing/development
+-b    Use alternate branch to check for updates - only for testing/development (Default: Master)
 EOF
   exit 1
 }
 
-while getopts :la opt; do
+while getopts :lb: opt; do
   case ${opt} in
     l ) LEGACY_MODE="true" ;;
-    a ) BRANCH="alpha" ;;
+    b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
     esac
 done
@@ -79,15 +79,16 @@ URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANC
 curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env
 if [[ -f "${PARENT}"/env ]]; then
   if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
-    sed -e "s@[C]NODE_HOME=[^ ]*\\(.*\\)@${BASH_REMATCH[1]}_HOME=\"${CNODE_HOME}\"\\1@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
+    vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
+    sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
   else
-    echo -e "Update failed! Please use prereqs.sh to force an update"
+    echo -e "Update failed! Please use prereqs.sh to force an update or manually download $(basename $0) + env from GitHub"
     exit 1
   fi
   TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
   TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
   if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-    cp "${PARENT}"/env "${PARENT}/env.bkp_$(date +%s)"
+    cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
     STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
     printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
     mv "${PARENT}"/env.tmp "${PARENT}"/env
@@ -152,7 +153,7 @@ if curl -s -m ${CURL_TIMEOUT} -o /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/
       TEMPL_CMD=$(awk '/^# Do NOT modify/,0' /tmp/gLiveView.sh)
       STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${CNODE_HOME}/scripts/gLiveView.sh")
       printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > /tmp/gLiveView.sh
-      mv -f "${CNODE_HOME}/scripts/gLiveView.sh" "${CNODE_HOME}/scripts/gLiveView.sh.bkp_$(date +%s)" && \
+      mv -f "${CNODE_HOME}/scripts/gLiveView.sh" "${CNODE_HOME}/scripts/gLiveView.sh_bkp$(date +%s)" && \
       cp -f /tmp/gLiveView.sh "${CNODE_HOME}/scripts/gLiveView.sh" && \
       chmod 750 "${CNODE_HOME}/scripts/gLiveView.sh" && \
       myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!" || \

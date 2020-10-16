@@ -5,9 +5,14 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [6.0.0] - 2020-10-07
+## [6.0.1] - 2020-10-16
 
-> This is a major release with a lot of changes. It is highly recommended that you familiarise yourself with the usage for Hybrid or Online v/s Offline mode on a testnet environment before doing it on production.
+#### Fixed
+- As per change to cardano-cli syntax, pool ID requires `--cold-verification-key-file` instead of `--verification-key-file`
+
+## [6.0.0] - 2020-10-15
+
+> This is a major release with a lot of changes. It is highly recommended that you familiarise yourself with the usage for Hybrid or Online v/s Offline mode on a testnet environment before doing it on production. Please visit https://cardano-community.github.io/guild-operators/#/upgrade for details.
 
 ##### Added
 - Allow CNTools to operate in offline mode. Offline features include:

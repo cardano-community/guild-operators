@@ -4,9 +4,9 @@
 
 The tool is independent from other files and can run as a standalone utility that can be stopped/started without affecting the status of cardano-node.
 
-##### Download & Setup
+##### Download
 
-The tool in itself should only require a single file. If you've used [prereqs.sh](basics.md#pre-requisites), you can skip this part , as this is already set up for you.  
+If you've used [prereqs.sh](basics.md#pre-requisites), you can skip this part , as this is already set up for you. The tool rely on the common env configuration file.  
 To get current epoch blocks, [cntoolsBlockCollector.sh](Scripts/cntools-blocks.md) script is needed. This is optional and **Guild LiveView** will function without it.
 
 ?> For those who follow guild's [folder structure](basics.md#folder-structure) and do not wish to run prereqs.sh, you can run the below in `$CNODE_HOME/scripts` folder
@@ -15,10 +15,13 @@ To download the script:
 
 ```bash
 curl -s -o gLiveView.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/gLiveView.sh
+curl -s -o env https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
 chmod 755 gLiveView.sh
 ```
 
-##### Startup
+##### Configuration & Startup
+
+For most setups, it's enough to set `CNODE_PORT` in the `env` file. The rest of the variables should automatically be detected. If required, modify User Variables in `env` and `gLiveView.sh` to suit your environment. 
 
 For most standard deployments, this should lead you to a stage where you can now start running `./gLiveView.sh` in the folder you downloaded the script (default location for cntools users would be `$CNODE_HOME/scripts`). Note that the script is smart enough to automatically detect when you're running as a Core or Relay and will show fields accordingly.
 
@@ -45,23 +48,37 @@ Once the analysis is finished, it will display the RTTs for the peers and group 
 
 ##### Troubleshooting/Customisations
 
-In case you run into trouble while running the script, you might want to edit `gLiveView.sh` and look at User Variables section shown below. You can override the values if the automatic detection do not provide the right information, but we would appreciate if you could also notify us by raising an issue against github repo:
+In case you run into trouble while running the script, you might want to edit `env` & `gLiveView.sh` and look at User Variables section shown below. You can override the values if the automatic detection do not provide the right information, but we would appreciate if you could also notify us by raising an issue against github repo:
 
+**env**
+```
+######################################
+# User Variables - Change as desired #
+# Leave as is if unsure              #
+######################################
+
+#CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of path to cardano-cli executable
+#CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
+CNODE_PORT=6000                                         # Set node port
+#CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path
+#SOCKET="${CNODE_HOME}/sockets/node0.socket"            # Override automatic detection of path to socket
+#EKG_HOST=127.0.0.1                                     # Set node EKG host
+#EKG_PORT=12788                                         # Override automatic detection of node EKG port
+#EKG_TIMEOUT=3                                          # Maximum time in seconds that you allow EKG request to take before aborting (node metrics)
+#BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"                # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
+#CURL_TIMEOUT=10                                        # Maximum time in seconds that you allow curl file download to take before aborting (GitHub update process)
+```
+
+**gLiveView.sh**
 ```bash
 ######################################
 # User Variables - Change as desired #
 ######################################
 
-#CNODE_HOME="/opt/cardano/cnode"          # Override default CNODE_HOME path
-#CNODE_PORT=6000                          # Override automatic detection of node port
-NODE_NAME="Cardano Node"                  # Change your node's name prefix here, keep at or below 19 characters!
-REFRESH_RATE=2                            # How often (in seconds) to refresh the view
-#CONFIG="${CNODE_HOME}/files/config.json" # Override automatic detection of node config path
-EKG_HOST=127.0.0.1                        # Set node EKG host
-#EKG_PORT=12788                           # Override automatic detection of node EKG port
-#PROTOCOL="Cardano"                       # Default: Combinator network (leave commented if unsure)
-#BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"  # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
-legacy_mode=false                         # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
-THEME="dark"                              # dark  = suited for terminals with a dark background
-                                          # light = suited for terminals with a bright background
+NODE_NAME="Cardano Node"                   # Change your node's name prefix here, keep at or below 19 characters!
+REFRESH_RATE=2                             # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
+LEGACY_MODE=false                          # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
+RETRIES=3                                  # How many attempts to connect to running Cardano node before erroring out and quitting
+THEME="dark"                               # dark  = suited for terminals with a dark background
+                                           # light = suited for terminals with a bright background
 ```
