@@ -202,12 +202,12 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
       byron_epochs=${epoch}
       shelley_epochs=0
       while [[ ${byron_epochs} -ge 0 ]]; do
-        calc_slot=$(( (byron_epochs*BYRON_SLOT_LENGTH) + (shelley_epochs*EPOCH_LENGTH) + slot_in_epoch ))
+        calc_slot=$(( (byron_epochs*BYRON_EPOCH_LENGTH) + (shelley_epochs*EPOCH_LENGTH) + slot_in_epoch ))
         [[ ${calc_slot} -eq ${slot_num} ]] && break
         ((byron_epochs--))
         ((shelley_epochs++))
       done
-      node_sync="NODE SYNC: $(printTable ',' "$(echo -e "Epoch,Slot in Epoch,Slot\n${epoch},${slot_in_epoch},${slot_num}")")"
+      node_sync="NODE SYNC:\n$(printTable ',' "$(echo -e "Epoch,Slot in Epoch,Slot\n${epoch},${slot_in_epoch},${slot_num}")")"
       if [[ ${calc_slot} -ne ${slot_num} ]]; then
         myExit 1 "${FG_YELLOW}WARN${NC}: Failed to calculate shelley transition epoch\n\n${node_sync}"
       elif [[ ${shelley_epochs} -eq 0 ]]; then
@@ -3097,7 +3097,7 @@ EOF
       say "\nApplying update..."
       if curl -s -m ${CURL_TIMEOUT} -o "${CNODE_HOME}/scripts/cntools.sh.tmp" "${URL}/cntools.sh" &&
          curl -s -m ${CURL_TIMEOUT} -o "${CNODE_HOME}/scripts/cntools.library.tmp" "${URL}/cntools.library" &&
-         [[ $(grep "_HOME=" "${CNODE_HOME}"/env) =~ ^#?([^[:space:]]+)_HOME ]] &&
+         [[ $(grep "_HOME=" "${CNODE_HOME}"/scripts/env) =~ ^#?([^[:space:]]+)_HOME ]] &&
          sed -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${CNODE_HOME}/scripts/cntools".*.tmp; then
         mv -f "${CNODE_HOME}/scripts/cntools.sh.tmp" "${CNODE_HOME}/scripts/cntools.sh"
         mv -f "${CNODE_HOME}/scripts/cntools.library.tmp" "${CNODE_HOME}/scripts/cntools.library"
