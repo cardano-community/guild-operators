@@ -50,7 +50,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.7
+GLV_VERSION=v1.8
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -241,20 +241,20 @@ waitForInput() {
   ESC=$(printf "\033")
   if ! read -rsn1 -t ${REFRESH_RATE} key1; then return; fi
   [[ ${key1} = "${ESC}" ]] && read -rsn2 -t 0.3 key2 # read 2 more chars
+  [[ ${key1} = "q" ]] && myExit 0 "Guild LiveView stopped!"
+  [[ ${key1} = "${ESC}" && ${key2} = "" ]] && myExit 0 "Guild LiveView stopped!"
   [[ ${key1} = "p" && ${show_peers} = "false" ]] && check_peers="true" && clear && return
   [[ ${key1} = "h" && ${show_peers} = "true" ]] && show_peers="false" && clear && return
   [[ ${key1} = "o" && ${show_peers} = "true" ]] && selected_direction="out" && return
   [[ ${key1} = "i" && ${show_peers} = "true" ]] && selected_direction="in" && return
   if [[ ${key2} = "[D" && ${show_peers} = "true" ]]; then # Left arrow
-    [[ ${selected_direction} = "out" && ${peerCNT_start_out} -gt 8 ]] && peerCNT_start_out=$((peerCNT_start_out-8)) && clear && return
-    [[ ${selected_direction} = "in" && ${peerCNT_start_in} -gt 8 ]] && peerCNT_start_in=$((peerCNT_start_in-8)) && clear && return
+    [[ ${selected_direction} = "out" && ${peerNbr_start_out} -gt 8 ]] && peerNbr_start_out=$((peerNbr_start_out-8)) && clear && return
+    [[ ${selected_direction} = "in" && ${peerNbr_start_in} -gt 8 ]] && peerNbr_start_in=$((peerNbr_start_in-8)) && clear && return
   fi
   if [[ ${key2} = "[C" && ${show_peers} = "true" ]]; then # Right arrow
-    [[ ${selected_direction} = "out" && ${peerCNTUnique_out} -gt ${peerCNT_out} ]] && peerCNT_start_out=$((peerCNT_start_out+8)) && clear && return
-    [[ ${selected_direction} = "in" && ${peerCNTUnique_in} -gt ${peerCNT_in} ]] && peerCNT_start_in=$((peerCNT_start_in+8)) && clear && return
+    [[ ${selected_direction} = "out" && ${peerCNT_out} -gt ${peerNbr_out} ]] && peerNbr_start_out=$((peerNbr_start_out+8)) && clear && return
+    [[ ${selected_direction} = "in" && ${peerCNT_in} -gt ${peerNbr_in} ]] && peerNbr_start_in=$((peerNbr_start_in+8)) && clear && return
   fi
-  [[ ${key1} = "q" ]] && myExit 0 "Guild LiveView stopped!"
-  [[ ${key1} = "${ESC}" && ${key2} = "" ]] && myExit 0 "Guild LiveView stopped!"
 }
 
 # Command    : showTimeLeft time_in_seconds
@@ -374,42 +374,31 @@ checkPeers() {
   peerCNT=0; peerCNT0=0; peerCNT1=0; peerCNT2=0; peerCNT3=0; peerCNT4=0
   peerPCT1=0; peerPCT2=0; peerPCT3=0; peerPCT4=0
   peerPCT1items=0; peerPCT2items=0; peerPCT3items=0; peerPCT4items=0
-  peerRTTSUM=0; peerCNTSKIPPED=0; peerCNTUnique=0; peerCNTABS=0; peerRTTAVG=0
-  uniquePeers=(); rttResults=(); rttResultsSorted=""
+  peerRTTSUM=0; peerRTTAVG=0
+  rttResults=(); rttResultsSorted=""
   direction=$1
 
   if [[ ${direction} = "out" ]]; then
-    netstatPeers=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 !~ port {print $4}')
+    netstatPeers=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${prom_port})" '$3 !~ port {print $4}')
   else
     netstatPeers=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print $4}')
   fi
   [[ -z ${netstatPeers} ]] && return
   
-  netstatSorted=$(printf '%s\n' "${netstatPeers[@]}" | sort )
-  peerCNTABS=$(wc -w <<< "${netstatPeers}")
-  
-  # Sort/filter peers
-  lastpeerIP=""; lastpeerPORT=""
-  for peer in ${netstatSorted}; do
-    peerIP=$(echo "${peer}" | cut -d: -f1); peerPORT=$(echo "${peer}" | cut -d: -f2)
-    if [[ ! "${peerIP}" = "${lastpeerIP}" ]]; then
-      lastpeerIP=${peerIP}
-      lastpeerPORT=${peerPORT}
-      uniquePeers+=("${peerIP}:${peerPORT} ")
-      ((peerCNTUnique++))
-    fi
-  done
-  netstatPeers=$(printf '%s\n' "${uniquePeers[@]}")
+  netstatSorted=$(printf '%s\n' "${netstatPeers[@]}" | sort)
+  peerCNT=$(wc -w <<< "${netstatPeers}")
   
   # Ping every node in the list
-  for peer in ${netstatPeers}; do
+  lastpeerIP=""
+  for peer in ${netstatSorted}; do
     peerIP=$(echo "${peer}" | cut -d: -f1)
     peerPORT=$(echo "${peer}" | cut -d: -f2)
     [[ -z ${peerIP} || -z ${peerPORT} ]] && continue
-
-    if checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Ping OK, show RTT
+    
+    if [[ "${peerIP}" = "${lastpeerIP}" ]]; then
+      [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT)) # skip RTT check and reuse old ${peerRTT} number if reachable
+    elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Ping OK, show RTT
       peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
-      ((peerCNT++))
       peerRTTSUM=$((peerRTTSUM + peerRTT))
     elif [[ ${direction} = "in" ]]; then # No need to continue with tcptraceroute for incoming connection as destination port is unknown
       peerRTT=99999
@@ -417,12 +406,12 @@ checkPeers() {
       checkPEER=$(tcptraceroute -n -S -f 255 -m 255 -q 1 -w 1 "${peerIP}" "${peerPORT}" 2>&1 | tail -n 1)
       if [[ ${checkPEER} = *'[open]'* ]]; then
         peerRTT=$(echo "${checkPEER}" | awk '{print $4}' | cut -d. -f1)
-        ((peerCNT++))
         peerRTTSUM=$((peerRTTSUM + peerRTT))
       else # Nope, no response
         peerRTT=99999
       fi
     fi
+    lastpeerIP=${peerIP}
 
     # Update counters
       if [[ ${peerRTT} -lt 50    ]]; then ((peerCNT1++))
@@ -432,19 +421,19 @@ checkPeers() {
     else ((peerCNT0++)); fi
     rttResults+=("${peerRTT}:${peerIP}:${peerPORT} ")
   done
-  [[ ${#rttResults[@]} ]] && rttResultsSorted=$(printf '%s\n' "${rttResults[@]}" | sort -n)
-  [[ ${peerCNT} -gt 0 ]]  && peerRTTAVG=$((peerRTTSUM / peerCNT))
-  peerCNTSKIPPED=$(( peerCNTABS - peerCNTUnique ))
   
-  peerMAX=0
-  if [[ ${peerCNT} -gt 0 ]]; then
-    peerPCT1=$(echo "scale=4;(${peerCNT1}/${peerCNT})*100" | bc -l)
+  [[ ${#rttResults[@]} ]] && rttResultsSorted=$(printf '%s\n' "${rttResults[@]}" | sort -n)
+  
+  peerCNTreachable=$((peerCNT-peerCNT0))
+  if [[ ${peerCNTreachable} -gt 0 ]]; then
+    peerRTTAVG=$((peerRTTSUM / peerCNTreachable))
+    peerPCT1=$(echo "scale=4;(${peerCNT1}/${peerCNTreachable})*100" | bc -l)
     peerPCT1items=$(printf %.0f "$(echo "scale=4;${peerPCT1}*${granularity_small}/100" | bc -l)")
-    peerPCT2=$(echo "scale=4;(${peerCNT2}/${peerCNT})*100" | bc -l)
+    peerPCT2=$(echo "scale=4;(${peerCNT2}/${peerCNTreachable})*100" | bc -l)
     peerPCT2items=$(printf %.0f "$(echo "scale=4;${peerPCT2}*${granularity_small}/100" | bc -l)")
-    peerPCT3=$(echo "scale=4;(${peerCNT3}/${peerCNT})*100" | bc -l)
+    peerPCT3=$(echo "scale=4;(${peerCNT3}/${peerCNTreachable})*100" | bc -l)
     peerPCT3items=$(printf %.0f "$(echo "scale=4;${peerPCT3}*${granularity_small}/100" | bc -l)")
-    peerPCT4=$(echo "scale=4;(${peerCNT4}/${peerCNT})*100" | bc -l)
+    peerPCT4=$(echo "scale=4;(${peerCNT4}/${peerCNTreachable})*100" | bc -l)
     peerPCT4items=$(printf %.0f "$(echo "scale=4;${peerPCT4}*${granularity_small}/100" | bc -l)")
   fi
 }
@@ -462,6 +451,7 @@ slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "
 slotnum=$(jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${data}")
 remaining_kes_periods=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
 [[ "${PROTOCOL}" = "Cardano" ]] && getShelleyTransitionEpoch || shelley_transition_epoch=-2
+if ! prom_port=$(jq -er '.hasPrometheus[1]' "${CONFIG}" 2>/dev/null); then prom_port=0; fi
 #####################################
 
 clear
@@ -519,7 +509,7 @@ while true; do
   fi
   if [[ ${show_peers} = "false" ]]; then
     peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
-    peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 !~ port {print}' | wc -l)
+    peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${prom_port})" '$3 !~ port {print}' | wc -l)
     blocknum=$(jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${data}")
     epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
     slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
@@ -575,11 +565,11 @@ while true; do
     echo "${bdivider}"
     checkPeers out
     # Save values
-    peerCNT0_out=${peerCNT0}; peerCNT1_out=${peerCNT1}; peerCNT2_out=${peerCNT2}; peerCNT3_out=${peerCNT3}; peerCNT4_out=${peerCNT4}
+    peerCNT_out=${peerCNT}; peerCNT0_out=${peerCNT0}; peerCNT1_out=${peerCNT1}; peerCNT2_out=${peerCNT2}; peerCNT3_out=${peerCNT3}; peerCNT4_out=${peerCNT4}
     peerPCT1_out=${peerPCT1}; peerPCT2_out=${peerPCT2}; peerPCT3_out=${peerPCT3}; peerPCT4_out=${peerPCT4}
     peerPCT1items_out=${peerPCT1items}; peerPCT2items_out=${peerPCT2items}; peerPCT3items_out=${peerPCT3items}; peerPCT4items_out=${peerPCT4items}
-    peerRTTAVG_out=${peerRTTAVG}; peerCNTUnique_out=${peerCNTUnique}; peerCNTSKIPPED_out=${peerCNTSKIPPED}; rttResultsSorted_out=${rttResultsSorted}
-    peerCNT_start_out=1
+    peerRTTAVG_out=${peerRTTAVG}; rttResultsSorted_out=${rttResultsSorted}
+    peerNbr_start_out=1
     tput cup ${line} 0
     tput ed
     printf "${VL} ${style_info}%-$((width-3))s${NC} ${VL}\n" "Output peer analysis done!" && ((line++))
@@ -590,11 +580,11 @@ while true; do
     echo "${bdivider}" && ((line++))
     checkPeers in
     # Save values
-    peerCNT0_in=${peerCNT0}; peerCNT1_in=${peerCNT1}; peerCNT2_in=${peerCNT2}; peerCNT3_in=${peerCNT3}; peerCNT4_in=${peerCNT4}
+    peerCNT_in=${peerCNT}; peerCNT0_in=${peerCNT0}; peerCNT1_in=${peerCNT1}; peerCNT2_in=${peerCNT2}; peerCNT3_in=${peerCNT3}; peerCNT4_in=${peerCNT4}
     peerPCT1_in=${peerPCT1}; peerPCT2_in=${peerPCT2}; peerPCT3_in=${peerPCT3}; peerPCT4_in=${peerPCT4}
     peerPCT1items_in=${peerPCT1items}; peerPCT2items_in=${peerPCT2items}; peerPCT3items_in=${peerPCT3items}; peerPCT4items_in=${peerPCT4items}
-    peerRTTAVG_in=${peerRTTAVG}; peerCNTUnique_in=${peerCNTUnique}; peerCNTSKIPPED_in=${peerCNTSKIPPED}; rttResultsSorted_in=${rttResultsSorted}
-    peerCNT_start_in=1
+    peerRTTAVG_in=${peerRTTAVG}; rttResultsSorted_in=${rttResultsSorted}
+    peerNbr_start_in=1
   elif [[ ${show_peers} = "true" ]]; then
     printf "${VL}${STANDOUT} OUT ${NC}  RTT : Peers / Percent"
     tput cup ${line} ${width}
@@ -627,18 +617,17 @@ while true; do
       [[ $i -lt ${peerPCT4items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
     done
     printf "${NC}${VL}\n" && ((line++))
-      if [[ ${peerRTTAVG_out} -ge 200 ]]; then printf "${VL}   Average : ${style_status_4}%s${NC} ms %$((width-18-${#peerRTTAVG_out}))s${VL}\n" "${peerRTTAVG_out}"
-    elif [[ ${peerRTTAVG_out} -ge 100 ]]; then printf "${VL}   Average : ${style_status_3}%s${NC} ms %$((width-18-${#peerRTTAVG_out}))s${VL}\n" "${peerRTTAVG_out}"
-    elif [[ ${peerRTTAVG_out} -ge 50  ]]; then printf "${VL}   Average : ${style_status_2}%s${NC} ms %$((width-18-${#peerRTTAVG_out}))s${VL}\n" "${peerRTTAVG_out}"
-    elif [[ ${peerRTTAVG_out} -ge 0   ]]; then printf "${VL}   Average : ${style_status_1}%s${NC} ms %$((width-18-${#peerRTTAVG_out}))s${VL}\n" "${peerRTTAVG_out}"
-    else printf "${VL}   Average : --- ms %$((width-21))s${VL}\n"; fi
-    ((line++))
     
     echo "${m3divider}" && ((line++))
     
-    printf "${VL} Total / Unique / Unreachable / Skipped : ${style_values_1}%s${NC} / ${style_values_1}%s${NC} / " "${peers_out}" "${peerCNTUnique_out}"
-    [[ ${peerCNT0_out} -eq 0 ]] && printf "${style_values_1}%s${NC} / " "${peerCNT0_out}" || printf "${style_status_3}%s${NC} / " "${peerCNT0_out}"
-    [[ ${peerCNTSKIPPED_out} -eq 0 ]] && printf "${style_values_1}%s${NC}" "${peerCNTSKIPPED_out}" || printf "${style_status_2}%s${NC}" "${peerCNTSKIPPED_out}"
+    printf "${VL} Total / Unreachable : ${style_values_1}%s${NC} / " "${peerCNT_out}"
+    [[ ${peerCNT0_out} -eq 0 ]] && printf "${style_values_1}0${NC}" || printf "${style_status_3}%s${NC}" "${peerCNT0_out}"
+    tput cup ${line} $((second_col-1))
+    if [[ ${peerRTTAVG_out} -ge 200 ]]; then printf "Average RTT : ${style_status_4}%s${NC} ms" "${peerRTTAVG_out}"
+    elif [[ ${peerRTTAVG_out} -ge 100 ]]; then printf "Average RTT : ${style_status_3}%s${NC} ms" "${peerRTTAVG_out}"
+    elif [[ ${peerRTTAVG_out} -ge 50  ]]; then printf "Average RTT : ${style_status_2}%s${NC} ms" "${peerRTTAVG_out}"
+    elif [[ ${peerRTTAVG_out} -ge 0   ]]; then printf "Average RTT : ${style_status_1}%s${NC} ms" "${peerRTTAVG_out}"
+    else printf "Average RTT : ${style_status_3}---${NC} ms"; fi
     tput cup ${line} ${width}
     printf "${VL}\n" && ((line++))
 
@@ -648,25 +637,25 @@ while true; do
       printf "${VL}${style_info}   # : %20s   : RTT (ms)${NC}\n" "REMOTE PEER"
       header_line=$((line++))
       
-      peerCNT_out=0
+      peerNbr_out=0
       for peer in ${rttResultsSorted_out}; do
-        ((peerCNT_out++))
-        [[ ${peerCNT_out} -lt ${peerCNT_start_out} ]] && continue
+        ((peerNbr_out++))
+        [[ ${peerNbr_out} -lt ${peerNbr_start_out} ]] && continue
         peerRTT=$(echo ${peer} | cut -d: -f1)
         peerIP=$(echo ${peer} | cut -d: -f2)
         peerPORT=$(echo ${peer} | cut -d: -f3)
-          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_1}%-5s${NC} %$((width-39))s${VL}\n" ${peerCNT_out} ${peerIP} ${peerPORT} ${peerRTT}
-        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_2}%-5s${NC} %$((width-39))s${VL}\n" ${peerCNT_out} ${peerIP} ${peerPORT} ${peerRTT}
-        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_3}%-5s${NC} %$((width-39))s${VL}\n" ${peerCNT_out} ${peerIP} ${peerPORT} ${peerRTT}
-        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_4}%-5s${NC} %$((width-39))s${VL}\n" ${peerCNT_out} ${peerIP} ${peerPORT} ${peerRTT}
-        else printf "${VL} %3s : %15s:%-6s : --- %$((width-37))s${VL}\n" ${peerCNT_out} ${peerIP} ${peerPORT}; fi
+          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_1}%-5s${NC} %$((width-39))s${VL}\n" ${peerNbr_out} ${peerIP} ${peerPORT} ${peerRTT}
+        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_2}%-5s${NC} %$((width-39))s${VL}\n" ${peerNbr_out} ${peerIP} ${peerPORT} ${peerRTT}
+        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_3}%-5s${NC} %$((width-39))s${VL}\n" ${peerNbr_out} ${peerIP} ${peerPORT} ${peerRTT}
+        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_4}%-5s${NC} %$((width-39))s${VL}\n" ${peerNbr_out} ${peerIP} ${peerPORT} ${peerRTT}
+        else printf "${VL} %3s : %15s:%-6s : --- %$((width-37))s${VL}\n" ${peerNbr_out} ${peerIP} ${peerPORT}; fi
         ((line++))
-        [[ ${peerCNT_out} -eq $((peerCNT_start_out+7)) ]] && break
+        [[ ${peerNbr_out} -eq $((peerNbr_start_out+7)) ]] && break
       done
       
-      [[ ${peerCNT_start_out} -gt 1 ]] && nav_str="< " || nav_str=""
-      nav_str+="[${peerCNT_start_out}-${peerCNT_out}]"
-      [[ ${peerCNTUnique_out} -gt ${peerCNT_out} ]] && nav_str+=" >"
+      [[ ${peerNbr_start_out} -gt 1 ]] && nav_str="< " || nav_str=""
+      nav_str+="[${peerNbr_start_out}-${peerNbr_out}]"
+      [[ ${peerCNT_out} -gt ${peerNbr_out} ]] && nav_str+=" >"
       tput cup ${header_line} $((width-${#nav_str}-3))
       [[ ${selected_direction} = "out" ]] && printf "${style_values_3} %s ${NC} ${VL}\n" "${nav_str}" || printf "  %s ${VL}\n" "${nav_str}"
       tput cup ${line} 0
@@ -705,18 +694,17 @@ while true; do
       [[ $i -lt ${peerPCT4items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
     done
     printf "${NC}${VL}\n" && ((line++))
-      if [[ ${peerRTTAVG_in} -ge 200 ]]; then printf "${VL}   Average : ${style_status_4}%s${NC} ms %$((width-18-${#peerRTTAVG_in}))s${VL}\n" "${peerRTTAVG_in}"
-    elif [[ ${peerRTTAVG_in} -ge 100 ]]; then printf "${VL}   Average : ${style_status_3}%s${NC} ms %$((width-18-${#peerRTTAVG_in}))s${VL}\n" "${peerRTTAVG_in}"
-    elif [[ ${peerRTTAVG_in} -ge 50  ]]; then printf "${VL}   Average : ${style_status_2}%s${NC} ms %$((width-18-${#peerRTTAVG_in}))s${VL}\n" "${peerRTTAVG_in}"
-    elif [[ ${peerRTTAVG_in} -ge 0   ]]; then printf "${VL}   Average : ${style_status_1}%s${NC} ms %$((width-18-${#peerRTTAVG_in}))s${VL}\n" "${peerRTTAVG_in}"
-    else printf "${VL}   Average : - ms %$((width-21))s${VL}\n"; fi
-    ((line++))
     
     echo "${m3divider}" && ((line++))
     
-    printf "${VL} Total / Unique / Unreachable / Skipped : ${style_values_1}%s${NC} / ${style_values_1}%s${NC} / " "${peers_in}" "${peerCNTUnique_in}"
-    [[ ${peerCNT0_in} -eq 0 ]] && printf "${style_values_1}%s${NC} / " "${peerCNT0_in}" || printf "${style_status_3}%s${NC} / " "${peerCNT0_in}"
-    [[ ${peerCNTSKIPPED_in} -eq 0 ]] && printf "${style_values_1}%s${NC}" "${peerCNTSKIPPED_in}" || printf "${style_status_2}%s${NC}" "${peerCNTSKIPPED_in}"
+    printf "${VL} Total / Unreachable : ${style_values_1}%s${NC} / " "${peerCNT_in}"
+    [[ ${peerCNT0_in} -eq 0 ]] && printf "${style_values_1}0${NC}" || printf "${style_status_3}%s${NC}" "${peerCNT0_in}"
+    tput cup ${line} $((second_col-1))
+    if [[ ${peerRTTAVG_in} -ge 200 ]]; then printf "Average RTT : ${style_status_4}%s${NC} ms" "${peerRTTAVG_in}"
+    elif [[ ${peerRTTAVG_in} -ge 100 ]]; then printf "Average RTT : ${style_status_3}%s${NC} ms" "${peerRTTAVG_in}"
+    elif [[ ${peerRTTAVG_in} -ge 50  ]]; then printf "Average RTT : ${style_status_2}%s${NC} ms" "${peerRTTAVG_in}"
+    elif [[ ${peerRTTAVG_in} -ge 0   ]]; then printf "Average RTT : ${style_status_1}%s${NC} ms" "${peerRTTAVG_in}"
+    else printf "Average RTT : ${style_status_3}---${NC} ms"; fi
     tput cup ${line} ${width}
     printf "${VL}\n" && ((line++))
     
@@ -726,25 +714,25 @@ while true; do
       printf "${VL}${style_info}   # : %20s   : RTT (ms)${NC}\n" "REMOTE PEER"
       header_line=$((line++))
       
-      peerCNT_in=0
+      peerNbr_in=0
       for peer in ${rttResultsSorted_in}; do
-        ((peerCNT_in++))
-        [[ ${peerCNT_in} -lt ${peerCNT_start_in} ]] && continue
+        ((peerNbr_in++))
+        [[ ${peerNbr_in} -lt ${peerNbr_start_in} ]] && continue
         peerRTT=$(echo ${peer} | cut -d: -f1)
         peerIP=$(echo ${peer} | cut -d: -f2)
         peerPORT=$(echo ${peer} | cut -d: -f3)
-          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_1}%-5s${NC} %$((width-39))s${VL}\n" ${peerCNT_in} ${peerIP} ${peerPORT} ${peerRTT}
-        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_2}%-5s${NC} %$((width-39))s${VL}\n" ${peerCNT_in} ${peerIP} ${peerPORT} ${peerRTT}
-        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_3}%-5s${NC} %$((width-39))s${VL}\n" ${peerCNT_in} ${peerIP} ${peerPORT} ${peerRTT}
-        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_4}%-5s${NC} %$((width-39))s${VL}\n" ${peerCNT_in} ${peerIP} ${peerPORT} ${peerRTT}
-        else printf "${VL} %3s : %15s:%-6s : --- %$((width-37))s${VL}\n" ${peerCNT_in} ${peerIP} ${peerPORT}; fi
+          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_1}%-5s${NC} %$((width-39))s${VL}\n" ${peerNbr_in} ${peerIP} ${peerPORT} ${peerRTT}
+        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_2}%-5s${NC} %$((width-39))s${VL}\n" ${peerNbr_in} ${peerIP} ${peerPORT} ${peerRTT}
+        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_3}%-5s${NC} %$((width-39))s${VL}\n" ${peerNbr_in} ${peerIP} ${peerPORT} ${peerRTT}
+        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_4}%-5s${NC} %$((width-39))s${VL}\n" ${peerNbr_in} ${peerIP} ${peerPORT} ${peerRTT}
+        else printf "${VL} %3s : %15s:%-6s : --- %$((width-37))s${VL}\n" ${peerNbr_in} ${peerIP} ${peerPORT}; fi
         ((line++))
-        [[ ${peerCNT_in} -eq $((peerCNT_start_in+7)) ]] && break
+        [[ ${peerNbr_in} -eq $((peerNbr_start_in+7)) ]] && break
       done
       
-      [[ ${peerCNT_start_in} -gt 1 ]] && nav_str="< " || nav_str=""
-      nav_str+="[${peerCNT_start_in}-${peerCNT_in}]"
-      [[ ${peerCNTUnique_in} -gt ${peerCNT_in} ]] && nav_str+=" >"
+      [[ ${peerNbr_start_in} -gt 1 ]] && nav_str="< " || nav_str=""
+      nav_str+="[${peerNbr_start_in}-${peerNbr_in}]"
+      [[ ${peerCNT_in} -gt ${peerNbr_in} ]] && nav_str+=" >"
       tput cup ${header_line} $((width-${#nav_str}-3))
       [[ ${selected_direction} = "in" ]] && printf "${style_values_3} %s ${NC} ${VL}\n" "${nav_str}" || printf "  %s ${VL}\n" "${nav_str}"
       tput cup ${line} 0
