@@ -1516,7 +1516,7 @@ EOF
     fi
 
     metadata_done=false
-    if curl -s -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
+    if curl -sL -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
       say "\nMetadata exists at URL.  Use existing data?"
       select_opt "[y] Yes" "[n] No"
       case $? in
@@ -2008,7 +2008,7 @@ EOF
     fi
 
     metadata_done=false
-    if curl -s -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
+    if curl -sL -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
       say "\nMetadata exists at URL.  Use existing data?"
       select_opt "[y] Yes" "[n] No"
       case $? in
@@ -2608,7 +2608,7 @@ EOF
       say "$(printf "  %-19s : %s" "Hash" "${meta_hash}")" "log"
     elif [[ -f "${pool_config}" ]]; then
       meta_json_url=$(jq -r .json_url "${pool_config}")
-      if curl -s -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
+      if curl -sL -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
         say "Metadata" "log"
         say "$(printf "  %-19s : %s" "Name" "$(jq -r .name "$TMP_FOLDER/url_poolmeta.json")")" "log"
         say "$(printf "  %-19s : %s" "Ticker" "$(jq -r .ticker "$TMP_FOLDER/url_poolmeta.json")")" "log"
