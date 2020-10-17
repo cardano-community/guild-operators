@@ -590,26 +590,26 @@ decryptFile() {
 }
 
 
-# Command    : getPromMetrics
-# Description: Get latest Prometheus metrics from the node
-# Return     : populates $prom_metrics variable
-getPromMetrics() {
-  curl -s -m ${EKG_TIMEOUT} "http://${prom_host}:${prom_port}/metrics" > "${TMP_FOLDER}"/prom_metrics
+# Command    : getNodeMetrics
+# Description: Get latest metrics from the node
+# Return     : populates ${node_metrics} variable
+getNodeMetrics() {
+  node_metrics=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
 }
 
 # Command    : getBlockTip
 # Description: Get latest block number
 # Return     : string with tip on STDOUT
 getBlockTip() {
-  getPromMetrics
-  grep "cardano_node_ChainDB_metrics_blockNum_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}'
+  getNodeMetrics
+  jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${node_metrics}"
 }
 # Command    : getSlotTip
 # Description: Get latest slot number
 # Return     : string with tip on STDOUT
 getSlotTip() {
-  getPromMetrics
-  grep "cardano_node_ChainDB_metrics_slotNum_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}'
+  getNodeMetrics
+  jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${node_metrics}"
 }
 # Command    : getSlotTipRef
 # Description: Offline calculation of reference tip

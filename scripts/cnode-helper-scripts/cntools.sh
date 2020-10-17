@@ -140,15 +140,6 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     waitForInput "press any key to proceed"
   fi
 
-  # Verify that Prometheus is enabled in config file
-  # TODO: Change to EKG
-  prom_port=$(jq -r '.hasPrometheus[1] //empty' ${CONFIG} 2>/dev/null)
-  prom_host=$(jq -r '.hasPrometheus[0] //empty' ${CONFIG} 2>/dev/null)
-
-  if [[ -z "${prom_port}" ]]; then
-    myExit 1 "${FG_RED}ERROR${NC}: Please ensure that hasPrometheus is enabled, if unsure - rerun \"<path>/prereqs.sh -s\" again - and it would overwrite the config file"
-  fi
-
   # Validate protocol parameters
   if grep -q "Network.Socket.connect" <<< "${PROT_PARAMS}"; then
     myExit 1 "${FG_YELLOW}WARN${NC}: node socket path wrongly configured or node not running, please verify that socket set in env file match what is used to run the node\n\n\
@@ -194,10 +185,10 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
     if [[ "${NETWORK_IDENTIFIER}" == "--mainnet" ]]; then
       shelleyTransitionEpoch="208"
     elif [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-      getPromMetrics
-      slot_in_epoch=$(grep "cardano_node_ChainDB_metrics_slotInEpoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
-      slot_num=$(grep "cardano_node_ChainDB_metrics_slotNum_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
-      epoch=$(grep "cardano_node_ChainDB_metrics_epoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
+      getNodeMetrics
+      epoch=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${node_metrics}")
+      slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${node_metrics}")
+      slot_num=$(jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${node_metrics}")
       calc_slot=0
       byron_epochs=${epoch}
       shelley_epochs=0
@@ -3101,6 +3092,7 @@ EOF
          sed -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${CNODE_HOME}/scripts/cntools".*.tmp; then
         mv -f "${CNODE_HOME}/scripts/cntools.sh.tmp" "${CNODE_HOME}/scripts/cntools.sh"
         mv -f "${CNODE_HOME}/scripts/cntools.library.tmp" "${CNODE_HOME}/scripts/cntools.library"
+        chmod 755 "${CNODE_HOME}/scripts/cntools.sh"
         myExit 0 "Update applied successfully!\n\nPlease start CNTools again!"
       else
         say "\n${FG_RED}ERROR${NC}: update failed! :(\n"
