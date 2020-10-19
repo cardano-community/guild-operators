@@ -278,28 +278,30 @@ case $OPERATION in
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   say " Wallet Management"
   echo
-  say " ) New      -  create a new wallet"
-  say " ) Import   -  import a Daedalus/Yoroi 24 or 15 word Shelley mnemonic created wallet"
-  say " ) Register -  register a wallet on chain (hybrid/offline mode)"
-  say " ) List     -  list all available wallets in a compact view"
-  say " ) Show     -  show detailed view of a specific wallet"
-  say " ) Remove   -  remove a wallet"
-  say " ) Decrypt  -  remove write protection and decrypt wallet"
-  say " ) Encrypt  -  encrypt wallet keys and make all files immutable"
+  say " ) New        -  create a new wallet"
+  say " ) Import     -  import a Daedalus/Yoroi 24 or 15 word Shelley mnemonic created wallet"
+  say " ) Register   -  register a wallet on chain"
+  say " ) De-Register -  De-Register (retire) a registered wallet"
+  say " ) List       -  list all available wallets in a compact view"
+  say " ) Show       -  show detailed view of a specific wallet"
+  say " ) Remove     -  remove a wallet"
+  say " ) Decrypt    -  remove write protection and decrypt wallet"
+  say " ) Encrypt    -  encrypt wallet keys and make all files immutable"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   say " Select Wallet operation\n"
-  select_opt "[n] New" "[i] Import" "[r] Register" "[l] List" "[s] Show" "[x] Remove" "[d] Decrypt" "[e] Encrypt" "[h] Home"
+  select_opt "[n] New" "[i] Import" "[r] Register" "[z] De-Register" "[l] List" "[s] Show" "[x] Remove" "[d] Decrypt" "[e] Encrypt" "[h] Home"
   case $? in
     0) SUBCOMMAND="new" ;;
     1) SUBCOMMAND="import" ;;
     2) SUBCOMMAND="register" ;;
-    3) SUBCOMMAND="list" ;;
-    4) SUBCOMMAND="show" ;;
-    5) SUBCOMMAND="remove" ;;
-    6) SUBCOMMAND="decrypt" ;;
-    7) SUBCOMMAND="encrypt" ;;
-    8) continue ;;
+    3) SUBCOMMAND="deregister" ;;
+    4) SUBCOMMAND="list" ;;
+    5) SUBCOMMAND="show" ;;
+    6) SUBCOMMAND="remove" ;;
+    7) SUBCOMMAND="decrypt" ;;
+    8) SUBCOMMAND="encrypt" ;;
+    9) continue ;;
   esac
 
   case $SUBCOMMAND in
@@ -500,11 +502,11 @@ EOF
     
     say "# Select wallet to register (only non-registered wallets shown)"
     if [[ ${op_mode} = "online" ]]; then
-      if ! selectWallet "non-reg" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}"; then
+      if ! selectWallet "non-reg" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
         [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     else
-      if ! selectWallet "non-reg"; then
+      if ! selectWallet "non-reg" "${WALLET_STAKE_VK_FILENAME}"; then
         [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     fi
@@ -514,7 +516,10 @@ EOF
     getBalance ${base_addr}
 
     if [[ ${lovelace} -gt 0 ]]; then
-      say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${lovelace})")" "log"
+      if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+        say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${lovelace})")" "log"
+        echo
+      fi
     else
       say "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
       keyDeposit=$(jq -r '.keyDeposit' "${TMP_FOLDER}"/protparams.json)
@@ -522,15 +527,82 @@ EOF
       waitForInput && continue
     fi
     
-    if ! isWalletRegistered ${wallet_name}; then
-      if ! registerStakeWallet ${wallet_name} "true"; then
-        waitForInput && continue
-      fi
-    else
-      echo && say "${FG_GREEN}${wallet_name}${NC} already registered on chain!" "log"
+    if ! registerStakeWallet ${wallet_name} "true"; then
+      waitForInput && continue
     fi
 
     echo && say "${FG_GREEN}${wallet_name}${NC} successfully registered on chain!" "log"
+    
+    waitForInput && continue
+
+    ;; ###################################################################
+    
+    deregister)
+
+    clear
+    say " >> WALLET >> DE-REGISTER" "log"
+    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+      say "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+      waitForInput && continue
+    else
+      if ! selectOpMode; then continue; fi
+    fi
+    echo
+    
+    say "# Select wallet to de-register (only registered wallets shown)"
+    if [[ ${op_mode} = "online" ]]; then
+      if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+      fi
+    else
+      if ! selectWallet "delegate" "${WALLET_STAKE_VK_FILENAME}"; then
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+      fi
+    fi
+    echo
+    
+    getRewards ${wallet_name}
+    if [[ "${reward_lovelace}" -gt 0 ]]; then
+      say "${FG_YELLOW}WARN${NC}: wallet has unclaimed rewards, please use 'Funds >> Withdraw Rewards' before de-registration to claim your rewards"
+      waitForInput && continue
+    fi
+
+    getBaseAddress ${wallet_name}
+    getBalance ${base_addr}
+    
+    if [[ ${lovelace} -le 0 ]]; then
+      say "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
+      say "Funds for transaction fee needed to deregister the wallet"
+      waitForInput && continue
+    fi
+    
+    if ! deregisterStakeWallet ${wallet_name}; then
+      [[ -f ${stake_dereg_file} ]] && rm -f ${stake_dereg_file}
+      waitForInput && continue
+    fi
+    
+    say "${FG_YELLOW}Waiting for wallet de-registration to be recorded on chain${NC}"
+    while true; do
+      if ! waitNewBlockCreated; then
+        break
+      fi
+      getBalance ${base_addr}
+      if [[ ${lovelace} -ne ${newBalance} ]]; then
+        say "${FG_YELLOW}WARN${NC}: Balance mismatch, wallet de-registration not included in latest block... waiting for next block!"
+        say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
+      else
+        break
+      fi
+    done
+
+    if [[ ${lovelace} -ne ${newBalance} ]]; then
+      say "${FG_YELLOW}WARN${NC}: wallet de-registration check aborted"
+      waitForInput && continue
+    fi
+
+    echo && say "${FG_GREEN}${wallet_name}${NC} successfully de-registered from chain!" "log"
+    say "Key deposit fee that will be refunded : ${FG_CYAN}$(formatLovelace ${keyDeposit})${NC} ADA" "log"
     
     waitForInput && continue
 
@@ -1002,8 +1074,8 @@ EOF
     echo
     say "# Amount to Send (in ADA)"
     echo
-    say "Valid entry:  ${FG_BLUE}Integer (e.g. 15) or Decimal (e.g. 956.1235) - commas allowed as thousand separator${NC}"
-    say "              The string '${FG_BLUE}all${NC}' to send all available funds in source wallet"
+    say "Valid entry:  ${FG_CYAN}Integer${NC} (e.g. 15) or ${FG_CYAN}Decimal${NC} (e.g. 956.1235) - commas allowed as thousand separator"
+    say "              The string '${FG_CYAN}all${NC}' to send all available funds in source wallet"
     echo
     say "Info:         If destination and source wallet is the same and amount set to 'all',"
     say "              wallet will be defraged, ie converts multiple UTxO's to one"
@@ -1078,6 +1150,7 @@ EOF
       waitForInput && continue
     fi
 
+    say "\n${FG_YELLOW}Waiting for payment to be recorded on chain${NC}"
     if ! waitNewBlockCreated; then
       waitForInput && continue
     fi
@@ -1085,8 +1158,8 @@ EOF
     getBalance ${s_addr}
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
-      echo
-      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+      say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
       if ! waitNewBlockCreated; then
         break
       fi
@@ -1214,6 +1287,7 @@ EOF
       waitForInput && continue
     fi
 
+    say "\n${FG_YELLOW}Waiting for wallet delegation to be recorded on chain${NC}"
     if ! waitNewBlockCreated; then
       waitForInput && continue
     fi
@@ -1221,8 +1295,8 @@ EOF
     getBalance ${base_addr}
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
-      echo
-      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+      say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
       if ! waitNewBlockCreated; then
         break
       fi
@@ -1233,8 +1307,9 @@ EOF
       waitForInput && continue
     fi
 
-    say "Delegation successfully registered"
-    say "Wallet : ${FG_GREEN}${wallet_name}${NC}"
+    echo
+    say "Delegation successfully registered" "log"
+    say "Wallet : ${FG_GREEN}${wallet_name}${NC}" "log"
     say "Pool   : ${FG_GREEN}${pool_name}${NC}" "log"
     say "Amount : $(formatLovelace ${lovelace}) ADA" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -1292,6 +1367,7 @@ EOF
       waitForInput && continue
     fi
 
+    say "\n${FG_YELLOW}Waiting for reward withdrawal to be recorded on chain${NC}"
     if ! waitNewBlockCreated; then
       waitForInput && continue
     fi
@@ -1299,7 +1375,8 @@ EOF
     getBalance ${base_addr}
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
-      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+      say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
       if ! waitNewBlockCreated; then
         break
       fi
@@ -1856,6 +1933,7 @@ EOF
     [[ -f "${pool_deregcert_file}" ]] && rm -f ${pool_deregcert_file} # delete de-registration cert if available
 
     if [[ ${op_mode} = "online" ]]; then
+      say "\n${FG_YELLOW}Waiting for pool registration to be recorded on chain${NC}"
       if ! waitNewBlockCreated; then
         waitForInput && continue
       fi
@@ -1864,8 +1942,8 @@ EOF
       getBalance ${base_addr}
 
       while [[ ${lovelace} -ne ${newBalance} ]]; do
-        echo
-        say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+        say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+        say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
         if ! waitNewBlockCreated; then
           break
         fi
@@ -2320,14 +2398,15 @@ EOF
     chmod 700 ${POOL_FOLDER}/${pool_name}/*
 
     if [[ ${op_mode} = "online" ]]; then
+      say "\n${FG_YELLOW}Waiting for pool re-registration to be recorded on chain${NC}"
       if ! waitNewBlockCreated; then
         waitForInput && continue
       fi
       getBaseAddress ${owner_wallet}
       getBalance ${base_addr}
       while [[ ${lovelace} -ne ${newBalance} ]]; do
-        echo
-        say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+        say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+        say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
         if ! waitNewBlockCreated; then
           break
         fi
@@ -2472,6 +2551,7 @@ EOF
     
     [[ -f "${pool_regcert_file}" ]] && rm -f ${pool_regcert_file} # delete registration cert
 
+    say "\n${FG_YELLOW}Waiting for pool de-registration to be recorded on chain${NC}"
     if ! waitNewBlockCreated; then
       waitForInput && continue
     fi
@@ -2479,8 +2559,8 @@ EOF
     getBalance ${addr}
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
-      echo
-      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+      say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
       if ! waitNewBlockCreated; then
         break
       fi
