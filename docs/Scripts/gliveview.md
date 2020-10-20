@@ -23,7 +23,7 @@ chmod 755 gLiveView.sh
 
 For most setups, it's enough to set `CNODE_PORT` in the `env` file. The rest of the variables should automatically be detected. If required, modify User Variables in `env` and `gLiveView.sh` to suit your environment. 
 
-For most standard deployments, this should lead you to a stage where you can now start running `./gLiveView.sh` in the folder you downloaded the script (default location for cntools users would be `$CNODE_HOME/scripts`). Note that the script is smart enough to automatically detect when you're running as a Core or Relay and will show fields accordingly.
+For most standard deployments, this should lead you to a stage where you can now start running `./gLiveView.sh` in the folder you downloaded the script (default location would be `$CNODE_HOME/scripts`). Note that the script is smart enough to automatically detect when you're running as a Core or Relay and will show fields accordingly.
 
 The tool can be run in legacy mode with only standard ASCII characters for terminals with trouble displaying the box-drawing characters. Run `./gLiveView.sh -h` to show available command-line parameters or permanently set it directly in script.
 
@@ -44,7 +44,7 @@ If the node is run as a core, identified by the 'forge-about-to-lead' EKG parame
 **Peer analysis**  
 A manual peer analysis can be triggered by key press `p`. A latency test will be done on incoming and outgoing connections to the node. For outgoing connections a normal ICMP ping is done as a first try. If this is blocked, tcptraceroute program is used to do a tcp ping against the cardano-node port of the remote peer. For incoming connections only ICMP ping is used as remote peer port is unknown. It's not uncommon to see many unreachable peers for incoming connections as it's a good security practice to disable ICMP in firewall.
 
-Once the analysis is finished, it will display the RTTs for the peers and group them in ranges 0-50, 50-100, 100-200, 200<. The analysis filters out multiple connections to the same IP. This means each unique IP address will only be pinged once, and subsequent peers from the same IP address will be skipped. Unique + Skipped should match the total number seen in top section. The analysis is **NOT** live. Last update timestamp is shown to know when it was last run. Press `p` for update or `h` to hide it.
+Once the analysis is finished, it will display the RTTs for the peers and group them in ranges 0-50, 50-100, 100-200, 200<. The analysis is **NOT** live. Press `p` for update or `h` to hide it. `i` selects incoming peer list and `o` selects outgoing. If more than 8 peer connections are established for either incoming or outgoing, left and right arrow keys (`<`/`>`) can be used to navigate the selected list. 
 
 ##### Troubleshooting/Customisations
 
