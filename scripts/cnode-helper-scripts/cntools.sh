@@ -677,7 +677,7 @@ EOF
     echo
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    waitForInput
+    waitForInput && continue
     ;; ###################################################################
 
     show)
@@ -767,7 +767,8 @@ EOF
     fi
     echo
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    waitForInput
+    
+    waitForInput && continue
 
     ;; ###################################################################
 
@@ -855,7 +856,7 @@ EOF
       esac
     fi
 
-    waitForInput
+    waitForInput && continue
 
     ;; ###################################################################
 
@@ -912,7 +913,7 @@ EOF
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    waitForInput
+    waitForInput && continue
 
     ;; ###################################################################
 
@@ -975,7 +976,7 @@ EOF
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    waitForInput
+    waitForInput && continue
 
     ;; ###################################################################
 
@@ -1197,7 +1198,7 @@ EOF
     say "  - Destination : $(formatLovelace ${d_balance}) ADA" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    waitForInput
+    waitForInput && continue
 
     ;; ###################################################################
 
@@ -1512,7 +1513,7 @@ EOF
     
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
 
-    say "# Pool Parameters\n"
+    say "# Pool Parameters"
     say "press enter to use default value\n"
 
     pledge_ada=50000 # default pledge
@@ -1584,19 +1585,25 @@ EOF
     fi
 
     metadata_done=false
-    if curl -sL -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
-      say "\nMetadata exists at URL.  Use existing data?"
+    meta_tmp="${TMP_FOLDER}/url_poolmeta.json"
+    if curl -sL -m ${CURL_TIMEOUT} -o "${meta_tmp}" ${meta_json_url} && jq -er . "${meta_tmp}" &>/dev/null; then
+      [[ $(wc -c <"${meta_tmp}") -gt 512 ]] && say "${FG_RED}ERROR${NC}: file at specified URL contain more than allowed 512b of data!" && waitForInput && continue
+      echo && jq -r . "${meta_tmp}" && echo
+      if ! jq -er .name "${meta_tmp}" &>/dev/null; then say "${FG_RED}ERROR${NC}: unable to get 'name' field from downloaded metadata file!" && waitForInput && continue; fi
+      if ! jq -er .ticker "${meta_tmp}" &>/dev/null; then say "${FG_RED}ERROR${NC}: unable to get 'ticker' field from downloaded metadata file!" && waitForInput && continue; fi
+      if ! jq -er .homepage "${meta_tmp}" &>/dev/null; then say "${FG_RED}ERROR${NC}: unable to get 'homepage' field from downloaded metadata file!" && waitForInput && continue; fi
+      if ! jq -er .description "${meta_tmp}" &>/dev/null; then say "${FG_RED}ERROR${NC}: unable to get 'description' field from downloaded metadata file!" && waitForInput && continue; fi
+      say "Metadata exists at URL.  Use existing data?"
       select_opt "[y] Yes" "[n] No"
       case $? in
-        0) mv "$TMP_FOLDER/url_poolmeta.json" "${POOL_FOLDER}/${pool_name}/poolmeta.json"
+        0) mv "${meta_tmp}" "${POOL_FOLDER}/${pool_name}/poolmeta.json"
            metadata_done=true
            ;;
-        1) rm "$TMP_FOLDER/url_poolmeta.json" ;; # clean up temp file
+        1) rm "${meta_tmp}" ;; # clean up temp file
       esac
     fi
-    if [ ${metadata_done} = false ]; then
+    if [[ ${metadata_done} = false ]]; then
       echo
-      # ToDo align with wallet and smash
       if [[ -f "${pool_meta_file}" ]]; then
         meta_name=$(jq -r .name "${pool_meta_file}")
         meta_ticker=$(jq -r .ticker "${pool_meta_file}")
@@ -2014,13 +2021,14 @@ EOF
 
     if [[ ! -f ${pool_config} ]]; then
       say "${FG_YELLOW}WARN${NC}: Missing pool config file: ${pool_config}"
-      waitForInput && continue
+      say "Unable to show old values, please re-enter all values to generate a new pool config file"
+      waitForInput "press any key to continue" && echo
     fi
 
-    say "# Pool Parameters\n"
+    say "# Pool Parameters"
     say "press enter to use old value\n"
 
-    pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
+    [[ -f ${pool_config} ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}") || pledge_ada=0
     read -r -p "New Pledge (in ADA, old: ${pledge_ada}): " pledge_enter
     pledge_enter="${pledge_enter//,}"
     if [[ -n "${pledge_enter}" ]]; then
@@ -2033,7 +2041,7 @@ EOF
       pledge_lovelace=$(ADAtoLovelace "${pledge_ada}")
     fi
 
-    margin=$(jq -r '.margin //0' "${pool_config}")
+    [[ -f ${pool_config} ]] && margin=$(jq -r '.margin //0' "${pool_config}") || margin=0
     read -r -p "New Margin (in %, old: ${margin}): " margin_enter
     if [[ -n "${margin_enter}" ]]; then
       if ! pctToFraction "${margin_enter}" >/dev/null; then
@@ -2046,7 +2054,7 @@ EOF
     fi
 
     minPoolCost=$(( $(jq -r '.minPoolCost //0' "${TMP_FOLDER}"/protparams.json) / 1000000 )) # convert to ADA
-    cost_ada=$(jq -r '.costADA //0' "${pool_config}")
+    [[ -f ${pool_config} ]] && cost_ada=$(jq -r '.costADA //0' "${pool_config}") || cost_ada=0
     read -r -p "New Cost (in ADA, minimum: ${minPoolCost}, old: ${cost_ada}): " cost_enter
     cost_enter="${cost_enter//,}"
     if [[ -n "${cost_enter}" ]]; then
@@ -2066,10 +2074,9 @@ EOF
     say "\n# Pool Metadata\n"
 
     pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
-    [[ "$(jq -r .json_url ${pool_config})" ]] && meta_json_url=$(jq -r .json_url "${pool_config}")
+    [[ -f ${pool_config} && "$(jq -r .json_url ${pool_config})" ]] && meta_json_url=$(jq -r .json_url "${pool_config}") || meta_json_url=""
 
-    read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter
-    json_url_enter="${json_url_enter}"
+    read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (old: ${meta_json_url}): " json_url_enter
     [[ -n "${json_url_enter}" ]] && meta_json_url="${json_url_enter}"
     if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
       say "${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
@@ -2077,18 +2084,24 @@ EOF
     fi
 
     metadata_done=false
-    if curl -sL -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
-      say "\nMetadata exists at URL.  Use existing data?"
+    meta_tmp="${TMP_FOLDER}/url_poolmeta.json"
+    if curl -sL -m ${CURL_TIMEOUT} -o "${meta_tmp}" ${meta_json_url} && jq -er . "${meta_tmp}" &>/dev/null; then
+      [[ $(wc -c <"${meta_tmp}") -gt 512 ]] && say "${FG_RED}ERROR${NC}: file at specified URL contain more than allowed 512b of data!" && waitForInput && continue
+      echo && jq -r . "${meta_tmp}" && echo
+      if ! jq -er .name "${meta_tmp}" &>/dev/null; then say "${FG_RED}ERROR${NC}: unable to get 'name' field from downloaded metadata file!" && waitForInput && continue; fi
+      if ! jq -er .ticker "${meta_tmp}" &>/dev/null; then say "${FG_RED}ERROR${NC}: unable to get 'ticker' field from downloaded metadata file!" && waitForInput && continue; fi
+      if ! jq -er .homepage "${meta_tmp}" &>/dev/null; then say "${FG_RED}ERROR${NC}: unable to get 'homepage' field from downloaded metadata file!" && waitForInput && continue; fi
+      if ! jq -er .description "${meta_tmp}" &>/dev/null; then say "${FG_RED}ERROR${NC}: unable to get 'description' field from downloaded metadata file!" && waitForInput && continue; fi
+      say "Metadata exists at URL.  Use existing data?"
       select_opt "[y] Yes" "[n] No"
       case $? in
-        0) mv "$TMP_FOLDER/url_poolmeta.json" "${POOL_FOLDER}/${pool_name}/poolmeta.json"
+        0) mv "${meta_tmp}" "${POOL_FOLDER}/${pool_name}/poolmeta.json"
            metadata_done=true
            ;;
-        1) rm "$TMP_FOLDER/url_poolmeta.json" ;; # clean up temp file
+        1) rm "${meta_tmp}" ;; # clean up temp file
       esac
     fi
-
-    if [ ${metadata_done} = false ]; then
+    if [[ ${metadata_done} = false ]]; then
       echo
       # ToDo align with wallet and smash
       if [[ -f "${pool_meta_file}" ]]; then
@@ -2161,7 +2174,7 @@ EOF
     relay_array=()
     say "\n# Pool Relay Registration"
     # ToDo SRV & IPv6 support
-    if [[ $(jq '.relays | length' "${pool_config}") -gt 0 ]]; then
+    if [[ -f ${pool_config} && $(jq '.relays | length' "${pool_config}") -gt 0 ]]; then
       say "\nPrevious relay configuration:\n"
       printTable ',' "$(say 'Type,Address,Port' | cat - <(jq -r -c '.relays[] | [.type //"-",.address //"-",.port //"-"] | @csv //empty' "${pool_config}") | tr -d '"')"
       say "\nReuse previous configuration?"
@@ -2239,11 +2252,11 @@ EOF
     fi
 
     # Owner wallet, also used to pay for pool update fee
-    owner_wallet=$(jq -r .pledgeWallet "${pool_config}")
-    reward_wallet=$(jq -r .rewardWallet "${pool_config}")
-    say "Old owner wallet:  ${FG_GREEN}${owner_wallet}${NC}"
-    say "Old reward wallet: ${FG_GREEN}${reward_wallet}${NC}"
-    echo
+    if [[ -f ${pool_config} ]]; then
+      say "Old owner wallet:  ${FG_GREEN}$(jq -r '.pledgeWallet //empty' "${pool_config}")${NC}"
+      say "Old reward wallet: ${FG_GREEN}$(jq -r '.rewardWallet //empty' "${pool_config}")${NC}"
+      echo
+    fi
     say "${FG_YELLOW}If a new wallet is chosen for owner/reward, a manual delegation to the pool with new wallet is needed${NC}"
     echo
     
@@ -2674,18 +2687,23 @@ EOF
       say "$(printf "  %-19s : %s" "Ticker" "$(jq -r .ticker "${pool_meta_file}")")" "log"
       say "$(printf "  %-19s : %s" "Homepage" "$(jq -r .homepage "${pool_meta_file}")")" "log"
       say "$(printf "  %-19s : %s" "Description" "$(jq -r .description "${pool_meta_file}")")" "log"
-      say "$(printf "  %-19s : %s" "URL" "$(jq -r .json_url "${pool_config}")")" "log"
+      [[ -f "${pool_config}" ]] && meta_url="$(jq -r .json_url "${pool_config}")" || meta_url="---"
+      say "$(printf "  %-19s : %s" "URL" "${meta_url}")" "log"
       meta_hash="$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file "${pool_meta_file}" )"
       say "$(printf "  %-19s : %s" "Hash" "${meta_hash}")" "log"
-    elif [[ -f "${pool_config}" ]]; then
-      meta_json_url=$(jq -r .json_url "${pool_config}")
-      if curl -sL -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
+    else
+      if [[ -f "${pool_config}" ]]; then
+        meta_json_url=$(jq -r .json_url "${pool_config}")
+      else
+        meta_json_url=$(jq -r '.metadata.url //empty' <<< "${ledger_fPParams}")
+      fi
+      if [[ -n ${meta_json_url} ]] && curl -sL -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
         say "Metadata" "log"
         say "$(printf "  %-19s : %s" "Name" "$(jq -r .name "$TMP_FOLDER/url_poolmeta.json")")" "log"
         say "$(printf "  %-19s : %s" "Ticker" "$(jq -r .ticker "$TMP_FOLDER/url_poolmeta.json")")" "log"
         say "$(printf "  %-19s : %s" "Homepage" "$(jq -r .homepage "$TMP_FOLDER/url_poolmeta.json")")" "log"
         say "$(printf "  %-19s : %s" "Description" "$(jq -r .description "$TMP_FOLDER/url_poolmeta.json")")" "log"
-        say "$(printf "  %-19s : %s" "URL" "$(jq -r .json_url "${pool_config}")")" "log"
+        say "$(printf "  %-19s : %s" "URL" "${meta_json_url}")" "log"
         meta_hash_url="$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file "$TMP_FOLDER/url_poolmeta.json" )"
         meta_hash_pParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_pParams}")
         meta_hash_fPParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_fPParams}")
@@ -2908,7 +2926,7 @@ EOF
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    waitForInput
+    waitForInput && continue
 
     ;; ###################################################################
 
@@ -2970,7 +2988,7 @@ EOF
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    waitForInput
+    waitForInput && continue
 
     ;; ###################################################################
 
@@ -3022,7 +3040,7 @@ EOF
     say "Transfer file to online CNTools and use 'Submit Tx' option to submit pool registration transaction on chain"
   fi
   
-  waitForInput
+  waitForInput && continue
 
   ;; ###################################################################
   
@@ -3050,7 +3068,7 @@ EOF
     say "${FG_CYAN}${file}${NC} successfully submitted!" "log"
   fi
   
-  waitForInput
+  waitForInput && continue
 
   ;; ###################################################################
 
@@ -3122,7 +3140,7 @@ EOF
     2) continue ;;
   esac
 
-  waitForInput
+  waitForInput && continue
 
   ;; ###################################################################
 
@@ -3183,7 +3201,7 @@ EOF
   else
     say "\n${FG_RED}ERROR${NC}: download from GitHub failed, unable to perform version check!\n"
   fi
-  waitForInput
+  waitForInput && continue
   
   ;; ###################################################################
 

@@ -78,6 +78,7 @@ log() {
 # Description: wait for user keypress to continue
 waitForInput() {
   ESC=$(printf "\033")
+  local row=$(get_cursor_row)
   say ""
   if [[ -z $1 ]]; then
     message="press any key to return to home menu"
@@ -88,6 +89,8 @@ waitForInput() {
   if [[ $key == $ESC ]]; then
     read -rsn2 key # read 2 more chars
   fi
+  cursor_to ${row}
+  tput ed
 }
 
 
@@ -1131,7 +1134,7 @@ registerStakeWallet() {
 
   if [[ -z $2 || $2 = "false" ]]; then
     say "Wallet ${FG_GREEN}${1}${NC} not registered on chain"
-    waitForInput "press any key to continue with registration"
+    waitForInput "press any key to continue with registration" && echo
   fi
 
   # Wallet key filenames

@@ -13,6 +13,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ##### Changed
 - Prometheus node metrics replaced with EKG
+- Allow and handle missing pool.config in pool >> modify and show
 - Cancel and return added in several helper functions if cardano-cli execution fails
 - Various tweaks to the output
 
