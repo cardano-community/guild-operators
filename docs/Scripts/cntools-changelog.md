@@ -5,6 +5,22 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.1.0] - 2020-10-22
+
+##### Added
+- Wallet de-registration with key deposit refund (new cntools.config parameter, WALLET_STAKE_DEREG_FILENAME)
+- Default values loaded for all config variables if omitted/missing in cntools.config
+
+##### Changed
+- Prometheus node metrics replaced with EKG
+- Allow and handle missing pool.config in pool >> modify and show
+- Cancel and return added in several helper functions if cardano-cli execution fails
+- Various tweaks to the output
+
+##### Fixed
+- Script execution permissions after internal update
+- Handle redirect in curl metadata fetch
+
 ## [6.0.3] - 2020-10-16
 
 #### Fixed
