@@ -37,7 +37,7 @@ Install pre-requisites for building cardano node and using CNTools
 -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
 -n    Connect to specified network instead of public network (Default: connect to public cardano network)
       eg: -n testnet
--t    Alternate name for top level folder (Default: cnode)
+-t    Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
 -l    Use IOG fork of libsodium - Recommended as per IOG instructions (Default: system build)
 -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
@@ -64,7 +64,7 @@ while getopts :in:sflt:m:b: opt; do
     s ) WANT_BUILD_DEPS='N' ;;
     f ) FORCE_OVERWRITE='Y' ;;
     l ) LIBSODIUM_FORK='Y' ;;
-    t ) CNODE_NAME=${OPTARG} ;;
+    t ) CNODE_NAME=${OPTARG//[^[:alnum:]]/_} ;;
     m ) CURL_TIMEOUT=${OPTARG} ;;
     b ) BRANCH=${OPTARG} ;;
     \? ) usage ;;
