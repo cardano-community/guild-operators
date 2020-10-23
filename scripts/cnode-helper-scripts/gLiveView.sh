@@ -145,19 +145,12 @@ if curl -s -m ${CURL_TIMEOUT} -o /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/
     echo -e "\nPress 'u' to update to latest version, or any other key to continue\n"
     read -r -n 1 -s -p "" answer
     if [[ "${answer}" = "u" ]]; then
-      if [[ $(grep "chmod.*._HOME" "${BASH_SOURCE[0]}") =~ ([^[{]+)_HOME ]]; then
-        if [[ ${BASH_REMATCH[1]} != '"' ]] || ! [[ ${BASH_REMATCH[1]} =~ grep ]];then
-          sed -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i /tmp/gLiveView.sh
-        fi
-      else
-        myExit 1 "${RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
-      fi
       TEMPL_CMD=$(awk '/^# Do NOT modify/,0' /tmp/gLiveView.sh)
-      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${CNODE_HOME}/scripts/gLiveView.sh")
+      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/gLiveView.sh")
       printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > /tmp/gLiveView.sh
-      mv -f "${CNODE_HOME}/scripts/gLiveView.sh" "${CNODE_HOME}/scripts/gLiveView.sh_bkp$(date +%s)" && \
-      cp -f /tmp/gLiveView.sh "${CNODE_HOME}/scripts/gLiveView.sh" && \
-      chmod 750 "${CNODE_HOME}/scripts/gLiveView.sh" && \
+      mv -f "${PARENT}/gLiveView.sh" "${PARENT}/gLiveView.sh_bkp$(date +%s)" && \
+      cp -f /tmp/gLiveView.sh "${PARENT}/gLiveView.sh" && \
+      chmod 750 "${PARENT}/gLiveView.sh" && \
       myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!" || \
       myExit 1 "${RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
     fi
