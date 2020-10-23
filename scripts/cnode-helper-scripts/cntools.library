@@ -146,7 +146,7 @@ protectionPreRequisites() {
     say "${FG_YELLOW}WARN${NC}: Elevated privileges needed for chattr command used to write protect wallet and pool keys"
     say "Run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
     say ""
-    say "echo \"$(whoami) ALL=NOPASSWD: $(command -v chattr)\" | sudo tee /etc/sudoers/cntools"
+    say "echo \"$(whoami) ALL=NOPASSWD: $(command -v chattr)\" | sudo tee /etc/sudoers.d/cntools"
     waitForInput
     return 1
   fi
