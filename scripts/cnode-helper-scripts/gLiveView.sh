@@ -148,6 +148,7 @@ if curl -s -m ${CURL_TIMEOUT} -o /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/
       if [[ $(grep "chmod.*._HOME" "${BASH_SOURCE[0]}") =~ ([^[{]+)_HOME ]]; then
         if [[ ${BASH_REMATCH[1]} != '"' ]] || ! [[ ${BASH_REMATCH[1]} =~ grep ]];then
           sed -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i /tmp/gLiveView.sh
+        fi
       else
         myExit 1 "${RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
       fi
