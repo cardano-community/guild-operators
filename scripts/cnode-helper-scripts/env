@@ -33,6 +33,8 @@ if [[ -z "${CCLI}" ]]; then
     echo "You do not have a cardano-cli binary available in \$PATH."
     return 1
   fi
+else
+  export PATH="$(dirname ${CCLI})":$PATH
 fi
 
 [[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
