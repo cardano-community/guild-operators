@@ -34,7 +34,8 @@ if [[ -z "${CCLI}" ]]; then
     return 1
   fi
 else
-  export PATH="$(dirname ${CCLI})":$PATH
+  PARENT="$(dirname ${CCLI})"
+  export PATH="{PARENT}":$PATH
 fi
 
 [[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
