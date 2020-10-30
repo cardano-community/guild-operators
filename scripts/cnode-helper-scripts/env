@@ -21,6 +21,8 @@ CNODE_PORT=6000                                         # Set node port
 # Do NOT modify code below           #
 ######################################
 
+export LC_ALL=C.UTF-8
+
 [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
 
 [[ -z "${CCLI}" ]] && CCLI=$(command -v cardano-cli)
