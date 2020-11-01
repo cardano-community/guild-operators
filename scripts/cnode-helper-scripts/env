@@ -7,6 +7,7 @@
 ######################################
 
 #CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of path to cardano-cli executable
+#CNCLI="${HOME}/.cargo/bin/cncli"                       # Override automatic detection of path to cncli executable (https://github.com/AndrewWestberg/cncli)
 #CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
 CNODE_PORT=6000                                         # Set node port
 #CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path
@@ -38,6 +39,10 @@ if [[ -z "${CCLI}" ]]; then
 else
   PARENT="$(dirname ${CCLI})"
   export PATH="${PARENT}":$PATH
+fi
+
+if [[ -z "${CNCLI}" ]]; then
+  CNCLI=$(command -v cncli) || CNCLI="${HOME}/.cargo/bin/cncli"
 fi
 
 [[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
@@ -137,6 +142,7 @@ if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
   BYRON_EPOCH_LENGTH=$(( 10 * BYRON_K ))
 fi
 
+[[ -z ${TERM} ]] && export TERM=xterm
 FG_BLACK=$(tput setaf 0)
 FG_RED=$(tput setaf 1)
 FG_GREEN=$(tput setaf 2)
