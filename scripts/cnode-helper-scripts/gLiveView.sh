@@ -50,7 +50,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.9
+GLV_VERSION=v1.10
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -390,21 +390,34 @@ checkPeers() {
     peerPORT=$(echo "${peer}" | cut -d: -f2)
     [[ -z ${peerIP} || -z ${peerPORT} ]] && continue
     
-    if [[ "${peerIP}" = "${lastpeerIP}" ]]; then
-      [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT)) # skip RTT check and reuse old ${peerRTT} number if reachable
-    elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Ping OK, show RTT
-      peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
-      peerRTTSUM=$((peerRTTSUM + peerRTT))
-    elif [[ ${direction} = "in" ]]; then # No need to continue with tcptraceroute for incoming connection as destination port is unknown
-      peerRTT=99999
-    else # Normal ping is not working, try tcptraceroute to the given port
-      checkPEER=$(tcptraceroute -n -S -f 255 -m 255 -q 1 -w 1 "${peerIP}" "${peerPORT}" 2>&1 | tail -n 1)
-      if [[ ${checkPEER} = *'[open]'* ]]; then
-        peerRTT=$(echo "${checkPEER}" | awk '{print $4}' | cut -d. -f1)
-        peerRTTSUM=$((peerRTTSUM + peerRTT))
-      else # Nope, no response
+    if [[ ${direction} = "out" ]]; then
+      if [[ -n ${CNCLI} && -f ${CNCLI} ]]; then
+        checkPEER=$(${CNCLI} ping --host "${peerIP}" --port "${peerPORT}" --network-magic "${NWMAGIC}")
+        if [[ $(jq -r .status <<< "${checkPEER}") = "ok" ]]; then
+          peerRTT=$(jq -r .durationMs <<< "${checkPEER}")
+        else # cncli ping failed
+          peerRTT=99999
+        fi
+      elif command -v tcptraceroute >/dev/null; then
+        checkPEER=$(tcptraceroute -n -S -f 255 -m 255 -q 1 -w 1 "${peerIP}" "${peerPORT}" 2>&1 | tail -n 1)
+        if [[ ${checkPEER} = *'[open]'* ]]; then
+          peerRTT=$(echo "${checkPEER}" | awk '{print $4}' | cut -d. -f1)
+        else # Nope, no response
+          peerRTT=99999
+        fi
+      elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Ping OK, show RTT
+        peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
+      else # cncli & tcptraceroute missing and ping failed
         peerRTT=99999
       fi
+      [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT))
+    elif [[ "${peerIP}" = "${lastpeerIP}" ]]; then
+      [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT)) # skip RTT check and reuse old ${peerRTT} number if reachable
+    elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Incoming connection, ping OK, show RTT.
+      peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
+      peerRTTSUM=$((peerRTTSUM + peerRTT))
+    else # Incoming connection, ping failed, set as unreachable
+      peerRTT=99999
     fi
     lastpeerIP=${peerIP}
 
