@@ -1,4 +1,5 @@
 #!/bin/bash
+#shellcheck source=/dev/null
 
 dirs -c
 
@@ -12,8 +13,8 @@ else
   rustup update &>/dev/null #ignore any errors, not crucial that update succeed
 fi
 
-[[ -d ${HOME}/git ]] || mkdir -p ${HOME}/git
-pushd ${HOME}/git >/dev/null || exit 1
+[[ -d "${HOME}"/git ]] || mkdir -p "${HOME}"/git
+pushd "${HOME}"/git >/dev/null || exit 1
 
 if [[ -d ./cncli ]]; then
   echo "previous cncli installation found, updating and building latest..."
@@ -26,13 +27,13 @@ else
 fi
 if ! output=$(cargo install --path . --force 2>&1); then echo -e "${output}" && exit 1; fi
 
-. ${HOME}/.profile # source profile to load ${HOME}/.cargo/bin into PATH
+. "${HOME}"/.profile # source profile to load ${HOME}/.cargo/bin into PATH
 
 pushd -0 >/dev/null && dirs -c
 
-PARENT="$(dirname $0)"
+PARENT="$(dirname "$0")"
 if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
-  vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
+  vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")
 else
   echo "failed to get cnode instance name from env file, aborting!"
   exit 1
@@ -71,6 +72,6 @@ else
 fi
 
 sudo systemctl daemon-reload
-sudo systemctl enable ${vname}-cncli.service &>/dev/null
+sudo systemctl enable "${vname}"-cncli.service &>/dev/null
 
 echo -e "\n$(cncli -V) installed!"
