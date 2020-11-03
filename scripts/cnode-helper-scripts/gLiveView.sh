@@ -57,18 +57,20 @@ PARENT="$(dirname $0)"
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-l] [-b <branch name>]
+Usage: $(basename "$0") [-l] [-p] [-b <branch name>]
 Guild LiveView - An alternative cardano-node LiveView
 
 -l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
--b    Use alternate branch to check for updates - only for testing/development (Default: Master)
+-p    Disable default CNCLI ping and revert to legacy tcptraceroute if available, else use regular ICMP ping.
+-b    Use alternate branch to check for updates - only for testing/development (Default: Master)  
 EOF
   exit 1
 }
 
-while getopts :lb: opt; do
+while getopts :lpb: opt; do
   case ${opt} in
     l ) LEGACY_MODE="true" ;;
+    p ) DISABLE_CNCLI="true" ;;
     b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
     esac
@@ -391,7 +393,7 @@ checkPeers() {
     [[ -z ${peerIP} || -z ${peerPORT} ]] && continue
     
     if [[ ${direction} = "out" ]]; then
-      if [[ -n ${CNCLI} && -f ${CNCLI} ]]; then
+      if [[ -n ${CNCLI} && -f ${CNCLI} && ${DISABLE_CNCLI} != "true" ]]; then
         checkPEER=$(${CNCLI} ping --host "${peerIP}" --port "${peerPORT}" --network-magic "${NWMAGIC}")
         if [[ $(jq -r .status <<< "${checkPEER}") = "ok" ]]; then
           peerRTT=$(jq -r .durationMs <<< "${checkPEER}")
