@@ -37,8 +37,8 @@ if [[ -z "${CCLI}" ]]; then
     return 1
   fi
 else
-  PARENT="$(dirname ${CCLI})"
-  export PATH="${PARENT}":$PATH
+  CCLI_PARENT="$(dirname ${CCLI})"
+  export PATH="${CCLI_PARENT}":$PATH
 fi
 
 if [[ -z "${CNCLI}" ]]; then
