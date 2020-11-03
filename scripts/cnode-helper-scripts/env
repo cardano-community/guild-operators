@@ -111,7 +111,7 @@ else
   [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
 fi
 
-CNODE_PID=$(pgrep -fn "[-]-port ${CNODE_PORT}")
+CNODE_PID=$(pgrep -fn "[c]ardano-node*.*--port ${CNODE_PORT}")
 
 PROTOCOL=$(jq -r .Protocol "${CONFIG}")
 NETWORKID=$(jq -r .networkId ${GENESIS_JSON})
