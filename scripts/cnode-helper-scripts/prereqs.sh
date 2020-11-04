@@ -199,7 +199,7 @@ fi
 mkdir "${HOME}/git" > /dev/null 2>&1 # To hold git repositories that will be used for building binaries
 
 if [[ "${LIBSODIUM_FORK}" = "Y" ]]; then
-  if grep -q "/usr/local/lib:$LD_LIBRARY_PATH" ~/.bashrc; then
+  if grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" ~/.bashrc; then
     echo "Load Library Paths already set up!"
   else
     echo "export LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> ~/.bashrc
