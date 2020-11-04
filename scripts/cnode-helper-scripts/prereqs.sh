@@ -202,13 +202,13 @@ if [[ "${LIBSODIUM_FORK}" = "Y" ]]; then
   if grep -q "/usr/local/lib:$LD_LIBRARY_PATH" ~/.bashrc; then
     echo "Load Library Paths already set up!"
   else
-    echo "export LD_LIBRARY_PATH=/usr/lib64\:\$LD_LIBRARY_PATH" >> ~/.bashrc
+    echo "export LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> ~/.bashrc
     cd "${HOME}"/git || return
-    git clone https://github.com/input-output-hk/libsodium >/dev/null 2>&1
+    git clone https://github.com/input-output-hk/libsodium &>/dev/null
     cd libsodium || return
-    git checkout 66f017f1 > /dev/null
+    git checkout 66f017f1 &>/dev/null
     ./autogen.sh > autogen.log > /tmp/libsodium.log 2>&1
-    ./configure > configure.log >> /tmp/libsodium.log 2>&1
+    ./configure --prefix=/usr/local/lib > configure.log >> /tmp/libsodium.log 2>&1
     make > make.log 2>&1
     $sudo make install > install.log 2>&1
   fi
