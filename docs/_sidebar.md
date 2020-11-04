@@ -9,8 +9,8 @@
   * Scripts
     * [CNTools](Scripts/cntools.md)
       - [Common tasks](Scripts/cntools-common.md)
-      - [Block Collector](Scripts/cntools-blocks.md)
       - [Changelog](Scripts/cntools-changelog.md)
+	* [Log Monitor](Scripts/logmonitor.md)
     * [Guild LiveView](Scripts/gliveview.md)
     * [ITN Metadata Proof](Scripts/itnwitness.md)
     * [ITN Rewards](Scripts/itnrewards.md)

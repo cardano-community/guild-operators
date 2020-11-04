@@ -54,7 +54,7 @@ CNODE_PORT=6000                                         # Set node port
 #EKG_HOST=127.0.0.1                                     # Set node EKG host
 #EKG_PORT=12788                                         # Override automatic detection of node EKG port
 #EKG_TIMEOUT=3                                          # Maximum time in seconds that you allow EKG request to take before aborting (node metrics)
-#BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"                # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
+#BLOCK_DIR="${CNODE_HOME}/db/blocks"                    # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
 #CURL_TIMEOUT=10                                        # Maximum time in seconds that you allow curl file download to take before aborting (GitHub update process)
 ```
 

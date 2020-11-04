@@ -9,9 +9,9 @@
 # Any breaking changes (eg: that requires change of cntools.config, env or a change in priv folder would be considered breaking and will be exempt from auto-update)
 CNTOOLS_MAJOR_VERSION=6
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
-CNTOOLS_MINOR_VERSION=1
+CNTOOLS_MINOR_VERSION=2
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=0
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -1105,6 +1105,105 @@ sendADA() {
     say "Transaction successfully built and saved to: ${FG_CYAN}${tx_tmp}${NC}" "log"
     say "Copy file to offline computer and sign it using CNTools in offline mode '-o' [Sign Tx] with:" "log"
     say "Source wallet ${FG_GREEN}${WALLET_PAY_SK_FILENAME}${NC}" "log"
+    return 2 # return as failed to stop main processing and return to home menu
+  fi
+  
+  say "" 1
+  say "# Sign & Send transaction" 1 "log"
+  
+  if ! signTx "${TMP_FOLDER}/tx.raw" "${sKey}"; then return 1; fi
+  if ! submitTx "${tx_signed}"; then return 1; fi
+}
+
+
+# Command     :  sendMetadata [wallet address] [wallet sign key] [metadata file]
+# Description :  post metadata file on chain using specified wallet to pay for the transaction fee
+sendMetadata() {
+  # Handle script arguments
+  addr="$1"
+  payment_sk_file="$2"
+  metafile="$3"
+
+  say "" 1
+  say "# Protocol Parameters" 1 "log"
+  currSlot=$(getSlotTip)
+  if [[ ${op_mode} = "hybrid" ]]; then
+    say "\nHow long do you want the transaction to be valid?"
+    read -r -p "TTL (in seconds, default: 1800/30min): " ttl_enter
+    if [[ -n ${ttl_enter} && ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
+      say "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}" 1>&2
+      return 1
+    fi
+    ttlValue=$(( currSlot + (${ttl_enter:-1800}/SLOT_LENGTH) ))
+    echo
+  else
+    ttlValue=$(( currSlot + (600/SLOT_LENGTH) )) # TTL default: 10min
+  fi
+  say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" 1 "log"
+  getBalance ${addr}
+
+  # Use all available utxo in source address
+  say "" 2
+  say "Using UTxO's:" 2
+  tx_in=""
+  while read -r utxo; do
+    in_addr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
+    idx=$(awk '{ print $2 }' <<< "${utxo}")
+    utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
+    say "TxHash: ${in_addr}#${idx}" 2
+    say "ADA: $(formatLovelace ${utxo_balance})" 2
+    tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
+  done <"${TMP_FOLDER}"/balance.out
+
+  say "" 1
+  say "# Calculate fee, new amount and remaining balance" 1 "log"
+  say "$ ${CCLI} shelley transaction build-raw ${txIn} --tx-out ${addr}+0 --ttl ${ttlValue} --fee 0 --metadata-json-file ${metafile} --out-file ${TMP_FOLDER}/tx0.tmp" 2
+  if ! ${CCLI} shelley transaction build-raw ${txIn} --tx-out ${addr}+0 --ttl ${ttlValue} --fee 0 --metadata-json-file ${metafile} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  minFeeArgs=(
+    shelley transaction calculate-min-fee
+    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
+    --tx-in-count ${utx0_count}
+    --tx-out-count 1
+    ${NETWORK_IDENTIFIER}
+    --witness-count 1
+    --byron-witness-count 0
+    --protocol-params-file "${TMP_FOLDER}"/protparams.json
+  )
+  say "$ ${CCLI} ${minFeeArgs[*]}" 2
+  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
+  say "fee is $(formatLovelace ${minFee}) ADA" 1 "log"
+
+  if [[ ${lovelace} -lt ${minFee} ]]; then
+    say "${FG_RED}ERROR${NC}: Not enough ADA in address ( $(formatLovelace ${lovelace}) < $(formatLovelace ${minFee}) )"
+    return 1
+  fi
+
+  newBalance=$(( lovelace - minFee ))
+  tx_out="--tx-out ${addr}+${newBalance}"
+  say "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) )" 1 "log"
+
+  say "" 1
+  say "# Build transaction" 1 "log"
+  
+  buildArgs=(
+    ${txIn}
+    ${txOut}
+    --ttl ${ttlValue}
+    --fee ${minFee}
+    --metadata-json-file ${metafile}
+    --out-file "${TMP_FOLDER}"/tx.raw
+  )
+  if ! buildTx; then return 1; fi
+  
+  if [[ ${op_mode} = "hybrid" ]]; then
+    tx_tmp="/tmp/tx.raw_$(date +%s)"
+    if ! cp -f "${TMP_FOLDER}/tx.raw" "${tx_tmp}"; then
+      say "${FG_RED}ERROR${NC}: unable to copy tx file to: ${tx_tmp}" 1>&2
+      return 1
+    fi
+    say "Transaction successfully built and saved to: ${FG_CYAN}${tx_tmp}${NC}" "log"
+    say "Copy file to offline computer and sign it using CNTools in offline mode '-o' [Sign Tx] with:" "log"
+    say "Wallet: ${FG_GREEN}${WALLET_PAY_SK_FILENAME}${NC}" "log"
     return 2 # return as failed to stop main processing and return to home menu
   fi
   

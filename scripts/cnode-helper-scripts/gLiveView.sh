@@ -50,7 +50,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.10
+GLV_VERSION=v1.11
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -839,8 +839,8 @@ while true; do
       tput cup ${line} ${width}
       printf "${VL}\n" && ((line++))
       
-      if [[ -n ${BLOCK_LOG_DIR} ]]; then
-        blocks_file="${BLOCK_LOG_DIR}/blocks_${epochnum}.json"
+      if [[ -n ${BLOCK_DIR} ]]; then
+        blocks_file="${BLOCK_DIR}/blocks_${epochnum}.json"
         if [[ -f "${blocks_file}" ]]; then
           isleader_epoch=$(jq -c '[.[].slot //empty] | length' "${blocks_file}")
           invalid_epoch=$(jq -c '[.[].hash //empty | select(startswith("Invalid"))] | length' "${blocks_file}")

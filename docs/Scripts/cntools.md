@@ -10,13 +10,14 @@ Visit the [Changelog](Scripts/cntools-changelog.md) section to see progress and 
 * [Navigation](#navigation)
 
 ##### Overview
-The tool consist of four files.  
+The tool consist of three files.  
 * `cntools.sh` - the main script to launch cntools.
 * `cntools.library` - internal script with helper functions.
 * `cntools.config` - configuration file to modify certain behaviours, paths and name schema used.
-* `cntoolsBlockCollector.sh` - a script to be run in background on core node parsing log file for block traces, see [Block Collector](Scripts/cntools-blocks.md) section for more details.
 
 In addition to the above files, there is also a dependency on the common `env` file. CNTools connects to your node through the configuration in the `env` file located in the same directory as the script. Customize `env` and `cntools.config` files for your needs. CNTools can operate in an Offline mode without node access by providing the `-o` runtime argument. This launches CNTools with a limited set of features with Hybrid or Online v/s Offline workflow in mind.
+
+`logMonitor.sh` is a companion script that are optional to run on the core node(block producer) to be able to monitor blocks created, see [Log Monitor](Scripts/logmonitor.md) section for more details.
 
 > The tool in its default state uses the folder structure [here](basics.md#folder-structure). Everyone is free to customise, but while doing so beware that you may introduce changes that were not tested.
 

@@ -232,7 +232,7 @@ say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 say " Main Menu"
 echo
 say " ) Wallet    -  create, show, remove and protect wallets"
-say " ) Funds     -  send, withdraw and delegate"
+say " ) Funds     -  send, withdraw, delegate and post metadata"
 say " ) Pool      -  pool creation and management"
 say " ) Sign Tx   -  Sign a built transaction file (hybrid/offline mode)"
 say " ) Submit Tx -  Submit a signed transaction file (hybrid/offline mode)"
@@ -414,7 +414,7 @@ case $OPERATION in
     base_addr_candidate=$(cardano-address address delegation ${stake_xpub} <<< "$(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub})")
     if [[ "${NETWORKID}" = "Testnet" ]]; then
       say "TestNet, converting address to 'addr_test'" 1
-      base_addr_candidate=$(bech32 <<< ${base_addr_candidate} | bech32 addr_test)
+      base_addr_candidate=$(bech32 addr_test <<< ${base_addr_candidate})
     fi
     say "Base address candidate = ${base_addr_candidate}" 2
     say "Generated from 1852H/1815H/0H/0/0" 2
@@ -994,15 +994,17 @@ EOF
   say " ) Send      -  send ADA from a local wallet to an address or a wallet"
   say " ) Delegate  -  delegate stake wallet to a pool"
   say " ) Withdraw  -  withdraw earned rewards to base address"
+  say " ) Metadata  -  post metadata on chain"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   say " Select funds operation\n"
-  select_opt "[s] Send" "[d] Delegate" "[w] Withdraw Rewards" "[h] Home"
+  select_opt "[s] Send" "[d] Delegate" "[w] Withdraw Rewards" "[m] Post Metadata" "[h] Home"
   case $? in
     0) SUBCOMMAND="send" ;;
     1) SUBCOMMAND="delegate" ;;
     2) SUBCOMMAND="withdrawrewards" ;;
-    3) continue ;;
+    3) SUBCOMMAND="metadata" ;;
+    4) continue ;;
   esac
 
   case $SUBCOMMAND in
@@ -1393,6 +1395,121 @@ EOF
     echo
     say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
     say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")" "log"
+    
+    waitForInput && continue
+
+    ;; ###################################################################
+    
+    metadata)
+
+    clear
+    say " >> FUNDS >> POST METADATA" "log"
+    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+
+    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+      say "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+      waitForInput && continue
+    else
+      if ! selectOpMode; then continue; fi
+    fi
+    echo
+    
+    metafile="${TMP_FOLDER}/metadata.json"
+    say "Do you want to select a metadata file, enter URL to metadata file, or enter/paste metadata content?"
+    select_opt "[f] File" "[u] URL" "[e] Enter"
+    case $? in
+      0) fileDialog 0 "Enter path to metadata file"
+         metafile="${file}"
+         say "${metafile}:\n$(cat "${metafile}")\n"
+         ;;
+      1) if ! curl -sL -m ${CURL_TIMEOUT} -o "${metafile}" ${meta_json_url} || ! jq -er . "${metafile}" &>/dev/null; then
+           say "${FG_RED}ERROR${NC}: metadata download failed, please make sure the URL point to a valid json file!"
+           waitForInput && continue
+         fi
+         ;;
+      2) say "Please paste or enter the metadata text, use ${FG_CYAN}CTRL-D${NC} to end input"
+         metadata=$(</dev/stdin)
+         echo "${metadata}" > "${metafile}"
+         ;;
+    esac
+
+    say "# Select wallet"
+    if [[ ${op_mode} = "online" ]]; then
+      if ! selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+      fi
+    else
+      if ! selectWallet "balance"; then # ${wallet_name} populated by selectWallet function
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+      fi
+    fi
+    echo
+
+    getBaseAddress ${wallet_name}
+    getPayAddress ${wallet_name}
+    getBalance ${base_addr}
+    base_lovelace=${lovelace}
+    getBalance ${pay_addr}
+    pay_lovelace=${lovelace}
+
+    if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
+      # Both payment and base address available with funds, let user choose what to use
+      say "Select source wallet address"
+      if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+        say "$(printf "%s\t\t${FG_CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
+        say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
+      fi
+      echo
+      select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+      case $? in
+        0) addr="${base_addr}" ;;
+        1) addr="${pay_addr}" ;;
+        2) continue ;;
+      esac
+    elif [[ ${pay_lovelace} -gt 0 ]]; then
+      addr="${pay_addr}"
+      if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+        say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
+      fi
+    elif [[ ${base_lovelace} -gt 0 ]]; then
+      addr="${base_addr}"
+      if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+        say "$(printf "%s\t\t${FG_CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
+      fi
+    else
+      say "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
+      waitForInput && continue
+    fi
+
+    payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+
+    if ! sendMetadata "${addr}" "${payment_sk_file}" "${metafile}"; then
+      waitForInput && continue
+    fi
+
+    say "\n${FG_YELLOW}Waiting for metadata transaction to be recorded on chain${NC}"
+    if ! waitNewBlockCreated; then
+      waitForInput && continue
+    fi
+
+    getBalance ${addr}
+
+    while [[ ${lovelace} -ne ${newBalance} ]]; do
+      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+      say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
+      if ! waitNewBlockCreated; then
+        break
+      fi
+      getBalance ${addr}
+    done
+
+    if [[ ${lovelace} -ne ${newBalance} ]]; then
+      waitForInput && continue
+    fi
+
+    echo
+    say "Metadata successfully posted on chain" "log"
+    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     
     waitForInput && continue
 
@@ -3078,12 +3195,10 @@ EOF
   say " >> BLOCKS" "log"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-  if [[ ! -d "${BLOCK_LOG_DIR}" ]]; then
-    say "${FG_RED}ERROR${NC}: block log directory not found!"
-    say "run cntoolsBlockCollector.sh script to start collecting blocks from json log file"
-    say "log file to parse grabbed from node config file specified in env"
-    say "if BLOCK_LOG_DIR has been modified cntoolsBlockCollector.sh script has to be restarted"
-    say "one file for each epoch created containing that epochs created blocks"
+  if [[ ! -d "${BLOCK_DIR}" ]]; then
+    say "${FG_RED}ERROR${NC}: block directory not found!: ${BLOCK_DIR}"
+    say "run logMonitor.sh script to parse block traces from json log file"
+    say "https://cardano-community.github.io/guild-operators/#/Scripts/logmonitor"
     waitForInput && continue
   fi
 
@@ -3107,7 +3222,7 @@ EOF
        first_epoch=$(( epoch - epoch_enter ))
        [[ ${first_epoch} -lt 0 ]] && first_epoch=0
        while [[ ${current_epoch} -gt ${first_epoch} ]]; do
-         blocks_file="${BLOCK_LOG_DIR}/blocks_${current_epoch}.json"
+         blocks_file="${BLOCK_DIR}/blocks_${current_epoch}.json"
          if [[ ! -f "${blocks_file}" ]]; then
            block_table+="${current_epoch},0,0,0\n"
          else
@@ -3122,7 +3237,7 @@ EOF
        ;;
     1) echo && read -r -p "Enter epoch to list (enter for current): " epoch_enter
        [[ -z "${epoch_enter}" ]] && epoch_enter=${epoch}
-       blocks_file="${BLOCK_LOG_DIR}/blocks_${epoch_enter}.json"
+       blocks_file="${BLOCK_DIR}/blocks_${epoch_enter}.json"
        if [[ ! -f "${blocks_file}" ]]; then
          say "No blocks created in epoch ${epoch_enter}"
          waitForInput && continue
@@ -3252,7 +3367,7 @@ EOF
        backup_list=(
          "${WALLET_FOLDER}"
          "${POOL_FOLDER}"
-         "${BLOCK_LOG_DIR}"
+         "${BLOCK_DIR}"
          "${CNODE_HOME}/files"
          "${CNODE_HOME}/scripts"
        )
