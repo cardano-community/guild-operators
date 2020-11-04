@@ -208,7 +208,7 @@ if [[ "${LIBSODIUM_FORK}" = "Y" ]]; then
     cd libsodium || return
     git checkout 66f017f1 &>/dev/null
     ./autogen.sh > autogen.log > /tmp/libsodium.log 2>&1
-    ./configure --prefix=/usr/local/lib > configure.log >> /tmp/libsodium.log 2>&1
+    ./configure > configure.log >> /tmp/libsodium.log 2>&1
     make > make.log 2>&1
     $sudo make install > install.log 2>&1
   fi
