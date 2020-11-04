@@ -1,9 +1,12 @@
 #!/bin/bash
+
+vname=%vname%
+
 echo "~~ cnode.sh ~~"
-[[ -f /etc/systemd/system/cnode.service ]] && echo "systemd service already exist, overwrite? [y|n]" || echo "deploy as systemd service? [y|n]"
+[[ -f /etc/systemd/system/${vname}.service ]] && echo "systemd service already exist, overwrite? [y|n]" || echo "deploy as systemd service? [y|n]"
 read -rsn1 yn
 if [[ ${yn} = [Yy]* ]]; then
-  sudo bash -c "cat << 'EOF' > /etc/systemd/system/cnode.service
+  sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}.service
 [Unit]
 Description=Cardano Node
 Wants=network-online.target
@@ -22,7 +25,7 @@ KillSignal=SIGINT
 SuccessExitStatus=143
 StandardOutput=syslog
 StandardError=syslog
-SyslogIdentifier=cnode
+SyslogIdentifier=${vname}
 TimeoutStopSec=5
 KillMode=mixed
 
@@ -32,14 +35,14 @@ EOF"
 fi
 
 echo "~~ logMonitor.sh ~~"
-[[ -f /etc/systemd/system/cnode_logmonitor.service ]] && echo "systemd service already exist, overwrite? [y|n]" || echo "deploy as systemd service? [y|n]"
+[[ -f /etc/systemd/system/${vname}-logmonitor.service ]] && echo "systemd service already exist, overwrite? [y|n]" || echo "deploy as systemd service? [y|n]"
 read -rsn1 yn
 if [[ ${yn} = [Yy]* ]]; then
-  sudo bash -c "cat << 'EOF' > /etc/systemd/system/cnode_logmonitor.service
+  sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-logmonitor.service
 [Unit]
 Description=Cardano Node - Log Monitor
-Requires=cnode.service
-After=cnode.service
+Requires=${vname}.service
+After=${vname}.service
 
 [Service]
 Type=simple
@@ -53,7 +56,7 @@ KillSignal=SIGINT
 SuccessExitStatus=143
 StandardOutput=syslog
 StandardError=syslog
-SyslogIdentifier=cnode_logmonitor
+SyslogIdentifier=${vname}-logmonitor
 TimeoutStopSec=5
 KillMode=mixed
 
@@ -63,5 +66,5 @@ EOF"
 fi
 
 sudo systemctl daemon-reload
-[[ -f /etc/systemd/system/cnode.service ]] && sudo systemctl enable cnode.service
-[[ -f /etc/systemd/system/cnode_logmonitor.service ]] && sudo systemctl enable cnode_logmonitor.service
+[[ -f /etc/systemd/system/${vname}.service ]] && sudo systemctl enable ${vname}.service
+[[ -f /etc/systemd/system/${vname}-logmonitor.service ]] && sudo systemctl enable ${vname}-logmonitor.service
