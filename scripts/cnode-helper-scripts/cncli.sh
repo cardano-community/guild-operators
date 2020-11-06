@@ -38,7 +38,83 @@ EOF
   exit 1
 }
 
-[[ $# -eq 1 ]] && subcommand=$1 || usage
+if [[ $# -eq 1 ]]; then subcommand=$1; else usage; fi
+
+#################################
+# helper functions
+
+getNodeMetrics() {
+  curl -s -m "${EKG_TIMEOUT}" -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null
+}
+
+getEpoch() {
+  jq -r '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${node_metrics}"
+}
+
+getBlockTip() {
+  jq -r '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${node_metrics}"
+}
+
+getSlotTip() {
+  jq -r '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${node_metrics}"
+}
+
+getSlotInEpoch() {
+  jq -r '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${node_metrics}"
+}
+
+dumpLedgerState() {
+  if ! timeout -k 5 ${TIMEOUT_LEDGER_STATE} "${CCLI}" shelley query ledger-state "${PROTOCOL_IDENTIFIER}" "${NETWORK_IDENTIFIER}" --out-file /tmp/ledger-state.json; then
+    echo "ERROR: ledger dump failed/timed out, increase timeout value"
+    [[ -f /tmp/ledger-state.json ]] && rm -f /tmp/ledger-state.json
+    return 1
+  fi
+}
+
+# Command    : getShelleyTransitionEpoch
+# Description: Calculate shelley transition epoch
+getShelleyTransitionEpoch() {
+  calc_slot=0
+  node_metrics=$(getNodeMetrics)
+  slotnum=$(getSlotTip)
+  slot_in_epoch=$(getSlotInEpoch)
+  byron_epochs=$(getEpoch)
+  shelley_epochs=0
+  while [[ ${byron_epochs} -ge 0 ]]; do
+    calc_slot=$(( (byron_epochs * BYRON_EPOCH_LENGTH) + (shelley_epochs * EPOCH_LENGTH) + slot_in_epoch ))
+    [[ ${calc_slot} -eq ${slotnum} ]] && break
+    ((byron_epochs--))
+    ((shelley_epochs++))
+  done
+  if [[ "${NWMAGIC}" = "764824073" ]]; then
+    shelley_transition_epoch=208
+  elif [[ ${calc_slot} -ne ${slotnum} || ${shelley_epochs} -eq 0 ]]; then
+    shelley_transition_epoch=-1
+  else
+    shelley_transition_epoch=${byron_epochs}
+  fi
+}
+
+# Command    : getSlotTipRef
+# Description: Get calculated slot number tip
+getSlotTipRef() {
+  current_time_sec=$(date -u +%s)
+  if [[ "${PROTOCOL}" = "Cardano" ]]; then
+    # Combinator network
+    byron_slots=$(( shelley_transition_epoch * BYRON_EPOCH_LENGTH )) # since this point will only be reached once we're in Shelley phase
+    byron_end_time=$(( BYRON_GENESIS_START_SEC + ( shelley_transition_epoch * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH ) ))
+    if [[ "${current_time_sec}" -lt "${byron_end_time}" ]]; then
+      # In Byron phase
+      echo $(( ( current_time_sec - BYRON_GENESIS_START_SEC ) / BYRON_SLOT_LENGTH ))
+    else
+      # In Shelley phase
+      echo $(( byron_slots + (( current_time_sec - byron_end_time ) / SLOT_LENGTH ) ))
+    fi
+  else
+    # Shelley Mode only, no Byron slots
+    echo $(( ( current_time_sec - SHELLEY_GENESIS_START_SEC ) / SLOT_LENGTH ))
+  fi
+}
 
 #################################
 
@@ -51,22 +127,22 @@ cncliInit() {
   [[ -z "${CONFIRM_BLOCK_CNT}" ]] && CONFIRM_BLOCK_CNT=10
   [[ -z "${TIMEOUT_LEDGER_STATE}" ]] && TIMEOUT_LEDGER_STATE=300
 
-  PARENT="$(dirname $0)"
-  [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
+  PARENT="$(dirname "$0")"
+  [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat "${PARENT}"/.env_branch)" || BRANCH="master"
 
   URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
   curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env
   if [[ -f "${PARENT}"/env ]]; then
     if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
-      vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
+      vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")
       sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
     else
-      echo -e "Update failed! Please use prereqs.sh to force an update or manually download $(basename $0) + env from GitHub"
+      echo -e "Update failed! Please use prereqs.sh to force an update or manually download $(basename "$0") + env from GitHub"
       exit 1
     fi
     TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
     TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
-    if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
+    if [[ "$(echo "${TEMPL_CMD}" | sha256sum)" != "$(echo "${TEMPL2_CMD}" | sha256sum)" ]]; then
       cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
       STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
       printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
@@ -278,13 +354,13 @@ cncliLeaderlog() {
       if ! dumpLedgerState; then sleep 300; continue; fi
       cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current --ledger-state /tmp/ledger-state.json --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}")
       [[ ! -f "${blocks_file}" ]] && echo "[]" > "${blocks_file}"
-      if [[ $(jq -r .status <<< ${cncli_leaderlog}) != ok ]]; then
+      if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
         echo "ERROR: failure in leaderlog while running:"
         echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set current --ledger-state /tmp/ledger-state.json --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY}"
-        echo "Error message: $(jq -r '.errorMessage //empty' <<< ${cncli_leaderlog})"
+        echo "Error message: $(jq -r '.errorMessage //empty' <<< "${cncli_leaderlog}")"
         continue
       fi
-      jq -c '.assignedSlots[]' "${cncli_leaderlog}" | while read assigned_slot; do
+      jq -c '.assignedSlots[]' "${cncli_leaderlog}" | while read -r assigned_slot; do
         slot=$(jq -r '.slot' <<< "${assigned_slot}")
         slot_search=$(jq --arg _slot "${slot}" '.[] | select(.slot == $_slot)' "${blocks_file}")
         if [[ -z ${slot_search} ]]; then
@@ -304,10 +380,10 @@ cncliLeaderlog() {
       [[ -f /tmp/ledger-state.json ]] || if ! dumpLedgerState; then sleep 300; continue; fi
       cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next --ledger-state /tmp/ledger-state.json --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}")
       rm -f /tmp/ledger-state.json
-      if [[ $(jq -r .status <<< ${cncli_leaderlog}) != ok ]]; then
+      if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
         echo "ERROR: failure in leaderlog while running:"
         echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set next --ledger-state /tmp/ledger-state.json --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY}"
-        echo "Error message: $(jq -r '.errorMessage //empty' <<< ${cncli_leaderlog})"
+        echo "Error message: $(jq -r '.errorMessage //empty' <<< "${cncli_leaderlog}")"
         continue
       fi
       jq -r '[.assignedSlots[]]' <<< "${cncli_leaderlog}" > "${blocks_file}"
@@ -329,14 +405,14 @@ cncliValidate() {
     # Start with previous epoch to catch epoch boundary cases
     blocks_file="${BLOCK_DIR}/blocks_${prev_epoch}.json"
     if [[ -f "${blocks_file}" ]]; then
-      jq -c '.[]' "${blocks_file}" | while read block; do
+      jq -c '.[]' "${blocks_file}" | while read -r block; do
         validateBlock "${block}"
       done
     fi
     # continue with current epoch
     blocks_file="${BLOCK_DIR}/blocks_${curr_epoch}.json"
     if [[ -f "${blocks_file}" ]]; then
-      jq -c '.[]' "${blocks_file}" | while read block; do
+      jq -c '.[]' "${blocks_file}" | while read -r block; do
         validateBlock "${block}"
       done
     fi
@@ -345,10 +421,10 @@ cncliValidate() {
 
 validateBlock() {
   block=$1
-  block_status=$(jq -r '.status //empty' <<< ${block})
+  block_status=$(jq -r '.status //empty' <<< "${block}")
   [[ ${block_status} = invalid ]] && return
   if [[ ${block_status} = leader ]]; then
-    block_slot=$(jq -r '.slot' <<< ${block})
+    block_slot=$(jq -r '.slot' <<< "${block}")
     [[ ${block_slot} -ge ${slot_tip} ]] && return
     # assume lost for now, TODO: use cncli/sqlite to check if slot was made by another pool
     jq --arg _slot "${block_slot}" \
@@ -356,26 +432,26 @@ validateBlock() {
        "${blocks_file}" > "${TMP_FOLDER}/blocks.json" && mv -f "${TMP_FOLDER}/blocks.json" "${blocks_file}"
     echo "MISSED: Leader for slot '${block_slot}' but not adopted. Verify that logMonitor companion script is running and working!"
   elif [[ ${block_status} = adopted ]]; then
-    block_slot=$(jq -r '.slot' <<< ${block})
+    block_slot=$(jq -r '.slot' <<< "${block}")
     [[ $((slot_tip - block_slot)) -lt ${CONFIRM_SLOT_CNT} ]] && return # To make sure enough slots has passed before validating
-    block_hash=$(jq -r '.hash //empty' <<< ${block})
+    block_hash=$(jq -r '.hash //empty' <<< "${block}")
     if [[ -n ${block_hash} ]]; then # Can't validate without a hash
-      cncli_block_data=$(${CNCLI} validate --host ${block_hash} --db "${CNCLI_DB}")
-      if [[ $(jq -r .status <<< ${cncli_block_data}) = ok ]]; then
-        cncli_slot_nbr=$(jq -r .slot_number <<< ${cncli_block_data})
+      cncli_block_data=$(${CNCLI} validate --host "${block_hash}" --db "${CNCLI_DB}")
+      if [[ $(jq -r .status <<< "${cncli_block_data}") = ok ]]; then
+        cncli_slot_nbr=$(jq -r .slot_number <<< "${cncli_block_data}")
         if [[ ${cncli_slot_nbr} -ne ${block_slot} ]]; then
           echo "ERROR: CNCLI slot nbr[${cncli_slot_nbr}] doesn't match adopted block slot nbr[${block_slot}] for hash '${block_hash}'"
         else
-          cncli_block_nbr=$(jq -r .block_number <<< ${cncli_block_data})
+          cncli_block_nbr=$(jq -r .block_number <<< "${cncli_block_data}")
           [[ $((block_tip-cncli_block_nbr)) -lt ${CONFIRM_SLOT_CNT} ]] && return # To make sure enough blocks has been built on top before validating
           # Block confimed
-          cncli_block_hash=$(jq -r .hash <<< ${cncli_block_data})
+          cncli_block_hash=$(jq -r .hash <<< "${cncli_block_data}")
           jq --arg _slot "${block_slot}" \
              --arg _block "${cncli_block_nbr}" \
              --arg _hash "${cncli_block_hash}" \
              '[.[] | select(.slot == $_slot) += {"block": $_block,"hash": $_hash,"status": "confirmed"}}]' \
              "${blocks_file}" > "${TMP_FOLDER}/blocks.json" && mv -f "${TMP_FOLDER}/blocks.json" "${blocks_file}"
-          echo "CONFIRMED: Block[${cncli_block_nbr}] / Slot[${block_slot}] at $(date '+%F %T Z' --date=@$(jq -r '.at' <<< ${block})), hash: ${cncli_block_hash}"
+          echo "CONFIRMED: Block[${cncli_block_nbr}] / Slot[${block_slot}] at $(date '+%F %T Z' "--date=@$(jq -r '.at' <<< "${block}")"), hash: ${cncli_block_hash}"
         fi
       else
         jq --arg _slot "${block_slot}" \
@@ -389,81 +465,7 @@ validateBlock() {
   fi
 }
 
-#################################
-# helper functions
 
-getNodeMetrics() {
-  curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null
-}
-
-getEpoch() {
-  jq -r '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${node_metrics}"
-}
-
-getBlockTip() {
-  jq -r '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${node_metrics}"
-}
-
-getSlotTip() {
-  jq -r '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${node_metrics}"
-}
-
-getSlotInEpoch() {
-  jq -r '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${node_metrics}"
-}
-
-dumpLedgerState() {
-  if ! timeout -k 5 ${TIMEOUT_LEDGER_STATE} ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file /tmp/ledger-state.json; then
-    echo "ERROR: ledger dump failed/timed out, increase timeout value"
-    [[ -f /tmp/ledger-state.json ]] && rm -f /tmp/ledger-state.json
-    return 1
-  fi
-}
-
-# Command    : getShelleyTransitionEpoch
-# Description: Calculate shelley transition epoch
-getShelleyTransitionEpoch() {
-  calc_slot=0
-  node_metrics=$(getNodeMetrics)
-  slotnum=$(getSlotTip)
-  slot_in_epoch=$(getSlotInEpoch)
-  byron_epochs=$(getEpoch)
-  shelley_epochs=0
-  while [[ ${byron_epochs} -ge 0 ]]; do
-    calc_slot=$(( (byron_epochs * BYRON_EPOCH_LENGTH) + (shelley_epochs * EPOCH_LENGTH) + slot_in_epoch ))
-    [[ ${calc_slot} -eq ${slotnum} ]] && break
-    ((byron_epochs--))
-    ((shelley_epochs++))
-  done
-  if [[ "${NWMAGIC}" = "764824073" ]]; then
-    shelley_transition_epoch=208
-  elif [[ ${calc_slot} -ne ${slotnum} || ${shelley_epochs} -eq 0 ]]; then
-    shelley_transition_epoch=-1
-  else
-    shelley_transition_epoch=${byron_epochs}
-  fi
-}
-
-# Command    : getSlotTipRef
-# Description: Get calculated slot number tip
-getSlotTipRef() {
-  current_time_sec=$(date -u +%s)
-  if [[ "${PROTOCOL}" = "Cardano" ]]; then
-    # Combinator network
-    byron_slots=$(( shelley_transition_epoch * BYRON_EPOCH_LENGTH )) # since this point will only be reached once we're in Shelley phase
-    byron_end_time=$(( BYRON_GENESIS_START_SEC + ( shelley_transition_epoch * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH ) ))
-    if [[ "${current_time_sec}" -lt "${byron_end_time}" ]]; then
-      # In Byron phase
-      echo $(( ( current_time_sec - BYRON_GENESIS_START_SEC ) / BYRON_SLOT_LENGTH ))
-    else
-      # In Shelley phase
-      echo $(( byron_slots + (( current_time_sec - byron_end_time ) / SLOT_LENGTH ) ))
-    fi
-  else
-    # Shelley Mode only, no Byron slots
-    echo $(( ( current_time_sec - SHELLEY_GENESIS_START_SEC ) / SLOT_LENGTH ))
-  fi
-}
 
 #################################
 
