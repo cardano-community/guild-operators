@@ -156,10 +156,9 @@ cncliInit() {
     mv "${PARENT}"/env.tmp "${PARENT}"/env
   fi
   rm -f "${PARENT}"/env.tmp
-
   if ! . "${PARENT}"/env; then exit 1; fi
-
   [[ ! -f "${CNCLI}" ]] && echo -e "ERROR: failed to locate cncli executable, please run:\n $(basename "$0") install\n$(usage)" && exit 1
+  return 0
 }
 
 #################################
