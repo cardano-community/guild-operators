@@ -64,7 +64,7 @@ getSlotInEpoch() {
 }
 
 dumpLedgerState() {
-  if ! timeout -k 5 ${TIMEOUT_LEDGER_STATE} "${CCLI}" shelley query ledger-state "${PROTOCOL_IDENTIFIER}" "${NETWORK_IDENTIFIER}" --out-file /tmp/ledger-state.json; then
+  if ! timeout -k 5 "${TIMEOUT_LEDGER_STATE}" "${CCLI}" shelley query ledger-state "${PROTOCOL_IDENTIFIER}" "${NETWORK_IDENTIFIER}" --out-file /tmp/ledger-state.json; then
     echo "ERROR: ledger dump failed/timed out, increase timeout value"
     [[ -f /tmp/ledger-state.json ]] && rm -f /tmp/ledger-state.json
     return 1
@@ -335,7 +335,7 @@ cncliLeaderlog() {
     else
       node_metrics=$(getNodeMetrics)
       slot_tip=$(getSlotTip)
-      tip_diff=$((getSlotTipRef - getSlotTip))
+      tip_diff=$(( $(getSlotTipRef) - $(getSlotTip) ))
       [[ ${tip_diff} -lt 300 ]] && break # Node considered in sync if less than 300 slots from theoretical tip
       echo "Node still in sync, ${tip_diff} slots from theoretical tip, checking again in ${SLEEP_RATE}s"
     fi
