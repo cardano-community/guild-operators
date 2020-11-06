@@ -1,4 +1,5 @@
 #!/bin/bash
+#shellcheck disable=SC2086
 #shellcheck source=/dev/null
 
 [[ -z "${CNODE_HOME}" ]] && CNODE_HOME="/opt/cardano/cnode"
@@ -27,12 +28,15 @@ usage() {
   cat <<EOF >&2
 
 Usage: $(basename "$0") [install] [sync] [leaderlog] [validate]
-Install pre-requisites for building cardano node and using CNTools
+Script to deploy and run CNCLI
 
 install     Installs RUST and CNCLI. If a previous install is found, an upgrade to latest version is performed
 sync        Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB
 leaderlog   Loops through all slots in current epoch to calculate leader schedule
 validate    Confirms that the block made actually was accepted and adopted by chain
+
+sync, leaderlog & validate are all deployed as systemd services by '$(basename "$0") install'.
+Use systemctl to launch the different services.
 
 EOF
   exit 1
@@ -64,7 +68,7 @@ getSlotInEpoch() {
 }
 
 dumpLedgerState() {
-  if ! timeout -k 5 "${TIMEOUT_LEDGER_STATE}" "${CCLI}" shelley query ledger-state "${PROTOCOL_IDENTIFIER}" "${NETWORK_IDENTIFIER}" --out-file /tmp/ledger-state.json; then
+  if ! timeout -k 5 "${TIMEOUT_LEDGER_STATE}" ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file /tmp/ledger-state.json; then
     echo "ERROR: ledger dump failed/timed out, increase timeout value"
     [[ -f /tmp/ledger-state.json ]] && rm -f /tmp/ledger-state.json
     return 1
@@ -155,7 +159,7 @@ cncliInit() {
 
   if ! . "${PARENT}"/env; then exit 1; fi
 
-  [[ ! -f "${CNCLI}" ]] && echo -e "${FG_RED}ERROR${NC}: failed to locate cncli executable, please run:\n $(basename "$0") install\n$(usage)" && exit 1
+  [[ ! -f "${CNCLI}" ]] && echo -e "ERROR: failed to locate cncli executable, please run:\n $(basename "$0") install\n$(usage)" && exit 1
 }
 
 #################################
@@ -259,8 +263,6 @@ RestartSec=5
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
 ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh leaderlog\"
-ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep [c]ncli.leaderlog.*.${CNODE_HOME}/ | tr -s ' ' | cut -d ' ' -f2)\"
-KillSignal=SIGINT
 SuccessExitStatus=143
 StandardOutput=syslog
 StandardError=syslog
@@ -297,8 +299,6 @@ RestartSec=5
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
 ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh validate\"
-ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep [c]ncli.validate.*.${CNODE_HOME}/ | tr -s ' ' | cut -d ' ' -f2)\"
-KillSignal=SIGINT
 SuccessExitStatus=143
 StandardOutput=syslog
 StandardError=syslog
