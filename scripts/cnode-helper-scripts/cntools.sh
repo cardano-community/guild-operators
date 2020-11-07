@@ -3246,7 +3246,6 @@ EOF
        adopted_cnt=$(( $(jq -c '[.[] //0 | select(.status=="adopted")] | length' "${blocks_file}") + confirmed_cnt ))
        leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + confirmed_cnt + adopted_cnt ))
        invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
-       echo
        say "Leader: ${leader_cnt}  -  Adopted: ${FG_CYAN}${adopted_cnt}${NC}  -  Confirmed: ${FG_GREEN}${confirmed_cnt}${NC}  -  Invalid: ${FG_RED}${invalid_cnt}${NC}" "log"
        echo
        # print block table
