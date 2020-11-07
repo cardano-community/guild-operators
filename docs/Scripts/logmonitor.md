@@ -3,11 +3,9 @@
 `logMonitor.sh` is a general purpose json log monitoring script for traces created by cardano-node. Currently it will look for traces related to leader slots and block creation but other uses could be added in the future. 
 
 ##### Block traces
+For the core node (block producer) the `logMonitor.sh` script can be run to monitor the json log file created by cardano-node for traces related to leader slots and block creation.   
 
-
-For the core node (block producer) the `log.sh` script can be run to monitor the json log file created by cardano-node for traces related to leader slots and block creation. Data collected is stored in a json file, one for each epoch. To view the collected data the main CNTools script is used.  
-
-This collector does not in any way replace a proper database like db-sync but can be a good lightweight way of keeping track of slots assigned and if blocks were successfully created.
+For optimal coverage, it's best run together with [CNCLI](Scripts/cncli.md) scripts as they provide different functionality. Together they create a complete picture of blocks assigned, created, validated or invalid due to some issue. 
 
 * [Installation](#installation)
 * [View Collected Blocks](#view-collected-blocks)
@@ -16,10 +14,10 @@ This collector does not in any way replace a proper database like db-sync but ca
 The script is best run as a background process. This can be accomplished in many ways but the preferred method is to run it as a systemd service. A terminal multiplexer like tmux or screen could also be used but not covered here.
 
 Use the `deploy-as-systemd.sh` script to create a systemd unit file.
-Output is logged using syslog and end up in the systems standard syslog file, normally `/var/log/syslog`. Other logging configurations are not covered here. 
+Output is logged using syslog and end up in the systems standard syslog file, normally `/var/log/syslog`. `journalctl -u <service>` can be used to check log. Other logging configurations are not covered here. 
 
 ##### View Collected Blocks
-Best viewed in CNTools but as it's saved as regular json any text/json viewer could be used.
+Best viewed in CNTools but as it's saved as regular JSON any text/JSON viewer could be used. Block data is saved to `BLOCK_DIR` variable set in env file, by default `${CNODE_HOME}/db/blocks`. One file is created for each epoch. 
 
 Open CNTools and select `[b] Blocks` to open the block viewer.  
 Either select `Epoch` and enter the epoch you want to see a detailed view for or choose `Summary` to display blocks for last x epochs.
@@ -28,32 +26,50 @@ If the node was elected to create blocks in the selected epoch it could look som
 
 **Summary**
 ```
-+--------+---------------+-----------------+-----------------+
-| Epoch  | Leader Slots  | Adopted Blocks  | Invalid Blocks  |
-+--------+---------------+-----------------+-----------------+
-| 92     | 21            | 21              | 0               |
-| 91     | 30            | 30              | 0               |
-| 90     | 36            | 36              | 0               |
-| 89     | 37            | 37              | 0               |
-| 88     | 26            | 26              | 0               |
-| 87     | 25            | 25              | 0               |
-| 86     | 25            | 25              | 0               |
-| 85     | 37            | 37              | 0               |
-| 84     | 30            | 30              | 0               |
-| 83     | 26            | 26              | 0               |
-+--------+---------------+-----------------+-----------------+
+ >> BLOCKS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Current epoch: 94
+
++--------+---------------+-----------------+-------------------+-----------------+
+| Epoch  | Leader Slots  | Adopted Blocks  | Confirmed Blocks  | Invalid Blocks  |
++--------+---------------+-----------------+-------------------+-----------------+
+| 94     | 30            | 10              | 10                | 0               |
+| 93     | 8             | 4               | 4                 | 0               |
+| 92     | -             | -               | -                 | -               |
+| 91     | -             | -               | -                 | -               |
+| 90     | -             | -               | -                 | -               |
++--------+---------------+-----------------+-------------------+-----------------+
 ```
 **Epoch**
 ```
-Leader: 5  -  Adopted: 5  -  Invalid: 0
+ >> BLOCKS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Current epoch: 94
 
-+----------+---------+--------------------------+-------+-------------------------------------------------------------------+
-| Status   | Slot    | At                       | Size  | Hash                                                              |
-+----------+---------+--------------------------+-------+-------------------------------------------------------------------+
-| adopted  | 165619  | 2020-07-11 00:21:19 UTC  | 3     | d1b86acb88e3255ec400354629aa65e5be24c6561a5cbc3f3a04cdc3b1e2a8d1  |
-| adopted  | 165683  | 2020-07-11 00:22:23 UTC  | 3     | 2ce005b1fed86a877aaa58a40f730fcfb3d4876d4218d5ee5e790d89fafd7610  |
-| adopted  | 165696  | 2020-07-11 00:22:36 UTC  | 3     | 0678cb8e04021183f221df6f0ff73f9f9dc39a000c6163bd134d4ae86e9364b5  |
-| adopted  | 165786  | 2020-07-11 00:24:06 UTC  | 3     | 51dfad492f5384230d7b21ec1fee212bd07d79121b2494200fb8f836354ee2f3  |
-| adopted  | 165846  | 2020-07-11 00:25:06 UTC  | 3     | 25e02a42441e83602cc0119c18a6c19f4631fcff22393a3380cbd58d677e3e83  |
-+----------+---------+--------------------------+-------+-------------------------------------------------------------------+
+Leader: 30  -  Adopted: 10  -  Confirmed: 10  -  Invalid: 0
+
++------------+----------+-----------+--------------+--------------------------+-------+-------------------------------------------------------------------+
+| Status     | Block    | Slot      | SlotInEpoch  | At                       | Size  | Hash                                                              |
++------------+----------+-----------+--------------+--------------------------+-------+-------------------------------------------------------------------+
+| confirmed  | 2007264  | 10246798  | 8398         | 2020-11-05 22:40:14 UTC  | 1388  | a4f2bbbc460213c97845b8bd3ebe6774cf8aa100202e595ce9c4c8cd7dcf94bd  |
+| confirmed  | 2007322  | 10248270  | 9870         | 2020-11-05 23:04:46 UTC  | 1016  | 754af8761edc8b48d8bf277b9104dd921b3873cf1772d9e6213e5aa1d6348bff  |
+| confirmed  | 2008752  | 10282751  | 44351        | 2020-11-06 08:39:27 UTC  | 1016  | 8537280589e8d5da713ec70554d7e40af908496b3dc0d0cc555f19a527e428c0  |
+| confirmed  | 2009568  | 10302283  | 63883        | 2020-11-06 14:04:59 UTC  | 1016  | faccc61e2f947a2e3e8c00b270a755ded5872242b37b17ec2baf20d3865bf10b  |
+| confirmed  | 2011042  | 10338139  | 99739        | 2020-11-07 00:02:35 UTC  | 1016  | ee7d6734b7505037a5cb3e983a9f6fdde05dd4837cd68b91e021192319e7d707  |
+| confirmed  | 2011577  | 10350929  | 112529       | 2020-11-07 03:35:45 UTC  | 1016  | 007b8493b961b542e3f92e0bd5a465a3cf88ebfbe4a308dbe3e058d37fa7e93f  |
+| confirmed  | 2011639  | 10352354  | 113954       | 2020-11-07 03:59:30 UTC  | 1016  | 55a97e105c22e98f72077d7a2850bf6742b8fae7032e9ef994015249f58740fd  |
+| confirmed  | 2011968  | 10359685  | 121285       | 2020-11-07 06:01:41 UTC  | 1016  | 7924b2e7139686ed9c3fd34273583f386c2010a0fd4aa41328e02204c8491dda  |
+| confirmed  | 2012592  | 10373759  | 135359       | 2020-11-07 09:56:15 UTC  | 1016  | 3d6204b337e2c749a7627839a87da9be7d42b2bf6bd24cd81174c7fb15a27fce  |
+| confirmed  | 2012648  | 10375057  | 136657       | 2020-11-07 10:17:53 UTC  | 1016  | 788c58fc9b92e54289ed09cc2b004d03b5a5cb071224d26e88b587fe114b0d9d  |
+| leader     | -        | 10422950  | 184550       | 2020-11-07 23:36:06 UTC  | -     | -                                                                 |
+| leader     | -        | 10446589  | 208189       | 2020-11-08 06:10:05 UTC  | -     | -                                                                 |
+| leader     | -        | 10481159  | 242759       | 2020-11-08 15:46:15 UTC  | -     | -                                                                 |
+| leader     | -        | 10487667  | 249267       | 2020-11-08 17:34:43 UTC  | -     | -                                                                 |
+| leader     | -        | 10507185  | 268785       | 2020-11-08 23:00:01 UTC  | -     | -                                                                 |
+| leader     | -        | 10512090  | 273690       | 2020-11-09 00:21:46 UTC  | -     | -                                                                 |
+| leader     | -        | 10567882  | 329482       | 2020-11-09 15:51:38 UTC  | -     | -                                                                 |
+| leader     | -        | 10582037  | 343637       | 2020-11-09 19:47:33 UTC  | -     | -                                                                 |
+| leader     | -        | 10630166  | 391766       | 2020-11-10 09:09:42 UTC  | -     | -                                                                 |
+| leader     | -        | 10662327  | 423927       | 2020-11-10 18:05:43 UTC  | -     | -                                                                 |
++------------+----------+-----------+--------------+--------------------------+-------+-------------------------------------------------------------------+
 ```

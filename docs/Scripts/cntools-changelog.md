@@ -10,6 +10,10 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ##### Added
 - Ability to post metadata on-chain, e.g. (but not limited to) Adams https://vote.crypto2099.io/
 
+##### Changed
+- Blocks view updated to adapt to changed made to block collector(logMonitor) and the added CNCLI integration
+  - see 
+
 ##### Fixed
 - Minor tweaks (non-breaking) 
   - unnecessary bech32 conversion in wallet import

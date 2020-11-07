@@ -11,6 +11,7 @@
       - [Common tasks](Scripts/cntools-common.md)
       - [Changelog](Scripts/cntools-changelog.md)
 	* [Log Monitor](Scripts/logmonitor.md)
+	* [CNCLI](Scripts/cncli.md)
     * [Guild LiveView](Scripts/gliveview.md)
     * [ITN Metadata Proof](Scripts/itnwitness.md)
     * [ITN Rewards](Scripts/itnrewards.md)
