@@ -3257,14 +3257,34 @@ EOF
          waitForInput && continue
        fi
        tput rc && tput ed
-       confirmed_cnt=$(jq -c '[.[] //0 | select(.status=="confirmed")] | length' "${blocks_file}")
-       adopted_cnt=$(( $(jq -c '[.[] //0 | select(.status=="adopted")] | length' "${blocks_file}") + confirmed_cnt ))
-       leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + confirmed_cnt + adopted_cnt ))
-       invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
-       say "Leader: ${leader_cnt}  -  Adopted: ${FG_CYAN}${adopted_cnt}${NC}  -  Confirmed: ${FG_GREEN}${confirmed_cnt}${NC}  -  Invalid: ${FG_RED}${invalid_cnt}${NC}" "log"
-       echo
-       # print block table
-       printTable ',' "$(say 'Status,Block,Slot,SlotInEpoch,At,Size,Hash' | cat - <(jq -rc '.[] | [.status //"-",.block //"-",.slot //"-",.slotInEpoch //"-",(.at|sub("\\.[0-9]+Z$"; "Z")|sub("\\+00:00$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S %Z")) //"-",.size //"-",.hash //"-"] | @csv' "${blocks_file}") | tr -d '"')"
+       view=1
+       while true; do
+         tput sc
+         confirmed_cnt=$(jq -c '[.[] //0 | select(.status=="confirmed")] | length' "${blocks_file}")
+         adopted_cnt=$(( $(jq -c '[.[] //0 | select(.status=="adopted")] | length' "${blocks_file}") + confirmed_cnt ))
+         leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + confirmed_cnt + adopted_cnt ))
+         invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
+         say "Leader: ${leader_cnt}  -  Adopted: ${FG_CYAN}${adopted_cnt}${NC}  -  Confirmed: ${FG_GREEN}${confirmed_cnt}${NC}  -  Invalid: ${FG_RED}${invalid_cnt}${NC}" "log"
+         echo "View: ${view}"
+         # print block table
+         if [[ ${view} -eq 1 ]]; then
+           printTable ',' "$(say 'Status,Block,Slot,SlotInEpoch,At' | cat - <(jq -rc '.[] | [.status //"-",.block //"-",.slot //"-",.slotInEpoch //"-",(.at|sub("\\.[0-9]+Z$"; "Z")|sub("\\+00:00$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S %Z")) //"-"] | @csv' "${blocks_file}") | tr -d '"')"
+         elif [[ ${view} -eq 2 ]]; then
+           printTable ',' "$(say 'Status,Slot,Size,Hash' | cat - <(jq -rc '.[] | [.status //"-",.slot //"-",.size //"-",.hash //"-"] | @csv' "${blocks_file}") | tr -d '"')"
+         else
+           printTable ',' "$(say 'Status,Block,Slot,SlotInEpoch,At,Size,Hash' | cat - <(jq -rc '.[] | [.status //"-",.block //"-",.slot //"-",.slotInEpoch //"-",(.at|sub("\\.[0-9]+Z$"; "Z")|sub("\\+00:00$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S %Z")) //"-",.size //"-",.hash //"-"] | @csv' "${blocks_file}") | tr -d '"')"
+         fi
+         echo
+         say "[h] Home | [1] View 1 | [2] View 2 | [3] View 3 (full) | [*] Any other key refresh current view"
+         read -rsn1 key
+         case ${key} in
+           h ) continue 2 ;;
+           1 ) view=1 ;;
+           2 ) view=2 ;;
+           3 ) view=3 ;;
+           * ) continue ;;
+         esac
+       done
        ;;
     2) continue ;;
   esac
