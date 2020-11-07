@@ -432,14 +432,14 @@ validateBlock() {
     # assume lost for now, TODO: use cncli/sqlite to check if slot was made by another pool
     jq --arg _slot "${block_slot}" \
        '[.[] | select(.slot == $_slot) += {"status": "missed"}}]' \
-       "${blocks_file}" > "${TMP_FOLDER}/blocks.json" && mv -f "${TMP_FOLDER}/blocks.json" "${blocks_file}"
+       "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
     echo "MISSED: Leader for slot '${block_slot}' but not adopted. Verify that logMonitor companion script is running and working!"
   elif [[ ${block_status} = adopted ]]; then
     block_slot=$(jq -r '.slot' <<< "${block}")
     [[ $((slot_tip - block_slot)) -lt ${CONFIRM_SLOT_CNT} ]] && return # To make sure enough slots has passed before validating
     block_hash=$(jq -r '.hash //empty' <<< "${block}")
     if [[ -n ${block_hash} ]]; then # Can't validate without a hash
-      cncli_block_data=$(${CNCLI} validate --host "${block_hash}" --db "${CNCLI_DB}")
+      cncli_block_data=$(${CNCLI} validate --hash "${block_hash}" --db "${CNCLI_DB}")
       if [[ $(jq -r .status <<< "${cncli_block_data}") = ok ]]; then
         cncli_slot_nbr=$(jq -r .slot_number <<< "${cncli_block_data}")
         if [[ ${cncli_slot_nbr} -ne ${block_slot} ]]; then
@@ -453,13 +453,13 @@ validateBlock() {
              --arg _block "${cncli_block_nbr}" \
              --arg _hash "${cncli_block_hash}" \
              '[.[] | select(.slot == $_slot) += {"block": $_block,"hash": $_hash,"status": "confirmed"}}]' \
-             "${blocks_file}" > "${TMP_FOLDER}/blocks.json" && mv -f "${TMP_FOLDER}/blocks.json" "${blocks_file}"
+             "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
           echo "CONFIRMED: Block[${cncli_block_nbr}] / Slot[${block_slot}] at $(date '+%F %T Z' "--date=@$(jq -r '.at' <<< "${block}")"), hash: ${cncli_block_hash}"
         fi
       else
         jq --arg _slot "${block_slot}" \
            '[.[] | select(.slot == $_slot) += {"status": "ghosted"}}]' \
-           "${blocks_file}" > "${TMP_FOLDER}/blocks.json" && mv -f "${TMP_FOLDER}/blocks.json" "${blocks_file}"
+           "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
         echo "GHOSTED: Leader for slot '${block_slot}' but block hash '${block_hash}' not found, stolen in slot/height battle or block propagation issue!"
       fi
     else
