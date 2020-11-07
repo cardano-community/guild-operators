@@ -3223,7 +3223,7 @@ EOF
   say "Show a block summary for all epochs or a detailed view for a specific epoch?"
   select_opt "[s] Summary" "[e] Epoch" "[Esc] Cancel"
   case $? in
-    0) block_table="Epoch,Leader Slots,${FG_CYAN}Adopted Blocks${NC},${FG_GREEN}Confirmed Blocks${NC},${FG_RED}Invalid Blocks${NC}\n"
+    0) block_table="Epoch,Leader Slots,${FG_CYAN}Adopted Blocks${NC},${FG_GREEN}Confirmed Blocks${NC},${FG_RED}Invalid/Missed/Ghosted Blocks${NC}\n"
        echo && read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter
        epoch_enter=${epoch_enter:-10}
        if ! [[ ${epoch_enter} =~ ^[0-9]+$ ]]; then
@@ -3238,11 +3238,13 @@ EOF
          if [[ ! -f "${blocks_file}" ]]; then
            block_table+="${current_epoch},-,-,-,-\n"
          else
+           invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
+           missed_cnt=$(jq -c '[.[] //0 | select(.status=="missed")] | length' "${blocks_file}")
+           ghosted_cnt=$(jq -c '[.[] //0 | select(.status=="ghosted")] | length' "${blocks_file}")
            confirmed_cnt=$(jq -c '[.[] //0 | select(.status=="confirmed")] | length' "${blocks_file}")
            adopted_cnt=$(( $(jq -c '[.[] //0 | select(.status=="adopted")] | length' "${blocks_file}") + confirmed_cnt ))
-           leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + adopted_cnt ))
-           invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
-           block_table+="${current_epoch},${leader_cnt},${adopted_cnt},${confirmed_cnt},${invalid_cnt}\n"
+           leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt ))
+           block_table+="${current_epoch},${leader_cnt},${adopted_cnt},${confirmed_cnt},${invalid_cnt} / ${missed_cnt} / ${ghosted_cnt}\n"
          fi
          ((current_epoch--))
        done
@@ -3260,11 +3262,13 @@ EOF
        view=1
        while true; do
          tput rc && tput ed && tput sc
+         invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
+         missed_cnt=$(jq -c '[.[] //0 | select(.status=="missed")] | length' "${blocks_file}")
+         ghosted_cnt=$(jq -c '[.[] //0 | select(.status=="ghosted")] | length' "${blocks_file}")
          confirmed_cnt=$(jq -c '[.[] //0 | select(.status=="confirmed")] | length' "${blocks_file}")
          adopted_cnt=$(( $(jq -c '[.[] //0 | select(.status=="adopted")] | length' "${blocks_file}") + confirmed_cnt ))
-         leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + adopted_cnt ))
-         invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
-         say "[View ${view}]   Leader: ${leader_cnt}  -  Adopted: ${FG_CYAN}${adopted_cnt}${NC}  -  Confirmed: ${FG_GREEN}${confirmed_cnt}${NC}  -  Invalid: ${FG_RED}${invalid_cnt}${NC}" "log"
+         leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt ))
+         say "[View ${view}]   Leader: ${leader_cnt}  -  Adopted: ${FG_CYAN}${adopted_cnt}${NC}  -  Confirmed: ${FG_GREEN}${confirmed_cnt}${NC}  -  Invalid / Missed / Ghosted: ${FG_RED}${invalid_cnt}${NC} / ${FG_RED}${missed_cnt}${NC} / ${FG_RED}${ghosted_cnt}${NC}" "log"
          echo
          # print block table
          if [[ ${view} -eq 1 ]]; then
