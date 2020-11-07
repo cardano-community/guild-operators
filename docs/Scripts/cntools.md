@@ -17,7 +17,9 @@ The tool consist of three files.
 
 In addition to the above files, there is also a dependency on the common `env` file. CNTools connects to your node through the configuration in the `env` file located in the same directory as the script. Customize `env` and `cntools.config` files for your needs. CNTools can operate in an Offline mode without node access by providing the `-o` runtime argument. This launches CNTools with a limited set of features with Hybrid or Online v/s Offline workflow in mind.
 
-`logMonitor.sh` is a companion script that are optional to run on the core node(block producer) to be able to monitor blocks created, see [Log Monitor](Scripts/logmonitor.md) section for more details.
+`logMonitor.sh` is a companion script that are optional to run on the core node(block producer) to be able to monitor blocks created.  
+`cncli.sh` is another companion script meant to be run together with logMonitor.sh script to give a complete picture by running leader schedule and block validation.  
+See [Log Monitor](Scripts/logmonitor.md) and [CNCLI](Scripts/cncli.md) sections for more details.  
 
 > The tool in its default state uses the folder structure [here](basics.md#folder-structure). Everyone is free to customise, but while doing so beware that you may introduce changes that were not tested.
 

@@ -22,6 +22,14 @@ Best viewed in CNTools but as it's saved as regular JSON any text/JSON viewer co
 Open CNTools and select `[b] Blocks` to open the block viewer.  
 Either select `Epoch` and enter the epoch you want to see a detailed view for or choose `Summary` to display blocks for last x epochs.
 
+**Block status**
+* leader - pool scheduled to make block at this slot
+* adopted - node created block successfully
+* confirmed - block created validated to be on-chain with the certainty set in `cncli.sh` for `CONFIRM_BLOCK_CNT`
+* missed - pool scheduled to make block at a slot that there is no record of it producing
+* ghosted - pool created block but unable to find block hash on-chain, stolen in height/slot battle or block propagation issue
+* invalid - pool failed to create block, base64 encoded error message can be decoded with `echo <base64 hash> | base64 -d | jq -r`
+
 If the node was elected to create blocks in the selected epoch it could look something like this:
 
 **Summary**

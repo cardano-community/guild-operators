@@ -3223,7 +3223,7 @@ EOF
   say "Show a block summary for all epochs or a detailed view for a specific epoch?"
   select_opt "[s] Summary" "[e] Epoch" "[Esc] Cancel"
   case $? in
-    0) block_table="Epoch,Leader Slots,${FG_CYAN}Adopted Blocks${NC},${FG_GREEN}Confirmed Blocks${NC},${FG_RED}Invalid/Missed/Ghosted Blocks${NC}\n"
+    0) block_table="Epoch,Leader,${FG_CYAN}Adopted${NC},${FG_GREEN}Confirmed${NC},${FG_RED}Missed${NC},${FG_RED}Ghosted${NC},${FG_RED}Invalid${NC}\n"
        echo && read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter
        epoch_enter=${epoch_enter:-10}
        if ! [[ ${epoch_enter} =~ ^[0-9]+$ ]]; then
@@ -3244,7 +3244,7 @@ EOF
            confirmed_cnt=$(jq -c '[.[] //0 | select(.status=="confirmed")] | length' "${blocks_file}")
            adopted_cnt=$(( $(jq -c '[.[] //0 | select(.status=="adopted")] | length' "${blocks_file}") + confirmed_cnt ))
            leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt ))
-           block_table+="${current_epoch},${leader_cnt},${adopted_cnt},${confirmed_cnt},${invalid_cnt} / ${missed_cnt} / ${ghosted_cnt}\n"
+           block_table+="${current_epoch},${leader_cnt},${adopted_cnt},${confirmed_cnt},${missed_cnt},${ghosted_cnt},${invalid_cnt}\n"
          fi
          ((current_epoch--))
        done
@@ -3268,7 +3268,7 @@ EOF
          confirmed_cnt=$(jq -c '[.[] //0 | select(.status=="confirmed")] | length' "${blocks_file}")
          adopted_cnt=$(( $(jq -c '[.[] //0 | select(.status=="adopted")] | length' "${blocks_file}") + confirmed_cnt ))
          leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt ))
-         say "Leader : ${leader_cnt}  |  Adopted / Confirmed : ${FG_CYAN}${adopted_cnt}${NC} / ${FG_GREEN}${confirmed_cnt}${NC}  |  Invalid / Missed / Ghosted : ${FG_RED}${invalid_cnt}${NC} / ${FG_RED}${missed_cnt}${NC} / ${FG_RED}${ghosted_cnt}${NC}" "log"
+         say "Leader : ${leader_cnt}  |  Adopted / Confirmed : ${FG_CYAN}${adopted_cnt}${NC} / ${FG_GREEN}${confirmed_cnt}${NC}  |  Missed / Ghosted / Invalid : ${FG_RED}${missed_cnt}${NC} / ${FG_RED}${ghosted_cnt}${NC} / ${FG_RED}${invalid_cnt}${NC}" "log"
          echo
          # print block table
          if [[ ${view} -eq 1 ]]; then
