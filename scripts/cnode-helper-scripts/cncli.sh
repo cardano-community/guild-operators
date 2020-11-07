@@ -341,7 +341,9 @@ cncliLeaderlog() {
     sleep ${SLEEP_RATE}
   done
   first_run="true"
-  slot_for_next_nonce=$((EPOCH_LENGTH-129600))
+  slot_in_epoch=$(getSlotInEpoch)
+  # firstSlotOfNextEpoch - stabilityWindow(3 * k / f)
+  slot_for_next_nonce=$(( (slot_tip - slot_in_epoch + EPOCH_LENGTH) - (3 * BYRON_K / ACTIVE_SLOTS_COEFF) ))
   while true; do
     sleep ${SLEEP_RATE}
     node_metrics=$(getNodeMetrics)
@@ -359,7 +361,7 @@ cncliLeaderlog() {
         echo "Error message: $(jq -r '.errorMessage //empty' <<< "${cncli_leaderlog}")"
         continue
       fi
-      jq -c '.assignedSlots[]' "${cncli_leaderlog}" | while read -r assigned_slot; do
+      jq -c '.assignedSlots[]' <<< "${cncli_leaderlog}" | while read -r assigned_slot; do
         slot=$(jq -r '.slot' <<< "${assigned_slot}")
         slot_search=$(jq --arg _slot "${slot}" '.[] | select(.slot == $_slot)' "${blocks_file}")
         if [[ -z ${slot_search} ]]; then
@@ -385,7 +387,7 @@ cncliLeaderlog() {
         echo "Error message: $(jq -r '.errorMessage //empty' <<< "${cncli_leaderlog}")"
         continue
       fi
-      jq -r '[.assignedSlots[]]' <<< "${cncli_leaderlog}" > "${blocks_file}"
+      jq -r '.assignedSlots | .[] += {"status": "leader"}' <<< "${cncli_leaderlog}" > "${blocks_file}"
     fi
   done
 }

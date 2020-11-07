@@ -3202,55 +3202,57 @@ EOF
     waitForInput && continue
   fi
 
-  epoch=$(getEpoch)
-
-  say "Current epoch: ${epoch}\n"
+  current_epoch=$(getEpoch)
+  say "Current epoch: ${current_epoch}\n"
 
   say "Show a block summary for all epochs or a detailed view for a specific epoch?"
   select_opt "[s] Summary" "[e] Epoch" "[Esc] Cancel"
   case $? in
-    0) echo
-       block_table="Epoch,${FG_BLUE}Leader Slots${NC},${FG_GREEN}Adopted Blocks${NC},${FG_RED}Invalid Blocks${NC}\n"
-       current_epoch=${epoch}
+    0) echo && tput sc
+       block_table="Epoch,Leader Slots,${FG_CYAN}Adopted Blocks${NC},${FG_GREEN}Confirmed Blocks${NC},${FG_RED}Invalid Blocks${NC}\n"
        read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter
-       echo
        epoch_enter=${epoch_enter:-10}
        if ! [[ ${epoch_enter} =~ ^[0-9]+$ ]]; then
-         say "${FG_RED}ERROR${NC}: not a number"
+         say "\n${FG_RED}ERROR${NC}: not a number"
          waitForInput && continue
        fi
+       tput rc && tput ed
        first_epoch=$(( epoch - epoch_enter ))
        [[ ${first_epoch} -lt 0 ]] && first_epoch=0
        while [[ ${current_epoch} -gt ${first_epoch} ]]; do
          blocks_file="${BLOCK_DIR}/blocks_${current_epoch}.json"
          if [[ ! -f "${blocks_file}" ]]; then
-           block_table+="${current_epoch},0,0,0\n"
+           block_table+="${current_epoch},-,-,-,-\n"
          else
-           leader_count=$(jq -c '[.[].slot //empty] | length' "${blocks_file}")
-           invalid_count=$(jq -c '[.[].hash //empty | select(startswith("Invalid"))] | length' "${blocks_file}")
-           adopted_count=$(( $(jq -c '[.[].hash //empty] | length' "${blocks_file}") - invalid_count ))
-           block_table+="${current_epoch},${leader_count},${adopted_count},${invalid_count}\n"
+           confirmed_cnt=$(jq -c '[.[] //0 | select(.status=="confirmed")] | length' "${blocks_file}")
+           adopted_cnt=$(( $(jq -c '[.[] //0 | select(.status=="adopted")] | length' "${blocks_file}") + confirmed_cnt ))
+           leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + confirmed_cnt + adopted_cnt ))
+           invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
+           block_table+="${current_epoch},${leader_cnt},${adopted_cnt},${confirmed_cnt},${invalid_cnt}\n"
          fi
          ((current_epoch--))
        done
        printTable ',' "$(echo -e ${block_table})"
        ;;
-    1) echo && read -r -p "Enter epoch to list (enter for current): " epoch_enter
-       [[ -z "${epoch_enter}" ]] && epoch_enter=${epoch}
+    1) echo && tput sc
+       [[ -f "${BLOCK_DIR}/blocks_$((current_epoch+1)).json" ]] && say "Leader schedule for next epoch[$((current_epoch+1))] available\n"
+       read -r -p "Enter epoch to list (enter for current): " epoch_enter
+       [[ -z "${epoch_enter}" ]] && epoch_enter=${current_epoch}
        blocks_file="${BLOCK_DIR}/blocks_${epoch_enter}.json"
-       if [[ ! -f "${blocks_file}" ]]; then
+       if [[ ! -f "${blocks_file}" || -z $(jq -c '.[]' <<< "${blocks_file}") ]]; then
          say "No blocks created in epoch ${epoch_enter}"
          waitForInput && continue
        fi
-       leader_count=$(jq -c '[.[].slot //empty] | length' "${blocks_file}")
-       invalid_count=$(jq -c '[.[].hash //empty | select(startswith("Invalid"))] | length' "${blocks_file}")
-       adopted_count=$(( $(jq -c '[.[].hash //empty] | length' "${blocks_file}") - invalid_count ))
-       say "\nLeader: ${FG_BLUE}${leader_count}${NC}  -  Adopted: ${FG_GREEN}${adopted_count}${NC}  -  Invalid: ${FG_RED}${invalid_count}${NC}" "log"
-       if [[ ${leader_count} -gt 0 ]]; then
-         echo
-         # print block table
-         printTable ',' "$(say 'Slot,At,Size,Hash' | cat - <(jq -rc '.[] | [.slot,(.at|sub("\\.[0-9]+Z$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S %Z")),.size,.hash] | @csv' "${blocks_file}") | tr -d '"')"
-       fi
+       tput rc && tput ed
+       confirmed_cnt=$(jq -c '[.[] //0 | select(.status=="confirmed")] | length' "${blocks_file}")
+       adopted_cnt=$(( $(jq -c '[.[] //0 | select(.status=="adopted")] | length' "${blocks_file}") + confirmed_cnt ))
+       leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + confirmed_cnt + adopted_cnt ))
+       invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
+       echo
+       say "Leader: ${leader_cnt}  -  Adopted: ${FG_CYAN}${adopted_cnt}${NC}  -  Confirmed: ${FG_GREEN}${confirmed_cnt}${NC}  -  Invalid: ${FG_RED}${invalid_cnt}${NC}" "log"
+       echo
+       # print block table
+       printTable ',' "$(say 'Status,Block,Slot,SlotInEpoch,At,Size,Hash' | cat - <(jq -rc '.[] | [.status //"-",.block //"-",.slot //"-",.slotInEpoch //"-",(.at|sub("\\.[0-9]+Z$"; "Z")|sub("\\+00:00$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S %Z")) //"-",.size //"-",.hash //"-"] | @csv' "${blocks_file}") | tr -d '"')"
        ;;
     2) continue ;;
   esac
