@@ -343,7 +343,7 @@ cncliLeaderlog() {
   first_run="true"
   slot_in_epoch=$(getSlotInEpoch)
   # firstSlotOfNextEpoch - stabilityWindow(3 * k / f)
-  slot_for_next_nonce=$(( (slot_tip - slot_in_epoch + EPOCH_LENGTH) - (3 * BYRON_K / ACTIVE_SLOTS_COEFF) ))
+  slot_for_next_nonce=$(echo "(${slot_tip} - ${slot_in_epoch} + ${EPOCH_LENGTH}) - (3 * ${BYRON_K} / ${ACTIVE_SLOTS_COEFF})" | bc)
   while true; do
     sleep ${SLEEP_RATE}
     node_metrics=$(getNodeMetrics)
