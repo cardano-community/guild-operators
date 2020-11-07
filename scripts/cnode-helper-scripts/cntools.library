@@ -1116,13 +1116,23 @@ sendADA() {
 }
 
 
-# Command     :  sendMetadata [wallet address] [wallet sign key] [metadata file]
+# Command     :  sendMetadata [wallet address] [wallet sign key] [metadata file] [metadata type]
 # Description :  post metadata file on chain using specified wallet to pay for the transaction fee
 sendMetadata() {
   # Handle script arguments
   addr="$1"
   payment_sk_file="$2"
   metafile="$3"
+  if [[ $4 = "no-schema" ]]; then
+    metadata="--json-metadata-no-schema --metadata-json-file ${metafile}"
+  elif [[ $4 = "detailed-schema" ]]; then
+    metadata="--json-metadata-detailed-schema --metadata-json-file ${metafile}"
+  elif [[ $4 = "cbor" ]]; then
+    metadata="--metadata-cbor-file ${metafile}"
+  else
+    say "${FG_RED}ERROR${NC}: unknown metadata type '$4'"
+    return 1
+  fi
 
   say "" 1
   say "# Protocol Parameters" 1 "log"
@@ -1157,8 +1167,8 @@ sendMetadata() {
 
   say "" 1
   say "# Calculate fee, new amount and remaining balance" 1 "log"
-  say "$ ${CCLI} shelley transaction build-raw ${txIn} --tx-out ${addr}+0 --ttl ${ttlValue} --fee 0 --metadata-json-file ${metafile} --out-file ${TMP_FOLDER}/tx0.tmp" 2
-  if ! ${CCLI} shelley transaction build-raw ${txIn} --tx-out ${addr}+0 --ttl ${ttlValue} --fee 0 --metadata-json-file ${metafile} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  say "$ ${CCLI} shelley transaction build-raw ${txIn} --tx-out ${addr}+0 --ttl ${ttlValue} --fee 0 ${metadata} --out-file ${TMP_FOLDER}/tx0.tmp" 2
+  if ! ${CCLI} shelley transaction build-raw ${txIn} --tx-out ${addr}+0 --ttl ${ttlValue} --fee 0 ${metadata} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
   minFeeArgs=(
     shelley transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
@@ -1190,7 +1200,7 @@ sendMetadata() {
     ${txOut}
     --ttl ${ttlValue}
     --fee ${minFee}
-    --metadata-json-file ${metafile}
+    ${metadata}
     --out-file "${TMP_FOLDER}"/tx.raw
   )
   if ! buildTx; then return 1; fi

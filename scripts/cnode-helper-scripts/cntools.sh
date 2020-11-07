@@ -1414,24 +1414,39 @@ EOF
     fi
     echo
     
-    metafile="${TMP_FOLDER}/metadata.json"
-    say "Do you want to select a metadata file, enter URL to metadata file, or enter/paste metadata content?"
-    select_opt "[f] File" "[u] URL" "[e] Enter"
+    say "Select the type of metadata to post on-chain"
+    say "ref: https://github.com/input-output-hk/cardano-node/blob/master/doc/reference/tx-metadata.md"
+    select_opt "[n] No JSON Schema (default)" "[d] Detailed JSON Schema" "[c] Raw CBOR"
     case $? in
-      0) fileDialog 0 "Enter path to metadata file"
-         metafile="${file}"
-         say "${metafile}:\n$(cat "${metafile}")\n"
-         ;;
-      1) if ! curl -sL -m ${CURL_TIMEOUT} -o "${metafile}" ${meta_json_url} || ! jq -er . "${metafile}" &>/dev/null; then
-           say "${FG_RED}ERROR${NC}: metadata download failed, please make sure the URL point to a valid json file!"
-           waitForInput && continue
-         fi
-         ;;
-      2) say "Please paste or enter the metadata text, use ${FG_CYAN}CTRL-D${NC} to end input"
-         metadata=$(</dev/stdin)
-         echo "${metadata}" > "${metafile}"
-         ;;
+      0) metatype="no-schema" ;;
+      1) metatype="detailed-schema" ;;
+      2) metatype="cbor" ;;
     esac
+
+    if [[ ${metatype} = "cbor" ]]; then
+      fileDialog 0 "Enter path to raw CBOR metadata file"
+      metafile="${file}"
+      say "${metafile}\n"
+    else
+      metafile="${TMP_FOLDER}/metadata.json"
+      say "Do you want to select a metadata file, enter URL to metadata file, or enter/paste metadata content?"
+      select_opt "[f] File" "[u] URL" "[e] Enter"
+      case $? in
+        0) fileDialog 0 "Enter path to JSON metadata file"
+           metafile="${file}"
+           say "${metafile}:\n$(cat "${metafile}")\n"
+           ;;
+        1) if ! curl -sL -m ${CURL_TIMEOUT} -o "${metafile}" ${meta_json_url} || ! jq -er . "${metafile}" &>/dev/null; then
+             say "${FG_RED}ERROR${NC}: metadata download failed, please make sure the URL point to a valid json file!"
+             waitForInput && continue
+           fi
+           ;;
+        2) say "Please paste or enter the metadata text, use ${FG_CYAN}CTRL-D${NC} to end input"
+           metadata=$(</dev/stdin)
+           echo "${metadata}" > "${metafile}"
+           ;;
+      esac
+    fi
 
     say "# Select wallet"
     if [[ ${op_mode} = "online" ]]; then
@@ -1483,7 +1498,7 @@ EOF
 
     payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
 
-    if ! sendMetadata "${addr}" "${payment_sk_file}" "${metafile}"; then
+    if ! sendMetadata "${addr}" "${payment_sk_file}" "${metafile}" "${metatype}"; then
       waitForInput && continue
     fi
 
