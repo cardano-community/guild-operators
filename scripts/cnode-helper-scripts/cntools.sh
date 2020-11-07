@@ -3203,7 +3203,7 @@ EOF
   fi
 
   current_epoch=$(getEpoch)
-  say "Current epoch: ${current_epoch}\n"
+  say "Current epoch: ${FG_CYAN}${current_epoch}${NC}\n"
   tput sc
   say "Show a block summary for all epochs or a detailed view for a specific epoch?"
   select_opt "[s] Summary" "[e] Epoch" "[Esc] Cancel"
@@ -3237,7 +3237,7 @@ EOF
        echo && read -r -p "Enter epoch to list (enter for current): " epoch_enter
        [[ -z "${epoch_enter}" ]] && epoch_enter=${current_epoch}
        blocks_file="${BLOCK_DIR}/blocks_${epoch_enter}.json"
-       if [[ ! -f "${blocks_file}" || ( -f "${blocks_file}" && -z $(jq -c '.[]' <<< "${blocks_file}") ) ]]; then
+       if [[ ! -f "${blocks_file}" || ( -f "${blocks_file}" && -z $(jq -c '.[]' "${blocks_file}") ) ]]; then
          say "No blocks in epoch ${epoch_enter}"
          waitForInput && continue
        fi
