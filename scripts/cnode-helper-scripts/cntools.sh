@@ -3204,13 +3204,12 @@ EOF
 
   current_epoch=$(getEpoch)
   say "Current epoch: ${current_epoch}\n"
-
+  tput sc
   say "Show a block summary for all epochs or a detailed view for a specific epoch?"
   select_opt "[s] Summary" "[e] Epoch" "[Esc] Cancel"
   case $? in
-    0) echo && tput sc
-       block_table="Epoch,Leader Slots,${FG_CYAN}Adopted Blocks${NC},${FG_GREEN}Confirmed Blocks${NC},${FG_RED}Invalid Blocks${NC}\n"
-       read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter
+    0) block_table="Epoch,Leader Slots,${FG_CYAN}Adopted Blocks${NC},${FG_GREEN}Confirmed Blocks${NC},${FG_RED}Invalid Blocks${NC}\n"
+       echo && read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter
        epoch_enter=${epoch_enter:-10}
        if ! [[ ${epoch_enter} =~ ^[0-9]+$ ]]; then
          say "\n${FG_RED}ERROR${NC}: not a number"
@@ -3234,9 +3233,8 @@ EOF
        done
        printTable ',' "$(echo -e ${block_table})"
        ;;
-    1) echo && tput sc
-       [[ -f "${BLOCK_DIR}/blocks_$((current_epoch+1)).json" ]] && say "Leader schedule for next epoch[$((current_epoch+1))] available\n"
-       read -r -p "Enter epoch to list (enter for current): " epoch_enter
+    1) [[ -f "${BLOCK_DIR}/blocks_$((current_epoch+1)).json" ]] && say "\nLeader schedule for next epoch[$((current_epoch+1))] available"
+       echo && read -r -p "Enter epoch to list (enter for current): " epoch_enter
        [[ -z "${epoch_enter}" ]] && epoch_enter=${current_epoch}
        blocks_file="${BLOCK_DIR}/blocks_${epoch_enter}.json"
        if [[ ! -f "${blocks_file}" || ( -f "${blocks_file}" && -z $(jq -c '.[]' <<< "${blocks_file}") ) ]]; then
