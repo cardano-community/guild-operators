@@ -3236,7 +3236,7 @@ EOF
        while [[ ${current_epoch} -gt ${first_epoch} ]]; do
          blocks_file="${BLOCK_DIR}/blocks_${current_epoch}.json"
          if [[ ! -f "${blocks_file}" ]]; then
-           block_table+="${current_epoch},-,-,-,-\n"
+           block_table+="${current_epoch},-,-,-,-,-,-\n"
          else
            invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
            missed_cnt=$(jq -c '[.[] //0 | select(.status=="missed")] | length' "${blocks_file}")
