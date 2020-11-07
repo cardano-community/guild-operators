@@ -39,7 +39,7 @@ You should get a screen that looks something like this:
  Main Menu
 
  ) Wallet    -  create, show, remove and protect wallets
- ) Funds     -  send, withdraw and delegate
+ ) Funds     -  send, withdraw, delegate and post metadata
  ) Pool      -  pool creation and management
  ) Sign Tx   -  Sign a built transaction file (hybrid/offline mode)
  ) Submit Tx -  Submit a signed transaction file (hybrid/offline mode)
@@ -73,7 +73,7 @@ You should get a screen that looks something like this:
  Main Menu
 
  ) Wallet    -  create, show, remove and protect wallets
- ) Funds     -  send, withdraw and delegate
+ ) Funds     -  send, withdraw, delegate and post metadata
  ) Pool      -  pool creation and management
  ) Sign Tx   -  Sign a built transaction file (hybrid/offline mode)
  ) Submit Tx -  Submit a signed transaction file (hybrid/offline mode)
