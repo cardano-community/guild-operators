@@ -3259,7 +3259,7 @@ EOF
          waitForInput && continue
        fi
        tput rc && tput ed
-       view=1
+       view=1; view_output="[1] ${FG_CYAN}View 1${NC} | [2] View 2 | [3] View 3 (full)"
        while true; do
          tput rc && tput ed && tput sc
          invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
@@ -3268,7 +3268,7 @@ EOF
          confirmed_cnt=$(jq -c '[.[] //0 | select(.status=="confirmed")] | length' "${blocks_file}")
          adopted_cnt=$(( $(jq -c '[.[] //0 | select(.status=="adopted")] | length' "${blocks_file}") + confirmed_cnt ))
          leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt ))
-         say "[View ${view}]   Leader: ${leader_cnt}  -  Adopted: ${FG_CYAN}${adopted_cnt}${NC}  -  Confirmed: ${FG_GREEN}${confirmed_cnt}${NC}  -  Invalid / Missed / Ghosted: ${FG_RED}${invalid_cnt}${NC} / ${FG_RED}${missed_cnt}${NC} / ${FG_RED}${ghosted_cnt}${NC}" "log"
+         say "Leader : ${leader_cnt}  |  Adopted / Confirmed : ${FG_CYAN}${adopted_cnt}${NC} / ${FG_GREEN}${confirmed_cnt}${NC}  |  Invalid / Missed / Ghosted : ${FG_RED}${invalid_cnt}${NC} / ${FG_RED}${missed_cnt}${NC} / ${FG_RED}${ghosted_cnt}${NC}" "log"
          echo
          # print block table
          if [[ ${view} -eq 1 ]]; then
@@ -3279,13 +3279,14 @@ EOF
            printTable ',' "$(say 'Status,Block,Slot,SlotInEpoch,At,Size,Hash' | cat - <(jq -rc '.[] | [.status //"-",.block //"-",.slot //"-",.slotInEpoch //"-",(.at|sub("\\.[0-9]+Z$"; "Z")|sub("\\+00:00$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S %Z")) //"-",.size //"-",.hash //"-"] | @csv' "${blocks_file}") | tr -d '"')"
          fi
          echo
-         say "[h] Home | [1] View 1 | [2] View 2 | [3] View 3 (full) | [*] Refresh current view"
+         
+         say "[h] Home | ${view_output} | [*] Refresh current view"
          read -rsn1 key
          case ${key} in
            h ) continue 2 ;;
-           1 ) view=1 ;;
-           2 ) view=2 ;;
-           3 ) view=3 ;;
+           1 ) view=1; view_output="[1] ${FG_CYAN}View 1${NC} | [2] View 2 | [3] View 3 (full)" ;;
+           2 ) view=2; view_output="[1] View 1 | [2] ${FG_CYAN}View 2${NC} | [3] View 3 (full)" ;;
+           3 ) view=3; view_output="[1] View 1 | [2] View 2 | [3] ${FG_CYAN}View 3${NC} (full)" ;;
            * ) continue ;;
          esac
        done
