@@ -3272,11 +3272,11 @@ EOF
          echo
          # print block table
          if [[ ${view} -eq 1 ]]; then
-           printTable ',' "$(say 'Status,Block,Slot,SlotInEpoch,At' | cat - <(jq -rc '.[] | [.status //"-",.block //"-",.slot //"-",.slotInEpoch //"-",(.at|sub("\\.[0-9]+Z$"; "Z")|sub("\\+00:00$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S %Z")) //"-"] | @csv' "${blocks_file}") | tr -d '"')"
+           printTable ',' "$(say 'Status,Block,Slot,SlotInEpoch,At (UTC)' | cat - <(jq -rc '.[] | [.status //"-",.block //"-",.slot //"-",.slotInEpoch //"-",(.at|sub("\\.[0-9]+Z$"; "Z")|sub("\\+00:00$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S")) //"-"] | @csv' "${blocks_file}") | tr -d '"')"
          elif [[ ${view} -eq 2 ]]; then
            printTable ',' "$(say 'Status,Slot,Size,Hash' | cat - <(jq -rc '.[] | [.status //"-",.slot //"-",.size //"-",.hash //"-"] | @csv' "${blocks_file}") | tr -d '"')"
          else
-           printTable ',' "$(say 'Status,Block,Slot,SlotInEpoch,At,Size,Hash' | cat - <(jq -rc '.[] | [.status //"-",.block //"-",.slot //"-",.slotInEpoch //"-",(.at|sub("\\.[0-9]+Z$"; "Z")|sub("\\+00:00$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S %Z")) //"-",.size //"-",.hash //"-"] | @csv' "${blocks_file}") | tr -d '"')"
+           printTable ',' "$(say 'Status,Block,Slot,SlotInEpoch,At (UTC),Size,Hash' | cat - <(jq -rc '.[] | [.status //"-",.block //"-",.slot //"-",.slotInEpoch //"-",(.at|sub("\\.[0-9]+Z$"; "Z")|sub("\\+00:00$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S")) //"-",.size //"-",.hash //"-"] | @csv' "${blocks_file}") | tr -d '"')"
          fi
          echo
          
