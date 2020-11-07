@@ -3259,13 +3259,13 @@ EOF
        tput rc && tput ed
        view=1
        while true; do
-         tput sc
+         tput rc && tput ed && tput sc
          confirmed_cnt=$(jq -c '[.[] //0 | select(.status=="confirmed")] | length' "${blocks_file}")
          adopted_cnt=$(( $(jq -c '[.[] //0 | select(.status=="adopted")] | length' "${blocks_file}") + confirmed_cnt ))
          leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + confirmed_cnt + adopted_cnt ))
          invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
-         say "Leader: ${leader_cnt}  -  Adopted: ${FG_CYAN}${adopted_cnt}${NC}  -  Confirmed: ${FG_GREEN}${confirmed_cnt}${NC}  -  Invalid: ${FG_RED}${invalid_cnt}${NC}" "log"
-         echo "View: ${view}"
+         say "[View ${view}]   Leader: ${leader_cnt}  -  Adopted: ${FG_CYAN}${adopted_cnt}${NC}  -  Confirmed: ${FG_GREEN}${confirmed_cnt}${NC}  -  Invalid: ${FG_RED}${invalid_cnt}${NC}" "log"
+         echo
          # print block table
          if [[ ${view} -eq 1 ]]; then
            printTable ',' "$(say 'Status,Block,Slot,SlotInEpoch,At' | cat - <(jq -rc '.[] | [.status //"-",.block //"-",.slot //"-",.slotInEpoch //"-",(.at|sub("\\.[0-9]+Z$"; "Z")|sub("\\+00:00$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S %Z")) //"-"] | @csv' "${blocks_file}") | tr -d '"')"
@@ -3275,7 +3275,7 @@ EOF
            printTable ',' "$(say 'Status,Block,Slot,SlotInEpoch,At,Size,Hash' | cat - <(jq -rc '.[] | [.status //"-",.block //"-",.slot //"-",.slotInEpoch //"-",(.at|sub("\\.[0-9]+Z$"; "Z")|sub("\\+00:00$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S %Z")) //"-",.size //"-",.hash //"-"] | @csv' "${blocks_file}") | tr -d '"')"
          fi
          echo
-         say "[h] Home | [1] View 1 | [2] View 2 | [3] View 3 (full) | [*] Any other key refresh current view"
+         say "[h] Home | [1] View 1 | [2] View 2 | [3] View 3 (full) | [*] Refresh current view"
          read -rsn1 key
          case ${key} in
            h ) continue 2 ;;
