@@ -452,13 +452,13 @@ validateBlock() {
           jq --arg _slot "${block_slot}" \
              --arg _block "${cncli_block_nbr}" \
              --arg _hash "${cncli_block_hash}" \
-             '[.[] | select(.slot == $_slot) += {"block": $_block,"hash": $_hash,"status": "confirmed"}}]' \
+             '[.[] | select(.slot == $_slot) += {"block": $_block,"hash": $_hash,"status": "confirmed"}]' \
              "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
-          echo "CONFIRMED: Block[${cncli_block_nbr}] / Slot[${block_slot}] at $(date '+%F %T Z' "--date=@$(jq -r '.at' <<< "${block}")"), hash: ${cncli_block_hash}"
+          echo "CONFIRMED: Block[${cncli_block_nbr}] / Slot[${block_slot}] at $(date '+%F %T Z' --date="$(jq -r '.at' <<< "${block}")"), hash: ${cncli_block_hash}"
         fi
       else
         jq --arg _slot "${block_slot}" \
-           '[.[] | select(.slot == $_slot) += {"status": "ghosted"}}]' \
+           '[.[] | select(.slot == $_slot) += {"status": "ghosted"}]' \
            "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
         echo "GHOSTED: Leader for slot '${block_slot}' but block hash '${block_hash}' not found, stolen in slot/height battle or block propagation issue!"
       fi
