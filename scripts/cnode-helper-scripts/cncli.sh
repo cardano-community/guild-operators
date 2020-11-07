@@ -372,6 +372,7 @@ cncliLeaderlog() {
              --arg _slotInEpoch "${slotInEpoch}" \
              '. += [{"at": $_at,"slot": $_slot,"slotInEpoch": $_slotInEpoch,"status": "leader"}]' \
              "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
+          echo "LEADER: slot[${slot}] slotInEpoch[${slotInEpoch}] at[${at}]"
         fi
       done
       first_run="false"
@@ -388,6 +389,7 @@ cncliLeaderlog() {
         continue
       fi
       jq -r '.assignedSlots | .[] += {"status": "leader"}' <<< "${cncli_leaderlog}" > "${blocks_file}"
+      echo "Leaderlogs for next epoch[${next_epoch}] calculated and saved to ${blocks_file}"
     fi
   done
 }

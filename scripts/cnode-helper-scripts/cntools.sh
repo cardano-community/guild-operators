@@ -3217,7 +3217,7 @@ EOF
          waitForInput && continue
        fi
        tput rc && tput ed
-       first_epoch=$(( epoch - epoch_enter ))
+       first_epoch=$(( current_epoch - epoch_enter ))
        [[ ${first_epoch} -lt 0 ]] && first_epoch=0
        while [[ ${current_epoch} -gt ${first_epoch} ]]; do
          blocks_file="${BLOCK_DIR}/blocks_${current_epoch}.json"
@@ -3239,8 +3239,8 @@ EOF
        read -r -p "Enter epoch to list (enter for current): " epoch_enter
        [[ -z "${epoch_enter}" ]] && epoch_enter=${current_epoch}
        blocks_file="${BLOCK_DIR}/blocks_${epoch_enter}.json"
-       if [[ ! -f "${blocks_file}" || -z $(jq -c '.[]' <<< "${blocks_file}") ]]; then
-         say "No blocks created in epoch ${epoch_enter}"
+       if [[ ! -f "${blocks_file}" || ( -f "${blocks_file}" && -z $(jq -c '.[]' <<< "${blocks_file}") ) ]]; then
+         say "No blocks in epoch ${epoch_enter}"
          waitForInput && continue
        fi
        tput rc && tput ed
