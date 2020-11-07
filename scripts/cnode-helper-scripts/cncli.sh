@@ -446,7 +446,7 @@ validateBlock() {
           echo "ERROR: CNCLI slot nbr[${cncli_slot_nbr}] doesn't match adopted block slot nbr[${block_slot}] for hash '${block_hash}'"
         else
           cncli_block_nbr=$(jq -r .block_number <<< "${cncli_block_data}")
-          [[ $((block_tip-cncli_block_nbr)) -lt ${CONFIRM_SLOT_CNT} ]] && return # To make sure enough blocks has been built on top before validating
+          [[ $((block_tip-cncli_block_nbr)) -lt ${CONFIRM_BLOCK_CNT} ]] && return # To make sure enough blocks has been built on top before validating
           # Block confimed
           cncli_block_hash=$(jq -r .hash <<< "${cncli_block_data}")
           jq --arg _slot "${block_slot}" \
