@@ -232,10 +232,11 @@ say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 say " Main Menu"
 echo
 say " ) Wallet    -  create, show, remove and protect wallets"
-say " ) Funds     -  send, withdraw, delegate and post metadata"
+say " ) Funds     -  send, withdraw and delegate"
 say " ) Pool      -  pool creation and management"
 say " ) Sign Tx   -  Sign a built transaction file (hybrid/offline mode)"
 say " ) Submit Tx -  Submit a signed transaction file (hybrid/offline mode)"
+say " ) Metadata  -  Post metadata on-chain (e.g voting)"
 say " ) Blocks    -  show core node leader slots"
 say " ) Update    -  update cntools script and library config files"
 say " ) Backup    -  backup & restore of wallet/pool/config"
@@ -256,18 +257,19 @@ else
   fi
 fi
 echo
-select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[s] Sign Tx" "[t] Submit Tx" "[b] Blocks" "[u] Update" "[z] Backup & Restore" "[r] Refresh" "[q] Quit"
+select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[s] Sign Tx" "[t] Submit Tx" "[m] Metadata" "[b] Blocks" "[u] Update" "[z] Backup & Restore" "[r] Refresh" "[q] Quit"
 case $? in
   0) OPERATION="wallet" ;;
   1) OPERATION="funds" ;;
   2) OPERATION="pool" ;;
   3) OPERATION="signTx" ;;
   4) OPERATION="submitTx" ;;
-  5) OPERATION="blocks" ;;
-  6) OPERATION="update" ;;
-  7) OPERATION="backup" ;;
-  8) continue ;;
-  9) myExit 0 "CNTools closed!" ;;
+  5) OPERATION="metadata" ;;
+  6) OPERATION="blocks" ;;
+  7) OPERATION="update" ;;
+  8) OPERATION="backup" ;;
+  9) continue ;;
+  10) myExit 0 "CNTools closed!" ;;
 esac
 
 case $OPERATION in
@@ -998,13 +1000,12 @@ EOF
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   say " Select funds operation\n"
-  select_opt "[s] Send" "[d] Delegate" "[w] Withdraw Rewards" "[m] Post Metadata" "[h] Home"
+  select_opt "[s] Send" "[d] Delegate" "[w] Withdraw Rewards" "[h] Home"
   case $? in
     0) SUBCOMMAND="send" ;;
     1) SUBCOMMAND="delegate" ;;
     2) SUBCOMMAND="withdrawrewards" ;;
-    3) SUBCOMMAND="metadata" ;;
-    4) continue ;;
+    3) continue ;;
   esac
 
   case $SUBCOMMAND in
@@ -1400,155 +1401,6 @@ EOF
 
     ;; ###################################################################
     
-    metadata)
-
-    clear
-    say " >> FUNDS >> POST METADATA" "log"
-    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-
-    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      say "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-      waitForInput && continue
-    else
-      if ! selectOpMode; then continue; fi
-    fi
-    echo
-    
-    say "Select the type of metadata to post on-chain"
-    say "ref: https://github.com/input-output-hk/cardano-node/blob/master/doc/reference/tx-metadata.md"
-    select_opt "[n] No JSON Schema (default)" "[d] Detailed JSON Schema" "[c] Raw CBOR"
-    case $? in
-      0) metatype="no-schema" ;;
-      1) metatype="detailed-schema" ;;
-      2) metatype="cbor" ;;
-    esac
-
-    if [[ ${metatype} = "cbor" ]]; then
-      fileDialog 0 "Enter path to raw CBOR metadata file"
-      metafile="${file}"
-      say "${metafile}\n"
-    else
-      metafile="${TMP_FOLDER}/metadata.json"
-      say "\nDo you want to select a metadata file, enter URL to metadata file, or enter/paste metadata content?"
-      select_opt "[f] File" "[u] URL" "[e] Enter"
-      case $? in
-        0) fileDialog 0 "Enter path to JSON metadata file"
-           metafile="${file}"
-           if [[ ! -f "${metafile}" ]] || ! jq -er . "${metafile}" &>/dev/null; then
-             say "${FG_RED}ERROR${NC}: invalid JSON format or file not found"
-             say "${metafile}"
-             waitForInput && continue
-           fi
-           say "${metafile}:\n$(cat "${metafile}")\n"
-           ;;
-        1) echo && read -r -p "Enter URL to JSON metadata file: " json_url_enter
-           if [[ ! "${meta_json_url}" =~ https?://.* ]]; then
-             say "${FG_RED}ERROR${NC}: invalid URL format"
-             waitForInput && continue
-           fi
-           if ! curl -sL -m ${CURL_TIMEOUT} -o "${metafile}" ${meta_json_url} || ! jq -er . "${metafile}" &>/dev/null; then
-             say "${FG_RED}ERROR${NC}: metadata download failed, please make sure the URL point to a valid JSON file!"
-             waitForInput && continue
-           fi
-           say "Metadata file successfully downloaded to: ${metafile}"
-           ;;
-        2) DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
-           say "\nPaste or enter the metadata text, opening text editor ${FG_CYAN}${DEFAULTEDITOR}${NC}"
-           say "${FG_YELLOW}Please don't change default file path when saving${NC}"
-           waitForInput "press any key to open ${DEFAULTEDITOR}"
-           ${DEFAULTEDITOR} "${metafile}"
-           if [[ ! -f "${metafile}" ]] || ! jq -er . "${metafile}" &>/dev/null; then
-             say "${FG_RED}ERROR${NC}: invalid JSON format or file not found"
-             say "${metafile}"
-             waitForInput && continue
-           fi
-           say "Metadata file successfully saved to: ${metafile}"
-           ;;
-      esac
-    fi
-
-    say "\n# Select wallet"
-    if [[ ${op_mode} = "online" ]]; then
-      if ! selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-      fi
-    else
-      if ! selectWallet "balance"; then # ${wallet_name} populated by selectWallet function
-        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-      fi
-    fi
-    echo
-
-    getBaseAddress ${wallet_name}
-    getPayAddress ${wallet_name}
-    getBalance ${base_addr}
-    base_lovelace=${lovelace}
-    getBalance ${pay_addr}
-    pay_lovelace=${lovelace}
-
-    if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
-      # Both payment and base address available with funds, let user choose what to use
-      say "Select source wallet address"
-      if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        say "$(printf "%s\t\t${FG_CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
-        say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
-      fi
-      echo
-      select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
-      case $? in
-        0) addr="${base_addr}" ;;
-        1) addr="${pay_addr}" ;;
-        2) continue ;;
-      esac
-    elif [[ ${pay_lovelace} -gt 0 ]]; then
-      addr="${pay_addr}"
-      if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
-      fi
-    elif [[ ${base_lovelace} -gt 0 ]]; then
-      addr="${base_addr}"
-      if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        say "$(printf "%s\t\t${FG_CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
-      fi
-    else
-      say "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
-      waitForInput && continue
-    fi
-
-    payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-
-    if ! sendMetadata "${addr}" "${payment_sk_file}" "${metafile}" "${metatype}"; then
-      waitForInput && continue
-    fi
-
-    say "\n${FG_YELLOW}Waiting for metadata transaction to be recorded on chain${NC}"
-    if ! waitNewBlockCreated; then
-      waitForInput && continue
-    fi
-
-    getBalance ${addr}
-
-    while [[ ${lovelace} -ne ${newBalance} ]]; do
-      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
-      say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
-      if ! waitNewBlockCreated; then
-        break
-      fi
-      getBalance ${addr}
-    done
-
-    if [[ ${lovelace} -ne ${newBalance} ]]; then
-      waitForInput && continue
-    fi
-
-    echo
-    say "Metadata successfully posted on chain" "log"
-    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    
-    waitForInput && continue
-
-    ;; ###################################################################
-
   esac
 
   ;; ###################################################################
@@ -3218,6 +3070,155 @@ EOF
   if submitTx "${file}"; then
     say "${FG_CYAN}${file}${NC} successfully submitted!" "log"
   fi
+  
+  waitForInput && continue
+
+  ;; ###################################################################
+  
+  metadata)
+
+  clear
+  say " >> FUNDS >> POST METADATA" "log"
+  say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+
+  if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+    say "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+    waitForInput && continue
+  else
+    if ! selectOpMode; then continue; fi
+  fi
+  echo
+  
+  say "Select the type of metadata to post on-chain"
+  say "ref: https://github.com/input-output-hk/cardano-node/blob/master/doc/reference/tx-metadata.md"
+  select_opt "[n] No JSON Schema (default)" "[d] Detailed JSON Schema" "[c] Raw CBOR"
+  case $? in
+    0) metatype="no-schema" ;;
+    1) metatype="detailed-schema" ;;
+    2) metatype="cbor" ;;
+  esac
+
+  if [[ ${metatype} = "cbor" ]]; then
+    fileDialog 0 "Enter path to raw CBOR metadata file"
+    metafile="${file}"
+    say "${metafile}\n"
+  else
+    metafile="${TMP_FOLDER}/metadata.json"
+    say "\nDo you want to select a metadata file, enter URL to metadata file, or enter/paste metadata content?"
+    select_opt "[f] File" "[u] URL" "[e] Enter"
+    case $? in
+      0) fileDialog 0 "Enter path to JSON metadata file"
+         metafile="${file}"
+         if [[ ! -f "${metafile}" ]] || ! jq -er . "${metafile}" &>/dev/null; then
+           say "${FG_RED}ERROR${NC}: invalid JSON format or file not found"
+           say "${metafile}"
+           waitForInput && continue
+         fi
+         say "${metafile}:\n$(cat "${metafile}")\n"
+         ;;
+      1) echo && read -r -p "Enter URL to JSON metadata file: " json_url_enter
+         if [[ ! "${meta_json_url}" =~ https?://.* ]]; then
+           say "${FG_RED}ERROR${NC}: invalid URL format"
+           waitForInput && continue
+         fi
+         if ! curl -sL -m ${CURL_TIMEOUT} -o "${metafile}" ${meta_json_url} || ! jq -er . "${metafile}" &>/dev/null; then
+           say "${FG_RED}ERROR${NC}: metadata download failed, please make sure the URL point to a valid JSON file!"
+           waitForInput && continue
+         fi
+         say "Metadata file successfully downloaded to: ${metafile}"
+         ;;
+      2) DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
+         say "\nPaste or enter the metadata text, opening text editor ${FG_CYAN}${DEFAULTEDITOR}${NC}"
+         say "${FG_YELLOW}Please don't change default file path when saving${NC}"
+         waitForInput "press any key to open ${DEFAULTEDITOR}"
+         ${DEFAULTEDITOR} "${metafile}"
+         if [[ ! -f "${metafile}" ]] || ! jq -er . "${metafile}" &>/dev/null; then
+           say "${FG_RED}ERROR${NC}: invalid JSON format or file not found"
+           say "${metafile}"
+           waitForInput && continue
+         fi
+         say "Metadata file successfully saved to: ${metafile}"
+         ;;
+    esac
+  fi
+
+  say "\n# Select wallet"
+  if [[ ${op_mode} = "online" ]]; then
+    if ! selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+      [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+    fi
+  else
+    if ! selectWallet "balance"; then # ${wallet_name} populated by selectWallet function
+      [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+    fi
+  fi
+  echo
+
+  getBaseAddress ${wallet_name}
+  getPayAddress ${wallet_name}
+  getBalance ${base_addr}
+  base_lovelace=${lovelace}
+  getBalance ${pay_addr}
+  pay_lovelace=${lovelace}
+
+  if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
+    # Both payment and base address available with funds, let user choose what to use
+    say "Select source wallet address"
+    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+      say "$(printf "%s\t\t${FG_CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
+      say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
+    fi
+    echo
+    select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+    case $? in
+      0) addr="${base_addr}" ;;
+      1) addr="${pay_addr}" ;;
+      2) continue ;;
+    esac
+  elif [[ ${pay_lovelace} -gt 0 ]]; then
+    addr="${pay_addr}"
+    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+      say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
+    fi
+  elif [[ ${base_lovelace} -gt 0 ]]; then
+    addr="${base_addr}"
+    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+      say "$(printf "%s\t\t${FG_CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
+    fi
+  else
+    say "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
+    waitForInput && continue
+  fi
+
+  payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+
+  if ! sendMetadata "${addr}" "${payment_sk_file}" "${metafile}" "${metatype}"; then
+    waitForInput && continue
+  fi
+
+  say "\n${FG_YELLOW}Waiting for metadata transaction to be recorded on chain${NC}"
+  if ! waitNewBlockCreated; then
+    waitForInput && continue
+  fi
+
+  getBalance ${addr}
+
+  while [[ ${lovelace} -ne ${newBalance} ]]; do
+    say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+    say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
+    if ! waitNewBlockCreated; then
+      break
+    fi
+    getBalance ${addr}
+  done
+
+  if [[ ${lovelace} -ne ${newBalance} ]]; then
+    waitForInput && continue
+  fi
+
+  echo
+  say "Metadata successfully posted on chain" "log"
+  say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   
   waitForInput && continue
 
