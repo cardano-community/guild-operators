@@ -963,7 +963,6 @@ EOF
       fi
       filesLocked=$((++filesLocked))
       say "${file}"
-      fi
     done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
 
     echo
