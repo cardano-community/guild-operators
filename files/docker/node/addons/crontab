@@ -19,7 +19,7 @@ PATH=/nix/var/nix/profiles/per-user/guild/profile/bin:/nix/var/nix/profiles/per-
 #47 6    * * 7   root    test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.weekly )
 #52 6    1 * *   root    test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.monthly )
 
-*/130 * * * * find /opt/cardano/cnode/logs/  -name "*.json" -type f -mtime +0 -type f -delete
+#*/130 * * * * find /opt/cardano/cnode/logs/  -name "*.json" -type f -mtime +0 -type f -delete
 */35 * * * * history -c
 # Epmty
 
