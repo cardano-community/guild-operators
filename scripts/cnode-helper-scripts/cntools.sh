@@ -1429,26 +1429,45 @@ EOF
       say "${metafile}\n"
     else
       metafile="${TMP_FOLDER}/metadata.json"
-      say "Do you want to select a metadata file, enter URL to metadata file, or enter/paste metadata content?"
+      say "\nDo you want to select a metadata file, enter URL to metadata file, or enter/paste metadata content?"
       select_opt "[f] File" "[u] URL" "[e] Enter"
       case $? in
         0) fileDialog 0 "Enter path to JSON metadata file"
            metafile="${file}"
-           say "${metafile}:\n$(cat "${metafile}")\n"
-           ;;
-        1) if ! curl -sL -m ${CURL_TIMEOUT} -o "${metafile}" ${meta_json_url} || ! jq -er . "${metafile}" &>/dev/null; then
-             say "${FG_RED}ERROR${NC}: metadata download failed, please make sure the URL point to a valid json file!"
+           if [[ ! -f "${metafile}" ]] || ! jq -er . "${metafile}" &>/dev/null; then
+             say "${FG_RED}ERROR${NC}: invalid JSON format or file not found"
+             say "${metafile}"
              waitForInput && continue
            fi
+           say "${metafile}:\n$(cat "${metafile}")\n"
            ;;
-        2) say "Please paste or enter the metadata text, use ${FG_CYAN}CTRL-D${NC} to end input"
-           metadata=$(</dev/stdin)
-           echo "${metadata}" > "${metafile}"
+        1) echo && read -r -p "Enter URL to JSON metadata file: " json_url_enter
+           if [[ ! "${meta_json_url}" =~ https?://.* ]]; then
+             say "${FG_RED}ERROR${NC}: invalid URL format"
+             waitForInput && continue
+           fi
+           if ! curl -sL -m ${CURL_TIMEOUT} -o "${metafile}" ${meta_json_url} || ! jq -er . "${metafile}" &>/dev/null; then
+             say "${FG_RED}ERROR${NC}: metadata download failed, please make sure the URL point to a valid JSON file!"
+             waitForInput && continue
+           fi
+           say "Metadata file successfully downloaded to: ${metafile}"
+           ;;
+        2) DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
+           say "\nPaste or enter the metadata text, opening text editor ${FG_CYAN}${DEFAULTEDITOR}${NC}"
+           say "${FG_YELLOW}Please don't change default file path when saving${NC}"
+           waitForInput "press any key to open ${DEFAULTEDITOR}"
+           ${DEFAULTEDITOR} "${metafile}"
+           if [[ ! -f "${metafile}" ]] || ! jq -er . "${metafile}" &>/dev/null; then
+             say "${FG_RED}ERROR${NC}: invalid JSON format or file not found"
+             say "${metafile}"
+             waitForInput && continue
+           fi
+           say "Metadata file successfully saved to: ${metafile}"
            ;;
       esac
     fi
 
-    say "# Select wallet"
+    say "\n# Select wallet"
     if [[ ${op_mode} = "online" ]]; then
       if ! selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
         [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue

@@ -1167,8 +1167,8 @@ sendMetadata() {
 
   say "" 1
   say "# Calculate fee, new amount and remaining balance" 1 "log"
-  say "$ ${CCLI} shelley transaction build-raw ${txIn} --tx-out ${addr}+0 --ttl ${ttlValue} --fee 0 ${metadata} --out-file ${TMP_FOLDER}/tx0.tmp" 2
-  if ! ${CCLI} shelley transaction build-raw ${txIn} --tx-out ${addr}+0 --ttl ${ttlValue} --fee 0 ${metadata} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  say "$ ${CCLI} shelley transaction build-raw ${tx_in} --tx-out ${addr}+0 --ttl ${ttlValue} --fee 0 ${metadata} --out-file ${TMP_FOLDER}/tx0.tmp" 2
+  if ! ${CCLI} shelley transaction build-raw ${tx_in} --tx-out ${addr}+0 --ttl ${ttlValue} --fee 0 ${metadata} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
   minFeeArgs=(
     shelley transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
@@ -1196,8 +1196,8 @@ sendMetadata() {
   say "# Build transaction" 1 "log"
   
   buildArgs=(
-    ${txIn}
-    ${txOut}
+    ${tx_in}
+    ${tx_out}
     --ttl ${ttlValue}
     --fee ${minFee}
     ${metadata}
