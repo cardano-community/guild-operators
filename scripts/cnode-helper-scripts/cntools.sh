@@ -3106,9 +3106,9 @@ EOF
     metafile="${TMP_FOLDER}/metadata.json"
     say "\nDo you want to select a metadata file, enter URL to metadata file, or enter/paste metadata content?"
     select_opt "[f] File" "[u] URL" "[e] Enter"
-    tput sc
     case $? in
-      0) fileDialog 0 "Enter path to JSON metadata file"
+      0) tput sc
+         fileDialog 0 "Enter path to JSON metadata file"
          metafile="${file}"
          if [[ ! -f "${metafile}" ]] || ! jq -er . "${metafile}" &>/dev/null; then
            say "${FG_RED}ERROR${NC}: invalid JSON format or file not found"
@@ -3118,7 +3118,8 @@ EOF
          tput rc && tput ed
          say "${metafile}:\n$(cat "${metafile}")\n"
          ;;
-      1) echo && read -r -p "Enter URL to JSON metadata file: " json_url_enter
+      1) tput sc && echo
+         read -r -p "Enter URL to JSON metadata file: " json_url_enter
          if [[ ! "${meta_json_url}" =~ https?://.* ]]; then
            say "${FG_RED}ERROR${NC}: invalid URL format"
            waitForInput && continue
@@ -3130,7 +3131,8 @@ EOF
          tput rc && tput ed
          say "Metadata file successfully downloaded to: ${metafile}"
          ;;
-      2) DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
+      2) tput sc
+         DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
          say "\nPaste or enter the metadata text, opening text editor ${FG_CYAN}${DEFAULTEDITOR}${NC}"
          say "${FG_YELLOW}Please don't change default file path when saving${NC}"
          waitForInput "press any key to open ${DEFAULTEDITOR}"
