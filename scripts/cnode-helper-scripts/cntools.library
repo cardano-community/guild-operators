@@ -1220,7 +1220,7 @@ sendMetadata() {
   say "" 1
   say "# Sign & Send transaction" 1 "log"
   
-  if ! signTx "${TMP_FOLDER}/tx.raw" "${sKey}"; then return 1; fi
+  if ! signTx "${TMP_FOLDER}/tx.raw" "${payment_sk_file}"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
