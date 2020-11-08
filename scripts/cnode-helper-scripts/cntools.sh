@@ -75,7 +75,8 @@ if ! need_cmd "curl" || \
    ! need_cmd "bc" || \
    ! need_cmd "sed" || \
    ! need_cmd "awk" || \
-   ! need_cmd "column"; then myExit 1 "${need_cmd_error}"
+   ! need_cmd "column" || \
+   ! protectionPreRequisites; then myExit 1
 fi
 
 # Do some checks when run in connected mode
@@ -869,8 +870,6 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
 
-    protectionPreRequisites || continue
-
     say "# Select wallet to decrypt"
     if ! selectWallet "none"; then # ${wallet_name} populated by selectWallet function
       [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
@@ -882,12 +881,12 @@ EOF
     echo
     say "# Removing write protection from all wallet files" "log"
     while IFS= read -r -d '' file; do
-      if [[ $(lsattr -R "$file") =~ -i- ]]; then
-        sudo chattr -i "${file}" && \
-        chmod 600 "${file}" && \
-        filesUnlocked=$((++filesUnlocked))
-        say "${file}"
+      if [[ ${ENABLE_CHATTR} = true && $(lsattr -R "$file") =~ -i- ]]; then
+        sudo chattr -i "${file}"
       fi
+      chmod 600 "${file}"
+      filesUnlocked=$((++filesUnlocked))
+      say "${file}"
     done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
 
     echo
@@ -926,8 +925,6 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
 
-    protectionPreRequisites || continue
-
     say "# Select wallet to encrypt"
     if ! selectWallet "none"; then # ${wallet_name} populated by selectWallet function
       [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
@@ -957,13 +954,15 @@ EOF
     unset password
 
     echo
-    say "# Write protecting all wallet keys using 'chattr +i'" "log"
+    say "# Write protecting all wallet keys with 400 permission and if enabled 'chattr +i'" "log"
     while IFS= read -r -d '' file; do
-      if [[ ${file} != *.addr && ! $(lsattr -R "$file") =~ -i- ]]; then
-        chmod 400 "${file}" && \
-        sudo chattr +i "${file}" && \
-        filesLocked=$((++filesLocked)) && \
-        say "${file}"
+      [[ ${file} = *.addr ]] && continue
+      chmod 400 "${file}"
+      if [[ ${ENABLE_CHATTR} = true && ! $(lsattr -R "$file") =~ -i- ]]; then
+        sudo chattr +i "${file}"
+      fi
+      filesLocked=$((++filesLocked))
+      say "${file}"
       fi
     done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
 
@@ -2884,8 +2883,6 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
 
-    protectionPreRequisites || continue
-
     say "# Select pool to decrypt"
     if ! selectPool "all"; then # ${pool_name} populated by selectPool function
       waitForInput && continue
@@ -2896,12 +2893,12 @@ EOF
 
     say "# Removing write protection from all pool files" "log"
     while IFS= read -r -d '' file; do
-      if [[ $(lsattr -R "$file") =~ -i- ]]; then
-        sudo chattr -i "${file}" && \
-        chmod 600 "${file}" && \
-        filesUnlocked=$((++filesUnlocked)) && \
-        say "${file}"
+      if [[ ${ENABLE_CHATTR} = true && $(lsattr -R "$file") =~ -i- ]]; then
+        sudo chattr -i "${file}"
       fi
+      chmod 600 "${file}"
+      filesUnlocked=$((++filesUnlocked))
+      say "${file}"
     done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -print0)
 
     echo
@@ -2940,8 +2937,6 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
 
-    protectionPreRequisites || continue
-
     say "# Select pool to encrypt"
     if ! selectPool "all"; then # ${pool_name} populated by selectPool function
       waitForInput && continue
@@ -2970,14 +2965,14 @@ EOF
     unset password
 
     echo
-    say "# Write protecting all pool files using 'chattr +i'" "log"
+    say "# Write protecting all pool files with 400 permission and if enabled 'chattr +i'" "log"
     while IFS= read -r -d '' file; do
-      if [[ ! $(lsattr -R "$file") =~ -i- ]]; then
-        chmod 400 "$file" && \
-        sudo chattr +i "$file" && \
-        filesLocked=$((++filesLocked)) && \
-        say "$file"
+      chmod 400 "$file"
+      if [[ ${ENABLE_CHATTR} = true && ! $(lsattr -R "$file") =~ -i- ]]; then
+        sudo chattr +i "$file"
       fi
+      filesLocked=$((++filesLocked))
+      say "$file"
     done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -print0)
 
     echo

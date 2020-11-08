@@ -27,6 +27,7 @@ CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PAT
 [[ -z ${WALLET_SELECTION_FILTER_LIMIT} ]] && WALLET_SELECTION_FILTER_LIMIT=10
 [[ -z ${KES_ALERT_PERIOD} ]] && KES_ALERT_PERIOD=172800 # default 2 days
 [[ -z ${KES_WARNING_PERIOD} ]] && KES_WARNING_PERIOD=604800 # default 7 days
+[[ -z ${ENABLE_CHATTR} ]] && ENABLE_CHATTR=true
 [[ -z ${WALLET_FOLDER} ]] && WALLET_FOLDER="${CNODE_HOME}/priv/wallet"
 [[ -z ${POOL_FOLDER} ]] && POOL_FOLDER="${CNODE_HOME}/priv/pool"
 [[ -z ${WALLET_PAY_VK_FILENAME} ]] && WALLET_PAY_VK_FILENAME="payment.vkey"
@@ -121,6 +122,7 @@ say() {
 need_cmd() {
   if ! command -v "$1" > /dev/null 2>&1; then
     need_cmd_error="${FG_RED}ERROR${NC}: need '$1' (command not found)\ntry 'sudo apt install $1'\nplease install with your packet manager of choice(apt/yum etc..) and relaunch CNTools"
+    waitForInput "press any key"
     return 1
   fi
 }
@@ -134,23 +136,26 @@ need_cmd() {
 #   >> protectionPreRequisites
 protectionPreRequisites() {
   if ! need_cmd "gpg" || \
-     ! need_cmd "systemd-ask-password" || \
-     ! need_cmd "chattr"; then
+     ! need_cmd "systemd-ask-password"; then
     return 1
   fi
 
-  touch "${TMP_FOLDER}"/test
-  if ! sudo -n chattr -i "${TMP_FOLDER}"/test 2>&1; then
+  if ! need_cmd "chattr"; then 
+    [[ ${ENABLE_CHATTR} = true ]] && say "chattr command not available but enabled in config, please disable in cntools.config and re-run CNTools" && return 1
+  elif [[ ${ENABLE_CHATTR} = true ]]; then # chattr available and enabled, make sure sudo access to chattr is enabled
+    touch "${TMP_FOLDER}"/test
+    if ! sudo -n chattr -i "${TMP_FOLDER}"/test 2>&1; then
+      rm -f "${TMP_FOLDER}"/test
+      say ""
+      say "${FG_YELLOW}WARN${NC}: Elevated privileges needed for chattr command used to write protect wallet and pool keys"
+      say "Run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
+      say ""
+      say "echo \"$(whoami) ALL=NOPASSWD: $(command -v chattr)\" | sudo tee /etc/sudoers.d/cntools"
+      waitForInput "press any key"
+      return 1
+    fi
     rm -f "${TMP_FOLDER}"/test
-    say ""
-    say "${FG_YELLOW}WARN${NC}: Elevated privileges needed for chattr command used to write protect wallet and pool keys"
-    say "Run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
-    say ""
-    say "echo \"$(whoami) ALL=NOPASSWD: $(command -v chattr)\" | sudo tee /etc/sudoers.d/cntools"
-    waitForInput
-    return 1
-  fi
-  rm -f "${TMP_FOLDER}"/test
+  }
 }
 
 # Command    : safeDel [path]
@@ -158,7 +163,7 @@ protectionPreRequisites() {
 # Note       : srm mainly effective for traditional magnetic HDDs and non copy-on-write or journal file systems
 safeDel() {
   path=$1
-  [[ -f "${path}" && $(lsattr -R "${path}") =~ -i- ]] && sudo chattr -i "${path}"
+  [[ ${ENABLE_CHATTR} = true && -f "${path}" && $(lsattr -R "${path}") =~ -i- ]] && sudo chattr -i "${path}"
   command -v "srm" > /dev/null 2>&1 && delcommand='srm' || delcommand='rm'
   if "${delcommand}" -rf "${path}"; then
     say "Deleted: ${path}" "log"
