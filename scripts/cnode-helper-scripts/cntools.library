@@ -425,7 +425,8 @@ function selectDir {
   selectOption "${dirs[@]}" 1>&2
   dir_name=${dirs[$?]}
   [[ "${dir_name}" = "[Esc] Cancel" ]] && return 1
-  say "Selected ${type}: ${FG_GREEN}${dir_name}${NC}"
+  local selection=( ${dir_name} )
+  say "Selected ${type}: ${FG_GREEN}${selection[0]}${NC} ${selection[@]:1}"
 }
 
 # Command    : selectWallet [mode] [file1 file2 ...]

@@ -3106,6 +3106,7 @@ EOF
     metafile="${TMP_FOLDER}/metadata.json"
     say "\nDo you want to select a metadata file, enter URL to metadata file, or enter/paste metadata content?"
     select_opt "[f] File" "[u] URL" "[e] Enter"
+    tput sc
     case $? in
       0) fileDialog 0 "Enter path to JSON metadata file"
          metafile="${file}"
@@ -3114,6 +3115,7 @@ EOF
            say "${metafile}"
            waitForInput && continue
          fi
+         tput rc && tput ed
          say "${metafile}:\n$(cat "${metafile}")\n"
          ;;
       1) echo && read -r -p "Enter URL to JSON metadata file: " json_url_enter
@@ -3125,6 +3127,7 @@ EOF
            say "${FG_RED}ERROR${NC}: metadata download failed, please make sure the URL point to a valid JSON file!"
            waitForInput && continue
          fi
+         tput rc && tput ed
          say "Metadata file successfully downloaded to: ${metafile}"
          ;;
       2) DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
@@ -3137,6 +3140,7 @@ EOF
            say "${metafile}"
            waitForInput && continue
          fi
+         tput rc && tput ed
          say "Metadata file successfully saved to: ${metafile}"
          ;;
     esac
@@ -3196,7 +3200,7 @@ EOF
     waitForInput && continue
   fi
 
-  say "\n${FG_YELLOW}Waiting for metadata transaction to be recorded on chain${NC}"
+  say "${FG_YELLOW}Waiting for metadata transaction to be recorded on chain${NC}"
   if ! waitNewBlockCreated; then
     waitForInput && continue
   fi
@@ -3217,7 +3221,7 @@ EOF
   fi
 
   echo
-  say "Metadata successfully posted on chain" "log"
+  say "Metadata successfully posted on-chain" "log"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   
   waitForInput && continue
