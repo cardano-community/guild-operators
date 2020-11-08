@@ -3119,7 +3119,7 @@ EOF
          say "${metafile}:\n$(cat "${metafile}")\n"
          ;;
       1) tput sc && echo
-         read -r -p "Enter URL to JSON metadata file: " json_url_enter
+         read -r -p "Enter URL to JSON metadata file: " meta_json_url
          if [[ ! "${meta_json_url}" =~ https?://.* ]]; then
            say "${FG_RED}ERROR${NC}: invalid URL format"
            waitForInput && continue
