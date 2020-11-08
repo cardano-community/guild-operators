@@ -72,10 +72,9 @@ RUN sudo mkdir -p $CNODE_HOME/files $CNODE_HOME/db $CNODE_HOME/db/blocks $CNODE_
     && echo "alias gLiveView=/opt/cardano/cnode/scripts/gLiveView.sh" >> ~/.bashrc
 
 # HYDRA CFG
+ADD https://hydra.iohk.io/build/3670619/download/1/mainnet-topology.json $CNODE_HOME/priv/files/
 ADD https://hydra.iohk.io/build/3670619/download/1/mainnet-shelley-genesis.json $CNODE_HOME/priv/files/
 ADD https://hydra.iohk.io/build/3670619/download/1/mainnet-byron-genesis.json $CNODE_HOME/priv/files/
-ADD https://hydra.iohk.io/build/3670619/download/1/mainnet-config.json $CNODE_HOME/priv/files/
-ADD https://hydra.iohk.io/build/3670619/download/1/mainnet-topology.json $CNODE_HOME/priv/files/
 
 # HYDRA TESTNET CFG
 ADD https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json $CNODE_HOME/priv/files/
@@ -99,10 +98,10 @@ RUN cd && git clone --quiet https://github.com/cardano-community/guild-operators
     && rm -rf ~/guild-operators \
     && rm /opt/cardano/cnode/files/byron-genesis.json  && rm /opt/cardano/cnode/files/genesis.json && if [ -f /opt/cardano/cnode/files/config.json ]; then rm /opt/cardano/cnode/files/config.json; else echo NO; fi \
     && ln -s /opt/cardano/cnode/priv/files/mainnet-byron-genesis.json /opt/cardano/cnode/files/byron-genesis.json \
-    && ln -s /opt/cardano/cnode/priv/files/mainnet-config.json /opt/cardano/cnode/files/config.json \
     && ln -s /opt/cardano/cnode/priv/files/mainnet-shelley-genesis.json /opt/cardano/cnode/files/genesis.json \
+    && ln -s /opt/cardano/cnode/files/config-mainnet.json /opt/cardano/cnode/priv/files/mainnet-config.json \
     && sudo chmod a+x /home/guild/.scripts/*.sh $CNODE_HOME/scripts/*.sh /home/guild/*.sh 
 
-RUN sudo apt-get -y remove exim4 && sudo apt-get -y purge && sudo apt-get -y clean && sudo apt-get -y autoremove && sudo rm -rf /var/lib/apt/lists/* # && sudo rm -rf /usr/bin/apt* && sudo rm /nix/var/nix/profiles/per-user/guild/profile/bin/nix-*
+RUN sudo apt-get -y remove exim4 && sudo rm -rf /etc/rc5.d/S*exim4 /etc/rc6.d/K*exim4 /usr/sbin/exim* && sudo apt-get -y purge && sudo apt-get -y clean && sudo apt-get -y autoremove && sudo rm -rf /var/lib/apt/lists/* # && sudo rm -rf /usr/bin/apt* && sudo rm /nix/var/nix/profiles/per-user/guild/profile/bin/nix-*
 
 ENTRYPOINT ["./entrypoint.sh"]
