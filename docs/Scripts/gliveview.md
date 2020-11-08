@@ -58,6 +58,7 @@ In case you run into trouble while running the script, you might want to edit `e
 ######################################
 
 #CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of path to cardano-cli executable
+#CNCLI="${HOME}/.cargo/bin/cncli"                       # Override automatic detection of path to cncli executable (https://github.com/AndrewWestberg/cncli)
 #CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
 CNODE_PORT=6000                                         # Set node port
 #CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path
@@ -65,8 +66,8 @@ CNODE_PORT=6000                                         # Set node port
 #EKG_HOST=127.0.0.1                                     # Set node EKG host
 #EKG_PORT=12788                                         # Override automatic detection of node EKG port
 #EKG_TIMEOUT=3                                          # Maximum time in seconds that you allow EKG request to take before aborting (node metrics)
-#BLOCK_DIR="${CNODE_HOME}/db/blocks"                    # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
 #CURL_TIMEOUT=10                                        # Maximum time in seconds that you allow curl file download to take before aborting (GitHub update process)
+#BLOCK_DIR="${CNODE_HOME}/guild-db/blocklog"            # Override default directory used to store block data for core node
 ```
 
 **gLiveView.sh**

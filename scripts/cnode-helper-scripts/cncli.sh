@@ -13,7 +13,7 @@
 
 POOL_ID=""                                # Required for leaderlog calculation, lower-case hex pool id
 POOL_VRF_SKEY=""                          # Required for leaderlog calculation, path to pool's vrf.skey file
-#CNCLI_DB="${CNODE_HOME}/db/cncli"        # path to sqlite db for cncli
+#CNCLI_DB="${CNODE_HOME}/guild-db/cncli"  # path to folder to hold sqlite db for cncli
 #LIBSODIUM_FORK=/usr/local/lib            # path to IOG fork of libsodium
 #SLEEP_RATE=20                            # time to wait until next check, used in leaderlog and validate (in seconds)
 #CONFIRM_SLOT_CNT=300                     # require at least these many slots to have passed before validating
@@ -123,7 +123,8 @@ getSlotTipRef() {
 #################################
 
 cncliInit() {
-  [[ -z "${CNCLI_DB}" ]] && CNCLI_DB="${CNODE_HOME}/db/cncli"
+  [[ -z "${CNCLI_DB}" ]] && CNCLI_DB="${CNODE_HOME}/guild-db/cncli"
+  CNCLI_DB="${CNCLI_DB}/cncli.db"
   [[ -z "${LIBSODIUM_FORK}" ]] && LIBSODIUM_FORK=/usr/local/lib
   export LD_LIBRARY_PATH="${LIBSODIUM_FORK}:${LD_LIBRARY_PATH}"
   [[ -z "${SLEEP_RATE}" ]] && SLEEP_RATE=20

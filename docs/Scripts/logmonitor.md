@@ -17,7 +17,7 @@ Use the `deploy-as-systemd.sh` script to create a systemd unit file.
 Output is logged using syslog and end up in the systems standard syslog file, normally `/var/log/syslog`. `journalctl -u <service>` can be used to check log. Other logging configurations are not covered here. 
 
 ##### View Collected Blocks
-Best viewed in CNTools but as it's saved as regular JSON any text/JSON viewer could be used. Block data is saved to `BLOCK_DIR` variable set in env file, by default `${CNODE_HOME}/db/blocks`. One file is created for each epoch. 
+Best viewed in CNTools but as it's saved as regular JSON any text/JSON viewer could be used. Block data is saved to `BLOCK_DIR` variable set in env file, by default `${CNODE_HOME}/guild-db/blocklog/`. One file is created for each epoch. 
 
 Open CNTools and select `[b] Blocks` to open the block viewer.  
 Either select `Epoch` and enter the epoch you want to see a detailed view for or choose `Summary` to display blocks for last x epochs.

@@ -214,7 +214,7 @@ if [[ "${LIBSODIUM_FORK}" = "Y" ]]; then
   fi
 fi
 
-$sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv
+$sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/guild-db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv
 $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
 
 echo "Downloading files..."
