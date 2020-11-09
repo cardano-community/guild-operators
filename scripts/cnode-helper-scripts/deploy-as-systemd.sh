@@ -1,10 +1,11 @@
 #!/bin/bash
+# shellcheck disable=SC1090
 
 vname=%vname%
 
 . "$(dirname "$0")"/env &>/dev/null # ignore any error
 
-echo -e "\e[32m~~ ${vname}.service ~~\e[0m"
+echo -e "\e[32m~~ Cardano Node ~~\e[0m"
 echo "launches the main cnode.sh script to start cardano-node"
 echo "automatically deployed and updated if necessary"
 sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}.service
@@ -35,7 +36,7 @@ WantedBy=multi-user.target
 EOF"
 
 echo
-echo -e "\e[32m~~ Blocklog (${vname}-[logmonitor|cncli-[sync|leaderlog|validate]].service ~~\e[0m"
+echo -e "\e[32m~~ Blocklog ~~\e[0m"
 echo "A collection of services that together creates a blocklog of current and upcoming blocks"
 echo "Dependant on ${vname}.service and when started|stopped|restarted all these companion services will apply the same action"
 echo "logmonitor      : parses JSON log of cardano-node for traces of interest"
@@ -166,7 +167,7 @@ else
 fi
 
 echo
-echo -e "\e[32m~~ PoolTool SendTip (${vname}-cncli-ptsendtip.service ~~\e[0m"
+echo -e "\e[32m~~ PoolTool SendTip ~~\e[0m"
 echo "Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge"
 echo "Dependant on ${vname}.service and when started|stopped|restarted ptsendtip services will apply the same action"
 echo
@@ -216,3 +217,9 @@ sudo systemctl daemon-reload
 [[ -f /etc/systemd/system/${vname}-cncli-leaderlog.service ]] && sudo systemctl enable ${vname}-cncli-leaderlog.service
 [[ -f /etc/systemd/system/${vname}-cncli-validate.service ]] && sudo systemctl enable ${vname}-cncli-validate.service
 [[ -f /etc/systemd/system/${vname}-cncli-ptsendtip.service ]] && sudo systemctl enable ${vname}-cncli-ptsendtip.service
+
+echo
+echo "If not done already, update 'User Variables' section in each script (env, cnode.sh, cncli.sh, logMonitor.sh)"
+echo -e "You can then start/restart the node with \e[32msudo systemctl restart ${vname}\e[0m"
+echo "This will automatically start all installed companion services due to service dependency"
+echo
