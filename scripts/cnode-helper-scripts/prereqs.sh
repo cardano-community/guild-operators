@@ -221,27 +221,33 @@ fi
 
 if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
   [[ ! -f /usr/local/lib/libsodium.so ]] && err_exit "IOG fork of libsodium is a pre-requisite for CNCLI, run '$(basename "$0") -h' to list available options"
-  # install rust if not available
-  if ! command -v "rustup" &>/dev/null; then
-    echo "installing RUST..."
-    if ! output=$(curl https://sh.rustup.rs -sSf | sh -s -- -y 2>&1); then echo -e "${output}" && err_exit; fi
-  else
-    echo "updating rustup if needed..."
-    rustup update &>/dev/null #ignore any errors, not crucial that update succeed
-  fi
+  if command -v cncli >/dev/null; then cncli_version="$(cncli -V | cut -d' ' -f2)"; else cncli_version=""; fi
   pushd "${HOME}"/git >/dev/null || err_exit
   if [[ -d ./cncli ]]; then
-    echo "previous CNCLI installation found, updating and building latest..."
+    echo "previous CNCLI installation found, pulling latest version from GitHub..."
     pushd ./cncli >/dev/null || err_exit
     if ! output=$(git pull 2>&1); then echo -e "${output}" && err_exit; fi
   else
-    echo "downloading and building CNCLI..."
+    echo "downloading CNCLI..."
     if ! output=$(git clone https://github.com/AndrewWestberg/cncli.git 2>&1); then echo -e "${output}" && err_exit; fi
     pushd ./cncli >/dev/null || err_exit
   fi
-  if ! output=$(cargo install --path . --force 2>&1); then echo -e "${output}" && err_exit; fi
-  . "${HOME}"/.profile # source profile to load ${HOME}/.cargo/bin into PATH
-  echo "$(cncli -V) installed!"
+  cncli_git_version=$(awk -F ' = ' '$1 ~ /version/ { gsub(/[\"]/, "", $2); printf("%s",$2) }' Cargo.toml)
+  if [[ ${cncli_version} != ${cncli_git_version} ]]; then
+    # install rust if not available
+    if ! command -v "rustup" &>/dev/null; then
+      echo "installing RUST..."
+      if ! output=$(curl https://sh.rustup.rs -sSf | sh -s -- -y 2>&1); then echo -e "${output}" && err_exit; fi
+    else
+      echo "updating RUST if needed..."
+      rustup update &>/dev/null #ignore any errors, not crucial that update succeed
+    fi
+    if ! output=$(cargo install --path . --force 2>&1); then echo -e "${output}" && err_exit; fi
+    . "${HOME}"/.profile # source profile to load ${HOME}/.cargo/bin into PATH
+    echo "$(cncli -V) installed!"
+  else
+    echo "CNCLI already latest version [${cncli_version}]... skipping!"
+  fi
 fi
 
 $sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/guild-db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv
