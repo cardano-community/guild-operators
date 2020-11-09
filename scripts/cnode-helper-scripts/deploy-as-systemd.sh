@@ -5,7 +5,7 @@ vname=%vname%
 . "$(dirname "$0")"/env &>/dev/null # ignore any error
 
 echo -e "\e[32m~~ ${vname}.service ~~\e[0m"
-echo "launches main service and cnode.sh script to start cardano-node"
+echo "launches the main cnode.sh script to start cardano-node"
 echo "automatically deployed and updated if necessary"
 sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}.service
 [Unit]
@@ -35,7 +35,7 @@ WantedBy=multi-user.target
 EOF"
 
 echo
-echo "\e[32m~~ Blocklog (${vname}-[logmonitor|cncli-[sync|leaderlog|validate]].service ~~\e[0m"
+echo -e "\e[32m~~ Blocklog (${vname}-[logmonitor|cncli-[sync|leaderlog|validate]].service ~~\e[0m"
 echo "A collection of services that together creates a blocklog of current and upcoming blocks"
 echo "Dependant on ${vname}.service and when started|stopped|restarted all these companion services will apply the same action"
 echo "logmonitor      : parses JSON log of cardano-node for traces of interest"
@@ -166,7 +166,7 @@ else
 fi
 
 echo
-echo "\e[32m~~ PoolTool SendTip (${vname}-cncli-ptsendtip.service ~~\e[0m"
+echo -e "\e[32m~~ PoolTool SendTip (${vname}-cncli-ptsendtip.service ~~\e[0m"
 echo "Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge"
 echo "Dependant on ${vname}.service and when started|stopped|restarted ptsendtip services will apply the same action"
 echo
