@@ -22,7 +22,7 @@ get_answer() {
 }
 
 err_exit() {
-  printf "%s\nExiting..." "$*" >&2
+  printf "%s\nExiting...\n" "$*" >&2
   pushd -0 >/dev/null && dirs -c
   exit 1
 }
@@ -133,7 +133,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
       echo "sudo apt-get -y install ${pkg_list}"
       echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
-      err_exit;
+      err_exit
     fi
   elif [[ "${OS_ID}" =~ rhel ]] || [[ "${DISTRO}" =~ Fedora ]]; then
     #CentOS/RHEL/Fedora
@@ -149,7 +149,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
       echo "sudo yum -y install ${pkg_list}"
       echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
-      err_exit;
+      err_exit
     fi
     if [ -f /usr/lib64/libtinfo.so ] && [ -f /usr/lib64/libtinfo.so.5 ]; then
       echo "  Symlink updates not required for ncurse libs, skipping.."
@@ -164,7 +164,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     echo "Their relative names are:"
     echo "Debian: curl build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev tmux"
     echo "CentOS: curl pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd-devel zlib-devel tmux"
-    err_exit;
+    err_exit
   fi
   ghc_v=$(ghc --version | grep 8\.6\.5 2>/dev/null)
   cabal_v=$(cabal --version | grep version\ 3 2>/dev/null)
@@ -317,7 +317,7 @@ updateWithCustomConfig() {
       printf '%s\n%s\n' "${STATIC_CMD}" "${TEMPL_CMD}" > ${file}.tmp
     else
       rm -f ${file}.tmp
-      err_exit
+      return
     fi
   fi
   [[ -f ${file} ]] && cp -f ${file} "${file}_bkp$(date +%s)"
@@ -337,4 +337,4 @@ updateWithCustomConfig "cncli.sh"
 chmod -R 755 "${CNODE_HOME}"
 chmod -R 700 "${CNODE_HOME}"/priv 2>/dev/null
 
-pushd -0 >/dev/null && dirs -c || return
+pushd -0 >/dev/null && dirs -c || err_exit
