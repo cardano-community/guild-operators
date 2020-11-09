@@ -3,7 +3,8 @@
 sudo bash -c "cat << 'EOF' > /etc/systemd/system/cnode.service
 [Unit]
 Description=Cardano Node
-After=network.target
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 Type=simple

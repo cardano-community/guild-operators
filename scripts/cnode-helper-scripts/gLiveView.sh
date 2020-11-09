@@ -50,25 +50,27 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.8
+GLV_VERSION=v1.10
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-l] [-b <branch name>]
+Usage: $(basename "$0") [-l] [-p] [-b <branch name>]
 Guild LiveView - An alternative cardano-node LiveView
 
 -l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
--b    Use alternate branch to check for updates - only for testing/development (Default: Master)
+-p    Disable default CNCLI ping and revert to legacy tcptraceroute if available, else use regular ICMP ping.
+-b    Use alternate branch to check for updates - only for testing/development (Default: Master)  
 EOF
   exit 1
 }
 
-while getopts :lb: opt; do
+while getopts :lpb: opt; do
   case ${opt} in
     l ) LEGACY_MODE="true" ;;
+    p ) DISABLE_CNCLI="true" ;;
     b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
     esac
@@ -145,17 +147,12 @@ if curl -s -m ${CURL_TIMEOUT} -o /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/
     echo -e "\nPress 'u' to update to latest version, or any other key to continue\n"
     read -r -n 1 -s -p "" answer
     if [[ "${answer}" = "u" ]]; then
-      if [[ $(grep "_HOME=" "${BASH_SOURCE[0]}") =~ [[:space:]]([^[:space:]]+)_HOME ]]; then
-        sed -e "s@[C]NODE_HOME=[^ ]*\\(.*\\)@${BASH_REMATCH[1]}_HOME=\"${CNODE_HOME}\"\\1@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i /tmp/gLiveView.sh
-      else
-        myExit 1 "${RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
-      fi
       TEMPL_CMD=$(awk '/^# Do NOT modify/,0' /tmp/gLiveView.sh)
-      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${CNODE_HOME}/scripts/gLiveView.sh")
+      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/gLiveView.sh")
       printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > /tmp/gLiveView.sh
-      mv -f "${CNODE_HOME}/scripts/gLiveView.sh" "${CNODE_HOME}/scripts/gLiveView.sh_bkp$(date +%s)" && \
-      cp -f /tmp/gLiveView.sh "${CNODE_HOME}/scripts/gLiveView.sh" && \
-      chmod 750 "${CNODE_HOME}/scripts/gLiveView.sh" && \
+      mv -f "${PARENT}/gLiveView.sh" "${PARENT}/gLiveView.sh_bkp$(date +%s)" && \
+      cp -f /tmp/gLiveView.sh "${PARENT}/gLiveView.sh" && \
+      chmod 750 "${PARENT}/gLiveView.sh" && \
       myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!" || \
       myExit 1 "${RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
     fi
@@ -395,21 +392,34 @@ checkPeers() {
     peerPORT=$(echo "${peer}" | cut -d: -f2)
     [[ -z ${peerIP} || -z ${peerPORT} ]] && continue
     
-    if [[ "${peerIP}" = "${lastpeerIP}" ]]; then
-      [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT)) # skip RTT check and reuse old ${peerRTT} number if reachable
-    elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Ping OK, show RTT
-      peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
-      peerRTTSUM=$((peerRTTSUM + peerRTT))
-    elif [[ ${direction} = "in" ]]; then # No need to continue with tcptraceroute for incoming connection as destination port is unknown
-      peerRTT=99999
-    else # Normal ping is not working, try tcptraceroute to the given port
-      checkPEER=$(tcptraceroute -n -S -f 255 -m 255 -q 1 -w 1 "${peerIP}" "${peerPORT}" 2>&1 | tail -n 1)
-      if [[ ${checkPEER} = *'[open]'* ]]; then
-        peerRTT=$(echo "${checkPEER}" | awk '{print $4}' | cut -d. -f1)
-        peerRTTSUM=$((peerRTTSUM + peerRTT))
-      else # Nope, no response
+    if [[ ${direction} = "out" ]]; then
+      if [[ -n ${CNCLI} && -f ${CNCLI} && ${DISABLE_CNCLI} != "true" ]]; then
+        checkPEER=$(${CNCLI} ping --host "${peerIP}" --port "${peerPORT}" --network-magic "${NWMAGIC}")
+        if [[ $(jq -r .status <<< "${checkPEER}") = "ok" ]]; then
+          peerRTT=$(jq -r .durationMs <<< "${checkPEER}")
+        else # cncli ping failed
+          peerRTT=99999
+        fi
+      elif command -v tcptraceroute >/dev/null; then
+        checkPEER=$(tcptraceroute -n -S -f 255 -m 255 -q 1 -w 1 "${peerIP}" "${peerPORT}" 2>&1 | tail -n 1)
+        if [[ ${checkPEER} = *'[open]'* ]]; then
+          peerRTT=$(echo "${checkPEER}" | awk '{print $4}' | cut -d. -f1)
+        else # Nope, no response
+          peerRTT=99999
+        fi
+      elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Ping OK, show RTT
+        peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
+      else # cncli & tcptraceroute missing and ping failed
         peerRTT=99999
       fi
+      [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT))
+    elif [[ "${peerIP}" = "${lastpeerIP}" ]]; then
+      [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT)) # skip RTT check and reuse old ${peerRTT} number if reachable
+    elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Incoming connection, ping OK, show RTT.
+      peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
+      peerRTTSUM=$((peerRTTSUM + peerRTT))
+    else # Incoming connection, ping failed, set as unreachable
+      peerRTT=99999
     fi
     lastpeerIP=${peerIP}
 

@@ -7,6 +7,7 @@
 ######################################
 
 #CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of path to cardano-cli executable
+#CNCLI="${HOME}/.cargo/bin/cncli"                       # Override automatic detection of path to cncli executable (https://github.com/AndrewWestberg/cncli)
 #CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
 CNODE_PORT=6000                                         # Set node port
 #CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path
@@ -21,6 +22,8 @@ CNODE_PORT=6000                                         # Set node port
 # Do NOT modify code below           #
 ######################################
 
+export LC_ALL=C.UTF-8
+
 [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
 
 [[ -z "${CCLI}" ]] && CCLI=$(command -v cardano-cli)
@@ -33,6 +36,13 @@ if [[ -z "${CCLI}" ]]; then
     echo "You do not have a cardano-cli binary available in \$PATH."
     return 1
   fi
+else
+  CCLI_PARENT="$(dirname ${CCLI})"
+  export PATH="${CCLI_PARENT}":$PATH
+fi
+
+if [[ -z "${CNCLI}" ]]; then
+  CNCLI=$(command -v cncli) || CNCLI="${HOME}/.cargo/bin/cncli"
 fi
 
 [[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
@@ -101,7 +111,7 @@ else
   [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
 fi
 
-CNODE_PID=$(pgrep -fn "[-]-port ${CNODE_PORT}")
+CNODE_PID=$(pgrep -fn "[c]ardano-node*.*--port ${CNODE_PORT}")
 
 PROTOCOL=$(jq -r .Protocol "${CONFIG}")
 NETWORKID=$(jq -r .networkId ${GENESIS_JSON})
@@ -132,17 +142,17 @@ if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
   BYRON_EPOCH_LENGTH=$(( 10 * BYRON_K ))
 fi
 
-FG_BLACK=$(tput setaf 0)
-FG_RED=$(tput setaf 1)
-FG_GREEN=$(tput setaf 2)
-FG_YELLOW=$(tput setaf 3)
-FG_BLUE=$(tput setaf 4)
-FG_MAGENTA=$(tput setaf 5)
-FG_CYAN=$(tput setaf 6)
-FG_WHITE=$(tput setaf 7)
-STANDOUT=$(tput smso)
-BOLD=$(tput bold)
-NC=$(tput sgr0)
+FG_BLACK='\e[30m'
+FG_RED='\e[31m'
+FG_GREEN='\e[32m'
+FG_YELLOW='\e[33m'
+FG_BLUE='\e[34m'
+FG_MAGENTA='\e[35m'
+FG_CYAN='\e[36m'
+FG_WHITE='\e[97m'
+STANDOUT='\e[7m'
+BOLD='\e[1m'
+NC='\e[0m'
 
 [[ -z ${BLOCK_LOG_DIR} && -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"
 

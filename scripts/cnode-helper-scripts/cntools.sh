@@ -140,15 +140,6 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     waitForInput "press any key to proceed"
   fi
 
-  # Verify that Prometheus is enabled in config file
-  # TODO: Change to EKG
-  prom_port=$(jq -r '.hasPrometheus[1] //empty' ${CONFIG} 2>/dev/null)
-  prom_host=$(jq -r '.hasPrometheus[0] //empty' ${CONFIG} 2>/dev/null)
-
-  if [[ -z "${prom_port}" ]]; then
-    myExit 1 "${FG_RED}ERROR${NC}: Please ensure that hasPrometheus is enabled, if unsure - rerun \"<path>/prereqs.sh -s\" again - and it would overwrite the config file"
-  fi
-
   # Validate protocol parameters
   if grep -q "Network.Socket.connect" <<< "${PROT_PARAMS}"; then
     myExit 1 "${FG_YELLOW}WARN${NC}: node socket path wrongly configured or node not running, please verify that socket set in env file match what is used to run the node\n\n\
@@ -194,10 +185,10 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
     if [[ "${NETWORK_IDENTIFIER}" == "--mainnet" ]]; then
       shelleyTransitionEpoch="208"
     elif [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-      getPromMetrics
-      slot_in_epoch=$(grep "cardano_node_ChainDB_metrics_slotInEpoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
-      slot_num=$(grep "cardano_node_ChainDB_metrics_slotNum_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
-      epoch=$(grep "cardano_node_ChainDB_metrics_epoch_int" "${TMP_FOLDER}"/prom_metrics | awk '{print $2}')
+      getNodeMetrics
+      epoch=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${node_metrics}")
+      slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${node_metrics}")
+      slot_num=$(jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${node_metrics}")
       calc_slot=0
       byron_epochs=${epoch}
       shelley_epochs=0
@@ -287,28 +278,30 @@ case $OPERATION in
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   say " Wallet Management"
   echo
-  say " ) New      -  create a new wallet"
-  say " ) Import   -  import a Daedalus/Yoroi 24 or 15 word Shelley mnemonic created wallet"
-  say " ) Register -  register a wallet on chain (hybrid/offline mode)"
-  say " ) List     -  list all available wallets in a compact view"
-  say " ) Show     -  show detailed view of a specific wallet"
-  say " ) Remove   -  remove a wallet"
-  say " ) Decrypt  -  remove write protection and decrypt wallet"
-  say " ) Encrypt  -  encrypt wallet keys and make all files immutable"
+  say " ) New        -  create a new wallet"
+  say " ) Import     -  import a Daedalus/Yoroi 24 or 15 word Shelley mnemonic created wallet"
+  say " ) Register   -  register a wallet on chain"
+  say " ) De-Register -  De-Register (retire) a registered wallet"
+  say " ) List       -  list all available wallets in a compact view"
+  say " ) Show       -  show detailed view of a specific wallet"
+  say " ) Remove     -  remove a wallet"
+  say " ) Decrypt    -  remove write protection and decrypt wallet"
+  say " ) Encrypt    -  encrypt wallet keys and make all files immutable"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   say " Select Wallet operation\n"
-  select_opt "[n] New" "[i] Import" "[r] Register" "[l] List" "[s] Show" "[x] Remove" "[d] Decrypt" "[e] Encrypt" "[h] Home"
+  select_opt "[n] New" "[i] Import" "[r] Register" "[z] De-Register" "[l] List" "[s] Show" "[x] Remove" "[d] Decrypt" "[e] Encrypt" "[h] Home"
   case $? in
     0) SUBCOMMAND="new" ;;
     1) SUBCOMMAND="import" ;;
     2) SUBCOMMAND="register" ;;
-    3) SUBCOMMAND="list" ;;
-    4) SUBCOMMAND="show" ;;
-    5) SUBCOMMAND="remove" ;;
-    6) SUBCOMMAND="decrypt" ;;
-    7) SUBCOMMAND="encrypt" ;;
-    8) continue ;;
+    3) SUBCOMMAND="deregister" ;;
+    4) SUBCOMMAND="list" ;;
+    5) SUBCOMMAND="show" ;;
+    6) SUBCOMMAND="remove" ;;
+    7) SUBCOMMAND="decrypt" ;;
+    8) SUBCOMMAND="encrypt" ;;
+    9) continue ;;
   esac
 
   case $SUBCOMMAND in
@@ -509,11 +502,11 @@ EOF
     
     say "# Select wallet to register (only non-registered wallets shown)"
     if [[ ${op_mode} = "online" ]]; then
-      if ! selectWallet "non-reg" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}"; then
+      if ! selectWallet "non-reg" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
         [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     else
-      if ! selectWallet "non-reg"; then
+      if ! selectWallet "non-reg" "${WALLET_STAKE_VK_FILENAME}"; then
         [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     fi
@@ -523,7 +516,10 @@ EOF
     getBalance ${base_addr}
 
     if [[ ${lovelace} -gt 0 ]]; then
-      say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${lovelace})")" "log"
+      if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+        say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${lovelace})")" "log"
+        echo
+      fi
     else
       say "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
       keyDeposit=$(jq -r '.keyDeposit' "${TMP_FOLDER}"/protparams.json)
@@ -531,15 +527,82 @@ EOF
       waitForInput && continue
     fi
     
-    if ! isWalletRegistered ${wallet_name}; then
-      if ! registerStakeWallet ${wallet_name} "true"; then
-        waitForInput && continue
-      fi
-    else
-      echo && say "${FG_GREEN}${wallet_name}${NC} already registered on chain!" "log"
+    if ! registerStakeWallet ${wallet_name} "true"; then
+      waitForInput && continue
     fi
 
     echo && say "${FG_GREEN}${wallet_name}${NC} successfully registered on chain!" "log"
+    
+    waitForInput && continue
+
+    ;; ###################################################################
+    
+    deregister)
+
+    clear
+    say " >> WALLET >> DE-REGISTER" "log"
+    say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+      say "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+      waitForInput && continue
+    else
+      if ! selectOpMode; then continue; fi
+    fi
+    echo
+    
+    say "# Select wallet to de-register (only registered wallets shown)"
+    if [[ ${op_mode} = "online" ]]; then
+      if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+      fi
+    else
+      if ! selectWallet "delegate" "${WALLET_STAKE_VK_FILENAME}"; then
+        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+      fi
+    fi
+    echo
+    
+    getRewards ${wallet_name}
+    if [[ "${reward_lovelace}" -gt 0 ]]; then
+      say "${FG_YELLOW}WARN${NC}: wallet has unclaimed rewards, please use 'Funds >> Withdraw Rewards' before de-registration to claim your rewards"
+      waitForInput && continue
+    fi
+
+    getBaseAddress ${wallet_name}
+    getBalance ${base_addr}
+    
+    if [[ ${lovelace} -le 0 ]]; then
+      say "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
+      say "Funds for transaction fee needed to deregister the wallet"
+      waitForInput && continue
+    fi
+    
+    if ! deregisterStakeWallet ${wallet_name}; then
+      [[ -f ${stake_dereg_file} ]] && rm -f ${stake_dereg_file}
+      waitForInput && continue
+    fi
+    
+    say "${FG_YELLOW}Waiting for wallet de-registration to be recorded on chain${NC}"
+    while true; do
+      if ! waitNewBlockCreated; then
+        break
+      fi
+      getBalance ${base_addr}
+      if [[ ${lovelace} -ne ${newBalance} ]]; then
+        say "${FG_YELLOW}WARN${NC}: Balance mismatch, wallet de-registration not included in latest block... waiting for next block!"
+        say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
+      else
+        break
+      fi
+    done
+
+    if [[ ${lovelace} -ne ${newBalance} ]]; then
+      say "${FG_YELLOW}WARN${NC}: wallet de-registration check aborted"
+      waitForInput && continue
+    fi
+
+    echo && say "${FG_GREEN}${wallet_name}${NC} successfully de-registered from chain!" "log"
+    say "Key deposit fee that will be refunded : ${FG_CYAN}$(formatLovelace ${keyDeposit})${NC} ADA" "log"
     
     waitForInput && continue
 
@@ -614,7 +677,7 @@ EOF
     echo
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    waitForInput
+    waitForInput && continue
     ;; ###################################################################
 
     show)
@@ -704,7 +767,8 @@ EOF
     fi
     echo
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    waitForInput
+    
+    waitForInput && continue
 
     ;; ###################################################################
 
@@ -792,7 +856,7 @@ EOF
       esac
     fi
 
-    waitForInput
+    waitForInput && continue
 
     ;; ###################################################################
 
@@ -849,7 +913,7 @@ EOF
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    waitForInput
+    waitForInput && continue
 
     ;; ###################################################################
 
@@ -912,7 +976,7 @@ EOF
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    waitForInput
+    waitForInput && continue
 
     ;; ###################################################################
 
@@ -1011,8 +1075,8 @@ EOF
     echo
     say "# Amount to Send (in ADA)"
     echo
-    say "Valid entry:  ${FG_BLUE}Integer (e.g. 15) or Decimal (e.g. 956.1235) - commas allowed as thousand separator${NC}"
-    say "              The string '${FG_BLUE}all${NC}' to send all available funds in source wallet"
+    say "Valid entry:  ${FG_CYAN}Integer${NC} (e.g. 15) or ${FG_CYAN}Decimal${NC} (e.g. 956.1235) - commas allowed as thousand separator"
+    say "              The string '${FG_CYAN}all${NC}' to send all available funds in source wallet"
     echo
     say "Info:         If destination and source wallet is the same and amount set to 'all',"
     say "              wallet will be defraged, ie converts multiple UTxO's to one"
@@ -1087,6 +1151,7 @@ EOF
       waitForInput && continue
     fi
 
+    say "\n${FG_YELLOW}Waiting for payment to be recorded on chain${NC}"
     if ! waitNewBlockCreated; then
       waitForInput && continue
     fi
@@ -1094,8 +1159,8 @@ EOF
     getBalance ${s_addr}
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
-      echo
-      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+      say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
       if ! waitNewBlockCreated; then
         break
       fi
@@ -1133,7 +1198,7 @@ EOF
     say "  - Destination : $(formatLovelace ${d_balance}) ADA" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    waitForInput
+    waitForInput && continue
 
     ;; ###################################################################
 
@@ -1223,6 +1288,7 @@ EOF
       waitForInput && continue
     fi
 
+    say "\n${FG_YELLOW}Waiting for wallet delegation to be recorded on chain${NC}"
     if ! waitNewBlockCreated; then
       waitForInput && continue
     fi
@@ -1230,8 +1296,8 @@ EOF
     getBalance ${base_addr}
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
-      echo
-      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+      say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
       if ! waitNewBlockCreated; then
         break
       fi
@@ -1242,8 +1308,9 @@ EOF
       waitForInput && continue
     fi
 
-    say "Delegation successfully registered"
-    say "Wallet : ${FG_GREEN}${wallet_name}${NC}"
+    echo
+    say "Delegation successfully registered" "log"
+    say "Wallet : ${FG_GREEN}${wallet_name}${NC}" "log"
     say "Pool   : ${FG_GREEN}${pool_name}${NC}" "log"
     say "Amount : $(formatLovelace ${lovelace}) ADA" "log"
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -1301,6 +1368,7 @@ EOF
       waitForInput && continue
     fi
 
+    say "\n${FG_YELLOW}Waiting for reward withdrawal to be recorded on chain${NC}"
     if ! waitNewBlockCreated; then
       waitForInput && continue
     fi
@@ -1308,7 +1376,8 @@ EOF
     getBalance ${base_addr}
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
-      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+      say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
       if ! waitNewBlockCreated; then
         break
       fi
@@ -1444,7 +1513,7 @@ EOF
     
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
 
-    say "# Pool Parameters\n"
+    say "# Pool Parameters"
     say "press enter to use default value\n"
 
     pledge_ada=50000 # default pledge
@@ -1516,19 +1585,25 @@ EOF
     fi
 
     metadata_done=false
-    if curl -s -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
-      say "\nMetadata exists at URL.  Use existing data?"
+    meta_tmp="${TMP_FOLDER}/url_poolmeta.json"
+    if curl -sL -m ${CURL_TIMEOUT} -o "${meta_tmp}" ${meta_json_url} && jq -er . "${meta_tmp}" &>/dev/null; then
+      [[ $(wc -c <"${meta_tmp}") -gt 512 ]] && say "${FG_RED}ERROR${NC}: file at specified URL contain more than allowed 512b of data!" && waitForInput && continue
+      echo && jq -r . "${meta_tmp}" && echo
+      if ! jq -er .name "${meta_tmp}" &>/dev/null; then say "${FG_RED}ERROR${NC}: unable to get 'name' field from downloaded metadata file!" && waitForInput && continue; fi
+      if ! jq -er .ticker "${meta_tmp}" &>/dev/null; then say "${FG_RED}ERROR${NC}: unable to get 'ticker' field from downloaded metadata file!" && waitForInput && continue; fi
+      if ! jq -er .homepage "${meta_tmp}" &>/dev/null; then say "${FG_RED}ERROR${NC}: unable to get 'homepage' field from downloaded metadata file!" && waitForInput && continue; fi
+      if ! jq -er .description "${meta_tmp}" &>/dev/null; then say "${FG_RED}ERROR${NC}: unable to get 'description' field from downloaded metadata file!" && waitForInput && continue; fi
+      say "Metadata exists at URL.  Use existing data?"
       select_opt "[y] Yes" "[n] No"
       case $? in
-        0) mv "$TMP_FOLDER/url_poolmeta.json" "${POOL_FOLDER}/${pool_name}/poolmeta.json"
+        0) mv "${meta_tmp}" "${POOL_FOLDER}/${pool_name}/poolmeta.json"
            metadata_done=true
            ;;
-        1) rm "$TMP_FOLDER/url_poolmeta.json" ;; # clean up temp file
+        1) rm "${meta_tmp}" ;; # clean up temp file
       esac
     fi
-    if [ ${metadata_done} = false ]; then
+    if [[ ${metadata_done} = false ]]; then
       echo
-      # ToDo align with wallet and smash
       if [[ -f "${pool_meta_file}" ]]; then
         meta_name=$(jq -r .name "${pool_meta_file}")
         meta_ticker=$(jq -r .ticker "${pool_meta_file}")
@@ -1865,6 +1940,7 @@ EOF
     [[ -f "${pool_deregcert_file}" ]] && rm -f ${pool_deregcert_file} # delete de-registration cert if available
 
     if [[ ${op_mode} = "online" ]]; then
+      say "\n${FG_YELLOW}Waiting for pool registration to be recorded on chain${NC}"
       if ! waitNewBlockCreated; then
         waitForInput && continue
       fi
@@ -1873,8 +1949,8 @@ EOF
       getBalance ${base_addr}
 
       while [[ ${lovelace} -ne ${newBalance} ]]; do
-        echo
-        say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+        say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+        say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
         if ! waitNewBlockCreated; then
           break
         fi
@@ -1945,13 +2021,14 @@ EOF
 
     if [[ ! -f ${pool_config} ]]; then
       say "${FG_YELLOW}WARN${NC}: Missing pool config file: ${pool_config}"
-      waitForInput && continue
+      say "Unable to show old values, please re-enter all values to generate a new pool config file"
+      waitForInput "press any key to continue" && echo
     fi
 
-    say "# Pool Parameters\n"
+    say "# Pool Parameters"
     say "press enter to use old value\n"
 
-    pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
+    [[ -f ${pool_config} ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}") || pledge_ada=0
     read -r -p "New Pledge (in ADA, old: ${pledge_ada}): " pledge_enter
     pledge_enter="${pledge_enter//,}"
     if [[ -n "${pledge_enter}" ]]; then
@@ -1964,7 +2041,7 @@ EOF
       pledge_lovelace=$(ADAtoLovelace "${pledge_ada}")
     fi
 
-    margin=$(jq -r '.margin //0' "${pool_config}")
+    [[ -f ${pool_config} ]] && margin=$(jq -r '.margin //0' "${pool_config}") || margin=0
     read -r -p "New Margin (in %, old: ${margin}): " margin_enter
     if [[ -n "${margin_enter}" ]]; then
       if ! pctToFraction "${margin_enter}" >/dev/null; then
@@ -1977,7 +2054,7 @@ EOF
     fi
 
     minPoolCost=$(( $(jq -r '.minPoolCost //0' "${TMP_FOLDER}"/protparams.json) / 1000000 )) # convert to ADA
-    cost_ada=$(jq -r '.costADA //0' "${pool_config}")
+    [[ -f ${pool_config} ]] && cost_ada=$(jq -r '.costADA //0' "${pool_config}") || cost_ada=0
     read -r -p "New Cost (in ADA, minimum: ${minPoolCost}, old: ${cost_ada}): " cost_enter
     cost_enter="${cost_enter//,}"
     if [[ -n "${cost_enter}" ]]; then
@@ -1997,10 +2074,9 @@ EOF
     say "\n# Pool Metadata\n"
 
     pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
-    [[ "$(jq -r .json_url ${pool_config})" ]] && meta_json_url=$(jq -r .json_url "${pool_config}")
+    [[ -f ${pool_config} && "$(jq -r .json_url ${pool_config})" ]] && meta_json_url=$(jq -r .json_url "${pool_config}") || meta_json_url=""
 
-    read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter
-    json_url_enter="${json_url_enter}"
+    read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (old: ${meta_json_url}): " json_url_enter
     [[ -n "${json_url_enter}" ]] && meta_json_url="${json_url_enter}"
     if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
       say "${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
@@ -2008,18 +2084,24 @@ EOF
     fi
 
     metadata_done=false
-    if curl -s -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
-      say "\nMetadata exists at URL.  Use existing data?"
+    meta_tmp="${TMP_FOLDER}/url_poolmeta.json"
+    if curl -sL -m ${CURL_TIMEOUT} -o "${meta_tmp}" ${meta_json_url} && jq -er . "${meta_tmp}" &>/dev/null; then
+      [[ $(wc -c <"${meta_tmp}") -gt 512 ]] && say "${FG_RED}ERROR${NC}: file at specified URL contain more than allowed 512b of data!" && waitForInput && continue
+      echo && jq -r . "${meta_tmp}" && echo
+      if ! jq -er .name "${meta_tmp}" &>/dev/null; then say "${FG_RED}ERROR${NC}: unable to get 'name' field from downloaded metadata file!" && waitForInput && continue; fi
+      if ! jq -er .ticker "${meta_tmp}" &>/dev/null; then say "${FG_RED}ERROR${NC}: unable to get 'ticker' field from downloaded metadata file!" && waitForInput && continue; fi
+      if ! jq -er .homepage "${meta_tmp}" &>/dev/null; then say "${FG_RED}ERROR${NC}: unable to get 'homepage' field from downloaded metadata file!" && waitForInput && continue; fi
+      if ! jq -er .description "${meta_tmp}" &>/dev/null; then say "${FG_RED}ERROR${NC}: unable to get 'description' field from downloaded metadata file!" && waitForInput && continue; fi
+      say "Metadata exists at URL.  Use existing data?"
       select_opt "[y] Yes" "[n] No"
       case $? in
-        0) mv "$TMP_FOLDER/url_poolmeta.json" "${POOL_FOLDER}/${pool_name}/poolmeta.json"
+        0) mv "${meta_tmp}" "${POOL_FOLDER}/${pool_name}/poolmeta.json"
            metadata_done=true
            ;;
-        1) rm "$TMP_FOLDER/url_poolmeta.json" ;; # clean up temp file
+        1) rm "${meta_tmp}" ;; # clean up temp file
       esac
     fi
-
-    if [ ${metadata_done} = false ]; then
+    if [[ ${metadata_done} = false ]]; then
       echo
       # ToDo align with wallet and smash
       if [[ -f "${pool_meta_file}" ]]; then
@@ -2092,7 +2174,7 @@ EOF
     relay_array=()
     say "\n# Pool Relay Registration"
     # ToDo SRV & IPv6 support
-    if [[ $(jq '.relays | length' "${pool_config}") -gt 0 ]]; then
+    if [[ -f ${pool_config} && $(jq '.relays | length' "${pool_config}") -gt 0 ]]; then
       say "\nPrevious relay configuration:\n"
       printTable ',' "$(say 'Type,Address,Port' | cat - <(jq -r -c '.relays[] | [.type //"-",.address //"-",.port //"-"] | @csv //empty' "${pool_config}") | tr -d '"')"
       say "\nReuse previous configuration?"
@@ -2170,11 +2252,11 @@ EOF
     fi
 
     # Owner wallet, also used to pay for pool update fee
-    owner_wallet=$(jq -r .pledgeWallet "${pool_config}")
-    reward_wallet=$(jq -r .rewardWallet "${pool_config}")
-    say "Old owner wallet:  ${FG_GREEN}${owner_wallet}${NC}"
-    say "Old reward wallet: ${FG_GREEN}${reward_wallet}${NC}"
-    echo
+    if [[ -f ${pool_config} ]]; then
+      say "Old owner wallet:  ${FG_GREEN}$(jq -r '.pledgeWallet //empty' "${pool_config}")${NC}"
+      say "Old reward wallet: ${FG_GREEN}$(jq -r '.rewardWallet //empty' "${pool_config}")${NC}"
+      echo
+    fi
     say "${FG_YELLOW}If a new wallet is chosen for owner/reward, a manual delegation to the pool with new wallet is needed${NC}"
     echo
     
@@ -2329,14 +2411,15 @@ EOF
     chmod 700 ${POOL_FOLDER}/${pool_name}/*
 
     if [[ ${op_mode} = "online" ]]; then
+      say "\n${FG_YELLOW}Waiting for pool re-registration to be recorded on chain${NC}"
       if ! waitNewBlockCreated; then
         waitForInput && continue
       fi
       getBaseAddress ${owner_wallet}
       getBalance ${base_addr}
       while [[ ${lovelace} -ne ${newBalance} ]]; do
-        echo
-        say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+        say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+        say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
         if ! waitNewBlockCreated; then
           break
         fi
@@ -2481,6 +2564,7 @@ EOF
     
     [[ -f "${pool_regcert_file}" ]] && rm -f ${pool_regcert_file} # delete registration cert
 
+    say "\n${FG_YELLOW}Waiting for pool de-registration to be recorded on chain${NC}"
     if ! waitNewBlockCreated; then
       waitForInput && continue
     fi
@@ -2488,8 +2572,8 @@ EOF
     getBalance ${addr}
 
     while [[ ${lovelace} -ne ${newBalance} ]]; do
-      echo
-      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+      say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+      say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
       if ! waitNewBlockCreated; then
         break
       fi
@@ -2603,18 +2687,23 @@ EOF
       say "$(printf "  %-19s : %s" "Ticker" "$(jq -r .ticker "${pool_meta_file}")")" "log"
       say "$(printf "  %-19s : %s" "Homepage" "$(jq -r .homepage "${pool_meta_file}")")" "log"
       say "$(printf "  %-19s : %s" "Description" "$(jq -r .description "${pool_meta_file}")")" "log"
-      say "$(printf "  %-19s : %s" "URL" "$(jq -r .json_url "${pool_config}")")" "log"
+      [[ -f "${pool_config}" ]] && meta_url="$(jq -r .json_url "${pool_config}")" || meta_url="---"
+      say "$(printf "  %-19s : %s" "URL" "${meta_url}")" "log"
       meta_hash="$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file "${pool_meta_file}" )"
       say "$(printf "  %-19s : %s" "Hash" "${meta_hash}")" "log"
-    elif [[ -f "${pool_config}" ]]; then
-      meta_json_url=$(jq -r .json_url "${pool_config}")
-      if curl -s -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
+    else
+      if [[ -f "${pool_config}" ]]; then
+        meta_json_url=$(jq -r .json_url "${pool_config}")
+      else
+        meta_json_url=$(jq -r '.metadata.url //empty' <<< "${ledger_fPParams}")
+      fi
+      if [[ -n ${meta_json_url} ]] && curl -sL -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
         say "Metadata" "log"
         say "$(printf "  %-19s : %s" "Name" "$(jq -r .name "$TMP_FOLDER/url_poolmeta.json")")" "log"
         say "$(printf "  %-19s : %s" "Ticker" "$(jq -r .ticker "$TMP_FOLDER/url_poolmeta.json")")" "log"
         say "$(printf "  %-19s : %s" "Homepage" "$(jq -r .homepage "$TMP_FOLDER/url_poolmeta.json")")" "log"
         say "$(printf "  %-19s : %s" "Description" "$(jq -r .description "$TMP_FOLDER/url_poolmeta.json")")" "log"
-        say "$(printf "  %-19s : %s" "URL" "$(jq -r .json_url "${pool_config}")")" "log"
+        say "$(printf "  %-19s : %s" "URL" "${meta_json_url}")" "log"
         meta_hash_url="$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file "$TMP_FOLDER/url_poolmeta.json" )"
         meta_hash_pParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_pParams}")
         meta_hash_fPParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_fPParams}")
@@ -2837,7 +2926,7 @@ EOF
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    waitForInput
+    waitForInput && continue
 
     ;; ###################################################################
 
@@ -2899,7 +2988,7 @@ EOF
     fi
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    waitForInput
+    waitForInput && continue
 
     ;; ###################################################################
 
@@ -2951,7 +3040,7 @@ EOF
     say "Transfer file to online CNTools and use 'Submit Tx' option to submit pool registration transaction on chain"
   fi
   
-  waitForInput
+  waitForInput && continue
 
   ;; ###################################################################
   
@@ -2979,7 +3068,7 @@ EOF
     say "${FG_CYAN}${file}${NC} successfully submitted!" "log"
   fi
   
-  waitForInput
+  waitForInput && continue
 
   ;; ###################################################################
 
@@ -3051,7 +3140,7 @@ EOF
     2) continue ;;
   esac
 
-  waitForInput
+  waitForInput && continue
 
   ;; ###################################################################
 
@@ -3101,6 +3190,7 @@ EOF
          sed -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${CNODE_HOME}/scripts/cntools".*.tmp; then
         mv -f "${CNODE_HOME}/scripts/cntools.sh.tmp" "${CNODE_HOME}/scripts/cntools.sh"
         mv -f "${CNODE_HOME}/scripts/cntools.library.tmp" "${CNODE_HOME}/scripts/cntools.library"
+        chmod 755 "${CNODE_HOME}/scripts/cntools.sh"
         myExit 0 "Update applied successfully!\n\nPlease start CNTools again!"
       else
         say "\n${FG_RED}ERROR${NC}: update failed! :(\n"
@@ -3111,7 +3201,7 @@ EOF
   else
     say "\n${FG_RED}ERROR${NC}: download from GitHub failed, unable to perform version check!\n"
   fi
-  waitForInput
+  waitForInput && continue
   
   ;; ###################################################################
 
