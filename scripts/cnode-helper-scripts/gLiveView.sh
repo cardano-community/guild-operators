@@ -784,10 +784,11 @@ while true; do
       printf "Status     : ${style_info}%-${sec_col_value_size}s${NC}${VL}\n" "syncing..."
     elif [[ ${tip_diff} -le $(slotInterval) ]]; then
       printf "Tip (diff) : ${style_status_1}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_diff} :)"
-    elif [[ ${tip_diff} -le $(( $(slotInterval) * 2 )) ]]; then
+    elif [[ ${tip_diff} -le $(( $(slotInterval) * 4 )) ]]; then
       printf "Tip (diff) : ${style_status_2}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_diff} :|"
     else
-      printf "Tip (diff) : ${style_status_3}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_diff} :("
+      sync_progress=$(echo "(${slotnum}/${tip_ref})*100" | bc -l)
+      printf "Status     : ${style_info}%-${sec_col_value_size}s${NC}${VL}\n" "syncing ($(printf "%2.1f" "${sync_progress}")%)"
     fi
     ((line++))
     
