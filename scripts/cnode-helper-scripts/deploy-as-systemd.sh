@@ -7,7 +7,7 @@ vname=%vname%
 echo -e "\e[32m~~ ${vname}.service ~~\e[0m"
 echo "launches main service and cnode.sh script to start cardano-node"
 echo "automatically deployed and updated if necessary"
-  sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}.service
+sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}.service
 [Unit]
 Description=Cardano Node
 Wants=network-online.target
@@ -33,7 +33,6 @@ KillMode=mixed
 [Install]
 WantedBy=multi-user.target
 EOF"
-fi
 
 echo
 echo "\e[32m~~ Blocklog (${vname}-[logmonitor|cncli-[sync|leaderlog|validate]].service ~~\e[0m"

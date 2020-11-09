@@ -246,7 +246,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     . "${HOME}"/.profile # source profile to load ${HOME}/.cargo/bin into PATH
     echo "$(cncli -V) installed!"
   else
-    echo "CNCLI already latest version [${cncli_version}]... skipping!"
+    echo "CNCLI already latest version [${cncli_version}], skipping!"
   fi
 fi
 
