@@ -1,5 +1,5 @@
 #!/bin/bash
-# shellcheck disable=SC2086
+# shellcheck disable=SC2086,SC1090
 
 get_input() {
   printf "%s (default: %s): " "$1" "$2" >&2; read -r answer
@@ -233,7 +233,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     pushd ./cncli >/dev/null || err_exit
   fi
   cncli_git_version=$(awk -F ' = ' '$1 ~ /version/ { gsub(/[\"]/, "", $2); printf("%s",$2) }' Cargo.toml)
-  if [[ ${cncli_version} != ${cncli_git_version} ]]; then
+  if [[ "${cncli_version}" != "${cncli_git_version}" ]]; then
     # install rust if not available
     if ! command -v "rustup" &>/dev/null; then
       echo "installing RUST..."
@@ -343,4 +343,5 @@ updateWithCustomConfig "cncli.sh"
 chmod -R 755 "${CNODE_HOME}"
 chmod -R 700 "${CNODE_HOME}"/priv 2>/dev/null
 
-pushd -0 >/dev/null && dirs -c || err_exit
+pushd -0 >/dev/null
+dirs -c
