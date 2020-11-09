@@ -7,31 +7,10 @@
 ######################################
 
 PARENT="$(dirname $0)"
-[[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
-
-URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
-curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env
-if [[ -f "${PARENT}"/env ]]; then
-  if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
-    vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
-    sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
-  else
-    echo -e "Update failed! Please use prereqs.sh to force an update or manually download $(basename $0) + env from GitHub"
-    exit 1
-  fi
-  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
-  TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
-  if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-    cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
-    STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
-    printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
-    mv "${PARENT}"/env.tmp "${PARENT}"/env
-  fi
-else
-  mv "${PARENT}"/env.tmp "${PARENT}"/env
+if [[ ! -f "${PARENT}"/env ]]; then
+  echo "ERROR: could not find common env file, please run prereqs.sh or manually download"
+  exit 1
 fi
-rm -f "${PARENT}"/env.tmp
-
 if ! . "${PARENT}"/env; then exit 1; fi
 
 # get log file from config file specified in env

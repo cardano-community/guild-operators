@@ -7,7 +7,8 @@ vname=%vname%
 
 echo -e "\e[32m~~ Cardano Node ~~\e[0m"
 echo "launches the main cnode.sh script to start cardano-node"
-echo "automatically deployed and updated if necessary"
+echo
+echo "automatically deployed!"
 sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}.service
 [Unit]
 Description=Cardano Node
@@ -211,6 +212,7 @@ else
 fi
 
 sudo systemctl daemon-reload
+echo
 [[ -f /etc/systemd/system/${vname}.service ]] && sudo systemctl enable ${vname}.service
 [[ -f /etc/systemd/system/${vname}-logmonitor.service ]] && sudo systemctl enable ${vname}-logmonitor.service
 [[ -f /etc/systemd/system/${vname}-cncli-sync.service ]] && sudo systemctl enable ${vname}-cncli-sync.service
