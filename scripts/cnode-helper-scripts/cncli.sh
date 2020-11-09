@@ -11,14 +11,16 @@
 # Common variables set in env file   #
 ######################################
 
-POOL_ID=""                                # Required for leaderlog calculation, lower-case hex pool id
+POOL_ID=""                                # Required for leaderlog calculation & pooltool sendtip, lower-case hex pool id
 POOL_VRF_SKEY=""                          # Required for leaderlog calculation, path to pool's vrf.skey file
-#CNCLI_DB="${CNODE_HOME}/guild-db/cncli"  # path to folder to hold sqlite db for cncli
-#LIBSODIUM_FORK=/usr/local/lib            # path to IOG fork of libsodium
-#SLEEP_RATE=20                            # time to wait until next check, used in leaderlog and validate (in seconds)
-#CONFIRM_SLOT_CNT=300                     # require at least these many slots to have passed before validating
-#CONFIRM_BLOCK_CNT=10                     # require at least these many blocks on top of minted before validating
-#TIMEOUT_LEDGER_STATE=300                 # timeout in seconds for ledger-state query
+PT_API_KEY=""                             # POOLTOOL sendtip: set API key, e.g "a47811d3-0008-4ecd-9f3e-9c22bdb7c82d"
+POOL_TICKER=""                            # POOLTOOL sendtip: set the pools ticker, e.g "TCKR"
+#CNCLI_DB="${CNODE_HOME}/guild-db/cncli"  # path to folder for cncli sqlite db 
+#LIBSODIUM_FORK=/usr/local/lib            # path to folder for IOG fork of libsodium
+#SLEEP_RATE=20                            # CNCLI leaderlog/validate: time to wait until next check (in seconds)
+#CONFIRM_SLOT_CNT=300                     # CNCLI validate: require at least these many slots to have passed before validating
+#CONFIRM_BLOCK_CNT=10                     # CNCLI validate: require at least these many blocks on top of minted before validating
+#TIMEOUT_LEDGER_STATE=300                 # CNCLI leaderlog: timeout in seconds for ledger-state query
 
 ######################################
 # Do NOT modify code below           #
@@ -27,16 +29,13 @@ POOL_VRF_SKEY=""                          # Required for leaderlog calculation, 
 usage() {
   cat <<EOF >&2
 
-Usage: $(basename "$0") [install] [sync] [leaderlog] [validate]
-Script to deploy and run CNCLI
+Usage: $(basename "$0") [sync] [leaderlog] [validate] [ptsendtip]
+Script to run CNCLI, best launched through systemd deployed by 'deploy-as-systemd.sh'
 
-install     Installs RUST and CNCLI. If a previous install is found, an upgrade to latest version is performed
 sync        Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB
 leaderlog   Loops through all slots in current epoch to calculate leader schedule
 validate    Confirms that the block made actually was accepted and adopted by chain
-
-sync, leaderlog & validate are all deployed as systemd services by '$(basename "$0") install'.
-Use systemctl to launch the different services.
+ptsendtip   Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge
 
 EOF
   exit 1
@@ -158,163 +157,18 @@ cncliInit() {
     mv "${PARENT}"/env.tmp "${PARENT}"/env
   fi
   rm -f "${PARENT}"/env.tmp
-  if ! . "${PARENT}"/env; then exit 1; fi
+  
+  if ! . "$(dirname "$0")"/env; then echo "ERROR: failed to source common env file"; exit 1; fi
   [[ ! -f "${CNCLI}" ]] && echo -e "ERROR: failed to locate cncli executable, please run:\n $(basename "$0") install\n$(usage)" && exit 1
-  return 0
-}
-
-#################################
-
-cncliInstall() {
-  dirs -c
-
-  echo "~ Installing CNCLI with dependencies ~"
-  # install rust if not available
-  if ! command -v "rustup" &>/dev/null; then
-    echo "installing RUST..."
-    if ! output=$(curl https://sh.rustup.rs -sSf | sh -s -- -y 2>&1); then echo -e "${output}" && exit 1; fi
-  else
-    echo "updating rustup if needed..."
-    rustup update &>/dev/null #ignore any errors, not crucial that update succeed
-  fi
-
-  [[ -d "${HOME}"/git ]] || mkdir -p "${HOME}"/git
-  pushd "${HOME}"/git >/dev/null || exit 1
-
-  if [[ -d ./cncli ]]; then
-    echo "previous cncli installation found, updating and building latest..."
-    pushd ./cncli >/dev/null || exit 1
-    if ! output=$(git pull 2>&1); then echo -e "${output}" && exit 1; fi
-  else
-    echo "downloading and building cncli..."
-    if ! output=$(git clone https://github.com/AndrewWestberg/cncli.git 2>&1); then echo -e "${output}" && exit 1; fi
-    pushd ./cncli >/dev/null || exit 1
-  fi
-  if ! output=$(cargo install --path . --force 2>&1); then echo -e "${output}" && exit 1; fi
-
-  . "${HOME}"/.profile # source profile to load ${HOME}/.cargo/bin into PATH
-
-  pushd -0 >/dev/null && dirs -c
-
-  PARENT="$(dirname "$0")"
+  
   if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
     vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")
   else
     echo "failed to get cnode instance name from env file, aborting!"
     exit 1
   fi
-
-  service_file="${vname}-cncli-sync.service"
-  if [[ -f "/etc/systemd/system/${service_file}" ]]; then
-    echo "${service_file} already deployed, update? [y|n]"
-    read -rsn1 yn
-  else
-    yn='Y'
-  fi
-  if [[ ${yn} = [Yy] ]]; then
-    echo "deploying systemd ${service_file} file"
-    sudo bash -c "cat << 'EOF' > /etc/systemd/system/${service_file}
-[Unit]
-Description=Cardano Node - CNCLI Sync
-Requires=${vname}.service
-After=${vname}.service
-
-[Service]
-Type=simple
-Restart=on-failure
-RestartSec=5
-User=$USER
-WorkingDirectory=${CNODE_HOME}/scripts
-ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh sync\"
-ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep [c]ncli.sync.*.${CNODE_HOME}/ | tr -s ' ' | cut -d ' ' -f2)\"
-KillSignal=SIGINT
-SuccessExitStatus=143
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=${vname}-cncli-sync
-TimeoutStopSec=5
-KillMode=mixed
-
-[Install]
-WantedBy=multi-user.target
-EOF"
-  sudo systemctl daemon-reload
-  sudo systemctl enable "${service_file}" &>/dev/null
-  fi
   
-  service_file="${vname}-cncli-leaderlog.service"
-  if [[ -f "/etc/systemd/system/${service_file}" ]]; then
-    echo "${service_file} already deployed, update? [y|n]"
-    read -rsn1 yn
-  else
-    yn='Y'
-  fi
-  if [[ ${yn} = [Yy] ]]; then
-    echo "deploying systemd ${service_file} file"
-    sudo bash -c "cat << 'EOF' > /etc/systemd/system/${service_file}
-[Unit]
-Description=Cardano Node - CNCLI Leaderlog
-Requires=${vname}-cncli-sync.service
-After=${vname}-cncli-sync.service
-
-[Service]
-Type=simple
-Restart=on-failure
-RestartSec=5
-User=$USER
-WorkingDirectory=${CNODE_HOME}/scripts
-ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh leaderlog\"
-SuccessExitStatus=143
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=${vname}-cncli-leaderlog
-TimeoutStopSec=5
-KillMode=mixed
-
-[Install]
-WantedBy=multi-user.target
-EOF"
-  sudo systemctl daemon-reload
-  sudo systemctl enable "${service_file}" &>/dev/null
-  fi
-  
-  service_file="${vname}-cncli-validate.service"
-  if [[ -f "/etc/systemd/system/${service_file}" ]]; then
-    echo "${service_file} already deployed, update? [y|n]"
-    read -rsn1 yn
-  else
-    yn='Y'
-  fi
-  if [[ ${yn} = [Yy] ]]; then
-    echo "deploying systemd ${service_file} file"
-    sudo bash -c "cat << 'EOF' > /etc/systemd/system/${service_file}
-[Unit]
-Description=Cardano Node - CNCLI Validate
-Requires=${vname}-cncli-sync.service
-After=${vname}-cncli-sync.service
-
-[Service]
-Type=simple
-Restart=on-failure
-RestartSec=5
-User=$USER
-WorkingDirectory=${CNODE_HOME}/scripts
-ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh validate\"
-SuccessExitStatus=143
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=${vname}-cncli-validate
-TimeoutStopSec=5
-KillMode=mixed
-
-[Install]
-WantedBy=multi-user.target
-EOF"
-  sudo systemctl daemon-reload
-  sudo systemctl enable "${service_file}" &>/dev/null
-  fi
-
-  echo -e "\n$(cncli -V) installed!"
+  return 0
 }
 
 #################################
@@ -472,18 +326,42 @@ validateBlock() {
   fi
 }
 
+#################################
 
+cncliPTsendtip() {
+  [[ -z ${POOL_ID} || -z ${POOL_TICKER} || -z ${PT_API_KEY} ]] && echo "'POOL_ID' and/or 'POOL_TICKER' and/or 'PT_API_KEY' not set in $(basename "$0"), exiting!" && exit 1
+  # Generate a temporary pooltool config
+  version=$("$(command -v cardano-node)" version)
+  node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
+  node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-5) # use first 5 chars in git rev to be compatible with previous version scariping node log
+  pt_config="/tmp/${vname}-ptsendtip.json"
+  bash -c "cat << 'EOF' > ${pt_config}
+{
+  \"api_key\": \"${PT_API_KEY}\",
+  \"node_version\": \"${node_version}:${node_rev}\",
+  \"pools\": [
+    {
+      \"name\": \"${POOL_TICKER}\",
+      \"pool_id\": \"${POOL_ID}\",
+      \"host\" : \"127.0.0.1\",
+      \"port\": ${CNODE_PORT}
+    }
+  ]
+}
+EOF"
+  ${CNCLI} sendtip --config "${pt_config}"
+}
 
 #################################
 
 case ${subcommand} in
-  install ) 
-    cncliInit && cncliInstall ;;
   sync ) 
     cncliInit && cncliSync ;;
   leaderlog )
     cncliInit && cncliLeaderlog ;;
   validate )
     cncliInit && cncliValidate ;;
+  ptsendtip )
+    cncliInit && cncliPTsendtip ;;
   * ) usage ;;
 esac
