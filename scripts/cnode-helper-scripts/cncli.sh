@@ -351,6 +351,7 @@ cncliLeaderlog() {
     node_metrics=$(getNodeMetrics)
     curr_epoch=$(getEpoch)
     next_epoch=$((curr_epoch+1))
+    slot_tip=$(getSlotTip)
     slot_in_epoch=$(getSlotInEpoch)
     if [[ ${first_run} = "true" ]]; then # First startup, run leaderlogs for current epoch and merge with current data if it exist
       blocks_file="${BLOCK_DIR}/blocks_${curr_epoch}.json"
@@ -380,7 +381,8 @@ cncliLeaderlog() {
       first_run="false"
     fi
     blocks_file="${BLOCK_DIR}/blocks_${next_epoch}.json"
-    if [[ ! -f "${blocks_file}" && ${slot_in_epoch} -gt ${slot_for_next_nonce} ]]; then # Run leaderlogs for next epoch
+    
+    if [[ ! -f "${blocks_file}" && ${slot_tip} -gt ${slot_for_next_nonce} ]]; then # Run leaderlogs for next epoch
       [[ -f /tmp/ledger-state.json ]] || if ! dumpLedgerState; then sleep 300; continue; fi
       cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next --ledger-state /tmp/ledger-state.json --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}")
       rm -f /tmp/ledger-state.json
