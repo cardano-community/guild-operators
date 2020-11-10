@@ -3251,6 +3251,7 @@ EOF
          waitForInput && continue
        fi
        tput rc && tput ed
+       [[ -f "${BLOCKLOG_DIR}/blocks_$((current_epoch+1)).json" ]] && ((current_epoch++))
        first_epoch=$(( current_epoch - epoch_enter ))
        [[ ${first_epoch} -lt 0 ]] && first_epoch=0
        while [[ ${current_epoch} -gt ${first_epoch} ]]; do
