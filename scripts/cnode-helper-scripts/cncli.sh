@@ -268,10 +268,10 @@ validateBlock() {
   [[ ${block_status} = invalid ]] && return
   if [[ ${block_status} = leader ]]; then
     block_slot=$(jq -r '.slot' <<< "${block}")
-    [[ ${block_slot} -ge ${slot_tip} ]] && return
+    [[ $((block_slot + CONFIRM_SLOT_CNT)) -ge ${slot_tip} ]] && return
     # assume lost for now, TODO: use cncli/sqlite to check if slot was made by another pool
     jq --arg _slot "${block_slot}" \
-       '[.[] | select(.slot == $_slot) += {"status": "missed"}}]' \
+       '[.[] | select(.slot == $_slot) += {"status": "missed"}]' \
        "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
     echo "MISSED: Leader for slot '${block_slot}' but not adopted. Verify that logMonitor companion script is running and working!"
   elif [[ ${block_status} = adopted ]]; then
@@ -305,6 +305,17 @@ validateBlock() {
     else
       echo "ERROR: Block adopted for slot '${block_slot}' but no hash logged?"
     fi
+  elif [[ -z ${block_status} ]]; then # migration from old blocklog missing status 
+    block_slot=$(jq -r '.slot' <<< "${block}")
+    if jq -e '.hash' <<< "${block}" &>/dev/null; then
+      block_status="adopted"
+    else
+      block_status="leader"
+    fi
+    jq --arg _slot "${block_slot}" \
+       --arg _status "${block_status}" \
+       '[.[] | select(.slot == $_slot) += {"status": $_status}]' \
+       "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
   fi
 }
 
