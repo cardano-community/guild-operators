@@ -340,7 +340,7 @@ updateWithCustomConfig "cntools.config"
 updateWithCustomConfig "logMonitor.sh"
 updateWithCustomConfig "cncli.sh"
 
-chmod -R 755 "${CNODE_HOME}"
+chmod -R 755 "${CNODE_HOME}" 2>/dev/null
 chmod -R 700 "${CNODE_HOME}"/priv 2>/dev/null
 
 pushd -0 >/dev/null || err_exit; dirs -c
