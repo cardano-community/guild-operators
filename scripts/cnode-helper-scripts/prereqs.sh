@@ -204,19 +204,17 @@ fi
 mkdir -p "${HOME}/git" > /dev/null 2>&1 # To hold git repositories that will be used for building binaries
 
 if [[ "${LIBSODIUM_FORK}" = "Y" ]]; then
-  if grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" ~/.bashrc; then
-    echo "Load Library Paths already set up!"
-  else
+  if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" ~/.bashrc; then
     echo "export LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> ~/.bashrc
-    pushd "${HOME}"/git >/dev/null || err_exit
-    git clone https://github.com/input-output-hk/libsodium &>/dev/null
-    pushd libsodium >/dev/null || err_exit
-    git checkout 66f017f1 &>/dev/null
-    ./autogen.sh > autogen.log > /tmp/libsodium.log 2>&1
-    ./configure > configure.log >> /tmp/libsodium.log 2>&1
-    make > make.log 2>&1
-    $sudo make install > install.log 2>&1
   fi
+  pushd "${HOME}"/git >/dev/null || err_exit
+  git clone https://github.com/input-output-hk/libsodium &>/dev/null
+  pushd libsodium >/dev/null || err_exit
+  git checkout 66f017f1 &>/dev/null
+  ./autogen.sh > autogen.log > /tmp/libsodium.log 2>&1
+  ./configure > configure.log >> /tmp/libsodium.log 2>&1
+  make > make.log 2>&1
+  $sudo make install > install.log 2>&1
 fi
 
 if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
