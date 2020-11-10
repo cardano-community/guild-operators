@@ -68,11 +68,15 @@ getSlotInEpoch() {
 }
 
 dumpLedgerState() {
-  if ! timeout -k 5 "${TIMEOUT_LEDGER_STATE}" ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file /tmp/ledger-state.json; then
+  ledger_state_file="/tmp/ledger-state_$(getEpoch).json"
+  [[ -f ${ledger_state_file} ]] && return 0 # no need to continue, we have a current ledger-state already
+  rm -f /tmp/ledger-state* # remove old ledger dumps before creating a new
+  if ! timeout -k 5 "${TIMEOUT_LEDGER_STATE}" ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${ledger_state_file}"; then
     echo "ERROR: ledger dump failed/timed out, increase timeout value"
-    [[ -f /tmp/ledger-state.json ]] && rm -f /tmp/ledger-state.json
+    [[ -f "${ledger_state_file}" ]] && rm -f "${ledger_state_file}"
     return 1
   fi
+  return 0
 }
 
 # Command    : getShelleyTransitionEpoch
@@ -162,7 +166,6 @@ cncliSync() {
 
 cncliLeaderlog() {
   echo "~ CNCLI Leaderlog started ~"
-  [[ -f /tmp/ledger-state.json ]] && rm -f /tmp/ledger-state.json
   [[ -z ${POOL_ID} || -z ${POOL_VRF_SKEY} ]] && echo "'POOL_ID' and/or 'POOL_VRF_SKEY' not set in $(basename "$0"), exiting!" && exit 1
   while true; do
     getShelleyTransitionEpoch
@@ -193,11 +196,11 @@ cncliLeaderlog() {
     if [[ ${first_run} = "true" ]]; then # First startup, run leaderlogs for current epoch and merge with current data if it exist
       blocks_file="${BLOCKLOG_DIR}/blocks_${curr_epoch}.json"
       if ! dumpLedgerState; then sleep 300; continue; fi
-      cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current --ledger-state /tmp/ledger-state.json --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}")
+      cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current --ledger-state "${ledger_state_file}" --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}")
       [[ ! -f "${blocks_file}" ]] && echo "[]" > "${blocks_file}"
       if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
         echo "ERROR: failure in leaderlog while running:"
-        echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set current --ledger-state /tmp/ledger-state.json --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY}"
+        echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set current --ledger-state ${ledger_state_file} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY}"
         echo "Error message: $(jq -r '.errorMessage //empty' <<< "${cncli_leaderlog}")"
         continue
       fi
@@ -219,12 +222,11 @@ cncliLeaderlog() {
     blocks_file="${BLOCKLOG_DIR}/blocks_${next_epoch}.json"
     
     if [[ ! -f "${blocks_file}" && ${slot_tip} -gt ${slot_for_next_nonce} ]]; then # Run leaderlogs for next epoch
-      [[ -f /tmp/ledger-state.json ]] || if ! dumpLedgerState; then sleep 300; continue; fi
-      cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next --ledger-state /tmp/ledger-state.json --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}")
-      rm -f /tmp/ledger-state.json
+      if ! dumpLedgerState; then sleep 300; continue; fi
+      cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next --ledger-state "${ledger_state_file}" --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}")
       if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
         echo "ERROR: failure in leaderlog while running:"
-        echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set next --ledger-state /tmp/ledger-state.json --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY}"
+        echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set next --ledger-state ${ledger_state_file} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY}"
         echo "Error message: $(jq -r '.errorMessage //empty' <<< "${cncli_leaderlog}")"
         continue
       fi
