@@ -313,6 +313,7 @@ validateBlock() {
 
 cncliMigrateBlocklog() {
   while IFS= read -r -d '' blocks_file; do
+    echo "migrating: $(basename "${blocks_file}")"
     jq -c '.[]' "${blocks_file}" | while read -r block; do
       block_status=$(jq -r '.status //empty' <<< "${block}")
       if [[ -z ${block_status} ]]; then # migration from old blocklog pre cncli
@@ -327,6 +328,7 @@ cncliMigrateBlocklog() {
            --arg _status "${block_status}" \
            '[.[] | select(.slot == $_slot) += {"status": $_status}]' \
            "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
+        echo "Block at slot ${block_slot} updated with status '${block_status}'"
       fi
     done
   done < <(find "${BLOCKLOG_DIR}" -mindepth 1 -maxdepth 1 -type f -name "blocks_*" -print0 | sort -z)  
