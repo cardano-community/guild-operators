@@ -3270,7 +3270,7 @@ EOF
        done
        printTable ',' "$(echo -e ${block_table})"
        ;;
-    1) [[ -f "${BLOCK_DIR}/blocks_$((current_epoch+1)).json" ]] && say "\nLeader schedule for next epoch[$((current_epoch+1))] available"
+    1) [[ -f "${BLOCK_DIR}/blocks_$((current_epoch+1)).json" ]] && say "\n${FG_YELLOW}Leader schedule for next epoch[$((current_epoch+1))] available${NC}"
        echo && read -r -p "Enter epoch to list (enter for current): " epoch_enter
        [[ -z "${epoch_enter}" ]] && epoch_enter=${current_epoch}
        blocks_file="${BLOCK_DIR}/blocks_${epoch_enter}.json"
