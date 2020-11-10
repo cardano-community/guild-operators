@@ -201,20 +201,19 @@ cncliLeaderlog() {
         echo "Error message: $(jq -r '.errorMessage //empty' <<< "${cncli_leaderlog}")"
         continue
       fi
-      jq -c '.assignedSlots[]' <<< "${cncli_leaderlog}" | while read -r assigned_slot; do
+      blocks_data="$(cat "${blocks_file}")"
+      blocks_data_new="${blocks_data}"
+      while read -r assigned_slot; do
         slot=$(jq -r '.slot' <<< "${assigned_slot}")
         slot_search=$(jq --arg _slot "${slot}" '.[] | select(.slot == $_slot)' "${blocks_file}")
         if [[ -z ${slot_search} ]]; then
           at=$(jq -r '.at' <<< "${assigned_slot}")
           slotInEpoch=$(jq -r '.slotInEpoch' <<< "${assigned_slot}")
-          jq --arg _at "${at}" \
-             --arg _slot "${slot}" \
-             --arg _slotInEpoch "${slotInEpoch}" \
-             '. += [{"at": $_at,"slot": $_slot,"slotInEpoch": $_slotInEpoch,"status": "leader"}]' \
-             "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
+          blocks_data_new="$(jq --arg _at "${at}" --arg _slot "${slot}" --arg _slotInEpoch "${slotInEpoch}" '. += [{"at": $_at,"slot": $_slot,"slotInEpoch": $_slotInEpoch,"status": "leader"}]' <<< "${blocks_data}")"
           echo "LEADER: slot[${slot}] slotInEpoch[${slotInEpoch}] at[${at}]"
         fi
-      done
+      done < <(jq -c '.assignedSlots[]' <<< "${cncli_leaderlog}" 2>/dev/null)
+      jq -r . <<< "${blocks_data_new}" > "${blocks_file}"
       first_run="false"
     fi
     blocks_file="${BLOCKLOG_DIR}/blocks_${next_epoch}.json"
@@ -249,31 +248,34 @@ cncliValidate() {
     # Start with previous epoch to catch epoch boundary cases
     blocks_file="${BLOCKLOG_DIR}/blocks_${prev_epoch}.json"
     if [[ -f "${blocks_file}" ]]; then
-      jq -c '.[]' "${blocks_file}" | while read -r block; do
-        validateBlock "${block}"
-      done
+      blocks_data="$(cat "${blocks_file}")"
+      blocks_data_new="${blocks_data}"
+      while read -r block; do
+        validateBlock
+      done < <(jq -c '.[]' "${blocks_file}" 2>/dev/null)
+      jq -r . <<< "${blocks_data_new}" > "${blocks_file}"
     fi
     # continue with current epoch
     blocks_file="${BLOCKLOG_DIR}/blocks_${curr_epoch}.json"
     if [[ -f "${blocks_file}" ]]; then
-      jq -c '.[]' "${blocks_file}" | while read -r block; do
-        validateBlock "${block}"
-      done
+      blocks_data="$(cat "${blocks_file}")"
+      blocks_data_new="${blocks_data}"
+      while read -r block; do
+        validateBlock
+      done < <(jq -c '.[]' "${blocks_file}" 2>/dev/null)
+      jq -r . <<< "${blocks_data_new}" > "${blocks_file}"
     fi
   done
 }
 
 validateBlock() {
-  block=$1
   block_status=$(jq -r '.status //empty' <<< "${block}")
   [[ ${block_status} = invalid ]] && return
   if [[ ${block_status} = leader ]]; then
     block_slot=$(jq -r '.slot' <<< "${block}")
     [[ $((block_slot + CONFIRM_SLOT_CNT)) -ge ${slot_tip} ]] && return
     # assume lost for now, TODO: use cncli/sqlite to check if slot was made by another pool
-    jq --arg _slot "${block_slot}" \
-       '[.[] | select(.slot == $_slot) += {"status": "missed"}]' \
-       "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
+    blocks_data_new="$(jq --arg _slot "${block_slot}" '[.[] | select(.slot == $_slot) += {"status": "missed"}]' <<< "${blocks_data}")"
     echo "MISSED: Leader for slot '${block_slot}' but not adopted. Verify that logMonitor companion script is running and working!"
   elif [[ ${block_status} = adopted ]]; then
     block_slot=$(jq -r '.slot' <<< "${block}")
@@ -290,17 +292,11 @@ validateBlock() {
           [[ $((block_tip-cncli_block_nbr)) -lt ${CONFIRM_BLOCK_CNT} ]] && return # To make sure enough blocks has been built on top before validating
           # Block confimed
           cncli_block_hash=$(jq -r .hash <<< "${cncli_block_data}")
-          jq --arg _slot "${block_slot}" \
-             --arg _block "${cncli_block_nbr}" \
-             --arg _hash "${cncli_block_hash}" \
-             '[.[] | select(.slot == $_slot) += {"block": $_block,"hash": $_hash,"status": "confirmed"}]' \
-             "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
+          blocks_data_new="$(jq --arg _slot "${block_slot}" --arg _block "${cncli_block_nbr}" --arg _hash "${cncli_block_hash}" '[.[] | select(.slot == $_slot) += {"block": $_block,"hash": $_hash,"status": "confirmed"}]' <<< "${blocks_data}")"
           echo "CONFIRMED: Block[${cncli_block_nbr}] / Slot[${block_slot}] at $(date '+%F %T Z' --date="$(jq -r '.at' <<< "${block}")"), hash: ${cncli_block_hash}"
         fi
       else
-        jq --arg _slot "${block_slot}" \
-           '[.[] | select(.slot == $_slot) += {"status": "ghosted"}]' \
-           "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
+        blocks_data_new="$(jq --arg _slot "${block_slot}" '[.[] | select(.slot == $_slot) += {"status": "ghosted"}]' <<< "${blocks_data}")"
         echo "GHOSTED: Leader for slot '${block_slot}' but block hash '${block_hash}' not found, stolen in slot/height battle or block propagation issue!"
       fi
     else
@@ -314,7 +310,9 @@ validateBlock() {
 cncliMigrateBlocklog() {
   while IFS= read -r -d '' blocks_file; do
     echo "migrating: $(basename "${blocks_file}")"
-    jq -c '.[]' "${blocks_file}" | while read -r block; do
+    blocks_data="$(cat "${blocks_file}")"
+    blocks_data_new="${blocks_data}"
+    while read -r block; do
       block_status=$(jq -r '.status //empty' <<< "${block}")
       if [[ -z ${block_status} ]]; then # migration from old blocklog pre cncli
         block_slot=$(jq -r '.slot' <<< "${block}")
@@ -324,14 +322,12 @@ cncliMigrateBlocklog() {
         else
           block_status="leader"
         fi
-        jq --arg _slot "${block_slot}" \
-           --arg _status "${block_status}" \
-           '[.[] | select(.slot == $_slot) += {"status": $_status}]' \
-           "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
+        blocks_data_new="$(jq --arg _slot "${block_slot}" --arg _status "${block_status}" '[.[] | select(.slot == $_slot) += {"status": $_status}]' <<< "${blocks_data}")"
         echo "Block at slot ${block_slot} updated with status '${block_status}'"
       fi
-    done
-  done < <(find "${BLOCKLOG_DIR}" -mindepth 1 -maxdepth 1 -type f -name "blocks_*" -print0 | sort -z)  
+    done < <(jq -c '.[]' <<< "${blocks_data}" 2>/dev/null)
+    jq -r . <<< "${blocks_data_new}" > "${blocks_file}"
+  done < <(find "${BLOCKLOG_DIR}" -mindepth 1 -maxdepth 1 -type f -name "blocks_*" -print0 | sort -z)
 }
 
 #################################
