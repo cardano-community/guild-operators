@@ -175,7 +175,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     export BOOTSTRAP_HASKELL_NO_UPGRADE=1
     curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sed -e 's#read.*#answer=Y;next_answer=Y;hls_answer=N#' | bash
     # shellcheck source=/dev/null
-    . ~/.ghcup/env
+    . "${HOME}"/.ghcup/env
 
     ghcup install 8.6.5
     ghcup set 8.6.5
@@ -186,26 +186,27 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
   fi
 fi
 
-if [ ! -d ~/.cabal/bin ]; then mkdir -p ~/.cabal/bin; fi
+if [ ! -d "${HOME}"/.cabal/bin ]; then mkdir -p "${HOME}"/.cabal/bin; fi
 
 # END OF Install build deps.
 
 echo "Creating Folder Structure .."
 
-if grep -q "${CNODE_VNAME}_HOME" ~/.bashrc; then
+if grep -q "${CNODE_VNAME}_HOME" "${HOME}"/.bashrc; then
   echo "Environment Variable already set up!"
 else
   echo "Setting up Environment Variable"
-  echo "export ${CNODE_VNAME}_HOME=${CNODE_HOME}" >> ~/.bashrc
+  echo "export ${CNODE_VNAME}_HOME=${CNODE_HOME}" >> "${HOME}"/.bashrc
   # shellcheck source=/dev/null
-  . "${HOME}/.bashrc"
+  . "${HOME}/".bashrc
 fi
 
-mkdir -p "${HOME}/git" > /dev/null 2>&1 # To hold git repositories that will be used for building binaries
+mkdir -p "${HOME}"/git > /dev/null 2>&1 # To hold git repositories that will be used for building binaries
 
 if [[ "${LIBSODIUM_FORK}" = "Y" ]]; then
-  if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" ~/.bashrc; then
-    echo "export LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> ~/.bashrc
+  if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
+    echo "export LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
+    . "${HOME}"/.bashrc
   fi
   pushd "${HOME}"/git >/dev/null || err_exit
   git clone https://github.com/input-output-hk/libsodium &>/dev/null
