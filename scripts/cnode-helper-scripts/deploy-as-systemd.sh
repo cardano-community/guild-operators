@@ -58,10 +58,9 @@ After=${vname}.service
 [Service]
 Type=simple
 Restart=on-failure
-RestartSec=5
+RestartSec=20
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
-ExecStartPre=/bin/sleep 30
 ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/logMonitor.sh\"
 ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep -m1 ${CNODE_HOME}/scripts/logMonitor.sh | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
 KillSignal=SIGINT
@@ -84,10 +83,9 @@ After=${vname}.service
 [Service]
 Type=simple
 Restart=on-failure
-RestartSec=5
+RestartSec=20
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
-ExecStartPre=/bin/sleep 30
 ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh sync\"
 ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep [c]ncli.sync.*.${CNODE_HOME}/ | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
 KillSignal=SIGINT
@@ -110,7 +108,7 @@ After=${vname}-cncli-sync.service
 [Service]
 Type=simple
 Restart=on-failure
-RestartSec=5
+RestartSec=20
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
 ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh leaderlog\"
@@ -133,7 +131,7 @@ After=${vname}-cncli-sync.service
 [Service]
 Type=simple
 Restart=on-failure
-RestartSec=5
+RestartSec=20
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
 ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh validate\"
@@ -187,10 +185,9 @@ After=${vname}.service
 [Service]
 Type=simple
 Restart=on-failure
-RestartSec=5
+RestartSec=20
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
-ExecStartPre=/bin/sleep 30
 ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh ptsendtip\"
 ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep [c]ncli.sendtip.*.${vname}-ptsendtip.json | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
 KillSignal=SIGINT
