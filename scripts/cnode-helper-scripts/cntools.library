@@ -155,7 +155,7 @@ protectionPreRequisites() {
       return 1
     fi
     rm -f "${TMP_FOLDER}"/test
-  }
+  fi
 }
 
 # Command    : safeDel [path]
