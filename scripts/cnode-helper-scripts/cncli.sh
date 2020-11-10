@@ -29,13 +29,14 @@ POOL_TICKER=""                            # POOLTOOL sendtip: set the pools tick
 usage() {
   cat <<EOF >&2
 
-Usage: $(basename "$0") [sync] [leaderlog] [validate] [ptsendtip]
+Usage: $(basename "$0") [sync] [leaderlog] [validate] [ptsendtip] [migrate]
 Script to run CNCLI, best launched through systemd deployed by 'deploy-as-systemd.sh'
 
 sync        Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB
 leaderlog   Loops through all slots in current epoch to calculate leader schedule
 validate    Confirms that the block made actually was accepted and adopted by chain
 ptsendtip   Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge
+migrate     manual command to migrate old blocklog(cntoolsBlockCollector) to new format (post cncli)
 
 EOF
   exit 1
@@ -305,18 +306,30 @@ validateBlock() {
     else
       echo "ERROR: Block adopted for slot '${block_slot}' but no hash logged?"
     fi
-  elif [[ -z ${block_status} ]]; then # migration from old blocklog missing status 
-    block_slot=$(jq -r '.slot' <<< "${block}")
-    if jq -e '.hash' <<< "${block}" &>/dev/null; then
-      block_status="adopted"
-    else
-      block_status="leader"
-    fi
-    jq --arg _slot "${block_slot}" \
-       --arg _status "${block_status}" \
-       '[.[] | select(.slot == $_slot) += {"status": $_status}]' \
-       "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
   fi
+}
+
+#################################
+
+cncliMigrateBlocklog() {
+  while IFS= read -r -d '' blocks_file; do
+    jq -c '.[]' "${blocks_file}" | while read -r block; do
+      block_status=$(jq -r '.status //empty' <<< "${block}")
+      if [[ -z ${block_status} ]]; then # migration from old blocklog pre cncli
+        block_slot=$(jq -r '.slot' <<< "${block}")
+        block_hash=$(jq -r '.hash //empty' <<< "${block}")
+        if [[ -n ${block_hash} ]]; then
+          [[ ${block_hash} =~ ^Invalid ]] && block_status="invalid" || block_status="adopted"
+        else
+          block_status="leader"
+        fi
+        jq --arg _slot "${block_slot}" \
+           --arg _status "${block_status}" \
+           '[.[] | select(.slot == $_slot) += {"status": $_status}]' \
+           "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
+      fi
+    done
+  done < <(find "${BLOCK_DIR}" -mindepth 1 -maxdepth 1 -type f -name blocks_* -print0 | sort -z)  
 }
 
 #################################
@@ -356,5 +369,7 @@ case ${subcommand} in
     cncliInit && cncliValidate ;;
   ptsendtip )
     cncliInit && cncliPTsendtip ;;
+  migrate )
+    cncliInit && cncliMigrateBlocklog ;;
   * ) usage ;;
 esac
