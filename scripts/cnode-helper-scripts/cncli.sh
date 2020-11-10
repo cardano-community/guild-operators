@@ -331,7 +331,7 @@ cncliPTsendtip() {
   ]
 }
 EOF"
-  ${CNCLI} sendtip --config "${pt_config}"
+  ${CNCLI} sendtip --config "${pt_config}" --cardano-node "${cnode_path}"
 }
 
 #################################
