@@ -329,7 +329,7 @@ cncliMigrateBlocklog() {
            "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
       fi
     done
-  done < <(find "${BLOCK_DIR}" -mindepth 1 -maxdepth 1 -type f -name blocks_* -print0 | sort -z)  
+  done < <(find "${BLOCK_DIR}" -mindepth 1 -maxdepth 1 -type f -name "blocks_*" -print0 | sort -z)  
 }
 
 #################################
