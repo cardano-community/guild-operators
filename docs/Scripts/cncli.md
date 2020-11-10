@@ -24,7 +24,7 @@ Make sure to set appropriate values according to [Configuration](#configuration)
 Log output is handled by syslog and end up in the systems standard syslog file, normally `/var/log/syslog`. `journalctl -u <service>` can be used to check log. Other logging configurations are not covered here. 
 
 ##### View Collected Blocks
-Best viewed in CNTools but as it's saved as regular JSON any text/JSON viewer could be used. Block data is saved to `BLOCK_DIR` variable set in env file, by default `${CNODE_HOME}/guild-db/blocklog/`. One file is created for each epoch. 
+Best viewed in CNTools but as it's saved as regular JSON any text/JSON viewer could be used. Block data is saved to `BLOCKLOG_DIR` variable set in env file, by default `${CNODE_HOME}/guild-db/blocklog/`. One file is created for each epoch. 
 
 See [Log Monitor](Scripts/logmonitor.md) for example output.
 

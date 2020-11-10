@@ -191,7 +191,7 @@ cncliLeaderlog() {
     slot_tip=$(getSlotTip)
     slot_in_epoch=$(getSlotInEpoch)
     if [[ ${first_run} = "true" ]]; then # First startup, run leaderlogs for current epoch and merge with current data if it exist
-      blocks_file="${BLOCK_DIR}/blocks_${curr_epoch}.json"
+      blocks_file="${BLOCKLOG_DIR}/blocks_${curr_epoch}.json"
       if ! dumpLedgerState; then sleep 300; continue; fi
       cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current --ledger-state /tmp/ledger-state.json --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}")
       [[ ! -f "${blocks_file}" ]] && echo "[]" > "${blocks_file}"
@@ -217,7 +217,7 @@ cncliLeaderlog() {
       done
       first_run="false"
     fi
-    blocks_file="${BLOCK_DIR}/blocks_${next_epoch}.json"
+    blocks_file="${BLOCKLOG_DIR}/blocks_${next_epoch}.json"
     
     if [[ ! -f "${blocks_file}" && ${slot_tip} -gt ${slot_for_next_nonce} ]]; then # Run leaderlogs for next epoch
       [[ -f /tmp/ledger-state.json ]] || if ! dumpLedgerState; then sleep 300; continue; fi
@@ -247,14 +247,14 @@ cncliValidate() {
     curr_epoch=$(getEpoch)
     prev_epoch=$((curr_epoch-1))
     # Start with previous epoch to catch epoch boundary cases
-    blocks_file="${BLOCK_DIR}/blocks_${prev_epoch}.json"
+    blocks_file="${BLOCKLOG_DIR}/blocks_${prev_epoch}.json"
     if [[ -f "${blocks_file}" ]]; then
       jq -c '.[]' "${blocks_file}" | while read -r block; do
         validateBlock "${block}"
       done
     fi
     # continue with current epoch
-    blocks_file="${BLOCK_DIR}/blocks_${curr_epoch}.json"
+    blocks_file="${BLOCKLOG_DIR}/blocks_${curr_epoch}.json"
     if [[ -f "${blocks_file}" ]]; then
       jq -c '.[]' "${blocks_file}" | while read -r block; do
         validateBlock "${block}"
@@ -329,7 +329,7 @@ cncliMigrateBlocklog() {
            "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
       fi
     done
-  done < <(find "${BLOCK_DIR}" -mindepth 1 -maxdepth 1 -type f -name "blocks_*" -print0 | sort -z)  
+  done < <(find "${BLOCKLOG_DIR}" -mindepth 1 -maxdepth 1 -type f -name "blocks_*" -print0 | sort -z)  
 }
 
 #################################

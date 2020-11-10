@@ -3230,8 +3230,8 @@ EOF
   say " >> BLOCKS" "log"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-  if [[ ! -d "${BLOCK_DIR}" ]]; then
-    say "${FG_RED}ERROR${NC}: block directory not found!: ${BLOCK_DIR}"
+  if [[ ! -d "${BLOCKLOG_DIR}" ]]; then
+    say "${FG_RED}ERROR${NC}: block directory not found!: ${BLOCKLOG_DIR}"
     say "run logMonitor.sh script to parse block traces from json log file"
     say "https://cardano-community.github.io/guild-operators/#/Scripts/logmonitor"
     waitForInput && continue
@@ -3254,7 +3254,7 @@ EOF
        first_epoch=$(( current_epoch - epoch_enter ))
        [[ ${first_epoch} -lt 0 ]] && first_epoch=0
        while [[ ${current_epoch} -gt ${first_epoch} ]]; do
-         blocks_file="${BLOCK_DIR}/blocks_${current_epoch}.json"
+         blocks_file="${BLOCKLOG_DIR}/blocks_${current_epoch}.json"
          if [[ ! -f "${blocks_file}" ]]; then
            block_table+="${current_epoch},-,-,-,-,-,-\n"
          else
@@ -3270,10 +3270,10 @@ EOF
        done
        printTable ',' "$(echo -e ${block_table})"
        ;;
-    1) [[ -f "${BLOCK_DIR}/blocks_$((current_epoch+1)).json" ]] && say "\n${FG_YELLOW}Leader schedule for next epoch[$((current_epoch+1))] available${NC}"
+    1) [[ -f "${BLOCKLOG_DIR}/blocks_$((current_epoch+1)).json" ]] && say "\n${FG_YELLOW}Leader schedule for next epoch[$((current_epoch+1))] available${NC}"
        echo && read -r -p "Enter epoch to list (enter for current): " epoch_enter
        [[ -z "${epoch_enter}" ]] && epoch_enter=${current_epoch}
-       blocks_file="${BLOCK_DIR}/blocks_${epoch_enter}.json"
+       blocks_file="${BLOCKLOG_DIR}/blocks_${epoch_enter}.json"
        if [[ ! -f "${blocks_file}" || ( -f "${blocks_file}" && -z $(jq -c '.[]' "${blocks_file}") ) ]]; then
          say "No blocks in epoch ${epoch_enter}"
          waitForInput && continue
@@ -3426,7 +3426,7 @@ EOF
        backup_list=(
          "${WALLET_FOLDER}"
          "${POOL_FOLDER}"
-         "${BLOCK_DIR}"
+         "${BLOCKLOG_DIR}"
          "${CNODE_HOME}/files"
          "${CNODE_HOME}/scripts"
        )

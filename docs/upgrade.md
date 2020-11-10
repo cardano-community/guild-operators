@@ -61,7 +61,7 @@ CNODE_PORT=6000                                         # Set node port
 #EKG_PORT=12788                                         # Override automatic detection of node EKG port
 #EKG_TIMEOUT=3                                          # Maximum time in seconds that you allow EKG request to take before aborting (node metrics)
 #CURL_TIMEOUT=10                                        # Maximum time in seconds that you allow curl file download to take before aborting (GitHub update process)
-#BLOCK_DIR="${CNODE_HOME}/guild-db/blocklog"            # Override default directory used to store block data for core node
+#BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"         # Override default directory used to store block data for core node
 
 ######################################
 # Do NOT modify code below           #

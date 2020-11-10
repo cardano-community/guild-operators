@@ -821,7 +821,7 @@ while true; do
       
       echo "${m2divider}" && ((line++))
       
-      blocks_file="${BLOCK_DIR}/blocks_${epochnum}.json"
+      blocks_file="${BLOCKLOG_DIR}/blocks_${epochnum}.json"
       if [[ -f "${blocks_file}" ]]; then
         printf "${VL}${STANDOUT}%8s${NC}%$((width-62))s %-6s | ${FG_CYAN}%-7s${NC}/${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC}/${FG_RED}%-7s${NC}/${FG_RED}%-7s${NC} ${VL}\n" " BLOCKS " "" "Leader" "Adopted" "Confirmed" "Missed" "Ghosted" "Invalid" && ((line++))
         invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")

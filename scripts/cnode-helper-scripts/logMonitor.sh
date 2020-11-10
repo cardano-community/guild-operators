@@ -22,10 +22,10 @@ elif [[ "${CONFIG##*.}" = "json" ]]; then
 fi
 [[ -z "${logfile}" ]] && echo -e "${FG_RED}Error:${NC} failed to locate json logfile in node configuration file\na setupScribe of format ScJson with extension .json expected" && exit 1
 
-# Create BLOCK_DIR if needed
-if [[ ! -d "${BLOCK_DIR}" ]]; then
-  mkdir -p "${BLOCK_DIR}" || {
-    echo -e "${FG_RED}Error:${NC} failed to create directory to store block data: ${BLOCK_DIR}"
+# Create BLOCKLOG_DIR if needed
+if [[ ! -d "${BLOCKLOG_DIR}" ]]; then
+  mkdir -p "${BLOCKLOG_DIR}" || {
+    echo -e "${FG_RED}Error:${NC} failed to create directory to store block data: ${BLOCKLOG_DIR}"
     exit 1
   }
 fi
@@ -47,7 +47,7 @@ while read -r logentry; do
       at="$(jq -r '.at' <<< ${logentry})"
       slot="$(jq -r '.data.slot' <<< ${logentry})"
       epoch=$(getEpoch)
-      blocks_file="${BLOCK_DIR}/blocks_${epoch}.json"
+      blocks_file="${BLOCKLOG_DIR}/blocks_${epoch}.json"
       [[ ! -f "${blocks_file}" ]] && echo "[]" > "${blocks_file}"
       echo "leader event [epoch=${epoch},slot=${slot},at=${at}]"
       slot_search=$(jq --arg _slot "${slot}" '.[] | select(.slot == $_slot)' "${blocks_file}")
@@ -65,7 +65,7 @@ while read -r logentry; do
       [[ "$(jq -r '.data.blockHash' <<< ${logentry})" =~ ([[:alnum:]]+) ]] && block_hash="${BASH_REMATCH[1]}" || block_hash=""
       block_size="$(jq -r '.data.blockSize' <<< ${logentry})"
       epoch=$(getEpoch)
-      blocks_file="${BLOCK_DIR}/blocks_${epoch}.json"
+      blocks_file="${BLOCKLOG_DIR}/blocks_${epoch}.json"
       echo "block adopted [epoch=${epoch},slot=${slot},size=${block_size},hash=${block_hash}]"
       jq --arg _slot "${slot}" \
       --arg _block_size "${block_size}" \
@@ -77,7 +77,7 @@ while read -r logentry; do
       slot="$(jq -r '.data.slot' <<< ${logentry})"
       json_trace="$(jq -c -r '. | @base64' <<< ${logentry})"
       epoch=$(getEpoch)
-      blocks_file="${BLOCK_DIR}/blocks_${epoch}.json"
+      blocks_file="${BLOCKLOG_DIR}/blocks_${epoch}.json"
       echo "invalid block [epoch=${epoch},slot=${slot}]"
       echo "base 64 encoded json trace, run this command to decode:"
       echo "echo ${json_trace} | base64 -d | jq -r"

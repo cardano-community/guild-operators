@@ -12,12 +12,12 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ##### Changed
 - Blocks view updated to adapt to changed made to block collector(logMonitor) and the added CNCLI integration
-  - see 
+  - [Log Monitor](https://cardano-community.github.io/guild-operators/#/Scripts/logmonitor)
+  - [CNCLI](https://cardano-community.github.io/guild-operators/#/Scripts/cncli)
+- chattr file locking now optional to use, a new setting in cntools.config added for it.
 
 ##### Fixed
-- Minor tweaks (non-breaking) 
-  - unnecessary bech32 conversion in wallet import
-  - blocks viewer info text updated to reflect the change from cntoolsBlockCollector to [Log Monitor](Scripts/logmonitor.md) script
+- unnecessary bech32 conversion in wallet import (non-breaking) 
 
 ## [6.1.0] - 2020-10-22
 
