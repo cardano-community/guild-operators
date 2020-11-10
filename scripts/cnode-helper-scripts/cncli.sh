@@ -15,6 +15,8 @@ POOL_ID=""                                # Required for leaderlog calculation &
 POOL_VRF_SKEY=""                          # Required for leaderlog calculation, path to pool's vrf.skey file
 PT_API_KEY=""                             # POOLTOOL sendtip: set API key, e.g "a47811d3-0008-4ecd-9f3e-9c22bdb7c82d"
 POOL_TICKER=""                            # POOLTOOL sendtip: set the pools ticker, e.g "TCKR"
+#PT_HOST="127.0.0.1"                      # POOLTOOL sendtip: connect to a remote node, preferably block producer (default localhost)
+#PT_PORT="${CNODE_PORT}"                  # POOLTOOL sendtip: port of node to connect to (default CNODE_PORT from env file)
 #CNCLI_DB="${CNODE_HOME}/guild-db/cncli"  # path to folder for cncli sqlite db 
 #LIBSODIUM_FORK=/usr/local/lib            # path to folder for IOG fork of libsodium
 #SLEEP_RATE=20                            # CNCLI leaderlog/validate: time to wait until next check (in seconds)
@@ -136,6 +138,8 @@ cncliInit() {
   [[ -z "${CONFIRM_SLOT_CNT}" ]] && CONFIRM_SLOT_CNT=300
   [[ -z "${CONFIRM_BLOCK_CNT}" ]] && CONFIRM_BLOCK_CNT=10
   [[ -z "${TIMEOUT_LEDGER_STATE}" ]] && TIMEOUT_LEDGER_STATE=300
+  [[ -z "${PT_HOST}" ]] && PT_HOST="127.0.0.1"
+  [[ -z "${PT_PORT}" ]] && PT_PORT="${CNODE_PORT}"
 
   PARENT="$(dirname $0)"
   if [[ ! -f "${PARENT}"/env ]]; then
@@ -349,8 +353,8 @@ cncliPTsendtip() {
     {
       \"name\": \"${POOL_TICKER}\",
       \"pool_id\": \"${POOL_ID}\",
-      \"host\" : \"127.0.0.1\",
-      \"port\": ${CNODE_PORT}
+      \"host\" : \"${PT_HOST}\",
+      \"port\": ${PT_PORT}
     }
   ]
 }
