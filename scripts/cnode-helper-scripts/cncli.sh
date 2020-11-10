@@ -168,6 +168,7 @@ cncliLeaderlog() {
     if [[ ${shelley_transition_epoch} -lt 0 ]]; then
       echo "Failed to calculate shelley transition epoch, checking again in ${SLEEP_RATE}s"
     else
+      echo "Shelley transition epoch found: ${shelley_transition_epoch"
       node_metrics=$(getNodeMetrics)
       slot_tip=$(getSlotTip)
       tip_diff=$(( $(getSlotTipRef) - $(getSlotTip) ))
@@ -176,6 +177,7 @@ cncliLeaderlog() {
     fi
     sleep ${SLEEP_RATE}
   done
+  echo "Node in sync, running leaderlogs for current epoch and merging with existing data if available"
   first_run="true"
   slot_in_epoch=$(getSlotInEpoch)
   # firstSlotOfNextEpoch - stabilityWindow(3 * k / f)
