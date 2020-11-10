@@ -215,6 +215,7 @@ if [[ "${LIBSODIUM_FORK}" = "Y" ]]; then
   ./configure > configure.log >> /tmp/libsodium.log 2>&1
   make > make.log 2>&1
   $sudo make install > install.log 2>&1
+  echo "IOG fork of libsodium installed to /usr/local/lib/"
 fi
 
 if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
@@ -240,8 +241,8 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
       echo "updating RUST if needed..."
       rustup update &>/dev/null #ignore any errors, not crucial that update succeed
     fi
-    if ! output=$(cargo install --path . --force 2>&1); then echo -e "${output}" && err_exit; fi
     . "${HOME}"/.profile # source profile to load ${HOME}/.cargo/bin into PATH
+    if ! output=$(cargo install --path . --force 2>&1); then echo -e "${output}" && err_exit; fi
     echo "$(cncli -V) installed!"
   else
     echo "CNCLI already latest version [${cncli_version}], skipping!"
