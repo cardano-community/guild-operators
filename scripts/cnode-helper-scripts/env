@@ -111,6 +111,8 @@ else
   [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
 fi
 
+[[ -z ${BLOCKLOG_DIR} ]] && BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"
+
 CNODE_PID=$(pgrep -fn "[c]ardano-node*.*--port ${CNODE_PORT}")
 
 PROTOCOL=$(jq -r .Protocol "${CONFIG}")
@@ -153,12 +155,5 @@ FG_WHITE='\e[97m'
 STANDOUT='\e[7m'
 BOLD='\e[1m'
 NC='\e[0m'
-
-# Check BLOCK_LOG_DIR for backwards compability. 
-if [[ -z ${BLOCK_LOG_DIR} && -z ${BLOCKLOG_DIR} ]]; then
-  BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"
-elif [[ -n ${BLOCK_LOG_DIR} ]]; then
-  BLOCKLOG_DIR="${BLOCK_LOG_DIR}"
-fi
 
 return 0
