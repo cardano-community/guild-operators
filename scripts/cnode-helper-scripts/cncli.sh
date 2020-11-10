@@ -36,7 +36,7 @@ sync        Start CNCLI chainsync process that connects to cardano-node to sync 
 leaderlog   Loops through all slots in current epoch to calculate leader schedule
 validate    Confirms that the block made actually was accepted and adopted by chain
 ptsendtip   Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge
-migrate     manual command to migrate old blocklog(cntoolsBlockCollector) to new format (post cncli)
+migrate     command to migrate old blocklog(cntoolsBlockCollector) to new format (post cncli)
 
 EOF
   exit 1
