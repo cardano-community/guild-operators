@@ -313,14 +313,14 @@ validateBlock() {
 cncliPTsendtip() {
   [[ -z ${POOL_ID} || -z ${POOL_TICKER} || -z ${PT_API_KEY} ]] && echo "'POOL_ID' and/or 'POOL_TICKER' and/or 'PT_API_KEY' not set in $(basename "$0"), exiting!" && exit 1
   # Generate a temporary pooltool config
-  version=$("$(command -v cardano-node)" version)
-  node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
-  node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-5) # use first 5 chars in git rev to be compatible with previous version scariping node log
+  if ! cnode_path=$(command -v cardano-node >/dev/null); then
+    echo "ERROR: cardano-node not in PATH, please manually set CCLI in env file"
+    exit 1
+  fi
   pt_config="/tmp/${vname}-ptsendtip.json"
   bash -c "cat << 'EOF' > ${pt_config}
 {
   \"api_key\": \"${PT_API_KEY}\",
-  \"node_version\": \"${node_version}:${node_rev}\",
   \"pools\": [
     {
       \"name\": \"${POOL_TICKER}\",
