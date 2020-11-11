@@ -15,8 +15,8 @@ CNODE_PORT=6000                                         # Set node port
 #EKG_HOST=127.0.0.1                                     # Set node EKG host
 #EKG_PORT=12788                                         # Override automatic detection of node EKG port
 #EKG_TIMEOUT=3                                          # Maximum time in seconds that you allow EKG request to take before aborting (node metrics)
-#BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"                # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
 #CURL_TIMEOUT=10                                        # Maximum time in seconds that you allow curl file download to take before aborting (GitHub update process)
+#BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"         # Override default directory used to store block data for core node
 
 ######################################
 # Do NOT modify code below           #
@@ -111,6 +111,8 @@ else
   [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
 fi
 
+[[ -z ${BLOCKLOG_DIR} ]] && BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"
+
 CNODE_PID=$(pgrep -fn "[c]ardano-node*.*--port ${CNODE_PORT}")
 
 PROTOCOL=$(jq -r .Protocol "${CONFIG}")
@@ -153,7 +155,5 @@ FG_WHITE='\e[97m'
 STANDOUT='\e[7m'
 BOLD='\e[1m'
 NC='\e[0m'
-
-[[ -z ${BLOCK_LOG_DIR} && -d "${CNODE_HOME}/db/blocks" ]] && BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"
 
 return 0
