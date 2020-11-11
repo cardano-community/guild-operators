@@ -132,6 +132,7 @@ cncliInit() {
   [[ -z "${CNCLI_DB}" ]] && CNCLI_DB="${CNODE_HOME}/guild-db/cncli"
   if ! mkdir -p "${CNCLI_DB}"; then echo "ERROR: failed to create CNCLI DB folder: ${CNCLI_DB}" && exit 1; fi
   CNCLI_DB="${CNCLI_DB}/cncli.db"
+  if ! mkdir -p "${BLOCKLOG_DIR}"; then echo "ERROR: failed to create directory to store blocklog: ${BLOCKLOG_DIR}" && exit 1; fi
   [[ -z "${LIBSODIUM_FORK}" ]] && LIBSODIUM_FORK=/usr/local/lib
   export LD_LIBRARY_PATH="${LIBSODIUM_FORK}:${LD_LIBRARY_PATH}"
   [[ -z "${SLEEP_RATE}" ]] && SLEEP_RATE=20

@@ -23,12 +23,7 @@ fi
 [[ -z "${logfile}" ]] && echo -e "${FG_RED}Error:${NC} failed to locate json logfile in node configuration file\na setupScribe of format ScJson with extension .json expected" && exit 1
 
 # Create BLOCKLOG_DIR if needed
-if [[ ! -d "${BLOCKLOG_DIR}" ]]; then
-  mkdir -p "${BLOCKLOG_DIR}" || {
-    echo -e "${FG_RED}Error:${NC} failed to create directory to store block data: ${BLOCKLOG_DIR}"
-    exit 1
-  }
-fi
+if ! mkdir -p "${BLOCKLOG_DIR}"; then echo "ERROR: failed to create directory to store blocklog: ${BLOCKLOG_DIR}" && exit 1; fi
 
 getEpoch() {
   data=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
