@@ -201,7 +201,7 @@ cncliLeaderlog() {
     if [[ ${first_run} = "true" ]]; then # First startup, run leaderlogs for current epoch and merge with current data if it exist
       blocks_file="${BLOCKLOG_DIR}/blocks_${curr_epoch}.json"
       if ! dumpLedgerState; then sleep 300; continue; fi
-      cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current --ledger-state "${ledger_state_file}" --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}")
+      cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current --ledger-state "${ledger_state_file}" --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
       [[ ! -f "${blocks_file}" ]] && echo "[]" > "${blocks_file}"
       if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
         echo "ERROR: failure in leaderlog while running:"
@@ -210,25 +210,24 @@ cncliLeaderlog() {
         continue
       fi
       blocks_data="$(cat "${blocks_file}")"
-      blocks_data_new="${blocks_data}"
       while read -r assigned_slot; do
         slot=$(jq -r '.slot' <<< "${assigned_slot}")
-        slot_search=$(jq --arg _slot "${slot}" '.[] | select(.slot == $_slot)' "${blocks_file}")
+        slot_search=$(jq --argjson _slot ${slot} '.[] | select(.slot == $_slot)' "${blocks_file}")
         if [[ -z ${slot_search} ]]; then
           at=$(jq -r '.at' <<< "${assigned_slot}")
           slotInEpoch=$(jq -r '.slotInEpoch' <<< "${assigned_slot}")
-          blocks_data_new="$(jq --arg _at "${at}" --arg _slot "${slot}" --arg _slotInEpoch "${slotInEpoch}" '. += [{"at": $_at,"slot": $_slot,"slotInEpoch": $_slotInEpoch,"status": "leader"}]' <<< "${blocks_data}")"
+          blocks_data="$(jq --arg _at "${at}" --argjson _slot ${slot} --argjson _slotInEpoch ${slotInEpoch} '. += [{"at": $_at,"slot": $_slot,"slotInEpoch": $_slotInEpoch,"status": "leader"}]' <<< "${blocks_data}")"
           echo "LEADER: slot[${slot}] slotInEpoch[${slotInEpoch}] at[${at}]"
         fi
       done < <(jq -c '.assignedSlots[]' <<< "${cncli_leaderlog}" 2>/dev/null)
-      jq -r . <<< "${blocks_data_new}" > "${blocks_file}"
+      jq -r . <<< "${blocks_data}" > "${blocks_file}"
       first_run="false"
     fi
     blocks_file="${BLOCKLOG_DIR}/blocks_${next_epoch}.json"
     
     if [[ ! -f "${blocks_file}" && ${slot_tip} -gt ${slot_for_next_nonce} ]]; then # Run leaderlogs for next epoch
       if ! dumpLedgerState; then sleep 300; continue; fi
-      cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next --ledger-state "${ledger_state_file}" --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}")
+      cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next --ledger-state "${ledger_state_file}" --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
       if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
         echo "ERROR: failure in leaderlog while running:"
         echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set next --ledger-state ${ledger_state_file} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY}"
@@ -256,21 +255,19 @@ cncliValidate() {
     blocks_file="${BLOCKLOG_DIR}/blocks_${prev_epoch}.json"
     if [[ -f "${blocks_file}" ]]; then
       blocks_data="$(cat "${blocks_file}")"
-      blocks_data_new="${blocks_data}"
       while read -r block; do
         validateBlock
       done < <(jq -c '.[]' "${blocks_file}" 2>/dev/null)
-      jq -r . <<< "${blocks_data_new}" > "${blocks_file}"
+      jq -r . <<< "${blocks_data}" > "${blocks_file}"
     fi
     # continue with current epoch
     blocks_file="${BLOCKLOG_DIR}/blocks_${curr_epoch}.json"
     if [[ -f "${blocks_file}" ]]; then
       blocks_data="$(cat "${blocks_file}")"
-      blocks_data_new="${blocks_data}"
       while read -r block; do
         validateBlock
       done < <(jq -c '.[]' "${blocks_file}" 2>/dev/null)
-      jq -r . <<< "${blocks_data_new}" > "${blocks_file}"
+      jq -r . <<< "${blocks_data}" > "${blocks_file}"
     fi
   done
 }
@@ -282,7 +279,7 @@ validateBlock() {
     block_slot=$(jq -r '.slot' <<< "${block}")
     [[ $((block_slot + CONFIRM_SLOT_CNT)) -ge ${slot_tip} ]] && return
     # assume lost for now, TODO: use cncli/sqlite to check if slot was made by another pool
-    blocks_data_new="$(jq --arg _slot "${block_slot}" '[.[] | select(.slot == $_slot) += {"status": "missed"}]' <<< "${blocks_data}")"
+    blocks_data="$(jq --argjson _slot ${block_slot} '[.[] | select(.slot == $_slot) += {"status": "missed"}]' <<< "${blocks_data}")"
     echo "MISSED: Leader for slot '${block_slot}' but not adopted. Verify that logMonitor companion script is running and working!"
   elif [[ ${block_status} = adopted ]]; then
     block_slot=$(jq -r '.slot' <<< "${block}")
@@ -299,11 +296,11 @@ validateBlock() {
           [[ $((block_tip-cncli_block_nbr)) -lt ${CONFIRM_BLOCK_CNT} ]] && return # To make sure enough blocks has been built on top before validating
           # Block confimed
           cncli_block_hash=$(jq -r .hash <<< "${cncli_block_data}")
-          blocks_data_new="$(jq --arg _slot "${block_slot}" --arg _block "${cncli_block_nbr}" --arg _hash "${cncli_block_hash}" '[.[] | select(.slot == $_slot) += {"block": $_block,"hash": $_hash,"status": "confirmed"}]' <<< "${blocks_data}")"
+          blocks_data="$(jq --argjson _slot ${block_slot} --argjson _block ${cncli_block_nbr} --arg _hash "${cncli_block_hash}" '[.[] | select(.slot == $_slot) += {"block": $_block,"hash": $_hash,"status": "confirmed"}]' <<< "${blocks_data}")"
           echo "CONFIRMED: Block[${cncli_block_nbr}] / Slot[${block_slot}] at $(date '+%F %T Z' --date="$(jq -r '.at' <<< "${block}")"), hash: ${cncli_block_hash}"
         fi
       else
-        blocks_data_new="$(jq --arg _slot "${block_slot}" '[.[] | select(.slot == $_slot) += {"status": "ghosted"}]' <<< "${blocks_data}")"
+        blocks_data="$(jq --argjson _slot ${block_slot} '[.[] | select(.slot == $_slot) += {"status": "ghosted"}]' <<< "${blocks_data}")"
         echo "GHOSTED: Leader for slot '${block_slot}' but block hash '${block_hash}' not found, stolen in slot/height battle or block propagation issue!"
       fi
     else
@@ -318,22 +315,22 @@ cncliMigrateBlocklog() {
   while IFS= read -r -d '' blocks_file; do
     echo "migrating: $(basename "${blocks_file}")"
     blocks_data="$(cat "${blocks_file}")"
-    blocks_data_new="${blocks_data}"
     while read -r block; do
       block_status=$(jq -r '.status //empty' <<< "${block}")
       if [[ -z ${block_status} ]]; then # migration from old blocklog pre cncli
         block_slot=$(jq -r '.slot' <<< "${block}")
         block_hash=$(jq -r '.hash //empty' <<< "${block}")
+        block_size=$(jq -r '.size //0' <<< "${block}")
         if [[ -n ${block_hash} ]]; then
           [[ ${block_hash} =~ ^Invalid ]] && block_status="invalid" || block_status="adopted"
         else
           block_status="leader"
         fi
-        blocks_data_new="$(jq --arg _slot "${block_slot}" --arg _status "${block_status}" '[.[] | select(.slot == $_slot) += {"status": $_status}]' <<< "${blocks_data}")"
+        blocks_data="$(jq --argjson _slot ${block_slot} --argjson _size ${block_size} --arg _status "${block_status}" '[.[] | select(.slot == ($_slot | tostring)) += {"slot": $_slot,"size": $_size,"status": $_status}]' <<< "${blocks_data}")"
         echo "Block at slot ${block_slot} updated with status '${block_status}'"
       fi
     done < <(jq -c '.[]' <<< "${blocks_data}" 2>/dev/null)
-    jq -r . <<< "${blocks_data_new}" > "${blocks_file}"
+    jq -r . <<< "${blocks_data}" > "${blocks_file}"
   done < <(find "${BLOCKLOG_DIR}" -mindepth 1 -maxdepth 1 -type f -name "blocks_*" -print0 | sort -z)
 }
 
