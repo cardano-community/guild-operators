@@ -31,12 +31,13 @@ POOL_TICKER=""                            # POOLTOOL sendtip: set the pools tick
 usage() {
   cat <<EOF >&2
 
-Usage: $(basename "$0") [sync] [leaderlog] [validate] [ptsendtip] [migrate]
+Usage: $(basename "$0") [sync] [leaderlog] [validate [--all]] [ptsendtip] [migrate]
 Script to run CNCLI, best launched through systemd deployed by 'deploy-as-systemd.sh'
 
 sync        Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB
 leaderlog   Loops through all slots in current epoch to calculate leader schedule
 validate    Confirms that the block made actually was accepted and adopted by chain
+  --all     Go through entire blocklog and revalidate status for adopted|confirmed|ghosted blocks
 ptsendtip   Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge
 migrate     command to migrate old blocklog(cntoolsBlockCollector) to new format (post cncli)
 
@@ -44,7 +45,13 @@ EOF
   exit 1
 }
 
-if [[ $# -eq 1 ]]; then subcommand=$1; else usage; fi
+if [[ $# -eq 1 ]]; then
+  subcommand=$1
+  subarg=""
+elif [[ $# -eq 2 ]]; then
+  subcommand=$1
+  subarg=$2
+else usage; fi
 
 #################################
 # helper functions
@@ -244,36 +251,55 @@ cncliLeaderlog() {
 
 cncliValidate() {
   echo "~ CNCLI Block Validation started ~"
-  while true; do
-    sleep ${SLEEP_RATE}
+  if [[ ${subarg} = "--all" ]]; then
     node_metrics=$(getNodeMetrics)
     block_tip=$(getBlockTip)
     slot_tip=$(getSlotTip)
-    curr_epoch=$(getEpoch)
-    prev_epoch=$((curr_epoch-1))
-    # Start with previous epoch to catch epoch boundary cases
-    blocks_file="${BLOCKLOG_DIR}/blocks_${prev_epoch}.json"
-    if [[ -f "${blocks_file}" ]]; then
+    while IFS= read -r -d '' blocks_file; do
+      echo "> Validating: $(basename "${blocks_file}")"
       blocks_data="$(cat "${blocks_file}")"
       while read -r block; do
+        block_status=$(jq -r '.status //empty' <<< "${block}")
+        [[ ${block_status} = confirmed || ${block_status} = ghosted ]] && block_status="adopted" # reset status to adopted to revalidate all adopted|confirmed|ghosted blocks
         validateBlock
       done < <(jq -c '.[]' "${blocks_file}" 2>/dev/null)
       jq -r . <<< "${blocks_data}" > "${blocks_file}"
-    fi
-    # continue with current epoch
-    blocks_file="${BLOCKLOG_DIR}/blocks_${curr_epoch}.json"
-    if [[ -f "${blocks_file}" ]]; then
-      blocks_data="$(cat "${blocks_file}")"
-      while read -r block; do
-        validateBlock
-      done < <(jq -c '.[]' "${blocks_file}" 2>/dev/null)
-      jq -r . <<< "${blocks_data}" > "${blocks_file}"
-    fi
-  done
+    done < <(find "${BLOCKLOG_DIR}" -mindepth 1 -maxdepth 1 -type f -name "blocks_*" -print0 | sort -z)
+  elif [[ -n ${subarg} ]]; then
+    echo "ERROR: unknown argument passed to validate subcommand" && usage
+  else
+    while true; do
+      sleep ${SLEEP_RATE}
+      node_metrics=$(getNodeMetrics)
+      block_tip=$(getBlockTip)
+      slot_tip=$(getSlotTip)
+      curr_epoch=$(getEpoch)
+      prev_epoch=$((curr_epoch-1))
+      # Start with previous epoch to catch epoch boundary cases
+      blocks_file="${BLOCKLOG_DIR}/blocks_${prev_epoch}.json"
+      if [[ -f "${blocks_file}" ]]; then
+        blocks_data="$(cat "${blocks_file}")"
+        while read -r block; do
+          block_status=$(jq -r '.status //empty' <<< "${block}")
+          validateBlock
+        done < <(jq -c '.[]' "${blocks_file}" 2>/dev/null)
+        jq -r . <<< "${blocks_data}" > "${blocks_file}"
+      fi
+      # continue with current epoch
+      blocks_file="${BLOCKLOG_DIR}/blocks_${curr_epoch}.json"
+      if [[ -f "${blocks_file}" ]]; then
+        blocks_data="$(cat "${blocks_file}")"
+        while read -r block; do
+          block_status=$(jq -r '.status //empty' <<< "${block}")
+          validateBlock
+        done < <(jq -c '.[]' "${blocks_file}" 2>/dev/null)
+        jq -r . <<< "${blocks_data}" > "${blocks_file}"
+      fi
+    done
+  fi
 }
 
 validateBlock() {
-  block_status=$(jq -r '.status //empty' <<< "${block}")
   [[ ${block_status} = invalid ]] && return
   if [[ ${block_status} = leader ]]; then
     block_slot=$(jq -r '.slot' <<< "${block}")
@@ -313,7 +339,7 @@ validateBlock() {
 
 cncliMigrateBlocklog() {
   while IFS= read -r -d '' blocks_file; do
-    echo "migrating: $(basename "${blocks_file}")"
+    echo "> Migrating: $(basename "${blocks_file}")"
     blocks_data="$(cat "${blocks_file}")"
     while read -r block; do
       block_status=$(jq -r '.status //empty' <<< "${block}")
