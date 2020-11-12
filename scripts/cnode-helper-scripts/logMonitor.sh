@@ -50,7 +50,7 @@ while read -r logentry; do
         echo "duplicate slot entry, skipping"
       else
         jq --arg _at "${at}" \
-        --arg _slot "${slot}" \
+        --argjson _slot "${slot}" \
         '. += [{"at": $_at,"slot": $_slot,"status": "leader"}]' \
         "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
       fi
@@ -62,8 +62,8 @@ while read -r logentry; do
       epoch=$(getEpoch)
       blocks_file="${BLOCKLOG_DIR}/blocks_${epoch}.json"
       echo "block adopted [epoch=${epoch},slot=${slot},size=${block_size},hash=${block_hash}]"
-      jq --arg _slot "${slot}" \
-      --arg _block_size "${block_size}" \
+      jq --argjson _slot "${slot}" \
+      --argjson _block_size "${block_size}" \
       --arg _block_hash "${block_hash}" \
       '[.[] | select(.slot == $_slot) += {"size": $_block_size,"hash": $_block_hash,"status": "adopted"}]' \
       "${blocks_file}" > "/tmp/blocks.json" && mv -f "/tmp/blocks.json" "${blocks_file}"
@@ -76,7 +76,7 @@ while read -r logentry; do
       echo "invalid block [epoch=${epoch},slot=${slot}]"
       echo "base 64 encoded json trace, run this command to decode:"
       echo "echo ${json_trace} | base64 -d | jq -r"
-      jq --arg _slot "${slot}" \
+      jq --argjson _slot "${slot}" \
       --arg _json_trace "base64: ${json_trace}" \
       '[.[] | select(.slot == $_slot) += {"hash": $_json_trace,"status": "invalid"}}]' \
       "${blocks_file}" > "${TMP_FOLDER}/blocks.json" && mv -f "${TMP_FOLDER}/blocks.json" "${blocks_file}"
