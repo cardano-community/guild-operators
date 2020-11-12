@@ -75,7 +75,8 @@ if ! need_cmd "curl" || \
    ! need_cmd "bc" || \
    ! need_cmd "sed" || \
    ! need_cmd "awk" || \
-   ! need_cmd "column"; then myExit 1 "${need_cmd_error}"
+   ! need_cmd "column" || \
+   ! protectionPreRequisites; then myExit 1
 fi
 
 # Do some checks when run in connected mode
@@ -236,6 +237,7 @@ say " ) Funds     -  send, withdraw and delegate"
 say " ) Pool      -  pool creation and management"
 say " ) Sign Tx   -  Sign a built transaction file (hybrid/offline mode)"
 say " ) Submit Tx -  Submit a signed transaction file (hybrid/offline mode)"
+say " ) Metadata  -  Post metadata on-chain (e.g voting)"
 say " ) Blocks    -  show core node leader slots"
 say " ) Update    -  update cntools script and library config files"
 say " ) Backup    -  backup & restore of wallet/pool/config"
@@ -256,18 +258,19 @@ else
   fi
 fi
 echo
-select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[s] Sign Tx" "[t] Submit Tx" "[b] Blocks" "[u] Update" "[z] Backup & Restore" "[r] Refresh" "[q] Quit"
+select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[s] Sign Tx" "[t] Submit Tx" "[m] Metadata" "[b] Blocks" "[u] Update" "[z] Backup & Restore" "[r] Refresh" "[q] Quit"
 case $? in
   0) OPERATION="wallet" ;;
   1) OPERATION="funds" ;;
   2) OPERATION="pool" ;;
   3) OPERATION="signTx" ;;
   4) OPERATION="submitTx" ;;
-  5) OPERATION="blocks" ;;
-  6) OPERATION="update" ;;
-  7) OPERATION="backup" ;;
-  8) continue ;;
-  9) myExit 0 "CNTools closed!" ;;
+  5) OPERATION="metadata" ;;
+  6) OPERATION="blocks" ;;
+  7) OPERATION="update" ;;
+  8) OPERATION="backup" ;;
+  9) continue ;;
+  10) myExit 0 "CNTools closed!" ;;
 esac
 
 case $OPERATION in
@@ -414,7 +417,7 @@ case $OPERATION in
     base_addr_candidate=$(cardano-address address delegation ${stake_xpub} <<< "$(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub})")
     if [[ "${NETWORKID}" = "Testnet" ]]; then
       say "TestNet, converting address to 'addr_test'" 1
-      base_addr_candidate=$(bech32 <<< ${base_addr_candidate} | bech32 addr_test)
+      base_addr_candidate=$(bech32 addr_test <<< ${base_addr_candidate})
     fi
     say "Base address candidate = ${base_addr_candidate}" 2
     say "Generated from 1852H/1815H/0H/0/0" 2
@@ -867,8 +870,6 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
 
-    protectionPreRequisites || continue
-
     say "# Select wallet to decrypt"
     if ! selectWallet "none"; then # ${wallet_name} populated by selectWallet function
       [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
@@ -880,12 +881,12 @@ EOF
     echo
     say "# Removing write protection from all wallet files" "log"
     while IFS= read -r -d '' file; do
-      if [[ $(lsattr -R "$file") =~ -i- ]]; then
-        sudo chattr -i "${file}" && \
-        chmod 600 "${file}" && \
-        filesUnlocked=$((++filesUnlocked))
-        say "${file}"
+      if [[ ${ENABLE_CHATTR} = true && $(lsattr -R "$file") =~ -i- ]]; then
+        sudo chattr -i "${file}"
       fi
+      chmod 600 "${file}"
+      filesUnlocked=$((++filesUnlocked))
+      say "${file}"
     done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
 
     echo
@@ -924,8 +925,6 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
 
-    protectionPreRequisites || continue
-
     say "# Select wallet to encrypt"
     if ! selectWallet "none"; then # ${wallet_name} populated by selectWallet function
       [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
@@ -955,14 +954,15 @@ EOF
     unset password
 
     echo
-    say "# Write protecting all wallet keys using 'chattr +i'" "log"
+    say "# Write protecting all wallet keys with 400 permission and if enabled 'chattr +i'" "log"
     while IFS= read -r -d '' file; do
-      if [[ ${file} != *.addr && ! $(lsattr -R "$file") =~ -i- ]]; then
-        chmod 400 "${file}" && \
-        sudo chattr +i "${file}" && \
-        filesLocked=$((++filesLocked)) && \
-        say "${file}"
+      [[ ${file} = *.addr ]] && continue
+      chmod 400 "${file}"
+      if [[ ${ENABLE_CHATTR} = true && ! $(lsattr -R "$file") =~ -i- ]]; then
+        sudo chattr +i "${file}"
       fi
+      filesLocked=$((++filesLocked))
+      say "${file}"
     done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
 
     echo
@@ -994,6 +994,7 @@ EOF
   say " ) Send      -  send ADA from a local wallet to an address or a wallet"
   say " ) Delegate  -  delegate stake wallet to a pool"
   say " ) Withdraw  -  withdraw earned rewards to base address"
+  say " ) Metadata  -  post metadata on chain"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   say " Select funds operation\n"
@@ -1397,7 +1398,7 @@ EOF
     waitForInput && continue
 
     ;; ###################################################################
-
+    
   esac
 
   ;; ###################################################################
@@ -2881,8 +2882,6 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
 
-    protectionPreRequisites || continue
-
     say "# Select pool to decrypt"
     if ! selectPool "all"; then # ${pool_name} populated by selectPool function
       waitForInput && continue
@@ -2893,12 +2892,12 @@ EOF
 
     say "# Removing write protection from all pool files" "log"
     while IFS= read -r -d '' file; do
-      if [[ $(lsattr -R "$file") =~ -i- ]]; then
-        sudo chattr -i "${file}" && \
-        chmod 600 "${file}" && \
-        filesUnlocked=$((++filesUnlocked)) && \
-        say "${file}"
+      if [[ ${ENABLE_CHATTR} = true && $(lsattr -R "$file") =~ -i- ]]; then
+        sudo chattr -i "${file}"
       fi
+      chmod 600 "${file}"
+      filesUnlocked=$((++filesUnlocked))
+      say "${file}"
     done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -print0)
 
     echo
@@ -2937,8 +2936,6 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
 
-    protectionPreRequisites || continue
-
     say "# Select pool to encrypt"
     if ! selectPool "all"; then # ${pool_name} populated by selectPool function
       waitForInput && continue
@@ -2967,14 +2964,14 @@ EOF
     unset password
 
     echo
-    say "# Write protecting all pool files using 'chattr +i'" "log"
+    say "# Write protecting all pool files with 400 permission and if enabled 'chattr +i'" "log"
     while IFS= read -r -d '' file; do
-      if [[ ! $(lsattr -R "$file") =~ -i- ]]; then
-        chmod 400 "$file" && \
-        sudo chattr +i "$file" && \
-        filesLocked=$((++filesLocked)) && \
-        say "$file"
+      chmod 400 "$file"
+      if [[ ${ENABLE_CHATTR} = true && ! $(lsattr -R "$file") =~ -i- ]]; then
+        sudo chattr +i "$file"
       fi
+      filesLocked=$((++filesLocked))
+      say "$file"
     done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -print0)
 
     echo
@@ -3071,6 +3068,161 @@ EOF
   waitForInput && continue
 
   ;; ###################################################################
+  
+  metadata)
+
+  clear
+  say " >> FUNDS >> POST METADATA" "log"
+  say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+
+  if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+    say "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+    waitForInput && continue
+  else
+    if ! selectOpMode; then continue; fi
+  fi
+  echo
+  
+  say "Select the type of metadata to post on-chain"
+  say "ref: https://github.com/input-output-hk/cardano-node/blob/master/doc/reference/tx-metadata.md"
+  select_opt "[n] No JSON Schema (default)" "[d] Detailed JSON Schema" "[c] Raw CBOR"
+  case $? in
+    0) metatype="no-schema" ;;
+    1) metatype="detailed-schema" ;;
+    2) metatype="cbor" ;;
+  esac
+
+  if [[ ${metatype} = "cbor" ]]; then
+    fileDialog 0 "Enter path to raw CBOR metadata file"
+    metafile="${file}"
+    say "${metafile}\n"
+  else
+    metafile="${TMP_FOLDER}/metadata.json"
+    say "\nDo you want to select a metadata file, enter URL to metadata file, or enter/paste metadata content?"
+    select_opt "[f] File" "[u] URL" "[e] Enter"
+    case $? in
+      0) tput sc
+         fileDialog 0 "Enter path to JSON metadata file"
+         metafile="${file}"
+         if [[ ! -f "${metafile}" ]] || ! jq -er . "${metafile}" &>/dev/null; then
+           say "${FG_RED}ERROR${NC}: invalid JSON format or file not found"
+           say "${metafile}"
+           waitForInput && continue
+         fi
+         tput rc && tput ed
+         say "${metafile}:\n$(cat "${metafile}")\n"
+         ;;
+      1) tput sc && echo
+         read -r -p "Enter URL to JSON metadata file: " meta_json_url
+         if [[ ! "${meta_json_url}" =~ https?://.* ]]; then
+           say "${FG_RED}ERROR${NC}: invalid URL format"
+           waitForInput && continue
+         fi
+         if ! curl -sL -m ${CURL_TIMEOUT} -o "${metafile}" ${meta_json_url} || ! jq -er . "${metafile}" &>/dev/null; then
+           say "${FG_RED}ERROR${NC}: metadata download failed, please make sure the URL point to a valid JSON file!"
+           waitForInput && continue
+         fi
+         tput rc && tput ed
+         say "Metadata file successfully downloaded to: ${metafile}"
+         ;;
+      2) tput sc
+         DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
+         say "\nPaste or enter the metadata text, opening text editor ${FG_CYAN}${DEFAULTEDITOR}${NC}"
+         say "${FG_YELLOW}Please don't change default file path when saving${NC}"
+         waitForInput "press any key to open ${DEFAULTEDITOR}"
+         ${DEFAULTEDITOR} "${metafile}"
+         if [[ ! -f "${metafile}" ]] || ! jq -er . "${metafile}" &>/dev/null; then
+           say "${FG_RED}ERROR${NC}: invalid JSON format or file not found"
+           say "${metafile}"
+           waitForInput && continue
+         fi
+         tput rc && tput ed
+         say "Metadata file successfully saved to: ${metafile}"
+         ;;
+    esac
+  fi
+
+  say "\n# Select wallet"
+  if [[ ${op_mode} = "online" ]]; then
+    if ! selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+      [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+    fi
+  else
+    if ! selectWallet "balance"; then # ${wallet_name} populated by selectWallet function
+      [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+    fi
+  fi
+  echo
+
+  getBaseAddress ${wallet_name}
+  getPayAddress ${wallet_name}
+  getBalance ${base_addr}
+  base_lovelace=${lovelace}
+  getBalance ${pay_addr}
+  pay_lovelace=${lovelace}
+
+  if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
+    # Both payment and base address available with funds, let user choose what to use
+    say "Select source wallet address"
+    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+      say "$(printf "%s\t\t${FG_CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
+      say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
+    fi
+    echo
+    select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+    case $? in
+      0) addr="${base_addr}" ;;
+      1) addr="${pay_addr}" ;;
+      2) continue ;;
+    esac
+  elif [[ ${pay_lovelace} -gt 0 ]]; then
+    addr="${pay_addr}"
+    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+      say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")" "log"
+    fi
+  elif [[ ${base_lovelace} -gt 0 ]]; then
+    addr="${base_addr}"
+    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+      say "$(printf "%s\t\t${FG_CYAN}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")" "log"
+    fi
+  else
+    say "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
+    waitForInput && continue
+  fi
+
+  payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+
+  if ! sendMetadata "${addr}" "${payment_sk_file}" "${metafile}" "${metatype}"; then
+    waitForInput && continue
+  fi
+
+  say "${FG_YELLOW}Waiting for metadata transaction to be recorded on chain${NC}"
+  if ! waitNewBlockCreated; then
+    waitForInput && continue
+  fi
+
+  getBalance ${addr}
+
+  while [[ ${lovelace} -ne ${newBalance} ]]; do
+    say "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+    say "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})" 1
+    if ! waitNewBlockCreated; then
+      break
+    fi
+    getBalance ${addr}
+  done
+
+  if [[ ${lovelace} -ne ${newBalance} ]]; then
+    waitForInput && continue
+  fi
+
+  echo
+  say "Metadata successfully posted on-chain" "log"
+  say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+  
+  waitForInput && continue
+
+  ;; ###################################################################
 
   blocks)
 
@@ -3078,64 +3230,88 @@ EOF
   say " >> BLOCKS" "log"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-  if [[ ! -d "${BLOCK_LOG_DIR}" ]]; then
-    say "${FG_RED}ERROR${NC}: block log directory not found!"
-    say "run cntoolsBlockCollector.sh script to start collecting blocks from json log file"
-    say "log file to parse grabbed from node config file specified in env"
-    say "if BLOCK_LOG_DIR has been modified cntoolsBlockCollector.sh script has to be restarted"
-    say "one file for each epoch created containing that epochs created blocks"
+  if [[ ! -d "${BLOCKLOG_DIR}" ]]; then
+    say "${FG_RED}ERROR${NC}: block directory not found!: ${BLOCKLOG_DIR}"
+    say "run logMonitor.sh script to parse block traces from json log file"
+    say "https://cardano-community.github.io/guild-operators/#/Scripts/logmonitor"
     waitForInput && continue
   fi
 
-  epoch=$(getEpoch)
-
-  say "Current epoch: ${epoch}\n"
-
+  current_epoch=$(getEpoch)
+  say "Current epoch: ${FG_CYAN}${current_epoch}${NC}\n"
+  tput sc
   say "Show a block summary for all epochs or a detailed view for a specific epoch?"
   select_opt "[s] Summary" "[e] Epoch" "[Esc] Cancel"
   case $? in
-    0) echo
-       block_table="Epoch,${FG_BLUE}Leader Slots${NC},${FG_GREEN}Adopted Blocks${NC},${FG_RED}Invalid Blocks${NC}\n"
-       current_epoch=${epoch}
-       read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter
-       echo
+    0) block_table="Epoch,Leader,${FG_CYAN}Adopted${NC},${FG_GREEN}Confirmed${NC},${FG_RED}Missed${NC},${FG_RED}Ghosted${NC},${FG_RED}Invalid${NC}\n"
+       echo && read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter
        epoch_enter=${epoch_enter:-10}
        if ! [[ ${epoch_enter} =~ ^[0-9]+$ ]]; then
-         say "${FG_RED}ERROR${NC}: not a number"
+         say "\n${FG_RED}ERROR${NC}: not a number"
          waitForInput && continue
        fi
-       first_epoch=$(( epoch - epoch_enter ))
+       tput rc && tput ed
+       [[ -f "${BLOCKLOG_DIR}/blocks_$((current_epoch+1)).json" ]] && ((current_epoch++))
+       first_epoch=$(( current_epoch - epoch_enter ))
        [[ ${first_epoch} -lt 0 ]] && first_epoch=0
        while [[ ${current_epoch} -gt ${first_epoch} ]]; do
-         blocks_file="${BLOCK_LOG_DIR}/blocks_${current_epoch}.json"
+         blocks_file="${BLOCKLOG_DIR}/blocks_${current_epoch}.json"
          if [[ ! -f "${blocks_file}" ]]; then
-           block_table+="${current_epoch},0,0,0\n"
+           block_table+="${current_epoch},-,-,-,-,-,-\n"
          else
-           leader_count=$(jq -c '[.[].slot //empty] | length' "${blocks_file}")
-           invalid_count=$(jq -c '[.[].hash //empty | select(startswith("Invalid"))] | length' "${blocks_file}")
-           adopted_count=$(( $(jq -c '[.[].hash //empty] | length' "${blocks_file}") - invalid_count ))
-           block_table+="${current_epoch},${leader_count},${adopted_count},${invalid_count}\n"
+           invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
+           missed_cnt=$(jq -c '[.[] //0 | select(.status=="missed")] | length' "${blocks_file}")
+           ghosted_cnt=$(jq -c '[.[] //0 | select(.status=="ghosted")] | length' "${blocks_file}")
+           confirmed_cnt=$(jq -c '[.[] //0 | select(.status=="confirmed")] | length' "${blocks_file}")
+           adopted_cnt=$(( $(jq -c '[.[] //0 | select(.status=="adopted")] | length' "${blocks_file}") + confirmed_cnt ))
+           leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt ))
+           block_table+="${current_epoch},${leader_cnt},${adopted_cnt},${confirmed_cnt},${missed_cnt},${ghosted_cnt},${invalid_cnt}\n"
          fi
          ((current_epoch--))
        done
        printTable ',' "$(echo -e ${block_table})"
        ;;
-    1) echo && read -r -p "Enter epoch to list (enter for current): " epoch_enter
-       [[ -z "${epoch_enter}" ]] && epoch_enter=${epoch}
-       blocks_file="${BLOCK_LOG_DIR}/blocks_${epoch_enter}.json"
-       if [[ ! -f "${blocks_file}" ]]; then
-         say "No blocks created in epoch ${epoch_enter}"
+    1) [[ -f "${BLOCKLOG_DIR}/blocks_$((current_epoch+1)).json" ]] && say "\n${FG_YELLOW}Leader schedule for next epoch[$((current_epoch+1))] available${NC}"
+       echo && read -r -p "Enter epoch to list (enter for current): " epoch_enter
+       [[ -z "${epoch_enter}" ]] && epoch_enter=${current_epoch}
+       blocks_file="${BLOCKLOG_DIR}/blocks_${epoch_enter}.json"
+       if [[ ! -f "${blocks_file}" || ( -f "${blocks_file}" && -z $(jq -c '.[]' "${blocks_file}") ) ]]; then
+         say "No blocks in epoch ${epoch_enter}"
          waitForInput && continue
        fi
-       leader_count=$(jq -c '[.[].slot //empty] | length' "${blocks_file}")
-       invalid_count=$(jq -c '[.[].hash //empty | select(startswith("Invalid"))] | length' "${blocks_file}")
-       adopted_count=$(( $(jq -c '[.[].hash //empty] | length' "${blocks_file}") - invalid_count ))
-       say "\nLeader: ${FG_BLUE}${leader_count}${NC}  -  Adopted: ${FG_GREEN}${adopted_count}${NC}  -  Invalid: ${FG_RED}${invalid_count}${NC}" "log"
-       if [[ ${leader_count} -gt 0 ]]; then
+       tput rc && tput ed
+       view=1; view_output="[1] ${FG_CYAN}View 1${NC} | [2] View 2 | [3] View 3 (full)"
+       while true; do
+         tput rc && tput ed && tput sc
+         invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
+         missed_cnt=$(jq -c '[.[] //0 | select(.status=="missed")] | length' "${blocks_file}")
+         ghosted_cnt=$(jq -c '[.[] //0 | select(.status=="ghosted")] | length' "${blocks_file}")
+         confirmed_cnt=$(jq -c '[.[] //0 | select(.status=="confirmed")] | length' "${blocks_file}")
+         adopted_cnt=$(( $(jq -c '[.[] //0 | select(.status=="adopted")] | length' "${blocks_file}") + confirmed_cnt ))
+         leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt ))
+         say "Leader : ${leader_cnt}  |  Adopted / Confirmed : ${FG_CYAN}${adopted_cnt}${NC} / ${FG_GREEN}${confirmed_cnt}${NC}  |  Missed / Ghosted / Invalid : ${FG_RED}${missed_cnt}${NC} / ${FG_RED}${ghosted_cnt}${NC} / ${FG_RED}${invalid_cnt}${NC}" "log"
          echo
          # print block table
-         printTable ',' "$(say 'Slot,At,Size,Hash' | cat - <(jq -rc '.[] | [.slot,(.at|sub("\\.[0-9]+Z$"; "Z")|fromdate|strflocaltime("%Y-%m-%d %H:%M:%S %Z")),.size,.hash] | @csv' "${blocks_file}") | tr -d '"')"
-       fi
+         tz_code=$(TZ=${BLOCKLOG_TZ} jq -r '.[0] | (.at|sub("\\.[0-9]+Z$"; "Z")|sub("\\+00:00$"; "Z")|fromdateiso8601|strflocaltime("%Z"))' "${blocks_file}")
+         if [[ ${view} -eq 1 ]]; then
+           printTable ',' "$(say "Status,Block,Slot / SlotInEpoch,At (${tz_code})" | cat - <(TZ=${BLOCKLOG_TZ} jq -rc '.[] | [.status //"-",.block //"-","\(.slot) / \(.slotInEpoch)",(.at|sub("\\.[0-9]+Z$"; "Z")|sub("\\+00:00$"; "Z")|fromdateiso8601|strflocaltime("%Y-%m-%d %H:%M:%S")) //"-"] | @csv' "${blocks_file}") | tr -d '"')"
+         elif [[ ${view} -eq 2 ]]; then
+           printTable ',' "$(say 'Status,Slot,Size,Hash' | cat - <(jq -rc '.[] | [.status //"-",.slot //"-",.size //"-",.hash //"-"] | @csv' "${blocks_file}") | tr -d '"')"
+         else
+           printTable ',' "$(say "Status,Block,Slot / SlotInEpoch,At (${tz_code}),Size,Hash" | cat - <(TZ=${BLOCKLOG_TZ} jq -rc '.[] | [.status //"-",.block //"-","\(.slot) / \(.slotInEpoch)",(.at|sub("\\.[0-9]+Z$"; "Z")|sub("\\+00:00$"; "Z")|fromdateiso8601|strflocaltime("%Y-%m-%d %H:%M:%S")) //"-",.size //"-",.hash //"-"] | @csv' "${blocks_file}") | tr -d '"')"
+         fi
+         echo
+         
+         say "[h] Home | ${view_output} | [*] Refresh current view"
+         read -rsn1 key
+         case ${key} in
+           h ) continue 2 ;;
+           1 ) view=1; view_output="[1] ${FG_CYAN}View 1${NC} | [2] View 2 | [3] View 3 (full)" ;;
+           2 ) view=2; view_output="[1] View 1 | [2] ${FG_CYAN}View 2${NC} | [3] View 3 (full)" ;;
+           3 ) view=3; view_output="[1] View 1 | [2] View 2 | [3] ${FG_CYAN}View 3${NC} (full)" ;;
+           * ) continue ;;
+         esac
+       done
        ;;
     2) continue ;;
   esac
@@ -3252,7 +3428,7 @@ EOF
        backup_list=(
          "${WALLET_FOLDER}"
          "${POOL_FOLDER}"
-         "${BLOCK_LOG_DIR}"
+         "${BLOCKLOG_DIR}"
          "${CNODE_HOME}/files"
          "${CNODE_HOME}/scripts"
        )

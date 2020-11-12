@@ -9,9 +9,9 @@
 # Any breaking changes (eg: that requires change of cntools.config, env or a change in priv folder would be considered breaking and will be exempt from auto-update)
 CNTOOLS_MAJOR_VERSION=6
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
-CNTOOLS_MINOR_VERSION=1
+CNTOOLS_MINOR_VERSION=2
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=0
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -22,11 +22,13 @@ CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PAT
 [[ -z ${TIMEOUT_NO_OF_SLOTS} ]] && TIMEOUT_NO_OF_SLOTS=60
 [[ -z ${TIMEOUT_LEDGER_STATE} ]] && TIMEOUT_LEDGER_STATE=300
 [[ -z ${VERBOSITY} ]] && VERBOSITY=0
-[[ -z ${SHELLEY_TRANS_FILENAME} ]] && SHELLEY_TRANS_FILENAME="${CNODE_HOME}/db/shelley_trans_epoch"
+[[ -z ${SHELLEY_TRANS_FILENAME} ]] && SHELLEY_TRANS_FILENAME="${CNODE_HOME}/guild-db/shelley_trans_epoch"
+[[ ${SHELLEY_TRANS_FILENAME} =~ ^${CNODE_HOME}/db/ ]] && mkdir -p "${CNODE_HOME}/guild-db" && SHELLEY_TRANS_FILENAME="${CNODE_HOME}/guild-db/shelley_trans_epoch"
 [[ -z ${CNTOOLS_LOG} ]] && CNTOOLS_LOG="${CNODE_HOME}/logs/cntools-history.log"
 [[ -z ${WALLET_SELECTION_FILTER_LIMIT} ]] && WALLET_SELECTION_FILTER_LIMIT=10
 [[ -z ${KES_ALERT_PERIOD} ]] && KES_ALERT_PERIOD=172800 # default 2 days
 [[ -z ${KES_WARNING_PERIOD} ]] && KES_WARNING_PERIOD=604800 # default 7 days
+[[ -z ${ENABLE_CHATTR} ]] && ENABLE_CHATTR=true
 [[ -z ${WALLET_FOLDER} ]] && WALLET_FOLDER="${CNODE_HOME}/priv/wallet"
 [[ -z ${POOL_FOLDER} ]] && POOL_FOLDER="${CNODE_HOME}/priv/pool"
 [[ -z ${WALLET_PAY_VK_FILENAME} ]] && WALLET_PAY_VK_FILENAME="payment.vkey"
@@ -121,6 +123,7 @@ say() {
 need_cmd() {
   if ! command -v "$1" > /dev/null 2>&1; then
     need_cmd_error="${FG_RED}ERROR${NC}: need '$1' (command not found)\ntry 'sudo apt install $1'\nplease install with your packet manager of choice(apt/yum etc..) and relaunch CNTools"
+    waitForInput "press any key"
     return 1
   fi
 }
@@ -134,23 +137,26 @@ need_cmd() {
 #   >> protectionPreRequisites
 protectionPreRequisites() {
   if ! need_cmd "gpg" || \
-     ! need_cmd "systemd-ask-password" || \
-     ! need_cmd "chattr"; then
+     ! need_cmd "systemd-ask-password"; then
     return 1
   fi
 
-  touch "${TMP_FOLDER}"/test
-  if ! sudo -n chattr -i "${TMP_FOLDER}"/test 2>&1; then
+  if ! need_cmd "chattr"; then 
+    [[ ${ENABLE_CHATTR} = true ]] && say "chattr command not available but enabled in config, please disable in cntools.config and re-run CNTools" && return 1
+  elif [[ ${ENABLE_CHATTR} = true ]]; then # chattr available and enabled, make sure sudo access to chattr is enabled
+    touch "${TMP_FOLDER}"/test
+    if ! sudo -n chattr -i "${TMP_FOLDER}"/test 2>&1; then
+      rm -f "${TMP_FOLDER}"/test
+      say ""
+      say "${FG_YELLOW}WARN${NC}: Elevated privileges needed for chattr command used to write protect wallet and pool keys"
+      say "Run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
+      say ""
+      say "echo \"$(whoami) ALL=NOPASSWD: $(command -v chattr)\" | sudo tee /etc/sudoers.d/cntools"
+      waitForInput "press any key"
+      return 1
+    fi
     rm -f "${TMP_FOLDER}"/test
-    say ""
-    say "${FG_YELLOW}WARN${NC}: Elevated privileges needed for chattr command used to write protect wallet and pool keys"
-    say "Run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
-    say ""
-    say "echo \"$(whoami) ALL=NOPASSWD: $(command -v chattr)\" | sudo tee /etc/sudoers.d/cntools"
-    waitForInput
-    return 1
   fi
-  rm -f "${TMP_FOLDER}"/test
 }
 
 # Command    : safeDel [path]
@@ -158,7 +164,7 @@ protectionPreRequisites() {
 # Note       : srm mainly effective for traditional magnetic HDDs and non copy-on-write or journal file systems
 safeDel() {
   path=$1
-  [[ -f "${path}" && $(lsattr -R "${path}") =~ -i- ]] && sudo chattr -i "${path}"
+  [[ ${ENABLE_CHATTR} = true && -f "${path}" && $(lsattr -R "${path}") =~ -i- ]] && sudo chattr -i "${path}"
   command -v "srm" > /dev/null 2>&1 && delcommand='srm' || delcommand='rm'
   if "${delcommand}" -rf "${path}"; then
     say "Deleted: ${path}" "log"
@@ -425,7 +431,7 @@ function selectDir {
   selectOption "${dirs[@]}" 1>&2
   dir_name=${dirs[$?]}
   [[ "${dir_name}" = "[Esc] Cancel" ]] && return 1
-  say "Selected ${type}: ${FG_GREEN}${dir_name}${NC}"
+  say "Selected ${type}: ${dir_name}"
 }
 
 # Command    : selectWallet [mode] [file1 file2 ...]
@@ -1112,6 +1118,115 @@ sendADA() {
   say "# Sign & Send transaction" 1 "log"
   
   if ! signTx "${TMP_FOLDER}/tx.raw" "${sKey}"; then return 1; fi
+  if ! submitTx "${tx_signed}"; then return 1; fi
+}
+
+
+# Command     :  sendMetadata [wallet address] [wallet sign key] [metadata file] [metadata type]
+# Description :  post metadata file on chain using specified wallet to pay for the transaction fee
+sendMetadata() {
+  # Handle script arguments
+  addr="$1"
+  payment_sk_file="$2"
+  metafile="$3"
+  if [[ $4 = "no-schema" ]]; then
+    metadata="--json-metadata-no-schema --metadata-json-file ${metafile}"
+  elif [[ $4 = "detailed-schema" ]]; then
+    metadata="--json-metadata-detailed-schema --metadata-json-file ${metafile}"
+  elif [[ $4 = "cbor" ]]; then
+    metadata="--metadata-cbor-file ${metafile}"
+  else
+    say "${FG_RED}ERROR${NC}: unknown metadata type '$4'"
+    return 1
+  fi
+
+  say "" 1
+  say "# Protocol Parameters" 1 "log"
+  currSlot=$(getSlotTip)
+  if [[ ${op_mode} = "hybrid" ]]; then
+    say "\nHow long do you want the transaction to be valid?"
+    read -r -p "TTL (in seconds, default: 1800/30min): " ttl_enter
+    if [[ -n ${ttl_enter} && ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
+      say "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}" 1>&2
+      return 1
+    fi
+    ttlValue=$(( currSlot + (${ttl_enter:-1800}/SLOT_LENGTH) ))
+    echo
+  else
+    ttlValue=$(( currSlot + (600/SLOT_LENGTH) )) # TTL default: 10min
+  fi
+  say "Current slot is ${currSlot}, setting ttl to ${ttlValue}" 1 "log"
+  getBalance ${addr}
+
+  # Use all available utxo in source address
+  say "" 2
+  say "Using UTxO's:" 2
+  tx_in=""
+  while read -r utxo; do
+    in_addr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
+    idx=$(awk '{ print $2 }' <<< "${utxo}")
+    utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
+    say "TxHash: ${in_addr}#${idx}" 2
+    say "ADA: $(formatLovelace ${utxo_balance})" 2
+    tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
+  done <"${TMP_FOLDER}"/balance.out
+
+  say "" 1
+  say "# Calculate fee, new amount and remaining balance" 1 "log"
+  say "$ ${CCLI} shelley transaction build-raw ${tx_in} --tx-out ${addr}+0 --ttl ${ttlValue} --fee 0 ${metadata} --out-file ${TMP_FOLDER}/tx0.tmp" 2
+  if ! ${CCLI} shelley transaction build-raw ${tx_in} --tx-out ${addr}+0 --ttl ${ttlValue} --fee 0 ${metadata} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  minFeeArgs=(
+    shelley transaction calculate-min-fee
+    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
+    --tx-in-count ${utx0_count}
+    --tx-out-count 1
+    ${NETWORK_IDENTIFIER}
+    --witness-count 1
+    --byron-witness-count 0
+    --protocol-params-file "${TMP_FOLDER}"/protparams.json
+  )
+  say "$ ${CCLI} ${minFeeArgs[*]}" 2
+  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
+  say "fee is $(formatLovelace ${minFee}) ADA" 1 "log"
+
+  if [[ ${lovelace} -lt ${minFee} ]]; then
+    say "${FG_RED}ERROR${NC}: Not enough ADA in address ( $(formatLovelace ${lovelace}) < $(formatLovelace ${minFee}) )"
+    return 1
+  fi
+
+  newBalance=$(( lovelace - minFee ))
+  tx_out="--tx-out ${addr}+${newBalance}"
+  say "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) )" 1 "log"
+
+  say "" 1
+  say "# Build transaction" 1 "log"
+  
+  buildArgs=(
+    ${tx_in}
+    ${tx_out}
+    --ttl ${ttlValue}
+    --fee ${minFee}
+    ${metadata}
+    --out-file "${TMP_FOLDER}"/tx.raw
+  )
+  if ! buildTx; then return 1; fi
+  
+  if [[ ${op_mode} = "hybrid" ]]; then
+    tx_tmp="/tmp/tx.raw_$(date +%s)"
+    if ! cp -f "${TMP_FOLDER}/tx.raw" "${tx_tmp}"; then
+      say "${FG_RED}ERROR${NC}: unable to copy tx file to: ${tx_tmp}" 1>&2
+      return 1
+    fi
+    say "Transaction successfully built and saved to: ${FG_CYAN}${tx_tmp}${NC}" "log"
+    say "Copy file to offline computer and sign it using CNTools in offline mode '-o' [Sign Tx] with:" "log"
+    say "Wallet: ${FG_GREEN}${WALLET_PAY_SK_FILENAME}${NC}" "log"
+    return 2 # return as failed to stop main processing and return to home menu
+  fi
+  
+  say "" 1
+  say "# Sign & Send transaction" 1 "log"
+  
+  if ! signTx "${TMP_FOLDER}/tx.raw" "${payment_sk_file}"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 

@@ -50,7 +50,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.10
+GLV_VERSION=v1.11
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -784,10 +784,11 @@ while true; do
       printf "Status     : ${style_info}%-${sec_col_value_size}s${NC}${VL}\n" "syncing..."
     elif [[ ${tip_diff} -le $(slotInterval) ]]; then
       printf "Tip (diff) : ${style_status_1}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_diff} :)"
-    elif [[ ${tip_diff} -le $(( $(slotInterval) * 2 )) ]]; then
+    elif [[ ${tip_diff} -le $(( $(slotInterval) * 4 )) ]]; then
       printf "Tip (diff) : ${style_status_2}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_diff} :|"
     else
-      printf "Tip (diff) : ${style_status_3}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_diff} :("
+      sync_progress=$(echo "(${slotnum}/${tip_ref})*100" | bc -l)
+      printf "Status     : ${style_info}%-${sec_col_value_size}s${NC}${VL}\n" "syncing ($(printf "%2.1f" "${sync_progress}")%)"
     fi
     ((line++))
     
@@ -820,51 +821,19 @@ while true; do
       
       echo "${m2divider}" && ((line++))
       
-      printf "${VL}"
-      tput cup ${line} ${second_col}
-      printf "%-$((width-second_col))s${NC}${VL}\n" "IsLeader / Adopted / Missed" && ((line++))
-      printf "${VL} Blocks since node start"
-      tput cup ${line} $((second_col-2))
-      printf ": ${style_values_1}%-11s${NC}" "${isleader}"
-      if [[ ${adopted} -ne ${isleader} ]]; then
-        printf "${style_status_2}%-10s${NC}" "${adopted}"
+      blocks_file="${BLOCKLOG_DIR}/blocks_${epochnum}.json"
+      if [[ -f "${blocks_file}" ]]; then
+        printf "${VL}${STANDOUT}%8s${NC}%$((width-62))s %-6s | ${FG_CYAN}%-7s${NC}/${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC}/${FG_RED}%-7s${NC}/${FG_RED}%-7s${NC} ${VL}\n" " BLOCKS " "" "Leader" "Adopted" "Confirmed" "Missed" "Ghosted" "Invalid" && ((line++))
+        invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
+        missed_cnt=$(jq -c '[.[] //0 | select(.status=="missed")] | length' "${blocks_file}")
+        ghosted_cnt=$(jq -c '[.[] //0 | select(.status=="ghosted")] | length' "${blocks_file}")
+        confirmed_cnt=$(jq -c '[.[] //0 | select(.status=="confirmed")] | length' "${blocks_file}")
+        adopted_cnt=$(( $(jq -c '[.[] //0 | select(.status=="adopted")] | length' "${blocks_file}") + confirmed_cnt ))
+        leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt ))
+        printf "${VL}%$((width-54))s %-6s   %-7s %-9s   %-6s %-7s %-7s ${VL}\n" "" "${leader_cnt}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${invalid_cnt}" && ((line++))
       else
-        printf "${style_values_1}%-10s${NC}" "${adopted}"
-      fi
-      if [[ ${didntadopt} -gt 0 ]]; then
-        printf "${style_status_3}%-9s${NC}" "${didntadopt}"
-      else
-        printf "${style_values_1}%-9s${NC}" "${didntadopt}"
-      fi
-      tput cup ${line} ${width}
-      printf "${VL}\n" && ((line++))
-      
-      if [[ -n ${BLOCK_LOG_DIR} ]]; then
-        blocks_file="${BLOCK_LOG_DIR}/blocks_${epochnum}.json"
-        if [[ -f "${blocks_file}" ]]; then
-          isleader_epoch=$(jq -c '[.[].slot //empty] | length' "${blocks_file}")
-          invalid_epoch=$(jq -c '[.[].hash //empty | select(startswith("Invalid"))] | length' "${blocks_file}")
-          adopted_epoch=$(( $(jq -c '[.[].hash //empty] | length' "${blocks_file}") - invalid_epoch ))
-        else
-          isleader_epoch=0
-          invalid_epoch=0
-          adopted_epoch=0
-        fi
-        printf "${VL} Blocks this epoch"
-        tput cup ${line} $((second_col-2))
-        printf ": ${style_values_1}%-11s${NC}" "${isleader_epoch}"
-        if [[ ${adopted_epoch} -ne ${isleader_epoch} ]]; then
-          printf "${style_status_2}%-10s${NC}" "${adopted_epoch}"
-        else
-          printf "${style_values_1}%-10s${NC}" "${adopted_epoch}"
-        fi
-        if [[ ${invalid_epoch} -gt 0 ]]; then
-          printf "${style_status_3}%-9s${NC}" "${invalid_epoch}"
-        else
-          printf "${style_values_1}%-9s${NC}" "${invalid_epoch}"
-        fi
-        tput cup ${line} ${width}
-        printf "${VL}\n" && ((line++))
+        printf "${VL}${STANDOUT} BLOCKS ${NC} %$((width-38))s %-6s | ${FG_GREEN}%-7s${NC} | ${FG_RED}%-7s${NC} ${VL}\n" "" "Leader" "Adopted" "Invalid" && ((line++))
+        printf "${VL}%s %$((width-60))s %-6s | %-7s | %-7s ${VL}\n" "Since node start (EKG metrics)" "" "${isleader}" "${adopted}" "${didntadopt}" && ((line++))
       fi
     fi
   fi
