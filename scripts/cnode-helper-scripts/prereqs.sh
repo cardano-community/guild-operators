@@ -206,7 +206,7 @@ mkdir -p "${HOME}"/git > /dev/null 2>&1 # To hold git repositories that will be 
 if [[ "${LIBSODIUM_FORK}" = "Y" ]]; then
   if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
     echo "export LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
-    export LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
   fi
   pushd "${HOME}"/git >/dev/null || err_exit
   git clone https://github.com/input-output-hk/libsodium &>/dev/null
