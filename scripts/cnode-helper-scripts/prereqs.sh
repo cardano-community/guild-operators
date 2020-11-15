@@ -232,7 +232,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     if ! output=$(git clone https://github.com/AndrewWestberg/cncli.git 2>&1); then echo -e "${output}" && err_exit; fi
     pushd ./cncli >/dev/null || err_exit
   fi
-  cncli_git_version=$(awk -F ' = ' '$1 ~ /version/ { gsub(/[\"]/, "", $2); printf("%s",$2) }' Cargo.toml)
+  cncli_git_version=$(grep ^version Cargo.toml | cut -d'"' -f2)
   if [[ "${cncli_version}" != "${cncli_git_version}" ]]; then
     # install rust if not available
     if ! command -v "rustup" &>/dev/null; then
