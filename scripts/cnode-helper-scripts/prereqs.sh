@@ -206,7 +206,7 @@ mkdir -p "${HOME}"/git > /dev/null 2>&1 # To hold git repositories that will be 
 if [[ "${LIBSODIUM_FORK}" = "Y" ]]; then
   if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
     echo "export LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
-    . "${HOME}"/.bashrc
+    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
   fi
   pushd "${HOME}"/git >/dev/null || err_exit
   git clone https://github.com/input-output-hk/libsodium &>/dev/null
@@ -232,7 +232,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     if ! output=$(git clone https://github.com/AndrewWestberg/cncli.git 2>&1); then echo -e "${output}" && err_exit; fi
     pushd ./cncli >/dev/null || err_exit
   fi
-  cncli_git_version=$(awk -F ' = ' '$1 ~ /version/ { gsub(/[\"]/, "", $2); printf("%s",$2) }' Cargo.toml)
+  cncli_git_version=$(grep ^version Cargo.toml | cut -d'"' -f2)
   if [[ "${cncli_version}" != "${cncli_git_version}" ]]; then
     # install rust if not available
     if ! command -v "rustup" &>/dev/null; then
