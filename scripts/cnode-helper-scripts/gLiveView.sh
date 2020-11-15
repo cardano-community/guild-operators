@@ -773,7 +773,7 @@ while true; do
     printf "${VL} Block   : ${style_values_1}%s${NC}" "${blocknum}"
     tput cup ${line} ${second_col}
     printf "Tip (ref)  : ${style_values_1}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_ref}" && ((line++))
-    printf "${VL} Slot    : ${style_values_1}%s${NC}" "${slot_in_epoch}"
+    printf "${VL} Slot    : ${style_values_1}%-$((second_col-12))s${NC}" "${slot_in_epoch}"
     tput cup ${line} ${second_col}
     printf "Tip (node) : ${style_values_1}%-${sec_col_value_size}s${NC}${VL}\n" "${slotnum}" && ((line++))
     printf "${VL} Density : ${style_values_1}%s${NC}" "${density}"
@@ -821,16 +821,16 @@ while true; do
       
       echo "${m2divider}" && ((line++))
       
-      blocks_file="${BLOCKLOG_DIR}/blocks_${epochnum}.json"
-      if [[ -f "${blocks_file}" ]]; then
-        printf "${VL}${STANDOUT}%8s${NC}%$((width-62))s %-6s | ${FG_CYAN}%-7s${NC}/${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC}/${FG_RED}%-7s${NC}/${FG_RED}%-7s${NC} ${VL}\n" " BLOCKS " "" "Leader" "Adopted" "Confirmed" "Missed" "Ghosted" "Invalid" && ((line++))
-        invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
-        missed_cnt=$(jq -c '[.[] //0 | select(.status=="missed")] | length' "${blocks_file}")
-        ghosted_cnt=$(jq -c '[.[] //0 | select(.status=="ghosted")] | length' "${blocks_file}")
-        confirmed_cnt=$(jq -c '[.[] //0 | select(.status=="confirmed")] | length' "${blocks_file}")
-        adopted_cnt=$(( $(jq -c '[.[] //0 | select(.status=="adopted")] | length' "${blocks_file}") + confirmed_cnt ))
-        leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt ))
-        printf "${VL}%$((width-54))s %-6s   %-7s %-9s   %-6s %-7s %-7s ${VL}\n" "" "${leader_cnt}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${invalid_cnt}" && ((line++))
+      if [[ -f "${BLOCKLOG_DB}" ]]; then
+        invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='invalid';")
+        missed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='missed';")
+        ghosted_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='ghosted';")
+        stolen_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='stolen';")
+        confirmed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='confirmed';")
+        adopted_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='adopted';") + confirmed_cnt ))
+        leader_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='leader';") + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
+        printf "${VL} %-6s | ${FG_CYAN}%-7s${NC}/${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC}/${FG_RED}%-7s${NC}/${FG_RED}%-6s${NC}/${FG_RED}%-7s${NC} %$((width-61))s${VL}\n" "Leader" "Adopted" "Confirmed" "Missed" "Ghosted" "Stolen" "Invalid" "" && ((line++))
+        printf "${VL} %-6s   %-7s %-9s   %-6s %-7s %-6s %-7s %$((width-61))s${VL}\n" "${leader_cnt}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}" "" && ((line++))
       else
         printf "${VL}${STANDOUT} BLOCKS ${NC} %$((width-38))s %-6s | ${FG_GREEN}%-7s${NC} | ${FG_RED}%-7s${NC} ${VL}\n" "" "Leader" "Adopted" "Invalid" && ((line++))
         printf "${VL}%s %$((width-60))s %-6s | %-7s | %-7s ${VL}\n" "Since node start (EKG metrics)" "" "${isleader}" "${adopted}" "${didntadopt}" && ((line++))

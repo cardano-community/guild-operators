@@ -11,9 +11,9 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Ability to post metadata on-chain, e.g. (but not limited to) Adams https://vote.crypto2099.io/
 
 ##### Changed
-- Blocks view updated to adapt to changed made to block collector(logMonitor) and the added CNCLI integration
-  - [Log Monitor](https://cardano-community.github.io/guild-operators/#/Scripts/logmonitor)
+- Blocks view updated to adapt to the added CNCLI integration and changes made to block collector(logMonitor)
   - [CNCLI](https://cardano-community.github.io/guild-operators/#/Scripts/cncli)
+  - [Log Monitor](https://cardano-community.github.io/guild-operators/#/Scripts/logmonitor)
 - chattr file locking now optional to use, a new setting in cntools.config added for it.
 
 ##### Fixed
