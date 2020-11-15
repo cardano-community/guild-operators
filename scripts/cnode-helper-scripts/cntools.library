@@ -2304,22 +2304,22 @@ function printTable() {
         numberOfColumns="$(awk -F "${delimiter}" '{print NF}' <<< "${line}")"
         # Add Line Delimiter
         if [[ "${i}" -eq '1' ]]; then
-          table="${table}$(printf '%s#+' "$(repeatString '#+' "${numberOfColumns}")")"
+          table="${table}$(printf '%s@+' "$(repeatString '@+' "${numberOfColumns}")")"
         fi
         # Add Header Or Body
         table="${table}\n"
         local j=1
         for ((j = 1; j <= "${numberOfColumns}"; j = j + 1)); do
-          table="${table}$(printf '#| %s' "$(cut -d "${delimiter}" -f "${j}" <<< "${line}")")"
+          table="${table}$(printf '@| %s' "$(cut -d "${delimiter}" -f "${j}" <<< "${line}")")"
         done
-        table="${table}#|\n"
+        table="${table}@|\n"
         # Add Line Delimiter
         if [[ "${i}" -eq '1' ]] || [[ "${numberOfLines}" -gt '1' && "${i}" -eq "${numberOfLines}" ]]; then
-          table="${table}$(printf '%s#+' "$(repeatString '#+' "${numberOfColumns}")")"
+          table="${table}$(printf '%s@+' "$(repeatString '@+' "${numberOfColumns}")")"
         fi
       done
       if [[ "$(isEmptyString "${table}")" = 'false' ]]; then
-        echo -e "${table}" | column -s '#' -t | awk '/^\+/{gsub(" ", "-", $0)}1'
+        echo -e "${table}" | column -s '@' -t | awk '/^\+/{gsub(" ", "-", $0)}1'
       fi
     fi
   fi

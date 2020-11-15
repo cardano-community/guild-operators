@@ -17,7 +17,7 @@ CNODE_PORT=6000                                         # Set node port
 #EKG_TIMEOUT=3                                          # Maximum time in seconds that you allow EKG request to take before aborting (node metrics)
 #CURL_TIMEOUT=10                                        # Maximum time in seconds that you allow curl file download to take before aborting (GitHub update process)
 #BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"         # Override default directory used to store block data for core node
-#BLOCKLOG_TZ="UTC"                                      # TimeZone to use in blocklog viewer - https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+#BLOCKLOG_TZ="UTC"                                      # TimeZone to use when displaying blocklog - https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 
 ######################################
 # Do NOT modify code below           #
@@ -113,7 +113,21 @@ else
 fi
 
 [[ -z ${BLOCKLOG_DIR} ]] && BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"
+BLOCKLOG_DB="${BLOCKLOG_DIR}/blocklog.db"
 [[ -z ${BLOCKLOG_TZ} ]] && BLOCKLOG_TZ="UTC"
+createBlocklogDB() {
+  if ! mkdir -p "${BLOCKLOG_DIR}"; then echo "ERROR: failed to create directory to store blocklog: ${BLOCKLOG_DIR}" && return 1; fi
+  if ! command -v sqlite3 >/dev/null; then echo "ERROR: sqlite3 not found, please install before activating blocklog function" && return 1; fi
+  if [[ ! -f ${BLOCKLOG_DB} ]]; then
+    sqlite3 ${BLOCKLOG_DB} <<EOF
+CREATE TABLE blocklog (id INTEGER PRIMARY KEY AUTOINCREMENT, slot INTEGER NOT NULL UNIQUE, at TEXT NOT NULL UNIQUE, epoch INTEGER NOT NULL, block INTEGER NOT NULL DEFAULT 0, slot_in_epoch INTEGER NOT NULL DEFAULT 0, hash TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL);
+CREATE UNIQUE INDEX idx_blocklog_slot ON blocklog (slot);
+CREATE INDEX idx_blocklog_epoch ON blocklog (epoch);
+CREATE INDEX idx_blocklog_status ON blocklog (status);
+EOF
+    echo "SQLite blocklog DB created: ${BLOCKLOG_DB}"
+  fi
+}
 
 CNODE_PID=$(pgrep -fn "[c]ardano-node*.*--port ${CNODE_PORT}")
 

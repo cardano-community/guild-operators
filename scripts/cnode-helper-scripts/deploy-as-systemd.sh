@@ -40,10 +40,11 @@ echo
 echo -e "\e[32m~~ Blocklog ~~\e[0m"
 echo "A collection of services that together creates a blocklog of current and upcoming blocks"
 echo "Dependant on ${vname}.service and when started|stopped|restarted all these companion services will apply the same action"
-echo "logmonitor      : parses JSON log of cardano-node for traces of interest"
 echo "cncli-sync      : Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB"
 echo "cncli-leaderlog : Loops through all slots in current epoch to calculate leader schedule"
 echo "cncli-validate  : Confirms that the block made actually was accepted and adopted by chain"
+echo -e "logmonitor      : parses JSON log of cardano-node for traces of interest (deployed but \e[31mdisabled\e[0m by default)"
+echo "                : gives instant adopted status and invalid status but not required for blocklog to function"
 echo
 if command -v "${CNCLI}" >/dev/null; then
   echo "deploy as systemd services? [y|n]"
@@ -214,7 +215,7 @@ fi
 sudo systemctl daemon-reload
 echo
 [[ -f /etc/systemd/system/${vname}.service ]] && sudo systemctl enable ${vname}.service
-[[ -f /etc/systemd/system/${vname}-logmonitor.service ]] && sudo systemctl enable ${vname}-logmonitor.service
+#[[ -f /etc/systemd/system/${vname}-logmonitor.service ]] && sudo systemctl enable ${vname}-logmonitor.service
 [[ -f /etc/systemd/system/${vname}-cncli-sync.service ]] && sudo systemctl enable ${vname}-cncli-sync.service
 [[ -f /etc/systemd/system/${vname}-cncli-leaderlog.service ]] && sudo systemctl enable ${vname}-cncli-leaderlog.service
 [[ -f /etc/systemd/system/${vname}-cncli-validate.service ]] && sudo systemctl enable ${vname}-cncli-validate.service
