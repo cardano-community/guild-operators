@@ -378,7 +378,7 @@ validateBlock() {
         sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'adopted', slot_in_epoch = $(getSlotInEpochFromSlot ${block_slot} ${block_epoch}), block = ${block_data[0]}, at = '$(getDateFromSlot ${block_slot})', hash = '${block_data[1]}', size = ${block_data[2]} WHERE slot = ${block_slot};"
       fi
     fi
-    [[ $((block_tip-${block_data[0]})) -lt ${CONFIRM_BLOCK_CNT} ]] && return # To make sure enough blocks has been built on top before validating
+    [[ $((block_tip-block_data[0])) -lt ${CONFIRM_BLOCK_CNT} ]] && return # To make sure enough blocks has been built on top before validating
     if [[ ${#block_data[@]} -eq 0 ]]; then
       if [[ ${slot_ok_cnt} -eq 0 ]]; then
         echo "MISSED: Leader for slot '${block_slot}' but not adopted and no other pool has made a block for this slot"
@@ -421,14 +421,14 @@ cncliInitBlocklogDB() {
   createBlocklogDB || exit 1 # create db if needed
   echo "Looking for blocks made by pool..."
   block_cnt=0
-  while read -r block_number slot_number hash block_size orphaned; do
+  while read -r block_number slot_number hash block_size; do
     # Calculate epoch, at and slot_in_epoch
     epoch=$(getEpochFromSlot ${slot_number})
     at=$(getDateFromSlot ${slot_number})
     slot_in_epoch=$(getSlotInEpochFromSlot ${slot_number} ${epoch})
     sqlite3 "${BLOCKLOG_DB}" "INSERT OR REPLACE INTO blocklog (slot,at,epoch,block,slot_in_epoch,hash,size,status) values (${slot_number},'${at}',${epoch},${block_number},${slot_in_epoch},'${hash}',${block_size},'adopted');"
     ((block_cnt++))
-  done < <(sqlite3 -column "${CNCLI_DB}" "SELECT block_number, slot_number, hash, block_size, orphaned FROM chain WHERE node_vrf_vkey = '${pool_vrf_vkey_cbox_hex}' ORDER BY slot_number;")
+  done < <(sqlite3 -column "${CNCLI_DB}" "SELECT block_number, slot_number, hash, block_size FROM chain WHERE node_vrf_vkey = '${pool_vrf_vkey_cbox_hex}' ORDER BY slot_number;")
   if [[ ${block_cnt} -eq 0 ]]; then
     echo "No blocks found :("
   else

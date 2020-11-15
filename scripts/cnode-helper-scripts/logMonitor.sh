@@ -48,7 +48,7 @@ while read -r logentry; do
       slot="$(jq -r '.data.slot' <<< ${logentry})"
       [[ "$(jq -r '.data.blockHash' <<< ${logentry})" =~ ([[:alnum:]]+) ]] && hash="${BASH_REMATCH[1]}" || hash=""
       size="$(jq -r '.data.blockSize' <<< ${logentry})"
-      echo "ADOPTED: slot[${slot}] size=${size} hash=${block_hash}"
+      echo "ADOPTED: slot[${slot}] size=${size} hash=${hash}"
       sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'adopted', size = ${size}, hash = '${hash}' WHERE slot = ${slot};"
       ;;
     *TraceForgedInvalidBlock* )
