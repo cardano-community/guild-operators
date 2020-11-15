@@ -371,7 +371,7 @@ validateBlock() {
   if [[ ${block_status} = leader || ${block_status} = adopted ]]; then
     [[ ${block_slot} -gt ${slot_tip} ]] && return # block in the future, wait
     slot_ok_cnt=$(sqlite3 "${CNCLI_DB}" "SELECT COUNT(*) FROM chain WHERE slot_number=${block_slot} AND orphaned=0;")
-    IFS='|' && read -ra block_data <<< "$(sqlite3 "${CNCLI_DB}" "SELECT block_number, hash, block_size, orphaned FROM chain WHERE slot_number = ${block_slot} AND node_vrf_vkey;")" && IFS=' '
+    IFS='|' && read -ra block_data <<< "$(sqlite3 "${CNCLI_DB}" "SELECT block_number, hash, block_size, orphaned FROM chain WHERE slot_number = ${block_slot} AND node_vrf_vkey = '${pool_vrf_vkey_cbox_hex}';")" && IFS=' '
     if [[ ${block_status} = leader && $((block_slot + CONFIRM_SLOT_CNT)) -le ${slot_tip} ]]; then # just check if block was adopted
       if [[ ${#block_data[@]} -eq 1 ]]; then
         echo "ADOPTED: Leader for slot '${block_slot}' and adopted by chain, waiting for confirmation"
