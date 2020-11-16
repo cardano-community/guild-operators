@@ -2,11 +2,11 @@
 
 `cncli.sh` is a script to download and deploy [CNCLI](https://github.com/AndrewWestberg/cncli) created and maintained by Andrew Westberg. It's a community-based CLI tool written in RUST for low-level cardano-node communication. Usage is **optional** and no script is dependent on it. The main features include:
 
-**PING**      - Validates that the remote server is on the given network and returns its response time. Utilized by gLiveView for peer analysis if available. 
-**SYNC**      - Connects to a node(local or remote) and synchronizes blocks to a local sqlite database. 
-**VALIDATE**  - Validates that a block hash or partial block hash is on-chain.
-**LEADERLOG** - Calculates a stakepool's expected slot list. On MainNet and the official TestNet, leader schedule is available 1.5 days before the end of the epoch (`firstSlotOfNextEpoch - (3 * k / f)`).
-**SENDTIP**   - Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge.
+* **PING** - Validates that the remote server is on the given network and returns its response time. Utilized by gLiveView for peer analysis if available. 
+* **SYNC** - Connects to a node(local or remote) and synchronizes blocks to a local sqlite database. 
+* **VALIDATE** - Validates that a block hash or partial block hash is on-chain.
+* **LEADERLOG** - Calculates a stakepool's expected slot list. On MainNet and the official TestNet, leader schedule is available 1.5 days before the end of the epoch (`firstSlotOfNextEpoch - (3 * k / f)`).
+* **SENDTIP** - Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge.
 
 ##### Installation
 `cncli.sh` script's main functions, sync, leaderlog, validate and ptsendtip are not meant to be run manually, but instead deploy as systemd services that run in the background to do the block scraping and validation automatically. Additional commands exist for manual execution to migrate old cntoolsBlockCollector JSON blocklog, re-validation of blocks and initially fill the blocklog DB with all blocks created by the pool known to the blockchain. See usage output below for a complete list of available commands.
