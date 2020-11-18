@@ -2,11 +2,11 @@
 
 `cncli.sh` is a script to download and deploy [CNCLI](https://github.com/AndrewWestberg/cncli) created and maintained by Andrew Westberg. It's a community-based CLI tool written in RUST for low-level cardano-node communication. Usage is **optional** and no script is dependent on it. The main features include:
 
-**PING**      - Validates that the remote server is on the given network and returns its response time. Utilized by gLiveView for peer analysis if available. 
-**SYNC**      - Connects to a node(local or remote) and synchronizes blocks to a local sqlite database. 
-**VALIDATE**  - Validates that a block hash or partial block hash is on-chain.
-**LEADERLOG** - Calculates a stakepool's expected slot list. On MainNet and the official TestNet, leader schedule is available 1.5 days before the end of the epoch (`firstSlotOfNextEpoch - (3 * k / f)`).
-**SENDTIP**   - Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge.
+- **PING** - Validates that the remote server is on the given network and returns its response time. Utilized by gLiveView for peer analysis if available. 
+- **SYNC** - Connects to a node(local or remote) and synchronizes blocks to a local sqlite database. 
+- **VALIDATE** - Validates that a block hash or partial block hash is on-chain.
+- **LEADERLOG** - Calculates a stakepool's expected slot list. On MainNet and the official TestNet, leader schedule is available 1.5 days before the end of the epoch (`firstSlotOfNextEpoch - (3 * k / f)`).
+- **SENDTIP** - Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge.
 
 ##### Installation
 `cncli.sh` script's main functions, sync, leaderlog, validate and ptsendtip are not meant to be run manually, but instead deploy as systemd services that run in the background to do the block scraping and validation automatically. Additional commands exist for manual execution to migrate old cntoolsBlockCollector JSON blocklog, re-validation of blocks and initially fill the blocklog DB with all blocks created by the pool known to the blockchain. See usage output below for a complete list of available commands.
@@ -17,12 +17,12 @@ The script work in tandem with [Log Monitor](Scripts/logmonitor.md) to provide f
 2. Run `deploy-as-systemd.sh` to deploy the systemd services that handle all the work in the background. Six systemd services in total are deployed whereof four are related to CNCLI. See above for the different purposes they serve.
 3. If you want to disable some of the deployed services, run `sudo systemctl disable <service>`
 
-* cnode.service (main cardano-node launcher)
-* cnode-cncli-sync.service
-* cnode-cncli-leaderlog.service 
-* cnode-cncli-validate.service
-* cnode-cncli-ptsendtip.service
-* cnode-logmonitor.service (see [Log Monitor](Scripts/logmonitor.md))
+- cnode.service (main cardano-node launcher)
+- cnode-cncli-sync.service
+- cnode-cncli-leaderlog.service 
+- cnode-cncli-validate.service
+- cnode-cncli-ptsendtip.service
+- cnode-logmonitor.service (see [Log Monitor](Scripts/logmonitor.md))
 
 ##### Configuration
 You can override the values in the script at the User Variables section shown below. **POOL_ID**, **POOL_VRF_SKEY** and **POOL_VRF_VKEY**, **PT_API_KEY** and **POOL_TICKER** need to be set in the script before starting the services. For the rest of the commented values, if the default do not provide the right value, uncomment and make adjustments.
@@ -91,13 +91,13 @@ Open CNTools and select `[b] Blocks` to open the block viewer.
 Either select `Epoch` and enter the epoch you want to see a detailed view for or choose `Summary` to display blocks for last x epochs.
 
 **Block status**
-* leader    - scheduled to make block at this slot
-* adopted   - block created successfully
-* confirmed - block created validated to be on-chain with the certainty set in `cncli.sh` for `CONFIRM_BLOCK_CNT`
-* missed    - scheduled at slot but no record of it in cncli DB and no other pool has made a block for this slot
-* ghosted   - block created but marked as orphaned and no other pool has made a valid block for this slot, height battle or block propagation issue
-* stolen    - another pool has a valid block registered on-chain for the same slot
-* invalid   - pool failed to create block, base64 encoded error message can be decoded with `echo <base64 hash> | base64 -d | jq -r`
+- leader    - scheduled to make block at this slot
+- adopted   - block created successfully
+- confirmed - block created validated to be on-chain with the certainty set in `cncli.sh` for `CONFIRM_BLOCK_CNT`
+- missed    - scheduled at slot but no record of it in cncli DB and no other pool has made a block for this slot
+- ghosted   - block created but marked as orphaned and no other pool has made a valid block for this slot, height battle or block propagation issue
+- stolen    - another pool has a valid block registered on-chain for the same slot
+- invalid   - pool failed to create block, base64 encoded error message can be decoded with `echo <base64 hash> | base64 -d | jq -r`
 
 If the node was elected to create blocks in the selected epoch it could look something like this:
 
