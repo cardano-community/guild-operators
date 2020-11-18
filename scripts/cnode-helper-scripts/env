@@ -126,6 +126,12 @@ CREATE INDEX idx_blocklog_epoch ON blocklog (epoch);
 CREATE INDEX idx_blocklog_status ON blocklog (status);
 EOF
     echo "SQLite blocklog DB created: ${BLOCKLOG_DB}"
+  else
+    sqlite3 ${BLOCKLOG_DB} <<EOF
+CREATE TABLE IF NOT EXISTS epochdata (id INTEGER PRIMARY KEY AUTOINCREMENT, epoch INTEGER NOT NULL, epoch_nonce TEXT NOT NULL, pool_id TEXT NOT NULL, sigma TEXT NOT NULL, d REAL NOT NULL, epoch_slots_ideal INTEGER NOT NULL, max_performance REAL NOT NULL, UNIQUE(epoch,pool_id));
+CREATE INDEX IF NOT EXISTS idx_epochdata_epoch ON epochdata (epoch);
+CREATE INDEX IF NOT EXISTS idx_epochdata_pool_id ON epochdata (pool_id);
+EOF
   fi
 }
 

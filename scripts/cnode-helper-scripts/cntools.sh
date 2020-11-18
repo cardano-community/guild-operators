@@ -3260,23 +3260,29 @@ EOF
          current_epoch=$(getEpoch)
          say "Current epoch: ${FG_CYAN}${current_epoch}${NC}\n"
          if [[ ${view} -eq 1 ]]; then
-           block_table="Epoch,Leader,${FG_CYAN}Adopted${NC},${FG_GREEN}Confirmed${NC},${FG_RED}Missed${NC},${FG_RED}Ghosted${NC},${FG_RED}Stolen${NC},${FG_RED}Invalid${NC}\n"
+           block_table="Epoch,Leader | Ideal | Luck,${FG_CYAN}Adopted${NC} | ${FG_GREEN}Confirmed${NC},${FG_RED}Missed${NC} | ${FG_RED}Ghosted${NC} | ${FG_RED}Stolen${NC} | ${FG_RED}Invalid${NC}\n"
            
-           [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=$((current_epoch+1)) LIMIT 1);") -eq 1 ]] && ((current_epoch++))
+           [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=$((current_epoch+1)) LIMIT 1);" 2>/dev/null) -eq 1 ]] && ((current_epoch++))
            first_epoch=$(( current_epoch - epoch_enter ))
            [[ ${first_epoch} -lt 0 ]] && first_epoch=0
            while [[ ${current_epoch} -gt ${first_epoch} ]]; do
-             invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='invalid';")
-             missed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='missed';")
-             ghosted_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='ghosted';")
-             stolen_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='stolen';")
-             confirmed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='confirmed';")
-             adopted_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='adopted';") + confirmed_cnt ))
-             leader_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='leader';") + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
-             block_table+="${current_epoch},${leader_cnt},${adopted_cnt},${confirmed_cnt},${missed_cnt},${ghosted_cnt},${stolen_cnt},${invalid_cnt}\n"
+             invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='invalid';" 2>/dev/null)
+             missed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='missed';" 2>/dev/null)
+             ghosted_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='ghosted';" 2>/dev/null)
+             stolen_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='stolen';" 2>/dev/null)
+             confirmed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='confirmed';" 2>/dev/null)
+             adopted_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='adopted';" 2>/dev/null) + confirmed_cnt ))
+             leader_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='leader';" 2>/dev/null) + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
+             IFS='|' && read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${current_epoch};" 2>/dev/null)" && IFS=' '
+             if [[ ${#epoch_stats[@]} -eq 0 ]]; then
+               epoch_stats=("-" "-")
+             else
+               epoch_stats[1]="${epoch_stats[1]}%"
+             fi
+             block_table+="$(printf "%s,%-6s | %-5s | %s,%-7s | %s,%-6s | %-7s | %-6s | %s" "${current_epoch}" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}")\n"
              ((current_epoch--))
            done
-           printTable ',' "$(echo -e ${block_table})"
+           printTable ',' "$(echo -e "${block_table}")"
          else
            say "Block Status:\n"
            say "leader    - scheduled to make block at this slot"
@@ -3303,10 +3309,10 @@ EOF
          esac
        done
        ;;
-    1) [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=$((current_epoch+1)) LIMIT 1);") -eq 1 ]] && say "\n${FG_YELLOW}Leader schedule for next epoch[$((current_epoch+1))] available${NC}"
+    1) [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=$((current_epoch+1)) LIMIT 1);" 2>/dev/null) -eq 1 ]] && say "\n${FG_YELLOW}Leader schedule for next epoch[$((current_epoch+1))] available${NC}"
        echo && read -r -p "Enter epoch to list (enter for current): " epoch_enter
        [[ -z "${epoch_enter}" ]] && epoch_enter=${current_epoch}
-       if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=${epoch_enter} LIMIT 1);") -eq 0 ]]; then
+       if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=${epoch_enter} LIMIT 1);" 2>/dev/null) -eq 0 ]]; then
          say "No blocks in epoch ${epoch_enter}"
          waitForInput && continue
        fi
@@ -3317,49 +3323,55 @@ EOF
          say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
          current_epoch=$(getEpoch)
          say "Current epoch: ${FG_CYAN}${current_epoch}${NC}\n"
-         invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='invalid';")
-         missed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='missed';")
-         ghosted_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='ghosted';")
-         stolen_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='stolen';")
-         confirmed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='confirmed';")
-         adopted_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='adopted';") + confirmed_cnt ))
-         leader_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='leader';") + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
-         epoch_summary="Leader,${FG_CYAN}Adopted${NC},${FG_GREEN}Confirmed${NC},${FG_RED}Missed${NC},${FG_RED}Ghosted${NC},${FG_RED}Stolen${NC},${FG_RED}Invalid${NC}\n${leader_cnt},${adopted_cnt},${confirmed_cnt},${missed_cnt},${ghosted_cnt},${stolen_cnt},${invalid_cnt}"
-         printTable ',' "$(echo -e ${epoch_summary})"
+         invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='invalid';" 2>/dev/null)
+         missed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='missed';" 2>/dev/null)
+         ghosted_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='ghosted';" 2>/dev/null)
+         stolen_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='stolen';" 2>/dev/null)
+         confirmed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='confirmed';" 2>/dev/null)
+         adopted_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='adopted';" 2>/dev/null) + confirmed_cnt ))
+         leader_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='leader';" 2>/dev/null) + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
+         IFS='|' && read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${epoch_enter};" 2>/dev/null)" && IFS=' '
+         if [[ ${#epoch_stats[@]} -eq 0 ]]; then
+           epoch_stats=("-" "-")
+         else
+           epoch_stats[1]="${epoch_stats[1]}%"
+         fi
+         epoch_summary="Leader | Ideal | Luck,${FG_CYAN}Adopted${NC} | ${FG_GREEN}Confirmed${NC},${FG_RED}Missed${NC} | ${FG_RED}Ghosted${NC} | ${FG_RED}Stolen${NC} | ${FG_RED}Invalid${NC}\n"
+         epoch_summary+="$(printf "%-6s | %-5s | %s,%-7s | %s,%-6s | %-7s | %-6s | %s" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}")\n"
+         printTable ',' "$(echo -e "${epoch_summary}")"
          echo
          # print block table
          block_cnt=1
          if [[ ${view} -eq 1 ]]; then
-           block_table="#,Status,Block,Slot / SlotInEpoch,Scheduled At\n"
+           block_table="#,Status,Block,Slot | SlotInEpoch,Scheduled At\n"
            while read -r status block slot slot_in_epoch at; do
              at=$(TZ="${BLOCKLOG_TZ}" date '+%F %T %Z' --date="${at}")
              [[ ${block} -eq 0 ]] && block="-"
-             block_table+="${block_cnt},${status},${block},${slot} / ${slot_in_epoch},${at}\n"
+             block_table+="${block_cnt},${status},${block},${slot} | ${slot_in_epoch},${at}\n"
              ((block_cnt++))
-           done < <(sqlite3 -column "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;")
+           done < <(sqlite3 -column "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
            printTable ',' "$(echo -e ${block_table})"
          elif [[ ${view} -eq 2 ]]; then
            block_table="#,Status,Slot,Size,Hash\n"
            while read -r status slot size hash; do
-             [[ ${block} -eq 0 ]] && block="-"
              [[ ${size} -eq 0 ]] && size="-"
              [[ -z ${hash} ]] && hash="-"
              block_table+="${block_cnt},${status},${slot},${size},${hash}\n"
              ((block_cnt++))
-           done < <(sqlite3 -column "${BLOCKLOG_DB}" "SELECT status, slot, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;")
+           done < <(sqlite3 -column "${BLOCKLOG_DB}" "SELECT status, slot, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
            printTable ',' "$(echo -e ${block_table})"
-         elif [[ ${view} -eq 2 ]]; then
-           block_table="#,Status,Block,Slot / SlotInEpoch,Scheduled At,Size,Hash\n"
+         elif [[ ${view} -eq 3 ]]; then
+           block_table="#,Status,Block,Slot | SlotInEpoch,Scheduled At,Size,Hash\n"
            while read -r status block slot slot_in_epoch at size hash; do
              at=$(TZ="${BLOCKLOG_TZ}" date '+%F %T %Z' --date="${at}")
              [[ ${block} -eq 0 ]] && block="-"
              [[ ${size} -eq 0 ]] && size="-"
              [[ -z ${hash} ]] && hash="-"
-             block_table+="${block_cnt},${status},${block},${slot} / ${slot_in_epoch},${at},${size},${hash}\n"
+             block_table+="${block_cnt},${status},${block},${slot} | ${slot_in_epoch},${at},${size},${hash}\n"
              ((block_cnt++))
-           done < <(sqlite3 -column "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;")
+           done < <(sqlite3 -column "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
            printTable ',' "$(echo -e ${block_table})"
-         else
+         elif [[ ${view} -eq 4 ]]; then
            say "Block Status:\n"
            say "leader    - scheduled to make block at this slot"
            say "adopted   - block created successfully"
