@@ -319,7 +319,7 @@ cncliLeaderlog() {
         d=$(jq -r '.d' <<< "${cncli_leaderlog}")
         epoch_slots_ideal=$(jq -r '.epochSlotsIdeal //0' <<< "${cncli_leaderlog}")
         max_performance=$(jq -r '.maxPerformance //0' <<< "${cncli_leaderlog}")
-        sqlite3 "${BLOCKLOG_DB}" "INSERT OR REPLACE INTO epochdata (epoch,epoch_nonce,pool_id,sigma,d,epoch_slots_ideal,max_performance) values (${curr_epoch},'${epoch_nonce}','${pool_id}','${sigma}',${d},${epoch_slots_ideal},${max_performance});"
+        sqlite3 "${BLOCKLOG_DB}" "INSERT OR REPLACE INTO epochdata (epoch,epoch_nonce,pool_id,sigma,d,epoch_slots_ideal,max_performance) values (${next_epoch},'${epoch_nonce}','${pool_id}','${sigma}',${d},${epoch_slots_ideal},${max_performance});"
         block_cnt=0
         while read -r assigned_slot; do
           block_slot=$(jq -r '.slot' <<< "${assigned_slot}")
