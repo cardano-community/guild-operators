@@ -261,14 +261,27 @@ cncliLeaderlog() {
       echo "Error message: $(jq -r '.errorMessage //empty' <<< "${cncli_leaderlog}")"
       exit 1
     fi
+  else
+    epoch_nonce=$(jq -r '.epochNonce' <<< "${cncli_leaderlog}")
+    pool_id=$(jq -r '.poolId' <<< "${cncli_leaderlog}")
+    sigma=$(jq -r '.sigma' <<< "${cncli_leaderlog}")
+    d=$(jq -r '.d' <<< "${cncli_leaderlog}")
+    epoch_slots_ideal=$(jq -r '.epochSlotsIdeal //0' <<< "${cncli_leaderlog}")
+    max_performance=$(jq -r '.maxPerformance //0' <<< "${cncli_leaderlog}")
+    sqlite3 "${BLOCKLOG_DB}" "INSERT OR REPLACE INTO epochdata (epoch,epoch_nonce,pool_id,sigma,d,epoch_slots_ideal,max_performance) values (${curr_epoch},'${epoch_nonce}','${pool_id}','${sigma}',${d},${epoch_slots_ideal},${max_performance});"
+    block_cnt=0
+    while read -r assigned_slot; do
+      block_slot=$(jq -r '.slot' <<< "${assigned_slot}")
+      block_at=$(jq -r '.at' <<< "${assigned_slot}")
+      block_slot_in_epoch=$(jq -r '.slotInEpoch' <<< "${assigned_slot}")
+      sqlite3 "${BLOCKLOG_DB}" "INSERT OR IGNORE INTO blocklog (slot,at,slot_in_epoch,epoch,status) values (${block_slot},'${block_at}',${block_slot_in_epoch},${curr_epoch},'leader');"
+      echo "LEADER: slot[${block_slot}] slotInEpoch[${block_slot_in_epoch}] at[${block_at}]"
+      ((block_cnt++))
+    done < <(jq -c '.assignedSlots[]' <<< "${cncli_leaderlog}" 2>/dev/null)
+    echo "Leaderlog calculation for epoch[${curr_epoch}] completed and saved to blocklog DB"
+    echo "Leaderslots: ${block_cnt} - Ideal slots for epoch based on active stake: ${epoch_slots_ideal} - Luck factor ${max_performance}%"
   fi
-  while read -r assigned_slot; do
-    block_slot=$(jq -r '.slot' <<< "${assigned_slot}")
-    block_at=$(jq -r '.at' <<< "${assigned_slot}")
-    block_slot_in_epoch=$(jq -r '.slotInEpoch' <<< "${assigned_slot}")
-    sqlite3 "${BLOCKLOG_DB}" "INSERT OR IGNORE INTO blocklog (slot,at,slot_in_epoch,epoch,status) values (${block_slot},'${block_at}',${block_slot_in_epoch},${curr_epoch},'leader');"
-    echo "LEADER: slot[${block_slot}] slotInEpoch[${block_slot_in_epoch}] at[${block_at}]"
-  done < <(jq -c '.assignedSlots[]' <<< "${cncli_leaderlog}" 2>/dev/null)
+  
   
   has_run_leader=false
   while true; do
@@ -300,14 +313,24 @@ cncliLeaderlog() {
           echo "Error message: $(jq -r '.errorMessage //empty' <<< "${cncli_leaderlog}")"
         fi
       else
+        epoch_nonce=$(jq -r '.epochNonce' <<< "${cncli_leaderlog}")
+        pool_id=$(jq -r '.poolId' <<< "${cncli_leaderlog}")
+        sigma=$(jq -r '.sigma' <<< "${cncli_leaderlog}")
+        d=$(jq -r '.d' <<< "${cncli_leaderlog}")
+        epoch_slots_ideal=$(jq -r '.epochSlotsIdeal //0' <<< "${cncli_leaderlog}")
+        max_performance=$(jq -r '.maxPerformance //0' <<< "${cncli_leaderlog}")
+        sqlite3 "${BLOCKLOG_DB}" "INSERT OR REPLACE INTO epochdata (epoch,epoch_nonce,pool_id,sigma,d,epoch_slots_ideal,max_performance) values (${curr_epoch},'${epoch_nonce}','${pool_id}','${sigma}',${d},${epoch_slots_ideal},${max_performance});"
+        block_cnt=0
         while read -r assigned_slot; do
           block_slot=$(jq -r '.slot' <<< "${assigned_slot}")
           block_at=$(jq -r '.at' <<< "${assigned_slot}")
           block_slot_in_epoch=$(jq -r '.slotInEpoch' <<< "${assigned_slot}")
           sqlite3 "${BLOCKLOG_DB}" "INSERT OR IGNORE INTO blocklog (slot,at,slot_in_epoch,epoch,status) values (${block_slot},'${block_at}',${block_slot_in_epoch},${next_epoch},'leader');"
           echo "LEADER: slot[${block_slot}] slotInEpoch[${block_slot_in_epoch}] at[${block_at}]"
+          ((block_cnt++))
         done < <(jq -c '.assignedSlots[]' <<< "${cncli_leaderlog}" 2>/dev/null)
-        echo "Leaderlogs calculation for next epoch[${next_epoch}] completed and saved to blocklog DB"
+        echo "Leaderlog calculation for next epoch[${next_epoch}] completed and saved to blocklog DB"
+        echo "Leaderslots: ${block_cnt} - Ideal slots for epoch based on active stake: ${epoch_slots_ideal} - Luck factor ${max_performance}%"
       fi
       has_run_leader=true
     fi

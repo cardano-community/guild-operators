@@ -87,69 +87,95 @@ migrate     One-time migration from old blocklog(cntoolsBlockCollector) to new f
 ##### View Blocklog
 Best and easiest viewed in CNTools and gLiveView but the blocklog database is a SQLite DB so if you are comfortable with SQL, sqlite3 command can be used to query the DB. 
 
+**Block status**
+- Leader    : Scheduled to make block at this slot
+- Ideal     : Expected/Ideal number of blocks assigned based on active stake (sigma)"
+- Luck      : Leader slots assigned vs Ideal slots for this epoch"
+- Adopted   : Block created successfully
+- Confirmed : Block created validated to be on-chain with the certainty set in `cncli.sh` for `CONFIRM_BLOCK_CNT`
+- Missed    : Scheduled at slot but no record of it in cncli DB and no other pool has made a block for this slot
+- Ghosted   : Block created but marked as orphaned and no other pool has made a valid block for this slot, height battle or block propagation issue
+- Stolen    : Another pool has a valid block registered on-chain for the same slot
+- Invalid   : Pool failed to create block, base64 encoded error message can be decoded with `echo <base64 hash> | base64 -d | jq -r`
+
+**CNTools**
 Open CNTools and select `[b] Blocks` to open the block viewer.  
 Either select `Epoch` and enter the epoch you want to see a detailed view for or choose `Summary` to display blocks for last x epochs.
 
-**Block status**
-- leader    - scheduled to make block at this slot
-- adopted   - block created successfully
-- confirmed - block created validated to be on-chain with the certainty set in `cncli.sh` for `CONFIRM_BLOCK_CNT`
-- missed    - scheduled at slot but no record of it in cncli DB and no other pool has made a block for this slot
-- ghosted   - block created but marked as orphaned and no other pool has made a valid block for this slot, height battle or block propagation issue
-- stolen    - another pool has a valid block registered on-chain for the same slot
-- invalid   - pool failed to create block, base64 encoded error message can be decoded with `echo <base64 hash> | base64 -d | jq -r`
-
 If the node was elected to create blocks in the selected epoch it could look something like this:
 
-**Summary**
+**CNTools Summary**
 ```
  >> BLOCKS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Current epoch: 95
+Current epoch: 96
 
-+--------+---------+----------+------------+---------+----------+---------+----------+
-| Epoch  | Leader  | Adopted  | Confirmed  | Missed  | Ghosted  | Stolen  | Invalid  |
-+--------+---------+----------+------------+---------+----------+---------+----------+
-| 96     | 34      | 0        | 0          | 0       | 0        | 0       | 0        |
-| 95     | 32      | 32       | 32         | 0       | 0        | 0       | 0        |
-| 94     | 20      | 20       | 20         | 0       | 0        | 0       | 0        |
-| 93     | 32      | 32       | 32         | 0       | 0        | 0       | 0        |
-| 92     | 36      | 36       | 36         | 0       | 0        | 0       | 0        |
-+--------+---------+----------+------------+---------+----------+---------+----------+
++--------+---------------------------+----------------------+--------------------------------------+
+| Epoch  | Leader | Ideal | Luck     | Adopted | Confirmed  | Missed | Ghosted | Stolen | Invalid  |
++--------+---------------------------+----------------------+--------------------------------------+
+| 96     | 34     | 31.66 | 107.39%  | 18      | 18         | 0      | 0       | 0      | 0        |
+| 95     | 32     | 30.57 | 104.68%  | 32      | 32         | 0      | 0       | 0      | 0        |
++--------+---------------------------+----------------------+--------------------------------------+
 
 [h] Home | [b] Block View | [i] Info | [*] Refresh
 ```
-**Epoch**
+**CNTools Epoch**
 ```
  >> BLOCKS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Current epoch: 95
+Current epoch: 96
 
-+---------+----------+------------+---------+----------+---------+----------+
-| Leader  | Adopted  | Confirmed  | Missed  | Ghosted  | Stolen  | Invalid  |
-+---------+----------+------------+---------+----------+---------+----------+
-| 15      | 13       | 13         | 0       | 0        | 0       | 0        |
-+---------+----------+------------+---------+----------+---------+----------+
++---------------------------+----------------------+--------------------------------------+
+| Leader | Ideal | Luck     | Adopted | Confirmed  | Missed | Ghosted | Stolen | Invalid  |
++---------------------------+----------------------+--------------------------------------+
+| 34     | 31.66 | 107.39%  | 18      | 18         | 0      | 0       | 0      | 0        |
++---------------------------+----------------------+--------------------------------------+
 
 +-----+------------+----------+---------------------+--------------------------+-------+-------------------------------------------------------------------+
-| #   | Status     | Block    | Slot / SlotInEpoch  | Scheduled At             | Size  | Hash                                                              |
+| #   | Status     | Block    | Slot | SlotInEpoch  | Scheduled At             | Size  | Hash                                                              |
 +-----+------------+----------+---------------------+--------------------------+-------+-------------------------------------------------------------------+
-| 1   | confirmed  | 2025531  | 10694026 / 23626    | 2020-11-11 03:54:02 CET  | 3     | 1051a2853812eda14f73e313f1a34889f04bdf76be2bfe5c581b1380e2d10ca2  |
-| 2   | confirmed  | 2025607  | 10695745 / 25345    | 2020-11-11 04:22:41 CET  | 3     | bb60030c1888d5ed8c86a0486cf9c7d19dc298e13b8be13ef0bda75cea856379  |
-| 3   | confirmed  | 2025781  | 10700470 / 30070    | 2020-11-11 05:41:26 CET  | 3     | 3f74582609c39c8b6d965f76cf4e9a898b1d3a7b764504388e707198ae9cd530  |
-| 4   | confirmed  | 2025833  | 10701931 / 31531    | 2020-11-11 06:05:47 CET  | 3     | fe77bb854526d13df6e061c34a54fe5522f6ed6cba4391d6651a5a899b478149  |
-| 5   | confirmed  | 2026020  | 10707379 / 36979    | 2020-11-11 07:36:35 CET  | 3     | 54433d1640b90a08ed5fa8c7d925498552b44fda9c0b7908a99ba44cf343ce59  |
-| 6   | confirmed  | 2026146  | 10710255 / 39855    | 2020-11-11 08:24:31 CET  | 3     | f062350f7795e407d32acbe910fbb856d55ee53db55ac6eb88a92314f5fdfc4f  |
-| 7   | confirmed  | 2031225  | 10836135 / 165735   | 2020-11-12 19:22:31 CET  | 3     | 587a8d235a880d4e709173bad21eda2cecfecf5be04bdab2acfea4d9f457286c  |
-| 8   | confirmed  | 2031389  | 10840079 / 169679   | 2020-11-12 20:28:15 CET  | 3     | dd1c95ba4596457412dccec84767ad4e8861b218803c8fbaf66bb2b1f5de327c  |
-| 9   | confirmed  | 2033012  | 10881542 / 211142   | 2020-11-13 07:59:18 CET  | 3     | 26a17109c28a2afc11ad86c375d26a55fa3f7badf601f8dbf85bd851ab7f1121  |
-| 10  | confirmed  | 2033511  | 10894371 / 223971   | 2020-11-13 11:33:07 CET  | 3     | dd77c1da50d8453a170cf9d9a779d6307d897e524bf11a6bfc196adbc079f1e9  |
-| 11  | confirmed  | 2036190  | 10960153 / 289753   | 2020-11-14 05:49:29 CET  | 3     | 5c3049b7c6fed33830e7e4e9ccf75a13a8360717d2fd8ae726e0b81d0d30675d  |
-| 12  | confirmed  | 2037280  | 10987522 / 317122   | 2020-11-14 13:25:38 CET  | 3     | 0a87c2e3a978125728ea707441ad53689eb2b44f6b4c11a83a0b8b368261579b  |
-| 13  | confirmed  | 2040016  | 11057713 / 387313   | 2020-11-15 08:55:29 CET  | 3     | 710d72eaf5fa84ed90a3d3ab4544fcdcd58be163029ead66e46e91bef45dfc78  |
-| 14  | leader     | -        | 11061678 / 391278   | 2020-11-15 10:01:34 CET  | -     | -                                                                 |
-| 15  | leader     | -        | 11078122 / 407722   | 2020-11-15 19:35:38 CET  | -     | -                                                                 |
+| 1   | confirmed  | 2043444  | 11142827 | 40427    | 2020-11-16 08:34:03 CET  | 3     | ec216d3fb01e4a3cc3e85305145a31875d9561fa3bbcc6d0ee8297236dbb4115  |
+| 2   | confirmed  | 2044321  | 11165082 | 62682    | 2020-11-16 14:44:58 CET  | 3     | b75c33a5bbe49a74e4b4cc5df4474398bfb10ed39531fc65ec2acc51f89ddce5  |
+| 3   | confirmed  | 2044397  | 11166970 | 64570    | 2020-11-16 15:16:26 CET  | 3     | c1ea37fd72543779b6dab46e3e29e0e422784b5fd6188f828ace9eabcc87088f  |
+| 4   | confirmed  | 2044879  | 11178909 | 76509    | 2020-11-16 18:35:25 CET  | 3     | 35a116cec80c5dc295415e4fc8e6435c562b14a5d6833027006c988706c60307  |
+| 5   | confirmed  | 2046965  | 11232557 | 130157   | 2020-11-17 09:29:33 CET  | 3     | d566e5a1f6a3d78811acab4ae3bdcee6aa42717364f9afecd6cac5093559f466  |
+| 6   | confirmed  | 2047101  | 11235675 | 133275   | 2020-11-17 10:21:31 CET  | 3     | 3a638e01f70ea1c4a660fe4e6333272e6c61b11cf84dc8a5a107b414d1e057eb  |
+| 7   | confirmed  | 2047221  | 11238453 | 136053   | 2020-11-17 11:07:49 CET  | 3     | 843336f132961b94276603707751cdb9a1c2528b97100819ce47bc317af0a2d6  |
+| 8   | confirmed  | 2048692  | 11273507 | 171107   | 2020-11-17 20:52:03 CET  | 3     | 9b3eb79fe07e8ebae163870c21ba30460e689b23768d2e5f8e7118c572c4df36  |
+| 9   | confirmed  | 2049058  | 11282619 | 180219   | 2020-11-17 23:23:55 CET  | 3     | 643396ea9a1a2b6c66bb83bdc589fa19c8ae728d1f1181aab82e8dfe508d430a  |
+| 10  | confirmed  | 2049321  | 11289237 | 186837   | 2020-11-18 01:14:13 CET  | 3     | d93d305a955f40b2298247d44e4bc27fe9e3d1486ef3ef3e73b235b25247ccd7  |
+| 11  | confirmed  | 2049747  | 11299205 | 196805   | 2020-11-18 04:00:21 CET  | 3     | 19a43deb5014b14760c3e564b41027c5ee50e0a252abddbfcac90c8f56dc0245  |
+| 12  | confirmed  | 2050415  | 11316075 | 213675   | 2020-11-18 08:41:31 CET  | 3     | dd2cb47653f3bfb3ccc8ffe76906e07d96f1384bafd57a872ddbab3b352403e3  |
+| 13  | confirmed  | 2050505  | 11318274 | 215874   | 2020-11-18 09:18:10 CET  | 3     | deb834bc42360f8d39eefc5856bb6d7cabb6b04170c842dcbe7e9efdf9dbd2e1  |
+| 14  | confirmed  | 2050613  | 11320754 | 218354   | 2020-11-18 09:59:30 CET  | 3     | bf094f6fde8e8c29f568a253201e4b92b078e9a1cad60706285e236a91ec95ff  |
+| 15  | confirmed  | 2050807  | 11325239 | 222839   | 2020-11-18 11:14:15 CET  | 3     | 21f904346ba0fd2bb41afaae7d35977cb929d1d9727887f541782576fc6a62c9  |
+| 16  | confirmed  | 2050997  | 11330062 | 227662   | 2020-11-18 12:34:38 CET  | 3     | 109799d686fe3cad13b156a2d446a544fde2bf5d0e8f157f688f1dc30f35e912  |
+| 17  | confirmed  | 2051286  | 11336791 | 234391   | 2020-11-18 14:26:47 CET  | 3     | bb1beca7a1d849059110e3d7dc49ecf07b47970af2294fe73555ddfefb9561a8  |
+| 18  | confirmed  | 2051734  | 11348498 | 246098   | 2020-11-18 17:41:54 CET  | 3     | 87940b53c2342999c1ba4e185038cda3d8382891a16878a865f5114f540683de  |
+| 19  | leader     | -        | 11382001 | 279601   | 2020-11-19 03:00:17 CET  | -     | -                                                                 |
+| 20  | leader     | -        | 11419959 | 317559   | 2020-11-19 13:32:55 CET  | -     | -                                                                 |
+| 21  | leader     | -        | 11433174 | 330774   | 2020-11-19 17:13:10 CET  | -     | -                                                                 |
+| 22  | leader     | -        | 11434241 | 331841   | 2020-11-19 17:30:57 CET  | -     | -                                                                 |
+| 23  | leader     | -        | 11435289 | 332889   | 2020-11-19 17:48:25 CET  | -     | -                                                                 |
+| 24  | leader     | -        | 11440314 | 337914   | 2020-11-19 19:12:10 CET  | -     | -                                                                 |
+| 25  | leader     | -        | 11442361 | 339961   | 2020-11-19 19:46:17 CET  | -     | -                                                                 |
+| 26  | leader     | -        | 11443861 | 341461   | 2020-11-19 20:11:17 CET  | -     | -                                                                 |
+| 27  | leader     | -        | 11446997 | 344597   | 2020-11-19 21:03:33 CET  | -     | -                                                                 |
+| 28  | leader     | -        | 11453110 | 350710   | 2020-11-19 22:45:26 CET  | -     | -                                                                 |
+| 29  | leader     | -        | 11455323 | 352923   | 2020-11-19 23:22:19 CET  | -     | -                                                                 |
+| 30  | leader     | -        | 11505987 | 403587   | 2020-11-20 13:26:43 CET  | -     | -                                                                 |
+| 31  | leader     | -        | 11514983 | 412583   | 2020-11-20 15:56:39 CET  | -     | -                                                                 |
+| 32  | leader     | -        | 11516010 | 413610   | 2020-11-20 16:13:46 CET  | -     | -                                                                 |
+| 33  | leader     | -        | 11518958 | 416558   | 2020-11-20 17:02:54 CET  | -     | -                                                                 |
+| 34  | leader     | -        | 11533254 | 430854   | 2020-11-20 21:01:10 CET  | -     | -                                                                 |
 +-----+------------+----------+---------------------+--------------------------+-------+-------------------------------------------------------------------+
+```
 
-[h] Home | [1] View 1 | [2] View 2 | [3] View 3 | [i] Info | [*] Refresh
+**gLiveView**
+Currently shows a block summary for current epoch. For full block details use CNTools for now. Invalid, missing, ghosted and stolen blocks only shown in case of a non-zero value.
+```
+│--------------------------------------------------------------│
+│ BLOCKS   Leader | Ideal | Luck       Adopted | Confirmed     │
+│          34       31.66   107.39%    18        18            │
+└──────────────────────────────────────────────────────────────┘
 ```
