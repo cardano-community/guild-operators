@@ -3,14 +3,14 @@
 # shellcheck source=/dev/null
 
 PARENT="$(dirname $0)"
-[[ -f "${PARENT}"/env ]] && . "${PARENT}"/env
+[[ -f "${PARENT}"/env ]] && . "${PARENT}"/env offline
 
 ######################################
 # User Variables - Change as desired #
 ######################################
 
 CNODE_HOSTNAME="CHANGE ME"                                # (Optional) Must resolve to the IP you are requesting from
-CNODE_LOG_DIR="${CNODE_HOME}/logs/"                       # Folder where your logs will be sent to (must pre-exist)
+CNODE_LOG_DIR="${CNODE_HOME}/logs"                        # Folder where your logs will be sent to (must pre-exist)
 CNODE_VALENCY=1                                           # (Optional) for multi-IP hostnames
 CNODE_TOPOLOGY="${CNODE_HOME}/files/topology.json"        # Destination topology.json file you'd want to write output to
 MAX_PEERS=15                                              # Maximum number of peers to return on successful fetch
@@ -25,20 +25,27 @@ PARENT="$(dirname $0)"
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-b <branch name>]
+Usage: $(basename "$0") [-b <branch name>] [-f] [-p]
 Topology Updater - Build topology with community pools
 
+-f    Disable fetch of a fresh topology file
+-p    Disable node alive push to Topology Updater API
 -b    Use alternate branch to check for updates - only for testing/development (Default: master)
 
 EOF
   exit 1
 }
 
-while getopts :b: opt; do
+TU_FETCH='Y'
+TU_PUSH='Y'
+
+while getopts :fpb: opt; do
   case ${opt} in
+    f ) TU_FETCH='N' ;;
+    p ) TU_PUSH='N' ;;
     b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
-    esac
+  esac
 done
 shift $((OPTIND -1))
 
@@ -65,10 +72,18 @@ else
 fi
 rm -f "${PARENT}"/env.tmp
 
-# source common env variables in case it was updated
-if ! . "${PARENT}"/env; then exit 1; fi
+# source common env variables in case it was updated and run in offline mode, even for TU_PUSH mode as this will be cought by failed EKG query
+if ! . "${PARENT}"/env offline; then exit 1; fi
 
-blockNo=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null | jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' )
+if [[ ${TU_PUSH} = "Y" ]]; then
+  fail_cnt=0
+  while ! blockNo=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null | jq -er '.cardano.node.ChainDB.metrics.blockNum.int.val //0' ); do
+    ((fail_cnt++))
+    [[ ${fail_cnt} -eq 5 ]] && echo "5 consecutive EKG queries failed, aborting!"
+    echo "(${fail_cnt}/5) Failed to grab blockNum from node EKG metrics, sleeping for 30s before retrying... (ctrl-c to exit)"
+    sleep 30
+  done
+fi
 
 # Note: 
 # if you run your node in IPv4/IPv6 dual stack network configuration and want announced the 
@@ -81,8 +96,8 @@ fi
 
 [[ -z "${CUSTOM_PEERS}" ]] && CUSTOM_PEERS_PARAM="" || CUSTOM_PEERS_PARAM="&customPeers=${CUSTOM_PEERS}"
 
-curl -s "https://api.clio.one/htopology/v1/?port=${CNODE_PORT}&blockNo=${blockNo}&valency=${CNODE_VALENCY}&magic=${NWMAGIC}${T_HOSTNAME}" | tee -a $CNODE_LOG_DIR/topologyUpdater_lastresult.json && \
-curl -s -o "${CNODE_TOPOLOGY}".tmp "https://api.clio.one/htopology/v1/fetch/?max=${MAX_PEERS}&magic=${NWMAGIC}${CUSTOM_PEERS_PARAM}" && \
+[[ ${TU_PUSH} = "Y" ]] && curl -s "https://api.clio.one/htopology/v1/?port=${CNODE_PORT}&blockNo=${blockNo}&valency=${CNODE_VALENCY}&magic=${NWMAGIC}${T_HOSTNAME}" | tee -a $CNODE_LOG_DIR/topologyUpdater_lastresult.json
+[[ ${TU_FETCH} = "Y" ]] && curl -s -o "${CNODE_TOPOLOGY}".tmp "https://api.clio.one/htopology/v1/fetch/?max=${MAX_PEERS}&magic=${NWMAGIC}${CUSTOM_PEERS_PARAM}" && \
 mv "${CNODE_TOPOLOGY}".tmp "${CNODE_TOPOLOGY}"
 
-
+exit 0

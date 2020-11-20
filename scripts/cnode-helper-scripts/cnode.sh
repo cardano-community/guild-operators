@@ -4,7 +4,7 @@
 
 [[ -z "${CNODE_HOME}" ]] && CNODE_HOME="/opt/cardano/cnode"
 
-. "${CNODE_HOME}"/scripts/env
+. "${CNODE_HOME}"/scripts/env offline
 
 ######################################
 # User Variables - Change as desired #

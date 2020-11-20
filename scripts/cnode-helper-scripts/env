@@ -23,6 +23,11 @@ CNODE_PORT=6000                                         # Set node port
 # Do NOT modify code below           #
 ######################################
 
+OFFLINE_MODE='N'
+[[ $1 = "offline" ]] && OFFLINE_MODE='Y'
+[[ $(basename $0) = "cnode.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
+[[ $(basename $0) = "topologyUpdater.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
+
 export LC_ALL=C.UTF-8
 
 [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
@@ -51,8 +56,8 @@ fi
 if [[ -z "${SOCKET}" ]]; then
   if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}/")" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
     export CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
-  else
-    [[ $(basename $0) != "cnode.sh" ]] && [[ $(basename $0) != "createAddr.sh" ]] && echo "Node socket not set in env file and automatic detection failed!"
+  elif [[ ${OFFLINE_MODE} = "N" ]]; then
+    echo "Node socket not set in env file and automatic detection failed! [source: $(basename $0)]"
     return 1
   fi
 else
@@ -62,7 +67,9 @@ fi
 if [[ -z "${CONFIG}" ]]; then
   if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}/")" =~ --config[[:space:]]([^[:space:]]+) ]]; then
     CONFIG=${BASH_REMATCH[1]}
-  else
+  elif [[ -f "${CNODE_HOME}/files/config.json" ]]; then
+    CONFIG="${CNODE_HOME}/files/config.json"
+  elif [[ ${OFFLINE_MODE} = "N" ]]; then
     echo "Node config not set in env file and automatic detection failed!"
     return 1
   fi
@@ -86,8 +93,10 @@ fi
 
 if [[ -z ${EKG_PORT} ]]; then
   if ! EKG_PORT=$(jq -er '.hasEKG' "${CONFIG}" 2>/dev/null); then
-    echo "Could not get 'hasEKG' port from the node configuration file"
-    return 1
+    if [[ ${OFFLINE_MODE} = "N" ]]; then
+      echo "Could not get 'hasEKG' port from the node configuration file"
+      return 1
+    fi
   fi
 elif [[ ! ${EKG_PORT} =~ ^[0-9]+$ ]]; then
   echo "Please set a valid EKG port number in env file!"
@@ -95,8 +104,17 @@ elif [[ ! ${EKG_PORT} =~ ^[0-9]+$ ]]; then
 fi
 
 if ! GENESIS_JSON=$(jq -er '.ShelleyGenesisFile' "${CONFIG}" 2>/dev/null); then
-  echo "Could not get 'ShelleyGenesisFile' from the node configuration file"
-  return 1
+  if [[ ${OFFLINE_MODE} = "Y" ]]; then
+    if [[ -f "${CNODE_HOME}/files/genesis.json" ]]; then
+      GENESIS_JSON="${CNODE_HOME}/files/genesis.json"
+    else
+      echo "Could not find shelley genesis file in default location or 'ShelleyGenesisFile' from the node configuration file"
+      return 1
+    fi
+  else
+    echo "Could not get 'ShelleyGenesisFile' from the node configuration file"
+    return 1
+  fi
 else
   # if relative path is used, assume same parent dir as config
   [[ ! ${GENESIS_JSON} =~ ^/ ]] && GENESIS_JSON="$(dirname "${CONFIG}")/${GENESIS_JSON}"
@@ -104,8 +122,17 @@ else
 fi
 
 if ! BYRON_GENESIS_JSON=$(jq -er '.ByronGenesisFile' "${CONFIG}" 2>/dev/null); then
-  echo "Could not get 'ByronGenesisFile' from the node configuration file"
-  return 1
+  if [[ ${OFFLINE_MODE} = "Y" ]]; then
+    if [[ -f "${CNODE_HOME}/files/genesis.json" ]]; then
+      GENESIS_JSON="${CNODE_HOME}/files/genesis.json"
+    else
+      echo "Could not find byron genesis file in default location or 'ByronGenesisFile' from the node configuration file"
+      return 1
+    fi
+  else
+    echo "Could not get 'ByronGenesisFile' from the node configuration file"
+    return 1
+  fi
 else
   # if relative path is used, assume same parent dir as config
   [[ ! ${BYRON_GENESIS_JSON} =~ ^/ ]] && BYRON_GENESIS_JSON="$(dirname "${CONFIG}")/${BYRON_GENESIS_JSON}"
