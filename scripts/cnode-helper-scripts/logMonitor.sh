@@ -22,11 +22,11 @@ elif [[ "${CONFIG##*.}" = "json" ]]; then
 fi
 [[ -z "${logfile}" ]] && echo -e "${FG_RED}ERROR:${NC} failed to locate json logfile in node configuration file\na setupScribe of format ScJson with extension .json expected" && exit 1
 
-createBlocklogDB || exit 1 # create db if needed
+[[ ! -f ${BLOCKLOG_DB} ]] && echo "${FG_RED}ERROR:${NC} blocklog db missing, please run 'cncli.sh init' to create and initialize it" && exit 1
 
 getEpoch() {
   data=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
-  jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}"
+  jq -er '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}"
 }
 
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -38,21 +38,21 @@ while read -r logentry; do
   # Traces monitored: TraceNodeIsLeader, TraceAdoptedBlock, TraceForgedInvalidBlock
   case "${logentry}" in
     *TraceNodeIsLeader* )
-      at="$(jq -r '.at' <<< ${logentry} | sed 's/\.[0-9]\{2\}Z/+00:00/')"
-      slot="$(jq -r '.data.slot' <<< ${logentry})"
-      epoch=$(getEpoch)
+      if ! at="$(jq -er '.at' <<< ${logentry})"; then echo "ERROR[TraceNodeIsLeader]: invalid json schema, '.at' not found" && continue; else at="$(sed 's/\.[0-9]\{2\}Z/+00:00/' <<< ${at})"; fi
+      if ! slot="$(jq -er '.data.slot' <<< ${logentry})"; then echo "ERROR[TraceNodeIsLeader]: invalid json schema, '.data.slot' not found" && continue; fi
+      if ! epoch=$(getEpoch); then echo "ERROR[TraceNodeIsLeader]: failed to grab current epoch number from EKG metrics" && continue; fi
       echo "LEADER: epoch[${epoch}] slot[${slot}] at[${at}]"
       sqlite3 "${BLOCKLOG_DB}" "INSERT OR IGNORE INTO blocklog (slot,at,epoch,status) values (${slot},'${at}',${epoch},'leader');"
       ;;
     *TraceAdoptedBlock* )
-      slot="$(jq -r '.data.slot' <<< ${logentry})"
-      [[ "$(jq -r '.data.blockHash' <<< ${logentry})" =~ ([[:alnum:]]+) ]] && hash="${BASH_REMATCH[1]}" || hash=""
-      size="$(jq -r '.data.blockSize' <<< ${logentry})"
+      if ! slot="$(jq -er '.data.slot' <<< ${logentry})"; then echo "ERROR[TraceAdoptedBlock]: invalid json schema, '.data.slot' not found" && continue; fi
+      if ! hash="$(jq -er '.data.blockHash' <<< ${logentry})"; then echo "ERROR[TraceAdoptedBlock]: invalid json schema, '.data.blockHash' not found" && continue; fi
+      if ! size="$(jq -er '.data.blockSize' <<< ${logentry})"; then echo "ERROR[TraceAdoptedBlock]: invalid json schema, '.data.blockSize' not found" && continue; fi
       echo "ADOPTED: slot[${slot}] size=${size} hash=${hash}"
       sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'adopted', size = ${size}, hash = '${hash}' WHERE slot = ${slot};"
       ;;
     *TraceForgedInvalidBlock* )
-      slot="$(jq -r '.data.slot' <<< ${logentry})"
+      if ! slot="$(jq -er '.data.slot' <<< ${logentry})"; then echo "ERROR[TraceForgedInvalidBlock]: invalid json schema, '.data.slot' not found" && continue; fi
       json_trace="$(jq -c -r '. | @base64' <<< ${logentry})"
       echo "INVALID: slot[${slot}] - base 64 encoded json trace, run this command to decode:"
       echo "echo ${json_trace} | base64 -d | jq -r"
