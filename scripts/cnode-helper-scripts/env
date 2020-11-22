@@ -142,25 +142,6 @@ fi
 [[ -z ${BLOCKLOG_DIR} ]] && BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"
 BLOCKLOG_DB="${BLOCKLOG_DIR}/blocklog.db"
 [[ -z ${BLOCKLOG_TZ} ]] && BLOCKLOG_TZ="UTC"
-createBlocklogDB() {
-  if ! mkdir -p "${BLOCKLOG_DIR}"; then echo "ERROR: failed to create directory to store blocklog: ${BLOCKLOG_DIR}" && return 1; fi
-  if ! command -v sqlite3 >/dev/null; then echo "ERROR: sqlite3 not found, please install before activating blocklog function" && return 1; fi
-  if [[ ! -f ${BLOCKLOG_DB} ]]; then
-    sqlite3 ${BLOCKLOG_DB} <<EOF
-CREATE TABLE blocklog (id INTEGER PRIMARY KEY AUTOINCREMENT, slot INTEGER NOT NULL UNIQUE, at TEXT NOT NULL UNIQUE, epoch INTEGER NOT NULL, block INTEGER NOT NULL DEFAULT 0, slot_in_epoch INTEGER NOT NULL DEFAULT 0, hash TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL);
-CREATE UNIQUE INDEX idx_blocklog_slot ON blocklog (slot);
-CREATE INDEX idx_blocklog_epoch ON blocklog (epoch);
-CREATE INDEX idx_blocklog_status ON blocklog (status);
-EOF
-    echo "SQLite blocklog DB created: ${BLOCKLOG_DB}"
-  else
-    sqlite3 ${BLOCKLOG_DB} <<EOF
-CREATE TABLE IF NOT EXISTS epochdata (id INTEGER PRIMARY KEY AUTOINCREMENT, epoch INTEGER NOT NULL, epoch_nonce TEXT NOT NULL, pool_id TEXT NOT NULL, sigma TEXT NOT NULL, d REAL NOT NULL, epoch_slots_ideal INTEGER NOT NULL, max_performance REAL NOT NULL, UNIQUE(epoch,pool_id));
-CREATE INDEX IF NOT EXISTS idx_epochdata_epoch ON epochdata (epoch);
-CREATE INDEX IF NOT EXISTS idx_epochdata_pool_id ON epochdata (pool_id);
-EOF
-  fi
-}
 
 CNODE_PID=$(pgrep -fn "[c]ardano-node*.*--port ${CNODE_PORT}")
 
