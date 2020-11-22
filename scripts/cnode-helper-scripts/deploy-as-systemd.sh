@@ -48,72 +48,75 @@ if [[ ${yn} = [Yy]* ]]; then
   sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-tu-push.service
 [Unit]
 Description=Cardano Node - Topology Updater - node alive push
-BindsTo=${vname}.service
-After=${vname}.service
 
 [Service]
 Type=oneshot
-User=cardano
-RemainAfterExit=true
+User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
 ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/topologyUpdater.sh -f\"
-KillSignal=SIGINT
 StandardOutput=syslog
 StandardError=syslog
 SyslogIdentifier=${vname}-tu-push
-KillMode=mixed
-
-[Install]
-WantedBy=${vname}.service
 EOF"
   sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-tu-push.timer
 [Unit]
 Description=Cardano Node - Wake Topology Updater node aline push service once an hour
-Requires=${vname}-tu-push.service
+BindsTo=${vname}.service
 
 [Timer]
-OnUnitActiveSec=1h
-AccuracySec=1us
+OnActiveSec=1h
+OnUnitInactiveSec=1h
+AccuracySec=1s
 
 [Install]
-WantedBy=${vname}-tu-push.service timers.target
+WantedBy=timers.target ${vname}.service
 EOF"
   echo "At what interval do you want to restart the relay node to fetch and load a fresh topology file?"
   read -r -p "Enter interval in seconds, blank for default: 1 day (86400s): " interval
   : "${interval:=86400}"
   sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-tu-fetch.service
 [Unit]
-Description=Cardano Node - Topology Updater - fetch of a fresh topology file before node start 
+Description=Cardano Node - Topology Updater - fetches a fresh topology before ${vname}.service start
 BindsTo=${vname}.service
 Before=${vname}.service
 
 [Service]
 Type=oneshot
-User=cardano
-RemainAfterExit=true
+User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
 ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/topologyUpdater.sh -p\"
 ExecStartPost=/bin/sleep 5
-KillSignal=SIGINT
 StandardOutput=syslog
 StandardError=syslog
 SyslogIdentifier=${vname}-tu-fetch
-KillMode=mixed
 
 [Install]
 WantedBy=${vname}.service
 EOF"
-  sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}.timer
+  sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-tu-restart.service
 [Unit]
-Description=Cardano Node - Restart node at given interval for topology update
-Requires=${vname}.service
+Description=Cardano Node - Topology Updater - restart ${vname}.service for topology update
+
+[Service]
+Type=oneshot
+WorkingDirectory=${CNODE_HOME}/scripts
+ExecStart=/bin/bash -c \"/bin/systemctl try-restart ${vname}.service 2>/dev/null || /usr/bin/systemctl try-restart ${vname}.service 2>/dev/null\"
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=${vname}-tu-restart
+EOF"
+  sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-tu-restart.timer
+[Unit]
+Description=Cardano Node - Wake Topology Updater restart service at set interval
+BindsTo=${vname}.service
 
 [Timer]
-OnUnitActiveSec=${interval}
-AccuracySec=1us
+OnActiveSec=${interval}
+OnUnitInactiveSec=${interval}
+AccuracySec=1s
 
 [Install]
-WantedBy=${vname}.service timers.target
+WantedBy=timers.target ${vname}.service
 EOF"
 else
   if [[ -f /etc/systemd/system/${vname}-topologyupdater.timer ]]; then
@@ -307,13 +310,12 @@ else
   echo "cncli executable not found... skipping!"
 fi
 
+echo
 sudo systemctl daemon-reload
 [[ -f /etc/systemd/system/${vname}.service ]] && sudo systemctl enable ${vname}.service
-[[ -f /etc/systemd/system/${vname}.timer ]] && sudo systemctl enable ${vname}.timer
-[[ -f /etc/systemd/system/${vname}-tu-push.service ]] && sudo systemctl enable ${vname}-tu-push.service
-[[ -f /etc/systemd/system/${vname}-tu-push.timer ]] && sudo systemctl enable ${vname}-tu-push.timer
 [[ -f /etc/systemd/system/${vname}-tu-fetch.service ]] && sudo systemctl enable ${vname}-tu-fetch.service
-#[[ -f /etc/systemd/system/${vname}-logmonitor.service ]] && sudo systemctl enable ${vname}-logmonitor.service
+[[ -f /etc/systemd/system/${vname}-tu-restart.timer ]] && sudo systemctl enable ${vname}-tu-restart.timer
+[[ -f /etc/systemd/system/${vname}-tu-push.timer ]] && sudo systemctl enable ${vname}-tu-push.timer
 [[ -f /etc/systemd/system/${vname}-cncli-sync.service ]] && sudo systemctl enable ${vname}-cncli-sync.service
 [[ -f /etc/systemd/system/${vname}-cncli-leaderlog.service ]] && sudo systemctl enable ${vname}-cncli-leaderlog.service
 [[ -f /etc/systemd/system/${vname}-cncli-validate.service ]] && sudo systemctl enable ${vname}-cncli-validate.service
@@ -321,7 +323,8 @@ sudo systemctl daemon-reload
 
 
 echo
-echo "If not done already, update 'User Variables' section in each script (env, cnode.sh, cncli.sh, logMonitor.sh)"
+echo "If not done already, update 'User Variables' section in relevant script in ${CNODE_HOME}/scripts/ folder"
+echo -e "E.g \e[36menv\e[0m, \e[36mcnode.sh\e[0m, \e[36mcncli.sh\e[0m, \e[36mgLiveView.sh\e[0m, \e[36mtopologyUpdater.sh\e[0m"
 echo -e "You can then start/restart the node with \e[32msudo systemctl restart ${vname}\e[0m"
 echo "This will automatically start all installed companion services due to service dependency"
 echo
