@@ -68,12 +68,13 @@ Upon first run,
 **systemd service**  
 The script can be deployed as a background service in different ways but the recommended and easiest way if [prereqs.sh](basics.md#pre-requisites) was used, is to utilize the `deploy-as-systemd.sh` script to setup and schedule the execution. This will deploy both push & fetch service files as well as timers for a scheduled 60 min node alive message and cnode restart at the user set interval when running the deploy script.
 
-- cnode.timer            : handles the scheduled restart of cardano-node(cnode.sh), default every 24h
-- cnode-tu-fetch.service : fetches a fresh topology file before cnode.service file is started/restarted
-- cnode-tu-push.service  : pushes a node alive message to Topology Updater API
-- cnode-tu-push.timer    : schedules the push service to execute once every hour
+- cnode-tu-push.service    : pushes a node alive message to Topology Updater API
+- cnode-tu-push.timer      : schedules the push service to execute once every hour
+- cnode-tu-fetch.service   : fetches a fresh topology file before cnode.service file is started/restarted
+- cnode-tu-restart.service : handles the restart of cardano-node(cnode.sh)
+- cnode-tu-restart.timer   : schedules the cardano-node restart service, default every 24h
 
-`systemctl list-timers <service>.timer` can be used to to check the service schedule, e.g `systemctl list-timers cnode.timer` to check when node is scheduled to be restarted.
+`systemctl list-timers` can be used to to check the push and restart service schedule.
 
 **crontab job**  
 Another way to deploy topologyUpdater.sh script is as a `crontab` job. Add the script to be executed once per hour at a minute of your choice (eg xx:25 o'clock in the example below). The example below will handle both the fetch and push in a single call to the script once an hour. In addition to the below crontab job for topologyUpdater, it's expected that you also add a scheduled restart of the relay node to pick up a fresh topology file fetched by topologyUpdater script with relays that are alive and well.
