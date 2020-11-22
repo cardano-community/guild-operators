@@ -403,11 +403,11 @@ cncliValidate() {
       echo "ERROR: unknown argument passed to validate command, valid options incl the string 'all' or the epoch number to validate"
       exit 1
     fi
-    while read -r block_epoch block_slot block_status block_hash; do
+    while IFS='|' read -r block_epoch block_slot block_status block_hash; do
       [[ ${epoch} -ne ${block_epoch} ]] && echo -e "> Validating epoch ${FG_GREEN}${block_epoch}${NC}" && epoch=${block_epoch}
       [[ ${block_status} != invalid ]] && block_status="leader" # reset status to leader to re-validate all non invalid blocks
       validateBlock
-    done < <(sqlite3 -column "${BLOCKLOG_DB}" "SELECT epoch, slot, status, hash FROM blocklog ${epoch_selection} ORDER BY slot;")
+    done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch, slot, status, hash FROM blocklog ${epoch_selection} ORDER BY slot;")
   elif [[ -n ${subarg} ]]; then
     echo "ERROR: unknown argument passed to validate subcommand" && usage
   else
@@ -423,9 +423,9 @@ cncliValidate() {
       curr_epoch=$(getEpoch)
       prev_epoch=$((curr_epoch-1))
       # Check both previous epoch and current to catch epoch boundary cases
-      while read -r block_epoch block_slot block_status block_hash; do
+      while IFS='|' read -r block_epoch block_slot block_status block_hash; do
         validateBlock
-      done < <(sqlite3 -column "${BLOCKLOG_DB}" "SELECT epoch, slot, status, hash FROM blocklog WHERE epoch BETWEEN ${prev_epoch} and ${curr_epoch} ORDER BY slot;")
+      done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch, slot, status, hash FROM blocklog WHERE epoch BETWEEN ${prev_epoch} and ${curr_epoch} ORDER BY slot;")
     done
   fi
 }
@@ -492,7 +492,7 @@ cncliInitBlocklogDB() {
   createBlocklogDB || exit 1 # create db if needed
   echo "Looking for blocks made by pool..."
   block_cnt=0
-  while read -r block_number slot_number block_hash block_size; do
+  while IFS='|' read -r block_number slot_number block_hash block_size; do
     # Calculate epoch, at and slot_in_epoch
     epoch=$(getEpochFromSlot ${slot_number})
     at=$(getDateFromSlot ${slot_number})
@@ -504,7 +504,7 @@ INSERT OR IGNORE INTO blocklog (slot, at, epoch, block, slot_in_epoch, hash, siz
 VALUES (${slot_number}, '${at}', ${epoch}, ${block_number}, ${slot_in_epoch}, '${block_hash}', ${block_size}, 'adopted');
 EOF
     ((block_cnt++))
-  done < <(sqlite3 -column "${CNCLI_DB}" "SELECT block_number, slot_number, hash, block_size FROM chain WHERE node_vrf_vkey = '${pool_vrf_vkey_cbox_hex}' ORDER BY slot_number;")
+  done < <(sqlite3 "${CNCLI_DB}" "SELECT block_number, slot_number, hash, block_size FROM chain WHERE node_vrf_vkey = '${pool_vrf_vkey_cbox_hex}' ORDER BY slot_number;")
   if [[ ${block_cnt} -eq 0 ]]; then
     echo "No blocks found :("
   else
