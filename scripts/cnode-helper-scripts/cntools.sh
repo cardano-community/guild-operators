@@ -3346,32 +3346,32 @@ EOF
          block_cnt=1
          if [[ ${view} -eq 1 ]]; then
            block_table="#,Status,Block,Slot | SlotInEpoch,Scheduled At\n"
-           while read -r status block slot slot_in_epoch at; do
+           while IFS='|' read -r status block slot slot_in_epoch at; do
              at=$(TZ="${BLOCKLOG_TZ}" date '+%F %T %Z' --date="${at}")
              [[ ${block} -eq 0 ]] && block="-"
              block_table+="${block_cnt},${status},${block},${slot} | ${slot_in_epoch},${at}\n"
              ((block_cnt++))
-           done < <(sqlite3 -column "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
+           done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
            printTable ',' "$(echo -e ${block_table})"
          elif [[ ${view} -eq 2 ]]; then
            block_table="#,Status,Slot,Size,Hash\n"
-           while read -r status slot size hash; do
+           while IFS='|' read -r status slot size hash; do
              [[ ${size} -eq 0 ]] && size="-"
              [[ -z ${hash} ]] && hash="-"
              block_table+="${block_cnt},${status},${slot},${size},${hash}\n"
              ((block_cnt++))
-           done < <(sqlite3 -column "${BLOCKLOG_DB}" "SELECT status, slot, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
+           done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, slot, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
            printTable ',' "$(echo -e ${block_table})"
          elif [[ ${view} -eq 3 ]]; then
            block_table="#,Status,Block,Slot | SlotInEpoch,Scheduled At,Size,Hash\n"
-           while read -r status block slot slot_in_epoch at size hash; do
+           while IFS='|' read -r status block slot slot_in_epoch at size hash; do
              at=$(TZ="${BLOCKLOG_TZ}" date '+%F %T %Z' --date="${at}")
              [[ ${block} -eq 0 ]] && block="-"
              [[ ${size} -eq 0 ]] && size="-"
              [[ -z ${hash} ]] && hash="-"
              block_table+="${block_cnt},${status},${block},${slot} | ${slot_in_epoch},${at},${size},${hash}\n"
              ((block_cnt++))
-           done < <(sqlite3 -column "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
+           done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
            printTable ',' "$(echo -e ${block_table})"
          elif [[ ${view} -eq 4 ]]; then
            say "Block Status:\n"
