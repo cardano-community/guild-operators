@@ -21,8 +21,8 @@ POOL_TICKER=""                            # POOLTOOL sendtip: set the pools tick
 #CNCLI_DIR="${CNODE_HOME}/guild-db/cncli" # path to folder for cncli sqlite db
 #LIBSODIUM_FORK=/usr/local/lib            # path to folder for IOG fork of libsodium
 #SLEEP_RATE=60                            # CNCLI leaderlog/validate: time to wait until next check (in seconds)
-#CONFIRM_SLOT_CNT=300                     # CNCLI validate: require at least these many slots to have passed before validating
-#CONFIRM_BLOCK_CNT=10                     # CNCLI validate: require at least these many blocks on top of minted before validating
+#CONFIRM_SLOT_CNT=600                     # CNCLI validate: require at least these many slots to have passed before validating
+#CONFIRM_BLOCK_CNT=15                     # CNCLI validate: require at least these many blocks on top of minted before validating
 #TIMEOUT_LEDGER_STATE=300                 # CNCLI leaderlog: timeout in seconds for ledger-state query
 
 ######################################
@@ -97,6 +97,33 @@ getDateFromSlot() {
   byron_slots=$(( shelley_transition_epoch * BYRON_EPOCH_LENGTH ))
   printf -v date_from_slot '%(%FT%T%z)T' $(( (byron_slots * BYRON_SLOT_LENGTH) + ((slotnum-byron_slots) * SLOT_LENGTH) + SHELLEY_GENESIS_START_SEC ))
   echo "${date_from_slot%??}:${date_from_slot: -2}"
+}
+
+createBlocklogDB() {
+  if ! mkdir -p "${BLOCKLOG_DIR}"; then echo "ERROR: failed to create directory to store blocklog: ${BLOCKLOG_DIR}" && return 1; fi
+  if ! command -v sqlite3 >/dev/null; then echo "ERROR: sqlite3 not found, please install before activating blocklog function" && return 1; fi
+  [[ $(${CNCLI} -V | cut -d' ' -f2 | tr -d '.' | sed 's/^0*//') -lt 29 ]] && echo "ERROR: $(${CNCLI} -V) installed, too old, please upgrade to 0.2.9 or newer" && return 1
+  if [[ ! -f ${BLOCKLOG_DB} ]]; then # create a fresh DB with latest schema
+    sqlite3 ${BLOCKLOG_DB} <<EOF
+CREATE TABLE blocklog (id INTEGER PRIMARY KEY AUTOINCREMENT, slot INTEGER NOT NULL UNIQUE, at TEXT NOT NULL UNIQUE, epoch INTEGER NOT NULL, block INTEGER NOT NULL DEFAULT 0, slot_in_epoch INTEGER NOT NULL DEFAULT 0, hash TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL);
+CREATE UNIQUE INDEX idx_blocklog_slot ON blocklog (slot);
+CREATE INDEX idx_blocklog_epoch ON blocklog (epoch);
+CREATE INDEX idx_blocklog_status ON blocklog (status);
+CREATE TABLE epochdata (id INTEGER PRIMARY KEY AUTOINCREMENT, epoch INTEGER NOT NULL, epoch_nonce TEXT NOT NULL, pool_id TEXT NOT NULL, sigma TEXT NOT NULL, d REAL NOT NULL, epoch_slots_ideal INTEGER NOT NULL, max_performance REAL NOT NULL, active_stake TEXT NOT NULL, total_active_stake TEXT NOT NULL, UNIQUE(epoch,pool_id));
+CREATE INDEX idx_epochdata_epoch ON epochdata (epoch);
+CREATE INDEX idx_epochdata_pool_id ON epochdata (pool_id);
+PRAGMA user_version = 1;
+EOF
+    echo "SQLite blocklog DB created: ${BLOCKLOG_DB}"
+  else
+    if [[ $(sqlite3 ${BLOCKLOG_DB} "PRAGMA user_version;") -eq 0 ]]; then # Upgrade from schema version 0 to 1
+      sqlite3 ${BLOCKLOG_DB} <<EOF
+ALTER TABLE epochdata ADD active_stake TEXT NOT NULL DEFAULT '0';
+ALTER TABLE epochdata ADD total_active_stake TEXT NOT NULL DEFAULT '0';
+PRAGMA user_version = 1;
+EOF
+    fi
+  fi
 }
 
 cncliDBinSync() { # node_metrics=$(getNodeMetrics) && slot_tip=$(getSlotTip) expected to have been already run
@@ -181,8 +208,8 @@ cncliInit() {
   [[ -z "${LIBSODIUM_FORK}" ]] && LIBSODIUM_FORK=/usr/local/lib
   export LD_LIBRARY_PATH="${LIBSODIUM_FORK}:${LD_LIBRARY_PATH}"
   [[ -z "${SLEEP_RATE}" ]] && SLEEP_RATE=60
-  [[ -z "${CONFIRM_SLOT_CNT}" ]] && CONFIRM_SLOT_CNT=300
-  [[ -z "${CONFIRM_BLOCK_CNT}" ]] && CONFIRM_BLOCK_CNT=10
+  [[ -z "${CONFIRM_SLOT_CNT}" ]] && CONFIRM_SLOT_CNT=600
+  [[ -z "${CONFIRM_BLOCK_CNT}" ]] && CONFIRM_BLOCK_CNT=15
   [[ -z "${TIMEOUT_LEDGER_STATE}" ]] && TIMEOUT_LEDGER_STATE=300
   [[ -z "${PT_HOST}" ]] && PT_HOST="127.0.0.1"
   [[ -z "${PT_PORT}" ]] && PT_PORT="${CNODE_PORT}"
@@ -268,7 +295,14 @@ cncliLeaderlog() {
     d=$(jq -r '.d' <<< "${cncli_leaderlog}")
     epoch_slots_ideal=$(jq -r '.epochSlotsIdeal //0' <<< "${cncli_leaderlog}")
     max_performance=$(jq -r '.maxPerformance //0' <<< "${cncli_leaderlog}")
-    sqlite3 "${BLOCKLOG_DB}" "INSERT OR REPLACE INTO epochdata (epoch,epoch_nonce,pool_id,sigma,d,epoch_slots_ideal,max_performance) values (${curr_epoch},'${epoch_nonce}','${pool_id}','${sigma}',${d},${epoch_slots_ideal},${max_performance});"
+    active_stake=$(jq -r '.activeStake //0' <<< "${cncli_leaderlog}")
+    total_active_stake=$(jq -r '.totalActiveStake //0' <<< "${cncli_leaderlog}")
+    sqlite3 ${BLOCKLOG_DB} <<EOF
+UPDATE OR IGNORE epochdata SET epoch_nonce = '${epoch_nonce}', sigma = '${sigma}', d = ${d}, epoch_slots_ideal = ${epoch_slots_ideal}, max_performance = ${max_performance}, active_stake = '${active_stake}', total_active_stake = '${total_active_stake}'
+WHERE epoch = ${curr_epoch} AND pool_id = '${pool_id}';
+INSERT OR IGNORE INTO epochdata (epoch, epoch_nonce, pool_id, sigma, d, epoch_slots_ideal, max_performance, active_stake, total_active_stake)
+VALUES (${curr_epoch}, '${epoch_nonce}', '${pool_id}', '${sigma}', ${d}, ${epoch_slots_ideal}, ${max_performance}, '${active_stake}', '${total_active_stake}');
+EOF
     block_cnt=0
     while read -r assigned_slot; do
       block_slot=$(jq -r '.slot' <<< "${assigned_slot}")
@@ -319,7 +353,14 @@ cncliLeaderlog() {
         d=$(jq -r '.d' <<< "${cncli_leaderlog}")
         epoch_slots_ideal=$(jq -r '.epochSlotsIdeal //0' <<< "${cncli_leaderlog}")
         max_performance=$(jq -r '.maxPerformance //0' <<< "${cncli_leaderlog}")
-        sqlite3 "${BLOCKLOG_DB}" "INSERT OR REPLACE INTO epochdata (epoch,epoch_nonce,pool_id,sigma,d,epoch_slots_ideal,max_performance) values (${next_epoch},'${epoch_nonce}','${pool_id}','${sigma}',${d},${epoch_slots_ideal},${max_performance});"
+        active_stake=$(jq -r '.activeStake //0' <<< "${cncli_leaderlog}")
+    total_active_stake=$(jq -r '.totalActiveStake //0' <<< "${cncli_leaderlog}")
+        sqlite3 ${BLOCKLOG_DB} <<EOF
+UPDATE OR IGNORE epochdata SET epoch_nonce = '${epoch_nonce}', sigma = '${sigma}', d = ${d}, epoch_slots_ideal = ${epoch_slots_ideal}, max_performance = ${max_performance}, active_stake = '${active_stake}', total_active_stake = '${total_active_stake}'
+WHERE epoch = ${next_epoch} AND pool_id = '${pool_id}';
+INSERT OR IGNORE INTO epochdata (epoch, epoch_nonce, pool_id, sigma, d, epoch_slots_ideal, max_performance, active_stake, total_active_stake)
+VALUES (${next_epoch}, '${epoch_nonce}', '${pool_id}', '${sigma}', ${d}, ${epoch_slots_ideal}, ${max_performance}, '${active_stake}', '${total_active_stake}');
+EOF
         block_cnt=0
         while read -r assigned_slot; do
           block_slot=$(jq -r '.slot' <<< "${assigned_slot}")
@@ -392,36 +433,43 @@ cncliValidate() {
 validateBlock() {
   [[ ${block_status} = invalid ]] && return
   if [[ ${block_status} = leader || ${block_status} = adopted ]]; then
-    [[ ${block_slot} -gt ${slot_tip} ]] && return # block in the future, wait
-    slot_ok_cnt=$(sqlite3 "${CNCLI_DB}" "SELECT COUNT(*) FROM chain WHERE slot_number=${block_slot} AND orphaned=0;")
+    [[ ${block_slot} -gt ${slot_tip} ]] && return # block in the future, skip
     IFS='|' && read -ra block_data <<< "$(sqlite3 "${CNCLI_DB}" "SELECT block_number, hash, block_size, orphaned FROM chain WHERE slot_number = ${block_slot} AND node_vrf_vkey = '${pool_vrf_vkey_cbox_hex}';")" && IFS=' '
-    if [[ ${block_status} = leader && $((block_slot + CONFIRM_SLOT_CNT)) -le ${slot_tip} ]]; then # just check if block was adopted
-      if [[ ${#block_data[@]} -eq 1 ]]; then
-        echo "ADOPTED: Leader for slot '${block_slot}' and adopted by chain, waiting for confirmation"
-        sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'adopted', slot_in_epoch = $(getSlotInEpochFromSlot ${block_slot} ${block_epoch}), block = ${block_data[0]}, at = '$(getDateFromSlot ${block_slot})', hash = '${block_data[1]}', size = ${block_data[2]} WHERE slot = ${block_slot};"
-      fi
-    fi
-    [[ $((block_tip-block_data[0])) -lt ${CONFIRM_BLOCK_CNT} ]] && return # To make sure enough blocks has been built on top before validating
-    if [[ ${#block_data[@]} -eq 0 ]]; then
-      if [[ ${slot_ok_cnt} -eq 0 ]]; then
-        echo "MISSED: Leader for slot '${block_slot}' but not adopted and no other pool has made a block for this slot"
-        sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'missed' WHERE slot = ${block_slot};"
-      else
-        echo "STOLEN: Leader for slot '${block_slot}' but \"stolen\" by another pool due to bad luck (lower VRF output) :("
-        sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'stolen' WHERE slot = ${block_slot};"
-      fi
-    else
-      if [[ ${block_data[3]} -eq 0 ]]; then
-        echo "CONFIRMED: Leader for slot '${block_slot}' and match found in CNCLI DB for this slot with pool's VRF public key"
-        sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'confirmed', slot_in_epoch = $(getSlotInEpochFromSlot ${block_slot} ${block_epoch}), block = ${block_data[0]}, at = '$(getDateFromSlot ${block_slot})', hash = '${block_data[1]}', size = ${block_data[2]} WHERE slot = ${block_slot};"
-      else
-        if [[ ${slot_ok_cnt} -eq 0 ]]; then
-          echo "GHOSTED: Leader for slot '${block_slot}' and block adopted but later orphaned. No other pool with a confirmed block for this slot, height battle or block propagation issue!"
-          sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'ghosted' WHERE slot = ${block_slot};"
-        else
+    if [[ $((block_slot + CONFIRM_SLOT_CNT)) -lt ${slot_tip} ]]; then # block old enough to validate
+      slot_ok_cnt=$(sqlite3 "${CNCLI_DB}" "SELECT COUNT(*) FROM chain WHERE slot_number=${block_slot} AND orphaned=0;")
+      if [[ ${#block_data[@]} -eq 0 ]]; then # no block found in db for this slot with our vrf vkey
+        if [[ ${slot_ok_cnt} -eq 0 ]]; then # no other pool has a valid block for this slot either
+          echo "MISSED: Leader for slot '${block_slot}' but not found in cncli db and no other pool has made a valid block for this slot"
+          sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'missed' WHERE slot = ${block_slot};"
+          return
+        else # another pool has a valid block for this slot in cncli db
           echo "STOLEN: Leader for slot '${block_slot}' but \"stolen\" by another pool due to bad luck (lower VRF output) :("
           sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'stolen' WHERE slot = ${block_slot};"
+          return
         fi
+      else # block found for this slot with a match for our vrf vkey
+        [[ $((block_tip-block_data[0])) -lt ${CONFIRM_BLOCK_CNT} ]] && return # To make sure enough blocks has been built on top before validating
+        if [[ ${block_data[3]} -eq 0 ]]; then # our block not marked as orphaned :)
+          echo "CONFIRMED: Leader for slot '${block_slot}' and match found in CNCLI DB for this slot with pool's VRF public key"
+          sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'confirmed', slot_in_epoch = $(getSlotInEpochFromSlot ${block_slot} ${block_epoch}), block = ${block_data[0]}, at = '$(getDateFromSlot ${block_slot})', hash = '${block_data[1]}', size = ${block_data[2]} WHERE slot = ${block_slot};"
+          return
+        else # our block marked as orphaned :(
+          if [[ ${slot_ok_cnt} -eq 0 ]]; then # no other pool has a valid slot for this epoch either
+            echo "GHOSTED: Leader for slot '${block_slot}' and block adopted but later orphaned. No other pool with a confirmed block for this slot, height battle or block propagation issue!"
+            sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'ghosted' WHERE slot = ${block_slot};"
+            return
+          else # another pool has a valid block for this slot in cncli db
+            echo "STOLEN: Leader for slot '${block_slot}' but \"stolen\" by another pool due to bad luck (lower VRF output) :("
+            sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'stolen' WHERE slot = ${block_slot};"
+            return
+          fi
+        fi
+      fi
+    else # Not old enough to confirm but slot time has passed
+      if [[ ${block_status} = leader && ${#block_data[@]} -eq 1 ]]; then # Leader status and block found in cncli db, update block data and set status adopted
+        echo "ADOPTED: Leader for slot '${block_slot}' and adopted by chain, waiting for confirmation"
+        sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'adopted', slot_in_epoch = $(getSlotInEpochFromSlot ${block_slot} ${block_epoch}), block = ${block_data[0]}, at = '$(getDateFromSlot ${block_slot})', hash = '${block_data[1]}', size = ${block_data[2]} WHERE slot = ${block_slot};"
+        return
       fi
     fi
   fi
@@ -444,12 +492,17 @@ cncliInitBlocklogDB() {
   createBlocklogDB || exit 1 # create db if needed
   echo "Looking for blocks made by pool..."
   block_cnt=0
-  while read -r block_number slot_number hash block_size; do
+  while read -r block_number slot_number block_hash block_size; do
     # Calculate epoch, at and slot_in_epoch
     epoch=$(getEpochFromSlot ${slot_number})
     at=$(getDateFromSlot ${slot_number})
     slot_in_epoch=$(getSlotInEpochFromSlot ${slot_number} ${epoch})
-    sqlite3 "${BLOCKLOG_DB}" "INSERT OR REPLACE INTO blocklog (slot,at,epoch,block,slot_in_epoch,hash,size,status) values (${slot_number},'${at}',${epoch},${block_number},${slot_in_epoch},'${hash}',${block_size},'adopted');"
+    sqlite3 ${BLOCKLOG_DB} <<EOF
+UPDATE OR IGNORE blocklog SET at = '${at}', epoch = ${epoch}, block = ${block_number}, slot_in_epoch = ${slot_in_epoch}, hash = '${block_hash}', size = ${block_size}, status = 'adopted'
+WHERE slot = ${slot_number};
+INSERT OR IGNORE INTO blocklog (slot, at, epoch, block, slot_in_epoch, hash, size, status)
+VALUES (${slot_number}, '${at}', ${epoch}, ${block_number}, ${slot_in_epoch}, '${block_hash}', ${block_size}, 'adopted');
+EOF
     ((block_cnt++))
   done < <(sqlite3 -column "${CNCLI_DB}" "SELECT block_number, slot_number, hash, block_size FROM chain WHERE node_vrf_vkey = '${pool_vrf_vkey_cbox_hex}' ORDER BY slot_number;")
   if [[ ${block_cnt} -eq 0 ]]; then
@@ -480,11 +533,15 @@ cncliMigrateBlocklog() {
       slot_in_epoch=$(getSlotInEpochFromSlot ${block_slot} ${epoch})
       if [[ -n ${block_hash} ]]; then
         [[ ${block_hash} =~ ^Invalid ]] && block_status="invalid" || block_status="adopted"
-        sqlite3 "${BLOCKLOG_DB}" "INSERT OR REPLACE INTO blocklog (slot,slot_in_epoch,at,epoch,size,hash,status) values (${block_slot},${slot_in_epoch},'${block_at}',${epoch},${block_size},'${block_hash}','${block_status}');"
       else
         block_status="leader"
-        sqlite3 "${BLOCKLOG_DB}" "INSERT OR REPLACE INTO blocklog (slot,slot_in_epoch,at,epoch,status) values (${block_slot},${slot_in_epoch},'${block_at}',${epoch},'leader');"
       fi
+      sqlite3 ${BLOCKLOG_DB} <<EOF
+UPDATE OR IGNORE blocklog SET at = '${block_at}', epoch = ${epoch}, slot_in_epoch = ${slot_in_epoch}, hash = '${block_hash}', size = ${block_size}, status = '${block_status}'
+WHERE slot = ${block_slot};
+INSERT OR IGNORE INTO blocklog (slot, at, epoch, slot_in_epoch, hash, size, status)
+VALUES (${block_slot}, '${block_at}', ${epoch}, ${slot_in_epoch}, '${block_hash}', ${block_size}, '${block_status}');
+EOF
       echo "Block at slot ${block_slot} added/updated, status '${block_status}'"
     done < <(jq -c '.[]' <<< "${blocks_data}" 2>/dev/null)
   done < <(find "${subarg}" -mindepth 1 -maxdepth 1 -type f -name "blocks_*.json" -print0 | sort -z)
