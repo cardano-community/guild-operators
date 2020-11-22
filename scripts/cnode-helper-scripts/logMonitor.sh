@@ -1,5 +1,5 @@
 #!/bin/bash
-#shellcheck disable=SC2086
+#shellcheck disable=SC2086,SC2001
 #shellcheck source=/dev/null
 
 ######################################
