@@ -50,10 +50,15 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.11
+GLV_VERSION=v1.12
+
+[[ $(cardano-node version | head -1 | awk '{print $2}' | tr -d '.') -lt 1230 ]] && echo -e "\nERROR!! gLiveView has now been upgraded to support cardano-node 1.23 or higher. Please update cardano-node or use node-1.21 branch for gLiveView\n\n" && exit 1
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
+
+# For those using auto update from version gLiveView 1.9 where RETRIES isnt set in user-defined variables
+[[ -z "${RETRIES}" ]]  && RETRIES=3
 
 usage() {
   cat <<EOF
@@ -519,7 +524,8 @@ while true; do
   node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
   node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
   data=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
-  uptimens=$(jq '.cardano.node.metrics.upTime.ns.val //0' <<< "${data}")
+  uptimens=$(jq '.rts.gc.wall_ms.val //0' <<< "${data}")
+  #uptimens=$(jq '.cardano.node.metrics.upTime.ns.val //0' <<< "${data}")
   [[ ${fail_count} -eq ${RETRIES} ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}"
   if [[ ${uptimens} -le 0 ]]; then
     ((fail_count++))
@@ -572,7 +578,7 @@ while true; do
 
   ## main section ##
   printf "${tdivider}\n" && ((line++))
-  printf "${VL} Uptime: ${style_values_1}%s${NC}" "$(timeLeft $(( uptimens/1000000000 )))"
+  printf "${VL} Uptime: ${style_values_1}%s${NC}" "$(timeLeft $(( uptimens/1000 )))"
   tput cup ${line} $(( width - ${#title} - 3 ))
   printf "${VL} ${style_title}${title} ${VL}\n" && ((line++))
   printf "${m2divider}"

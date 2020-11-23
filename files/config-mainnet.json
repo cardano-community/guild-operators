@@ -60,25 +60,13 @@
   "options": {
     "mapBackends": {
       "cardano.node-metrics": [
-        "EKGViewBK",
-        {
-          "kind": "UserDefinedBK",
-          "name": "LiveViewBackend"
-        }
+        "EKGViewBK"
       ],
       "cardano.node.BlockFetchDecision.peers": [
-        "EKGViewBK",
-        {
-          "kind": "UserDefinedBK",
-          "name": "LiveViewBackend"
-        }
+        "EKGViewBK"
       ],
       "cardano.node.ChainDB.metrics": [
-        "EKGViewBK",
-        {
-          "kind": "UserDefinedBK",
-          "name": "LiveViewBackend"
-        }
+        "EKGViewBK"
       ],
       "cardano.node.Forge.metrics": [
         "EKGViewBK"
@@ -87,11 +75,7 @@
         "EKGViewBK"
       ],
       "cardano.node.metrics": [
-        "EKGViewBK",
-        {
-          "kind": "UserDefinedBK",
-          "name": "LiveViewBackend"
-        }
+        "EKGViewBK"
       ]
     },
     "mapSubtrace": {
