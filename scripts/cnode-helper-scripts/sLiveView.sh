@@ -9,10 +9,10 @@
 
 # The commands below will try to detect the information assuming you run single node on a machine. Please override values if they dont match your system
 
-cardanoport=$(ps -ef | grep "[c]ardano-node.*.port" | awk -F 'port ' '{print $2}' | awk '{print $1}') # example value: 6000
+cardanoport=$(ps -ef | grep "[c]ardano-node.*.port" | awk -F 'port ' '{print $2}' | awk 'NR==1{print $1}') # example value: 6000
 nodename="RTFM Lazy Guy" # Change your node's name prefix here, 24 character limit!!!
 refreshrate=2 # How often (in seconds) to refresh the view
-config=$(ps -ef | grep "[c]ardano-node.*.config" | awk -F 'config ' '{print $2}' | awk '{print $1}') # example: /opt/cardano/cnode/files/config.json
+config=$(ps -ef | grep "[c]ardano-node.*.config" | awk -F 'config ' '{print $2}' | awk 'NR==1{print $1}') # example: /opt/cardano/cnode/files/config.json
 ekghost=127.0.0.1
 if [[ -f "${config}" ]]; then
   ekgport=$(jq -r '.hasEKG //empty' "${config}" 2>/dev/null)
@@ -30,8 +30,10 @@ version=$("$(command -v cardano-node)" version)
 node_version=$(grep -oP '(?<=cardano-node )[0-9\.]+' <<< "${version}")
 node_rev=$(grep -oP '(?<=rev )[a-z0-9]+' <<< "${version}" | cut -c1-8)
 
-node_version=$(printf "%14s" "${node_version}")
-node_rev=$(printf "%14s" "${node_rev}")
+node_ver=$(printf "%17s" "${node_version} / ${node_rev}")
+
+#node_version=$(printf "%14s" "${node_version}")
+#node_rev=$(printf "%14s" "${node_rev}")
 
 # Add some colors
 REKT='\033[1;31m'
@@ -47,7 +49,7 @@ do
   epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
   slotnum=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
   density=$(jq -r '.cardano.node.ChainDB.metrics.density.real.val //0' <<< "${data}")
-  uptimens=$(jq '.cardano.node.metrics.upTime.ns.val //0' <<< "${data}")
+  uptimens=$(jq '.rts.gc.wall_ms.val //0' <<< "${data}")
   transactions=$(jq '.cardano.node.metrics.txsProcessedNum.int.val //0' <<< "${data}")
   kesperiod=$(jq '.cardano.node.Forge.metrics.currentKESPeriod.int.val //0' <<< "${data}")
   kesremain=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
@@ -68,18 +70,19 @@ do
   fi
 
 #  remotepeers=$(printf "%14s" "${remotepeers}")
-  peers=$(printf "%14s" "${peers} / ${remotepeers}")
-  epoch=$(printf "%14s" "${epochnum} / ${slotnum}")
-  block=$(printf "%14s" "${blocknum}")
-  txcount=$(printf "%14s" "${transactions}")
-  density=$(printf "%12.4s %%" "${density}"*100)
+  runport=$(printf "%17s" "${cardanoport}")
+  peers=$(printf "%17s" "${peers} / ${remotepeers}")
+  epoch=$(printf "%17s" "${epochnum} / ${slotnum}")
+  block=$(printf "%17s" "${blocknum}")
+  txcount=$(printf "%17s" "${transactions}")
+  density=$(printf "%15.4s %%" "${density}"*100)
 
   if [[ isleader -lt 0 ]]; then
     isleader=0
     forged=0
   fi
 
-  uptimes=$(( uptimens / 1000000000))
+  uptimes=$(( uptimens / 1000))
   min=0
   hour=0
   day=0
@@ -108,48 +111,51 @@ do
   sec=$(printf "%02d\n" "${sec}")
 
   uptime="${day}":"${hour}":"${min}":"${sec}"
-  uptime=$(printf "%14s" "${uptime}")
+  uptime=$(printf "%17s" "${uptime}")
 
   clear
-  echo -e '+----------------------------------------+'
-  echo -e '|            Simple Node Stats           |'
-  echo -e '+-----------------------+----------------+'
+  echo -e "+-------------------------------------------+"
+  echo -e "|              ${INFO}Simple Node Stats${NC}            |"
+  echo -e "+-------------------------------------------+"
   if [[ -n "${nodename}" ]]; then
-    name=$(printf "%32s" "${name}")
+    name=$(printf "%35s" "${name}")
     echo -e "| Name: ${INFO}${name}${NC} |"
-    echo -e '+-----------------------+----------------+'
+    echo -e "+-----------------------+-------------------+"
   fi
-  echo -e "| Version               | ${INFO}${node_version}${NC} |"
-  echo -e '+-----------------------+----------------+'
-  echo -e "| Revision              | ${INFO}${node_rev}${NC} |"
-  echo -e '+-----------------------+----------------+'
+  echo -e "| Version / Revision    | ${INFO}${node_ver}${NC} |"
+#  echo -e "| Version               | ${INFO}${node_version}${NC} |"
+#  echo -e '+-----------------------+-------------------+'
+#  echo -e "| Revision              | ${INFO}${node_rev}${NC} |"
+  echo -e "+-----------------------+-------------------+"
+  echo -e "| Port                  | ${INFO}${runport}${NC} |"
+  echo -e "+-----------------------+-------------------+"
   echo -e "| Peers (Out / In)      | ${peers} |"
-  echo -e "+-----------------------+----------------+"
+  echo -e "+-----------------------+-------------------+"
   echo -e "| Epoch / Slot          | ${epoch} |"
-  echo -e '+-----------------------+----------------+'
+  echo -e "+-----------------------+-------------------+"
   echo -e "| Block                 | ${block} |"
-  echo -e '+-----------------------+----------------+'
+  echo -e "+-----------------------+-------------------+"
   echo -e "| Density               | ${density} |"
-  echo -e '+-----------------------+----------------+'
+  echo -e "+-----------------------+-------------------+"
   echo -e "| Uptime (D:H:M:S)      | ${uptime} |"
-  echo -e '+-----------------------+----------------+'
+  echo -e "+-----------------------+-------------------+"
   echo -e "| Transactions          | ${txcount} |"
-  echo -e '+-----------------------+----------------+'
+  echo -e "+-----------------------+-------------------+"
   if [[ ${abouttolead} -gt 0 ]]; then
-    kesperiod=$(printf "%14s" "${kesperiod}")
-    kesremain=$(printf "%14s" "${kesremain}")
-    isleader=$(printf "%14s" "${isleader}")
-    forged=$(printf "%14s" "${forged}/${adopted}")
+    kesperiod=$(printf "%17s" "${kesperiod}")
+    kesremain=$(printf "%17s" "${kesremain}")
+    isleader=$(printf "%17s" "${isleader}")
+    forged=$(printf "%17s" "${forged}/${adopted}")
     echo -e "| KES PERIOD            | ${kesperiod} |"
-    echo -e "+-----------------------+----------------+"
+    echo -e "+-----------------------+-------------------+"
     echo -e "| KES REMAINING         | ${kesremain} |"
-    echo -e "+-----------------------+----------------+"
+    echo -e "+-----------------------+-------------------+"
     echo -e "| SLOTS LED             | ${isleader} |"
-    echo -e "+-----------------------+----------------+"
+    echo -e "+-----------------------+-------------------+"
     echo -e "| BLOCKS FORGED/ADOPTED | ${forged} |"
-    echo -e "+-----------------------+----------------+"
+    echo -e "+-----------------------+-------------------+"
   else
-    echo -e "+----------------------------------------+"
+    echo -e "+-------------------------------------------+"
   fi
 
 
