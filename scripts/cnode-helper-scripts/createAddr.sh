@@ -1,6 +1,6 @@
 #!/bin/bash
 # shellcheck disable=SC2086,SC1090
-. "$(dirname $0)"/env
+. "$(dirname $0)"/env offline
 
 if  [ "$1" = "--help" ] || [ $# -ne 1 ]; then
   echo "Usage: $0 <Path with name (prefix) for keys to be created>"
@@ -14,8 +14,8 @@ WNAME="$1"
 ${CCLI} shelley address key-gen --verification-key-file ${WNAME}_payment.vkey --signing-key-file ${WNAME}_payment.skey
 ${CCLI} shelley stake-address key-gen --verification-key-file ${WNAME}_stake.vkey --signing-key-file ${WNAME}_stake.skey
 echo -e "${GREEN}Payment/Enterprise address:${NC}"
-${CCLI} shelley address build --payment-verification-key-file ${WNAME}_payment.vkey  ${HASH_IDENTIFIER} | tee ${WNAME}_payment.addr
+${CCLI} shelley address build --payment-verification-key-file ${WNAME}_payment.vkey  ${PROTOCOL_IDENTIFIER} | tee ${WNAME}_payment.addr
 echo -e "${GREEN}Base address:${NC}"
-${CCLI} shelley address build --payment-verification-key-file ${WNAME}_payment.vkey --stake-verification-key-file ${WNAME}_stake.vkey ${HASH_IDENTIFIER} | tee ${WNAME}_base.addr
+${CCLI} shelley address build --payment-verification-key-file ${WNAME}_payment.vkey --stake-verification-key-file ${WNAME}_stake.vkey ${PROTOCOL_IDENTIFIER} | tee ${WNAME}_base.addr
 echo -e "${GREEN}Reward address:${NC}"
-${CCLI} shelley stake-address build --stake-verification-key-file ${WNAME}_stake.vkey ${HASH_IDENTIFIER} | tee ${WNAME}_reward.addr
+${CCLI} shelley stake-address build --stake-verification-key-file ${WNAME}_stake.vkey ${PROTOCOL_IDENTIFIER} | tee ${WNAME}_reward.addr

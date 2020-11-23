@@ -8,7 +8,7 @@
 ######################################
 
 NODE_NAME="Cardano Node"                   # Change your node's name prefix here, keep at or below 19 characters!
-REFRESH_RATE=2                             # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
+REFRESH_RATE=5                             # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
 LEGACY_MODE=false                          # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
 RETRIES=3                                  # How many attempts to connect to running Cardano node before erroring out and quitting
 THEME="dark"                               # dark  = suited for terminals with a dark background
@@ -50,25 +50,27 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.9
+GLV_VERSION=v1.11
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-l] [-b <branch name>]
+Usage: $(basename "$0") [-l] [-p] [-b <branch name>]
 Guild LiveView - An alternative cardano-node LiveView
 
 -l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
--b    Use alternate branch to check for updates - only for testing/development (Default: Master)
+-p    Disable default CNCLI ping and revert to legacy tcptraceroute if available, else use regular ICMP ping.
+-b    Use alternate branch to check for updates - only for testing/development (Default: Master)  
 EOF
   exit 1
 }
 
-while getopts :lb: opt; do
+while getopts :lpb: opt; do
   case ${opt} in
     l ) LEGACY_MODE="true" ;;
+    p ) DISABLE_CNCLI="true" ;;
     b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
     esac
@@ -76,25 +78,26 @@ done
 shift $((OPTIND -1))
 
 URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
-curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env
-if [[ -f "${PARENT}"/env ]]; then
-  if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
-    vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
-    sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
+if curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env; then
+  if [[ -f "${PARENT}"/env ]]; then
+    if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
+      vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
+      sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
+    else
+      echo -e "Update failed! Please use prereqs.sh to force an update or manually download $(basename $0) + env from GitHub"
+      exit 1
+    fi
+    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
+    TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
+    if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
+      cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
+      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
+      printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
+      mv "${PARENT}"/env.tmp "${PARENT}"/env
+    fi
   else
-    echo -e "Update failed! Please use prereqs.sh to force an update or manually download $(basename $0) + env from GitHub"
-    exit 1
-  fi
-  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
-  TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
-  if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-    cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
-    STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
-    printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
     mv "${PARENT}"/env.tmp "${PARENT}"/env
   fi
-else
-  mv "${PARENT}"/env.tmp "${PARENT}"/env
 fi
 rm -f "${PARENT}"/env.tmp
 
@@ -208,6 +211,7 @@ if [[ ${LEGACY_MODE} = "true" ]]; then
   m2divider=$(printf "${NC}|" && printf "%0.s-" $(seq $((width-1))) && printf "|")
   m3divider=$(printf "${NC}|" && printf "%0.s- " $(seq $((width/2))) && printf "|")
   bdivider=$(printf "${NC}|" && printf "%0.s=" $(seq $((width-1))) && printf "|")
+  blank_line=$(printf "${NC}|%$((width-1))s|" "")
 else
   VL=$(printf "${NC}\\u2502")
   HL=$(printf "${NC}\\u2500")
@@ -224,13 +228,14 @@ else
   m2divider=$(printf "${NC}\\u2502" && printf "%0.s-" $(seq $((width-1))) && printf "\\u2502")
   m3divider=$(printf "${NC}\\u2502" && printf "%0.s- " $(seq $((width/2))) && printf "\\u2502")
   bdivider=$(printf "${NC}\\u2514" && printf "%0.s\\u2500" $(seq $((width-1))) && printf "\\u2518")
+  blank_line=$(printf "${NC}\\u2502%$((width-1))s\\u2502" "")
 fi
 
 #####################################
 # Helper functions                  #
 #####################################
 
-# Command     : waitForInput
+# Command     : waitForInput [submenu]
 # Description : wait for user keypress to quit, else do nothing if timeout expire
 waitForInput() {
   ESC=$(printf "\033")
@@ -238,17 +243,26 @@ waitForInput() {
   [[ ${key1} = "${ESC}" ]] && read -rsn2 -t 0.3 key2 # read 2 more chars
   [[ ${key1} = "q" ]] && myExit 0 "Guild LiveView stopped!"
   [[ ${key1} = "${ESC}" && ${key2} = "" ]] && myExit 0 "Guild LiveView stopped!"
-  [[ ${key1} = "p" && ${show_peers} = "false" ]] && check_peers="true" && clear && return
-  [[ ${key1} = "h" && ${show_peers} = "true" ]] && show_peers="false" && clear && return
-  [[ ${key1} = "o" && ${show_peers} = "true" ]] && selected_direction="out" && return
-  [[ ${key1} = "i" && ${show_peers} = "true" ]] && selected_direction="in" && return
-  if [[ ${key2} = "[D" && ${show_peers} = "true" ]]; then # Left arrow
-    [[ ${selected_direction} = "out" && ${peerNbr_start_out} -gt 8 ]] && peerNbr_start_out=$((peerNbr_start_out-8)) && clear && return
-    [[ ${selected_direction} = "in" && ${peerNbr_start_in} -gt 8 ]] && peerNbr_start_in=$((peerNbr_start_in-8)) && clear && return
-  fi
-  if [[ ${key2} = "[C" && ${show_peers} = "true" ]]; then # Right arrow
-    [[ ${selected_direction} = "out" && ${peerCNT_out} -gt ${peerNbr_out} ]] && peerNbr_start_out=$((peerNbr_start_out+8)) && clear && return
-    [[ ${selected_direction} = "in" && ${peerCNT_in} -gt ${peerNbr_in} ]] && peerNbr_start_in=$((peerNbr_start_in+8)) && clear && return
+  if [[ $# -eq 0 ]]; then
+    [[ ${key1} = "p" ]] && check_peers="true" && clear && return
+    [[ ${key1} = "i" ]] && show_home_info="true" && clear && return
+  elif [[ $1 = "homeInfo" ]]; then
+    [[ ${key1} = "h" ]] && show_home_info="false" && clear && return
+  elif [[ $1 = "peersInfo" ]]; then
+    [[ ${key1} = "b" ]] && show_peers_info="false" && clear && return
+  elif [[ $1 = "peers" ]]; then
+    [[ ${key1} = "h" ]] && show_peers="false" && clear && return
+    [[ ${key1} = "i" ]] && show_peers_info="true" && clear && return
+    [[ ${key2} = "[A" ]] && selected_direction="out" && return # Up arrow
+    [[ ${key2} = "[B" ]] && selected_direction="in" && return # Down arrow
+    if [[ ${key2} = "[C" && ${show_peers} = "true" ]]; then # Right arrow
+      [[ ${selected_direction} = "out" && ${peerCNT_out} -gt ${peerNbr_out} ]] && peerNbr_start_out=$((peerNbr_start_out+8)) && clear && return
+      [[ ${selected_direction} = "in" && ${peerCNT_in} -gt ${peerNbr_in} ]] && peerNbr_start_in=$((peerNbr_start_in+8)) && clear && return
+    fi
+    if [[ ${key2} = "[D" && ${show_peers} = "true" ]]; then # Left arrow
+      [[ ${selected_direction} = "out" && ${peerNbr_start_out} -gt 8 ]] && peerNbr_start_out=$((peerNbr_start_out-8)) && clear && return
+      [[ ${selected_direction} = "in" && ${peerNbr_start_in} -gt 8 ]] && peerNbr_start_in=$((peerNbr_start_in-8)) && clear && return
+    fi
   fi
 }
 
@@ -390,21 +404,34 @@ checkPeers() {
     peerPORT=$(echo "${peer}" | cut -d: -f2)
     [[ -z ${peerIP} || -z ${peerPORT} ]] && continue
     
-    if [[ "${peerIP}" = "${lastpeerIP}" ]]; then
-      [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT)) # skip RTT check and reuse old ${peerRTT} number if reachable
-    elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Ping OK, show RTT
-      peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
-      peerRTTSUM=$((peerRTTSUM + peerRTT))
-    elif [[ ${direction} = "in" ]]; then # No need to continue with tcptraceroute for incoming connection as destination port is unknown
-      peerRTT=99999
-    else # Normal ping is not working, try tcptraceroute to the given port
-      checkPEER=$(tcptraceroute -n -S -f 255 -m 255 -q 1 -w 1 "${peerIP}" "${peerPORT}" 2>&1 | tail -n 1)
-      if [[ ${checkPEER} = *'[open]'* ]]; then
-        peerRTT=$(echo "${checkPEER}" | awk '{print $4}' | cut -d. -f1)
-        peerRTTSUM=$((peerRTTSUM + peerRTT))
-      else # Nope, no response
+    if [[ ${direction} = "out" ]]; then
+      if [[ -n ${CNCLI} && -f ${CNCLI} && ${DISABLE_CNCLI} != "true" ]]; then
+        checkPEER=$(${CNCLI} ping --host "${peerIP}" --port "${peerPORT}" --network-magic "${NWMAGIC}")
+        if [[ $(jq -r .status <<< "${checkPEER}") = "ok" ]]; then
+          peerRTT=$(jq -r .durationMs <<< "${checkPEER}")
+        else # cncli ping failed
+          peerRTT=99999
+        fi
+      elif command -v tcptraceroute >/dev/null; then
+        checkPEER=$(tcptraceroute -n -S -f 255 -m 255 -q 1 -w 1 "${peerIP}" "${peerPORT}" 2>&1 | tail -n 1)
+        if [[ ${checkPEER} = *'[open]'* ]]; then
+          peerRTT=$(echo "${checkPEER}" | awk '{print $4}' | cut -d. -f1)
+        else # Nope, no response
+          peerRTT=99999
+        fi
+      elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Ping OK, show RTT
+        peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
+      else # cncli & tcptraceroute missing and ping failed
         peerRTT=99999
       fi
+      [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT))
+    elif [[ "${peerIP}" = "${lastpeerIP}" ]]; then
+      [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT)) # skip RTT check and reuse old ${peerRTT} number if reachable
+    elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Incoming connection, ping OK, show RTT.
+      peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
+      peerRTTSUM=$((peerRTTSUM + peerRTT))
+    else # Incoming connection, ping failed, set as unreachable
+      peerRTT=99999
     fi
     lastpeerIP=${peerIP}
 
@@ -580,10 +607,31 @@ while true; do
     peerPCT1items_in=${peerPCT1items}; peerPCT2items_in=${peerPCT2items}; peerPCT3items_in=${peerPCT3items}; peerPCT4items_in=${peerPCT4items}
     peerRTTAVG_in=${peerRTTAVG}; rttResultsSorted_in=${rttResultsSorted}
     peerNbr_start_in=1
-  elif [[ ${show_peers} = "true" ]]; then
-    printf "${VL}${STANDOUT} OUT ${NC}  RTT : Peers / Percent"
-    tput cup ${line} ${width}
-    printf "${VL}\n" && ((line++))
+    printf -v peer_analysis_date '%(%Y-%m-%d %H:%M:%S)T\n' -1
+  elif [[ ${show_peers} = "true" && ${show_peers_info} = "true" ]]; then
+    printf "${VL}${STANDOUT} INFO ${NC} One-shot peer analysis last run at ${style_values_1}%s${NC}" "${peer_analysis_date}" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    echo "${blank_line}" && ((line++))
+    printf "${VL} Runs a latency test on incoming/outgoing connections to the" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} node. Once the analysis is finished, RTTs(Round Trip Time)" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} for each peer is display and grouped in ranges of" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} 0-50, 50-100, 100-200, 200<." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    echo "${blank_line}" && ((line++))
+    printf "${VL} Outgoing connections ping type order(peers in own topology):" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} 1. ${style_values_2}cncli${NC} - If available, this gives the most accurate" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL}    measure as it checks the entire handshake process against" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL}    the remote peer." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} 2. ${style_values_2}tcptraceroute${NC} - Sends a TCP SYN package to ping the" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL}    remote peer on the cardano-node port. Should give ~100%%" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL}    success rate." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} 3. ${style_values_2}ping${NC} - fallback method using ICMP ping against IP." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL}    Only work if the FW of remote peer accepts ICMP traffic." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    echo "${blank_line}" && ((line++))
+    printf "${VL} For incoming connections, only ICMP ping is used as remote" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} peer port is unknown. It's not uncommon to see many" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} unreachable peers for incoming connections as it's a good" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} security practice to disable ICMP in firewall." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+  elif [[ ${show_peers} = "true" ]]; then    
+    printf "${VL}${STANDOUT} OUT ${NC}  RTT : Peers / Percent" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
 
     printf "${VL}    0-50ms : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_1}" "${peerCNT1_out}" "${peerPCT1_out}"
     tput cup ${line} ${bar_col_small}
@@ -732,6 +780,43 @@ while true; do
       [[ ${selected_direction} = "in" ]] && printf "${style_values_3} %s ${NC} ${VL}\n" "${nav_str}" || printf "  %s ${VL}\n" "${nav_str}"
       tput cup ${line} 0
     fi
+  elif [[ ${show_home_info} = "true" ]]; then
+    printf "${VL}${STANDOUT} INFO ${NC} Displays live metrics gathered from node EKG endpoint" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    echo "${blank_line}" && ((line++))
+    printf "${VL} ${style_values_2}Upper Main Section${NC}" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} Epoch number & progress is live from node while calculation" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} of date until epoch boundary is based on genesis parameters." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} Reference tip is also a calculation based on genesis values" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} used to compare against the node tip to see how far of the" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} tip(diff value) the node is. This interval is dynamic and" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} based on different genesis parameters. In/Out peers show how" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} many connections the node have established in and out." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    echo "${blank_line}" && ((line++))
+    printf "${VL} ${style_values_2}Core section${NC}" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} If the node is run as a block producer, a second section is" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} displayed that contain KES key and block stats. When close" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} to the expire date the values will change color." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    echo "${blank_line}" && ((line++))
+    printf "${VL} If CNCLI is activated to calculate and store node blocks," && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} data from this blocklog DB is displayed. If not, blocks" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} created is taken from EKG metrics. Invalid, Missed, Ghosted" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} and Stolen only showed if non-zero for the epoch." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    echo "${blank_line}" && ((line++))
+    printf "${VL} - Leader    : scheduled to make block at this slot" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} - Ideal     : Expected/Ideal number of blocks assigned" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL}               based on active stake (sigma)" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} - Luck      : Leader slots assigned vs Ideal slots" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} - Adopted   : block created successfully" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} - Confirmed : block created validated to be on-chain" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} - Invalid   : node failed to create block" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} - Missed    : scheduled at slot but no record of it in " && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL}               cncli DB and no other pool has made a block" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL}               for this slot" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} - Ghosted   : block created but marked as orphaned and no" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL}               other pool has made a valid block for this" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL}               slot, height battle or block propagation issue" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} - Stolen    : another pool has a valid block registered" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL}               on-chain for the same slot" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
   else
     if [[ ${shelley_transition_epoch} -eq -2 ]] || [[ ${shelley_transition_epoch} -ne -1 && ${epochnum} -ge ${shelley_transition_epoch} ]]; then
       epoch_progress=$(echo "(${slot_in_epoch}/${EPOCH_LENGTH})*100" | bc -l)        # in Shelley era or Shelley only TestNet
@@ -758,7 +843,7 @@ while true; do
     printf "${VL} Block   : ${style_values_1}%s${NC}" "${blocknum}"
     tput cup ${line} ${second_col}
     printf "Tip (ref)  : ${style_values_1}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_ref}" && ((line++))
-    printf "${VL} Slot    : ${style_values_1}%s${NC}" "${slot_in_epoch}"
+    printf "${VL} Slot    : ${style_values_1}%-$((second_col-12))s${NC}" "${slot_in_epoch}"
     tput cup ${line} ${second_col}
     printf "Tip (node) : ${style_values_1}%-${sec_col_value_size}s${NC}${VL}\n" "${slotnum}" && ((line++))
     printf "${VL} Density : ${style_values_1}%s${NC}" "${density}"
@@ -769,10 +854,11 @@ while true; do
       printf "Status     : ${style_info}%-${sec_col_value_size}s${NC}${VL}\n" "syncing..."
     elif [[ ${tip_diff} -le $(slotInterval) ]]; then
       printf "Tip (diff) : ${style_status_1}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_diff} :)"
-    elif [[ ${tip_diff} -le $(( $(slotInterval) * 2 )) ]]; then
+    elif [[ ${tip_diff} -le $(( $(slotInterval) * 4 )) ]]; then
       printf "Tip (diff) : ${style_status_2}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_diff} :|"
     else
-      printf "Tip (diff) : ${style_status_3}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_diff} :("
+      sync_progress=$(echo "(${slotnum}/${tip_ref})*100" | bc -l)
+      printf "Status     : ${style_info}%-${sec_col_value_size}s${NC}${VL}\n" "syncing ($(printf "%2.1f" "${sync_progress}")%)"
     fi
     ((line++))
     
@@ -805,51 +891,36 @@ while true; do
       
       echo "${m2divider}" && ((line++))
       
-      printf "${VL}"
-      tput cup ${line} ${second_col}
-      printf "%-$((width-second_col))s${NC}${VL}\n" "IsLeader / Adopted / Missed" && ((line++))
-      printf "${VL} Blocks since node start"
-      tput cup ${line} $((second_col-2))
-      printf ": ${style_values_1}%-11s${NC}" "${isleader}"
-      if [[ ${adopted} -ne ${isleader} ]]; then
-        printf "${style_status_2}%-10s${NC}" "${adopted}"
+      if [[ -f "${BLOCKLOG_DB}" ]]; then
+        invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='invalid';" 2>/dev/null)
+        missed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='missed';" 2>/dev/null)
+        ghosted_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='ghosted';" 2>/dev/null)
+        stolen_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='stolen';" 2>/dev/null)
+        confirmed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='confirmed';" 2>/dev/null)
+        adopted_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='adopted';" 2>/dev/null) + confirmed_cnt ))
+        leader_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='leader';" 2>/dev/null) + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
+        OLDIFS=$IFS && IFS='|' && read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${epochnum};" 2>/dev/null)" && IFS=$OLDIFS
+        if [[ ${#epoch_stats[@]} -eq 0 ]]; then epoch_stats=("-" "-"); else epoch_stats[1]="${epoch_stats[1]}%"; fi
+
+        [[ ${invalid_cnt} -eq 0 ]] && invalid_fmt="${NC}" || invalid_fmt="${style_status_3}"
+        [[ ${missed_cnt} -eq 0 ]] && missed_fmt="${NC}" || missed_fmt="${style_status_3}"
+        [[ ${ghosted_cnt} -eq 0 ]] && ghosted_fmt="${NC}" || ghosted_fmt="${style_status_3}"
+        [[ ${stolen_cnt} -eq 0 ]] && stolen_fmt="${NC}" || stolen_fmt="${style_status_3}"
+        [[ ${adopted_cnt} -eq 0 ]] && adopted_fmt="${NC}" || adopted_fmt="${style_values_1}"
+        if [[ ${confirmed_cnt} -eq 0 ]]; then confirmed_fmt="${NC}"; else [[ ${confirmed_cnt} -eq ${adopted_cnt} ]] && confirmed_fmt="${style_status_1}" || confirmed_fmt="${style_status_2}"; fi
+        [[ ${leader_cnt} -eq 0 ]] && leader_fmt="${NC}" || leader_fmt="${style_values_1}"
+        
+        printf "${VL}${STANDOUT} BLOCKS ${NC}  Leader | Ideal | Luck       Adopted | Confirmed%$((width-58))s${VL}\n" "" && ((line++))
+        printf "${VL}%10s${leader_fmt}%-9s%-8s%-11s${adopted_fmt}%-10s${confirmed_fmt}%-9s${NC}%$((width-58))s${VL}\n" "" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "" && ((line++))
+        
+        if [[ ${invalid_cnt} -ne 0 || ${missed_cnt} -ne 0 || ${ghosted_cnt} -ne 0 || ${stolen_cnt} -ne 0 ]]; then
+          echo "${m3divider}" && ((line++))
+          printf "${VL}%10sInvalid | Missed | Ghosted | Stolen%$((width-46))s${VL}\n" "" && ((line++))
+          printf "${VL}%10s${invalid_fmt}%-10s${missed_fmt}%-9s${ghosted_fmt}%-10s${stolen_fmt}%-6s${NC}%$((width-46))s${VL}\n" "" "${invalid_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "" && ((line++))
+        fi
       else
-        printf "${style_values_1}%-10s${NC}" "${adopted}"
-      fi
-      if [[ ${didntadopt} -gt 0 ]]; then
-        printf "${style_status_3}%-9s${NC}" "${didntadopt}"
-      else
-        printf "${style_values_1}%-9s${NC}" "${didntadopt}"
-      fi
-      tput cup ${line} ${width}
-      printf "${VL}\n" && ((line++))
-      
-      if [[ -n ${BLOCK_LOG_DIR} ]]; then
-        blocks_file="${BLOCK_LOG_DIR}/blocks_${epochnum}.json"
-        if [[ -f "${blocks_file}" ]]; then
-          isleader_epoch=$(jq -c '[.[].slot //empty] | length' "${blocks_file}")
-          invalid_epoch=$(jq -c '[.[].hash //empty | select(startswith("Invalid"))] | length' "${blocks_file}")
-          adopted_epoch=$(( $(jq -c '[.[].hash //empty] | length' "${blocks_file}") - invalid_epoch ))
-        else
-          isleader_epoch=0
-          invalid_epoch=0
-          adopted_epoch=0
-        fi
-        printf "${VL} Blocks this epoch"
-        tput cup ${line} $((second_col-2))
-        printf ": ${style_values_1}%-11s${NC}" "${isleader_epoch}"
-        if [[ ${adopted_epoch} -ne ${isleader_epoch} ]]; then
-          printf "${style_status_2}%-10s${NC}" "${adopted_epoch}"
-        else
-          printf "${style_values_1}%-10s${NC}" "${adopted_epoch}"
-        fi
-        if [[ ${invalid_epoch} -gt 0 ]]; then
-          printf "${style_status_3}%-9s${NC}" "${invalid_epoch}"
-        else
-          printf "${style_values_1}%-9s${NC}" "${invalid_epoch}"
-        fi
-        tput cup ${line} ${width}
-        printf "${VL}\n" && ((line++))
+        printf "${VL}${STANDOUT} BLOCKS ${NC} %$((width-38))s %-6s | ${FG_GREEN}%-7s${NC} | ${FG_RED}%-7s${NC} ${VL}\n" "" "Leader" "Adopted" "Invalid" && ((line++))
+        printf "${VL}%s %$((width-60))s %-6s | %-7s | %-7s ${VL}\n" "Since node start (EKG metrics)" "" "${isleader}" "${adopted}" "${didntadopt}" && ((line++))
       fi
     fi
   fi
@@ -857,8 +928,21 @@ while true; do
   [[ ${check_peers} = "true" ]] && check_peers=false && show_peers=true && clear && continue
   
   echo "${bdivider}" && ((line++))
-  [[ ${show_peers} = "true" ]] && printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[h] Home${NC} | Select Peer List : ${style_info}[o] Out${NC} - ${style_info}[i] In${NC}\n%27s%s" "" "Use left/right arrow key to navigate" || \
-                                  printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[p] Peer Analysis${NC}"
-  tput el
-  waitForInput
+  if [[ ${show_peers} = "true" && ${show_peers_info} = "true" ]]; then
+    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[b] Back to Peer Analysis${NC}"
+    tput el
+    waitForInput "peersInfo"
+  elif [[ ${show_peers} = "true" ]]; then
+    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[h] Home${NC} | ${style_info}[i] Info${NC} | Up/Down    : Select List\n%38s%s" "" "Left/Right : Navigate List"
+    tput el
+    waitForInput "peers"
+  elif [[ ${show_home_info} = "true" ]]; then
+    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[h] Home${NC}"
+    tput el
+    waitForInput "homeInfo"
+  else
+    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[i] Info${NC} | ${style_info}[p] Peer Analysis${NC}"
+    tput el
+    waitForInput
+  fi
 done

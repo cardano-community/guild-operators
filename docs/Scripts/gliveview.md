@@ -39,12 +39,19 @@ A sample output from both core and relay(with peer analysis):
 Displays live metrics gathered from EKG. Epoch number and progress is live from node while date calculation until epoch boundary is based on offline genesis parameters. Reference tip is also an offline calculation based on genesis values used to compare against the node tip to see how far of the tip(diff value) the node is. With current parameters a slot diff up to 40 from reference tip is considered good but it ussually stay below 30. In/Out peers show how many connections the node have established in and out.
 
 **Core section**  
-If the node is run as a core, identified by the 'forge-about-to-lead' EKG parameter, a second core section is displayed. This section contain current and remaining KES periods as well as a calculated date for the expiration. When getting close to expire date the values will change color. Blocks created by the node since node start is another metric shown in this section. If [cntoolsBlockCollector.sh](Scripts/cntools-blocks.md) is running for the core node a second row with current epoch blocks is displayed.
+If the node is run as a core, identified by the 'forge-about-to-lead' EKG parameter, a second core section is displayed. This section contain current and remaining KES periods as well as a calculated date for the expiration. When getting close to expire date the values will change color. Blocks created by the node since node start is another metric shown in this section. If [CNCLI](Scripts/cncli.md) is activated to store blocks created in a blocklog DB, data from this blocklog is displayed. If not, blocks created is taken from EKG metrics.
 
 **Peer analysis**  
-A manual peer analysis can be triggered by key press `p`. A latency test will be done on incoming and outgoing connections to the node. For outgoing connections a normal ICMP ping is done as a first try. If this is blocked, tcptraceroute program is used to do a tcp ping against the cardano-node port of the remote peer. For incoming connections only ICMP ping is used as remote peer port is unknown. It's not uncommon to see many unreachable peers for incoming connections as it's a good security practice to disable ICMP in firewall.
+A manual peer analysis can be triggered by key press `p`. A latency test will be done on incoming and outgoing connections to the node.  
 
-Once the analysis is finished, it will display the RTTs for the peers and group them in ranges 0-50, 50-100, 100-200, 200<. The analysis is **NOT** live. Press `p` for update or `h` to hide it. `i` selects incoming peer list and `o` selects outgoing. If more than 8 peer connections are established for either incoming or outgoing, left and right arrow keys (`<`/`>`) can be used to navigate the selected list. 
+Outgoing connections(peers in topology file), ping type used is done in this order:
+1. cncli - If available, this gives the most accurate measure as it checks the entire handshake process against the remote peer.
+2. tcptraceroute - Sends a TCP SYN package to ping the remote peer on the cardano-node port. Should give ~100% success rate.
+3. ping - fallback method using ICMP ping against IP. Will only work if firewall of remote peer accept ICMP traffic.
+
+For incoming connections, only ICMP ping is used as remote peer port is unknown. It's not uncommon to see many unreachable peers for incoming connections as it's a good security practice to disable ICMP in firewall.
+
+Once the analysis is finished, it will display the RTTs for the peers and group them in ranges 0-50, 50-100, 100-200, 200<. The analysis is **NOT** live. Press `[h] Home` to go back to default view or `[i] Info` to show in-script help text. `Up` and `Down` arrow keys is used to select incoming or outgoing detailed list of IPs and their RTT value. If more than 8 peer connections are established for either incoming or outgoing, `Left (<)` and `Right (>)` arrow keys can be used to navigate the selected list. 
 
 ##### Troubleshooting/Customisations
 
@@ -58,6 +65,7 @@ In case you run into trouble while running the script, you might want to edit `e
 ######################################
 
 #CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of path to cardano-cli executable
+#CNCLI="${HOME}/.cargo/bin/cncli"                       # Override automatic detection of path to cncli executable (https://github.com/AndrewWestberg/cncli)
 #CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
 CNODE_PORT=6000                                         # Set node port
 #CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path
@@ -65,8 +73,9 @@ CNODE_PORT=6000                                         # Set node port
 #EKG_HOST=127.0.0.1                                     # Set node EKG host
 #EKG_PORT=12788                                         # Override automatic detection of node EKG port
 #EKG_TIMEOUT=3                                          # Maximum time in seconds that you allow EKG request to take before aborting (node metrics)
-#BLOCK_LOG_DIR="${CNODE_HOME}/db/blocks"                # CNTools Block Collector block dir set in cntools.config, override path if enabled and using non standard path
 #CURL_TIMEOUT=10                                        # Maximum time in seconds that you allow curl file download to take before aborting (GitHub update process)
+#BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"         # Override default directory used to store block data for core node
+#BLOCKLOG_TZ="UTC"                                      # TimeZone to use when displaying blocklog - https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 ```
 
 **gLiveView.sh**

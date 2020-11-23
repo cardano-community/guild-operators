@@ -5,6 +5,20 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.2.0] - 2020-11-XX
+
+##### Added
+- Ability to post metadata on-chain, e.g. (but not limited to) Adams https://vote.crypto2099.io/
+
+##### Changed
+- Blocks view updated to adapt to the added CNCLI integration and changes made to block collector(logMonitor)
+  - [CNCLI](https://cardano-community.github.io/guild-operators/#/Scripts/cncli)
+  - [Log Monitor](https://cardano-community.github.io/guild-operators/#/Scripts/logmonitor)
+- chattr file locking now optional to use, a new setting in cntools.config added for it.
+
+##### Fixed
+- unnecessary bech32 conversion in wallet import (non-breaking) 
+
 ## [6.1.0] - 2020-10-22
 
 ##### Added
