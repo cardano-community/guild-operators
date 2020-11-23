@@ -91,12 +91,9 @@ fi
 REPO="https://github.com/cardano-community/guild-operators"
 REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
 
-#if [ $(id -u$( -eq 0 ]; then
-#  err_exit "Please run as non-root user."
-#fi
-
-SUDO="Y";
-if [ "${SUDO}" = "Y" ] || [ "${SUDO}" = "y" ] ; then sudo="sudo"; else sudo="" ; fi
+SUDO='Y';
+[[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
+[[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
 
 if [ "${INTERACTIVE}" = 'Y' ]; then
   clear;
