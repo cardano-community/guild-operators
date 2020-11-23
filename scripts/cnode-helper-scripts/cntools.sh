@@ -46,6 +46,8 @@ while getopts :ob: opt; do
 done
 shift $((OPTIND -1))
 
+[[ $(cardano-node version | head -1 | awk '{print $2}' | tr -d '.') -lt 1230 ]] && myExit 1 "ERROR!! CNTools has now been upgraded to support cardano-node 1.23 or higher. Please update cardano-node or use node-1.21 branch for CNTools\n"
+
 # get common env variables
 if ! . "${CNODE_HOME}"/scripts/env; then
   [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && exit 1
@@ -2665,9 +2667,9 @@ EOF
       [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}" ]] && pool_registered="YES" || pool_registered="NO"
       [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}" ]] && ledger_retiring="?" || ledger_retiring=""
     else
-      ledger_pParams=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
-      ledger_fPParams=$(jq -r '.esLState._delegationState._pstate._fPParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
-      ledger_retiring=$(jq -r '.esLState._delegationState._pstate._retiring."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
+      ledger_pParams=$(jq -r '.nesEs.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
+      ledger_fPParams=$(jq -r '.nesEs.esLState._delegationState._pstate._fPParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
+      ledger_retiring=$(jq -r '.nesEs.esLState._delegationState._pstate._retiring."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
       [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
       [[ -n "${ledger_pParams}" ]] && pool_registered="YES" || pool_registered="NO"
     fi
