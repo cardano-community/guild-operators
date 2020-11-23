@@ -50,10 +50,13 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.11
+GLV_VERSION=v1.12
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
+
+# For those using auto update from version gLiveView 1.9 where RETRIES isnt set in user-defined variables
+[[ -z "${RETRIES}" ]]  && RETRIES=3
 
 usage() {
   cat <<EOF
