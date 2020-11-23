@@ -52,7 +52,7 @@ setTheme() {
 
 GLV_VERSION=v1.12
 
-[[ $(cardano-node version | head -1 | awk '{print $2}' | cut -d. -f 2) -le 22 ]] && echo -e "\ngLiveView has now been upgraded to support cardano-node 1.23 or higher. Please update cardano-node or us node-1.21 branch for gLiveView\n\n" && exit 1
+[[ $(cardano-node version | head -1 | awk '{print $2}' | tr -d '.') -lt 1230 ]] && echo -e "\nERROR!! gLiveView has now been upgraded to support cardano-node 1.23 or higher. Please update cardano-node or use node-1.21 branch for gLiveView\n\n" && exit 1
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
