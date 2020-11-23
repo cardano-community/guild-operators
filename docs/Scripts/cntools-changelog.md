@@ -5,7 +5,14 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [6.2.0] - 2020-11-XX
+## [6.2.1] - 2020-11-28
+
+##### Changed
+- Compatibility changes for cardano-node 1.23.0, now minimum version to run CNTools 6.2.1
+- Cleanup of old code
+
+
+## [6.2.0] - (alpha branch)
 
 ##### Added
 - Ability to post metadata on-chain, e.g. (but not limited to) Adams https://vote.crypto2099.io/
