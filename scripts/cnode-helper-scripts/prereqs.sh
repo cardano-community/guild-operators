@@ -172,8 +172,8 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     # shellcheck source=/dev/null
     . "${HOME}"/.ghcup/env
 
-    ghcup install 8.6.5
-    ghcup set 8.6.5
+    ghcup install 8.10.2
+    ghcup set 8.10.2
     ghc --version
 
     echo "Installing bundled Cabal .."
