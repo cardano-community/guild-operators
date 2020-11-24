@@ -145,11 +145,12 @@ protectionPreRequisites() {
     [[ ${ENABLE_CHATTR} = true ]] && say "chattr command not available but enabled in config, please disable in cntools.config and re-run CNTools" && return 1
   elif [[ ${ENABLE_CHATTR} = true ]]; then # chattr available and enabled, make sure sudo access to chattr is enabled
     touch "${TMP_FOLDER}"/test
-    if ! sudo -n chattr -i "${TMP_FOLDER}"/test 2>&1; then
+    echo "Testing chattr access permission, enter user password if requested..."
+    if ! sudo chattr -i "${TMP_FOLDER}"/test 2>&1; then
       rm -f "${TMP_FOLDER}"/test
       say ""
       say "${FG_YELLOW}WARN${NC}: Elevated privileges needed for chattr command used to write protect wallet and pool keys"
-      say "Run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
+      say "Add required sudo permissions or run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
       say ""
       say "echo \"$(whoami) ALL=NOPASSWD: $(command -v chattr)\" | sudo tee /etc/sudoers.d/cntools"
       waitForInput "press any key"

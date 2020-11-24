@@ -163,9 +163,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     echo "CentOS: curl pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd-devel zlib-devel tmux"
     err_exit
   fi
-  ghc_v=$(ghc --version | grep 8\.6\.5 2>/dev/null)
-  cabal_v=$(cabal --version | grep version\ 3 2>/dev/null)
-  if [ "${ghc_v}" = "" ] || [ "${cabal_v}" = "" ]; then
+  if [[ -z $(ghc --version | grep 8\.10\.2 2>/dev/null) || -z $(cabal --version | grep version\ 3 2>/dev/null) ]]; then
     echo "Install ghcup (The Haskell Toolchain installer) .."
     # TMP: Dirty hack to prevent ghcup interactive setup, yet allow profile set up
     unset BOOTSTRAP_HASKELL_NONINTERACTIVE
