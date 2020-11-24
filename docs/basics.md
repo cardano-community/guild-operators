@@ -6,7 +6,7 @@ The architecture and description of various components are best described at [Ad
 
 ##### Set up OS packages, folder structure and fetch files from repo
 
-!> You're expected to run the commands below from same session, using same working directories as indicated and using a `non-root user with passwordless sudo access`. You'd be expected to be familiar with this as part of pre-requisite skillsets expected off a stake pool operator.
+!> You're expected to run the commands below from same session, using same working directories as indicated and using a `non-root user with sudo access`. You'd be expected to be familiar with this as part of pre-requisite skillsets expected off a stake pool operator.
 
 The pre-requisites for Linux systems are automated to be executed as a single script. To download the pre-requisites scripts, execute the below:
 

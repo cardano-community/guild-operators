@@ -19,7 +19,7 @@ Some or all of the above required us to rewrite some artifacts in a way that is 
 
 #### Steps for Upgrade
 
-!> Remember that same as before, you're running these as non root user with passwordless sudo access for the session.
+!> Remember that same as before, you're running these as non root user with sudo access for the session.
 
 - Download the latest prereqs.sh (tip: do checkout new features in `prereqs.sh -h`) to update all the scripts and files from the guild template. Most of the files modified with user content (env, gLiveView.sh, topologyUpdater.sh, cnode.sh, etc) will be backed up before overwriting. The backed up files will be in the same folder as the original files, and will be named as *${filename}_bkp<timestamp>*. More static files (genesis files or some of the scripts themselves) will not be backed up, as they're not expected to be modified.
 
