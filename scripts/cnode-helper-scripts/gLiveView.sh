@@ -50,9 +50,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.12
-
-[[ $(cardano-node version | head -1 | awk '{print $2}' | tr -d '.') -lt 1230 ]] && echo -e "\nERROR!! gLiveView has now been upgraded to support cardano-node 1.23 or higher. Please update cardano-node or use node-1.21 branch for gLiveView\n\n" && exit 1
+GLV_VERSION=v1.13
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -167,6 +165,8 @@ else
   echo -e "\nFailed to download gLiveView.sh from GitHub, unable to perform version check!\n"
   read -r -n 1 -s -p "press any key to proceed" answer
 fi
+
+[[ $(cardano-node version | head -1 | awk '{print $2}' | tr -d '.') -lt 1230 ]] && echo -e "\nERROR!! gLiveView has now been upgraded to support cardano-node 1.23 or higher. Please update cardano-node or use node-1.21 branch for gLiveView\n\n" && exit 1
 
 #######################################################
 # Validate config variables                           #
