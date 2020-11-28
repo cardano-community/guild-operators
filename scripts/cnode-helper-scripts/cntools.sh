@@ -756,7 +756,7 @@ EOF
       getRewards ${wallet_name}
       if [[ "${reward_lovelace}" -ge 0 ]]; then
         say "$(printf "%-19s : ${FG_CYAN}%s${NC} ADA" "Rewards" "$(formatLovelace ${reward_lovelace})")" "log"
-        say "$(printf "%-19s : ${FG_CYAN}%s${NC} ADA" "Funds + Rewards" "$(formatLovelace $(( base_lovelace reward_lovelace})))")" "log"
+        say "$(printf "%-19s : ${FG_CYAN}%s${NC} ADA" "Funds + Rewards" "$(formatLovelace $((base_lovelace + reward_lovelace)))")" "log"
         delegation_pool_id=$(jq -r '.delegation  // empty' <<< "${stakeAddressInfo}")
         if [[ -n ${delegation_pool_id} ]]; then
           unset poolName
