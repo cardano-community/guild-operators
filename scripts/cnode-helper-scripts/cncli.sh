@@ -144,8 +144,8 @@ getPoolVrfVkeyCborHex() {
 
 dumpLedgerState() {
   ledger_state_file="/tmp/ledger-state_$(getEpoch).json"
-  [[ -f ${ledger_state_file} ]] && return 0 # no need to continue, we have a current ledger-state already
-  rm -f /tmp/ledger-state* # remove old ledger dumps before creating a new
+  [[ -n $(find "${ledger_state_file}" -mmin -60) ]] && return 0 # no need to continue, we have a fresh(<1h) ledger-state already
+  rm -f /tmp/ledger-state_* # remove old ledger dumps before creating a new
   if ! timeout -k 5 "${TIMEOUT_LEDGER_STATE}" ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${ledger_state_file}"; then
     echo "ERROR: ledger dump failed/timed out, increase timeout value"
     [[ -f "${ledger_state_file}" ]] && rm -f "${ledger_state_file}"
