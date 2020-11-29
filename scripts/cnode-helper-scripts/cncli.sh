@@ -24,6 +24,7 @@ POOL_TICKER=""                            # POOLTOOL sendtip: set the pools tick
 #CONFIRM_SLOT_CNT=600                     # CNCLI validate: require at least these many slots to have passed before validating
 #CONFIRM_BLOCK_CNT=15                     # CNCLI validate: require at least these many blocks on top of minted before validating
 #TIMEOUT_LEDGER_STATE=300                 # CNCLI leaderlog: timeout in seconds for ledger-state query
+#BATCH_AUTO_UPDATE=N                      # Set to Y to automatically update the script if a new version is available without user interaction
 
 ######################################
 # Do NOT modify code below           #
@@ -213,15 +214,14 @@ cncliInit() {
   [[ -z "${TIMEOUT_LEDGER_STATE}" ]] && TIMEOUT_LEDGER_STATE=300
   [[ -z "${PT_HOST}" ]] && PT_HOST="127.0.0.1"
   [[ -z "${PT_PORT}" ]] && PT_PORT="${CNODE_PORT}"
+  [[ -z "${BATCH_AUTO_UPDATE}" ]] && BATCH_AUTO_UPDATE=N
 
-  PARENT="$(dirname $0)"
+  PARENT="$(dirname $0)"  
   if [[ ! -f "${PARENT}"/env ]]; then
-    echo "ERROR: could not find common env file, please update and run 'prereqs.sh -h' to show options"
+    echo "ERROR: could not find common env file, please download and run 'prereqs.sh -h' to show options"
     exit 1
   fi
   if ! . "${PARENT}"/env; then exit 1; fi
-  
-  [[ ! -f "${CNCLI}" ]] && echo "ERROR: failed to locate cncli executable, please update and run 'prereqs.sh -h' to show options" && exit 1
   
   if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
     vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")
@@ -230,6 +230,42 @@ cncliInit() {
     exit 1
   fi
   
+  # Check if cncli.sh update is available
+  [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
+  URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
+  if curl -s -m 10 -o "${PARENT}"/cncli.sh.tmp ${URL}/cncli.sh; then
+    sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/cncli.sh.tmp
+    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/cncli.sh)
+    TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/cncli.sh.tmp)
+    if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
+      update='N'
+      if [[ ${BATCH_AUTO_UPDATE} = 'Y' ]]; then
+        update='Y'
+      elif [[ $- =~ i ]]; then
+        echo -e "\nA new version of cncli script is available"
+        echo -e "\nPress 'u' to update to latest version, or any other key to continue\n"
+        read -r -n 1 -s answer
+        [[ ${answer} = "u" ]] && update='Y'
+        echo
+      fi
+      if [[ ${update} = 'Y' ]]; then
+        cp "${PARENT}"/cncli.sh "${PARENT}/cncli.sh_bkp$(date +%s)"
+        STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/cncli.sh)
+        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/cncli.sh.tmp
+        mv -f "${PARENT}"/cncli.sh.tmp "${PARENT}"/cncli.sh && \
+        chmod 750 "${PARENT}"/cncli.sh && \
+        echo -e "Update applied successfully!\n\nPlease run cncli again!" && \
+        exit 0 || {
+          echo -e "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update cncli"
+          exit 1
+        }
+      fi
+    fi
+  fi
+  rm -f "${PARENT}"/cncli.sh.tmp
+  
+  [[ ! -f "${CNCLI}" ]] && echo "ERROR: failed to locate cncli executable, please update and run 'prereqs.sh -h' to show options" && exit 1
+
   return 0
 }
 
