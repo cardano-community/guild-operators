@@ -756,6 +756,7 @@ EOF
       getRewards ${wallet_name}
       if [[ "${reward_lovelace}" -ge 0 ]]; then
         say "$(printf "%-19s : ${FG_CYAN}%s${NC} ADA" "Rewards" "$(formatLovelace ${reward_lovelace})")" "log"
+        say "$(printf "%-19s : ${FG_CYAN}%s${NC} ADA" "Funds + Rewards" "$(formatLovelace $((base_lovelace + reward_lovelace)))")" "log"
         delegation_pool_id=$(jq -r '.delegation  // empty' <<< "${stakeAddressInfo}")
         if [[ -n ${delegation_pool_id} ]]; then
           unset poolName
@@ -772,7 +773,7 @@ EOF
     fi
     echo
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    
+
     waitForInput && continue
 
     ;; ###################################################################
@@ -793,7 +794,7 @@ EOF
       [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
     fi
     echo
-    
+
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
       say "Are you sure to delete wallet ${FG_GREEN}${wallet_name}${NC}?"
       select_opt "[y] Yes" "[n] No"
@@ -879,7 +880,7 @@ EOF
 
     filesUnlocked=0
     keysDecrypted=0
-    
+
     echo
     say "# Removing write protection from all wallet files" "log"
     while IFS= read -r -d '' file; do
@@ -1319,9 +1320,9 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
     waitForInput && continue
-    
+
     ;; ###################################################################
-    
+
     withdrawrewards)
 
     clear
@@ -1396,11 +1397,11 @@ EOF
     echo
     say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
     say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")" "log"
-    
+
     waitForInput && continue
 
     ;; ###################################################################
-    
+
   esac
 
   ;; ###################################################################
@@ -1513,7 +1514,7 @@ EOF
       fi
     fi
     echo
-    
+
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
 
     say "# Pool Parameters"
@@ -1652,7 +1653,7 @@ EOF
              say "${FG_RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
              waitForInput && continue
            else
-             meta_extended_option=",\"extended\":\"${meta_extended}\"" 
+             meta_extended_option=",\"extended\":\"${meta_extended}\""
            fi
       esac
 
@@ -1751,7 +1752,7 @@ EOF
         esac
       done
     fi
-    
+
     say "\n# Select ${FG_CYAN}owner/pledge${NC} wallet"
     if [[ ${op_mode} = "online" ]]; then
       if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
@@ -1763,7 +1764,7 @@ EOF
       fi
     fi
     echo
-    
+
     owner_wallet="${wallet_name}"
     getBaseAddress ${owner_wallet}
     getBalance ${base_addr}
@@ -1907,12 +1908,12 @@ EOF
     say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${reward_stake_vk_file} --pool-owner-stake-verification-key-file ${owner_stake_vk_file} ${multi_owner_output} --out-file ${pool_regcert_file} ${NETWORK_IDENTIFIER} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output}" 2
     say "" 2
     ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${reward_stake_vk_file}" --pool-owner-stake-verification-key-file "${owner_stake_vk_file}" ${multi_owner_output} --out-file "${pool_regcert_file}" ${NETWORK_IDENTIFIER} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output}
-    
+
     say "creating delegation certificate for owner wallet" 1 "log"
     say "$ ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file ${owner_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${owner_delegation_cert_file}" 2
     say "" 2
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${owner_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${owner_delegation_cert_file}"
-    
+
     delegate_reward_wallet="false"
     if [[ ! "${owner_wallet}" = "${reward_wallet}" ]]; then
       say "\nRe-stake reward wallet to pool?"
@@ -1922,7 +1923,7 @@ EOF
            say "" 1
            say "creating delegation certificate for reward wallet" 1 "log"
            say "$ ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file ${reward_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${reward_delegation_cert_file}" 2
-           ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${reward_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${reward_delegation_cert_file}" 
+           ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${reward_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${reward_delegation_cert_file}"
            ;;
         1) : ;;
       esac
@@ -2154,7 +2155,7 @@ EOF
             say "${FG_RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
             waitForInput && continue
           else
-            meta_extended_option=",\"extended\":\"${meta_extended}\"" 
+            meta_extended_option=",\"extended\":\"${meta_extended}\""
           fi
       esac
 
@@ -2262,7 +2263,7 @@ EOF
     fi
     say "${FG_YELLOW}If a new wallet is chosen for owner/reward, a manual delegation to the pool with new wallet is needed${NC}"
     echo
-    
+
     say "# Select ${FG_CYAN}owner/pledge${NC} wallet"
     if [[ ${op_mode} = "online" ]]; then
       if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
@@ -2274,14 +2275,14 @@ EOF
       fi
     fi
     echo
-    
+
     owner_wallet="${wallet_name}"
     getBaseAddress ${owner_wallet}
     getBalance ${base_addr}
 
     if [[ ${lovelace} -gt 0 ]]; then
       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds in base address for owner wallet:"  "$(formatLovelace ${lovelace})")" "log"
+        say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds in base address + rewards for owner wallet:"  "$(formatLovelace $((lovelace + reward_lovelace)))")" "log"
         echo
       fi
     else
