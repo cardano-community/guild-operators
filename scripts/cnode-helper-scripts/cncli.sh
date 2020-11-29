@@ -252,10 +252,12 @@ cncliInit() {
         cp "${PARENT}"/cncli.sh "${PARENT}/cncli.sh_bkp$(date +%s)"
         STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/cncli.sh)
         printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/cncli.sh.tmp
-        mv -f "${PARENT}"/cncli.sh.tmp "${PARENT}"/cncli.sh && \
-        chmod 750 "${PARENT}"/cncli.sh && \
-        echo -e "Update applied successfully!\n\nPlease run cncli again!" && \
-        exit 0 || {
+        {
+          mv -f "${PARENT}"/cncli.sh.tmp "${PARENT}"/cncli.sh && \
+          chmod 750 "${PARENT}"/cncli.sh && \
+          echo -e "Update applied successfully!\n\nPlease run cncli again!" && \
+          exit 0 
+        } || {
           echo -e "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update cncli"
           exit 1
         }
