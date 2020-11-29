@@ -254,7 +254,7 @@ cncliInit() {
         printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/cncli.sh.tmp
         {
           mv -f "${PARENT}"/cncli.sh.tmp "${PARENT}"/cncli.sh && \
-          chmod 750 "${PARENT}"/cncli.sh && \
+          chmod 755 "${PARENT}"/cncli.sh && \
           echo -e "Update applied successfully!\n\nPlease run cncli again!" && \
           exit 0; 
         } || {
