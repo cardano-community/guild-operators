@@ -97,10 +97,11 @@ SUDO='Y';
 [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
 
 PARENT="$(dirname $0)"
-if curl -s -m ${CURL_TIMEOUT} -o "${PARENT}"/prereqs.sh.tmp ${URL_RAW}/scripts/prereqs.sh 2>/dev/null; then
+if curl -s -m ${CURL_TIMEOUT} -o "${PARENT}"/prereqs.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/prereqs.sh 2>/dev/null; then
   if ! cmp --silent "${PARENT}"/prereqs.sh "${PARENT}"/prereqs.sh.tmp; then
     if get_answer "A new version of prereqs script available, do you want to download the latest version?"; then
       mv -f "${PARENT}"/prereqs.sh.tmp "${PARENT}"/prereqs.sh
+      chmod 755 "${PARENT}"/prereqs.sh
       echo -e "Update applied successfully!\n\nPlease re-run the script again!"
       exit
     fi
