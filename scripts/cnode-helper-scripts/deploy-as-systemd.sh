@@ -1,5 +1,5 @@
 #!/bin/bash
-# shellcheck disable=SC1090, SC2086
+# shellcheck disable=SC1090,SC2086
 
 PARENT="$(dirname "$0")" 
 
