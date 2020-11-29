@@ -1,9 +1,16 @@
 #!/bin/bash
-# shellcheck disable=SC1090
+# shellcheck disable=SC1090,SC2086
 
-vname=%vname%
+PARENT="$(dirname "$0")" 
 
-. "$(dirname "$0")"/env &>/dev/null # ignore any error
+if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
+  vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")
+else
+  echo "failed to get cnode instance name from env file, aborting!"
+  exit 1
+fi
+
+. "${PARENT}"/env offline
 
 echo -e "\e[32m~~ Cardano Node ~~\e[0m"
 echo "launches the main cnode.sh script to start cardano-node"
@@ -119,17 +126,23 @@ AccuracySec=1s
 WantedBy=timers.target ${vname}.service
 EOF"
 else
-  if [[ -f /etc/systemd/system/${vname}-topologyupdater.timer ]]; then
-    sudo systemctl disable ${vname}-topologyupdater.timer
-    sudo rm -f /etc/systemd/system/${vname}-topologyupdater.timer
+  if [[ -f /etc/systemd/system/${vname}-tu-fetch.service ]]; then
+    sudo systemctl disable ${vname}-tu-fetch.service
+    sudo rm -f /etc/systemd/system/${vname}-tu-fetch.service
   fi
-  if [[ -f /etc/systemd/system/${vname}-topologyupdater.service ]]; then
-    sudo systemctl disable ${vname}-topologyupdater.service
-    sudo rm -f /etc/systemd/system/${vname}-topologyupdater.service
+  if [[ -f /etc/systemd/system/${vname}-tu-push.timer ]]; then
+    sudo systemctl disable ${vname}-tu-push.timer
+    sudo rm -f /etc/systemd/system/${vname}-tu-push.timer
   fi
-  if [[ -f /etc/systemd/system/${vname}.timer ]]; then
-    sudo systemctl disable ${vname}.timer
-    sudo rm -f /etc/systemd/system/${vname}.timer
+  if [[ -f /etc/systemd/system/${vname}-tu-push.service ]]; then
+    sudo rm -f /etc/systemd/system/${vname}-tu-push.service
+  fi
+  if [[ -f /etc/systemd/system/${vname}-tu-restart.timer ]]; then
+    sudo systemctl disable ${vname}-tu-restart.timer
+    sudo rm -f /etc/systemd/system/${vname}-tu-restart.timer
+  fi
+  if [[ -f /etc/systemd/system/${vname}-tu-restart.service ]]; then
+    sudo rm -f /etc/systemd/system/${vname}-tu-restart.service
   fi
 fi
 
