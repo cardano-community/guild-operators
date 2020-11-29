@@ -256,10 +256,10 @@ cncliInit() {
           mv -f "${PARENT}"/cncli.sh.tmp "${PARENT}"/cncli.sh && \
           chmod 750 "${PARENT}"/cncli.sh && \
           echo -e "Update applied successfully!\n\nPlease run cncli again!" && \
-          exit 0 
+          exit 0; 
         } || {
-          echo -e "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update cncli"
-          exit 1
+          echo -e "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update cncli" && \
+          exit 1;
         }
       fi
     fi
