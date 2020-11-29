@@ -1,7 +1,7 @@
 #!/bin/bash
-# shellcheck disable=SC1090
+# shellcheck disable=SC1090, SC2086
 
-PARENT="$(dirname $0)" 
+PARENT="$(dirname "$0")" 
 
 if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
   vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")
