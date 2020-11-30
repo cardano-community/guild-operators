@@ -241,12 +241,11 @@ cncliInit() {
       update='N'
       if [[ ${BATCH_AUTO_UPDATE} = 'Y' ]]; then
         update='Y'
-      elif [[ $- =~ i ]]; then
+      elif [[ -t 1 ]]; then # ask what to do if tty is available
         echo -e "\nA new version of cncli script is available"
-        echo -e "\nPress 'u' to update to latest version, or any other key to continue\n"
+        echo -e "Press 'u' to update to latest version, or any other key to continue"
         read -r -n 1 -s answer
         [[ ${answer} = "u" ]] && update='Y'
-        echo
       fi
       if [[ ${update} = 'Y' ]]; then
         cp "${PARENT}"/cncli.sh "${PARENT}/cncli.sh_bkp$(date +%s)"
@@ -255,7 +254,7 @@ cncliInit() {
         {
           mv -f "${PARENT}"/cncli.sh.tmp "${PARENT}"/cncli.sh && \
           chmod 755 "${PARENT}"/cncli.sh && \
-          echo -e "Update applied successfully!\n\nPlease run cncli again!" && \
+          echo -e "\nUpdate applied successfully, please run cncli again!\n" && \
           exit 0; 
         } || {
           echo -e "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update cncli" && \
@@ -441,11 +440,12 @@ cncliValidate() {
       echo "ERROR: unknown argument passed to validate command, valid options incl the string 'all' or the epoch number to validate"
       exit 1
     fi
+    epoch_blocks=$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch, slot, status, hash FROM blocklog ${epoch_selection} ORDER BY slot;")
     while IFS='|' read -r block_epoch block_slot block_status block_hash; do
       [[ ${epoch} -ne ${block_epoch} ]] && echo -e "> Validating epoch ${FG_GREEN}${block_epoch}${NC}" && epoch=${block_epoch}
       [[ ${block_status} != invalid ]] && block_status="leader" # reset status to leader to re-validate all non invalid blocks
       validateBlock
-    done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch, slot, status, hash FROM blocklog ${epoch_selection} ORDER BY slot;")
+    done < <(printf '%s\n' "${epoch_blocks}")
   elif [[ -n ${subarg} ]]; then
     echo "ERROR: unknown argument passed to validate subcommand" && usage
   else
@@ -459,11 +459,12 @@ cncliValidate() {
       fi
       block_tip=$(getBlockTip)
       curr_epoch=$(getEpoch)
-      prev_epoch=$((curr_epoch-1))
-      # Check both previous epoch and current to catch epoch boundary cases
+      # Check previous epoch as well at start of current epoch
+      [[ $(getSlotInEpoch) -lt $(( CONFIRM_SLOT_CNT * 6 )) ]] && prev_epoch=$((curr_epoch-1)) || prev_epoch=${curr_epoch}
+      epoch_blocks=$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch, slot, status, hash FROM blocklog WHERE epoch BETWEEN ${prev_epoch} and ${curr_epoch} ORDER BY slot;")
       while IFS='|' read -r block_epoch block_slot block_status block_hash; do
         validateBlock
-      done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch, slot, status, hash FROM blocklog WHERE epoch BETWEEN ${prev_epoch} and ${curr_epoch} ORDER BY slot;")
+      done < <(printf '%s\n' "${epoch_blocks}")
     done
   fi
 }
@@ -530,6 +531,7 @@ cncliInitBlocklogDB() {
   createBlocklogDB || exit 1 # create db if needed
   echo "Looking for blocks made by pool..."
   block_cnt=0
+  cncli_blocks=$(sqlite3 "${CNCLI_DB}" "SELECT block_number, slot_number, hash, block_size FROM chain WHERE node_vrf_vkey = '${pool_vrf_vkey_cbox_hex}' ORDER BY slot_number;")
   while IFS='|' read -r block_number slot_number block_hash block_size; do
     # Calculate epoch, at and slot_in_epoch
     epoch=$(getEpochFromSlot ${slot_number})
@@ -542,7 +544,7 @@ INSERT OR IGNORE INTO blocklog (slot, at, epoch, block, slot_in_epoch, hash, siz
 VALUES (${slot_number}, '${at}', ${epoch}, ${block_number}, ${slot_in_epoch}, '${block_hash}', ${block_size}, 'adopted');
 EOF
     ((block_cnt++))
-  done < <(sqlite3 "${CNCLI_DB}" "SELECT block_number, slot_number, hash, block_size FROM chain WHERE node_vrf_vkey = '${pool_vrf_vkey_cbox_hex}' ORDER BY slot_number;")
+  done < <(printf '%s\n' "${cncli_blocks}")
   if [[ ${block_cnt} -eq 0 ]]; then
     echo "No blocks found :("
   else
