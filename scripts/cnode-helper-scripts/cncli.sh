@@ -43,6 +43,7 @@ validate    Continously monitor and confirm that the blocks made actually was ac
   all       One-time re-validation of all blocks in blocklog db
   epoch     One-time re-validation of blocks in blocklog db for the specified epoch 
 ptsendtip   Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge (deployed as service)
+ptsendslots Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs (deployed as service)
 init        One-time initialization adding all minted and confirmed blocks to blocklog
 migrate     One-time migration from old blocklog(cntoolsBlockCollector) to new format (post cncli)
   path      Path to the old cntoolsBlockCollector blocklog folder holding json files with blocks created
@@ -102,7 +103,6 @@ getDateFromSlot() {
 
 createBlocklogDB() {
   if ! mkdir -p "${BLOCKLOG_DIR}"; then echo "ERROR: failed to create directory to store blocklog: ${BLOCKLOG_DIR}" && return 1; fi
-  if ! command -v sqlite3 >/dev/null; then echo "ERROR: sqlite3 not found, please install before activating blocklog function" && return 1; fi
   [[ $(${CNCLI} -V | cut -d' ' -f2 | tr -d '.' | sed 's/^0*//') -lt 29 ]] && echo "ERROR: $(${CNCLI} -V) installed, too old, please upgrade to 0.2.9 or newer" && return 1
   if [[ ! -f ${BLOCKLOG_DB} ]]; then # create a fresh DB with latest schema
     sqlite3 ${BLOCKLOG_DB} <<EOF
@@ -145,7 +145,7 @@ getPoolVrfVkeyCborHex() {
 
 dumpLedgerState() {
   ledger_state_file="/tmp/ledger-state_$(getEpoch).json"
-  [[ -n $(find "${ledger_state_file}" -mmin -60) ]] && return 0 # no need to continue, we have a fresh(<1h) ledger-state already
+  [[ -n $(find "${ledger_state_file}" -mmin -60 2>/dev/null) ]] && return 0 # no need to continue, we have a fresh(<1h) ledger-state already
   rm -f /tmp/ledger-state_* # remove old ledger dumps before creating a new
   if ! timeout -k 5 "${TIMEOUT_LEDGER_STATE}" ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${ledger_state_file}"; then
     echo "ERROR: ledger dump failed/timed out, increase timeout value"
@@ -215,12 +215,11 @@ cncliInit() {
   [[ -z "${PT_HOST}" ]] && PT_HOST="127.0.0.1"
   [[ -z "${PT_PORT}" ]] && PT_PORT="${CNODE_PORT}"
   [[ -z "${BATCH_AUTO_UPDATE}" ]] && BATCH_AUTO_UPDATE=N
+  
+  if ! command -v sqlite3 >/dev/null; then echo "ERROR: sqlite3 not found, please install before activating blocklog function" && exit 1; fi
 
   PARENT="$(dirname $0)"  
-  if [[ ! -f "${PARENT}"/env ]]; then
-    echo "ERROR: could not find common env file, please download and run 'prereqs.sh -h' to show options"
-    exit 1
-  fi
+  if [[ ! -f "${PARENT}"/env ]]; then echo "ERROR: could not find common env file, please download and run 'prereqs.sh -h' to show options" && exit 1; fi
   if ! . "${PARENT}"/env; then exit 1; fi
   
   if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
@@ -596,7 +595,7 @@ cncliPTsendtip() {
     echo "ERROR: cardano-node not in PATH, please manually set CCLI in env file"
     exit 1
   fi
-  pt_config="/tmp/${vname}-ptsendtip.json"
+  pt_config="/tmp/${vname}-pooltool.json"
   bash -c "cat << 'EOF' > ${pt_config}
 {
   \"api_key\": \"${PT_API_KEY}\",
@@ -615,6 +614,41 @@ EOF"
 
 #################################
 
+cncliPTsendslots() {
+  [[ $(${CNCLI} -V | cut -d' ' -f2 | tr -d '.' | sed 's/^0*//') -lt 31 ]] && echo "ERROR: $(${CNCLI} -V) installed, too old, please upgrade to 0.3.1 or newer" && exit 1
+  [[ -z ${POOL_ID} || -z ${POOL_TICKER} || -z ${PT_API_KEY} ]] && echo "'POOL_ID' and/or 'POOL_TICKER' and/or 'PT_API_KEY' not set in $(basename "$0"), exiting!" && exit 1
+  # Generate a temporary pooltool config
+  pt_config="/tmp/${vname}-pooltool.json"
+  bash -c "cat << 'EOF' > ${pt_config}
+{
+  \"api_key\": \"${PT_API_KEY}\",
+  \"pools\": [
+    {
+      \"name\": \"${POOL_TICKER}\",
+      \"pool_id\": \"${POOL_ID}\",
+      \"host\" : \"${PT_HOST}\",
+      \"port\": ${PT_PORT}
+    }
+  ]
+}
+EOF"
+  sendslots_epoch=-1
+  while true; do
+    sleep ${SLEEP_RATE}
+    node_metrics=$(getNodeMetrics)
+    curr_epoch=$(getEpoch)
+    [[ ${sendslots_epoch} -eq ${curr_epoch} ]] && continue # this epoch already processed
+    [[ $(( SLOT_LENGTH * $(getSlotInEpoch) )) -gt 600 ]] && continue # only allow slot sending in the first 10m after epoch boundary
+    leaderlog_cnt=$(sqlite3 "${CNCLI_DB}" "SELECT COUNT(*) FROM slots WHERE epoch=${curr_epoch} and pool_id='${POOL_ID}';")
+    [[ ${leaderlog_cnt} -eq 0 ]] && echo "ERROR: no leaderlogs for epoch ${curr_epoch} and pool id '${POOL_ID}' found in cncli DB" && continue
+    ${CNCLI} sendslots --config "${pt_config}" --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}"
+    echo "Slots for epoch ${curr_epoch} successfully sent to PoolTool for pool id '${POOL_ID}' !"
+    sendslots_epoch=${curr_epoch}
+  done
+}
+
+#################################
+
 case ${subcommand} in
   sync ) 
     cncliInit && cncliSync ;;
@@ -624,6 +658,8 @@ case ${subcommand} in
     cncliInit && cncliValidate ;;
   ptsendtip )
     cncliInit && cncliPTsendtip ;;
+  ptsendslots )
+    cncliInit && cncliPTsendslots ;;
   init )
     cncliInit && cncliInitBlocklogDB ;;
   migrate )
