@@ -2,6 +2,22 @@ FROM debian:stable-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
 
+ENV \
+    ENV=/etc/profile \
+    LC_ALL=en_US.UTF-8 \
+    LANG=en_US.UTF-8 \
+    LANGUAGE=en_US.UTF-8 \
+    CNODE_HOME=/opt/cardano/cnode \
+    PATH=/nix/var/nix/profiles/per-user/guild/profile/bin:/nix/var/nix/profiles/per-user/guild/profile/sbin:/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.cabal/bin \
+    GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
+    NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    NIX_PATH=/nix/var/nix/profiles/per-user/guild/channels
+
+USER root
+WORKDIR /
+
+# COPY NODE BINS AND DEPS 
+COPY --from=cardanocommunity/cardano-node:stage2 /root/.cabal/bin/* /usr/local/bin/
 # COPY NODE BINS AND DEPS 
 COPY --from=cardanocommunity/cardano-node:stage2 /root/.cabal/bin/* /usr/local/bin/
 COPY --from=cardanocommunity/cardano-node:stage2 /lib/x86_64-linux-gnu/lib* /lib/x86_64-linux-gnu/
@@ -9,9 +25,11 @@ COPY --from=cardanocommunity/cardano-node:stage2 /lib64/ld-linux-x86-64* /lib64/
 COPY --from=cardanocommunity/cardano-node:stage2 /usr/lib/x86_64-linux-gnu/libgmp.* /usr/lib/x86_64-linux-gnu/
 COPY --from=cardanocommunity/cardano-node:stage2 /usr/lib/x86_64-linux-gnu/liblz4.* /usr/lib/x86_64-linux-gnu/
 COPY --from=cardanocommunity/cardano-node:stage2 /usr/lib/x86_64-linux-gnu/libsodium.* /usr/lib/x86_64-linux-gnu/
+COPY --from=cardanocommunity/cardano-node:stage2 /opt/ /opt/
 
-RUN chmod a+x /usr/local/bin/*
-
+RUN chmod a+x /usr/local/bin/* && ls /opt/ \
+    && mkdir -p $CNODE_HOME/priv/files 
+    
 # Install locales package
 RUN  apt-get update && apt-get install --no-install-recommends -y locales
 
@@ -35,7 +53,9 @@ ENV \
     NIX_PATH=/nix/var/nix/profiles/per-user/guild/channels
 
 # PREREQ --no-install-recommends
-RUN apt-get update && apt-get install -y libcap2-bin ncurses-bin iproute2 curl wget apt-utils xz-utils netbase sudo coreutils dnsutils net-tools procps cron tcptraceroute bc
+RUN apt-get update && apt-get install -y libcap2-bin ncurses-bin iproute2 curl wget apt-utils xz-utils netbase sudo coreutils dnsutils net-tools procps tcptraceroute bc \
+    && apt-get install -y --no-install-recommends cron \
+    && sudo apt-get -y purge && sudo apt-get -y clean && sudo apt-get -y autoremove && sudo rm -rf /var/lib/apt/lists/* # && sudo rm -rf /usr/bin/apt*
 
 ADD https://raw.githubusercontent.com/stakelovelace/cardano-node/master/crontab /etc/cron.d/crontab
 RUN chmod 0644 /etc/cron.d/crontab && touch /var/log/cron.log
@@ -57,24 +77,23 @@ WORKDIR /home/guild
 RUN sudo curl -sL https://nixos.org/nix/install | sh \
     && sudo ln -s /nix/var/nix/profiles/per-user/etc/profile.d/nix.sh /etc/profile.d/ \
     && . /home/guild/.nix-profile/etc/profile.d/nix.sh \
-    && sudo crontab -u guild /etc/cron.d/crontab
+    && sudo crontab -u guild /etc/cron.d/crontab \
+    && echo "alias cntools=$CNODE_HOME/scripts/cntools.sh" >> ~/.bashrc \
+    && echo "alias gLiveView=$CNODE_HOME/scripts/gLiveView.sh" >> ~/.bashrc \
+    && echo "export PATH=/nix/var/nix/profiles/per-user/guild/profile/bin:/nix/var/nix/profiles/per-user/guild/profile/sbin:/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.cabal/bin"  >> ~/.bashrc
 
-# INSTALL DEPS
-RUN /nix/var/nix/profiles/per-user/guild/profile/bin/nix-channel --update \
-    && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -i python3 systemd libsodium tmux jq ncurses libtool autoconf git wget gnupg column less openssl vim \
+# INSTALL DEPS  
+RUN /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -i python3 systemd libsodium tmux jq ncurses libtool autoconf git wget gnupg column less openssl vim \
+    && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-channel --update \
     && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -u --always \
-    && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-collect-garbage -d 
-
-# GUILD SKAffold
-RUN sudo mkdir -p $CNODE_HOME/files $CNODE_HOME/db $CNODE_HOME/db/blocks $CNODE_HOME/logs $CNODE_HOME/scripts $CNODE_HOME/sockets $CNODE_HOME/priv/files \
-    && echo "export PATH=/home/guild/.local/bin:/nix/var/nix/profiles/per-user/guild/profile/bin:/nix/var/nix/profiles/per-user/guild/profile/sbin:/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.cabal/bin" >> ~/.bashrc \
-    && echo "alias cntools=/opt/cardano/cnode/scripts/cntools.sh" >> ~/.bashrc \
-    && echo "alias gLiveView=/opt/cardano/cnode/scripts/gLiveView.sh" >> ~/.bashrc
+    && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-collect-garbage -d \
+    && sudo rm /nix/var/nix/profiles/per-user/guild/profile/bin/nix-*
 
 # HYDRA CFG
 ADD https://hydra.iohk.io/build/3670619/download/1/mainnet-topology.json $CNODE_HOME/priv/files/
 ADD https://hydra.iohk.io/build/3670619/download/1/mainnet-shelley-genesis.json $CNODE_HOME/priv/files/
 ADD https://hydra.iohk.io/build/3670619/download/1/mainnet-byron-genesis.json $CNODE_HOME/priv/files/
+ADD https://hydra.iohk.io/build/3670619/download/1/mainnet-config.json $CNODE_HOME/priv/files/
 
 # HYDRA TESTNET CFG
 ADD https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json $CNODE_HOME/priv/files/
@@ -87,21 +106,9 @@ ADD https://raw.githubusercontent.com/stakelovelace/cardano-node/master/master-t
 ADD https://raw.githubusercontent.com/stakelovelace/cardano-node/master/guild-topology.sh /home/guild/.scripts/
 ADD https://raw.githubusercontent.com/stakelovelace/cardano-node/master/block_watcher.sh /home/guild/.scripts/
 ADD https://raw.githubusercontent.com/stakelovelace/cardano-node/master/entrypoint.sh ./
+
 RUN sudo chown -R guild:guild $CNODE_HOME/* \
-    && sudo chown -R guild:guild /home/guild/.*
-
-# GUILD SCRIPTS
-RUN cd && git clone --quiet https://github.com/cardano-community/guild-operators.git \
-    && cp -rf ~/guild-operators/scripts/cnode-helper-scripts/* $CNODE_HOME/scripts \
-    && cp -rf ~/guild-operators/scripts/* $CNODE_HOME/scripts \
-    && cp -rf ~/guild-operators/files/* $CNODE_HOME/files \
-    && rm -rf ~/guild-operators \
-    && rm /opt/cardano/cnode/files/byron-genesis.json  && rm /opt/cardano/cnode/files/genesis.json && if [ -f /opt/cardano/cnode/files/config.json ]; then rm /opt/cardano/cnode/files/config.json; else echo NO; fi \
-    && ln -s /opt/cardano/cnode/priv/files/mainnet-byron-genesis.json /opt/cardano/cnode/files/byron-genesis.json \
-    && ln -s /opt/cardano/cnode/priv/files/mainnet-shelley-genesis.json /opt/cardano/cnode/files/genesis.json \
-    && ln -s /opt/cardano/cnode/files/config-mainnet.json /opt/cardano/cnode/priv/files/mainnet-config.json \
-    && sudo chmod a+x /home/guild/.scripts/*.sh $CNODE_HOME/scripts/*.sh /home/guild/*.sh 
-
-RUN sudo apt-get -y remove exim4 && sudo rm -rf /etc/rc5.d/S*exim4 /etc/rc6.d/K*exim4 /usr/sbin/exim* && sudo apt-get -y purge && sudo apt-get -y clean && sudo apt-get -y autoremove && sudo rm -rf /var/lib/apt/lists/* # && sudo rm -rf /usr/bin/apt* && sudo rm /nix/var/nix/profiles/per-user/guild/profile/bin/nix-*
+    && sudo chown -R guild:guild /home/guild/.* \
+    && sudo chmod a+x /home/guild/.scripts/*.sh /home/guild/entrypoint.sh
 
 ENTRYPOINT ["./entrypoint.sh"]
