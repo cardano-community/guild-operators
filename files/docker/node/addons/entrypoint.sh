@@ -5,78 +5,60 @@ echo "NETWORK: $NETWORK";
 
 export CNODE_HOME=/opt/cardano/cnode
 export CNODE_PORT=6000
-export POOL=$@ 
 
-echo "NODE: $HOSTNAME - $POOL";
+echo "NODE: $HOSTNAME - Port:$CNODE_PORT - $POOL_NAME";
 cardano-node --version;
 
 sudo touch /etc/crontab /etc/cron.*/*
 sudo cron  > /dev/null 2>&1
 #sudo /etc/init.d/promtail start > /dev/null 2>&1
 
-if [[ $NETWORK = "master" ]] ; then
-sudo bash /home/guild/.scripts/master-topology.sh > /dev/null 2>&1
-fi
-
-if [[ $NETWORK = "guild_relay" ]] ; then
-sudo bash /home/guild/.scripts/guild-topology.sh > /dev/null 2>&1
-fi
-
-
 if [[ ! -d "/tmp/mainnet-combo-db" ]] && [[ $NETWORK != "master" ]] && [[ $NETWORK != "testnet" ]] ; then
-cp -rf $CNODE_HOME/priv/mainnet-combo-db /tmp/mainnet-combo-db
+cp -rf $CNODE_HOME/priv/mainnet-combo-db /tmp/mainnet-combo-db 2>/dev/null
 else 
-rm -rf /tmp/mainnet-combo-db
-cp -rf $CNODE_HOME/priv/mainnet-combo-db /tmp/mainnet-combo-db
+rm -rf /tmp/mainnet-combo-db 2>/dev/null
+cp -rf $CNODE_HOME/priv/mainnet-combo-db /tmp/mainnet-combo-db 2>/dev/null
+fi
+
+if [[ ! -d "/tmp/testnet-combo-db" ]] && [[ $NETWORK = "testnet" ]] ; then
+cp -rf $CNODE_HOME/priv/testnet-combo-db /tmp/testnet-combo-db 2>/dev/null
+else 
+rm -rf /tmp/testnet-combo-db 2>/dev/null
+cp -rf $CNODE_HOME/priv/testnet-combo-db /tmp/testnet-combo-db 2>/dev/null
+fi
+
+if [[ "${POOL_NAME}" ]] ; then 
+export POOL_DIR="$CNODE_HOME/priv/pool/$POOL_NAME"
+echo "POOL_DIR set to: $POOL_DIR" ;
 fi
 
 # EKG Exposed
 #socat -d tcp-listen:12782,reuseaddr,fork tcp:127.0.0.1:12781 
 
 if [[ "$NETWORK" == "relay" ]]; then
-  exec cardano-node run \
-    --config $CNODE_HOME/priv/files/mainnet-config.json \
-    --database-path /tmp/mainnet-combo-db \
-    --host-addr 0.0.0.0 \
-    --port $CNODE_PORT \
-    --socket-path $CNODE_HOME/sockets/node0.socket \
-    --topology $CNODE_HOME/priv/files/mainnet-topology.json
+  export TOPOLOGY="$CNODE_HOME/priv/files/mainnet-topology.json" \
+  && export CONFIG="$CNODE_HOME/priv/files/mainnet-config.json" \
+  && exec $CNODE_HOME/scripts/cnode.sh
 elif [[ "$NETWORK" == "testnet" ]]; then
-  exec cardano-node run \
-    --config $CNODE_HOME/priv/files/testnet-config.json \
-    --database-path $CNODE_HOME/priv/testnet-combo-db \
-    --host-addr 0.0.0.0 \
-    --port $CNODE_PORT \
-    --socket-path $CNODE_HOME/sockets/node0.socket \
-    --topology $CNODE_HOME/priv/files/testnet-topology.json
+  export TOPOLOGY="$CNODE_HOME/priv/files/testnet-topology.json" \
+  && export CONFIG="$CNODE_HOME/priv/files/testnet-config.json" \
+  && exec $CNODE_HOME/scripts/cnode.sh
 elif [[ "$NETWORK" == "master" ]]; then
-  exec cardano-node run \
-    --config $CNODE_HOME/priv/files/mainnet-config.json \
-    --database-path $CNODE_HOME/priv/mainnet-combo-db \
-    --host-addr 0.0.0.0 \
-    --port $CNODE_PORT \
-    --socket-path $CNODE_HOME/sockets/node0.socket \
-    --topology $CNODE_HOME/priv/files/mainnet-master.json
-elif [[ "$NETWORK" == "pool" ]]; then
-  exec cardano-node run \
-    --config $CNODE_HOME/priv/files/mainnet-config.json \
-    --database-path /tmp/mainnet-combo-db \
-    --host-addr 0.0.0.0 \
-    --port $CNODE_PORT \
-    --socket-path $CNODE_HOME/sockets/node0.socket \
-    --shelley-operational-certificate $CNODE_HOME/priv/pool/$POOL/op.cert \
-    --shelley-kes-key $CNODE_HOME/priv/pool/$POOL/hot.skey \
-    --shelley-vrf-key $CNODE_HOME/priv/pool/$POOL/vrf.skey \
-    --topology $CNODE_HOME/priv/files/mainnet-topology.json
+  export TOPOLOGY=$CNODE_HOME/priv/files/mainnet-topology.json \
+  && export CONFIG="$CNODE_HOME/priv/files/mainnet-config.json" \
+  && sudo bash /home/guild/.scripts/master-topology.sh > /dev/null 2>&1 \
+  && exec $CNODE_HOME/scripts/cnode.sh
+elif [[ "$NETWORK" == "pool" ]] && [[ "${POOL_NAME}" ]] ; then
+  export TOPOLOGY=$CNODE_HOME/priv/files/mainnet-topology.json \
+  && export CONFIG="${CNODE_HOME}/files/config.json" \
+  && exec $CNODE_HOME/scripts/cnode.sh
 elif [[ "$NETWORK" == "guild_relay" ]]; then
-  exec cardano-node run \
-    --config $CNODE_HOME/priv/files/mainnet-config.json \
-    --database-path /tmp/mainnet-combo-db \
-    --host-addr 0.0.0.0 \
-    --port $CNODE_PORT \
-    --socket-path $CNODE_HOME/sockets/node0.socket \
-    --topology $CNODE_HOME/priv/files/guild_topology.json
+  export TOPOLOGY="$CNODE_HOME/priv/files/guild_topology.json" \
+  && export CONFIG="${CNODE_HOME}/files/config.json" \
+  && sudo bash /home/guild/.scripts/guild-topology.sh > /dev/null 2>&1 \
+  && exec $CNODE_HOME/scripts/cnode.sh
 else
-  echo "Please set a NETWORK environment variable to one of: relay/master/pool/testnet/guild_relay"
-  echo "Or mount a '$CNODE_HOME/priv/files' volume containing: mainnet-config.json, mainnet-shelley-genesis.json, mainnet-byron-genesis.json, and mainnet-topology.json + $CNODE_HOME/priv/pool/$POOL/op.cert, $CNODE_HOME/priv/pool/$POOL/hot.skey and $CNODE_HOME/priv/pool/$POOL/vrf.skey for active nodes"
+  echo "Please set a NETWORK environment variable to one of: relay / pool / testnet / guild_relay"
+  echo "mount a '$CNODE_HOME/priv/files' volume containing: mainnet-config.json, mainnet-shelley-genesis.json, mainnet-byron-genesis.json, and mainnet-topology.json "
+  echo "for active nodes set POOL_DIR where op.cert, hot.skey and vrf.skey files reside. (usually under '${CNODE_HOME}/priv/pool/$POOL_NAME' ) or just set POOL_NAME (for default path)"
 fi
