@@ -196,6 +196,14 @@ Cost   : 500 ADA
 
 #### Offline Workflow
 
+For offline workflow all wallet and pool keys should be kept on the offline node. The backup function in CNTools has an option to create a backup without private keys to be transfered to online node.
+
+Keys excluded from backup when created without private keys:  
+**Wallet** - payment.skey, stake.skey
+**Pool**   - cold.skey
+
+All other files are included in the backup to be transfered to the online node.
+
 ``` mermaid
 
 sequenceDiagram

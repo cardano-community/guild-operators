@@ -49,8 +49,7 @@ shift $((OPTIND -1))
 # get common env variables
 if ! . "${CNODE_HOME}"/scripts/env; then
   [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && exit 1
-  echo -e "\nERROR: CNTools run in offline mode and failed to automatically grab common env variables\nPlease uncomment all variables in 'User Variables' section and set values manually\n"
-  exit 1
+  myExit 1 "\nERROR: CNTools run in offline mode and failed to automatically grab common env variables\nPlease uncomment all variables in 'User Variables' section and set values manually\n"
 fi
 
 # get cntools config parameters
@@ -78,7 +77,7 @@ if ! need_cmd "curl" || \
    ! need_cmd "sed" || \
    ! need_cmd "awk" || \
    ! need_cmd "column" || \
-   ! protectionPreRequisites; then myExit 1
+   ! protectionPreRequisites; then waitForInput "press any key to exit"; myExit 1
 fi
 
 # Do some checks when run in connected mode
@@ -201,7 +200,7 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
         ((byron_epochs--))
         ((shelley_epochs++))
       done
-      node_sync="NODE SYNC:\n$(printTable ',' "$(echo -e "Epoch,Slot in Epoch,Slot\n${epoch},${slot_in_epoch},${slot_num}")")"
+      node_sync="NODE SYNC: Epoch[${epoch}] - Slot in Epoch[${slot_in_epoch}] - Slot[${slot_num}]\n"
       if [[ ${calc_slot} -ne ${slot_num} ]]; then
         myExit 1 "${FG_YELLOW}WARN${NC}: Failed to calculate shelley transition epoch\n\n${node_sync}"
       elif [[ ${shelley_epochs} -eq 0 ]]; then
@@ -507,11 +506,11 @@ EOF
     
     say "# Select wallet to register (only non-registered wallets shown)"
     if [[ ${op_mode} = "online" ]]; then
-      if ! selectWallet "non-reg" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
+      if ! selectWallet "non-reg" "${WALLET_PAY_SK_FILENAME}" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
         [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     else
-      if ! selectWallet "non-reg" "${WALLET_STAKE_VK_FILENAME}"; then
+      if ! selectWallet "non-reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
         [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     fi
@@ -557,11 +556,11 @@ EOF
     
     say "# Select wallet to de-register (only registered wallets shown)"
     if [[ ${op_mode} = "online" ]]; then
-      if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
+      if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
         [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     else
-      if ! selectWallet "delegate" "${WALLET_STAKE_VK_FILENAME}"; then
+      if ! selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
         [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
       fi
     fi
@@ -1678,7 +1677,7 @@ EOF
     # ToDo SRV & IPv6 support
     if [[ -f "${pool_config}" && $(jq '.relays | length' "${pool_config}") -gt 0 ]]; then
       say "\nPrevious relay configuration:\n"
-      printTable ',' "$(say 'Type,Address,Port' | cat - <(jq -r -c '.relays[] | [.type //"-",.address //"-",.port //"-"] | @csv //empty' "${pool_config}") | tr -d '"')"
+      jq -r '["TYPE","ADDRESS","PORT"], (.relays[] | [.type //"-",.address //"-",.port //"-"]) | @tsv' "${pool_config}" | column -t
       say "\nReuse previous configuration?"
       select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
       case $? in
@@ -1699,51 +1698,47 @@ EOF
       while true; do
         select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[Esc] Cancel"
         case $? in
-          0) echo && read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
+          0) read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
              if [[ -z "${relay_dns_enter}" ]]; then
-               say "\n${FG_RED}ERROR${NC}: DNS record can not be empty!\n"
-               continue
-             fi
-             #ToDo - DNS format verficication?
-             read -r -p "Enter relays's port: " relay_port_enter
-             if [[ -n "${relay_port_enter}" ]]; then
-               if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
-                 say "\n${FG_RED}ERROR${NC}: invalid port number!\n"
-                 continue
-               fi
+               say "${FG_RED}ERROR${NC}: DNS record can not be empty!"
              else
-               say "\n${FG_RED}ERROR${NC}: Port can not be empty!\n"
-               continue
+               read -r -p "Enter relays's port: " relay_port_enter
+               if [[ -n "${relay_port_enter}" ]]; then
+                 if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
+                   say "${FG_RED}ERROR${NC}: invalid port number!"
+                 else
+                   relay_array+=( "type" "DNS_A" "address" "${relay_dns_enter}" "port" "${relay_port_enter}" )
+                   relay_output+="--single-host-pool-relay ${relay_dns_enter} --pool-relay-port ${relay_port_enter} "
+                 fi
+               else
+                 say "${FG_RED}ERROR${NC}: Port can not be empty!"
+               fi
              fi
-             relay_array+=( "type" "DNS_A" "address" "${relay_dns_enter}" "port" "${relay_port_enter}" )
-             relay_output+="--single-host-pool-relay ${relay_dns_enter} --pool-relay-port ${relay_port_enter} "
              ;;
-          1) echo && read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter
+          1) read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter
              if [[ -n "${relay_ipv4_enter}" ]]; then
                if ! validIP "${relay_ipv4_enter}"; then
-                 say "\n${FG_RED}ERROR${NC}: invalid IPv4 address format!\n"
-                 continue
+                 say "${FG_RED}ERROR${NC}: invalid IPv4 address format!"
+               else
+                 read -r -p "Enter relays's port: " relay_port_enter
+                 if [[ -n "${relay_port_enter}" ]]; then
+                   if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
+                     say "${FG_RED}ERROR${NC}: invalid port number!"
+                   else
+                     relay_array+=( "type" "IPv4" "address" "${relay_ipv4_enter}" "port" "${relay_port_enter}" )
+                     relay_output+="--pool-relay-port ${relay_port_enter} --pool-relay-ipv4 ${relay_ipv4_enter} "
+                   fi
+                 else
+                   say "${FG_RED}ERROR${NC}: Port can not be empty!"
+                 fi
                fi
              else
-               say "\n${FG_RED}ERROR${NC}: IPv4 address can not be empty!\n"
-               continue
+               say "${FG_RED}ERROR${NC}: IPv4 address can not be empty!"
              fi
-             read -r -p "Enter relays's port: " relay_port_enter
-             if [[ -n "${relay_port_enter}" ]]; then
-               if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
-                 say "\n${FG_RED}ERROR${NC}: invalid port number!\n"
-                 continue
-               fi
-             else
-               say "\n${FG_RED}ERROR${NC}: Port can not be empty!\n"
-               continue
-             fi
-             relay_array+=( "type" "IPv4" "address" "${relay_ipv4_enter}" "port" "${relay_port_enter}" )
-             relay_output+="--pool-relay-port ${relay_port_enter} --pool-relay-ipv4 ${relay_ipv4_enter} "
              ;;
           2) continue 2 ;;
         esac
-        say "\nAdd more relay entries?"
+        say "Add more relay entries?"
         select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
         case $? in
           0) break ;;
@@ -1826,18 +1821,17 @@ EOF
     case $? in
       0) : ;;
       1) while true; do
-           say "\nEnter path to stake ${FG_CYAN}vkey${NC} file:"
+           say "Enter path to stake ${FG_CYAN}vkey${NC} file:"
            fileDialog 0 "Enter path to stake vkey file" "${WALLET_FOLDER}"
-           say "${file}\n"
+           say "${file}"
            stake_vk_file_enter=${file}
            if [[ ${op_mode} = "online" ]]; then
              say "Enter path to stake ${FG_CYAN}skey${NC} file:"
-             fileDialog 0 "Enter path to stake skey file" "${WALLET_FOLDER}"
-             say "${file}\n"
+             fileDialog 0 "Enter path to stake skey file" "$(dirname ${stake_vk_file_enter})"
+             say "${file}"
              stake_sk_file_enter=${file}
              if [[ ! -f "${stake_vk_file_enter}" || ! -f "${stake_sk_file_enter}" ]]; then
                say "${FG_RED}ERROR${NC}: One or both files not found, please try again"
-               waitForInput && continue
              else
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
                multi_owner_skeys+=( "${stake_sk_file_enter}" )
@@ -1845,12 +1839,11 @@ EOF
            else
              if [[ ! -f "${stake_vk_file_enter}" ]]; then
                say "${FG_RED}ERROR${NC}: file not found, please try again"
-               waitForInput && continue
              else
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
              fi
            fi
-           say "\nAdd more owners?"
+           say "Add more owners?"
            select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
            case $? in
              0) break ;;
@@ -2180,7 +2173,7 @@ EOF
     # ToDo SRV & IPv6 support
     if [[ -f ${pool_config} && $(jq '.relays | length' "${pool_config}") -gt 0 ]]; then
       say "\nPrevious relay configuration:\n"
-      printTable ',' "$(say 'Type,Address,Port' | cat - <(jq -r -c '.relays[] | [.type //"-",.address //"-",.port //"-"] | @csv //empty' "${pool_config}") | tr -d '"')"
+      jq -r '["TYPE","ADDRESS","PORT"], (.relays[] | [.type //"-",.address //"-",.port //"-"]) | @tsv' "${pool_config}" | column -t
       say "\nReuse previous configuration?"
       select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
       case $? in
@@ -2201,51 +2194,47 @@ EOF
       while true; do
         select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[Esc] Cancel"
         case $? in
-          0) echo && read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
+          0) read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter
              if [[ -z "${relay_dns_enter}" ]]; then
-               say "\n${FG_RED}ERROR${NC}: DNS record can not be empty!\n"
-               continue
-             fi
-             #ToDo - DNS format verficication?
-             read -r -p "Enter relays's port: " relay_port_enter
-             if [[ -n "${relay_port_enter}" ]]; then
-               if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
-                 say "\n${FG_RED}ERROR${NC}: invalid port number!\n"
-                 continue
-               fi
+               say "${FG_RED}ERROR${NC}: DNS record can not be empty!"
              else
-               say "\n${FG_RED}ERROR${NC}: Port can not be empty!\n"
-               continue
+               read -r -p "Enter relays's port: " relay_port_enter
+               if [[ -n "${relay_port_enter}" ]]; then
+                 if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
+                   say "${FG_RED}ERROR${NC}: invalid port number!"
+                 else
+                   relay_array+=( "type" "DNS_A" "address" "${relay_dns_enter}" "port" "${relay_port_enter}" )
+                   relay_output+="--single-host-pool-relay ${relay_dns_enter} --pool-relay-port ${relay_port_enter} "
+                 fi
+               else
+                 say "${FG_RED}ERROR${NC}: Port can not be empty!"
+               fi
              fi
-             relay_array+=( "type" "DNS_A" "address" "${relay_dns_enter}" "port" "${relay_port_enter}" )
-             relay_output+="--single-host-pool-relay ${relay_dns_enter} --pool-relay-port ${relay_port_enter} "
              ;;
-          1) echo && read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter
+          1) read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter
              if [[ -n "${relay_ipv4_enter}" ]]; then
                if ! validIP "${relay_ipv4_enter}"; then
-                 say "\n${FG_RED}ERROR${NC}: invalid IPv4 address format!\n"
-                 continue
+                 say "${FG_RED}ERROR${NC}: invalid IPv4 address format!"
+               else
+                 read -r -p "Enter relays's port: " relay_port_enter
+                 if [[ -n "${relay_port_enter}" ]]; then
+                   if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
+                     say "${FG_RED}ERROR${NC}: invalid port number!"
+                   else
+                     relay_array+=( "type" "IPv4" "address" "${relay_ipv4_enter}" "port" "${relay_port_enter}" )
+                     relay_output+="--pool-relay-port ${relay_port_enter} --pool-relay-ipv4 ${relay_ipv4_enter} "
+                   fi
+                 else
+                   say "${FG_RED}ERROR${NC}: Port can not be empty!"
+                 fi
                fi
              else
-               say "\n${FG_RED}ERROR${NC}: IPv4 address can not be empty!\n"
-               continue
+               say "${FG_RED}ERROR${NC}: IPv4 address can not be empty!"
              fi
-             read -r -p "Enter relays's port: " relay_port_enter
-             if [[ -n "${relay_port_enter}" ]]; then
-               if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
-                 say "\n${FG_RED}ERROR${NC}: invalid port number!\n"
-                 continue
-               fi
-             else
-               say "\n${FG_RED}ERROR${NC}: Port can not be empty!\n"
-               continue
-             fi
-             relay_array+=( "type" "IPv4" "address" "${relay_ipv4_enter}" "port" "${relay_port_enter}" )
-             relay_output+="--pool-relay-port ${relay_port_enter} --pool-relay-ipv4 ${relay_ipv4_enter} "
              ;;
           2) continue 2 ;;
         esac
-        say "\nAdd more relay entries?"
+        say "Add more relay entries?"
         select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
         case $? in
           0) break ;;
@@ -2336,18 +2325,17 @@ EOF
     case $? in
       0) : ;;
       1) while true; do
-           say "\nEnter path to stake ${FG_CYAN}vkey${NC} file:"
+           say "Enter path to stake ${FG_CYAN}vkey${NC} file:"
            fileDialog 0 "Enter path to stake vkey file" "${WALLET_FOLDER}"
-           say "${file}\n"
+           say "${file}"
            stake_vk_file_enter=${file}
            if [[ ${op_mode} = "online" ]]; then
              say "Enter path to stake ${FG_CYAN}skey${NC} file:"
-             fileDialog 0 "Enter path to stake skey file" "${WALLET_FOLDER}"
-             say "${file}\n"
+             fileDialog 0 "Enter path to stake skey file" "$(dirname ${stake_vk_file_enter})"
+             say "${file}"
              stake_sk_file_enter=${file}
              if [[ ! -f "${stake_vk_file_enter}" || ! -f "${stake_sk_file_enter}" ]]; then
                say "${FG_RED}ERROR${NC}: One or both files not found, please try again"
-               waitForInput && continue
              else
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
                multi_owner_skeys+=( "${stake_sk_file_enter}" )
@@ -2355,12 +2343,11 @@ EOF
            else
              if [[ ! -f "${stake_vk_file_enter}" ]]; then
                say "${FG_RED}ERROR${NC}: file not found, please try again"
-               waitForInput && continue
              else
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
              fi
            fi
-           say "\nAdd more owners?"
+           say "Add more owners?"
            select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
            case $? in
              0) break ;;
@@ -3263,11 +3250,18 @@ EOF
          current_epoch=$(getEpoch)
          say "Current epoch: ${FG_CYAN}${current_epoch}${NC}\n"
          if [[ ${view} -eq 1 ]]; then
-           block_table="Epoch,Leader | Ideal | Luck,${FG_CYAN}Adopted${NC} | ${FG_GREEN}Confirmed${NC},${FG_RED}Missed${NC} | ${FG_RED}Ghosted${NC} | ${FG_RED}Stolen${NC} | ${FG_RED}Invalid${NC}\n"
-           
            [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=$((current_epoch+1)) LIMIT 1);" 2>/dev/null) -eq 1 ]] && ((current_epoch++))
            first_epoch=$(( current_epoch - epoch_enter ))
            [[ ${first_epoch} -lt 0 ]] && first_epoch=0
+           
+           ideal_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(epoch_slots_ideal) FROM epochdata WHERE epoch BETWEEN ${first_epoch} and ${current_epoch} ORDER BY LENGTH(epoch_slots_ideal) DESC LIMIT 1;")
+           [[ ${ideal_len} -lt 5 ]] && ideal_len=5
+           luck_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(max_performance) FROM epochdata WHERE epoch BETWEEN ${first_epoch} and ${current_epoch} ORDER BY LENGTH(max_performance) DESC LIMIT 1;")
+           [[ $((luck_len+1)) -le 4 ]] && luck_len=4 || luck_len=$((luck_len+1))
+           printf '|'; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "="; printf '|\n'
+           printf "| %-5s | %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_CYAN}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "Epoch" "Leader" "Ideal" "Luck" "Adopted" "Confirmed" "Missed" "Ghosted" "Stolen" "Invalid"
+           printf '|'; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "="; printf '|\n'
+           
            while [[ ${current_epoch} -gt ${first_epoch} ]]; do
              invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='invalid';" 2>/dev/null)
              missed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='missed';" 2>/dev/null)
@@ -3282,10 +3276,10 @@ EOF
              else
                epoch_stats[1]="${epoch_stats[1]}%"
              fi
-             block_table+="$(printf "%s,%-6s | %-5s | %s,%-7s | %s,%-6s | %-7s | %-6s | %s" "${current_epoch}" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}")\n"
+             printf "| %-5s | %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_CYAN}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "${current_epoch}" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}"
              ((current_epoch--))
            done
-           printTable ',' "$(echo -e "${block_table}")"
+           printf '|'; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "="; printf '|\n'
          else
            say "Block Status:\n"
            say "Leader    - Scheduled to make block at this slot"
@@ -3341,41 +3335,64 @@ EOF
          else
            epoch_stats[1]="${epoch_stats[1]}%"
          fi
-         epoch_summary="Leader | Ideal | Luck,${FG_CYAN}Adopted${NC} | ${FG_GREEN}Confirmed${NC},${FG_RED}Missed${NC} | ${FG_RED}Ghosted${NC} | ${FG_RED}Stolen${NC} | ${FG_RED}Invalid${NC}\n"
-         epoch_summary+="$(printf "%-6s | %-5s | %s,%-7s | %s,%-6s | %-7s | %-6s | %s" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}")\n"
-         printTable ',' "$(echo -e "${epoch_summary}")"
+         [[ ${#epoch_stats[0]} -gt 5 ]] && ideal_len=${#epoch_stats[0]} || ideal_len=5
+         [[ ${#epoch_stats[1]} -gt 4 ]] && luck_len=${#epoch_stats[1]} || luck_len=4
+         printf '|'; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "="; printf '|\n'
+         printf "| %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_CYAN}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "Leader" "Ideal" "Luck" "Adopted" "Confirmed" "Missed" "Ghosted" "Stolen" "Invalid"
+         printf '|'; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "="; printf '|\n'
+         printf "| %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_CYAN}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}"
+         printf '|'; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "="; printf '|\n'
          echo
          # print block table
          block_cnt=1
+         status_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(status) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(status) DESC LIMIT 1;")
+         [[ ${status_len} -lt 6 ]] && status_len=6
+         block_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(block) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(slot) DESC LIMIT 1;")
+         [[ ${block_len} -lt 5 ]] && block_len=5
+         slot_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(slot) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(slot) DESC LIMIT 1;")
+         [[ ${slot_len} -lt 4 ]] && slot_len=4
+         slot_in_epoch_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(slot_in_epoch) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(slot_in_epoch) DESC LIMIT 1;")
+         [[ ${slot_in_epoch_len} -lt 11 ]] && slot_in_epoch_len=11
+         at_len=23
+         size_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(size) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(size) DESC LIMIT 1;")
+         [[ ${size_len} -lt 4 ]] && size_len=4
+         hash_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(hash) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(hash) DESC LIMIT 1;")
+         [[ ${hash_len} -lt 4 ]] && hash_len=4
          if [[ ${view} -eq 1 ]]; then
-           block_table="#,Status,Block,Slot | SlotInEpoch,Scheduled At\n"
+           printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "="; printf '|\n'
+           printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s |\n" "#" "Status" "Block" "Slot" "SlotInEpoch" "Scheduled At"
+           printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "="; printf '|\n'
            while IFS='|' read -r status block slot slot_in_epoch at; do
              at=$(TZ="${BLOCKLOG_TZ}" date '+%F %T %Z' --date="${at}")
              [[ ${block} -eq 0 ]] && block="-"
-             block_table+="${block_cnt},${status},${block},${slot} | ${slot_in_epoch},${at}\n"
+             printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s |\n" "${block_cnt}" "${status}" "${block}" "${slot}" "${slot_in_epoch}" "${at}"
              ((block_cnt++))
            done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
-           printTable ',' "$(echo -e ${block_table})"
+           printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "="; printf '|\n'
          elif [[ ${view} -eq 2 ]]; then
-           block_table="#,Status,Slot,Size,Hash\n"
+           printf '|'; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "="; printf '|\n'
+           printf "| %-${#leader_cnt}s | %-${status_len}s | %-${slot_len}s | %-${size_len}s | %-${hash_len}s |\n" "#" "Status" "Slot" "Size" "Hash"
+           printf '|'; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "="; printf '|\n'
            while IFS='|' read -r status slot size hash; do
              [[ ${size} -eq 0 ]] && size="-"
              [[ -z ${hash} ]] && hash="-"
-             block_table+="${block_cnt},${status},${slot},${size},${hash}\n"
+             printf "| %-${#leader_cnt}s | %-${status_len}s | %-${slot_len}s | %-${size_len}s | %-${hash_len}s |\n" "${block_cnt}" "${status}" "${slot}" "${size}" "${hash}"
              ((block_cnt++))
            done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, slot, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
-           printTable ',' "$(echo -e ${block_table})"
+           printf '|'; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "="; printf '|\n'
          elif [[ ${view} -eq 3 ]]; then
-           block_table="#,Status,Block,Slot | SlotInEpoch,Scheduled At,Size,Hash\n"
+           printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "="; printf '|\n'
+           printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s | %-${size_len}s | %-${hash_len}s |\n" "#" "Status" "Block" "Slot" "SlotInEpoch" "Scheduled At" "Size" "Hash"
+           printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "="; printf '|\n'
            while IFS='|' read -r status block slot slot_in_epoch at size hash; do
              at=$(TZ="${BLOCKLOG_TZ}" date '+%F %T %Z' --date="${at}")
              [[ ${block} -eq 0 ]] && block="-"
              [[ ${size} -eq 0 ]] && size="-"
              [[ -z ${hash} ]] && hash="-"
-             block_table+="${block_cnt},${status},${block},${slot} | ${slot_in_epoch},${at},${size},${hash}\n"
+             printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s | %-${size_len}s | %-${hash_len}s |\n" "${block_cnt}" "${status}" "${block}" "${slot}" "${slot_in_epoch}" "${at}" "${size}" "${hash}"
              ((block_cnt++))
            done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
-           printTable ',' "$(echo -e ${block_table})"
+           printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "="; printf '|\n'
          elif [[ ${view} -eq 4 ]]; then
            say "Block Status:\n"
            say "Leader    - Scheduled to make block at this slot"

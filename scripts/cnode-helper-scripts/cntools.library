@@ -9,9 +9,9 @@
 # Any breaking changes (eg: that requires change of cntools.config, env or a change in priv folder would be considered breaking and will be exempt from auto-update)
 CNTOOLS_MAJOR_VERSION=6
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
-CNTOOLS_MINOR_VERSION=2
+CNTOOLS_MINOR_VERSION=3
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=0
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -122,8 +122,7 @@ say() {
 #   >> need_cmd "jq"
 need_cmd() {
   if ! command -v "$1" > /dev/null 2>&1; then
-    need_cmd_error="${FG_RED}ERROR${NC}: need '$1' (command not found)\ntry 'sudo apt install $1'\nplease install with your packet manager of choice(apt/yum etc..) and relaunch CNTools"
-    waitForInput "press any key"
+    say "${FG_RED}ERROR${NC}: need '$1' (command not found)\ntry 'sudo apt install $1'\nplease install with your packet manager of choice(apt/yum etc..) and relaunch CNTools"
     return 1
   fi
 }
@@ -142,7 +141,7 @@ protectionPreRequisites() {
   fi
 
   if ! need_cmd "chattr"; then 
-    [[ ${ENABLE_CHATTR} = true ]] && say "chattr command not available but enabled in config, please disable in cntools.config and re-run CNTools" && return 1
+    [[ ${ENABLE_CHATTR} = true ]] && say "chattr command not available but enabled in config, please install or disable in cntools.config and re-run CNTools" && return 1
   elif [[ ${ENABLE_CHATTR} = true ]]; then # chattr available and enabled, make sure sudo access to chattr is enabled
     touch "${TMP_FOLDER}"/test
     echo "Testing chattr access permission, enter user password if requested..."
@@ -153,7 +152,6 @@ protectionPreRequisites() {
       say "Add required sudo permissions or run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
       say ""
       say "echo \"$(whoami) ALL=NOPASSWD: $(command -v chattr)\" | sudo tee /etc/sudoers.d/cntools"
-      waitForInput "press any key"
       return 1
     fi
     rm -f "${TMP_FOLDER}"/test
@@ -2222,68 +2220,4 @@ rotatePoolKeys() {
   chmod 700 ${POOL_FOLDER}/${pool_name}/*
 
   kesExpiration "${current_kes_period}"
-}
-
-
-function printTable() {
-  local -r delimiter="${1}"
-  local -r data="$(removeEmptyLines "${2}")"
-  if [[ "${delimiter}" != '' && "$(isEmptyString "${data}")" = 'false' ]]; then
-    local -r numberOfLines="$(wc -l <<< "${data}")"
-    if [[ "${numberOfLines}" -gt '0' ]]; then
-      local table=''
-      local i=1
-      for ((i = 1; i <= "${numberOfLines}"; i = i + 1)); do
-        local line=''
-        line="$(sed "${i}q;d" <<< "${data}")"
-        local numberOfColumns='0'
-        numberOfColumns="$(awk -F "${delimiter}" '{print NF}' <<< "${line}")"
-        # Add Line Delimiter
-        if [[ "${i}" -eq '1' ]]; then
-          table="${table}$(printf '%s@+' "$(repeatString '@+' "${numberOfColumns}")")"
-        fi
-        # Add Header Or Body
-        table="${table}\n"
-        local j=1
-        for ((j = 1; j <= "${numberOfColumns}"; j = j + 1)); do
-          table="${table}$(printf '@| %s' "$(cut -d "${delimiter}" -f "${j}" <<< "${line}")")"
-        done
-        table="${table}@|\n"
-        # Add Line Delimiter
-        if [[ "${i}" -eq '1' ]] || [[ "${numberOfLines}" -gt '1' && "${i}" -eq "${numberOfLines}" ]]; then
-          table="${table}$(printf '%s@+' "$(repeatString '@+' "${numberOfColumns}")")"
-        fi
-      done
-      if [[ "$(isEmptyString "${table}")" = 'false' ]]; then
-        echo -e "${table}" | column -s '@' -t | awk '/^\+/{gsub(" ", "-", $0)}1'
-      fi
-    fi
-  fi
-}
-
-function removeEmptyLines() {
-  local -r content="${1}"
-  echo -e "${content}" | sed '/^\s*$/d'
-}
-
-function repeatString() {
-  local -r string="${1}"
-  local -r numberToRepeat="${2}"
-  if [[ "${string}" != '' && "${numberToRepeat}" =~ ^[1-9][0-9]*$ ]]; then
-    local -r result="$(printf "%${numberToRepeat}s")"
-    echo -e "${result// /${string}}"
-  fi
-}
-
-function isEmptyString() {
-  local -r string="${1}"
-  if [[ "$(trimString "${string}")" = '' ]]; then
-    echo 'true' && return 0
-  fi
-  echo 'false' && return 1
-}
-
-function trimString() {
-  local -r string="${1}"
-  sed 's,^[[:blank:]]*,,' <<< "${string}" | sed 's,[[:blank:]]*$,,'
 }
