@@ -147,51 +147,24 @@ else
 fi
 
 echo
-echo -e "\e[32m~~ Blocklog ~~\e[0m"
+echo -e "\e[32m~~ Blocklog / PoolTool SendSlots ~~\e[0m"
 echo "A collection of services that together creates a blocklog of current and upcoming blocks"
 echo "Dependant on ${vname}.service and when started|stopped|restarted all these companion services will apply the same action"
-echo "cncli-sync      : Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB"
-echo "cncli-leaderlog : Loops through all slots in current epoch to calculate leader schedule"
-echo "cncli-validate  : Confirms that the block made actually was accepted and adopted by chain"
-echo -e "logmonitor      : parses JSON log of cardano-node for traces of interest (deployed but \e[31mdisabled\e[0m by default)"
-echo "                : gives instant adopted status and invalid status but not required for blocklog to function"
-echo "                : enable with 'systemctl enable ${vname}-logmonitor.service'"
+echo "${vname}-cncli-sync        : Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB"
+echo "${vname}-cncli-leaderlog   : Loops through all slots in current epoch to calculate leader schedule"
+echo "${vname}-cncli-validate    : Confirms that the block made actually was accepted and adopted by chain"
+echo -e "${vname}-cncli-ptsendslots : Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs (\e[36moptional\e[0m)"
+echo -e "${vname}-logmonitor        : Parses JSON log of cardano-node for traces of interest to give instant adopted status and invalid status (\e[36moptional\e[0m)"
 echo
 if command -v "${CNCLI}" >/dev/null; then
   echo "Deploy Blocklog as systemd services? [y|n]"
   read -rsn1 yn
   if [[ ${yn} = [Yy]* ]]; then
-    sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-logmonitor.service
-[Unit]
-Description=Cardano Node - Log Monitor
-BindsTo=${vname}.service
-After=${vname}.service
-
-[Service]
-Type=simple
-Restart=on-failure
-RestartSec=20
-User=$USER
-WorkingDirectory=${CNODE_HOME}/scripts
-ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/logMonitor.sh\"
-ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep -m1 ${CNODE_HOME}/scripts/logMonitor.sh | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
-KillSignal=SIGINT
-SuccessExitStatus=143
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=${vname}-logmonitor
-TimeoutStopSec=5
-KillMode=mixed
-
-[Install]
-WantedBy=${vname}.service
-EOF"
     sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-cncli-sync.service
 [Unit]
 Description=Cardano Node - CNCLI Sync
 BindsTo=${vname}.service
 After=${vname}.service
-
 [Service]
 Type=simple
 Restart=on-failure
@@ -207,7 +180,6 @@ StandardError=syslog
 SyslogIdentifier=${vname}-cncli-sync
 TimeoutStopSec=5
 KillMode=mixed
-
 [Install]
 WantedBy=${vname}.service
 EOF"
@@ -246,6 +218,7 @@ Restart=on-failure
 RestartSec=20
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
+ExecStartPre=/bin/sleep 5
 ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh validate\"
 SuccessExitStatus=143
 StandardOutput=syslog
@@ -257,11 +230,88 @@ KillMode=mixed
 [Install]
 WantedBy=${vname}-cncli-sync.service
 EOF"
-  else
-    if [[ -f /etc/systemd/system/${vname}-logmonitor.service ]]; then
-      sudo systemctl disable ${vname}-logmonitor.service
-      sudo rm -f /etc/systemd/system/${vname}-logmonitor.service
+    echo
+    echo -e "\e[32m~~ PoolTool SendSlots ~~\e[0m"
+    echo "Securely sends pooltool the number of slots you have assigned for an epoch and validates the correctness of your past epochs"
+    echo
+    if command -v "${CNCLI}" >/dev/null; then
+      echo "Deploy PoolTool SendSlots as systemd services? [y|n]"
+      read -rsn1 yn
+      if [[ ${yn} = [Yy]* ]]; then
+        sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-cncli-ptsendslots.service
+[Unit]
+Description=Cardano Node - CNCLI PoolTool SendSlots
+BindsTo=${vname}-cncli-sync.service
+After=${vname}-cncli-sync.service
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=20
+User=$USER
+WorkingDirectory=${CNODE_HOME}/scripts
+ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh ptsendslots\"
+ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep [c]ncli.sendslots.*.${vname}-pooltool.json | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
+KillSignal=SIGINT
+SuccessExitStatus=143
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=${vname}-cncli-ptsendslots
+TimeoutStopSec=5
+KillMode=mixed
+
+[Install]
+WantedBy=${vname}-cncli-sync.service
+EOF"
+      else
+        if [[ -f /etc/systemd/system/${vname}-cncli-ptsendslots.service ]]; then
+          sudo systemctl disable ${vname}-cncli-ptsendslots.service
+          sudo rm -f /etc/systemd/system/${vname}-cncli-ptsendslots.service
+        fi
+      fi
+    else
+      echo "cncli executable not found... skipping!"
     fi
+    echo
+    echo -e "\e[32m~~ Log Monitor ~~\e[0m"
+    echo "Parses JSON log of cardano-node for traces of interest to give instant adopted status and invalid status"
+    echo "Optional to use, blocklog will function but without above mentioned features"
+    echo
+    echo "Deploy Log Monitor as systemd services? [y|n]"
+    read -rsn1 yn
+    if [[ ${yn} = [Yy]* ]]; then
+      sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-logmonitor.service
+[Unit]
+Description=Cardano Node - Log Monitor
+BindsTo=${vname}.service
+After=${vname}.service
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=20
+User=$USER
+WorkingDirectory=${CNODE_HOME}/scripts
+ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/logMonitor.sh\"
+ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep -m1 ${CNODE_HOME}/scripts/logMonitor.sh | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
+KillSignal=SIGINT
+SuccessExitStatus=143
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=${vname}-logmonitor
+TimeoutStopSec=5
+KillMode=mixed
+
+[Install]
+WantedBy=${vname}.service
+EOF"
+    else
+      if [[ -f /etc/systemd/system/${vname}-logmonitor.service ]]; then
+        sudo systemctl disable ${vname}-logmonitor.service
+        sudo rm -f /etc/systemd/system/${vname}-logmonitor.service
+      fi
+    fi
+  else
     if [[ -f /etc/systemd/system/${vname}-cncli-sync.service ]]; then
       sudo systemctl disable ${vname}-cncli-sync.service
       sudo rm -f /etc/systemd/system/${vname}-cncli-sync.service
@@ -274,14 +324,23 @@ EOF"
       sudo systemctl disable ${vname}-cncli-validate.service
       sudo rm -f /etc/systemd/system/${vname}-cncli-validate.service
     fi
+    if [[ -f /etc/systemd/system/${vname}-cncli-ptsendslots.service ]]; then
+      sudo systemctl disable ${vname}-cncli-ptsendslots.service
+      sudo rm -f /etc/systemd/system/${vname}-cncli-ptsendslots.service
+    fi
+    if [[ -f /etc/systemd/system/${vname}-logmonitor.service ]]; then
+      sudo systemctl disable ${vname}-logmonitor.service
+      sudo rm -f /etc/systemd/system/${vname}-logmonitor.service
+    fi
   fi
 else
   echo "cncli executable not found... skipping!"
 fi
 
+
 echo
 echo -e "\e[32m~~ PoolTool SendTip ~~\e[0m"
-echo "Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge"
+echo "Countinously sends node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge"
 echo "Dependant on ${vname}.service and when started|stopped|restarted ptsendtip services will apply the same action"
 echo
 if command -v "${CNCLI}" >/dev/null; then
@@ -301,7 +360,7 @@ RestartSec=20
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
 ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh ptsendtip\"
-ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep [c]ncli.sendtip.*.${vname}-ptsendtip.json | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
+ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep [c]ncli.sendtip.*.${vname}-pooltool.json | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
 KillSignal=SIGINT
 SuccessExitStatus=143
 StandardOutput=syslog
@@ -323,9 +382,11 @@ else
   echo "cncli executable not found... skipping!"
 fi
 
+
 echo
 sudo systemctl daemon-reload
 [[ -f /etc/systemd/system/${vname}.service ]] && sudo systemctl enable ${vname}.service
+[[ -f /etc/systemd/system/${vname}-logmonitor.service ]] && sudo systemctl enable ${vname}-logmonitor.service
 [[ -f /etc/systemd/system/${vname}-tu-fetch.service ]] && sudo systemctl enable ${vname}-tu-fetch.service
 [[ -f /etc/systemd/system/${vname}-tu-restart.timer ]] && sudo systemctl enable ${vname}-tu-restart.timer
 [[ -f /etc/systemd/system/${vname}-tu-push.timer ]] && sudo systemctl enable ${vname}-tu-push.timer
@@ -333,6 +394,7 @@ sudo systemctl daemon-reload
 [[ -f /etc/systemd/system/${vname}-cncli-leaderlog.service ]] && sudo systemctl enable ${vname}-cncli-leaderlog.service
 [[ -f /etc/systemd/system/${vname}-cncli-validate.service ]] && sudo systemctl enable ${vname}-cncli-validate.service
 [[ -f /etc/systemd/system/${vname}-cncli-ptsendtip.service ]] && sudo systemctl enable ${vname}-cncli-ptsendtip.service
+[[ -f /etc/systemd/system/${vname}-cncli-ptsendslots.service ]] && sudo systemctl enable ${vname}-cncli-ptsendslots.service
 
 
 echo
