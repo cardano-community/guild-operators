@@ -1,6 +1,6 @@
 #!/bin/bash
 # shellcheck disable=SC2086,SC1090
-. "$(dirname $0)"/env
+. "$(dirname $0)"/env offline
 
 if  [ "$1" = "--help" ] || [ $# -ne 1 ]; then
   echo "Usage: $0 <Path with name (prefix) for keys to be created>"

@@ -8,7 +8,6 @@ If you have run [prereqs.sh](basics.md#pre-requisites), this should already be a
 
 Before the updater can make a valid request to the central topology service, he must query the current tip/blockNo from the well synced local node. It connects to your node through the configuration in the script as well as the common env configuration file. Customize these files for your needs.  
 
-
 To download topologyupdater.sh manually you can execute the commands below and test executing topology Updater once (it's OK if first execution gives back an error):
 ``` bash
 cd $CNODE_HOME/scripts
@@ -30,7 +29,7 @@ Out of the box, the scripts might come with some assumptions, that may or may no
 ######################################
 
 CNODE_HOSTNAME="CHANGE ME"                                # (Optional) Must resolve to the IP you are requesting from
-CNODE_LOG_DIR="${CNODE_HOME}/logs/"                       # Folder where your logs will be sent to (must pre-exist)
+CNODE_LOG_DIR="${CNODE_HOME}/logs"                        # Folder where your logs will be sent to (must pre-exist)
 CNODE_VALENCY=1                                           # (Optional) for multi-IP hostnames
 CNODE_TOPOLOGY="${CNODE_HOME}/files/topology.json"        # Destination topology.json file you'd want to write output to
 MAX_PEERS=15                                              # Maximum number of peers to return on successful fetch
@@ -57,21 +56,37 @@ CNODE_PORT=6000                                         # Set node port
 #EKG_TIMEOUT=3                                          # Maximum time in seconds that you allow EKG request to take before aborting (node metrics)
 #CURL_TIMEOUT=10                                        # Maximum time in seconds that you allow curl file download to take before aborting (GitHub update process)
 #BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"         # Override default directory used to store block data for core node
+#BLOCKLOG_TZ="UTC"                                      # TimeZone to use when displaying blocklog - https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 ```
 
 Upon first run,
 
 !> Any customisations you add above, will be saved across future prereqs.sh executions , unless you specify `-f` flag to overwrite completely.
 
-#### Start the script
+#### Deploy the script
 
-Then add the script to be executed once per hour at a minute of your choice (eg xx:25 o'clock in the example below), note that the example below is a `crontab` job addition.
+**systemd service**  
+The script can be deployed as a background service in different ways but the recommended and easiest way if [prereqs.sh](basics.md#pre-requisites) was used, is to utilize the `deploy-as-systemd.sh` script to setup and schedule the execution. This will deploy both push & fetch service files as well as timers for a scheduled 60 min node alive message and cnode restart at the user set interval when running the deploy script.
+
+- cnode-tu-push.service    : pushes a node alive message to Topology Updater API
+- cnode-tu-push.timer      : schedules the push service to execute once every hour
+- cnode-tu-fetch.service   : fetches a fresh topology file before cnode.service file is started/restarted
+- cnode-tu-restart.service : handles the restart of cardano-node(cnode.sh)
+- cnode-tu-restart.timer   : schedules the cardano-node restart service, default every 24h
+
+`systemctl list-timers` can be used to to check the push and restart service schedule.
+
+**crontab job**  
+Another way to deploy topologyUpdater.sh script is as a `crontab` job. Add the script to be executed once per hour at a minute of your choice (eg xx:25 o'clock in the example below). The example below will handle both the fetch and push in a single call to the script once an hour. In addition to the below crontab job for topologyUpdater, it's expected that you also add a scheduled restart of the relay node to pick up a fresh topology file fetched by topologyUpdater script with relays that are alive and well.
 
 ``` bash
 25 * * * * /opt/cardano/cnode/scripts/topologyUpdater.sh
 ```
 
-you can check the last result in `logs/topologyUpdater_lastresult.json`
+
+#### Logs
+You can check the last result of push message in `logs/topologyUpdater_lastresult.json`.  
+If deployed as systemd service, use `sudo journalctl -u <service>` to check output from service.
 
 
 #### Step by Step to have your relay node listed in the topology
@@ -106,5 +121,3 @@ We calculate the distance on the earth's surface from your nodes IP to all subsc
 Every requesting node has his personal distances to all other nodes. 
 
 We assume this should result in a well distributed and interconnected peering network.
-
-
