@@ -1827,7 +1827,7 @@ EOF
            stake_vk_file_enter=${file}
            if [[ ${op_mode} = "online" ]]; then
              say "Enter path to stake ${FG_CYAN}skey${NC} file:"
-             fileDialog 0 "Enter path to stake skey file" "$(dirname ${stake_vk_file_enter})"
+             fileDialog 0 "Enter path to stake skey file" "${stake_vk_file_enter%/*}"
              say "${file}"
              stake_sk_file_enter=${file}
              if [[ ! -f "${stake_vk_file_enter}" || ! -f "${stake_sk_file_enter}" ]]; then
@@ -2243,6 +2243,7 @@ EOF
         esac
       done
     fi
+    echo
 
     # Owner wallet, also used to pay for pool update fee
     if [[ -f ${pool_config} ]]; then
@@ -2331,7 +2332,7 @@ EOF
            stake_vk_file_enter=${file}
            if [[ ${op_mode} = "online" ]]; then
              say "Enter path to stake ${FG_CYAN}skey${NC} file:"
-             fileDialog 0 "Enter path to stake skey file" "$(dirname ${stake_vk_file_enter})"
+             fileDialog 0 "Enter path to stake skey file" "${stake_vk_file_enter%/*}"
              say "${file}"
              stake_sk_file_enter=${file}
              if [[ ! -f "${stake_vk_file_enter}" || ! -f "${stake_sk_file_enter}" ]]; then
