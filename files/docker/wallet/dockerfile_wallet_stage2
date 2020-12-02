@@ -1,0 +1,21 @@
+FROM cardanocommunity/cardano-node:stage1
+
+ENV \
+CNODE_HOME=/opt/cardano/cnode \
+DEBIAN_FRONTEND=noninteractive \ 
+LANG=C.UTF-8 \
+USER=root \
+PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:/root/.local/bin:$PATH 
+
+RUN git clone https://github.com/input-output-hk/cardano-wallet.git \
+  && cd cardano-wallet \
+  && git fetch --tags --all \
+  && git pull \
+  && git checkout master \
+  && $CNODE_HOME/scripts/stack-build.sh \
+  && for i in $(ls /root/.cabal/bin); do ldd /root/.cabal/bin/$i | cut -d ">" -f 2 | cut -d "(" -f 1| sed 's/[[:blank:]]//g' > /tmp/liblisttmp ; done \
+  && cat  /tmp/liblisttmp | sort | uniq > /tmp/liblist \
+  && apt-get -y remove libpq-dev build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ && apt-get -y purge && apt-get -y clean && apt-get -y autoremove \
+  && WBIN=$(find / -name cardano-address | grep bin | sed 's/\/cardano-address//') && cp $WBIN/* /root/.cabal/bin/ \
+  && cd .. && rm -rf cardano-wallet && rm -rf /tmp/* \
+  && ls /root/.cabal/bin 
