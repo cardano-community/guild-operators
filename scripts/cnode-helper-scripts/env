@@ -12,12 +12,43 @@
 CNODE_PORT=6000                                         # Set node port
 #CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path
 #SOCKET="${CNODE_HOME}/sockets/node0.socket"            # Override automatic detection of path to socket
+#TOPOLOGY="${CNODE_HOME}/files/topology.json"           # Override default topology.json path
+#LOG_DIR="${CNODE_HOME}/logs"                           # Folder where your logs will be sent to (must pre-exist)
+#POOL_DIR="${CNODE_HOME}/priv/pool/TEST"                # Set pool dir to run node as a core node
 #EKG_HOST=127.0.0.1                                     # Set node EKG host
 #EKG_PORT=12788                                         # Override automatic detection of node EKG port
 #EKG_TIMEOUT=3                                          # Maximum time in seconds that you allow EKG request to take before aborting (node metrics)
 #CURL_TIMEOUT=10                                        # Maximum time in seconds that you allow curl file download to take before aborting (GitHub update process)
 #BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"         # Override default directory used to store block data for core node
 #BLOCKLOG_TZ="UTC"                                      # TimeZone to use when displaying blocklog - https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+
+#WALLET_FOLDER="${CNODE_HOME}/priv/wallet"              # Root folder for Wallets
+#POOL_FOLDER="${CNODE_HOME}/priv/pool"                  # Root folder for Pools
+                                                        # Each wallet and pool has a friendly name and subfolder containing all related keys, certificates, ...
+#WALLET_PAY_VK_FILENAME="payment.vkey"                  # Standardized names for all wallet related files
+#WALLET_PAY_SK_FILENAME="payment.skey"
+#WALLET_PAY_ADDR_FILENAME="payment.addr"
+#WALLET_BASE_ADDR_FILENAME="base.addr"
+#WALLET_STAKE_VK_FILENAME="stake.vkey"
+#WALLET_STAKE_SK_FILENAME="stake.skey"
+#WALLET_STAKE_ADDR_FILENAME="reward.addr"
+#WALLET_STAKE_CERT_FILENAME="stake.cert"
+#WALLET_STAKE_DEREG_FILENAME="stake.dereg"
+#WALLET_DELEGCERT_FILENAME="delegation.cert"
+
+#POOL_ID_FILENAME="pool.id"                             # Standardized names for all pool related files
+#POOL_HOTKEY_VK_FILENAME="hot.vkey"
+#POOL_HOTKEY_SK_FILENAME="hot.skey"
+#POOL_COLDKEY_VK_FILENAME="cold.vkey"
+#POOL_COLDKEY_SK_FILENAME="cold.skey"
+#POOL_OPCERT_COUNTER_FILENAME="cold.counter"
+#POOL_OPCERT_FILENAME="op.cert"
+#POOL_VRF_VK_FILENAME="vrf.vkey"
+#POOL_VRF_SK_FILENAME="vrf.skey"
+#POOL_CONFIG_FILENAME="pool.config"
+#POOL_REGCERT_FILENAME="pool.cert"
+#POOL_CURRENT_KES_START="kes.start"
+#POOL_DEREGCERT_FILENAME="pool.dereg"
 
 ######################################
 # Do NOT modify code below           #
@@ -74,6 +105,14 @@ if [[ -z "${CONFIG}" ]]; then
     return 1
   fi
 fi
+
+[[ -z "${TOPOLOGY}" ]] && TOPOLOGY="${CNODE_HOME}/files/topology.json"
+[[ -n "${CNODE_TOPOLOGY}" ]] && TOPOLOGY="${CNODE_TOPOLOGY}" # compatibility with older topologyUpdater
+
+[[ -z "${LOG_DIR}" ]] && LOG_DIR="${CNODE_HOME}/logs"
+[[ -n "${CNODE_LOG_DIR}" ]] && LOG_DIR="${CNODE_LOG_DIR}" # compatibility with older topologyUpdater
+
+[[ -z "${POOL_DIR}" ]] && POOL_DIR="${CNODE_HOME}/priv/pool/TEST"
 
 [[ -z ${EKG_TIMEOUT} ]] && EKG_TIMEOUT=3
 [[ -z ${EKG_HOST} ]] && EKG_HOST=127.0.0.1
@@ -173,6 +212,32 @@ if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
   BYRON_SLOT_LENGTH=$(( $(jq -r .blockVersionData.slotDuration "${BYRON_GENESIS_JSON}") / 1000 ))
   BYRON_EPOCH_LENGTH=$(( 10 * BYRON_K ))
 fi
+
+[[ -z ${WALLET_FOLDER} ]] && WALLET_FOLDER="${CNODE_HOME}/priv/wallet"
+[[ -z ${POOL_FOLDER} ]] && POOL_FOLDER="${CNODE_HOME}/priv/pool"
+[[ -z ${WALLET_PAY_VK_FILENAME} ]] && WALLET_PAY_VK_FILENAME="payment.vkey"
+[[ -z ${WALLET_PAY_SK_FILENAME} ]] && WALLET_PAY_SK_FILENAME="payment.skey"
+[[ -z ${WALLET_PAY_ADDR_FILENAME} ]] && WALLET_PAY_ADDR_FILENAME="payment.addr"
+[[ -z ${WALLET_BASE_ADDR_FILENAME} ]] && WALLET_BASE_ADDR_FILENAME="base.addr"
+[[ -z ${WALLET_STAKE_VK_FILENAME} ]] && WALLET_STAKE_VK_FILENAME="stake.vkey"
+[[ -z ${WALLET_STAKE_SK_FILENAME} ]] && WALLET_STAKE_SK_FILENAME="stake.skey"
+[[ -z ${WALLET_STAKE_ADDR_FILENAME} ]] && WALLET_STAKE_ADDR_FILENAME="reward.addr"
+[[ -z ${WALLET_STAKE_CERT_FILENAME} ]] && WALLET_STAKE_CERT_FILENAME="stake.cert"
+[[ -z ${WALLET_STAKE_DEREG_FILENAME} ]] && WALLET_STAKE_DEREG_FILENAME="stake.dereg"
+[[ -z ${WALLET_DELEGCERT_FILENAME} ]] && WALLET_DELEGCERT_FILENAME="delegation.cert"
+[[ -z ${POOL_ID_FILENAME} ]] && POOL_ID_FILENAME="pool.id"
+[[ -z ${POOL_HOTKEY_VK_FILENAME} ]] && POOL_HOTKEY_VK_FILENAME="hot.vkey"
+[[ -z ${POOL_HOTKEY_SK_FILENAME} ]] && POOL_HOTKEY_SK_FILENAME="hot.skey"
+[[ -z ${POOL_COLDKEY_VK_FILENAME} ]] && POOL_COLDKEY_VK_FILENAME="cold.vkey"
+[[ -z ${POOL_COLDKEY_SK_FILENAME} ]] && POOL_COLDKEY_SK_FILENAME="cold.skey"
+[[ -z ${POOL_OPCERT_COUNTER_FILENAME} ]] && POOL_OPCERT_COUNTER_FILENAME="cold.counter"
+[[ -z ${POOL_OPCERT_FILENAME} ]] && POOL_OPCERT_FILENAME="op.cert"
+[[ -z ${POOL_VRF_VK_FILENAME} ]] && POOL_VRF_VK_FILENAME="vrf.vkey"
+[[ -z ${POOL_VRF_SK_FILENAME} ]] && POOL_VRF_SK_FILENAME="vrf.skey"
+[[ -z ${POOL_CONFIG_FILENAME} ]] && POOL_CONFIG_FILENAME="pool.config"
+[[ -z ${POOL_REGCERT_FILENAME} ]] && POOL_REGCERT_FILENAME="pool.cert"
+[[ -z ${POOL_CURRENT_KES_START} ]] && POOL_CURRENT_KES_START="kes.start"
+[[ -z ${POOL_DEREGCERT_FILENAME} ]] && POOL_DEREGCERT_FILENAME="pool.dereg"
 
 FG_BLACK='\e[30m'
 FG_RED='\e[31m'
