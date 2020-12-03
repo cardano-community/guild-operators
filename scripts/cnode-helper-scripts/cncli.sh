@@ -11,17 +11,11 @@
 # Common variables set in env file   #
 ######################################
 
-if [[ -n $POOL_DIR ]] ; then
-  POOL_ID=$(cat ${POOL_DIR}/pool.id)      # Required for leaderlog calculation & pooltool sendtip, lower-case hex pool id
-  POOL_VRF_SKEY="${POOL_DIR}/vrf.skey"    # Required for leaderlog calculation, path to pool's vrf.skey file
-  POOL_VRF_VKEY="${POOL_DIR}/vrf.vkey"    # Required for block validation, path to pool's vrf.vkey file
-else
-  POOL_ID=""                              # Required for leaderlog calculation & pooltool sendtip, lower-case hex pool id
-  POOL_VRF_SKEY=""                        # Required for leaderlog calculation, path to pool's vrf.skey file
-  POOL_VRF_VKEY=""                        # Required for block validation, path to pool's vrf.vkey file
-fi
-[[ -z $PT_API_KEY ]] && PT_API_KEY=""     # POOLTOOL sendtip: set API key, e.g "a47811d3-0008-4ecd-9f3e-9c22bdb7c82d"
-[[ -z $POOL_TICKER ]] && POOL_TICKER=""   # POOLTOOL sendtip: set the pools ticker, e.g "TCKR"
+#POOL_ID=""                               # Required for leaderlog calculation & pooltool sendtip, lower-case hex pool id
+#POOL_VRF_SKEY=""                         # Required for leaderlog calculation, path to pool's vrf.skey file
+#POOL_VRF_VKEY=""                         # Required for block validation, path to pool's vrf.vkey file
+#PT_API_KEY=""                            # POOLTOOL sendtip: set API key, e.g "a47811d3-0008-4ecd-9f3e-9c22bdb7c82d"
+#POOL_TICKER=""                           # POOLTOOL sendtip: set the pools ticker, e.g "TCKR"
 #PT_HOST="127.0.0.1"                      # POOLTOOL sendtip: connect to a remote node, preferably block producer (default localhost)
 #PT_PORT="${CNODE_PORT}"                  # POOLTOOL sendtip: port of node to connect to (default CNODE_PORT from env file)
 #CNCLI_DIR="${CNODE_HOME}/guild-db/cncli" # path to folder for cncli sqlite db
@@ -219,6 +213,13 @@ cncliInit() {
   [[ -z "${TIMEOUT_LEDGER_STATE}" ]] && TIMEOUT_LEDGER_STATE=300
   [[ -z "${PT_HOST}" ]] && PT_HOST="127.0.0.1"
   [[ -z "${PT_PORT}" ]] && PT_PORT="${CNODE_PORT}"
+  [[ -z $PT_API_KEY ]] && PT_API_KEY=""
+  [[ -z $POOL_TICKER ]] && POOL_TICKER=""
+  if [[ -n $POOL_DIR ]] ; then
+    POOL_ID=$(cat ${POOL_DIR}/pool.id)
+    POOL_VRF_SKEY="${POOL_DIR}/vrf.skey"
+    POOL_VRF_VKEY="${POOL_DIR}/vrf.vkey"
+  fi
 
   PARENT="$(dirname $0)"
   if [[ ! -f "${PARENT}"/env ]]; then
