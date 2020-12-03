@@ -1,3 +1,6 @@
 book
 *.swp
 *.bkp
+.DS_Store
+files/docker/node/alpha/
+files/docker/smash/
