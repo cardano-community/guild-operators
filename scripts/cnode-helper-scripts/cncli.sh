@@ -214,9 +214,9 @@ cncliInit() {
   [[ -z "${TIMEOUT_LEDGER_STATE}" ]] && TIMEOUT_LEDGER_STATE=300
   [[ -z "${PT_HOST}" ]] && PT_HOST="127.0.0.1"
   [[ -z "${PT_PORT}" ]] && PT_PORT="${CNODE_PORT}"
-  [[ -z $PT_API_KEY ]] && PT_API_KEY=""
-  [[ -z $POOL_TICKER ]] && POOL_TICKER=""
-  if [[ -n $POOL_DIR ]] ; then
+  [[ -z "${PT_API_KEY}" ]] && PT_API_KEY=""
+  [[ -z "${POOL_TICKER}" ]] && POOL_TICKER=""
+  if [[ -n "${POOL_DIR}" ]] ; then
     POOL_ID=$(cat ${POOL_DIR}/pool.id)
     POOL_VRF_SKEY="${POOL_DIR}/vrf.skey"
     POOL_VRF_VKEY="${POOL_DIR}/vrf.vkey"
