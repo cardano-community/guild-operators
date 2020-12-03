@@ -11,6 +11,7 @@
 # Common variables set in env file   #
 ######################################
 
+#POOL_DIR="${CNODE_HOME}/priv/pool/TEST"  # set pool dir to run node as a core node
 #POOL_ID=""                               # Required for leaderlog calculation & pooltool sendtip, lower-case hex pool id
 #POOL_VRF_SKEY=""                         # Required for leaderlog calculation, path to pool's vrf.skey file
 #POOL_VRF_VKEY=""                         # Required for block validation, path to pool's vrf.vkey file
