@@ -1,6 +1,29 @@
 #!/bin/bash
 # shellcheck disable=SC2086,SC1090
 
+unset CNODE_HOME
+
+##########################################
+# User Variables - Change as desired     #
+# command line flags override set values #
+##########################################
+
+#INTERACTIVE='N'        # Interactive mode (Default: silent mode)
+#NETWORK='mainnet'      # Connect to specified network instead of public network (Default: connect to public cardano network)
+#WANT_BUILD_DEPS='Y'    # Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
+#FORCE_OVERWRITE='N'    # Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
+                        # topology.json, config.json and genesis files normally saved will also be overwritten
+#LIBSODIUM_FORK='N'     # Use IOG fork of libsodium - Recommended as per IOG instructions (Default: system build)
+#INSTALL_CNCLI='N'      # Install/Upgrade and build CNCLI with RUST - IOG fork of libsodium required
+#CNODE_NAME='cnode'     # Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
+#CURL_TIMEOUT=60        # Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
+#UPDATE_CHECK='Y'       # Check if there is an updated version of prereqs.sh script to download
+#SUDO='Y'               # Used by docker builds to disable sudo, leave unchanged if unsure.
+
+######################################
+# Do NOT modify code below           #
+######################################
+
 get_input() {
   printf "%s (default: %s): " "$1" "$2" >&2; read -r answer
   if [ -z "$answer" ]; then echo "$2"; else echo "$answer"; fi
@@ -49,17 +72,6 @@ EOF
   exit 1
 }
 
-# Initialize defaults
-unset CNODE_HOME
-INTERACTIVE='N'
-NETWORK='mainnet'
-WANT_BUILD_DEPS='Y'
-FORCE_OVERWRITE='N'
-LIBSODIUM_FORK='N'
-INSTALL_CNCLI='N'
-CNODE_NAME='cnode'
-CURL_TIMEOUT=60
-
 while getopts :in:sflct:m:b: opt; do
   case ${opt} in
     i ) INTERACTIVE='Y' ;;
@@ -75,6 +87,20 @@ while getopts :in:sflct:m:b: opt; do
     esac
 done
 shift $((OPTIND -1))
+
+[[ -z ${INTERACTIVE} ]] && INTERACTIVE='N'
+[[ -z ${NETWORK} ]] && NETWORK='mainnet'
+[[ -z ${WANT_BUILD_DEPS} ]] && WANT_BUILD_DEPS='Y'
+[[ -z ${FORCE_OVERWRITE} ]] && FORCE_OVERWRITE='N'
+[[ -z ${LIBSODIUM_FORK} ]] && LIBSODIUM_FORK='N'
+[[ -z ${INSTALL_CNCLI} ]] && INSTALL_CNCLI='N'
+[[ -z ${CNODE_NAME} ]] && CNODE_NAME='cnode'
+[[ -z ${INTERACTIVE} ]] && INTERACTIVE='N'
+[[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=60
+[[ -z ${UPDATE_CHECK} ]] && UPDATE_CHECK='Y'
+[[ -z ${SUDO} ]] && SUDO='Y'
+[[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
+[[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
 
 # For who runs the script within containers and running it as root.
 U_ID=$(id -u)
@@ -92,18 +118,25 @@ REPO="https://github.com/cardano-community/guild-operators"
 REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
 URL_RAW="${REPO_RAW}/${BRANCH}"
 
-SUDO='Y';
-[[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
-[[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
-
+# Check if prereqs.sh update is available
 PARENT="$(dirname $0)"
-if curl -s -m ${CURL_TIMEOUT} -o "${PARENT}"/prereqs.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/prereqs.sh 2>/dev/null; then
-  if ! cmp --silent "${PARENT}"/prereqs.sh "${PARENT}"/prereqs.sh.tmp; then
-    if get_answer "A new version of prereqs script available, do you want to download the latest version?"; then
-      mv -f "${PARENT}"/prereqs.sh.tmp "${PARENT}"/prereqs.sh
-      chmod 755 "${PARENT}"/prereqs.sh
-      echo -e "Update applied successfully!\n\nPlease re-run the script again!"
-      exit
+if [[ ${UPDATE_CHECK} = 'Y' ]] && curl -s -m ${CURL_TIMEOUT} -o "${PARENT}"/prereqs.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/prereqs.sh 2>/dev/null; then
+  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/prereqs.sh)
+  TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/prereqs.sh.tmp)
+  if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
+    if get_answer "A new version of prereqs script is available, do you want to download the latest version?"; then
+      cp "${PARENT}"/prereqs.sh "${PARENT}/prereqs.sh_bkp$(date +%s)"
+      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/prereqs.sh)
+      printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/prereqs.sh.tmp
+      {
+        mv -f "${PARENT}"/prereqs.sh.tmp "${PARENT}"/prereqs.sh && \
+        chmod 755 "${PARENT}"/prereqs.sh && \
+        echo -e "\nUpdate applied successfully, please run prereqs again!\n" && \
+        exit 0; 
+      } || {
+        echo -e "Update failed!\n\nPlease manually download latest version of prereqs.sh script from GitHub" && \
+        exit 1;
+      }
     fi
   fi
 fi
