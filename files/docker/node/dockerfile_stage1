@@ -15,4 +15,4 @@ RUN set -x && apt update \
   && export SUDO='N' \
   && export UPDATE_CHECK='N' \
   && export BOOTSTRAP_HASKELL_NO_UPGRADE=1 \
-  && chmod +x /tmp/prereqs.sh &&  /tmp/prereqs.sh
+  && chmod +x ./prereqs.sh &&  ./prereqs.sh 
