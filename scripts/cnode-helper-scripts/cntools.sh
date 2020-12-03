@@ -59,6 +59,8 @@ fi
 # get helper functions from library file
 . "${CNODE_HOME}"/scripts/cntools.library
 
+[[ $(${CCLI} version | head -1 | awk '{print $2}' | tr -d '.') -lt 1230 ]] && myExit 1 "ERROR!! CNTools has now been upgraded to support cardano-node 1.23 or higher. Please update cardano-node or use node-1.21 branch for CNTools\n"
+
 URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
 URL="${URL_RAW}/scripts/cnode-helper-scripts"
 URL_DOCS="${URL_RAW}/docs/Scripts"
@@ -754,6 +756,7 @@ EOF
       getRewards ${wallet_name}
       if [[ "${reward_lovelace}" -ge 0 ]]; then
         say "$(printf "%-19s : ${FG_CYAN}%s${NC} ADA" "Rewards" "$(formatLovelace ${reward_lovelace})")" "log"
+        say "$(printf "%-19s : ${FG_CYAN}%s${NC} ADA" "Funds + Rewards" "$(formatLovelace $((base_lovelace + reward_lovelace)))")" "log"
         delegation_pool_id=$(jq -r '.delegation  // empty' <<< "${stakeAddressInfo}")
         if [[ -n ${delegation_pool_id} ]]; then
           unset poolName
@@ -770,7 +773,7 @@ EOF
     fi
     echo
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    
+
     waitForInput && continue
 
     ;; ###################################################################
@@ -791,7 +794,7 @@ EOF
       [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
     fi
     echo
-    
+
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
       say "Are you sure to delete wallet ${FG_GREEN}${wallet_name}${NC}?"
       select_opt "[y] Yes" "[n] No"
@@ -877,7 +880,7 @@ EOF
 
     filesUnlocked=0
     keysDecrypted=0
-    
+
     echo
     say "# Removing write protection from all wallet files" "log"
     while IFS= read -r -d '' file; do
@@ -1317,9 +1320,9 @@ EOF
     say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
     waitForInput && continue
-    
+
     ;; ###################################################################
-    
+
     withdrawrewards)
 
     clear
@@ -1394,11 +1397,11 @@ EOF
     echo
     say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds"  "$(formatLovelace ${lovelace})")" "log"
     say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")" "log"
-    
+
     waitForInput && continue
 
     ;; ###################################################################
-    
+
   esac
 
   ;; ###################################################################
@@ -1511,7 +1514,7 @@ EOF
       fi
     fi
     echo
-    
+
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
 
     say "# Pool Parameters"
@@ -1650,7 +1653,7 @@ EOF
              say "${FG_RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
              waitForInput && continue
            else
-             meta_extended_option=",\"extended\":\"${meta_extended}\"" 
+             meta_extended_option=",\"extended\":\"${meta_extended}\""
            fi
       esac
 
@@ -1749,7 +1752,7 @@ EOF
         esac
       done
     fi
-    
+
     say "\n# Select ${FG_CYAN}owner/pledge${NC} wallet"
     if [[ ${op_mode} = "online" ]]; then
       if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
@@ -1761,7 +1764,7 @@ EOF
       fi
     fi
     echo
-    
+
     owner_wallet="${wallet_name}"
     getBaseAddress ${owner_wallet}
     getBalance ${base_addr}
@@ -1905,12 +1908,12 @@ EOF
     say "$ ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${reward_stake_vk_file} --pool-owner-stake-verification-key-file ${owner_stake_vk_file} ${multi_owner_output} --out-file ${pool_regcert_file} ${NETWORK_IDENTIFIER} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output}" 2
     say "" 2
     ${CCLI} shelley stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${reward_stake_vk_file}" --pool-owner-stake-verification-key-file "${owner_stake_vk_file}" ${multi_owner_output} --out-file "${pool_regcert_file}" ${NETWORK_IDENTIFIER} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} shelley stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output}
-    
+
     say "creating delegation certificate for owner wallet" 1 "log"
     say "$ ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file ${owner_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${owner_delegation_cert_file}" 2
     say "" 2
     ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${owner_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${owner_delegation_cert_file}"
-    
+
     delegate_reward_wallet="false"
     if [[ ! "${owner_wallet}" = "${reward_wallet}" ]]; then
       say "\nRe-stake reward wallet to pool?"
@@ -1920,7 +1923,7 @@ EOF
            say "" 1
            say "creating delegation certificate for reward wallet" 1 "log"
            say "$ ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file ${reward_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${reward_delegation_cert_file}" 2
-           ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${reward_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${reward_delegation_cert_file}" 
+           ${CCLI} shelley stake-address delegation-certificate --stake-verification-key-file "${reward_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${reward_delegation_cert_file}"
            ;;
         1) : ;;
       esac
@@ -2152,7 +2155,7 @@ EOF
             say "${FG_RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
             waitForInput && continue
           else
-            meta_extended_option=",\"extended\":\"${meta_extended}\"" 
+            meta_extended_option=",\"extended\":\"${meta_extended}\""
           fi
       esac
 
@@ -2260,7 +2263,7 @@ EOF
     fi
     say "${FG_YELLOW}If a new wallet is chosen for owner/reward, a manual delegation to the pool with new wallet is needed${NC}"
     echo
-    
+
     say "# Select ${FG_CYAN}owner/pledge${NC} wallet"
     if [[ ${op_mode} = "online" ]]; then
       if ! selectWallet "delegate" "${WALLET_PAY_SK_FILENAME}" "${WALLET_STAKE_SK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
@@ -2272,14 +2275,14 @@ EOF
       fi
     fi
     echo
-    
+
     owner_wallet="${wallet_name}"
     getBaseAddress ${owner_wallet}
     getBalance ${base_addr}
 
     if [[ ${lovelace} -gt 0 ]]; then
       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds in base address for owner wallet:"  "$(formatLovelace ${lovelace})")" "log"
+        say "$(printf "%s\t${FG_CYAN}%s${NC} ADA" "Funds in base address + rewards for owner wallet:"  "$(formatLovelace $((lovelace + reward_lovelace)))")" "log"
         echo
       fi
     else
@@ -2665,9 +2668,9 @@ EOF
       [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}" ]] && pool_registered="YES" || pool_registered="NO"
       [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}" ]] && ledger_retiring="?" || ledger_retiring=""
     else
-      ledger_pParams=$(jq -r '.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
-      ledger_fPParams=$(jq -r '.esLState._delegationState._pstate._fPParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
-      ledger_retiring=$(jq -r '.esLState._delegationState._pstate._retiring."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
+      ledger_pParams=$(jq -r '.nesEs.esLState._delegationState._pstate._pParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
+      ledger_fPParams=$(jq -r '.nesEs.esLState._delegationState._pstate._fPParams."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
+      ledger_retiring=$(jq -r '.nesEs.esLState._delegationState._pstate._retiring."'"${pool_id}"'" // empty' "${TMP_FOLDER}"/ledger-state.json)
       [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
       [[ -n "${ledger_pParams}" ]] && pool_registered="YES" || pool_registered="NO"
     fi
@@ -3230,85 +3233,175 @@ EOF
   say " >> BLOCKS" "log"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-  if [[ ! -d "${BLOCKLOG_DIR}" ]]; then
-    say "${FG_RED}ERROR${NC}: block directory not found!: ${BLOCKLOG_DIR}"
-    say "run logMonitor.sh script to parse block traces from json log file"
-    say "https://cardano-community.github.io/guild-operators/#/Scripts/logmonitor"
+  if [[ ! -f "${BLOCKLOG_DB}" ]]; then
+    say "${FG_RED}ERROR${NC}: blocklog db not found: ${BLOCKLOG_DB}"
+    say "please follow instructions at guild website to deploy CNCLI and logMonitor services"
+    say "https://cardano-community.github.io/guild-operators/#/Scripts/cncli"
+    waitForInput && continue
+  elif ! command -v sqlite3 >/dev/null; then
+    say "${FG_RED}ERROR${NC}: sqlite3 not found!"
+    say "please also follow instructions at guild website to deploy CNCLI and logMonitor services"
+    say "https://cardano-community.github.io/guild-operators/#/Scripts/cncli"
     waitForInput && continue
   fi
-
   current_epoch=$(getEpoch)
   say "Current epoch: ${FG_CYAN}${current_epoch}${NC}\n"
-  tput sc
   say "Show a block summary for all epochs or a detailed view for a specific epoch?"
   select_opt "[s] Summary" "[e] Epoch" "[Esc] Cancel"
   case $? in
-    0) block_table="Epoch,Leader,${FG_CYAN}Adopted${NC},${FG_GREEN}Confirmed${NC},${FG_RED}Missed${NC},${FG_RED}Ghosted${NC},${FG_RED}Invalid${NC}\n"
-       echo && read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter
+    0) echo && read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter
        epoch_enter=${epoch_enter:-10}
        if ! [[ ${epoch_enter} =~ ^[0-9]+$ ]]; then
          say "\n${FG_RED}ERROR${NC}: not a number"
          waitForInput && continue
        fi
-       tput rc && tput ed
-       [[ -f "${BLOCKLOG_DIR}/blocks_$((current_epoch+1)).json" ]] && ((current_epoch++))
-       first_epoch=$(( current_epoch - epoch_enter ))
-       [[ ${first_epoch} -lt 0 ]] && first_epoch=0
-       while [[ ${current_epoch} -gt ${first_epoch} ]]; do
-         blocks_file="${BLOCKLOG_DIR}/blocks_${current_epoch}.json"
-         if [[ ! -f "${blocks_file}" ]]; then
-           block_table+="${current_epoch},-,-,-,-,-,-\n"
-         else
-           invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
-           missed_cnt=$(jq -c '[.[] //0 | select(.status=="missed")] | length' "${blocks_file}")
-           ghosted_cnt=$(jq -c '[.[] //0 | select(.status=="ghosted")] | length' "${blocks_file}")
-           confirmed_cnt=$(jq -c '[.[] //0 | select(.status=="confirmed")] | length' "${blocks_file}")
-           adopted_cnt=$(( $(jq -c '[.[] //0 | select(.status=="adopted")] | length' "${blocks_file}") + confirmed_cnt ))
-           leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt ))
-           block_table+="${current_epoch},${leader_cnt},${adopted_cnt},${confirmed_cnt},${missed_cnt},${ghosted_cnt},${invalid_cnt}\n"
-         fi
-         ((current_epoch--))
-       done
-       printTable ',' "$(echo -e ${block_table})"
-       ;;
-    1) [[ -f "${BLOCKLOG_DIR}/blocks_$((current_epoch+1)).json" ]] && say "\n${FG_YELLOW}Leader schedule for next epoch[$((current_epoch+1))] available${NC}"
-       echo && read -r -p "Enter epoch to list (enter for current): " epoch_enter
-       [[ -z "${epoch_enter}" ]] && epoch_enter=${current_epoch}
-       blocks_file="${BLOCKLOG_DIR}/blocks_${epoch_enter}.json"
-       if [[ ! -f "${blocks_file}" || ( -f "${blocks_file}" && -z $(jq -c '.[]' "${blocks_file}") ) ]]; then
-         say "No blocks in epoch ${epoch_enter}"
-         waitForInput && continue
-       fi
-       tput rc && tput ed
-       view=1; view_output="[1] ${FG_CYAN}View 1${NC} | [2] View 2 | [3] View 3 (full)"
+       view=1; view_output="${FG_CYAN}[b] Block View${NC} | [i] Info"
        while true; do
-         tput rc && tput ed && tput sc
-         invalid_cnt=$(jq -c '[.[] //0 | select(.status=="invalid")] | length' "${blocks_file}")
-         missed_cnt=$(jq -c '[.[] //0 | select(.status=="missed")] | length' "${blocks_file}")
-         ghosted_cnt=$(jq -c '[.[] //0 | select(.status=="ghosted")] | length' "${blocks_file}")
-         confirmed_cnt=$(jq -c '[.[] //0 | select(.status=="confirmed")] | length' "${blocks_file}")
-         adopted_cnt=$(( $(jq -c '[.[] //0 | select(.status=="adopted")] | length' "${blocks_file}") + confirmed_cnt ))
-         leader_cnt=$(( $(jq -c '[.[] //0 | select(.status=="leader")] | length' "${blocks_file}") + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt ))
-         say "Leader : ${leader_cnt}  |  Adopted / Confirmed : ${FG_CYAN}${adopted_cnt}${NC} / ${FG_GREEN}${confirmed_cnt}${NC}  |  Missed / Ghosted / Invalid : ${FG_RED}${missed_cnt}${NC} / ${FG_RED}${ghosted_cnt}${NC} / ${FG_RED}${invalid_cnt}${NC}" "log"
-         echo
-         # print block table
-         tz_code=$(TZ=${BLOCKLOG_TZ} jq -r '.[0] | (.at|sub("\\.[0-9]+Z$"; "Z")|sub("\\+00:00$"; "Z")|fromdateiso8601|strflocaltime("%Z"))' "${blocks_file}")
+         clear
+         say " >> BLOCKS"
+         say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+         current_epoch=$(getEpoch)
+         say "Current epoch: ${FG_CYAN}${current_epoch}${NC}\n"
          if [[ ${view} -eq 1 ]]; then
-           printTable ',' "$(say "Status,Block,Slot / SlotInEpoch,At (${tz_code})" | cat - <(TZ=${BLOCKLOG_TZ} jq -rc '.[] | [.status //"-",.block //"-","\(.slot) / \(.slotInEpoch)",(.at|sub("\\.[0-9]+Z$"; "Z")|sub("\\+00:00$"; "Z")|fromdateiso8601|strflocaltime("%Y-%m-%d %H:%M:%S")) //"-"] | @csv' "${blocks_file}") | tr -d '"')"
-         elif [[ ${view} -eq 2 ]]; then
-           printTable ',' "$(say 'Status,Slot,Size,Hash' | cat - <(jq -rc '.[] | [.status //"-",.slot //"-",.size //"-",.hash //"-"] | @csv' "${blocks_file}") | tr -d '"')"
+           block_table="Epoch,Leader | Ideal | Luck,${FG_CYAN}Adopted${NC} | ${FG_GREEN}Confirmed${NC},${FG_RED}Missed${NC} | ${FG_RED}Ghosted${NC} | ${FG_RED}Stolen${NC} | ${FG_RED}Invalid${NC}\n"
+           
+           [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=$((current_epoch+1)) LIMIT 1);" 2>/dev/null) -eq 1 ]] && ((current_epoch++))
+           first_epoch=$(( current_epoch - epoch_enter ))
+           [[ ${first_epoch} -lt 0 ]] && first_epoch=0
+           while [[ ${current_epoch} -gt ${first_epoch} ]]; do
+             invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='invalid';" 2>/dev/null)
+             missed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='missed';" 2>/dev/null)
+             ghosted_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='ghosted';" 2>/dev/null)
+             stolen_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='stolen';" 2>/dev/null)
+             confirmed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='confirmed';" 2>/dev/null)
+             adopted_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='adopted';" 2>/dev/null) + confirmed_cnt ))
+             leader_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='leader';" 2>/dev/null) + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
+             IFS='|' && read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${current_epoch};" 2>/dev/null)" && IFS=' '
+             if [[ ${#epoch_stats[@]} -eq 0 ]]; then
+               epoch_stats=("-" "-")
+             else
+               epoch_stats[1]="${epoch_stats[1]}%"
+             fi
+             block_table+="$(printf "%s,%-6s | %-5s | %s,%-7s | %s,%-6s | %-7s | %-6s | %s" "${current_epoch}" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}")\n"
+             ((current_epoch--))
+           done
+           printTable ',' "$(echo -e "${block_table}")"
          else
-           printTable ',' "$(say "Status,Block,Slot / SlotInEpoch,At (${tz_code}),Size,Hash" | cat - <(TZ=${BLOCKLOG_TZ} jq -rc '.[] | [.status //"-",.block //"-","\(.slot) / \(.slotInEpoch)",(.at|sub("\\.[0-9]+Z$"; "Z")|sub("\\+00:00$"; "Z")|fromdateiso8601|strflocaltime("%Y-%m-%d %H:%M:%S")) //"-",.size //"-",.hash //"-"] | @csv' "${blocks_file}") | tr -d '"')"
+           say "Block Status:\n"
+           say "Leader    - Scheduled to make block at this slot"
+           say "Ideal     - Expected/Ideal number of blocks assigned based on active stake (sigma)"
+           say "Luck      - Leader slots assigned vs Ideal slots for this epoch"
+           say "Adopted   - Block created successfully"
+           say "Confirmed - Block created validated to be on-chain with the certainty"
+           say "            set in 'cncli.sh' for 'CONFIRM_BLOCK_CNT'"
+           say "Missed    - Scheduled at slot but no record of it in cncli DB and no"
+           say "            other pool has made a block for this slot"
+           say "Ghosted   - Block created but marked as orphaned and no other pool has made"
+           say "            a valid block for this slot, height battle or block propagation issue"
+           say "Stolen    - Another pool has a valid block registered on-chain for the same slot"
+           say "Invalid   - Pool failed to create block, base64 encoded error message"
+           say "            can be decoded with 'echo <base64 hash> | base64 -d | jq -r'"
          fi
          echo
          
-         say "[h] Home | ${view_output} | [*] Refresh current view"
+         say "[h] Home | ${view_output} | [*] Refresh"
          read -rsn1 key
          case ${key} in
            h ) continue 2 ;;
-           1 ) view=1; view_output="[1] ${FG_CYAN}View 1${NC} | [2] View 2 | [3] View 3 (full)" ;;
-           2 ) view=2; view_output="[1] View 1 | [2] ${FG_CYAN}View 2${NC} | [3] View 3 (full)" ;;
-           3 ) view=3; view_output="[1] View 1 | [2] View 2 | [3] ${FG_CYAN}View 3${NC} (full)" ;;
+           b ) view=1; view_output="${FG_CYAN}[b] Block View${NC} | [i] Info" ;;
+           i ) view=2; view_output="[b] Block View | ${FG_CYAN}[i] Info${NC}" ;;
+           * ) continue ;;
+         esac
+       done
+       ;;
+    1) [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=$((current_epoch+1)) LIMIT 1);" 2>/dev/null) -eq 1 ]] && say "\n${FG_YELLOW}Leader schedule for next epoch[$((current_epoch+1))] available${NC}"
+       echo && read -r -p "Enter epoch to list (enter for current): " epoch_enter
+       [[ -z "${epoch_enter}" ]] && epoch_enter=${current_epoch}
+       if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=${epoch_enter} LIMIT 1);" 2>/dev/null) -eq 0 ]]; then
+         say "No blocks in epoch ${epoch_enter}"
+         waitForInput && continue
+       fi
+       view=1; view_output="${FG_CYAN}[1] View 1${NC} | [2] View 2 | [3] View 3 | [i] Info"
+       while true; do
+         clear
+         say " >> BLOCKS"
+         say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+         current_epoch=$(getEpoch)
+         say "Current epoch: ${FG_CYAN}${current_epoch}${NC}\n"
+         invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='invalid';" 2>/dev/null)
+         missed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='missed';" 2>/dev/null)
+         ghosted_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='ghosted';" 2>/dev/null)
+         stolen_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='stolen';" 2>/dev/null)
+         confirmed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='confirmed';" 2>/dev/null)
+         adopted_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='adopted';" 2>/dev/null) + confirmed_cnt ))
+         leader_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='leader';" 2>/dev/null) + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
+         IFS='|' && read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${epoch_enter};" 2>/dev/null)" && IFS=' '
+         if [[ ${#epoch_stats[@]} -eq 0 ]]; then
+           epoch_stats=("-" "-")
+         else
+           epoch_stats[1]="${epoch_stats[1]}%"
+         fi
+         epoch_summary="Leader | Ideal | Luck,${FG_CYAN}Adopted${NC} | ${FG_GREEN}Confirmed${NC},${FG_RED}Missed${NC} | ${FG_RED}Ghosted${NC} | ${FG_RED}Stolen${NC} | ${FG_RED}Invalid${NC}\n"
+         epoch_summary+="$(printf "%-6s | %-5s | %s,%-7s | %s,%-6s | %-7s | %-6s | %s" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}")\n"
+         printTable ',' "$(echo -e "${epoch_summary}")"
+         echo
+         # print block table
+         block_cnt=1
+         if [[ ${view} -eq 1 ]]; then
+           block_table="#,Status,Block,Slot | SlotInEpoch,Scheduled At\n"
+           while IFS='|' read -r status block slot slot_in_epoch at; do
+             at=$(TZ="${BLOCKLOG_TZ}" date '+%F %T %Z' --date="${at}")
+             [[ ${block} -eq 0 ]] && block="-"
+             block_table+="${block_cnt},${status},${block},${slot} | ${slot_in_epoch},${at}\n"
+             ((block_cnt++))
+           done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
+           printTable ',' "$(echo -e ${block_table})"
+         elif [[ ${view} -eq 2 ]]; then
+           block_table="#,Status,Slot,Size,Hash\n"
+           while IFS='|' read -r status slot size hash; do
+             [[ ${size} -eq 0 ]] && size="-"
+             [[ -z ${hash} ]] && hash="-"
+             block_table+="${block_cnt},${status},${slot},${size},${hash}\n"
+             ((block_cnt++))
+           done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, slot, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
+           printTable ',' "$(echo -e ${block_table})"
+         elif [[ ${view} -eq 3 ]]; then
+           block_table="#,Status,Block,Slot | SlotInEpoch,Scheduled At,Size,Hash\n"
+           while IFS='|' read -r status block slot slot_in_epoch at size hash; do
+             at=$(TZ="${BLOCKLOG_TZ}" date '+%F %T %Z' --date="${at}")
+             [[ ${block} -eq 0 ]] && block="-"
+             [[ ${size} -eq 0 ]] && size="-"
+             [[ -z ${hash} ]] && hash="-"
+             block_table+="${block_cnt},${status},${block},${slot} | ${slot_in_epoch},${at},${size},${hash}\n"
+             ((block_cnt++))
+           done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
+           printTable ',' "$(echo -e ${block_table})"
+         elif [[ ${view} -eq 4 ]]; then
+           say "Block Status:\n"
+           say "Leader    - Scheduled to make block at this slot"
+           say "Ideal     - Expected/Ideal number of blocks assigned based on active stake (sigma)"
+           say "Luck      - Leader slots assigned vs Ideal slots for this epoch"
+           say "Adopted   - Block created successfully"
+           say "Confirmed - Block created validated to be on-chain with the certainty"
+           say "            set in 'cncli.sh' for 'CONFIRM_BLOCK_CNT'"
+           say "Missed    - Scheduled at slot but no record of it in cncli DB and no"
+           say "            other pool has made a block for this slot"
+           say "Ghosted   - Block created but marked as orphaned and no other pool has made"
+           say "            a valid block for this slot, height battle or block propagation issue"
+           say "Stolen    - Another pool has a valid block registered on-chain for the same slot"
+           say "Invalid   - Pool failed to create block, base64 encoded error message"
+           say "            can be decoded with 'echo <base64 hash> | base64 -d | jq -r'"
+         fi
+         echo
+         
+         say "[h] Home | ${view_output} | [*] Refresh"
+         read -rsn1 key
+         case ${key} in
+           h ) continue 2 ;;
+           1 ) view=1; view_output="${FG_CYAN}[1] View 1${NC} | [2] View 2 | [3] View 3 | [i] Info" ;;
+           2 ) view=2; view_output="[1] View 1 | ${FG_CYAN}[2] View 2${NC} | [3] View 3 | [i] Info" ;;
+           3 ) view=3; view_output="[1] View 1 | [2] View 2 | ${FG_CYAN}[3] View 3${NC} | [i] Info" ;;
+           i ) view=4; view_output="[1] View 1 | [2] View 2 | [3] View 3 | ${FG_CYAN}[i] Info${NC}" ;;
            * ) continue ;;
          esac
        done

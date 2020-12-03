@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=6
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=2
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=0
+CNTOOLS_PATCH_VERSION=1
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -145,11 +145,12 @@ protectionPreRequisites() {
     [[ ${ENABLE_CHATTR} = true ]] && say "chattr command not available but enabled in config, please disable in cntools.config and re-run CNTools" && return 1
   elif [[ ${ENABLE_CHATTR} = true ]]; then # chattr available and enabled, make sure sudo access to chattr is enabled
     touch "${TMP_FOLDER}"/test
-    if ! sudo -n chattr -i "${TMP_FOLDER}"/test 2>&1; then
+    echo "Testing chattr access permission, enter user password if requested..."
+    if ! sudo chattr -i "${TMP_FOLDER}"/test 2>&1; then
       rm -f "${TMP_FOLDER}"/test
       say ""
       say "${FG_YELLOW}WARN${NC}: Elevated privileges needed for chattr command used to write protect wallet and pool keys"
-      say "Run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
+      say "Add required sudo permissions or run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
       say ""
       say "echo \"$(whoami) ALL=NOPASSWD: $(command -v chattr)\" | sudo tee /etc/sudoers.d/cntools"
       waitForInput "press any key"
@@ -878,12 +879,9 @@ getPoolID() {
   pool_id_bech32=""
   pool_coldkey_vk_file="${POOL_FOLDER}/${1}/${POOL_COLDKEY_VK_FILENAME}"
   if [[ -f ${pool_coldkey_vk_file} ]]; then
-    if ! pool_id=$(${CCLI} shelley stake-pool id --verification-key-file "${pool_coldkey_vk_file}" --output-format hex 2>/dev/null) || \
-       ! pool_id_bech32=$(${CCLI} shelley stake-pool id --verification-key-file "${pool_coldkey_vk_file}" 2>/dev/null); then
-      if ! pool_id=$(${CCLI} shelley stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" --output-format hex 2>/dev/null) || \
-         ! pool_id_bech32=$(${CCLI} shelley stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" 2>/dev/null); then
-        return 1
-      fi
+    if ! pool_id=$(${CCLI} shelley stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" --output-format hex 2>/dev/null) || \
+       ! pool_id_bech32=$(${CCLI} shelley stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" 2>/dev/null); then
+      return 1
     fi
     echo ${pool_id} > "${pool_id_file}"
     echo ${pool_id_bech32} > "${pool_id_bech32_file}"
@@ -2226,68 +2224,6 @@ rotatePoolKeys() {
   kesExpiration "${current_kes_period}"
 }
 
-# Command    : getDelegators [pool id]
-#
-# Description: parse ledger-state for pool delegators
-# Return     : json array in variable $delegators_json
-#
-getDelegators() {
-  pool_id=$1
-
-  if ! timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json; then
-    say "${FG_RED}ERROR${NC}: ledger dump failed/timed out"
-    say "increase timeout value in cntools.config"
-    return 1
-  fi
-  say "\nLedger state dumped, parsing data..."
-  non_myopic_delegators=$(jq -r -c ".esNonMyopic.snapNM._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
-  snapshot_delegators=$(jq -r -c ".esSnapshots._pstakeSet._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" "${TMP_FOLDER}"/ledger-state.json)
-  lstate=$(jq -r -c ".esLState" "${TMP_FOLDER}"/ledger-state.json)
-  lstate_dstate=$(jq -r -c "._delegationState._dstate" <<< "${lstate}")
-  ledger_pParams=$(jq -r -c '._delegationState._pstate._pParams."'"${pool_id}"'" // empty' <<< "${lstate}")
-  ledger_fPParams=$(jq -r -c '._delegationState._pstate._fPParams."'"${pool_id}"'" // empty' <<< "${lstate}")
-  [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
-  lstate_rewards=$(jq -r -c "._rewards" <<< "${lstate_dstate}")
-  lstate_utxo=$(jq -r -c "._utxoState._utxo" <<< "${lstate}")
-  lstate_delegators=$(jq -r -c "._delegations | .[] | select(.[1] == \"${pool_id}\") | .[0][\"key hash\"]" <<< "${lstate_dstate}")
-  delegators=$(echo "${non_myopic_delegators}" "${snapshot_delegators}" "${lstate_delegators}" | tr ' ' '\n' | sort -u)
-  say "\n$(wc -w <<< "${delegators}") delegators found, gathering data for each:"
-  pledge_pParams="$(jq -c -r '.pledge // 0' <<< "${ledger_pParams}")"
-  pledge_fPParams="$(jq -c -r '.pledge // 0' <<< "${ledger_fPParams}")"
-  [[ ${pledge_pParams} -eq ${pledge_fPParams} ]] && pledge=${pledge_pParams} || pledge=${pledge_fPParams}
-  owners_pParams="$(jq -c -r '.owners[] // empty' <<< "${ledger_pParams}")"
-  owners_fPParams="$(jq -c -r '.owners[] // empty' <<< "${ledger_fPParams}")"
-  if [[ ${owners_pParams} = ${owners_fPParams} ]]; then
-    owners=${owners_pParams}
-    owner_nbr=$(jq -r '(.owners | length) // 0' <<< "${ledger_pParams}")
-  else
-    owners=${owners_fPParams}
-    owner_nbr=$(jq -r '(.owners | length) // 0' <<< "${ledger_fPParams}")
-  fi
-  delegators_array=()
-  delegator_nbr=0
-  total_stake=0
-  total_pledged=0
-  for key in ${delegators}; do
-    stake=$(jq -r -c ".[] | select(.address | contains(\"${key}\")) | .amount" <<< "${lstate_utxo}" | awk 'BEGIN{total = 0} {total = total + $1} END{printf "%.0f", total}')
-    rewards=$(jq -r -c ".[] | select(.[0][\"key hash\"] == \"${key}\") | .[1]" <<< "${lstate_rewards}")
-    total_stake=$((total_stake + stake + rewards))
-    say "Delegator $((++delegator_nbr)) processed"
-    if echo "${owners}" | grep -q "${key}"; then
-      key="${key} (owner)"
-      total_pledged=$((total_pledged + stake + rewards))
-    fi
-    delegators_array+=( "hex_key" "${key}" "stake" "$(formatLovelace ${stake})" "rewards" "$(formatLovelace ${rewards})" )
-  done
-
-  # Construct delegator json array
-  delegators_json=$({
-    say '['
-    printf '{"%s":"%s","%s":"%s","%s":"%s"},\n' "${delegators_array[@]}" | sed '$s/,$//'
-    say ']'
-  } | jq -c .)
-}
-
 
 function printTable() {
   local -r delimiter="${1}"
@@ -2304,22 +2240,22 @@ function printTable() {
         numberOfColumns="$(awk -F "${delimiter}" '{print NF}' <<< "${line}")"
         # Add Line Delimiter
         if [[ "${i}" -eq '1' ]]; then
-          table="${table}$(printf '%s#+' "$(repeatString '#+' "${numberOfColumns}")")"
+          table="${table}$(printf '%s@+' "$(repeatString '@+' "${numberOfColumns}")")"
         fi
         # Add Header Or Body
         table="${table}\n"
         local j=1
         for ((j = 1; j <= "${numberOfColumns}"; j = j + 1)); do
-          table="${table}$(printf '#| %s' "$(cut -d "${delimiter}" -f "${j}" <<< "${line}")")"
+          table="${table}$(printf '@| %s' "$(cut -d "${delimiter}" -f "${j}" <<< "${line}")")"
         done
-        table="${table}#|\n"
+        table="${table}@|\n"
         # Add Line Delimiter
         if [[ "${i}" -eq '1' ]] || [[ "${numberOfLines}" -gt '1' && "${i}" -eq "${numberOfLines}" ]]; then
-          table="${table}$(printf '%s#+' "$(repeatString '#+' "${numberOfColumns}")")"
+          table="${table}$(printf '%s@+' "$(repeatString '@+' "${numberOfColumns}")")"
         fi
       done
       if [[ "$(isEmptyString "${table}")" = 'false' ]]; then
-        echo -e "${table}" | column -s '#' -t | awk '/^\+/{gsub(" ", "-", $0)}1'
+        echo -e "${table}" | column -s '@' -t | awk '/^\+/{gsub(" ", "-", $0)}1'
       fi
     fi
   fi

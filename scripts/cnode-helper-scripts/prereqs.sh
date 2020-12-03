@@ -90,13 +90,24 @@ fi
 
 REPO="https://github.com/cardano-community/guild-operators"
 REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
+URL_RAW="${REPO_RAW}/${BRANCH}"
 
-#if [ $(id -u$( -eq 0 ]; then
-#  err_exit "Please run as non-root user."
-#fi
+SUDO='Y';
+[[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
+[[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
 
-SUDO="Y";
-if [ "${SUDO}" = "Y" ] || [ "${SUDO}" = "y" ] ; then sudo="sudo"; else sudo="" ; fi
+PARENT="$(dirname $0)"
+if curl -s -m ${CURL_TIMEOUT} -o "${PARENT}"/prereqs.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/prereqs.sh 2>/dev/null; then
+  if ! cmp --silent "${PARENT}"/prereqs.sh "${PARENT}"/prereqs.sh.tmp; then
+    if get_answer "A new version of prereqs script available, do you want to download the latest version?"; then
+      mv -f "${PARENT}"/prereqs.sh.tmp "${PARENT}"/prereqs.sh
+      chmod 755 "${PARENT}"/prereqs.sh
+      echo -e "Update applied successfully!\n\nPlease re-run the script again!"
+      exit
+    fi
+  fi
+fi
+rm -f "${PARENT}"/prereqs.sh.tmp
 
 if [ "${INTERACTIVE}" = 'Y' ]; then
   clear;
@@ -166,9 +177,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     echo "CentOS: curl pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd-devel zlib-devel tmux"
     err_exit
   fi
-  ghc_v=$(ghc --version | grep 8\.6\.5 2>/dev/null)
-  cabal_v=$(cabal --version | grep version\ 3 2>/dev/null)
-  if [ "${ghc_v}" = "" ] || [ "${cabal_v}" = "" ]; then
+  if ! ghc --version | grep -q 8\.10\.2 || ! cabal --version | grep -q version\ 3; then
     echo "Install ghcup (The Haskell Toolchain installer) .."
     # TMP: Dirty hack to prevent ghcup interactive setup, yet allow profile set up
     unset BOOTSTRAP_HASKELL_NONINTERACTIVE
@@ -177,8 +186,8 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     # shellcheck source=/dev/null
     . "${HOME}"/.ghcup/env
 
-    ghcup install 8.6.5
-    ghcup set 8.6.5
+    ghcup install 8.10.2
+    ghcup set 8.10.2
     ghc --version
 
     echo "Installing bundled Cabal .."
@@ -206,7 +215,7 @@ mkdir -p "${HOME}"/git > /dev/null 2>&1 # To hold git repositories that will be 
 if [[ "${LIBSODIUM_FORK}" = "Y" ]]; then
   if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
     echo "export LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
-    . "${HOME}"/.bashrc
+    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
   fi
   pushd "${HOME}"/git >/dev/null || err_exit
   git clone https://github.com/input-output-hk/libsodium &>/dev/null
@@ -232,7 +241,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     if ! output=$(git clone https://github.com/AndrewWestberg/cncli.git 2>&1); then echo -e "${output}" && err_exit; fi
     pushd ./cncli >/dev/null || err_exit
   fi
-  cncli_git_version=$(awk -F ' = ' '$1 ~ /version/ { gsub(/[\"]/, "", $2); printf("%s",$2) }' Cargo.toml)
+  cncli_git_version=$(grep ^version Cargo.toml | cut -d'"' -f2)
   if [[ "${cncli_version}" != "${cncli_git_version}" ]]; then
     # install rust if not available
     if ! command -v "rustup" &>/dev/null; then
@@ -255,7 +264,6 @@ $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
 
 echo "Downloading files..."
 
-URL_RAW="${REPO_RAW}/${BRANCH}"
 pushd "${CNODE_HOME}"/files >/dev/null || err_exit
 curl -s -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-combinator.json 2>/dev/null
 
@@ -310,7 +318,6 @@ curl -s -m ${CURL_TIMEOUT} -o sLiveView.sh ${URL_RAW}/scripts/cnode-helper-scrip
 curl -s -m ${CURL_TIMEOUT} -o gLiveView.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/gLiveView.sh
 curl -s -m ${CURL_TIMEOUT} -o deploy-as-systemd.sh ${URL_RAW}/scripts/cnode-helper-scripts/deploy-as-systemd.sh
 curl -s -m ${CURL_TIMEOUT} -o cncli.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cncli.sh
-sed -e "s@%vname%@${CNODE_NAME}@g" -i deploy-as-systemd.sh
 sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*.*
 
 ### Update file retaining existing custom configs
