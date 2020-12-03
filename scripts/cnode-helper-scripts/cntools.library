@@ -29,31 +29,6 @@ CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PAT
 [[ -z ${KES_ALERT_PERIOD} ]] && KES_ALERT_PERIOD=172800 # default 2 days
 [[ -z ${KES_WARNING_PERIOD} ]] && KES_WARNING_PERIOD=604800 # default 7 days
 [[ -z ${ENABLE_CHATTR} ]] && ENABLE_CHATTR=true
-[[ -z ${WALLET_FOLDER} ]] && WALLET_FOLDER="${CNODE_HOME}/priv/wallet"
-[[ -z ${POOL_FOLDER} ]] && POOL_FOLDER="${CNODE_HOME}/priv/pool"
-[[ -z ${WALLET_PAY_VK_FILENAME} ]] && WALLET_PAY_VK_FILENAME="payment.vkey"
-[[ -z ${WALLET_PAY_SK_FILENAME} ]] && WALLET_PAY_SK_FILENAME="payment.skey"
-[[ -z ${WALLET_PAY_ADDR_FILENAME} ]] && WALLET_PAY_ADDR_FILENAME="payment.addr"
-[[ -z ${WALLET_BASE_ADDR_FILENAME} ]] && WALLET_BASE_ADDR_FILENAME="base.addr"
-[[ -z ${WALLET_STAKE_VK_FILENAME} ]] && WALLET_STAKE_VK_FILENAME="stake.vkey"
-[[ -z ${WALLET_STAKE_SK_FILENAME} ]] && WALLET_STAKE_SK_FILENAME="stake.skey"
-[[ -z ${WALLET_STAKE_ADDR_FILENAME} ]] && WALLET_STAKE_ADDR_FILENAME="reward.addr"
-[[ -z ${WALLET_STAKE_CERT_FILENAME} ]] && WALLET_STAKE_CERT_FILENAME="stake.cert"
-[[ -z ${WALLET_STAKE_DEREG_FILENAME} ]] && WALLET_STAKE_DEREG_FILENAME="stake.dereg"
-[[ -z ${WALLET_DELEGCERT_FILENAME} ]] && WALLET_DELEGCERT_FILENAME="delegation.cert"
-[[ -z ${POOL_ID_FILENAME} ]] && POOL_ID_FILENAME="pool.id"
-[[ -z ${POOL_HOTKEY_VK_FILENAME} ]] && POOL_HOTKEY_VK_FILENAME="hot.vkey"
-[[ -z ${POOL_HOTKEY_SK_FILENAME} ]] && POOL_HOTKEY_SK_FILENAME="hot.skey"
-[[ -z ${POOL_COLDKEY_VK_FILENAME} ]] && POOL_COLDKEY_VK_FILENAME="cold.vkey"
-[[ -z ${POOL_COLDKEY_SK_FILENAME} ]] && POOL_COLDKEY_SK_FILENAME="cold.skey"
-[[ -z ${POOL_OPCERT_COUNTER_FILENAME} ]] && POOL_OPCERT_COUNTER_FILENAME="cold.counter"
-[[ -z ${POOL_OPCERT_FILENAME} ]] && POOL_OPCERT_FILENAME="op.cert"
-[[ -z ${POOL_VRF_VK_FILENAME} ]] && POOL_VRF_VK_FILENAME="vrf.vkey"
-[[ -z ${POOL_VRF_SK_FILENAME} ]] && POOL_VRF_SK_FILENAME="vrf.skey"
-[[ -z ${POOL_CONFIG_FILENAME} ]] && POOL_CONFIG_FILENAME="pool.config"
-[[ -z ${POOL_REGCERT_FILENAME} ]] && POOL_REGCERT_FILENAME="pool.cert"
-[[ -z ${POOL_CURRENT_KES_START} ]] && POOL_CURRENT_KES_START="kes.start"
-[[ -z ${POOL_DEREGCERT_FILENAME} ]] && POOL_DEREGCERT_FILENAME="pool.dereg"
 
 ############################################################
 # library sourced by cntools with common taskes to perform #

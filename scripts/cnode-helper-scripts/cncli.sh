@@ -11,7 +11,6 @@
 # Common variables set in env file   #
 ######################################
 
-#POOL_DIR="${CNODE_HOME}/priv/pool/TEST"  # set pool dir to run node as a core node
 #POOL_ID=""                               # Required for leaderlog calculation & pooltool sendtip, lower-case hex pool id
 #POOL_VRF_SKEY=""                         # Required for leaderlog calculation, path to pool's vrf.skey file
 #POOL_VRF_VKEY=""                         # Required for block validation, path to pool's vrf.vkey file
@@ -217,11 +216,9 @@ cncliInit() {
   [[ -z "${PT_PORT}" ]] && PT_PORT="${CNODE_PORT}"
   [[ -z "${PT_API_KEY}" ]] && PT_API_KEY=""
   [[ -z "${POOL_TICKER}" ]] && POOL_TICKER=""
-  if [[ -n "${POOL_DIR}" ]] ; then
-    POOL_ID=$(cat ${POOL_DIR}/pool.id)
-    POOL_VRF_SKEY="${POOL_DIR}/vrf.skey"
-    POOL_VRF_VKEY="${POOL_DIR}/vrf.vkey"
-  fi
+  { [[ -z "${POOL_ID}" && -n "${POOL_DIR}" ]]; } && POOL_ID=$(cat "${POOL_DIR}/${POOL_ID_FILENAME}") || POOL_ID=""
+  { [[ -z "${POOL_VRF_SKEY}" && -n "${POOL_DIR}" ]]; } && POOL_VRF_SKEY="${POOL_DIR}/${POOL_VRF_SK_FILENAME}" || POOL_VRF_SKEY=""
+  { [[ -z "${POOL_VRF_VKEY}" && -n "${POOL_DIR}" ]]; } && POOL_VRF_VKEY="${POOL_DIR}/${POOL_VRF_VK_FILENAME}" || POOL_VRF_VKEY=""
 
   [[ -z "${BATCH_AUTO_UPDATE}" ]] && BATCH_AUTO_UPDATE=N
   

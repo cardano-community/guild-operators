@@ -9,7 +9,8 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ##### Changed
 - printTable function replaced with bash printf due to compatibility issues
-- Improved workflow in pool registration/modification for relays and multi-owner. 
+- Improved workflow in pool registration/modification for relays and multi-owner.
+- Standardized names for wallet and pool files/folders moved to env file from cntools.config
 
 ##### Fixed
 - Error output for prerequisite checks
