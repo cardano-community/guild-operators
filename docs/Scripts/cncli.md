@@ -7,6 +7,7 @@
 - **VALIDATE** - Validates that a block hash or partial block hash is on-chain.
 - **LEADERLOG** - Calculates a stakepool's expected slot list. On MainNet and the official TestNet, leader schedule is available 1.5 days before the end of the epoch (`firstSlotOfNextEpoch - (3 * k / f)`).
 - **SENDTIP** - Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge.
+- **SENDSLOTS** - Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs.
 
 ##### Installation
 `cncli.sh` script's main functions, sync, leaderlog, validate and ptsendtip are not meant to be run manually, but instead deploy as systemd services that run in the background to do the block scraping and validation automatically. Additional commands exist for manual execution to migrate old cntoolsBlockCollector JSON blocklog, re-validation of blocks and initially fill the blocklog DB with all blocks created by the pool known to the blockchain. See usage output below for a complete list of available commands.
@@ -22,6 +23,7 @@ The script work in tandem with [Log Monitor](Scripts/logmonitor.md) to provide f
 - cnode-cncli-leaderlog.service 
 - cnode-cncli-validate.service
 - cnode-cncli-ptsendtip.service
+- cnode-cncli-ptsendslots.service
 - cnode-logmonitor.service (see [Log Monitor](Scripts/logmonitor.md))
 
 ##### Configuration
@@ -58,7 +60,7 @@ Recommended workflow to get started with CNCLI blocklog.
 3. (**optional**) If a previous blocklog db exist created by cntoolsBlockCollector, run this command to migrate json storage to new SQLite DB:
    * `$CNODE_HOME/scripts/cncli.sh migrate <path>` where <path> is the location for the directory containing all blocks_<epoch>.json files.
 4. Start deployed services with:
-   * `sudo systemctl start cnode-cncli-sync.service`
+   * `sudo systemctl start cnode-cncli-sync.service` (starts leaderlog, validate & ptsendslots automatically)
    * `sudo systemctl start cnode-logmonitor.service`
    * `sudo systemctl start cnode-cncli-ptsendtip.service` (**optional but recommended**)
    * alternatively restart the main service that will trigger a start of all services with:
@@ -79,6 +81,7 @@ validate    Continously monitor and confirm that the blocks made actually was ac
   all       One-time re-validation of all blocks in blocklog db
   epoch     One-time re-validation of blocks in blocklog db for the specified epoch 
 ptsendtip   Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge (deployed as service)
+ptsendslots Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs (deployed as service)
 init        One-time initialization adding all minted and confirmed blocks to blocklog
 migrate     One-time migration from old blocklog(cntoolsBlockCollector) to new format (post cncli)
   path      Path to the old cntoolsBlockCollector blocklog folder holding json files with blocks created

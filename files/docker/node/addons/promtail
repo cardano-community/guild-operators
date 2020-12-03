@@ -1,0 +1,35 @@
+#!/bin/bash 
+
+start() {
+    echo "promtail starting!"; 
+    /usr/local/bin/promtail --client.external-labels=promtail=${HOSTNAME} -config.file /etc/promtail.yml & 
+    ps ax | grep promtail | grep -v defunct | grep -v grep 
+}
+
+stop() {
+	promtailPid=$(ps ax | grep promtail | grep -v defunct | grep -v grep | awk '{print $1}')
+	sudo kill -9 $promtailPid;
+	echo "promtail stopped!"; 
+	sleep 2;
+}
+
+case "$1" in
+    start)
+       start
+       ;;
+    stop)
+       stop
+       ;;
+    restart)
+       echo "promtail restarting!";
+       stop
+       start
+       ;;
+    status)
+       tail /tmp/positions.yaml
+       ;;
+    *) 
+       echo "Usage: $0 {start|stop|status|restart}"
+esac
+
+exit 0

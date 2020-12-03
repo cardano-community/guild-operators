@@ -1,0 +1,74 @@
+server:
+  http_listen_address: 127.0.0.1
+  http_listen_port: 9080
+  grpc_listen_address: 127.0.0.1
+  grpc_listen_port: 9095
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://172.13.0.26:3100/loki/api/v1/push
+
+scrape_configs:
+- job_name: iptrace
+  static_configs:
+  - targets:
+      - localhost
+    labels:
+      job: iptrace
+      __path__: /tmp/ip2trace_*.log
+  pipeline_stages:
+  - match:
+      selector: '{job="iptrace"}'
+      stages:
+      - regex:
+          expression: '^timestamp=(?P<timestamp>\w+/\w+/\w+)\stime=(?P<time>\w+:\w+:\w+)\spHOST=(?P<pHOST>\w+)\spIP=(?P<pIP>\w+.\w+.\w+.\w+)\spPORT=(?P<pPORT>\w+)\sapp=(?P<app>\w+)\sonlineTag=(?P<onlineTag>\w+)\shost=(?P<host>\w+.\w+.\w+.\w+)\scountryLongTag=(?P<countryL>([-a-zA-Z]+|[\w+]+))\scountryShortTag=(?P<country>\w+)\sCityTag=(?P<city>([-a-zA-Z]+|[\w+]+))\sStateTag=(?P<state>([-a-zA-Z]+|[\w+]+))\sTimeZoneTag=(?P<timezone>[+-]?\w+:\w+)\scountry_long=(?P<contry_long>([-a-zA-Z]+|[\w+]+))\scountry_short=(?P<country_short>\w+)\scity=(?P<City2>([-a-zA-Z]+|[\w+]+))\sstate=(?P<state2>([-a-zA-Z]+|[\w+]+))\stimezone=(?P<timez>[+-]?\w+:\w+)\slatitude=(?P<latitude>[+-]?\w+.\w+)\slongitude=(?P<longitude>[+-]?\w+.\w+)\spacketSent=(?P<packetSent>\w+)\spacketRecv=(?P<packetRecv>\w+)\spacketLost=(?P<packetLost>\w+.\w+)\sminRtt=(?P<minRtt>[0|\d]+.?[ |\d]+)avgRtt=(?P<avgRtt>[0|\d]+.?[ |\d]+)maxRtt=(?P<maxRtt>[0|\d]+.?[ |\d]+)online=(?P<online>\w+)'
+      - labels:
+          host:
+          city:
+          timezone:
+          pHOST:
+          pIP:
+          pPORT:
+          onlineTag:
+          countryL:
+          country:
+          latitude:
+          longitude:
+
+- job_name: blocktrace
+  static_configs:
+  - targets:
+      - localhost
+    labels:
+      job: blocktrace
+      __path__: /tmp/block_index.log
+  pipeline_stages:
+    - json:
+        expressions:
+          block_data: data
+          block_timestamp: at
+          block_env: env
+          block_kind: data.kind
+          block_data_kind: data.block.kind
+          block_slot: data.block.slot
+          block_headerHash: data.block.headerHash
+          block_hash: data.blockHash
+          block_bslot: data.slot
+          block_host: host
+          block_severity: sev
+          block_thread: thread
+    - labels:
+       block_data:
+       block_timestamp:
+       block_env:
+       block_hash:
+       block_bslot:
+       block_kind:
+       block_data_kind:
+       block_slot:
+       block_headerHash:
+       block_host:
+       block_severity:
+       block_thread:

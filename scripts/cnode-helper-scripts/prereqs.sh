@@ -90,10 +90,24 @@ fi
 
 REPO="https://github.com/cardano-community/guild-operators"
 REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
+URL_RAW="${REPO_RAW}/${BRANCH}"
 
 SUDO='Y';
 [[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
 [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
+
+PARENT="$(dirname $0)"
+if curl -s -m ${CURL_TIMEOUT} -o "${PARENT}"/prereqs.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/prereqs.sh 2>/dev/null; then
+  if ! cmp --silent "${PARENT}"/prereqs.sh "${PARENT}"/prereqs.sh.tmp; then
+    if get_answer "A new version of prereqs script available, do you want to download the latest version?"; then
+      mv -f "${PARENT}"/prereqs.sh.tmp "${PARENT}"/prereqs.sh
+      chmod 755 "${PARENT}"/prereqs.sh
+      echo -e "Update applied successfully!\n\nPlease re-run the script again!"
+      exit
+    fi
+  fi
+fi
+rm -f "${PARENT}"/prereqs.sh.tmp
 
 if [ "${INTERACTIVE}" = 'Y' ]; then
   clear;
@@ -250,7 +264,6 @@ $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
 
 echo "Downloading files..."
 
-URL_RAW="${REPO_RAW}/${BRANCH}"
 pushd "${CNODE_HOME}"/files >/dev/null || err_exit
 curl -s -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-combinator.json 2>/dev/null
 
@@ -305,7 +318,6 @@ curl -s -m ${CURL_TIMEOUT} -o sLiveView.sh ${URL_RAW}/scripts/cnode-helper-scrip
 curl -s -m ${CURL_TIMEOUT} -o gLiveView.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/gLiveView.sh
 curl -s -m ${CURL_TIMEOUT} -o deploy-as-systemd.sh ${URL_RAW}/scripts/cnode-helper-scripts/deploy-as-systemd.sh
 curl -s -m ${CURL_TIMEOUT} -o cncli.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cncli.sh
-sed -e "s@%vname%@${CNODE_NAME}@g" -i deploy-as-systemd.sh
 sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*.*
 
 ### Update file retaining existing custom configs

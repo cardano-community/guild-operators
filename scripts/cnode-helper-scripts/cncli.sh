@@ -24,6 +24,7 @@
 #CONFIRM_SLOT_CNT=600                     # CNCLI validate: require at least these many slots to have passed before validating
 #CONFIRM_BLOCK_CNT=15                     # CNCLI validate: require at least these many blocks on top of minted before validating
 #TIMEOUT_LEDGER_STATE=300                 # CNCLI leaderlog: timeout in seconds for ledger-state query
+#BATCH_AUTO_UPDATE=N                      # Set to Y to automatically update the script if a new version is available without user interaction
 
 ######################################
 # Do NOT modify code below           #
@@ -42,6 +43,7 @@ validate    Continously monitor and confirm that the blocks made actually was ac
   all       One-time re-validation of all blocks in blocklog db
   epoch     One-time re-validation of blocks in blocklog db for the specified epoch 
 ptsendtip   Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge (deployed as service)
+ptsendslots Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs (deployed as service)
 init        One-time initialization adding all minted and confirmed blocks to blocklog
 migrate     One-time migration from old blocklog(cntoolsBlockCollector) to new format (post cncli)
   path      Path to the old cntoolsBlockCollector blocklog folder holding json files with blocks created
@@ -101,7 +103,6 @@ getDateFromSlot() {
 
 createBlocklogDB() {
   if ! mkdir -p "${BLOCKLOG_DIR}"; then echo "ERROR: failed to create directory to store blocklog: ${BLOCKLOG_DIR}" && return 1; fi
-  if ! command -v sqlite3 >/dev/null; then echo "ERROR: sqlite3 not found, please install before activating blocklog function" && return 1; fi
   [[ $(${CNCLI} -V | cut -d' ' -f2 | tr -d '.' | sed 's/^0*//') -lt 29 ]] && echo "ERROR: $(${CNCLI} -V) installed, too old, please upgrade to 0.2.9 or newer" && return 1
   if [[ ! -f ${BLOCKLOG_DB} ]]; then # create a fresh DB with latest schema
     sqlite3 ${BLOCKLOG_DB} <<EOF
@@ -144,8 +145,8 @@ getPoolVrfVkeyCborHex() {
 
 dumpLedgerState() {
   ledger_state_file="/tmp/ledger-state_$(getEpoch).json"
-  [[ -f ${ledger_state_file} ]] && return 0 # no need to continue, we have a current ledger-state already
-  rm -f /tmp/ledger-state* # remove old ledger dumps before creating a new
+  [[ -n $(find "${ledger_state_file}" -mmin -60 2>/dev/null) ]] && return 0 # no need to continue, we have a fresh(<1h) ledger-state already
+  rm -f /tmp/ledger-state_* # remove old ledger dumps before creating a new
   if ! timeout -k 5 "${TIMEOUT_LEDGER_STATE}" ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${ledger_state_file}"; then
     echo "ERROR: ledger dump failed/timed out, increase timeout value"
     [[ -f "${ledger_state_file}" ]] && rm -f "${ledger_state_file}"
@@ -221,14 +222,13 @@ cncliInit() {
     POOL_VRF_VKEY="${POOL_DIR}/vrf.vkey"
   fi
 
-  PARENT="$(dirname $0)"
-  if [[ ! -f "${PARENT}"/env ]]; then
-    echo "ERROR: could not find common env file, please update and run 'prereqs.sh -h' to show options"
-    exit 1
-  fi
-  if ! . "${PARENT}"/env; then exit 1; fi
+  [[ -z "${BATCH_AUTO_UPDATE}" ]] && BATCH_AUTO_UPDATE=N
   
-  [[ ! -f "${CNCLI}" ]] && echo "ERROR: failed to locate cncli executable, please update and run 'prereqs.sh -h' to show options" && exit 1
+  if ! command -v sqlite3 >/dev/null; then echo "ERROR: sqlite3 not found, please install before activating blocklog function" && exit 1; fi
+
+  PARENT="$(dirname $0)"  
+  if [[ ! -f "${PARENT}"/env ]]; then echo "ERROR: could not find common env file, please download and run 'prereqs.sh -h' to show options" && exit 1; fi
+  if ! . "${PARENT}"/env; then exit 1; fi
   
   if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
     vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")
@@ -237,6 +237,43 @@ cncliInit() {
     exit 1
   fi
   
+  # Check if cncli.sh update is available
+  [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
+  URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
+  if curl -s -m 10 -o "${PARENT}"/cncli.sh.tmp ${URL}/cncli.sh; then
+    sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/cncli.sh.tmp
+    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/cncli.sh)
+    TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/cncli.sh.tmp)
+    if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
+      update='N'
+      if [[ ${BATCH_AUTO_UPDATE} = 'Y' ]]; then
+        update='Y'
+      elif [[ -t 1 ]]; then # ask what to do if tty is available
+        echo -e "\nA new version of cncli script is available"
+        echo -e "Press 'u' to update to latest version, or any other key to continue"
+        read -r -n 1 -s answer
+        [[ ${answer} = "u" ]] && update='Y'
+      fi
+      if [[ ${update} = 'Y' ]]; then
+        cp "${PARENT}"/cncli.sh "${PARENT}/cncli.sh_bkp$(date +%s)"
+        STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/cncli.sh)
+        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/cncli.sh.tmp
+        {
+          mv -f "${PARENT}"/cncli.sh.tmp "${PARENT}"/cncli.sh && \
+          chmod 755 "${PARENT}"/cncli.sh && \
+          echo -e "\nUpdate applied successfully, please run cncli again!\n" && \
+          exit 0; 
+        } || {
+          echo -e "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update cncli" && \
+          exit 1;
+        }
+      fi
+    fi
+  fi
+  rm -f "${PARENT}"/cncli.sh.tmp
+  
+  [[ ! -f "${CNCLI}" ]] && echo "ERROR: failed to locate cncli executable, please update and run 'prereqs.sh -h' to show options" && exit 1
+
   return 0
 }
 
@@ -410,11 +447,12 @@ cncliValidate() {
       echo "ERROR: unknown argument passed to validate command, valid options incl the string 'all' or the epoch number to validate"
       exit 1
     fi
+    epoch_blocks=$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch, slot, status, hash FROM blocklog ${epoch_selection} ORDER BY slot;")
     while IFS='|' read -r block_epoch block_slot block_status block_hash; do
       [[ ${epoch} -ne ${block_epoch} ]] && echo -e "> Validating epoch ${FG_GREEN}${block_epoch}${NC}" && epoch=${block_epoch}
       [[ ${block_status} != invalid ]] && block_status="leader" # reset status to leader to re-validate all non invalid blocks
       validateBlock
-    done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch, slot, status, hash FROM blocklog ${epoch_selection} ORDER BY slot;")
+    done < <(printf '%s\n' "${epoch_blocks}")
   elif [[ -n ${subarg} ]]; then
     echo "ERROR: unknown argument passed to validate subcommand" && usage
   else
@@ -428,11 +466,12 @@ cncliValidate() {
       fi
       block_tip=$(getBlockTip)
       curr_epoch=$(getEpoch)
-      prev_epoch=$((curr_epoch-1))
-      # Check both previous epoch and current to catch epoch boundary cases
+      # Check previous epoch as well at start of current epoch
+      [[ $(getSlotInEpoch) -lt $(( CONFIRM_SLOT_CNT * 6 )) ]] && prev_epoch=$((curr_epoch-1)) || prev_epoch=${curr_epoch}
+      epoch_blocks=$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch, slot, status, hash FROM blocklog WHERE epoch BETWEEN ${prev_epoch} and ${curr_epoch} ORDER BY slot;")
       while IFS='|' read -r block_epoch block_slot block_status block_hash; do
         validateBlock
-      done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch, slot, status, hash FROM blocklog WHERE epoch BETWEEN ${prev_epoch} and ${curr_epoch} ORDER BY slot;")
+      done < <(printf '%s\n' "${epoch_blocks}")
     done
   fi
 }
@@ -499,6 +538,7 @@ cncliInitBlocklogDB() {
   createBlocklogDB || exit 1 # create db if needed
   echo "Looking for blocks made by pool..."
   block_cnt=0
+  cncli_blocks=$(sqlite3 "${CNCLI_DB}" "SELECT block_number, slot_number, hash, block_size FROM chain WHERE node_vrf_vkey = '${pool_vrf_vkey_cbox_hex}' ORDER BY slot_number;")
   while IFS='|' read -r block_number slot_number block_hash block_size; do
     # Calculate epoch, at and slot_in_epoch
     epoch=$(getEpochFromSlot ${slot_number})
@@ -511,7 +551,7 @@ INSERT OR IGNORE INTO blocklog (slot, at, epoch, block, slot_in_epoch, hash, siz
 VALUES (${slot_number}, '${at}', ${epoch}, ${block_number}, ${slot_in_epoch}, '${block_hash}', ${block_size}, 'adopted');
 EOF
     ((block_cnt++))
-  done < <(sqlite3 "${CNCLI_DB}" "SELECT block_number, slot_number, hash, block_size FROM chain WHERE node_vrf_vkey = '${pool_vrf_vkey_cbox_hex}' ORDER BY slot_number;")
+  done < <(printf '%s\n' "${cncli_blocks}")
   if [[ ${block_cnt} -eq 0 ]]; then
     echo "No blocks found :("
   else
@@ -563,7 +603,7 @@ cncliPTsendtip() {
     echo "ERROR: cardano-node not in PATH, please manually set CCLI in env file"
     exit 1
   fi
-  pt_config="/tmp/${vname}-ptsendtip.json"
+  pt_config="/tmp/${vname}-pooltool.json"
   bash -c "cat << 'EOF' > ${pt_config}
 {
   \"api_key\": \"${PT_API_KEY}\",
@@ -582,6 +622,41 @@ EOF"
 
 #################################
 
+cncliPTsendslots() {
+  [[ $(${CNCLI} -V | cut -d' ' -f2 | tr -d '.' | sed 's/^0*//') -lt 31 ]] && echo "ERROR: $(${CNCLI} -V) installed, too old, please upgrade to 0.3.1 or newer" && exit 1
+  [[ -z ${POOL_ID} || -z ${POOL_TICKER} || -z ${PT_API_KEY} ]] && echo "'POOL_ID' and/or 'POOL_TICKER' and/or 'PT_API_KEY' not set in $(basename "$0"), exiting!" && exit 1
+  # Generate a temporary pooltool config
+  pt_config="/tmp/${vname}-pooltool.json"
+  bash -c "cat << 'EOF' > ${pt_config}
+{
+  \"api_key\": \"${PT_API_KEY}\",
+  \"pools\": [
+    {
+      \"name\": \"${POOL_TICKER}\",
+      \"pool_id\": \"${POOL_ID}\",
+      \"host\" : \"${PT_HOST}\",
+      \"port\": ${PT_PORT}
+    }
+  ]
+}
+EOF"
+  sendslots_epoch=-1
+  while true; do
+    sleep ${SLEEP_RATE}
+    node_metrics=$(getNodeMetrics)
+    curr_epoch=$(getEpoch)
+    [[ ${sendslots_epoch} -eq ${curr_epoch} ]] && continue # this epoch already processed
+    [[ $(( SLOT_LENGTH * $(getSlotInEpoch) )) -gt 600 ]] && continue # only allow slot sending in the first 10m after epoch boundary
+    leaderlog_cnt=$(sqlite3 "${CNCLI_DB}" "SELECT COUNT(*) FROM slots WHERE epoch=${curr_epoch} and pool_id='${POOL_ID}';")
+    [[ ${leaderlog_cnt} -eq 0 ]] && echo "ERROR: no leaderlogs for epoch ${curr_epoch} and pool id '${POOL_ID}' found in cncli DB" && continue
+    ${CNCLI} sendslots --config "${pt_config}" --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}"
+    echo "Slots for epoch ${curr_epoch} successfully sent to PoolTool for pool id '${POOL_ID}' !"
+    sendslots_epoch=${curr_epoch}
+  done
+}
+
+#################################
+
 case ${subcommand} in
   sync ) 
     cncliInit && cncliSync ;;
@@ -591,6 +666,8 @@ case ${subcommand} in
     cncliInit && cncliValidate ;;
   ptsendtip )
     cncliInit && cncliPTsendtip ;;
+  ptsendslots )
+    cncliInit && cncliPTsendslots ;;
   init )
     cncliInit && cncliInitBlocklogDB ;;
   migrate )

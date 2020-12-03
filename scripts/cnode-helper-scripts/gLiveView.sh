@@ -158,7 +158,7 @@ if curl -s -m ${CURL_TIMEOUT} -o /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/
       cp -f /tmp/gLiveView.sh "${PARENT}/gLiveView.sh" && \
       chmod 750 "${PARENT}/gLiveView.sh" && \
       myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!" || \
-      myExit 1 "${RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
+      myExit 1 "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
     fi
   fi
 else
