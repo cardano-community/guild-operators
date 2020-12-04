@@ -202,6 +202,17 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
       $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so
       $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so.5
     fi
+  elif [[ $(uname) -eq Darwin ]]; then
+    echo "MacOS detected";
+    pkg_list="coreutils gnupg jq libsodium tcptraceroute"
+    brew install "${pkg_list}" > /dev/null;rc=$?
+
+    if [ $rc != 0 ]; then
+      echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
+      echo "brew install ${pkg_list}"
+      echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
+      err_exit
+    fi
   else
     echo "We have no automated procedures for this ${DISTRO} system"
     echo "please manually install required packages."
