@@ -50,7 +50,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.13
+GLV_VERSION=v1.14
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -130,11 +130,12 @@ myExit() {
   cleanup "$1"
 }
 
-if ! command -v "ss" &>/dev/null; then
-  # ToDo: implement similar functionality for MacOS using netstat or alternatives
-  if [[ $(uname) != Darwin ]]; then
-    myExit 1 "'ss' command missing, please install using latest prereqs.sh script or with your packet manager of choice.\nhttps://command-not-found.com/ss can be used to check package name to install."
-  fi
+if command -v "ss" &>/dev/null; then 
+  use_lsof='N'
+elif command -v "lsof" &>/dev/null; then 
+  use_lsof='Y'
+else
+  myExit 1 "'ss' and fallback 'lsof' commands missing, please install using latest prereqs.sh script or with your packet manager of choice.\nhttps://command-not-found.com/ss can be used to check package name to install."
 fi
 
 if ! command -v "tcptraceroute" &>/dev/null; then
@@ -171,7 +172,8 @@ else
   read -r -n 1 -s -p "press any key to proceed" answer
 fi
 
-[[ $(cardano-node version | head -1 | awk '{print $2}' | tr -d '.') -lt 1230 ]] && echo -e "\nERROR!! gLiveView has now been upgraded to support cardano-node 1.23 or higher. Please update cardano-node or use node-1.21 branch for gLiveView\n\n" && exit 1
+cardano_version=($(${CCLI} version | head -1 | cut -d' ' -f2 | tr '.' ' '))
+[[ $(( ${cardano_version[0]:-0}*10000 + ${cardano_version[1]:-0}*100 + ${cardano_version[2]:-0} )) -lt 12300 ]] && echo -e "\nERROR!! gLiveView has now been upgraded to support cardano-node 1.23 or higher. Please update cardano-node or use node-1.21 branch for gLiveView\n\n" && exit 1
 
 #######################################################
 # Validate config variables                           #
@@ -398,14 +400,22 @@ checkPeers() {
   direction=$1
 
   if [[ ${direction} = "out" ]]; then
-    netstatPeers=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${prom_port})" '$3 !~ port {print $4}')
+    if [[ ${use_lsof} = 'Y' ]]; then
+      peers=$(lsof -Pnl +M -i4 | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${prom_port})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}')
+    else
+      peers=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${prom_port})" '$3 !~ port {print $4}')
+    fi
   else
-    netstatPeers=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print $4}')
+    if [[ ${use_lsof} = 'Y' ]]; then
+      peers=$(lsof -Pnl +M -i4 | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}')
+    else
+      peers=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print $4}')
+    fi
   fi
-  [[ -z ${netstatPeers} ]] && return
+  [[ -z ${peers} ]] && return
   
-  netstatSorted=$(printf '%s\n' "${netstatPeers[@]}" | sort)
-  peerCNT=$(wc -w <<< "${netstatPeers}")
+  netstatSorted=$(printf '%s\n' "${peers[@]}" | sort)
+  peerCNT=$(wc -w <<< "${peers}")
   
   # Ping every node in the list
   lastpeerIP=""
@@ -541,8 +551,13 @@ while true; do
     fail_count=0
   fi
   if [[ ${show_peers} = "false" ]]; then
-    peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
-    peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${prom_port})" '$3 !~ port {print}' | wc -l)
+    if [[ ${use_lsof} = 'Y' ]]; then
+      peers_in=$(lsof -Pnl +M -i4 | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}')
+      peers_out=$(lsof -Pnl +M -i4 | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${prom_port})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}')
+    else
+      peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
+      peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${prom_port})" '$3 !~ port {print}' | wc -l)
+    fi
     blocknum=$(jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${data}")
     epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
     slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
