@@ -110,6 +110,14 @@ need_cmd() {
 # Examples of Usage:
 #   >> protectionPreRequisites
 protectionPreRequisites() {
+  if [[ $(uname) -eq Darwin ]]; then
+    if ! need_cmd "gpg"; then
+      return 1
+    fi
+    # currently do not have systemd-ask-password or chattr on MacOS as far as I can tell
+    return
+  fi
+
   if ! need_cmd "gpg" || \
      ! need_cmd "systemd-ask-password"; then
     return 1
