@@ -56,8 +56,8 @@ CNODE_PORT=6000                                         # Set node port
 
 OFFLINE_MODE='N'
 [[ $1 = "offline" ]] && OFFLINE_MODE='Y'
-[[ $(basename $0) = "cnode.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
-[[ $(basename $0) = "topologyUpdater.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
+[[ $(basename $0 2>/dev/null) = "cnode.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
+[[ $(basename $0 2>/dev/null) = "topologyUpdater.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
 
 export LC_ALL=C.UTF-8
 
@@ -93,7 +93,7 @@ if [[ -z "${SOCKET}" ]]; then
   if [[ "$(ps -ef | grep "[c]ardano-node.*.${CNODE_HOME}/")" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
     export CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
   elif [[ ${OFFLINE_MODE} = "N" ]]; then
-    echo "Node socket not set in env file and automatic detection failed! [source: $(basename $0)]"
+    echo "Node socket not set in env file and automatic detection failed! [source: $(basename $0 2>/dev/null)]"
     return 1
   fi
 else

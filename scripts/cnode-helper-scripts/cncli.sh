@@ -272,7 +272,7 @@ cncliInit() {
   rm -f "${PARENT}"/cncli.sh.tmp
   
   [[ ! -f "${CNCLI}" ]] && echo "ERROR: failed to locate cncli executable, please update and run 'prereqs.sh -h' to show options" && exit 1
-  cncli_version=($(${CNCLI} -V | cut -d' ' -f2 | tr '.' ' '))
+  IFS=" " read -r -a cncli_version <<< "$(${CNCLI} -V | cut -d' ' -f2 | tr '.' ' ')"
   cncli_version=$(( ${cncli_version[0]:-0}*10000 + ${cncli_version[1]:-0}*100 + ${cncli_version[2]:-0} ))
 
   return 0

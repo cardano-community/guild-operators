@@ -275,7 +275,7 @@ fi
 if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
   [[ ! -f /usr/local/lib/libsodium.so ]] && err_exit "IOG fork of libsodium is a pre-requisite for CNCLI, run '$(basename "$0") -h' to list available options"
   if command -v cncli >/dev/null; then 
-    cncli_version=($(${CNCLI} -V | cut -d' ' -f2 | tr '.' ' '))
+    IFS=" " read -r -a cncli_version <<< "$(${CNCLI} -V | cut -d' ' -f2 | tr '.' ' ')"
     cncli_version=$(( ${cncli_version[0]:-0}*10000 + ${cncli_version[1]:-0}*100 + ${cncli_version[2]:-0} ))
   else cncli_version=0; fi
   pushd "${HOME}"/git >/dev/null || err_exit
@@ -288,7 +288,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     if ! output=$(git clone https://github.com/AndrewWestberg/cncli.git 2>&1); then echo -e "${output}" && err_exit; fi
     pushd ./cncli >/dev/null || err_exit
   fi
-  cncli_git_version=($(grep ^version Cargo.toml | cut -d'"' -f2 | tr '.' ' '))
+  IFS=" " read -r -a cncli_git_version <<< "$(grep ^version Cargo.toml | cut -d'"' -f2 | tr '.' ' ')"
   cncli_git_version=$(( ${cncli_git_version[0]:-0}*10000 + ${cncli_git_version[1]:-0}*100 + ${cncli_git_version[2]:-0} ))
   if [[ ${cncli_version} -lt ${cncli_git_version} ]]; then
     # install rust if not available
