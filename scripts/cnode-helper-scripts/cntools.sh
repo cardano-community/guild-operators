@@ -77,7 +77,7 @@ if ! need_cmd "curl" || \
    ! need_cmd "sed" || \
    ! need_cmd "awk" || \
    ! need_cmd "column" || \
-   ! protectionPreRequisites; then waitForInput "press any key to exit"; myExit 1
+   ! protectionPreRequisites; then waitForInput "Missing one or more of the required command line tools, press any key to exit"; myExit 1
 fi
 
 # Do some checks when run in connected mode
@@ -334,7 +334,7 @@ case $OPERATION in
     stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
 
-    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -printf '.' | wc -c) -gt 0 ]]; then
+    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
       say "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
       say "      Choose another name or delete the existing one"
       waitForInput && continue
@@ -385,7 +385,7 @@ case $OPERATION in
       waitForInput && continue
     fi
     
-    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -printf '.' | wc -c) -gt 0 ]]; then
+    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
       say "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
       say "      Choose another name or delete the existing one"
       waitForInput && continue
@@ -626,7 +626,7 @@ EOF
 
     while IFS= read -r -d '' wallet; do
       wallet_name=$(basename ${wallet})
-      enc_files=$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -printf '.' | wc -c)
+      enc_files=$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c)
       if [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && isWalletRegistered ${wallet_name}; then registered="yes"; else registered="no"; fi
       echo
       if [[ ${enc_files} -gt 0 && ${registered} = "yes" ]]; then
@@ -699,7 +699,7 @@ EOF
       [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
     fi
     
-    enc_files=$(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -printf '.' | wc -c)
+    enc_files=$(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c)
 
     if [[ ${enc_files} -gt 0 ]]; then
       say "Wallet: ${FG_GREEN}${wallet_name}${NC} (${FG_YELLOW}encrypted${NC})" "log"
