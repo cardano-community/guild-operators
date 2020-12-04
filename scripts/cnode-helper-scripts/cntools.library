@@ -577,10 +577,15 @@ getPassword() {
 readPassword() {
   local read_password=""
   prompt="$1: "
-  while IFS= read -p "$prompt" -r -s -n 1 char; do
-    if [[ $char == $'\0' ]]; then break; fi
-    prompt='*'
-    read_password+="${char}"
+  while IFS= read -p "${prompt}" -r -s -n 1 char; do
+    if [[ ${char} == $'\0' ]]; then break; fi
+    if [[ ${char} == $'\b' ]]; then
+      [[ ${#read_password} -gt 0 ]] && echo -ne "\b \b" && read_password=${read_password%?}
+      prompt=''
+    else
+      prompt='*'
+      read_password+="${char}"
+    fi
   done
   echo ${read_password}
 }
