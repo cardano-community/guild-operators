@@ -104,7 +104,7 @@ getDateFromSlot() {
 createBlocklogDB() {
   if ! mkdir -p "${BLOCKLOG_DIR}"; then echo "ERROR: failed to create directory to store blocklog: ${BLOCKLOG_DIR}" && return 1; fi
   
-  [[ ${cncli_version} -lt 209 ]] && echo "ERROR: $(${CNCLI} -V) installed, too old, please upgrade to 0.2.9 or newer" && return 1
+  [[ ${cncli_version_nbr} -lt 209 ]] && echo "ERROR: $(${CNCLI} -V) installed, too old, please upgrade to 0.2.9 or newer" && return 1
   if [[ ! -f ${BLOCKLOG_DB} ]]; then # create a fresh DB with latest schema
     sqlite3 ${BLOCKLOG_DB} <<EOF
 CREATE TABLE blocklog (id INTEGER PRIMARY KEY AUTOINCREMENT, slot INTEGER NOT NULL UNIQUE, at TEXT NOT NULL UNIQUE, epoch INTEGER NOT NULL, block INTEGER NOT NULL DEFAULT 0, slot_in_epoch INTEGER NOT NULL DEFAULT 0, hash TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL);
@@ -273,7 +273,7 @@ cncliInit() {
   
   [[ ! -f "${CNCLI}" ]] && echo "ERROR: failed to locate cncli executable, please update and run 'prereqs.sh -h' to show options" && exit 1
   IFS=" " read -r -a cncli_version <<< "$(${CNCLI} -V | cut -d' ' -f2 | tr '.' ' ')"
-  cncli_version=$(( ${cncli_version[0]:-0}*10000 + ${cncli_version[1]:-0}*100 + ${cncli_version[2]:-0} ))
+  cncli_version_nbr=$(( ${cncli_version[0]:-0}*10000 + ${cncli_version[1]:-0}*100 + ${cncli_version[2]:-0} ))
 
   return 0
 }
@@ -624,7 +624,7 @@ EOF"
 #################################
 
 cncliPTsendslots() {
-  [[ ${cncli_version} -lt 301 ]] && echo "ERROR: $(${CNCLI} -V) installed, too old, please upgrade to 0.3.1 or newer" && exit 1
+  [[ ${cncli_version_nbr} -lt 301 ]] && echo "ERROR: $(${CNCLI} -V) installed, too old, please upgrade to 0.3.1 or newer" && exit 1
   [[ -z ${POOL_ID} || -z ${POOL_TICKER} || -z ${PT_API_KEY} ]] && echo "'POOL_ID' and/or 'POOL_TICKER' and/or 'PT_API_KEY' not set in $(basename "$0"), exiting!" && exit 1
   # Generate a temporary pooltool config
   pt_config="/tmp/${vname}-pooltool.json"
