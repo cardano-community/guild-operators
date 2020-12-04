@@ -61,6 +61,11 @@ OFFLINE_MODE='N'
 
 export LC_ALL=C.UTF-8
 
+# special mapping of coreutils gdate to date for MacOS
+if [[ $(uname) == Darwin ]]; then
+   date () { gdate "$@"; }
+fi
+
 [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
 
 [[ -z "${CCLI}" ]] && CCLI=$(command -v cardano-cli)

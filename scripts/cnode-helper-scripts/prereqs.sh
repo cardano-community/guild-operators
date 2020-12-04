@@ -202,7 +202,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
       $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so
       $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so.5
     fi
-  elif [[ $(uname) -eq Darwin ]]; then
+  elif [[ $(uname) == Darwin ]]; then
     echo "MacOS detected";
     pkg_list="coreutils gnupg jq libsodium tcptraceroute"
     brew install "${pkg_list}" > /dev/null;rc=$?

@@ -131,8 +131,13 @@ myExit() {
 }
 
 if ! command -v "ss" &>/dev/null; then
-  myExit 1 "'ss' command missing, please install using latest prereqs.sh script or with your packet manager of choice.\nhttps://command-not-found.com/ss can be used to check package name to install."
-elif ! command -v "tcptraceroute" &>/dev/null; then
+  # ToDo: implement similar functionality for MacOS using netstat or alternatives
+  if [[ $(uname) != Darwin ]]; then
+    myExit 1 "'ss' command missing, please install using latest prereqs.sh script or with your packet manager of choice.\nhttps://command-not-found.com/ss can be used to check package name to install."
+  fi
+fi
+
+if ! command -v "tcptraceroute" &>/dev/null; then
   myExit 1 "'tcptraceroute' command missing, please install using latest prereqs.sh script or with your packet manager of choice.\nhttps://command-not-found.com/tcptraceroute can be used to check package name to install."
 fi
 

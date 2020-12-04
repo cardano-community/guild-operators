@@ -110,7 +110,7 @@ need_cmd() {
 # Examples of Usage:
 #   >> protectionPreRequisites
 protectionPreRequisites() {
-  if [[ $(uname) -eq Darwin ]]; then
+  if [[ $(uname) == Darwin ]]; then
     if ! need_cmd "gpg"; then
       return 1
     fi
