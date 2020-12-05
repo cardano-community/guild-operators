@@ -275,7 +275,7 @@ fi
 if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
   [[ ! -f /usr/local/lib/libsodium.so ]] && err_exit "IOG fork of libsodium is a pre-requisite for CNCLI, run '$(basename "$0") -h' to list available options"
   if command -v cncli >/dev/null; then 
-    IFS=" " read -r -a cncli_version <<< "$(${CNCLI} -V | cut -d' ' -f2 | tr '.' ' ')"
+    IFS=" " read -r -a cncli_version <<< "$(cncli -V | cut -d' ' -f2 | tr '.' ' ')"
     cncli_version_nbr=$(( ${cncli_version[0]:-0}*10000 + ${cncli_version[1]:-0}*100 + ${cncli_version[2]:-0} ))
   else cncli_version_nbr=0; fi
   pushd "${HOME}"/git >/dev/null || err_exit
