@@ -547,7 +547,8 @@ function selectPool {
 #   >> local userPassword=$(getPassword confirm)
 getPassword() {
   while true; do
-    password=$(readPassword "Enter password (length >= 8)")
+    readPassword "Enter password (length >= 8)"
+    password=${read_password} && unset read_password
     if [ ${#password} -lt 8 ]; then
       say ""
       say "${FG_RED}ERROR${NC}: password length too short, please use a minimum of 8 characters."
@@ -558,16 +559,17 @@ getPassword() {
       continue
     fi
     if [[ "$1" = "confirm" ]]; then
-      echo && local check_password=$(readPassword "Confirm password")
+      echo && readPassword "Confirm password"
+      check_password=${read_password} && unset read_password
       if [[ "${password}" != "${check_password}" ]]; then
         say ""
         say "${FG_RED}ERROR${NC}: password missmatch!"
         say ""
         read -r -n 1 -s -p "Press q to abort or any other key to retry" abort
-        [[ ${abort} = "q" ]] && unset password && return 1
+        [[ ${abort} = "q" ]] && unset password && unset check_password && return 1
         say "\n"
       else
-        say "" && return
+        say "" && unset check_password && return
       fi
     else
       say "" && return
@@ -575,19 +577,18 @@ getPassword() {
   done
 }
 readPassword() {
-  local read_password=""
+  read_password=""
   prompt="$1: "
   while IFS= read -p "${prompt}" -r -s -n 1 char; do
     if [[ ${char} == $'\0' ]]; then break; fi
     if [[ ${char} == $'\b' ]]; then
-      [[ ${#read_password} -gt 0 ]] && echo -ne "\b \b" && read_password=${read_password%?}
+      [[ ${#read_password} -gt 0 ]] && printf "\033[1D\033[0K" && read_password=${read_password%?}
       prompt=''
     else
       prompt='*'
       read_password+="${char}"
     fi
   done
-  echo ${read_password}
 }
 
 
