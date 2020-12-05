@@ -58,7 +58,8 @@ fi
 # get helper functions from library file
 . "${CNODE_HOME}"/scripts/cntools.library
 
-[[ $(${CCLI} version | head -1 | awk '{print $2}' | tr -d '.') -lt 1230 ]] && myExit 1 "ERROR!! CNTools has now been upgraded to support cardano-node 1.23 or higher. Please update cardano-node or use node-1.21 branch for CNTools\n"
+IFS=" " read -r -a cardano_version <<< "$(${CCLI} version | head -1 | cut -d' ' -f2 | tr '.' ' ')"
+[[ $(( ${cardano_version[0]:-0}*10000 + ${cardano_version[1]:-0}*100 + ${cardano_version[2]:-0} )) -lt 12300 ]] && myExit 1 "ERROR!! CNTools has now been upgraded to support cardano-node 1.23 or higher. Please update cardano-node or use node-1.21 branch for CNTools\n"
 
 URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
 URL="${URL_RAW}/scripts/cnode-helper-scripts"

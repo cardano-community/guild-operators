@@ -202,6 +202,17 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
       $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so
       $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so.5
     fi
+  elif [[ $(uname) == Darwin ]]; then
+    echo "MacOS detected";
+    pkg_list="coreutils gnupg jq libsodium tcptraceroute"
+    brew install "${pkg_list}" > /dev/null;rc=$?
+
+    if [ $rc != 0 ]; then
+      echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
+      echo "brew install ${pkg_list}"
+      echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
+      err_exit
+    fi
   else
     echo "We have no automated procedures for this ${DISTRO} system"
     echo "please manually install required packages."
@@ -263,7 +274,10 @@ fi
 
 if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
   [[ ! -f /usr/local/lib/libsodium.so ]] && err_exit "IOG fork of libsodium is a pre-requisite for CNCLI, run '$(basename "$0") -h' to list available options"
-  if command -v cncli >/dev/null; then cncli_version="$(cncli -V | cut -d' ' -f2)"; else cncli_version=""; fi
+  if command -v cncli >/dev/null; then 
+    IFS=" " read -r -a cncli_version <<< "$(${CNCLI} -V | cut -d' ' -f2 | tr '.' ' ')"
+    cncli_version_nbr=$(( ${cncli_version[0]:-0}*10000 + ${cncli_version[1]:-0}*100 + ${cncli_version[2]:-0} ))
+  else cncli_version_nbr=0; fi
   pushd "${HOME}"/git >/dev/null || err_exit
   if [[ -d ./cncli ]]; then
     echo "previous CNCLI installation found, pulling latest version from GitHub..."
@@ -274,8 +288,9 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     if ! output=$(git clone https://github.com/AndrewWestberg/cncli.git 2>&1); then echo -e "${output}" && err_exit; fi
     pushd ./cncli >/dev/null || err_exit
   fi
-  cncli_git_version=$(grep ^version Cargo.toml | cut -d'"' -f2)
-  if [[ "${cncli_version}" != "${cncli_git_version}" ]]; then
+  IFS=" " read -r -a cncli_git_version <<< "$(grep ^version Cargo.toml | cut -d'"' -f2 | tr '.' ' ')"
+  cncli_git_version_nbr=$(( ${cncli_git_version[0]:-0}*10000 + ${cncli_git_version[1]:-0}*100 + ${cncli_git_version[2]:-0} ))
+  if [[ ${cncli_version_nbr} -lt ${cncli_git_version_nbr} ]]; then
     # install rust if not available
     if ! command -v "rustup" &>/dev/null; then
       echo "installing RUST..."
@@ -288,7 +303,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     if ! output=$(cargo install --path . --force 2>&1); then echo -e "${output}" && err_exit; fi
     echo "$(cncli -V) installed!"
   else
-    echo "CNCLI already latest version [${cncli_version}], skipping!"
+    echo "CNCLI already latest version [$(cncli -V | cut -d' ' -f2)], skipping!"
   fi
 fi
 
