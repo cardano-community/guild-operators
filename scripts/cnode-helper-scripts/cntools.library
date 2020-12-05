@@ -28,6 +28,7 @@ CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PAT
 [[ -z ${WALLET_SELECTION_FILTER_LIMIT} ]] && WALLET_SELECTION_FILTER_LIMIT=10
 [[ -z ${KES_ALERT_PERIOD} ]] && KES_ALERT_PERIOD=172800 # default 2 days
 [[ -z ${KES_WARNING_PERIOD} ]] && KES_WARNING_PERIOD=604800 # default 7 days
+[[ $(uname) == Darwin ]] && ENABLE_CHATTR=false
 [[ -z ${ENABLE_CHATTR} ]] && ENABLE_CHATTR=true
 
 ############################################################
@@ -110,12 +111,11 @@ need_cmd() {
 # Examples of Usage:
 #   >> protectionPreRequisites
 protectionPreRequisites() {
-  if ! need_cmd "gpg" || \
-     ! need_cmd "systemd-ask-password"; then
+  if ! need_cmd "gpg"; then
     return 1
   fi
 
-  if ! need_cmd "chattr"; then 
+  if ! need_cmd "chattr" &>/dev/null; then
     [[ ${ENABLE_CHATTR} = true ]] && say "chattr command not available but enabled in config, please install or disable in cntools.config and re-run CNTools" && return 1
   elif [[ ${ENABLE_CHATTR} = true ]]; then # chattr available and enabled, make sure sudo access to chattr is enabled
     touch "${TMP_FOLDER}"/test
@@ -547,8 +547,8 @@ function selectPool {
 #   >> local userPassword=$(getPassword confirm)
 getPassword() {
   while true; do
-    say "Enter key password (length >= 8)"
-    password=$(systemd-ask-password "Password:")
+    readPassword "Enter password (length >= 8)"
+    password=${read_password} && unset read_password
     if [ ${#password} -lt 8 ]; then
       say ""
       say "${FG_RED}ERROR${NC}: password length too short, please use a minimum of 8 characters."
@@ -559,19 +559,34 @@ getPassword() {
       continue
     fi
     if [[ "$1" = "confirm" ]]; then
-      local checkPassword=$(systemd-ask-password "Confirm: ")
-      if [[ "${password}" != "${checkPassword}" ]]; then
+      echo && readPassword "Confirm password"
+      check_password=${read_password} && unset read_password
+      if [[ "${password}" != "${check_password}" ]]; then
         say ""
         say "${FG_RED}ERROR${NC}: password missmatch!"
         say ""
         read -r -n 1 -s -p "Press q to abort or any other key to retry" abort
-        [[ ${abort} = "q" ]] && unset password && return 1
+        [[ ${abort} = "q" ]] && unset password && unset check_password && return 1
         say "\n"
       else
-        say "" && return
+        say "" && unset check_password && return
       fi
     else
       say "" && return
+    fi
+  done
+}
+readPassword() {
+  read_password=""
+  prompt="$1: "
+  while IFS= read -p "${prompt}" -r -s -n 1 char; do
+    if [[ ${char} == $'\0' ]]; then break; fi
+    if [[ ${char} == $'\b' ]]; then
+      [[ ${#read_password} -gt 0 ]] && printf "\033[1D\033[0K" && read_password=${read_password%?}
+      prompt=''
+    else
+      prompt='*'
+      read_password+="${char}"
     fi
   done
 }
