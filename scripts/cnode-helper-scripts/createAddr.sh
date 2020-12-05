@@ -11,11 +11,11 @@ GREEN="\x1B[1;32m"
 NC="\x1B[0m"
 
 WNAME="$1"
-${CCLI} shelley address key-gen --verification-key-file ${WNAME}_payment.vkey --signing-key-file ${WNAME}_payment.skey
-${CCLI} shelley stake-address key-gen --verification-key-file ${WNAME}_stake.vkey --signing-key-file ${WNAME}_stake.skey
+${CCLI} address key-gen --verification-key-file ${WNAME}_payment.vkey --signing-key-file ${WNAME}_payment.skey
+${CCLI} stake-address key-gen --verification-key-file ${WNAME}_stake.vkey --signing-key-file ${WNAME}_stake.skey
 echo -e "${GREEN}Payment/Enterprise address:${NC}"
-${CCLI} shelley address build --payment-verification-key-file ${WNAME}_payment.vkey  ${PROTOCOL_IDENTIFIER} | tee ${WNAME}_payment.addr
+${CCLI} address build --payment-verification-key-file ${WNAME}_payment.vkey  ${PROTOCOL_IDENTIFIER} | tee ${WNAME}_payment.addr
 echo -e "${GREEN}Base address:${NC}"
-${CCLI} shelley address build --payment-verification-key-file ${WNAME}_payment.vkey --stake-verification-key-file ${WNAME}_stake.vkey ${PROTOCOL_IDENTIFIER} | tee ${WNAME}_base.addr
+${CCLI} address build --payment-verification-key-file ${WNAME}_payment.vkey --stake-verification-key-file ${WNAME}_stake.vkey ${PROTOCOL_IDENTIFIER} | tee ${WNAME}_base.addr
 echo -e "${GREEN}Reward address:${NC}"
-${CCLI} shelley stake-address build --stake-verification-key-file ${WNAME}_stake.vkey ${PROTOCOL_IDENTIFIER} | tee ${WNAME}_reward.addr
+${CCLI} stake-address build --stake-verification-key-file ${WNAME}_stake.vkey ${PROTOCOL_IDENTIFIER} | tee ${WNAME}_reward.addr
