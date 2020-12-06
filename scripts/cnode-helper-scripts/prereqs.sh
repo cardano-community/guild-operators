@@ -242,7 +242,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     pushd ./cncli >/dev/null || err_exit
   fi
   cncli_git_latestTag=$(git tag | tail -n 1)
-  cncli_git_version=$(echo $cncli_git_latestTag | sed 's/v//')
+  cncli_git_version=$(echo ${cncli_git_latestTag//v/}) 
   if [[ "${cncli_version}" != "${cncli_git_version}" ]]; then
     # install rust if not available
     if ! command -v "rustup" &>/dev/null; then
