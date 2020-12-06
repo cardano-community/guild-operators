@@ -2642,7 +2642,7 @@ EOF
 
     if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       tput sc && say "Dumping ledger-state from node, can take a while on larger networks...\n"
-      if ! timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json; then
+      if ! timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json; then
         tput rc && tput ed
         say "${FG_RED}ERROR${NC}: ledger dump failed/timed out"
         say "increase timeout value in cntools.config"
@@ -2807,7 +2807,7 @@ EOF
             say "$(printf "%-21s : %s" "Reward account" "${reward_account}")" "log"
           fi
         fi
-        stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} query stake-distribution ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | grep "${pool_id_bech32}" | tr -s ' ' | cut -d ' ' -f 2)")")
+        stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} query stake-distribution ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | grep "${pool_id_bech32}" | tr -s ' ' | cut -d ' ' -f 2)")")
         if validateDecimalNbr ${stake_pct}; then
           say "$(printf "%-21s : %s %%" "Stake distribution" "${stake_pct}")" "log"
         fi

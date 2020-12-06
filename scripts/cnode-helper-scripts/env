@@ -196,8 +196,16 @@ else
   NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
   [[ "${NWMAGIC}" = "1097911063" ]] && NETWORK_NAME="Testnet" || NETWORK_NAME="Custom"
 fi
+getEraIdentifier() {
+    if ${CCLI} query protocol-parameters --byron-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--byron-era"
+  elif ${CCLI} query protocol-parameters --shelley-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--shelley-era"
+  elif ${CCLI} query protocol-parameters --allegra-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--allegra-era"
+  elif ${CCLI} query protocol-parameters --mary-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--mary-era"
+  else ERA_IDENTIFIER="--shelley-era"; fi
+}
+getEraIdentifier
 
-PROT_PARAMS="$(${CCLI} query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>&1)"
+PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>&1)"
 if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -er .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
 
 SHELLEY_GENESIS_START_SEC=$(date --date="$(jq -r .systemStart "${GENESIS_JSON}")" +%s)
