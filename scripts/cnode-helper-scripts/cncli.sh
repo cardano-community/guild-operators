@@ -25,9 +25,8 @@
 #CONFIRM_BLOCK_CNT=15                     # CNCLI validate: require at least these many blocks on top of minted before validating
 #TIMEOUT_LEDGER_STATE=300                 # CNCLI leaderlog: timeout in seconds for ledger-state query
 #BATCH_AUTO_UPDATE=N                      # Set to Y to automatically update the script if a new version is available without user interaction
-#TZ="America/Los_Angeles"                 # CNCLI leaderlog: TimeZone string from the IANA database 
-                                          # https://en.wikipedia.org/wiki/List_of_tz_database_time_zones [default: America/Los_Angeles]
-
+#TZ="America/Los_Angeles"                 # CNCLI leaderlog: TimeZone string from the IANA database https://en.wikipedia.org/wiki/List_of_tz_database_time_zones 
+                                         
 ######################################
 # Do NOT modify code below           #
 ######################################
@@ -331,7 +330,7 @@ cncliLeaderlog() {
       echo "No leader slots found for epoch ${curr_epoch} :("
     else
       echo "ERROR: failure in leaderlog while running:"
-      echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set current --ledger-state ${ledger_state_file} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz "${TZ}"
+      echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set current --ledger-state ${ledger_state_file} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz ${TZ}"
       echo "Error message: $(jq -r '.errorMessage //empty' <<< "${cncli_leaderlog}")"
       exit 1
     fi
@@ -390,7 +389,7 @@ EOF
           echo "No leader slots found for epoch ${curr_epoch} :("
         else
           echo "ERROR: failure in leaderlog while running:"
-          echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set next --ledger-state ${ledger_state_file} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz "${TZ}""
+          echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set next --ledger-state ${ledger_state_file} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz ${TZ}"
           echo "Error message: $(jq -r '.errorMessage //empty' <<< "${cncli_leaderlog}")"
         fi
       else
