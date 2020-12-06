@@ -23,31 +23,31 @@ if [[ -S "${SOCKET}" ]]; then
      exit 1
   else
     echo "WARN: A prior running Cardano node was not cleanly shutdown, socket file still exists. Cleaning up."
-    unlink ${SOCKET}
+    unlink "${SOCKET}"
   fi
 fi
 
-[[ ! -d "${CNODE_HOME}/logs/archive" ]] && mkdir -p "${CNODE_HOME}/logs/archive"
+[[ ! -d "${LOG_DIR}/archive" ]] && mkdir -p "${LOG_DIR}/archive"
 
-[[ $(find "${CNODE_HOME}"/logs/*.json 2>/dev/null | wc -l) -gt 0 ]] && mv ${CNODE_HOME}/logs/*.json ${CNODE_HOME}/logs/archive/
+[[ $(find "${LOG_DIR}"/*.json 2>/dev/null | wc -l) -gt 0 ]] && mv "${LOG_DIR}"/*.json "${LOG_DIR}"/archive/
 
-if [[ -f "${POOL_DIR}/op.cert" && -f "${POOL_DIR}/vrf.skey" && -f "${POOL_DIR}/hot.skey" ]]; then
+if [[ -f "${POOL_DIR}/${POOL_OPCERT_FILENAME}" && -f "${POOL_DIR}/${POOL_VRF_SK_FILENAME}" && -f "${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}" ]]; then
   cardano-node run \
-	--topology ${TOPOLOGY} \
-	--config ${CONFIG} \
-	--database-path ${CNODE_HOME}/db \
-	--socket-path ${SOCKET} \
-	--host-addr 0.0.0.0 \
-        --shelley-kes-key ${POOL_DIR}/hot.skey \
-        --shelley-vrf-key ${POOL_DIR}/vrf.skey \
-        --shelley-operational-certificate ${POOL_DIR}/op.cert \
-	--port ${CNODE_PORT}
+    --topology "${TOPOLOGY}" \
+    --config "${CONFIG}" \
+    --database-path "${DB_DIR}" \
+    --socket-path "${SOCKET}" \
+    --host-addr 0.0.0.0 \
+          --shelley-kes-key "${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}" \
+          --shelley-vrf-key "${POOL_DIR}/${POOL_VRF_SK_FILENAME}" \
+          --shelley-operational-certificate "${POOL_DIR}/${POOL_OPCERT_FILENAME}" \
+    --port ${CNODE_PORT}
 else
   cardano-node run \
-        --topology ${TOPOLOGY} \
-        --config ${CONFIG} \
-        --database-path ${CNODE_HOME}/db \
-        --socket-path ${SOCKET} \
-        --host-addr 0.0.0.0 \
-        --port ${CNODE_PORT}
+    --topology "${TOPOLOGY}" \
+    --config "${CONFIG}" \
+    --database-path "${DB_DIR}" \
+    --socket-path "${SOCKET}" \
+    --host-addr 0.0.0.0 \
+    --port ${CNODE_PORT}
 fi

@@ -34,7 +34,7 @@ fi
 rm -f "${TMP_FOLDER}"/*
 
 # Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
-${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file ${TMP_FOLDER}/protparams.json || {
+${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file ${TMP_FOLDER}/protparams.json || {
   echo ""
   say "${RED}ERROR${NC}: failed to query protocol parameters, node running and env parameters correct?"
   exit 1

@@ -46,33 +46,33 @@ if [[ ! -d "${WALLET_FOLDER}/${wallet_name}" ]]; then
 fi
 
 if [[ $(cat "${itn_signing_key_file}") == ed25519e_* ]]; then
-  if ! ${CCLI} shelley key 2>&1 | grep -q "convert-itn-extended-key"; then
+  if ! ${CCLI} key 2>&1 | grep -q "convert-itn-extended-key"; then
     echo -e "\n${ORANGE}WARNING${NC}: cardano-cli lacks support for extended ITN key conversion: ${CCLI}\n"
     echo -e "If a special version of cardano-cli is built with this support, please specify path below, else follow instructions available at:"
     echo -e "  https://cardano-community.github.io/guild-operators/#/Scripts/itnrewards\n"
     while true; do
       read -r -p "Enter path to cardano-cli with support for extended key conversion or press enter to quit: " CCLI
       [[ -z "${CCLI}" ]] && rm -rf "${WALLET_FOLDER:?}/${wallet_name}" && exit 1
-      if ! ${CCLI} shelley key 2>&1 | grep -q "convert-itn-extended-key"; then
+      if ! ${CCLI} key 2>&1 | grep -q "convert-itn-extended-key"; then
         echo -e "\n${ORANGE}ERROR${NC}: specified file lacks support for extended ITN key conversion, please try again\n"
         continue
       fi
       break
     done
   fi
-  ${CCLI} shelley key convert-itn-extended-key --itn-signing-key-file ${itn_signing_key_file} --out-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+  ${CCLI} key convert-itn-extended-key --itn-signing-key-file ${itn_signing_key_file} --out-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
 else
-  ${CCLI} shelley key convert-itn-key --itn-signing-key-file ${itn_signing_key_file} --out-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+  ${CCLI} key convert-itn-key --itn-signing-key-file ${itn_signing_key_file} --out-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
 fi
-${CCLI} shelley key convert-itn-key --itn-verification-key-file ${itn_verification_key_file} --out-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+${CCLI} key convert-itn-key --itn-verification-key-file ${itn_verification_key_file} --out-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
 
-${CCLI} shelley address key-gen --verification-key-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}" --signing-key-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+${CCLI} address key-gen --verification-key-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}" --signing-key-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
 echo -e "\n${BLUE}Payment/Enterprise address:${NC}"
-${CCLI} shelley address build --payment-verification-key-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}" ${HASH_IDENTIFIER} | tee "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
+${CCLI} address build --payment-verification-key-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}" ${HASH_IDENTIFIER} | tee "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}"
 echo -e "${BLUE}Base address:${NC}"
-${CCLI} shelley address build --payment-verification-key-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}" --stake-verification-key-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}" ${HASH_IDENTIFIER} | tee "${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
+${CCLI} address build --payment-verification-key-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}" --stake-verification-key-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}" ${HASH_IDENTIFIER} | tee "${WALLET_FOLDER}/${wallet_name}/${WALLET_BASE_ADDR_FILENAME}"
 echo -e "${BLUE}Reward address:${NC}"
-${CCLI} shelley stake-address build --stake-verification-key-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}" ${HASH_IDENTIFIER} | tee "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_ADDR_FILENAME}"
+${CCLI} stake-address build --stake-verification-key-file "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}" ${HASH_IDENTIFIER} | tee "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_ADDR_FILENAME}"
 
 echo -e "\nWallet ${GREEN}${wallet_name}${NC} created\n"
 echo -e "1) Start CNTools and verify that correct balance is shown in the wallet reward address"

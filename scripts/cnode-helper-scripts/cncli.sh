@@ -11,15 +11,14 @@
 # Common variables set in env file   #
 ######################################
 
-#POOL_ID=""                               # Required for leaderlog calculation & pooltool sendtip, lower-case hex pool id
-#POOL_VRF_SKEY=""                         # Required for leaderlog calculation, path to pool's vrf.skey file
-#POOL_VRF_VKEY=""                         # Required for block validation, path to pool's vrf.vkey file
+#POOL_ID=""                               # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation & pooltool sendtip, lower-case hex pool id
+#POOL_VRF_SKEY=""                         # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation, path to pool's vrf.skey file
+#POOL_VRF_VKEY=""                         # Automatically detected if POOL_NAME is set in env. Required for block validation, path to pool's vrf.vkey file
 #PT_API_KEY=""                            # POOLTOOL sendtip: set API key, e.g "a47811d3-0008-4ecd-9f3e-9c22bdb7c82d"
 #POOL_TICKER=""                           # POOLTOOL sendtip: set the pools ticker, e.g "TCKR"
 #PT_HOST="127.0.0.1"                      # POOLTOOL sendtip: connect to a remote node, preferably block producer (default localhost)
 #PT_PORT="${CNODE_PORT}"                  # POOLTOOL sendtip: port of node to connect to (default CNODE_PORT from env file)
 #CNCLI_DIR="${CNODE_HOME}/guild-db/cncli" # path to folder for cncli sqlite db
-#LIBSODIUM_FORK=/usr/local/lib            # path to folder for IOG fork of libsodium
 #SLEEP_RATE=60                            # CNCLI leaderlog/validate: time to wait until next check (in seconds)
 #CONFIRM_SLOT_CNT=600                     # CNCLI validate: require at least these many slots to have passed before validating
 #CONFIRM_BLOCK_CNT=15                     # CNCLI validate: require at least these many blocks on top of minted before validating
@@ -68,19 +67,19 @@ getNodeMetrics() {
 }
 
 getEpoch() {
-  jq -r '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${node_metrics}"
+  jq -r '.cardano.node.metrics.epoch.int.val //0' <<< "${node_metrics}"
 }
 
 getBlockTip() {
-  jq -r '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${node_metrics}"
+  jq -r '.cardano.node.metrics.blockNum.int.val //0' <<< "${node_metrics}"
 }
 
 getSlotTip() {
-  jq -r '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${node_metrics}"
+  jq -r '.cardano.node.metrics.slotNum.int.val //0' <<< "${node_metrics}"
 }
 
 getSlotInEpoch() {
-  jq -r '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${node_metrics}"
+  jq -r '.cardano.node.metrics.slotInEpoch.int.val //0' <<< "${node_metrics}"
 }
 
 getEpochFromSlot() {
@@ -148,7 +147,7 @@ dumpLedgerState() {
   ledger_state_file="/tmp/ledger-state_$(getEpoch).json"
   [[ -n $(find "${ledger_state_file}" -mmin -60 2>/dev/null) ]] && return 0 # no need to continue, we have a fresh(<1h) ledger-state already
   rm -f /tmp/ledger-state_* # remove old ledger dumps before creating a new
-  if ! timeout -k 5 "${TIMEOUT_LEDGER_STATE}" ${CCLI} shelley query ledger-state ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${ledger_state_file}"; then
+  if ! timeout -k 5 "${TIMEOUT_LEDGER_STATE}" ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${ledger_state_file}"; then
     echo "ERROR: ledger dump failed/timed out, increase timeout value"
     [[ -f "${ledger_state_file}" ]] && rm -f "${ledger_state_file}"
     return 1
@@ -207,8 +206,6 @@ getSlotTipRef() {
 cncliInit() {
   [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
   CNCLI_DB="${CNCLI_DIR}/cncli.db"
-  [[ -z "${LIBSODIUM_FORK}" ]] && LIBSODIUM_FORK=/usr/local/lib
-  export LD_LIBRARY_PATH="${LIBSODIUM_FORK}:${LD_LIBRARY_PATH}"
   [[ -z "${SLEEP_RATE}" ]] && SLEEP_RATE=60
   [[ -z "${CONFIRM_SLOT_CNT}" ]] && CONFIRM_SLOT_CNT=600
   [[ -z "${CONFIRM_BLOCK_CNT}" ]] && CONFIRM_BLOCK_CNT=15
