@@ -138,7 +138,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo apt-get -y install curl > /dev/null
     $sudo apt-get -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute dialog sqlite libsqlite3-dev"
+    pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute dialog sqlite libsqlite3-dev automake"
     $sudo apt-get -y install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
@@ -235,13 +235,14 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
   if [[ -d ./cncli ]]; then
     echo "previous CNCLI installation found, pulling latest version from GitHub..."
     pushd ./cncli >/dev/null || err_exit
-    if ! output=$(git pull 2>&1); then echo -e "${output}" && err_exit; fi
+    if ! output=$(git fetch 2>&1); then echo -e "${output}" && err_exit; fi
   else
     echo "downloading CNCLI..."
     if ! output=$(git clone https://github.com/AndrewWestberg/cncli.git 2>&1); then echo -e "${output}" && err_exit; fi
     pushd ./cncli >/dev/null || err_exit
   fi
-  cncli_git_version=$(grep ^version Cargo.toml | cut -d'"' -f2)
+  cncli_git_latestTag=$(git tag | tail -n 1)
+  cncli_git_version=$(echo $cncli_git_latestTag | sed 's/v//')
   if [[ "${cncli_version}" != "${cncli_git_version}" ]]; then
     # install rust if not available
     if ! command -v "rustup" &>/dev/null; then
@@ -252,6 +253,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
       rustup update &>/dev/null #ignore any errors, not crucial that update succeed
     fi
     . "${HOME}"/.profile # source profile to load ${HOME}/.cargo/bin into PATH
+    git checkout $cncli_git_latestTag
     if ! output=$(cargo install --path . --force 2>&1); then echo -e "${output}" && err_exit; fi
     echo "$(cncli -V) installed!"
   else
