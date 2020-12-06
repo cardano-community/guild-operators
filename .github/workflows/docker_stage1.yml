@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'release-versions/guild-prereq-latest.txt'
+      - 'files/docker/node/release-versions/guild-prereq-latest.txt'
 jobs:
   build:
     runs-on: ubuntu-latest
