@@ -2658,9 +2658,9 @@ EOF
       [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}" ]] && ledger_retiring="?" || ledger_retiring=""
     else
       ledger_pstate=$(jq -r '.nesEs.esLState._delegationState._pstate' "${TMP_FOLDER}"/ledger-state.json)
-      ledger_pParams=$(echo ${ledger_pstate} | jq -r '._pParams."'"${pool_id}"'" // empty')
-      ledger_fPParams=$(echo ${ledger_pstate} | jq -r '._fPParams."'"${pool_id}"'" // empty')
-      ledger_retiring=$(echo ${ledger_pstate} | jq -r '._retiring."'"${pool_id}"'" // empty')
+      ledger_pParams=$(jq -r '._pParams."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
+      ledger_fPParams=$(jq -r '._fPParams."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
+      ledger_retiring=$(jq -r '._retiring."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
       [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
       [[ -n "${ledger_pParams}" ]] && pool_registered="YES" || pool_registered="NO"
     fi
