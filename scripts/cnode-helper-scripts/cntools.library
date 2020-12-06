@@ -640,14 +640,14 @@ getNodeMetrics() {
 # Return     : string with tip on STDOUT
 getBlockTip() {
   getNodeMetrics
-  jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${node_metrics}"
+  jq '.cardano.node.metrics.blockNum.int.val //0' <<< "${node_metrics}"
 }
 # Command    : getSlotTip
 # Description: Get latest slot number
 # Return     : string with tip on STDOUT
 getSlotTip() {
   getNodeMetrics
-  jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${node_metrics}"
+  jq '.cardano.node.metrics.slotNum.int.val //0' <<< "${node_metrics}"
 }
 # Command    : getSlotTipRef
 # Description: Offline calculation of reference tip
