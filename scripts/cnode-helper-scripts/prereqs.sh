@@ -289,8 +289,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     pushd ./cncli >/dev/null || err_exit
   fi
   cncli_git_latestTag=$(git tag | tail -n 1)
-  cncli_git_versionWithD="${cncli_git_latestTag//v/}"
-  IFS=" " read -r -a cncli_git_version <<< "${cncli_git_versionWithD//./ }"
+  IFS=" " read -r -a cncli_git_version <<< "${cncli_git_latestTag//[!0-9]/ }"
   cncli_git_version_nbr=$(( ${cncli_git_version[0]:-0}*10000 + ${cncli_git_version[1]:-0}*100 + ${cncli_git_version[2]:-0} ))
   if [[ ${cncli_version_nbr} -lt ${cncli_git_version_nbr} ]]; then
     # install rust if not available
