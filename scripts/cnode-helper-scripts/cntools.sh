@@ -189,9 +189,9 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
       shelleyTransitionEpoch="208"
     elif [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       getNodeMetrics
-      epoch=$(jq '.cardano.node.metrics.epoch.int.val //0' <<< "${node_metrics}")
-      slot_in_epoch=$(jq '.cardano.node.metrics.slotInEpoch.int.val //0' <<< "${node_metrics}")
-      slot_num=$(jq '.cardano.node.metrics.slotNum.int.val //0' <<< "${node_metrics}")
+      epoch=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${node_metrics}")
+      slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${node_metrics}")
+      slot_num=$(jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${node_metrics}")
       calc_slot=0
       byron_epochs=${epoch}
       shelley_epochs=0

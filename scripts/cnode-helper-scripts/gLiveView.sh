@@ -487,11 +487,11 @@ check_peers="false"
 show_peers="false"
 selected_direction="out"
 data=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
-epochnum=$(jq '.cardano.node.metrics.epoch.int.val //0' <<< "${data}")
+epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
 curr_epoch=${epochnum}
-slot_in_epoch=$(jq '.cardano.node.metrics.slotInEpoch.int.val //0' <<< "${data}")
-slotnum=$(jq '.cardano.node.metrics.slotNum.int.val //0' <<< "${data}")
-remaining_kes_periods=$(jq '.cardano.node.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
+slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
+slotnum=$(jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${data}")
+remaining_kes_periods=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
 [[ "${PROTOCOL}" = "Cardano" ]] && getShelleyTransitionEpoch || shelley_transition_epoch=-2
 if ! prom_port=$(jq -er '.hasPrometheus[1]' "${CONFIG}" 2>/dev/null); then prom_port=0; fi
 #####################################
@@ -540,7 +540,6 @@ while true; do
   node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
   data=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
   uptimens=$(jq '.rts.gc.wall_ms.val //0' <<< "${data}")
-  #uptimens=$(jq '.cardano.node.metrics.upTime.ns.val //0' <<< "${data}")
   [[ ${fail_count} -eq ${RETRIES} ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}"
   if [[ ${uptimens} -le 0 ]]; then
     ((fail_count++))
@@ -558,17 +557,17 @@ while true; do
       peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
       peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${prom_port})" '$3 !~ port {print}' | wc -l)
     fi
-    blocknum=$(jq '.cardano.node.metrics.blockNum.int.val //0' <<< "${data}")
-    epochnum=$(jq '.cardano.node.metrics.epoch.int.val //0' <<< "${data}")
-    slot_in_epoch=$(jq '.cardano.node.metrics.slotInEpoch.int.val //0' <<< "${data}")
-    slotnum=$(jq '.cardano.node.metrics.slotNum.int.val //0' <<< "${data}")
-    density=$(jq -r '.cardano.node.metrics.density.real.val //0' <<< "${data}")
+    blocknum=$(jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${data}")
+    epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
+    slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
+    slotnum=$(jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${data}")
+    density=$(jq -r '.cardano.node.ChainDB.metrics.density.real.val //0' <<< "${data}")
     density=$(printf "%3.3e" "${density}"| cut -d 'e' -f1)
     tx_processed=$(jq '.cardano.node.metrics.txsProcessedNum.int.val //0' <<< "${data}")
     mempool_tx=$(jq '.cardano.node.metrics.txsInMempool.int.val //0' <<< "${data}")
     mempool_bytes=$(jq '.cardano.node.metrics.mempoolBytes.int.val //0' <<< "${data}")
-    kesperiod=$(jq '.cardano.node.metrics.currentKESPeriod.int.val //0' <<< "${data}")
-    remaining_kes_periods=$(jq '.cardano.node.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
+    kesperiod=$(jq '.cardano.node.Forge.metrics.currentKESPeriod.int.val //0' <<< "${data}")
+    remaining_kes_periods=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
     isleader=$(jq '.cardano.node.metrics.Forge["node-is-leader"].int.val //0' <<< "${data}")
     forged=$(jq '.cardano.node.metrics.Forge.forged.int.val //0' <<< "${data}")
     adopted=$(jq '.cardano.node.metrics.Forge.adopted.int.val //0' <<< "${data}")
