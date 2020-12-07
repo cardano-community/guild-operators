@@ -13,27 +13,22 @@ cardanoport=$(ps -ef | grep "[c]ardano-node.*.port" | awk -F 'port ' '{print $2}
 nodename="RTFM Lazy Guy" # Change your node's name prefix here, 24 character limit!!!
 refreshrate=2 # How often (in seconds) to refresh the view
 config=$(ps -ef | grep "[c]ardano-node.*.config" | awk -F 'config ' '{print $2}' | awk 'NR==1{print $1}') # example: /opt/cardano/cnode/files/config.json
-ekghost=127.0.0.1
-if [[ -f "${config}" ]]; then
-  ekgport=$(jq -r '.hasEKG //empty' "${config}" 2>/dev/null)
-else
-  ekgport=12788
-fi
-
+ekghost="127.0.0.1"
+ekgport=12788
+#cnode="${HOME}/.local/bin/cardano-node" # You can change this if you are running multiple instances of cardano-node executable and want to query a specific one
 
 #####################################
 # Do NOT Modify below               #
 #####################################
 
-
-version=$("$(command -v cardano-node)" version)
+if [[ -n $cnode ]]; then
+  version=$("${cnode}" version)
+else
+  version=$("$(command -v cardano-node)" version)
+fi
 node_version=$(grep -oP '(?<=cardano-node )[0-9\.]+' <<< "${version}")
 node_rev=$(grep -oP '(?<=rev )[a-z0-9]+' <<< "${version}" | cut -c1-8)
-
 node_ver=$(printf "%17s" "${node_version} / ${node_rev}")
-
-#node_version=$(printf "%14s" "${node_version}")
-#node_rev=$(printf "%14s" "${node_rev}")
 
 # Add some colors
 REKT='\033[1;31m'
@@ -51,8 +46,8 @@ do
   density=$(jq -r '.cardano.node.metrics.density.real.val //0' <<< "${data}")
   uptimens=$(jq '.rts.gc.wall_ms.val //0' <<< "${data}")
   transactions=$(jq '.cardano.node.metrics.txsProcessedNum.int.val //0' <<< "${data}")
-  kesperiod=$(jq '.cardano.node.Forge.metrics.currentKESPeriod.int.val //0' <<< "${data}")
-  kesremain=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
+  kesperiod=$(jq '.cardano.node.metrics.currentKESPeriod.int.val //0' <<< "${data}")
+  kesremain=$(jq '.cardano.node.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
   isleader=$(jq '.cardano.node.metrics.Forge["node-is-leader"].int.val //0' <<< "${data}")
   abouttolead=$(jq '.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0' <<< "${data}")
   forged=$(jq '.cardano.node.metrics.Forge.forged.int.val //0' <<< "${data}")
@@ -75,7 +70,9 @@ do
   epoch=$(printf "%17s" "${epochnum} / ${slotnum}")
   block=$(printf "%17s" "${blocknum}")
   txcount=$(printf "%17s" "${transactions}")
-  density=$(printf "%15.4s %%" "${density}"*100)
+  density=$(printf "%.4f" "${density}")
+  density=$(echo "scale = 4; ${density} * 100" | bc)
+  density=$(printf "%15s %%" "${density}")
 
   if [[ isleader -lt 0 ]]; then
     isleader=0
