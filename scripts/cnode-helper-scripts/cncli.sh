@@ -67,19 +67,19 @@ getNodeMetrics() {
 }
 
 getEpoch() {
-  jq -r '.cardano.node.metrics.epoch.int.val //0' <<< "${node_metrics}"
+  jq -r '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${node_metrics}"
 }
 
 getBlockTip() {
-  jq -r '.cardano.node.metrics.blockNum.int.val //0' <<< "${node_metrics}"
+  jq -r '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${node_metrics}"
 }
 
 getSlotTip() {
-  jq -r '.cardano.node.metrics.slotNum.int.val //0' <<< "${node_metrics}"
+  jq -r '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${node_metrics}"
 }
 
 getSlotInEpoch() {
-  jq -r '.cardano.node.metrics.slotInEpoch.int.val //0' <<< "${node_metrics}"
+  jq -r '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${node_metrics}"
 }
 
 getEpochFromSlot() {
