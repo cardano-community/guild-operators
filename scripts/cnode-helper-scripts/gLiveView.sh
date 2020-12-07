@@ -491,7 +491,7 @@ epochnum=$(jq '.cardano.node.metrics.epoch.int.val //0' <<< "${data}")
 curr_epoch=${epochnum}
 slot_in_epoch=$(jq '.cardano.node.metrics.slotInEpoch.int.val //0' <<< "${data}")
 slotnum=$(jq '.cardano.node.metrics.slotNum.int.val //0' <<< "${data}")
-remaining_kes_periods=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
+remaining_kes_periods=$(jq '.cardano.node.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
 [[ "${PROTOCOL}" = "Cardano" ]] && getShelleyTransitionEpoch || shelley_transition_epoch=-2
 if ! prom_port=$(jq -er '.hasPrometheus[1]' "${CONFIG}" 2>/dev/null); then prom_port=0; fi
 #####################################
@@ -567,8 +567,8 @@ while true; do
     tx_processed=$(jq '.cardano.node.metrics.txsProcessedNum.int.val //0' <<< "${data}")
     mempool_tx=$(jq '.cardano.node.metrics.txsInMempool.int.val //0' <<< "${data}")
     mempool_bytes=$(jq '.cardano.node.metrics.mempoolBytes.int.val //0' <<< "${data}")
-    kesperiod=$(jq '.cardano.node.Forge.metrics.currentKESPeriod.int.val //0' <<< "${data}")
-    remaining_kes_periods=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
+    kesperiod=$(jq '.cardano.node.metrics.currentKESPeriod.int.val //0' <<< "${data}")
+    remaining_kes_periods=$(jq '.cardano.node.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
     isleader=$(jq '.cardano.node.metrics.Forge["node-is-leader"].int.val //0' <<< "${data}")
     forged=$(jq '.cardano.node.metrics.Forge.forged.int.val //0' <<< "${data}")
     adopted=$(jq '.cardano.node.metrics.Forge.adopted.int.val //0' <<< "${data}")

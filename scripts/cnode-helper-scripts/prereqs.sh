@@ -300,7 +300,8 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
       rustup update &>/dev/null #ignore any errors, not crucial that update succeed
     fi
     . "${HOME}"/.profile # source profile to load ${HOME}/.cargo/bin into PATH
-    git checkout $cncli_git_latestTag
+    git checkout --quiet ${cncli_git_latestTag}
+    echo "building CNCLI..."
     if ! output=$(cargo install --path . --force 2>&1); then echo -e "${output}" && err_exit; fi
     echo "$(cncli -V) installed!"
   else
