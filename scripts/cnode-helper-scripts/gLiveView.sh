@@ -173,7 +173,7 @@ else
 fi
 
 IFS=" " read -r -a cardano_version <<< "$(${CCLI} version | head -1 | cut -d' ' -f2 | tr '.' ' ')"
-[[ $(( ${cardano_version[0]:-0}*10000 + ${cardano_version[1]:-0}*100 + ${cardano_version[2]:-0} )) -lt 12300 ]] && echo -e "\nERROR!! gLiveView has now been upgraded to support cardano-node 1.23 or higher. Please update cardano-node or use node-1.21 branch for gLiveView\n\n" && exit 1
+[[ $(( ${cardano_version[0]:-0}*10000 + ${cardano_version[1]:-0}*100 + ${cardano_version[2]:-0} )) -lt 12401 ]] && echo -e "\nERROR!! gLiveView has now been upgraded to support cardano-node 1.23 or higher. Please update cardano-node or use node-1.21 branch for gLiveView\n\n" && exit 1
 
 #######################################################
 # Validate config variables                           #
@@ -487,10 +487,10 @@ check_peers="false"
 show_peers="false"
 selected_direction="out"
 data=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
-epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
+epochnum=$(jq '.cardano.node.metrics.epoch.int.val //0' <<< "${data}")
 curr_epoch=${epochnum}
-slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
-slotnum=$(jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${data}")
+slot_in_epoch=$(jq '.cardano.node.metrics.slotInEpoch.int.val //0' <<< "${data}")
+slotnum=$(jq '.cardano.node.metrics.slotNum.int.val //0' <<< "${data}")
 remaining_kes_periods=$(jq '.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
 [[ "${PROTOCOL}" = "Cardano" ]] && getShelleyTransitionEpoch || shelley_transition_epoch=-2
 if ! prom_port=$(jq -er '.hasPrometheus[1]' "${CONFIG}" 2>/dev/null); then prom_port=0; fi
@@ -558,11 +558,11 @@ while true; do
       peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
       peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${prom_port})" '$3 !~ port {print}' | wc -l)
     fi
-    blocknum=$(jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${data}")
-    epochnum=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}")
-    slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${data}")
-    slotnum=$(jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${data}")
-    density=$(jq -r '.cardano.node.ChainDB.metrics.density.real.val //0' <<< "${data}")
+    blocknum=$(jq '.cardano.node.metrics.blockNum.int.val //0' <<< "${data}")
+    epochnum=$(jq '.cardano.node.metrics.epoch.int.val //0' <<< "${data}")
+    slot_in_epoch=$(jq '.cardano.node.metrics.slotInEpoch.int.val //0' <<< "${data}")
+    slotnum=$(jq '.cardano.node.metrics.slotNum.int.val //0' <<< "${data}")
+    density=$(jq -r '.cardano.node.metrics.density.real.val //0' <<< "${data}")
     density=$(printf "%3.3e" "${density}"| cut -d 'e' -f1)
     tx_processed=$(jq '.cardano.node.metrics.txsProcessedNum.int.val //0' <<< "${data}")
     mempool_tx=$(jq '.cardano.node.metrics.txsInMempool.int.val //0' <<< "${data}")
@@ -587,7 +587,8 @@ while true; do
     fi
     if [[ ${curr_epoch} -ne ${epochnum} ]]; then # only update on new epoch to save on processing
       curr_epoch=${epochnum}
-      PROT_PARAMS="$(${CCLI} shelley query protocol-parameters ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
+      getEraIdentifier
+      PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
       if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
     fi
   fi
