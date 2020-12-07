@@ -1777,6 +1777,7 @@ EOF
     if ! isWalletRegistered ${owner_wallet}; then
       if [[ ${op_mode} = "online" ]]; then
         if ! registerStakeWallet ${owner_wallet}; then waitForInput && continue; fi
+        echo
       else
         say "Owner wallet not a registered wallet on chain and CNTools run in hybrid mode"
         say "Please first register all wallets to use in pool registration using 'Wallet >> Register'"
@@ -1974,7 +1975,7 @@ EOF
     say "Margin : ${margin}%" "log"
     say "Cost   : $(formatLovelace ${cost_lovelace}) ADA" "log"
     echo
-    say "Substitute value for POOL_NAME in $CNODE_HOME/scripts/cnode.sh with '${pool_name}'" "log"
+    say "Uncomment and set value for POOL_NAME in $CNODE_HOME/scripts/env with '${pool_name}'" "log"
     if [[ ${op_mode} = "online" && ${lovelace} -lt ${pledge_lovelace} ]]; then
       echo
       say "${FG_YELLOW}WARN${NC}: Balance in pledge wallet is less than set pool pledge"
@@ -2283,6 +2284,7 @@ EOF
     if ! isWalletRegistered ${owner_wallet}; then
       if [[ ${op_mode} = "online" ]]; then
         if ! registerStakeWallet ${owner_wallet}; then waitForInput && continue; fi
+        echo
       else
         say "Owner wallet not a registered wallet on chain and CNTools run in hybrid mode"
         say "Please first register all wallets to use in pool registration using 'Wallet >> Register'"
