@@ -172,9 +172,6 @@ else
   read -r -n 1 -s -p "press any key to proceed" answer
 fi
 
-IFS=" " read -r -a cardano_version <<< "$(${CCLI} version | head -1 | cut -d' ' -f2 | tr '.' ' ')"
-[[ $(( ${cardano_version[0]:-0}*10000 + ${cardano_version[1]:-0}*100 + ${cardano_version[2]:-0} )) -lt 12401 ]] && echo -e "\nERROR!! gLiveView has now been upgraded to support cardano-node 1.23 or higher. Please update cardano-node or use node-1.21 branch for gLiveView\n\n" && exit 1
-
 #######################################################
 # Validate config variables                           #
 # Can be overridden in 'User Variables' section above #

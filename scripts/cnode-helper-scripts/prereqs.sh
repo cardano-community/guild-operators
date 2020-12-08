@@ -50,6 +50,8 @@ err_exit() {
   exit 1
 }
 
+versionCheck() { printf '%s\n%s' "$1" "$2" | sort -C -V; } #$1=available_version, $2=installed_version
+
 usage() {
   cat <<EOF >&2
 
@@ -273,10 +275,7 @@ if [[ "${LIBSODIUM_FORK}" = "Y" ]]; then
 fi
 
 if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
-  if command -v cncli >/dev/null; then 
-    IFS=" " read -r -a cncli_version <<< "$(cncli -V | cut -d' ' -f2 | tr '.' ' ')"
-    cncli_version_nbr=$(( ${cncli_version[0]:-0}*10000 + ${cncli_version[1]:-0}*100 + ${cncli_version[2]:-0} ))
-  else cncli_version_nbr=0; fi
+  if command -v cncli >/dev/null; then cncli_version="$(cncli -V | cut -d' ' -f2)"; else cncli_version="v0.0.0"; fi
   pushd "${HOME}"/git >/dev/null || err_exit
   if [[ -d ./cncli ]]; then
     echo "previous CNCLI installation found, pulling latest version from GitHub..."
@@ -287,10 +286,8 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     if ! output=$(git clone https://github.com/AndrewWestberg/cncli.git 2>&1); then echo -e "${output}" && err_exit; fi
     pushd ./cncli >/dev/null || err_exit
   fi
-  cncli_git_latestTag=$(git tag | tail -n 1)
-  IFS=" " read -r -a cncli_git_version <<< "${cncli_git_latestTag//[!0-9]/ }"
-  cncli_git_version_nbr=$(( ${cncli_git_version[0]:-0}*10000 + ${cncli_git_version[1]:-0}*100 + ${cncli_git_version[2]:-0} ))
-  if [[ ${cncli_version_nbr} -lt ${cncli_git_version_nbr} ]]; then
+  cncli_git_latestTag=$(git tag 2>/dev/null | tail -n 1)
+  if ! versionCheck "${cncli_git_latestTag}" "${cncli_version}"; then
     # install rust if not available
     if ! command -v "rustup" &>/dev/null; then
       echo "installing RUST..."
