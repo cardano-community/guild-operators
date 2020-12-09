@@ -6,7 +6,7 @@
   "LastKnownBlockVersion-Alt": 0,
   "LastKnownBlockVersion-Major": 3,
   "LastKnownBlockVersion-Minor": 0,
-  "MaxKnownMajorProtocolVersion": 3,
+  "MaxKnownMajorProtocolVersion": 2,
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresNoMagic",
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/genesis.json",
