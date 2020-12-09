@@ -15,7 +15,7 @@ jobs:
         docker login -u $DOCKER_USER -p $DOCKER_PASSWORD
     - name: dockerfile Stage2 Download
       run: |
-        curl -sLo Dockerstage3 https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_srage3
+        curl -sLo Dockerstage3 https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_stage3
     - name: Compiling new node software
       run: |      
         docker build . --file Dockerstage3 --compress --tag cardanocommunity/cardano-node:stage3

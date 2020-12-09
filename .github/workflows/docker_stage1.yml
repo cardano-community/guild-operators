@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'release-versions/guild-prereq-latest.txt'
+      - 'files/docker/node/release-versions/guild-prereq-latest.txt'
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,4 +24,4 @@ jobs:
         docker push cardanocommunity/cardano-node:stage1
     - name: docker push
       run: |
-        curl -XPOST -u "${{ secrets.REPO_SCOPED_USER}}:${{secrets.REPO_SCOPED_TOKEN }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" https://api.github.com/repos/stakelovelace/cardano-htn/actions/workflows/docker-stage2.yml/dispatches --data '{"ref": "master"}'
+        curl -XPOST -u "${{ secrets.REPO_SCOPED_USER}}:${{secrets.REPO_SCOPED_TOKEN }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" https://api.github.com/repos/cardano-community/guild-operators/actions/workflows/docker-stage2.yml/dispatches --data '{"ref": "master"}'
