@@ -86,6 +86,9 @@
       "cardano.node.peers": [
         "EKGViewBK"
       ],
+      "cardano.node.resources": [
+        "EKGViewBK"
+      ],
       "cardano.node.metrics": [
         "EKGViewBK",
         {
