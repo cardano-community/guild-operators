@@ -58,9 +58,6 @@ fi
 # get helper functions from library file
 . "${CNODE_HOME}"/scripts/cntools.library
 
-IFS=" " read -r -a cardano_version <<< "$(${CCLI} version | head -1 | cut -d' ' -f2 | tr '.' ' ')"
-[[ $(( ${cardano_version[0]:-0}*10000 + ${cardano_version[1]:-0}*100 + ${cardano_version[2]:-0} )) -lt 12401 ]] && myExit 1 "ERROR!! CNTools has now been upgraded to support cardano-node 1.23 or higher. Please update cardano-node or use node-1.21 branch for CNTools\n"
-
 URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
 URL="${URL_RAW}/scripts/cnode-helper-scripts"
 URL_DOCS="${URL_RAW}/docs/Scripts"
@@ -189,9 +186,9 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
       shelleyTransitionEpoch="208"
     elif [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       getNodeMetrics
-      epoch=$(jq '.cardano.node.metrics.epoch.int.val //0' <<< "${node_metrics}")
-      slot_in_epoch=$(jq '.cardano.node.metrics.slotInEpoch.int.val //0' <<< "${node_metrics}")
-      slot_num=$(jq '.cardano.node.metrics.slotNum.int.val //0' <<< "${node_metrics}")
+      epoch=$(jq '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${node_metrics}")
+      slot_in_epoch=$(jq '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${node_metrics}")
+      slot_num=$(jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${node_metrics}")
       calc_slot=0
       byron_epochs=${epoch}
       shelley_epochs=0
@@ -1777,6 +1774,7 @@ EOF
     if ! isWalletRegistered ${owner_wallet}; then
       if [[ ${op_mode} = "online" ]]; then
         if ! registerStakeWallet ${owner_wallet}; then waitForInput && continue; fi
+        echo
       else
         say "Owner wallet not a registered wallet on chain and CNTools run in hybrid mode"
         say "Please first register all wallets to use in pool registration using 'Wallet >> Register'"
@@ -1974,7 +1972,7 @@ EOF
     say "Margin : ${margin}%" "log"
     say "Cost   : $(formatLovelace ${cost_lovelace}) ADA" "log"
     echo
-    say "Substitute value for POOL_NAME in $CNODE_HOME/scripts/cnode.sh with '${pool_name}'" "log"
+    say "Uncomment and set value for POOL_NAME in $CNODE_HOME/scripts/env with '${pool_name}'" "log"
     if [[ ${op_mode} = "online" && ${lovelace} -lt ${pledge_lovelace} ]]; then
       echo
       say "${FG_YELLOW}WARN${NC}: Balance in pledge wallet is less than set pool pledge"
@@ -2283,6 +2281,7 @@ EOF
     if ! isWalletRegistered ${owner_wallet}; then
       if [[ ${op_mode} = "online" ]]; then
         if ! registerStakeWallet ${owner_wallet}; then waitForInput && continue; fi
+        echo
       else
         say "Owner wallet not a registered wallet on chain and CNTools run in hybrid mode"
         say "Please first register all wallets to use in pool registration using 'Wallet >> Register'"

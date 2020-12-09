@@ -26,7 +26,7 @@ fi
 
 getEpoch() {
   data=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
-  jq -er '.cardano.node.metrics.epoch.int.val //0' <<< "${data}"
+  jq -er '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${data}"
 }
 
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~"

@@ -67,19 +67,19 @@ getNodeMetrics() {
 }
 
 getEpoch() {
-  jq -r '.cardano.node.metrics.epoch.int.val //0' <<< "${node_metrics}"
+  jq -r '.cardano.node.ChainDB.metrics.epoch.int.val //0' <<< "${node_metrics}"
 }
 
 getBlockTip() {
-  jq -r '.cardano.node.metrics.blockNum.int.val //0' <<< "${node_metrics}"
+  jq -r '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${node_metrics}"
 }
 
 getSlotTip() {
-  jq -r '.cardano.node.metrics.slotNum.int.val //0' <<< "${node_metrics}"
+  jq -r '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${node_metrics}"
 }
 
 getSlotInEpoch() {
-  jq -r '.cardano.node.metrics.slotInEpoch.int.val //0' <<< "${node_metrics}"
+  jq -r '.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0' <<< "${node_metrics}"
 }
 
 getEpochFromSlot() {
@@ -102,8 +102,6 @@ getDateFromSlot() {
 
 createBlocklogDB() {
   if ! mkdir -p "${BLOCKLOG_DIR}"; then echo "ERROR: failed to create directory to store blocklog: ${BLOCKLOG_DIR}" && return 1; fi
-  
-  [[ ${cncli_version_nbr} -lt 209 ]] && echo "ERROR: $(${CNCLI} -V) installed, too old, please upgrade to 0.2.9 or newer" && return 1
   if [[ ! -f ${BLOCKLOG_DB} ]]; then # create a fresh DB with latest schema
     sqlite3 ${BLOCKLOG_DB} <<EOF
 CREATE TABLE blocklog (id INTEGER PRIMARY KEY AUTOINCREMENT, slot INTEGER NOT NULL UNIQUE, at TEXT NOT NULL UNIQUE, epoch INTEGER NOT NULL, block INTEGER NOT NULL DEFAULT 0, slot_in_epoch INTEGER NOT NULL DEFAULT 0, hash TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL);
@@ -269,8 +267,8 @@ cncliInit() {
   rm -f "${PARENT}"/cncli.sh.tmp
   
   [[ ! -f "${CNCLI}" ]] && echo "ERROR: failed to locate cncli executable, please update and run 'prereqs.sh -h' to show options" && exit 1
-  IFS=" " read -r -a cncli_version <<< "$(${CNCLI} -V | cut -d' ' -f2 | tr '.' ' ')"
-  cncli_version_nbr=$(( ${cncli_version[0]:-0}*10000 + ${cncli_version[1]:-0}*100 + ${cncli_version[2]:-0} ))
+  CNCLI_VERSION="$(cncli -V | cut -d' ' -f2)"
+  if ! versionCheck "v0.4.1" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, please upgrade to v0.4.1 or newer!"; exit 1; fi
 
   return 0
 }
@@ -278,7 +276,6 @@ cncliInit() {
 #################################
 
 cncliSync() {
-  if ! mkdir -p "${CNCLI_DIR}"; then echo "ERROR: failed to create CNCLI DB folder: ${CNCLI_DIR}" && exit 1; fi
   ${CNCLI} sync --host 127.0.0.1 --network-magic "${NWMAGIC}" --port "${CNODE_PORT}" --db "${CNCLI_DB}"
 }
 
@@ -446,11 +443,13 @@ cncliValidate() {
       exit 1
     fi
     epoch_blocks=$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch, slot, status, hash FROM blocklog ${epoch_selection} ORDER BY slot;")
-    while IFS='|' read -r block_epoch block_slot block_status block_hash; do
-      [[ ${epoch} -ne ${block_epoch} ]] && echo -e "> Validating epoch ${FG_GREEN}${block_epoch}${NC}" && epoch=${block_epoch}
-      [[ ${block_status} != invalid ]] && block_status="leader" # reset status to leader to re-validate all non invalid blocks
-      validateBlock
-    done < <(printf '%s\n' "${epoch_blocks}")
+    if [[ -n ${epoch_blocks} ]]; then
+      while IFS='|' read -r block_epoch block_slot block_status block_hash; do
+        [[ ${epoch} -ne ${block_epoch} ]] && echo -e "> Validating epoch ${FG_GREEN}${block_epoch}${NC}" && epoch=${block_epoch}
+        [[ ${block_status} != invalid ]] && block_status="leader" # reset status to leader to re-validate all non invalid blocks
+        validateBlock
+      done < <(printf '%s\n' "${epoch_blocks}")
+    fi
   elif [[ -n ${subarg} ]]; then
     echo "ERROR: unknown argument passed to validate subcommand" && usage
   else
@@ -467,9 +466,11 @@ cncliValidate() {
       # Check previous epoch as well at start of current epoch
       [[ $(getSlotInEpoch) -lt $(( CONFIRM_SLOT_CNT * 6 )) ]] && prev_epoch=$((curr_epoch-1)) || prev_epoch=${curr_epoch}
       epoch_blocks=$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch, slot, status, hash FROM blocklog WHERE epoch BETWEEN ${prev_epoch} and ${curr_epoch} ORDER BY slot;")
-      while IFS='|' read -r block_epoch block_slot block_status block_hash; do
-        validateBlock
-      done < <(printf '%s\n' "${epoch_blocks}")
+      if [[ -n ${epoch_blocks} ]]; then
+        while IFS='|' read -r block_epoch block_slot block_status block_hash; do
+          validateBlock
+        done < <(printf '%s\n' "${epoch_blocks}")
+      fi
     done
   fi
 }
@@ -537,19 +538,21 @@ cncliInitBlocklogDB() {
   echo "Looking for blocks made by pool..."
   block_cnt=0
   cncli_blocks=$(sqlite3 "${CNCLI_DB}" "SELECT block_number, slot_number, hash, block_size FROM chain WHERE node_vrf_vkey = '${pool_vrf_vkey_cbox_hex}' ORDER BY slot_number;")
-  while IFS='|' read -r block_number slot_number block_hash block_size; do
-    # Calculate epoch, at and slot_in_epoch
-    epoch=$(getEpochFromSlot ${slot_number})
-    at=$(getDateFromSlot ${slot_number})
-    slot_in_epoch=$(getSlotInEpochFromSlot ${slot_number} ${epoch})
-    sqlite3 ${BLOCKLOG_DB} <<EOF
+  if [[ -n ${cncli_blocks} ]]; then
+    while IFS='|' read -r block_number slot_number block_hash block_size; do
+      # Calculate epoch, at and slot_in_epoch
+      epoch=$(getEpochFromSlot ${slot_number})
+      at=$(getDateFromSlot ${slot_number})
+      slot_in_epoch=$(getSlotInEpochFromSlot ${slot_number} ${epoch})
+      sqlite3 ${BLOCKLOG_DB} <<EOF
 UPDATE OR IGNORE blocklog SET at = '${at}', epoch = ${epoch}, block = ${block_number}, slot_in_epoch = ${slot_in_epoch}, hash = '${block_hash}', size = ${block_size}, status = 'adopted'
 WHERE slot = ${slot_number};
 INSERT OR IGNORE INTO blocklog (slot, at, epoch, block, slot_in_epoch, hash, size, status)
 VALUES (${slot_number}, '${at}', ${epoch}, ${block_number}, ${slot_in_epoch}, '${block_hash}', ${block_size}, 'adopted');
 EOF
-    ((block_cnt++))
-  done < <(printf '%s\n' "${cncli_blocks}")
+      ((block_cnt++))
+    done < <(printf '%s\n' "${cncli_blocks}")
+  fi
   if [[ ${block_cnt} -eq 0 ]]; then
     echo "No blocks found :("
   else
@@ -621,7 +624,6 @@ EOF"
 #################################
 
 cncliPTsendslots() {
-  [[ ${cncli_version_nbr} -lt 301 ]] && echo "ERROR: $(${CNCLI} -V) installed, too old, please upgrade to 0.3.1 or newer" && exit 1
   [[ -z ${POOL_ID} || -z ${POOL_TICKER} || -z ${PT_API_KEY} ]] && echo "'POOL_ID' and/or 'POOL_TICKER' and/or 'PT_API_KEY' not set in $(basename "$0"), exiting!" && exit 1
   # Generate a temporary pooltool config
   pt_config="/tmp/${vname}-pooltool.json"

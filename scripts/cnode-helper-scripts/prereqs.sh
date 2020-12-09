@@ -50,6 +50,8 @@ err_exit() {
   exit 1
 }
 
+versionCheck() { printf '%s\n%s' "$1" "$2" | sort -C -V; } #$1=available_version, $2=installed_version
+
 usage() {
   cat <<EOF >&2
 
@@ -171,7 +173,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo apt-get -y install curl > /dev/null
     $sudo apt-get -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute dialog sqlite libsqlite3-dev automake sqlite3"
+    pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute dialog sqlite automake sqlite3 bsdmainutils"
     $sudo apt-get -y install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
@@ -186,7 +188,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo yum -y install curl > /dev/null
     $sudo yum -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git jq gnupg libtool autoconf srm iproute bc tcptraceroute dialog sqlite libsqlite3x-devel"
+    pkg_list="python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git jq gnupg libtool autoconf srm iproute bc tcptraceroute dialog sqlite util-linux xz"
     [[ ! "${DISTRO}" =~ Fedora ]] && $sudo yum -y install epel-release > /dev/null
     $sudo yum -y install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
@@ -273,10 +275,7 @@ if [[ "${LIBSODIUM_FORK}" = "Y" ]]; then
 fi
 
 if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
-  if command -v cncli >/dev/null; then 
-    IFS=" " read -r -a cncli_version <<< "$(cncli -V | cut -d' ' -f2 | tr '.' ' ')"
-    cncli_version_nbr=$(( ${cncli_version[0]:-0}*10000 + ${cncli_version[1]:-0}*100 + ${cncli_version[2]:-0} ))
-  else cncli_version_nbr=0; fi
+  if command -v cncli >/dev/null; then cncli_version="$(cncli -V | cut -d' ' -f2)"; else cncli_version="v0.0.0"; fi
   pushd "${HOME}"/git >/dev/null || err_exit
   if [[ -d ./cncli ]]; then
     echo "previous CNCLI installation found, pulling latest version from GitHub..."
@@ -287,10 +286,8 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     if ! output=$(git clone https://github.com/AndrewWestberg/cncli.git 2>&1); then echo -e "${output}" && err_exit; fi
     pushd ./cncli >/dev/null || err_exit
   fi
-  cncli_git_latestTag=$(git tag | tail -n 1)
-  IFS=" " read -r -a cncli_git_version <<< "${cncli_git_latestTag//[!0-9]/ }"
-  cncli_git_version_nbr=$(( ${cncli_git_version[0]:-0}*10000 + ${cncli_git_version[1]:-0}*100 + ${cncli_git_version[2]:-0} ))
-  if [[ ${cncli_version_nbr} -lt ${cncli_git_version_nbr} ]]; then
+  cncli_git_latestTag=$(git tag 2>/dev/null | tail -n 1)
+  if ! versionCheck "${cncli_git_latestTag}" "${cncli_version}"; then
     # install rust if not available
     if ! command -v "rustup" &>/dev/null; then
       echo "installing RUST..."
@@ -300,7 +297,8 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
       rustup update &>/dev/null #ignore any errors, not crucial that update succeed
     fi
     . "${HOME}"/.profile # source profile to load ${HOME}/.cargo/bin into PATH
-    git checkout $cncli_git_latestTag
+    git checkout --quiet ${cncli_git_latestTag}
+    echo "building CNCLI..."
     if ! output=$(cargo install --path . --force 2>&1); then echo -e "${output}" && err_exit; fi
     echo "$(cncli -V) installed!"
   else
