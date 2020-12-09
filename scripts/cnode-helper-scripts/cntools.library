@@ -1027,8 +1027,8 @@ sendADA() {
 
   say "" 1
   say "# Calculate fee, new amount and remaining balance" 1 "log"
-  say "$ ${CCLI} transaction build-raw ${txIn} --tx-out ${dAddr}+0 --upper-bound ${ttlValue} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
-  if ! ${CCLI} transaction build-raw ${txIn} --tx-out ${dAddr}+0 --upper-bound ${ttlValue} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  say "$ ${CCLI} transaction build-raw ${txIn} --tx-out ${dAddr}+0 --invalid-hereafter ${ttlValue} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
+  if ! ${CCLI} transaction build-raw ${txIn} --tx-out ${dAddr}+0 --invalid-hereafter ${ttlValue} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
   minFeeArgs=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
@@ -1082,7 +1082,7 @@ sendADA() {
   buildArgs=(
     ${txIn}
     ${txOut}
-    --upper-bound ${ttlValue}
+    --invalid-hereafter ${ttlValue}
     --fee ${minFee}
     --out-file "${TMP_FOLDER}"/tx.raw
   )
@@ -1159,8 +1159,8 @@ sendMetadata() {
 
   say "" 1
   say "# Calculate fee, new amount and remaining balance" 1 "log"
-  say "$ ${CCLI} transaction build-raw ${tx_in} --tx-out ${addr}+0 --upper-bound ${ttlValue} --fee 0 ${metadata} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${addr}+0 --upper-bound ${ttlValue} --fee 0 ${metadata} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  say "$ ${CCLI} transaction build-raw ${tx_in} --tx-out ${addr}+0 --invalid-hereafter ${ttlValue} --fee 0 ${metadata} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${addr}+0 --invalid-hereafter ${ttlValue} --fee 0 ${metadata} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
   minFeeArgs=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
@@ -1190,7 +1190,7 @@ sendMetadata() {
   buildArgs=(
     ${tx_in}
     ${tx_out}
-    --upper-bound ${ttlValue}
+    --invalid-hereafter ${ttlValue}
     --fee ${minFee}
     ${metadata}
     --out-file "${TMP_FOLDER}"/tx.raw
@@ -1282,8 +1282,8 @@ registerStakeWallet() {
 
   say "" 1
   say "# Calculate fee" 1 "log"
-  say "$ ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --upper-bound ${ttlValue} --fee 0 --certificate-file ${stake_cert_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --upper-bound ${ttlValue} --fee 0 --certificate-file ${stake_cert_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  say "$ ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 --certificate-file ${stake_cert_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 --certificate-file ${stake_cert_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
   minFeeArgs=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
@@ -1314,7 +1314,7 @@ registerStakeWallet() {
   buildArgs=(
     ${tx_in}
     ${tx_out}
-    --upper-bound ${ttlValue}
+    --invalid-hereafter ${ttlValue}
     --fee ${minFee}
     --certificate-file ${stake_cert_file}
     --out-file "${TMP_FOLDER}"/tx.raw
@@ -1414,8 +1414,8 @@ deregisterStakeWallet() {
 
   say "" 1
   say "# Calculate fee" 1 "log"
-  say "$ ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --upper-bound ${ttlValue} --fee 0 --certificate-file ${stake_dereg_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --upper-bound ${ttlValue} --fee 0 --certificate-file ${stake_dereg_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  say "$ ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 --certificate-file ${stake_dereg_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 --certificate-file ${stake_dereg_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
   minFeeArgs=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
@@ -1446,7 +1446,7 @@ deregisterStakeWallet() {
   buildArgs=(
     ${tx_in}
     ${tx_out}
-    --upper-bound ${ttlValue}
+    --invalid-hereafter ${ttlValue}
     --fee ${minFee}
     --certificate-file ${stake_dereg_file}
     --out-file "${TMP_FOLDER}"/tx.raw
@@ -1554,8 +1554,8 @@ registerPool() {
 
   say "" 1
   say "# Calculate fee, new amount and remaining balance" 1 "log"
-  say "$ ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --upper-bound ${ttlValue} --certificate-file ${pool_regcert_file} --certificate-file ${owner_delegation_cert_file} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --upper-bound ${ttlValue} --certificate-file ${pool_regcert_file} --certificate-file ${owner_delegation_cert_file} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  say "$ ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --certificate-file ${pool_regcert_file} --certificate-file ${owner_delegation_cert_file} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --certificate-file ${pool_regcert_file} --certificate-file ${owner_delegation_cert_file} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
   minFeeArgs=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
@@ -1585,7 +1585,7 @@ registerPool() {
   buildArgs=(
     ${tx_in}
     ${tx_out}
-    --upper-bound ${ttlValue}
+    --invalid-hereafter ${ttlValue}
     --fee ${minFee}
     --certificate-file ${pool_regcert_file}
     --certificate-file ${owner_delegation_cert_file}
@@ -1686,8 +1686,8 @@ modifyPool() {
 
   say "" 1
   say "# Calculate fee, new amount and remaining balance" 1 "log"
-  say "$ ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --upper-bound ${ttlValue} --certificate-file ${pool_regcert_file} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --upper-bound ${ttlValue} --certificate-file ${pool_regcert_file} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  say "$ ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --certificate-file ${pool_regcert_file} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --certificate-file ${pool_regcert_file} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
   minFeeArgs=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
@@ -1717,7 +1717,7 @@ modifyPool() {
   buildArgs=(
     ${tx_in}
     ${tx_out}
-    --upper-bound ${ttlValue}
+    --invalid-hereafter ${ttlValue}
     --fee ${minFee}
     --certificate-file ${pool_regcert_file}
     --out-file "${TMP_FOLDER}"/tx.raw
@@ -1791,8 +1791,8 @@ withdrawRewards() {
 
   say "" 1
   say "# Calculate fee, new amount and remaining balance" 1 "log"
-  say "$ ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --upper-bound ${ttlValue} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --upper-bound ${ttlValue} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  say "$ ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
   minFeeArgs=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
@@ -1823,7 +1823,7 @@ withdrawRewards() {
     ${tx_in}
     ${tx_out}
     --withdrawal ${stake_addr}+${reward_lovelace}
-    --upper-bound ${ttlValue}
+    --invalid-hereafter ${ttlValue}
     --fee ${minFee}
     --out-file "${TMP_FOLDER}"/tx.raw
   )
@@ -1903,8 +1903,8 @@ delegate() {
 
   say "" 1
   say "# Calculate fee, new amount and remaining balance" 1 "log"
-  say "$ ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --upper-bound ${ttlValue} --fee 0 --certificate-file ${pool_delegcert_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --upper-bound ${ttlValue} --fee 0 --certificate-file ${pool_delegcert_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  say "$ ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 --certificate-file ${pool_delegcert_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 --certificate-file ${pool_delegcert_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
   minFeeArgs=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
@@ -1934,7 +1934,7 @@ delegate() {
   buildArgs=(
     ${tx_in}
     ${tx_out}
-    --upper-bound ${ttlValue}
+    --invalid-hereafter ${ttlValue}
     --fee ${minFee}
     --certificate-file ${pool_delegcert_file}
     --out-file "${TMP_FOLDER}"/tx.raw
@@ -2012,8 +2012,8 @@ deRegisterPool() {
 
   say "" 1
   say "# Calculate fee, new amount and remaining balance" 1 "log"
-  say "$ ${CCLI} transaction build-raw ${tx_in} --tx-out ${wallet_addr}+0 --upper-bound ${ttlValue} --fee 0 --certificate-file ${pool_deregcert_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${wallet_addr}+0 --upper-bound ${ttlValue} --fee 0 --certificate-file ${pool_deregcert_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  say "$ ${CCLI} transaction build-raw ${tx_in} --tx-out ${wallet_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 --certificate-file ${pool_deregcert_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp" 2
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${wallet_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 --certificate-file ${pool_deregcert_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
   minFeeArgs=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
@@ -2043,7 +2043,7 @@ deRegisterPool() {
   buildArgs=(
     ${tx_in}
     ${tx_out}
-    --upper-bound ${ttlValue}
+    --invalid-hereafter ${ttlValue}
     --fee ${minFee}
     --certificate-file ${pool_deregcert_file}
     --out-file "${TMP_FOLDER}"/tx.raw

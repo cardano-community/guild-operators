@@ -56,6 +56,8 @@ CNODE_PORT=6000                                         # Set node port
 # Do NOT modify code below           #
 ######################################
 
+versionCheck() { printf '%s\n%s' "$1" "$2" | sort -C -V; } #$1=minimal_needed_version, $2=current_node_version
+
 OFFLINE_MODE='N'
 [[ $1 = "offline" ]] && OFFLINE_MODE='Y'
 [[ $(basename $0 2>/dev/null) = "cnode.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
@@ -83,6 +85,11 @@ if [[ -z "${CCLI}" ]]; then
 else
   CCLI_PARENT="$(dirname ${CCLI})"
   export PATH="${CCLI_PARENT}":$PATH
+fi
+node_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
+if ! versionCheck "1.24.2" "${node_version}"; then
+  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.24.2 or higher (${node_version} found).\nPlease update cardano-node or use tagged branches for older node version.\n\n"
+  return 1
 fi
 
 if [[ -z "${CNCLI}" ]]; then
