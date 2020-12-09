@@ -268,7 +268,7 @@ cncliInit() {
   
   [[ ! -f "${CNCLI}" ]] && echo "ERROR: failed to locate cncli executable, please update and run 'prereqs.sh -h' to show options" && exit 1
   CNCLI_VERSION="$(cncli -V | cut -d' ' -f2)"
-  if ! versionCheck "v0.4.1" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, please upgrade to v0.4.1 or newer!"; exit 1; fi
+  if ! versionCheck "0.4.1" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, please upgrade to v0.4.1 or newer!"; exit 1; fi
 
   return 0
 }

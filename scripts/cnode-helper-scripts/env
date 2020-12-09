@@ -56,7 +56,7 @@ CNODE_PORT=6000                                         # Set node port
 # Do NOT modify code below           #
 ######################################
 
-versionCheck() { printf '%s\n%s' "$1" "$2" | sort -C -V; } #$1=minimal_needed_version, $2=current_node_version
+versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=minimal_needed_version, $2=current_node_version
 
 OFFLINE_MODE='N'
 [[ $1 = "offline" ]] && OFFLINE_MODE='Y'
