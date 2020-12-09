@@ -50,7 +50,7 @@ err_exit() {
   exit 1
 }
 
-versionCheck() { printf '%s\n%s' "$1" "$2" | sort -C -V; } #$1=available_version, $2=installed_version
+versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=available_version, $2=installed_version
 
 usage() {
   cat <<EOF >&2
