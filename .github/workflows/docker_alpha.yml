@@ -1,0 +1,36 @@
+name: Docker Image CD Stage 1 branch Alpha
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'files/docker/node/release-versions/guild-prereq-latest.txt'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: docker login
+      env:
+        DOCKER_USER: ${{ secrets.DOCKER_USER }}   
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}  
+      run: |
+        docker login -u $DOCKER_USER -p $DOCKER_PASSWORD
+    - name: Compiling new node software
+      run: |      
+        docker build . --file files/docker/node/alpha/dockerfile_stage1alpha --compress --tag cardanocommunity/cardano-node:alpha1
+    - name: docker push alpha1
+      run: |
+        docker push cardanocommunity/cardano-node:alpha1
+    - name: Compiling new alpha build 
+      run: |      
+        docker build . --file files/docker/node/alpha/dockerfile_stage2alpha --compress --tag cardanocommunity/cardano-node:alpha2
+    - name: docker push alpha2
+      run: |
+        docker push cardanocommunity/cardano-node:alpha2
+    - name: building new alpha3 
+      run: |      
+        docker build . --file files/docker/node/alpha/dockerfile_stage3alpha --compress --tag cardanocommunity/cardano-node:alpha3
+    - name: docker push alpha3
+      run: |
+        docker push cardanocommunity/cardano-node:alpha3
