@@ -1,6 +1,6 @@
-Since the test network has to get along without the P2P network module for the time being, it needs static topology files. This "TopologyUpdater" service, which is far from being perfect due to its centralization factor, is intended to be a temporary solution to allow everyone to activate their relay nodes without having to postpone and wait for manual topology completion requests.
+Since the test network has to get along without the P2P network module for the time being, it needs static topology files. This "TopologyUpdater" service, which is far from being perfect due to its centralization factor, is intended to be a **temporary** solution to allow everyone to activate their relay nodes without having to postpone and wait for manual topology completion requests.
 
-The topologyupdater shell script must be executed on the relay node as a cronjob exactly every 60 minutes. After 4 consecutive requests (3 hours) the node is considered a new relay node in listed in the topology file. If the node is turned off, it's automatically delisted after 3 hours.
+The topologyupdater shell script must be executed on the relay node as a cronjob **exactly every 60 minutes**. After **4 consecutive requests (3 hours)** the node is considered a new relay node in listed in the topology file. If the node is turned off, it's automatically delisted after 3 hours.
 
 #### Download and Configure topologyUpdater.sh
 
@@ -19,7 +19,7 @@ chmod 750 topologyUpdater.sh
 
 #### Examine and modify the variables within topologyUpdater.sh script
 
-Out of the box, the scripts might come with some assumptions, that may or may not be valid for your environment. Please do take time to update the variables in respective files below:
+Out of the box, the scripts might come with some assumptions, that may or may not be valid for your environment. One of the common changes as a SPO would be to **complete CUSTOM_PEERS section** as below to include your local relays/BP nodes, and any additional peers you'd like to be always available at minimum. Please do take time to update the variables in respective files below:
 
 ``` bash
 ### topologyUpdater.sh

@@ -11,6 +11,8 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - printTable function replaced with bash printf due to compatibility issues
 - Improved workflow in pool registration/modification for relays and multi-owner.
 - Standardized names for wallet and pool files/folders moved to env file from cntools.config
+- Compatibility with 1.24.2 node (accomodate ledger schema and CLI changes), use 1.24.2 as baseline
+- Move version check to env
 
 ##### Fixed
 - Error output for prerequisite checks
