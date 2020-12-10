@@ -276,7 +276,7 @@ cncliInit() {
 #################################
 
 cncliSync() {
-  ${CNCLI} sync --host 127.0.0.1 --network-magic "${NWMAGIC}" --port "${CNODE_PORT}" --db "${CNCLI_DB}"
+  ${CNCLI} sync --host "${PT_HOST}" --network-magic "${NWMAGIC}" --port "${PT_PORT}" --db "${CNCLI_DB}"
 }
 
 #################################
