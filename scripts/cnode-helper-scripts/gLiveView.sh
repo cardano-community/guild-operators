@@ -50,7 +50,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.14
+GLV_VERSION=v1.15
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -407,7 +407,7 @@ checkPeers() {
       peers=$(lsof -Pnl +M -i4 | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}')
     else
       cncli_port=$(ss -tnp state established "( dport = :${CNODE_PORT} )" 2>/dev/null | grep cncli | awk '{print $3}' | cut -d: -f2)
-      peers=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | grep -v "${cncli_port}" | awk -v port=":${CNODE_PORT}" '$3 ~ port {print $4}')
+      peers=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | grep -v ":${cncli_port} " | awk -v port=":${CNODE_PORT}" '$3 ~ port {print $4}')
     fi
   fi
   [[ -z ${peers} ]] && return
@@ -553,7 +553,7 @@ while true; do
       peers_out=$(lsof -Pnl +M -i4 | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${prom_port})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
     else
       cncli_port=$(ss -tnp state established "( dport = :${CNODE_PORT} )" 2>/dev/null | grep cncli | awk '{print $3}' | cut -d: -f2)
-      peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | grep -v "${cncli_port}" | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
+      peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | grep -v ":${cncli_port} " | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
       peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${prom_port})" '$3 !~ port {print}' | wc -l)
     fi
     blocknum=$(jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${data}")
