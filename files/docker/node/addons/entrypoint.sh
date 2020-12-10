@@ -11,23 +11,17 @@ cardano-node --version;
 
 sudo touch /etc/crontab /etc/cron.*/*
 sudo cron  > /dev/null 2>&1
-#sudo /etc/init.d/promtail start > /dev/null 2>&1
 
 dbsize=$(du -s ${CNODE_HOME}/db | awk '{print $1}')
-tnsizedb=$(du -s $CNODE_HOME/priv/testnet-db | awk '{print $1}')
-mnsizedb=$(du -s $CNODE_HOME/priv/mainnet-db | awk '{print $1}')
+tnsizedb=$(du -s $CNODE_HOME/priv/testnet-db 2>/dev/null | awk '{print $1}')
+mnsizedb=$(du -s $CNODE_HOME/priv/mainnet-db 2>/dev/null | awk '{print $1}')
 
 if [[ $dbsize < $mnsizedb ]] && [[ $NETWORK == "mainnet" ]]; then
-cp -rf $CNODE_HOME/priv/mainnet-db ${CNODE_HOME}/db 2>/dev/null
+cp -rf $CNODE_HOME/priv/mainnet-db/* ${CNODE_HOME}/db 2>/dev/null
 fi
 
 if [[ $dbsize < $tnsizedb ]] && [[ $NETWORK == "testnet" ]] ; then
-cp -rf $CNODE_HOME/priv/testnet-db ${CNODE_HOME}/db \ 2>/dev/null
-fi
-
-if [[ "${POOL_NAME}" ]] ; then 
-export POOL_DIR="$CNODE_HOME/priv/pool/$POOL_NAME"
-echo "POOL_DIR set to: $POOL_DIR" ;
+cp -rf $CNODE_HOME/fpriv/testnet-db/* ${CNODE_HOME}/db 2>/dev/null
 fi
 
 # EKG Exposed
