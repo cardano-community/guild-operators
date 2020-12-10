@@ -17,15 +17,12 @@ jobs:
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}  
       run: |
         docker login -u $DOCKER_USER -p $DOCKER_PASSWORD
-    - name: dockerfile Stage2 Download
-      run: |
-        curl -sLo Dockerstage2 https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_srage2;
     - name: Compiling new node software
       run: |      
-        docker build . --file Dockerstage2 --compress --tag cardanocommunity/cardano-node:stage2
-    - name: docker push
+        docker build . --file files/docker/node/dockerfile_stage2 --compress --tag cardanocommunity/cardano-node:stage2
+    - name: docker push stage2
       run: |
         docker push cardanocommunity/cardano-node:stage2
-    - name: docker push
+    - name: docker dispatch
       run: |
         curl -XPOST -u "${{ secrets.REPO_SCOPED_USER}}:${{secrets.REPO_SCOPED_TOKEN }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" https://api.github.com/repos/cardano-community/guild-operators/actions/workflows/docker-stage3.yml/dispatches --data '{"ref": "master"}'

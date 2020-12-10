@@ -18,7 +18,7 @@ jobs:
         docker login -u $DOCKER_USER -p $DOCKER_PASSWORD
     - name: Compiling new node software
       run: |      
-        docker build . --compress --tag cardanocommunity/cardano-node:stage1
+        docker build . --file files/docker/node/dockerfile_stage1 --compress --tag cardanocommunity/cardano-node:stage1
     - name: docker push
       run: |
         docker push cardanocommunity/cardano-node:stage1
