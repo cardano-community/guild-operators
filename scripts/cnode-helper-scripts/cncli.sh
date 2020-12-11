@@ -202,20 +202,6 @@ getSlotTipRef() {
 #################################
 
 cncliInit() {
-  [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
-  CNCLI_DB="${CNCLI_DIR}/cncli.db"
-  [[ -z "${SLEEP_RATE}" ]] && SLEEP_RATE=60
-  [[ -z "${CONFIRM_SLOT_CNT}" ]] && CONFIRM_SLOT_CNT=600
-  [[ -z "${CONFIRM_BLOCK_CNT}" ]] && CONFIRM_BLOCK_CNT=15
-  [[ -z "${TIMEOUT_LEDGER_STATE}" ]] && TIMEOUT_LEDGER_STATE=300
-  [[ -z "${PT_HOST}" ]] && PT_HOST="127.0.0.1"
-  [[ -z "${PT_PORT}" ]] && PT_PORT="${CNODE_PORT}"
-  [[ -z "${PT_API_KEY}" ]] && PT_API_KEY=""
-  [[ -z "${POOL_TICKER}" ]] && POOL_TICKER=""
-  { [[ -z "${POOL_ID}" && -n "${POOL_DIR}" ]]; } && POOL_ID=$(cat "${POOL_DIR}/${POOL_ID_FILENAME}") || POOL_ID=""
-  { [[ -z "${POOL_VRF_SKEY}" && -n "${POOL_DIR}" ]]; } && POOL_VRF_SKEY="${POOL_DIR}/${POOL_VRF_SK_FILENAME}" || POOL_VRF_SKEY=""
-  { [[ -z "${POOL_VRF_VKEY}" && -n "${POOL_DIR}" ]]; } && POOL_VRF_VKEY="${POOL_DIR}/${POOL_VRF_VK_FILENAME}" || POOL_VRF_VKEY=""
-
   [[ -z "${BATCH_AUTO_UPDATE}" ]] && BATCH_AUTO_UPDATE=N
   
   if ! command -v sqlite3 >/dev/null; then echo "ERROR: sqlite3 not found, please install before activating blocklog function" && exit 1; fi
@@ -269,6 +255,20 @@ cncliInit() {
   [[ ! -f "${CNCLI}" ]] && echo "ERROR: failed to locate cncli executable, please update and run 'prereqs.sh -h' to show options" && exit 1
   CNCLI_VERSION="$(cncli -V | cut -d' ' -f2)"
   if ! versionCheck "0.4.1" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, please upgrade to v0.4.1 or newer!"; exit 1; fi
+  
+  [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
+  CNCLI_DB="${CNCLI_DIR}/cncli.db"
+  [[ -z "${SLEEP_RATE}" ]] && SLEEP_RATE=60
+  [[ -z "${CONFIRM_SLOT_CNT}" ]] && CONFIRM_SLOT_CNT=600
+  [[ -z "${CONFIRM_BLOCK_CNT}" ]] && CONFIRM_BLOCK_CNT=15
+  [[ -z "${TIMEOUT_LEDGER_STATE}" ]] && TIMEOUT_LEDGER_STATE=300
+  [[ -z "${PT_HOST}" ]] && PT_HOST="127.0.0.1"
+  [[ -z "${PT_PORT}" ]] && PT_PORT="${CNODE_PORT}"
+  if [[ -d "${POOL_DIR}" ]]; then
+    [[ -z "${POOL_ID}" && -f "${POOL_DIR}/${POOL_ID_FILENAME}" ]] && POOL_ID=$(cat "${POOL_DIR}/${POOL_ID_FILENAME}")
+    [[ -z "${POOL_VRF_SKEY}" ]] && POOL_VRF_SKEY="${POOL_DIR}/${POOL_VRF_SK_FILENAME}"
+    [[ -z "${POOL_VRF_VKEY}" ]] && POOL_VRF_VKEY="${POOL_DIR}/${POOL_VRF_VK_FILENAME}"
+  fi
 
   return 0
 }
