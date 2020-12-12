@@ -502,11 +502,11 @@ validateBlock() {
         else # our block marked as orphaned :(
           if [[ ${slot_ok_cnt} -eq 0 ]]; then # no other pool has a valid slot for this epoch either
             echo "GHOSTED: Leader for slot '${block_slot}' and block adopted but later orphaned. No other pool with a confirmed block for this slot, height battle or block propagation issue!"
-            sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'ghosted' WHERE slot = ${block_slot};"
+            sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'ghosted', slot_in_epoch = $(getSlotInEpochFromSlot ${block_slot} ${block_epoch}), block = ${block_data[0]}, at = '$(getDateFromSlot ${block_slot})', hash = '${block_data[1]}', size = ${block_data[2]} WHERE slot = ${block_slot};"
             return
           else # another pool has a valid block for this slot in cncli db
             echo "STOLEN: Leader for slot '${block_slot}' but \"stolen\" by another pool due to bad luck (lower VRF output) :("
-            sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'stolen' WHERE slot = ${block_slot};"
+            sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'stolen', slot_in_epoch = $(getSlotInEpochFromSlot ${block_slot} ${block_epoch}), block = ${block_data[0]}, at = '$(getDateFromSlot ${block_slot})', hash = '${block_data[1]}', size = ${block_data[2]} WHERE slot = ${block_slot};"
             return
           fi
         fi
