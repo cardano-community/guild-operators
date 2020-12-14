@@ -796,7 +796,8 @@ validateDecimalNbr() {
 formatLovelace() {
   re_int_nbr='^[0-9]+$'
   if [[ $1 =~ ${re_int_nbr} ]]; then
-    printf "%'.6f" ${1}e-6
+    [[ $1 -le 999999 ]] && printf $1 && return
+    printf '%s.%s' "$(sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< ${1::-6})" "${1: -6}"
   else
     say "${FG_RED}ERROR${NC}: must be a valid integer number"
     return 1
