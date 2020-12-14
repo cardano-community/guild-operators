@@ -212,15 +212,15 @@ EOF
 fileDialog() {
   dialogSetup
   local firstrow=$(get_cursor_row)
-  [[ -n $3 ]] && start_path="$3/" || start_path="/tmp/"
+  [[ -n $3 ]] && start_path="$3" || start_path="/tmp/"
   if [[ $1 -eq 1 ]]; then
     say "\nFile Explorer:"
     say "  Tab        -  Select area to navigate"
     say "  Arrow keys -  Move up/down"
     say "  Space      -  Append the currently-selected item into the work-area"
     say "  Enter      -  OK and exit by default if not Cancel is selected"
+    waitForInput "Press any key to open the file explorer"
   fi
-  waitForInput "Press any key to open the file explorer"
   file=$(dialog --stdout --clear --keep-tite --title "$2" --fselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)))
   cursor_to ${firstrow}
   tput ed
@@ -237,8 +237,8 @@ dirDialog() {
     say "  Arrow keys -  Move up/down"
     say "  Space      -  Append the currently-selected item into the work-area"
     say "  Enter      -  OK and exit by default if not Cancel is selected"
+    waitForInput "Press any key to open the directory explorer"
   fi
-  waitForInput "Press any key to open the directory explorer"
   dir=$(dialog --stdout --clear --keep-tite --title "$2" --dselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)))
   cursor_to ${firstrow}
   tput ed
@@ -391,16 +391,17 @@ function getDirs {
   return 0
 }
 
-# Command    : selectDir [dir1 dir2 ...]
+# Command    : selectDir [type] [dir1 dir2 ...]
 # Description: A helper function to selectOption() specifically for directory selection
-# Parameters : array of dirs    >   array of dirs to include in selection, '[Esc] Cancel' option added to all selections
+# Parameters : type             >   'wallet' or 'pool' 
+#            : array of dirs    >   array of dirs to include in selection, '[Esc] Cancel' option added to all selections
 # Return     : populates ${dir_name} variable,
 # Examples of Usage:
 #   >> selectDir Wallet1 Wallet2 Wallet3
 #
 function selectDir {
   local type=$1 && shift
-  dirs=("$@")
+  dirs=( "$@" )
   dirs+=("[Esc] Cancel")
   selectOption "${dirs[@]}" 1>&2
   dir_name=${dirs[$?]}
@@ -1502,7 +1503,7 @@ registerPool() {
   getBalance ${base_addr}
   shift 4
   multi_owner_count=$#
-  multi_owner_keys=$@
+  multi_owner_keys=( "$@" )
 
   if [[ ! -s "${TMP_FOLDER}"/balance.out ]]; then
     say "${FG_RED}ERROR${NC}: wallet empty"
@@ -1640,7 +1641,7 @@ modifyPool() {
   getBalance ${base_addr}
   shift 3
   multi_owner_count=$#
-  multi_owner_keys=$@
+  multi_owner_keys=( "$@" )
   
   if [[ ! -s "${TMP_FOLDER}"/balance.out ]]; then
     say "${FG_RED}ERROR${NC}: wallet empty"
@@ -2102,12 +2103,10 @@ signTx() {
   parent_dir="$(dirname "${tx_raw}")"
   tx_signed="${parent_dir}/tx.signed_$(date +%s)"
   shift
-  skey_count=0
   tx_sign_keys=()
   for skey in "$@"; do
     if [[ -f "${skey}" ]]; then
       tx_sign_keys+=( --signing-key-file ${skey} )
-      ((skey_count++))
     fi
   done
   
