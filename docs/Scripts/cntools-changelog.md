@@ -11,6 +11,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Array expansion not correctly handled for multi-owner signing keys
 - Output and file explorer workflow redesigned a bit for a better flow
 - formatLovelace() thousand separator fix after forcing locale to C.UTF-8 in env
+- formatAda() function added to pretty print pledge and cost w/o Lovelace
 
 ## [6.3.0] - 2020-12-03
 

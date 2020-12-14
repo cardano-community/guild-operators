@@ -1519,7 +1519,7 @@ EOF
 
     pledge_ada=50000 # default pledge
     [[ -f "${pool_config}" ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
-    read -r -p "Pledge (in ADA, default: ${pledge_ada}): " pledge_enter
+    read -r -p "Pledge (in ADA, default: $(formatAda ${pledge_ada})): " pledge_enter
     pledge_enter="${pledge_enter//,}"
     if [[ -n "${pledge_enter}" ]]; then
       if ! ADAtoLovelace "${pledge_enter}" >/dev/null; then
@@ -1550,7 +1550,7 @@ EOF
       cost_ada_saved=$(jq -r '.costADA //0' "${pool_config}")
       [[ ${cost_ada_saved} -gt ${minPoolCost} ]] && cost_ada=${cost_ada_saved}
     fi
-    read -r -p "Cost (in ADA, minimum: ${minPoolCost}, default: ${cost_ada}): " cost_enter
+    read -r -p "Cost (in ADA, minimum: ${minPoolCost}, default: $(formatAda ${cost_ada})): " cost_enter
     cost_enter="${cost_enter//,}"
     if [[ -n "${cost_enter}" ]]; then
       if ! ADAtoLovelace "${cost_enter}" >/dev/null; then
@@ -1972,9 +1972,9 @@ EOF
     say "Owner  : ${FG_GREEN}${owner_wallet}${NC}" "log"
     [[ ${multi_owner_count} -gt 0 ]] && say "         ${FG_BLUE}${multi_owner_count}${NC} extra owner(s) using stake keys" "log"
     say "Reward : ${FG_GREEN}${reward_wallet}${NC}" "log"
-    say "Pledge : $(formatLovelace ${pledge_lovelace}) ADA" "log"
+    say "Pledge : $(formatAda ${pledge_ada}) ADA" "log"
     say "Margin : ${margin}%" "log"
-    say "Cost   : $(formatLovelace ${cost_lovelace}) ADA" "log"
+    say "Cost   : $(formatAda ${cost_ada}) ADA" "log"
     echo
     say "Uncomment and set value for POOL_NAME in $CNODE_HOME/scripts/env with '${pool_name}'" "log"
     if [[ ${op_mode} = "online" && ${lovelace} -lt ${pledge_lovelace} ]]; then
@@ -2029,7 +2029,7 @@ EOF
     say "press enter to use old value\n"
 
     [[ -f ${pool_config} ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}") || pledge_ada=0
-    read -r -p "New Pledge (in ADA, old: ${pledge_ada}): " pledge_enter
+    read -r -p "New Pledge (in ADA, old: $(formatAda ${pledge_ada})): " pledge_enter
     pledge_enter="${pledge_enter//,}"
     if [[ -n "${pledge_enter}" ]]; then
       if ! ADAtoLovelace "${pledge_enter}" >/dev/null; then
@@ -2055,7 +2055,7 @@ EOF
 
     minPoolCost=$(( $(jq -r '.minPoolCost //0' "${TMP_FOLDER}"/protparams.json) / 1000000 )) # convert to ADA
     [[ -f ${pool_config} ]] && cost_ada=$(jq -r '.costADA //0' "${pool_config}") || cost_ada=0
-    read -r -p "New Cost (in ADA, minimum: ${minPoolCost}, old: ${cost_ada}): " cost_enter
+    read -r -p "New Cost (in ADA, minimum: ${minPoolCost}, old: $(formatAda ${cost_ada})): " cost_enter
     cost_enter="${cost_enter//,}"
     if [[ -n "${cost_enter}" ]]; then
       if ! ADAtoLovelace "${cost_enter}" >/dev/null; then
@@ -2439,9 +2439,9 @@ EOF
     say "Owner  : ${FG_GREEN}${owner_wallet}${NC}" "log"
     [[ ${multi_owner_count} -gt 0 ]] && say "         ${FG_BLUE}${multi_owner_count}${NC} extra owner(s) using stake keys" "log"
     say "Reward : ${FG_GREEN}${reward_wallet}${NC}" "log"
-    say "Pledge : $(formatLovelace ${pledge_lovelace}) ADA" "log"
+    say "Pledge : $(formatAda ${pledge_ada}) ADA" "log"
     say "Margin : ${margin}%" "log"
-    say "Cost   : $(formatLovelace ${cost_lovelace}) ADA" "log"
+    say "Cost   : $(formatAda ${cost_ada}) ADA" "log"
     if [[ ${op_mode} = "online" && ${lovelace} -lt ${pledge_lovelace} ]]; then
       echo
       say "${FG_YELLOW}WARN${NC}: Balance in pledge wallet is less than set pool pledge"
@@ -2658,19 +2658,21 @@ EOF
       tput rc && tput ed
     fi
 
-    echo
     getPoolID ${pool_name}
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
       [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}" ]] && pool_registered="YES" || pool_registered="NO"
       [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}" ]] && ledger_retiring="?" || ledger_retiring=""
     else
+      tput sc && say "Parsing ledger-state, can take a while on larger networks...\n"
       ledger_pstate=$(jq -r '.nesEs.esLState._delegationState._pstate' "${TMP_FOLDER}"/ledger-state.json)
       ledger_pParams=$(jq -r '._pParams."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
       ledger_fPParams=$(jq -r '._fPParams."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
       ledger_retiring=$(jq -r '._retiring."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
       [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
       [[ -n "${ledger_pParams}" ]] && pool_registered="YES" || pool_registered="NO"
+      tput rc && tput ed
     fi
+    echo
     say "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Pool" "${pool_name}")" "log"
     say "$(printf "%-21s : %s" "ID (hex)" "${pool_id}")" "log"
     [[ -n ${pool_id_bech32} ]] && say "$(printf "%-21s : %s" "ID (bech32)" "${pool_id_bech32}")" "log"
@@ -2729,9 +2731,9 @@ EOF
           conf_cost=$(( $(jq -r '.costADA //0' "${pool_config}") * 1000000 ))
           conf_owner=$(jq -r '.pledgeWallet //"unknown"' "${pool_config}")
           conf_reward=$(jq -r '.rewardWallet //"unknown"' "${pool_config}")
-          say "$(printf "%-21s : %s ADA" "Pledge" "$(formatLovelace "${conf_pledge}")")" "log"
+          say "$(printf "%-21s : %s ADA" "Pledge" "$(formatAda "${conf_pledge::-6}")")" "log"
           say "$(printf "%-21s : %s %%" "Margin" "${conf_margin}")" "log"
-          say "$(printf "%-21s : %s ADA" "Cost" "$(formatLovelace "${conf_cost}")")" "log"
+          say "$(printf "%-21s : %s ADA" "Cost" "$(formatAda "${conf_cost::-6}")")" "log"
           say "$(printf "%-21s : %s (%s)" "Owner Wallet" "${FG_GREEN}${conf_owner}${NC}" "primary only, use online mode for multi-owner")" "log"
           say "$(printf "%-21s : %s" "Reward Wallet" "${FG_GREEN}${conf_reward}${NC}")" "log"
           relay_title="Relay(s)"
@@ -2748,9 +2750,9 @@ EOF
         pParams_pledge=$(jq -r '.pledge //0' <<< "${ledger_pParams}")
         fPParams_pledge=$(jq -r '.pledge //0' <<< "${ledger_fPParams}")
         if [[ ${pParams_pledge} -eq ${fPParams_pledge} ]]; then
-          say "$(printf "%-21s : %s ADA" "Pledge" "$(formatLovelace "${pParams_pledge}")")" "log"
+          say "$(printf "%-21s : %s ADA" "Pledge" "$(formatAda "${pParams_pledge::-6}")")" "log"
         else
-          say "$(printf "%-15s (${FG_YELLOW}%s${NC}) : %s ADA" "Pledge" "new" "$(formatLovelace "${fPParams_pledge}")" )" "log"
+          say "$(printf "%-15s (${FG_YELLOW}%s${NC}) : %s ADA" "Pledge" "new" "$(formatAda "${fPParams_pledge::-6}")" )" "log"
         fi
         pParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_pParams}")")
         fPParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_fPParams}")")
@@ -2762,9 +2764,9 @@ EOF
         pParams_cost=$(jq -r '.cost //0' <<< "${ledger_pParams}")
         fPParams_cost=$(jq -r '.cost //0' <<< "${ledger_fPParams}")
         if [[ ${pParams_cost} -eq ${fPParams_cost} ]]; then
-          say "$(printf "%-21s : %s ADA" "Cost" "$(formatLovelace "${pParams_cost}")")" "log"
+          say "$(printf "%-21s : %s ADA" "Cost" "$(formatAda "${pParams_cost::-6}")")" "log"
         else
-          say "$(printf "%-15s (${FG_YELLOW}%s${NC}) : %s ADA" "Cost" "new" "$(formatLovelace "${fPParams_cost}")" )" "log"
+          say "$(printf "%-15s (${FG_YELLOW}%s${NC}) : %s ADA" "Cost" "new" "$(formatAda "${fPParams_cost::-6}")" )" "log"
         fi
         if [[ ! $(jq -c '.relays[] //empty' <<< "${ledger_pParams}") = $(jq -c '.relays[] //empty' <<< "${ledger_fPParams}") ]]; then
           say "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Relay(s) updated, showing latest registered")" "log"
