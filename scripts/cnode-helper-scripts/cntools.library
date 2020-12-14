@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=6
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=3
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=0
+CNTOOLS_PATCH_VERSION=1
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -790,13 +790,27 @@ validateDecimalNbr() {
 }
 
 # Command    : formatLovelace
-# Description: Pretty print Lovelace value using locales
+# Description: Pretty print Lovelace value
 # Parameters : Lovelace  >  Amount in Lovelace
-# Return     : Formatted string (warning: the string can contain unicode characters in some locales)
+# Return     : Formatted string
 formatLovelace() {
   re_int_nbr='^[0-9]+$'
   if [[ $1 =~ ${re_int_nbr} ]]; then
-    printf "%'.6f" ${1}e-6
+    [[ $1 -le 999999 ]] && printf $1 && return
+    printf '%s.%s' "$(sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< ${1::-6})" "${1: -6}"
+  else
+    say "${FG_RED}ERROR${NC}: must be a valid integer number"
+    return 1
+  fi
+}
+# Command    : formatAda
+# Description: Pretty print Ada value
+# Parameters : Ada  >  Amount in Ada
+# Return     : Formatted string
+formatAda() {
+  re_int_nbr='^[0-9]+$'
+  if [[ $1 =~ ${re_int_nbr} ]]; then
+    sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< $1
   else
     say "${FG_RED}ERROR${NC}: must be a valid integer number"
     return 1
