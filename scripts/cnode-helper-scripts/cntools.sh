@@ -1812,6 +1812,7 @@ EOF
          ;;
       2) continue ;;
     esac
+    echo
 
     multi_owner_output=""
     multi_owner_skeys=()
@@ -1819,18 +1820,21 @@ EOF
     select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
     case $? in
       0) : ;;
-      1) while true; do
-           say "Enter path to stake ${FG_CYAN}vkey${NC} file:"
-           fileDialog 0 "Enter path to stake vkey file" "${WALLET_FOLDER}"
-           say "${file}"
+      1) say "Enter path to ${FG_CYAN}${WALLET_STAKE_VK_FILENAME}${NC} & ${FG_CYAN}${WALLET_STAKE_SK_FILENAME}${NC} files in this order!"
+         waitForInput "Press any key to open the file explorer"
+         owner_count=1
+         while true; do
+           ((owner_count++))
+           fileDialog 0 "Enter path to ${WALLET_STAKE_VK_FILENAME} file" "${WALLET_FOLDER}/"
+           say "Owner #${owner_count} : vkey = ${file}"
            stake_vk_file_enter=${file}
            if [[ ${op_mode} = "online" ]]; then
-             say "Enter path to stake ${FG_CYAN}skey${NC} file:"
-             fileDialog 0 "Enter path to stake skey file" "${stake_vk_file_enter%/*}"
-             say "${file}"
+             fileDialog 0 "Enter path to stake skey file" "${stake_vk_file_enter%/*}/${WALLET_STAKE_SK_FILENAME}"
+             say "Owner #${owner_count} : skey = ${file}"
              stake_sk_file_enter=${file}
              if [[ ! -f "${stake_vk_file_enter}" || ! -f "${stake_sk_file_enter}" ]]; then
                say "${FG_RED}ERROR${NC}: One or both files not found, please try again"
+               ((owner_count--))
              else
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
                multi_owner_skeys+=( "${stake_sk_file_enter}" )
@@ -1838,6 +1842,7 @@ EOF
            else
              if [[ ! -f "${stake_vk_file_enter}" ]]; then
                say "${FG_RED}ERROR${NC}: file not found, please try again"
+               ((owner_count--))
              else
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
              fi
@@ -1879,8 +1884,7 @@ EOF
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
     pool_deregcert_file="${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}"
 
-    echo
-    say "# Register Stake Pool" "log"
+    say "\n# Register Stake Pool" 1 "log"
 
     if [[ ${op_mode} = "online" ]]; then
       getCurrentKESperiod
@@ -2318,6 +2322,7 @@ EOF
          ;;
       2) continue ;;
     esac
+    echo
 
     multi_owner_output=""
     multi_owner_skeys=()
@@ -2325,18 +2330,21 @@ EOF
     select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
     case $? in
       0) : ;;
-      1) while true; do
-           say "Enter path to stake ${FG_CYAN}vkey${NC} file:"
-           fileDialog 0 "Enter path to stake vkey file" "${WALLET_FOLDER}"
-           say "${file}"
+      1) say "Enter path to ${FG_CYAN}${WALLET_STAKE_VK_FILENAME}${NC} & ${FG_CYAN}${WALLET_STAKE_SK_FILENAME}${NC} files in this order!"
+         waitForInput "Press any key to open the file explorer"
+         owner_count=1
+         while true; do
+           ((owner_count++))
+           fileDialog 0 "Enter path to ${WALLET_STAKE_VK_FILENAME} file" "${WALLET_FOLDER}/"
+           say "Owner #${owner_count} : vkey = ${file}"
            stake_vk_file_enter=${file}
            if [[ ${op_mode} = "online" ]]; then
-             say "Enter path to stake ${FG_CYAN}skey${NC} file:"
-             fileDialog 0 "Enter path to stake skey file" "${stake_vk_file_enter%/*}"
-             say "${file}"
+             fileDialog 0 "Enter path to stake skey file" "${stake_vk_file_enter%/*}/${WALLET_STAKE_SK_FILENAME}"
+             say "Owner #${owner_count} : skey = ${file}"
              stake_sk_file_enter=${file}
              if [[ ! -f "${stake_vk_file_enter}" || ! -f "${stake_sk_file_enter}" ]]; then
                say "${FG_RED}ERROR${NC}: One or both files not found, please try again"
+               ((owner_count--))
              else
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
                multi_owner_skeys+=( "${stake_sk_file_enter}" )
@@ -2344,6 +2352,7 @@ EOF
            else
              if [[ ! -f "${stake_vk_file_enter}" ]]; then
                say "${FG_RED}ERROR${NC}: file not found, please try again"
+               ((owner_count--))
              else
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
              fi
@@ -2381,8 +2390,7 @@ EOF
     # Make a backup of current reg cert
     cp -f "${pool_regcert_file}" "${pool_regcert_file}.tmp"
 
-    echo
-    say "# Modify Stake Pool" "log"
+    say "\n# Modify Stake Pool" 1 "log"
     
     say "creating registration certificate" 1 "log"
     say "$ ${CCLI} stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${reward_stake_vk_file} --pool-owner-stake-verification-key-file ${owner_stake_vk_file} ${multi_owner_output} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output} ${NETWORK_IDENTIFIER} --out-file ${pool_regcert_file}" 2
@@ -2991,7 +2999,8 @@ EOF
   say " >> SIGN TX" "log"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   echo
-  say "Enter path for Tx file to sign:"
+  say "Enter path for Tx file to sign"
+  waitForInput "Press any key to open the file explorer"
   fileDialog 0 "Enter path for Tx file to sign"
   say "${FG_CYAN}${file}${NC}\n" "log"
   tx_raw=${file}
@@ -3003,18 +3012,19 @@ EOF
   
   say "# Sign the transaction with all keys needed"
   ofl_sign_keys=()
+  say "\nEnter path to signing key files"
+  waitForInput "Press any key to open the file explorer"
   while true; do
-    fileDialog 0 "Enter path to signing key file" "${WALLET_FOLDER}"
+    fileDialog 0 "Enter path to signing key file" "${WALLET_FOLDER}/"
     if [[ -z "${file}" ]]; then
       say "${FG_YELLOW}EMPTY${NC}: no file selected, how do you want to proceed?"
-      : # do nothing
     elif [[ ! -f "${file}" ]]; then
       say "${FG_RED}ERROR${NC}: file not found, please try again! [${file}]"
     else
       ofl_sign_keys+=( "${file}" )
       say "${FG_GREEN}${file}${NC} added!" "log"
     fi
-    say "\nAdd more keys?"
+    say "Add more keys?"
     select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
     case $? in
       0) echo && break ;;
@@ -3044,9 +3054,11 @@ EOF
     waitForInput && continue
   fi
   echo
-  say "Please enter signed Tx file to submit:"
+  say "Please enter signed Tx file to submit"
+  waitForInput "Press any key to open the file explorer"
   fileDialog 0 "Please enter signed Tx file to submit"
-  say "${FG_CYAN}${file}${NC}\n" "log"
+  say "${FG_CYAN}${file}${NC}" "log"
+  echo
   [[ -z "${file}" ]] && continue
   if [[ ! -f "${file}" ]]; then
     say "${FG_RED}ERROR${NC}: file not found: ${file}"
@@ -3504,7 +3516,8 @@ EOF
   say "Backup or Restore?"
   select_opt "[b] Backup" "[r] Restore" "[Esc] Cancel"
   case $? in
-    0) say "\nSelect backup directory(created if non existent):"
+    0) say "\nSelect backup directory(created if non existent)"
+       waitForInput "Press any key to open the file explorer"
        dirDialog 0 "Select backup directory"
        [[ "${dir}" != */ ]] && backup_path="${dir}/" || backup_path="${dir}"
        say "${FG_GREEN}${backup_path}${NC}\n"
@@ -3616,7 +3629,8 @@ EOF
     1) say "\nBackups created contain absolute path to files and directories"
        say "Restoring a backup does not replace existing files"
        say "Please restore to a temporary directory and copy files to restore to appropriate folders\n"
-       say "Select file to restore:"
+       say "Select file to restore"
+       waitForInput "Press any key to open the file explorer"
        fileDialog 0 "Select backup file to restore"
        backup_file=${file}
        if [[ ! -f "${backup_file}" ]]; then
@@ -3624,7 +3638,8 @@ EOF
          waitForInput && continue
        fi
        say "${FG_GREEN}${backup_file}${NC}\n"
-       say "Select/enter restore directory(created if non existent):"
+       say "Select/enter restore directory(created if non existent)"
+       waitForInput "Press any key to open the file explorer"
        dirDialog 0 "Select restore directory"
        [[ "${dir}" != */ ]] && restore_path="${dir}/" || restore_path="${dir}"
        if [[ ! "${restore_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
