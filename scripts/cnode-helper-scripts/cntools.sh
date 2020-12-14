@@ -2867,7 +2867,7 @@ EOF
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
       say "Copy updated files to pool node replacing existing files:" "log"
       say "${pool_hotkey_sk_file}" "log"
-      say "${pool_opcert_counter_file}" "log"
+      say "${pool_opcert_file}" "log"
       echo
     fi
     say "Restart your pool node for changes to take effect"
