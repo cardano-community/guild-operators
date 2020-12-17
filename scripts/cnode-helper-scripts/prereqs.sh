@@ -112,9 +112,7 @@ dirs -c # clear dir stack
 CNODE_PATH="/opt/cardano"
 CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
 CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
-if [[ -z "${BRANCH}" ]]; then
-  [[ -f "${CNODE_HOME}"/scripts/.env_branch ]] && BRANCH="$(cat ${CNODE_HOME}/scripts/.env_branch)" || BRANCH="master"
-fi
+[[ -z "${BRANCH}" ]] && BRANCH="master"
 
 REPO="https://github.com/cardano-community/guild-operators"
 REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
@@ -325,11 +323,6 @@ if [[ ${NETWORK} = "testnet" ]]; then
   curl -sL -m ${CURL_TIMEOUT} -o genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json
   curl -sL -m ${CURL_TIMEOUT} -o topology.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-topology.json
   curl -s -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-combinator.json
-elif [[ ${NETWORK} = "allegra" ]]; then
-  curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/allegra-byron-genesis.json
-  curl -sL -m ${CURL_TIMEOUT} -o genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/allegra-shelley-genesis.json
-  curl -sL -m ${CURL_TIMEOUT} -o topology.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/allegra-topology.json
-  curl -s -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-allegra.json
 elif [[ ${NETWORK} = "launchpad" ]]; then
   curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/launchpad-byron-genesis.json
   curl -sL -m ${CURL_TIMEOUT} -o genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/launchpad-shelley-genesis.json
