@@ -8,11 +8,8 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: docker login
-      env:
-        DOCKER_USER: ${{ secrets.DOCKER_USER }}   
-        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}  
       run: |
-        docker login -u $DOCKER_USER -p $DOCKER_PASSWORD
+        docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_PASSWORD }}
     - name: Compiling new node software
       run: |      
         docker build . --file files/docker/node/dockerfile_stage3 --compress --tag cardanocommunity/cardano-node:stage3
