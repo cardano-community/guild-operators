@@ -27,7 +27,9 @@ cp -rf $CNODE_HOME/priv/$NETWORK-db/* ${CNODE_HOME}/db 2>/dev/null
 fi
 
 # EKG Exposed
-#socat -d tcp-listen:12782,reuseaddr,fork tcp:127.0.0.1:12781 
+if [[ "$EKG" == "Y" ]]; then
+socat -d tcp-listen:12782,reuseaddr,fork tcp:127.0.0.1:12781 
+fi
 
 if [[ "$NETWORK" == "mainnet" ]]; then
   export TOPOLOGY="$CNODE_HOME/priv/files/mainnet-topology.json" \
