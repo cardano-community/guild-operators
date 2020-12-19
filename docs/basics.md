@@ -22,7 +22,7 @@ chmod 755 prereqs.sh
 Please familiarise with the syntax of prereqs.sh before proceeding. The usage syntax can be checked using `./prereqs.sh -h` , sample output below:
 
 ```
-Usage: prereqs.sh [-f] [-s] [-i] [-l] [-b <branch>] [-n <testnet|guild>] [-t <name>] [-m <seconds>]
+Usage: prereqs.sh [-f] [-s] [-i] [-l] [-b <branch>] [-n <testnet|guild|launchpad>] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano node and using CNTools
 
 -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh

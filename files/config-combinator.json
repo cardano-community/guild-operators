@@ -11,7 +11,7 @@
   "RequiresNetworkMagic": "RequiresMagic",
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/genesis.json",
   "ShelleyGenesisHash": "849a1764f152e1b09c89c0dfdbcbdd38d711d1fec2db5dfa0f87cf2737a0eaf4",
-  "bfcMaxConcurrencyDeadline": 2,
+  "MaxConcurrencyDeadline": 2,
   "TraceBlockFetchClient": true,
   "TraceBlockFetchDecisions": true,
   "TraceBlockFetchProtocol": true,

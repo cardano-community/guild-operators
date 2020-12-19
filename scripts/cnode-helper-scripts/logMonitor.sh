@@ -39,20 +39,20 @@ while read -r logentry; do
   case "${logentry}" in
     *TraceNodeIsLeader* )
       if ! at="$(jq -er '.at' <<< ${logentry})"; then echo "ERROR[TraceNodeIsLeader]: invalid json schema, '.at' not found" && continue; else at="$(sed 's/\.[0-9]\{2\}Z/+00:00/' <<< ${at})"; fi
-      if ! slot="$(jq -er '.data.slot' <<< ${logentry})"; then echo "ERROR[TraceNodeIsLeader]: invalid json schema, '.data.slot' not found" && continue; fi
+      if ! slot="$(jq -er '.data.val.slot' <<< ${logentry})"; then echo "ERROR[TraceNodeIsLeader]: invalid json schema, '.data.val.slot' not found" && continue; fi
       if ! epoch=$(getEpoch); then echo "ERROR[TraceNodeIsLeader]: failed to grab current epoch number from EKG metrics" && continue; fi
       echo "LEADER: epoch[${epoch}] slot[${slot}] at[${at}]"
       sqlite3 "${BLOCKLOG_DB}" "INSERT OR IGNORE INTO blocklog (slot,at,epoch,status) values (${slot},'${at}',${epoch},'leader');"
       ;;
     *TraceAdoptedBlock* )
-      if ! slot="$(jq -er '.data.slot' <<< ${logentry})"; then echo "ERROR[TraceAdoptedBlock]: invalid json schema, '.data.slot' not found" && continue; fi
-      if ! hash="$(jq -er '.data.blockHash' <<< ${logentry})"; then echo "ERROR[TraceAdoptedBlock]: invalid json schema, '.data.blockHash' not found" && continue; fi
-      if ! size="$(jq -er '.data.blockSize' <<< ${logentry})"; then echo "ERROR[TraceAdoptedBlock]: invalid json schema, '.data.blockSize' not found" && continue; fi
+      if ! slot="$(jq -er '.data.val.slot' <<< ${logentry})"; then echo "ERROR[TraceAdoptedBlock]: invalid json schema, '.data.val.slot' not found" && continue; fi
+      if ! hash="$(jq -er '.data.val.blockHash' <<< ${logentry})"; then echo "ERROR[TraceAdoptedBlock]: invalid json schema, '.data.val.blockHash' not found" && continue; fi
+      if ! size="$(jq -er '.data.val.blockSize' <<< ${logentry})"; then echo "ERROR[TraceAdoptedBlock]: invalid json schema, '.data.val.blockSize' not found" && continue; fi
       echo "ADOPTED: slot[${slot}] size=${size} hash=${hash}"
       sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'adopted', size = ${size}, hash = '${hash}' WHERE slot = ${slot};"
       ;;
     *TraceForgedInvalidBlock* )
-      if ! slot="$(jq -er '.data.slot' <<< ${logentry})"; then echo "ERROR[TraceForgedInvalidBlock]: invalid json schema, '.data.slot' not found" && continue; fi
+      if ! slot="$(jq -er '.data.val.slot' <<< ${logentry})"; then echo "ERROR[TraceForgedInvalidBlock]: invalid json schema, '.data.val.slot' not found" && continue; fi
       json_trace="$(jq -c -r '. | @base64' <<< ${logentry})"
       echo "INVALID: slot[${slot}] - base 64 encoded json trace, run this command to decode:"
       echo "echo ${json_trace} | base64 -d | jq -r"

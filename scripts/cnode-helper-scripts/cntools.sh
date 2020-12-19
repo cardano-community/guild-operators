@@ -1519,7 +1519,7 @@ EOF
 
     pledge_ada=50000 # default pledge
     [[ -f "${pool_config}" ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
-    read -r -p "Pledge (in ADA, default: ${pledge_ada}): " pledge_enter
+    read -r -p "Pledge (in ADA, default: $(formatAda ${pledge_ada})): " pledge_enter
     pledge_enter="${pledge_enter//,}"
     if [[ -n "${pledge_enter}" ]]; then
       if ! ADAtoLovelace "${pledge_enter}" >/dev/null; then
@@ -1550,7 +1550,7 @@ EOF
       cost_ada_saved=$(jq -r '.costADA //0' "${pool_config}")
       [[ ${cost_ada_saved} -gt ${minPoolCost} ]] && cost_ada=${cost_ada_saved}
     fi
-    read -r -p "Cost (in ADA, minimum: ${minPoolCost}, default: ${cost_ada}): " cost_enter
+    read -r -p "Cost (in ADA, minimum: ${minPoolCost}, default: $(formatAda ${cost_ada})): " cost_enter
     cost_enter="${cost_enter//,}"
     if [[ -n "${cost_enter}" ]]; then
       if ! ADAtoLovelace "${cost_enter}" >/dev/null; then
@@ -1812,6 +1812,7 @@ EOF
          ;;
       2) continue ;;
     esac
+    echo
 
     multi_owner_output=""
     multi_owner_skeys=()
@@ -1819,18 +1820,21 @@ EOF
     select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
     case $? in
       0) : ;;
-      1) while true; do
-           say "Enter path to stake ${FG_CYAN}vkey${NC} file:"
-           fileDialog 0 "Enter path to stake vkey file" "${WALLET_FOLDER}"
-           say "${file}"
+      1) say "Enter path to ${FG_CYAN}${WALLET_STAKE_VK_FILENAME}${NC} & ${FG_CYAN}${WALLET_STAKE_SK_FILENAME}${NC} files in this order!"
+         waitForInput "Press any key to open the file explorer"
+         owner_count=1
+         while true; do
+           ((owner_count++))
+           fileDialog 0 "Enter path to ${WALLET_STAKE_VK_FILENAME} file" "${WALLET_FOLDER}/"
+           say "Owner #${owner_count} : vkey = ${file}"
            stake_vk_file_enter=${file}
            if [[ ${op_mode} = "online" ]]; then
-             say "Enter path to stake ${FG_CYAN}skey${NC} file:"
-             fileDialog 0 "Enter path to stake skey file" "${stake_vk_file_enter%/*}"
-             say "${file}"
+             fileDialog 0 "Enter path to stake skey file" "${stake_vk_file_enter%/*}/${WALLET_STAKE_SK_FILENAME}"
+             say "Owner #${owner_count} : skey = ${file}"
              stake_sk_file_enter=${file}
              if [[ ! -f "${stake_vk_file_enter}" || ! -f "${stake_sk_file_enter}" ]]; then
                say "${FG_RED}ERROR${NC}: One or both files not found, please try again"
+               ((owner_count--))
              else
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
                multi_owner_skeys+=( "${stake_sk_file_enter}" )
@@ -1838,6 +1842,7 @@ EOF
            else
              if [[ ! -f "${stake_vk_file_enter}" ]]; then
                say "${FG_RED}ERROR${NC}: file not found, please try again"
+               ((owner_count--))
              else
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
              fi
@@ -1879,8 +1884,7 @@ EOF
     pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
     pool_deregcert_file="${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}"
 
-    echo
-    say "# Register Stake Pool" "log"
+    say "\n# Register Stake Pool" 1 "log"
 
     if [[ ${op_mode} = "online" ]]; then
       getCurrentKESperiod
@@ -1968,9 +1972,9 @@ EOF
     say "Owner  : ${FG_GREEN}${owner_wallet}${NC}" "log"
     [[ ${multi_owner_count} -gt 0 ]] && say "         ${FG_BLUE}${multi_owner_count}${NC} extra owner(s) using stake keys" "log"
     say "Reward : ${FG_GREEN}${reward_wallet}${NC}" "log"
-    say "Pledge : $(formatLovelace ${pledge_lovelace}) ADA" "log"
+    say "Pledge : $(formatAda ${pledge_ada}) ADA" "log"
     say "Margin : ${margin}%" "log"
-    say "Cost   : $(formatLovelace ${cost_lovelace}) ADA" "log"
+    say "Cost   : $(formatAda ${cost_ada}) ADA" "log"
     echo
     say "Uncomment and set value for POOL_NAME in $CNODE_HOME/scripts/env with '${pool_name}'" "log"
     if [[ ${op_mode} = "online" && ${lovelace} -lt ${pledge_lovelace} ]]; then
@@ -2025,7 +2029,7 @@ EOF
     say "press enter to use old value\n"
 
     [[ -f ${pool_config} ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}") || pledge_ada=0
-    read -r -p "New Pledge (in ADA, old: ${pledge_ada}): " pledge_enter
+    read -r -p "New Pledge (in ADA, old: $(formatAda ${pledge_ada})): " pledge_enter
     pledge_enter="${pledge_enter//,}"
     if [[ -n "${pledge_enter}" ]]; then
       if ! ADAtoLovelace "${pledge_enter}" >/dev/null; then
@@ -2051,7 +2055,7 @@ EOF
 
     minPoolCost=$(( $(jq -r '.minPoolCost //0' "${TMP_FOLDER}"/protparams.json) / 1000000 )) # convert to ADA
     [[ -f ${pool_config} ]] && cost_ada=$(jq -r '.costADA //0' "${pool_config}") || cost_ada=0
-    read -r -p "New Cost (in ADA, minimum: ${minPoolCost}, old: ${cost_ada}): " cost_enter
+    read -r -p "New Cost (in ADA, minimum: ${minPoolCost}, old: $(formatAda ${cost_ada})): " cost_enter
     cost_enter="${cost_enter//,}"
     if [[ -n "${cost_enter}" ]]; then
       if ! ADAtoLovelace "${cost_enter}" >/dev/null; then
@@ -2318,6 +2322,7 @@ EOF
          ;;
       2) continue ;;
     esac
+    echo
 
     multi_owner_output=""
     multi_owner_skeys=()
@@ -2325,18 +2330,21 @@ EOF
     select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
     case $? in
       0) : ;;
-      1) while true; do
-           say "Enter path to stake ${FG_CYAN}vkey${NC} file:"
-           fileDialog 0 "Enter path to stake vkey file" "${WALLET_FOLDER}"
-           say "${file}"
+      1) say "Enter path to ${FG_CYAN}${WALLET_STAKE_VK_FILENAME}${NC} & ${FG_CYAN}${WALLET_STAKE_SK_FILENAME}${NC} files in this order!"
+         waitForInput "Press any key to open the file explorer"
+         owner_count=1
+         while true; do
+           ((owner_count++))
+           fileDialog 0 "Enter path to ${WALLET_STAKE_VK_FILENAME} file" "${WALLET_FOLDER}/"
+           say "Owner #${owner_count} : vkey = ${file}"
            stake_vk_file_enter=${file}
            if [[ ${op_mode} = "online" ]]; then
-             say "Enter path to stake ${FG_CYAN}skey${NC} file:"
-             fileDialog 0 "Enter path to stake skey file" "${stake_vk_file_enter%/*}"
-             say "${file}"
+             fileDialog 0 "Enter path to stake skey file" "${stake_vk_file_enter%/*}/${WALLET_STAKE_SK_FILENAME}"
+             say "Owner #${owner_count} : skey = ${file}"
              stake_sk_file_enter=${file}
              if [[ ! -f "${stake_vk_file_enter}" || ! -f "${stake_sk_file_enter}" ]]; then
                say "${FG_RED}ERROR${NC}: One or both files not found, please try again"
+               ((owner_count--))
              else
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
                multi_owner_skeys+=( "${stake_sk_file_enter}" )
@@ -2344,6 +2352,7 @@ EOF
            else
              if [[ ! -f "${stake_vk_file_enter}" ]]; then
                say "${FG_RED}ERROR${NC}: file not found, please try again"
+               ((owner_count--))
              else
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
              fi
@@ -2381,8 +2390,7 @@ EOF
     # Make a backup of current reg cert
     cp -f "${pool_regcert_file}" "${pool_regcert_file}.tmp"
 
-    echo
-    say "# Modify Stake Pool" "log"
+    say "\n# Modify Stake Pool" 1 "log"
     
     say "creating registration certificate" 1 "log"
     say "$ ${CCLI} stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${reward_stake_vk_file} --pool-owner-stake-verification-key-file ${owner_stake_vk_file} ${multi_owner_output} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output} ${NETWORK_IDENTIFIER} --out-file ${pool_regcert_file}" 2
@@ -2431,9 +2439,9 @@ EOF
     say "Owner  : ${FG_GREEN}${owner_wallet}${NC}" "log"
     [[ ${multi_owner_count} -gt 0 ]] && say "         ${FG_BLUE}${multi_owner_count}${NC} extra owner(s) using stake keys" "log"
     say "Reward : ${FG_GREEN}${reward_wallet}${NC}" "log"
-    say "Pledge : $(formatLovelace ${pledge_lovelace}) ADA" "log"
+    say "Pledge : $(formatAda ${pledge_ada}) ADA" "log"
     say "Margin : ${margin}%" "log"
-    say "Cost   : $(formatLovelace ${cost_lovelace}) ADA" "log"
+    say "Cost   : $(formatAda ${cost_ada}) ADA" "log"
     if [[ ${op_mode} = "online" && ${lovelace} -lt ${pledge_lovelace} ]]; then
       echo
       say "${FG_YELLOW}WARN${NC}: Balance in pledge wallet is less than set pool pledge"
@@ -2650,19 +2658,21 @@ EOF
       tput rc && tput ed
     fi
 
-    echo
     getPoolID ${pool_name}
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
       [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}" ]] && pool_registered="YES" || pool_registered="NO"
       [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}" ]] && ledger_retiring="?" || ledger_retiring=""
     else
+      tput sc && say "Parsing ledger-state, can take a while on larger networks...\n"
       ledger_pstate=$(jq -r '.nesEs.esLState._delegationState._pstate' "${TMP_FOLDER}"/ledger-state.json)
       ledger_pParams=$(jq -r '._pParams."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
       ledger_fPParams=$(jq -r '._fPParams."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
       ledger_retiring=$(jq -r '._retiring."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
       [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
       [[ -n "${ledger_pParams}" ]] && pool_registered="YES" || pool_registered="NO"
+      tput rc && tput ed
     fi
+    echo
     say "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Pool" "${pool_name}")" "log"
     say "$(printf "%-21s : %s" "ID (hex)" "${pool_id}")" "log"
     [[ -n ${pool_id_bech32} ]] && say "$(printf "%-21s : %s" "ID (bech32)" "${pool_id_bech32}")" "log"
@@ -2721,9 +2731,9 @@ EOF
           conf_cost=$(( $(jq -r '.costADA //0' "${pool_config}") * 1000000 ))
           conf_owner=$(jq -r '.pledgeWallet //"unknown"' "${pool_config}")
           conf_reward=$(jq -r '.rewardWallet //"unknown"' "${pool_config}")
-          say "$(printf "%-21s : %s ADA" "Pledge" "$(formatLovelace "${conf_pledge}")")" "log"
+          say "$(printf "%-21s : %s ADA" "Pledge" "$(formatAda "${conf_pledge::-6}")")" "log"
           say "$(printf "%-21s : %s %%" "Margin" "${conf_margin}")" "log"
-          say "$(printf "%-21s : %s ADA" "Cost" "$(formatLovelace "${conf_cost}")")" "log"
+          say "$(printf "%-21s : %s ADA" "Cost" "$(formatAda "${conf_cost::-6}")")" "log"
           say "$(printf "%-21s : %s (%s)" "Owner Wallet" "${FG_GREEN}${conf_owner}${NC}" "primary only, use online mode for multi-owner")" "log"
           say "$(printf "%-21s : %s" "Reward Wallet" "${FG_GREEN}${conf_reward}${NC}")" "log"
           relay_title="Relay(s)"
@@ -2740,9 +2750,9 @@ EOF
         pParams_pledge=$(jq -r '.pledge //0' <<< "${ledger_pParams}")
         fPParams_pledge=$(jq -r '.pledge //0' <<< "${ledger_fPParams}")
         if [[ ${pParams_pledge} -eq ${fPParams_pledge} ]]; then
-          say "$(printf "%-21s : %s ADA" "Pledge" "$(formatLovelace "${pParams_pledge}")")" "log"
+          say "$(printf "%-21s : %s ADA" "Pledge" "$(formatAda "${pParams_pledge::-6}")")" "log"
         else
-          say "$(printf "%-15s (${FG_YELLOW}%s${NC}) : %s ADA" "Pledge" "new" "$(formatLovelace "${fPParams_pledge}")" )" "log"
+          say "$(printf "%-15s (${FG_YELLOW}%s${NC}) : %s ADA" "Pledge" "new" "$(formatAda "${fPParams_pledge::-6}")" )" "log"
         fi
         pParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_pParams}")")
         fPParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_fPParams}")")
@@ -2754,9 +2764,9 @@ EOF
         pParams_cost=$(jq -r '.cost //0' <<< "${ledger_pParams}")
         fPParams_cost=$(jq -r '.cost //0' <<< "${ledger_fPParams}")
         if [[ ${pParams_cost} -eq ${fPParams_cost} ]]; then
-          say "$(printf "%-21s : %s ADA" "Cost" "$(formatLovelace "${pParams_cost}")")" "log"
+          say "$(printf "%-21s : %s ADA" "Cost" "$(formatAda "${pParams_cost::-6}")")" "log"
         else
-          say "$(printf "%-15s (${FG_YELLOW}%s${NC}) : %s ADA" "Cost" "new" "$(formatLovelace "${fPParams_cost}")" )" "log"
+          say "$(printf "%-15s (${FG_YELLOW}%s${NC}) : %s ADA" "Cost" "new" "$(formatAda "${fPParams_cost::-6}")" )" "log"
         fi
         if [[ ! $(jq -c '.relays[] //empty' <<< "${ledger_pParams}") = $(jq -c '.relays[] //empty' <<< "${ledger_fPParams}") ]]; then
           say "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Relay(s) updated, showing latest registered")" "log"
@@ -2857,7 +2867,7 @@ EOF
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
       say "Copy updated files to pool node replacing existing files:" "log"
       say "${pool_hotkey_sk_file}" "log"
-      say "${pool_opcert_counter_file}" "log"
+      say "${pool_opcert_file}" "log"
       echo
     fi
     say "Restart your pool node for changes to take effect"
@@ -2991,7 +3001,8 @@ EOF
   say " >> SIGN TX" "log"
   say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   echo
-  say "Enter path for Tx file to sign:"
+  say "Enter path for Tx file to sign"
+  waitForInput "Press any key to open the file explorer"
   fileDialog 0 "Enter path for Tx file to sign"
   say "${FG_CYAN}${file}${NC}\n" "log"
   tx_raw=${file}
@@ -3003,18 +3014,19 @@ EOF
   
   say "# Sign the transaction with all keys needed"
   ofl_sign_keys=()
+  say "\nEnter path to signing key files"
+  waitForInput "Press any key to open the file explorer"
   while true; do
-    fileDialog 0 "Enter path to signing key file" "${WALLET_FOLDER}"
+    fileDialog 0 "Enter path to signing key file" "${WALLET_FOLDER}/"
     if [[ -z "${file}" ]]; then
       say "${FG_YELLOW}EMPTY${NC}: no file selected, how do you want to proceed?"
-      : # do nothing
     elif [[ ! -f "${file}" ]]; then
       say "${FG_RED}ERROR${NC}: file not found, please try again! [${file}]"
     else
       ofl_sign_keys+=( "${file}" )
       say "${FG_GREEN}${file}${NC} added!" "log"
     fi
-    say "\nAdd more keys?"
+    say "Add more keys?"
     select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
     case $? in
       0) echo && break ;;
@@ -3044,9 +3056,11 @@ EOF
     waitForInput && continue
   fi
   echo
-  say "Please enter signed Tx file to submit:"
+  say "Please enter signed Tx file to submit"
+  waitForInput "Press any key to open the file explorer"
   fileDialog 0 "Please enter signed Tx file to submit"
-  say "${FG_CYAN}${file}${NC}\n" "log"
+  say "${FG_CYAN}${file}${NC}" "log"
+  echo
   [[ -z "${file}" ]] && continue
   if [[ ! -f "${file}" ]]; then
     say "${FG_RED}ERROR${NC}: file not found: ${file}"
@@ -3504,7 +3518,8 @@ EOF
   say "Backup or Restore?"
   select_opt "[b] Backup" "[r] Restore" "[Esc] Cancel"
   case $? in
-    0) say "\nSelect backup directory(created if non existent):"
+    0) say "\nSelect backup directory(created if non existent)"
+       waitForInput "Press any key to open the file explorer"
        dirDialog 0 "Select backup directory"
        [[ "${dir}" != */ ]] && backup_path="${dir}/" || backup_path="${dir}"
        say "${FG_GREEN}${backup_path}${NC}\n"
@@ -3616,7 +3631,8 @@ EOF
     1) say "\nBackups created contain absolute path to files and directories"
        say "Restoring a backup does not replace existing files"
        say "Please restore to a temporary directory and copy files to restore to appropriate folders\n"
-       say "Select file to restore:"
+       say "Select file to restore"
+       waitForInput "Press any key to open the file explorer"
        fileDialog 0 "Select backup file to restore"
        backup_file=${file}
        if [[ ! -f "${backup_file}" ]]; then
@@ -3624,7 +3640,8 @@ EOF
          waitForInput && continue
        fi
        say "${FG_GREEN}${backup_file}${NC}\n"
-       say "Select/enter restore directory(created if non existent):"
+       say "Select/enter restore directory(created if non existent)"
+       waitForInput "Press any key to open the file explorer"
        dirDialog 0 "Select restore directory"
        [[ "${dir}" != */ ]] && restore_path="${dir}/" || restore_path="${dir}"
        if [[ ! "${restore_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
