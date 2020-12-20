@@ -202,20 +202,6 @@ getSlotTipRef() {
 #################################
 
 cncliInit() {
-  [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
-  CNCLI_DB="${CNCLI_DIR}/cncli.db"
-  [[ -z "${SLEEP_RATE}" ]] && SLEEP_RATE=60
-  [[ -z "${CONFIRM_SLOT_CNT}" ]] && CONFIRM_SLOT_CNT=600
-  [[ -z "${CONFIRM_BLOCK_CNT}" ]] && CONFIRM_BLOCK_CNT=15
-  [[ -z "${TIMEOUT_LEDGER_STATE}" ]] && TIMEOUT_LEDGER_STATE=300
-  [[ -z "${PT_HOST}" ]] && PT_HOST="127.0.0.1"
-  [[ -z "${PT_PORT}" ]] && PT_PORT="${CNODE_PORT}"
-  [[ -z "${PT_API_KEY}" ]] && PT_API_KEY=""
-  [[ -z "${POOL_TICKER}" ]] && POOL_TICKER=""
-  { [[ -z "${POOL_ID}" && -n "${POOL_DIR}" ]]; } && POOL_ID=$(cat "${POOL_DIR}/${POOL_ID_FILENAME}") || POOL_ID=""
-  { [[ -z "${POOL_VRF_SKEY}" && -n "${POOL_DIR}" ]]; } && POOL_VRF_SKEY="${POOL_DIR}/${POOL_VRF_SK_FILENAME}" || POOL_VRF_SKEY=""
-  { [[ -z "${POOL_VRF_VKEY}" && -n "${POOL_DIR}" ]]; } && POOL_VRF_VKEY="${POOL_DIR}/${POOL_VRF_VK_FILENAME}" || POOL_VRF_VKEY=""
-
   [[ -z "${BATCH_AUTO_UPDATE}" ]] && BATCH_AUTO_UPDATE=N
   
   if ! command -v sqlite3 >/dev/null; then echo "ERROR: sqlite3 not found, please install before activating blocklog function" && exit 1; fi
@@ -268,7 +254,22 @@ cncliInit() {
   
   [[ ! -f "${CNCLI}" ]] && echo "ERROR: failed to locate cncli executable, please update and run 'prereqs.sh -h' to show options" && exit 1
   CNCLI_VERSION="$(cncli -V | cut -d' ' -f2)"
-  if ! versionCheck "v0.4.1" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, please upgrade to v0.4.1 or newer!"; exit 1; fi
+  if ! versionCheck "0.4.1" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, please upgrade to v0.4.1 or newer!"; exit 1; fi
+  
+  [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
+  mkdir -p "${CNCLI_DIR}"
+  CNCLI_DB="${CNCLI_DIR}/cncli.db"
+  [[ -z "${SLEEP_RATE}" ]] && SLEEP_RATE=60
+  [[ -z "${CONFIRM_SLOT_CNT}" ]] && CONFIRM_SLOT_CNT=600
+  [[ -z "${CONFIRM_BLOCK_CNT}" ]] && CONFIRM_BLOCK_CNT=15
+  [[ -z "${TIMEOUT_LEDGER_STATE}" ]] && TIMEOUT_LEDGER_STATE=300
+  [[ -z "${PT_HOST}" ]] && PT_HOST="127.0.0.1"
+  [[ -z "${PT_PORT}" ]] && PT_PORT="${CNODE_PORT}"
+  if [[ -d "${POOL_DIR}" ]]; then
+    [[ -z "${POOL_ID}" && -f "${POOL_DIR}/${POOL_ID_FILENAME}" ]] && POOL_ID=$(cat "${POOL_DIR}/${POOL_ID_FILENAME}")
+    [[ -z "${POOL_VRF_SKEY}" ]] && POOL_VRF_SKEY="${POOL_DIR}/${POOL_VRF_SK_FILENAME}"
+    [[ -z "${POOL_VRF_VKEY}" ]] && POOL_VRF_VKEY="${POOL_DIR}/${POOL_VRF_VK_FILENAME}"
+  fi
 
   return 0
 }
@@ -485,30 +486,27 @@ validateBlock() {
       if [[ ${#block_data[@]} -eq 0 ]]; then # no block found in db for this slot with our vrf vkey
         if [[ ${slot_ok_cnt} -eq 0 ]]; then # no other pool has a valid block for this slot either
           echo "MISSED: Leader for slot '${block_slot}' but not found in cncli db and no other pool has made a valid block for this slot"
-          sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'missed' WHERE slot = ${block_slot};"
-          return
+          new_status="missed"
         else # another pool has a valid block for this slot in cncli db
           echo "STOLEN: Leader for slot '${block_slot}' but \"stolen\" by another pool due to bad luck (lower VRF output) :("
-          sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'stolen' WHERE slot = ${block_slot};"
-          return
+          new_status="stolen"
         fi
+        sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = '${new_status}' WHERE slot = ${block_slot};"
       else # block found for this slot with a match for our vrf vkey
         [[ $((block_tip-block_data[0])) -lt ${CONFIRM_BLOCK_CNT} ]] && return # To make sure enough blocks has been built on top before validating
         if [[ ${block_data[3]} -eq 0 ]]; then # our block not marked as orphaned :)
           echo "CONFIRMED: Leader for slot '${block_slot}' and match found in CNCLI DB for this slot with pool's VRF public key"
-          sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'confirmed', slot_in_epoch = $(getSlotInEpochFromSlot ${block_slot} ${block_epoch}), block = ${block_data[0]}, at = '$(getDateFromSlot ${block_slot})', hash = '${block_data[1]}', size = ${block_data[2]} WHERE slot = ${block_slot};"
-          return
+          new_status="confirmed"
         else # our block marked as orphaned :(
           if [[ ${slot_ok_cnt} -eq 0 ]]; then # no other pool has a valid slot for this epoch either
             echo "GHOSTED: Leader for slot '${block_slot}' and block adopted but later orphaned. No other pool with a confirmed block for this slot, height battle or block propagation issue!"
-            sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'ghosted' WHERE slot = ${block_slot};"
-            return
+            new_status="ghosted"
           else # another pool has a valid block for this slot in cncli db
             echo "STOLEN: Leader for slot '${block_slot}' but \"stolen\" by another pool due to bad luck (lower VRF output) :("
-            sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'stolen' WHERE slot = ${block_slot};"
-            return
+            new_status="stolen"
           fi
         fi
+        sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = '${new_status}', slot_in_epoch = $(getSlotInEpochFromSlot ${block_slot} ${block_epoch}), block = ${block_data[0]}, at = '$(getDateFromSlot ${block_slot})', hash = '${block_data[1]}', size = ${block_data[2]} WHERE slot = ${block_slot};"
       fi
     else # Not old enough to confirm but slot time has passed
       if [[ ${block_status} = leader && ${#block_data[@]} -eq 1 ]]; then # Leader status and block found in cncli db, update block data and set status adopted
