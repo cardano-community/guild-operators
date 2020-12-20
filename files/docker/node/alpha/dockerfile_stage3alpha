@@ -38,7 +38,7 @@ ENV \
 # PREREQ --no-install-recommends
 RUN apt-get update && apt-get install -y libcap2-bin ncurses-bin iproute2 curl wget apt-utils xz-utils netbase sudo coreutils dnsutils net-tools procps cron tcptraceroute bc 
     
-ADD https://raw.githubusercontent.com/stakelovelace/cardano-node/master/crontab /etc/cron.d/crontab
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/crontab /etc/cron.d/crontab
 RUN chmod 0644 /etc/cron.d/crontab && touch /var/log/cron.log 
 
 RUN cd /usr/bin \
@@ -85,10 +85,10 @@ ADD https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finishe
 ADD https://hydra.iohk.io/build/4372602/download/1/testnet-config.json $CNODE_HOME/priv/files/
 
 # ENTRY SCRIPT
-ADD https://raw.githubusercontent.com/stakelovelace/cardano-node/master/master-topology.sh /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/master-topology.sh /home/guild/.scripts/
 ADD https://raw.githubusercontent.com/stakelovelace/cardano-node/master/guild-topology.sh /home/guild/.scripts/
 ADD https://raw.githubusercontent.com/stakelovelace/cardano-node/master/block_watcher.sh /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/stakelovelace/cardano-node/master/entrypoint.sh ./
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/entrypoint.sh./
 RUN sudo chown -R guild:guild $CNODE_HOME/* \
     && sudo chown -R guild:guild /home/guild/.* \
     && sudo chmod a+x /home/guild/.scripts/*.sh && sudo chmod a+x /home/guild/*.sh 
