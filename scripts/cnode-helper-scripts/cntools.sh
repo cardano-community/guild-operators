@@ -410,8 +410,8 @@ case $OPERATION in
     payment_xprv=$(cardano-address key child 1852H/1815H/0H/0/0 <<< ${root_prv})
     stake_xprv=$(cardano-address key child 1852H/1815H/0H/2/0 <<< ${root_prv})
     
-    payment_xpub=$(cardano-address key public <<< ${payment_xprv})
-    stake_xpub=$(cardano-address key public <<< ${stake_xprv})
+    payment_xpub=$(cardano-address key public --with-chain-code <<< ${payment_xprv})
+    stake_xpub=$(cardano-address key public --with-chain-code <<< ${stake_xprv})
     [[ "${NETWORKID}" = "Mainnet" ]] && network_tag=1 || network_tag=0
     base_addr_candidate=$(cardano-address address delegation ${stake_xpub} <<< "$(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub})")
     if [[ "${NETWORKID}" = "Testnet" ]]; then
