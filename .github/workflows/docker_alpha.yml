@@ -3,8 +3,8 @@ name: Docker Image CD Stage 1 branch Alpha
 on:
   workflow_dispatch:
   push:
-    paths:
-      - 'files/docker/node/release-versions/guild-prereq-latest.txt'
+    branches:                                                                                                                                                                       
+        - "alpha" 
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -12,7 +12,7 @@ jobs:
     - uses: actions/checkout@v2
     - name: docker login
       run: |
-        docker login -u  ${{ secrets.DOCKER_USER }} -p $${{ secrets.DOCKER_PASSWORD }}
+        docker login -u  ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_PASSWORD }}
     - name: Compiling new node software
       run: |      
         docker build . --file files/docker/node/alpha/dockerfile_stage1alpha --compress --tag cardanocommunity/cardano-node:alpha1

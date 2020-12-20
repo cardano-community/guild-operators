@@ -18,8 +18,6 @@ WORKDIR /
 
 # COPY NODE BINS AND DEPS 
 COPY --from=cardanocommunity/cardano-node:stage2 /root/.cabal/bin/* /usr/local/bin/
-# COPY NODE BINS AND DEPS 
-COPY --from=cardanocommunity/cardano-node:stage2 /root/.cabal/bin/* /usr/local/bin/
 COPY --from=cardanocommunity/cardano-node:stage2 /lib/x86_64-linux-gnu/lib* /lib/x86_64-linux-gnu/
 COPY --from=cardanocommunity/cardano-node:stage2 /lib64/ld-linux-x86-64* /lib64/
 COPY --from=cardanocommunity/cardano-node:stage2 /usr/lib/x86_64-linux-gnu/libgmp.* /usr/lib/x86_64-linux-gnu/
@@ -105,7 +103,6 @@ ADD https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finishe
 ADD https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-topology.json $CNODE_HOME/priv/files/
 ADD https://hydra.iohk.io/build/4372602/download/1/testnet-config.json $CNODE_HOME/priv/files/
 
-
 # Allegra
 ADD https://hydra.iohk.io/build/5102327/download/1/allegra-byron-genesis.json $CNODE_HOME/priv/files/
 ADD https://hydra.iohk.io/build/5102327/download/1/allegra-config.json $CNODE_HOME/priv/files/
@@ -119,8 +116,6 @@ ADD https://hydra.iohk.io/build/5102327/download/1/launchpad-byron-genesis.json 
 ADD https://hydra.iohk.io/build/5102327/download/1/launchpad-shelley-genesis.json $CNODE_HOME/priv/files/
 ADD https://hydra.iohk.io/build/5102327/download/1/launchpad-topology.json $CNODE_HOME/priv/files/
 ADD https://hydra.iohk.io/build/5102327/download/1/launchpad-db-sync-config.json $CNODE_HOME/priv/files/
-
-
 
 # ENTRY SCRIPT
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/banner.txt /home/guild/.scripts/
