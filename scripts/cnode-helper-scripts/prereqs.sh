@@ -234,8 +234,8 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sed -e 's#read.*#answer=Y;next_answer=Y;hls_answer=N#' | bash
     . "${HOME}"/.ghcup/env
 
-    ghcup install 8.10.2
-    ghcup set 8.10.2
+    ghcup install ghc 8.10.2
+    ghcup set ghc 8.10.2
     ghc --version
 
     echo "Installing bundled Cabal .."
@@ -327,7 +327,7 @@ if [[ "${INSTALL_VCHC}" = "Y" ]]; then
         echo "adding cardano-hw-cli to PATH, reload shell to take effect!"
         echo "PATH=\"$HOME/bin/cardano-hw-cli:\$PATH\"" >> "${HOME}"/.bashrc
       fi
-      echo "cardano-hw-cli v${vchc_version} installed!"
+      echo "cardano-hw-cli v${vchc_git_version} installed!"
     else
       rm -rf cardano-hw-cli #cleanup in /tmp
       echo "cardano-hw-cli already latest version [${vchc_version}], skipping!"
