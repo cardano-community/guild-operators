@@ -3,8 +3,9 @@ name: Docker Image CD Stage 1
 on:
   workflow_dispatch:
   push:
-    paths:
-      - 'files/docker/node/release-versions/guild-prereq-latest.txt'
+    branches:                                                                                       
+        - "master"                                                                                  
+        - "alpha" 
 jobs:
   build:
     runs-on: ubuntu-latest
