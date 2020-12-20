@@ -374,7 +374,7 @@ kesExpiration() {
   current_time_sec=$(date -u +%s)
   tip_ref=$(getSlotTipRef)
   expiration_time_sec=$(( current_time_sec - ( SLOT_LENGTH * (tip_ref % SLOTS_PER_KES_PERIOD) ) + ( SLOT_LENGTH * SLOTS_PER_KES_PERIOD * remaining_kes_periods ) ))
-  kes_expiration=$(date '+%F %T Z' --date=@${expiration_time_sec})
+  kes_expiration=$(date -u '+%F %T Z' --date=@${expiration_time_sec})
 }
 
 # Command    : slotInterval
