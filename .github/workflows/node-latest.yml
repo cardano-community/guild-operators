@@ -2,7 +2,7 @@ name: Get latest Node release version
 on:
   workflow_dispatch:
   schedule:
-    - cron:  '* * */5 * * *'
+    - cron:  '0 0 */2 * * *'
 jobs:
   get-version:
     runs-on: ubuntu-latest
