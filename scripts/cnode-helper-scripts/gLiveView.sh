@@ -50,7 +50,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.15
+GLV_VERSION=v1.16
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -533,6 +533,7 @@ while true; do
   line=0; tput cup 0 0 # reset position
 
   # Gather some data
+  CNODE_PID=$(pgrep -fn "[c]ardano-node*.*--port ${CNODE_PORT}")
   version=$("$(command -v cardano-node)" version)
   node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
   node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
