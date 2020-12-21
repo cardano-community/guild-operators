@@ -3,8 +3,7 @@ name: Docker Image CD Stage 1 branch Alpha
 on:
   workflow_dispatch:
   push:
-    branches:                                                                                                                                                                       
-        - "alpha" 
+    branches: [ alpha ]
 jobs:
   build:
     runs-on: ubuntu-latest
