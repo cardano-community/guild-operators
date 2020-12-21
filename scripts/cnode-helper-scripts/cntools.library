@@ -29,7 +29,7 @@ CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PAT
 [[ -z ${KES_WARNING_PERIOD} ]] && KES_WARNING_PERIOD=604800 # default 7 days
 [[ $(uname) == Darwin ]] && ENABLE_CHATTR=false
 [[ -z ${ENABLE_CHATTR} ]] && ENABLE_CHATTR=true
-[[ -d /run/lock ]] && LOG_LOCKFILE=/run/lock/cntools_log || LOG_LOCKFILE="${TMP_FOLDER}/cntools_log"
+[[ $(touch /run/lock/cntools_log 2>/dev/null) ]] && LOG_LOCKFILE=/run/lock/cntools_log || LOG_LOCKFILE="${TMP_FOLDER}/cntools_log"
 
 ############################################################
 # library sourced by cntools with common taskes to perform #
