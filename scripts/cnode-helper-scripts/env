@@ -29,10 +29,12 @@ CNODE_PORT=6000                                         # Set node port
                                                         
 #WALLET_PAY_VK_FILENAME="payment.vkey"                  # Standardized names for all wallet related files
 #WALLET_PAY_SK_FILENAME="payment.skey"
+#WALLET_HW_PAY_SK_FILENAME="payment.hwsfile"
 #WALLET_PAY_ADDR_FILENAME="payment.addr"
 #WALLET_BASE_ADDR_FILENAME="base.addr"
 #WALLET_STAKE_VK_FILENAME="stake.vkey"
 #WALLET_STAKE_SK_FILENAME="stake.skey"
+#WALLET_HW_STAKE_SK_FILENAME="stake.hwsfile"
 #WALLET_STAKE_ADDR_FILENAME="reward.addr"
 #WALLET_STAKE_CERT_FILENAME="stake.cert"
 #WALLET_STAKE_DEREG_FILENAME="stake.dereg"

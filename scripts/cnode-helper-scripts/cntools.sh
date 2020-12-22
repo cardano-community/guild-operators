@@ -245,16 +245,16 @@ fi
 println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 println "OFF" " Main Menu"
 println "OFF" ""
-println "OFF" " ) Wallet    -  create, show, remove and protect wallets"
-println "OFF" " ) Funds     -  send, withdraw and delegate"
-println "OFF" " ) Pool      -  pool creation and management"
-println "OFF" " ) Sign Tx   -  Sign a built transaction file (hybrid/offline mode)"
-println "OFF" " ) Submit Tx -  Submit a signed transaction file (hybrid/offline mode)"
-println "OFF" " ) Metadata  -  Post metadata on-chain (e.g voting)"
-println "OFF" " ) Blocks    -  show core node leader slots"
-println "OFF" " ) Update    -  update cntools script and library config files"
-println "OFF" " ) Backup    -  backup & restore of wallet/pool/config"
-println "OFF" " ) Refresh   -  reload home screen content"
+println "OFF" " ) Wallet    - create, show, remove and protect wallets"
+println "OFF" " ) Funds     - send, withdraw and delegate"
+println "OFF" " ) Pool      - pool creation and management"
+println "OFF" " ) Sign Tx   - Sign a built transaction file (hybrid/offline mode)"
+println "OFF" " ) Submit Tx - Submit a signed transaction file (hybrid/offline mode)"
+println "OFF" " ) Metadata  - Post metadata on-chain (e.g voting)"
+println "OFF" " ) Blocks    - show core node leader slots"
+println "OFF" " ) Update    - update cntools script and library config files"
+println "OFF" " ) Backup    - backup & restore of wallet/pool/config"
+println "OFF" " ) Refresh   - reload home screen content"
 println "OFF" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 println "DEBUG" "$(printf "%84s" "Epoch $(getEpoch) - $(timeUntilNextEpoch) until next")"
 if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
@@ -295,15 +295,15 @@ case $OPERATION in
   println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   println "OFF" " Wallet Management"
   println "OFF" ""
-  println "OFF" " ) New        -  create a new wallet"
-  println "OFF" " ) Import     -  import a Daedalus/Yoroi 24 or 15 word Shelley mnemonic created wallet"
-  println "OFF" " ) Register   -  register a wallet on chain"
-  println "OFF" " ) De-Register -  De-Register (retire) a registered wallet"
-  println "OFF" " ) List       -  list all available wallets in a compact view"
-  println "OFF" " ) Show       -  show detailed view of a specific wallet"
-  println "OFF" " ) Remove     -  remove a wallet"
-  println "OFF" " ) Decrypt    -  remove write protection and decrypt wallet"
-  println "OFF" " ) Encrypt    -  encrypt wallet keys and make all files immutable"
+  println "OFF" " ) New         - create a new wallet"
+  println "OFF" " ) Import      - import a Daedalus/Yoroi 24/25 mnemonic or Ledger/Trezor HW wallet"
+  println "OFF" " ) Register    - register a wallet on chain"
+  println "OFF" " ) De-Register - De-Register (retire) a registered wallet"
+  println "OFF" " ) List        - list all available wallets in a compact view"
+  println "OFF" " ) Show        - show detailed view of a specific wallet"
+  println "OFF" " ) Remove      - remove a wallet"
+  println "OFF" " ) Decrypt     - remove write protection and decrypt wallet"
+  println "OFF" " ) Encrypt     - encrypt wallet keys and make all files immutable"
   println "OFF" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   println "DEBUG" " Select Wallet operation\n"
@@ -375,75 +375,96 @@ case $OPERATION in
     ;; ###################################################################
     
     import)
-
+    
     clear
     println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     println " >> WALLET >> IMPORT"
     println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo
-    
-    if ! need_cmd "bech32" || \
-       ! need_cmd "cardano-address"; then
-      println "ERROR" "${FG_RED}ERROR${NC}: cardano-address and/or bech32 executables not found in path!"
-      println "ERROR" "Please run updated prereqs.sh and re-build cardano-node"
-      waitForInput && continue
-    fi
-    
-    read -r -p "Name of imported wallet: " wallet_name
-    # Remove unwanted characters from wallet name
-    wallet_name=${wallet_name//[^[:alnum:]]/_}
-    if [[ -z "${wallet_name}" ]]; then
-      println "ERROR" "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
-      waitForInput && continue
-    fi
-    echo
-    if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
-      println "ERROR" "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
-      waitForInput && continue
-    fi
-    
-    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
-      println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
-      println "      Choose another name or delete the existing one"
-      waitForInput && continue
-    fi
-    
-    read -r -p "24 or 15 word mnemonic(space separated): " mnemonic
-    echo
-    IFS=" " read -r -a words <<< "${mnemonic}"
-    if [[ ${#words[@]} -ne 24 ]] && [[ ${#words[@]} -ne 15 ]]; then
-      println "ERROR" "${FG_RED}ERROR${NC}: 24 or 15 words expected, found ${FG_RED}${#words[@]}${NC}"
-      echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
-      waitForInput && continue
-    fi
-    
-    payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-    payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
-    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"  
-    
-    if ! root_prv=$(cardano-address key from-recovery-phrase Shelley <<< ${mnemonic}); then
-      echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
-      waitForInput && continue
-    fi
-    payment_xprv=$(cardano-address key child 1852H/1815H/0H/0/0 <<< ${root_prv})
-    stake_xprv=$(cardano-address key child 1852H/1815H/0H/2/0 <<< ${root_prv})
-    
-    payment_xpub=$(cardano-address key public <<< ${payment_xprv})
-    stake_xpub=$(cardano-address key public <<< ${stake_xprv})
-    [[ "${NETWORKID}" = "Mainnet" ]] && network_tag=1 || network_tag=0
-    base_addr_candidate=$(cardano-address address delegation ${stake_xpub} <<< "$(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub})")
-    if [[ "${NETWORKID}" = "Testnet" ]]; then
-      println "LOG" "TestNet, converting address to 'addr_test'"
-      base_addr_candidate=$(bech32 addr_test <<< ${base_addr_candidate})
-    fi
-    println "LOG" "Base address candidate = ${base_addr_candidate}"
-    println "LOG" "Address Inspection:\n$(cardano-address address inspect <<< ${base_addr_candidate})"
-    
-    pes_key=$(bech32 <<< ${payment_xprv} | cut -b -128)$(bech32 <<< ${payment_xpub})
-    ses_key=$(bech32 <<< ${stake_xprv} | cut -b -128)$(bech32 <<< ${stake_xpub})
-    
-    cat << EOF > "${payment_sk_file}"
+    println "OFF" " Wallet Import"
+    println "OFF" ""
+    println "OFF" " ) Mnemonic  - Daedalus/Yoroi 24 or 25 word mnemonic"
+    println "OFF" " ) HW Wallet - Ledger/Trezor hardware wallet"
+    println "OFF" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+
+    println "DEBUG" " Select Wallet operation\n"
+    select_opt "[m] Mnemonic" "[w] HW Wallet" "[h] Home"
+    case $? in
+      0) SUBCOMMAND="mnemonic" ;;
+      1) SUBCOMMAND="hardware" ;;
+      2) continue ;;
+    esac
+
+    case $SUBCOMMAND in
+      mnemonic)
+
+      clear
+      println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      println " >> WALLET >> IMPORT >> MNEMONIC"
+      println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      echo
+      
+      if ! need_cmd "bech32" || \
+         ! need_cmd "cardano-address"; then
+        println "ERROR" "${FG_RED}ERROR${NC}: cardano-address and/or bech32 executables not found in path!"
+        println "ERROR" "Please run updated prereqs.sh and re-build cardano-node"
+        waitForInput && continue
+      fi
+      
+      read -r -p "Name of imported wallet: " wallet_name
+      # Remove unwanted characters from wallet name
+      wallet_name=${wallet_name//[^[:alnum:]]/_}
+      if [[ -z "${wallet_name}" ]]; then
+        println "ERROR" "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
+        waitForInput && continue
+      fi
+      echo
+      if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
+        println "ERROR" "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
+        waitForInput && continue
+      fi
+      
+      if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
+        println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
+        println "      Choose another name or delete the existing one"
+        waitForInput && continue
+      fi
+      
+      read -r -p "24 or 15 word mnemonic(space separated): " mnemonic
+      echo
+      IFS=" " read -r -a words <<< "${mnemonic}"
+      if [[ ${#words[@]} -ne 24 ]] && [[ ${#words[@]} -ne 15 ]]; then
+        println "ERROR" "${FG_RED}ERROR${NC}: 24 or 15 words expected, found ${FG_RED}${#words[@]}${NC}"
+        echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
+        waitForInput && continue
+      fi
+      
+      payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+      payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
+      stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+      stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"  
+      
+      if ! root_prv=$(cardano-address key from-recovery-phrase Shelley <<< ${mnemonic}); then
+        echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
+        waitForInput && continue
+      fi
+      payment_xprv=$(cardano-address key child 1852H/1815H/0H/0/0 <<< ${root_prv})
+      stake_xprv=$(cardano-address key child 1852H/1815H/0H/2/0 <<< ${root_prv})
+      
+      payment_xpub=$(cardano-address key public <<< ${payment_xprv})
+      stake_xpub=$(cardano-address key public <<< ${stake_xprv})
+      [[ "${NETWORKID}" = "Mainnet" ]] && network_tag=1 || network_tag=0
+      base_addr_candidate=$(cardano-address address delegation ${stake_xpub} <<< "$(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub})")
+      if [[ "${NETWORKID}" = "Testnet" ]]; then
+        println "LOG" "TestNet, converting address to 'addr_test'"
+        base_addr_candidate=$(bech32 addr_test <<< ${base_addr_candidate})
+      fi
+      println "LOG" "Base address candidate = ${base_addr_candidate}"
+      println "LOG" "Address Inspection:\n$(cardano-address address inspect <<< ${base_addr_candidate})"
+      
+      pes_key=$(bech32 <<< ${payment_xprv} | cut -b -128)$(bech32 <<< ${payment_xpub})
+      ses_key=$(bech32 <<< ${stake_xprv} | cut -b -128)$(bech32 <<< ${stake_xpub})
+      
+      cat << EOF > "${payment_sk_file}"
 {
     "type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
     "description": "Payment Signing Key",
@@ -451,60 +472,134 @@ case $OPERATION in
 }
 EOF
     
-    cat << EOF > "${stake_sk_file}"
+      cat << EOF > "${stake_sk_file}"
 {
     "type": "StakeExtendedSigningKeyShelley_ed25519_bip32",
     "description": "",
     "cborHex": "5880${ses_key}"
 }
 EOF
-    println "ACTION" "${CCLI} key verification-key --signing-key-file \"${payment_sk_file}\" --verification-key-file \"${TMP_FOLDER}/payment.evkey\""
-    ${CCLI} key verification-key --signing-key-file "${payment_sk_file}" --verification-key-file "${TMP_FOLDER}/payment.evkey"
-    println "ACTION" "${CCLI} key verification-key --signing-key-file \"${stake_sk_file}\" --verification-key-file \"${TMP_FOLDER}/stake.evkey\""
-    ${CCLI} key verification-key --signing-key-file "${stake_sk_file}" --verification-key-file "${TMP_FOLDER}/stake.evkey"
+      println "ACTION" "${CCLI} key verification-key --signing-key-file \"${payment_sk_file}\" --verification-key-file \"${TMP_FOLDER}/payment.evkey\""
+      ${CCLI} key verification-key --signing-key-file "${payment_sk_file}" --verification-key-file "${TMP_FOLDER}/payment.evkey"
+      println "ACTION" "${CCLI} key verification-key --signing-key-file \"${stake_sk_file}\" --verification-key-file \"${TMP_FOLDER}/stake.evkey\""
+      ${CCLI} key verification-key --signing-key-file "${stake_sk_file}" --verification-key-file "${TMP_FOLDER}/stake.evkey"
 
-    println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file \"${TMP_FOLDER}/payment.evkey\" --verification-key-file \"${payment_vk_file}\""
-    ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_FOLDER}/payment.evkey" --verification-key-file "${payment_vk_file}"
-    println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file \"${TMP_FOLDER}/stake.evkey\" --verification-key-file \"${stake_vk_file}\""
-    ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_FOLDER}/stake.evkey" --verification-key-file "${stake_vk_file}"
-    chmod 700 ${WALLET_FOLDER}/${wallet_name}/*
+      println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file \"${TMP_FOLDER}/payment.evkey\" --verification-key-file \"${payment_vk_file}\""
+      ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_FOLDER}/payment.evkey" --verification-key-file "${payment_vk_file}"
+      println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file \"${TMP_FOLDER}/stake.evkey\" --verification-key-file \"${stake_vk_file}\""
+      ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_FOLDER}/stake.evkey" --verification-key-file "${stake_vk_file}"
+      chmod 700 ${WALLET_FOLDER}/${wallet_name}/*
 
-    getBaseAddress ${wallet_name}
-    getPayAddress ${wallet_name}
-    getRewardAddress ${wallet_name}
-    
-    if [[ ${base_addr} != "${base_addr_candidate}" ]]; then
-      println "ERROR" "${FG_RED}ERROR${NC}: base address generated doesn't match base address candidate."
-      println "ERROR" "base_addr[${FG_CYAN}${base_addr}${NC}]\n!=\nbase_addr_candidate[${FG_CYAN}${base_addr_candidate}${NC}]"
-      println "ERROR" "Create a GitHub issue and include log file from failed CNTools session."
-      echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
+      getBaseAddress ${wallet_name}
+      getPayAddress ${wallet_name}
+      getRewardAddress ${wallet_name}
+      
+      if [[ ${base_addr} != "${base_addr_candidate}" ]]; then
+        println "ERROR" "${FG_RED}ERROR${NC}: base address generated doesn't match base address candidate."
+        println "ERROR" "base_addr[${FG_CYAN}${base_addr}${NC}]\n!=\nbase_addr_candidate[${FG_CYAN}${base_addr_candidate}${NC}]"
+        println "ERROR" "Create a GitHub issue and include log file from failed CNTools session."
+        echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
+        waitForInput && continue
+      fi
+      
+      echo
+      println "Wallet Imported     : ${FG_GREEN}${wallet_name}${NC}"
+      println "Address             : ${base_addr}"
+      println "Enterprise Address  : ${pay_addr}"
+      echo
+      println "DEBUG" "You can now send and receive ADA using the above addresses. Note that Enterprise Address will not take part in staking"
+      println "DEBUG" "Wallet will be automatically registered on chain if you choose to delegate or pledge wallet when registering a stake pool"
+      echo
+      println "DEBUG" "${FG_YELLOW}Using a mnemonic imported wallet in CNTools comes with a few limitation.${NC}"
+      echo
+      println "DEBUG" "Only the first address in the HD wallet is extracted and because of this the following apply:"
+      println "DEBUG" " ${FG_CYAN}>${NC} Address above should match the first address seen in Daedalus/Yoroi, please verify!!!"
+      println "DEBUG" " ${FG_CYAN}>${NC} If restored wallet contain funds since before, send all Ada through Daedalus/Yoroi to address shown in CNTools"
+      println "DEBUG" " ${FG_CYAN}>${NC} Only use receive address shown in CNTools"
+      println "DEBUG" " ${FG_CYAN}>${NC} Only spend Ada from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
+      echo
+      println "DEBUG" "Some of the advantages of using a mnemonic imported wallet instead of CLI are:"
+      println "DEBUG" " ${FG_CYAN}>${NC} Wallet can be restored from saved 24 or 15 word mnemonic if keys are lost/deleted"
+      println "DEBUG" " ${FG_CYAN}>${NC} Track rewards in Daedalus/Yoroi"
+      echo
+      println "DEBUG" "Please read more about HD wallets at:"
+      println "DEBUG" "https://cardano-community.github.io/support-faq/#/wallets?id=heirarchical-deterministic-hd-wallets"
+      
       waitForInput && continue
-    fi
-    
-    echo
-    println "Wallet Imported     : ${FG_GREEN}${wallet_name}${NC}"
-    println "Address             : ${base_addr}"
-    println "Enterprise Address  : ${pay_addr}"
-    echo
-    println "DEBUG" "You can now send and receive ADA using the above addresses. Note that Enterprise Address will not take part in staking"
-    println "DEBUG" "Wallet will be automatically registered on chain if you choose to delegate or pledge wallet when registering a stake pool"
-    echo
-    println "DEBUG" "${FG_YELLOW}Using a mnemonic imported wallet in CNTools comes with a few limitation.${NC}"
-    echo
-    println "DEBUG" "Only the first address in the HD wallet is extracted and because of this the following apply:"
-    println "DEBUG" " ${FG_CYAN}>${NC} Address above should match the first address seen in Daedalus/Yoroi, please verify!!!"
-    println "DEBUG" " ${FG_CYAN}>${NC} If restored wallet contain funds since before, send all Ada through Daedalus/Yoroi to address shown in CNTools"
-    println "DEBUG" " ${FG_CYAN}>${NC} Only use receive address shown in CNTools"
-    println "DEBUG" " ${FG_CYAN}>${NC} Only spend Ada from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
-    echo
-    println "DEBUG" "Some of the advantages of using a mnemonic imported wallet instead of CLI are:"
-    println "DEBUG" " ${FG_CYAN}>${NC} Wallet can be restored from saved 24 or 15 word mnemonic if keys are lost/deleted"
-    println "DEBUG" " ${FG_CYAN}>${NC} Track rewards in Daedalus/Yoroi"
-    echo
-    println "DEBUG" "Please read more about HD wallets at:"
-    println "DEBUG" "https://cardano-community.github.io/support-faq/#/wallets?id=heirarchical-deterministic-hd-wallets"
-    
-    waitForInput && continue
+
+      ;; ###################################################################
+      
+      hardware)
+
+      clear
+      println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      println " >> WALLET >> IMPORT >> HARDWARE WALLET"
+      println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      echo
+      
+      println "DEBUG" "Supported HW wallets: Ledger S, Ledger X, Trezor Model T"
+      println "Is your hardware wallet one of these models?"
+      select_opt "[y] Yes" "[n] No"
+      case $? in
+        0) : ;; # do nothing
+        1) waitForInput "Unsupported hardware wallet, press any key to return home" && continue ;;
+      esac
+      echo
+      
+      if ! need_cmd "cardano-hw-cli"; then
+        println "ERROR" "${FG_RED}ERROR${NC}: cardano-hw-cli executable not found in path!"
+        println "ERROR" "Please run updated prereqs.sh with hardware wallet support to install Vaccumlabs cardano-hw-cli"
+        waitForInput && continue
+      fi
+      
+      read -r -p "Name of imported wallet: " wallet_name
+      # Remove unwanted characters from wallet name
+      wallet_name=${wallet_name//[^[:alnum:]]/_}
+      if [[ -z "${wallet_name}" ]]; then
+        println "ERROR" "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
+        waitForInput && continue
+      fi
+      echo
+      if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
+        println "ERROR" "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
+        waitForInput && continue
+      fi
+      
+      if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
+        println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
+        println "      Choose another name or delete the existing one"
+        waitForInput && continue
+      fi
+      
+      payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_PAY_SK_FILENAME}"
+      payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
+      stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_STAKE_SK_FILENAME}"
+      stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"  
+      
+      println "ACTION" "cardano-hw-cli shelley address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file \"${payment_vk_file}\" --hw-signing-file \"${payment_sk_file}\""
+      cardano-hw-cli shelley address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file "${payment_vk_file}" --hw-signing-file "${payment_sk_file}"
+      println "ACTION" "cardano-hw-cli shelley address key-gen --path 1852H/1815H/0H/2/0 --verification-key-file \"${stake_vk_file}\" --hw-signing-file \"${stake_sk_file}\""
+      cardano-hw-cli shelley address key-gen --path 1852H/1815H/0H/2/0 --verification-key-file "${stake_vk_file}" --hw-signing-file "${stake_sk_file}"
+      
+      getBaseAddress ${wallet_name}
+      getPayAddress ${wallet_name}
+      getRewardAddress ${wallet_name}
+      
+      echo
+      println "HW Wallet Imported  : ${FG_GREEN}${wallet_name}${NC}"
+      println "Address             : ${base_addr}"
+      println "Enterprise Address  : ${pay_addr}"
+      echo
+      println "DEBUG" "You can now send and receive ADA using the above addresses. Note that Enterprise Address will not take part in staking"
+      println "DEBUG" "Wallet will be automatically registered on chain if you choose to delegate or pledge wallet when registering a stake pool"
+      echo
+      println "DEBUG" "${FG_YELLOW}All transaction signing is now done through hardware device, please follow directions in both CNTools and the device display!${NC}"
+      
+      waitForInput && continue
+      
+      ;; ###################################################################
+      
+    esac
 
     ;; ###################################################################
     
@@ -1018,10 +1113,10 @@ EOF
   println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   println "OFF" " Handle Funds"
   println "OFF" ""
-  println "OFF" " ) Send      -  send ADA from a local wallet to an address or a wallet"
-  println "OFF" " ) Delegate  -  delegate stake wallet to a pool"
-  println "OFF" " ) Withdraw  -  withdraw earned rewards to base address"
-  println "OFF" " ) Metadata  -  post metadata on chain"
+  println "OFF" " ) Send     - send ADA from a local wallet to an address or a wallet"
+  println "OFF" " ) Delegate - delegate stake wallet to a pool"
+  println "OFF" " ) Withdraw - withdraw earned rewards to base address"
+  println "OFF" " ) Metadata - post metadata on chain"
   println "OFF" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   println "DEBUG" " Select funds operation\n"
@@ -1429,15 +1524,15 @@ EOF
   println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   println "OFF" " Pool Management"
   println "OFF" ""
-  println "OFF" " ) New        -  create a new pool"
-  println "OFF" " ) Register   -  register created pool on chain using a stake wallet (pledge wallet)"
-  println "OFF" " ) Modify     -  change pool parameters and register updated pool values on chain"
-  println "OFF" " ) Retire     -  de-register stake pool from chain in specified epoch"
-  println "OFF" " ) List       -  a compact list view of available local pools"
-  println "OFF" " ) Show       -  detailed view of specified pool"
-  println "OFF" " ) Rotate     -  rotate pool KES keys"
-  println "OFF" " ) Decrypt    -  remove write protection and decrypt pool"
-  println "OFF" " ) Encrypt    -  encrypt pool cold keys and make all files immutable"
+  println "OFF" " ) New      - create a new pool"
+  println "OFF" " ) Register - register created pool on chain using a stake wallet (pledge wallet)"
+  println "OFF" " ) Modify   - change pool parameters and register updated pool values on chain"
+  println "OFF" " ) Retire   - de-register stake pool from chain in specified epoch"
+  println "OFF" " ) List     - a compact list view of available local pools"
+  println "OFF" " ) Show     - detailed view of specified pool"
+  println "OFF" " ) Rotate   - rotate pool KES keys"
+  println "OFF" " ) Decrypt  - remove write protection and decrypt pool"
+  println "OFF" " ) Encrypt  - encrypt pool cold keys and make all files immutable"
   println "OFF" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   println "DEBUG" " Select Pool operation\n"
@@ -3301,9 +3396,9 @@ EOF
            [[ ${ideal_len} -lt 5 ]] && ideal_len=5
            luck_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(max_performance) FROM epochdata WHERE epoch BETWEEN ${first_epoch} and ${current_epoch} ORDER BY LENGTH(max_performance) DESC LIMIT 1;")
            [[ $((luck_len+1)) -le 4 ]] && luck_len=4 || luck_len=$((luck_len+1))
-           printf '|' >&6; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "=" >&6; printf '|\n' >&6
-           printf "| %-5s | %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_CYAN}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "Epoch" "Leader" "Ideal" "Luck" "Adopted" "Confirmed" "Missed" "Ghosted" "Stolen" "Invalid" >&6
-           printf '|' >&6; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "=" >&6; printf '|\n' >&6
+           printf '|' >&3; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "=" >&3; printf '|\n' >&3
+           printf "| %-5s | %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_CYAN}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "Epoch" "Leader" "Ideal" "Luck" "Adopted" "Confirmed" "Missed" "Ghosted" "Stolen" "Invalid" >&3
+           printf '|' >&3; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "=" >&3; printf '|\n' >&3
            
            while [[ ${current_epoch} -gt ${first_epoch} ]]; do
              invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='invalid';" 2>/dev/null)
@@ -3319,10 +3414,10 @@ EOF
              else
                epoch_stats[1]="${epoch_stats[1]}%"
              fi
-             printf "| %-5s | %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_CYAN}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "${current_epoch}" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}" >&6
+             printf "| %-5s | %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_CYAN}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "${current_epoch}" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}" >&3
              ((current_epoch--))
            done
-           printf '|' >&6; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "=" >&6; printf '|\n' >&6
+           printf '|' >&3; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "=" >&3; printf '|\n' >&3
          else
            println "OFF" "Block Status:\n"
            println "OFF" "Leader    - Scheduled to make block at this slot"
@@ -3381,11 +3476,11 @@ EOF
          fi
          [[ ${#epoch_stats[0]} -gt 5 ]] && ideal_len=${#epoch_stats[0]} || ideal_len=5
          [[ ${#epoch_stats[1]} -gt 4 ]] && luck_len=${#epoch_stats[1]} || luck_len=4
-         printf '|' >&6; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "=" >&6; printf '|\n' >&6
-         printf "| %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_CYAN}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "Leader" "Ideal" "Luck" "Adopted" "Confirmed" "Missed" "Ghosted" "Stolen" "Invalid" >&6
-         printf '|' >&6; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "=" >&6; printf '|\n' >&6
-         printf "| %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_CYAN}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}" >&6
-         printf '|' >&6; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "=" >&6; printf '|\n' >&6
+         printf '|' >&3; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "=" >&3; printf '|\n' >&3
+         printf "| %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_CYAN}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "Leader" "Ideal" "Luck" "Adopted" "Confirmed" "Missed" "Ghosted" "Stolen" "Invalid" >&3
+         printf '|' >&3; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "=" >&3; printf '|\n' >&3
+         printf "| %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_CYAN}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}" >&3
+         printf '|' >&3; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "=" >&3; printf '|\n' >&3
          echo
          # print block table
          block_cnt=1
@@ -3403,40 +3498,40 @@ EOF
          hash_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(hash) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(hash) DESC LIMIT 1;")
          [[ ${hash_len} -lt 4 ]] && hash_len=4
          if [[ ${view} -eq 1 ]]; then
-           printf '|' >&6; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "=" >&6; printf '|\n' >&6
-           printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s |\n" "#" "Status" "Block" "Slot" "SlotInEpoch" "Scheduled At" >&6
-           printf '|' >&6; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "=" >&6; printf '|\n' >&6
+           printf '|' >&3; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "=" >&3; printf '|\n' >&3
+           printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s |\n" "#" "Status" "Block" "Slot" "SlotInEpoch" "Scheduled At" >&3
+           printf '|' >&3; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "=" >&3; printf '|\n' >&3
            while IFS='|' read -r status block slot slot_in_epoch at; do
              at=$(TZ="${BLOCKLOG_TZ}" date '+%F %T %Z' --date="${at}")
              [[ ${block} -eq 0 ]] && block="-"
-             printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s |\n" "${block_cnt}" "${status}" "${block}" "${slot}" "${slot_in_epoch}" "${at}" >&6
+             printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s |\n" "${block_cnt}" "${status}" "${block}" "${slot}" "${slot_in_epoch}" "${at}" >&3
              ((block_cnt++))
            done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
-           printf '|' >&6; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "=" >&6; printf '|\n' >&6
+           printf '|' >&3; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "=" >&3; printf '|\n' >&3
          elif [[ ${view} -eq 2 ]]; then
-           printf '|' >&6; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "=" >&6; printf '|\n' >&6
-           printf "| %-${#leader_cnt}s | %-${status_len}s | %-${slot_len}s | %-${size_len}s | %-${hash_len}s |\n" "#" "Status" "Slot" "Size" "Hash" >&6
-           printf '|' >&6; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "=" >&6; printf '|\n' >&6
+           printf '|' >&3; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "=" >&3; printf '|\n' >&3
+           printf "| %-${#leader_cnt}s | %-${status_len}s | %-${slot_len}s | %-${size_len}s | %-${hash_len}s |\n" "#" "Status" "Slot" "Size" "Hash" >&3
+           printf '|' >&3; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "=" >&3; printf '|\n' >&3
            while IFS='|' read -r status slot size hash; do
              [[ ${size} -eq 0 ]] && size="-"
              [[ -z ${hash} ]] && hash="-"
-             printf "| %-${#leader_cnt}s | %-${status_len}s | %-${slot_len}s | %-${size_len}s | %-${hash_len}s |\n" "${block_cnt}" "${status}" "${slot}" "${size}" "${hash}" >&6
+             printf "| %-${#leader_cnt}s | %-${status_len}s | %-${slot_len}s | %-${size_len}s | %-${hash_len}s |\n" "${block_cnt}" "${status}" "${slot}" "${size}" "${hash}" >&3
              ((block_cnt++))
            done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, slot, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
-           printf '|' >&6; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "=" >&6; printf '|\n' >&6
+           printf '|' >&3; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "=" >&3; printf '|\n' >&3
          elif [[ ${view} -eq 3 ]]; then
-           printf '|' >&6; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "=" >&6; printf '|\n' >&6
-           printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s | %-${size_len}s | %-${hash_len}s |\n" "#" "Status" "Block" "Slot" "SlotInEpoch" "Scheduled At" "Size" "Hash" >&6
-           printf '|' >&6; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "=" >&6; printf '|\n' >&6
+           printf '|' >&3; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "=" >&3; printf '|\n' >&3
+           printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s | %-${size_len}s | %-${hash_len}s |\n" "#" "Status" "Block" "Slot" "SlotInEpoch" "Scheduled At" "Size" "Hash" >&3
+           printf '|' >&3; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "=" >&3; printf '|\n' >&3
            while IFS='|' read -r status block slot slot_in_epoch at size hash; do
              at=$(TZ="${BLOCKLOG_TZ}" date '+%F %T %Z' --date="${at}")
              [[ ${block} -eq 0 ]] && block="-"
              [[ ${size} -eq 0 ]] && size="-"
              [[ -z ${hash} ]] && hash="-"
-             printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s | %-${size_len}s | %-${hash_len}s |\n" "${block_cnt}" "${status}" "${block}" "${slot}" "${slot_in_epoch}" "${at}" "${size}" "${hash}" >&6
+             printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s | %-${size_len}s | %-${hash_len}s |\n" "${block_cnt}" "${status}" "${block}" "${slot}" "${slot_in_epoch}" "${at}" "${size}" "${hash}" >&3
              ((block_cnt++))
            done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
-           printf '|' >&6; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "=" >&6; printf '|\n' >&6
+           printf '|' >&3; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "=" >&3; printf '|\n' >&3
          elif [[ ${view} -eq 4 ]]; then
            println "OFF" "Block Status:\n"
            println "OFF" "Leader    - Scheduled to make block at this slot"

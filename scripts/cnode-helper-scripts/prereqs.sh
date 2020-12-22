@@ -324,8 +324,9 @@ if [[ "${INSTALL_VCHC}" = "Y" ]]; then
       pushd "${HOME}"/bin >/dev/null || err_exit
       mv -f /tmp/cardano-hw-cli .
       if ! grep -q "cardano-hw-cli" "${HOME}"/.bashrc; then
-        echo "adding cardano-hw-cli to PATH, reload shell to take effect!"
+        echo "adding cardano-hw-cli to PATH and setting Ledger udev rules, reload shell to take effect!"
         echo "PATH=\"$HOME/bin/cardano-hw-cli:\$PATH\"" >> "${HOME}"/.bashrc
+        wget -q -O - https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh | $sudo bash
       fi
       echo "cardano-hw-cli v${vchc_git_version} installed!"
     else
