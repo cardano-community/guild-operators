@@ -346,6 +346,15 @@ timeUntilNextEpoch() {
   fi
 }
 
+
+# Command    : getTimeUntilNextBlock
+# Description: Offline calculation of time until next block
+# Return     : time left in hh:mm:ss
+timeUntilNextBlock() {
+  _unix_epoch_of_nxtblk=$(date -u -d ${leader_nxt} +%s)
+  timeLeft $(echo "(${_unix_epoch_of_nxtblk} - `date +%s`)" | bc)
+}
+
 # Command    : getSlotTipRef
 # Description: Get calculated slot number tip
 getSlotTipRef() {
@@ -924,6 +933,8 @@ while true; do
         confirmed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='confirmed';" 2>/dev/null)
         adopted_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='adopted';" 2>/dev/null) + confirmed_cnt ))
         leader_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='leader';" 2>/dev/null) + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
+        leader_nxt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE epoch=${epochnum} AND status='leader' AND date(at) >= date('now') ORDER BY at ASC LIMIT 1;" 2>/dev/null)
+        nxtblk_time_left=$(timeUntilNextBlock)
         OLDIFS=$IFS && IFS='|' && read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${epochnum};" 2>/dev/null)" && IFS=$OLDIFS
         if [[ ${#epoch_stats[@]} -eq 0 ]]; then epoch_stats=("-" "-"); else epoch_stats[1]="${epoch_stats[1]}%"; fi
 
@@ -937,7 +948,8 @@ while true; do
         
         printf "${VL}${STANDOUT} BLOCKS ${NC}  Leader | Ideal | Luck       Adopted | Confirmed%$((width-58))s${VL}\n" "" && ((line++))
         printf "${VL}%10s${leader_fmt}%-9s%-8s%-11s${adopted_fmt}%-10s${confirmed_fmt}%-9s${NC}%$((width-58))s${VL}\n" "" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "" && ((line++))
-        
+        echo "${m3divider}" && ((line++))
+        printf "${VL} ${style_values_1}%s${NC} until next block assigned %$((width-79-${#nxtblk_time_left}))s${VL}\n" "${nxtblk_time_left}" && ((line++))
         if [[ ${invalid_cnt} -ne 0 || ${missed_cnt} -ne 0 || ${ghosted_cnt} -ne 0 || ${stolen_cnt} -ne 0 ]]; then
           echo "${m3divider}" && ((line++))
           printf "${VL}%10sInvalid | Missed | Ghosted | Stolen%$((width-46))s${VL}\n" "" && ((line++))
