@@ -14,6 +14,9 @@
 #POOL_ID=""                               # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation & pooltool sendtip, lower-case hex pool id
 #POOL_VRF_SKEY=""                         # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation, path to pool's vrf.skey file
 #POOL_VRF_VKEY=""                         # Automatically detected if POOL_NAME is set in env. Required for block validation, path to pool's vrf.vkey file
+BYRON_GENESIS_JSON="${CNODE_HOME}/mainnet-byron-genesis.json"    # Custom json-path when CNTOOL is not used for cncliLeaderlog
+GENESIS_JSON="${CNODE_HOME}/mainnet-shelley-genesis.json"        # Custom json-path when CNTOOL is not used for cncliLeaderlog
+CNCLI_TZ="UTC"                                            # Custom TIMEZONE for cncliLeaderlog - https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 #PT_API_KEY=""                            # POOLTOOL sendtip: set API key, e.g "a47811d3-0008-4ecd-9f3e-9c22bdb7c82d"
 #POOL_TICKER=""                           # POOLTOOL sendtip: set the pools ticker, e.g "TCKR"
 #PT_HOST="127.0.0.1"                      # POOLTOOL sendtip: connect to a remote node, preferably block producer (default localhost)
@@ -324,7 +327,7 @@ cncliLeaderlog() {
       echo "No leader slots found for epoch ${curr_epoch} :("
     else
       echo "ERROR: failure in leaderlog while running:"
-      echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set current --ledger-state ${ledger_state_file} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
+      echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set current --ledger-state ${ledger_state_file} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz ${CNCLI_TZ}"
       echo "Error message: $(jq -r '.errorMessage //empty' <<< "${cncli_leaderlog}")"
       exit 1
     fi
