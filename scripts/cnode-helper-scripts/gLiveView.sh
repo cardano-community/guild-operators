@@ -351,7 +351,7 @@ timeUntilNextEpoch() {
 # Description: Offline calculation of time until next block
 # Return     : time left in hh:mm:ss
 timeUntilNextBlock() {
-  timeLeft $(echo "(`date -u -d ${leader_nxt} +%s` - `date +%s`)" | bc)
+  timeLeft $((  $(date -u -d ${leader_next} +%s) - $(date +%s) ))
 }
 
 # Command    : getSlotTipRef
@@ -925,8 +925,8 @@ while true; do
       echo "${m2divider}" && ((line++))
       
       if [[ -f "${BLOCKLOG_DB}" ]]; then
-        leader_last=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE epoch=103 AND datetime(at) < datetime('now') ORDER BY at ASC LIMIT 1;" 2>/dev/null)
-        leader_nxt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE epoch=${epochnum} AND status='leader' AND datetime(at) >= datetime('now') ORDER BY at ASC LIMIT 1;" 2>/dev/null)
+        leader_last=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE epoch <= ${epochnum} AND datetime(at) < datetime('now') ORDER BY at DESC LIMIT 1;" 2>/dev/null)
+        leader_next=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE epoch >= ${epochnum} AND status='leader' AND datetime(at) >= datetime('now') ORDER BY at ASC LIMIT 1;" 2>/dev/null)
         invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='invalid';" 2>/dev/null)
         missed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='missed';" 2>/dev/null)
         ghosted_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='ghosted';" 2>/dev/null)
@@ -944,22 +944,31 @@ while true; do
         [[ ${adopted_cnt} -eq 0 ]] && adopted_fmt="${NC}" || adopted_fmt="${style_values_1}"
         if [[ ${confirmed_cnt} -eq 0 ]]; then confirmed_fmt="${NC}"; else [[ ${confirmed_cnt} -eq ${adopted_cnt} ]] && confirmed_fmt="${style_status_1}" || confirmed_fmt="${style_status_2}"; fi
         [[ ${leader_cnt} -eq 0 ]] && leader_fmt="${NC}" || leader_fmt="${style_values_1}"
-        
-        nxtblk_time_left=$(timeUntilNextBlock)
-        leader_span=$(( `date -d ${leader_nxt} +%s` - `date -d ${leader_last} +%s` ))
-        leader_left=$(( `date -d ${leader_nxt} +%s` - `date +%s` ))
 
-        leader_progress=$(echo "(${leader_left}/${leader_span})*100" | bc -l)
-        printf "${VL} ${style_values_1}%s${NC} until next leader slot %$((width-84-${#nxtblk_time_left}))s${VL}\n" "${nxtblk_time_left}" && ((line++))
-
-        leader_items=$(( $(printf %.0f "${leader_progress}") * granularity / 100 ))
-        printf "${VL} ${style_values_1}"
-        for i in $(seq 0 $((granularity-1))); do
-          [[ $i -lt ${leader_items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-        done
-        printf "${NC} ${VL}\n"; ((line++))
-
-        printf "${VL}"; tput cup $((line++)) ${width}; printf "${VL}\n" # empty line
+        if [[ -n ${leader_last} ]] && [[ -n ${leader_next} ]] ; then
+          if [[ $(date -d ${leader_last} +%s) -gt 0 ]] && [[ $(date -d ${leader_next} +%s) -gt $(date -d ${leader_last} +%s) ]] ; then
+            leader_time_left=$(timeUntilNextBlock)
+            leader_span=$(( $(date -d ${leader_next} +%s) - $(date -d ${leader_last} +%s) ))
+            leader_left=$(( $(date -d ${leader_next} +%s) - $(date +%s) ))
+            leader_progress=$(echo "(${leader_left}/${leader_span})*100" | bc -l)
+            leader_items=$(( $(printf %.0f "${leader_progress}") * granularity_small / 100 ))
+            printf "${VL} ${style_values_1}%s${leader_time_left}${NC} until leader ${style_status_1}"
+            tput cup ${line} ${bar_col_small}
+            for i in $(seq 0 $((granularity_small-1))); do
+              [[ $i -lt ${leader_items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
+            done
+            printf "${NC}${VL}\n" && ((line++))
+            printf "${VL}"; tput cup $((line++)) ${width}; printf "${VL}\n" # empty line
+          fi
+        fi
+#        leader_items=$(( $(printf %.0f "${leader_progress}") * granularity / 100 ))
+#        printf "${VL} ${style_values_1}"
+#        for i in $(seq 0 $((granularity-1))); do
+#          [[ $i -lt ${leader_items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
+#        done
+#        printf "${NC} ${VL}\n"; ((line++))
+#
+#        printf "${VL}"; tput cup $((line++)) ${width}; printf "${VL}\n" # empty line
 
         printf "${VL}${STANDOUT} BLOCKS ${NC}  Leader | Ideal | Luck       Adopted | Confirmed%$((width-58))s${VL}\n" "" && ((line++))
         printf "${VL}%10s${leader_fmt}%-9s%-8s%-11s${adopted_fmt}%-10s${confirmed_fmt}%-9s${NC}%$((width-58))s${VL}\n" "" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "" && ((line++))
