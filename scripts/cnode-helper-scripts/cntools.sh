@@ -1845,7 +1845,7 @@ EOF
     case $? in
       0) : ;;
       1) println "DEBUG" "Enter path to ${FG_CYAN}${WALLET_STAKE_VK_FILENAME}${NC} & ${FG_CYAN}${WALLET_STAKE_SK_FILENAME}${NC} files in this order!"
-         waitForInput "Press any key to open the file explorer"
+         [[ ${ENABLE_DIALOG} = "true" ]] && waitForInput "Press any key to open the file explorer"
          owner_count=1
          while true; do
            ((owner_count++))
@@ -2351,7 +2351,7 @@ EOF
     case $? in
       0) : ;;
       1) println "DEBUG" "Enter path to ${FG_CYAN}${WALLET_STAKE_VK_FILENAME}${NC} & ${FG_CYAN}${WALLET_STAKE_SK_FILENAME}${NC} files in this order!"
-         waitForInput "Press any key to open the file explorer"
+         [[ ${ENABLE_DIALOG} = "true" ]] && waitForInput "Press any key to open the file explorer"
          owner_count=1
          while true; do
            ((owner_count++))
@@ -3025,8 +3025,7 @@ EOF
   println " >> SIGN TX"
   println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   echo
-  println "DEBUG" "Enter path for Tx file to sign"
-  waitForInput "Press any key to open the file explorer"
+  [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter path for Tx file to sign" && waitForInput "Press any key to open the file explorer"
   fileDialog 0 "Enter path for Tx file to sign"
   println "DEBUG" "${FG_CYAN}${file}${NC}\n"
   tx_raw=${file}
@@ -3038,8 +3037,8 @@ EOF
   
   println "DEBUG" "# Sign the transaction with all keys needed"
   ofl_sign_keys=()
-  println "DEBUG" "\nEnter path to signing key files"
-  waitForInput "Press any key to open the file explorer"
+  echo
+  [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter path to signing key files" && waitForInput "Press any key to open the file explorer"
   while true; do
     fileDialog 0 "Enter path to signing key file" "${WALLET_FOLDER}/"
     if [[ -z "${file}" ]]; then
@@ -3081,8 +3080,7 @@ EOF
     waitForInput && continue
   fi
   echo
-  println "DEBUG" "Please enter signed Tx file to submit"
-  waitForInput "Press any key to open the file explorer"
+  [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Please enter signed Tx file to submit" && waitForInput "Press any key to open the file explorer"
   fileDialog 0 "Please enter signed Tx file to submit"
   println "DEBUG" "${FG_CYAN}${file}${NC}"
   echo
@@ -3551,9 +3549,9 @@ EOF
   println "DEBUG" "Backup or Restore?"
   select_opt "[b] Backup" "[r] Restore" "[Esc] Cancel"
   case $? in
-    0) println "DEBUG" "\nSelect backup directory(created if non existent)"
-       waitForInput "Press any key to open the file explorer"
-       dirDialog 0 "Select backup directory"
+    0) echo
+       [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter backup directory (created if non existent)" && waitForInput "Press any key to open the file explorer"
+       dirDialog 0 "Enter backup directory (created if non existent)"
        [[ "${dir}" != */ ]] && backup_path="${dir}/" || backup_path="${dir}"
        println "DEBUG" "${FG_GREEN}${backup_path}${NC}\n"
        if [[ ! "${backup_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
@@ -3664,18 +3662,16 @@ EOF
     1) println "DEBUG" "\nBackups created contain absolute path to files and directories"
        println "DEBUG" "Restoring a backup does not replace existing files"
        println "DEBUG" "Please restore to a temporary directory and copy files to restore to appropriate folders\n"
-       println "DEBUG" "Select file to restore"
-       waitForInput "Press any key to open the file explorer"
-       fileDialog 0 "Select backup file to restore"
+       [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter file to restore" && waitForInput "Press any key to open the file explorer"
+       fileDialog 0 "Enter backup file to restore"
        backup_file=${file}
        if [[ ! -f "${backup_file}" ]]; then
          println "ERROR" "${FG_RED}ERROR${NC}: file not found: ${backup_file}"
          waitForInput && continue
        fi
        println "DEBUG" "${FG_GREEN}${backup_file}${NC}\n"
-       println "DEBUG" "Select/enter restore directory(created if non existent)"
-       waitForInput "Press any key to open the file explorer"
-       dirDialog 0 "Select restore directory"
+       [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter restore directory (created if non existent)" && waitForInput "Press any key to open the file explorer"
+       dirDialog 0 "Enter restore directory (created if non existent)"
        [[ "${dir}" != */ ]] && restore_path="${dir}/" || restore_path="${dir}"
        if [[ ! "${restore_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
          println "ERROR" "${FG_RED}ERROR${NC}: invalid path, please specify the full path to restore directory (space not allowed):"
