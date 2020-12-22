@@ -28,6 +28,7 @@ CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PAT
 [[ -z ${KES_WARNING_PERIOD} ]] && KES_WARNING_PERIOD=604800 # default 7 days
 [[ $(uname) == Darwin ]] && ENABLE_CHATTR=false
 [[ -z ${ENABLE_CHATTR} ]] && ENABLE_CHATTR=true
+[[ -z ${ENABLE_DIALOG} ]] && ENABLE_DIALOG=true
 
 ############################################################
 # library sourced by cntools with common taskes to perform #
@@ -232,6 +233,10 @@ dialogHelp() {
 #             : title      >  The dialog title text
 #             : verbosity  >  [optional] Start path when dialog is opened, either dir or file (default: /tmp/)
 fileDialog() {
+  if [[ ${ENABLE_DIALOG} = "false" ]]; then
+    read -r -p "$2: " file
+    return
+  fi
   exec >&6 # normal stdout
   dialogSetup
   tput sc
@@ -247,6 +252,10 @@ fileDialog() {
 #             : title      >  The dialog title text
 #             : verbosity  >  [optional] Start path when dialog is opened, either dir or file (default: /tmp/)
 dirDialog() {
+  if [[ ${ENABLE_DIALOG} = "false" ]]; then
+    read -r -p "$2: " dir
+    return
+  fi
   exec >&6 # normal stdout
   dialogSetup
   tput sc
