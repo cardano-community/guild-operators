@@ -961,11 +961,10 @@ while true; do
         if [[ ${confirmed_cnt} -eq 0 ]]; then confirmed_fmt="${NC}"; else [[ ${confirmed_cnt} -eq ${adopted_cnt} ]] && confirmed_fmt="${style_status_1}" || confirmed_fmt="${style_status_2}"; fi
         [[ ${leader_cnt} -eq 0 ]] && leader_fmt="${NC}" || leader_fmt="${style_values_1}"
 
-        printf "${VL}${STANDOUT} BLOCKS ${NC}  Leader | Ideal | Luck       Adopted | Confirmed%$((width-58))s${VL}\n" "" && ((line++))
-        printf "${VL}%10s${leader_fmt}%-9s%-8s%-11s${adopted_fmt}%-10s${confirmed_fmt}%-9s${NC}%$((width-58))s${VL}\n" "" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "" && ((line++))
-
+        printf "${VL}${STANDOUT} BLOCKS ${NC}  Leader  | Ideal  | Luck    | Adopted | Confirmed%$((width-59))s${VL}\n" "" && ((line++))
+        printf "${VL}%10s${leader_fmt}%-10s%-9s%-10s${adopted_fmt}%-10s${confirmed_fmt}%-9s${NC}%$((width-59))s${VL}\n" "" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "" && ((line++))   
+        
         if [[ ${invalid_cnt} -ne 0 || ${missed_cnt} -ne 0 || ${ghosted_cnt} -ne 0 || ${stolen_cnt} -ne 0 ]]; then
-          echo "${m3divider}" && ((line++))
           printf "${VL}%10sInvalid | Missed | Ghosted | Stolen%$((width-46))s${VL}\n" "" && ((line++))
           printf "${VL}%10s${invalid_fmt}%-10s${missed_fmt}%-9s${ghosted_fmt}%-10s${stolen_fmt}%-6s${NC}%$((width-46))s${VL}\n" "" "${invalid_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "" && ((line++))
         fi
@@ -973,7 +972,6 @@ while true; do
         if [[ -n ${leader_next} ]]; then
           leader_time_left=$((  $(date -u -d ${leader_next} +%s) - $(date -u +%s) ))
           if [[ ${leader_time_left} -gt 0 ]]; then
-            echo "${m3divider}" && ((line++))
             setSizeAndStyleOfProgressBar ${leader_time_left}
             leader_time_left_fmt="$(timeLeft ${leader_time_left})"
             leader_progress=$(echo "(1-(${leader_time_left}/${leader_bar_span}))*100" | bc -l)
