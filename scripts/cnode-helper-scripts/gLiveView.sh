@@ -354,6 +354,42 @@ timeUntilNextBlock() {
   timeLeft $((  $(date -u -d ${leader_next} +%s) - $(date +%s) ))
 }
 
+# Command    : sizeOfProgressSlotSpan
+# Description: Determine the size of the progress bar based on remaining time
+# Return     : integer [432000, 43200, 3600, 200]
+sizeOfProgressSlotSpan() {
+  if [[ -n "${1}" ]] ; then
+    if [[ "${1}" -gt 43200 ]] ; then
+      echo 432000
+    elif [[ "${1}" -gt 3600 ]] ; then
+      echo 43200
+    elif [[ "${1}" -gt 300 ]] ; then
+      echo 3600
+    elif [[ "${1}" -gt 0 ]] ; then
+      echo 300
+    fi
+  else
+    echo 432000
+  fi
+}
+
+# Command    : styleOfProgressSlotSpan
+# Description: Determine the style of the progress bar based on remaining time
+# Return     : variable style_status_1 through 4
+styleOfProgressSlotSpan() {
+  if [[ -n "${1}" ]] ; then
+    if [[ "${1}" -eq 432000 ]] ; then
+      echo ${style_status_1}
+    elif [[ "${1}" -eq 43200 ]] ; then
+      echo ${style_status_2}
+    elif [[ "${1}" -eq 3600 ]] ; then
+      echo ${style_status_3}
+    elif [[ "${1}" -eq 300 ]] ; then
+      echo ${style_status_4}
+    fi
+  fi
+}
+
 # Command    : getSlotTipRef
 # Description: Get calculated slot number tip
 getSlotTipRef() {
@@ -950,25 +986,18 @@ while true; do
             leader_time_left=$(timeUntilNextBlock)
             leader_span=$(( $(date -d ${leader_next} +%s) - $(date -d ${leader_last} +%s) ))
             leader_left=$(( $(date -d ${leader_next} +%s) - $(date +%s) ))
-            leader_progress=$(echo "(${leader_left}/${leader_span})*100" | bc -l)
+            leader_bar_span=$(sizeOfProgressSlotSpan ${leader_left})
+            leader_bar_style=$(styleOfProgressSlotSpan ${leader_bar_span})
+            leader_progress=$(echo "(1-(${leader_left}/${leader_bar_span}))*100" | bc -l)
             leader_items=$(( $(printf %.0f "${leader_progress}") * granularity_small / 100 ))
             printf "${VL} ${style_values_1}%s${leader_time_left}${NC} until leader ${style_status_1}"
             tput cup ${line} ${bar_col_small}
             for i in $(seq 0 $((granularity_small-1))); do
-              [[ $i -lt ${leader_items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
+              [[ $i -lt ${leader_items} ]] && printf "${leader_bar_style}${char_marked}" || printf "${NC}${char_unmarked}"
             done
             printf "${NC}${VL}\n" && ((line++))
-            printf "${VL}"; tput cup $((line++)) ${width}; printf "${VL}\n" # empty line
           fi
         fi
-#        leader_items=$(( $(printf %.0f "${leader_progress}") * granularity / 100 ))
-#        printf "${VL} ${style_values_1}"
-#        for i in $(seq 0 $((granularity-1))); do
-#          [[ $i -lt ${leader_items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-#        done
-#        printf "${NC} ${VL}\n"; ((line++))
-#
-#        printf "${VL}"; tput cup $((line++)) ${width}; printf "${VL}\n" # empty line
 
         printf "${VL}${STANDOUT} BLOCKS ${NC}  Leader | Ideal | Luck       Adopted | Confirmed%$((width-58))s${VL}\n" "" && ((line++))
         printf "${VL}%10s${leader_fmt}%-9s%-8s%-11s${adopted_fmt}%-10s${confirmed_fmt}%-9s${NC}%$((width-58))s${VL}\n" "" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "" && ((line++))
