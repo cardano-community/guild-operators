@@ -577,6 +577,7 @@ while true; do
   line=0; tput cup 0 0 # reset position
 
   # Gather some data
+  CNODE_PID=$(pgrep -fn "[c]ardano-node*.*--port ${CNODE_PORT}")
   version=$("$(command -v cardano-node)" version)
   node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
   node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
@@ -961,8 +962,6 @@ while true; do
       echo "${m2divider}" && ((line++))
       
       if [[ -f "${BLOCKLOG_DB}" ]]; then
-        leader_last=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE epoch <= ${epochnum} AND datetime(at) < datetime('now') ORDER BY at DESC LIMIT 1;" 2>/dev/null)
-        leader_next=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE epoch >= ${epochnum} AND status='leader' AND datetime(at) >= datetime('now') ORDER BY at ASC LIMIT 1;" 2>/dev/null)
         invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='invalid';" 2>/dev/null)
         missed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='missed';" 2>/dev/null)
         ghosted_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='ghosted';" 2>/dev/null)
@@ -970,6 +969,8 @@ while true; do
         confirmed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='confirmed';" 2>/dev/null)
         adopted_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='adopted';" 2>/dev/null) + confirmed_cnt ))
         leader_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='leader';" 2>/dev/null) + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
+        leader_last=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE epoch <= ${epochnum} AND datetime(at) < datetime('now') ORDER BY at DESC LIMIT 1;" 2>/dev/null)
+        leader_next=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE epoch >= ${epochnum} AND status='leader' AND datetime(at) >= datetime('now') ORDER BY at ASC LIMIT 1;" 2>/dev/null)
         OLDIFS=$IFS && IFS='|' && read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${epochnum};" 2>/dev/null)" && IFS=$OLDIFS
         if [[ ${#epoch_stats[@]} -eq 0 ]]; then epoch_stats=("-" "-"); else epoch_stats[1]="${epoch_stats[1]}%"; fi
 
