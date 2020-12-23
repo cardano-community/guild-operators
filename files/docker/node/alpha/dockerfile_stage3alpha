@@ -88,7 +88,7 @@ ADD https://hydra.iohk.io/build/4372602/download/1/testnet-config.json $CNODE_HO
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/master-topology.sh /home/guild/.scripts/
 ADD https://raw.githubusercontent.com/stakelovelace/cardano-node/master/guild-topology.sh /home/guild/.scripts/
 ADD https://raw.githubusercontent.com/stakelovelace/cardano-node/master/block_watcher.sh /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/entrypoint.sh./
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/entrypoint.sh ./
 RUN sudo chown -R guild:guild $CNODE_HOME/* \
     && sudo chown -R guild:guild /home/guild/.* \
     && sudo chmod a+x /home/guild/.scripts/*.sh && sudo chmod a+x /home/guild/*.sh 
