@@ -346,47 +346,23 @@ timeUntilNextEpoch() {
   fi
 }
 
-
-# Command    : getTimeUntilNextBlock
-# Description: Offline calculation of time until next block
-# Return     : time left in hh:mm:ss
-timeUntilNextBlock() {
-  timeLeft $((  $(date -u -d ${leader_next} +%s) - $(date +%s) ))
-}
-
 # Command    : sizeOfProgressSlotSpan
-# Description: Determine the size of the progress bar based on remaining time
-# Return     : integer [432000, 43200, 3600, 200]
-sizeOfProgressSlotSpan() {
-  if [[ -n "${1}" ]] ; then
-    if [[ "${1}" -gt 43200 ]] ; then
-      echo 432000
-    elif [[ "${1}" -gt 3600 ]] ; then
-      echo 43200
-    elif [[ "${1}" -gt 300 ]] ; then
-      echo 3600
-    elif [[ "${1}" -gt 0 ]] ; then
-      echo 300
-    fi
+# Description: Determine and set the size and style of the progress bar based on remaining time
+# Return     : sets leader_bar_span as integer [432000, 43200, 3600, 300]
+#            : sets leader_bar_style using styling from theme
+setSizeAndStyleOfProgressBar() {
+  if [[ ${1} -gt 43200 ]]; then
+    leader_bar_span=432000
+    leader_bar_style="${style_status_1}"
+  elif [[ ${1} -gt 3600 ]]; then
+    leader_bar_span=43200
+    leader_bar_style="${style_status_2}"
+  elif [[ ${1} -gt 300 ]]; then
+    leader_bar_span=3600
+    leader_bar_style="${style_status_3}"
   else
-    echo 432000
-  fi
-}
-
-# Command    : styleOfProgressSlotSpan
-# Description: Determine the style of the progress bar based on remaining time
-# Return     : variable style_status_1 through 4
-styleOfProgressSlotSpan() {
-  if [[ -n "${1}" ]] ; then
-    if [[ "${1}" -eq 432000 ]] ; then
-      echo ${style_status_1}
-    elif [[ "${1}" -eq 43200 ]] ; then
-      echo ${style_status_2}
-    elif [[ "${1}" -eq 3600 ]] ; then
-      echo ${style_status_3}
-    elif [[ "${1}" -eq 300 ]] ; then
-      echo ${style_status_4}
-    fi
+    leader_bar_span=300
+    leader_bar_style="${style_status_4}"
   fi
 }
 
@@ -973,8 +949,7 @@ while true; do
         confirmed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='confirmed';" 2>/dev/null)
         adopted_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='adopted';" 2>/dev/null) + confirmed_cnt ))
         leader_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epochnum} AND status='leader';" 2>/dev/null) + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
-        leader_last=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE epoch <= ${epochnum} AND datetime(at) < datetime('now') ORDER BY at DESC LIMIT 1;" 2>/dev/null)
-        leader_next=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE epoch >= ${epochnum} AND status='leader' AND datetime(at) >= datetime('now') ORDER BY at ASC LIMIT 1;" 2>/dev/null)
+        leader_next=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE datetime(at) > datetime('now') ORDER BY slot ASC LIMIT 1;" 2>/dev/null)
         OLDIFS=$IFS && IFS='|' && read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${epochnum};" 2>/dev/null)" && IFS=$OLDIFS
         if [[ ${#epoch_stats[@]} -eq 0 ]]; then epoch_stats=("-" "-"); else epoch_stats[1]="${epoch_stats[1]}%"; fi
 
@@ -986,32 +961,30 @@ while true; do
         if [[ ${confirmed_cnt} -eq 0 ]]; then confirmed_fmt="${NC}"; else [[ ${confirmed_cnt} -eq ${adopted_cnt} ]] && confirmed_fmt="${style_status_1}" || confirmed_fmt="${style_status_2}"; fi
         [[ ${leader_cnt} -eq 0 ]] && leader_fmt="${NC}" || leader_fmt="${style_values_1}"
 
-        if [[ -n ${leader_last} ]] && [[ -n ${leader_next} ]] ; then
-          if [[ $(date -d ${leader_last} +%s) -gt 0 ]] && [[ $(date -d ${leader_next} +%s) -gt $(date -d ${leader_last} +%s) ]] ; then
-            leader_time_left=$(timeUntilNextBlock)
-            leader_span=$(( $(date -d ${leader_next} +%s) - $(date -d ${leader_last} +%s) ))
-            leader_left=$(( $(date -d ${leader_next} +%s) - $(date +%s) ))
-            leader_bar_span=$(sizeOfProgressSlotSpan ${leader_left})
-            leader_bar_style=$(styleOfProgressSlotSpan ${leader_bar_span})
-            leader_progress=$(echo "(1-(${leader_left}/${leader_bar_span}))*100" | bc -l)
-            leader_items=$(( $(printf %.0f "${leader_progress}") * granularity_small / 100 ))
-            printf "${VL} ${style_values_1}%s${leader_time_left}${NC} until leader ${style_status_1}"
+        printf "${VL}${STANDOUT} BLOCKS ${NC}  Leader | Ideal | Luck       Adopted | Confirmed%$((width-58))s${VL}\n" "" && ((line++))
+        printf "${VL}%10s${leader_fmt}%-9s%-8s%-11s${adopted_fmt}%-10s${confirmed_fmt}%-9s${NC}%$((width-58))s${VL}\n" "" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "" && ((line++))
+
+        if [[ ${invalid_cnt} -ne 0 || ${missed_cnt} -ne 0 || ${ghosted_cnt} -ne 0 || ${stolen_cnt} -ne 0 ]]; then
+          echo "${m3divider}" && ((line++))
+          printf "${VL}%10sInvalid | Missed | Ghosted | Stolen%$((width-46))s${VL}\n" "" && ((line++))
+          printf "${VL}%10s${invalid_fmt}%-10s${missed_fmt}%-9s${ghosted_fmt}%-10s${stolen_fmt}%-6s${NC}%$((width-46))s${VL}\n" "" "${invalid_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "" && ((line++))
+        fi
+        
+        if [[ -n ${leader_next} ]]; then
+          leader_time_left=$((  $(date -u -d ${leader_next} +%s) - $(date -u +%s) ))
+          if [[ ${leader_time_left} -gt 0 ]]; then
+            echo "${m3divider}" && ((line++))
+            setSizeAndStyleOfProgressBar ${leader_time_left}
+            leader_time_left_fmt="$(timeLeft ${leader_time_left})"
+            leader_progress=$(echo "(1-(${leader_time_left}/${leader_bar_span}))*100" | bc -l)
+            leader_items=$(( ($(printf %.0f "${leader_progress}") * granularity_small) / 100 ))
+            printf "${VL} ${style_values_1}%$((second_col-17))s${NC} until leader" "${leader_time_left_fmt}"
             tput cup ${line} ${bar_col_small}
             for i in $(seq 0 $((granularity_small-1))); do
               [[ $i -lt ${leader_items} ]] && printf "${leader_bar_style}${char_marked}" || printf "${NC}${char_unmarked}"
             done
             printf "${NC}${VL}\n" && ((line++))
           fi
-        fi
-
-        printf "${VL}${STANDOUT} BLOCKS ${NC}  Leader | Ideal | Luck       Adopted | Confirmed%$((width-58))s${VL}\n" "" && ((line++))
-        printf "${VL}%10s${leader_fmt}%-9s%-8s%-11s${adopted_fmt}%-10s${confirmed_fmt}%-9s${NC}%$((width-58))s${VL}\n" "" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "" && ((line++))
-
-
-        if [[ ${invalid_cnt} -ne 0 || ${missed_cnt} -ne 0 || ${ghosted_cnt} -ne 0 || ${stolen_cnt} -ne 0 ]]; then
-          echo "${m3divider}" && ((line++))
-          printf "${VL}%10sInvalid | Missed | Ghosted | Stolen%$((width-46))s${VL}\n" "" && ((line++))
-          printf "${VL}%10s${invalid_fmt}%-10s${missed_fmt}%-9s${ghosted_fmt}%-10s${stolen_fmt}%-6s${NC}%$((width-46))s${VL}\n" "" "${invalid_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "" && ((line++))
         fi
       else
         printf "${VL}${STANDOUT} BLOCKS ${NC} %$((width-38))s %-6s | ${FG_GREEN}%-7s${NC} | ${FG_RED}%-7s${NC} ${VL}\n" "" "Leader" "Adopted" "Invalid" && ((line++))
