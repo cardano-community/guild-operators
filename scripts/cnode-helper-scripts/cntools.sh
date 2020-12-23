@@ -707,7 +707,7 @@ EOF
 
     getBaseAddress ${wallet_name}
     getPayAddress ${wallet_name}
-    
+
     if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       getBalance ${base_addr}
       base_lovelace=${lovelace}
@@ -734,6 +734,7 @@ EOF
     if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       if isWalletRegistered ${wallet_name}; then
         say "$(printf "%-19s : ${FG_GREEN}%s${NC}" "Registered" "YES")" "log"
+        say "$(printf "%-19s : %s${NC}" "Stake Address" "${reward_addr}")" "log"
       else
         say "$(printf "%-19s : ${FG_RED}%s${NC}" "Registered" "NO")" "log"
       fi
