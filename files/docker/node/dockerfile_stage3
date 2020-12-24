@@ -18,8 +18,6 @@ WORKDIR /
 
 # COPY NODE BINS AND DEPS 
 COPY --from=cardanocommunity/cardano-node:stage2 /root/.cabal/bin/* /usr/local/bin/
-# COPY NODE BINS AND DEPS 
-COPY --from=cardanocommunity/cardano-node:stage2 /root/.cabal/bin/* /usr/local/bin/
 COPY --from=cardanocommunity/cardano-node:stage2 /lib/x86_64-linux-gnu/lib* /lib/x86_64-linux-gnu/
 COPY --from=cardanocommunity/cardano-node:stage2 /lib64/ld-linux-x86-64* /lib64/
 COPY --from=cardanocommunity/cardano-node:stage2 /usr/lib/x86_64-linux-gnu/libgmp.* /usr/lib/x86_64-linux-gnu/
@@ -57,7 +55,7 @@ RUN apt-get update && apt-get install -y libcap2-bin ncurses-bin iproute2 curl w
     && apt-get install -y --no-install-recommends cron \
     && sudo apt-get -y purge && sudo apt-get -y clean && sudo apt-get -y autoremove && sudo rm -rf /var/lib/apt/lists/* # && sudo rm -rf /usr/bin/apt*
 
-ADD https://raw.githubusercontent.com/stakelovelace/cardano-node/master/crontab /etc/cron.d/crontab
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/crontab /etc/cron.d/crontab
 RUN chmod 0644 /etc/cron.d/crontab && touch /var/log/cron.log
 
 RUN cd /usr/bin \
@@ -78,37 +76,59 @@ RUN sudo curl -sL https://nixos.org/nix/install | sh \
     && sudo ln -s /nix/var/nix/profiles/per-user/etc/profile.d/nix.sh /etc/profile.d/ \
     && . /home/guild/.nix-profile/etc/profile.d/nix.sh \
     && sudo crontab -u guild /etc/cron.d/crontab \
+    && echo "head -n 8 /home/guild/.scripts/banner.txt" >> ~/.bashrc \
+    && echo "grep MENU -A 6 /home/guild/.scripts/banner.txt | grep -v MENU" >> ~/.bashrc \
+    && echo "alias env=/usr/bin/env" >> ~/.bashrc \
     && echo "alias cntools=$CNODE_HOME/scripts/cntools.sh" >> ~/.bashrc \
     && echo "alias gLiveView=$CNODE_HOME/scripts/gLiveView.sh" >> ~/.bashrc \
+    && echo "alias cncli=$CNODE_HOME/scripts/cncli.sh" >> ~/.bashrc \
     && echo "export PATH=/nix/var/nix/profiles/per-user/guild/profile/bin:/nix/var/nix/profiles/per-user/guild/profile/sbin:/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.cabal/bin"  >> ~/.bashrc
 
 # INSTALL DEPS  
-RUN /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -i python3 systemd libsodium tmux jq ncurses libtool autoconf git wget gnupg column less openssl vim \
+RUN /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -i python3 systemd libsodium tmux jq ncurses libtool autoconf git wget gnupg column less openssl \
     && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-channel --update \
     && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -u --always \
     && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-collect-garbage -d \
     && sudo rm /nix/var/nix/profiles/per-user/guild/profile/bin/nix-*
 
-# HYDRA CFG
+# Mainnet
 ADD https://hydra.iohk.io/build/3670619/download/1/mainnet-topology.json $CNODE_HOME/priv/files/
 ADD https://hydra.iohk.io/build/3670619/download/1/mainnet-shelley-genesis.json $CNODE_HOME/priv/files/
 ADD https://hydra.iohk.io/build/3670619/download/1/mainnet-byron-genesis.json $CNODE_HOME/priv/files/
 ADD https://hydra.iohk.io/build/3670619/download/1/mainnet-config.json $CNODE_HOME/priv/files/
 
-# HYDRA TESTNET CFG
+# Testnet
 ADD https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json $CNODE_HOME/priv/files/
 ADD https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json $CNODE_HOME/priv/files/
 ADD https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-topology.json $CNODE_HOME/priv/files/
 ADD https://hydra.iohk.io/build/4372602/download/1/testnet-config.json $CNODE_HOME/priv/files/
 
+# Allegra
+ADD https://hydra.iohk.io/build/5102327/download/1/allegra-byron-genesis.json $CNODE_HOME/priv/files/
+ADD https://hydra.iohk.io/build/5102327/download/1/allegra-config.json $CNODE_HOME/priv/files/
+ADD https://hydra.iohk.io/build/5102327/download/1/allegra-shelley-genesis.json $CNODE_HOME/priv/files/
+ADD https://hydra.iohk.io/build/5102327/download/1/allegra-topology.json $CNODE_HOME/priv/files/
+ADD https://hydra.iohk.io/build/5102327/download/1/allegra-db-sync-config.json $CNODE_HOME/priv/files/
+
+# Launchpd
+ADD https://hydra.iohk.io/build/5102327/download/1/launchpad-config.json $CNODE_HOME/priv/files/
+ADD https://hydra.iohk.io/build/5102327/download/1/launchpad-byron-genesis.json $CNODE_HOME/priv/files/
+ADD https://hydra.iohk.io/build/5102327/download/1/launchpad-shelley-genesis.json $CNODE_HOME/priv/files/
+ADD https://hydra.iohk.io/build/5102327/download/1/launchpad-topology.json $CNODE_HOME/priv/files/
+ADD https://hydra.iohk.io/build/5102327/download/1/launchpad-db-sync-config.json $CNODE_HOME/priv/files/
+
 # ENTRY SCRIPT
-ADD https://raw.githubusercontent.com/stakelovelace/cardano-node/master/master-topology.sh /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/stakelovelace/cardano-node/master/guild-topology.sh /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/stakelovelace/cardano-node/master/block_watcher.sh /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/stakelovelace/cardano-node/master/entrypoint2.sh ./
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/banner.txt /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/master-topology.sh /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/block_watcher.sh /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/healthcheck.sh /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/entrypoint.sh ./
 
 RUN sudo chown -R guild:guild $CNODE_HOME/* \
     && sudo chown -R guild:guild /home/guild/.* \
-    && sudo chmod a+x /home/guild/.scripts/*.sh /home/guild/entrypoint2.sh
+    && sudo chmod a+x /home/guild/.scripts/*.sh /home/guild/entrypoint.sh \
+    && find /opt/cardano/cnode -name "*config*.json" -print0 | xargs -0 sed -i 's/127.0.0.1/0.0.0.0/g' 2> /dev/null
 
-ENTRYPOINT ["./entrypoint2.sh"]
+HEALTHCHECK --start-period=5m --interval=5m --timeout=100s CMD /home/guild/.scripts/healthcheck.sh
+
+ENTRYPOINT ["./entrypoint.sh"]

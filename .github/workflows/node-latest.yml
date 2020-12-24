@@ -1,7 +1,7 @@
 name: Get latest Node release version
 on:
   schedule:
-    - cron:  '0 */3 * * *'
+    - cron:  '0 0 */2 * *'
 jobs:
   get-version:
     runs-on: ubuntu-latest

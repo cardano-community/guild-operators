@@ -7,7 +7,7 @@ LANG=C.UTF-8 \
 USER=root \
 PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:$PATH 
 
-ARG CNVERSION=1.23.0
+ARG CNVERSION=1.24.2
 
 RUN git clone https://github.com/input-output-hk/cardano-node.git \
   && cd cardano-node && export OVERWRITE_LOCAL="Y" \
