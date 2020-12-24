@@ -107,7 +107,11 @@ ADD https://hydra.iohk.io/build/5102327/download/1/launchpad-db-sync-config.json
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/banner.txt /home/guild/.scripts/
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/master-topology.sh /home/guild/.scripts/
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/block_watcher.sh /home/guild/.scripts/
+<<<<<<< HEAD
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/healthcheck.sh /home/guild/.scripts/
+=======
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/nodlaze/addons/healthcheck.sh /home/guild/.scripts/
+>>>>>>> origin/alpha
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/entrypoint.sh ./
 
 RUN sudo chown -R guild:guild $CNODE_HOME/* \
