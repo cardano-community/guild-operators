@@ -248,7 +248,7 @@ println "OFF" ""
 println "OFF" " ) Wallet      - create, show, remove and protect wallets"
 println "OFF" " ) Funds       - send, withdraw and delegate"
 println "OFF" " ) Pool        - pool creation and management"
-println "OFF" " ) Transaction - Witness, Sign and Submit a built transaction file (hybrid/offline mode)"
+println "OFF" " ) Transaction - Witness, Sign and Submit a cold transaction (hybrid/offline mode)"
 println "OFF" " ) Metadata    - Post metadata on-chain (e.g voting)"
 println "OFF" " ) Blocks      - show core node leader slots"
 println "OFF" " ) Update      - update cntools script and library config files"
@@ -715,24 +715,15 @@ EOF
       waitForInput && continue
     fi
     
-    println "DEBUG" "${FG_YELLOW}Waiting for wallet de-registration to be recorded on chain${NC}"
-    while true; do
-      if ! waitNewBlockCreated; then
-        break
-      fi
+    echo
+    if ! waitNewBlockCreated; then waitForInput && continue; fi
+    getBalance ${base_addr}
+    while [[ ${lovelace} -ne ${newBalance} ]]; do
+      println "DEBUG" "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+      println "LOG" "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})"
+      if ! waitNewBlockCreated; then waitForInput && continue 2; fi
       getBalance ${base_addr}
-      if [[ ${lovelace} -ne ${newBalance} ]]; then
-        println "${FG_YELLOW}WARN${NC}: Balance mismatch, wallet de-registration not included in latest block... waiting for next block!"
-        println "LOG" "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})"
-      else
-        break
-      fi
     done
-
-    if [[ ${lovelace} -ne ${newBalance} ]]; then
-      println "${FG_YELLOW}WARN${NC}: wallet de-registration check aborted"
-      waitForInput && continue
-    fi
 
     echo
     println "${FG_GREEN}${wallet_name}${NC} successfully de-registered from chain!"
@@ -1294,30 +1285,18 @@ EOF
       waitForInput && continue
     fi
 
-    println "DEBUG" "\n${FG_YELLOW}Waiting for payment to be recorded on chain${NC}"
-    if ! waitNewBlockCreated; then
-      waitForInput && continue
-    fi
-
+    echo
+    if ! waitNewBlockCreated; then waitForInput && continue; fi
     getBalance ${s_addr}
-
     while [[ ${lovelace} -ne ${newBalance} ]]; do
       println "DEBUG" "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
       println "LOG" "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})"
-      if ! waitNewBlockCreated; then
-        break
-      fi
+      if ! waitNewBlockCreated; then waitForInput && continue 2; fi
       getBalance ${s_addr}
     done
 
-    if [[ ${lovelace} -ne ${newBalance} ]]; then
-      waitForInput && continue
-    fi
-
     s_balance=${lovelace}
-
     getBalance ${d_addr}
-
     d_balance=${lovelace}
 
     getPayAddress ${s_wallet}
@@ -1429,25 +1408,15 @@ EOF
       waitForInput && continue
     fi
 
-    println "DEBUG" "\n${FG_YELLOW}Waiting for wallet delegation to be recorded on chain${NC}"
-    if ! waitNewBlockCreated; then
-      waitForInput && continue
-    fi
-
+    echo
+    if ! waitNewBlockCreated; then waitForInput && continue; fi
     getBalance ${base_addr}
-
     while [[ ${lovelace} -ne ${newBalance} ]]; do
       println "DEBUG" "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
       println "LOG" "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})"
-      if ! waitNewBlockCreated; then
-        break
-      fi
+      if ! waitNewBlockCreated; then waitForInput && continue 2; fi
       getBalance ${base_addr}
     done
-
-    if [[ ${lovelace} -ne ${newBalance} ]]; then
-      waitForInput && continue
-    fi
 
     echo
     println "Delegation successfully registered"
@@ -1510,25 +1479,15 @@ EOF
       waitForInput && continue
     fi
 
-    println "DEBUG" "\n${FG_YELLOW}Waiting for reward withdrawal to be recorded on chain${NC}"
-    if ! waitNewBlockCreated; then
-      waitForInput && continue
-    fi
-
+    echo
+    if ! waitNewBlockCreated; then waitForInput && continue; fi
     getBalance ${base_addr}
-
     while [[ ${lovelace} -ne ${newBalance} ]]; do
       println "DEBUG" "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
       println "LOG" "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})"
-      if ! waitNewBlockCreated; then
-        break
-      fi
+      if ! waitNewBlockCreated; then waitForInput && continue 2; fi
       getBalance ${base_addr}
     done
-
-    if [[ ${lovelace} -ne ${newBalance} ]]; then
-      waitForInput && continue
-    fi
 
     getRewards ${wallet_name}
 
@@ -2129,27 +2088,16 @@ EOF
     [[ -f "${pool_deregcert_file}" ]] && rm -f ${pool_deregcert_file} # delete de-registration cert if available
 
     if [[ ${op_mode} = "online" ]]; then
-      println "DEBUG" "\n${FG_YELLOW}Waiting for pool registration to be recorded on chain${NC}"
-      if ! waitNewBlockCreated; then
-        waitForInput && continue
-      fi
-
+      echo
+      if ! waitNewBlockCreated; then waitForInput && continue; fi
       getBaseAddress ${owner_wallet}
       getBalance ${base_addr}
-
       while [[ ${lovelace} -ne ${newBalance} ]]; do
         println "DEBUG" "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
         println "LOG" "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})"
-        if ! waitNewBlockCreated; then
-          break
-        fi
+        if ! waitNewBlockCreated; then waitForInput && continue 2; fi
         getBalance ${base_addr}
       done
-
-      if [[ ${lovelace} -ne ${newBalance} ]]; then
-        waitForInput && continue
-      fi
-
       echo
       println "Pool ${FG_GREEN}${pool_name}${NC} successfully registered!"
     else
@@ -2164,7 +2112,7 @@ EOF
       println "Owner #$((++pledge_cnt))      : ${FG_GREEN}${pledge_wallet}${NC}"
     done
     multi_owner_key_cnt=$(( owner_count - ${#pledge_wallets[@]} ))
-    [[ ${multi_owner_key_cnt} -gt 0 ]] && println "                ${FG_BLUE}${multi_owner_key_cnt}${NC} additional owner(s) using stake keys"
+    [[ ${multi_owner_key_cnt} -gt 0 ]] && println "Owner #$((${#pledge_wallets[@]}+1))-${owner_count}    : ${FG_BLUE}${multi_owner_key_cnt}${NC} additional owner(s) using stake keys"
     println "Reward Wallet : ${FG_GREEN}${reward_wallet}${NC}"
     println "Pledge        : $(formatAda ${pledge_ada}) ADA"
     println "Margin        : ${margin}%"
@@ -2176,32 +2124,29 @@ EOF
       for pledge_wallet in "${pledge_wallets[@]}"; do
         getBaseAddress ${pledge_wallet}
         getBalance ${base_addr}
-        total_pledge+=${lovelace}
+        total_pledge=$(( total_pledge + lovelace ))
         getRewardAddress ${pledge_wallet}
         getRewards ${reward_addr}
-        [[ ${reward_lovelace} -gt 0 ]] && total_pledge+=${reward_lovelace}
+        [[ ${reward_lovelace} -gt 0 ]] && total_pledge=$(( total_pledge + reward_lovelace ))
       done
-      pledge_wallet_cnt=${#pledge_wallets[@]}
       while [[ "${#multi_owner_vkeys[@]}" -gt 1 ]]; do
         getBaseAddress "${multi_owner_vkeys[0]}" "${multi_owner_vkeys[1]}"
         getBalance ${base_addr}
-        total_pledge+=${lovelace}
+        total_pledge=$(( total_pledge + lovelace ))
         getRewardAddress "${multi_owner_vkeys[1]}"
         getRewards ${reward_addr}
-        [[ ${reward_lovelace} -gt 0 ]] && total_pledge+=${reward_lovelace}
+        [[ ${reward_lovelace} -gt 0 ]] && total_pledge=$(( total_pledge + reward_lovelace ))
         multi_owner_vkeys=( "${multi_owner_vkeys[@]:2}" ) # pop processed keys from array
-        ((pledge_wallet_cnt++))
       done
       echo
+      println "DEBUG" "${FG_CYAN}INFO${NC}: Total balance in ${FG_CYAN}${owner_count}${NC} owner/pledge wallet(s) are: $(formatLovelace ${total_pledge}) ADA"
       if [[ ${total_pledge} -lt ${pledge_lovelace} ]]; then
-        echo
-        println "${FG_YELLOW}WARN${NC}: Total balance in ${FG_CYAN}${pledge_wallet_cnt}${NC} owner/pledge wallet(s) is less than set pool pledge: "
-        println "      make sure to put enough funds in wallet to honor pledge"
+        println "ERROR" "${FG_YELLOW}Not enough funds in owner/pledge wallet(s) to meet set pledge, please manually verify!!!${NC}"
       fi
     fi
     if [[ ${owner_count} -gt 1 ]]; then
       echo
-      println "DEBUG" "${FG_BLUE}INFO${NC}: All additional multi-owner wallets need to be manually delegated to pool if not done already!"
+      println "DEBUG" "${FG_BLUE}INFO${NC}: Please verify that all multi-owner wallets are delegated to the pool, if not do so!"
     fi
     
     waitForInput && continue
@@ -2674,23 +2619,16 @@ EOF
     chmod 700 ${POOL_FOLDER}/${pool_name}/*
 
     if [[ ${op_mode} = "online" ]]; then
-      println "DEBUG" "\n${FG_YELLOW}Waiting for pool re-registration to be recorded on chain${NC}"
-      if ! waitNewBlockCreated; then
-        waitForInput && continue
-      fi
+      echo
+      if ! waitNewBlockCreated; then waitForInput && continue; fi
       getBaseAddress ${owner_wallet}
       getBalance ${base_addr}
       while [[ ${lovelace} -ne ${newBalance} ]]; do
         println "DEBUG" "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
         println "LOG" "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})"
-        if ! waitNewBlockCreated; then
-          break
-        fi
+        if ! waitNewBlockCreated; then waitForInput && continue 2; fi
         getBalance ${base_addr}
       done
-      if [[ ${lovelace} -ne ${newBalance} ]]; then
-        waitForInput && continue
-      fi
       echo
       println "Pool ${FG_GREEN}${pool_name}${NC} successfully updated with new parameters!"
     else
@@ -2705,44 +2643,39 @@ EOF
       println "Owner #$((++pledge_cnt))      : ${FG_GREEN}${pledge_wallet}${NC}"
     done
     multi_owner_key_cnt=$(( owner_count - ${#pledge_wallets[@]} ))
-    [[ ${multi_owner_key_cnt} -gt 0 ]] && println "                ${FG_BLUE}${multi_owner_key_cnt}${NC} additional owner(s) using stake keys"
+    [[ ${multi_owner_key_cnt} -gt 0 ]] && println "Owner #$((${#pledge_wallets[@]}+1))-${owner_count}    : ${FG_BLUE}${multi_owner_key_cnt}${NC} additional owner(s) using stake keys"
     println "Reward Wallet : ${FG_GREEN}${reward_wallet}${NC}"
     println "Pledge        : $(formatAda ${pledge_ada}) ADA"
     println "Margin        : ${margin}%"
     println "Cost          : $(formatAda ${cost_ada}) ADA"
-    echo
-    println "DEBUG" "Uncomment and set value for POOL_NAME in $CNODE_HOME/scripts/env with '${pool_name}'"
     if [[ ${op_mode} = "online" ]]; then
       total_pledge=0
       for pledge_wallet in "${pledge_wallets[@]}"; do
         getBaseAddress ${pledge_wallet}
         getBalance ${base_addr}
-        total_pledge+=${lovelace}
+        total_pledge=$(( total_pledge + lovelace ))
         getRewardAddress ${pledge_wallet}
         getRewards ${reward_addr}
-        [[ ${reward_lovelace} -gt 0 ]] && total_pledge+=${reward_lovelace}
+        [[ ${reward_lovelace} -gt 0 ]] && total_pledge=$(( total_pledge + reward_lovelace ))
       done
-      pledge_wallet_cnt=${#pledge_wallets[@]}
       while [[ "${#multi_owner_vkeys[@]}" -gt 1 ]]; do
         getBaseAddress "${multi_owner_vkeys[0]}" "${multi_owner_vkeys[1]}"
         getBalance ${base_addr}
-        total_pledge+=${lovelace}
+        total_pledge=$(( total_pledge + lovelace ))
         getRewardAddress "${multi_owner_vkeys[1]}"
         getRewards ${reward_addr}
-        [[ ${reward_lovelace} -gt 0 ]] && total_pledge+=${reward_lovelace}
+        [[ ${reward_lovelace} -gt 0 ]] && total_pledge=$(( total_pledge + reward_lovelace ))
         multi_owner_vkeys=( "${multi_owner_vkeys[@]:2}" ) # pop processed keys from array
-        ((pledge_wallet_cnt++))
       done
       echo
+      println "DEBUG" "${FG_CYAN}INFO${NC}: Total balance in ${FG_CYAN}${owner_count}${NC} owner/pledge wallet(s) are: $(formatLovelace ${total_pledge}) ADA"
       if [[ ${total_pledge} -lt ${pledge_lovelace} ]]; then
-        echo
-        println "${FG_YELLOW}WARN${NC}: Total balance in ${FG_CYAN}${pledge_wallet_cnt}${NC} owner/pledge wallet(s) is less than set pool pledge: "
-        println "      make sure to put enough funds in wallet to honor pledge"
+        println "ERROR" "${FG_YELLOW}Not enough funds in owner/pledge wallet(s) to meet set pledge, please manually verify!!!${NC}"
       fi
     fi
     if [[ ${owner_count} -gt 1 ]]; then
       echo
-      println "DEBUG" "${FG_BLUE}INFO${NC}: All additional multi-owner wallets need to be manually delegated to pool if not done already!"
+      println "DEBUG" "${FG_BLUE}INFO${NC}: Please verify that all multi-owner wallets are delegated to the pool, if not do so!"
     fi
 
     waitForInput && continue
@@ -2863,25 +2796,15 @@ EOF
     
     [[ -f "${pool_regcert_file}" ]] && rm -f ${pool_regcert_file} # delete registration cert
 
-    println "DEBUG" "\n${FG_YELLOW}Waiting for pool de-registration to be recorded on chain${NC}"
-    if ! waitNewBlockCreated; then
-      waitForInput && continue
-    fi
-
+    echo
+    if ! waitNewBlockCreated; then waitForInput && continue; fi
     getBalance ${addr}
-
     while [[ ${lovelace} -ne ${newBalance} ]]; do
-      println "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+      println "DEBUG" "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
       println "LOG" "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})"
-      if ! waitNewBlockCreated; then
-        break
-      fi
+      if ! waitNewBlockCreated; then waitForInput && continue 2; fi
       getBalance ${addr}
     done
-
-    if [[ ${lovelace} -ne ${newBalance} ]]; then
-      waitForInput && continue
-    fi
 
     echo
     println "Pool ${FG_GREEN}${pool_name}${NC} set to be retired in epoch ${FG_BLUE}${epoch_enter}${NC}"
@@ -3609,25 +3532,15 @@ EOF
     waitForInput && continue
   fi
 
-  println "DEBUG" "${FG_YELLOW}Waiting for metadata transaction to be recorded on chain${NC}"
-  if ! waitNewBlockCreated; then
-    waitForInput && continue
-  fi
-
+  echo
+  if ! waitNewBlockCreated; then waitForInput && continue; fi
   getBalance ${addr}
-
   while [[ ${lovelace} -ne ${newBalance} ]]; do
     println "DEBUG" "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
     println "LOG" "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})"
-    if ! waitNewBlockCreated; then
-      break
-    fi
+    if ! waitNewBlockCreated; then waitForInput && continue 2; fi
     getBalance ${addr}
   done
-
-  if [[ ${lovelace} -ne ${newBalance} ]]; then
-    waitForInput && continue
-  fi
 
   echo
   println "Metadata successfully posted on-chain"

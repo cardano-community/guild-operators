@@ -19,7 +19,7 @@ CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PAT
 # overriden by values set in cntools.config                #
 ############################################################
 [[ -z ${TMP_FOLDER} ]] && TMP_FOLDER=/tmp/cntools
-[[ -z ${TIMEOUT_NO_OF_SLOTS} ]] && TIMEOUT_NO_OF_SLOTS=60
+[[ -z ${TIMEOUT_NO_OF_SLOTS} ]] && TIMEOUT_NO_OF_SLOTS=600
 [[ -z ${TIMEOUT_LEDGER_STATE} ]] && TIMEOUT_LEDGER_STATE=300
 [[ -z ${SHELLEY_TRANS_FILENAME} ]] && SHELLEY_TRANS_FILENAME="${CNODE_HOME}/guild-db/shelley_trans_epoch"
 [[ ${SHELLEY_TRANS_FILENAME} =~ ^${CNODE_HOME}/db/ ]] && mkdir -p "${CNODE_HOME}/guild-db" && SHELLEY_TRANS_FILENAME="${CNODE_HOME}/guild-db/shelley_trans_epoch"
@@ -741,7 +741,7 @@ kesExpiration() {
 # Description : Wait for a new block to be created
 waitNewBlockCreated() {
   counter=${TIMEOUT_NO_OF_SLOTS}
-  println "LOG" "Waiting for new block to be created (timeout = ${counter} slots, $(( counter * SLOT_LENGTH ))s)"
+  println "DEBUG" "Waiting for new block to be created (timeout = ${counter} slots, $(( counter * SLOT_LENGTH ))s)"
   println "DEBUG" "${FG_BLUE}INFO${NC}: press any key to cancel balance check and return"
   initialTip=$(getBlockTip)
   actualTip=${initialTip}
@@ -749,7 +749,7 @@ waitNewBlockCreated() {
   while [ "${actualTip}" = "${initialTip}" ]; do
     read -r -n 1 -s -t ${SLOT_LENGTH} abort
     if [[ $? -eq 0 ]]; then
-      println "DEBUG" "${FG_BLUE}INFO${NC}: Balance check aborted!"
+      println "DEBUG" "${FG_YELLOW}WARN${NC}: Balance check aborted, transaction still in queue!"
       return 1
     fi
     actualTip=$(getBlockTip)
@@ -1110,24 +1110,14 @@ registerStakeWallet() {
   if ! signTx "${TMP_FOLDER}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 
-  println "DEBUG" "${FG_YELLOW}Waiting for wallet registration to be recorded on chain${NC}"
-  while true; do
-    if ! waitNewBlockCreated; then
-      break
-    fi
+  if ! waitNewBlockCreated; then return 1; fi
+  getBalance ${base_addr}
+  while [[ ${lovelace} -ne ${newBalance} ]]; do
+    println "DEBUG" "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+    println "LOG" "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})"
+    if ! waitNewBlockCreated; then return 1; fi
     getBalance ${base_addr}
-    if [[ ${lovelace} -ne ${newBalance} ]]; then
-      println "DEBUG" "${FG_YELLOW}WARN${NC}: Balance mismatch, wallet registration not included in latest block... waiting for next block!"
-      println "LOG" "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})"
-    else
-      break
-    fi
   done
-
-  if [[ ${lovelace} -ne ${newBalance} ]]; then
-    println "DEBUG" "${FG_YELLOW}WARN${NC}: wallet registration check aborted"
-    return 1
-  fi
 
   reward_lovelace=0
 }
