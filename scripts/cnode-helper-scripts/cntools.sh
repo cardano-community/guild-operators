@@ -1281,7 +1281,7 @@ EOF
            waitForInput && continue
          fi
          ;;
-      1) echo -n "\nAddress: " >&6 && read -r d_addr && println "LOG" "Address: ${d_addr}" ;;
+      1) echo -en "\nAddress: " >&6 && read -r d_addr && println "LOG" "Address: ${d_addr}" ;;
       2) continue ;;
     esac
     # Destination could be empty, if so without getting a valid address
@@ -1791,7 +1791,7 @@ EOF
       case $? in
         0) meta_extended_option=""
            ;;
-        1) echo -n "\nEnter URL to extended metadata (default: ${meta_extended}): " >&6 && read -r extended_enter && println "LOG" "Enter URL to extended metadata (default: ${meta_extended}): ${extended_enter}"
+        1) echo -en "\nEnter URL to extended metadata (default: ${meta_extended}): " >&6 && read -r extended_enter && println "LOG" "Enter URL to extended metadata (default: ${meta_extended}): ${extended_enter}"
            extended_enter="${extended_enter}"
            [[ -n "${extended_enter}" ]] && meta_extended="${extended_enter}"
            if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 64 ]]; then
@@ -2160,7 +2160,7 @@ EOF
     fi
     
     pledge_cnt=0
-    for pledge_wallet in ${pledge_wallets[@]}; do
+    for pledge_wallet in "${pledge_wallets[@]}"; do
       println "Owner #$((++pledge_cnt))      : ${FG_GREEN}${pledge_wallet}${NC}"
     done
     multi_owner_key_cnt=$(( owner_count - ${#pledge_wallets[@]} ))
@@ -2173,7 +2173,7 @@ EOF
     println "DEBUG" "Uncomment and set value for POOL_NAME in $CNODE_HOME/scripts/env with '${pool_name}'"
     if [[ ${op_mode} = "online" ]]; then
       total_pledge=0
-      for pledge_wallet in ${pledge_wallets[@]}; do
+      for pledge_wallet in "${pledge_wallets[@]}"; do
         getBaseAddress ${pledge_wallet}
         getBalance ${base_addr}
         total_pledge+=${lovelace}
@@ -2360,7 +2360,7 @@ EOF
       case $? in
         0) meta_extended_option=""
            ;;
-        1) echo -n "\nEnter URL to extended metadata (default: ${meta_extended}): " >&6 && read -r extended_enter && println "LOG" "Enter URL to extended metadata (default: ${meta_extended}): ${extended_enter}"
+        1) echo -en "\nEnter URL to extended metadata (default: ${meta_extended}): " >&6 && read -r extended_enter && println "LOG" "Enter URL to extended metadata (default: ${meta_extended}): ${extended_enter}"
            extended_enter="${extended_enter}"
            if [[ -n "${extended_enter}" ]]; then
              meta_extended="${extended_enter}"
@@ -2701,7 +2701,7 @@ EOF
     fi
     
     pledge_cnt=0
-    for pledge_wallet in ${pledge_wallets[@]}; do
+    for pledge_wallet in "${pledge_wallets[@]}"; do
       println "Owner #$((++pledge_cnt))      : ${FG_GREEN}${pledge_wallet}${NC}"
     done
     multi_owner_key_cnt=$(( owner_count - ${#pledge_wallets[@]} ))
@@ -2714,7 +2714,7 @@ EOF
     println "DEBUG" "Uncomment and set value for POOL_NAME in $CNODE_HOME/scripts/env with '${pool_name}'"
     if [[ ${op_mode} = "online" ]]; then
       total_pledge=0
-      for pledge_wallet in ${pledge_wallets[@]}; do
+      for pledge_wallet in "${pledge_wallets[@]}"; do
         getBaseAddress ${pledge_wallet}
         getBalance ${base_addr}
         total_pledge+=${lovelace}
@@ -3370,7 +3370,7 @@ EOF
       println "DEBUG" "Automatically sign tx using created witness files?"
       select_opt "[y] Yes" "[n] No" "[h] Home"
       case $? in
-        0) tx_witness_files=${witness_files[@]}
+        0) tx_witness_files=( "${witness_files[@]}" )
            if signTx "${tx_raw}"; then
              echo
              println "Tx file successfully signed and available at: ${FG_CYAN}${tx_signed}${NC}"
@@ -3659,7 +3659,7 @@ EOF
   println "DEBUG" "Show a block summary for all epochs or a detailed view for a specific epoch?"
   select_opt "[s] Summary" "[e] Epoch" "[Esc] Cancel"
   case $? in
-    0) echo -n "\nEnter number of epochs to show (enter for 10): " >&6 && read -r epoch_enter && println "LOG" "Enter number of epochs to show (enter for 10): ${epoch_enter}"
+    0) echo -en "\nEnter number of epochs to show (enter for 10): " >&6 && read -r epoch_enter && println "LOG" "Enter number of epochs to show (enter for 10): ${epoch_enter}"
        epoch_enter=${epoch_enter:-10}
        if ! [[ ${epoch_enter} =~ ^[0-9]+$ ]]; then
          println "ERROR" "\n${FG_RED}ERROR${NC}: not a number"
@@ -3733,7 +3733,7 @@ EOF
        done
        ;;
     1) [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=$((current_epoch+1)) LIMIT 1);" 2>/dev/null) -eq 1 ]] && println "DEBUG" "\n${FG_YELLOW}Leader schedule for next epoch[$((current_epoch+1))] available${NC}"
-       echo -n "\nEnter epoch to list (enter for current): " >&6 && read -r epoch_enter && println "LOG" "Enter epoch to list (enter for current): ${epoch_enter}"
+       echo -en "\nEnter epoch to list (enter for current): " >&6 && read -r epoch_enter && println "LOG" "Enter epoch to list (enter for current): ${epoch_enter}"
        [[ -z "${epoch_enter}" ]] && epoch_enter=${current_epoch}
        if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=${epoch_enter} LIMIT 1);" 2>/dev/null) -eq 0 ]]; then
          println "No blocks in epoch ${epoch_enter}"
