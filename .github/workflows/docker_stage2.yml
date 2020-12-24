@@ -3,7 +3,7 @@ name: Docker Image CD Stage 2
 on:
   push:
     paths:
-      - 'release-versions/cardano-node-latest.txt'
+      - 'files/docker/node/release-versions/cardano-node-latest.txt'
   workflow_dispatch:
 
 jobs:
