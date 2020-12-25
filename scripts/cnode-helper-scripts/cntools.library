@@ -421,7 +421,7 @@ selectDir() {
 }
 
 # Command     : selectWallet [mode] [file1 file2 ... | wallet_name1 wallet_name1 ... ]
-# Description : A helper function to selecrt a CNTools wallet
+# Description : A helper function to select a CNTools wallet
 # Parameters  : mode       >  a string containing some of the following: none|non-reg|reg|balance|delegate|reward to be added next to wallet in selection menu
 #             : arg array  >  array of files required to exist in wallet folder for it to be selectable **OR** the name of wallet to exclude from selection
 # Return      : populates ${wallet_name} variable with wallet selection
@@ -509,7 +509,7 @@ selectWallet() {
 }
 
 # Command     : selectPool [mode] [file1 file2 ...]
-# Description : A helper function to selecrt a CNTools pool
+# Description : A helper function to select a CNTools pool
 # Parameters  : mode   >  a string containing some of the following: reg|non-reg
 #             : fileX  >  array of files required to exist in pool folder for it to be selectable
 # Return      : populates ${pool_name} variable with pool selection
