@@ -2224,3 +2224,16 @@ rotatePoolKeys() {
 
   kesExpiration "${current_kes_period}"
 }
+
+# Command    : telegramSend [message]
+#
+# Description: Send a telegram message
+# Return     : null
+# Examples of Usage:
+#   >> telegramSend "Alert x"
+#
+telegramSend() {
+  tgMessage="$1"
+  TG_URL="https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage?parse_mode=Markdown"
+  TGAUE=$(curl -s -X POST $TG_URL -d chat_id=${TG_CHAT_ID} -d text="${HOSTNAME} ${tgMessage}");
+}
