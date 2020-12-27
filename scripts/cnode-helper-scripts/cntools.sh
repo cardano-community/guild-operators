@@ -159,11 +159,11 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   # Validate protocol parameters
   if grep -q "Network.Socket.connect" <<< "${PROT_PARAMS}"; then
     myExit 1 "${FG_YELLOW}WARN${NC}: node socket path wrongly configured or node not running, please verify that socket set in env file match what is used to run the node\n\n\
-${FG_BLUE}Re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality${NC}"
+${FG_BLUE}INFO${NC}: re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality"
   elif [[ -z "${PROT_PARAMS}" ]] || ! jq -er . <<< "${PROT_PARAMS}" &>/dev/null; then
     myExit 1 "${FG_YELLOW}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)\n\n\
 Error message: ${PROT_PARAMS}\n\n\
-${FG_BLUE}Re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality${NC}"
+${FG_BLUE}INFO${NC}: re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality"
   fi
   echo "${PROT_PARAMS}" > "${TMP_FOLDER}"/protparams.json
 fi
@@ -328,7 +328,7 @@ case $OPERATION in
     println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
     
-    read -r -p "Name of new wallet: " wallet_name >&6 && println "LOG" "Name of new wallet: ${wallet_name}"
+    read -r -p "Name of new wallet: " wallet_name 2>&6 && println "LOG" "Name of new wallet: ${wallet_name}"
     # Remove unwanted characters from wallet name
     wallet_name=${wallet_name//[^[:alnum:]]/_}
     if [[ -z "${wallet_name}" ]]; then
@@ -407,7 +407,7 @@ case $OPERATION in
         waitForInput && continue
       fi
       
-      read -r -p "Name of imported wallet: " wallet_name >&6 && println "LOG" "Name of imported wallet: ${wallet_name}"
+      read -r -p "Name of imported wallet: " wallet_name 2>&6 && println "LOG" "Name of imported wallet: ${wallet_name}"
       # Remove unwanted characters from wallet name
       wallet_name=${wallet_name//[^[:alnum:]]/_}
       if [[ -z "${wallet_name}" ]]; then
@@ -426,7 +426,7 @@ case $OPERATION in
         waitForInput && continue
       fi
       
-      read -r -p "24 or 15 word mnemonic(space separated): " mnemonic >&6
+      read -r -p "24 or 15 word mnemonic(space separated): " mnemonic 2>&6
       echo
       IFS=" " read -r -a words <<< "${mnemonic}"
       if [[ ${#words[@]} -ne 24 ]] && [[ ${#words[@]} -ne 15 ]]; then
@@ -549,7 +549,7 @@ EOF
         waitForInput && continue
       fi
       
-      read -r -p "Name of imported wallet: " wallet_name >&6 && println "LOG" "Name of imported wallet: ${wallet_name}"
+      read -r -p "Name of imported wallet: " wallet_name 2>&6 && println "LOG" "Name of imported wallet: ${wallet_name}"
       # Remove unwanted characters from wallet name
       wallet_name=${wallet_name//[^[:alnum:]]/_}
       if [[ -z "${wallet_name}" ]]; then
@@ -573,13 +573,13 @@ EOF
       stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_STAKE_SK_FILENAME}"
       stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"  
       
-      waitForInput "${FG_CYAN}INFO${NC}: please unlock hardware device and open the Cardano app, after this press any key to continue"
-      println "DEBUG" "${FG_CYAN}INFO${NC}: follow directions on hardware device to extract ${FG_CYAN}payment keys${NC}"
+      waitForInput "${FG_BLUE}INFO${NC}: please unlock hardware device and open the Cardano app, after this press any key to continue"
+      println "DEBUG" "${FG_BLUE}INFO${NC}: follow directions on hardware device to extract ${FG_CYAN}payment keys${NC}"
       println "ACTION" "cardano-hw-cli shelley address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file \"${payment_vk_file}\" --hw-signing-file \"${payment_sk_file}\""
       output=$(cardano-hw-cli shelley address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file "${payment_vk_file}" --hw-signing-file "${payment_sk_file}" 2>&1)
       [[ -n ${output} ]] && println "ERROR" "${output}\n${FG_RED}ERROR${NC}: failure during payment key extraction!" && waitForInput && continue
       jq '.description = "Payment Hardware Verification Key"' "${payment_vk_file}" > "${TMP_FOLDER}/${payment_vk_file}.tmp" && mv -f "${TMP_FOLDER}/${payment_vk_file}.tmp" "${payment_vk_file}"
-      println "DEBUG" "${FG_CYAN}INFO${NC}: repeat and follow instructions on hardware device to extract the ${FG_CYAN}stake keys${NC}"
+      println "DEBUG" "${FG_BLUE}INFO${NC}: repeat and follow instructions on hardware device to extract the ${FG_CYAN}stake keys${NC}"
       println "ACTION" "cardano-hw-cli shelley address key-gen --path 1852H/1815H/0H/2/0 --verification-key-file \"${stake_vk_file}\" --hw-signing-file \"${stake_sk_file}\""
       output=$(cardano-hw-cli shelley address key-gen --path 1852H/1815H/0H/2/0 --verification-key-file "${stake_vk_file}" --hw-signing-file "${stake_sk_file}" 2>&1)
       [[ -n ${output} ]] && println "ERROR" "${output}\n${FG_RED}ERROR${NC}: failure during stake key extraction!" && waitForInput && continue
@@ -793,7 +793,7 @@ EOF
                 poolName=$(basename ${pool}) && break
               fi
             done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-            println "${FG_RED}Delegated to${NC} ${FG_BLUE}${poolName}${NC} ${FG_RED}(${delegation_pool_id})${NC}"
+            println "${FG_RED}Delegated to${NC} ${FG_GREEN}${poolName}${NC} ${FG_RED}(${delegation_pool_id})${NC}"
           fi
         fi
       fi
@@ -837,7 +837,7 @@ EOF
       base_lovelace=${lovelace}
       if [[ ${utx0_count} -gt 0 ]]; then
         echo
-        println "${FG_BLUE}UTxOs${NC}"
+        println "${FG_CYAN}UTxOs${NC}"
         head -n 2 "${TMP_FOLDER}"/fullUtxo.out
         head -n 10 "${TMP_FOLDER}"/balance.out
         [[ ${utx0_count} -gt 10 ]] && println "... (top 10 UTx0 with most lovelace)"
@@ -847,7 +847,7 @@ EOF
       pay_lovelace=${lovelace}
       if [[ ${utx0_count} -gt 0 ]]; then
         echo
-        println "${FG_BLUE}Enterprise UTxOs${NC}"
+        println "${FG_CYAN}Enterprise UTxOs${NC}"
         head -n 2 "${TMP_FOLDER}"/fullUtxo.out
         head -n 10 "${TMP_FOLDER}"/balance.out
         [[ ${utx0_count} -gt 10 ]] && println "... (top 10 UTx0 with most lovelace)"
@@ -889,7 +889,7 @@ EOF
             fi
           done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
           echo
-          println "${FG_RED}Delegated to${NC} ${FG_BLUE}${poolName}${NC} ${FG_RED}(${delegation_pool_id})${NC}"
+          println "${FG_RED}Delegated to${NC} ${FG_GREEN}${poolName}${NC} ${FG_RED}(${delegation_pool_id})${NC}"
         fi
       fi
     fi
@@ -1096,7 +1096,7 @@ EOF
     println "Files encrypted:  ${keysEncrypted}"
     if [[ ${filesLocked} -ne 0 || ${keysEncrypted} -ne 0 ]]; then
       echo
-      println "DEBUG" "${FG_BLUE}Wallet files are now protected${NC}"
+      println "DEBUG" "${FG_BLUE}INFO${NC}: wallet files are now protected"
       println "DEBUG" "Use 'WALLET >> DECRYPT' to unlock"
     fi
 
@@ -1212,7 +1212,7 @@ EOF
     println "DEBUG" "              wallet will be defraged, ie converts multiple UTxO's to one"
     echo
     
-    read -r -p "Amount (Ada): " amountADA >&6 && println "LOG" "Amount (Ada): ${amountADA}"
+    read -r -p "Amount (Ada): " amountADA 2>&6 && println "LOG" "Amount (Ada): ${amountADA}"
     amountADA="${amountADA//,}"
 
     echo
@@ -1269,7 +1269,7 @@ EOF
            waitForInput && continue
          fi
          ;;
-      1) echo && read -r -p "Address: " d_addr >&6 && println "LOG" "Address: ${d_addr}" ;;
+      1) echo && read -r -p "Address: " d_addr 2>&6 && println "LOG" "Address: ${d_addr}" ;;
       2) continue ;;
     esac
     # Destination could be empty, if so without getting a valid address
@@ -1375,7 +1375,7 @@ EOF
          fi
          pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
          ;;
-      1) read -r -p "vkey cbor-hex(blank to cancel): " vkey_cbor >&6 && println "LOG" "vkey cbor-hex(blank to cancel): ${vkey_cbor}"
+      1) read -r -p "vkey cbor-hex(blank to cancel): " vkey_cbor 2>&6 && println "LOG" "vkey cbor-hex(blank to cancel): ${vkey_cbor}"
          [[ -z "${vkey_cbor}" ]] && continue
          pool_name="${vkey_cbor}"
          pool_coldkey_vk_file="${TMP_FOLDER}"/pool_delegation.vkey
@@ -1520,7 +1520,7 @@ EOF
     println " >> POOL >> NEW"
     println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
-    read -r -p "Pool Name: " pool_name >&6 && println "LOG" "Pool Name: ${pool_name}"
+    read -r -p "Pool Name: " pool_name 2>&6 && println "LOG" "Pool Name: ${pool_name}"
     # Remove unwanted characters from pool name
     pool_name=${pool_name//[^[:alnum:]]/_}
     if [[ -z "${pool_name}" ]]; then
@@ -1612,7 +1612,7 @@ EOF
 
     pledge_ada=50000 # default pledge
     [[ -f "${pool_config}" ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
-    read -r -p "Pledge (in Ada, default: $(formatAda ${pledge_ada})): " pledge_enter >&6 && println "LOG" "Pledge (in Ada, default: $(formatAda ${pledge_ada})): ${pledge_enter}"
+    read -r -p "Pledge (in Ada, default: $(formatAda ${pledge_ada})): " pledge_enter 2>&6 && println "LOG" "Pledge (in Ada, default: $(formatAda ${pledge_ada})): ${pledge_enter}"
     pledge_enter="${pledge_enter//,}"
     if [[ -n "${pledge_enter}" ]]; then
       if ! AdaToLovelace "${pledge_enter}" >/dev/null; then
@@ -1626,7 +1626,7 @@ EOF
 
     margin=7.5 # default margin in %
     [[ -f "${pool_config}" ]] && margin=$(jq -r '.margin //0' "${pool_config}")
-    read -r -p "Margin (in %, default: ${margin}): " margin_enter >&6 && println "LOG" "Margin (in %, default: ${margin}): ${margin_enter}"
+    read -r -p "Margin (in %, default: ${margin}): " margin_enter 2>&6 && println "LOG" "Margin (in %, default: ${margin}): ${margin_enter}"
     if [[ -n "${margin_enter}" ]]; then
       if ! pctToFraction "${margin_enter}" >/dev/null; then
         waitForInput && continue
@@ -1640,7 +1640,7 @@ EOF
     minPoolCost=$(( $(jq -r '.minPoolCost //0' "${TMP_FOLDER}"/protparams.json) / 1000000 )) # convert to Ada
     [[ -f ${pool_config} ]] && cost_ada=$(jq -r '.costADA //0' "${pool_config}") || cost_ada=${minPoolCost} # default cost
     [[ ${cost_ada} -lt ${minPoolCost} ]] && cost_ada=${minPoolCost} # raise old value to new minimum cost
-    read -r -p "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAda ${cost_ada})): " cost_enter >&6 && println "LOG" "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAda ${cost_ada})): ${cost_enter}"
+    read -r -p "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAda ${cost_ada})): " cost_enter 2>&6 && println "LOG" "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAda ${cost_ada})): ${cost_enter}"
     cost_enter="${cost_enter//,}"
     if [[ -n "${cost_enter}" ]]; then
       if ! AdaToLovelace "${cost_enter}" >/dev/null; then
@@ -1661,7 +1661,7 @@ EOF
     pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
     if [[ ! -f "${pool_config}" ]] || ! meta_json_url=$(jq -er .json_url "${pool_config}"); then meta_json_url="https://foo.bat/poolmeta.json"; fi
 
-    read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter >&6 && println "LOG" "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): ${json_url_enter}"
+    read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter 2>&6 && println "LOG" "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): ${json_url_enter}"
     [[ -n "${json_url_enter}" ]] && meta_json_url="${json_url_enter}"
     if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
       println "ERROR" "${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
@@ -1689,31 +1689,31 @@ EOF
     if [[ ${metadata_done} = false ]]; then
       echo
       if [[ ! -f "${pool_meta_file}" ]] || ! meta_name=$(jq -er .name "${pool_meta_file}"); then meta_name="${pool_name}"; fi
-      if [[ ! -f "${pool_meta_file}" ]] || ! meta_ticker=$(jq -er .ticker "${pool_meta_file}"); then meta_ticker=""; fi
+      if [[ ! -f "${pool_meta_file}" ]] || ! meta_ticker=$(jq -er .ticker "${pool_meta_file}"); then meta_ticker="${pool_name}"; fi
       if [[ ! -f "${pool_meta_file}" ]] || ! meta_description=$(jq -er .description "${pool_meta_file}"); then meta_description="No Description"; fi
       if [[ ! -f "${pool_meta_file}" ]] || ! meta_homepage=$(jq -er .homepage "${pool_meta_file}"); then meta_homepage="https://foo.com"; fi
       if [[ ! -f "${pool_meta_file}" ]] || ! meta_extended=$(jq -er .extended "${pool_meta_file}"); then meta_extended="https://foo.com/metadata/extended.json"; fi
 
-      read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter >&6 && println "LOG" "Enter Pool's Name (default: ${meta_name}): ${name_enter}"
+      read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter 2>&6 && println "LOG" "Enter Pool's Name (default: ${meta_name}): ${name_enter}"
       [[ -n "${name_enter}" ]] && meta_name="${name_enter}"
       if [[ ${#meta_name} -gt 50 ]]; then
         println "ERROR" "${FG_RED}ERROR${NC}: Name cannot exceed 50 characters"
         waitForInput && continue
       fi
-      read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter >&6 && println "LOG" "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): ${ticker_enter}"
+      read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter 2>&6 && println "LOG" "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): ${ticker_enter}"
       ticker_enter=${ticker_enter//[^[:alnum:]]/}
       [[ -n "${ticker_enter}" ]] && meta_ticker="${ticker_enter^^}"
       if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
         println "ERROR" "${FG_RED}ERROR${NC}: ticker must be between 3-5 characters"
         waitForInput && continue
       fi
-      read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter >&6 && println "LOG" "Enter Pool's Description (default: ${meta_description}): ${desc_enter}"
+      read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter 2>&6 && println "LOG" "Enter Pool's Description (default: ${meta_description}): ${desc_enter}"
       [[ -n "${desc_enter}" ]] && meta_description="${desc_enter}"
       if [[ ${#meta_description} -gt 255 ]]; then
         println "ERROR" "${FG_RED}ERROR${NC}: Description cannot exceed 255 characters"
         waitForInput && continue
       fi
-      read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter >&6 && println "LOG" "Enter Pool's Homepage (default: ${meta_homepage}): ${homepage_enter}"
+      read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter 2>&6 && println "LOG" "Enter Pool's Homepage (default: ${meta_homepage}): ${homepage_enter}"
       [[ -n "${homepage_enter}" ]] && meta_homepage="${homepage_enter}"
       if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
         println "ERROR" "${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
@@ -1724,7 +1724,7 @@ EOF
       case $? in
         0) meta_extended_option=""
            ;;
-        1) echo && read -r -p "Enter URL to extended metadata (default: ${meta_extended}): " extended_enter >&6 && println "LOG" "Enter URL to extended metadata (default: ${meta_extended}): ${extended_enter}"
+        1) echo && read -r -p "Enter URL to extended metadata (default: ${meta_extended}): " extended_enter 2>&6 && println "LOG" "Enter URL to extended metadata (default: ${meta_extended}): ${extended_enter}"
            extended_enter="${extended_enter}"
            [[ -n "${extended_enter}" ]] && meta_extended="${extended_enter}"
            if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 64 ]]; then
@@ -1777,11 +1777,11 @@ EOF
       while true; do
         select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[Esc] Cancel"
         case $? in
-          0) read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter >&6 && println "LOG" "Enter relays's DNS record, only A or AAAA DNS records: ${relay_dns_enter}"
+          0) read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter 2>&6 && println "LOG" "Enter relays's DNS record, only A or AAAA DNS records: ${relay_dns_enter}"
              if [[ -z "${relay_dns_enter}" ]]; then
                println "ERROR" "${FG_RED}ERROR${NC}: DNS record can not be empty!"
              else
-               read -r -p "Enter relays's port: " relay_port_enter >&6 && println "LOG" "Enter relays's port: ${relay_port_enter}"
+               read -r -p "Enter relays's port: " relay_port_enter 2>&6 && println "LOG" "Enter relays's port: ${relay_port_enter}"
                if [[ -n "${relay_port_enter}" ]]; then
                  if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
                    println "ERROR" "${FG_RED}ERROR${NC}: invalid port number!"
@@ -1794,12 +1794,12 @@ EOF
                fi
              fi
              ;;
-          1) read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter >&6 && println "LOG" "Enter relays's IPv4 address: ${relay_ipv4_enter}"
+          1) read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter 2>&6 && println "LOG" "Enter relays's IPv4 address: ${relay_ipv4_enter}"
              if [[ -n "${relay_ipv4_enter}" ]]; then
                if ! validIP "${relay_ipv4_enter}"; then
                  println "ERROR" "${FG_RED}ERROR${NC}: invalid IPv4 address format!"
                else
-                 read -r -p "Enter relays's port: " relay_port_enter >&6 && println "LOG" "Enter relays's port: ${relay_port_enter}"
+                 read -r -p "Enter relays's port: " relay_port_enter 2>&6 && println "LOG" "Enter relays's port: ${relay_port_enter}"
                  if [[ -n "${relay_port_enter}" ]]; then
                    if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
                      println "ERROR" "${FG_RED}ERROR${NC}: invalid port number!"
@@ -1838,7 +1838,7 @@ EOF
           println "DEBUG" "Owner wallet #$(jq -r '.owner_id' <<< "${owner_w}") : ${FG_GREEN}$(jq -r '.wallet_name' <<< "${owner_w}")${NC}"
         done
       fi
-      println "DEBUG" "                : ${FG_CYAN}INFO${NC}: additional multi-owner wallets added by stake keys not listed"
+      println "DEBUG" "                : ${FG_BLUE}INFO${NC}: additional multi-owner wallets added by stake keys not listed"
       println "DEBUG" "Reward wallet   : ${FG_GREEN}$(jq -r '.rewardWallet //empty' "${pool_config}")${NC}"
       echo
       println "DEBUG" "${FG_YELLOW}If a new wallet is chosen for owner/reward, a manual delegation to the pool with new wallet is needed${NC}"
@@ -1895,12 +1895,14 @@ EOF
         waitForInput && continue
       fi
     fi
+    
+    hw_wallet_used='N'
 
     println "DEBUG" "Use a different wallet for rewards?"
     select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
     case $? in
       0) reward_wallet="${owner_wallet}" ;;
-      1) if ! selectWallet "none" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+      1) if ! selectWallet "none" "${WALLET_STAKE_VK_FILENAME}" "${owner_wallet}"; then # ${wallet_name} populated by selectWallet function
            [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
          fi
          reward_wallet="${wallet_name}"
@@ -1912,6 +1914,7 @@ EOF
            fi
            getWalletType ${reward_wallet}
            case $? in
+             0) hw_wallet_used='Y' ;;
              2) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
              3) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
            esac
@@ -1946,6 +1949,7 @@ EOF
              if selectWallet "delegate" "${WALLET_STAKE_VK_FILENAME}" "${pledge_wallets[@]}"; then # ${wallet_name} populated by selectWallet function
                getWalletType ${wallet_name}
                case $? in
+                 0) hw_wallet_used='Y' ;;
                  2) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
                  3) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
                esac
@@ -1975,6 +1979,7 @@ EOF
                println "ERROR" "${FG_RED}ERROR${NC}: One or both files not found, please try again"
                ((owner_count--))
              else
+               [[ $(jq -r '.description' "${stake_sk_file_enter}") = *"Hardware"* ]] && hw_wallet_used='Y'
                multi_owner_output+="--pool-owner-stake-verification-key-file ${stake_vk_file_enter} "
                multi_owner_skeys+=( "${stake_sk_file_enter}" )
                println "DEBUG" "[OPTIONAL]: Add wallet payment vkey to be able to check pledge balance?"
@@ -2046,29 +2051,36 @@ EOF
     ${CCLI} stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${reward_stake_vk_file}" --pool-owner-stake-verification-key-file "${owner_stake_vk_file}" ${multi_owner_output} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output} ${NETWORK_IDENTIFIER} --out-file "${pool_regcert_file}"
 
     if [[ ${SUBCOMMAND} = "register" ]]; then
-      println "LOG" "creating delegation certificate for owner wallet"
-      println "ACTION" "${CCLI} stake-address delegation-certificate --stake-verification-key-file ${owner_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${owner_delegation_cert_file}"
-      ${CCLI} stake-address delegation-certificate --stake-verification-key-file "${owner_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${owner_delegation_cert_file}"
-
-      delegate_reward_wallet="false"
-      if [[ ! "${owner_wallet}" = "${reward_wallet}" ]]; then
-        println "DEBUG" "\nRe-stake reward wallet to pool?"
-        select_opt "[y] Yes" "[n] No"
-        case $? in
-          0) delegate_reward_wallet="true"
-             println "LOG" "creating delegation certificate for reward wallet"
-             println "ACTION" "${CCLI} stake-address delegation-certificate --stake-verification-key-file ${reward_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${reward_delegation_cert_file}"
-             ${CCLI} stake-address delegation-certificate --stake-verification-key-file "${reward_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${reward_delegation_cert_file}"
-             ;;
-          1) : ;;
-        esac
+      delegate_reward_wallet='N'
+      delegate_owner_wallet='N'
+      if [[ ${hw_wallet_used} = 'Y' ]]; then
+        println "DEBUG" "${FG_BLUE}INFO${NC}: hardware wallet included, automatic owner/reward wallet delegation disabled"
+        println "DEBUG" "${FG_BLUE}INFO${NC}: ${FG_YELLOW}please manually delegate all wallets to the pool!!!${NC}"
+        waitForInput "press any key to continue"
+      else
+        println "LOG" "creating delegation certificate for owner wallet"
+        println "ACTION" "${CCLI} stake-address delegation-certificate --stake-verification-key-file ${owner_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${owner_delegation_cert_file}"
+        ${CCLI} stake-address delegation-certificate --stake-verification-key-file "${owner_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${owner_delegation_cert_file}"
+        delegate_owner_wallet='Y'
+        if [[ ! "${owner_wallet}" = "${reward_wallet}" ]]; then
+          println "DEBUG" "\nRe-stake reward wallet to pool?"
+          select_opt "[y] Yes" "[n] No"
+          case $? in
+            0) delegate_reward_wallet='Y'
+               println "LOG" "creating delegation certificate for reward wallet"
+               println "ACTION" "${CCLI} stake-address delegation-certificate --stake-verification-key-file ${reward_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${reward_delegation_cert_file}"
+               ${CCLI} stake-address delegation-certificate --stake-verification-key-file "${reward_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${reward_delegation_cert_file}"
+               ;;
+            1) : ;;
+          esac
+        fi
       fi
     fi
     
     echo
     
     if [[ ${SUBCOMMAND} = "register" ]]; then
-      registerPool "${pool_name}" "${reward_wallet}" "${delegate_reward_wallet}" "${owner_wallet}" "${multi_owner_skeys[@]}"
+      registerPool "${pool_name}" "${reward_wallet}" "${delegate_reward_wallet}" "${owner_wallet}" "${delegate_owner_wallet}" "${multi_owner_skeys[@]}"
       rc=$?
     else
       modifyPool "${pool_name}" "${reward_wallet}" "${owner_wallet}" "${multi_owner_skeys[@]}"
@@ -2137,9 +2149,9 @@ EOF
     done
     multi_owner_key_cnt=$(( owner_count - ${#pledge_wallets[@]} ))
     if [[ ${multi_owner_key_cnt} -eq 1 ]]; then
-      println "Owner #${owner_count}      : ${FG_BLUE}1${NC} additional owner using stake keys"
+      println "Owner #${owner_count}      : ${FG_CYAN}1${NC} additional owner using stake keys"
     elif [[ ${multi_owner_key_cnt} -gt 1 ]]; then
-      println "Owner #$((${#pledge_wallets[@]}+1))-${owner_count}    : ${FG_BLUE}${multi_owner_key_cnt}${NC} additional owners using stake keys"
+      println "Owner #$((${#pledge_wallets[@]}+1))-${owner_count}    : ${FG_CYAN}${multi_owner_key_cnt}${NC} additional owners using stake keys"
     fi
     println "Reward Wallet : ${FG_GREEN}${reward_wallet}${NC}"
     println "Pledge        : $(formatAda ${pledge_ada}) Ada"
@@ -2165,14 +2177,14 @@ EOF
         multi_owner_vkeys=( "${multi_owner_vkeys[@]:2}" ) # pop processed keys from array
       done
       echo
-      println "DEBUG" "${FG_CYAN}INFO${NC}: Total balance in ${FG_CYAN}${owner_count}${NC} owner/pledge wallet(s) are: $(formatLovelace ${total_pledge}) Ada"
+      println "DEBUG" "${FG_BLUE}INFO${NC}: Total balance in ${FG_CYAN}${owner_count}${NC} owner/pledge wallet(s) are: $(formatLovelace ${total_pledge}) Ada"
       if [[ ${total_pledge} -lt ${pledge_lovelace} ]]; then
         println "ERROR" "${FG_YELLOW}Not enough funds in owner/pledge wallet(s) to meet set pledge, please manually verify!!!${NC}"
       fi
     fi
     if [[ ${owner_count} -gt 1 ]]; then
       echo
-      println "DEBUG" "${FG_BLUE}INFO${NC}: Please verify that all multi-owner wallets are delegated to the pool, if not do so!"
+      println "DEBUG" "${FG_BLUE}INFO${NC}: please verify that all multi-owner wallets are delegated to the pool, if not do so!"
     fi
     
     waitForInput && continue
@@ -2209,13 +2221,13 @@ EOF
     epoch=$(getEpoch)
     eMax=$(jq -r '.eMax' "${TMP_FOLDER}"/protparams.json)
 
-    println "DEBUG" "Current epoch: ${FG_BLUE}${epoch}${NC}"
+    println "DEBUG" "Current epoch: ${FG_CYAN}${epoch}${NC}"
     epoch_start=$((epoch + 1))
     epoch_end=$((epoch + eMax))
-    println "DEBUG" "earlist epoch to retire pool is ${FG_BLUE}${epoch_start}${NC} and latest ${FG_BLUE}${epoch_end}${NC}"
+    println "DEBUG" "earlist epoch to retire pool is ${FG_CYAN}${epoch_start}${NC} and latest ${FG_CYAN}${epoch_end}${NC}"
     echo
 
-    read -r -p "Enter epoch in which to retire pool (blank for ${epoch_start}): " epoch_enter >&6 && println "LOG" "Enter epoch in which to retire pool (blank for ${epoch_start}): ${epoch_enter}"
+    read -r -p "Enter epoch in which to retire pool (blank for ${epoch_start}): " epoch_enter 2>&6 && println "LOG" "Enter epoch in which to retire pool (blank for ${epoch_start}): ${epoch_enter}"
     [[ -z "${epoch_enter}" ]] && epoch_enter=${epoch_start}
 
     if [[ ${epoch_enter} -lt ${epoch_start} || ${epoch_enter} -gt ${epoch_end} ]]; then
@@ -2297,7 +2309,7 @@ EOF
     if ! verifyTx ${addr}; then waitForInput && continue; fi
     
     echo
-    println "Pool ${FG_GREEN}${pool_name}${NC} set to be retired in epoch ${FG_BLUE}${epoch_enter}${NC}"
+    println "Pool ${FG_GREEN}${pool_name}${NC} set to be retired in epoch ${FG_CYAN}${epoch_enter}${NC}"
 
     waitForInput && continue
 
@@ -2701,7 +2713,7 @@ EOF
     println "Files encrypted: ${keysEncrypted}"
     if [[ ${filesLocked} -ne 0 || ${keysEncrypted} -ne 0 ]]; then
       echo
-      println "DEBUG" "${FG_BLUE}Pool files are now protected${NC}"
+      println "DEBUG" "${FG_BLUE}INFO${NC}: pool files are now protected"
       println "DEBUG" "Use 'POOL >> DECRYPT / UNLOCK' to unlock"
     fi
 
@@ -2937,7 +2949,7 @@ EOF
          println "DEBUG" "${metafile}:\n$(cat "${metafile}")\n"
          ;;
       1) tput sc && echo
-         read -r -p "Enter URL to JSON metadata file: " meta_json_url >&6 && println "LOG" "Enter URL to JSON metadata file: ${meta_json_url}"
+         read -r -p "Enter URL to JSON metadata file: " meta_json_url 2>&6 && println "LOG" "Enter URL to JSON metadata file: ${meta_json_url}"
          if [[ ! "${meta_json_url}" =~ https?://.* ]]; then
            println "ERROR" "${FG_RED}ERROR${NC}: invalid URL format"
            waitForInput && continue
@@ -3053,7 +3065,7 @@ EOF
   println "DEBUG" "Show a block summary for all epochs or a detailed view for a specific epoch?"
   select_opt "[s] Summary" "[e] Epoch" "[Esc] Cancel"
   case $? in
-    0) echo && read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter >&6 && println "LOG" "Enter number of epochs to show (enter for 10): ${epoch_enter}"
+    0) echo && read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter 2>&6 && println "LOG" "Enter number of epochs to show (enter for 10): ${epoch_enter}"
        epoch_enter=${epoch_enter:-10}
        if ! [[ ${epoch_enter} =~ ^[0-9]+$ ]]; then
          println "ERROR" "\n${FG_RED}ERROR${NC}: not a number"
@@ -3127,7 +3139,7 @@ EOF
        done
        ;;
     1) [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=$((current_epoch+1)) LIMIT 1);" 2>/dev/null) -eq 1 ]] && println "DEBUG" "\n${FG_YELLOW}Leader schedule for next epoch[$((current_epoch+1))] available${NC}"
-       echo && read -r -p "Enter epoch to list (enter for current): " epoch_enter >&6 && println "LOG" "Enter epoch to list (enter for current): ${epoch_enter}"
+       echo && read -r -p "Enter epoch to list (enter for current): " epoch_enter 2>&6 && println "LOG" "Enter epoch to list (enter for current): ${epoch_enter}"
        [[ -z "${epoch_enter}" ]] && epoch_enter=${current_epoch}
        if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=${epoch_enter} LIMIT 1);" 2>/dev/null) -eq 0 ]]; then
          println "No blocks in epoch ${epoch_enter}"
@@ -3280,7 +3292,7 @@ EOF
         GIT_PATCH_VERSION=0
       fi
       println "DEBUG" "New version available: ${FG_GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
-      println "DEBUG" "${FG_BLUE}INFO${NC} - The following files will be overwritten:"
+      println "DEBUG" "${FG_BLUE}INFO${NC} - the following files will be overwritten:"
       println "DEBUG" "${PARENT}/cntools.sh"
       println "DEBUG" "${PARENT}/cntools.library"
       println "DEBUG" "\nProceed with update?"

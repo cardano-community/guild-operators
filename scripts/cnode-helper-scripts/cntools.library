@@ -476,7 +476,7 @@ selectWallet() {
             done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
           fi
           if [[ -n ${poolName} ]]; then
-            wallet_dirs+=("${dir} (${FG_CYAN}$(formatLovelace ${lovelace})${NC} Ada - ${FG_RED}delegated${NC} to ${FG_BLUE}${poolName}${NC})")
+            wallet_dirs+=("${dir} (${FG_CYAN}$(formatLovelace ${lovelace})${NC} Ada - ${FG_RED}delegated${NC} to ${FG_GREEN}${poolName}${NC})")
           elif [[ -n ${delegation_pool_id} ]]; then
             wallet_dirs+=("${dir} (${FG_CYAN}$(formatLovelace ${lovelace})${NC} Ada - ${FG_RED}delegated${NC} to external address)")
           else
@@ -742,7 +742,7 @@ kesExpiration() {
 
 # Command     : waitNewBlockCreated [optional: silent]
 # Description : Wait for a new block to be created
-# Parameters  : silent  >  dont print any DEBUG output to tty
+# Parameters  : silent  >  any argument to function will prevent DEBUG output to tty
 waitNewBlockCreated() {
   counter=${TIMEOUT_NO_OF_SLOTS}
   [[ $# -eq 0 ]] && println "DEBUG" "Waiting for new block to be created (timeout = ${counter} slots, $(( counter * SLOT_LENGTH ))s)"
@@ -775,7 +775,7 @@ verifyTx() {
   while [[ ${lovelace} -ne ${newBalance} ]]; do
     println "DEBUG" "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
     println "LOG" "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})"
-    if ! waitNewBlockCreated &>/dev/null; then return 1; fi
+    if ! waitNewBlockCreated "silent"; then return 1; fi
     getBalance ${1}
   done
   return 0
@@ -1024,12 +1024,10 @@ isWalletRegistered() {
 }
 
 # Command     : getWalletType [wallet name]
-# Description : check if wallet is a hardware wallet, 0=yes, 1=cli, 2=cli & encrypted, 3=missing sign keys
+# Description : check if wallet is a hardware wallet, 0=yes, 1=cli, 2=cli & encrypted, 3=missing keys
 # Parameters  : wallet name  >  the name of the wallet
 getWalletType() {
-  payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_PAY_SK_FILENAME}"
-  stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_PAY_SK_FILENAME}"
-  if [[ -f "${WALLET_FOLDER}/${1}/${WALLET_HW_PAY_SK_FILENAME}" && -f "${WALLET_FOLDER}/${1}/${WALLET_HW_STAKE_SK_FILENAME}" ]]; then
+  if [[ -f "${WALLET_FOLDER}/${1}/${WALLET_HW_PAY_SK_FILENAME}" && -f "${WALLET_FOLDER}/${1}/${WALLET_HW_STAKE_SK_FILENAME}" && $(jq -r '.description' "${WALLET_FOLDER}/${1}/${WALLET_HW_STAKE_SK_FILENAME}") = *"Hardware"* ]]; then
     payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_PAY_SK_FILENAME}"
     stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_STAKE_SK_FILENAME}"
     return 0
@@ -1049,7 +1047,7 @@ getSlotAndTTL() {
   currSlot=$(getSlotTip)
   if [[ ${op_mode} = "hybrid" ]]; then
     println "DEBUG" "\nHow long do you want the transaction to be valid?"
-    read -r -p "TTL (in seconds, default: 1800/30min): " ttl_enter >&6 && println "LOG" "TTL (in seconds, default: 1800/30min): ${ttl_enter}"
+    read -r -p "TTL (in seconds, default: 1800/30min): " ttl_enter 2>&6 && println "LOG" "TTL (in seconds, default: 1800/30min): ${ttl_enter}"
     if [[ -n ${ttl_enter} && ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
       println "ERROR" "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
       return 1
@@ -1487,12 +1485,13 @@ withdrawRewards() {
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
-# Command     : registerPool [pool name] [reward wallet] [delegate reward wallet] [owner wallet] [multi-owner skeys ...]
+# Command     : registerPool [pool name] [reward wallet] [delegate reward wallet] [owner wallet] [delegate owner wallet] [multi-owner skeys ...]
 # Description : Register pool with pledge on chain
 # Parameters  : pool name               >  pool to register on chain
 #             : reward wallet           >  name of wallet that collects the pool rewards
-#             : delegate reward wallet  >  true or false, should reward wallet be delegated to pool
+#             : delegate reward wallet  >  [Y|N] should reward wallet be delegated to pool
 #             : owner wallet            >  the pool owner, also pays for the pool registration fee
+#             : delegate owner wallet   >  [Y|N] should owner wallet be delegated to pool
 #             : multi-owner skeys       >  a list of extra extra owner skeys to sign pool registration with
 registerPool() {
 
@@ -1507,7 +1506,8 @@ registerPool() {
   owner_delegation_cert_file="${WALLET_FOLDER}/${4}/${WALLET_DELEGCERT_FILENAME}"
   getBaseAddress "${4}"
   getBalance ${base_addr}
-  shift 4
+  delegate_owner_wallet="${5}"
+  shift 5
   multi_owner_count=$#
   multi_owner_keys=( "$@" )
 
@@ -1518,18 +1518,19 @@ registerPool() {
   println "LOG" "Pool Deposit is ${poolDeposit}"
   
   reward_delegation_cert=""
+  [[ ${delegate_reward_wallet} = 'Y' ]] && reward_delegation_cert="--certificate-file ${reward_delegation_cert_file}"
+  owner_delegation_cert=""
+  [[ ${delegate_owner_wallet} = 'Y' ]] && owner_delegation_cert="--certificate-file ${owner_delegation_cert_file}"
+  
   reward_wallet_key=""
   witness_count=$(( 3 + multi_owner_count ))
-  if [[ "${delegate_reward_wallet}" = "true" ]]; then
-    reward_delegation_cert="--certificate-file ${reward_delegation_cert_file}"
-  fi
   if [[ ! "${owner_stake_sk_file}" = "${reward_stake_sk_file}" ]]; then
     reward_wallet_key="${reward_stake_sk_file}"
     ((witness_count++))
   fi
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} --certificate-file ${owner_delegation_cert_file} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} --certificate-file ${owner_delegation_cert_file} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} ${owner_delegation_cert} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} ${owner_delegation_cert} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
@@ -1559,7 +1560,7 @@ registerPool() {
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     --certificate-file ${pool_regcert_file}
-    --certificate-file ${owner_delegation_cert_file}
+    ${owner_delegation_cert}
     ${reward_delegation_cert}
     --out-file "${TMP_FOLDER}"/tx.raw
   )
@@ -1582,6 +1583,7 @@ registerPool() {
   fi
   
   if ! witnessTx "${TMP_FOLDER}/tx.raw" "${owner_payment_sk_file}" "${pool_coldkey_sk_file}" "${owner_stake_sk_file}" "${reward_wallet_key}" "${multi_owner_keys[@]}"; then return 1; fi
+  if ! signTx "${TMP_FOLDER}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -1861,6 +1863,49 @@ buildTx() {
   ${CCLI} transaction build-raw ${ERA_IDENTIFIER} "${build_args[@]}"
 }
 
+# Command     : witnessTx [raw tx file] [signing keys ...]
+# Description : Helper function to witness a raw transaction
+# Parameters  : raw tx file   >  the transaction file to sign
+#             : signing keys  >  list of signing keys to use when witnessing the transaction
+witnessTx() {
+  tx_raw="$1"
+  shift
+  parent_dir="$(dirname "${tx_raw}")"
+  tx_witness_files=()
+  for skey in "$@"; do
+    [[ -z ${skey//[[:blank:]]/} ]] && continue
+    if [[ -f "${skey}" && $(jq -r '.description' "${skey}") = *"Hardware"* ]]; then # HW signing key
+      waitForInput "${FG_BLUE}INFO${NC}: please unlock hardware device and open the Cardano app, after this press any key to continue"
+      println "DEBUG" "${FG_BLUE}INFO${NC}: follow directions on hardware device to witness the transaction"
+      tx_witness="$(mktemp "${parent_dir}/tx_witness.XXXXXXXXXX")"
+      witness_command=(
+        cardano-hw-cli shelley transaction witness
+        --tx-body-file "${tx_raw}"
+        --hw-signing-file "${skey}"
+        ${NETWORK_IDENTIFIER}
+        --out-file "${tx_witness}"
+      )
+      println "ACTION" "${witness_command[@]}"
+      if ! ${witness_command[@]}; then return 1; fi
+    elif [[ -f "${skey}" ]]; then
+      tx_witness="$(mktemp "${parent_dir}/tx_witness.XXXXXXXXXX")"
+      witness_command=(
+        ${CCLI} transaction witness
+        --tx-body-file "${tx_raw}"
+        --signing-key-file "${skey}"
+        ${NETWORK_IDENTIFIER}
+        --out-file "${tx_witness}"
+      )
+      println "ACTION" "${witness_command[@]}"
+      if ! ${witness_command[@]}; then return 1; fi
+    else
+      println "ERROR" "${FG_RED}ERROR${NC}: signing key not found: ${skey}"
+      return 1
+    fi
+    tx_witness_files+=( "${tx_witness}" )
+  done
+}
+
 # Command     : signTx [raw tx file]
 # Description : Helper function to sign a raw transaction
 # Parameters  : raw tx file    >  the transaction file to sign
@@ -1889,49 +1934,6 @@ signTx() {
   
   println "ACTION" "${sign_command[@]}"
   ${sign_command[@]}
-}
-
-# Command     : witnessTx [raw tx file] [signing keys ...]
-# Description : Helper function to witness a raw transaction
-# Parameters  : raw tx file   >  the transaction file to sign
-#             : signing keys  >  list of signing keys to use when witnessing the transaction
-witnessTx() {
-  tx_raw="$1"
-  shift
-  parent_dir="$(dirname "${tx_raw}")"
-  tx_witness_files=()
-  for skey in "$@"; do
-    [[ -z ${skey//[[:blank:]]/} ]] && continue
-    if [[ -f "${skey}" && $(jq -r '.description' "${skey}") = *"Hardware"* ]]; then # HW signing key
-      waitForInput "${FG_CYAN}INFO${NC}: please unlock hardware device and open the Cardano app, after this press any key to continue"
-      println "DEBUG" "${FG_CYAN}INFO${NC}: follow directions on hardware device to witness the transaction"
-      tx_witness="$(mktemp "${parent_dir}/tx_witness.XXXXXXXXXX")"
-      witness_command=(
-        cardano-hw-cli shelley transaction witness
-        --tx-body-file "${tx_raw}"
-        --hw-signing-file "${skey}"
-        ${NETWORK_IDENTIFIER}
-        --out-file "${tx_witness}"
-      )
-      println "ACTION" "${witness_command[@]}"
-      if ! ${witness_command[@]}; then return 1; fi
-    elif [[ -f "${skey}" ]]; then
-      tx_witness="$(mktemp "${parent_dir}/tx_witness.XXXXXXXXXX")"
-      witness_command=(
-        ${CCLI} transaction witness
-        --tx-body-file "${tx_raw}"
-        --signing-key-file "${skey}"
-        ${NETWORK_IDENTIFIER}
-        --out-file "${tx_witness}"
-      )
-      println "ACTION" "${witness_command[@]}"
-      if ! ${witness_command[@]}; then return 1; fi
-    else
-      println "ERROR" "${FG_RED}ERROR${NC}: signing key not found: ${skey}"
-      return 1
-    fi
-    tx_witness_files+=( "${tx_witness}" )
-  done
 }
 
 # Command     : submitTx [signed tx file]
