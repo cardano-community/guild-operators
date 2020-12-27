@@ -1902,7 +1902,7 @@ witnessTx() {
   tx_witness_files=()
   for skey in "$@"; do
     [[ -z ${skey//[[:blank:]]/} ]] && continue
-    if [[ -f "${skey}" && ${skey##*.} = "${WALLET_HW_STAKE_SK_FILENAME##*.}" ]]; then # HW signing key
+    if [[ -f "${skey}" && $(jq -r '.description' "${skey}") = *"Hardware"* ]]; then # HW signing key
       waitForInput "${FG_CYAN}INFO${NC}: please unlock hardware device and open the Cardano app, after this press any key to continue"
       println "DEBUG" "${FG_CYAN}INFO${NC}: follow directions on hardware device to witness the transaction"
       tx_witness="$(mktemp "${parent_dir}/tx_witness.XXXXXXXXXX")"
