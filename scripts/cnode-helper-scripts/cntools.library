@@ -1887,6 +1887,7 @@ witnessTx() {
       )
       println "ACTION" "${witness_command[@]}"
       if ! ${witness_command[@]}; then return 1; fi
+      jq ".type = \"${ERA_WITNESS}\"" "${tx_witness}" > "${tx_witness}.tmp" && mv -f "${tx_witness}.tmp" "${tx_witness}" # due to cardano-hw-cli bug, not setting era type correctly
     elif [[ -f "${skey}" ]]; then
       tx_witness="$(mktemp "${parent_dir}/tx_witness.XXXXXXXXXX")"
       witness_command=(

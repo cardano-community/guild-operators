@@ -207,10 +207,10 @@ else
   [[ "${NWMAGIC}" = "1097911063" ]] && NETWORK_NAME="Testnet" || NETWORK_NAME="Custom"
 fi
 getEraIdentifier() {
-    if ${CCLI} query protocol-parameters --byron-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--byron-era"
-  elif ${CCLI} query protocol-parameters --shelley-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--shelley-era"
-  elif ${CCLI} query protocol-parameters --allegra-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--allegra-era"
-  elif ${CCLI} query protocol-parameters --mary-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--mary-era"
+    if ${CCLI} query protocol-parameters --byron-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--byron-era" && ERA_WITNESS="TxWitness ByronEra"
+  elif ${CCLI} query protocol-parameters --shelley-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--shelley-era" && ERA_WITNESS="TxWitness ShelleyEra"
+  elif ${CCLI} query protocol-parameters --allegra-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--allegra-era" && ERA_WITNESS="TxWitness AllegraEra"
+  elif ${CCLI} query protocol-parameters --mary-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--mary-era" && ERA_WITNESS="TxWitness MaryEra"
   else ERA_IDENTIFIER="--shelley-era"; fi
 }
 getEraIdentifier

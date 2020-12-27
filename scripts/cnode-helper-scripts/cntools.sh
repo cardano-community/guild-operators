@@ -595,15 +595,20 @@ EOF
       println "Enterprise Address  : ${pay_addr}"
       echo
       println "DEBUG" "You can now send and receive Ada using the above addresses. Note that Enterprise Address will not take part in staking"
-      println "DEBUG" "Wallet will be automatically registered on chain if you choose to delegate or pledge wallet when registering a stake pool"
       echo
       println "DEBUG" "All transaction signing is now done through hardware device, please follow directions in both CNTools and the device display!"
-      echo
       println "DEBUG" "${FG_YELLOW}Using an imported hardware wallet in CNTools comes with a few limitations${NC}"
+      echo
       println "DEBUG" "Most operations like delegation and sending funds is seamless. For pool registration/modification however the following apply:"
       println "DEBUG" " ${FG_CYAN}>${NC} Pool owner has to be a CLI wallet with enough funds to pay for pool registration deposit and transaction fee"
       println "DEBUG" " ${FG_CYAN}>${NC} Add the hardware wallet containing the pledge as a multi-owner to the pool"
       println "DEBUG" " ${FG_CYAN}>${NC} The hardware wallet can be used as the reward wallet, but has to be included as a multi-owner if it should be counted to pledge"
+      echo
+      println "DEBUG" "Only the first address in the HD wallet is extracted and because of this the following apply if also synced with Daedalus/Yoroi:"
+      println "DEBUG" " ${FG_CYAN}>${NC} Address above should match the first address seen in Daedalus/Yoroi, please verify!!!"
+      println "DEBUG" " ${FG_CYAN}>${NC} If restored wallet contain funds since before, send all Ada through Daedalus/Yoroi to address shown in CNTools"
+      println "DEBUG" " ${FG_CYAN}>${NC} Only use the address shown in CNTools to receive funds"
+      println "DEBUG" " ${FG_CYAN}>${NC} Only spend Ada from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
       
       waitForInput && continue
       
