@@ -96,7 +96,7 @@ waitForInput() {
   if [[ -z $1 ]]; then
     echo "press any key to return to home menu"
   else
-    echo "$1"
+    echo -e "$1"
   fi
   read -rsn1 key # get 1 character
   if [[ $key == $ESC ]]; then
@@ -455,11 +455,11 @@ selectWallet() {
         getBalance ${pay_addr}
         pay_lovelace=${lovelace}
         if [[ ${base_lovelace} -gt 0 && ${pay_lovelace} -gt 0 ]]; then
-          wallet_dirs+=("${dir} (Funds: ${FG_CYAN}$(formatLovelace ${base_lovelace})${NC} ADA | Enterprise Funds: ${FG_CYAN}$(formatLovelace ${pay_lovelace})${NC} ADA)")
+          wallet_dirs+=("${dir} (Funds: ${FG_CYAN}$(formatLovelace ${base_lovelace})${NC} Ada | Enterprise Funds: ${FG_CYAN}$(formatLovelace ${pay_lovelace})${NC} Ada)")
         elif [[ ${pay_lovelace} -gt 0 ]]; then
-          wallet_dirs+=("${dir} (Enterprise Funds: ${FG_CYAN}$(formatLovelace ${pay_lovelace})${NC} ADA)")
+          wallet_dirs+=("${dir} (Enterprise Funds: ${FG_CYAN}$(formatLovelace ${pay_lovelace})${NC} Ada)")
         else
-          wallet_dirs+=("${dir} (Funds: ${FG_CYAN}$(formatLovelace ${base_lovelace})${NC} ADA)")
+          wallet_dirs+=("${dir} (Funds: ${FG_CYAN}$(formatLovelace ${base_lovelace})${NC} Ada)")
         fi
       elif [[ ${mode} = "delegate" ]]; then
         getBaseAddress ${dir}
@@ -476,19 +476,19 @@ selectWallet() {
             done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
           fi
           if [[ -n ${poolName} ]]; then
-            wallet_dirs+=("${dir} (${FG_CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${FG_RED}delegated${NC} to ${FG_BLUE}${poolName}${NC})")
+            wallet_dirs+=("${dir} (${FG_CYAN}$(formatLovelace ${lovelace})${NC} Ada - ${FG_RED}delegated${NC} to ${FG_BLUE}${poolName}${NC})")
           elif [[ -n ${delegation_pool_id} ]]; then
-            wallet_dirs+=("${dir} (${FG_CYAN}$(formatLovelace ${lovelace})${NC} ADA - ${FG_RED}delegated${NC} to external address)")
+            wallet_dirs+=("${dir} (${FG_CYAN}$(formatLovelace ${lovelace})${NC} Ada - ${FG_RED}delegated${NC} to external address)")
           else
-            wallet_dirs+=("${dir} (${FG_CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
+            wallet_dirs+=("${dir} (${FG_CYAN}$(formatLovelace ${lovelace})${NC} Ada)")
           fi
         else
-          wallet_dirs+=("${dir} (${FG_CYAN}$(formatLovelace ${lovelace})${NC} ADA)")
+          wallet_dirs+=("${dir} (${FG_CYAN}$(formatLovelace ${lovelace})${NC} Ada)")
         fi
       elif [[ ${mode} = "reward" ]]; then
         getRewards ${dir}
         [[ ${reward_lovelace} -le 0 ]] && continue
-        wallet_dirs+=("${dir} (Rewards: ${FG_CYAN}$(formatLovelace ${reward_lovelace})${NC} ADA)")
+        wallet_dirs+=("${dir} (Rewards: ${FG_CYAN}$(formatLovelace ${reward_lovelace})${NC} Ada)")
       fi
     else
       wallet_dirs+=("${dir}")
@@ -740,29 +740,45 @@ kesExpiration() {
   expiration_date=$(date '+%F %T %Z' --date=@${expiration_time_sec})
 }
 
-# Command     : waitNewBlockCreated
+# Command     : waitNewBlockCreated [optional: silent]
 # Description : Wait for a new block to be created
+# Parameters  : silent  >  dont print any DEBUG output to tty
 waitNewBlockCreated() {
   counter=${TIMEOUT_NO_OF_SLOTS}
-  println "DEBUG" "Waiting for new block to be created (timeout = ${counter} slots, $(( counter * SLOT_LENGTH ))s)"
-  println "DEBUG" "${FG_BLUE}INFO${NC}: press any key to cancel balance check and return"
+  [[ $# -eq 0 ]] && println "DEBUG" "Waiting for new block to be created (timeout = ${counter} slots, $(( counter * SLOT_LENGTH ))s)"
+  [[ $# -eq 0 ]] && println "DEBUG" "${FG_BLUE}INFO${NC}: press any key to cancel balance check and return"
   initialTip=$(getBlockTip)
   actualTip=${initialTip}
 
   while [ "${actualTip}" = "${initialTip}" ]; do
     read -r -n 1 -s -t ${SLOT_LENGTH} abort
     if [[ $? -eq 0 ]]; then
-      println "DEBUG" "${FG_YELLOW}WARN${NC}: Balance check aborted, transaction still in queue!"
+      println "${FG_YELLOW}WARN${NC}: Balance check aborted, transaction still in queue!"
       return 1
     fi
     actualTip=$(getBlockTip)
     counter=$((counter - SLOT_LENGTH))
     if [ ${counter} -lt ${SLOT_LENGTH} ]; then
-      println "DEBUG" "${FG_YELLOW}WARN${NC}: waited $(( TIMEOUT_NO_OF_SLOTS * SLOT_LENGTH )) secs and no new block created"
+      println "${FG_YELLOW}WARN${NC}: waited $(( TIMEOUT_NO_OF_SLOTS * SLOT_LENGTH )) secs and no new block created"
       return 1
     fi
   done
   println "LOG" "New block was created - ${actualTip}"
+}
+
+# Command     : verifyTx [address]
+# Description : Verify that the transaction was successfully registered by checking address balance against $newBalance
+# Parameters  : address  >  the address to compare with
+verifyTx() {
+  if ! waitNewBlockCreated; then return 1; fi
+  getBalance ${1}
+  while [[ ${lovelace} -ne ${newBalance} ]]; do
+    println "DEBUG" "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+    println "LOG" "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})"
+    if ! waitNewBlockCreated &>/dev/null; then return 1; fi
+    getBalance ${1}
+  done
+  return 0
 }
 
 # Command     : validateDecimalNbr [decimalNbr]
@@ -804,10 +820,10 @@ formatAda() {
   fi
 }
 
-# Command     : ADAtoLovelace [ADA]
-# Description : Convert number in ADA to Lovelace
-# Parameters  : ADA  >  Amount in ADA, decimal number accepted
-ADAtoLovelace() {
+# Command     : AdaToLovelace [Ada]
+# Description : Convert number in Ada to Lovelace
+# Parameters  : Ada  >  Amount in Ada, decimal number accepted
+AdaToLovelace() {
   if validateDecimalNbr $1; then
     echo "$1 * 1000000 / 1" | bc # /1 is to remove decimals from bc command
   else
@@ -936,6 +952,15 @@ getRewardAddress() {
   return 1
 }
 
+# Command     : getRewardAddressFromKey [stake vkey]
+# Description : get reward address from a stake key
+# Parameters  : stake key  >  path to stake.vkey file
+# Return      : populates ${reward_addr}
+getRewardAddressFromKey() {
+  println "ACTION" "${CCLI} stake-address build --stake-verification-key-file \"${1}\" ${NETWORK_IDENTIFIER}"
+  reward_addr=$(${CCLI} stake-address build --stake-verification-key-file "${1}" ${NETWORK_IDENTIFIER} 2>/dev/null)
+}
+
 # Command     : getAddressInfo [address]
 # Description : get address info from from node
 # Parameters  : address  >  the wallet address to query
@@ -976,6 +1001,15 @@ getRewards() {
     [[ "${reward_lovelace}" =~ ^[0-9]+$ ]] || reward_lovelace=0
   fi
 }
+# Command     : getRewardsFromAddr [stake address]
+# Description : check balance of reward address
+# Parameters  : stake address  >  the address from stake.vkey
+# Return      : populates ${reward_lovelace}
+getRewardsFromAddr() {
+  println "ACTION" "${CCLI} query stake-address-info ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${1} | jq -r '.[0].rewardAccountBalance // empty'"
+  reward_lovelace=$(${CCLI} query stake-address-info ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${1} | jq -r '.[0].rewardAccountBalance // empty')
+  [[ "${reward_lovelace}" =~ ^[0-9]+$ ]] || reward_lovelace=0
+}
 
 # Command     : isWalletRegistered [wallet name]
 # Description : check if wallet is registered on chain
@@ -1009,6 +1043,42 @@ getWalletType() {
   return 3
 }
 
+# Command     : getSlotAndTTL
+# Description : query node for slot tip and calculate/get TTL from input depending on op_mode
+getSlotAndTTL() {
+  currSlot=$(getSlotTip)
+  if [[ ${op_mode} = "hybrid" ]]; then
+    println "DEBUG" "\nHow long do you want the transaction to be valid?"
+    read -r -p "TTL (in seconds, default: 1800/30min): " ttl_enter >&6 && println "LOG" "TTL (in seconds, default: 1800/30min): ${ttl_enter}"
+    if [[ -n ${ttl_enter} && ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
+      println "ERROR" "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
+      return 1
+    fi
+    ttl=$(( currSlot + (${ttl_enter:-1800}/SLOT_LENGTH) ))
+    echo
+  else
+    ttl=$(( currSlot + (600/SLOT_LENGTH) )) # TTL default: 10min
+  fi
+  println "LOG" "Current slot is ${currSlot}, setting ttl to ${ttl}"
+}
+
+# Command     : parseWalletUTXOs
+# Description : loop and parse all UTXO in ${TMP_FOLDER}/balance.out file generated by getBalance() function needed to be run before this function
+parseWalletUTXOs() {
+  [[ ! -s "${TMP_FOLDER}"/balance.out ]] && println "ERROR" "\n${FG_RED}ERROR${NC}: wallet empty!" && return 1
+  # Use all available utxo in source address
+  println "LOG" "Using UTxO's:"
+  tx_in=""
+  while read -r utxo; do
+    in_addr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
+    idx=$(awk '{ print $2 }' <<< "${utxo}")
+    utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
+    println "LOG" "TxHash: ${in_addr}#${idx}"
+    println "LOG" "Ada: $(formatLovelace ${utxo_balance})"
+    tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
+  done <"${TMP_FOLDER}"/balance.out
+}
+
 # Command     : registerStakeWallet [wallet name] [optional: skip validation]
 # Description : Register stake keys on chain and move funds from payment address to payment base address
 # Parameters  : wallet name      >  the name of the wallet
@@ -1025,42 +1095,21 @@ registerStakeWallet() {
   # stake_sk_file - set by getWalletType function called from CNTools main script
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
   stake_cert_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_CERT_FILENAME}"
-
+  
+  getBaseAddress "${1}"
+  getBalance ${base_addr}
+  if ! parseWalletUTXOs; then return 1; fi
+  
   println "ACTION" "${CCLI} stake-address registration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cert_file}"
   if ! ${CCLI} stake-address registration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cert_file}"; then return 1; fi
 
-  currSlot=$(getSlotTip)
-  if [[ ${op_mode} = "hybrid" ]]; then
-    println "DEBUG" "\nHow long do you want the transaction to be valid?"
-    echo -n "TTL (in seconds, default: 1800/30min): " >&6 && read -r ttl_enter && println "LOG" "TTL (in seconds, default: 1800/30min): ${ttl_enter}"
-    if [[ -n ${ttl_enter} && ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
-      return 1
-    fi
-    ttlValue=$(( currSlot + (${ttl_enter:-1800}/SLOT_LENGTH) ))
-    echo
-  else
-    ttlValue=$(( currSlot + (600/SLOT_LENGTH) )) # TTL default: 10min
-  fi
+  if ! getSlotAndTTL; then return 1; fi
   keyDeposit=$(jq -r '.keyDeposit' "${TMP_FOLDER}"/protparams.json)
   println "LOG" "Key Deposit is ${keyDeposit}"
-  println "LOG" "Current slot is ${currSlot}, setting ttl to ${ttlValue}"
 
-  # Use all available utxo in source address
-  println "LOG" "Using UTxO's:"
-  tx_in=""
-  while read -r utxo; do
-    in_addr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
-    idx=$(awk '{ print $2 }' <<< "${utxo}")
-    utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
-    println "LOG" "TxHash: ${in_addr}#${idx}"
-    println "LOG" "ADA: $(formatLovelace ${utxo_balance})"
-    tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <"${TMP_FOLDER}"/balance.out
-
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 --certificate-file ${stake_cert_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 --certificate-file ${stake_cert_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
-  minFeeArgs=(
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --fee 0 --certificate-file ${stake_cert_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --fee 0 --certificate-file ${stake_cert_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
@@ -1070,25 +1119,25 @@ registerStakeWallet() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${minFeeArgs[*]}"
-  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${minFee}) ADA"
+  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
+  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
-  if [[ ${lovelace} -lt $(( minFee + keyDeposit )) ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough ADA in wallet ($(formatLovelace ${lovelace}) < $(formatLovelace ${minFee}) + $(formatLovelace ${keyDeposit}))"
+  if [[ ${lovelace} -lt $(( min_fee + keyDeposit )) ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in wallet ($(formatLovelace ${lovelace}) < $(formatLovelace ${min_fee}) + $(formatLovelace ${keyDeposit}))"
     return 1
   fi
 
-  newBalance=$(( lovelace - minFee - keyDeposit ))
+  newBalance=$(( lovelace - min_fee - keyDeposit ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
 
-  println "LOG" "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) - $(formatLovelace ${keyDeposit}))"
+  println "LOG" "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) Ada ($(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${keyDeposit}))"
   
-  buildArgs=(
+  build_args=(
     ${tx_in}
     ${tx_out}
-    --invalid-hereafter ${ttlValue}
-    --fee ${minFee}
+    --invalid-hereafter ${ttl}
+    --fee ${min_fee}
     --certificate-file ${stake_cert_file}
     --out-file "${TMP_FOLDER}"/tx.raw
   )
@@ -1113,14 +1162,7 @@ registerStakeWallet() {
   if ! signTx "${TMP_FOLDER}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 
-  if ! waitNewBlockCreated; then return 1; fi
-  getBalance ${base_addr}
-  while [[ ${lovelace} -ne ${newBalance} ]]; do
-    println "DEBUG" "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
-    println "LOG" "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})"
-    if ! waitNewBlockCreated; then return 1; fi
-    getBalance ${base_addr}
-  done
+  if ! verifyTx ${base_addr}; then return 1; fi
 
   reward_lovelace=0
 }
@@ -1135,42 +1177,21 @@ deregisterStakeWallet() {
   # stake_sk_file - set by getWalletType function called from CNTools main script
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
   stake_dereg_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_DEREG_FILENAME}"
-
+  
+  getBaseAddress "${1}"
+  getBalance ${base_addr}
+  if ! parseWalletUTXOs; then return 1; fi
+  
   println "ACTION" "${CCLI} stake-address deregistration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_dereg_file}"
   if ! ${CCLI} stake-address deregistration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_dereg_file}"; then return 1; fi
 
-  currSlot=$(getSlotTip)
-  if [[ ${op_mode} = "hybrid" ]]; then
-    println "DEBUG" "\nHow long do you want the transaction to be valid?"
-    echo -n "TTL (in seconds, default: 1800/30min): " >&6 && read -r ttl_enter && println "LOG" "TTL in seconds, default: 1800/30min: ${ttl_enter}"
-    if [[ -n ${ttl_enter} && ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
-      return 1
-    fi
-    ttlValue=$(( currSlot + (${ttl_enter:-1800}/SLOT_LENGTH) ))
-    echo
-  else
-    ttlValue=$(( currSlot + (600/SLOT_LENGTH) )) # TTL default: 10min
-  fi
+  if ! getSlotAndTTL; then return 1; fi
   keyDeposit=$(jq -r '.keyDeposit' "${TMP_FOLDER}"/protparams.json)
   println "LOG" "Key Deposit is ${keyDeposit}"
-  println "LOG" "Current slot is ${currSlot}, setting ttl to ${ttlValue}"
 
-  # Use all available utxo in tx fee wallet base address
-  println "LOG" "Using UTxO's:"
-  tx_in=""
-  while read -r utxo; do
-    in_addr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
-    idx=$(awk '{ print $2 }' <<< "${utxo}")
-    utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
-    println "LOG" "TxHash: ${in_addr}#${idx}"
-    println "LOG" "ADA: $(formatLovelace ${utxo_balance})"
-    tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <"${TMP_FOLDER}"/balance.out
-
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 --certificate-file ${stake_dereg_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 --certificate-file ${stake_dereg_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
-  minFeeArgs=(
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --fee 0 --certificate-file ${stake_dereg_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --fee 0 --certificate-file ${stake_dereg_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
@@ -1180,25 +1201,25 @@ deregisterStakeWallet() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${minFeeArgs[*]}"
-  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${minFee}) ADA"
+  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
+  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
-  if [[ $(( lovelace + keyDeposit - minFee )) -lt 0 ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough ADA in wallet ($(formatLovelace ${lovelace}) + $(formatLovelace ${keyDeposit}) < $(formatLovelace ${minFee}))"
+  if [[ $(( lovelace + keyDeposit - min_fee )) -lt 0 ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in wallet ($(formatLovelace ${lovelace}) + $(formatLovelace ${keyDeposit}) < $(formatLovelace ${min_fee}))"
     return 1
   fi
 
-  newBalance=$(( lovelace + keyDeposit - minFee ))
+  newBalance=$(( lovelace + keyDeposit - min_fee ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
 
-  println "LOG" "New balance after returned key deposit and subtracted tx fee is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${lovelace}) + $(formatLovelace ${keyDeposit}) - $(formatLovelace ${minFee}))"
+  println "LOG" "New balance after returned key deposit and subtracted tx fee is $(formatLovelace ${newBalance}) Ada ($(formatLovelace ${lovelace}) + $(formatLovelace ${keyDeposit}) - $(formatLovelace ${min_fee}))"
   
-  buildArgs=(
+  build_args=(
     ${tx_in}
     ${tx_out}
-    --invalid-hereafter ${ttlValue}
-    --fee ${minFee}
+    --invalid-hereafter ${ttl}
+    --fee ${min_fee}
     --certificate-file ${stake_dereg_file}
     --out-file "${TMP_FOLDER}"/tx.raw
   )
@@ -1225,7 +1246,7 @@ deregisterStakeWallet() {
 }
 
 # Command     : sendADA [destination address] [amount] [source address] [source sign key] [Include Fee]
-# Description : send ADA from source to destination
+# Description : send Ada from source to destination
 #             : can also be used to defrag address by sending all to self
 #             : supports fee to be payed by sender(default) or receiver by reducing amount to send
 # Parameters  : Destination Address   >   Destination address.
@@ -1241,95 +1262,68 @@ sendADA() {
   sAddr="$3"
   sKey="$4"
   inclFee="$5"
-
-  currSlot=$(getSlotTip)
-  if [[ ${op_mode} = "hybrid" ]]; then
-    println "DEBUG" "\nHow long do you want the transaction to be valid?"
-    echo -n "TTL (in seconds, default: 1800/30min): " >&6 && read -r ttl_enter && println "LOG" "TTL in seconds, default: 1800/30min: ${ttl_enter}"
-    if [[ -n ${ttl_enter} && ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
-      return 1
-    fi
-    ttlValue=$(( currSlot + (${ttl_enter:-1800}/SLOT_LENGTH) ))
-    echo
-  else
-    ttlValue=$(( currSlot + (600/SLOT_LENGTH) )) # TTL default: 10min
-  fi
-  println "LOG" "Current slot is ${currSlot}, setting ttl to ${ttlValue}"
+  
   getBalance ${sAddr}
+  if ! parseWalletUTXOs; then return 1; fi
+  
+  if ! getSlotAndTTL; then return 1; fi
 
-  balance=0
-  utxoCount=0
-  txIn=""
-  println "LOG" "Using UTxO's:"
-  while read -r utxo; do
-    inAddr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
-    idx=$(awk '{ print $2 }' <<< "${utxo}")
-    utxoBalance=$(awk '{ print $3 }' <<< "${utxo}")
-    utxoCount=$(( utxoCount +1))
-    txIn="${txIn} --tx-in ${inAddr}#${idx}"
-    balance=$(( balance + utxoBalance ))
-    println "LOG" "TxHash: ${inAddr}#${idx}"
-    println "LOG" "ADA: $(formatLovelace ${utxoBalance})"
-    [[ ${inclFee} = "yes" && ${balance} -ge ${amount} ]] && break
-  done <"${TMP_FOLDER}"/balance.out
+  [[ ${lovelace} -eq ${amount} ]] && outCount=1 || outCount=2
 
-  [[ ${balance} -eq ${amount} ]] && outCount=1 || outCount=2
-
-  println "ACTION" "${CCLI} transaction build-raw ${txIn} --tx-out ${dAddr}+0 --invalid-hereafter ${ttlValue} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${txIn} --tx-out ${dAddr}+0 --invalid-hereafter ${ttlValue} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
-  minFeeArgs=(
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${dAddr}+0 --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${dAddr}+0 --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
-    --tx-in-count ${utxoCount}
+    --tx-in-count ${utx0_count}
     --tx-out-count ${outCount}
     ${NETWORK_IDENTIFIER}
     --witness-count 1
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${minFeeArgs[*]}"
-  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${minFee}) ADA"
+  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
+  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
   # Sanity checks
   if [[ ${inclFee} = "no" ]]; then
-    if [[ ${balance} -lt $(( amount + minFee )) ]]; then
-      println "ERROR" "${FG_RED}ERROR${NC}: Not enough ADA in address ($(formatLovelace ${balance}) < $(formatLovelace ${amount}) + $(formatLovelace ${minFee}))"
+    if [[ ${lovelace} -lt $(( amount + min_fee )) ]]; then
+      println "ERROR" "${FG_RED}ERROR${NC}: Not enough Ada in address ($(formatLovelace ${lovelace}) < $(formatLovelace ${amount}) + $(formatLovelace ${min_fee}))"
       return 1
     fi
   else
-    if [[ ${amount} -lt ${minFee} ]]; then
-      println "ERROR" "${FG_RED}ERROR${NC}: Fee deducted from ADA to send, amount can not be less than fee ($(formatLovelace ${amount}) < $(formatLovelace ${minFee}))"
+    if [[ ${amount} -lt ${min_fee} ]]; then
+      println "ERROR" "${FG_RED}ERROR${NC}: Fee deducted from Ada to send, amount can not be less than fee ($(formatLovelace ${amount}) < $(formatLovelace ${min_fee}))"
       return 1
-    elif [[ ${balance} -lt ${amount} ]]; then
-      println "ERROR" "${FG_RED}ERROR${NC}: Not enough ADA in address ($(formatLovelace ${balance}) < $(formatLovelace ${amount}))"
+    elif [[ ${lovelace} -lt ${amount} ]]; then
+      println "ERROR" "${FG_RED}ERROR${NC}: Not enough Ada in address ($(formatLovelace ${lovelace}) < $(formatLovelace ${amount}))"
       return 1
     fi
   fi
 
   if [[ ${inclFee} = "no" ]]; then
-    txOut="--tx-out ${dAddr}+${amount}"
+    tx_out="--tx-out ${dAddr}+${amount}"
   else
-    txOut="--tx-out ${dAddr}+$(( amount - minFee ))"
-    println "LOG" "New amount to send after fee deduction is $(formatLovelace $(( amount - minFee ))) ADA ($(formatLovelace ${amount}) - $(formatLovelace ${minFee}))"
+    tx_out="--tx-out ${dAddr}+$(( amount - min_fee ))"
+    println "LOG" "New amount to send after fee deduction is $(formatLovelace $(( amount - min_fee ))) Ada ($(formatLovelace ${amount}) - $(formatLovelace ${min_fee}))"
   fi
 
   newBalance=$(( lovelace - amount ))
   if [[ ${inclFee} = "no" ]]; then
-    newBalance=$(( balance - amount - minFee ))
-    txOut="${txOut} --tx-out ${sAddr}+${newBalance}"
-    println "LOG" "Balance left to be returned in used UTxO's is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${balance}) - $(formatLovelace ${amount}) - $(formatLovelace ${minFee}))"
+    newBalance=$(( lovelace - amount - min_fee ))
+    tx_out="${tx_out} --tx-out ${sAddr}+${newBalance}"
+    println "LOG" "Balance left to be returned in used UTxO's is $(formatLovelace ${newBalance}) Ada ($(formatLovelace ${lovelace}) - $(formatLovelace ${amount}) - $(formatLovelace ${min_fee}))"
   elif [[ ${outCount} -eq 2 ]]; then
-    txOut="${txOut} --tx-out ${sAddr}+$(( balance - amount ))"
-    println "LOG" "Balance left to be returned in used UTxO's is $(formatLovelace $(( balance - amount ))) ADA ($(formatLovelace ${balance}) - $(formatLovelace ${amount}))"
+    tx_out="${tx_out} --tx-out ${sAddr}+$(( lovelace - amount ))"
+    println "LOG" "Balance left to be returned in used UTxO's is $(formatLovelace $(( lovelace - amount ))) Ada ($(formatLovelace ${lovelace}) - $(formatLovelace ${amount}))"
   fi
   
-  buildArgs=(
-    ${txIn}
-    ${txOut}
-    --invalid-hereafter ${ttlValue}
-    --fee ${minFee}
+  build_args=(
+    ${tx_in}
+    ${tx_out}
+    --invalid-hereafter ${ttl}
+    --fee ${min_fee}
     --out-file "${TMP_FOLDER}"/tx.raw
   )
   if ! buildTx; then return 1; fi
@@ -1364,37 +1358,14 @@ delegate() {
   pool_delegcert_file="${3}"
   
   getBaseAddress "${1}"
+  getBalance ${base_addr}
+  if ! parseWalletUTXOs; then return 1; fi
+  
+  if ! getSlotAndTTL; then return 1; fi
 
-  currSlot=$(getSlotTip)
-  if [[ ${op_mode} = "hybrid" ]]; then
-    println "DEBUG" "\nHow long do you want the transaction to be valid?"
-    echo -n "TTL (in seconds, default: 1800/30min): " >&6 && read -r ttl_enter && println "LOG" "TTL in seconds, default: 1800/30min: ${ttl_enter}"
-    if [[ -n ${ttl_enter} && ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
-      return 1
-    fi
-    ttlValue=$(( currSlot + (${ttl_enter:-1800}/SLOT_LENGTH) ))
-    echo
-  else
-    ttlValue=$(( currSlot + (600/SLOT_LENGTH) )) # TTL default: 10min
-  fi
-  println "LOG" "Current slot is ${currSlot}, setting ttl to ${ttlValue}"
-
-  # Use all available utxo in wallet
-  println "LOG" "Using UTxO's:"
-  tx_in=""
-  while read -r utxo; do
-    in_addr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
-    idx=$(awk '{ print $2 }' <<< "${utxo}")
-    utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
-    println "LOG" "TxHash: ${in_addr}#${idx}"
-    println "LOG" "ADA: $(formatLovelace ${utxo_balance})"
-    tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <"${TMP_FOLDER}"/balance.out
-
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 --certificate-file ${pool_delegcert_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 --certificate-file ${pool_delegcert_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
-  minFeeArgs=(
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_delegcert_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_delegcert_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
@@ -1404,24 +1375,24 @@ delegate() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${minFeeArgs[*]}"
-  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${minFee}) ADA"
+  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
+  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
-  if [[ ${lovelace} -lt ${minFee} ]]; then
-    println "ERROR" "${FG_RED}ERROR${NC}: Not enough ADA in wallet ( $(formatLovelace ${lovelace}) < $(formatLovelace ${minFee}) )"
+  if [[ ${lovelace} -lt ${min_fee} ]]; then
+    println "ERROR" "${FG_RED}ERROR${NC}: Not enough Ada in wallet ( $(formatLovelace ${lovelace}) < $(formatLovelace ${min_fee}) )"
     return 1
   fi
 
-  newBalance=$(( lovelace - minFee ))
+  newBalance=$(( lovelace - min_fee ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
-  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) )"
+  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) )"
   
-  buildArgs=(
+  build_args=(
     ${tx_in}
     ${tx_out}
-    --invalid-hereafter ${ttlValue}
-    --fee ${minFee}
+    --invalid-hereafter ${ttl}
+    --fee ${min_fee}
     --certificate-file ${pool_delegcert_file}
     --out-file "${TMP_FOLDER}"/tx.raw
   )
@@ -1445,7 +1416,7 @@ delegate() {
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
-# Command     : withdrawRewards [stake skey file] [payment skey file] [base address] [reward address] [rewards in lovelace]
+# Command     : withdrawRewards [wallet name]
 # Description : withdraw rewards earned and send to wallet base address
 # Parameters  : wallet name  >  the name of the wallet
 withdrawRewards() {
@@ -1457,37 +1428,15 @@ withdrawRewards() {
   getBaseAddress "${1}"
   getRewardAddress "${1}"
   getRewards "${1}"
+  
+  getBalance ${base_addr}
+  if ! parseWalletUTXOs; then return 1; fi
+  
+  if ! getSlotAndTTL; then return 1; fi
 
-  currSlot=$(getSlotTip)
-  if [[ ${op_mode} = "hybrid" ]]; then
-    println "DEBUG" "\nHow long do you want the transaction to be valid?"
-    echo -n "TTL (in seconds, default: 1800/30min): " >&6 && read -r ttl_enter && println "LOG" "TTL in seconds, default: 1800/30min: ${ttl_enter}"
-    if [[ -n ${ttl_enter} && ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
-      return 1
-    fi
-    ttlValue=$(( currSlot + (${ttl_enter:-1800}/SLOT_LENGTH) ))
-    echo
-  else
-    ttlValue=$(( currSlot + (600/SLOT_LENGTH) )) # TTL default: 10min
-  fi
-  println "LOG" "Current slot is ${currSlot}, setting ttl to ${ttlValue}"
-
-  # Use all available utxo in pledge wallet base address
-  println "LOG" "Using UTxO's:"
-  tx_in=""
-  while read -r utxo; do
-    in_addr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
-    idx=$(awk '{ print $2 }' <<< "${utxo}")
-    utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
-    println "LOG" "TxHash: ${in_addr}#${idx}"
-    println "LOG" "ADA: $(formatLovelace ${utxo_balance})"
-    tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <"${TMP_FOLDER}"/balance.out
-
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
-  minFeeArgs=(
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
@@ -1497,25 +1446,25 @@ withdrawRewards() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${minFeeArgs[*]}"
-  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${minFee}) ADA"
+  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
+  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
-  if [[ ${lovelace} -lt ${minFee} ]]; then
-    println "ERROR" "${FG_RED}ERROR${NC}: Not enough ADA in wallet ( $(formatLovelace ${lovelace}) < $(formatLovelace ${minFee}) )"
+  if [[ ${lovelace} -lt ${min_fee} ]]; then
+    println "ERROR" "${FG_RED}ERROR${NC}: Not enough Ada in wallet ( $(formatLovelace ${lovelace}) < $(formatLovelace ${min_fee}) )"
     return 1
   fi
 
-  newBalance=$(( lovelace - minFee + reward_lovelace ))
+  newBalance=$(( lovelace - min_fee + reward_lovelace ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
-  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) )"
+  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) )"
   
-  buildArgs=(
+  build_args=(
     ${tx_in}
     ${tx_out}
     --withdrawal ${reward_addr}+${reward_lovelace}
-    --invalid-hereafter ${ttlValue}
-    --fee ${minFee}
+    --invalid-hereafter ${ttl}
+    --fee ${min_fee}
     --out-file "${TMP_FOLDER}"/tx.raw
   )
   if ! buildTx; then return 1; fi
@@ -1562,39 +1511,11 @@ registerPool() {
   multi_owner_count=$#
   multi_owner_keys=( "$@" )
 
-  if [[ ! -s "${TMP_FOLDER}"/balance.out ]]; then
-    println "ERROR" "${FG_RED}ERROR${NC}: wallet empty"
-    return 1
-  fi
-
-  currSlot=$(getSlotTip)
-  if [[ ${op_mode} = "hybrid" ]]; then
-    println "DEBUG" "\nHow long do you want the transaction to be valid?"
-    echo -n "TTL (in seconds, default: 1800/30min): " >&6 && read -r ttl_enter && println "LOG" "TTL in seconds, default: 1800/30min: ${ttl_enter}"
-    if [[ -n ${ttl_enter} && ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
-      return 1
-    fi
-    ttlValue=$(( currSlot + (${ttl_enter:-1800}/SLOT_LENGTH) ))
-    echo
-  else
-    ttlValue=$(( currSlot + (600/SLOT_LENGTH) )) # TTL default: 10min
-  fi
+  if ! parseWalletUTXOs; then return 1; fi
+  
+  if ! getSlotAndTTL; then return 1; fi
   poolDeposit=$(jq -r '.poolDeposit' "${TMP_FOLDER}"/protparams.json)
   println "LOG" "Pool Deposit is ${poolDeposit}"
-  println "LOG" "Current slot is ${currSlot}, setting ttl to ${ttlValue}"
-
-  # Use all available utxo in pledge wallet
-  println "LOG" "Using UTxO's:"
-  tx_in=""
-  while read -r utxo; do
-    in_addr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
-    idx=$(awk '{ print $2 }' <<< "${utxo}")
-    utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
-    println "LOG" "TxHash: ${in_addr}#${idx}"
-    println "LOG" "ADA: $(formatLovelace ${utxo_balance})"
-    tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <"${TMP_FOLDER}"/balance.out
   
   reward_delegation_cert=""
   reward_wallet_key=""
@@ -1607,9 +1528,9 @@ registerPool() {
     ((witness_count++))
   fi
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --certificate-file ${pool_regcert_file} --certificate-file ${owner_delegation_cert_file} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --certificate-file ${pool_regcert_file} --certificate-file ${owner_delegation_cert_file} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
-  minFeeArgs=(
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} --certificate-file ${owner_delegation_cert_file} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} --certificate-file ${owner_delegation_cert_file} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
@@ -1619,24 +1540,24 @@ registerPool() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${minFeeArgs[*]}"
-  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${minFee}) ADA"
+  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
+  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
-  if [[ ${lovelace} -lt $(( minFee + poolDeposit )) ]]; then
-    println "ERROR" "${FG_RED}ERROR${NC}: Not enough ADA in base address ( $(formatLovelace ${lovelace}) < $(formatLovelace ${minFee}) + $(formatLovelace ${poolDeposit}) )"
+  if [[ ${lovelace} -lt $(( min_fee + poolDeposit )) ]]; then
+    println "ERROR" "${FG_RED}ERROR${NC}: Not enough Ada in base address ( $(formatLovelace ${lovelace}) < $(formatLovelace ${min_fee}) + $(formatLovelace ${poolDeposit}) )"
     return 1
   fi
 
-  newBalance=$(( lovelace - minFee - poolDeposit ))
+  newBalance=$(( lovelace - min_fee - poolDeposit ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
-  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) - $(formatLovelace ${poolDeposit}) )"
+  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${poolDeposit}) )"
   
-  buildArgs=(
+  build_args=(
     ${tx_in}
     ${tx_out}
-    --invalid-hereafter ${ttlValue}
-    --fee ${minFee}
+    --invalid-hereafter ${ttl}
+    --fee ${min_fee}
     --certificate-file ${pool_regcert_file}
     --certificate-file ${owner_delegation_cert_file}
     ${reward_delegation_cert}
@@ -1685,37 +1606,9 @@ modifyPool() {
   multi_owner_count=$#
   multi_owner_keys=( "$@" )
   
-  if [[ ! -s "${TMP_FOLDER}"/balance.out ]]; then
-    println "ERROR" "${FG_RED}ERROR${NC}: wallet empty"
-    return 1
-  fi
+  if ! parseWalletUTXOs; then return 1; fi
 
-  currSlot=$(getSlotTip)
-  if [[ ${op_mode} = "hybrid" ]]; then
-    println "DEBUG" "\nHow long do you want the transaction to be valid?"
-    echo -n "TTL (in seconds, default: 1800/30min): " >&6 && read -r ttl_enter && println "LOG" "TTL in seconds, default: 1800/30min: ${ttl_enter}"
-    if [[ -n ${ttl_enter} && ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
-      return 1
-    fi
-    ttlValue=$(( currSlot + (${ttl_enter:-1800}/SLOT_LENGTH) ))
-    echo
-  else
-    ttlValue=$(( currSlot + (600/SLOT_LENGTH) )) # TTL default: 10min
-  fi
-  println "LOG" "Current slot is ${currSlot}, setting ttl to ${ttlValue}"
-
-  # Use all available utxo in pledge wallet base address
-  println "LOG" "Using UTxO's:"
-  tx_in=""
-  while read -r utxo; do
-    in_addr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
-    idx=$(awk '{ print $2 }' <<< "${utxo}")
-    utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
-    println "LOG" "TxHash: ${in_addr}#${idx}"
-    println "LOG" "ADA: $(formatLovelace ${utxo_balance})"
-    tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <"${TMP_FOLDER}"/balance.out
+  if ! getSlotAndTTL; then return 1; fi
 
   reward_wallet_key=""
   witness_count=$(( 3 + multi_owner_count ))
@@ -1724,9 +1617,9 @@ modifyPool() {
     ((witness_count++))
   fi
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --certificate-file ${pool_regcert_file} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttlValue} --certificate-file ${pool_regcert_file} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
-  minFeeArgs=(
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
@@ -1736,24 +1629,24 @@ modifyPool() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${minFeeArgs[*]}"
-  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${minFee}) ADA"
+  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
+  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
-  if [[ ${lovelace} -lt ${minFee} ]]; then
-    println "ERROR" "${FG_RED}ERROR${NC}: Not enough ADA in base address ( $(formatLovelace ${lovelace}) < $(formatLovelace ${minFee}) )"
+  if [[ ${lovelace} -lt ${min_fee} ]]; then
+    println "ERROR" "${FG_RED}ERROR${NC}: Not enough Ada in base address ( $(formatLovelace ${lovelace}) < $(formatLovelace ${min_fee}) )"
     return 1
   fi
 
-  newBalance=$(( lovelace - minFee ))
+  newBalance=$(( lovelace - min_fee ))
   tx_out="--tx-out ${base_addr}+${newBalance}"
-  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) )"
+  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) )"
   
-  buildArgs=(
+  build_args=(
     ${tx_in}
     ${tx_out}
-    --invalid-hereafter ${ttlValue}
-    --fee ${minFee}
+    --invalid-hereafter ${ttl}
+    --fee ${min_fee}
     --certificate-file ${pool_regcert_file}
     --out-file "${TMP_FOLDER}"/tx.raw
   )
@@ -1794,39 +1687,14 @@ deRegisterPool() {
   wallet_addr="$3"
   wallet_payment_sk_file="$4"
   
-  # get balance
   getBalance ${wallet_addr}
+  if ! parseWalletUTXOs; then return 1; fi
 
-  currSlot=$(getSlotTip)
-  if [[ ${op_mode} = "hybrid" ]]; then
-    println "DEBUG" "\nHow long do you want the transaction to be valid?"
-    echo -n "TTL (in seconds, default: 1800/30min): " >&6 && read -r ttl_enter && println "LOG" "TTL in seconds, default: 1800/30min: ${ttl_enter}"
-    if [[ -n ${ttl_enter} && ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
-      return 1
-    fi
-    ttlValue=$(( currSlot + (${ttl_enter:-1800}/SLOT_LENGTH) ))
-    echo
-  else
-    ttlValue=$(( currSlot + (600/SLOT_LENGTH) )) # TTL default: 10min
-  fi
-  println "LOG" "Current slot is ${currSlot}, setting ttl to ${ttlValue}"
+  if ! getSlotAndTTL; then return 1; fi
 
-  # Use all available utxo in wallet address
-  println "LOG" "Using UTxO's:"
-  tx_in=""
-  while read -r utxo; do
-    in_addr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
-    idx=$(awk '{ print $2 }' <<< "${utxo}")
-    utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
-    println "LOG" "TxHash: ${in_addr}#${idx}"
-    println "LOG" "ADA: $(formatLovelace ${utxo_balance})"
-    tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <"${TMP_FOLDER}"/balance.out
-
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${wallet_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 --certificate-file ${pool_deregcert_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${wallet_addr}+0 --invalid-hereafter ${ttlValue} --fee 0 --certificate-file ${pool_deregcert_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
-  minFeeArgs=(
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${wallet_addr}+0 --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_deregcert_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${wallet_addr}+0 --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_deregcert_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
@@ -1836,24 +1704,24 @@ deRegisterPool() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${minFeeArgs[*]}"
-  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${minFee}) ADA"
+  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
+  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
-  if [[ ${lovelace} -lt ${minFee} ]]; then
-    println "ERROR" "${FG_RED}ERROR${NC}: Not enough ADA in wallet ( $(formatLovelace ${lovelace}) < $(formatLovelace ${minFee}) )"
+  if [[ ${lovelace} -lt ${min_fee} ]]; then
+    println "ERROR" "${FG_RED}ERROR${NC}: Not enough Ada in wallet ( $(formatLovelace ${lovelace}) < $(formatLovelace ${min_fee}) )"
     return 1
   fi
 
-  newBalance=$(( lovelace - minFee ))
+  newBalance=$(( lovelace - min_fee ))
   tx_out="--tx-out ${wallet_addr}+${newBalance}"
-  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) )"
+  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) )"
   
-  buildArgs=(
+  build_args=(
     ${tx_in}
     ${tx_out}
-    --invalid-hereafter ${ttlValue}
-    --fee ${minFee}
+    --invalid-hereafter ${ttl}
+    --fee ${min_fee}
     --certificate-file ${pool_deregcert_file}
     --out-file "${TMP_FOLDER}"/tx.raw
   )
@@ -1927,37 +1795,14 @@ sendMetadata() {
     return 1
   fi
 
-  currSlot=$(getSlotTip)
-  if [[ ${op_mode} = "hybrid" ]]; then
-    println "DEBUG" "\nHow long do you want the transaction to be valid?"
-    echo -n "TTL (in seconds, default: 1800/30min): " >&6 && read -r ttl_enter && println "LOG" "TTL in seconds, default: 1800/30min: ${ttl_enter}"
-    if [[ -n ${ttl_enter} && ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
-      return 1
-    fi
-    ttlValue=$(( currSlot + (${ttl_enter:-1800}/SLOT_LENGTH) ))
-    echo
-  else
-    ttlValue=$(( currSlot + (600/SLOT_LENGTH) )) # TTL default: 10min
-  fi
-  println "LOG" "Current slot is ${currSlot}, setting ttl to ${ttlValue}"
   getBalance ${addr}
+  if ! parseWalletUTXOs; then return 1; fi
+  
+  if ! getSlotAndTTL; then return 1; fi
 
-  # Use all available utxo in source address
-  println "LOG" "Using UTxO's:"
-  tx_in=""
-  while read -r utxo; do
-    in_addr=$(awk '{ print $1 }' <<< "${utxo}" | sed -e "s@\"@@g")
-    idx=$(awk '{ print $2 }' <<< "${utxo}")
-    utxo_balance=$(awk '{ print $3 }' <<< "${utxo}")
-    println "LOG" "TxHash: ${in_addr}#${idx}"
-    println "LOG" "ADA: $(formatLovelace ${utxo_balance})"
-    tx_in="${tx_in} --tx-in ${in_addr}#${idx}"
-  done <"${TMP_FOLDER}"/balance.out
-
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${addr}+0 --invalid-hereafter ${ttlValue} --fee 0 ${metadata} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${addr}+0 --invalid-hereafter ${ttlValue} --fee 0 ${metadata} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
-  minFeeArgs=(
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${addr}+0 --invalid-hereafter ${ttl} --fee 0 ${metadata} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${addr}+0 --invalid-hereafter ${ttl} --fee 0 ${metadata} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
     --tx-in-count ${utx0_count}
@@ -1967,24 +1812,24 @@ sendMetadata() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_FOLDER}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${minFeeArgs[*]}"
-  minFee=$([[ "$(${CCLI} ${minFeeArgs[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${minFee}) ADA"
+  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
+  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
-  if [[ ${lovelace} -lt ${minFee} ]]; then
-    println "ERROR" "${FG_RED}ERROR${NC}: Not enough ADA in address ( $(formatLovelace ${lovelace}) < $(formatLovelace ${minFee}) )"
+  if [[ ${lovelace} -lt ${min_fee} ]]; then
+    println "ERROR" "${FG_RED}ERROR${NC}: Not enough Ada in address ( $(formatLovelace ${lovelace}) < $(formatLovelace ${min_fee}) )"
     return 1
   fi
 
-  newBalance=$(( lovelace - minFee ))
+  newBalance=$(( lovelace - min_fee ))
   tx_out="--tx-out ${addr}+${newBalance}"
-  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${minFee}) )"
+  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) )"
   
-  buildArgs=(
+  build_args=(
     ${tx_in}
     ${tx_out}
-    --invalid-hereafter ${ttlValue}
-    --fee ${minFee}
+    --invalid-hereafter ${ttl}
+    --fee ${min_fee}
     ${metadata}
     --out-file "${TMP_FOLDER}"/tx.raw
   )
@@ -2007,13 +1852,13 @@ sendMetadata() {
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
-# Command     : buildTx [buildArgs]
+# Command     : buildTx [build_args]
 # Description : Helper function to build a raw transaction
-#             : populate an array variable called 'buildArgs' with all data
-# Parameters  : buildArgs  >  an array with all the arguments to assemble the transaction
+#             : populate an array variable called 'build_args' with all data
+# Parameters  : build_args  >  an array with all the arguments to assemble the transaction
 buildTx() {
-  println "ACTION" "${CCLI} transaction build-raw ${ERA_IDENTIFIER} ${buildArgs[*]}"
-  ${CCLI} transaction build-raw ${ERA_IDENTIFIER} "${buildArgs[@]}"
+  println "ACTION" "${CCLI} transaction build-raw ${ERA_IDENTIFIER} ${build_args[*]}"
+  ${CCLI} transaction build-raw ${ERA_IDENTIFIER} "${build_args[@]}"
 }
 
 # Command     : signTx [raw tx file]
@@ -2035,15 +1880,15 @@ signTx() {
     fi
   done
 
-  signCommand=(
+  sign_command=(
     ${CCLI} transaction assemble
     --tx-body-file "${tx_raw}"
     ${tx_witness_out[@]}
     --out-file "${tx_signed}"
   )
   
-  println "ACTION" "${signCommand[@]}"
-  ${signCommand[@]}
+  println "ACTION" "${sign_command[@]}"
+  ${sign_command[@]}
 }
 
 # Command     : witnessTx [raw tx file] [signing keys ...]
@@ -2058,27 +1903,29 @@ witnessTx() {
   for skey in "$@"; do
     [[ -z ${skey//[[:blank:]]/} ]] && continue
     if [[ -f "${skey}" && ${skey##*.} = "${WALLET_HW_STAKE_SK_FILENAME##*.}" ]]; then # HW signing key
+      waitForInput "${FG_CYAN}INFO${NC}: please unlock hardware device and open the Cardano app, after this press any key to continue"
+      println "DEBUG" "${FG_CYAN}INFO${NC}: follow directions on hardware device to witness the transaction"
       tx_witness="$(mktemp "${parent_dir}/tx_witness.XXXXXXXXXX")"
-      witnessCommand=(
+      witness_command=(
         cardano-hw-cli shelley transaction witness
         --tx-body-file "${tx_raw}"
         --hw-signing-file "${skey}"
         ${NETWORK_IDENTIFIER}
         --out-file "${tx_witness}"
       )
-      println "ACTION" "${witnessCommand[@]}"
-      if ! ${witnessCommand[@]}; then return 1; fi
+      println "ACTION" "${witness_command[@]}"
+      if ! ${witness_command[@]}; then return 1; fi
     elif [[ -f "${skey}" ]]; then
       tx_witness="$(mktemp "${parent_dir}/tx_witness.XXXXXXXXXX")"
-      witnessCommand=(
+      witness_command=(
         ${CCLI} transaction witness
         --tx-body-file "${tx_raw}"
         --signing-key-file "${skey}"
         ${NETWORK_IDENTIFIER}
         --out-file "${tx_witness}"
       )
-      println "ACTION" "${witnessCommand[@]}"
-      if ! ${witnessCommand[@]}; then return 1; fi
+      println "ACTION" "${witness_command[@]}"
+      if ! ${witness_command[@]}; then return 1; fi
     else
       println "ERROR" "${FG_RED}ERROR${NC}: signing key not found: ${skey}"
       return 1
@@ -2093,30 +1940,27 @@ witnessTx() {
 submitTx() {
   tx_signed="$1"
 
-  submitCommand=(
+  submit_command=(
     ${CCLI} transaction submit
     --tx-file "${tx_signed}"
     ${PROTOCOL_IDENTIFIER}
     ${NETWORK_IDENTIFIER}
   )
   
-  println "ACTION" "${submitCommand[@]}"
-  ${submitCommand[@]}
+  println "ACTION" "${submit_command[@]}"
+  ${submit_command[@]}
 }
 
 
 # Command     : selectOpMode
 # Description : Helper function to choose operational mode
 selectOpMode() {
-  echo
-  println "OFF" "Online mode  -  The default mode to use if all keys are available"
-  echo
-  println "OFF" "Hybrid mode  -  1) Go through steps to build a transaction file"
-  println "OFF" "                2) Copy built tx file to offline computer"
-  println "OFF" "                3) Sign it using 'Sign Tx' with keys on offline computer"
-  println "OFF" "                   (CNTools started in offline mode '-o' without node connection)"
-  println "OFF" "                4) Copy the signed tx file back to online computer and submit using 'Submit Tx'"
-  echo
+  println "OFF" "\nOnline mode  -  The default mode to use if all keys are available\n\n"\
+"Hybrid mode  -  1) Go through steps to build a transaction file\n"\
+"                2) Copy built tx file to offline computer\n"\
+"                3) Sign it using 'Sign Tx' with keys on offline computer\n"\
+"                   (CNTools started in offline mode '-o' without node connection)\n"\
+"                4) Copy the signed tx file back to online computer and submit using 'Submit Tx'\n"
   select_opt "[o] Online" "[h] Hybrid" "[Esc] Cancel"
   case $? in
     0) op_mode="online" ;;
