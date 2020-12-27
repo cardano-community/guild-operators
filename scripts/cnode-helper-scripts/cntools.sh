@@ -328,7 +328,7 @@ case $OPERATION in
     println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
     
-    read -r -p "Name of new wallet: " wallet_name 2>&6 && println "LOG" "Name of new wallet: ${wallet_name}"
+    sleep 0.1 && read -r -p "Name of new wallet: " wallet_name 2>&6 && println "LOG" "Name of new wallet: ${wallet_name}"
     # Remove unwanted characters from wallet name
     wallet_name=${wallet_name//[^[:alnum:]]/_}
     if [[ -z "${wallet_name}" ]]; then
@@ -407,7 +407,7 @@ case $OPERATION in
         waitForInput && continue
       fi
       
-      read -r -p "Name of imported wallet: " wallet_name 2>&6 && println "LOG" "Name of imported wallet: ${wallet_name}"
+      sleep 0.1 && read -r -p "Name of imported wallet: " wallet_name 2>&6 && println "LOG" "Name of imported wallet: ${wallet_name}"
       # Remove unwanted characters from wallet name
       wallet_name=${wallet_name//[^[:alnum:]]/_}
       if [[ -z "${wallet_name}" ]]; then
@@ -426,7 +426,7 @@ case $OPERATION in
         waitForInput && continue
       fi
       
-      read -r -p "24 or 15 word mnemonic(space separated): " mnemonic 2>&6
+      sleep 0.1 && read -r -p "24 or 15 word mnemonic(space separated): " mnemonic 2>&6
       echo
       IFS=" " read -r -a words <<< "${mnemonic}"
       if [[ ${#words[@]} -ne 24 ]] && [[ ${#words[@]} -ne 15 ]]; then
@@ -549,7 +549,7 @@ EOF
         waitForInput && continue
       fi
       
-      read -r -p "Name of imported wallet: " wallet_name 2>&6 && println "LOG" "Name of imported wallet: ${wallet_name}"
+      sleep 0.1 && read -r -p "Name of imported wallet: " wallet_name 2>&6 && println "LOG" "Name of imported wallet: ${wallet_name}"
       # Remove unwanted characters from wallet name
       wallet_name=${wallet_name//[^[:alnum:]]/_}
       if [[ -z "${wallet_name}" ]]; then
@@ -578,12 +578,12 @@ EOF
       println "ACTION" "cardano-hw-cli shelley address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file \"${payment_vk_file}\" --hw-signing-file \"${payment_sk_file}\""
       output=$(cardano-hw-cli shelley address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file "${payment_vk_file}" --hw-signing-file "${payment_sk_file}" 2>&1)
       [[ -n ${output} ]] && println "ERROR" "${output}\n${FG_RED}ERROR${NC}: failure during payment key extraction!" && waitForInput && continue
-      jq '.description = "Payment Hardware Verification Key"' "${payment_vk_file}" > "${TMP_FOLDER}/${payment_vk_file}.tmp" && mv -f "${TMP_FOLDER}/${payment_vk_file}.tmp" "${payment_vk_file}"
+      jq '.description = "Payment Hardware Verification Key"' "${payment_vk_file}" > "${TMP_FOLDER}/$(basename "${payment_vk_file}").tmp" && mv -f "${TMP_FOLDER}/$(basename "${payment_vk_file}").tmp" "${payment_vk_file}"
       println "DEBUG" "${FG_BLUE}INFO${NC}: repeat and follow instructions on hardware device to extract the ${FG_CYAN}stake keys${NC}"
       println "ACTION" "cardano-hw-cli shelley address key-gen --path 1852H/1815H/0H/2/0 --verification-key-file \"${stake_vk_file}\" --hw-signing-file \"${stake_sk_file}\""
       output=$(cardano-hw-cli shelley address key-gen --path 1852H/1815H/0H/2/0 --verification-key-file "${stake_vk_file}" --hw-signing-file "${stake_sk_file}" 2>&1)
       [[ -n ${output} ]] && println "ERROR" "${output}\n${FG_RED}ERROR${NC}: failure during stake key extraction!" && waitForInput && continue
-      jq '.description = "Stake Hardware Verification Key"' "${stake_vk_file}" > "${TMP_FOLDER}/${stake_vk_file}.tmp" && mv -f "${TMP_FOLDER}/${stake_vk_file}.tmp" "${stake_vk_file}"
+      jq '.description = "Stake Hardware Verification Key"' "${stake_vk_file}" > "${TMP_FOLDER}/$(basename "${stake_vk_file}").tmp" && mv -f "${TMP_FOLDER}/$(basename "${stake_vk_file}").tmp" "${stake_vk_file}"
       
       getBaseAddress ${wallet_name}
       getPayAddress ${wallet_name}
@@ -1217,7 +1217,7 @@ EOF
     println "DEBUG" "              wallet will be defraged, ie converts multiple UTxO's to one"
     echo
     
-    read -r -p "Amount (Ada): " amountADA 2>&6 && println "LOG" "Amount (Ada): ${amountADA}"
+    sleep 0.1 && read -r -p "Amount (Ada): " amountADA 2>&6 && println "LOG" "Amount (Ada): ${amountADA}"
     amountADA="${amountADA//,}"
 
     echo
@@ -1274,7 +1274,7 @@ EOF
            waitForInput && continue
          fi
          ;;
-      1) echo && read -r -p "Address: " d_addr 2>&6 && println "LOG" "Address: ${d_addr}" ;;
+      1) echo && sleep 0.1 && read -r -p "Address: " d_addr 2>&6 && println "LOG" "Address: ${d_addr}" ;;
       2) continue ;;
     esac
     # Destination could be empty, if so without getting a valid address
@@ -1380,7 +1380,7 @@ EOF
          fi
          pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
          ;;
-      1) read -r -p "vkey cbor-hex(blank to cancel): " vkey_cbor 2>&6 && println "LOG" "vkey cbor-hex(blank to cancel): ${vkey_cbor}"
+      1) sleep 0.1 && read -r -p "vkey cbor-hex(blank to cancel): " vkey_cbor 2>&6 && println "LOG" "vkey cbor-hex(blank to cancel): ${vkey_cbor}"
          [[ -z "${vkey_cbor}" ]] && continue
          pool_name="${vkey_cbor}"
          pool_coldkey_vk_file="${TMP_FOLDER}"/pool_delegation.vkey
@@ -1525,7 +1525,7 @@ EOF
     println " >> POOL >> NEW"
     println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
-    read -r -p "Pool Name: " pool_name 2>&6 && println "LOG" "Pool Name: ${pool_name}"
+    sleep 0.1 && read -r -p "Pool Name: " pool_name 2>&6 && println "LOG" "Pool Name: ${pool_name}"
     # Remove unwanted characters from pool name
     pool_name=${pool_name//[^[:alnum:]]/_}
     if [[ -z "${pool_name}" ]]; then
@@ -1617,7 +1617,7 @@ EOF
 
     pledge_ada=50000 # default pledge
     [[ -f "${pool_config}" ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
-    read -r -p "Pledge (in Ada, default: $(formatAda ${pledge_ada})): " pledge_enter 2>&6 && println "LOG" "Pledge (in Ada, default: $(formatAda ${pledge_ada})): ${pledge_enter}"
+    sleep 0.1 && read -r -p "Pledge (in Ada, default: $(formatAda ${pledge_ada})): " pledge_enter 2>&6 && println "LOG" "Pledge (in Ada, default: $(formatAda ${pledge_ada})): ${pledge_enter}"
     pledge_enter="${pledge_enter//,}"
     if [[ -n "${pledge_enter}" ]]; then
       if ! AdaToLovelace "${pledge_enter}" >/dev/null; then
@@ -1631,7 +1631,7 @@ EOF
 
     margin=7.5 # default margin in %
     [[ -f "${pool_config}" ]] && margin=$(jq -r '.margin //0' "${pool_config}")
-    read -r -p "Margin (in %, default: ${margin}): " margin_enter 2>&6 && println "LOG" "Margin (in %, default: ${margin}): ${margin_enter}"
+    sleep 0.1 && read -r -p "Margin (in %, default: ${margin}): " margin_enter 2>&6 && println "LOG" "Margin (in %, default: ${margin}): ${margin_enter}"
     if [[ -n "${margin_enter}" ]]; then
       if ! pctToFraction "${margin_enter}" >/dev/null; then
         waitForInput && continue
@@ -1645,7 +1645,7 @@ EOF
     minPoolCost=$(( $(jq -r '.minPoolCost //0' "${TMP_FOLDER}"/protparams.json) / 1000000 )) # convert to Ada
     [[ -f ${pool_config} ]] && cost_ada=$(jq -r '.costADA //0' "${pool_config}") || cost_ada=${minPoolCost} # default cost
     [[ ${cost_ada} -lt ${minPoolCost} ]] && cost_ada=${minPoolCost} # raise old value to new minimum cost
-    read -r -p "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAda ${cost_ada})): " cost_enter 2>&6 && println "LOG" "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAda ${cost_ada})): ${cost_enter}"
+    sleep 0.1 && read -r -p "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAda ${cost_ada})): " cost_enter 2>&6 && println "LOG" "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAda ${cost_ada})): ${cost_enter}"
     cost_enter="${cost_enter//,}"
     if [[ -n "${cost_enter}" ]]; then
       if ! AdaToLovelace "${cost_enter}" >/dev/null; then
@@ -1666,7 +1666,7 @@ EOF
     pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
     if [[ ! -f "${pool_config}" ]] || ! meta_json_url=$(jq -er .json_url "${pool_config}"); then meta_json_url="https://foo.bat/poolmeta.json"; fi
 
-    read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter 2>&6 && println "LOG" "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): ${json_url_enter}"
+    sleep 0.1 && read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter 2>&6 && println "LOG" "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): ${json_url_enter}"
     [[ -n "${json_url_enter}" ]] && meta_json_url="${json_url_enter}"
     if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
       println "ERROR" "${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
@@ -1699,26 +1699,26 @@ EOF
       if [[ ! -f "${pool_meta_file}" ]] || ! meta_homepage=$(jq -er .homepage "${pool_meta_file}"); then meta_homepage="https://foo.com"; fi
       if [[ ! -f "${pool_meta_file}" ]] || ! meta_extended=$(jq -er .extended "${pool_meta_file}"); then meta_extended="https://foo.com/metadata/extended.json"; fi
 
-      read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter 2>&6 && println "LOG" "Enter Pool's Name (default: ${meta_name}): ${name_enter}"
+      sleep 0.1 && read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter 2>&6 && println "LOG" "Enter Pool's Name (default: ${meta_name}): ${name_enter}"
       [[ -n "${name_enter}" ]] && meta_name="${name_enter}"
       if [[ ${#meta_name} -gt 50 ]]; then
         println "ERROR" "${FG_RED}ERROR${NC}: Name cannot exceed 50 characters"
         waitForInput && continue
       fi
-      read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter 2>&6 && println "LOG" "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): ${ticker_enter}"
+      sleep 0.1 && read -r -p "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): " ticker_enter 2>&6 && println "LOG" "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker}): ${ticker_enter}"
       ticker_enter=${ticker_enter//[^[:alnum:]]/}
       [[ -n "${ticker_enter}" ]] && meta_ticker="${ticker_enter^^}"
       if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
         println "ERROR" "${FG_RED}ERROR${NC}: ticker must be between 3-5 characters"
         waitForInput && continue
       fi
-      read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter 2>&6 && println "LOG" "Enter Pool's Description (default: ${meta_description}): ${desc_enter}"
+      sleep 0.1 && read -r -p "Enter Pool's Description (default: ${meta_description}): " desc_enter 2>&6 && println "LOG" "Enter Pool's Description (default: ${meta_description}): ${desc_enter}"
       [[ -n "${desc_enter}" ]] && meta_description="${desc_enter}"
       if [[ ${#meta_description} -gt 255 ]]; then
         println "ERROR" "${FG_RED}ERROR${NC}: Description cannot exceed 255 characters"
         waitForInput && continue
       fi
-      read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter 2>&6 && println "LOG" "Enter Pool's Homepage (default: ${meta_homepage}): ${homepage_enter}"
+      sleep 0.1 && read -r -p "Enter Pool's Homepage (default: ${meta_homepage}): " homepage_enter 2>&6 && println "LOG" "Enter Pool's Homepage (default: ${meta_homepage}): ${homepage_enter}"
       [[ -n "${homepage_enter}" ]] && meta_homepage="${homepage_enter}"
       if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
         println "ERROR" "${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
@@ -1729,7 +1729,7 @@ EOF
       case $? in
         0) meta_extended_option=""
            ;;
-        1) echo && read -r -p "Enter URL to extended metadata (default: ${meta_extended}): " extended_enter 2>&6 && println "LOG" "Enter URL to extended metadata (default: ${meta_extended}): ${extended_enter}"
+        1) echo && sleep 0.1 && read -r -p "Enter URL to extended metadata (default: ${meta_extended}): " extended_enter 2>&6 && println "LOG" "Enter URL to extended metadata (default: ${meta_extended}): ${extended_enter}"
            extended_enter="${extended_enter}"
            [[ -n "${extended_enter}" ]] && meta_extended="${extended_enter}"
            if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 64 ]]; then
@@ -1782,11 +1782,11 @@ EOF
       while true; do
         select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[Esc] Cancel"
         case $? in
-          0) read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter 2>&6 && println "LOG" "Enter relays's DNS record, only A or AAAA DNS records: ${relay_dns_enter}"
+          0) sleep 0.1 && read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter 2>&6 && println "LOG" "Enter relays's DNS record, only A or AAAA DNS records: ${relay_dns_enter}"
              if [[ -z "${relay_dns_enter}" ]]; then
                println "ERROR" "${FG_RED}ERROR${NC}: DNS record can not be empty!"
              else
-               read -r -p "Enter relays's port: " relay_port_enter 2>&6 && println "LOG" "Enter relays's port: ${relay_port_enter}"
+               sleep 0.1 && read -r -p "Enter relays's port: " relay_port_enter 2>&6 && println "LOG" "Enter relays's port: ${relay_port_enter}"
                if [[ -n "${relay_port_enter}" ]]; then
                  if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
                    println "ERROR" "${FG_RED}ERROR${NC}: invalid port number!"
@@ -1799,12 +1799,12 @@ EOF
                fi
              fi
              ;;
-          1) read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter 2>&6 && println "LOG" "Enter relays's IPv4 address: ${relay_ipv4_enter}"
+          1) sleep 0.1 && read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter 2>&6 && println "LOG" "Enter relays's IPv4 address: ${relay_ipv4_enter}"
              if [[ -n "${relay_ipv4_enter}" ]]; then
                if ! validIP "${relay_ipv4_enter}"; then
                  println "ERROR" "${FG_RED}ERROR${NC}: invalid IPv4 address format!"
                else
-                 read -r -p "Enter relays's port: " relay_port_enter 2>&6 && println "LOG" "Enter relays's port: ${relay_port_enter}"
+                 sleep 0.1 && read -r -p "Enter relays's port: " relay_port_enter 2>&6 && println "LOG" "Enter relays's port: ${relay_port_enter}"
                  if [[ -n "${relay_port_enter}" ]]; then
                    if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
                      println "ERROR" "${FG_RED}ERROR${NC}: invalid port number!"
@@ -2232,7 +2232,7 @@ EOF
     println "DEBUG" "earlist epoch to retire pool is ${FG_CYAN}${epoch_start}${NC} and latest ${FG_CYAN}${epoch_end}${NC}"
     echo
 
-    read -r -p "Enter epoch in which to retire pool (blank for ${epoch_start}): " epoch_enter 2>&6 && println "LOG" "Enter epoch in which to retire pool (blank for ${epoch_start}): ${epoch_enter}"
+    sleep 0.1 && read -r -p "Enter epoch in which to retire pool (blank for ${epoch_start}): " epoch_enter 2>&6 && println "LOG" "Enter epoch in which to retire pool (blank for ${epoch_start}): ${epoch_enter}"
     [[ -z "${epoch_enter}" ]] && epoch_enter=${epoch_start}
 
     if [[ ${epoch_enter} -lt ${epoch_start} || ${epoch_enter} -gt ${epoch_end} ]]; then
@@ -2737,8 +2737,8 @@ EOF
   println " >> TRANSACTION"
   println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   println "OFF" " Handle Funds\n\n"\
-" ) Witness - Step 1. witness a raw tx with signing keys\n"\
-" ) Sign    - Step 2. sign raw tx with created witnesses\n"\
+" ) Witness - Step 1. witness a tx with signing keys\n"\
+" ) Sign    - Step 2. sign tx with created witnesses or hw sign keys\n"\
 " ) Submit  - Step 3. submit signed tx to blockchain\n"\
 "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   println "DEBUG" " Select transaction operation\n"
@@ -2836,18 +2836,38 @@ EOF
       waitForInput && continue
     fi
     
-    println "DEBUG" "# Sign the transaction with all witness files needed"
     tx_witness_files=()
+    tx_sign_files=()
+    
+    println "DEBUG" "Sign transaction using a hardware wallet?"
+    select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+    case $? in
+      0) sign_type="witness" ;;
+      1) println "DEBUG" "Is the transaction a pool registration, modification or de-registration?"
+         select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+         case $? in
+           0) sign_type="sign" ;;
+           1) println "ERROR" "${FG_RED}ERROR${NC}: please witness the transaction using hardware wallet instead!"
+              waitForInput && continue
+              ;;
+           2) continue ;;
+         esac
+         ;;
+      2) continue ;;
+    esac
+    
+    println "DEBUG" "# Sign the transaction with all ${sign_type} files needed"
     echo
-    [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter path to witness files" && waitForInput "Press any key to open the file explorer"
+    [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter path to ${sign_type} files" && waitForInput "Press any key to open the file explorer"
     while true; do
-      fileDialog 0 "Enter path to witness file" "${WALLET_FOLDER}/"
+      fileDialog 0 "Enter path to ${sign_type} file" "${WALLET_FOLDER}/"
       if [[ -z "${file}" ]]; then
         println "${FG_YELLOW}EMPTY${NC}: no file selected, how do you want to proceed?"
       elif [[ ! -f "${file}" ]]; then
         println "ERROR" "${FG_RED}ERROR${NC}: file not found, please try again! [${file}]"
       else
-        tx_witness_files+=( "${file}" )
+        [[ ${sign_type} = "witness" ]] && tx_witness_files+=( "${file}" )
+        [[ ${sign_type} = "sign" ]] && tx_sign_files+=( "${file}" )
         println "${FG_GREEN}${file}${NC} added!"
       fi
       println "DEBUG" "Add more witness files?"
@@ -2865,8 +2885,14 @@ EOF
         println "Tx file successfully signed and available at: ${FG_CYAN}${tx_signed}${NC}"
         println "DEBUG" "Transfer file to online CNTools and use 'Submit' option to submit transaction to blockchain"
       fi
+    elif [[ ${#tx_sign_files[@]} -gt 0 ]]; then
+      if signTx "${tx_raw}" "${tx_sign_files[@]}"; then
+        echo
+        println "Tx file successfully signed and available at: ${FG_CYAN}${tx_signed}${NC}"
+        println "DEBUG" "Transfer file to online CNTools and use 'Submit' option to submit transaction to blockchain"
+      fi
     else
-      println "${FG_RED}No witness files added!${NC}"
+      println "ERROR" "${FG_RED}ERROR${NC}: no ${sign_type} files added!"
     fi
     
     waitForInput && continue
@@ -2954,7 +2980,7 @@ EOF
          println "DEBUG" "${metafile}:\n$(cat "${metafile}")\n"
          ;;
       1) tput sc && echo
-         read -r -p "Enter URL to JSON metadata file: " meta_json_url 2>&6 && println "LOG" "Enter URL to JSON metadata file: ${meta_json_url}"
+         sleep 0.1 && read -r -p "Enter URL to JSON metadata file: " meta_json_url 2>&6 && println "LOG" "Enter URL to JSON metadata file: ${meta_json_url}"
          if [[ ! "${meta_json_url}" =~ https?://.* ]]; then
            println "ERROR" "${FG_RED}ERROR${NC}: invalid URL format"
            waitForInput && continue
@@ -3070,7 +3096,7 @@ EOF
   println "DEBUG" "Show a block summary for all epochs or a detailed view for a specific epoch?"
   select_opt "[s] Summary" "[e] Epoch" "[Esc] Cancel"
   case $? in
-    0) echo && read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter 2>&6 && println "LOG" "Enter number of epochs to show (enter for 10): ${epoch_enter}"
+    0) echo && sleep 0.1 && read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter 2>&6 && println "LOG" "Enter number of epochs to show (enter for 10): ${epoch_enter}"
        epoch_enter=${epoch_enter:-10}
        if ! [[ ${epoch_enter} =~ ^[0-9]+$ ]]; then
          println "ERROR" "\n${FG_RED}ERROR${NC}: not a number"
@@ -3144,7 +3170,7 @@ EOF
        done
        ;;
     1) [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=$((current_epoch+1)) LIMIT 1);" 2>/dev/null) -eq 1 ]] && println "DEBUG" "\n${FG_YELLOW}Leader schedule for next epoch[$((current_epoch+1))] available${NC}"
-       echo && read -r -p "Enter epoch to list (enter for current): " epoch_enter 2>&6 && println "LOG" "Enter epoch to list (enter for current): ${epoch_enter}"
+       echo && sleep 0.1 && read -r -p "Enter epoch to list (enter for current): " epoch_enter 2>&6 && println "LOG" "Enter epoch to list (enter for current): ${epoch_enter}"
        [[ -z "${epoch_enter}" ]] && epoch_enter=${current_epoch}
        if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=${epoch_enter} LIMIT 1);" 2>/dev/null) -eq 0 ]]; then
          println "No blocks in epoch ${epoch_enter}"

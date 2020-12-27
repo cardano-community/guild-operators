@@ -1023,20 +1023,26 @@ isWalletRegistered() {
   return 1
 }
 
-# Command     : getWalletType [wallet name]
+# Command     : getWalletType [wallet name|sign key]
 # Description : check if wallet is a hardware wallet, 0=yes, 1=cli, 2=cli & encrypted, 3=missing keys
-# Parameters  : wallet name  >  the name of the wallet
+# Parameters  : wallet name|sign key  >  the name of the wallet or path to sign key
 getWalletType() {
-  if [[ -f "${WALLET_FOLDER}/${1}/${WALLET_HW_PAY_SK_FILENAME}" && -f "${WALLET_FOLDER}/${1}/${WALLET_HW_STAKE_SK_FILENAME}" && $(jq -r '.description' "${WALLET_FOLDER}/${1}/${WALLET_HW_STAKE_SK_FILENAME}") = *"Hardware"* ]]; then
-    payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_PAY_SK_FILENAME}"
-    stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_STAKE_SK_FILENAME}"
-    return 0
-  elif [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_SK_FILENAME}" && -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}" ]]; then
-    payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SK_FILENAME}"
-    stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}"
-    return 1
-  elif [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_SK_FILENAME}.gpg" && -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}.gpg" ]]; then
-    return 2
+  if [[ -f $1 ]]; then # Sign key
+    [[ $(jq -r '.description' "${1}") = *"Hardware"* ]] && return 0
+    [[ -f "${1}" ]] && return 1
+    [[ -f "${1}.gpg" ]] && return 2
+  else # CNTools wallet
+    if [[ -f "${WALLET_FOLDER}/${1}/${WALLET_HW_PAY_SK_FILENAME}" && -f "${WALLET_FOLDER}/${1}/${WALLET_HW_STAKE_SK_FILENAME}" && $(jq -r '.description' "${WALLET_FOLDER}/${1}/${WALLET_HW_STAKE_SK_FILENAME}") = *"Hardware"* ]]; then
+      payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_PAY_SK_FILENAME}"
+      stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_STAKE_SK_FILENAME}"
+      return 0
+    elif [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_SK_FILENAME}" && -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}" ]]; then
+      payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SK_FILENAME}"
+      stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}"
+      return 1
+    elif [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_SK_FILENAME}.gpg" && -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}.gpg" ]]; then
+      return 2
+    fi
   fi
   return 3
 }
@@ -1047,7 +1053,7 @@ getSlotAndTTL() {
   currSlot=$(getSlotTip)
   if [[ ${op_mode} = "hybrid" ]]; then
     println "DEBUG" "\nHow long do you want the transaction to be valid?"
-    read -r -p "TTL (in seconds, default: 1800/30min): " ttl_enter 2>&6 && println "LOG" "TTL (in seconds, default: 1800/30min): ${ttl_enter}"
+    sleep 0.1 && read -r -p "TTL (in seconds, default: 1800/30min): " ttl_enter 2>&6 && println "LOG" "TTL (in seconds, default: 1800/30min): ${ttl_enter}"
     if [[ -n ${ttl_enter} && ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
       println "ERROR" "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
       return 1
@@ -1156,10 +1162,14 @@ registerStakeWallet() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! witnessTx "${TMP_FOLDER}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
-  if ! signTx "${TMP_FOLDER}/tx.raw"; then return 1; fi
-  if ! submitTx "${tx_signed}"; then return 1; fi
+  getWalletType ${1}
+  case $? in
+    0) if ! signTx "${TMP_FOLDER}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi ;;
+    1) if ! witnessTx "${TMP_FOLDER}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+       if ! signTx "${TMP_FOLDER}/tx.raw"; then return 1; fi ;;
+  esac
 
+  if ! submitTx "${tx_signed}"; then return 1; fi
   if ! verifyTx ${base_addr}; then return 1; fi
 
   reward_lovelace=0
@@ -1238,8 +1248,13 @@ deregisterStakeWallet() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! witnessTx "${TMP_FOLDER}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
-  if ! signTx "${TMP_FOLDER}/tx.raw"; then return 1; fi
+  getWalletType ${1}
+  case $? in
+    0) if ! signTx "${TMP_FOLDER}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi ;;
+    1) if ! witnessTx "${TMP_FOLDER}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+       if ! signTx "${TMP_FOLDER}/tx.raw"; then return 1; fi ;;
+  esac
+
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -1338,8 +1353,13 @@ sendADA() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! witnessTx "${TMP_FOLDER}/tx.raw" "${sKey}"; then return 1; fi
-  if ! signTx "${TMP_FOLDER}/tx.raw"; then return 1; fi
+  getWalletType "${sKey}"
+  case $? in
+    0) if ! signTx "${TMP_FOLDER}/tx.raw" "${sKey}"; then return 1; fi ;;
+    1) if ! witnessTx "${TMP_FOLDER}/tx.raw" "${sKey}"; then return 1; fi
+       if ! signTx "${TMP_FOLDER}/tx.raw"; then return 1; fi ;;
+  esac
+
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -1409,8 +1429,13 @@ delegate() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
 
-  if ! witnessTx "${TMP_FOLDER}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
-  if ! signTx "${TMP_FOLDER}/tx.raw"; then return 1; fi
+  getWalletType "${1}"
+  case $? in
+    0) if ! signTx "${TMP_FOLDER}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi ;;
+    1) if ! witnessTx "${TMP_FOLDER}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+       if ! signTx "${TMP_FOLDER}/tx.raw"; then return 1; fi ;;
+  esac
+
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -1480,8 +1505,13 @@ withdrawRewards() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
 
-  if ! witnessTx "${TMP_FOLDER}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
-  if ! signTx "${TMP_FOLDER}/tx.raw"; then return 1; fi
+  getWalletType "${1}"
+  case $? in
+    0) if ! signTx "${TMP_FOLDER}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi ;;
+    1) if ! witnessTx "${TMP_FOLDER}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+       if ! signTx "${TMP_FOLDER}/tx.raw"; then return 1; fi ;;
+  esac
+
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -1848,9 +1878,14 @@ sendMetadata() {
     println "DEBUG" "Wallet: ${FG_GREEN}${WALLET_PAY_SK_FILENAME}${NC}" 
     return 2 # return as failed to stop main processing and return to home menu
   fi
-  
-  if ! witnessTx "${TMP_FOLDER}/tx.raw" "${payment_sk_file}"; then return 1; fi
-  if ! signTx "${TMP_FOLDER}/tx.raw"; then return 1; fi
+
+  getWalletType "${payment_sk_file}"
+  case $? in
+    0) if ! signTx "${TMP_FOLDER}/tx.raw" "${payment_sk_file}"; then return 1; fi ;;
+    1) if ! witnessTx "${TMP_FOLDER}/tx.raw" "${payment_sk_file}"; then return 1; fi
+       if ! signTx "${TMP_FOLDER}/tx.raw"; then return 1; fi ;;
+  esac
+
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -1907,31 +1942,52 @@ witnessTx() {
   done
 }
 
-# Command     : signTx [raw tx file]
+# Command     : signTx [raw tx file] [optional: signing keys ...]
 # Description : Helper function to sign a raw transaction
 # Parameters  : raw tx file    >  the transaction file to sign
-#             : witness files  >  list of witness files to use when signing the transaction
+#             : signing keys   >  [optional] list of signing keys to use when signing the transaction, used for HW wallet other than pool registration
 signTx() {
   tx_raw="$1"
+  shift
   #tx_witness_files - array assembled in witnessTx()
   parent_dir="$(dirname "${tx_raw}")"
   tx_signed="${parent_dir}/tx.signed_$(date +%s)"
-  tx_witness_out=()
-  for witness in "${tx_witness_files[@]}"; do
-    if [[ -f "${witness}" ]]; then
-      tx_witness_out+=( "--witness-file ${witness}" )
-    else
-      println "ERROR" "${FG_RED}ERROR${NC}: witness file not found: ${witness}"
-      return 1
-    fi
-  done
-
-  sign_command=(
-    ${CCLI} transaction assemble
-    --tx-body-file "${tx_raw}"
-    ${tx_witness_out[@]}
-    --out-file "${tx_signed}"
-  )
+  if [[ $# -gt 0 ]]; then # sign directly, only used by hw wallet so this is assumed
+    tx_sign_out=()
+    for skey in "$@"; do
+      if [[ -f "${skey}" ]]; then
+        tx_sign_out+=( "--hw-signing-file ${skey}" )
+      else
+        println "ERROR" "${FG_RED}ERROR${NC}: sign key not found: ${skey}"
+        return 1
+      fi
+    done
+    sign_command=(
+      cardano-hw-cli shelley transaction sign
+      --tx-body-file "${tx_raw}"
+      ${tx_sign_out[@]}
+      ${NETWORK_IDENTIFIER}
+      --out-file "${tx_signed}"
+    )
+    waitForInput "${FG_BLUE}INFO${NC}: please unlock hardware device and open the Cardano app, after this press any key to continue"
+    println "DEBUG" "${FG_BLUE}INFO${NC}: follow directions on hardware device to witness the transaction"
+  else # assemble witness files and sign
+    tx_witness_out=()
+    for witness in "${tx_witness_files[@]}"; do
+      if [[ -f "${witness}" ]]; then
+        tx_witness_out+=( "--witness-file ${witness}" )
+      else
+        println "ERROR" "${FG_RED}ERROR${NC}: witness file not found: ${witness}"
+        return 1
+      fi
+    done
+    sign_command=(
+      ${CCLI} transaction assemble
+      --tx-body-file "${tx_raw}"
+      ${tx_witness_out[@]}
+      --out-file "${tx_signed}"
+    )
+  fi
   
   println "ACTION" "${sign_command[@]}"
   ${sign_command[@]}
