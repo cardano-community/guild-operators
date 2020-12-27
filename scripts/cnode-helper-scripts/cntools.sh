@@ -1,5 +1,5 @@
 #!/bin/bash
-# shellcheck disable=SC1090,SC2086,SC2154,SC2034,SC2012
+# shellcheck disable=SC1090,SC2086,SC2154,SC2034,SC2012,SC2140
 
 ########## Global tasks ###########################################
 
