@@ -29,10 +29,12 @@ CNODE_PORT=6000                                         # Set node port
                                                         
 #WALLET_PAY_VK_FILENAME="payment.vkey"                  # Standardized names for all wallet related files
 #WALLET_PAY_SK_FILENAME="payment.skey"
+#WALLET_HW_PAY_SK_FILENAME="payment.hwsfile"
 #WALLET_PAY_ADDR_FILENAME="payment.addr"
 #WALLET_BASE_ADDR_FILENAME="base.addr"
 #WALLET_STAKE_VK_FILENAME="stake.vkey"
 #WALLET_STAKE_SK_FILENAME="stake.skey"
+#WALLET_HW_STAKE_SK_FILENAME="stake.hwsfile"
 #WALLET_STAKE_ADDR_FILENAME="reward.addr"
 #WALLET_STAKE_CERT_FILENAME="stake.cert"
 #WALLET_STAKE_DEREG_FILENAME="stake.dereg"
@@ -205,10 +207,10 @@ else
   [[ "${NWMAGIC}" = "1097911063" ]] && NETWORK_NAME="Testnet" || NETWORK_NAME="Custom"
 fi
 getEraIdentifier() {
-    if ${CCLI} query protocol-parameters --byron-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--byron-era"
-  elif ${CCLI} query protocol-parameters --shelley-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--shelley-era"
-  elif ${CCLI} query protocol-parameters --allegra-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--allegra-era"
-  elif ${CCLI} query protocol-parameters --mary-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--mary-era"
+    if ${CCLI} query protocol-parameters --byron-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--byron-era" && ERA_WITNESS="TxWitness ByronEra"
+  elif ${CCLI} query protocol-parameters --shelley-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--shelley-era" && ERA_WITNESS="TxWitness ShelleyEra"
+  elif ${CCLI} query protocol-parameters --allegra-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--allegra-era" && ERA_WITNESS="TxWitness AllegraEra"
+  elif ${CCLI} query protocol-parameters --mary-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--mary-era" && ERA_WITNESS="TxWitness MaryEra"
   else ERA_IDENTIFIER="--shelley-era"; fi
 }
 getEraIdentifier
@@ -240,10 +242,12 @@ fi
 [[ -z ${POOL_DIR} ]] && POOL_DIR="${POOL_FOLDER}/${POOL_NAME}"
 [[ -z ${WALLET_PAY_VK_FILENAME} ]] && WALLET_PAY_VK_FILENAME="payment.vkey"
 [[ -z ${WALLET_PAY_SK_FILENAME} ]] && WALLET_PAY_SK_FILENAME="payment.skey"
+[[ -z ${WALLET_HW_PAY_SK_FILENAME} ]] && WALLET_HW_PAY_SK_FILENAME="payment.hwsfile"
 [[ -z ${WALLET_PAY_ADDR_FILENAME} ]] && WALLET_PAY_ADDR_FILENAME="payment.addr"
 [[ -z ${WALLET_BASE_ADDR_FILENAME} ]] && WALLET_BASE_ADDR_FILENAME="base.addr"
 [[ -z ${WALLET_STAKE_VK_FILENAME} ]] && WALLET_STAKE_VK_FILENAME="stake.vkey"
 [[ -z ${WALLET_STAKE_SK_FILENAME} ]] && WALLET_STAKE_SK_FILENAME="stake.skey"
+[[ -z ${WALLET_HW_STAKE_SK_FILENAME} ]] && WALLET_HW_STAKE_SK_FILENAME="stake.hwsfile"
 [[ -z ${WALLET_STAKE_ADDR_FILENAME} ]] && WALLET_STAKE_ADDR_FILENAME="reward.addr"
 [[ -z ${WALLET_STAKE_CERT_FILENAME} ]] && WALLET_STAKE_CERT_FILENAME="stake.cert"
 [[ -z ${WALLET_STAKE_DEREG_FILENAME} ]] && WALLET_STAKE_DEREG_FILENAME="stake.dereg"

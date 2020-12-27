@@ -1,5 +1,6 @@
 #!/bin/bash
 # shellcheck disable=SC2086,SC1090
+# shellcheck source=/dev/null
 
 unset CNODE_HOME
 
@@ -15,6 +16,7 @@ unset CNODE_HOME
                         # topology.json, config.json and genesis files normally saved will also be overwritten
 #LIBSODIUM_FORK='N'     # Use IOG fork of libsodium - Recommended as per IOG instructions (Default: system build)
 #INSTALL_CNCLI='N'      # Install/Upgrade and build CNCLI with RUST
+#INSTALL_VCHC='N'       # Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
 #CNODE_NAME='cnode'     # Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
 #CURL_TIMEOUT=60        # Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
 #UPDATE_CHECK='Y'       # Check if there is an updated version of prereqs.sh script to download
@@ -67,6 +69,7 @@ Install pre-requisites for building cardano node and using CNTools
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
 -l    Use IOG fork of libsodium - Recommended as per IOG instructions (Default: system build)
 -c    Install/Upgrade and build CNCLI with RUST
+-w    Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
 -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 -i    Interactive mode (Default: silent mode)
 
@@ -74,7 +77,7 @@ EOF
   exit 1
 }
 
-while getopts :in:sflct:m:b: opt; do
+while getopts :in:sflcwt:m:b: opt; do
   case ${opt} in
     i ) INTERACTIVE='Y' ;;
     n ) NETWORK=${OPTARG} ;;
@@ -82,6 +85,7 @@ while getopts :in:sflct:m:b: opt; do
     f ) FORCE_OVERWRITE='Y' ;;
     l ) LIBSODIUM_FORK='Y' ;;
     c ) INSTALL_CNCLI='Y' ;;
+    w ) INSTALL_VCHC='Y' ;;
     t ) CNODE_NAME=${OPTARG//[^[:alnum:]]/_} ;;
     m ) CURL_TIMEOUT=${OPTARG} ;;
     b ) BRANCH=${OPTARG} ;;
@@ -96,6 +100,7 @@ shift $((OPTIND -1))
 [[ -z ${FORCE_OVERWRITE} ]] && FORCE_OVERWRITE='N'
 [[ -z ${LIBSODIUM_FORK} ]] && LIBSODIUM_FORK='N'
 [[ -z ${INSTALL_CNCLI} ]] && INSTALL_CNCLI='N'
+[[ -z ${INSTALL_VCHC} ]] && INSTALL_VCHC='N'
 [[ -z ${CNODE_NAME} ]] && CNODE_NAME='cnode'
 [[ -z ${INTERACTIVE} ]] && INTERACTIVE='N'
 [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=60
@@ -227,11 +232,10 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     unset BOOTSTRAP_HASKELL_NONINTERACTIVE
     export BOOTSTRAP_HASKELL_NO_UPGRADE=1
     curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sed -e 's#read.*#answer=Y;next_answer=Y;hls_answer=N#' | bash
-    # shellcheck source=/dev/null
     . "${HOME}"/.ghcup/env
 
-    ghcup install 8.10.2
-    ghcup set 8.10.2
+    ghcup install ghc 8.10.2
+    ghcup set ghc 8.10.2
     ghc --version
 
     echo "Installing bundled Cabal .."
@@ -250,7 +254,7 @@ if grep -q "${CNODE_VNAME}_HOME" "${HOME}"/.bashrc; then
 else
   echo "Setting up Environment Variable"
   echo "export ${CNODE_VNAME}_HOME=${CNODE_HOME}" >> "${HOME}"/.bashrc
-  # shellcheck source=/dev/null
+  
   . "${HOME}/".bashrc
 fi
 
@@ -301,6 +305,39 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     echo "$(cncli -V) installed!"
   else
     echo "CNCLI already latest version [$(cncli -V | cut -d' ' -f2)], skipping!"
+  fi
+fi
+
+if [[ "${INSTALL_VCHC}" = "Y" ]]; then
+  if command -v cardano-hw-cli >/dev/null; then vchc_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"; else vchc_version="0.0.0"; fi
+  echo "downloading Vacuumlabs cardano-hw-cli..."
+  pushd /tmp >/dev/null || err_exit
+  rm -rf cardano-hw-cli*
+  vchc_asset_url="$(curl -s https://api.github.com/repos/vacuumlabs/cardano-hw-cli/releases/latest | jq -r '.assets[].browser_download_url' | grep '_linux-x64.tar.gz')"
+  if curl -sL -m ${CURL_TIMEOUT} -o cardano-hw-cli_linux-x64.tar.gz ${vchc_asset_url}; then
+    tar zxf cardano-hw-cli_linux-x64.tar.gz &>/dev/null
+    rm -f cardano-hw-cli_linux-x64.tar.gz
+    [[ -f cardano-hw-cli/cardano-hw-cli ]] || err_exit "ERROR!! cardano-hw-cli downloaded but binary not found after extracting package!"
+    vchc_git_version="$(cardano-hw-cli/cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
+    if ! versionCheck "${vchc_git_version}" "${vchc_version}"; then
+      mkdir -p "${HOME}"/bin
+      pushd "${HOME}"/bin >/dev/null || err_exit
+      mv -f /tmp/cardano-hw-cli .
+      if ! grep -q "cardano-hw-cli" "${HOME}"/.bashrc; then
+        echo "adding cardano-hw-cli to PATH and setting Ledger udev rules, reload shell to take effect!"
+        echo "PATH=\"$HOME/bin/cardano-hw-cli:\$PATH\"" >> "${HOME}"/.bashrc
+        wget -q -O - https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh | $sudo bash
+        $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" -i /etc/udev/rules.d/20-hw1.rules
+        $sudo udevadm control --reload-rules
+        $sudo udevadm trigger
+      fi
+      echo "cardano-hw-cli v${vchc_git_version} installed!"
+    else
+      rm -rf cardano-hw-cli #cleanup in /tmp
+      echo "cardano-hw-cli already latest version [${vchc_version}], skipping!"
+    fi
+  else
+    err_exit "ERROR!! Download of latest release of cardano-hw-cli from GitHub failed! Please retry or manually install"
   fi
 fi
 
