@@ -50,7 +50,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.17
+GLV_VERSION=v1.17.1
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -149,8 +149,8 @@ clear
 echo "Guild LiveView version check..."
 if curl -s -m ${CURL_TIMEOUT} -o /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
   GIT_VERSION=$(grep -r ^GLV_VERSION= /tmp/gLiveView.sh | cut -d'=' -f2)
-  : "${GIT_VERSION:=v0.0}"
-  if [[ "${GLV_VERSION}" != "${GIT_VERSION}" ]]; then
+  : "${GIT_VERSION:=v0.0.0}"
+  if ! versionCheck "${GIT_VERSION}" "${GLV_VERSION}"; then
     echo -e "\nA new version of Guild LiveView is available"
     echo "Installed Version : ${GLV_VERSION}"
     echo "Available Version : ${GIT_VERSION}"
@@ -976,7 +976,7 @@ while true; do
             leader_time_left_fmt="$(timeLeft ${leader_time_left})"
             leader_progress=$(echo "(1-(${leader_time_left}/${leader_bar_span}))*100" | bc -l)
             leader_items=$(( ($(printf %.0f "${leader_progress}") * granularity_small) / 100 ))
-            printf "${VL} ${style_values_1}%$((second_col-17))s${NC} until leader" "${leader_time_left_fmt}"
+            printf "${VL} ${style_values_1}%$((second_col-17))s${NC} until leader " "${leader_time_left_fmt}"
             tput cup ${line} ${bar_col_small}
             for i in $(seq 0 $((granularity_small-1))); do
               [[ $i -lt ${leader_items} ]] && printf "${leader_bar_style}${char_marked}" || printf "${NC}${char_unmarked}"
