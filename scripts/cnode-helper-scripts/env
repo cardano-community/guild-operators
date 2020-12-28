@@ -27,6 +27,9 @@ CNODE_PORT=6000                                         # Set node port
                                                         # Each wallet and pool has a friendly name and subfolder containing all related keys, certificates, ...
 #POOL_NAME=""                                           # Set the pool's name to run node as a core node (the name, NOT the ticker, ie folder name)
                                                         
+TG_BOT_TOKEN=""                                         # to enable telegramSend function create your own BOT-token and Chat-Id
+TG_CHAT_ID=""                                           # see https://cardano-community.github.io/guild-operators/#/Scripts/logmonitor#telegram-alerts 
+
 #WALLET_PAY_VK_FILENAME="payment.vkey"                  # Standardized names for all wallet related files
 #WALLET_PAY_SK_FILENAME="payment.skey"
 #WALLET_HW_PAY_SK_FILENAME="payment.hwsfile"
@@ -73,6 +76,16 @@ if [[ $(uname) == Darwin ]]; then
 fi
 
 [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
+
+# 
+telegramSend() {
+  if [[ -z "${TG_BOT_TOKEN}" ]] || [[ -z "${TG_CHAT_ID}" ]]; then
+    echo "Warn: to use the telegramSend function you must first set the bot and chat id in the env file"
+  else
+    TG_URL="https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage?parse_mode=Markdown"
+    TGAUE=$(curl -s -X POST $TG_URL -d chat_id=${TG_CHAT_ID} -d text="${HOSTNAME} $1");
+  fi
+}
 
 [[ -z "${CCLI}" ]] && CCLI=$(command -v cardano-cli)
 if [[ -z "${CCLI}" ]]; then
