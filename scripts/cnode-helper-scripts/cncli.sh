@@ -36,8 +36,8 @@ Usage: $(basename "$0") [sync] [leaderlog] [validate [all] [epoch]] [ptsendtip] 
 Script to run CNCLI, best launched through systemd deployed by 'deploy-as-systemd.sh'
 
 sync        Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB (deployed as service)
-leaderlog   One-time leader schedule calculation for current epoch, 
-            then continously monitors and calculates schedule for coming epochs, 1.5 days before epoch boundary on MainNet (deployed as service)
+leaderlog   One-time leader schedule calculation for current epoch, then continously monitors and calculates schedule for coming epochs, 1.5 days before epoch boundary on MainNet (deployed as service)
+  force     Manually force leaderlog calculation and overwrite even if already done, exits after leaderlog is calculated
 validate    Continously monitor and confirm that the blocks made actually was accepted and adopted by chain (deployed as service)
   all       One-time re-validation of all blocks in blocklog db
   epoch     One-time re-validation of blocks in blocklog db for the specified epoch 
@@ -292,6 +292,7 @@ cncliLeaderlog() {
     if [[ ${shelley_transition_epoch} -lt 0 ]]; then
       if ! getShelleyTransitionEpoch; then 
         echo "Failed to calculate shelley transition epoch, checking again in ${SLEEP_RATE}s"
+        sleep ${SLEEP_RATE}
       else
         echo "Shelley transition epoch found: ${shelley_transition_epoch}"
       fi
@@ -306,75 +307,78 @@ cncliLeaderlog() {
       else
         break
       fi
+      sleep ${SLEEP_RATE}
     fi
-    sleep ${SLEEP_RATE}
   done
   
-  echo "Node in sync, sleeping for ${SLEEP_RATE}s before running leaderlogs for current epoch"
-  sleep ${SLEEP_RATE}
+  [[ ${subarg} != "force" ]] && echo "Node in sync, sleeping for ${SLEEP_RATE}s before running leaderlogs for current epoch" && sleep ${SLEEP_RATE}
   node_metrics=$(getNodeMetrics)
   slot_tip=$(getSlotTip)
   curr_epoch=$(getEpoch)
-  echo "Running leaderlogs for epoch ${curr_epoch} and adding leader slots not already in DB"
-  if ! dumpLedgerState; then exit 1; fi
-  cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current --ledger-state "${ledger_state_file}" --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
-  if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
-    error_msg=
-    if [[ "${error_msg}" = "Query returned no rows" ]]; then
-      echo "No leader slots found for epoch ${curr_epoch} :("
-    else
-      echo "ERROR: failure in leaderlog while running:"
-      echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set current --ledger-state ${ledger_state_file} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
-      echo "Error message: $(jq -r '.errorMessage //empty' <<< "${cncli_leaderlog}")"
-      exit 1
-    fi
+  if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM epochdata WHERE epoch=${curr_epoch};" 2>/dev/null) -eq 1 && ${subarg} != "force" ]]; then
+    echo "Leaderlogs already calculated for epoch ${curr_epoch}, skipping!"
   else
-    epoch_nonce=$(jq -r '.epochNonce' <<< "${cncli_leaderlog}")
-    pool_id=$(jq -r '.poolId' <<< "${cncli_leaderlog}")
-    sigma=$(jq -r '.sigma' <<< "${cncli_leaderlog}")
-    d=$(jq -r '.d' <<< "${cncli_leaderlog}")
-    epoch_slots_ideal=$(jq -r '.epochSlotsIdeal //0' <<< "${cncli_leaderlog}")
-    max_performance=$(jq -r '.maxPerformance //0' <<< "${cncli_leaderlog}")
-    active_stake=$(jq -r '.activeStake //0' <<< "${cncli_leaderlog}")
-    total_active_stake=$(jq -r '.totalActiveStake //0' <<< "${cncli_leaderlog}")
-    sqlite3 ${BLOCKLOG_DB} <<EOF
+    echo "Running leaderlogs for epoch ${curr_epoch} and adding leader slots not already in DB"
+    if ! dumpLedgerState; then exit 1; fi
+    cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current --ledger-state "${ledger_state_file}" --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
+    if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
+      error_msg=
+      if [[ "${error_msg}" = "Query returned no rows" ]]; then
+        echo "No leader slots found for epoch ${curr_epoch} :("
+      else
+        echo "ERROR: failure in leaderlog while running:"
+        echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set current --ledger-state ${ledger_state_file} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
+        echo "Error message: $(jq -r '.errorMessage //empty' <<< "${cncli_leaderlog}")"
+        exit 1
+      fi
+    else
+      epoch_nonce=$(jq -r '.epochNonce' <<< "${cncli_leaderlog}")
+      pool_id=$(jq -r '.poolId' <<< "${cncli_leaderlog}")
+      sigma=$(jq -r '.sigma' <<< "${cncli_leaderlog}")
+      d=$(jq -r '.d' <<< "${cncli_leaderlog}")
+      epoch_slots_ideal=$(jq -r '.epochSlotsIdeal //0' <<< "${cncli_leaderlog}")
+      max_performance=$(jq -r '.maxPerformance //0' <<< "${cncli_leaderlog}")
+      active_stake=$(jq -r '.activeStake //0' <<< "${cncli_leaderlog}")
+      total_active_stake=$(jq -r '.totalActiveStake //0' <<< "${cncli_leaderlog}")
+      sqlite3 ${BLOCKLOG_DB} <<EOF
 UPDATE OR IGNORE epochdata SET epoch_nonce = '${epoch_nonce}', sigma = '${sigma}', d = ${d}, epoch_slots_ideal = ${epoch_slots_ideal}, max_performance = ${max_performance}, active_stake = '${active_stake}', total_active_stake = '${total_active_stake}'
 WHERE epoch = ${curr_epoch} AND pool_id = '${pool_id}';
 INSERT OR IGNORE INTO epochdata (epoch, epoch_nonce, pool_id, sigma, d, epoch_slots_ideal, max_performance, active_stake, total_active_stake)
 VALUES (${curr_epoch}, '${epoch_nonce}', '${pool_id}', '${sigma}', ${d}, ${epoch_slots_ideal}, ${max_performance}, '${active_stake}', '${total_active_stake}');
 EOF
-    block_cnt=0
-    while read -r assigned_slot; do
-      block_slot=$(jq -r '.slot' <<< "${assigned_slot}")
-      block_at=$(jq -r '.at' <<< "${assigned_slot}")
-      block_slot_in_epoch=$(jq -r '.slotInEpoch' <<< "${assigned_slot}")
-      sqlite3 "${BLOCKLOG_DB}" "INSERT OR IGNORE INTO blocklog (slot,at,slot_in_epoch,epoch,status) values (${block_slot},'${block_at}',${block_slot_in_epoch},${curr_epoch},'leader');"
-      echo "LEADER: slot[${block_slot}] slotInEpoch[${block_slot_in_epoch}] at[${block_at}]"
-      ((block_cnt++))
-    done < <(jq -c '.assignedSlots[]' <<< "${cncli_leaderlog}" 2>/dev/null)
-    echo "Leaderlog calculation for epoch[${curr_epoch}] completed and saved to blocklog DB"
-    echo "Leaderslots: ${block_cnt} - Ideal slots for epoch based on active stake: ${epoch_slots_ideal} - Luck factor ${max_performance}%"
+      block_cnt=0
+      while read -r assigned_slot; do
+        block_slot=$(jq -r '.slot' <<< "${assigned_slot}")
+        block_at=$(jq -r '.at' <<< "${assigned_slot}")
+        block_slot_in_epoch=$(jq -r '.slotInEpoch' <<< "${assigned_slot}")
+        sqlite3 "${BLOCKLOG_DB}" "INSERT OR IGNORE INTO blocklog (slot,at,slot_in_epoch,epoch,status) values (${block_slot},'${block_at}',${block_slot_in_epoch},${curr_epoch},'leader');"
+        echo "LEADER: slot[${block_slot}] slotInEpoch[${block_slot_in_epoch}] at[${block_at}]"
+        ((block_cnt++))
+      done < <(jq -c '.assignedSlots[]' <<< "${cncli_leaderlog}" 2>/dev/null)
+      echo "Leaderlog calculation for epoch[${curr_epoch}] completed and saved to blocklog DB"
+      echo "Leaderslots: ${block_cnt} - Ideal slots for epoch based on active stake: ${epoch_slots_ideal} - Luck factor ${max_performance}%"
+    fi
   fi
   
-  
-  has_run_leader=false
   while true; do
-    sleep ${SLEEP_RATE}
+    [[ ${subarg} != "force" ]] && sleep ${SLEEP_RATE}
     node_metrics=$(getNodeMetrics)
     slot_tip=$(getSlotTip)
     if ! cncliDBinSync; then # verify that cncli DB is still in sync
       echo "CNCLI DB out of sync :( [$(printf "%2.4f %%" ${cncli_sync_prog})] ... checking again in ${SLEEP_RATE}s"
+      [[ ${subarg} = "force" ]] && sleep ${SLEEP_RATE}
       continue
-    fi
-    if [[ ${has_run_leader} = true ]]; then
-      [[ $(getSlotInEpoch) -ge ${slot_in_epoch} ]] && continue # leaderlog already run and still same epoch
-      has_run_leader=false # new epoch, reset flag
     fi
     slot_in_epoch=$(getSlotInEpoch)
     slot_for_next_nonce=$(echo "(${slot_tip} - ${slot_in_epoch} + ${EPOCH_LENGTH}) - (3 * ${BYRON_K} / ${ACTIVE_SLOTS_COEFF})" | bc) # firstSlotOfNextEpoch - stabilityWindow(3 * k / f)
     curr_epoch=$(getEpoch)
     next_epoch=$((curr_epoch+1))
     if [[ ${slot_tip} -gt ${slot_for_next_nonce} ]]; then # Run leaderlogs for next epoch
+      if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM epochdata WHERE epoch=${next_epoch};" 2>/dev/null) -eq 1 ]]; then # Leaderlogs already calculated for next epoch, skipping!
+        if [[ ${subarg} = "force" ]]; then
+          echo "Leaderlogs already calculated for epoch ${next_epoch}, skipping!" && break
+        else continue; fi
+      fi
       echo "Running leaderlogs for next epoch[${next_epoch}]"
       if ! dumpLedgerState; then sleep 600; continue; fi # Sleep for 10 min before trying to dump ledger-state in case of error
       cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next --ledger-state "${ledger_state_file}" --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
@@ -413,8 +417,8 @@ EOF
         echo "Leaderlog calculation for next epoch[${next_epoch}] completed and saved to blocklog DB"
         echo "Leaderslots: ${block_cnt} - Ideal slots for epoch based on active stake: ${epoch_slots_ideal} - Luck factor ${max_performance}%"
       fi
-      has_run_leader=true
     fi
+    [[ -t 1 ]] && break # manual execution of script in tty mode, exit after first run
   done
 }
 
