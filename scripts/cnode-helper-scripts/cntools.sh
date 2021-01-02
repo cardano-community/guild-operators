@@ -782,7 +782,7 @@ EOF
           fi
         fi
         if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
-          println "${FG_RED}Not a supporeted wallet${NC} - genesis address?"
+          println "${FG_RED}Not a supported wallet${NC} - genesis address?"
           println "Use an external script to send funds to a CNTools compatible wallet"
           continue
         fi
