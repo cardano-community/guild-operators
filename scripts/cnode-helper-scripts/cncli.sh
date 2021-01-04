@@ -484,18 +484,19 @@ validateBlock() {
   [[ ${block_status} = invalid ]] && return
   if [[ ${block_status} = leader || ${block_status} = adopted ]]; then
     [[ ${block_slot} -gt ${slot_tip} ]] && return # block in the future, skip
-    slot_cnt=$(sqlite3 "${CNCLI_DB}" "SELECT COUNT(*) FROM chain WHERE slot_number=${block_slot} AND node_vrf_vkey = '${pool_vrf_vkey_cbox_hex}';")
-    slot_ok_cnt=$(sqlite3 "${CNCLI_DB}" "SELECT COUNT(*) FROM chain WHERE slot_number=${block_slot} AND orphaned=0 AND node_vrf_vkey = '${pool_vrf_vkey_cbox_hex}';")
-    if [[ ${slot_ok_cnt} -gt 0 ]]; then # In case of multiple blocks from same bp (adversarial fork), add the ok one. 
-      IFS='|' && read -ra block_data <<< "$(sqlite3 "${CNCLI_DB}" "SELECT block_number, hash, block_size, orphaned FROM chain WHERE slot_number = ${block_slot} AND orphaned=0 AND node_vrf_vkey = '${pool_vrf_vkey_cbox_hex}';")" && IFS=' '
-    elif [[ ${slot_cnt} -gt 0 ]]; then # Any block created by pool for this slot?
-      IFS='|' && read -ra block_data <<< "$(sqlite3 "${CNCLI_DB}" "SELECT block_number, hash, block_size, orphaned FROM chain WHERE slot_number = ${block_slot} AND node_vrf_vkey = '${pool_vrf_vkey_cbox_hex}';")" && IFS=' '
-    else
-      block_data=()
-    fi
+    block_data_raw="$(sqlite3 "${CNCLI_DB}" "SELECT block_number, hash, block_size, orphaned, node_vrf_vkey FROM chain WHERE slot_number = ${block_slot};")"
+    slot_cnt=0; slot_ok_cnt=0; slot_stolen_cnt=0; block_data=()
+    for block in ${block_data_raw}; do
+      IFS='|' read -ra block_data_tmp <<< ${block}
+      if [[ ${block_data_tmp[4]} = "${pool_vrf_vkey_cbox_hex}" ]]; then
+        ((slot_cnt++))
+        [[ ${block_data_tmp[3]} -eq 0 ]] && ((slot_ok_cnt++)) && block_data=( "${block_data_tmp[@]}" ) # non orphaned block found for our pool, set as block_data
+        [[ ${#block_data[@]} -eq 0 ]] && block_data=( "${block_data_tmp[@]}" ) # block found but orphaned and block_data empty, set block_data to this block for now
+      else
+        [[ ${block_data_tmp[3]} -eq 0 ]] && ((slot_stolen_cnt++))
+      fi
+    done
     if [[ $((block_slot + CONFIRM_SLOT_CNT)) -lt ${slot_tip} ]]; then # block old enough to validate
-      #slot_ok_cnt=$(sqlite3 "${CNCLI_DB}" "SELECT COUNT(*) FROM chain WHERE slot_number=${block_slot} AND orphaned=0;")
-      slot_stolen_cnt=$(sqlite3 "${CNCLI_DB}" "SELECT COUNT(*) FROM chain WHERE slot_number=${block_slot} AND orphaned=0 AND node_vrf_vkey != '${pool_vrf_vkey_cbox_hex}';")
       if [[ ${slot_cnt} -eq 0 ]]; then # no block found in db for this slot with our vrf vkey
         if [[ ${slot_stolen_cnt} -eq 0 ]]; then # no other pool has a valid block for this slot either
           echo "MISSED: Leader for slot '${block_slot}' but not found in cncli db and no other pool has made a valid block for this slot"
