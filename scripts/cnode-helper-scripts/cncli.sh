@@ -484,11 +484,21 @@ validateBlock() {
   [[ ${block_status} = invalid ]] && return
   if [[ ${block_status} = leader || ${block_status} = adopted ]]; then
     [[ ${block_slot} -gt ${slot_tip} ]] && return # block in the future, skip
-    IFS='|' && read -ra block_data <<< "$(sqlite3 "${CNCLI_DB}" "SELECT block_number, hash, block_size, orphaned FROM chain WHERE slot_number = ${block_slot} AND node_vrf_vkey = '${pool_vrf_vkey_cbox_hex}';")" && IFS=' '
+    block_data_raw="$(sqlite3 "${CNCLI_DB}" "SELECT block_number, hash, block_size, orphaned, node_vrf_vkey FROM chain WHERE slot_number = ${block_slot};")"
+    slot_cnt=0; slot_ok_cnt=0; slot_stolen_cnt=0; block_data=()
+    for block in ${block_data_raw}; do
+      IFS='|' read -ra block_data_tmp <<< ${block}
+      if [[ ${block_data_tmp[4]} = "${pool_vrf_vkey_cbox_hex}" ]]; then
+        ((slot_cnt++))
+        [[ ${block_data_tmp[3]} -eq 0 ]] && ((slot_ok_cnt++)) && block_data=( "${block_data_tmp[@]}" ) # non orphaned block found for our pool, set as block_data
+        [[ ${#block_data[@]} -eq 0 ]] && block_data=( "${block_data_tmp[@]}" ) # block found but orphaned and block_data empty, set block_data to this block for now
+      else
+        [[ ${block_data_tmp[3]} -eq 0 ]] && ((slot_stolen_cnt++))
+      fi
+    done
     if [[ $((block_slot + CONFIRM_SLOT_CNT)) -lt ${slot_tip} ]]; then # block old enough to validate
-      slot_ok_cnt=$(sqlite3 "${CNCLI_DB}" "SELECT COUNT(*) FROM chain WHERE slot_number=${block_slot} AND orphaned=0;")
-      if [[ ${#block_data[@]} -eq 0 ]]; then # no block found in db for this slot with our vrf vkey
-        if [[ ${slot_ok_cnt} -eq 0 ]]; then # no other pool has a valid block for this slot either
+      if [[ ${slot_cnt} -eq 0 ]]; then # no block found in db for this slot with our vrf vkey
+        if [[ ${slot_stolen_cnt} -eq 0 ]]; then # no other pool has a valid block for this slot either
           echo "MISSED: Leader for slot '${block_slot}' but not found in cncli db and no other pool has made a valid block for this slot"
           new_status="missed"
         else # another pool has a valid block for this slot in cncli db
@@ -498,11 +508,12 @@ validateBlock() {
         sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = '${new_status}' WHERE slot = ${block_slot};"
       else # block found for this slot with a match for our vrf vkey
         [[ $((block_tip-block_data[0])) -lt ${CONFIRM_BLOCK_CNT} ]] && return # To make sure enough blocks has been built on top before validating
-        if [[ ${block_data[3]} -eq 0 ]]; then # our block not marked as orphaned :)
+        if [[ ${slot_ok_cnt} -gt 0 ]]; then # our block not marked as orphaned :)
           echo "CONFIRMED: Leader for slot '${block_slot}' and match found in CNCLI DB for this slot with pool's VRF public key"
+          [[ ${slot_cnt} -gt 1 ]] && echo "           WARNING!! Adversarial fork created, multiple blocks created for the same slot by the same pool :("
           new_status="confirmed"
         else # our block marked as orphaned :(
-          if [[ ${slot_ok_cnt} -eq 0 ]]; then # no other pool has a valid slot for this epoch either
+          if [[ ${slot_stolen_cnt} -eq 0 ]]; then # no other pool has a valid block for this slot either
             echo "GHOSTED: Leader for slot '${block_slot}' and block adopted but later orphaned. No other pool with a confirmed block for this slot, height battle or block propagation issue!"
             new_status="ghosted"
           else # another pool has a valid block for this slot in cncli db
@@ -513,7 +524,7 @@ validateBlock() {
         sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = '${new_status}', slot_in_epoch = $(getSlotInEpochFromSlot ${block_slot} ${block_epoch}), block = ${block_data[0]}, at = '$(getDateFromSlot ${block_slot})', hash = '${block_data[1]}', size = ${block_data[2]} WHERE slot = ${block_slot};"
       fi
     else # Not old enough to confirm but slot time has passed
-      if [[ ${block_status} = leader && ${#block_data[@]} -eq 1 ]]; then # Leader status and block found in cncli db, update block data and set status adopted
+      if [[ ${block_status} = leader && ${slot_cnt} -gt 0 ]]; then # Leader status and block found in cncli db, update block data and set status adopted
         echo "ADOPTED: Leader for slot '${block_slot}' and adopted by chain, waiting for confirmation"
         sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = 'adopted', slot_in_epoch = $(getSlotInEpochFromSlot ${block_slot} ${block_epoch}), block = ${block_data[0]}, at = '$(getDateFromSlot ${block_slot})', hash = '${block_data[1]}', size = ${block_data[2]} WHERE slot = ${block_slot};"
         return
