@@ -55,28 +55,7 @@ Once the analysis is finished, it will display the RTTs for the peers and group 
 
 ##### Troubleshooting/Customisations
 
-In case you run into trouble while running the script, you might want to edit `env` & `gLiveView.sh` and look at User Variables section shown below. You can override the values if the automatic detection do not provide the right information, but we would appreciate if you could also notify us by raising an issue against github repo:
-
-**env**
-```
-######################################
-# User Variables - Change as desired #
-# Leave as is if unsure              #
-######################################
-
-#CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of path to cardano-cli executable
-#CNCLI="${HOME}/.cargo/bin/cncli"                       # Override automatic detection of path to cncli executable (https://github.com/AndrewWestberg/cncli)
-#CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
-CNODE_PORT=6000                                         # Set node port
-#CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path
-#SOCKET="${CNODE_HOME}/sockets/node0.socket"            # Override automatic detection of path to socket
-#EKG_HOST=127.0.0.1                                     # Set node EKG host
-#EKG_PORT=12788                                         # Override automatic detection of node EKG port
-#EKG_TIMEOUT=3                                          # Maximum time in seconds that you allow EKG request to take before aborting (node metrics)
-#CURL_TIMEOUT=10                                        # Maximum time in seconds that you allow curl file download to take before aborting (GitHub update process)
-#BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"         # Override default directory used to store block data for core node
-#BLOCKLOG_TZ="UTC"                                      # TimeZone to use when displaying blocklog - https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
-```
+In case you run into trouble while running the script, you might want to edit `env` & `gLiveView.sh` and look at User Variables section. You can override the values if the automatic detection do not provide the right information, but we would appreciate if you could also notify us by raising an issue against github repo:
 
 **gLiveView.sh**
 ```bash

@@ -5,6 +5,29 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0] - 2021-01-XX
+Though mostly unchanged in the user interface, this is a mayor update with most of the code re-written/touched in the back-end.  
+Only the most noticeable changes added to changelog. 
+
+##### Added
+- HW Wallet support through Vacuumlabs cardano-hw-cli (Ledger Nano X/S & Trezor T)
+  - Vacuumlabs cardano-hw-cli added as build option to prereqs.sh, option '-w' incl Ledger udev rules. Software from Vacuumlabs and Ledger app still early in development and may contain limitations that require workarounds.
+  - Because of HW wallet support, transaction signing has been re-designed. For CLI and HW wallet pool reg, raw tx is first witnessed by all signing keys separately and then assembled and signed instead of signing directly with all signing keys. But for all other HW wallet transactions, signing is done directly without first witnessing.
+  - Requires updated Cardano app in Ledger/Trezor set to be released in January 2021 to use in pool registration/modification.
+- Option added to disable Dialog for file/dir input in cntools.config
+
+##### Changed
+- Logging completely re-designed from the ground. Previous selective logging wasn't very useful. All output(almost) now outputted to both the screen and to a timestamped log file. One log file is created per CNTools session. Old log file archived in logs/archive subfolder and last 10 log files kept, rest is pruned on CNTools startup.
+  - DEBUG    : Verbose output, most output printed on screen is logged as debug messages except explicitly disabled, like menu printing.
+  - INFO     : Informational and the most important output.
+  - ACTION   : e.g cardano-cli executions etc
+  - ERROR    : error messages and stderr output
+- Verbosity setting in cntools.config removed.
+- Offline workflow now use a single JSON transaction file holding all data needed. This allows us to bake in additional data in the JSON file in addition to the tx body to make it much more clear what the offline transaction do. Like signing key verification, transaction data like fee, source wallet, pool name etc. It also lets the user know on offline computer what signing keys is needed to sign the transaction.
+  - Sign Tx moved to Transaction >> Sign
+  - Submit Tx moved to Transaction >> Submit
+
+
 ## [6.3.1] - 2020-12-14
 
 ##### Fixed
@@ -26,13 +49,11 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ##### Fixed
 - Error output for prerequisite checks
  
-
 ## [6.2.1] - 2020-11-28
 
 ##### Changed
 - Compatibility changes for cardano-node 1.23.0, now minimum version to run CNTools 6.2.1
 - Cleanup of old code
-
 
 ## [6.2.0] - (alpha branch)
 

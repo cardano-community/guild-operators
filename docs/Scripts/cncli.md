@@ -10,11 +10,11 @@
 - **SENDSLOTS** - Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs.
 
 ##### Installation
-`cncli.sh` script's main functions, sync, leaderlog, validate and ptsendtip are not meant to be run manually, but instead deploy as systemd services that run in the background to do the block scraping and validation automatically. Additional commands exist for manual execution to migrate old cntoolsBlockCollector JSON blocklog, re-validation of blocks and initially fill the blocklog DB with all blocks created by the pool known to the blockchain. See usage output below for a complete list of available commands.
+`cncli.sh` script's main functions, sync, leaderlog, validate and PoolTool sendslots/sendtip are not meant to be run manually, but instead deployed as systemd services that run in the background to do the block scraping and validation automatically. Additional commands exist for manual execution to initiate db, filling the blocklog DB with all blocks created by the pool known to the blockchain. Migration of old cntoolsBlockCollector JSON blocklog, re-validation of blocks and leaderlogs are other manual commands possible to execute. See usage output below for a complete list of available commands.
 
 The script work in tandem with [Log Monitor](Scripts/logmonitor.md) to provide faster adopted status but mainly to catch slots node is leader for but are unable to create a block for. These are marked as invalid. Blocklog will however work fine without logmonitor service and CNCLI is able to handle everything except catching invalid blocks.
 
-1. Run the latest version of prereqs.sh with `prereqs.sh -c -l` to download and install RUST and CNCLI together with IOG fork of libsodium required by CNCLI. If a previous installation is found, RUST and CNCLI will be updated to the latest version.
+1. Run the latest version of prereqs.sh with `prereqs.sh -c` to download and install RUST and CNCLI. IOG fork of libsodium required by CNCLI is automatically compiled by CNCLI build process. If a previous installation is found, RUST and CNCLI will be updated to the latest version.
 2. Run `deploy-as-systemd.sh` to deploy the systemd services that handle all the work in the background. Six systemd services in total are deployed whereof four are related to CNCLI. See above for the different purposes they serve.
 3. If you want to disable some of the deployed services, run `sudo systemctl disable <service>`
 
@@ -27,22 +27,22 @@ The script work in tandem with [Log Monitor](Scripts/logmonitor.md) to provide f
 - cnode-logmonitor.service (see [Log Monitor](Scripts/logmonitor.md))
 
 ##### Configuration
-You can override the values in the script at the User Variables section shown below. **POOL_ID**, **POOL_VRF_SKEY** and **POOL_VRF_VKEY**, **PT_API_KEY** and **POOL_TICKER** need to be set in the script before starting the services. For the rest of the commented values, if the default do not provide the right value, uncomment and make adjustments.
+You can override the values in the script at the User Variables section shown below. **POOL_ID**, **POOL_VRF_SKEY** and **POOL_VRF_VKEY** should automatically be detected if POOL_NAME is set in the common `env` file and can be left commented. **PT_API_KEY** and **POOL_TICKER** need to be set in the script if PoolTool sendtip/sendslots are to be used before starting the services. For the rest of the commented values, if the default do not provide the right value, uncomment and make adjustments.
 
 ```
-POOL_ID=""                                # Required for leaderlog calculation & pooltool sendtip, lower-case hex pool id
-POOL_VRF_SKEY=""                          # Required for leaderlog calculation, path to pool's vrf.skey file
-POOL_VRF_VKEY=""                          # Required for block validation, path to pool's vrf.vkey file
-PT_API_KEY=""                             # POOLTOOL sendtip: set API key, e.g "a47811d3-0008-4ecd-9f3e-9c22bdb7c82d"
-POOL_TICKER=""                            # POOLTOOL sendtip: set the pools ticker, e.g "TCKR"
+#POOL_ID=""                               # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation & pooltool sendtip, lower-case hex pool id
+#POOL_VRF_SKEY=""                         # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation, path to pool's vrf.skey file
+#POOL_VRF_VKEY=""                         # Automatically detected if POOL_NAME is set in env. Required for block validation, path to pool's vrf.vkey file
+#PT_API_KEY=""                            # POOLTOOL sendtip: set API key, e.g "a47811d3-0008-4ecd-9f3e-9c22bdb7c82d"
+#POOL_TICKER=""                           # POOLTOOL sendtip: set the pools ticker, e.g "TCKR"
 #PT_HOST="127.0.0.1"                      # POOLTOOL sendtip: connect to a remote node, preferably block producer (default localhost)
 #PT_PORT="${CNODE_PORT}"                  # POOLTOOL sendtip: port of node to connect to (default CNODE_PORT from env file)
 #CNCLI_DIR="${CNODE_HOME}/guild-db/cncli" # path to folder for cncli sqlite db
-#LIBSODIUM_FORK=/usr/local/lib            # path to folder for IOG fork of libsodium
 #SLEEP_RATE=60                            # CNCLI leaderlog/validate: time to wait until next check (in seconds)
-#CONFIRM_SLOT_CNT=300                     # CNCLI validate: require at least these many slots to have passed before validating
-#CONFIRM_BLOCK_CNT=10                     # CNCLI validate: require at least these many blocks on top of minted before validating
+#CONFIRM_SLOT_CNT=600                     # CNCLI validate: require at least these many slots to have passed before validating
+#CONFIRM_BLOCK_CNT=15                     # CNCLI validate: require at least these many blocks on top of minted before validating
 #TIMEOUT_LEDGER_STATE=300                 # CNCLI leaderlog: timeout in seconds for ledger-state query
+#BATCH_AUTO_UPDATE=N                      # Set to Y to automatically update the script if a new version is available without user interaction
 ```
 
 ##### Run
@@ -70,13 +70,12 @@ Recommended workflow to get started with CNCLI blocklog.
 6. Enjoy full blocklog automation and visit [View Blocklog](#view-blocklog) section for instructions on how to show blocks from the blocklog DB.
 
 ```
-Usage: cncli.sh [sync] [leaderlog] [validate [all] [epoch]] [ptsendtip] [migrate <path>]
-Keep a local blocklog run CNCLI to  
-sync, leaderlog, validate best launched through systemd deployed by 'deploy-as-systemd.sh'
+Usage: cncli.sh [operation <sub arg>]
+Script to run CNCLI, best launched through systemd deployed by 'deploy-as-systemd.sh'
 
 sync        Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB (deployed as service)
-leaderlog   One-time leader schedule calculation for current epoch, 
-            then continously monitors and calculates schedule for coming epochs, 1.5 days before epoch boundary on MainNet (deployed as service)
+leaderlog   One-time leader schedule calculation for current epoch, then continously monitors and calculates schedule for coming epochs, 1.5 days before epoch boundary on MainNet (deployed as service)
+  force     Manually force leaderlog calculation and overwrite even if already done, exits after leaderlog is calculated
 validate    Continously monitor and confirm that the blocks made actually was accepted and adopted by chain (deployed as service)
   all       One-time re-validation of all blocks in blocklog db
   epoch     One-time re-validation of blocks in blocklog db for the specified epoch 
@@ -178,7 +177,8 @@ Current epoch: 96
 Currently shows a block summary for current epoch. For full block details use CNTools for now. Invalid, missing, ghosted and stolen blocks only shown in case of a non-zero value.
 ```
 │--------------------------------------------------------------│
-│ BLOCKS   Leader | Ideal | Luck       Adopted | Confirmed     │
-│          34       31.66   107.39%    18        18            │
+│ BLOCKS   Leader  | Ideal  | Luck    | Adopted | Confirmed    │
+│          24        27.42    87.53%    1         1            │
+│          08:07:57 until leader XXXXXXXXX.....................│
 └──────────────────────────────────────────────────────────────┘
 ```
