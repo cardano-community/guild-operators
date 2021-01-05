@@ -1990,9 +1990,14 @@ signTx() {
     hw_wallet='N'
     for skey in "$@"; do
       [[ -z ${skey//[[:blank:]]/} ]] && continue
-      if [[ -f "${skey}" && $(jq -r '.description' "${skey}") = *"Hardware"* ]]; then # HW signing key
+      skey_desc="$(jq -r '.description' "${skey}")"
+      if [[ -f "${skey}" && ${skey_desc} = *"Hardware"* ]]; then # HW signing key
         tx_sign_out+=( "--hw-signing-file ${skey}" )
-        [[ ${wallet_source} = "base" ]] && tx_sign_out+=( "--change-output-key-file ${skey}" )
+        if [[ ${wallet_source} = "base" && ${skey_desc} = "Payment"* ]]; then
+          tx_sign_out+=( "--change-output-key-file ${skey}" )
+          # Add stake.hwsfile as well as a change output
+          [[ -f "$(dirname "${skey}")/${WALLET_HW_STAKE_SK_FILENAME}" ]] && tx_sign_out+=( "--change-output-key-file $(dirname "${skey}")/${WALLET_HW_STAKE_SK_FILENAME}" )
+        fi
         hw_wallet='Y'
       elif [[ -f "${skey}" ]]; then
         tx_sign_out+=( "--signing-key-file ${skey}" )

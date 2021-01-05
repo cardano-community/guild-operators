@@ -1738,7 +1738,7 @@ EOF
     if [[ ${metadata_done} = false ]]; then
       echo
       if [[ ! -f "${pool_meta_file}" ]] || ! meta_name=$(jq -er .name "${pool_meta_file}"); then meta_name="${pool_name}"; fi
-      if [[ ! -f "${pool_meta_file}" ]] || ! meta_ticker=$(jq -er .ticker "${pool_meta_file}"); then meta_ticker="$(echo ${pool_name//[^[:alnum:]]/} | tr [:lower:] [:upper:] | cut -c-5)"; fi
+      if [[ ! -f "${pool_meta_file}" ]] || ! meta_ticker=$(jq -er .ticker "${pool_meta_file}"); then meta_ticker="$(echo ${pool_name//[^[:alnum:]]/} | tr '[:lower:]' '[:upper:]' | cut -c-5)"; fi
       if [[ ! -f "${pool_meta_file}" ]] || ! meta_description=$(jq -er .description "${pool_meta_file}"); then meta_description="No Description"; fi
       if [[ ! -f "${pool_meta_file}" ]] || ! meta_homepage=$(jq -er .homepage "${pool_meta_file}"); then meta_homepage="https://foo.com"; fi
       if [[ ! -f "${pool_meta_file}" ]] || ! meta_extended=$(jq -er .extended "${pool_meta_file}"); then meta_extended="https://foo.com/metadata/extended.json"; fi
@@ -1902,10 +1902,10 @@ EOF
       select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
       case $? in
         0) reuse_wallets='Y'
-           for wallet_name in ${owner_wallets[@]}; do # Validate each wallet that they still exist and contain the correct keys
+           for wallet_name in "${owner_wallets[@]}"; do # Validate each wallet that they still exist and contain the correct keys
              getWalletType ${wallet_name}
              case $? in
-               0) if [[ ${wallet_name} = ${owner_wallets[0]} ]]; then # main owner, must be a CLI wallet
+               0) if [[ ${wallet_name} = "${owner_wallets[0]}" ]]; then # main owner, must be a CLI wallet
                     println "ERROR" "${FG_RED}ERROR${NC}: main/first pool owner can NOT be a hardware wallet!"
                     println "ERROR" "Use a CLI wallet as owner with enough funds to pay for pool deposit and registration transaction fee"
                     println "ERROR" "Add the hardware wallet as an additional multi-owner to the pool later in the pool registration wizard"
@@ -1938,7 +1938,7 @@ EOF
            getWalletType ${reward_wallet}
            case $? in
              0) hw_reward_is_mu='N'
-                for wallet_name in ${owner_wallets[@]}; do # HW reward wallet, make sure its also a multi-owner to the pool
+                for wallet_name in "${owner_wallets[@]}"; do # HW reward wallet, make sure its also a multi-owner to the pool
                   [[ "${wallet_name}" = "${reward_wallet}" ]] && hw_reward_is_mu='Y' && break
                 done
                 if [[ ${hw_reward_is_mu} = 'N' ]]; then # main owner, must be a CLI wallet
@@ -2095,7 +2095,7 @@ EOF
     fi
 
     multi_owner_output=""
-    for wallet_name in ${owner_wallets[@]}; do
+    for wallet_name in "${owner_wallets[@]}"; do
       [[ "${wallet_name}" = "${owner_wallets[0]}" ]] && continue # skip main owner
       multi_owner_output+="--pool-owner-stake-verification-key-file ${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME} "
     done
@@ -2882,11 +2882,11 @@ EOF
     
     case "${otx_type}" in
       "Wallet Registration"|"Wallet De-Registration"|"Payment"|"Wallet Delegation"|"Wallet Rewards Withdrawal"|"Pool De-Registration"|"Metadata")
-        [[ ${otx_type} = "Wallet De-Registration" ]] && println "DEBUG" "\nAmount returned  : ${FG_CYAN}$(formatLovelace $(jq -r '."amount-returned"' <<< ${offlineJSON}))${NC} Ada"
+        [[ ${otx_type} = "Wallet De-Registration" ]] && println "DEBUG" "\nAmount returned  : ${FG_CYAN}$(formatLovelace "$(jq -r '."amount-returned"' <<< ${offlineJSON})")${NC} Ada"
         [[ ${otx_type} = "Payment" ]] && println "DEBUG" "\nSource addr      : ${FG_CYAN}$(jq -r '."source-address"' <<< ${offlineJSON})${NC}"
-        [[ ${otx_type} = "Payment" ]] && println "DEBUG" "Amount           : ${FG_CYAN}$(formatLovelace $(jq -r '.amount' <<< ${offlineJSON}))${NC} Ada"
+        [[ ${otx_type} = "Payment" ]] && println "DEBUG" "Amount           : ${FG_CYAN}$(formatLovelace "$(jq -r '.amount' <<< ${offlineJSON})")${NC} Ada"
         [[ ${otx_type} = "Payment" ]] && println "DEBUG" "Destination addr : ${FG_CYAN}$(jq -r '."destination-address"' <<< ${offlineJSON})${NC}"
-        [[ ${otx_type} = "Wallet Rewards Withdrawal" ]] && println "DEBUG" "\nRewards          : ${FG_CYAN}$(formatLovelace $(jq -r '.rewards' <<< ${offlineJSON}))${NC} Ada"
+        [[ ${otx_type} = "Wallet Rewards Withdrawal" ]] && println "DEBUG" "\nRewards          : ${FG_CYAN}$(formatLovelace "$(jq -r '.rewards' <<< ${offlineJSON})")${NC} Ada"
         [[ ${otx_type} = "Pool De-Registration" ]] && println "DEBUG" "\nPool name        : ${FG_CYAN}$(jq -r '."pool-name"' <<< ${offlineJSON})${NC}"
         [[ ${otx_type} = "Pool De-Registration" ]] && println "DEBUG" "Ticker           : ${FG_CYAN}$(jq -r '."pool-ticker"' <<< ${offlineJSON})${NC}"
         [[ ${otx_type} = "Pool De-Registration" ]] && println "DEBUG" "To be retired    : epoch ${FG_CYAN}$(jq -r '."retire-epoch"' <<< ${offlineJSON})${NC}"
@@ -2936,9 +2936,9 @@ EOF
         echo
         println "DEBUG" "Pool name        : ${FG_CYAN}$(jq -r '."pool-metadata".name' <<< ${offlineJSON})${NC}"
         println "DEBUG" "Ticker           : ${FG_CYAN}$(jq -r '."pool-metadata".ticker' <<< ${offlineJSON})${NC}"
-        println "DEBUG" "Pledge           : ${FG_CYAN}$(formatAda $(jq -r '."pool-pledge"' <<< ${offlineJSON}))${NC} Ada"
+        println "DEBUG" "Pledge           : ${FG_CYAN}$(formatAda "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")${NC} Ada"
         println "DEBUG" "Margin           : ${FG_CYAN}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
-        println "DEBUG" "Cost             : ${FG_CYAN}$(formatAda $(jq -r '."pool-cost"' <<< ${offlineJSON}))${NC} Ada"
+        println "DEBUG" "Cost             : ${FG_CYAN}$(formatAda "$(jq -r '."pool-cost"' <<< ${offlineJSON})")${NC} Ada"
         for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
           _jq() { base64 -d <<< ${otx_signing_file} | jq -r "${1}"; }
           otx_signing_name=$(_jq '.name')
@@ -3052,20 +3052,20 @@ EOF
     
     case "${otx_type}" in
       "Wallet Registration"|"Wallet De-Registration"|"Payment"|"Wallet Delegation"|"Wallet Rewards Withdrawal"|"Pool De-Registration"|"Metadata"|"Pool Registration"|"Pool Update")
-        [[ ${otx_type} = "Wallet De-Registration" ]] && println "DEBUG" "\nAmount returned  : ${FG_CYAN}$(formatLovelace $(jq -r '."amount-returned"' <<< ${offlineJSON}))${NC} Ada"
+        [[ ${otx_type} = "Wallet De-Registration" ]] && println "DEBUG" "\nAmount returned  : ${FG_CYAN}$(formatLovelace "$(jq -r '."amount-returned"' <<< ${offlineJSON})")${NC} Ada"
         [[ ${otx_type} = "Payment" ]] && println "DEBUG" "\nSource addr      : ${FG_CYAN}$(jq -r '."source-address"' <<< ${offlineJSON})${NC}"
-        [[ ${otx_type} = "Payment" ]] && println "DEBUG" "Amount           : ${FG_CYAN}$(formatLovelace $(jq -r '.amount' <<< ${offlineJSON}))${NC} Ada"
+        [[ ${otx_type} = "Payment" ]] && println "DEBUG" "Amount           : ${FG_CYAN}$(formatLovelace "$(jq -r '.amount' <<< ${offlineJSON})")${NC} Ada"
         [[ ${otx_type} = "Payment" ]] && println "DEBUG" "Destination addr : ${FG_CYAN}$(jq -r '."destination-address"' <<< ${offlineJSON})${NC}"
-        [[ ${otx_type} = "Wallet Rewards Withdrawal" ]] && println "DEBUG" "\nRewards          : ${FG_CYAN}$(formatLovelace $(jq -r '.rewards' <<< ${offlineJSON}))${NC} Ada"
+        [[ ${otx_type} = "Wallet Rewards Withdrawal" ]] && println "DEBUG" "\nRewards          : ${FG_CYAN}$(formatLovelace "$(jq -r '.rewards' <<< ${offlineJSON})")${NC} Ada"
         [[ ${otx_type} = "Pool De-Registration" ]] && println "DEBUG" "\nPool name        : ${FG_CYAN}$(jq -r '."pool-name"' <<< ${offlineJSON})${NC}"
         [[ ${otx_type} = "Pool De-Registration" ]] && println "DEBUG" "Ticker           : ${FG_CYAN}$(jq -r '."pool-ticker"' <<< ${offlineJSON})${NC}"
         [[ ${otx_type} = "Pool De-Registration" ]] && println "DEBUG" "To be retired    : epoch ${FG_CYAN}$(jq -r '."retire-epoch"' <<< ${offlineJSON})${NC}"
         [[ ${otx_type} = "Metadata" ]] && println "DEBUG" "\nMetadata         :\n$(jq -r '.metadata' <<< ${offlineJSON})\n"
         [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println "DEBUG" "\nPool name        : ${FG_CYAN}$(jq -r '."pool-metadata".name' <<< ${offlineJSON})${NC}"
         [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println "DEBUG" "Ticker           : ${FG_CYAN}$(jq -r '."pool-metadata".ticker' <<< ${offlineJSON})${NC}"
-        [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println "DEBUG" "Pledge           : ${FG_CYAN}$(formatAda $(jq -r '."pool-pledge"' <<< ${offlineJSON}))${NC} Ada"
+        [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println "DEBUG" "Pledge           : ${FG_CYAN}$(formatAda "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")${NC} Ada"
         [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println "DEBUG" "Margin           : ${FG_CYAN}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
-        [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println "DEBUG" "Cost             : ${FG_CYAN}$(formatAda $(jq -r '."pool-cost"' <<< ${offlineJSON}))${NC} Ada"
+        [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println "DEBUG" "Cost             : ${FG_CYAN}$(formatAda "$(jq -r '."pool-cost"' <<< ${offlineJSON})")${NC} Ada"
         tx_signed="${TMP_FOLDER}/tx.signed_$(date +%s)"
         println "DEBUG" "\nProceed to submit transaction?"
         select_opt "[y] Yes" "[n] No"
