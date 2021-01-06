@@ -32,7 +32,7 @@
 usage() {
   cat <<EOF >&2
 
-Usage: $(basename "$0") [sync] [leaderlog] [validate [all] [epoch]] [ptsendtip] [migrate <path>]
+Usage: $(basename "$0") [operation <sub arg>]
 Script to run CNCLI, best launched through systemd deployed by 'deploy-as-systemd.sh'
 
 sync        Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB (deployed as service)

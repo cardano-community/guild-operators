@@ -18,18 +18,18 @@ fi
 pool_name="${1}"
 
 if [[ ! -d "${POOL_FOLDER}/${pool_name}" ]]; then
-  say "${RED}ERROR${NC}: pool folder not found!"
-  say "${POOL_FOLDER}/${pool_name}"
+  echo -e "${RED}ERROR${NC}: pool folder not found!"
+  echo -e "${POOL_FOLDER}/${pool_name}"
   exit 1
 fi
 
-if ! rotatePoolKeys "${pool_name}"; then
-  say "" && exit 1
+if ! rotatePoolKeys; then
+  echo && exit 1
 fi
 
-say ""
-say "Pool KES Keys Updated: ${GREEN}${pool_name}${NC}"
-say "New KES start period: ${start_kes_period}"
-say "KES keys will expire on kes period ${kes_expiration_period}, ${expiration_date}"
-say "Restart your pool node for changes to take effect"
-say ""
+echo
+echo -e "Pool KES Keys Updated: ${GREEN}${pool_name}${NC}"
+echo -e "New KES start period: ${start_kes_period}"
+echo -e "KES keys will expire on kes period ${kes_expiration_period}, ${expiration_date}"
+echo -e "Restart your pool node for changes to take effect"
+echo

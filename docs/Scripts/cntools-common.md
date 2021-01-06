@@ -194,34 +194,3 @@ Cost   : 500 ADA
 
 **8.**  Start or restart your cardano-node (eg: if using cnode.sh, update parameters in that file) with the parameters as shown.  This will ensure your node has all the information necessary to create blocks.
 
-#### Offline Workflow
-
-For offline workflow all wallet and pool keys should be kept on the offline node. The backup function in CNTools has an option to create a backup without private keys to be transfered to online node.
-
-Keys excluded from backup when created without private keys:  
-**Wallet** - payment.skey, stake.skey
-**Pool**   - cold.skey
-
-All other files are included in the backup to be transfered to the online node.
-
-``` mermaid
-
-sequenceDiagram
-    Note over Offline: Create/Import a new wallet
-    Note over Offline: Create a new pool
-    Note over Offline: Rotate KES keys to generate op.cert
-    Note over Offline: Create a backup w/o private keys
-    Offline->>Online: Transfer backup to online node
-    Note over Online: Fund the wallet base address with enough Ada
-    Note over Online: Register wallet using ' Wallet » Register ' in hybrid mode
-    Online->>Offline: Transfer built tx back to offline node
-    Note over Offline: Use ' Sign Tx ' with payment.skey from wallet to sign transaction
-    Offline->>Online: Transfer signed tx back to online node
-    Note over Online: Use ' Submit Tx ' to send signed transaction to blockchain
-    Note over Online: Register pool in hybrid mode
-    loop
-        Offline-->Online: Repeat steps to sign and submit built pool registration transaction
-    end
-    Note over Online: Verify that pool was successfully registered with ' Pool » Show '
-
-```

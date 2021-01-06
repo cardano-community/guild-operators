@@ -19,7 +19,7 @@ chmod 750 topologyUpdater.sh
 
 #### Examine and modify the variables within topologyUpdater.sh script
 
-Out of the box, the scripts might come with some assumptions, that may or may not be valid for your environment. One of the common changes as a SPO would be to **complete CUSTOM_PEERS section** as below to include your local relays/BP nodes, and any additional peers you'd like to be always available at minimum. Please do take time to update the variables in respective files below:
+Out of the box, the scripts might come with some assumptions, that may or may not be valid for your environment. One of the common changes as a SPO would be to **complete CUSTOM_PEERS section** as below to include your local relays/BP nodes, and any additional peers you'd like to be always available at minimum. Please do take time to update the variables in User Variables section in  `env` & `topologyUpdater.sh`:
 
 ``` bash
 ### topologyUpdater.sh
@@ -29,34 +29,10 @@ Out of the box, the scripts might come with some assumptions, that may or may no
 ######################################
 
 CNODE_HOSTNAME="CHANGE ME"                                # (Optional) Must resolve to the IP you are requesting from
-CNODE_LOG_DIR="${CNODE_HOME}/logs"                        # Folder where your logs will be sent to (must pre-exist)
 CNODE_VALENCY=1                                           # (Optional) for multi-IP hostnames
-CNODE_TOPOLOGY="${CNODE_HOME}/files/topology.json"        # Destination topology.json file you'd want to write output to
 MAX_PEERS=15                                              # Maximum number of peers to return on successful fetch
-CUSTOM_PEERS="None"                                       # Additional custom peers to (IP:port[:valency]) to add to your target topology.json, eg: "10.0.0.1:3001|10.0.0.2:3002|relays.mydomain.com:3003:3"
-
-```
-
-``` bash
-### env
-
-######################################
-# User Variables - Change as desired #
-# Leave as is if unsure              #
-######################################
-
-#CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of path to cardano-cli executable
-#CNCLI="${HOME}/.cargo/bin/cncli"                       # Override automatic detection of path to cncli executable (https://github.com/AndrewWestberg/cncli)
-#CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
-CNODE_PORT=6000                                         # Set node port
-#CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path
-#SOCKET="${CNODE_HOME}/sockets/node0.socket"            # Override automatic detection of path to socket
-#EKG_HOST=127.0.0.1                                     # Set node EKG host
-#EKG_PORT=12788                                         # Override automatic detection of node EKG port
-#EKG_TIMEOUT=3                                          # Maximum time in seconds that you allow EKG request to take before aborting (node metrics)
-#CURL_TIMEOUT=10                                        # Maximum time in seconds that you allow curl file download to take before aborting (GitHub update process)
-#BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"         # Override default directory used to store block data for core node
-#BLOCKLOG_TZ="UTC"                                      # TimeZone to use when displaying blocklog - https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+#CUSTOM_PEERS="None"                                      # Additional custom peers to (IP:port[:valency]) to add to your target topology.json
+                                                          # eg: "10.0.0.1:3001|10.0.0.2:3002|relays.mydomain.com:3003:3"
 ```
 
 Upon first run,

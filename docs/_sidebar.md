@@ -7,6 +7,7 @@
     * [REST](Build/rest.md "Cardano Rest")
     * [GraphQL](Build/graphql.md "Cardano GraphQL")
   * Scripts
+    * [Common env](Scripts/env.md)
     * [CNTools](Scripts/cntools.md)
       - [Common tasks](Scripts/cntools-common.md)
       - [Changelog](Scripts/cntools-changelog.md)

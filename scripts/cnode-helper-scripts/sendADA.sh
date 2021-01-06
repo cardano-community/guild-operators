@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1090,SC2086,SC2206,SC2015,SC2154
+# shellcheck disable=SC1090,SC2086,SC2206,SC2015,SC2154,SC2034
 function usage() {
   printf "\n%s\n\n" "Usage: $(basename "$0") <Destination Address> <Amount> <Source Address> <Source Sign Key> [--include-fee]"
   printf "  %-20s\t%s\n" \
@@ -16,18 +16,18 @@ if [[ $# -lt 4 ]]; then
   usage
 fi
 
-# source env
+# source files
 . "$(dirname $0)"/env
-. "$(dirname $0)"/cntools.library
 . "$(dirname $0)"/cntools.config
+. "$(dirname $0)"/cntools.library
 
 # create temporary directory if missing
 mkdir -p "${TMP_FOLDER}" # Create if missing
 if [[ ! -d "${TMP_FOLDER}" ]]; then
-  echo ""
-  say "${RED}ERROR${NC}: Failed to create directory for temporary files:"
-  say "${TMP_FOLDER}"
-  echo "" && exit 1
+  echo
+  echo -e "${RED}ERROR${NC}: Failed to create directory for temporary files:"
+  echo -e "${TMP_FOLDER}"
+  echo && exit 1
 fi
 
 # start with a clean slate
@@ -35,84 +35,84 @@ rm -f "${TMP_FOLDER}"/*
 
 # Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
 ${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file ${TMP_FOLDER}/protparams.json || {
-  echo ""
-  say "${RED}ERROR${NC}: failed to query protocol parameters, node running and env parameters correct?"
+  echo
+  echo -e "${RED}ERROR${NC}: failed to query protocol parameters, node running and env parameters correct?"
   exit 1
 }
 
 # Handle script arguments
 if [[ ! -f "$1" ]]; then
-  D_ADDR="$1"
+  d_addr="$1"
 else
-  D_ADDR="$(cat $1)"
+  d_addr="$(cat $1)"
 fi
 
 if [[ ! -f "$3" ]]; then
-  S_ADDR="$3"
+  s_addr="$3"
 else
-  S_ADDR="$(cat $3)"
+  s_addr="$(cat $3)"
 fi
 
 if [[ -f "$4" ]]; then 
-  S_SKEY="$4" 
+  payment_sk_file="$4" 
 else
-  say "${RED}ERROR${NC}: Source Sign file(skey) not found!"
-  say "$4"
-  echo "" && exit 1
+  echo -e "${RED}ERROR${NC}: Source Sign file(skey) not found!"
+  echo -e "$4"
+  echo && exit 1
 fi
 
 if [[ $# -eq 5 ]]; then
-  [[ $5 = "--include-fee" ]] && INCL_FEE="yes" || usage
+  [[ $5 = "--include-fee" ]] && include_fee="yes" || usage
 else
-  INCL_FEE="no"
+  include_fee="no"
 fi
 
-getBalance ${S_ADDR}
+getBalance ${s_addr}
 if [[ ${lovelace} -gt 0 ]]; then
-  say "$(printf "\n%s\t${CYAN}%s${NC} ADA" "Funds in source wallet:"  "$(formatLovelace ${lovelace})")" "log"
+  echo -e "$(printf "\n%s\t${CYAN}%s${NC} ADA" "Funds in source wallet:"  "$(formatLovelace ${lovelace})")" "log"
 else
-  say "${RED}ERROR${NC}: no funds available in source address"
-  echo "" && exit 1
+  echo -e "${RED}ERROR${NC}: no funds available in source address"
+  echo && exit 1
 fi
 
-LOVELACE="$2"
-if [[ ${LOVELACE} != "all" ]]; then
-  if ! ADAtoLovelace "${LOVELACE}" >/dev/null; then
-    echo "" && exit 1
+amount_lovelace="$2"
+if [[ ${amount_lovelace} != "all" ]]; then
+  if ! ADAtoLovelace "${amount_lovelace}" >/dev/null; then
+    echo && exit 1
   fi
-  LOVELACE=$(ADAtoLovelace "${LOVELACE}")
-  if [[ ${LOVELACE} -gt ${lovelace} ]]; then
-    say "${RED}ERROR${NC}: not enough funds available in source address"
-    echo "" && exit 1
+  amount_lovelace=$(ADAtoLovelace "${amount_lovelace}")
+  if [[ ${amount_lovelace} -gt ${lovelace} ]]; then
+    echo -e "${RED}ERROR${NC}: not enough funds available in source address"
+    echo && exit 1
   fi
 else
-  LOVELACE=${lovelace}
-  say "$(printf "\n%s\t${CYAN}%s${NC} ADA" "ADA to send set to total supply:"  "$(formatLovelace ${lovelace})")" "log"
-  INCL_FEE="yes"
+  amount_lovelace=${lovelace}
+  echo -e "$(printf "\n%s\t${CYAN}%s${NC} ADA" "ADA to send set to total supply:"  "$(formatLovelace ${lovelace})")" "log"
+  include_fee="yes"
 fi
 
-if ! sendADA "${D_ADDR}" "${LOVELACE}" "${S_ADDR}" "${S_SKEY}" "${INCL_FEE}"; then
-  echo "" && exit 1
+if ! sendADA; then
+  echo && exit 1
 fi
 
 if ! waitNewBlockCreated; then
-  echo "" && exit 1
+  echo && exit 1
 fi
 
-getBalance ${S_ADDR}
+getBalance ${s_addr}
 
 while [[ ${lovelace} -ne ${newBalance} ]]; do
-  say ""
-  say "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
+  echo
+  echo -e "${ORANGE}WARN${NC}: Balance mismatch, transaction not included in latest block ($(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance}))"
   if ! waitNewBlockCreated; then
     echo "" && exit 1
   fi
-  getBalance ${S_ADDR}
+  getBalance ${s_addr}
 done
 
-say "$(printf "\n%s\t\t${CYAN}%s${NC} ADA" "Funds in source wallet:"  "$(formatLovelace ${lovelace})")" "log"
+echo -e "$(printf "\n%s\t\t${CYAN}%s${NC} ADA" "Funds in source wallet:"  "$(formatLovelace ${lovelace})")" "log"
 
-getBalance ${D_ADDR}
-say "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in destination wallet:"  "$(formatLovelace ${lovelace})")" "log"
+getBalance ${d_addr}
+echo -e "$(printf "%s\t${CYAN}%s${NC} ADA" "Funds in destination wallet:"  "$(formatLovelace ${lovelace})")" "log"
 
-say "\n## Finished! ##\n"
+echo -e "\n## Finished! ##\n"
