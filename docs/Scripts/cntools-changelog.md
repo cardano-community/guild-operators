@@ -5,13 +5,13 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [7.0.0] - 2021-01-XX
-Though mostly unchanged in the user interface, this is a mayor update with most of the code re-written/touched in the back-end.  
+## [7.0.0] - 2021-01-08
+Though mostly unchanged in the user interface, this is a major update with most of the code re-written/touched in the back-end.  
 Only the most noticeable changes added to changelog. 
 
 ##### Added
 - HW Wallet support through Vacuumlabs cardano-hw-cli (Ledger Nano X/S & Trezor T)
-  - Vacuumlabs cardano-hw-cli added as build option to prereqs.sh, option '-w' incl Ledger udev rules. Software from Vacuumlabs and Ledger app still early in development and may contain limitations that require workarounds.
+  - Vacuumlabs cardano-hw-cli added as build option to prereqs.sh, option '-w' incl Ledger udev rules. Software from Vacuumlabs and Ledger app still early in development and may contain limitations that require workarounds. Users are recommended to familiarise their usage using test wallets first.
   - Because of HW wallet support, transaction signing has been re-designed. For CLI and HW wallet pool reg, raw tx is first witnessed by all signing keys separately and then assembled and signed instead of signing directly with all signing keys. But for all other HW wallet transactions, signing is done directly without first witnessing.
   - Requires updated Cardano app in Ledger/Trezor set to be released in January 2021 to use in pool registration/modification.
 - Option added to disable Dialog for file/dir input in cntools.config
@@ -27,6 +27,8 @@ Only the most noticeable changes added to changelog.
   - Sign Tx moved to Transaction >> Sign
   - Submit Tx moved to Transaction >> Submit
 
+##### Fixed
+- Remove intermediate prompt for showing changelog, so that it's directly visible.
 
 ## [6.3.1] - 2020-12-14
 
