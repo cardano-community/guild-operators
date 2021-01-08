@@ -6,8 +6,11 @@ Visit the [Changelog](Scripts/cntools-changelog.md) section to see progress and 
 
 * [Overview](#overview)
 * [Download and Update](#download-and-update)
-* [Start CNTools](#start)
 * [Navigation](#navigation)
+* [Hardware Wallet](#hardware-wallet)
+* [Offline Workflow](#offline-workflow)
+* [Start CNTools in Online Mode](#start-cntools-in-online-mode)
+* [Start CNTools in Offline Mode](#start-cntools-in-offline-mode)
 
 ##### Overview
 The tool consist of three files.  
@@ -33,6 +36,19 @@ The update functionality is provided from within CNTools. In case of breaking ch
 
 ##### Navigation
 The scripts menu supports both arrow key navigation and shortcut key selection. The character within the square brackets is the shortcut to press for quick navigation. For other selections like wallet and pool menu that doesn't contain shortcuts, there is a third way to navigate. Key pressed is compared to the first character of the menu option and if there is a match selection jumps to this location. A handy way to quickly navigate a large menu. 
+
+##### Hardware Wallet
+CNTools include hardware wallet support since version 7.0.0 through Vacuumlabs cardano-hw-cli application. Initialize and update firmware/app on the device to the latest version before usage following the manufacturer instructions.
+
+To enable hardware support run `prereqs.sh -w`. This downloads and installs Vacuumlabs cardano-hw-cli including udev configuration. When a new version of Vacuumlabs cardano-hw-cli is released, run `prereqs.sh -w` again to update. For additional runtime options, run `prereqs.sh -h`.
+
+**Ledger**  
+Supported devices: Nano S / Nano X  
+Make sure the latest cardano app is installed on the device.
+
+**Trezor**  
+Supported devices: Model T  
+Make sure the latest firmware is installed on the device. In addition to this, install `Trezor Bridge` for your system before trying to use your Trezor device in CNTools. You can find the latest version of the bridge at https://wallet.trezor.io/#/bridge
 
 ##### Offline Workflow
 CNTools can be run in online and offline mode. At a very high level, for working with offline devices, remember that you need to use CNTools on an online node to generate a staging transaction for the desired type of transaction, and then move the staging transaction to offline node to sign (authorize) using your offline node signing keys - and then bring back updated transaction to the online node for submission to chain. 

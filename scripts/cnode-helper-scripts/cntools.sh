@@ -563,7 +563,7 @@ EOF
       
       if ! need_cmd "cardano-hw-cli"; then
         println "ERROR" "${FG_RED}ERROR${NC}: cardano-hw-cli executable not found in path!"
-        println "ERROR" "Please run updated prereqs.sh with hardware wallet support to install Vaccumlabs cardano-hw-cli"
+        println "ERROR" "Please run '${FG_CYAN}prereqs.sh -w${NC}' to add hardware wallet support and install Vaccumlabs cardano-hw-cli, '${FG_CYAN}prereqs.sh -h${NC}' shows all available options"
         waitForInput && continue
       fi
       
