@@ -334,7 +334,7 @@ if [[ "${INSTALL_VCHC}" = "Y" ]]; then
       fi
       if [[ ! -f "/etc/udev/rules.d/51-trezor.rules" ]]; then
         # Trezor udev rules
-        $sudo curl https://data.trezor.io/udev/51-trezor.rules -o /etc/udev/rules.d/51-trezor.rules
+        $sudo curl -s -m ${CURL_TIMEOUT} https://data.trezor.io/udev/51-trezor.rules -o /etc/udev/rules.d/51-trezor.rules
         $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" -i /etc/udev/rules.d/51-trezor.rules
       fi
       # Trigger rules update
