@@ -326,16 +326,20 @@ if [[ "${INSTALL_VCHC}" = "Y" ]]; then
       if ! grep -q "cardano-hw-cli" "${HOME}"/.bashrc; then
         echo "adding cardano-hw-cli to PATH and setting Ledger udev rules, reload shell to take effect!"
         echo "PATH=\"$HOME/bin/cardano-hw-cli:\$PATH\"" >> "${HOME}"/.bashrc
+      fi
+      if [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ]]; then
         # Ledger udev rules
         wget -q -O - https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh | $sudo bash
         $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" -i /etc/udev/rules.d/20-hw1.rules
-        # Trezor udev rules
-        $sudo curl https://data.trezor.io/udev/51-trezor.rules -o /etc/udev/rules.d/51-trezor.rules
-        $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" -i /etc/udev/rules.d/51-trezor.rules
-        # Trigger new rules
-        $sudo udevadm control --reload-rules
-        $sudo udevadm trigger
       fi
+      if [[ ! -f "/etc/udev/rules.d/51-trezor.rules" ]]; then
+        # Trezor udev rules
+        $sudo curl -s -m ${CURL_TIMEOUT} https://data.trezor.io/udev/51-trezor.rules -o /etc/udev/rules.d/51-trezor.rules
+        $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" -i /etc/udev/rules.d/51-trezor.rules
+      fi
+      # Trigger rules update
+      $sudo udevadm control --reload-rules
+      $sudo udevadm trigger
       echo "cardano-hw-cli v${vchc_git_version} installed!"
     else
       rm -rf cardano-hw-cli #cleanup in /tmp
