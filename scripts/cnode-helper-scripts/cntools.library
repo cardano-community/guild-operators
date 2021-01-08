@@ -2054,13 +2054,13 @@ submitTx() {
 # Description : Directions to unlock and open HW device
 # Parameters  : action  >  message for action to be taken
 unlockHWDevice() {
-  waitForInput "${FG_BLUE}INFO${NC}: please unlock hardware device and open the Cardano app, after this press any key to continue"
+  waitForInput "${FG_BLUE}INFO${NC}: please connect and unlock hardware device\n  Ledger : Unlock with pin and open Cardano app\n  Trezor : Make sure trezor bridge is installed (https://wallet.trezor.io/#/bridge) \n\nwhen done, press any key to continue"
   
   println "ACTION" "cardano-hw-cli device version | cut -d' ' -f4"
   device_app_version="$(cardano-hw-cli device version | cut -d' ' -f4)"
-  if [[ ${device_app_version} = "undefined.undefined.undefined" ]]; then
-    println "ERROR" "${FG_RED}ERROR${NC}: unable to identify cardano app installed on hardware device, is the device plugged in, unlocked and Cardano app opened?"
-    println "ERROR" "Make sure udev rules are correctly set up and device seen by OS using tools like lsusb etc"
+  if [[ ! ${device_app_version} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    println "ERROR" "${FG_RED}ERROR${NC}: unable to identify connected hardware device, is the device plugged in and unlocked?"
+    println "ERROR" "Make sure device is seen by OS using tools like lsusb etc and is working correctly"
     waitForInput && return 1
   fi
   
