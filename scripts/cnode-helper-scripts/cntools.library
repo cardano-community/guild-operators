@@ -64,13 +64,13 @@ println() {
   local log_level=$1
   shift
   case $log_level in
-    OFF) echo -e "$@" >&6 ;;
+    OFF) printf '%b\n' "$@" >&6 ;;
     LOG) logln "DEBUG" "$@" ;;
-    DEBUG) echo -e "$@" >&6; logln "DEBUG" "$@" ;;
-    INFO) echo -e "$@" ;;
+    DEBUG) printf '%b\n' "$@" >&6; logln "DEBUG" "$@" ;;
+    INFO) printf '%b\n' "$@" ;;
     ACTION) logln "ACTION" "$@" ;;
-    ERROR) echo -e "$@" >&2 ;;
-    *) echo -e "${log_level}" "$@" ;;
+    ERROR) printf '%b\n' "$@" >&2 ;;
+    *) printf '%b\n' "${log_level}"; [[ $# -ge 1 ]] && printf '%s\n' "$@" ;;
   esac
 }
 
@@ -103,7 +103,7 @@ waitForInput() {
   if [[ $# -eq 0 ]]; then
     echo "press any key to return to home menu"
   else
-    echo -e "$@"
+    printf '%b\n' "$@"
   fi
   read -rsn1 key # get 1 character
   if [[ $key == $ESC ]]; then
@@ -233,15 +233,15 @@ EOF
 fileDialog() {
   exec >&6 # normal stdout
   if [[ ${ENABLE_DIALOG} = "false" ]]; then
-    printf "$2: " && read -r file
+    printf "$1: " && read -r file
     return
   fi
   dialogSetup
-  [[ -n $3 ]] && start_path="$3" || start_path="/tmp/"
-  file=$(dialog --stdout --clear --keep-tite --title "$2" --fselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)))
+  [[ -n $2 ]] && start_path="$2" || start_path="/tmp/"
+  file=$(dialog --stdout --clear --keep-tite --title "$1" --fselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)))
   exec >&8 # custom stdout
 }
-# Command     : dirDialog [show help] [title] [optional: start dir]
+# Command     : dirDialog [title] [optional: start dir]
 # Description : open a directory dialog
 # Parameters  : show help  >  [0=no|1=yes] print dialog help text
 #             : title      >  The dialog title text
@@ -249,12 +249,12 @@ fileDialog() {
 dirDialog() {
   exec >&6 # normal stdout
   if [[ ${ENABLE_DIALOG} = "false" ]]; then
-    printf "$2: " && read -r dir
+    printf "$1: " && read -r dir
     return
   fi
   dialogSetup
-  [[ -n $3 ]] && start_path="$3/" || start_path="/tmp/"
-  dir=$(dialog --stdout --clear --keep-tite --title "$2" --dselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)))
+  [[ -n $2 ]] && start_path="$2" || start_path="/tmp/"
+  dir=$(dialog --stdout --clear --keep-tite --title "$1" --dselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)))
   exec >&8 # custom stdout
 }
 
@@ -1170,7 +1170,7 @@ registerStakeWallet() {
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON})"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_CYAN}${offline_tx}${NC}" 
@@ -1250,7 +1250,7 @@ deregisterStakeWallet() {
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON})"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_CYAN}${offline_tx}${NC}" 
@@ -1347,7 +1347,7 @@ sendAda() {
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${s_wallet}' payment signing key\", vkey: $(jq -c . "${s_payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON})"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_CYAN}${offline_tx}${NC}" 
@@ -1413,7 +1413,7 @@ delegate() {
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON})"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_CYAN}${offline_tx}${NC}" 
@@ -1481,7 +1481,7 @@ withdrawRewards() {
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON})"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_CYAN}${offline_tx}${NC}" 
@@ -1590,7 +1590,7 @@ registerPool() {
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { witness: [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON})"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_CYAN}${offline_tx}${NC}" 
@@ -1687,7 +1687,7 @@ modifyPool() {
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { witness: [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON})"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_CYAN}${offline_tx}${NC}" 
@@ -1775,7 +1775,7 @@ deRegisterPool() {
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' stake signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON})"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_CYAN}${offline_tx}${NC}" 
@@ -1880,7 +1880,7 @@ sendMetadata() {
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON})"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_CYAN}${offline_tx}${NC}" 
