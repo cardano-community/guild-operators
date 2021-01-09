@@ -1916,10 +1916,10 @@ EOF
                4) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake verification keys missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
                   waitForInput "Unable to reuse old configuration, please set new owner(s) & reward wallet" && owner_wallets=() && reward_wallet="" && reuse_wallets='N' && break ;;
              esac
-             if ! isWalletRegistered ${wallet_name}; then
+             if [[ ${wallet_name} = "${owner_wallets[0]}" ]] && ! isWalletRegistered ${wallet_name}; then # make sure at least main owner is registered
                if [[ ${op_mode} = "hybrid" ]]; then
                  println "ERROR" "\n${FG_RED}ERROR${NC}: wallet ${FG_GREEN}${wallet_name}${NC} not a registered wallet on chain and CNTools run in hybrid mode"
-                 println "ERROR" "Please first register all wallets to use in pool registration using 'Wallet >> Register'"
+                 println "ERROR" "Please first register main owner wallet to use in pool registration using 'Wallet >> Register'"
                  waitForInput && continue 2
                fi
                getBaseAddress ${wallet_name}
@@ -1956,7 +1956,7 @@ EOF
            if ! isWalletRegistered ${reward_wallet}; then
              if [[ ${op_mode} = "hybrid" ]]; then
                println "ERROR" "\n${FG_RED}ERROR${NC}: reward wallet ${FG_GREEN}${reward_wallet}${NC} not a registered wallet on chain and CNTools run in hybrid mode"
-               println "ERROR" "Please first register all wallets to use in pool registration using 'Wallet >> Register'"
+               println "ERROR" "Please first register the rewards wallet to use in pool registration using 'Wallet >> Register'"
                waitForInput && continue
              fi
              getBaseAddress ${reward_wallet}
@@ -2022,23 +2022,21 @@ EOF
         select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
         case $? in
           0) break ;;
-          1) if [[ ${op_mode} = "online" ]]; then
-               if selectWallet "delegate" "${WALLET_STAKE_VK_FILENAME}" "${owner_wallets[@]}"; then # ${wallet_name} populated by selectWallet function
-                 getWalletType ${wallet_name}
-                 case $? in
-                   0) hw_owner_wallets='Y' ;;
-                   2) [[ ! -f "${stake_sk_file}" ]] && println "ERROR" "${FG_RED}ERROR${NC}: stake signing key encrypted, please decrypt before use!" && waitForInput && println "DEBUG" "Add more owners?" && continue ;;
-                   3) if [[ -f "${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_STAKE_SK_FILENAME}" ]]; then # hw stake signing key available but not payment, this is ok
-                        hw_owner_wallets='Y'
-                      elif [[ ! -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}" ]]; then # hw or cli stake signing key not available, not good :(
-                        println "ERROR" "${FG_RED}ERROR${NC}: stake signing key missing from wallet!" && waitForInput && println "DEBUG" "Add more owners?" && continue
-                      fi ;;
-                 esac
-               else
-                 println "DEBUG" "Add more owners?" && continue
-               fi
+          1) if selectWallet "delegate" "${WALLET_STAKE_VK_FILENAME}" "${owner_wallets[@]}"; then # ${wallet_name} populated by selectWallet function
+               getWalletType ${wallet_name}
+               case $? in
+                 0) hw_owner_wallets='Y' ;;
+                 2) if [[ ${op_mode} = "online" ]]; then
+                      println "ERROR" "${FG_RED}ERROR${NC}: signing keys encrypted for wallet ${FG_GREEN}${wallet_name}${NC}, please decrypt before use!"
+                      waitForInput && continue 2
+                    fi ;;
+                 3) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
+                    waitForInput "Did you mean to run in Hybrid mode?  press any key to return home!" && continue 2 ;;
+                 4) println "ERROR" "${FG_RED}ERROR${NC}: stake verification key missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
+                    println "DEBUG" "Add another owner?" && continue ;;
+               esac
              else
-               if ! selectWallet "delegate" "${WALLET_STAKE_VK_FILENAME}" "${owner_wallets[@]}"; then println "DEBUG" "Add more owners?" && continue; fi
+               println "DEBUG" "Add more owners?" && continue
              fi
              owner_wallets+=( "${wallet_name}" )
              println "DEBUG" "Owner #${#owner_wallets[@]} : ${FG_GREEN}${wallet_name}${NC} added!"
@@ -2068,8 +2066,8 @@ EOF
              getWalletType ${reward_wallet}
              case $? in
                0) hw_reward_wallet='Y' ;;
-               2) println "ERROR" "${FG_RED}ERROR${NC}: stake signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-               3) println "ERROR" "${FG_RED}ERROR${NC}: stake signing keys missing from wallet!" && waitForInput && continue ;;
+               2) println "ERROR" "${FG_RED}ERROR${NC}: stake signing key encrypted, please decrypt before use!" && waitForInput && continue ;;
+               3) println "ERROR" "${FG_RED}ERROR${NC}: stake signing key missing from wallet!" && waitForInput && continue ;;
              esac
              getBaseAddress ${reward_wallet}
              getBalance ${base_addr}
@@ -2145,7 +2143,7 @@ EOF
     delegate_owner_wallet='N'
     if [[ ${SUBCOMMAND} = "register" ]]; then
       if [[ ${hw_owner_wallets} = 'Y' || ${hw_reward_wallet} = 'Y' ]]; then
-        println "DEBUG" "${FG_BLUE}INFO${NC}: hardware wallet included as reward or multi-owner, automatic owner/reward wallet delegation disabled"
+        println "DEBUG" "\n${FG_BLUE}INFO${NC}: hardware wallet included as reward or multi-owner, automatic owner/reward wallet delegation disabled"
         println "DEBUG" "${FG_BLUE}INFO${NC}: ${FG_YELLOW}please manually delegate all wallets to the pool!!!${NC}"
         waitForInput "press any key to continue"
       else
@@ -2173,17 +2171,14 @@ EOF
     if [[ $rc -eq 0 ]]; then
       [[ -f "${pool_regcert_file}.tmp" ]] && rm -f "${pool_regcert_file}.tmp" # remove backup of old reg cert if it exist (modify)
       [[ -f "${pool_deregcert_file}" ]] && rm -f "${pool_deregcert_file}" # delete de-registration cert if available
-    else
-      if [[ $rc -eq 1 ]]; then # rc=2 used for offline mode
-        echo && println "ERROR" "${FG_RED}ERROR${NC}: failure during pool ${SUBCOMMAND}!"
-        if [[ ${SUBCOMMAND} = "register" ]]; then
-          rm -f "${pool_regcert_file}" "${owner_delegation_cert_file}"
-          [[ "${delegate_reward_wallet}" = "true" ]] && rm -f "${reward_delegation_cert_file}"
-        else
-          [[ -f "${pool_regcert_file}.tmp" ]] && mv -f "${pool_regcert_file}.tmp" "${pool_regcert_file}" # restore reg cert backup
-        fi																  
-        waitForInput && continue
+    else # rc=1 failed | rc=2 used for offline mode, treat as failed for now, files written on submission
+      [[ $rc -eq 1 ]] && echo && println "ERROR" "${FG_RED}ERROR${NC}: failure during pool ${SUBCOMMAND}!"
+      if [[ ${SUBCOMMAND} = "register" ]]; then
+        [[ -f "${pool_regcert_file}" ]] && rm -f "${pool_regcert_file}"
+      else
+        [[ -f "${pool_regcert_file}.tmp" ]] && mv -f "${pool_regcert_file}.tmp" "${pool_regcert_file}" # restore reg cert backup
       fi
+      [[ $rc -eq 1 ]] && waitForInput && continue
     fi
     
     # Save pool config
@@ -2254,7 +2249,11 @@ EOF
       fi
     fi
     if [[ ${#owner_wallets[@]} -gt 1 ]]; then
-      println "DEBUG" "${FG_BLUE}INFO${NC}: please verify that all multi-owner wallets are delegated to the pool, if not do so!"
+      if [[ ${op_mode} = "hybrid" ]]; then
+        println "DEBUG" "${FG_BLUE}INFO${NC}: please verify that all owner/reward wallets are delegated to the pool after the pool registration has been signed and submitted, if not do so!"
+      else
+        println "DEBUG" "${FG_BLUE}INFO${NC}: please verify that all owner/reward wallets are delegated to the pool, if not do so!"
+      fi
     fi
     
     waitForInput && continue
@@ -2816,7 +2815,7 @@ EOF
   println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   println " >> TRANSACTION"
   println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  println "OFF" " Handle Funds\n\n"\
+  println "OFF" " Transaction Management\n\n"\
 " ) Sign    - witness/sign offline tx with signing keys\n"\
 " ) Submit  - submit signed offline tx to blockchain\n"\
 "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -2945,13 +2944,12 @@ EOF
           println "DEBUG" "\nDo you want to sign ${otx_type} with: ${FG_CYAN}${otx_signing_name}${NC} ?"
           select_opt "[y] Yes" "[n] No"
           case $? in
-            0) [[ ${ENABLE_DIALOG} = "true" ]] && waitForInput "Press any key to open the file explorer"
-               [[ ${otx_signing_name} = "Wallet "* ]] && dialog_start_path="${WALLET_FOLDER}" || dialog_start_path="${POOL_FOLDER}"
+            0) [[ ${otx_signing_name} = "Pool "* ]] && dialog_start_path="${POOL_FOLDER}" || dialog_start_path="${WALLET_FOLDER}"
                fileDialog 0 "Enter path to ${otx_signing_name}" "${dialog_start_path}/"
                [[ ! -f "${file}" ]] && println "ERROR" "${FG_RED}ERROR${NC}: file not found: ${file}" && waitForInput && continue 2
                otx_vkey_cborHex="$(_jq '.vkey.cborHex')"
                if [[ $(jq -r '.description' "${file}") = *"Hardware"* ]]; then
-                 if ! grep -e "${otx_vkey_cborHex:4}" "${file}"; then # strip 5820 prefix
+                 if ! grep -q "${otx_vkey_cborHex:4}" "${file}"; then # strip 5820 prefix
                    println "ERROR" "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
                    println "ERROR" "Provided hardware signing key's verification cborXPubKeyHex: $(jq -r .cborXPubKeyHex "${file}")"
                    println "ERROR" "Transaction verification cborHex: ${otx_vkey_cborHex:4}"
@@ -2990,6 +2988,7 @@ EOF
           fi
         else
           println "Offline transaction need to be signed by ${FG_CYAN}$(jq -r '."signing-file" | length' <<< "${offlineJSON}")${NC} signing keys, only signed by ${FG_CYAN}$(jq -r '.witness | length' <<< "${offlineJSON}")${NC} so far!"
+          jq -r . <<< "${offlineJSON}" > "${offline_tx}"
         fi
         ;;
       *) println "ERROR" "${FG_RED}ERROR${NC}: unsupported offline tx type: ${otx_type}" && waitForInput && continue ;;
@@ -3062,7 +3061,9 @@ EOF
         [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println "DEBUG" "Pledge           : ${FG_CYAN}$(formatAda "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")${NC} Ada"
         [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println "DEBUG" "Margin           : ${FG_CYAN}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
         [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println "DEBUG" "Cost             : ${FG_CYAN}$(formatAda "$(jq -r '."pool-cost"' <<< ${offlineJSON})")${NC} Ada"
+        
         tx_signed="${TMP_FOLDER}/tx.signed_$(date +%s)"
+        
         println "DEBUG" "\nProceed to submit transaction?"
         select_opt "[y] Yes" "[n] No"
         case $? in
@@ -3071,6 +3072,16 @@ EOF
         esac
         echo -e "${otx_signed_txBody}" > "${tx_signed}"
         if ! submitTx "${tx_signed}"; then waitForInput && continue; fi
+        
+        if [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]]; then
+          if otx_pool_name=$(jq -er '."pool-name"' <<< ${offlineJSON}); then
+            if ! jq '."pool-reg-cert"' <<< "${offlineJSON}" > "${POOL_FOLDER}/${otx_pool_name}/${POOL_REGCERT_FILENAME}"; then println "ERROR" "${FG_RED}ERROR${NC}: failed to write pool cert to disk"; fi
+            [[ -f "${POOL_FOLDER}/${otx_pool_name}/${POOL_DEREGCERT_FILENAME}" ]] && rm -f "${POOL_FOLDER}/${otx_pool_name}/${POOL_DEREGCERT_FILENAME}" # delete de-registration cert if available
+          else
+            println "ERROR" "${FG_RED}ERROR${NC}: field 'pool-name' not found in: ${offline_tx}"
+          fi
+        fi
+        
         echo
         println "Offline transaction successfully submitted and set to be included in next block!"
         echo 

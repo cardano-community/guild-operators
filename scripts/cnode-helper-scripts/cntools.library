@@ -59,19 +59,24 @@ logln() {
 #                             ACTION : e.g cardano-cli executions etc, logged but not printed to tty
 #                             ERROR  : stderr output and error messages
 #             : message    >  The message to print/log
-println() {
+println() {  
   sleep 0.05 # hack, sleep 50ms before each print to preserve order of execution
   local log_level=$1
   shift
   case $log_level in
-    OFF) echo -e "$@" >&6 ;;
+    OFF) distanceToBottom; echo -e "$@" >&6 ;;
     LOG) logln "DEBUG" "$@" ;;
-    DEBUG) echo -e "$@" >&6; logln "DEBUG" "$@" ;;
-    INFO) echo -e "$@" ;;
+    DEBUG) distanceToBottom; echo -e "$@" >&6; logln "DEBUG" "$@" ;;
+    INFO) distanceToBottom; echo -e "$@" ;;
     ACTION) logln "ACTION" "$@" ;;
-    ERROR) echo -e "$@" >&2 ;;
-    *) echo -e "${log_level}" "$@" ;;
+    ERROR) distanceToBottom; echo -e "$@" >&2 ;;
+    *) distanceToBottom; echo -e "${log_level}" "$@" ;;
   esac
+}
+
+# '\n\n\n\n\n\033[6A' create some distance to bottom of screen
+distanceToBottom() {
+  [[ $(( $(tput lines) - $(get_cursor_row) )) -lt 5 ]] && printf '\n\n\n\n\n\033[5A' >&6
 }
 
 # Command     : archiveLog
@@ -90,6 +95,7 @@ archiveLog() {
 # Parameters  : message  >  [optional]: override default 'press any key to return to home menu' message
 waitForInput() {
   exec >&6 # normal stdout
+  distanceToBottom
   tput sc
   ESC=$(printf "\033")
   echo
@@ -1577,19 +1583,21 @@ registerPool() {
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Pool Registration"; then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"pool-name\": \"${pool_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-metadata\": $(jq -c . "${pool_meta_file}") }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-pledge\": ${pledge_ada} }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-margin\": \"${margin}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-cost\": ${cost_ada} }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"pool-reg-cert\": $(jq -c . "${pool_regcert_file}") }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: $(( min_fee + poolDeposit )) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     for index in "${!owner_wallets[@]}"; do
       if [[ ${index} -eq 0 ]]; then
-        if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Owner #$((index+1)) '${wallet_name}' payment signing key\", vkey: $(jq -c . "${owner_payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+        if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Owner #1 '${owner_wallets[0]}' payment signing key\", vkey: $(jq -c . "${owner_payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
       fi
       stake_vk_file="${WALLET_FOLDER}/${owner_wallets[${index}]}/${WALLET_STAKE_VK_FILENAME}"
-      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Owner #$((index+1)) '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Owner #$((index+1)) '${owner_wallets[${index}]}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     done
     [[ ${delegate_reward_wallet} = 'Y' && ${reward_mu} = 'N' ]] && if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Reward wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${reward_stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
@@ -1673,19 +1681,21 @@ modifyPool() {
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Pool Update"; then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"pool-name\": \"${pool_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-metadata\": $(jq -c . "${pool_meta_file}") }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-pledge\": ${pledge_ada} }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-margin\": \"${margin}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-cost\": ${cost_ada} }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"pool-reg-cert\": $(jq -c . "${pool_regcert_file}") }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: ${min_fee} }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     for index in "${!owner_wallets[@]}"; do
       if [[ ${index} -eq 0 ]]; then
-        if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Owner #$((index+1)) '${wallet_name}' payment signing key\", vkey: $(jq -c . "${owner_payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+        if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Owner #1 '${owner_wallets[0]}' payment signing key\", vkey: $(jq -c . "${owner_payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
       fi
       stake_vk_file="${WALLET_FOLDER}/${owner_wallets[${index}]}/${WALLET_STAKE_VK_FILENAME}"
-      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Owner #$((index+1)) '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Owner #$((index+1)) '${owner_wallets[${index}]}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     done
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { witness: [] }" <<< ${offlineJSON}); then return 1; fi
@@ -1926,7 +1936,7 @@ witnessTx() {
         --out-file "${tx_witness}"
       )
       println "ACTION" "${witness_command[@]}"
-      if ! ${witness_command[@]}; then return 1; fi
+      if ! output=$(${witness_command[@]}) || [[ -n ${output} ]]; then println "ERROR" "${FG_RED}ERROR${NC}: during hw wallet signing:\n${output}" && return 1; fi # cardano-hw-cli seem to return with exit code 0 even on failure
       jq ".type = \"${ERA_WITNESS}\"" "${tx_witness}" > "${tx_witness}.tmp" && mv -f "${tx_witness}.tmp" "${tx_witness}" # due to cardano-hw-cli bug, not setting era type correctly
     elif [[ -f "${skey}" ]]; then
       tx_witness="$(mktemp "${TMP_FOLDER}/tx.witness_XXXXXXXXXX")"
