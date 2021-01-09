@@ -2022,23 +2022,21 @@ EOF
         select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
         case $? in
           0) break ;;
-          1) if [[ ${op_mode} = "online" ]]; then
-               if selectWallet "delegate" "${WALLET_STAKE_VK_FILENAME}" "${owner_wallets[@]}"; then # ${wallet_name} populated by selectWallet function
-                 getWalletType ${wallet_name}
-                 case $? in
-                   0) hw_owner_wallets='Y' ;;
-                   2) [[ ! -f "${stake_sk_file}" ]] && println "ERROR" "${FG_RED}ERROR${NC}: stake signing key encrypted, please decrypt before use!" && waitForInput && println "DEBUG" "Add more owners?" && continue ;;
-                   3) if [[ -f "${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_STAKE_SK_FILENAME}" ]]; then # hw stake signing key available but not payment, this is ok
-                        hw_owner_wallets='Y'
-                      elif [[ ! -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}" ]]; then # hw or cli stake signing key not available, not good :(
-                        println "ERROR" "${FG_RED}ERROR${NC}: stake signing key missing from wallet!" && waitForInput && println "DEBUG" "Add more owners?" && continue
-                      fi ;;
-                 esac
-               else
-                 println "DEBUG" "Add more owners?" && continue
-               fi
+          1) if selectWallet "delegate" "${WALLET_STAKE_VK_FILENAME}" "${owner_wallets[@]}"; then # ${wallet_name} populated by selectWallet function
+               getWalletType ${wallet_name}
+               case $? in
+                 0) hw_owner_wallets='Y' ;;
+                 2) if [[ ${op_mode} = "online" ]]; then
+                      println "ERROR" "${FG_RED}ERROR${NC}: signing keys encrypted for wallet ${FG_GREEN}${wallet_name}${NC}, please decrypt before use!"
+                      waitForInput && continue 2
+                    fi ;;
+                 3) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
+                    waitForInput "Did you mean to run in Hybrid mode?  press any key to return home!" && continue 2 ;;
+                 4) println "ERROR" "${FG_RED}ERROR${NC}: stake verification key missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
+                    println "DEBUG" "Add another owner?" && continue ;;
+               esac
              else
-               if ! selectWallet "delegate" "${WALLET_STAKE_VK_FILENAME}" "${owner_wallets[@]}"; then println "DEBUG" "Add more owners?" && continue; fi
+               println "DEBUG" "Add more owners?" && continue
              fi
              owner_wallets+=( "${wallet_name}" )
              println "DEBUG" "Owner #${#owner_wallets[@]} : ${FG_GREEN}${wallet_name}${NC} added!"
@@ -2068,8 +2066,8 @@ EOF
              getWalletType ${reward_wallet}
              case $? in
                0) hw_reward_wallet='Y' ;;
-               2) println "ERROR" "${FG_RED}ERROR${NC}: stake signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-               3) println "ERROR" "${FG_RED}ERROR${NC}: stake signing keys missing from wallet!" && waitForInput && continue ;;
+               2) println "ERROR" "${FG_RED}ERROR${NC}: stake signing key encrypted, please decrypt before use!" && waitForInput && continue ;;
+               3) println "ERROR" "${FG_RED}ERROR${NC}: stake signing key missing from wallet!" && waitForInput && continue ;;
              esac
              getBaseAddress ${reward_wallet}
              getBalance ${base_addr}
@@ -2145,7 +2143,7 @@ EOF
     delegate_owner_wallet='N'
     if [[ ${SUBCOMMAND} = "register" ]]; then
       if [[ ${hw_owner_wallets} = 'Y' || ${hw_reward_wallet} = 'Y' ]]; then
-        println "DEBUG" "${FG_BLUE}INFO${NC}: hardware wallet included as reward or multi-owner, automatic owner/reward wallet delegation disabled"
+        println "DEBUG" "\n${FG_BLUE}INFO${NC}: hardware wallet included as reward or multi-owner, automatic owner/reward wallet delegation disabled"
         println "DEBUG" "${FG_BLUE}INFO${NC}: ${FG_YELLOW}please manually delegate all wallets to the pool!!!${NC}"
         waitForInput "press any key to continue"
       else
@@ -2817,7 +2815,7 @@ EOF
   println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   println " >> TRANSACTION"
   println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  println "OFF" " Handle Funds\n\n"\
+  println "OFF" " Transaction Management\n\n"\
 " ) Sign    - witness/sign offline tx with signing keys\n"\
 " ) Submit  - submit signed offline tx to blockchain\n"\
 "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -2946,8 +2944,7 @@ EOF
           println "DEBUG" "\nDo you want to sign ${otx_type} with: ${FG_CYAN}${otx_signing_name}${NC} ?"
           select_opt "[y] Yes" "[n] No"
           case $? in
-            0) [[ ${ENABLE_DIALOG} = "true" ]] && waitForInput "Press any key to open the file explorer"
-               [[ ${otx_signing_name} = "Pool "* ]] && dialog_start_path="${POOL_FOLDER}" || dialog_start_path="${WALLET_FOLDER}"
+            0) [[ ${otx_signing_name} = "Pool "* ]] && dialog_start_path="${POOL_FOLDER}" || dialog_start_path="${WALLET_FOLDER}"
                fileDialog 0 "Enter path to ${otx_signing_name}" "${dialog_start_path}/"
                [[ ! -f "${file}" ]] && println "ERROR" "${FG_RED}ERROR${NC}: file not found: ${file}" && waitForInput && continue 2
                otx_vkey_cborHex="$(_jq '.vkey.cborHex')"
