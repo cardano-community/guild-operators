@@ -1973,7 +1973,6 @@ EOF
            ;;
         2) continue ;;
       esac
-      echo
     fi
 
     if [[ ${reuse_wallets} = 'N' ]]; then
@@ -2013,7 +2012,6 @@ EOF
       fi
       owner_wallets+=( "${wallet_name}" )
       println "DEBUG" "Owner #1 : ${FG_GREEN}${wallet_name}${NC} added!"
-      echo
     fi
     
     if [[ ${reuse_wallets} = 'N' ]]; then
@@ -2045,7 +2043,6 @@ EOF
         esac
         println "DEBUG" "Add more owners?"
       done
-      echo
     fi
 
     if [[ ${reuse_wallets} = 'N' ]]; then
@@ -2085,7 +2082,6 @@ EOF
            ;;
         2) continue ;;
       esac
-      echo
     fi
 
     multi_owner_output=""
@@ -2124,7 +2120,7 @@ EOF
         println "ACTION" "${CCLI} node issue-op-cert --kes-verification-key-file \"${pool_hotkey_vk_file}\" --cold-signing-key-file \"${pool_coldkey_sk_file}\" --operational-certificate-issue-counter-file \"${pool_opcert_counter_file}\" --kes-period \"${current_kes_period}\" --out-file \"${pool_opcert_file}\""
         ${CCLI} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}"
       else
-        println "DEBUG" "${FG_YELLOW}Pool operational certificate not generated in hybrid mode,"
+        println "DEBUG" "\n${FG_YELLOW}Pool operational certificate not generated in hybrid mode,"
         println "DEBUG" "please use 'Pool >> Rotate' in offline mode to generate new hot keys, op cert and KES start period and transfer to online node!${NC}"
         println "DEBUG" "Files generated when running 'Pool >> Rotate' to be transferred:"
         println "DEBUG" "${FG_CYAN}${pool_hotkey_vk_file}${NC}"
@@ -2172,7 +2168,7 @@ EOF
       [[ -f "${pool_regcert_file}.tmp" ]] && rm -f "${pool_regcert_file}.tmp" # remove backup of old reg cert if it exist (modify)
       [[ -f "${pool_deregcert_file}" ]] && rm -f "${pool_deregcert_file}" # delete de-registration cert if available
     else # rc=1 failed | rc=2 used for offline mode, treat as failed for now, files written on submission
-      [[ $rc -eq 1 ]] && echo && println "ERROR" "${FG_RED}ERROR${NC}: failure during pool ${SUBCOMMAND}!"
+      [[ $rc -eq 1 ]] && echo && println "ERROR" "\n${FG_RED}ERROR${NC}: failure during pool ${SUBCOMMAND}!"
       if [[ ${SUBCOMMAND} = "register" ]]; then
         [[ -f "${pool_regcert_file}" ]] && rm -f "${pool_regcert_file}"
       else
