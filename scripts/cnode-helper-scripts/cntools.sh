@@ -2053,7 +2053,7 @@ EOF
       select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
       case $? in
         0) reward_wallet="${owner_wallets[0]}" ;;
-        1) if ! selectWallet "none" "${WALLET_STAKE_VK_FILENAME}" "${owner_wallets[@]}"; then # ${wallet_name} populated by selectWallet function
+        1) if ! selectWallet "none" "${WALLET_STAKE_VK_FILENAME}" "${owner_wallets[0]}"; then # ${wallet_name} populated by selectWallet function
              [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
            fi
            reward_wallet="${wallet_name}"
@@ -2967,6 +2967,7 @@ EOF
                fi
                if ! witnessTx "${TMP_FOLDER}/tx.raw" "${file}"; then waitForInput && continue 2; fi
                if ! offlineJSON=$(jq ".witness += [{ name: \"${otx_signing_name}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
+               jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
                ;;
             1) continue ;;
           esac
@@ -2988,7 +2989,6 @@ EOF
           fi
         else
           println "Offline transaction need to be signed by ${FG_CYAN}$(jq -r '."signing-file" | length' <<< "${offlineJSON}")${NC} signing keys, only signed by ${FG_CYAN}$(jq -r '.witness | length' <<< "${offlineJSON}")${NC} so far!"
-          jq -r . <<< "${offlineJSON}" > "${offline_tx}"
         fi
         ;;
       *) println "ERROR" "${FG_RED}ERROR${NC}: unsupported offline tx type: ${otx_type}" && waitForInput && continue ;;

@@ -69,8 +69,8 @@ println() {
     DEBUG) distanceToBottom; echo -e "$@" >&6; logln "DEBUG" "$@" ;;
     INFO) distanceToBottom; echo -e "$@" ;;
     ACTION) logln "ACTION" "$@" ;;
-    ERROR) distanceToBottom; echo -e "$@" >&2 ;;
-    *) distanceToBottom; echo -e "${log_level}" "$@" ;;
+    ERROR) echo -e "$@" >&2 ;;
+    *) echo -e "${log_level}" "$@" ;;
   esac
 }
 
