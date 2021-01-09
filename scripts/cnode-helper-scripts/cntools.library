@@ -64,19 +64,20 @@ println() {
   local log_level=$1
   shift
   case $log_level in
-    OFF) distanceToBottom; echo -e "$@" >&6 ;;
+    OFF) echo -e "$@" >&6 ;;
     LOG) logln "DEBUG" "$@" ;;
-    DEBUG) distanceToBottom; echo -e "$@" >&6; logln "DEBUG" "$@" ;;
-    INFO) distanceToBottom; echo -e "$@" ;;
+    DEBUG) echo -e "$@" >&6; logln "DEBUG" "$@" ;;
+    INFO) echo -e "$@" ;;
     ACTION) logln "ACTION" "$@" ;;
-    ERROR) distanceToBottom; echo -e "$@" >&2 ;;
-    *) distanceToBottom; echo -e "${log_level}" "$@" ;;
+    ERROR) echo -e "$@" >&2 ;;
+    *) echo -e "${log_level}" "$@" ;;
   esac
 }
 
-# '\n\n\n\n\n\033[6A' create some distance to bottom of screen
-distanceToBottom() {
-  [[ $(( $(tput lines) - $(get_cursor_row) )) -lt 5 ]] && printf '\n\n\n\n\n\033[5A' >&6
+# Command     : distanceToBottom [rows]
+# Description : print blank rows and reset cursor position
+createDistanceToBottom() {
+  printf "%0.s\n" $(seq $1) >&6; printf "\033[$1A" >&6
 }
 
 # Command     : archiveLog
@@ -95,14 +96,14 @@ archiveLog() {
 # Parameters  : message  >  [optional]: override default 'press any key to return to home menu' message
 waitForInput() {
   exec >&6 # normal stdout
-  distanceToBottom
+  createDistanceToBottom $(( $# + 1 ))
   tput sc
   ESC=$(printf "\033")
   echo
-  if [[ -z $1 ]]; then
+  if [[ $# -eq 0 ]]; then
     echo "press any key to return to home menu"
   else
-    echo -e "$1"
+    echo -e "$@"
   fi
   read -rsn1 key # get 1 character
   if [[ $key == $ESC ]]; then
@@ -224,16 +225,7 @@ inputbox_border2_color = button_inactive_color
 EOF
 }
 
-dialogHelp() {
-  println "OFF" "\nFile Explorer:"
-  println "OFF" "  Tab        -  Select area to navigate"
-  println "OFF" "  Arrow keys -  Move up/down"
-  println "OFF" "  Space      -  Append the currently-selected item into the work-area"
-  println "OFF" "  Enter      -  OK and exit by default if not Cancel is selected"
-  waitForInput "Press any key to open the file explorer"
-}
-
-# Command     : fileDialog [show help] [title] [optional: start path]
+# Command     : fileDialog [title] [optional: start path]
 # Description : open a file dialog
 # Parameters  : show help  >  [0=no|1=yes] print dialog help text
 #             : title      >  The dialog title text
@@ -245,11 +237,8 @@ fileDialog() {
     return
   fi
   dialogSetup
-  tput sc
   [[ -n $3 ]] && start_path="$3" || start_path="/tmp/"
-  [[ $1 -eq 1 ]] && dialogHelp
   file=$(dialog --stdout --clear --keep-tite --title "$2" --fselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)))
-  tput rc && tput ed
   exec >&8 # custom stdout
 }
 # Command     : dirDialog [show help] [title] [optional: start dir]
@@ -264,11 +253,8 @@ dirDialog() {
     return
   fi
   dialogSetup
-  tput sc
   [[ -n $3 ]] && start_path="$3/" || start_path="/tmp/"
-  [[ $1 -eq 1 ]] && dialogHelp
   dir=$(dialog --stdout --clear --keep-tite --title "$2" --dselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)))
-  tput rc && tput ed
   exec >&8 # custom stdout
 }
 
@@ -438,8 +424,9 @@ selectWallet() {
   mode=$1 && shift
   if ! getDirs "${WALLET_FOLDER}"; then return 1; fi # dirs() array populated with all wallet folders
   if [[ ${CNTOOLS_MODE} = "CONNECTED" && ${mode} != "none" ]]; then
+    tput sc
     wallet_count=${#dirs[@]}
-    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && tput sc && println "OFF" "Balance checking wallets..."
+    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && println "OFF" "Balance checking wallets..."
   fi
   for dir in "${dirs[@]}"; do
     for arg in "$@"; do # check if wallet is missing a required file or name matches execution, if so hide it
@@ -2064,8 +2051,7 @@ submitTx() {
 # Description : Directions to unlock and open HW device
 # Parameters  : action  >  message for action to be taken
 unlockHWDevice() {
-  waitForInput "${FG_BLUE}INFO${NC}: please connect and unlock hardware device\n  Ledger : Unlock with pin and open Cardano app\n  Trezor : Make sure trezor bridge is installed (https://wallet.trezor.io/#/bridge) \n\nwhen done, press any key to continue"
-  
+  waitForInput "${FG_BLUE}INFO${NC}: please connect and unlock hardware device" "  ${FG_CYAN}Ledger${NC} - Unlock with pin and open Cardano app" "  ${FG_CYAN}Trezor${NC} - Make sure trezor bridge is installed (https://wallet.trezor.io/#/bridge) " "" "when done, press any key to continue"
   println "ACTION" "cardano-hw-cli device version | cut -d' ' -f4"
   device_app_version="$(cardano-hw-cli device version | cut -d' ' -f4)"
   if [[ ! ${device_app_version} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then

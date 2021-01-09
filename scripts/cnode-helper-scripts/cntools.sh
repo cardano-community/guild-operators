@@ -2053,7 +2053,7 @@ EOF
       select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
       case $? in
         0) reward_wallet="${owner_wallets[0]}" ;;
-        1) if ! selectWallet "none" "${WALLET_STAKE_VK_FILENAME}" "${owner_wallets[@]}"; then # ${wallet_name} populated by selectWallet function
+        1) if ! selectWallet "none" "${WALLET_STAKE_VK_FILENAME}" "${owner_wallets[0]}"; then # ${wallet_name} populated by selectWallet function
              [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
            fi
            reward_wallet="${wallet_name}"
@@ -2836,7 +2836,7 @@ EOF
     println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
     [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter path to offline tx file to sign" && waitForInput "Press any key to open the file explorer"
-    fileDialog 0 "Enter path to offline tx file to sign" "${TMP_FOLDER}/"
+    fileDialog "Enter path to offline tx file to sign" "${TMP_FOLDER}/"
     println "DEBUG" "${FG_CYAN}${file}${NC}\n"
     offline_tx=${file}
     [[ -z "${offline_tx}" ]] && continue
@@ -2892,7 +2892,7 @@ EOF
           println "DEBUG" "\n# Sign the transaction with: ${FG_CYAN}${otx_signing_name}${NC}"
           [[ ${ENABLE_DIALOG} = "true" ]] && waitForInput "Press any key to open the file explorer"
           [[ ${otx_signing_name} = "Wallet "* ]] && dialog_start_path="${WALLET_FOLDER}" || dialog_start_path="${POOL_FOLDER}"
-          fileDialog 0 "Enter path to ${otx_signing_name}" "${dialog_start_path}/"
+          fileDialog "Enter path to ${otx_signing_name}" "${dialog_start_path}/"
           [[ ! -f "${file}" ]] && println "ERROR" "${FG_RED}ERROR${NC}: file not found: ${file}" && waitForInput && continue 2
           otx_vkey_cborHex="$(_jq '.vkey.cborHex')"
           if [[ $(jq -r '.description' "${file}") = *"Hardware"* ]]; then
@@ -2945,7 +2945,7 @@ EOF
           select_opt "[y] Yes" "[n] No"
           case $? in
             0) [[ ${otx_signing_name} = "Pool "* ]] && dialog_start_path="${POOL_FOLDER}" || dialog_start_path="${WALLET_FOLDER}"
-               fileDialog 0 "Enter path to ${otx_signing_name}" "${dialog_start_path}/"
+               fileDialog "Enter path to ${otx_signing_name}" "${dialog_start_path}/"
                [[ ! -f "${file}" ]] && println "ERROR" "${FG_RED}ERROR${NC}: file not found: ${file}" && waitForInput && continue 2
                otx_vkey_cborHex="$(_jq '.vkey.cborHex')"
                if [[ $(jq -r '.description' "${file}") = *"Hardware"* ]]; then
@@ -2967,6 +2967,7 @@ EOF
                fi
                if ! witnessTx "${TMP_FOLDER}/tx.raw" "${file}"; then waitForInput && continue 2; fi
                if ! offlineJSON=$(jq ".witness += [{ name: \"${otx_signing_name}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
+               jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
                ;;
             1) continue ;;
           esac
@@ -2988,7 +2989,6 @@ EOF
           fi
         else
           println "Offline transaction need to be signed by ${FG_CYAN}$(jq -r '."signing-file" | length' <<< "${offlineJSON}")${NC} signing keys, only signed by ${FG_CYAN}$(jq -r '.witness | length' <<< "${offlineJSON}")${NC} so far!"
-          jq -r . <<< "${offlineJSON}" > "${offline_tx}"
         fi
         ;;
       *) println "ERROR" "${FG_RED}ERROR${NC}: unsupported offline tx type: ${otx_type}" && waitForInput && continue ;;
@@ -3011,7 +3011,7 @@ EOF
     fi
     echo
     [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter path to offline tx file to submit" && waitForInput "Press any key to open the file explorer"
-    fileDialog 0 "Enter path to offline tx file to submit" "${TMP_FOLDER}/"
+    fileDialog "Enter path to offline tx file to submit" "${TMP_FOLDER}/"
     println "DEBUG" "${FG_CYAN}${file}${NC}\n"
     offline_tx=${file}
     [[ -z "${offline_tx}" ]] && continue
@@ -3130,7 +3130,7 @@ EOF
   esac
 
   if [[ ${metatype} = "cbor" ]]; then
-    fileDialog 0 "Enter path to raw CBOR metadata file"
+    fileDialog "Enter path to raw CBOR metadata file"
     metafile="${file}"
     println "DEBUG" "${metafile}\n"
   else
@@ -3139,7 +3139,7 @@ EOF
     select_opt "[f] File" "[u] URL" "[e] Enter"
     case $? in
       0) tput sc
-         fileDialog 0 "Enter path to JSON metadata file"
+         fileDialog "Enter path to JSON metadata file"
          metafile="${file}"
          if [[ ! -f "${metafile}" ]] || ! jq -er . "${metafile}" &>/dev/null; then
            println "ERROR" "${FG_RED}ERROR${NC}: invalid JSON format or file not found"
@@ -3548,7 +3548,7 @@ EOF
   case $? in
     0) echo
        [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter backup directory (created if non existent)" && waitForInput "Press any key to open the file explorer"
-       dirDialog 0 "Enter backup directory (created if non existent)"
+       dirDialog "Enter backup directory (created if non existent)"
        [[ "${dir}" != */ ]] && backup_path="${dir}/" || backup_path="${dir}"
        println "DEBUG" "${FG_GREEN}${backup_path}${NC}\n"
        if [[ ! "${backup_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
@@ -3660,7 +3660,7 @@ EOF
        println "DEBUG" "Restoring a backup does not replace existing files"
        println "DEBUG" "Please restore to a temporary directory and copy files to restore to appropriate folders\n"
        [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter file to restore" && waitForInput "Press any key to open the file explorer"
-       fileDialog 0 "Enter backup file to restore"
+       fileDialog "Enter backup file to restore"
        backup_file=${file}
        if [[ ! -f "${backup_file}" ]]; then
          println "ERROR" "${FG_RED}ERROR${NC}: file not found: ${backup_file}"
@@ -3668,7 +3668,7 @@ EOF
        fi
        println "DEBUG" "${FG_GREEN}${backup_file}${NC}\n"
        [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter restore directory (created if non existent)" && waitForInput "Press any key to open the file explorer"
-       dirDialog 0 "Enter restore directory (created if non existent)"
+       dirDialog "Enter restore directory (created if non existent)"
        [[ "${dir}" != */ ]] && restore_path="${dir}/" || restore_path="${dir}"
        if [[ ! "${restore_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
          println "ERROR" "${FG_RED}ERROR${NC}: invalid path, please specify the full path to restore directory (space not allowed):"
