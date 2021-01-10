@@ -2,9 +2,7 @@
 #shellcheck disable=SC2086
 #shellcheck source=/dev/null
 
-[[ -z "${CNODE_HOME}" ]] && CNODE_HOME="/opt/cardano/cnode"
-
-. "${CNODE_HOME}"/scripts/env
+. "$(dirname $0)"/env offline # source env in offline mode to get basic variables, sourced in online mode later in cncliInit()
 
 ######################################
 # User Variables - Change as desired #
@@ -206,9 +204,12 @@ cncliInit() {
   
   if ! command -v sqlite3 >/dev/null; then echo "ERROR: sqlite3 not found, please install before activating blocklog function" && exit 1; fi
 
-  PARENT="$(dirname $0)"  
+  PARENT="$(dirname $0)"
   if [[ ! -f "${PARENT}"/env ]]; then echo "ERROR: could not find common env file, please download and run 'prereqs.sh -h' to show options" && exit 1; fi
-  if ! . "${PARENT}"/env; then exit 1; fi
+  until . "${PARENT}"/env; do
+    echo "sleeping for 10s and testing again..."
+    sleep 10
+  done
   
   if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
     vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")

@@ -1576,6 +1576,7 @@ registerPool() {
     if ! offlineJSON=$(jq ". += { \"pool-margin\": \"${margin}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-cost\": ${cost_ada} }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-reg-cert\": $(jq -c . "${pool_regcert_file}") }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"witness-era\": \"${ERA_WITNESS}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: $(( min_fee + poolDeposit )) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
@@ -1674,6 +1675,7 @@ modifyPool() {
     if ! offlineJSON=$(jq ". += { \"pool-margin\": \"${margin}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-cost\": ${cost_ada} }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-reg-cert\": $(jq -c . "${pool_regcert_file}") }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"witness-era\": \"${ERA_WITNESS}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: ${min_fee} }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
@@ -1909,6 +1911,7 @@ buildTx() {
 witnessTx() {
   tx_raw="$1"
   shift
+  [[ -n ${ERA_WITNESS} ]] && witness_era="${ERA_WITNESS}" || witness_era="${otx_witness_era}" # ERA_WITNESS empty in offline mode, otx_witness_era comes from offline tx (pool reg/mod)
   tx_witness_files=()
   for skey in "$@"; do
     [[ -z ${skey//[[:blank:]]/} ]] && continue
@@ -1924,7 +1927,7 @@ witnessTx() {
       )
       println "ACTION" "${witness_command[@]}"
       if ! output=$(${witness_command[@]}) || [[ -n ${output} ]]; then println "ERROR" "${FG_RED}ERROR${NC}: during hw wallet signing:\n${output}" && return 1; fi # cardano-hw-cli seem to return with exit code 0 even on failure
-      jq ".type = \"${ERA_WITNESS}\"" "${tx_witness}" > "${tx_witness}.tmp" && mv -f "${tx_witness}.tmp" "${tx_witness}" # due to cardano-hw-cli bug, not setting era type correctly
+      jq ".type = \"${witness_era}\"" "${tx_witness}" > "${tx_witness}.tmp" && mv -f "${tx_witness}.tmp" "${tx_witness}" # due to cardano-hw-cli bug, not setting era type correctly
     elif [[ -f "${skey}" ]]; then
       tx_witness="$(mktemp "${TMP_FOLDER}/tx.witness_XXXXXXXXXX")"
       witness_command=(

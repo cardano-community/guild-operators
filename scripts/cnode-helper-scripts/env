@@ -224,7 +224,8 @@ getEraIdentifier() {
   elif ${CCLI} query protocol-parameters --shelley-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--shelley-era" && ERA_WITNESS="TxWitness ShelleyEra"
   elif ${CCLI} query protocol-parameters --allegra-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--allegra-era" && ERA_WITNESS="TxWitness AllegraEra"
   elif ${CCLI} query protocol-parameters --mary-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--mary-era" && ERA_WITNESS="TxWitness MaryEra"
-  else ERA_IDENTIFIER="--shelley-era"; fi
+  elif [[ ${OFFLINE_MODE} = "Y" ]]; then ERA_IDENTIFIER=""
+  else echo "Failed to query protocol-parameters from node, not yet fully started?" && return 1; fi
 }
 getEraIdentifier
 
