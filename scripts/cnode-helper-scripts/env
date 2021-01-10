@@ -224,10 +224,13 @@ getEraIdentifier() {
   elif ${CCLI} query protocol-parameters --shelley-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--shelley-era" && ERA_WITNESS="TxWitness ShelleyEra"
   elif ${CCLI} query protocol-parameters --allegra-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--allegra-era" && ERA_WITNESS="TxWitness AllegraEra"
   elif ${CCLI} query protocol-parameters --mary-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--mary-era" && ERA_WITNESS="TxWitness MaryEra"
-  elif [[ ${OFFLINE_MODE} = "Y" ]]; then ERA_IDENTIFIER=""
-  else echo "Failed to query protocol-parameters from node, not yet fully started?" && return 1; fi
+  else 
+    ERA_IDENTIFIER=""
+    [[ ${OFFLINE_MODE} = "N" ]] && return 1
+  fi
+  return 0
 }
-getEraIdentifier
+if ! getEraIdentifier && [[ ${OFFLINE_MODE} = "N" ]]; then echo "Failed to query protocol-parameters from node, not yet fully started?" && return 1; fi
 
 PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>&1)"
 if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -er .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi

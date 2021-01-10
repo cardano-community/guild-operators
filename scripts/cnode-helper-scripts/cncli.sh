@@ -221,7 +221,7 @@ cncliInit() {
   # Check if cncli.sh update is available
   [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
   URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
-  if curl -s -m 10 -o "${PARENT}"/cncli.sh.tmp ${URL}/cncli.sh; then
+  if curl -s -m ${CURL_TIMEOUT} -o "${PARENT}"/cncli.sh.tmp ${URL}/cncli.sh && [[ -f "${PARENT}"/cncli.sh.tmp ]]; then
     sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/cncli.sh.tmp
     TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/cncli.sh)
     TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/cncli.sh.tmp)

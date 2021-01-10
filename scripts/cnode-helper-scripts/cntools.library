@@ -163,6 +163,7 @@ safeDel() {
     println "ERROR" "${FG_RED}ERROR${NC}: delete failed for ${path}"
     return 1
   fi
+  return 0
 }
 
 # Command     : dialogSetup
@@ -542,6 +543,7 @@ selectPool() {
 # Return      : populates ${password} variable, make sure to unset variable when done
 getPassword() {
   exec >&6 # normal stdout
+  sleep 0.1
   while true; do
     readPassword "Enter password (length >= 8)"
     password=${read_password} && unset read_password
@@ -596,11 +598,15 @@ readPassword() {
 # Parameters  : file      >  Path for file to encrypt, will get a new .gpg file extention added to filename
 #             : password  >  Password to encrypt file with
 encryptFile() {
-  echo "${2}" | gpg --symmetric --yes --batch --cipher-algo AES256 --passphrase-fd 0 --output "${1}.gpg" "${1}" >/dev/null && \
+  exec >&6 # normal stdout
+  sleep 0.1
+  echo "${2}" | gpg --symmetric --yes --batch --cipher-algo AES256 --passphrase-fd 0 --output "${1}.gpg" "${1}" &>/dev/null && \
   safeDel "${1}" >/dev/null || {
+    exec >&8 # custom stdout
     println "ERROR" "${FG_RED}ERROR${NC}: failed to encrypt ${1}"
     return 1
   }
+  exec >&8 # custom stdout
   println "DEBUG" "${1} successfully encrypted"
 }
 
@@ -610,11 +616,15 @@ encryptFile() {
 # Parameters  : file      >  Path for file to decrypt, file extension .gpg required
 #             : password  >  Password to decrypt file with
 decryptFile() {
-  echo "${2}" | gpg --decrypt --batch --yes --passphrase-fd 0 --output "${1%.*}" "${1}" >/dev/null && \
+  exec >&6 # normal stdout
+  sleep 0.1
+  echo "${2}" | gpg --decrypt --batch --yes --passphrase-fd 0 --output "${1%.*}" "${1}" &>/dev/null && \
   rm -f "${1}" || {
+    exec >&8 # custom stdout
     println "ERROR" "${FG_RED}ERROR${NC}: failed to decrypt ${1}"
     return 1
   }
+  exec >&8 # custom stdout
   println "DEBUG" "${1} successfully decrypted"
 }
 
