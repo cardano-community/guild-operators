@@ -1921,7 +1921,7 @@ buildTx() {
 witnessTx() {
   tx_raw="$1"
   shift
-  [[ -n ${ERA_WITNESS} ]] && witness_era="${ERA_WITNESS}" || witness_era="${otx_witness_era}" # ERA_WITNESS empty in offline mode, otx_witness_era comes from offline tx (pool reg/mod)
+  [[ -n ${ERA_WITNESS} ]] && witness_era="${ERA_WITNESS}" || witness_era="${otx_witness_era}" # ERA_WITNESS empty in offline mode, otx_witness_era comes from offline tx (pool reg/mod Transaction >> Sign)
   tx_witness_files=()
   for skey in "$@"; do
     [[ -z ${skey//[[:blank:]]/} ]] && continue
