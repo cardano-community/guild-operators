@@ -2375,6 +2375,7 @@ EOF
     
     [[ -f "${pool_regcert_file}" ]] && rm -f ${pool_regcert_file} # delete registration cert
     
+    echo
     if ! verifyTx ${addr}; then waitForInput && continue; fi
     
     echo
