@@ -54,7 +54,7 @@ URL="${URL_RAW}/scripts/cnode-helper-scripts"
 URL_DOCS="${URL_RAW}/docs/Scripts"
 
 # get common env variables
-if curl -s -m ${CURL_TIMEOUT} -o "${PARENT}"/env.tmp ${URL}/env && [[ -f "${PARENT}"/env.tmp ]]; then
+if curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env && [[ -f "${PARENT}"/env.tmp ]]; then
   if [[ -f "${PARENT}"/env ]]; then
     if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
       vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
