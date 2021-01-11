@@ -54,7 +54,7 @@ URL="${URL_RAW}/scripts/cnode-helper-scripts"
 URL_DOCS="${URL_RAW}/docs/Scripts"
 
 # get common env variables
-if curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env; then
+if curl -s -m ${CURL_TIMEOUT} -o "${PARENT}"/env.tmp ${URL}/env && [[ -f "${PARENT}"/env.tmp ]]; then
   if [[ -f "${PARENT}"/env ]]; then
     if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
       vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
@@ -76,9 +76,9 @@ if curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env; then
   fi
 fi
 rm -f "${PARENT}"/env.tmp
-if ! . "${PARENT}"/env; then
-  [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && exit 1
-  myExit 1 "\nERROR: CNTools run in offline mode and failed to automatically grab common env variables\nPlease uncomment all variables in 'User Variables' section and set values manually\n"
+[[ ${CNTOOLS_MODE} = "CONNECTED" ]] && env_mode="" || env_mode="offline"
+if ! . "${PARENT}"/env ${env_mode}; then
+  myExit 1 "\nERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub\n"
 fi
 
 # get cntools config parameters
