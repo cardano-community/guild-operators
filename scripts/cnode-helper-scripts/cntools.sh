@@ -255,7 +255,7 @@ function main {
 while true; do # Main loop
 
 # Start with a clean slate after each completed or canceled command excluding .dialogrc from purge
-find "${TMP_FOLDER:?}" -type f -not \( -name 'protparams.json' -o -name '.dialogrc' -o -name "offline_tx*" \) -delete
+find "${TMP_FOLDER:?}" -type f -not \( -name 'protparams.json' -o -name '.dialogrc' -o -name "offline_tx*" -o -name "*_cntools_backup*" \) -delete
 
 clear
 println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -3573,9 +3573,9 @@ EOF
               "--delete *${WALLET_STAKE_SK_FILENAME}"
               "--delete *${POOL_COLDKEY_SK_FILENAME}"
             )
-            backup_file="${backup_path}online_cntools-$(date '+%Y%m%d%H%M%S').tar"
+            backup_file="${backup_path}online_cntools_backup-$(date '+%Y%m%d%H%M%S').tar"
             ;;
-         1) backup_file="${backup_path}offline_cntools-$(date '+%Y%m%d%H%M%S').tar" ;;
+         1) backup_file="${backup_path}offline_cntools_backup-$(date '+%Y%m%d%H%M%S').tar" ;;
        esac
        echo
        
@@ -3584,7 +3584,7 @@ EOF
          "${POOL_FOLDER}"
          "${BLOCKLOG_DIR}"
          "${CNODE_HOME}/files"
-         "${PARENT}"
+         "${CNODE_HOME}/scripts"
        )
        println "DEBUG" "Backup job include:"
        for item in "${backup_list[@]}"; do
@@ -3603,10 +3603,10 @@ EOF
          gzip "${backup_file}" && backup_file+=".gz"
          while IFS= read -r -d '' wallet; do # check for missing signing keys
            wallet_name=$(basename ${wallet})
-           [[ -z "$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name "${WALLET_PAY_SK_FILENAME}*" -print)" ]] && \
-             println "${FG_YELLOW}WARN${NC}: Wallet ${FG_GREEN}${wallet_name}${NC} missing file ${WALLET_PAY_SK_FILENAME}" && missing_keys="true"
-           [[ -z "$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name "${WALLET_STAKE_SK_FILENAME}*" -print)" ]] && \
-             println "${FG_YELLOW}WARN${NC}: Wallet ${FG_GREEN}${wallet_name}${NC} missing file ${WALLET_STAKE_SK_FILENAME}" && missing_keys="true"
+           [[ -z "$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f \( -name "${WALLET_PAY_SK_FILENAME}*" -o -name "${WALLET_HW_PAY_SK_FILENAME}" \) -print)" ]] && \
+             println "${FG_YELLOW}WARN${NC}: Wallet ${FG_GREEN}${wallet_name}${NC} missing payment signing key file" && missing_keys="true"
+           [[ -z "$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f \( -name "${WALLET_STAKE_SK_FILENAME}*" -o -name "${WALLET_HW_STAKE_SK_FILENAME}" \) -print)" ]] && \
+             println "${FG_YELLOW}WARN${NC}: Wallet ${FG_GREEN}${wallet_name}${NC} missing stake signing key file" && missing_keys="true"
          done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
          while IFS= read -r -d '' pool; do
            pool_name=$(basename ${pool})
@@ -3641,16 +3641,16 @@ EOF
               backup_file="${backup_file}.gpg"
               unset password
             else
-              println "ERROR" "${FG_RED}ERROR${NC}: password input aborted!"
+              println "ERROR" "\n${FG_RED}ERROR${NC}: password input aborted!"
             fi
             ;;
          1) : ;; # do nothing
        esac
-       echo
        
+       echo
        if [[ ${missing_keys} = "true" ]]; then
          println "DEBUG" "${FG_YELLOW}There are wallets and/or pools with missing keys.\nIf removed in a previous backup, make sure to keep that master backup safe!${NC}"
-         echo && println "Incremental backup file ${backup_file} successfully created"
+         println "\nIncremental backup file ${backup_file} successfully created"
        else
          println "Backup file ${backup_file} successfully created"
        fi
@@ -3674,11 +3674,11 @@ EOF
          println "ERROR" "${restore_path}"
          waitForInput && continue
        fi
-       println "DEBUG" "${FG_GREEN}${restore_path}${NC}\n"
+       println "DEBUG" "${FG_GREEN}${restore_path}${NC}"
        restore_path="${restore_path}$(basename ${backup_file%%.*})"
        mkdir -p "${restore_path}" # Create restore directory
        if [[ ! -d "${restore_path}" ]]; then
-         println "ERROR" "${FG_RED}ERROR${NC}: failed to create restore directory:"
+         println "ERROR" "\n${FG_RED}ERROR${NC}: failed to create restore directory:"
          println "ERROR" "${restore_path}"
          waitForInput && continue
        fi
@@ -3689,7 +3689,7 @@ EOF
            backup_file="${backup_file%.*}"
            unset password
          else
-           println "\n\n" && println "ERROR" "${FG_RED}ERROR${NC}: password input aborted!"
+           println "ERROR" "\n${FG_RED}ERROR${NC}: password input aborted!"
            waitForInput && continue
          fi
        fi
@@ -3697,8 +3697,7 @@ EOF
          println "ERROR" "${FG_RED}ERROR${NC}: failure during backup restore :("
          waitForInput && continue
        fi
-       echo
-       println "Backup successfully restored to ${restore_path}"
+       println "\nBackup successfully restored to ${restore_path}"
        ;;
     2) continue ;;
   esac
