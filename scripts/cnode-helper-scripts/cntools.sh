@@ -54,7 +54,7 @@ URL="${URL_RAW}/scripts/cnode-helper-scripts"
 URL_DOCS="${URL_RAW}/docs/Scripts"
 
 # get common env variables
-if curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env; then
+if curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env && [[ -f "${PARENT}"/env.tmp ]]; then
   if [[ -f "${PARENT}"/env ]]; then
     if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
       vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
@@ -76,9 +76,9 @@ if curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env; then
   fi
 fi
 rm -f "${PARENT}"/env.tmp
-if ! . "${PARENT}"/env; then
-  [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && exit 1
-  myExit 1 "\nERROR: CNTools run in offline mode and failed to automatically grab common env variables\nPlease uncomment all variables in 'User Variables' section and set values manually\n"
+[[ ${CNTOOLS_MODE} = "CONNECTED" ]] && env_mode="" || env_mode="offline"
+if ! . "${PARENT}"/env ${env_mode}; then
+  myExit 1 "\nERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub\n"
 fi
 
 # get cntools config parameters
@@ -113,6 +113,17 @@ if ! need_cmd "curl" || \
    ! protectionPreRequisites; then waitForInput "Missing one or more of the required command line tools, press any key to exit"; myExit 1
 fi
 
+if [[ "$CNTOOLS_PATCH_VERSION" -eq 999  ]]; then
+  # CNTools was updated using special 999 patch tag, apply correct version in cntools.library and update variables already sourced
+  sed -i "s/CNTOOLS_MAJOR_VERSION=[[:digit:]]\+/CNTOOLS_MAJOR_VERSION=$((++CNTOOLS_MAJOR_VERSION))/" "${PARENT}/cntools.library"
+  sed -i "s/CNTOOLS_MINOR_VERSION=[[:digit:]]\+/CNTOOLS_MINOR_VERSION=0/" "${PARENT}/cntools.library"
+  sed -i "s/CNTOOLS_PATCH_VERSION=[[:digit:]]\+/CNTOOLS_PATCH_VERSION=0/" "${PARENT}/cntools.library"
+  # CNTOOLS_MAJOR_VERSION variable already updated in sed replace command
+  CNTOOLS_MINOR_VERSION=0
+  CNTOOLS_PATCH_VERSION=0
+  CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
+fi
+
 # Do some checks when run in connected mode
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   # check to see if there are any updates available
@@ -128,16 +139,6 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       GIT_PATCH_VERSION=0
     fi
     GIT_VERSION="${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}"
-    if [[ "$CNTOOLS_PATCH_VERSION" -eq 999  ]]; then
-      # CNTools was updated using special 999 patch tag, apply correct version in cntools.library and update variables already sourced
-      sed -i "s/CNTOOLS_MAJOR_VERSION=[[:digit:]]\+/CNTOOLS_MAJOR_VERSION=$((++CNTOOLS_MAJOR_VERSION))/" "${PARENT}/cntools.library"
-      sed -i "s/CNTOOLS_MINOR_VERSION=[[:digit:]]\+/CNTOOLS_MINOR_VERSION=0/" "${PARENT}/cntools.library"
-      sed -i "s/CNTOOLS_PATCH_VERSION=[[:digit:]]\+/CNTOOLS_PATCH_VERSION=0/" "${PARENT}/cntools.library"
-      # CNTOOLS_MAJOR_VERSION variable already updated in sed replace command
-      CNTOOLS_MINOR_VERSION=0
-      CNTOOLS_PATCH_VERSION=0
-      CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
-    fi
     if ! versionCheck "${GIT_VERSION}" "${CNTOOLS_VERSION}"; then
       println "DEBUG" "A new version of CNTools is available"
       echo
@@ -2375,6 +2376,7 @@ EOF
     
     [[ -f "${pool_regcert_file}" ]] && rm -f ${pool_regcert_file} # delete registration cert
     
+    echo
     if ! verifyTx ${addr}; then waitForInput && continue; fi
     
     echo
@@ -2930,6 +2932,7 @@ EOF
         println "DEBUG" "Pledge           : ${FG_CYAN}$(formatAda "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")${NC} Ada"
         println "DEBUG" "Margin           : ${FG_CYAN}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
         println "DEBUG" "Cost             : ${FG_CYAN}$(formatAda "$(jq -r '."pool-cost"' <<< ${offlineJSON})")${NC} Ada"
+        if ! otx_witness_era="$(jq -er '."witness-era"' <<< ${offlineJSON})"; then println "ERROR" "\n${FG_RED}ERROR${NC}: field 'witness-era' not found in: ${offline_tx}" && waitForInput && continue; fi
         for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
           _jq() { base64 -d <<< ${otx_signing_file} | jq -r "${1}"; }
           otx_signing_name=$(_jq '.name')
@@ -2984,7 +2987,7 @@ EOF
             println "ERROR" "${FG_RED}ERROR${NC}: failed to write signed tx body to offline transaction file!"
           fi
         else
-          println "Offline transaction need to be signed by ${FG_CYAN}$(jq -r '."signing-file" | length' <<< "${offlineJSON}")${NC} signing keys, only signed by ${FG_CYAN}$(jq -r '.witness | length' <<< "${offlineJSON}")${NC} so far!"
+          println "Offline transaction need to be signed by ${FG_CYAN}$(jq -r '."signing-file" | length' <<< "${offlineJSON}")${NC} signing keys, signed by ${FG_CYAN}$(jq -r '.witness | length' <<< "${offlineJSON}")${NC} so far!"
         fi
         ;;
       *) println "ERROR" "${FG_RED}ERROR${NC}: unsupported offline tx type: ${otx_type}" && waitForInput && continue ;;

@@ -5,7 +5,7 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [7.0.0] - 2021-01-08
+## [7.0.0] - 2021-01-11
 Though mostly unchanged in the user interface, this is a major update with most of the code re-written/touched in the back-end.  
 Only the most noticeable changes added to changelog. 
 
