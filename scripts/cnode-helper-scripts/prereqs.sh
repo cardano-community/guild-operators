@@ -277,40 +277,45 @@ if [[ "${LIBSODIUM_FORK}" = "Y" ]]; then
 fi
 
 if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
+  echo "Installing CNCLI"
   if command -v cncli >/dev/null; then cncli_version="$(cncli -V | cut -d' ' -f2)"; else cncli_version="v0.0.0"; fi
   pushd "${HOME}"/git >/dev/null || err_exit
   if [[ -d ./cncli ]]; then
-    echo "previous CNCLI installation found, pulling latest version from GitHub..."
-    pushd ./cncli >/dev/null || err_exit
-    if ! output=$(git fetch 2>&1); then echo -e "${output}" && err_exit; fi
+    echo "  previous CNCLI installation found, pulling latest version from GitHub..."
   else
-    echo "downloading CNCLI..."
+    echo "  downloading CNCLI..."
     if ! output=$(git clone https://github.com/AndrewWestberg/cncli.git 2>&1); then echo -e "${output}" && err_exit; fi
-    pushd ./cncli >/dev/null || err_exit
   fi
-  cncli_git_latestTag=$(git tag 2>/dev/null | tail -n 1)
+  pushd ./cncli >/dev/null || err_exit
+  if ! output=$(git fetch --all --prune 2>&1); then echo -e "${output}" && err_exit; fi
+  cncli_git_latestTag=$(git describe --tags "$(git rev-list --tags --max-count=1)")
+  if ! output=$(git checkout ${cncli_git_latestTag} 2>&1); then echo -e "${output}" && err_exit; fi
   if ! versionCheck "${cncli_git_latestTag}" "${cncli_version}"; then
+    [[ ${cncli_version} = "v0.0.0" ]] && echo "  latest version: ${cncli_git_latestTag}" || echo "  installed version: ${cncli_version}  |  latest version: ${cncli_git_latestTag}"
     # install rust if not available
     if ! command -v "rustup" &>/dev/null; then
-      echo "installing RUST..."
-      if ! output=$(curl https://sh.rustup.rs -sSf | sh -s -- -y 2>&1); then echo -e "${output}" && err_exit; fi
+      echo "  installing RUST..."
+      if ! output=$(curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh -s -- -y 2>&1); then echo -e "${output}" && err_exit; fi
+      if ! output=$(rustup install stable 2>&1); then echo -e "${output}" && err_exit; fi
+      if ! output=$(rustup default stable 2>&1); then echo -e "${output}" && err_exit; fi
     else
-      echo "updating RUST if needed..."
+      echo "  updating RUST if needed..."
       rustup update &>/dev/null #ignore any errors, not crucial that update succeed
     fi
     . "${HOME}"/.profile # source profile to load ${HOME}/.cargo/bin into PATH
     git checkout --quiet ${cncli_git_latestTag}
-    echo "building CNCLI..."
-    if ! output=$(cargo install --path . --force 2>&1); then echo -e "${output}" && err_exit; fi
-    echo "$(cncli -V) installed!"
+    echo "  building CNCLI ${cncli_git_latestTag} ..."
+    if ! output=$(cargo install --path . --force --locked 2>&1); then echo -e "${output}" && err_exit; fi
+    echo "  $(cncli -V) installed!"
   else
-    echo "CNCLI already latest version [$(cncli -V | cut -d' ' -f2)], skipping!"
+    echo "  CNCLI already latest version [${cncli_version}], skipping!"
   fi
 fi
 
 if [[ "${INSTALL_VCHC}" = "Y" ]]; then
+  echo "Installing Vacuumlabs cardano-hw-cli"
   if command -v cardano-hw-cli >/dev/null; then vchc_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"; else vchc_version="0.0.0"; fi
-  echo "downloading Vacuumlabs cardano-hw-cli..."
+  echo "  downloading Vacuumlabs cardano-hw-cli..."
   pushd /tmp >/dev/null || err_exit
   rm -rf cardano-hw-cli*
   vchc_asset_url="$(curl -s https://api.github.com/repos/vacuumlabs/cardano-hw-cli/releases/latest | jq -r '.assets[].browser_download_url' | grep '_linux-x64.tar.gz')"
@@ -320,12 +325,13 @@ if [[ "${INSTALL_VCHC}" = "Y" ]]; then
     [[ -f cardano-hw-cli/cardano-hw-cli ]] || err_exit "ERROR!! cardano-hw-cli downloaded but binary not found after extracting package!"
     vchc_git_version="$(cardano-hw-cli/cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
     if ! versionCheck "${vchc_git_version}" "${vchc_version}"; then
+      [[ ${vchc_version} = "0.0.0" ]] && echo "  latest version: ${vchc_git_version}" || echo "  installed version: ${vchc_version}  |  latest version: ${vchc_git_version}"
       mkdir -p "${HOME}"/bin
       pushd "${HOME}"/bin >/dev/null || err_exit
       mv -f /tmp/cardano-hw-cli .
       if ! grep -q "cardano-hw-cli" "${HOME}"/.bashrc; then
-        echo "adding cardano-hw-cli to PATH and setting Ledger udev rules, reload shell to take effect!"
-        echo "PATH=\"$HOME/bin/cardano-hw-cli:\$PATH\"" >> "${HOME}"/.bashrc
+        echo "  adding cardano-hw-cli to PATH and setting Ledger udev rules, reload shell to take effect!"
+        echo "  PATH=\"$HOME/bin/cardano-hw-cli:\$PATH\"" >> "${HOME}"/.bashrc
       fi
       if [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ]]; then
         # Ledger udev rules
@@ -340,10 +346,10 @@ if [[ "${INSTALL_VCHC}" = "Y" ]]; then
       # Trigger rules update
       $sudo udevadm control --reload-rules
       $sudo udevadm trigger
-      echo "cardano-hw-cli v${vchc_git_version} installed!"
+      echo "  cardano-hw-cli v${vchc_git_version} installed!"
     else
       rm -rf cardano-hw-cli #cleanup in /tmp
-      echo "cardano-hw-cli already latest version [${vchc_version}], skipping!"
+      echo "  cardano-hw-cli already latest version [${vchc_version}], skipping!"
     fi
   else
     err_exit "ERROR!! Download of latest release of cardano-hw-cli from GitHub failed! Please retry or manually install"
