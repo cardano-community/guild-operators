@@ -288,7 +288,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
   fi
   pushd ./cncli >/dev/null || err_exit
   if ! output=$(git fetch --all --prune 2>&1); then echo -e "${output}" && err_exit; fi
-  cncli_git_latestTag=$(git describe --tags $(git rev-list --tags --max-count=1))
+  cncli_git_latestTag=$(git describe --tags "$(git rev-list --tags --max-count=1)")
   if ! output=$(git checkout ${cncli_git_latestTag} 2>&1); then echo -e "${output}" && err_exit; fi
   if ! versionCheck "${cncli_git_latestTag}" "${cncli_version}"; then
     [[ ${cncli_version} = "v0.0.0" ]] && echo "  latest version: ${cncli_git_latestTag}" || echo "  installed version: ${cncli_version}  |  latest version: ${cncli_git_latestTag}"
