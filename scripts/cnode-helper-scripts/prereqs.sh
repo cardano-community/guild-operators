@@ -308,7 +308,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     if ! output=$(cargo install --path . --force --locked 2>&1); then echo -e "${output}" && err_exit; fi
     echo "  $(cncli -V) installed!"
   else
-    echo "  CNCLI already latest version [$(cncli -V | cut -d' ' -f2)], skipping!"
+    echo "  CNCLI already latest version [${cncli_version}], skipping!"
   fi
 fi
 
