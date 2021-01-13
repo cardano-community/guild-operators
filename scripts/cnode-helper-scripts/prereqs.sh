@@ -302,6 +302,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     if ! command -v "rustup" &>/dev/null; then
       echo "  installing RUST..."
       if ! output=$(curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh -s -- -y 2>&1); then echo -e "${output}" && err_exit; fi
+      source $HOME/.cargo/env
       if ! output=$(rustup install stable 2>&1); then echo -e "${output}" && err_exit; fi
       if ! output=$(rustup default stable 2>&1); then echo -e "${output}" && err_exit; fi
     else
