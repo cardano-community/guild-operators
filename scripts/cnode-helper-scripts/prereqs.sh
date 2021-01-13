@@ -199,7 +199,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
       pkg_list="${pkg_list} libusbx"
     fi
     [[ ! "${DISTRO}" =~ Fedora ]] && $sudo yum -y install epel-release > /dev/null
-    $sudo yum -y install ${pkg_list} > /dev/null;rc=$?
+    $sudo yum -y --allowerasing install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
       echo "sudo yum -y install ${pkg_list}"
@@ -302,6 +302,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     if ! command -v "rustup" &>/dev/null; then
       echo "  installing RUST..."
       if ! output=$(curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh -s -- -y 2>&1); then echo -e "${output}" && err_exit; fi
+      . $HOME/.cargo/env
       if ! output=$(rustup install stable 2>&1); then echo -e "${output}" && err_exit; fi
       if ! output=$(rustup default stable 2>&1); then echo -e "${output}" && err_exit; fi
     else
@@ -341,7 +342,7 @@ if [[ "${INSTALL_VCHC}" = "Y" ]]; then
       fi
       if [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ]]; then
         # Ledger udev rules
-        wget -q -O - https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh | $sudo bash
+        curl -s -m ${CURL_TIMEOUT} https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh | $sudo bash
         $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" -i /etc/udev/rules.d/20-hw1.rules
       fi
       if [[ ! -f "/etc/udev/rules.d/51-trezor.rules" ]]; then
