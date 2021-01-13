@@ -168,6 +168,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
   # Determine OS platform
   OS_ID=$(grep -i ^id_like= /etc/os-release | cut -d= -f 2)
   DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
+  VERSION_ID=$(grep -i ^version_id= /etc/os-release | cut -d= -f 2 | tr -d '"')
 
   if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
     #Debian/Ubuntu
@@ -191,7 +192,12 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo yum -y install curl > /dev/null
     $sudo yum -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git jq gnupg libtool autoconf srm iproute bc tcptraceroute dialog sqlite util-linux xz libusb-devel"
+    pkg_list="python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git jq gnupg libtool autoconf srm iproute bc tcptraceroute dialog sqlite util-linux xz"
+    if [[ "${VERSION_ID}" == "7" ]]; then
+      pkg_list="${pkg_list} libusb"
+    elif [[ "${VERSION_ID}" == "8" ]]; then
+      pkg_list="${pkg_list} libusbx"
+    fi
     [[ ! "${DISTRO}" =~ Fedora ]] && $sudo yum -y install epel-release > /dev/null
     $sudo yum -y install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
