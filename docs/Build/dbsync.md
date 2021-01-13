@@ -1,7 +1,7 @@
 !> - An average pool operator may not require cardano-db-sync at all. Please verify if it is required for your use as mentioned [here](build.md#components)
 
 > Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
->- Cardano DB Sync tool relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to [Sample Local PostgreSQL Server Deployment instructions](Appendix/postgres.md) for setting up Postgres instance.
+>- Cardano DB Sync tool relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to [Sample Local PostgreSQL Server Deployment instructions](Appendix/postgres.md) for setting up Postgres instance. Specifically, we expect the PGPASSFILE environment variable is set as per the instructions in the sample guide, for dbsync to be able to connect.
 >- The instructions are not maintained daily, but will be with major releases (expect a bit of time post new release to get those updated)
 
 #### Build Instructions {docsify-ignore}
@@ -27,13 +27,16 @@ git pull
 # On CentOS 7 (GCC 4.8.5) we should also do
 # echo -e "package cryptonite\n  flags: -use_target_attributes" >> cabal.project.local
 echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > cabal.project.local
-# Replace master with appropriate tag if you'd like to avoid compiling against master
-git checkout 5.0.1
+# Replace tag against checkout if you do not want to build the latest released version
+git checkout $(curl -s https://api.github.com/repos/input-output-hk/cardano-db-sync/releases/latest | jq -r .tag_name)
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
 The above would copy the binaries into `~/.cabal/bin` folder.
 
 ##### Prepare DB for cardano-db-sync :
+
+Now that binaries are available, let's create our database (when going through breaking changes, you may need to use `--recreatedb` instead of `--createdb` used for the first time.Again, we expect that PGPASSFILE environment variable is already set (refer to top of this guide for sample instructions):
+
 ``` bash
 cd ~/git/cardano-db-sync
 # scripts/postgresql-setup.sh --dropdb #if exists already, will fail if it doesnt - thats OK
@@ -47,7 +50,7 @@ scripts/postgresql-setup.sh --createdb
 ##### Start cardano-db-sync-tool
 ``` bash
 cd ~/git/cardano-db-sync
-PGPASSFILE=$CNODE_HOME/priv/.pgpass cardano-db-sync-extended --config $CNODE_HOME/files/config.json --socket-path $CNODE_HOME/sockets/node0.socket --schema-dir schema/
+cardano-db-sync-extended --config $CNODE_HOME/files/dbsync.json --socket-path $CNODE_HOME/sockets/node0.socket --state-dir $CNODE_HOME/guild-db/ledger-state --schema-dir schema/
 ```
 
 You can use same instructions above to repeat and execute `cardano-db-sync` as well, but [cardano-graphql](Build/graphql.md) uses `cardano-db-sync-extended`, so we'll stick to it
@@ -58,39 +61,56 @@ To validate, connect to postgres instance and execute commands as per below:
 
 ``` bash
 export PGPASSFILE=$CNODE_HOME/priv/.pgpass
-psql cexplorer_phtn
+psql cexplorer
 ```
 
 You should be at the psql prompt, you can check the tables and verify they're populated:
 
 ``` sql
 \dt
-#            List of relations
-# Schema |      Name      | Type  | Owner
-#--------+----------------+-------+-------
-# public | block          | table | <username>
-# public | epoch          | table | <username>
-# public | meta           | table | <username>
-# public | schema_version | table | <username>
-# public | slot_leader    | table | <username>
-# public | tx             | table | <username>
-# public | tx_in          | table | <username>
-# public | tx_out         | table | <username>
-#(8 rows)
+select * from meta;
+```
+
+A sample output of the above two commands may look like below:
+
+```
+                List of relations
+  Schema |         Name         | Type  | Owner
+ --------+----------------------+-------+--------
+  public | block                | table | centos
+  public | delegation           | table | centos
+  public | epoch                | table | centos
+  public | epoch_param          | table | centos
+  public | epoch_stake          | table | centos
+  public | ma_tx_mint           | table | centos
+  public | ma_tx_out            | table | centos
+  public | meta                 | table | centos
+  public | orphaned_reward      | table | centos
+  public | param_proposal       | table | centos
+  public | pool_hash            | table | centos
+  public | pool_meta_data       | table | centos
+  public | pool_owner           | table | centos
+  public | pool_relay           | table | centos
+  public | pool_retire          | table | centos
+  public | pool_update          | table | centos
+  public | reserve              | table | centos
+  public | reward               | table | centos
+  public | schema_version       | table | centos
+  public | slot_leader          | table | centos
+  public | stake_address        | table | centos
+  public | stake_deregistration | table | centos
+  public | stake_registration   | table | centos
+  public | treasury             | table | centos
+  public | tx                   | table | centos
+  public | tx_in                | table | centos
+  public | tx_metadata          | table | centos
+  public | tx_out               | table | centos
+  public | withdrawal           | table | centos
+ (29 rows)
 
 select * from meta;
-# id | protocol_const | slot_duration |     start_time      | network_name
-#----+----------------+---------------+---------------------+--------------
-#  1 |          43200 |         20000 | 2020-04-12 13:55:37 | pHTN
-#(1 row)
-
-select * from tx;
-# id |                                hash                                | block | fee |     out_sum      | size
-#----+--------------------------------------------------------------------+-------+-----+------------------+------
-#  1 | \x26b63ce785b16fc53ba3ab882ac0e5342a77b33f355ba82982e3e2d5e05500df |     1 |   0 |       1000000000 |    0
-#  2 | \xbd8f661658dabbb557d4b5e23264d34fda2a2304daccdac283e337581a88c479 |     1 |   0 |   62499975000000 |    0
-#  3 | \x17fbf571b7d091e9cfb6853cd5fb603031831ce7e5e3acbb4b842960e90ba419 |     1 |   0 |   62499975000000 |    0
-#  4 | \x3e7e3c1105d3bd76a2b5ae897e1b79b86c7834e68409e533afc318112405ff69 |     1 |   0 |   62499975000000 |    0
-# ...
-# (36 rows)
+ id |     start_time      | network_name
+----+---------------------+--------------
+  1 | 2017-09-23 21:44:51 | mainnet
+(1 row)
 ```
