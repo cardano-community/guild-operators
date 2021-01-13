@@ -13,6 +13,7 @@ LEGACY_MODE=false                          # (true|false) If enabled unicode box
 RETRIES=3                                  # How many attempts to connect to running Cardano node before erroring out and quitting
 THEME="dark"                               # dark  = suited for terminals with a dark background
                                            # light = suited for terminals with a bright background
+NO_INTERNET_MODE="N"                       # To skip checking for auto updates or make outgoing connections to guild-operators github repository
 
 #####################################
 # Themes                            #
@@ -50,13 +51,14 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.17.1
+GLV_VERSION=v1.17.2
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
 
-# For those using auto update from version gLiveView 1.9 where RETRIES isnt set in user-defined variables
+# Set default for user variables added in recent versions (for those who may not necessarily have it due to upgrade)
 [[ -z "${RETRIES}" ]]  && RETRIES=3
+[[ -z "${NO_INTERNET_MODE}" ]] && NO_INTERNET_MODE="N"
 
 usage() {
   cat <<EOF
@@ -79,33 +81,6 @@ while getopts :lpb: opt; do
     esac
 done
 shift $((OPTIND -1))
-
-URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
-if curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env; then
-  if [[ -f "${PARENT}"/env ]]; then
-    if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
-      vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
-      sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
-    else
-      echo -e "Update failed! Please use prereqs.sh to force an update or manually download $(basename $0) + env from GitHub"
-      exit 1
-    fi
-    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
-    TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
-    if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-      cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
-      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
-      printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
-      mv "${PARENT}"/env.tmp "${PARENT}"/env
-    fi
-  else
-    mv "${PARENT}"/env.tmp "${PARENT}"/env
-  fi
-fi
-rm -f "${PARENT}"/env.tmp
-
-# source common env variables in case it was updated
-if ! . "${PARENT}"/env; then exit 1; fi
 
 tput smcup # Save screen
 tput civis # Disable cursor
@@ -146,30 +121,72 @@ fi
 # Version Check                                       #
 #######################################################
 clear
-echo "Guild LiveView version check..."
-if curl -s -m ${CURL_TIMEOUT} -o /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
-  GIT_VERSION=$(grep -r ^GLV_VERSION= /tmp/gLiveView.sh | cut -d'=' -f2)
-  : "${GIT_VERSION:=v0.0.0}"
-  if ! versionCheck "${GIT_VERSION}" "${GLV_VERSION}"; then
-    echo -e "\nA new version of Guild LiveView is available"
-    echo "Installed Version : ${GLV_VERSION}"
-    echo "Available Version : ${GIT_VERSION}"
-    echo -e "\nPress 'u' to update to latest version, or any other key to continue\n"
-    read -r -n 1 -s -p "" answer
-    if [[ "${answer}" = "u" ]]; then
-      TEMPL_CMD=$(awk '/^# Do NOT modify/,0' /tmp/gLiveView.sh)
-      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/gLiveView.sh")
-      printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > /tmp/gLiveView.sh
-      mv -f "${PARENT}/gLiveView.sh" "${PARENT}/gLiveView.sh_bkp$(date +%s)" && \
-      cp -f /tmp/gLiveView.sh "${PARENT}/gLiveView.sh" && \
-      chmod 750 "${PARENT}/gLiveView.sh" && \
-      myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!" || \
-      myExit 1 "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
+if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
+  URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
+  if curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env 2>/dev/null && [[ -f "${PARENT}"/env.tmp ]]; then
+    if [[ -f "${PARENT}"/env ]]; then
+      if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
+        vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
+        sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
+      else
+        echo -e "Update for env file failed! Please use prereqs.sh to force an update or manually download $(basename $0) + env from GitHub\n"
+        exit 1
+      fi
+      TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
+      TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
+      if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
+        echo -e "\nThe static content from env file does not match with guild-operators repository, do you want to download the updated file? [y|n]"
+        read -r -n 1 -s update
+        case ${update} in
+          [yY])
+            cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
+            STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
+            printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
+            mv "${PARENT}"/env.tmp "${PARENT}"/env
+            echo -e "\nUpdate to env file applied successfully!"
+            ;;
+          *) : ;; # ignore
+        esac
+      fi
+    else
+      mv "${PARENT}"/env.tmp "${PARENT}"/env
+      echo -e "Common env file downloaded: ${PARENT}/env"
+      echo -e "This is a mandatory prerequisite, please set variables accordingly in User Variables section in the env file and restart Guild LiveView\n"
+      exit 0
     fi
   fi
+  rm -f "${PARENT}"/env.tmp
+  # source common env variables in case it was updated
+  if ! . "${PARENT}"/env; then exit 1; fi
+
+  echo "Guild LiveView version check..."
+  if curl -s -m ${CURL_TIMEOUT} -o /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
+    GIT_VERSION=$(grep -r ^GLV_VERSION= /tmp/gLiveView.sh | cut -d'=' -f2)
+    : "${GIT_VERSION:=v0.0.0}"
+    if ! versionCheck "${GIT_VERSION}" "${GLV_VERSION}"; then
+      echo -e "\nA new version of Guild LiveView is available"
+      echo "Installed Version : ${GLV_VERSION}"
+      echo "Available Version : ${GIT_VERSION}"
+      echo -e "\nPress 'u' to update to latest version, or any other key to continue\n"
+      read -r -n 1 -s -p "" answer
+      if [[ "${answer}" = "u" ]]; then
+        TEMPL_CMD=$(awk '/^# Do NOT modify/,0' /tmp/gLiveView.sh)
+        STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/gLiveView.sh")
+        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > /tmp/gLiveView.sh
+        mv -f "${PARENT}/gLiveView.sh" "${PARENT}/gLiveView.sh_bkp$(date +%s)" && \
+        cp -f /tmp/gLiveView.sh "${PARENT}/gLiveView.sh" && \
+        chmod 750 "${PARENT}/gLiveView.sh" && \
+        myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!" || \
+        myExit 1 "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
+      fi
+    fi
+  else
+    echo -e "\nFailed to download gLiveView.sh from GitHub, unable to perform version check!\n"
+    read -r -n 1 -s -p "press any key to proceed" answer
+  fi
 else
-  echo -e "\nFailed to download gLiveView.sh from GitHub, unable to perform version check!\n"
-  read -r -n 1 -s -p "press any key to proceed" answer
+  # source common env variables in offline mode
+  if ! . "${PARENT}"/env offline; then exit 1; fi
 fi
 
 #######################################################

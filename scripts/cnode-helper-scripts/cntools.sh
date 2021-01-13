@@ -53,29 +53,41 @@ URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${B
 URL="${URL_RAW}/scripts/cnode-helper-scripts"
 URL_DOCS="${URL_RAW}/docs/Scripts"
 
-# get common env variables
-if curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env && [[ -f "${PARENT}"/env.tmp ]]; then
-  if [[ -f "${PARENT}"/env ]]; then
-    if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
-      vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
-      sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
+# env version check
+if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+  if curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env 2>/dev/null && [[ -f "${PARENT}"/env.tmp ]]; then
+    if [[ -f "${PARENT}"/env ]]; then
+      if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
+        vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
+        sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
+      else
+        myExit 1 "\nUpdate for env file failed! Please use prereqs.sh to force an update or manually download $(basename $0) + env from GitHub\n"
+      fi
+      TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
+      TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
+      if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
+        echo -e "\nThe static content from env file does not match with guild-operators repository, do you want to download the updated file? [y|n]"
+        read -r -n 1 -s update
+        case ${update} in
+          [yY])
+            cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
+            STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
+            printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
+            mv "${PARENT}"/env.tmp "${PARENT}"/env
+            echo -e "\nUpdate to env file applied successfully!\n\nPress any key to continue!"
+            read -r -n 1 -s wait
+            ;;
+          *) : ;; # ignore
+        esac
+      fi
     else
-      echo -e "Update failed! Please use prereqs.sh to force an update or manually download $(basename $0) + env from GitHub"
-      exit 1
-    fi
-    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
-    TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
-    if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-      cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
-      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
-      printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
       mv "${PARENT}"/env.tmp "${PARENT}"/env
+      myExit 0 "Common env file downloaded: ${PARENT}/env\n\
+This is a mandatory prerequisite, please set variables accordingly in User Variables section in the env file and restart CNTools\n"
     fi
-  else
-    mv "${PARENT}"/env.tmp "${PARENT}"/env
   fi
+  rm -f "${PARENT}"/env.tmp
 fi
-rm -f "${PARENT}"/env.tmp
 [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && env_mode="" || env_mode="offline"
 if ! . "${PARENT}"/env ${env_mode}; then
   myExit 1 "\nERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub\n"

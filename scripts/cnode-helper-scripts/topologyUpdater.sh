@@ -9,11 +9,12 @@ PARENT="$(dirname $0)"
 # User Variables - Change as desired #
 ######################################
 
-CNODE_HOSTNAME="CHANGE ME"                                # (Optional) Must resolve to the IP you are requesting from
-CNODE_VALENCY=1                                           # (Optional) for multi-IP hostnames
-MAX_PEERS=15                                              # Maximum number of peers to return on successful fetch
-#CUSTOM_PEERS="None"                                      # Additional custom peers to (IP:port[:valency]) to add to your target topology.json
-                                                          # eg: "10.0.0.1:3001|10.0.0.2:3002|relays.mydomain.com:3003:3"
+CNODE_HOSTNAME="CHANGE ME"  # (Optional) Must resolve to the IP you are requesting from
+CNODE_VALENCY=1             # (Optional) for multi-IP hostnames
+MAX_PEERS=15                # Maximum number of peers to return on successful fetch
+#CUSTOM_PEERS="None"        # Additional custom peers to (IP:port[:valency]) to add to your target topology.json
+                            # eg: "10.0.0.1:3001|10.0.0.2:3002|relays.mydomain.com:3003:3"
+#BATCH_AUTO_UPDATE=N        # Set to Y to automatically update the script if a new version is available without user interaction
 
 ######################################
 # Do NOT modify code below           #
@@ -48,28 +49,75 @@ while getopts :fpb: opt; do
 done
 shift $((OPTIND -1))
 
+[[ -z "${BATCH_AUTO_UPDATE}" ]] && BATCH_AUTO_UPDATE=N
+
+# Check if update is available
 URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
-curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env
-if [[ -f "${PARENT}"/env ]]; then
-  if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
-    vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
-    sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
+if curl -s -m 10 -o "${PARENT}"/topologyUpdater.sh.tmp ${URL}/topologyUpdater.sh && curl -s -m ${CURL_TIMEOUT} -o "${PARENT}"/env.tmp ${URL}/env && [[ -f "${PARENT}"/topologyUpdater.sh.tmp && -f "${PARENT}"/env.tmp ]]; then
+  if [[ -f "${PARENT}"/env ]]; then
+    if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
+      vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")
+    else
+      echo -e "\nFailed to get cnode instance name from env file, aborting!\n"
+      rm -f "${PARENT}"/topologyUpdater.sh.tmp
+      rm -f "${PARENT}"/env.tmp
+      exit 1
+    fi
+    sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/topologyUpdater.sh.tmp -i "${PARENT}"/env.tmp
+    TU_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}"/topologyUpdater.sh)
+    TU_TEMPL2=$(awk '/^# Do NOT modify/,0' "${PARENT}"/topologyUpdater.sh.tmp)
+    ENV_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
+    ENV_TEMPL2=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
+    if [[ "$(echo ${TU_TEMPL} | sha256sum)" != "$(echo ${TU_TEMPL2} | sha256sum)" || "$(echo ${ENV_TEMPL} | sha256sum)" != "$(echo ${ENV_TEMPL2} | sha256sum)" ]]; then
+      update='N'
+      if [[ ${BATCH_AUTO_UPDATE} = 'Y' ]]; then
+        update='Y'
+      elif [[ -t 1 ]]; then # ask what to do if tty is available
+        echo -e "\nA new version is available, do you want to upgrade? [y|n]"
+        read -r -n 1 -s update
+      fi
+      case ${update} in
+        [yY])
+          cp "${PARENT}"/topologyUpdater.sh "${PARENT}/topologyUpdater.sh_bkp$(date +%s)"
+          cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
+          TU_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/topologyUpdater.sh)
+          ENV_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
+          printf '%s\n%s\n' "$TU_STATIC" "$TU_TEMPL2" > "${PARENT}"/topologyUpdater.sh.tmp
+          printf '%s\n%s\n' "$ENV_STATIC" "$ENV_TEMPL2" > "${PARENT}"/topologyUpdater.sh.tmp
+          {
+            mv -f "${PARENT}"/topologyUpdater.sh.tmp "${PARENT}"/topologyUpdater.sh && \
+            mv -f "${PARENT}"/env.tmp "${PARENT}"/env && \
+            chmod 755 "${PARENT}"/topologyUpdater.sh "${PARENT}"/env && \
+            echo -e "\nUpdate applied successfully, please run topologyUpdater again!\n" && \
+            exit 0; 
+          } || {
+            echo -e "\n${FG_RED}Update failed!${NC}\n\nplease install topologyUpdater.sh & env with prereqs.sh or manually download from GitHub" && \
+            rm -f "${PARENT}"/topologyUpdater.sh.tmp && \
+            rm -f "${PARENT}"/env.tmp && \
+            exit 1;
+          } ;;
+        *) : ;; # ignore
+      esac
+    fi
   else
-    echo -e "Update failed! Please use prereqs.sh to force an update or manually download $(basename $0) + env from GitHub"
-    exit 1
-  fi
-  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
-  TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
-  if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-    cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
-    STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
-    printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
     mv "${PARENT}"/env.tmp "${PARENT}"/env
+    rm -f "${PARENT}"/topologyUpdater.sh.tmp
+    echo -e "\nCommon env file downloaded: ${PARENT}/env"
+    echo -e "This is a mandatory prerequisite, please set variables accordingly in User Variables section in the env file and restart topologyUpdater.sh\n"
+    exit 0
   fi
-else
-  mv "${PARENT}"/env.tmp "${PARENT}"/env
+else # Download failed, ignore update check
+  rm -f "${PARENT}"/topologyUpdater.sh.tmp
+  rm -f "${PARENT}"/env.tmp
 fi
-rm -f "${PARENT}"/env.tmp
+if [[ ! -f "${PARENT}"/env ]]; then
+  echo -e "\nCommon env file missing: ${PARENT}/env"
+  echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"
+  exit 1
+fi
+
+# source common env variables in case it was updated and run in offline mode, even for TU_PUSH mode as this will be cought by failed EKG query
+if ! . "${PARENT}"/env offline; then exit 1; fi
 
 # source common env variables in case it was updated and run in offline mode, even for TU_PUSH mode as this will be cought by failed EKG query
 if ! . "${PARENT}"/env offline; then exit 1; fi

@@ -205,55 +205,79 @@ cncliInit() {
   if ! command -v sqlite3 >/dev/null; then echo "ERROR: sqlite3 not found, please install before activating blocklog function" && exit 1; fi
 
   PARENT="$(dirname $0)"
-  if [[ ! -f "${PARENT}"/env ]]; then echo "ERROR: could not find common env file, please download and run 'prereqs.sh -h' to show options" && exit 1; fi
+
+  # Check if update is available
+  [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
+  URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
+  if curl -s -m 10 -o "${PARENT}"/cncli.sh.tmp ${URL}/cncli.sh && curl -s -m ${CURL_TIMEOUT} -o "${PARENT}"/env.tmp ${URL}/env && [[ -f "${PARENT}"/cncli.sh.tmp && -f "${PARENT}"/env.tmp ]]; then
+    if [[ -f "${PARENT}"/env ]]; then
+      if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
+        vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")
+      else
+        echo -e "\nFailed to get cnode instance name from env file, aborting!\n"
+        rm -f "${PARENT}"/cncli.sh.tmp
+        rm -f "${PARENT}"/env.tmp
+        exit 1
+      fi
+      sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/cncli.sh.tmp -i "${PARENT}"/env.tmp
+      CNCLI_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}"/cncli.sh)
+      CNCLI_TEMPL2=$(awk '/^# Do NOT modify/,0' "${PARENT}"/cncli.sh.tmp)
+      ENV_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
+      ENV_TEMPL2=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
+      if [[ "$(echo ${CNCLI_TEMPL} | sha256sum)" != "$(echo ${CNCLI_TEMPL2} | sha256sum)" || "$(echo ${ENV_TEMPL} | sha256sum)" != "$(echo ${ENV_TEMPL2} | sha256sum)" ]]; then
+        update='N'
+        if [[ ${BATCH_AUTO_UPDATE} = 'Y' ]]; then
+          update='Y'
+        elif [[ -t 1 ]]; then # ask what to do if tty is available
+          echo -e "\nA new version is available, do you want to upgrade? [y|n]"
+          read -r -n 1 -s update
+        fi
+        case ${update} in
+          [yY])
+            cp "${PARENT}"/cncli.sh "${PARENT}/cncli.sh_bkp$(date +%s)"
+            cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
+            CNCLI_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/cncli.sh)
+            ENV_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
+            printf '%s\n%s\n' "$CNCLI_STATIC" "$CNCLI_TEMPL2" > "${PARENT}"/cncli.sh.tmp
+            printf '%s\n%s\n' "$ENV_STATIC" "$ENV_TEMPL2" > "${PARENT}"/cncli.sh.tmp
+            {
+              mv -f "${PARENT}"/cncli.sh.tmp "${PARENT}"/cncli.sh && \
+              mv -f "${PARENT}"/env.tmp "${PARENT}"/env && \
+              chmod 755 "${PARENT}"/cncli.sh "${PARENT}"/env && \
+              echo -e "\nUpdate applied successfully, please run cncli again!\n" && \
+              exit 0; 
+            } || {
+              echo -e "\n${FG_RED}Update failed!${NC}\n\nplease install cncli.sh & env with prereqs.sh or manually download from GitHub" && \
+              rm -f "${PARENT}"/cncli.sh.tmp && \
+              rm -f "${PARENT}"/env.tmp && \
+              exit 1;
+            } ;;
+          *) : ;; # ignore
+        esac
+      fi
+    else
+      mv "${PARENT}"/env.tmp "${PARENT}"/env
+      rm -f "${PARENT}"/cncli.sh.tmp
+      echo -e "\nCommon env file downloaded: ${PARENT}/env"
+      echo -e "This is a mandatory prerequisite, please set variables accordingly in User Variables section in the env file and restart cncli.sh\n"
+      exit 0
+    fi
+  else # Download failed, ignore update check
+    rm -f "${PARENT}"/cncli.sh.tmp
+    rm -f "${PARENT}"/env.tmp
+  fi
+  if [[ ! -f "${PARENT}"/env ]]; then
+    echo -e "\nCommon env file missing: ${PARENT}/env"
+    echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"
+    exit 1
+  fi
+  
   until . "${PARENT}"/env; do
     echo "sleeping for 10s and testing again..."
     sleep 10
   done
   
-  if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
-    vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")
-  else
-    echo "failed to get cnode instance name from env file, aborting!"
-    exit 1
-  fi
-  
-  # Check if cncli.sh update is available
-  [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
-  URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
-  if curl -s -m ${CURL_TIMEOUT} -o "${PARENT}"/cncli.sh.tmp ${URL}/cncli.sh && [[ -f "${PARENT}"/cncli.sh.tmp ]]; then
-    sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/cncli.sh.tmp
-    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/cncli.sh)
-    TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/cncli.sh.tmp)
-    if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-      update='N'
-      if [[ ${BATCH_AUTO_UPDATE} = 'Y' ]]; then
-        update='Y'
-      elif [[ -t 1 ]]; then # ask what to do if tty is available
-        echo -e "\nA new version of cncli script is available"
-        echo -e "Press 'u' to update to latest version, or any other key to continue"
-        read -r -n 1 -s answer
-        [[ ${answer} = "u" ]] && update='Y'
-      fi
-      if [[ ${update} = 'Y' ]]; then
-        cp "${PARENT}"/cncli.sh "${PARENT}/cncli.sh_bkp$(date +%s)"
-        STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/cncli.sh)
-        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/cncli.sh.tmp
-        {
-          mv -f "${PARENT}"/cncli.sh.tmp "${PARENT}"/cncli.sh && \
-          chmod 755 "${PARENT}"/cncli.sh && \
-          echo -e "\nUpdate applied successfully, please run cncli again!\n" && \
-          exit 0; 
-        } || {
-          echo -e "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update cncli" && \
-          exit 1;
-        }
-      fi
-    fi
-  fi
-  rm -f "${PARENT}"/cncli.sh.tmp
-  
-  [[ ! -f "${CNCLI}" ]] && echo "ERROR: failed to locate cncli executable, please update and run 'prereqs.sh -h' to show options" && exit 1
+  [[ ! -f "${CNCLI}" ]] && echo -e "\nERROR: failed to locate cncli executable, please install with 'prereqs.sh'\n" && exit 1
   CNCLI_VERSION="$(cncli -V | cut -d' ' -f2)"
   if ! versionCheck "0.4.1" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, please upgrade to v0.4.1 or newer!"; exit 1; fi
   
