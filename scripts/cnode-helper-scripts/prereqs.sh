@@ -195,7 +195,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     pkg_list="python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git jq gnupg libtool autoconf srm iproute bc tcptraceroute dialog sqlite util-linux xz"
     if [[ "${VERSION_ID}" == "7" ]]; then
       pkg_list="${pkg_list} libusb"
-    elif [[ "${VERSION_ID}" == "8" ]]; then
+    elif [[ "${VERSION_ID}" == "8" ]] || [[ "${DISTRO}" =~ Fedora ]]; then
       pkg_list="${pkg_list} libusbx"
     fi
     [[ ! "${DISTRO}" =~ Fedora ]] && $sudo yum -y install epel-release > /dev/null
