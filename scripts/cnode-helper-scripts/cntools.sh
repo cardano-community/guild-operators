@@ -83,7 +83,7 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     else
       mv "${PARENT}"/env.tmp "${PARENT}"/env
       myExit 0 "Common env file downloaded: ${PARENT}/env\n\
-This is a mandatory prerequisite, please set variables accordingly in User Variables section in the env file and restart Guild LiveView\n"
+This is a mandatory prerequisite, please set variables accordingly in User Variables section in the env file and restart CNTools\n"
     fi
   fi
   rm -f "${PARENT}"/env.tmp
