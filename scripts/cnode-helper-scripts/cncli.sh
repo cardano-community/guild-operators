@@ -214,7 +214,7 @@ cncliInit() {
       if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
         vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")
       else
-        echo "\nFailed to get cnode instance name from env file, aborting!\n"
+        echo -e "\nFailed to get cnode instance name from env file, aborting!\n"
         rm -f "${PARENT}"/cncli.sh.tmp
         rm -f "${PARENT}"/env.tmp
         exit 1
