@@ -53,7 +53,7 @@ URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${B
 URL="${URL_RAW}/scripts/cnode-helper-scripts"
 URL_DOCS="${URL_RAW}/docs/Scripts"
 
-# Do some checks when run in connected mode
+# env version check
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   if curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env 2>/dev/null && [[ -f "${PARENT}"/env.tmp ]]; then
     if [[ -f "${PARENT}"/env ]]; then
