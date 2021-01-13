@@ -129,13 +129,12 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
         vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
         sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
       else
-        echo -e "Update for env file failed! Please use prereqs.sh to force an update or manually download $(basename $0) + env from GitHub"
+        echo -e "Update for env file failed! Please use prereqs.sh to force an update or manually download $(basename $0) + env from GitHub\n"
         exit 1
       fi
       TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
       TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
       if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-        update='N'
         echo -e "\nThe static content from env file does not match with guild-operators repository, do you want to download the updated file? [y|n]"
         read -r -n 1 -s update
         case ${update} in
@@ -151,6 +150,9 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
       fi
     else
       mv "${PARENT}"/env.tmp "${PARENT}"/env
+      echo -e "Common env file downloaded: ${PARENT}/env"
+      echo -e "This is a mandatory prerequisite, please set variables accordingly in User Variables section in the env file and restart Guild LiveView\n"
+      exit 0
     fi
   fi
   rm -f "${PARENT}"/env.tmp
