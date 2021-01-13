@@ -199,7 +199,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
       pkg_list="${pkg_list} libusbx"
     fi
     [[ ! "${DISTRO}" =~ Fedora ]] && $sudo yum -y install epel-release > /dev/null
-    $sudo yum -y install ${pkg_list} > /dev/null;rc=$?
+    $sudo yum -y --allowerasing install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
       echo "sudo yum -y install ${pkg_list}"
