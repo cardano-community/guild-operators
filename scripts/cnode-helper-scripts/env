@@ -114,7 +114,7 @@ fi
 [[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
 
 if [[ -z "${SOCKET}" ]]; then
-  if [[ "$(ps -ef | grep "[c]ardano-node.*.port ${CNODE_PORT}/")" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
+  if [[ "$(ps -ef | grep "[c]ardano-node.*.port ${CNODE_PORT}")" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
     export CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
   elif [[ ${OFFLINE_MODE} = "N" && -z "${CARDANO_NODE_SOCKET_PATH}" ]]; then
     echo "Node socket not set in env file and automatic detection failed! [source: $(basename $0 2>/dev/null)]"
@@ -125,7 +125,7 @@ else
 fi
 
 if [[ -z "${CONFIG}" ]]; then
-  if [[ "$(ps -ef | grep "[c]ardano-node.*.port ${CNODE_PORT}/")" =~ --config[[:space:]]([^[:space:]]+) ]]; then
+  if [[ "$(ps -ef | grep "[c]ardano-node.*.port ${CNODE_PORT}")" =~ --config[[:space:]]([^[:space:]]+) ]]; then
     CONFIG=${BASH_REMATCH[1]}
   elif [[ -f "${CNODE_HOME}/files/config.json" ]]; then
     CONFIG="${CNODE_HOME}/files/config.json"
