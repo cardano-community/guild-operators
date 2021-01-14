@@ -131,7 +131,7 @@ if [[ -z "${CONFIG}" ]]; then
     CONFIG=${BASH_REMATCH[1]}
   elif [[ -f "${CNODE_HOME}/files/config.json" ]]; then
     CONFIG="${CNODE_HOME}/files/config.json"
-  elif [[ ${OFFLINE_MODE} = "N" ]]; then
+  else
     echo "Node config not set in env file and automatic detection failed!"
     return 1
   fi
