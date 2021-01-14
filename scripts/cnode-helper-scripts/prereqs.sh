@@ -377,6 +377,10 @@ else
   echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
 fi
 
+# Download dbsync config
+curl -sL -m ${CURL_TIMEOUT} -o dbsync.json.tmp ${URL_RAW}/files/dbsync.json
+
+# Download node config, genesis and topology from template
 if [[ ${NETWORK} = "testnet" ]]; then
   curl -sL -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json
   curl -sL -m ${CURL_TIMEOUT} -o genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json
@@ -401,10 +405,12 @@ fi
 sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -i ./*.json.tmp
 [[ ${FORCE_OVERWRITE} = 'Y' && -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
 [[ ${FORCE_OVERWRITE} = 'Y' && -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
+[[ ${FORCE_OVERWRITE} = 'Y' && -f dbsync.json ]] && cp -f dbsync.json "dbsync.json_bkp$(date +%s)"
 if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f byron-genesis.json ]]; then mv -f byron-genesis.json.tmp byron-genesis.json; else rm -f byron-genesis.json.tmp; fi
 if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f genesis.json ]]; then mv -f genesis.json.tmp genesis.json; else rm -f genesis.json.tmp; fi
 if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f topology.json ]]; then mv -f topology.json.tmp topology.json; else rm -f topology.json.tmp; fi
 if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f config.json ]]; then mv -f config.json.tmp config.json; else rm -f config.json.tmp; fi
+if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f dbsync.json ]]; then mv -f dbsync.json.tmp dbsync.json; else rm -f dbsync.json.tmp; fi
 
 pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
 curl -s -m ${CURL_TIMEOUT} -o env.tmp ${URL_RAW}/scripts/cnode-helper-scripts/env
@@ -446,7 +452,7 @@ updateWithCustomConfig() {
   mv -f ${file}.tmp ${file}
 }
 
-[[ ${FORCE_OVERWRITE} = 'Y' ]] && echo "Forced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/gLiveView.sh and scripts/topologyUpdater.sh (alongwith files/topology.json, files/config.json) as required/"
+[[ ${FORCE_OVERWRITE} = 'Y' ]] && echo "Forced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/gLiveView.sh and scripts/topologyUpdater.sh (alongwith files/topology.json, files/config.json, files/dbsync.json) as required/"
 
 updateWithCustomConfig "env"
 updateWithCustomConfig "cnode.sh"
