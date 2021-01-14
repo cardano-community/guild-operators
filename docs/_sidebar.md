@@ -5,7 +5,7 @@
     * [Wallet](Build/wallet.md "Cardano Wallet")
     * [DBSync tool](Build/dbsync.md "Cardano DB Sync Tool")
     * [REST](Build/rest.md "Cardano Rest")
-    * [GraphQL](Build/graphql.md "Cardano GraphQL")
+  * [PostgREST](Build/pgrest.md "PostgREST")
   * Scripts
     * [Common env](Scripts/env.md)
     * [CNTools](Scripts/cntools.md)

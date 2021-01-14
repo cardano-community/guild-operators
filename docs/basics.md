@@ -22,7 +22,8 @@ chmod 755 prereqs.sh
 Please familiarise with the syntax of prereqs.sh before proceeding. The usage syntax can be checked using `./prereqs.sh -h` , sample output below:
 
 ```
-Usage: prereqs.sh [-f] [-s] [-i] [-l] [-b <branch>] [-n <testnet|guild|launchpad>] [-t <name>] [-m <seconds>]
+
+Usage: prereqs.sh [-f] [-s] [-i] [-l] [-c] [-w] [-p] [-b <branch>] [-n <testnet|guild|launchpad>] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano node and using CNTools
 
 -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
@@ -30,11 +31,15 @@ Install pre-requisites for building cardano node and using CNTools
 -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
 -n    Connect to specified network instead of public network (Default: connect to public cardano network)
       eg: -n testnet
--t    Alternate name for top level folder (Default: cnode)
+-t    Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
 -l    Use IOG fork of libsodium - Recommended as per IOG instructions (Default: system build)
+-c    Install/Upgrade and build CNCLI with RUST
+-w    Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
+-p    Install/Upgrade PostgREST binary to query postgres DB as a service
 -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 -i    Interactive mode (Default: silent mode)
+
 ```
 
 Running without any parameters will run script in silent mode with OS Dependencies, no libsodium fork, and *NOT* force overwrite of all files (only static files will be overwritten, which should not contain user modifications):

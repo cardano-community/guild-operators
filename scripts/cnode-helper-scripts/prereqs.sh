@@ -57,7 +57,7 @@ versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=avail
 usage() {
   cat <<EOF >&2
 
-Usage: $(basename "$0") [-f] [-s] [-i] [-l] [-c] [-b <branch>] [-n <testnet|guild|launchpad>] [-t <name>] [-m <seconds>]
+Usage: $(basename "$0") [-f] [-s] [-i] [-l] [-c] [-w] [-p] [-b <branch>] [-n <testnet|guild|launchpad>] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano node and using CNTools
 
 -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
@@ -70,6 +70,7 @@ Install pre-requisites for building cardano node and using CNTools
 -l    Use IOG fork of libsodium - Recommended as per IOG instructions (Default: system build)
 -c    Install/Upgrade and build CNCLI with RUST
 -w    Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
+-p    Install/Upgrade PostgREST binary to query postgres DB as a service
 -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 -i    Interactive mode (Default: silent mode)
 
@@ -77,7 +78,7 @@ EOF
   exit 1
 }
 
-while getopts :in:sflcwt:m:b: opt; do
+while getopts :in:sflcwpt:m:b: opt; do
   case ${opt} in
     i ) INTERACTIVE='Y' ;;
     n ) NETWORK=${OPTARG} ;;
@@ -86,6 +87,7 @@ while getopts :in:sflcwt:m:b: opt; do
     l ) LIBSODIUM_FORK='Y' ;;
     c ) INSTALL_CNCLI='Y' ;;
     w ) INSTALL_VCHC='Y' ;;
+    p ) INSTALL_POSTGREST='Y' ;;
     t ) CNODE_NAME=${OPTARG//[^[:alnum:]]/_} ;;
     m ) CURL_TIMEOUT=${OPTARG} ;;
     b ) BRANCH=${OPTARG} ;;
@@ -101,6 +103,7 @@ shift $((OPTIND -1))
 [[ -z ${LIBSODIUM_FORK} ]] && LIBSODIUM_FORK='N'
 [[ -z ${INSTALL_CNCLI} ]] && INSTALL_CNCLI='N'
 [[ -z ${INSTALL_VCHC} ]] && INSTALL_VCHC='N'
+[[ -z ${INSTALL_POSTGREST} ]] && INSTALL_POSTGREST='N'
 [[ -z ${CNODE_NAME} ]] && CNODE_NAME='cnode'
 [[ -z ${INTERACTIVE} ]] && INTERACTIVE='N'
 [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=60
@@ -123,32 +126,32 @@ REPO="https://github.com/cardano-community/guild-operators"
 REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
 URL_RAW="${REPO_RAW}/${BRANCH}"
 
-# Check if prereqs.sh update is available
-PARENT="$(dirname $0)"
-if [[ ${UPDATE_CHECK} = 'Y' ]] && curl -s -m ${CURL_TIMEOUT} -o "${PARENT}"/prereqs.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/prereqs.sh 2>/dev/null; then
-  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/prereqs.sh)
-  TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/prereqs.sh.tmp)
-  if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-    if get_answer "A new version of prereqs script is available, do you want to download the latest version?"; then
-      cp "${PARENT}"/prereqs.sh "${PARENT}/prereqs.sh_bkp$(date +%s)"
-      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/prereqs.sh)
-      printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/prereqs.sh.tmp
-      {
-        mv -f "${PARENT}"/prereqs.sh.tmp "${PARENT}"/prereqs.sh && \
-        chmod 755 "${PARENT}"/prereqs.sh && \
-        echo -e "\nUpdate applied successfully, please run prereqs again!\n" && \
-        exit 0; 
-      } || {
-        echo -e "Update failed!\n\nPlease manually download latest version of prereqs.sh script from GitHub" && \
-        exit 1;
-      }
-    fi
-  fi
-fi
-rm -f "${PARENT}"/prereqs.sh.tmp
-
 if [ "${INTERACTIVE}" = 'Y' ]; then
   clear;
+  # Check if prereqs.sh update is available
+  PARENT="$(dirname $0)"
+  if [[ ${UPDATE_CHECK} = 'Y' ]] && curl -s -m ${CURL_TIMEOUT} -o "${PARENT}"/prereqs.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/prereqs.sh 2>/dev/null; then
+    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/prereqs.sh)
+    TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/prereqs.sh.tmp)
+    if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
+      if get_answer "A new version of prereqs script is available, do you want to download the latest version?"; then
+        cp "${PARENT}"/prereqs.sh "${PARENT}/prereqs.sh_bkp$(date +%s)"
+        STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/prereqs.sh)
+        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/prereqs.sh.tmp
+        {
+          mv -f "${PARENT}"/prereqs.sh.tmp "${PARENT}"/prereqs.sh && \
+          chmod 755 "${PARENT}"/prereqs.sh && \
+          echo -e "\nUpdate applied successfully, please run prereqs again!\n" && \
+          exit 0; 
+        } || {
+          echo -e "Update failed!\n\nPlease manually download latest version of prereqs.sh script from GitHub" && \
+          exit 1;
+        }
+      fi
+    fi
+  fi
+  rm -f "${PARENT}"/prereqs.sh.tmp
+
   CNODE_PATH=$(get_input "Please enter the project path" ${CNODE_PATH})
   CNODE_NAME=$(get_input "Please enter directory name" ${CNODE_NAME})
   CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
@@ -360,6 +363,33 @@ if [[ "${INSTALL_VCHC}" = "Y" ]]; then
     fi
   else
     err_exit "ERROR!! Download of latest release of cardano-hw-cli from GitHub failed! Please retry or manually install"
+  fi
+fi
+
+if [[ "${INSTALL_POSTGREST}" = "Y" ]]; then
+  echo "Installing PostgREST"
+  if command -v postgrest >/dev/null; then pgrest_version="$(postgrest -h 2>/dev/null | grep 'PostgREST ' | awk '{print $2}')"; else pgrest_version="0.0.0"; fi
+  echo "  downloading PostgREST archive..."
+  pushd /tmp >/dev/null || err_exit
+  rm -rf postgrest-v*
+  pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-x64-static.tar.xz')"
+  if curl -sL -m ${CURL_TIMEOUT} -o postgrest-linux-x64.tar.xz ${pgrest_asset_url}; then
+    tar xf postgrest-linux-x64.tar.xz &>/dev/null
+    rm -f postgrest-linux-x64.tar.xz
+    [[ -f postgrest ]] || err_exit "ERROR!! postgrest archive downloaded but binary not found after attempting to extract package!"
+    pgrest_git_version="$(./postgrest -h 2>/dev/null | grep 'PostgREST ' | awk '{print $2}')"
+    if ! versionCheck "${pgrest_git_version}" "${pgrest_version}"; then
+      [[ ${pgrest_version} = "0.0.0" ]] && echo "  latest version: ${pgrest_git_version}" || echo "  installed version: ${pgrest_version}  |  latest version: ${pgrest_git_version}"
+      [[ ! -d "${HOME}"/.cabal/bin ]] && mkdir -p "${HOME}"/.cabal/bin
+      pushd "${HOME}"/.cabal/bin >/dev/null || err_exit
+      mv -f /tmp/postgrest .
+      echo "  postgrest ${vchc_git_version} installed!"
+    else
+      rm -rf postgrest #cleanup in /tmp
+      echo "  postgrest already latest version [${pgrest_version}], skipping!"
+    fi
+  else
+    err_exit "ERROR!! Download of latest release of postgrest from GitHub failed! Please retry or manually install"
   fi
 fi
 

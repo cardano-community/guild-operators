@@ -10,7 +10,7 @@ graph TB
   B(Need to explore <br/> blockchain locally?)
   C(Automate pool-ops <br/> tasks using <br/> menu navigations?)
   O{{Node}}
-  P{{Graphql}}
+  P{{PostgREST}}
   Q{{DBSync }}
   R{{Wallet}}
   S{{CNTools}}
