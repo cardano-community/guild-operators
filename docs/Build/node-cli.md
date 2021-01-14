@@ -18,9 +18,9 @@ You can use the instructions below to build the cardano-node, same steps can be 
 
 ``` bash
 git fetch --tags --all
-# Replace release 1.19.0 with the version/branch/tag you'd like to build
+# Replace tag against checkout if you do not want to build the latest released version
 git pull
-git checkout 1.19.0
+git checkout $(curl -s https://api.github.com/repos/input-output-hk/cardano-node/releases/latest | jq -r .tag_name)
 
 # The "-o" flag against script below will download cabal.project.local to depend on system libSodium package, and include cardano-address and bech32 binaries to your build
 $CNODE_HOME/scripts/cabal-build-all.sh -o
@@ -34,21 +34,18 @@ Execute cardano-cli and cardano-node to verify output as below:
 
 ```bash
 cardano-cli version
-# cardano-cli 1.19.0 - linux-x86_64 - ghc-8.6
-# git rev 4814003f14340d5a1fc02f3ac15437387a7ada9f
+# cardano-cli 1.24.2 - linux-x86_64 - ghc-8.10
+# git rev 196ba716c425a0b7c75741c168f6a6d7edaee1fc
 cardano-node version
-# cardano-node 1.19.0 - linux-x86_64 - ghc-8.6
-# git rev 4814003f14340d5a1fc02f3ac15437387a7ada9f
+cardano-node 1.24.2 - linux-x86_64 - ghc-8.10
+git rev 400d18092ce604352cf36fe5f105b0d7c78be074
 ```
 
 ##### Update port number or pool name for relative paths
 
-Before you go ahead with starting your node, you may want to update values for CNODE_PORT in `$CNODE_HOME/scripts/cnode.sh`. Note that it is imperative for operational relays and pools to ensure that the port mentioned is opened via firewall to the destination your node is supposed to connect from. Update your network/firewall configuration accordingly. Future executions of prereqs.sh will preserve and not overwrite these values.
+Before you go ahead with starting your node, you may want to update values for CNODE_PORT in `$CNODE_HOME/scripts/env`. Note that it is imperative for operational relays and pools to ensure that the port mentioned is opened via firewall to the destination your node is supposed to connect from. Update your network/firewall configuration accordingly. Future executions of prereqs.sh will preserve and not overwrite these values.
 
 ```bash
-## Static (content that will not be overwritten by prereqs.sh)
-## Begin
-
 POOL_NAME="GUILD"
 CNODE_PORT=6000
 POOL_DIR="$CNODE_HOME/priv/pool/$POOL_NAME"
@@ -58,12 +55,14 @@ POOL_DIR="$CNODE_HOME/priv/pool/$POOL_NAME"
 
 ##### Start the node
 
-To test starting the node in interactive mode, you can use the pre-built script below (note that the config now uses `SimpleView` so you may not see much output):
+To test starting the node in interactive mode, you can use the pre-built script below (note that your node logs are being written to $CNODE_HOME/logs folder, you may not see much output beyond `Listening on http://127.0.0.1:12798`):
 
 ```bash
 cd $CNODE_HOME/scripts
 ./cnode.sh
 ```
+
+Stop the node by hitting Ctrl-C.
 
 ##### Run as systemd service
 
@@ -92,11 +91,3 @@ sudo systemctl status cnode.service
 
 You can use [gLiveView](Scripts/gliveview.md) to monitor your pool that was started as systemd, if you miss the LiveView functionality.
 
-##### Steps to transition from LiveView in tmux to systemd setup
-
-If you've followed guide from this repo previously and would like to transfer to systemd usage, please checkout the steps below:
-
-1. Stop previous instance of node if already running (eg: in tmux)
-2. Run `prereqs.sh`, but remember to preserve your customisations to cnode.sh, topology.json, env files (you can also compare and update cnode.sh and env files from github repo).
-3. Follow the instructions [above](#run-as-systemd-service) to setup your node as a service and start it using systemctl as directed.
-4. If you need to monitor via interactive terminal as before, use [gLiveView](Scripts/gliveview.md).
