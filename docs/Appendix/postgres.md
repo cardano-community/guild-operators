@@ -57,7 +57,7 @@ Type `exit` at shell to return to your user from postgres
 
 ``` bash
 export PGPASSFILE=$CNODE_HOME/priv/.pgpass
-echo "localhost:5432:cexplorer_phtn:$(whoami):PasswordYouWant" > $PGPASSFILE
+echo "localhost:5432:cexplorer:$(whoami):PasswordYouWant" > $PGPASSFILE
 chmod 0600 $PGPASSFILE
 psql postgres
 # psql (10.6)
