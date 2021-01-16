@@ -83,7 +83,7 @@ if curl -s -m 10 -o "${PARENT}"/topologyUpdater.sh.tmp ${URL}/topologyUpdater.sh
           TU_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/topologyUpdater.sh)
           ENV_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
           printf '%s\n%s\n' "$TU_STATIC" "$TU_TEMPL2" > "${PARENT}"/topologyUpdater.sh.tmp
-          printf '%s\n%s\n' "$ENV_STATIC" "$ENV_TEMPL2" > "${PARENT}"/topologyUpdater.sh.tmp
+          printf '%s\n%s\n' "$ENV_STATIC" "$ENV_TEMPL2" > "${PARENT}"/env.tmp
           {
             mv -f "${PARENT}"/topologyUpdater.sh.tmp "${PARENT}"/topologyUpdater.sh && \
             mv -f "${PARENT}"/env.tmp "${PARENT}"/env && \
