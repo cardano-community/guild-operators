@@ -239,7 +239,7 @@ cncliInit() {
             CNCLI_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/cncli.sh)
             ENV_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
             printf '%s\n%s\n' "$CNCLI_STATIC" "$CNCLI_TEMPL2" > "${PARENT}"/cncli.sh.tmp
-            printf '%s\n%s\n' "$ENV_STATIC" "$ENV_TEMPL2" > "${PARENT}"/cncli.sh.tmp
+            printf '%s\n%s\n' "$ENV_STATIC" "$ENV_TEMPL2" > "${PARENT}"/env.tmp
             {
               mv -f "${PARENT}"/cncli.sh.tmp "${PARENT}"/cncli.sh && \
               mv -f "${PARENT}"/env.tmp "${PARENT}"/env && \
