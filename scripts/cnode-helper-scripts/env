@@ -125,6 +125,7 @@ if [[ -z "${SOCKET}" ]]; then
 else
   export CARDANO_NODE_SOCKET_PATH="${SOCKET}"
 fi
+export SOCKET="${CARDANO_NODE_SOCKET_PATH}" # For compatibility with those who havn't yet upgraded cnode.sh
 
 if [[ -z "${CONFIG}" ]]; then
   if [[ "$(ps -ef | grep "[c]ardano-node.*.port ${CNODE_PORT}")" =~ --config[[:space:]]([^[:space:]]+) ]]; then
