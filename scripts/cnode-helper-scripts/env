@@ -221,21 +221,6 @@ else
   NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
   [[ "${NWMAGIC}" = "1097911063" ]] && NETWORK_NAME="Testnet" || NETWORK_NAME="Custom"
 fi
-getEraIdentifier() {
-    if ${CCLI} query protocol-parameters --byron-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--byron-era" && ERA_WITNESS="TxWitness ByronEra"
-  elif ${CCLI} query protocol-parameters --shelley-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--shelley-era" && ERA_WITNESS="TxWitness ShelleyEra"
-  elif ${CCLI} query protocol-parameters --allegra-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--allegra-era" && ERA_WITNESS="TxWitness AllegraEra"
-  elif ${CCLI} query protocol-parameters --mary-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--mary-era" && ERA_WITNESS="TxWitness MaryEra"
-  else 
-    ERA_IDENTIFIER=""; ERA_WITNESS=""
-    [[ ${OFFLINE_MODE} = "N" ]] && return 1
-  fi
-  return 0
-}
-if ! getEraIdentifier && [[ ${OFFLINE_MODE} = "N" ]]; then echo "Failed to query protocol-parameters from node, not yet fully started?" && return 1; fi
-
-PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>&1)"
-if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -er .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
 
 SHELLEY_GENESIS_START_SEC=$(date --date="$(jq -r .systemStart "${GENESIS_JSON}")" +%s)
 EPOCH_LENGTH=$(jq -r .epochLength "${GENESIS_JSON}")
@@ -296,5 +281,22 @@ FG_WHITE='\e[97m'
 STANDOUT='\e[7m'
 BOLD='\e[1m'
 NC='\e[0m'
+
+getEraIdentifier() {
+    if ${CCLI} query protocol-parameters --byron-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--byron-era" && ERA_WITNESS="TxWitness ByronEra"
+  elif ${CCLI} query protocol-parameters --shelley-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--shelley-era" && ERA_WITNESS="TxWitness ShelleyEra"
+  elif ${CCLI} query protocol-parameters --allegra-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--allegra-era" && ERA_WITNESS="TxWitness AllegraEra"
+  elif ${CCLI} query protocol-parameters --mary-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--mary-era" && ERA_WITNESS="TxWitness MaryEra"
+  else 
+    ERA_IDENTIFIER=""; ERA_WITNESS=""
+    [[ ${OFFLINE_MODE} = "N" ]] && return 1
+  fi
+  return 0
+}
+# special exit code for scripts that want to source env and doesn't care about ERA_IDENTIFIER or ERA_WITNESS
+if ! getEraIdentifier && [[ ${OFFLINE_MODE} = "N" ]]; then echo "Failed to query protocol-parameters from node, not yet fully started?" && return 2; fi
+
+PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>&1)"
+if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -er .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
 
 return 0
