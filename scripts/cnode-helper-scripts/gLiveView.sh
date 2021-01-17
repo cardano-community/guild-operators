@@ -528,7 +528,7 @@ if [[ ${USE_EKG} = 'Y' ]]; then
 .cardano.node.ChainDB.metrics.slotNum.int.val //0,
 .cardano.node.Forge.metrics.remainingKESPeriods.int.val //0
 ] | @tsv' <<< "${data}")
-  read -a data_arr <<< ${data_tsv}
+  read -ra data_arr <<< ${data_tsv}
   epochnum=${data_arr[0]}
   slot_in_epoch=${data_arr[1]}
   slotnum=${data_arr[2]}
@@ -640,7 +640,7 @@ while true; do
 .cardano.node.metrics.Forge["didnt-adopt"].int.val //0,
 .cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0
 ] | @tsv' <<< "${data}")
-      read -a data_arr <<< ${data_tsv}
+      read -ra data_arr <<< ${data_tsv}
       blocknum=${data_arr[0]}; epochnum=${data_arr[1]}; slot_in_epoch=${data_arr[2]}; slotnum=${data_arr[3]}
       [[ ${data_arr[4]} != '-' ]] && density=$(bc <<< "scale=3;$(printf '%3.5f' "${data_arr[4]}")*100/1") || density=0.0
       tx_processed=${data_arr[5]}; mempool_tx=${data_arr[6]}; mempool_bytes=${data_arr[7]}
@@ -1015,7 +1015,7 @@ while true; do
       if [[ -f "${BLOCKLOG_DB}" ]]; then
         invalid_cnt=0; missed_cnt=0; ghosted_cnt=0; stolen_cnt=0; confirmed_cnt=0; adopted_cnt=0; leader_cnt=0
         for status_type in $(sqlite3 "${BLOCKLOG_DB}" "SELECT status, COUNT(status) FROM blocklog WHERE epoch=${epochnum} GROUP BY status;" 2>/dev/null); do
-          IFS='|' read -a status <<< ${status_type}
+          IFS='|' read -ra status <<< ${status_type}
           case ${status[0]} in
             invalid) invalid_cnt=${status[1]} ;;
             missed) missed_cnt=${status[1]} ;;
@@ -1029,7 +1029,7 @@ while true; do
         adopted_cnt=$(( adopted_cnt + confirmed_cnt ))
         leader_cnt=$(( leader_cnt + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
         leader_next=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE datetime(at) > datetime('now') ORDER BY slot ASC LIMIT 1;" 2>/dev/null)
-        IFS='|' read -a epoch_stats <<< $(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${epochnum};" 2>/dev/null)
+        IFS='|' read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${epochnum};" 2>/dev/null)"
         if [[ ${#epoch_stats[@]} -eq 0 ]]; then epoch_stats=("-" "-"); else epoch_stats[1]="${epoch_stats[1]}%"; fi
 
         [[ ${invalid_cnt} -eq 0 ]] && invalid_fmt="${NC}" || invalid_fmt="${style_status_3}"
