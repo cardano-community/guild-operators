@@ -2913,11 +2913,16 @@ EOF
               waitForInput && continue 2
             fi
           else
-            println "ACTION" "${CCLI} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_FOLDER}/vkey.tmp"
-            if ! ${CCLI} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_FOLDER}"/vkey.tmp; then waitForInput && continue 2; fi
-            if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_FOLDER}"/vkey.tmp) ]]; then
+            println "ACTION" "${CCLI} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_FOLDER}/tmp.vkey"
+            if ! ${CCLI} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_FOLDER}"/tmp.vkey; then waitForInput && continue 2; fi
+            if [[ $(jq -r '.type' "${file}") = *"Extended"* ]]; then
+              println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_FOLDER}/tmp.vkey --verification-key-file ${TMP_FOLDER}/tmp2.vkey"
+              ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_FOLDER}/tmp.vkey" --verification-key-file "${TMP_FOLDER}/tmp2.vkey"
+              mv -f "${TMP_FOLDER}/tmp2.vkey" "${TMP_FOLDER}/tmp.vkey"
+            fi
+            if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_FOLDER}"/tmp.vkey) ]]; then
               println "ERROR" "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
-              println "ERROR" "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_FOLDER}"/vkey.tmp)"
+              println "ERROR" "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_FOLDER}"/tmp.vkey)"
               println "ERROR" "Transaction verification cborHex: ${otx_vkey_cborHex}"
               waitForInput && continue 2
             fi
@@ -2967,11 +2972,16 @@ EOF
                    waitForInput && continue 2
                  fi
                else
-                 println "ACTION" "${CCLI} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_FOLDER}/vkey.tmp"
-                 if ! ${CCLI} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_FOLDER}"/vkey.tmp; then waitForInput && continue 2; fi
-                 if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_FOLDER}"/vkey.tmp) ]]; then
+                 println "ACTION" "${CCLI} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_FOLDER}/tmp.vkey"
+                 if ! ${CCLI} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_FOLDER}"/tmp.vkey; then waitForInput && continue 2; fi
+                 if [[ $(jq -r '.type' "${file}") = *"Extended"* ]]; then
+                   println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_FOLDER}/tmp.vkey --verification-key-file ${TMP_FOLDER}/tmp2.vkey"
+                   ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_FOLDER}/tmp.vkey" --verification-key-file "${TMP_FOLDER}/tmp2.vkey"
+                   mv -f "${TMP_FOLDER}/tmp2.vkey" "${TMP_FOLDER}/tmp.vkey"
+                 fi
+                 if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_FOLDER}"/tmp.vkey) ]]; then
                    println "ERROR" "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
-                   println "ERROR" "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_FOLDER}"/vkey.tmp)"
+                   println "ERROR" "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_FOLDER}"/tmp.vkey)"
                    println "ERROR" "Transaction verification cborHex: ${otx_vkey_cborHex}"
                    waitForInput && continue 2
                  fi
