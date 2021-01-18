@@ -15,8 +15,10 @@ CNODE_PORT=6000                                         # Set node port
 #TOPOLOGY="${CNODE_HOME}/files/topology.json"           # Override default topology.json path
 #LOG_DIR="${CNODE_HOME}/logs"                           # Folder where your logs will be sent to (must pre-exist)
 #DB_DIR="${CNODE_HOME}/db"                              # Folder to store the cardano-node blockchain db
-#EKG_HOST=127.0.0.1                                     # Set node EKG host
+#EKG_HOST=127.0.0.1                                     # Set node EKG host IP
 #EKG_PORT=12788                                         # Override automatic detection of node EKG port
+#PROM_HOST=127.0.0.1                                    # Set node Prometheus host IP
+#PROM_PORT=12798                                        # Override automatic detection of node Prometheus port
 #EKG_TIMEOUT=3                                          # Maximum time in seconds that you allow EKG request to take before aborting (node metrics)
 #CURL_TIMEOUT=10                                        # Maximum time in seconds that you allow curl file download to take before aborting (GitHub update process)
 #BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"         # Override default directory used to store block data for core node
@@ -141,10 +143,7 @@ fi
 [[ -z ${EKG_TIMEOUT} ]] && EKG_TIMEOUT=3
 [[ -z ${EKG_HOST} ]] && EKG_HOST=127.0.0.1
 if [[ ${EKG_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-  OIFS=$IFS
-  IFS='.'
-  EKG_OCTETS=(${EKG_HOST})
-  IFS=$OIFS
+  IFS='.' read -ra EKG_OCTETS <<< ${EKG_HOST}
   if ! [[ ${EKG_OCTETS[0]} -le 255 && ${EKG_OCTETS[1]} -le 255 && ${EKG_OCTETS[2]} -le 255 && ${EKG_OCTETS[3]} -le 255 ]]; then
     echo "Not a valid IP range set for EKG host, please check env file!"
     return 1
@@ -153,7 +152,6 @@ else
   echo "Not a valid IP format set for EKG host, please check env file!"
   return 1
 fi
-
 if [[ -z ${EKG_PORT} ]]; then
   if ! EKG_PORT=$(jq -er '.hasEKG' "${CONFIG}" 2>/dev/null); then
     if [[ ${OFFLINE_MODE} = "N" ]]; then
@@ -163,6 +161,29 @@ if [[ -z ${EKG_PORT} ]]; then
   fi
 elif [[ ! ${EKG_PORT} =~ ^[0-9]+$ ]]; then
   echo "Please set a valid EKG port number in env file!"
+  return 1
+fi
+
+if [[ -z ${PROM_HOST} ]]; then PROM_HOST=$(jq -er '.hasPrometheus[0]' "${CONFIG}" 2>/dev/null) || PROM_HOST=127.0.0.1; fi
+if [[ ${PROM_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+  IFS='.' read -ra PROM_OCTETS <<< ${PROM_HOST}
+  if ! [[ ${PROM_OCTETS[0]} -le 255 && ${PROM_OCTETS[1]} -le 255 && ${PROM_OCTETS[2]} -le 255 && ${PROM_OCTETS[3]} -le 255 ]]; then
+    echo "Not a valid IP range set for Prometheus host, please check env file!"
+    return 1
+  fi
+else
+  echo "Not a valid IP format set for Prometheus host, please check env file!"
+  return 1
+fi
+if [[ -z ${PROM_PORT} ]]; then
+  if ! PROM_PORT=$(jq -er '.hasPrometheus[1]' "${CONFIG}" 2>/dev/null); then
+    if [[ ${OFFLINE_MODE} = "N" ]]; then
+      echo "Could not get 'hasPrometheus' port from the node configuration file"
+      return 1
+    fi
+  fi
+elif [[ ! ${PROM_PORT} =~ ^[0-9]+$ ]]; then
+  echo "Please set a valid Prometheus port number in env file!"
   return 1
 fi
 
@@ -294,7 +315,7 @@ getEraIdentifier() {
   return 0
 }
 # special exit code for scripts that want to source env and doesn't care about ERA_IDENTIFIER or ERA_WITNESS
-if ! getEraIdentifier && [[ ${OFFLINE_MODE} = "N" ]]; then echo "Failed to query protocol-parameters from node, not yet fully started?" && return 2; fi
+if ! getEraIdentifier; then echo "Failed to query protocol-parameters from node, not yet fully started?" && return 2; fi
 
 PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>&1)"
 if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -er .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi

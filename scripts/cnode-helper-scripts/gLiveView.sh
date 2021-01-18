@@ -14,6 +14,7 @@ RETRIES=3                                  # How many attempts to connect to run
 THEME="dark"                               # dark  = suited for terminals with a dark background
                                            # light = suited for terminals with a bright background
 NO_INTERNET_MODE="N"                       # To skip checking for auto updates or make outgoing connections to guild-operators github repository
+USE_EKG="N"                                # Use EKG metrics from the node instead of Promethus. Promethus metrics(default) should yield slightly better performance
 
 #####################################
 # Themes                            #
@@ -67,15 +68,17 @@ Guild LiveView - An alternative cardano-node LiveView
 
 -l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
 -p    Disable default CNCLI ping and revert to legacy tcptraceroute if available, else use regular ICMP ping.
+-e    Use EKG metrics from the node instead of Promethus metrics
 -b    Use alternate branch to check for updates - only for testing/development (Default: Master)  
 EOF
   exit 1
 }
 
-while getopts :lpb: opt; do
+while getopts :lpeb: opt; do
   case ${opt} in
     l ) LEGACY_MODE="true" ;;
     p ) DISABLE_CNCLI="true" ;;
+    e ) USE_EKG='Y' ;;
     b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
     esac
@@ -142,7 +145,8 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
             STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
             printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
             mv "${PARENT}"/env.tmp "${PARENT}"/env
-            echo -e "\nUpdate to env file applied successfully!"
+            echo -e "\nenv update successfully applied!\n"
+            read -r -n 1 -s -p "press any key to proceed..." wait
             ;;
           *) : ;; # ignore
         esac
@@ -195,6 +199,7 @@ fi
 [[ ${#NODE_NAME} -gt 19 ]] && myExit 1 "Please keep node name at or below 19 characters in length!"
 
 [[ ! ${REFRESH_RATE} =~ ^[0-9]+$ ]] && myExit 1 "Please set a valid refresh rate number!"
+[[ -z ${USE_EKG} ]] && USE_EKG='N'
 
 # Style
 width=63
@@ -433,9 +438,9 @@ checkPeers() {
 
   if [[ ${direction} = "out" ]]; then
     if [[ ${use_lsof} = 'Y' ]]; then
-      peers=$(lsof -Pnl +M -i4 | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${prom_port})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}')
+      peers=$(lsof -Pnl +M -i4 | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}')
     else
-      peers=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${prom_port})" '$3 !~ port {print $4}')
+      peers=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})" '$3 !~ port {print $4}')
     fi
   else
     if [[ ${use_lsof} = 'Y' ]]; then
@@ -519,7 +524,7 @@ checkPeers() {
 check_peers="false"
 show_peers="false"
 selected_direction="out"
-if ! prom_port=$(jq -er '.hasPrometheus[1]' "${CONFIG}" 2>/dev/null); then prom_port=0 && USE_EKG='Y'; else USE_EKG='N'; fi
+
 if [[ ${USE_EKG} = 'Y' ]]; then
   data=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
   data_tsv=$(jq -r '[
@@ -534,7 +539,7 @@ if [[ ${USE_EKG} = 'Y' ]]; then
   slotnum=${data_arr[2]}
   remaining_kes_periods=${data_arr[3]}
 else
-  data=$(curl -s -m ${EKG_TIMEOUT} "http://${EKG_HOST}:${prom_port}/metrics" 2>/dev/null)
+  data=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
   [[ ${data} =~ cardano_node_ChainDB_metrics_epoch_int[[:space:]]([^[:space:]]*) ]] && epochnum=${BASH_REMATCH[1]} || epochnum=0
   [[ ${data} =~ cardano_node_ChainDB_metrics_slotInEpoch_int[[:space:]]([^[:space:]]*) ]] && slot_in_epoch=${BASH_REMATCH[1]} || slot_in_epoch=0
   [[ ${data} =~ cardano_node_ChainDB_metrics_slotNum_int[[:space:]]([^[:space:]]*) ]] && slotnum=${BASH_REMATCH[1]} || slotnum=0
@@ -591,7 +596,7 @@ while true; do
     data=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
     uptimens=$(jq '.rts.gc.wall_ms.val //0' <<< "${data}")
   else
-    data=$(curl -s -m ${EKG_TIMEOUT} "http://${EKG_HOST}:${prom_port}/metrics" 2>/dev/null)
+    data=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
     [[ ${data} =~ rts_gc_wall_ms[[:space:]]([^[:space:]]*) ]] && uptimens=${BASH_REMATCH[1]} || uptimens=0
   fi
   [[ ${fail_count} -eq ${RETRIES} ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}"
@@ -618,10 +623,10 @@ while true; do
   if [[ ${show_peers} = "false" ]]; then
     if [[ ${use_lsof} = 'Y' ]]; then
       peers_in=$(lsof -Pnl +M -i4 | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
-      peers_out=$(lsof -Pnl +M -i4 | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${prom_port})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
+      peers_out=$(lsof -Pnl +M -i4 | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
     else
       peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | grep -v ":${cncli_port} " | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
-      peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${prom_port})" '$3 !~ port {print}' | wc -l)
+      peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})" '$3 !~ port {print}' | wc -l)
     fi
     if [[ ${USE_EKG} = 'Y' ]]; then
       data_tsv=$(jq -r '[
