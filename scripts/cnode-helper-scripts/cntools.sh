@@ -74,8 +74,8 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
             STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
             printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
             mv "${PARENT}"/env.tmp "${PARENT}"/env
-            echo -e "\nUpdate to env file applied successfully!\n\nPress any key to continue!"
-            read -r -n 1 -s wait
+            echo -e "\nenv update successfully applied!\n"
+            read -r -n 1 -s -p "press any key to proceed..." wait
             ;;
           *) : ;; # ignore
         esac
