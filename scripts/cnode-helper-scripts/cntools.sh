@@ -2012,7 +2012,7 @@ EOF
       if ! isWalletRegistered ${wallet_name}; then
         if [[ ${op_mode} = "hybrid" ]]; then
           println "ERROR" "\n${FG_RED}ERROR${NC}: wallet ${FG_GREEN}${wallet_name}${NC} not a registered wallet on chain and CNTools run in hybrid mode"
-          println "ERROR" "Please first register all wallets to use in pool registration using 'Wallet >> Register'"
+          println "ERROR" "Please first register the main CLI wallet to use in pool registration using 'Wallet >> Register'"
           waitForInput && continue
         fi
         getBaseAddress ${wallet_name}
@@ -2043,8 +2043,10 @@ EOF
                     fi ;;
                  3) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
                     waitForInput "Did you mean to run in Hybrid mode?  press any key to return home!" && continue 2 ;;
-                 4) println "ERROR" "${FG_RED}ERROR${NC}: stake verification key missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
-                    println "DEBUG" "Add another owner?" && continue ;;
+                 4) if [[ ! -f "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}" ]]; then # ignore if payment vkey is missing
+                      println "ERROR" "${FG_RED}ERROR${NC}: stake verification key missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
+                      println "DEBUG" "Add another owner?" && continue 
+                    fi ;;
                esac
              else
                println "DEBUG" "Add more owners?" && continue
@@ -2070,7 +2072,7 @@ EOF
            if ! isWalletRegistered ${reward_wallet}; then
              if [[ ${op_mode} = "hybrid" ]]; then
                println "ERROR" "\nReward wallet ${FG_GREEN}${reward_wallet}${NC} not a registered wallet on chain and CNTools run in hybrid mode"
-               println "ERROR" "Please first register all wallets to use in pool registration using 'Wallet >> Register'"
+               println "ERROR" "Please first register the reward wallet to use in pool registration using 'Wallet >> Register'"
                waitForInput && continue
              fi
              getWalletType ${reward_wallet}
