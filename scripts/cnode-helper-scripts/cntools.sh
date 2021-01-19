@@ -2028,7 +2028,7 @@ EOF
     fi
     
     if [[ ${reuse_wallets} = 'N' ]]; then
-      println "DEBUG" "Register a multi-owner pool?"
+      println "DEBUG" "Register a multi-owner pool (you need to have stake.vkey of any additional owner in a seperate wallet folder under \$CNODE_HOME/priv/wallet)?"
       while true; do
         select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
         case $? in
@@ -2215,6 +2215,7 @@ EOF
 
     [[ -f "${pool_deregcert_file}" ]] && rm -f ${pool_deregcert_file} # delete de-registration cert if available
 
+    echo
     if [[ ${op_mode} = "online" ]]; then
       getBaseAddress ${owner_wallets[0]}
       if ! verifyTx ${base_addr}; then waitForInput && continue; fi
@@ -2225,7 +2226,6 @@ EOF
         println "Pool ${FG_GREEN}${pool_name}${NC} successfully updated!"
       fi
     else
-      echo
       println "Pool ${FG_GREEN}${pool_name}${NC} built!"
       println "${FG_YELLOW}Follow the steps above to sign and submit transaction!${NC}"
     fi
