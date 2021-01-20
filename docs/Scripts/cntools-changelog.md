@@ -7,8 +7,11 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [7.0.2] - 2021-01-17
 
+##### Changed
+- Re-add the option in offline workflow to use wallet folder that only contains stake keys for multi-owner pools
+
 ##### Fixed
-- Verification of signing key in offline mode for extended signing keys(mnemonic imported wallet) corrected
+- Verification of signing key in offline mode for extended signing keys (mnemonics imported wallets)
 
 ## [7.0.1] - 2021-01-13
 
