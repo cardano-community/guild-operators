@@ -52,7 +52,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.18.0
+GLV_VERSION=v1.19.0
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -528,10 +528,10 @@ selected_direction="out"
 if [[ ${USE_EKG} = 'Y' ]]; then
   data=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
   data_tsv=$(jq -r '[
-.cardano.node.ChainDB.metrics.epoch.int.val //0,
-.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0,
-.cardano.node.ChainDB.metrics.slotNum.int.val //0,
-.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0
+.cardano.node.metrics.epoch.int.val //0,
+.cardano.node.metrics.slotInEpoch.int.val //0,
+.cardano.node.metrics.slotNum.int.val //0,
+.cardano.node.metrics.remainingKESPeriods.int.val //0
 ] | @tsv' <<< "${data}")
   read -ra data_arr <<< ${data_tsv}
   epochnum=${data_arr[0]}
@@ -540,10 +540,10 @@ if [[ ${USE_EKG} = 'Y' ]]; then
   remaining_kes_periods=${data_arr[3]}
 else
   data=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
-  [[ ${data} =~ cardano_node_ChainDB_metrics_epoch_int[[:space:]]([^[:space:]]*) ]] && epochnum=${BASH_REMATCH[1]} || epochnum=0
-  [[ ${data} =~ cardano_node_ChainDB_metrics_slotInEpoch_int[[:space:]]([^[:space:]]*) ]] && slot_in_epoch=${BASH_REMATCH[1]} || slot_in_epoch=0
-  [[ ${data} =~ cardano_node_ChainDB_metrics_slotNum_int[[:space:]]([^[:space:]]*) ]] && slotnum=${BASH_REMATCH[1]} || slotnum=0
-  [[ ${data} =~ cardano_node_Forge_metrics_remainingKESPeriods_int[[:space:]]([^[:space:]]*) ]] && remaining_kes_periods=${BASH_REMATCH[1]} || remaining_kes_periods=0
+  [[ ${data} =~ cardano_node_metrics_epoch_int[[:space:]]([^[:space:]]*) ]] && epochnum=${BASH_REMATCH[1]} || epochnum=0
+  [[ ${data} =~ cardano_node_metrics_slotInEpoch_int[[:space:]]([^[:space:]]*) ]] && slot_in_epoch=${BASH_REMATCH[1]} || slot_in_epoch=0
+  [[ ${data} =~ cardano_node_metrics_slotNum_int[[:space:]]([^[:space:]]*) ]] && slotnum=${BASH_REMATCH[1]} || slotnum=0
+  [[ ${data} =~ cardano_node_metrics_remainingKESPeriods_int[[:space:]]([^[:space:]]*) ]] && remaining_kes_periods=${BASH_REMATCH[1]} || remaining_kes_periods=0
 fi
 curr_epoch=${epochnum}
 [[ "${PROTOCOL}" = "Cardano" ]] && getShelleyTransitionEpoch || shelley_transition_epoch=-2
@@ -630,16 +630,16 @@ while true; do
     fi
     if [[ ${USE_EKG} = 'Y' ]]; then
       data_tsv=$(jq -r '[
-.cardano.node.ChainDB.metrics.blockNum.int.val //0,
-.cardano.node.ChainDB.metrics.epoch.int.val //0,
-.cardano.node.ChainDB.metrics.slotInEpoch.int.val //0,
-.cardano.node.ChainDB.metrics.slotNum.int.val //0,
-.cardano.node.ChainDB.metrics.density.real.val //"-",
+.cardano.node.metrics.blockNum.int.val //0,
+.cardano.node.metrics.epoch.int.val //0,
+.cardano.node.metrics.slotInEpoch.int.val //0,
+.cardano.node.metrics.slotNum.int.val //0,
+.cardano.node.metrics.density.real.val //"-",
 .cardano.node.metrics.txsProcessedNum.int.val //0,
 .cardano.node.metrics.txsInMempool.int.val //0,
 .cardano.node.metrics.mempoolBytes.int.val //0,
-.cardano.node.Forge.metrics.currentKESPeriod.int.val //0,
-.cardano.node.Forge.metrics.remainingKESPeriods.int.val //0,
+.cardano.node.metrics.currentKESPeriod.int.val //0,
+.cardano.node.metrics.remainingKESPeriods.int.val //0,
 .cardano.node.metrics.Forge["node-is-leader"].int.val //0,
 .cardano.node.metrics.Forge.adopted.int.val //0,
 .cardano.node.metrics.Forge["didnt-adopt"].int.val //0,
@@ -652,16 +652,16 @@ while true; do
       kesperiod=${data_arr[8]}; remaining_kes_periods=${data_arr[9]}
       isleader=${data_arr[10]}; adopted=${data_arr[11]}; didntadopt=${data_arr[12]}; about_to_lead=${data_arr[13]}
     else
-      [[ ${data} =~ cardano_node_ChainDB_metrics_blockNum_int[[:space:]]([^[:space:]]*) ]] && blocknum=${BASH_REMATCH[1]} || blocknum=0
-      [[ ${data} =~ cardano_node_ChainDB_metrics_epoch_int[[:space:]]([^[:space:]]*) ]] && epochnum=${BASH_REMATCH[1]} || epochnum=0
-      [[ ${data} =~ cardano_node_ChainDB_metrics_slotInEpoch_int[[:space:]]([^[:space:]]*) ]] && slot_in_epoch=${BASH_REMATCH[1]} || slot_in_epoch=0
-      [[ ${data} =~ cardano_node_ChainDB_metrics_slotNum_int[[:space:]]([^[:space:]]*) ]] && slotnum=${BASH_REMATCH[1]} || slotnum=0
-      [[ ${data} =~ cardano_node_ChainDB_metrics_density_real[[:space:]]([^[:space:]]*) ]] && density=$(bc <<< "scale=3;$(printf '%3.5f' "${BASH_REMATCH[1]}")*100/1") || density=0.0
+      [[ ${data} =~ cardano_node_metrics_blockNum_int[[:space:]]([^[:space:]]*) ]] && blocknum=${BASH_REMATCH[1]} || blocknum=0
+      [[ ${data} =~ cardano_node_metrics_epoch_int[[:space:]]([^[:space:]]*) ]] && epochnum=${BASH_REMATCH[1]} || epochnum=0
+      [[ ${data} =~ cardano_node_metrics_slotInEpoch_int[[:space:]]([^[:space:]]*) ]] && slot_in_epoch=${BASH_REMATCH[1]} || slot_in_epoch=0
+      [[ ${data} =~ cardano_node_metrics_slotNum_int[[:space:]]([^[:space:]]*) ]] && slotnum=${BASH_REMATCH[1]} || slotnum=0
+      [[ ${data} =~ cardano_node_metrics_density_real[[:space:]]([^[:space:]]*) ]] && density=$(bc <<< "scale=3;$(printf '%3.5f' "${BASH_REMATCH[1]}")*100/1") || density=0.0
       [[ ${data} =~ cardano_node_metrics_txsProcessedNum_int[[:space:]]([^[:space:]]*) ]] && tx_processed=${BASH_REMATCH[1]} || tx_processed=0
       [[ ${data} =~ cardano_node_metrics_txsInMempool_int[[:space:]]([^[:space:]]*) ]] && mempool_tx=${BASH_REMATCH[1]} || mempool_tx=0
       [[ ${data} =~ cardano_node_metrics_mempoolBytes_int[[:space:]]([^[:space:]]*) ]] && mempool_bytes=${BASH_REMATCH[1]} || mempool_bytes=0
-      [[ ${data} =~ cardano_node_Forge_metrics_currentKESPeriod_int[[:space:]]([^[:space:]]*) ]] && kesperiod=${BASH_REMATCH[1]} || kesperiod=0
-      [[ ${data} =~ cardano_node_Forge_metrics_remainingKESPeriods_int[[:space:]]([^[:space:]]*) ]] && remaining_kes_periods=${BASH_REMATCH[1]} || remaining_kes_periods=0
+      [[ ${data} =~ cardano_node_metrics_currentKESPeriod_int[[:space:]]([^[:space:]]*) ]] && kesperiod=${BASH_REMATCH[1]} || kesperiod=0
+      [[ ${data} =~ cardano_node_metrics_remainingKESPeriods_int[[:space:]]([^[:space:]]*) ]] && remaining_kes_periods=${BASH_REMATCH[1]} || remaining_kes_periods=0
       [[ ${data} =~ cardano_node_metrics_Forge_node_is_leader_int[[:space:]]([^[:space:]]*) ]] && isleader=${BASH_REMATCH[1]} || isleader=0
       [[ ${data} =~ cardano_node_metrics_Forge_adopted_int[[:space:]]([^[:space:]]*) ]] && adopted=${BASH_REMATCH[1]} || adopted=0
       [[ ${data} =~ cardano_node_metrics_Forge_didnt_adopt_int[[:space:]]([^[:space:]]*) ]] && didntadopt=${BASH_REMATCH[1]} || didntadopt=0
