@@ -74,8 +74,8 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
             STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
             printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
             mv "${PARENT}"/env.tmp "${PARENT}"/env
-            echo -e "\nUpdate to env file applied successfully!\n\nPress any key to continue!"
-            read -r -n 1 -s wait
+            echo -e "\nenv update successfully applied!\n"
+            read -r -n 1 -s -p "press any key to proceed..." wait
             ;;
           *) : ;; # ignore
         esac
@@ -2012,7 +2012,7 @@ EOF
       if ! isWalletRegistered ${wallet_name}; then
         if [[ ${op_mode} = "hybrid" ]]; then
           println "ERROR" "\n${FG_RED}ERROR${NC}: wallet ${FG_GREEN}${wallet_name}${NC} not a registered wallet on chain and CNTools run in hybrid mode"
-          println "ERROR" "Please first register all wallets to use in pool registration using 'Wallet >> Register'"
+          println "ERROR" "Please first register the main CLI wallet to use in pool registration using 'Wallet >> Register'"
           waitForInput && continue
         fi
         getBaseAddress ${wallet_name}
@@ -2028,7 +2028,7 @@ EOF
     fi
     
     if [[ ${reuse_wallets} = 'N' ]]; then
-      println "DEBUG" "Register a multi-owner pool?"
+      println "DEBUG" "Register a multi-owner pool (you need to have stake.vkey of any additional owner in a seperate wallet folder under \$CNODE_HOME/priv/wallet)?"
       while true; do
         select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
         case $? in
@@ -2043,8 +2043,10 @@ EOF
                     fi ;;
                  3) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
                     waitForInput "Did you mean to run in Hybrid mode?  press any key to return home!" && continue 2 ;;
-                 4) println "ERROR" "${FG_RED}ERROR${NC}: stake verification key missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
-                    println "DEBUG" "Add another owner?" && continue ;;
+                 4) if [[ ! -f "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}" ]]; then # ignore if payment vkey is missing
+                      println "ERROR" "${FG_RED}ERROR${NC}: stake verification key missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
+                      println "DEBUG" "Add another owner?" && continue 
+                    fi ;;
                esac
              else
                println "DEBUG" "Add more owners?" && continue
@@ -2070,7 +2072,7 @@ EOF
            if ! isWalletRegistered ${reward_wallet}; then
              if [[ ${op_mode} = "hybrid" ]]; then
                println "ERROR" "\nReward wallet ${FG_GREEN}${reward_wallet}${NC} not a registered wallet on chain and CNTools run in hybrid mode"
-               println "ERROR" "Please first register all wallets to use in pool registration using 'Wallet >> Register'"
+               println "ERROR" "Please first register the reward wallet to use in pool registration using 'Wallet >> Register'"
                waitForInput && continue
              fi
              getWalletType ${reward_wallet}
@@ -2213,6 +2215,7 @@ EOF
 
     [[ -f "${pool_deregcert_file}" ]] && rm -f ${pool_deregcert_file} # delete de-registration cert if available
 
+    echo
     if [[ ${op_mode} = "online" ]]; then
       getBaseAddress ${owner_wallets[0]}
       if ! verifyTx ${base_addr}; then waitForInput && continue; fi
@@ -2223,7 +2226,6 @@ EOF
         println "Pool ${FG_GREEN}${pool_name}${NC} successfully updated!"
       fi
     else
-      echo
       println "Pool ${FG_GREEN}${pool_name}${NC} built!"
       println "${FG_YELLOW}Follow the steps above to sign and submit transaction!${NC}"
     fi
@@ -2913,11 +2915,16 @@ EOF
               waitForInput && continue 2
             fi
           else
-            println "ACTION" "${CCLI} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_FOLDER}/vkey.tmp"
-            if ! ${CCLI} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_FOLDER}"/vkey.tmp; then waitForInput && continue 2; fi
-            if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_FOLDER}"/vkey.tmp) ]]; then
+            println "ACTION" "${CCLI} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_FOLDER}/tmp.vkey"
+            if ! ${CCLI} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_FOLDER}"/tmp.vkey; then waitForInput && continue 2; fi
+            if [[ $(jq -r '.type' "${file}") = *"Extended"* ]]; then
+              println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_FOLDER}/tmp.vkey --verification-key-file ${TMP_FOLDER}/tmp2.vkey"
+              if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_FOLDER}/tmp.vkey" --verification-key-file "${TMP_FOLDER}/tmp2.vkey"; then waitForInput && continue 2; fi
+              mv -f "${TMP_FOLDER}/tmp2.vkey" "${TMP_FOLDER}/tmp.vkey"
+            fi
+            if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_FOLDER}"/tmp.vkey) ]]; then
               println "ERROR" "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
-              println "ERROR" "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_FOLDER}"/vkey.tmp)"
+              println "ERROR" "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_FOLDER}"/tmp.vkey)"
               println "ERROR" "Transaction verification cborHex: ${otx_vkey_cborHex}"
               waitForInput && continue 2
             fi
@@ -2967,11 +2974,16 @@ EOF
                    waitForInput && continue 2
                  fi
                else
-                 println "ACTION" "${CCLI} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_FOLDER}/vkey.tmp"
-                 if ! ${CCLI} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_FOLDER}"/vkey.tmp; then waitForInput && continue 2; fi
-                 if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_FOLDER}"/vkey.tmp) ]]; then
+                 println "ACTION" "${CCLI} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_FOLDER}/tmp.vkey"
+                 if ! ${CCLI} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_FOLDER}"/tmp.vkey; then waitForInput && continue 2; fi
+                 if [[ $(jq -r '.type' "${file}") = *"Extended"* ]]; then
+                   println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_FOLDER}/tmp.vkey --verification-key-file ${TMP_FOLDER}/tmp2.vkey"
+                   if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_FOLDER}/tmp.vkey" --verification-key-file "${TMP_FOLDER}/tmp2.vkey"; then waitForInput && continue 2; fi
+                   mv -f "${TMP_FOLDER}/tmp2.vkey" "${TMP_FOLDER}/tmp.vkey"
+                 fi
+                 if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_FOLDER}"/tmp.vkey) ]]; then
                    println "ERROR" "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
-                   println "ERROR" "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_FOLDER}"/vkey.tmp)"
+                   println "ERROR" "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_FOLDER}"/tmp.vkey)"
                    println "ERROR" "Transaction verification cborHex: ${otx_vkey_cborHex}"
                    waitForInput && continue 2
                  fi
