@@ -9,9 +9,9 @@
 # Any breaking changes (eg: that requires change of cntools.config, env or a change in priv folder would be considered breaking and will be exempt from auto-update)
 CNTOOLS_MAJOR_VERSION=7
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
-CNTOOLS_MINOR_VERSION=0
+CNTOOLS_MINOR_VERSION=1
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=2
+CNTOOLS_PATCH_VERSION=0
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -642,14 +642,14 @@ getNodeMetrics() {
 # Description : Get latest block number
 getBlockTip() {
   getNodeMetrics
-  jq '.cardano.node.ChainDB.metrics.blockNum.int.val //0' <<< "${node_metrics}"
+  jq '.cardano.node.metrics.blockNum.int.val //0' <<< "${node_metrics}"
 }
 
 # Command     : getSlotTip
 # Description : Get latest slot number
 getSlotTip() {
   getNodeMetrics
-  jq '.cardano.node.ChainDB.metrics.slotNum.int.val //0' <<< "${node_metrics}"
+  jq '.cardano.node.metrics.slotNum.int.val //0' <<< "${node_metrics}"
 }
 
 # Command     : getSlotTipRef

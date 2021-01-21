@@ -104,8 +104,8 @@ else
   export PATH="${CCLI_PARENT}":$PATH
 fi
 node_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
-if ! versionCheck "1.24.2" "${node_version}"; then
-  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.24.2 or higher (${node_version} found).\nPlease update cardano-node or use tagged branches for older node version.\n\n"
+if ! versionCheck "1.25.0" "${node_version}"; then
+  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.25.0 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
   return 1
 fi
 
@@ -138,6 +138,11 @@ if [[ -z "${CONFIG}" ]]; then
     echo "Node config not set in env file and automatic detection failed!"
     return 1
   fi
+fi
+
+if ! jq -r . "${CONFIG}" >/dev/null 2>&1; then
+  echo "Could not parse ${CONFIG} file in JSON format, please double-check the syntax of your config, or simply download it from guild-operators repository!"
+  return 1
 fi
 
 [[ -z ${EKG_TIMEOUT} ]] && EKG_TIMEOUT=3

@@ -13,7 +13,6 @@
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/genesis.json",
   "ShelleyGenesisHash": "8587fca9128b0470dcaf928f00bb2bd99dec5047e080a2da3aa419bd17023d75",
   "TestShelleyHardForkAtEpoch": 2,
-  "MaxConcurrencyDeadline": 2,
   "TraceBlockFetchClient": true,
   "TraceBlockFetchDecisions": true,
   "TraceBlockFetchProtocol": true,
@@ -28,7 +27,7 @@
   "TraceDNSSubscription": true,
   "TraceErrorPolicy": true,
   "TraceForge": true,
-  "TraceHandshake": true,
+  "TraceHandshake": false,
   "TraceIpSubscription": true,
   "TraceLocalChainSyncProtocol": true,
   "TraceLocalErrorPolicy": true,
@@ -37,13 +36,13 @@
   "TraceLocalTxSubmissionServer": true,
   "TraceMempool": true,
   "TraceMux": false,
-  "TraceTxInbound": true,
-  "TraceTxOutbound": true,
-  "TraceTxSubmissionProtocol": true,
+  "TraceTxInbound": false,
+  "TraceTxOutbound": false,
+  "TraceTxSubmissionProtocol": false,
   "TracingVerbosity": "NormalVerbosity",
   "TurnOnLogMetrics": true,
   "TurnOnLogging": true,
-  "ViewMode": "SimpleView",
+  "MaxConcurrencyDeadline": 2,
   "defaultBackends": [
     "KatipBK"
   ],
@@ -61,21 +60,6 @@
   "minSeverity": "Info",
   "options": {
     "mapBackends": {
-      "cardano.node-metrics": [
-        "EKGViewBK"
-      ],
-      "cardano.node.BlockFetchDecision.peers": [
-        "EKGViewBK"
-      ],
-      "cardano.node.ChainDB.metrics": [
-        "EKGViewBK"
-      ],
-      "cardano.node.Forge.metrics": [
-        "EKGViewBK"
-      ],
-      "cardano.node.peers": [
-        "EKGViewBK"
-      ],
       "cardano.node.metrics": [
         "EKGViewBK"
       ],
@@ -84,60 +68,6 @@
       ]
     },
     "mapSubtrace": {
-      "#ekgview": {
-        "contents": [
-          [
-            {
-              "contents": "cardano.epoch-validation.benchmark",
-              "tag": "Contains"
-            },
-            [
-              {
-                "contents": ".monoclock.basic.",
-                "tag": "Contains"
-              }
-            ]
-          ],
-          [
-            {
-              "contents": "cardano.epoch-validation.benchmark",
-              "tag": "Contains"
-            },
-            [
-              {
-                "contents": "diff.RTS.cpuNs.timed.",
-                "tag": "Contains"
-              }
-            ]
-          ],
-          [
-            {
-              "contents": "#ekgview.#aggregation.cardano.epoch-validation.benchmark",
-              "tag": "StartsWith"
-            },
-            [
-              {
-                "contents": "diff.RTS.gcNum.timed.",
-                "tag": "Contains"
-              }
-            ]
-          ]
-        ],
-        "subtrace": "FilterTrace"
-      },
-      "benchmark": {
-        "contents": [
-          "GhcRtsStats",
-          "MonotonicClock"
-        ],
-        "subtrace": "ObservableTrace"
-      },
-      "cardano.epoch-validation.utxo-stats": {
-        "subtrace": "NoTrace"
-      },
-      "cardano.node-metrics": {
-        "subtrace": "Neutral"
-      },
       "cardano.node.metrics": {
         "subtrace": "Neutral"
       }

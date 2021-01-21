@@ -1,6 +1,6 @@
 {
   "ApplicationName": "cardano-sl",
-  "ApplicationVersion": 0,
+  "ApplicationVersion": 1,
   "ByronGenesisFile": "/opt/cardano/cnode/files/byron-genesis.json",
   "ByronGenesisHash": "96fceff972c2c06bd3bb5243c39215333be6d56aaf4823073dca31afe5038471",
   "LastKnownBlockVersion-Alt": 0,
@@ -11,7 +11,6 @@
   "RequiresNetworkMagic": "RequiresMagic",
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/genesis.json",
   "ShelleyGenesisHash": "849a1764f152e1b09c89c0dfdbcbdd38d711d1fec2db5dfa0f87cf2737a0eaf4",
-  "MaxConcurrencyDeadline": 2,
   "TraceBlockFetchClient": true,
   "TraceBlockFetchDecisions": true,
   "TraceBlockFetchProtocol": true,
@@ -26,7 +25,7 @@
   "TraceDNSSubscription": true,
   "TraceErrorPolicy": true,
   "TraceForge": true,
-  "TraceHandshake": true,
+  "TraceHandshake": false,
   "TraceIpSubscription": true,
   "TraceLocalChainSyncProtocol": true,
   "TraceLocalErrorPolicy": true,
@@ -35,13 +34,13 @@
   "TraceLocalTxSubmissionServer": true,
   "TraceMempool": true,
   "TraceMux": false,
-  "TraceTxInbound": true,
-  "TraceTxOutbound": true,
-  "TraceTxSubmissionProtocol": true,
+  "TraceTxInbound": false,
+  "TraceTxOutbound": false,
+  "TraceTxSubmissionProtocol": false,
   "TracingVerbosity": "NormalVerbosity",
   "TurnOnLogMetrics": true,
   "TurnOnLogging": true,
-  "ViewMode": "SimpleView",
+  "MaxConcurrencyDeadline": 2,
   "defaultBackends": [
     "KatipBK"
   ],
@@ -59,99 +58,14 @@
   "minSeverity": "Info",
   "options": {
     "mapBackends": {
-      "cardano.node-metrics": [
-        "EKGViewBK",
-        {
-          "kind": "UserDefinedBK",
-          "name": "LiveViewBackend"
-        }
-      ],
-      "cardano.node.BlockFetchDecision.peers": [
-        "EKGViewBK",
-        {
-          "kind": "UserDefinedBK",
-          "name": "LiveViewBackend"
-        }
-      ],
-      "cardano.node.ChainDB.metrics": [
-        "EKGViewBK",
-        {
-          "kind": "UserDefinedBK",
-          "name": "LiveViewBackend"
-        }
-      ],
-      "cardano.node.Forge.metrics": [
-        "EKGViewBK"
-      ],
-      "cardano.node.peers": [
+      "cardano.node.metrics": [
         "EKGViewBK"
       ],
       "cardano.node.resources": [
         "EKGViewBK"
-      ],
-      "cardano.node.metrics": [
-        "EKGViewBK",
-        {
-          "kind": "UserDefinedBK",
-          "name": "LiveViewBackend"
-        }
       ]
     },
     "mapSubtrace": {
-      "#ekgview": {
-        "contents": [
-          [
-            {
-              "contents": "cardano.epoch-validation.benchmark",
-              "tag": "Contains"
-            },
-            [
-              {
-                "contents": ".monoclock.basic.",
-                "tag": "Contains"
-              }
-            ]
-          ],
-          [
-            {
-              "contents": "cardano.epoch-validation.benchmark",
-              "tag": "Contains"
-            },
-            [
-              {
-                "contents": "diff.RTS.cpuNs.timed.",
-                "tag": "Contains"
-              }
-            ]
-          ],
-          [
-            {
-              "contents": "#ekgview.#aggregation.cardano.epoch-validation.benchmark",
-              "tag": "StartsWith"
-            },
-            [
-              {
-                "contents": "diff.RTS.gcNum.timed.",
-                "tag": "Contains"
-              }
-            ]
-          ]
-        ],
-        "subtrace": "FilterTrace"
-      },
-      "benchmark": {
-        "contents": [
-          "GhcRtsStats",
-          "MonotonicClock"
-        ],
-        "subtrace": "ObservableTrace"
-      },
-      "cardano.epoch-validation.utxo-stats": {
-        "subtrace": "NoTrace"
-      },
-      "cardano.node-metrics": {
-        "subtrace": "Neutral"
-      },
       "cardano.node.metrics": {
         "subtrace": "Neutral"
       }
@@ -173,9 +87,5 @@
       "scFormat": "ScJson",
       "scRotation": null
     }
-  ],
-  "SocketPath": "/opt/cardano/cnode/sockets/node0.socket",
-  "NetworkName": "testnet",
-  "EnableLogging": true,
-  "EnableLogMetrics": false
+  ]
 }
