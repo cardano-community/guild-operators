@@ -421,7 +421,7 @@ if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -er .decentralisationPar
 
 # Description : Calculate expected interval between blocks
 slotInterval() {
-  { [[ -z ${DECENTRALISATION} || $(echo "${DECENTRALISATION} < 0.5" | bc) -eq 1 ]]; } && local d=0.5 || local d=${DECENTRALISATION}
+  if [[ -z ${DECENTRALISATION} || $(echo "${DECENTRALISATION} < 0.5" | bc) -eq 1 ]]; then d=0.5; else d=${DECENTRALISATION}; fi
   echo "(${SLOT_LENGTH} / ${ACTIVE_SLOTS_COEFF} / ${d}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}'
 }
 

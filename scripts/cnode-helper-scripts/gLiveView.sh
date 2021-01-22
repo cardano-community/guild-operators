@@ -1,5 +1,5 @@
 #!/bin/bash
-#shellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015
+#shellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015,SC2154
 #shellcheck source=/dev/null
 
 ######################################
@@ -72,7 +72,7 @@ EOF
   exit 1
 }
 
-while getopts :lpeb: opt; do
+while getopts :lpb: opt; do
   case ${opt} in
     l ) LEGACY_MODE="true" ;;
     p ) DISABLE_CNCLI="true" ;;
