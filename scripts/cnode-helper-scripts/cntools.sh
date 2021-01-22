@@ -292,6 +292,7 @@ println "DEBUG" "$(printf "%84s" "Epoch $(getEpoch) - $(timeLeft "$(timeUntilNex
 if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
   println "DEBUG" " What would you like to do?"
 else
+  getNodeMetrics
   tip_diff=$(( $(getSlotTipRef) - slotnum ))
   slot_interval=$(slotInterval)
   if [[ ${tip_diff} -le ${slot_interval} ]]; then
