@@ -137,7 +137,7 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
       TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
       TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
       if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-        echo -e "\nThe static content from env file does not match with guild-operators repository, do you want to download the updated file? [y|n]"
+        echo -e "\nThe static content from env file does not match with guild-operators repository, do you want to download the updated file? [y|n]\n"
         read -r -n 1 -s update
         case ${update} in
           [yY])
@@ -159,7 +159,11 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
   rm -f "${PARENT}"/env.tmp
   # source common env variables in case it was updated
   . "${PARENT}"/env
-  [[ $? -eq 1 ]] && myExit 1
+  case $? in
+    1) myExit 1 ;;
+    2) printf "\npress any key to proceed..."
+       read -r -n 1 -s wait ;;
+  esac
 
   echo "Guild LiveView version check..."
   if curl -s -m ${CURL_TIMEOUT} -o /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
@@ -331,9 +335,8 @@ getShelleyTransitionEpoch() {
       printf "\n   - Node in startup mode"
       printf "\n   - Shelley era not reached"
       printf "\n After successful node boot or when sync to shelley era has been reached, calculations will be correct"
-      printf "\n\n ${style_info}Press c to continue or any other key to quit${NC}"
-      read -r -n 1 -s -p "" answer
-      [[ "${answer}" != "c" ]] && myExit 1 "Guild LiveView terminated!"
+      printf "\n\n ${style_info}press any key to proceed...${NC}"
+      read -r -n 1 -s wait
     fi
     shelley_transition_epoch=-1
   else
@@ -420,7 +423,7 @@ kesExpiration() {
 # Command    : slotInterval
 # Description: Calculate expected interval between blocks
 slotInterval() {
-  [[ $(echo "${DECENTRALISATION} < 0.5" | bc) -eq 1 ]] && local d=0.5 || local d=${DECENTRALISATION}
+  { [[ -z ${DECENTRALISATION} || $(echo "${DECENTRALISATION} < 0.5" | bc) -eq 1 ]]; } && local d=0.5 || local d=${DECENTRALISATION}
   echo "(${SLOT_LENGTH} / ${ACTIVE_SLOTS_COEFF} / ${d}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}'
 }
 
