@@ -1,5 +1,5 @@
 #!/bin/bash
-#shellcheck disable=SC2086,SC2001
+#shellcheck disable=SC2086,SC2001,SC2154
 #shellcheck source=/dev/null
 
 ######################################
@@ -37,8 +37,8 @@ while read -r logentry; do
       if ! slot="$(jq -er '.data.val.slot' <<< ${logentry})"; then echo "ERROR[TraceNodeIsLeader]: invalid json schema, '.data.val.slot' not found" && continue; fi
       getNodeMetrics
       [[ ${epochnum} -le 0 ]] && echo "ERROR[TraceNodeIsLeader]: failed to grab current epoch number from node metrics" && continue
-      echo "LEADER: epoch[${epoch}] slot[${slot}] at[${at}]"
-      sqlite3 "${BLOCKLOG_DB}" "INSERT OR IGNORE INTO blocklog (slot,at,epoch,status) values (${slot},'${at}',${epoch},'leader');"
+      echo "LEADER: epoch[${epochnum}] slot[${slot}] at[${at}]"
+      sqlite3 "${BLOCKLOG_DB}" "INSERT OR IGNORE INTO blocklog (slot,at,epoch,status) values (${slot},'${at}',${epochnum},'leader');"
       ;;
     *TraceAdoptedBlock* )
       if ! slot="$(jq -er '.data.val.slot' <<< ${logentry})"; then echo "ERROR[TraceAdoptedBlock]: invalid json schema, '.data.val.slot' not found" && continue; fi

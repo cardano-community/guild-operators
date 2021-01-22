@@ -387,12 +387,12 @@ getEpoch() {
 
 # Description : Offline calculation of current epoch based on provided slot number
 getEpochFromSlot() {
-  echo $(( shelley_transition_epoch + (($1 - (shelley_transition_epoch * BYRON_EPOCH_LENGTH)) / EPOCH_LENGTH) ))
+  echo $(( SHELLEY_TRANS_EPOCH + (($1 - (SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH)) / EPOCH_LENGTH) ))
 }
 
 # Description : Offline calculation of current slot in epoch based on provided slot number and epoch
 getSlotInEpochFromSlot() {
-  echo $(( $1 - ((shelley_transition_epoch * BYRON_EPOCH_LENGTH) + (($2 - shelley_transition_epoch) * EPOCH_LENGTH )) ))
+  echo $(( $1 - ((SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH) + (($2 - SHELLEY_TRANS_EPOCH) * EPOCH_LENGTH )) ))
 }
 
 # Description : Offline calculation of date based on provided slot number

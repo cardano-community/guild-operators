@@ -1,5 +1,5 @@
 #!/bin/bash
-#shellcheck disable=SC2086
+#shellcheck disable=SC2086,SC2154
 #shellcheck source=/dev/null
 
 . "$(dirname $0)"/env offline # source env in offline mode to get basic variables, sourced in online mode later in cncliInit()
