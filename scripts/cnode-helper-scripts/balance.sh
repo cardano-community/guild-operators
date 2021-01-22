@@ -23,7 +23,7 @@ function cleanup() {
 # start with a clean slate
 cleanup
 
-${CCLI} query utxo ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${WALLET_ADDR}" > /tmp/fullUtxo.out
+${CCLI} query utxo ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${WALLET_ADDR}" > /tmp/fullUtxo.out
 tail -n +3 /tmp/fullUtxo.out | sort -k3 -nr > /tmp/balance.txt
 
 TOTALBALANCE=0

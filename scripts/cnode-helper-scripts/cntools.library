@@ -460,7 +460,7 @@ selectWallet() {
         [[ -z ${base_addr} ]] && wallet_dirs+=("${dir}") && continue # ignore and add wallet without extra details
         getBalance ${base_addr}
         if getRewardAddress ${dir}; then
-          delegation_pool_id=$(${CCLI} query stake-address-info ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].delegation // empty')
+          delegation_pool_id=$(${CCLI} query stake-address-info ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].delegation // empty')
           unset poolName
           if [[ -n ${delegation_pool_id} ]]; then
             while IFS= read -r -d '' pool; do
@@ -630,46 +630,25 @@ decryptFile() {
   println "DEBUG" "${1} successfully decrypted"
 }
 
-
-# Command     : getNodeMetrics
-# Description : Get latest metrics from the node
-# Return      : populates ${node_metrics} variable
-getNodeMetrics() {
-  node_metrics=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
-}
-
 # Command     : getBlockTip
 # Description : Get latest block number
 getBlockTip() {
   getNodeMetrics
-  jq '.cardano.node.metrics.blockNum.int.val //0' <<< "${node_metrics}"
+  if [[ ${USE_EKG} = 'Y' ]]; then
+    jq '.cardano.node.metrics.blockNum.int.val //0' <<< "${node_metrics}"
+  else
+    [[ ${node_metrics} =~ cardano_node_metrics_blockNum_int[[:space:]]([^[:space:]]*) ]] && echo ${BASH_REMATCH[1]} || echo 0
+  fi
 }
 
 # Command     : getSlotTip
 # Description : Get latest slot number
 getSlotTip() {
   getNodeMetrics
-  jq '.cardano.node.metrics.slotNum.int.val //0' <<< "${node_metrics}"
-}
-
-# Command     : getSlotTipRef
-# Description : Offline calculation of reference tip
-getSlotTipRef() {
-  current_time_sec=$(date -u +%s)
-  if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
-    # Combinator network
-    byron_slots=$(( $(cat $SHELLEY_TRANS_FILENAME) * BYRON_EPOCH_LENGTH )) # since this point will only be reached once we're in Shelley phase
-    byron_end_time=$(( BYRON_GENESIS_START_SEC + ( $(cat $SHELLEY_TRANS_FILENAME) * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH ) ))
-    if [[ "${current_time_sec}" -lt "${byron_end_time}" ]]; then
-      # In Byron phase
-      echo $(( ( current_time_sec - BYRON_GENESIS_START_SEC ) / BYRON_SLOT_LENGTH ))
-    else
-      # In Shelley phase
-      echo $(( byron_slots + (( current_time_sec - byron_end_time ) / SLOT_LENGTH ) ))
-    fi
+  if [[ ${USE_EKG} = 'Y' ]]; then
+    jq '.cardano.node.metrics.slotNum.int.val //0' <<< "${node_metrics}"
   else
-    # Shelley Mode only, no Byron slots
-    echo $(( ( current_time_sec - SHELLEY_GENESIS_START_SEC ) / SLOT_LENGTH ))
+    [[ ${node_metrics} =~ cardano_node_metrics_slotNum_int[[:space:]]([^[:space:]]*) ]] && echo ${BASH_REMATCH[1]} || echo 0
   fi
 }
 
@@ -679,51 +658,6 @@ getSlotTipDiff() {
   tip_ref=$(getSlotTipRef)
   tip_node=$(getSlotTip)
   echo $(( tip_ref - tip_node ))
-}
-
-# Command     : slotInterval
-# Description : Calculate expected interval between blocks
-slotInterval() {
-  [[ $(echo "${DECENTRALISATION} < 0.5" | bc) -eq 1 ]] && local d=0.5 || local d=${DECENTRALISATION}
-  echo "(${SLOT_LENGTH} / ${ACTIVE_SLOTS_COEFF} / ${d}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}'
-}
-
-# Command     : getEpoch
-# Description : Offline calculation of current epoch based on genesis file
-getEpoch() {
-  current_time_sec=$(date -u +%s)
-  if [[ "${PROTOCOL_IDENTIFIER}" == "--cardano-mode" ]]; then
-    byron_end_time=$(( BYRON_GENESIS_START_SEC + ( $(cat $SHELLEY_TRANS_FILENAME) * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH ) ))
-    echo $(( $(cat $SHELLEY_TRANS_FILENAME) + ( (current_time_sec - byron_end_time) / SLOT_LENGTH / EPOCH_LENGTH ) ))
-  else
-    echo $(( (current_time_sec - SHELLEY_GENESIS_START_SEC) / SLOT_LENGTH / EPOCH_LENGTH ))
-  fi
-}
-
-# Command     : getTimeUntilNextEpoch
-# Description : Offline calculation of time until next epoch
-timeUntilNextEpoch() {
-  current_epoch=$(getEpoch)
-  current_time_sec=$(date -u +%s)
-  if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
-    showTimeLeft $(( ($(cat $SHELLEY_TRANS_FILENAME) * BYRON_SLOT_LENGTH * BYRON_EPOCH_LENGTH) + ( ( current_epoch + 1 - $(cat $SHELLEY_TRANS_FILENAME) ) * SLOT_LENGTH * EPOCH_LENGTH ) - current_time_sec + BYRON_GENESIS_START_SEC ))
-  else
-    showTimeLeft $(( ( ( ( (current_time_sec - SHELLEY_GENESIS_START_SEC) / SLOT_LENGTH / EPOCH_LENGTH ) + 1 ) * SLOT_LENGTH * EPOCH_LENGTH ) - current_time_sec + SHELLEY_GENESIS_START_SEC ))
-  fi
-}
-showTimeLeft() {
-  if [[ -z "${1##*[!0-9]*}" ]]; then
-    println "ERROR" "${FG_RED}ERROR${NC}: time must be an integer number [$1]"
-    return 1
-  fi
-  printf '%02dh:%02dm:%02ds\n' $(($1/3600)) $(($1%3600/60)) $(($1%60))
-}
-
-# Command     : getCurrentKESperiod
-# Description : Offline calculation of current KES period based on reference tip
-getCurrentKESperiod() {
-  tip_ref=$(getSlotTipRef)
-  current_kes_period=$(( tip_ref / SLOTS_PER_KES_PERIOD ))
 }
 
 # Command     : kesExpiration [Pool KES start period]
@@ -736,7 +670,7 @@ kesExpiration() {
     return 1
   fi
   pool_kes_start_period=$1
-  getCurrentKESperiod
+  current_kes_period=$(getCurrentKESperiod)
   remaining_kes_periods=$(( MAX_KES_EVOLUTIONS - ( current_kes_period - pool_kes_start_period ) ))
   current_time_sec=$(date -u +%s)
   expiration_time_sec=$(( current_time_sec - ( SLOT_LENGTH * (tip_ref % SLOTS_PER_KES_PERIOD) ) + ( SLOT_LENGTH * SLOTS_PER_KES_PERIOD * remaining_kes_periods ) ))
@@ -904,8 +838,8 @@ getPayAddress() {
   [[ -f ${payment_addr_file} ]] && pay_addr=$(cat "${payment_addr_file}") && return 0
   pay_addr=""
   if [[ -f "${payment_vk_file}" ]]; then
-    println "ACTION" "${CCLI} address build --payment-verification-key-file \"${payment_vk_file}\" --out-file \"${payment_addr_file}\" ${NETWORK_IDENTIFIER}"
-    if ${CCLI} address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" ${NETWORK_IDENTIFIER} 2>/dev/null; then
+    println "ACTION" "${CCLI} address build --payment-verification-key-file \"${payment_vk_file}\" --out-file \"${payment_addr_file}\" ${HASH_IDENTIFIER}"
+    if ${CCLI} address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" ${HASH_IDENTIFIER} 2>/dev/null; then
       pay_addr=$(cat "${payment_addr_file}")
       return 0
     fi
@@ -924,13 +858,14 @@ getBaseAddress() {
   [[ -f ${base_addr_file} ]] && base_addr=$(cat "${base_addr_file}") && return 0
   base_addr=""
   if [[ -f "${payment_vk_file}" && -f "${stake_vk_file}" ]]; then
-    println "ACTION" "${CCLI} address build --payment-verification-key-file \"${payment_vk_file}\" --stake-verification-key-file \"${stake_vk_file}\" --out-file \"${base_addr_file}\" ${NETWORK_IDENTIFIER}"
-    if ${CCLI} address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>/dev/null; then
+    println "ACTION" "${CCLI} address build --payment-verification-key-file \"${payment_vk_file}\" --stake-verification-key-file \"${stake_vk_file}\" --out-file \"${base_addr_file}\" ${HASH_IDENTIFIER}"
+    if ${CCLI} address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${HASH_IDENTIFIER} 2>/dev/null; then
       base_addr=$(cat "${base_addr_file}")
       return 0
     fi
   elif [[ $# -eq 2 && -f "${1}" && -f "${2}" ]]; then
-    base_addr=$(${CCLI} address build --payment-verification-key-file "${1}" --stake-verification-key-file "${2}" ${NETWORK_IDENTIFIER} 2>/dev/null)
+    println "ACTION" "${CCLI} address build --payment-verification-key-file \"${1}\" --stake-verification-key-file \"${2}\" ${HASH_IDENTIFIER}"
+    base_addr=$(${CCLI} address build --payment-verification-key-file "${1}" --stake-verification-key-file "${2}" ${HASH_IDENTIFIER} 2>/dev/null)
   fi
   return 1
 }
@@ -945,13 +880,14 @@ getRewardAddress() {
   [[ -f ${stake_addr_file} ]] && reward_addr=$(cat "${stake_addr_file}") && return 0
   reward_addr=""
   if [[ -f "${stake_vk_file}" ]]; then
-    println "ACTION" "${CCLI} stake-address build --stake-verification-key-file \"${stake_vk_file}\" --out-file \"${stake_addr_file}\" ${NETWORK_IDENTIFIER}"
-    if ${CCLI} stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" ${NETWORK_IDENTIFIER} 2>/dev/null; then
+    println "ACTION" "${CCLI} stake-address build --stake-verification-key-file \"${stake_vk_file}\" --out-file \"${stake_addr_file}\" ${HASH_IDENTIFIER}"
+    if ${CCLI} stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" ${HASH_IDENTIFIER} 2>/dev/null; then
       reward_addr=$(cat "${stake_addr_file}")
       return 0
     fi
   elif [[ -f "${1}" ]]; then
-    reward_addr=$(${CCLI} stake-address build --stake-verification-key-file "${1}" ${NETWORK_IDENTIFIER} 2>/dev/null)
+    println "ACTION" "${CCLI} stake-address build --stake-verification-key-file \"${1}\" ${HASH_IDENTIFIER}"
+    reward_addr=$(${CCLI} stake-address build --stake-verification-key-file "${1}" ${HASH_IDENTIFIER} 2>/dev/null)
   fi
   return 1
 }
@@ -961,8 +897,8 @@ getRewardAddress() {
 # Parameters  : stake key  >  path to stake.vkey file
 # Return      : populates ${reward_addr}
 getRewardAddressFromKey() {
-  println "ACTION" "${CCLI} stake-address build --stake-verification-key-file \"${1}\" ${NETWORK_IDENTIFIER}"
-  reward_addr=$(${CCLI} stake-address build --stake-verification-key-file "${1}" ${NETWORK_IDENTIFIER} 2>/dev/null)
+  println "ACTION" "${CCLI} stake-address build --stake-verification-key-file \"${1}\" ${HASH_IDENTIFIER}"
+  reward_addr=$(${CCLI} stake-address build --stake-verification-key-file "${1}" ${HASH_IDENTIFIER} 2>/dev/null)
 }
 
 # Command     : getAddressInfo [address]
@@ -984,7 +920,7 @@ getBalance() {
 
   [[ -z $1 ]] && return 1
 
-  if ! ${CCLI} query utxo ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${1}" > "${TMP_FOLDER}/fullUtxo.out"; then return 1; fi
+  if ! ${CCLI} query utxo ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${1}" > "${TMP_FOLDER}/fullUtxo.out"; then return 1; fi
   tail -n +3 "${TMP_FOLDER}"/fullUtxo.out | sort -k3 -nr > "${TMP_FOLDER}"/balance.out
 
   while read -r utxo; do
@@ -1013,8 +949,8 @@ getRewards() {
 # Parameters  : stake address  >  the address from stake.vkey
 # Return      : populates ${reward_lovelace}
 getRewardsFromAddr() {
-  println "ACTION" "${CCLI} query stake-address-info ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${1}"
-  stake_address_info=$(${CCLI} query stake-address-info ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${1})
+  println "ACTION" "${CCLI} query stake-address-info ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${1}"
+  stake_address_info=$(${CCLI} query stake-address-info ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${1})
   reward_lovelace=0
   for reward_entry in $(jq -r '.[] | @base64' <<< "${stake_address_info}"); do
     _jq() { base64 -d <<< ${reward_entry} | jq -r "${1}"; }
@@ -1027,8 +963,8 @@ getRewardsFromAddr() {
 # Parameters  : wallet name  >  the name of the wallet
 isWalletRegistered() {
   if getRewardAddress $1; then
-    println "ACTION" "${CCLI} query stake-address-info ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${reward_addr}"
-    stake_address_info=$(${CCLI} query stake-address-info ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${reward_addr})
+    println "ACTION" "${CCLI} query stake-address-info ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${reward_addr}"
+    stake_address_info=$(${CCLI} query stake-address-info ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${reward_addr})
     [[ -n "${stake_address_info}" && $(jq -r 'length' <<< ${stake_address_info}) -gt 0 ]] && return 0
   fi
   return 1
@@ -1813,7 +1749,7 @@ rotatePoolKeys() {
   pool_saved_kes_start="${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}"
   pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
 
-  getCurrentKESperiod
+  current_kes_period=$(getCurrentKESperiod)
   echo "${current_kes_period}" > ${pool_saved_kes_start}
 
   println "ACTION" "${CCLI} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
@@ -2050,7 +1986,6 @@ submitTx() {
   submit_command=(
     ${CCLI} transaction submit
     --tx-file "${tx_signed}"
-    ${PROTOCOL_IDENTIFIER}
     ${NETWORK_IDENTIFIER}
   )
   
