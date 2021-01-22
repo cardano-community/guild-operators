@@ -292,7 +292,7 @@ println "DEBUG" "$(printf "%84s" "Epoch $(getEpoch) - $(timeLeft "$(timeUntilNex
 if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
   println "DEBUG" " What would you like to do?"
 else
-  tip_diff=$(getSlotTipDiff)
+  tip_diff=$(( $(getSlotTipRef) - slotnum ))
   slot_interval=$(slotInterval)
   if [[ ${tip_diff} -le ${slot_interval} ]]; then
     println "DEBUG" "$(printf " What would you like to do? %$((84-29-${#tip_diff}-3))s ${FG_GREEN}%s${NC}" "Node Sync:" "${tip_diff} :)")"

@@ -311,13 +311,53 @@ NC='\e[0m'
 getNodeMetrics() {
   if [[ ${USE_EKG} = 'Y' ]]; then
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
+    node_metrics_tsv=$(jq -r '[
+.cardano.node.metrics.blockNum.int.val //0,
+.cardano.node.metrics.epoch.int.val //0,
+.cardano.node.metrics.slotInEpoch.int.val //0,
+.cardano.node.metrics.slotNum.int.val //0,
+.cardano.node.metrics.density.real.val //"-",
+.cardano.node.metrics.txsProcessedNum.int.val //0,
+.cardano.node.metrics.txsInMempool.int.val //0,
+.cardano.node.metrics.mempoolBytes.int.val //0,
+.cardano.node.metrics.currentKESPeriod.int.val //0,
+.cardano.node.metrics.remainingKESPeriods.int.val //0,
+.cardano.node.metrics.Forge["node-is-leader"].int.val //0,
+.cardano.node.metrics.Forge.adopted.int.val //0,
+.cardano.node.metrics.Forge["didnt-adopt"].int.val //0,
+.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0,
+.rts.gc.wall_ms.val //0
+] | @tsv' <<< "${node_metrics}")
+    read -ra node_metrics_arr <<< ${node_metrics_tsv}
+    blocknum=${node_metrics_arr[0]}; epochnum=${node_metrics_arr[1]}; slot_in_epoch=${node_metrics_arr[2]}; slotnum=${node_metrics_arr[3]}
+    [[ ${node_metrics_arr[4]} != '-' ]] && density=$(bc <<< "scale=3;$(printf '%3.5f' "${node_metrics_arr[4]}")*100/1") || density=0.0
+    tx_processed=${node_metrics_arr[5]}; mempool_tx=${node_metrics_arr[6]}; mempool_bytes=${node_metrics_arr[7]}
+    kesperiod=${node_metrics_arr[8]}; remaining_kes_periods=${node_metrics_arr[9]}
+    isleader=${node_metrics_arr[10]}; adopted=${node_metrics_arr[11]}; didntadopt=${node_metrics_arr[12]}; about_to_lead=${node_metrics_arr[13]}
+    uptimens=${node_metrics_arr[14]}
   else
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
+    [[ ${node_metrics} =~ rts_gc_wall_ms[[:space:]]([^[:space:]]*) ]] && uptimens=${BASH_REMATCH[1]} || uptimens=0
+    [[ ${node_metrics} =~ cardano_node_metrics_blockNum_int[[:space:]]([^[:space:]]*) ]] && blocknum=${BASH_REMATCH[1]} || blocknum=0
+    [[ ${node_metrics} =~ cardano_node_metrics_epoch_int[[:space:]]([^[:space:]]*) ]] && epochnum=${BASH_REMATCH[1]} || epochnum=0
+    [[ ${node_metrics} =~ cardano_node_metrics_slotInEpoch_int[[:space:]]([^[:space:]]*) ]] && slot_in_epoch=${BASH_REMATCH[1]} || slot_in_epoch=0
+    [[ ${node_metrics} =~ cardano_node_metrics_slotNum_int[[:space:]]([^[:space:]]*) ]] && slotnum=${BASH_REMATCH[1]} || slotnum=0
+    [[ ${node_metrics} =~ cardano_node_metrics_density_real[[:space:]]([^[:space:]]*) ]] && density=$(bc <<< "scale=3;$(printf '%3.5f' "${BASH_REMATCH[1]}")*100/1") || density=0.0
+    [[ ${node_metrics} =~ cardano_node_metrics_txsProcessedNum_int[[:space:]]([^[:space:]]*) ]] && tx_processed=${BASH_REMATCH[1]} || tx_processed=0
+    [[ ${node_metrics} =~ cardano_node_metrics_txsInMempool_int[[:space:]]([^[:space:]]*) ]] && mempool_tx=${BASH_REMATCH[1]} || mempool_tx=0
+    [[ ${node_metrics} =~ cardano_node_metrics_mempoolBytes_int[[:space:]]([^[:space:]]*) ]] && mempool_bytes=${BASH_REMATCH[1]} || mempool_bytes=0
+    [[ ${node_metrics} =~ cardano_node_metrics_currentKESPeriod_int[[:space:]]([^[:space:]]*) ]] && kesperiod=${BASH_REMATCH[1]} || kesperiod=0
+    [[ ${node_metrics} =~ cardano_node_metrics_remainingKESPeriods_int[[:space:]]([^[:space:]]*) ]] && remaining_kes_periods=${BASH_REMATCH[1]} || remaining_kes_periods=0
+    [[ ${node_metrics} =~ cardano_node_metrics_Forge_node_is_leader_int[[:space:]]([^[:space:]]*) ]] && isleader=${BASH_REMATCH[1]} || isleader=0
+    [[ ${node_metrics} =~ cardano_node_metrics_Forge_adopted_int[[:space:]]([^[:space:]]*) ]] && adopted=${BASH_REMATCH[1]} || adopted=0
+    [[ ${node_metrics} =~ cardano_node_metrics_Forge_didnt_adopt_int[[:space:]]([^[:space:]]*) ]] && didntadopt=${BASH_REMATCH[1]} || didntadopt=0
+    [[ ${node_metrics} =~ cardano_node_metrics_Forge_forge_about_to_lead_int[[:space:]]([^[:space:]]*) ]] && about_to_lead=${BASH_REMATCH[1]} || about_to_lead=0
   fi
 }
 
 # Description : Get shelley transition epoch for non-predefined networks
 getShelleyTransitionEpoch() {
+  [[ ${SHELLEY_TRANS_EPOCH} -ge 0 ]] && return 0
   calc_slot=0
   byron_epochs=${epochnum}
   shelley_epochs=0
@@ -329,29 +369,13 @@ getShelleyTransitionEpoch() {
   done
   if [[ ${calc_slot} -ne ${slotnum} || ${shelley_epochs} -eq 0 ]]; then
     SHELLEY_TRANS_EPOCH=-1
+    return 1
   else
     SHELLEY_TRANS_EPOCH=${byron_epochs}
+    return 0
   fi
 }
-if [[ ${OFFLINE_MODE} = "N" && ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
-  getNodeMetrics
-  if [[ ${USE_EKG} = 'Y' ]]; then
-    node_metrics_tsv=$(jq -r '[
-.cardano.node.metrics.epoch.int.val //0,
-.cardano.node.metrics.slotInEpoch.int.val //0,
-.cardano.node.metrics.slotNum.int.val //0,
-] | @tsv' <<< "${node_metrics}")
-    read -ra node_metrics_arr <<< ${node_metrics_tsv}
-    epochnum=${node_metrics_arr[0]}
-    slot_in_epoch=${node_metrics_arr[1]}
-    slotnum=${node_metrics_arr[2]}
-  else
-    [[ ${node_metrics} =~ cardano_node_metrics_epoch_int[[:space:]]([^[:space:]]*) ]] && epochnum=${BASH_REMATCH[1]} || epochnum=0
-    [[ ${node_metrics} =~ cardano_node_metrics_slotInEpoch_int[[:space:]]([^[:space:]]*) ]] && slot_in_epoch=${BASH_REMATCH[1]} || slot_in_epoch=0
-    [[ ${node_metrics} =~ cardano_node_metrics_slotNum_int[[:space:]]([^[:space:]]*) ]] && slotnum=${BASH_REMATCH[1]} || slotnum=0
-  fi
-  getShelleyTransitionEpoch
-fi
+[[ ${OFFLINE_MODE} = "N" && ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && getNodeMetrics && getShelleyTransitionEpoch
 
 # Description : Offline calculation of current epoch based on genesis file
 getEpoch() {
@@ -359,6 +383,23 @@ getEpoch() {
   [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && echo 0 && return
   byron_end_time=$(( BYRON_GENESIS_START_SEC + ( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH ) ))
   echo $(( SHELLEY_TRANS_EPOCH + ( (current_time_sec - byron_end_time) / SLOT_LENGTH / EPOCH_LENGTH ) ))
+}
+
+# Description : Offline calculation of current epoch based on provided slot number
+getEpochFromSlot() {
+  echo $(( shelley_transition_epoch + (($1 - (shelley_transition_epoch * BYRON_EPOCH_LENGTH)) / EPOCH_LENGTH) ))
+}
+
+# Description : Offline calculation of current slot in epoch based on provided slot number and epoch
+getSlotInEpochFromSlot() {
+  echo $(( $1 - ((shelley_transition_epoch * BYRON_EPOCH_LENGTH) + (($2 - shelley_transition_epoch) * EPOCH_LENGTH )) ))
+}
+
+# Description : Offline calculation of date based on provided slot number
+getDateFromSlot() {
+  byron_slots=$(( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH ))
+  printf -v date_from_slot '%(%FT%T%z)T' $(( (byron_slots * BYRON_SLOT_LENGTH) + (($1-byron_slots) * SLOT_LENGTH) + SHELLEY_GENESIS_START_SEC ))
+  echo "${date_from_slot%??}:${date_from_slot: -2}"
 }
 
 # Description : Offline calculation of time in seconds until next epoch

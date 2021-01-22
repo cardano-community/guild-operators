@@ -630,36 +630,6 @@ decryptFile() {
   println "DEBUG" "${1} successfully decrypted"
 }
 
-# Command     : getBlockTip
-# Description : Get latest block number
-getBlockTip() {
-  getNodeMetrics
-  if [[ ${USE_EKG} = 'Y' ]]; then
-    jq '.cardano.node.metrics.blockNum.int.val //0' <<< "${node_metrics}"
-  else
-    [[ ${node_metrics} =~ cardano_node_metrics_blockNum_int[[:space:]]([^[:space:]]*) ]] && echo ${BASH_REMATCH[1]} || echo 0
-  fi
-}
-
-# Command     : getSlotTip
-# Description : Get latest slot number
-getSlotTip() {
-  getNodeMetrics
-  if [[ ${USE_EKG} = 'Y' ]]; then
-    jq '.cardano.node.metrics.slotNum.int.val //0' <<< "${node_metrics}"
-  else
-    [[ ${node_metrics} =~ cardano_node_metrics_slotNum_int[[:space:]]([^[:space:]]*) ]] && echo ${BASH_REMATCH[1]} || echo 0
-  fi
-}
-
-# Command     : getSlotTipDiff
-# Description : Get difference between current node slot tip and calculated tip based on genesis file
-getSlotTipDiff() {
-  tip_ref=$(getSlotTipRef)
-  tip_node=$(getSlotTip)
-  echo $(( tip_ref - tip_node ))
-}
-
 # Command     : kesExpiration [Pool KES start period]
 # Description : Calculate KES expiration
 # Parameters  : Pool KES start period  >  KES start stored in POOL_CURRENT_KES_START file for pool in question
@@ -685,16 +655,18 @@ waitNewBlockCreated() {
   counter=${TIMEOUT_NO_OF_SLOTS}
   [[ $# -eq 0 ]] && println "DEBUG" "Waiting for new block to be created (timeout = ${counter} slots, $(( counter * SLOT_LENGTH ))s)"
   [[ $# -eq 0 ]] && println "DEBUG" "${FG_BLUE}INFO${NC}: press any key to cancel and return (won't stop transaction)"
-  initialTip=$(getBlockTip)
-  actualTip=${initialTip}
+  getNodeMetrics
+  initialTip=${slotnum}
+  actualTip=${slotnum}
 
-  while [ "${actualTip}" = "${initialTip}" ]; do
-    read -r -n 1 -s -t ${SLOT_LENGTH} abort
+  while [[ ${actualTip} -eq ${initialTip} ]]; do
+    read -r -n 1 -s -t 5 abort
     if [[ $? -eq 0 ]]; then
       println "${FG_YELLOW}WARN${NC}: aborted!! transaction still in queue!"
       return 1
     fi
-    actualTip=$(getBlockTip)
+    getNodeMetrics
+    actualTip=${slotnum}
     counter=$((counter - SLOT_LENGTH))
     if [ ${counter} -lt ${SLOT_LENGTH} ]; then
       println "${FG_YELLOW}WARN${NC}: waited $(( TIMEOUT_NO_OF_SLOTS * SLOT_LENGTH )) secs and no new block created"
@@ -993,10 +965,10 @@ getWalletType() {
   fi
 }
 
-# Command     : getSlotAndTTL
+# Command     : getTTL
 # Description : query node for slot tip and calculate/get TTL from input depending on op_mode
-getSlotAndTTL() {
-  currSlot=$(getSlotTip)
+getTTL() {
+  tip_ref=$(getSlotTipRef)
   if [[ ${op_mode} = "hybrid" ]]; then
     println "DEBUG" "\nHow long do you want the transaction to be valid?"
     sleep 0.1 && read -r -p "TTL (in seconds, default: 1800/30min): " ttl_enter 2>&6 && println "LOG" "TTL (in seconds, default: 1800/30min): ${ttl_enter}"
@@ -1005,11 +977,11 @@ getSlotAndTTL() {
       println "ERROR" "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
       return 1
     fi
-    ttl=$(( currSlot + (ttl_enter/SLOT_LENGTH) ))
+    ttl=$(( tip_ref + (ttl_enter/SLOT_LENGTH) ))
   else
-    ttl=$(( currSlot + (600/SLOT_LENGTH) )) # TTL default: 10min
+    ttl=$(( tip_ref + (600/SLOT_LENGTH) )) # TTL default: 10min
   fi
-  println "LOG" "Current slot is ${currSlot}, setting ttl to ${ttl}"
+  println "LOG" "Current slot is ${tip_ref}, setting ttl to ${ttl}"
 }
 
 # Command     : parseWalletUTXOs
@@ -1065,7 +1037,7 @@ registerStakeWallet() {
   println "ACTION" "${CCLI} stake-address registration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cert_file}"
   if ! ${CCLI} stake-address registration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cert_file}"; then return 1; fi
 
-  if ! getSlotAndTTL; then return 1; fi
+  if ! getTTL; then return 1; fi
   keyDeposit=$(jq -r '.keyDeposit' "${TMP_FOLDER}"/protparams.json)
   println "LOG" "Key Deposit is ${keyDeposit}"
 
@@ -1143,7 +1115,7 @@ deregisterStakeWallet() {
   if ! ${CCLI} stake-address deregistration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_dereg_file}"; then return 1; fi
 
   if ! parseWalletUTXOs; then return 1; fi
-  if ! getSlotAndTTL; then return 1; fi
+  if ! getTTL; then return 1; fi
   
   keyDeposit=$(jq -r '.keyDeposit' "${TMP_FOLDER}"/protparams.json)
   println "LOG" "Key Deposit is ${keyDeposit}"
@@ -1218,7 +1190,7 @@ sendAda() {
 
   getBalance ${s_addr}
   if ! parseWalletUTXOs; then return 1; fi
-  if ! getSlotAndTTL; then return 1; fi
+  if ! getTTL; then return 1; fi
 
   [[ ${lovelace} -eq ${amount_lovelace} ]] && outCount=1 || outCount=2
 
@@ -1311,7 +1283,7 @@ delegate() {
   wallet_source="base"
 
   if ! parseWalletUTXOs; then return 1; fi
-  if ! getSlotAndTTL; then return 1; fi
+  if ! getTTL; then return 1; fi
 
   println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_delegcert_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
   if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_delegcert_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
@@ -1378,7 +1350,7 @@ withdrawRewards() {
   wallet_source="base"
 
   if ! parseWalletUTXOs; then return 1; fi
-  if ! getSlotAndTTL; then return 1; fi
+  if ! getTTL; then return 1; fi
 
   println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
   if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${base_addr}+0 --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
@@ -1447,7 +1419,7 @@ registerPool() {
   getBalance ${base_addr}
   if ! parseWalletUTXOs; then return 1; fi
   
-  if ! getSlotAndTTL; then return 1; fi
+  if ! getTTL; then return 1; fi
   
   poolDeposit=$(jq -r '.poolDeposit' "${TMP_FOLDER}"/protparams.json)
   println "LOG" "Pool Deposit is ${poolDeposit}"
@@ -1572,7 +1544,7 @@ modifyPool() {
   getBalance ${base_addr}
   if ! parseWalletUTXOs; then return 1; fi
   
-  if ! getSlotAndTTL; then return 1; fi
+  if ! getTTL; then return 1; fi
 
   witness_count=$(( 2 + ${#owner_wallets[@]} )) # owner payment + cold + multi-owners(main owner included)
 
@@ -1667,7 +1639,7 @@ deRegisterPool() {
 
   getBalance ${addr}
   if ! parseWalletUTXOs; then return 1; fi
-  if ! getSlotAndTTL; then return 1; fi
+  if ! getTTL; then return 1; fi
 
   println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${addr}+0 --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_deregcert_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
   if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${addr}+0 --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_deregcert_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
@@ -1780,7 +1752,7 @@ sendMetadata() {
 
   getBalance ${addr}
   if ! parseWalletUTXOs; then return 1; fi
-  if ! getSlotAndTTL; then return 1; fi
+  if ! getTTL; then return 1; fi
 
   println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out ${addr}+0 --invalid-hereafter ${ttl} --fee 0 ${metadata} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
   if ! ${CCLI} transaction build-raw ${tx_in} --tx-out ${addr}+0 --invalid-hereafter ${ttl} --fee 0 ${metadata} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi

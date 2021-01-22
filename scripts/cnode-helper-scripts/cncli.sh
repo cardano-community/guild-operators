@@ -57,46 +57,7 @@ elif [[ $# -eq 2 ]]; then
   subarg=$2
 else usage; fi
 
-#################################
-# helper functions
-
-getNodeMetrics() {
-  curl -s -m "${EKG_TIMEOUT}" -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null
-}
-
-getEpoch() {
-  jq -r '.cardano.node.metrics.epoch.int.val //0' <<< "${node_metrics}"
-}
-
-getBlockTip() {
-  jq -r '.cardano.node.metrics.blockNum.int.val //0' <<< "${node_metrics}"
-}
-
-getSlotTip() {
-  jq -r '.cardano.node.metrics.slotNum.int.val //0' <<< "${node_metrics}"
-}
-
-getSlotInEpoch() {
-  jq -r '.cardano.node.metrics.slotInEpoch.int.val //0' <<< "${node_metrics}"
-}
-
-getEpochFromSlot() {
-  slotnum=$1
-  echo $(( shelley_transition_epoch + ((slotnum - (shelley_transition_epoch * BYRON_EPOCH_LENGTH)) / EPOCH_LENGTH) ))
-}
-
-getSlotInEpochFromSlot() {
-  slotnum=$1
-  epoch=$2
-  echo $(( slotnum - ((shelley_transition_epoch * BYRON_EPOCH_LENGTH) + ((epoch - shelley_transition_epoch) * EPOCH_LENGTH )) ))
-}
-
-getDateFromSlot() {
-  slotnum=$1
-  byron_slots=$(( shelley_transition_epoch * BYRON_EPOCH_LENGTH ))
-  printf -v date_from_slot '%(%FT%T%z)T' $(( (byron_slots * BYRON_SLOT_LENGTH) + ((slotnum-byron_slots) * SLOT_LENGTH) + SHELLEY_GENESIS_START_SEC ))
-  echo "${date_from_slot%??}:${date_from_slot: -2}"
-}
+######################################
 
 createBlocklogDB() {
   if ! mkdir -p "${BLOCKLOG_DIR}"; then echo "ERROR: failed to create directory to store blocklog: ${BLOCKLOG_DIR}" && return 1; fi
@@ -123,9 +84,9 @@ EOF
   fi
 }
 
-cncliDBinSync() { # node_metrics=$(getNodeMetrics) && slot_tip=$(getSlotTip) expected to have been already run
+cncliDBinSync() { # getNodeMetrics expected to have been already run
   cncli_tip=$(sqlite3 "${CNCLI_DB}" "SELECT slot_number FROM chain ORDER BY slot_number DESC LIMIT 1;")
-  cncli_sync_prog=$(echo "( ${cncli_tip} / ${slot_tip} ) * 100" | bc -l)
+  cncli_sync_prog=$(echo "( ${cncli_tip} / ${slotnum} ) * 100" | bc -l)
   (( $(echo "${cncli_sync_prog} > 99.999" |bc -l) ))
 }
 
@@ -139,8 +100,8 @@ getPoolVrfVkeyCborHex() {
   fi
 }
 
-dumpLedgerState() {
-  ledger_state_file="/tmp/ledger-state_$(getEpoch).json"
+dumpLedgerState() { # getNodeMetrics expected to have been already run
+  ledger_state_file="/tmp/ledger-state_${epochnum}.json"
   [[ -n $(find "${ledger_state_file}" -mmin -60 2>/dev/null) ]] && return 0 # no need to continue, we have a fresh(<1h) ledger-state already
   rm -f /tmp/ledger-state_* # remove old ledger dumps before creating a new
   if ! timeout -k 5 "${TIMEOUT_LEDGER_STATE}" ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${ledger_state_file}"; then
@@ -149,52 +110,6 @@ dumpLedgerState() {
     return 1
   fi
   return 0
-}
-
-# Command    : getShelleyTransitionEpoch
-# Description: Calculate shelley transition epoch
-getShelleyTransitionEpoch() {
-  calc_slot=0
-  node_metrics=$(getNodeMetrics)
-  slotnum=$(getSlotTip)
-  slot_in_epoch=$(getSlotInEpoch)
-  byron_epochs=$(getEpoch)
-  shelley_epochs=0
-  while [[ ${byron_epochs} -ge 0 ]]; do
-    calc_slot=$(( (byron_epochs * BYRON_EPOCH_LENGTH) + (shelley_epochs * EPOCH_LENGTH) + slot_in_epoch ))
-    [[ ${calc_slot} -eq ${slotnum} ]] && break
-    ((byron_epochs--))
-    ((shelley_epochs++))
-  done
-  if [[ "${NWMAGIC}" = "764824073" ]]; then
-    shelley_transition_epoch=208
-  elif [[ ${calc_slot} -ne ${slotnum} || ${shelley_epochs} -eq 0 ]]; then
-    shelley_transition_epoch=-1
-    return 1
-  else
-    shelley_transition_epoch=${byron_epochs}
-  fi
-}
-
-# Command    : getSlotTipRef
-# Description: Get calculated slot number tip
-getSlotTipRef() {
-  current_time_sec=$(date -u +%s)
-  if [[ "${PROTOCOL}" = "Cardano" ]]; then
-    # Combinator network
-    byron_slots=$(( shelley_transition_epoch * BYRON_EPOCH_LENGTH )) # since this point will only be reached once we're in Shelley phase
-    byron_end_time=$(( BYRON_GENESIS_START_SEC + ( shelley_transition_epoch * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH ) ))
-    if [[ "${current_time_sec}" -lt "${byron_end_time}" ]]; then
-      # In Byron phase
-      echo $(( ( current_time_sec - BYRON_GENESIS_START_SEC ) / BYRON_SLOT_LENGTH ))
-    else
-      # In Shelley phase
-      echo $(( byron_slots + (( current_time_sec - byron_end_time ) / SLOT_LENGTH ) ))
-    fi
-  else
-    # Shelley Mode only, no Byron slots
-    echo $(( ( current_time_sec - SHELLEY_GENESIS_START_SEC ) / SLOT_LENGTH ))
-  fi
 }
 
 #################################
@@ -312,19 +227,18 @@ cncliLeaderlog() {
   createBlocklogDB || exit 1 # create db if needed
   [[ -z ${POOL_ID} || -z ${POOL_VRF_SKEY} ]] && echo "'POOL_ID' and/or 'POOL_VRF_SKEY' not set in $(basename "$0"), exiting!" && exit 1
   
-  shelley_transition_epoch=-1
   while true; do
-    if [[ ${shelley_transition_epoch} -lt 0 ]]; then
+    if [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
+      getNodeMetrics
       if ! getShelleyTransitionEpoch; then 
         echo "Failed to calculate shelley transition epoch, checking again in ${SLEEP_RATE}s"
         sleep ${SLEEP_RATE}
       else
-        echo "Shelley transition epoch found: ${shelley_transition_epoch}"
+        echo "Shelley transition epoch found: ${SHELLEY_TRANS_EPOCH}"
       fi
     else
-      node_metrics=$(getNodeMetrics)
-      slot_tip=$(getSlotTip)
-      tip_diff=$(( $(getSlotTipRef) - slot_tip ))
+      getNodeMetrics
+      tip_diff=$(( $(getSlotTipRef) - slotnum ))
       if [[ ${tip_diff} -gt 300 ]]; then # Node considered in sync if less than 300 slots from theoretical tip
         echo "Node still syncing, ${tip_diff} slots from theoretical tip, checking again in ${SLEEP_RATE}s"
       elif ! cncliDBinSync; then
@@ -337,9 +251,8 @@ cncliLeaderlog() {
   done
   
   [[ ${subarg} != "force" ]] && echo "Node in sync, sleeping for ${SLEEP_RATE}s before running leaderlogs for current epoch" && sleep ${SLEEP_RATE}
-  node_metrics=$(getNodeMetrics)
-  slot_tip=$(getSlotTip)
-  curr_epoch=$(getEpoch)
+  getNodeMetrics
+  curr_epoch=${epochnum}
   if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM epochdata WHERE epoch=${curr_epoch};" 2>/dev/null) -eq 1 && ${subarg} != "force" ]]; then
     echo "Leaderlogs already calculated for epoch ${curr_epoch}, skipping!"
   else
@@ -387,18 +300,16 @@ EOF
   
   while true; do
     [[ ${subarg} != "force" ]] && sleep ${SLEEP_RATE}
-    node_metrics=$(getNodeMetrics)
-    slot_tip=$(getSlotTip)
+    getNodeMetrics
     if ! cncliDBinSync; then # verify that cncli DB is still in sync
       echo "CNCLI DB out of sync :( [$(printf "%2.4f %%" ${cncli_sync_prog})] ... checking again in ${SLEEP_RATE}s"
       [[ ${subarg} = "force" ]] && sleep ${SLEEP_RATE}
       continue
     fi
-    slot_in_epoch=$(getSlotInEpoch)
-    slot_for_next_nonce=$(echo "(${slot_tip} - ${slot_in_epoch} + ${EPOCH_LENGTH}) - (3 * ${BYRON_K} / ${ACTIVE_SLOTS_COEFF})" | bc) # firstSlotOfNextEpoch - stabilityWindow(3 * k / f)
-    curr_epoch=$(getEpoch)
+    slot_for_next_nonce=$(echo "(${slotnum} - ${slot_in_epoch} + ${EPOCH_LENGTH}) - (3 * ${BYRON_K} / ${ACTIVE_SLOTS_COEFF})" | bc) # firstSlotOfNextEpoch - stabilityWindow(3 * k / f)
+    curr_epoch=${epochnum}
     next_epoch=$((curr_epoch+1))
-    if [[ ${slot_tip} -gt ${slot_for_next_nonce} ]]; then # Run leaderlogs for next epoch
+    if [[ ${slotnum} -gt ${slot_for_next_nonce} ]]; then # Run leaderlogs for next epoch
       if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM epochdata WHERE epoch=${next_epoch};" 2>/dev/null) -eq 1 ]]; then # Leaderlogs already calculated for next epoch, skipping!
         if [[ ${subarg} = "force" ]]; then
           echo "Leaderlogs already calculated for epoch ${next_epoch}, skipping!" && break
@@ -453,17 +364,15 @@ cncliValidate() {
   echo "~ CNCLI Block Validation started ~"
   if ! getPoolVrfVkeyCborHex; then exit 1; fi # We need this to properly validate block
   createBlocklogDB || exit 1 # create db if needed
+  getNodeMetrics
   if ! getShelleyTransitionEpoch; then echo "ERROR: failed to calculate shelley transition epoch" && exit 1; fi
   if [[ -n ${subarg} ]]; then
-    node_metrics=$(getNodeMetrics)
-    slot_tip=$(getSlotTip)
     if ! cncliDBinSync; then # verify that cncli DB is still in sync
       echo "CNCLI DB out of sync :( [$(printf "%2.4f %%" ${cncli_sync_prog})] ... check cncli sync service!"
       exit 1
     fi
-    tip_diff=$(( $(getSlotTipRef) - slot_tip ))
+    tip_diff=$(( $(getSlotTipRef) - slotnum ))
     [[ ${tip_diff} -gt 300 ]] && echo "ERROR: node still syncing, ${tip_diff} slots from theoretical tip" && exit 1
-    block_tip=$(getBlockTip)
     epoch=0
     epoch_selection=""
     if [[ ${subarg} =~ ^[0-9]+$ ]]; then
@@ -485,16 +394,14 @@ cncliValidate() {
   else
     while true; do
       sleep ${SLEEP_RATE}
-      node_metrics=$(getNodeMetrics)
-      slot_tip=$(getSlotTip)
+      getNodeMetrics
       if ! cncliDBinSync; then # verify that cncli DB is still in sync
         echo "CNCLI DB out of sync :( [$(printf "%2.4f %%" ${cncli_sync_prog})] ... checking again in ${SLEEP_RATE}s"
         continue
       fi
-      block_tip=$(getBlockTip)
-      curr_epoch=$(getEpoch)
+      curr_epoch=${epochnum}
       # Check previous epoch as well at start of current epoch
-      [[ $(getSlotInEpoch) -lt $(( CONFIRM_SLOT_CNT * 6 )) ]] && prev_epoch=$((curr_epoch-1)) || prev_epoch=${curr_epoch}
+      [[ ${slot_in_epoch} -lt $(( CONFIRM_SLOT_CNT * 6 )) ]] && prev_epoch=$((curr_epoch-1)) || prev_epoch=${curr_epoch}
       epoch_blocks=$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch, slot, status, hash FROM blocklog WHERE epoch BETWEEN ${prev_epoch} and ${curr_epoch} ORDER BY slot;")
       if [[ -n ${epoch_blocks} ]]; then
         while IFS='|' read -r block_epoch block_slot block_status block_hash; do
@@ -508,7 +415,7 @@ cncliValidate() {
 validateBlock() {
   [[ ${block_status} = invalid ]] && return
   if [[ ${block_status} = leader || ${block_status} = adopted ]]; then
-    [[ ${block_slot} -gt ${slot_tip} ]] && return # block in the future, skip
+    [[ ${block_slot} -gt ${slotnum} ]] && return # block in the future, skip
     block_data_raw="$(sqlite3 "${CNCLI_DB}" "SELECT block_number, hash, block_size, orphaned, node_vrf_vkey FROM chain WHERE slot_number = ${block_slot};")"
     slot_cnt=0; slot_ok_cnt=0; slot_stolen_cnt=0; block_data=()
     for block in ${block_data_raw}; do
@@ -521,7 +428,7 @@ validateBlock() {
         [[ ${block_data_tmp[3]} -eq 0 ]] && ((slot_stolen_cnt++))
       fi
     done
-    if [[ $((block_slot + CONFIRM_SLOT_CNT)) -lt ${slot_tip} ]]; then # block old enough to validate
+    if [[ $((block_slot + CONFIRM_SLOT_CNT)) -lt ${slotnum} ]]; then # block old enough to validate
       if [[ ${slot_cnt} -eq 0 ]]; then # no block found in db for this slot with our vrf vkey
         if [[ ${slot_stolen_cnt} -eq 0 ]]; then # no other pool has a valid block for this slot either
           echo "MISSED: Leader for slot '${block_slot}' but not found in cncli db and no other pool has made a valid block for this slot"
@@ -532,7 +439,7 @@ validateBlock() {
         fi
         sqlite3 "${BLOCKLOG_DB}" "UPDATE blocklog SET status = '${new_status}' WHERE slot = ${block_slot};"
       else # block found for this slot with a match for our vrf vkey
-        [[ $((block_tip-block_data[0])) -lt ${CONFIRM_BLOCK_CNT} ]] && return # To make sure enough blocks has been built on top before validating
+        [[ $((blocknum-block_data[0])) -lt ${CONFIRM_BLOCK_CNT} ]] && return # To make sure enough blocks has been built on top before validating
         if [[ ${slot_ok_cnt} -gt 0 ]]; then # our block not marked as orphaned :)
           echo "CONFIRMED: Leader for slot '${block_slot}' and match found in CNCLI DB for this slot with pool's VRF public key"
           [[ ${slot_cnt} -gt 1 ]] && echo "           WARNING!! Adversarial fork created, multiple blocks created for the same slot by the same pool :("
@@ -563,14 +470,13 @@ validateBlock() {
 cncliInitBlocklogDB() {
   [[ "${PROTOCOL}" != "Cardano" ]] && echo "ERROR: protocol not Cardano mode, not a valid network" && exit 1
   if ! getPoolVrfVkeyCborHex; then exit 1; fi
+  getNodeMetrics
   if ! getShelleyTransitionEpoch; then echo "ERROR: failed to calculate shelley transition epoch" && exit 1; fi
-  node_metrics=$(getNodeMetrics)
-  slot_tip=$(getSlotTip)
   if ! cncliDBinSync; then # verify that cncli DB is still in sync
     echo "CNCLI DB out of sync :( [$(printf "%2.4f %%" ${cncli_sync_prog})] ... check cncli sync service!"
     exit 1
   fi
-  tip_diff=$(( $(getSlotTipRef) - slot_tip ))
+  tip_diff=$(( $(getSlotTipRef) - slotnum ))
   [[ ${tip_diff} -gt 300 ]] && echo "ERROR: node still syncing, ${tip_diff} slots from theoretical tip" && exit 1
   createBlocklogDB || exit 1 # create db if needed
   echo "Looking for blocks made by pool..."
@@ -605,6 +511,7 @@ EOF
 
 cncliMigrateBlocklog() {
   [[ ! -d ${subarg} ]] && echo -e "\nERROR: unable to locate directory holding cntoolsBlockCollector blocklog json files:\n${subarg}" && usage
+  getNodeMetrics
   if ! getShelleyTransitionEpoch; then echo "ERROR: failed to calculate shelley transition epoch" && exit 1; fi
   createBlocklogDB || exit 1 # create db if needed
   while IFS= read -r -d '' blocks_file; do
@@ -681,10 +588,10 @@ EOF"
   sendslots_epoch=-1
   while true; do
     sleep ${SLEEP_RATE}
-    node_metrics=$(getNodeMetrics)
-    curr_epoch=$(getEpoch)
+    getNodeMetrics
+    curr_epoch=${epochnum}
     [[ ${sendslots_epoch} -eq ${curr_epoch} ]] && continue # this epoch already processed
-    [[ $(( SLOT_LENGTH * $(getSlotInEpoch) )) -gt 600 ]] && continue # only allow slot sending in the first 10m after epoch boundary
+    [[ $(( SLOT_LENGTH * slot_in_epoch )) -gt 600 ]] && continue # only allow slot sending in the first 10m after epoch boundary
     leaderlog_cnt=$(sqlite3 "${CNCLI_DB}" "SELECT COUNT(*) FROM slots WHERE epoch=${curr_epoch} and pool_id='${POOL_ID}';")
     [[ ${leaderlog_cnt} -eq 0 ]] && echo "ERROR: no leaderlogs for epoch ${curr_epoch} and pool id '${POOL_ID}' found in cncli DB" && continue
     ${CNCLI} sendslots --config "${pt_config}" --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}"

@@ -425,24 +425,6 @@ check_peers="false"
 show_peers="false"
 selected_direction="out"
 getNodeMetrics
-if [[ ${USE_EKG} = 'Y' ]]; then
-  node_metrics_tsv=$(jq -r '[
-.cardano.node.metrics.epoch.int.val //0,
-.cardano.node.metrics.slotInEpoch.int.val //0,
-.cardano.node.metrics.slotNum.int.val //0,
-.cardano.node.metrics.remainingKESPeriods.int.val //0
-] | @tsv' <<< "${node_metrics}")
-  read -ra node_metrics_arr <<< ${node_metrics_tsv}
-  epochnum=${node_metrics_arr[0]}
-  slot_in_epoch=${node_metrics_arr[1]}
-  slotnum=${node_metrics_arr[2]}
-  remaining_kes_periods=${node_metrics_arr[3]}
-else
-  [[ ${node_metrics} =~ cardano_node_metrics_epoch_int[[:space:]]([^[:space:]]*) ]] && epochnum=${BASH_REMATCH[1]} || epochnum=0
-  [[ ${node_metrics} =~ cardano_node_metrics_slotInEpoch_int[[:space:]]([^[:space:]]*) ]] && slot_in_epoch=${BASH_REMATCH[1]} || slot_in_epoch=0
-  [[ ${node_metrics} =~ cardano_node_metrics_slotNum_int[[:space:]]([^[:space:]]*) ]] && slotnum=${BASH_REMATCH[1]} || slotnum=0
-  [[ ${node_metrics} =~ cardano_node_metrics_remainingKESPeriods_int[[:space:]]([^[:space:]]*) ]] && remaining_kes_periods=${BASH_REMATCH[1]} || remaining_kes_periods=0
-fi
 curr_epoch=${epochnum}
 getShelleyTransitionEpoch
 if [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
@@ -501,11 +483,6 @@ while true; do
 
   # Gather some data
   getNodeMetrics
-  if [[ ${USE_EKG} = 'Y' ]]; then
-    uptimens=$(jq '.rts.gc.wall_ms.val //0' <<< "${node_metrics}")
-  else
-    [[ ${node_metrics} =~ rts_gc_wall_ms[[:space:]]([^[:space:]]*) ]] && uptimens=${BASH_REMATCH[1]} || uptimens=0
-  fi
   [[ ${fail_count} -eq ${RETRIES} ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}"
   if [[ ${uptimens} -le 0 ]]; then
     ((fail_count++))
@@ -534,45 +511,6 @@ while true; do
     else
       peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | grep -v ":${cncli_port} " | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
       peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})" '$3 !~ port {print}' | wc -l)
-    fi
-    if [[ ${USE_EKG} = 'Y' ]]; then
-      node_metrics_tsv=$(jq -r '[
-.cardano.node.metrics.blockNum.int.val //0,
-.cardano.node.metrics.epoch.int.val //0,
-.cardano.node.metrics.slotInEpoch.int.val //0,
-.cardano.node.metrics.slotNum.int.val //0,
-.cardano.node.metrics.density.real.val //"-",
-.cardano.node.metrics.txsProcessedNum.int.val //0,
-.cardano.node.metrics.txsInMempool.int.val //0,
-.cardano.node.metrics.mempoolBytes.int.val //0,
-.cardano.node.metrics.currentKESPeriod.int.val //0,
-.cardano.node.metrics.remainingKESPeriods.int.val //0,
-.cardano.node.metrics.Forge["node-is-leader"].int.val //0,
-.cardano.node.metrics.Forge.adopted.int.val //0,
-.cardano.node.metrics.Forge["didnt-adopt"].int.val //0,
-.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0
-] | @tsv' <<< "${node_metrics}")
-      read -ra node_metrics_arr <<< ${node_metrics_tsv}
-      blocknum=${node_metrics_arr[0]}; epochnum=${node_metrics_arr[1]}; slot_in_epoch=${node_metrics_arr[2]}; slotnum=${node_metrics_arr[3]}
-      [[ ${node_metrics_arr[4]} != '-' ]] && density=$(bc <<< "scale=3;$(printf '%3.5f' "${node_metrics_arr[4]}")*100/1") || density=0.0
-      tx_processed=${node_metrics_arr[5]}; mempool_tx=${node_metrics_arr[6]}; mempool_bytes=${node_metrics_arr[7]}
-      kesperiod=${node_metrics_arr[8]}; remaining_kes_periods=${node_metrics_arr[9]}
-      isleader=${node_metrics_arr[10]}; adopted=${node_metrics_arr[11]}; didntadopt=${node_metrics_arr[12]}; about_to_lead=${node_metrics_arr[13]}
-    else
-      [[ ${node_metrics} =~ cardano_node_metrics_blockNum_int[[:space:]]([^[:space:]]*) ]] && blocknum=${BASH_REMATCH[1]} || blocknum=0
-      [[ ${node_metrics} =~ cardano_node_metrics_epoch_int[[:space:]]([^[:space:]]*) ]] && epochnum=${BASH_REMATCH[1]} || epochnum=0
-      [[ ${node_metrics} =~ cardano_node_metrics_slotInEpoch_int[[:space:]]([^[:space:]]*) ]] && slot_in_epoch=${BASH_REMATCH[1]} || slot_in_epoch=0
-      [[ ${node_metrics} =~ cardano_node_metrics_slotNum_int[[:space:]]([^[:space:]]*) ]] && slotnum=${BASH_REMATCH[1]} || slotnum=0
-      [[ ${node_metrics} =~ cardano_node_metrics_density_real[[:space:]]([^[:space:]]*) ]] && density=$(bc <<< "scale=3;$(printf '%3.5f' "${BASH_REMATCH[1]}")*100/1") || density=0.0
-      [[ ${node_metrics} =~ cardano_node_metrics_txsProcessedNum_int[[:space:]]([^[:space:]]*) ]] && tx_processed=${BASH_REMATCH[1]} || tx_processed=0
-      [[ ${node_metrics} =~ cardano_node_metrics_txsInMempool_int[[:space:]]([^[:space:]]*) ]] && mempool_tx=${BASH_REMATCH[1]} || mempool_tx=0
-      [[ ${node_metrics} =~ cardano_node_metrics_mempoolBytes_int[[:space:]]([^[:space:]]*) ]] && mempool_bytes=${BASH_REMATCH[1]} || mempool_bytes=0
-      [[ ${node_metrics} =~ cardano_node_metrics_currentKESPeriod_int[[:space:]]([^[:space:]]*) ]] && kesperiod=${BASH_REMATCH[1]} || kesperiod=0
-      [[ ${node_metrics} =~ cardano_node_metrics_remainingKESPeriods_int[[:space:]]([^[:space:]]*) ]] && remaining_kes_periods=${BASH_REMATCH[1]} || remaining_kes_periods=0
-      [[ ${node_metrics} =~ cardano_node_metrics_Forge_node_is_leader_int[[:space:]]([^[:space:]]*) ]] && isleader=${BASH_REMATCH[1]} || isleader=0
-      [[ ${node_metrics} =~ cardano_node_metrics_Forge_adopted_int[[:space:]]([^[:space:]]*) ]] && adopted=${BASH_REMATCH[1]} || adopted=0
-      [[ ${node_metrics} =~ cardano_node_metrics_Forge_didnt_adopt_int[[:space:]]([^[:space:]]*) ]] && didntadopt=${BASH_REMATCH[1]} || didntadopt=0
-      [[ ${node_metrics} =~ cardano_node_metrics_Forge_forge_about_to_lead_int[[:space:]]([^[:space:]]*) ]] && about_to_lead=${BASH_REMATCH[1]} || about_to_lead=0
     fi
     if [[ ${about_to_lead} -gt 0 ]]; then
       [[ ${nodemode} != "Core" ]] && clear && nodemode="Core"
