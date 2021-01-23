@@ -23,14 +23,15 @@ CNODE_PORT=6000                                         # Set node port
 #CURL_TIMEOUT=10                                        # Maximum time in seconds that you allow curl file download to take before aborting (GitHub update process)
 #BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"         # Override default directory used to store block data for core node
 #BLOCKLOG_TZ="UTC"                                      # TimeZone to use when displaying blocklog - https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+#SHELLEY_TRANS_EPOCH=208                                # Override automatic detection of shelley epoch start, e.g 208 for mainnet
+#TG_BOT_TOKEN=""                                        # Uncomment and set to enable telegramSend function. To create your own BOT-token and Chat-Id follow guide at:
+#TG_CHAT_ID=""                                          # https://cardano-community.github.io/guild-operators/#/Scripts/sendalerts
+#USE_EKG="N"                                # Use EKG metrics from the node instead of Promethus. Promethus metrics(default) should yield slightly better performance
 
 #WALLET_FOLDER="${CNODE_HOME}/priv/wallet"              # Root folder for Wallets
 #POOL_FOLDER="${CNODE_HOME}/priv/pool"                  # Root folder for Pools
                                                         # Each wallet and pool has a friendly name and subfolder containing all related keys, certificates, ...
 #POOL_NAME=""                                           # Set the pool's name to run node as a core node (the name, NOT the ticker, ie folder name)
-                                                        
-TG_BOT_TOKEN=""                                         # to enable telegramSend function create your own BOT-token and Chat-Id
-TG_CHAT_ID=""                                           # see https://cardano-community.github.io/guild-operators/#/Scripts/logmonitor#telegram-alerts 
 
 #WALLET_PAY_VK_FILENAME="payment.vkey"                  # Standardized names for all wallet related files
 #WALLET_PAY_SK_FILENAME="payment.skey"
@@ -239,14 +240,13 @@ PROTOCOL=$(jq -r .Protocol "${CONFIG}")
 NETWORKID=$(jq -r .networkId ${GENESIS_JSON})
 MAGIC=$(jq -r .protocolMagicId < ${GENESIS_JSON})
 NWMAGIC=$(jq -r .networkMagic < ${GENESIS_JSON})
-[[ "${PROTOCOL}" = "Cardano" ]] && PROTOCOL_IDENTIFIER="--cardano-mode" || PROTOCOL_IDENTIFIER="--shelley-mode"
-if [[ "${NWMAGIC}" = "764824073" ]]; then
-  NETWORK_IDENTIFIER="--mainnet"
-  NETWORK_NAME="Mainnet"
-else
-  NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
-  [[ "${NWMAGIC}" = "1097911063" ]] && NETWORK_NAME="Testnet" || NETWORK_NAME="Custom"
-fi
+[[ ${NETWORKID} = "Mainnet" ]] && HASH_IDENTIFIER="--mainnet" || HASH_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+case ${NWMAGIC} in
+  764824073) NETWORK_NAME="Mainnet"; SHELLEY_TRANS_EPOCH=208; NETWORK_IDENTIFIER="--mainnet" ;;
+  1097911063) NETWORK_NAME="Testnet"; SHELLEY_TRANS_EPOCH=74; NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
+  633343913) NETWORK_NAME="Staging"; SHELLEY_TRANS_EPOCH=208; NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
+  *) NETWORK_NAME="Custom"; SHELLEY_TRANS_EPOCH=-1; NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
+esac
 
 SHELLEY_GENESIS_START_SEC=$(date --date="$(jq -r .systemStart "${GENESIS_JSON}")" +%s)
 EPOCH_LENGTH=$(jq -r .epochLength "${GENESIS_JSON}")
@@ -254,12 +254,10 @@ SLOT_LENGTH=$(jq -r .slotLength "${GENESIS_JSON}")
 ACTIVE_SLOTS_COEFF=$(jq -r .activeSlotsCoeff "${GENESIS_JSON}")
 SLOTS_PER_KES_PERIOD=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
 MAX_KES_EVOLUTIONS=$(jq -r .maxKESEvolutions "${GENESIS_JSON}")
-if [[ "${PROTOCOL_IDENTIFIER}" = "--cardano-mode" ]]; then
-  BYRON_GENESIS_START_SEC=$(jq -r .startTime "${BYRON_GENESIS_JSON}")
-  BYRON_K=$(jq -r .protocolConsts.k "${BYRON_GENESIS_JSON}")
-  BYRON_SLOT_LENGTH=$(( $(jq -r .blockVersionData.slotDuration "${BYRON_GENESIS_JSON}") / 1000 ))
-  BYRON_EPOCH_LENGTH=$(( 10 * BYRON_K ))
-fi
+BYRON_GENESIS_START_SEC=$(jq -r .startTime "${BYRON_GENESIS_JSON}")
+BYRON_K=$(jq -r .protocolConsts.k "${BYRON_GENESIS_JSON}")
+BYRON_SLOT_LENGTH=$(( $(jq -r .blockVersionData.slotDuration "${BYRON_GENESIS_JSON}") / 1000 ))
+BYRON_EPOCH_LENGTH=$(( 10 * BYRON_K ))
 
 [[ -z ${TOPOLOGY} ]] && TOPOLOGY="${CNODE_HOME}/files/topology.json"
 [[ -n ${CNODE_TOPOLOGY} ]] && TOPOLOGY="${CNODE_TOPOLOGY}" # compatibility with older topologyUpdater
@@ -308,11 +306,148 @@ STANDOUT='\e[7m'
 BOLD='\e[1m'
 NC='\e[0m'
 
+# Description : Query cardano-node for current metrics
+[[ -z ${USE_EKG} ]] && USE_EKG='N'
+getNodeMetrics() {
+  if [[ ${USE_EKG} = 'Y' ]]; then
+    node_metrics=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
+    node_metrics_tsv=$(jq -r '[
+.cardano.node.metrics.blockNum.int.val //0,
+.cardano.node.metrics.epoch.int.val //0,
+.cardano.node.metrics.slotInEpoch.int.val //0,
+.cardano.node.metrics.slotNum.int.val //0,
+.cardano.node.metrics.density.real.val //"-",
+.cardano.node.metrics.txsProcessedNum.int.val //0,
+.cardano.node.metrics.txsInMempool.int.val //0,
+.cardano.node.metrics.mempoolBytes.int.val //0,
+.cardano.node.metrics.currentKESPeriod.int.val //0,
+.cardano.node.metrics.remainingKESPeriods.int.val //0,
+.cardano.node.metrics.Forge["node-is-leader"].int.val //0,
+.cardano.node.metrics.Forge.adopted.int.val //0,
+.cardano.node.metrics.Forge["didnt-adopt"].int.val //0,
+.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0,
+.rts.gc.wall_ms.val //0
+] | @tsv' <<< "${node_metrics}")
+    read -ra node_metrics_arr <<< ${node_metrics_tsv}
+    blocknum=${node_metrics_arr[0]}; epochnum=${node_metrics_arr[1]}; slot_in_epoch=${node_metrics_arr[2]}; slotnum=${node_metrics_arr[3]}
+    [[ ${node_metrics_arr[4]} != '-' ]] && density=$(bc <<< "scale=3;$(printf '%3.5f' "${node_metrics_arr[4]}")*100/1") || density=0.0
+    tx_processed=${node_metrics_arr[5]}; mempool_tx=${node_metrics_arr[6]}; mempool_bytes=${node_metrics_arr[7]}
+    kesperiod=${node_metrics_arr[8]}; remaining_kes_periods=${node_metrics_arr[9]}
+    isleader=${node_metrics_arr[10]}; adopted=${node_metrics_arr[11]}; didntadopt=${node_metrics_arr[12]}; about_to_lead=${node_metrics_arr[13]}
+    uptimens=${node_metrics_arr[14]}
+  else
+    node_metrics=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
+    [[ ${node_metrics} =~ rts_gc_wall_ms[[:space:]]([^[:space:]]*) ]] && uptimens=${BASH_REMATCH[1]} || uptimens=0
+    [[ ${node_metrics} =~ cardano_node_metrics_blockNum_int[[:space:]]([^[:space:]]*) ]] && blocknum=${BASH_REMATCH[1]} || blocknum=0
+    [[ ${node_metrics} =~ cardano_node_metrics_epoch_int[[:space:]]([^[:space:]]*) ]] && epochnum=${BASH_REMATCH[1]} || epochnum=0
+    [[ ${node_metrics} =~ cardano_node_metrics_slotInEpoch_int[[:space:]]([^[:space:]]*) ]] && slot_in_epoch=${BASH_REMATCH[1]} || slot_in_epoch=0
+    [[ ${node_metrics} =~ cardano_node_metrics_slotNum_int[[:space:]]([^[:space:]]*) ]] && slotnum=${BASH_REMATCH[1]} || slotnum=0
+    [[ ${node_metrics} =~ cardano_node_metrics_density_real[[:space:]]([^[:space:]]*) ]] && density=$(bc <<< "scale=3;$(printf '%3.5f' "${BASH_REMATCH[1]}")*100/1") || density=0.0
+    [[ ${node_metrics} =~ cardano_node_metrics_txsProcessedNum_int[[:space:]]([^[:space:]]*) ]] && tx_processed=${BASH_REMATCH[1]} || tx_processed=0
+    [[ ${node_metrics} =~ cardano_node_metrics_txsInMempool_int[[:space:]]([^[:space:]]*) ]] && mempool_tx=${BASH_REMATCH[1]} || mempool_tx=0
+    [[ ${node_metrics} =~ cardano_node_metrics_mempoolBytes_int[[:space:]]([^[:space:]]*) ]] && mempool_bytes=${BASH_REMATCH[1]} || mempool_bytes=0
+    [[ ${node_metrics} =~ cardano_node_metrics_currentKESPeriod_int[[:space:]]([^[:space:]]*) ]] && kesperiod=${BASH_REMATCH[1]} || kesperiod=0
+    [[ ${node_metrics} =~ cardano_node_metrics_remainingKESPeriods_int[[:space:]]([^[:space:]]*) ]] && remaining_kes_periods=${BASH_REMATCH[1]} || remaining_kes_periods=0
+    [[ ${node_metrics} =~ cardano_node_metrics_Forge_node_is_leader_int[[:space:]]([^[:space:]]*) ]] && isleader=${BASH_REMATCH[1]} || isleader=0
+    [[ ${node_metrics} =~ cardano_node_metrics_Forge_adopted_int[[:space:]]([^[:space:]]*) ]] && adopted=${BASH_REMATCH[1]} || adopted=0
+    [[ ${node_metrics} =~ cardano_node_metrics_Forge_didnt_adopt_int[[:space:]]([^[:space:]]*) ]] && didntadopt=${BASH_REMATCH[1]} || didntadopt=0
+    [[ ${node_metrics} =~ cardano_node_metrics_Forge_forge_about_to_lead_int[[:space:]]([^[:space:]]*) ]] && about_to_lead=${BASH_REMATCH[1]} || about_to_lead=0
+  fi
+}
+
+# Description : Get shelley transition epoch for non-predefined networks
+getShelleyTransitionEpoch() {
+  [[ ${SHELLEY_TRANS_EPOCH} -ge 0 ]] && return 0
+  calc_slot=0
+  byron_epochs=${epochnum}
+  shelley_epochs=0
+  while [[ ${byron_epochs} -ge 0 ]]; do
+    calc_slot=$(( (byron_epochs * BYRON_EPOCH_LENGTH) + (shelley_epochs * EPOCH_LENGTH) + slot_in_epoch ))
+    [[ ${calc_slot} -eq ${slotnum} ]] && break
+    ((byron_epochs--))
+    ((shelley_epochs++))
+  done
+  if [[ ${calc_slot} -ne ${slotnum} || ${shelley_epochs} -eq 0 ]]; then
+    SHELLEY_TRANS_EPOCH=-1
+    return 1
+  else
+    SHELLEY_TRANS_EPOCH=${byron_epochs}
+    return 0
+  fi
+}
+[[ ${OFFLINE_MODE} = "N" && ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && getNodeMetrics && getShelleyTransitionEpoch
+
+# Description : Offline calculation of current epoch based on genesis file
+getEpoch() {
+  current_time_sec=$(printf '%(%s)T\n')
+  [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && echo 0 && return
+  byron_end_time=$(( BYRON_GENESIS_START_SEC + ( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH ) ))
+  echo $(( SHELLEY_TRANS_EPOCH + ( (current_time_sec - byron_end_time) / SLOT_LENGTH / EPOCH_LENGTH ) ))
+}
+
+# Description : Offline calculation of current epoch based on provided slot number
+getEpochFromSlot() {
+  echo $(( SHELLEY_TRANS_EPOCH + (($1 - (SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH)) / EPOCH_LENGTH) ))
+}
+
+# Description : Offline calculation of current slot in epoch based on provided slot number and epoch
+getSlotInEpochFromSlot() {
+  echo $(( $1 - ((SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH) + (($2 - SHELLEY_TRANS_EPOCH) * EPOCH_LENGTH )) ))
+}
+
+# Description : Offline calculation of date based on provided slot number
+getDateFromSlot() {
+  byron_slots=$(( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH ))
+  printf -v date_from_slot '%(%FT%T%z)T' $(( (byron_slots * BYRON_SLOT_LENGTH) + (($1-byron_slots) * SLOT_LENGTH) + SHELLEY_GENESIS_START_SEC ))
+  echo "${date_from_slot%??}:${date_from_slot: -2}"
+}
+
+# Description : Offline calculation of time in seconds until next epoch
+timeUntilNextEpoch() {
+  current_time_sec=$(printf '%(%s)T\n')
+  [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && echo 0 && return
+  echo $(( (SHELLEY_TRANS_EPOCH * BYRON_SLOT_LENGTH * BYRON_EPOCH_LENGTH) + ( ( $(getEpoch) + 1 - SHELLEY_TRANS_EPOCH ) * SLOT_LENGTH * EPOCH_LENGTH ) - current_time_sec + BYRON_GENESIS_START_SEC ))
+}
+
+# Description : Calculation of days, hours, minutes and seconds from time in seconds
+timeLeft() {
+  local T=$1
+  local D=$((T/60/60/24))
+  local H=$((T/60/60%24))
+  local M=$((T/60%60))
+  local S=$((T%60))
+  (( D > 0 )) && printf '%d day' $D && {
+    (( D > 1 )) && printf 's ' || printf ' '
+  }
+  printf '%02d:%02d:%02d' $H $M $S
+}
+
+# Description : Get calculated slot number tip
+getSlotTipRef() {
+  current_time_sec=$(printf '%(%s)T\n')
+  [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && echo 0 && return
+  byron_slots=$(( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH ))
+  byron_end_time=$(( BYRON_GENESIS_START_SEC + ( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH ) ))
+  if [[ ${current_time_sec} -lt ${byron_end_time} ]]; then # In Byron phase
+    echo $(( ( current_time_sec - BYRON_GENESIS_START_SEC ) / BYRON_SLOT_LENGTH ))
+  else # In Shelley phase
+    echo $(( byron_slots + (( current_time_sec - byron_end_time ) / SLOT_LENGTH ) ))
+  fi
+}
+
+# Command     : getCurrentKESperiod
+# Description : Offline calculation of current KES period based on reference tip
+getCurrentKESperiod() {
+  tip_ref=$(getSlotTipRef)
+  echo $(( tip_ref / SLOTS_PER_KES_PERIOD ))
+}
+
+# Description : Identify current era and set variables accordingly
 getEraIdentifier() {
-    if ${CCLI} query protocol-parameters --byron-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--byron-era" && ERA_WITNESS="TxWitness ByronEra"
-  elif ${CCLI} query protocol-parameters --shelley-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--shelley-era" && ERA_WITNESS="TxWitness ShelleyEra"
-  elif ${CCLI} query protocol-parameters --allegra-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--allegra-era" && ERA_WITNESS="TxWitness AllegraEra"
-  elif ${CCLI} query protocol-parameters --mary-era ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--mary-era" && ERA_WITNESS="TxWitness MaryEra"
+    if ${CCLI} query protocol-parameters --byron-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--byron-era" && ERA_WITNESS="TxWitness ByronEra"
+  elif ${CCLI} query protocol-parameters --shelley-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--shelley-era" && ERA_WITNESS="TxWitness ShelleyEra"
+  elif ${CCLI} query protocol-parameters --allegra-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--allegra-era" && ERA_WITNESS="TxWitness AllegraEra"
+  elif ${CCLI} query protocol-parameters --mary-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--mary-era" && ERA_WITNESS="TxWitness MaryEra"
   else 
     ERA_IDENTIFIER=""; ERA_WITNESS=""
     [[ ${OFFLINE_MODE} = "N" ]] && return 1
@@ -322,7 +457,13 @@ getEraIdentifier() {
 # special exit code for scripts that want to source env and doesn't care about ERA_IDENTIFIER or ERA_WITNESS
 if ! getEraIdentifier; then echo "Failed to query protocol-parameters from node, not yet fully started?" && return 2; fi
 
-PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>&1)"
+PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>&1)"
 if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -er .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
+
+# Description : Calculate expected interval between blocks
+slotInterval() {
+  if [[ -z ${DECENTRALISATION} || $(echo "${DECENTRALISATION} < 0.5" | bc) -eq 1 ]]; then d=0.5; else d=${DECENTRALISATION}; fi
+  echo "(${SLOT_LENGTH} / ${ACTIVE_SLOTS_COEFF} / ${d}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}'
+}
 
 return 0

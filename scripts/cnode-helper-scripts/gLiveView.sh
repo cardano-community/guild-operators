@@ -1,5 +1,5 @@
 #!/bin/bash
-#shellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015
+#shellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015,SC2154
 #shellcheck source=/dev/null
 
 ######################################
@@ -14,7 +14,6 @@ RETRIES=3                                  # How many attempts to connect to run
 THEME="dark"                               # dark  = suited for terminals with a dark background
                                            # light = suited for terminals with a bright background
 NO_INTERNET_MODE="N"                       # To skip checking for auto updates or make outgoing connections to guild-operators github repository
-USE_EKG="N"                                # Use EKG metrics from the node instead of Promethus. Promethus metrics(default) should yield slightly better performance
 
 #####################################
 # Themes                            #
@@ -68,17 +67,15 @@ Guild LiveView - An alternative cardano-node LiveView
 
 -l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
 -p    Disable default CNCLI ping and revert to legacy tcptraceroute if available, else use regular ICMP ping.
--e    Use EKG metrics from the node instead of Promethus metrics
 -b    Use alternate branch to check for updates - only for testing/development (Default: Master)  
 EOF
   exit 1
 }
 
-while getopts :lpeb: opt; do
+while getopts :lpb: opt; do
   case ${opt} in
     l ) LEGACY_MODE="true" ;;
     p ) DISABLE_CNCLI="true" ;;
-    e ) USE_EKG='Y' ;;
     b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
     esac
@@ -137,7 +134,7 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
       TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
       TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
       if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-        echo -e "\nThe static content from env file does not match with guild-operators repository, do you want to download the updated file? [y|n]"
+        echo -e "\nThe static content from env file does not match with guild-operators repository, do you want to download the updated file? [y|n]\n"
         read -r -n 1 -s update
         case ${update} in
           [yY])
@@ -159,7 +156,11 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
   rm -f "${PARENT}"/env.tmp
   # source common env variables in case it was updated
   . "${PARENT}"/env
-  [[ $? -eq 1 ]] && myExit 1
+  case $? in
+    1) myExit 1 ;;
+    2) printf "\npress any key to proceed..."
+       read -r -n 1 -s wait ;;
+  esac
 
   echo "Guild LiveView version check..."
   if curl -s -m ${CURL_TIMEOUT} -o /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
@@ -199,7 +200,6 @@ fi
 [[ ${#NODE_NAME} -gt 19 ]] && myExit 1 "Please keep node name at or below 19 characters in length!"
 
 [[ ! ${REFRESH_RATE} =~ ^[0-9]+$ ]] && myExit 1 "Please set a valid refresh rate number!"
-[[ -z ${USE_EKG} ]] && USE_EKG='N'
 
 # Style
 width=63
@@ -295,77 +295,6 @@ waitForInput() {
   fi
 }
 
-# Command    : showTimeLeft time_in_seconds
-# Description: calculation of days, hours, minutes and seconds
-timeLeft() {
-  local T=$1
-  local D=$((T/60/60/24))
-  local H=$((T/60/60%24))
-  local M=$((T/60%60))
-  local S=$((T%60))
-  (( D > 0 )) && printf '%d day' $D && {
-    (( D > 1 )) && printf 's ' || printf ' '
-  }
-  printf '%02d:%02d:%02d' $H $M $S
-}
-
-# Command    : getShelleyTransitionEpoch [1 = no user verification]
-# Description: Calculate shelley transition epoch
-getShelleyTransitionEpoch() {
-  calc_slot=0
-  byron_epochs=${epochnum}
-  shelley_epochs=0
-  while [[ ${byron_epochs} -ge 0 ]]; do
-    calc_slot=$(( (byron_epochs * BYRON_EPOCH_LENGTH) + (shelley_epochs * EPOCH_LENGTH) + slot_in_epoch ))
-    [[ ${calc_slot} -eq ${slotnum} ]] && break
-    ((byron_epochs--))
-    ((shelley_epochs++))
-  done
-  if [[ "${NWMAGIC}" = "764824073" ]]; then
-    shelley_transition_epoch=208
-  elif [[ ${calc_slot} -ne ${slotnum} || ${shelley_epochs} -eq 0 ]]; then
-    if [[ $1 -ne 1 ]]; then
-      clear
-      printf "\n ${style_status_3}Failed${NC} to get shelley transition epoch, calculations will not work correctly!"
-      printf "\n\n Possible causes:"
-      printf "\n   - Node in startup mode"
-      printf "\n   - Shelley era not reached"
-      printf "\n After successful node boot or when sync to shelley era has been reached, calculations will be correct"
-      printf "\n\n ${style_info}Press c to continue or any other key to quit${NC}"
-      read -r -n 1 -s -p "" answer
-      [[ "${answer}" != "c" ]] && myExit 1 "Guild LiveView terminated!"
-    fi
-    shelley_transition_epoch=-1
-  else
-    shelley_transition_epoch=${byron_epochs}
-  fi
-}
-
-# Command    : getEpoch
-# Description: Offline calculation of current epoch based on genesis file
-getEpoch() {
-  current_time_sec=$(printf '%(%s)T\n')
-  if [[ "${PROTOCOL}" = "Cardano" ]]; then
-    [[ shelley_transition_epoch -eq -1 ]] && echo 0 && return
-    byron_end_time=$(( BYRON_GENESIS_START_SEC + ( shelley_transition_epoch * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH ) ))
-    echo $(( shelley_transition_epoch + ( (current_time_sec - byron_end_time) / SLOT_LENGTH / EPOCH_LENGTH ) ))
-  else
-    echo $(( (current_time_sec - SHELLEY_GENESIS_START_SEC) / SLOT_LENGTH / EPOCH_LENGTH ))
-  fi
-}
-
-# Command    : getTimeUntilNextEpoch
-# Description: Offline calculation of time in seconds until next epoch
-timeUntilNextEpoch() {
-  current_time_sec=$(printf '%(%s)T\n')
-  if [[ "${PROTOCOL}" = "Cardano" ]]; then
-    [[ shelley_transition_epoch -eq -1 ]] && echo 0 && return
-    echo $(( (shelley_transition_epoch * BYRON_SLOT_LENGTH * BYRON_EPOCH_LENGTH) + ( ( $(getEpoch) + 1 - shelley_transition_epoch ) * SLOT_LENGTH * EPOCH_LENGTH ) - current_time_sec + BYRON_GENESIS_START_SEC ))
-  else
-    echo $(( ( ( ( (current_time_sec - SHELLEY_GENESIS_START_SEC) / SLOT_LENGTH / EPOCH_LENGTH ) + 1 ) * SLOT_LENGTH * EPOCH_LENGTH ) - current_time_sec + SHELLEY_GENESIS_START_SEC ))
-  fi
-}
-
 # Command    : sizeOfProgressSlotSpan
 # Description: Determine and set the size and style of the progress bar based on remaining time
 # Return     : sets leader_bar_span as integer [432000, 43200, 3600, 300]
@@ -386,28 +315,6 @@ setSizeAndStyleOfProgressBar() {
   fi
 }
 
-# Command    : getSlotTipRef
-# Description: Get calculated slot number tip
-getSlotTipRef() {
-  current_time_sec=$(printf '%(%s)T\n')
-  if [[ "${PROTOCOL}" = "Cardano" ]]; then
-    [[ shelley_transition_epoch -eq -1 ]] && echo 0 && return
-    # Combinator network
-    byron_slots=$(( shelley_transition_epoch * BYRON_EPOCH_LENGTH )) # since this point will only be reached once we're in Shelley phase
-    byron_end_time=$(( BYRON_GENESIS_START_SEC + ( shelley_transition_epoch * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH ) ))
-    if [[ "${current_time_sec}" -lt "${byron_end_time}" ]]; then
-      # In Byron phase
-      echo $(( ( current_time_sec - BYRON_GENESIS_START_SEC ) / BYRON_SLOT_LENGTH ))
-    else
-      # In Shelley phase
-      echo $(( byron_slots + (( current_time_sec - byron_end_time ) / SLOT_LENGTH ) ))
-    fi
-  else
-    # Shelley Mode only, no Byron slots
-    echo $(( ( current_time_sec - SHELLEY_GENESIS_START_SEC ) / SLOT_LENGTH ))
-  fi
-}
-
 # Command    : kesExpiration [pools remaining KES periods]
 # Description: Calculate KES expiration
 kesExpiration() {
@@ -415,13 +322,6 @@ kesExpiration() {
   tip_ref=$(getSlotTipRef)
   expiration_time_sec=$(( current_time_sec - ( SLOT_LENGTH * (tip_ref % SLOTS_PER_KES_PERIOD) ) + ( SLOT_LENGTH * SLOTS_PER_KES_PERIOD * remaining_kes_periods ) ))
   printf -v kes_expiration '%(%F %T %Z)T' ${expiration_time_sec}
-}
-
-# Command    : slotInterval
-# Description: Calculate expected interval between blocks
-slotInterval() {
-  [[ $(echo "${DECENTRALISATION} < 0.5" | bc) -eq 1 ]] && local d=0.5 || local d=${DECENTRALISATION}
-  echo "(${SLOT_LENGTH} / ${ACTIVE_SLOTS_COEFF} / ${d}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}'
 }
 
 # Command    : checkPeers [direction: in|out]
@@ -524,29 +424,19 @@ checkPeers() {
 check_peers="false"
 show_peers="false"
 selected_direction="out"
-
-if [[ ${USE_EKG} = 'Y' ]]; then
-  data=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
-  data_tsv=$(jq -r '[
-.cardano.node.metrics.epoch.int.val //0,
-.cardano.node.metrics.slotInEpoch.int.val //0,
-.cardano.node.metrics.slotNum.int.val //0,
-.cardano.node.metrics.remainingKESPeriods.int.val //0
-] | @tsv' <<< "${data}")
-  read -ra data_arr <<< ${data_tsv}
-  epochnum=${data_arr[0]}
-  slot_in_epoch=${data_arr[1]}
-  slotnum=${data_arr[2]}
-  remaining_kes_periods=${data_arr[3]}
-else
-  data=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
-  [[ ${data} =~ cardano_node_metrics_epoch_int[[:space:]]([^[:space:]]*) ]] && epochnum=${BASH_REMATCH[1]} || epochnum=0
-  [[ ${data} =~ cardano_node_metrics_slotInEpoch_int[[:space:]]([^[:space:]]*) ]] && slot_in_epoch=${BASH_REMATCH[1]} || slot_in_epoch=0
-  [[ ${data} =~ cardano_node_metrics_slotNum_int[[:space:]]([^[:space:]]*) ]] && slotnum=${BASH_REMATCH[1]} || slotnum=0
-  [[ ${data} =~ cardano_node_metrics_remainingKESPeriods_int[[:space:]]([^[:space:]]*) ]] && remaining_kes_periods=${BASH_REMATCH[1]} || remaining_kes_periods=0
-fi
+getNodeMetrics
 curr_epoch=${epochnum}
-[[ "${PROTOCOL}" = "Cardano" ]] && getShelleyTransitionEpoch || shelley_transition_epoch=-2
+getShelleyTransitionEpoch
+if [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
+  clear
+  printf "\n ${style_status_3}Failed${NC} to get shelley transition epoch, calculations will not work correctly!"
+  printf "\n\n Possible causes:"
+  printf "\n   - Node in startup mode"
+  printf "\n   - Shelley era not reached"
+  printf "\n After successful node boot or when sync to shelley era has been reached, calculations will be correct"
+  printf "\n\n ${style_info}press any key to proceed...${NC}"
+  read -r -n 1 -s wait
+fi
 version=$("$(command -v cardano-node)" version)
 node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
 node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
@@ -592,13 +482,7 @@ while true; do
   line=0; tput cup 0 0 # reset position
 
   # Gather some data
-  if [[ ${USE_EKG} = 'Y' ]]; then
-    data=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
-    uptimens=$(jq '.rts.gc.wall_ms.val //0' <<< "${data}")
-  else
-    data=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
-    [[ ${data} =~ rts_gc_wall_ms[[:space:]]([^[:space:]]*) ]] && uptimens=${BASH_REMATCH[1]} || uptimens=0
-  fi
+  getNodeMetrics
   [[ ${fail_count} -eq ${RETRIES} ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}"
   if [[ ${uptimens} -le 0 ]]; then
     ((fail_count++))
@@ -616,7 +500,7 @@ while true; do
   
   if [[ -z "${PROT_PARAMS}" ]]; then
     getEraIdentifier
-    PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
+    PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
     if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
   fi
   
@@ -628,52 +512,13 @@ while true; do
       peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | grep -v ":${cncli_port} " | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
       peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})" '$3 !~ port {print}' | wc -l)
     fi
-    if [[ ${USE_EKG} = 'Y' ]]; then
-      data_tsv=$(jq -r '[
-.cardano.node.metrics.blockNum.int.val //0,
-.cardano.node.metrics.epoch.int.val //0,
-.cardano.node.metrics.slotInEpoch.int.val //0,
-.cardano.node.metrics.slotNum.int.val //0,
-.cardano.node.metrics.density.real.val //"-",
-.cardano.node.metrics.txsProcessedNum.int.val //0,
-.cardano.node.metrics.txsInMempool.int.val //0,
-.cardano.node.metrics.mempoolBytes.int.val //0,
-.cardano.node.metrics.currentKESPeriod.int.val //0,
-.cardano.node.metrics.remainingKESPeriods.int.val //0,
-.cardano.node.metrics.Forge["node-is-leader"].int.val //0,
-.cardano.node.metrics.Forge.adopted.int.val //0,
-.cardano.node.metrics.Forge["didnt-adopt"].int.val //0,
-.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0
-] | @tsv' <<< "${data}")
-      read -ra data_arr <<< ${data_tsv}
-      blocknum=${data_arr[0]}; epochnum=${data_arr[1]}; slot_in_epoch=${data_arr[2]}; slotnum=${data_arr[3]}
-      [[ ${data_arr[4]} != '-' ]] && density=$(bc <<< "scale=3;$(printf '%3.5f' "${data_arr[4]}")*100/1") || density=0.0
-      tx_processed=${data_arr[5]}; mempool_tx=${data_arr[6]}; mempool_bytes=${data_arr[7]}
-      kesperiod=${data_arr[8]}; remaining_kes_periods=${data_arr[9]}
-      isleader=${data_arr[10]}; adopted=${data_arr[11]}; didntadopt=${data_arr[12]}; about_to_lead=${data_arr[13]}
-    else
-      [[ ${data} =~ cardano_node_metrics_blockNum_int[[:space:]]([^[:space:]]*) ]] && blocknum=${BASH_REMATCH[1]} || blocknum=0
-      [[ ${data} =~ cardano_node_metrics_epoch_int[[:space:]]([^[:space:]]*) ]] && epochnum=${BASH_REMATCH[1]} || epochnum=0
-      [[ ${data} =~ cardano_node_metrics_slotInEpoch_int[[:space:]]([^[:space:]]*) ]] && slot_in_epoch=${BASH_REMATCH[1]} || slot_in_epoch=0
-      [[ ${data} =~ cardano_node_metrics_slotNum_int[[:space:]]([^[:space:]]*) ]] && slotnum=${BASH_REMATCH[1]} || slotnum=0
-      [[ ${data} =~ cardano_node_metrics_density_real[[:space:]]([^[:space:]]*) ]] && density=$(bc <<< "scale=3;$(printf '%3.5f' "${BASH_REMATCH[1]}")*100/1") || density=0.0
-      [[ ${data} =~ cardano_node_metrics_txsProcessedNum_int[[:space:]]([^[:space:]]*) ]] && tx_processed=${BASH_REMATCH[1]} || tx_processed=0
-      [[ ${data} =~ cardano_node_metrics_txsInMempool_int[[:space:]]([^[:space:]]*) ]] && mempool_tx=${BASH_REMATCH[1]} || mempool_tx=0
-      [[ ${data} =~ cardano_node_metrics_mempoolBytes_int[[:space:]]([^[:space:]]*) ]] && mempool_bytes=${BASH_REMATCH[1]} || mempool_bytes=0
-      [[ ${data} =~ cardano_node_metrics_currentKESPeriod_int[[:space:]]([^[:space:]]*) ]] && kesperiod=${BASH_REMATCH[1]} || kesperiod=0
-      [[ ${data} =~ cardano_node_metrics_remainingKESPeriods_int[[:space:]]([^[:space:]]*) ]] && remaining_kes_periods=${BASH_REMATCH[1]} || remaining_kes_periods=0
-      [[ ${data} =~ cardano_node_metrics_Forge_node_is_leader_int[[:space:]]([^[:space:]]*) ]] && isleader=${BASH_REMATCH[1]} || isleader=0
-      [[ ${data} =~ cardano_node_metrics_Forge_adopted_int[[:space:]]([^[:space:]]*) ]] && adopted=${BASH_REMATCH[1]} || adopted=0
-      [[ ${data} =~ cardano_node_metrics_Forge_didnt_adopt_int[[:space:]]([^[:space:]]*) ]] && didntadopt=${BASH_REMATCH[1]} || didntadopt=0
-      [[ ${data} =~ cardano_node_metrics_Forge_forge_about_to_lead_int[[:space:]]([^[:space:]]*) ]] && about_to_lead=${BASH_REMATCH[1]} || about_to_lead=0
-    fi
     if [[ ${about_to_lead} -gt 0 ]]; then
       [[ ${nodemode} != "Core" ]] && clear && nodemode="Core"
     else
       [[ ${nodemode} != "Relay" ]] && clear && nodemode="Relay"
     fi
-    if [[ "${PROTOCOL}" = "Cardano" && ${shelley_transition_epoch} -eq -1 ]]; then # if Shelley transition epoch calc failed during start, try until successful
-      getShelleyTransitionEpoch 1
+    if [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then # if Shelley transition epoch calc failed during start, try until successful
+      getShelleyTransitionEpoch
       kes_expiration="---"
     else
       kesExpiration
@@ -681,7 +526,7 @@ while true; do
     if [[ ${curr_epoch} -ne ${epochnum} ]]; then # only update on new epoch to save on processing
       curr_epoch=${epochnum}
       getEraIdentifier
-      PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
+      PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
       if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
     fi
   fi
@@ -942,7 +787,7 @@ while true; do
     printf "${VL} - Stolen    : another pool has a valid block registered" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL}               on-chain for the same slot" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
   else
-    if [[ ${shelley_transition_epoch} -eq -2 ]] || [[ ${shelley_transition_epoch} -ne -1 && ${epochnum} -ge ${shelley_transition_epoch} ]]; then
+    if [[ ${epochnum} -ge ${SHELLEY_TRANS_EPOCH} ]]; then
       epoch_progress=$(echo "(${slot_in_epoch}/${EPOCH_LENGTH})*100" | bc -l)        # in Shelley era or Shelley only TestNet
     else
       epoch_progress=$(echo "(${slot_in_epoch}/${BYRON_EPOCH_LENGTH})*100" | bc -l)  # in Byron era
@@ -976,7 +821,7 @@ while true; do
     tput cup ${line} ${second_col}
     if [[ ${slotnum} -eq 0 ]]; then
       printf "Status     : ${style_info}%-${sec_col_value_size}s${NC}${VL}\n" "starting..."
-    elif [[ "${PROTOCOL}" = "Cardano" && ${shelley_transition_epoch} -eq -1 ]]; then
+    elif [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
       printf "Status     : ${style_info}%-${sec_col_value_size}s${NC}${VL}\n" "syncing..."
     elif [[ ${tip_diff} -le $(slotInterval) ]]; then
       printf "Tip (diff) : ${style_status_1}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_diff} :)"

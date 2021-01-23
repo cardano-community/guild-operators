@@ -6,7 +6,9 @@
 # General exit handler
 cleanup() {
   sleep 0.1
-  exec 1>&6 2>&7 3>&- 6>&- 7>&- 8>&- 9>&- # Restore stdout/stderr and close tmp file descriptors
+  if { true >&6; } 2<> /dev/null; then
+    exec 1>&6 2>&7 3>&- 6>&- 7>&- 8>&- 9>&- # Restore stdout/stderr and close tmp file descriptors
+  fi
   [[ -n $1 ]] && err=$1 || err=$?
   [[ $err -eq 0 ]] && clear
   [[ -n ${exit_msg} ]] && echo -e "\n${exit_msg}\n" || echo -e "\nCNTools terminated, cleaning up...\n"
@@ -61,12 +63,12 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
         vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
         sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
       else
-        myExit 1 "\nUpdate for env file failed! Please use prereqs.sh to force an update or manually download $(basename $0) + env from GitHub\n"
+        myExit 1 "Update for env file failed! Please use prereqs.sh to force an update or manually download $(basename $0) + env from GitHub"
       fi
       TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
       TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
       if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-        echo -e "\nThe static content from env file does not match with guild-operators repository, do you want to download the updated file? [y|n]"
+        echo -e "\nThe static content from env file does not match with guild-operators repository, do you want to download the updated file? [y|n]\n"
         read -r -n 1 -s update
         case ${update} in
           [yY])
@@ -83,14 +85,14 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     else
       mv "${PARENT}"/env.tmp "${PARENT}"/env
       myExit 0 "Common env file downloaded: ${PARENT}/env\n\
-This is a mandatory prerequisite, please set variables accordingly in User Variables section in the env file and restart CNTools\n"
+This is a mandatory prerequisite, please set variables accordingly in User Variables section in the env file and restart CNTools"
     fi
   fi
   rm -f "${PARENT}"/env.tmp
 fi
 [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && env_mode="" || env_mode="offline"
 if ! . "${PARENT}"/env ${env_mode}; then
-  myExit 1 "\nERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub\n"
+  myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub"
 fi
 
 # get cntools config parameters
@@ -224,14 +226,12 @@ while IFS= read -r -d '' pool; do
 done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
 [[ ${kes_rotation_needed} = "yes" ]] && waitForInput "press any key to proceed"
 
-# Verify if the combinator network is already on shelley and if so, the epoch of transition
-if [[ "${PROTOCOL}" == "Cardano" ]]; then
-  shelleyTransitionEpoch=$(cat "${SHELLEY_TRANS_FILENAME}" 2>/dev/null)
-  if [[ -z "${shelleyTransitionEpoch}" ]]; then
-    clear
-    if [[ "${NETWORK_IDENTIFIER}" == "--mainnet" ]]; then
-      shelleyTransitionEpoch="208"
-    elif [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+# Verify shelley transition epoch
+if [[ -z ${SHELLEY_TRANS_EPOCH} ]]; then # unknown network
+  clear
+  SHELLEY_TRANS_EPOCH=$(cat "${SHELLEY_TRANS_FILENAME}" 2>/dev/null)
+  if [[ -z ${SHELLEY_TRANS_EPOCH} ]]; then # not yet identified
+    if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       getNodeMetrics
       epoch=$(jq '.cardano.node.metrics.epoch.int.val //0' <<< "${node_metrics}")
       slot_in_epoch=$(jq '.cardano.node.metrics.slotInEpoch.int.val //0' <<< "${node_metrics}")
@@ -249,15 +249,15 @@ if [[ "${PROTOCOL}" == "Cardano" ]]; then
       if [[ ${calc_slot} -ne ${slot_num} ]]; then
         myExit 1 "${FG_YELLOW}WARN${NC}: Failed to calculate shelley transition epoch\n\n${node_sync}"
       elif [[ ${shelley_epochs} -eq 0 ]]; then
-        myExit 1 "${FG_YELLOW}WARN${NC}: The network has not reached the hard fork from Byron to shelley, please wait to use CNTools until your node is in shelley era\n\n${node_sync}"
+        myExit 1 "${FG_YELLOW}WARN${NC}: The network has not reached the hard fork from Byron to shelley, please wait to use CNTools until your node is in shelley era or start it in Offline mode\n\n${node_sync}"
       else
         shelleyTransitionEpoch=${byron_epochs}
       fi
     else
-      myExit 1 "${FG_YELLOW}WARN${NC}: Offline mode enabled and config set to TestNet, please manually create and set shelley transition epoch:\nE.g. : ${FG_CYAN}echo 74 > \"${SHELLEY_TRANS_FILENAME}\"${NC}"
+      myExit 1 "${FG_YELLOW}WARN${NC}: Offline mode enabled and this is an unknown network, please manually create and set shelley transition epoch:\nE.g. : ${FG_CYAN}echo 74 > \"${SHELLEY_TRANS_FILENAME}\"${NC}"
     fi
-    echo "${shelleyTransitionEpoch}" > "${SHELLEY_TRANS_FILENAME}"
   fi
+  echo "${SHELLEY_TRANS_EPOCH}" > "${SHELLEY_TRANS_FILENAME}"
 fi
 
 ###################################################################
@@ -272,9 +272,9 @@ find "${TMP_FOLDER:?}" -type f -not \( -name 'protparams.json' -o -name '.dialog
 clear
 println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-  println "$(printf " >> CNTools v%s - ${FG_GREEN}%s${NC} << %$((84-20-${#CNTOOLS_VERSION}-${#CNTOOLS_MODE}))s" "${CNTOOLS_VERSION}" "${CNTOOLS_MODE}" "A Guild Operators collaboration")"
+  println "$(printf " >> CNTools v%s - %s - ${FG_GREEN}%s${NC} << %$((84-23-${#CNTOOLS_VERSION}-${#NETWORK_NAME}-${#CNTOOLS_MODE}))s" "${CNTOOLS_VERSION}" "${NETWORK_NAME}" "${CNTOOLS_MODE}" "A Guild Operators collaboration")"
 else
-  println "$(printf " >> CNTools v%s - ${FG_CYAN}%s${NC} << %$((84-20-${#CNTOOLS_VERSION}-${#CNTOOLS_MODE}))s" "${CNTOOLS_VERSION}" "${CNTOOLS_MODE}" "A Guild Operators collaboration")"
+  println "$(printf " >> CNTools v%s - %s - ${FG_CYAN}%s${NC} << %$((84-23-${#CNTOOLS_VERSION}-${#NETWORK_NAME}-${#CNTOOLS_MODE}))s" "${CNTOOLS_VERSION}" "${NETWORK_NAME}" "${CNTOOLS_MODE}" "A Guild Operators collaboration")"
 fi
 println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 println "OFF" " Main Menu\n\n"\
@@ -288,11 +288,12 @@ println "OFF" " Main Menu\n\n"\
 " ) Backup      - backup & restore of wallet/pool/config\n"\
 " ) Refresh     - reload home screen content\n"\
 "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-println "DEBUG" "$(printf "%84s" "Epoch $(getEpoch) - $(timeUntilNextEpoch) until next")"
+println "DEBUG" "$(printf "%84s" "Epoch $(getEpoch) - $(timeLeft "$(timeUntilNextEpoch)") until next")"
 if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
   println "DEBUG" " What would you like to do?"
 else
-  tip_diff=$(getSlotTipDiff)
+  getNodeMetrics
+  tip_diff=$(( $(getSlotTipRef) - slotnum ))
   slot_interval=$(slotInterval)
   if [[ ${tip_diff} -le ${slot_interval} ]]; then
     println "DEBUG" "$(printf " What would you like to do? %$((84-29-${#tip_diff}-3))s ${FG_GREEN}%s${NC}" "Node Sync:" "${tip_diff} :)")"
@@ -2130,7 +2131,7 @@ EOF
 
     if [[ ${SUBCOMMAND} = "register" ]]; then
       if [[ ${op_mode} = "online" ]]; then
-        getCurrentKESperiod
+        current_kes_period=$(getCurrentKESperiod)
         echo "${current_kes_period}" > ${pool_saved_kes_start}
         println "ACTION" "${CCLI} node issue-op-cert --kes-verification-key-file \"${pool_hotkey_vk_file}\" --cold-signing-key-file \"${pool_coldkey_sk_file}\" --operational-certificate-issue-counter-file \"${pool_opcert_counter_file}\" --kes-period \"${current_kes_period}\" --out-file \"${pool_opcert_file}\""
         ${CCLI} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}"
@@ -2466,8 +2467,8 @@ EOF
 
     if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       tput sc && println "DEBUG" "Dumping ledger-state from node, can take a while on larger networks...\n"
-      println "ACTION" "timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file \"${TMP_FOLDER}\"/ledger-state.json"
-      if ! timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json; then
+      println "ACTION" "timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file \"${TMP_FOLDER}\"/ledger-state.json"
+      if ! timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json; then
         tput rc && tput ed
         println "ERROR" "${FG_RED}ERROR${NC}: ledger dump failed/timed out"
         println "ERROR" "increase timeout value in cntools.config"
@@ -2637,8 +2638,8 @@ EOF
             println "$(printf "%-21s : %s" "Reward account" "${reward_account}")"
           fi
         fi
-        println "ACTION" "LC_NUMERIC=C printf \"%.10f\" \"\$(${CCLI} query stake-distribution ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | grep \"${pool_id_bech32}\" | tr -s ' ' | cut -d ' ' -f 2)\")\""
-        stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} query stake-distribution ${ERA_IDENTIFIER} ${PROTOCOL_IDENTIFIER} ${NETWORK_IDENTIFIER} | grep "${pool_id_bech32}" | tr -s ' ' | cut -d ' ' -f 2)")")
+        println "ACTION" "LC_NUMERIC=C printf \"%.10f\" \"\$(${CCLI} query stake-distribution ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} | grep \"${pool_id_bech32}\" | tr -s ' ' | cut -d ' ' -f 2)\")\""
+        stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} query stake-distribution ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} | grep "${pool_id_bech32}" | tr -s ' ' | cut -d ' ' -f 2)")")
         if validateDecimalNbr ${stake_pct}; then
           println "$(printf "%-21s : %s %%" "Stake distribution" "${stake_pct}")"
         fi

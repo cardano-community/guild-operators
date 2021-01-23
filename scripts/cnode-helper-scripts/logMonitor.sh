@@ -1,5 +1,5 @@
 #!/bin/bash
-#shellcheck disable=SC2086,SC2001
+#shellcheck disable=SC2086,SC2001,SC2154
 #shellcheck source=/dev/null
 
 ######################################
@@ -24,11 +24,6 @@ fi
 
 [[ ! -f ${BLOCKLOG_DB} ]] && echo "${FG_RED}ERROR:${NC} blocklog db missing, please run 'cncli.sh init' to create and initialize it" && exit 1
 
-getEpoch() {
-  data=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
-  jq -er '.cardano.node.metrics.epoch.int.val //0' <<< "${data}"
-}
-
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~"
 echo "~~ LOG MONITOR STARTED ~~"
 echo "monitoring ${logfile} for traces"
@@ -40,9 +35,10 @@ while read -r logentry; do
     *TraceNodeIsLeader* )
       if ! at="$(jq -er '.at' <<< ${logentry})"; then echo "ERROR[TraceNodeIsLeader]: invalid json schema, '.at' not found" && continue; else at="$(sed 's/\.[0-9]\{2\}Z/+00:00/' <<< ${at})"; fi
       if ! slot="$(jq -er '.data.val.slot' <<< ${logentry})"; then echo "ERROR[TraceNodeIsLeader]: invalid json schema, '.data.val.slot' not found" && continue; fi
-      if ! epoch=$(getEpoch); then echo "ERROR[TraceNodeIsLeader]: failed to grab current epoch number from EKG metrics" && continue; fi
-      echo "LEADER: epoch[${epoch}] slot[${slot}] at[${at}]"
-      sqlite3 "${BLOCKLOG_DB}" "INSERT OR IGNORE INTO blocklog (slot,at,epoch,status) values (${slot},'${at}',${epoch},'leader');"
+      getNodeMetrics
+      [[ ${epochnum} -le 0 ]] && echo "ERROR[TraceNodeIsLeader]: failed to grab current epoch number from node metrics" && continue
+      echo "LEADER: epoch[${epochnum}] slot[${slot}] at[${at}]"
+      sqlite3 "${BLOCKLOG_DB}" "INSERT OR IGNORE INTO blocklog (slot,at,epoch,status) values (${slot},'${at}',${epochnum},'leader');"
       ;;
     *TraceAdoptedBlock* )
       if ! slot="$(jq -er '.data.val.slot' <<< ${logentry})"; then echo "ERROR[TraceAdoptedBlock]: invalid json schema, '.data.val.slot' not found" && continue; fi

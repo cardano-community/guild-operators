@@ -14,8 +14,8 @@ WNAME="$1"
 ${CCLI} address key-gen --verification-key-file ${WNAME}_payment.vkey --signing-key-file ${WNAME}_payment.skey
 ${CCLI} stake-address key-gen --verification-key-file ${WNAME}_stake.vkey --signing-key-file ${WNAME}_stake.skey
 echo -e "${GREEN}Payment/Enterprise address:${NC}"
-${CCLI} address build --payment-verification-key-file ${WNAME}_payment.vkey  ${PROTOCOL_IDENTIFIER} | tee ${WNAME}_payment.addr
+${CCLI} address build --payment-verification-key-file ${WNAME}_payment.vkey ${HASH_IDENTIFIER} | tee ${WNAME}_payment.addr
 echo -e "${GREEN}Base address:${NC}"
-${CCLI} address build --payment-verification-key-file ${WNAME}_payment.vkey --stake-verification-key-file ${WNAME}_stake.vkey ${PROTOCOL_IDENTIFIER} | tee ${WNAME}_base.addr
+${CCLI} address build --payment-verification-key-file ${WNAME}_payment.vkey --stake-verification-key-file ${WNAME}_stake.vkey ${HASH_IDENTIFIER} | tee ${WNAME}_base.addr
 echo -e "${GREEN}Reward address:${NC}"
-${CCLI} stake-address build --stake-verification-key-file ${WNAME}_stake.vkey ${PROTOCOL_IDENTIFIER} | tee ${WNAME}_reward.addr
+${CCLI} stake-address build --stake-verification-key-file ${WNAME}_stake.vkey ${HASH_IDENTIFIER} | tee ${WNAME}_reward.addr
