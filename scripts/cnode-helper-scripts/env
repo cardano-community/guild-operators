@@ -147,7 +147,7 @@ if ! jq -r . "${CONFIG}" >/dev/null 2>&1; then
 elif [[ "$(jq -r .TraceChainDb ${CONFIG})" != "true" ]]; then
   echo "The ${CONFIG} file suggests that you have set TraceChainDb parameter to false. Please change it to true, as it is required to extract statistics from node."
   return 1
-elif [[ "$(jq .options.mapBackends.cardano.node.BlockFetchDecision.peers /opt/cardano/cnode/files/config.json 2>&1)" != "null" ]]; then
+elif jq -e .options.mapBackends.\"cardano.node.BlockFetchDecision.peers\" "${CONFIG}" &>/dev/null; then
   echo "It seems your ${CONFIG} file was not upgraded from version before cardano-node 1.25.0. Please download it from guild-operators repository!"
   return 1
 fi
