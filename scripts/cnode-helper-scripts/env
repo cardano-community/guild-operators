@@ -460,6 +460,12 @@ getCurrentKESperiod() {
   echo $(( tip_ref / SLOTS_PER_KES_PERIOD ))
 }
 
+# Description : Calculate expected interval between blocks
+slotInterval() {
+  if [[ -z ${DECENTRALISATION} || $(echo "${DECENTRALISATION} < 0.5" | bc) -eq 1 ]]; then d=0.5; else d=${DECENTRALISATION}; fi
+  echo "(${SLOT_LENGTH} / ${ACTIVE_SLOTS_COEFF} / ${d}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}'
+}
+
 # Description : Identify current era and set variables accordingly
 getEraIdentifier() {
     if ${CCLI} query protocol-parameters --byron-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--byron-era" && ERA_WITNESS="TxWitness ByronEra"
@@ -477,11 +483,5 @@ if ! getEraIdentifier; then echo "Failed to query protocol-parameters from node,
 
 PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>&1)"
 if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -er .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
-
-# Description : Calculate expected interval between blocks
-slotInterval() {
-  if [[ -z ${DECENTRALISATION} || $(echo "${DECENTRALISATION} < 0.5" | bc) -eq 1 ]]; then d=0.5; else d=${DECENTRALISATION}; fi
-  echo "(${SLOT_LENGTH} / ${ACTIVE_SLOTS_COEFF} / ${d}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}'
-}
 
 return 0
