@@ -119,6 +119,10 @@ fi
 if [[ -z "${SOCKET}" ]]; then
   if [[ "$(ps -ef | grep "[c]ardano-node.*.port ${CNODE_PORT}")" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
     export CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
+    if [[ ! -S $CARDANO_NODE_SOCKET_PATH ]]; then
+      echo "Looks like cardano-node is running with socket-path as ${CARDANO_NODE_SOCKET_PATH}, but the actual socket file does not exist. This could occur if the node hasnt completed startup or if a second instance of node startup was attempted! If this does not resolve automatically in a few minutes, you might want to restart your node and try again"
+      return 1
+    fi
   elif [[ ${OFFLINE_MODE} = "Y" ]]; then
     export CARDANO_NODE_SOCKET_PATH="${CNODE_HOME}/sockets/node0.socket"
   else
@@ -171,7 +175,7 @@ fi
 if [[ ${EKG_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
   IFS='.' read -ra EKG_OCTETS <<< ${EKG_HOST}
   if ! [[ ${EKG_OCTETS[0]} -le 255 && ${EKG_OCTETS[1]} -le 255 && ${EKG_OCTETS[2]} -le 255 && ${EKG_OCTETS[3]} -le 255 ]]; then
-    echo "Not a valid IP range set for EKG host, please check env file!"
+    echo "Not a valid IP range set for EKG host, please check env file for value of EKG_HOST (currently it is ${EKG_HOST} )!"
     return 1
   fi
 else
@@ -182,12 +186,12 @@ fi
 if [[ -z ${EKG_PORT} ]]; then
   if ! EKG_PORT=$(jq -er '.hasEKG' "${CONFIG}" 2>/dev/null); then
     if [[ ${OFFLINE_MODE} = "N" ]]; then
-      echo "Could not get 'hasEKG' port from the node configuration file"
+      echo "Could not get 'hasEKG' port in ${CONFIG}"
       return 1
     fi
   fi
 elif [[ ! ${EKG_PORT} =~ ^[0-9]+$ ]]; then
-  echo "Please set a valid EKG port number in env file!"
+  echo "Please set a valid EKG port number in env file! Current value is ${EKG_PORT} !"
   return 1
 fi
 
@@ -196,7 +200,7 @@ if [[ -z ${PROM_HOST} ]]; then PROM_HOST=$(jq -er '.hasPrometheus[0]' "${CONFIG}
 if [[ ${PROM_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
   IFS='.' read -ra PROM_OCTETS <<< ${PROM_HOST}
   if ! [[ ${PROM_OCTETS[0]} -le 255 && ${PROM_OCTETS[1]} -le 255 && ${PROM_OCTETS[2]} -le 255 && ${PROM_OCTETS[3]} -le 255 ]]; then
-    echo "Not a valid IP range set for Prometheus host, please check env file!"
+    echo "Not a valid IP range set for Prometheus host, please check env file for value of PROM_HOST (currently it is set to ${PROM_HOST} )!"
     return 1
   fi
 else
@@ -206,12 +210,12 @@ fi
 if [[ -z ${PROM_PORT} ]]; then
   if ! PROM_PORT=$(jq -er '.hasPrometheus[1]' "${CONFIG}" 2>/dev/null); then
     if [[ ${OFFLINE_MODE} = "N" ]]; then
-      echo "Could not get 'hasPrometheus' port from the node configuration file"
+      echo "Could not get 'hasPrometheus' port in ${CONFIG}"
       return 1
     fi
   fi
 elif [[ ! ${PROM_PORT} =~ ^[0-9]+$ ]]; then
-  echo "Please set a valid Prometheus port number in env file!"
+  echo "Please set a valid Prometheus port number in env file! Current value is ${PROM_PORT} !"
   return 1
 fi
 
@@ -238,11 +242,11 @@ if ! BYRON_GENESIS_JSON=$(jq -er '.ByronGenesisFile' "${CONFIG}" 2>/dev/null); t
     if [[ -f "${CNODE_HOME}/files/genesis.json" ]]; then
       GENESIS_JSON="${CNODE_HOME}/files/genesis.json"
     else
-      echo "Could not find byron genesis file in default location or 'ByronGenesisFile' from the node configuration file"
+      echo "Could not find byron genesis file in default location or 'ByronGenesisFile' in ${CONFIG}"
       return 1
     fi
   else
-    echo "Could not get 'ByronGenesisFile' from the node configuration file"
+    echo "Could not get 'ByronGenesisFile' specified in ${CONFIG}"
     return 1
   fi
 else
@@ -260,14 +264,14 @@ CNODE_PID=$(pgrep -fn "[c]ardano-node.*.${CONFIG}.*.--port ${CNODE_PORT}")
 
 if [[ -n "${CNODE_PID}" ]]; then
   if [[ "${USE_EKG}" == "N" ]]; then
-    if { [[ "${use_lsof}" != 'Y' ]] && [[ "$(ss -lnpt | grep "${CNODE_PID}," | awk '{print $4}' | cut -d: -f2)" != **"${PROM_PORT}"** ]]; } || { [[ "${use_lsof}" == 'Y' ]] && [[ "$(lsof -Pnl -i4 +M | grep ${CNODE_PID}.*.LISTEN)" == **"${PROM_PORT}"** ]]; }; then
+    if { [[ "${use_lsof}" != 'Y' && -z "$(ss -lnpt | grep "pid=${CNODE_PID}," | awk -v port=":${PROM_PORT}" '$4 ~ port {print $4}')" ]]; } || { [[ "${use_lsof}" == 'Y' && -z "$(lsof -Pnl -i4 +M | grep LISTEN | awk -v pid="${CNODE_PID}" -v port=":${PROM_PORT}" '$2 == pid && $9 ~ port {print $9}')" ]]; }; then
       echo "ERROR: You specified ${PROM_PORT} as your Prometheus port, but it looks like the cardano-node (PID: ${CNODE_PID} ) is not listening on this port. Please update the config or kill the conflicting process first."
-      exit 1
+      return 1
     fi
   else
-    if { [[ "${use_lsof}" != 'Y' ]] && [[ "$(ss -lnpt | grep "${CNODE_PID}," | awk '{print $4}' | cut -d: -f2)" != **"${EKG_PORT}"** ]]; } || { [[ "${use_lsof}" == 'Y' ]] && [[ "$(lsof -Pnl -i4 +M | grep ${CNODE_PID}.*.LISTEN)" == **"${EKG_PORT}"** ]]; }; then
+    if { [[ "${use_lsof}" != 'Y' && -z "$(ss -lnpt | grep "pid=${CNODE_PID}," | awk -v port=":${EKG_PORT}" '$4 ~ port {print $4}')" ]]; } || { [[ "${use_lsof}" == 'Y' && -z "$(lsof -Pnl -i4 +M | grep LISTEN | awk -v pid="${CNODE_PID}" -v port=":${EKG_PORT}" '$2 == pid && $9 ~ port {print $9}')" ]]; }; then
       echo "ERROR: You specified ${EKG_PORT} as your EKG port, but it looks like the cardano-node (PID: ${CNODE_PID} ) is not listening on this port. Please update the config or kill the conflicting process first."
-      exit 1
+      return 1
     fi
   fi
 fi
