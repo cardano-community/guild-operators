@@ -105,14 +105,6 @@ myExit() {
   cleanup "$1"
 }
 
-if command -v "ss" &>/dev/null; then 
-  use_lsof='N'
-elif command -v "lsof" &>/dev/null; then 
-  use_lsof='Y'
-else
-  myExit 1 "'ss' and fallback 'lsof' commands missing, please install using latest prereqs.sh script or with your packet manager of choice.\nhttps://command-not-found.com/ss can be used to check package name to install."
-fi
-
 if ! command -v "tcptraceroute" &>/dev/null; then
   myExit 1 "'tcptraceroute' command missing, please install using latest prereqs.sh script or with your packet manager of choice.\nhttps://command-not-found.com/tcptraceroute can be used to check package name to install."
 fi
