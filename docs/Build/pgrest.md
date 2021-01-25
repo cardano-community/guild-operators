@@ -54,6 +54,9 @@ server-port = 8050
 #db-pool-timeout = 10
 #db-extra-search-path = "public"
 #max-rows = 1000
+
+EOF
+
 ```
 
 If you'd like to connect to your PostgREST remotely (again, it is recommended you harden your instance before this is done), uncomment and replace the `server-host` parameter with "0.0.0.0"). Make sure to change the file permissions so that it's only visible to user that will run postgrest instance using `chmod 600 $CNODE_HOME/priv/pgrest.conf`. If you want to prevent unauthenticated access, uncomment the jwt-secret and specify a custom `secret-token`.
