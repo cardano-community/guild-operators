@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2034,SC2086,SC2230,SC2009,SC2206,SC2062
+# shellcheck disable=SC2034,SC2086,SC2230,SC2009,SC2206
 
 ######################################
 # User Variables - Change as desired #
@@ -31,7 +31,7 @@ CNODE_PORT=6000                                         # Set node port
 #WALLET_FOLDER="${CNODE_HOME}/priv/wallet"              # Root folder for Wallets
 #POOL_FOLDER="${CNODE_HOME}/priv/pool"                  # Root folder for Pools
                                                         # Each wallet and pool has a friendly name and subfolder containing all related keys, certificates, ...
-#POOL_NAME=""                                           # Set the pool's name to run node as a core node (the name, NOT the ticker, ie folder name)
+POOL_NAME=""                                            # Set the pool's name to run node as a core node (the name, NOT the ticker, ie folder name)
 
 #WALLET_PAY_VK_FILENAME="payment.vkey"                  # Standardized names for all wallet related files
 #WALLET_PAY_SK_FILENAME="payment.skey"
@@ -119,6 +119,10 @@ fi
 if [[ -z "${SOCKET}" ]]; then
   if [[ "$(ps -ef | grep "[c]ardano-node.*.port ${CNODE_PORT}")" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
     export CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
+    if [[ ! -S $CARDANO_NODE_SOCKET_PATH ]]; then
+      echo "Looks like cardano-node is running with socket-path as ${CARDANO_NODE_SOCKET_PATH}, but the actual socket file does not exist. This could occur if the node hasnt completed startup or if a second instance of node startup was attempted! If this does not resolve automatically in a few minutes, you might want to restart your node and try again"
+      return 1
+    fi
   elif [[ ${OFFLINE_MODE} = "Y" ]]; then
     export CARDANO_NODE_SOCKET_PATH="${CNODE_HOME}/sockets/node0.socket"
   else
@@ -171,7 +175,7 @@ fi
 if [[ ${EKG_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
   IFS='.' read -ra EKG_OCTETS <<< ${EKG_HOST}
   if ! [[ ${EKG_OCTETS[0]} -le 255 && ${EKG_OCTETS[1]} -le 255 && ${EKG_OCTETS[2]} -le 255 && ${EKG_OCTETS[3]} -le 255 ]]; then
-    echo "Not a valid IP range set for EKG host, please check env file!"
+    echo "Not a valid IP range set for EKG host, please check env file for value of EKG_HOST (currently it is ${EKG_HOST} )!"
     return 1
   fi
 else
@@ -182,12 +186,12 @@ fi
 if [[ -z ${EKG_PORT} ]]; then
   if ! EKG_PORT=$(jq -er '.hasEKG' "${CONFIG}" 2>/dev/null); then
     if [[ ${OFFLINE_MODE} = "N" ]]; then
-      echo "Could not get 'hasEKG' port from the node configuration file"
+      echo "Could not get 'hasEKG' port in ${CONFIG}"
       return 1
     fi
   fi
 elif [[ ! ${EKG_PORT} =~ ^[0-9]+$ ]]; then
-  echo "Please set a valid EKG port number in env file!"
+  echo "Please set a valid EKG port number in env file! Current value is ${EKG_PORT} !"
   return 1
 fi
 
@@ -196,7 +200,7 @@ if [[ -z ${PROM_HOST} ]]; then PROM_HOST=$(jq -er '.hasPrometheus[0]' "${CONFIG}
 if [[ ${PROM_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
   IFS='.' read -ra PROM_OCTETS <<< ${PROM_HOST}
   if ! [[ ${PROM_OCTETS[0]} -le 255 && ${PROM_OCTETS[1]} -le 255 && ${PROM_OCTETS[2]} -le 255 && ${PROM_OCTETS[3]} -le 255 ]]; then
-    echo "Not a valid IP range set for Prometheus host, please check env file!"
+    echo "Not a valid IP range set for Prometheus host, please check env file for value of PROM_HOST (currently it is set to ${PROM_HOST} )!"
     return 1
   fi
 else
@@ -206,12 +210,12 @@ fi
 if [[ -z ${PROM_PORT} ]]; then
   if ! PROM_PORT=$(jq -er '.hasPrometheus[1]' "${CONFIG}" 2>/dev/null); then
     if [[ ${OFFLINE_MODE} = "N" ]]; then
-      echo "Could not get 'hasPrometheus' port from the node configuration file"
+      echo "Could not get 'hasPrometheus' port in ${CONFIG}"
       return 1
     fi
   fi
 elif [[ ! ${PROM_PORT} =~ ^[0-9]+$ ]]; then
-  echo "Please set a valid Prometheus port number in env file!"
+  echo "Please set a valid Prometheus port number in env file! Current value is ${PROM_PORT} !"
   return 1
 fi
 
@@ -238,11 +242,11 @@ if ! BYRON_GENESIS_JSON=$(jq -er '.ByronGenesisFile' "${CONFIG}" 2>/dev/null); t
     if [[ -f "${CNODE_HOME}/files/genesis.json" ]]; then
       GENESIS_JSON="${CNODE_HOME}/files/genesis.json"
     else
-      echo "Could not find byron genesis file in default location or 'ByronGenesisFile' from the node configuration file"
+      echo "Could not find byron genesis file in default location or 'ByronGenesisFile' in ${CONFIG}"
       return 1
     fi
   else
-    echo "Could not get 'ByronGenesisFile' from the node configuration file"
+    echo "Could not get 'ByronGenesisFile' specified in ${CONFIG}"
     return 1
   fi
 else
