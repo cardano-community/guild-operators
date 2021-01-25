@@ -264,14 +264,14 @@ CNODE_PID=$(pgrep -fn "[c]ardano-node.*.${CONFIG}.*.--port ${CNODE_PORT}")
 
 if [[ -n "${CNODE_PID}" ]]; then
   if [[ "${USE_EKG}" == "N" ]]; then
-    if { [[ "${use_lsof}" != 'Y' ]] && [[ "$(ss -lnpt | grep "${CNODE_PID}," | awk '{print $4}' | cut -d: -f2)" != **"${PROM_PORT}"** ]]; } || { [[ "${use_lsof}" == 'Y' ]] && [[ "$(lsof -Pnl -i4 +M | grep ${CNODE_PID}.*.LISTEN)" == **"${PROM_PORT}"** ]]; }; then
+    if { [[ "${use_lsof}" != 'Y' && -z "$(ss -lnpt | grep "pid=${CNODE_PID}," | awk -v port=":${PROM_PORT}" '$4 ~ port {print $4}')" ]]; } || { [[ "${use_lsof}" == 'Y' && -z "$(lsof -Pnl -i4 +M | grep LISTEN | awk -v pid="${CNODE_PID}" -v port=":${PROM_PORT}" '$2 == pid && $9 ~ port {print $9}')" ]]; }; then
       echo "ERROR: You specified ${PROM_PORT} as your Prometheus port, but it looks like the cardano-node (PID: ${CNODE_PID} ) is not listening on this port. Please update the config or kill the conflicting process first."
-      exit 1
+      return 1
     fi
   else
-    if { [[ "${use_lsof}" != 'Y' ]] && [[ "$(ss -lnpt | grep "${CNODE_PID}," | awk '{print $4}' | cut -d: -f2)" != **"${EKG_PORT}"** ]]; } || { [[ "${use_lsof}" == 'Y' ]] && [[ "$(lsof -Pnl -i4 +M | grep ${CNODE_PID}.*.LISTEN)" == **"${EKG_PORT}"** ]]; }; then
+    if { [[ "${use_lsof}" != 'Y' && -z "$(ss -lnpt | grep "pid=${CNODE_PID}," | awk -v port=":${EKG_PORT}" '$4 ~ port {print $4}')" ]]; } || { [[ "${use_lsof}" == 'Y' && -z "$(lsof -Pnl -i4 +M | grep LISTEN | awk -v pid="${CNODE_PID}" -v port=":${EKG_PORT}" '$2 == pid && $9 ~ port {print $9}')" ]]; }; then
       echo "ERROR: You specified ${EKG_PORT} as your EKG port, but it looks like the cardano-node (PID: ${CNODE_PID} ) is not listening on this port. Please update the config or kill the conflicting process first."
-      exit 1
+      return 1
     fi
   fi
 fi
