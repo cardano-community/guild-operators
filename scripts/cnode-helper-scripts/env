@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2034,SC2086,SC2230,SC2009,SC2206
+# shellcheck disable=SC2034,SC2086,SC2230,SC2009,SC2206,SC2062
 
 ######################################
 # User Variables - Change as desired #
@@ -26,7 +26,7 @@ CNODE_PORT=6000                                         # Set node port
 #SHELLEY_TRANS_EPOCH=208                                # Override automatic detection of shelley epoch start, e.g 208 for mainnet
 #TG_BOT_TOKEN=""                                        # Uncomment and set to enable telegramSend function. To create your own BOT-token and Chat-Id follow guide at:
 #TG_CHAT_ID=""                                          # https://cardano-community.github.io/guild-operators/#/Scripts/sendalerts
-#USE_EKG="N"                                # Use EKG metrics from the node instead of Promethus. Promethus metrics(default) should yield slightly better performance
+#USE_EKG="N"                                            # Use EKG metrics from the node instead of Promethus. Promethus metrics(default) should yield slightly better performance
 
 #WALLET_FOLDER="${CNODE_HOME}/priv/wallet"              # Root folder for Wallets
 #POOL_FOLDER="${CNODE_HOME}/priv/pool"                  # Root folder for Pools
@@ -141,8 +141,28 @@ if [[ -z "${CONFIG}" ]]; then
   fi
 fi
 
+if command -v "ss" &>/dev/null; then
+  use_lsof='N'
+elif command -v "lsof" &>/dev/null; then
+  use_lsof='Y'
+else
+  echo -e "'ss' and fallback 'lsof' commands are missing, please install using latest prereqs.sh script or with your packet manager of choice.\nhttps://command-not-found.com/ss can be used to check package name to install.\n"
+  return 1
+fi
+
+if ! command -v "jq" &>/dev/null; then
+  echo -e "'jq' command is missing, please install using latest prereqs.sh script of with your packet manager of choice.\nhttps://command-not-found.com/ss can be used to check package name to install.\n"
+  return 1
+fi
+
 if ! jq -r . "${CONFIG}" >/dev/null 2>&1; then
   echo "Could not parse ${CONFIG} file in JSON format, please double-check the syntax of your config, or simply download it from guild-operators repository!"
+  return 1
+elif [[ "$(jq -r .TraceChainDb ${CONFIG})" != "true" ]]; then
+  echo "The ${CONFIG} file suggests that you have set TraceChainDb parameter to false. Please change it to true, as it is required to extract statistics from node."
+  return 1
+elif jq -e .options.mapBackends.\"cardano.node.BlockFetchDecision.peers\" "${CONFIG}" &>/dev/null; then
+  echo "It seems your ${CONFIG} file was not upgraded from version before cardano-node 1.25.0. Please download it from guild-operators repository!"
   return 1
 fi
 
@@ -158,6 +178,7 @@ else
   echo "Not a valid IP format set for EKG host, please check env file!"
   return 1
 fi
+
 if [[ -z ${EKG_PORT} ]]; then
   if ! EKG_PORT=$(jq -er '.hasEKG' "${CONFIG}" 2>/dev/null); then
     if [[ ${OFFLINE_MODE} = "N" ]]; then
@@ -171,6 +192,7 @@ elif [[ ! ${EKG_PORT} =~ ^[0-9]+$ ]]; then
 fi
 
 if [[ -z ${PROM_HOST} ]]; then PROM_HOST=$(jq -er '.hasPrometheus[0]' "${CONFIG}" 2>/dev/null) || PROM_HOST=127.0.0.1; fi
+
 if [[ ${PROM_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
   IFS='.' read -ra PROM_OCTETS <<< ${PROM_HOST}
   if ! [[ ${PROM_OCTETS[0]} -le 255 && ${PROM_OCTETS[1]} -le 255 && ${PROM_OCTETS[2]} -le 255 && ${PROM_OCTETS[3]} -le 255 ]]; then
@@ -198,11 +220,11 @@ if ! GENESIS_JSON=$(jq -er '.ShelleyGenesisFile' "${CONFIG}" 2>/dev/null); then
     if [[ -f "${CNODE_HOME}/files/genesis.json" ]]; then
       GENESIS_JSON="${CNODE_HOME}/files/genesis.json"
     else
-      echo "Could not find shelley genesis file in default location or 'ShelleyGenesisFile' from the node configuration file"
+      echo "Could not find shelley genesis file in default location or 'ShelleyGenesisFile' in ${CONFIG}"
       return 1
     fi
   else
-    echo "Could not get 'ShelleyGenesisFile' from the node configuration file"
+    echo "Could not get 'ShelleyGenesisFile' in ${CONFIG}"
     return 1
   fi
 else
@@ -234,7 +256,21 @@ BLOCKLOG_DB="${BLOCKLOG_DIR}/blocklog.db"
 [[ -z ${BLOCKLOG_TZ} ]] && BLOCKLOG_TZ="UTC"
 [[ -z ${CNODE_PORT} ]] && CNODE_PORT=6000
 
-CNODE_PID=$(pgrep -fn "[c]ardano-node*.*--port ${CNODE_PORT}")
+CNODE_PID=$(pgrep -fn "[c]ardano-node.*.${CONFIG}.*.--port ${CNODE_PORT}")
+
+if [[ -n "${CNODE_PID}" ]]; then
+  if [[ "${USE_EKG}" == "N" ]]; then
+    if { [[ "${use_lsof}" != 'Y' ]] && [[ "$(ss -lnpt | grep "${CNODE_PID}," | awk '{print $4}' | cut -d: -f2)" != **"${PROM_PORT}"** ]]; } || { [[ "${use_lsof}" == 'Y' ]] && [[ "$(lsof -Pnl -i4 +M | grep ${CNODE_PID}.*.LISTEN)" == **"${PROM_PORT}"** ]]; }; then
+      echo "ERROR: You specified ${PROM_PORT} as your Prometheus port, but it looks like the cardano-node (PID: ${CNODE_PID} ) is not listening on this port. Please update the config or kill the conflicting process first."
+      exit 1
+    fi
+  else
+    if { [[ "${use_lsof}" != 'Y' ]] && [[ "$(ss -lnpt | grep "${CNODE_PID}," | awk '{print $4}' | cut -d: -f2)" != **"${EKG_PORT}"** ]]; } || { [[ "${use_lsof}" == 'Y' ]] && [[ "$(lsof -Pnl -i4 +M | grep ${CNODE_PID}.*.LISTEN)" == **"${EKG_PORT}"** ]]; }; then
+      echo "ERROR: You specified ${EKG_PORT} as your EKG port, but it looks like the cardano-node (PID: ${CNODE_PID} ) is not listening on this port. Please update the config or kill the conflicting process first."
+      exit 1
+    fi
+  fi
+fi
 
 PROTOCOL=$(jq -r .Protocol "${CONFIG}")
 NETWORKID=$(jq -r .networkId ${GENESIS_JSON})
@@ -442,6 +478,12 @@ getCurrentKESperiod() {
   echo $(( tip_ref / SLOTS_PER_KES_PERIOD ))
 }
 
+# Description : Calculate expected interval between blocks
+slotInterval() {
+  if [[ -z ${DECENTRALISATION} || $(echo "${DECENTRALISATION} < 0.5" | bc) -eq 1 ]]; then d=0.5; else d=${DECENTRALISATION}; fi
+  echo "(${SLOT_LENGTH} / ${ACTIVE_SLOTS_COEFF} / ${d}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}'
+}
+
 # Description : Identify current era and set variables accordingly
 getEraIdentifier() {
     if ${CCLI} query protocol-parameters --byron-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--byron-era" && ERA_WITNESS="TxWitness ByronEra"
@@ -459,11 +501,5 @@ if ! getEraIdentifier; then echo "Failed to query protocol-parameters from node,
 
 PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>&1)"
 if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -er .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
-
-# Description : Calculate expected interval between blocks
-slotInterval() {
-  if [[ -z ${DECENTRALISATION} || $(echo "${DECENTRALISATION} < 0.5" | bc) -eq 1 ]]; then d=0.5; else d=${DECENTRALISATION}; fi
-  echo "(${SLOT_LENGTH} / ${ACTIVE_SLOTS_COEFF} / ${d}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}'
-}
 
 return 0
