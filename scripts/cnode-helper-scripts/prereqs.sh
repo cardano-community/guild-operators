@@ -125,32 +125,32 @@ REPO="https://github.com/cardano-community/guild-operators"
 REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
 URL_RAW="${REPO_RAW}/${BRANCH}"
 
-if [ "${INTERACTIVE}" = 'Y' ]; then
-  clear;
-  # Check if prereqs.sh update is available
-  PARENT="$(dirname $0)"
-  if [[ ${UPDATE_CHECK} = 'Y' ]] && curl -s -m ${CURL_TIMEOUT} -o "${PARENT}"/prereqs.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/prereqs.sh 2>/dev/null; then
-    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/prereqs.sh)
-    TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/prereqs.sh.tmp)
-    if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-      if get_answer "A new version of prereqs script is available, do you want to download the latest version?"; then
-        cp "${PARENT}"/prereqs.sh "${PARENT}/prereqs.sh_bkp$(date +%s)"
-        STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/prereqs.sh)
-        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/prereqs.sh.tmp
-        {
-          mv -f "${PARENT}"/prereqs.sh.tmp "${PARENT}"/prereqs.sh && \
-          chmod 755 "${PARENT}"/prereqs.sh && \
-          echo -e "\nUpdate applied successfully, please run prereqs again!\n" && \
-          exit 0; 
-        } || {
-          echo -e "Update failed!\n\nPlease manually download latest version of prereqs.sh script from GitHub" && \
-          exit 1;
-        }
-      fi
+# Check if prereqs.sh update is available
+PARENT="$(dirname $0)"
+if [[ ${UPDATE_CHECK} = 'Y' ]] && curl -s -m ${CURL_TIMEOUT} -o "${PARENT}"/prereqs.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/prereqs.sh 2>/dev/null; then
+  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/prereqs.sh)
+  TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/prereqs.sh.tmp)
+  if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
+    if get_answer "A new version of prereqs script is available, do you want to download the latest version?"; then
+      cp "${PARENT}"/prereqs.sh "${PARENT}/prereqs.sh_bkp$(date +%s)"
+      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/prereqs.sh)
+      printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/prereqs.sh.tmp
+      {
+        mv -f "${PARENT}"/prereqs.sh.tmp "${PARENT}"/prereqs.sh && \
+        chmod 755 "${PARENT}"/prereqs.sh && \
+        echo -e "\nUpdate applied successfully, please run prereqs again!\n" && \
+        exit 0; 
+      } || {
+        echo -e "Update failed!\n\nPlease manually download latest version of prereqs.sh script from GitHub" && \
+        exit 1;
+      }
     fi
   fi
-  rm -f "${PARENT}"/prereqs.sh.tmp
+fi
+rm -f "${PARENT}"/prereqs.sh.tmp
 
+if [[ "${INTERACTIVE}" = 'Y' ]]; then
+  clear
   CNODE_PATH=$(get_input "Please enter the project path" ${CNODE_PATH})
   CNODE_NAME=$(get_input "Please enter directory name" ${CNODE_NAME})
   CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}

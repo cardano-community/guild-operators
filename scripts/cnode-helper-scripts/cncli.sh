@@ -589,14 +589,14 @@ EOF"
   while true; do
     sleep ${SLEEP_RATE}
     getNodeMetrics
-    curr_epoch=${epochnum}
-    [[ ${sendslots_epoch} -eq ${curr_epoch} ]] && continue # this epoch already processed
-    [[ $(( SLOT_LENGTH * slot_in_epoch )) -gt 600 ]] && continue # only allow slot sending in the first 10m after epoch boundary
-    leaderlog_cnt=$(sqlite3 "${CNCLI_DB}" "SELECT COUNT(*) FROM slots WHERE epoch=${curr_epoch} and pool_id='${POOL_ID}';")
-    [[ ${leaderlog_cnt} -eq 0 ]] && echo "ERROR: no leaderlogs for epoch ${curr_epoch} and pool id '${POOL_ID}' found in cncli DB" && continue
+    [[ ${slotnum} -eq 0 ]] && continue # failed to grab node metrics
+    [[ ${sendslots_epoch} -eq ${epochnum} ]] && continue # this epoch is already sent
+    [[ ${slot_in_epoch} -gt 3600 ]] && continue # only allow slots to be sent in the first hour after epoch boundary
+    leaderlog_cnt=$(sqlite3 "${CNCLI_DB}" "SELECT COUNT(*) FROM slots WHERE epoch=${epochnum} and pool_id='${POOL_ID}';")
+    [[ ${leaderlog_cnt} -eq 0 ]] && echo "ERROR: no leaderlogs for epoch ${epochnum} and pool id '${POOL_ID}' found in cncli DB" && continue
     ${CNCLI} sendslots --config "${pt_config}" --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}"
-    echo "Slots for epoch ${curr_epoch} successfully sent to PoolTool for pool id '${POOL_ID}' !"
-    sendslots_epoch=${curr_epoch}
+    echo "Slots for epoch ${epochnum} successfully sent to PoolTool for pool id '${POOL_ID}' !"
+    sendslots_epoch=${epochnum}
   done
 }
 
