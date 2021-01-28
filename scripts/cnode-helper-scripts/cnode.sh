@@ -1,8 +1,8 @@
 #!/bin/bash
-# shellcheck disable=SC2086
+# shellcheck disable=SC2086,SC2046
 #shellcheck source=/dev/null
 
-[[ -z "${CNODE_HOME}" ]] && CNODE_HOME="/opt/cardano/cnode"
+[[ -z "${CNODE_HOME}" ]] && CNODE_HOME="$(dirname $(dirname $0))"
 
 . "${CNODE_HOME}"/scripts/env offline
 
