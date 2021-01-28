@@ -44,7 +44,7 @@ while true
 do
   data=$(curl -s -H 'Accept: application/json' http://${ekghost}:${ekgport}/ 2>/dev/null)
   remotepeers=$(netstat -an|awk "\$4 ~ /${cardanoport}/"|grep -c ESTABLISHED)
-  peers=$(jq '.cardano.node.BlockFetchDecision.peers.connectedPeers.int.val //0' <<< "${data}")
+  peers=$(jq '.cardano.node.metrics.connectedPeers.int.val //0' <<< "${data}")
   blocknum=$(jq '.cardano.node.metrics.blockNum.int.val //0' <<< "${data}")
   epochnum=$(jq '.cardano.node.metrics.epoch.int.val //0' <<< "${data}")
   slotnum=$(jq '.cardano.node.metrics.slotInEpoch.int.val //0' <<< "${data}")
