@@ -2,9 +2,7 @@
 # shellcheck disable=SC2086
 #shellcheck source=/dev/null
 
-[[ -z "${CNODE_HOME}" ]] && CNODE_HOME="/opt/cardano/cnode"
-
-. "${CNODE_HOME}"/scripts/env offline
+. "$(dirname $0)"/env offline
 
 ######################################
 # User Variables - Change as desired #
