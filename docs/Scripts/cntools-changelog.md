@@ -5,10 +5,11 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [7.1.0] - 2021-01-23
+## [7.1.0] - 2021-01-29
 
 ##### Changed
 - Remove ChainDB metrics references to align with cardano-node 1.25.1
+- Moved some functions to env for reusability between tools
 
 ## [7.0.2] - 2021-01-17
 
