@@ -105,8 +105,8 @@ else
   export PATH="${CCLI_PARENT}":$PATH
 fi
 node_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
-if ! versionCheck "1.25.0" "${node_version}"; then
-  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.25.0 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
+if ! versionCheck "1.25.1" "${node_version}"; then
+  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.25.1 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
   return 1
 fi
 
@@ -166,7 +166,7 @@ elif [[ "$(jq -r .TraceChainDb ${CONFIG})" != "true" ]]; then
   echo "The ${CONFIG} file suggests that you have set TraceChainDb parameter to false. Please change it to true, as it is required to extract statistics from node."
   return 1
 elif jq -e .options.mapBackends.\"cardano.node.BlockFetchDecision.peers\" "${CONFIG}" &>/dev/null; then
-  echo "It seems your ${CONFIG} file was not upgraded from version before cardano-node 1.25.0. Please download it from guild-operators repository!"
+  echo "It seems your ${CONFIG} file was not upgraded from version before cardano-node 1.25.1. Please download it from guild-operators repository!"
   return 1
 fi
 
