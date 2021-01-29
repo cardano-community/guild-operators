@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=7
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=1
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=2
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -1492,7 +1492,6 @@ registerPool() {
     if ! offlineJSON=$(jq ". += { \"pool-margin\": \"${margin}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-cost\": ${cost_ada} }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-reg-cert\": $(jq -c . "${pool_regcert_file}") }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"witness-era\": \"${ERA_WITNESS}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: $(( min_fee + poolDeposit )) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
@@ -1591,7 +1590,6 @@ modifyPool() {
     if ! offlineJSON=$(jq ". += { \"pool-margin\": \"${margin}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-cost\": ${cost_ada} }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-reg-cert\": $(jq -c . "${pool_regcert_file}") }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"witness-era\": \"${ERA_WITNESS}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: ${min_fee} }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
@@ -1827,7 +1825,6 @@ buildTx() {
 witnessTx() {
   tx_raw="$1"
   shift
-  [[ -n ${ERA_WITNESS} ]] && witness_era="${ERA_WITNESS}" || witness_era="${otx_witness_era}" # ERA_WITNESS empty in offline mode, otx_witness_era comes from offline tx (pool reg/mod Transaction >> Sign)
   tx_witness_files=()
   for skey in "$@"; do
     [[ -z ${skey//[[:blank:]]/} ]] && continue
@@ -1835,7 +1832,7 @@ witnessTx() {
       if ! unlockHWDevice "witness the transaction"; then return 1; fi
       tx_witness="$(mktemp "${TMP_FOLDER}/tx.witness_XXXXXXXXXX")"
       witness_command=(
-        cardano-hw-cli shelley transaction witness
+        cardano-hw-cli transaction witness
         --tx-body-file "${tx_raw}"
         --hw-signing-file "${skey}"
         ${NETWORK_IDENTIFIER}
@@ -1843,7 +1840,6 @@ witnessTx() {
       )
       println "ACTION" "${witness_command[@]}"
       if ! output=$(${witness_command[@]}) || [[ -n ${output} ]]; then println "ERROR" "${FG_RED}ERROR${NC}: during hw wallet signing:\n${output}" && return 1; fi # cardano-hw-cli seem to return with exit code 0 even on failure
-      jq ".type = \"${witness_era}\"" "${tx_witness}" > "${tx_witness}.tmp" && mv -f "${tx_witness}.tmp" "${tx_witness}" # due to cardano-hw-cli bug, not setting era type correctly
     elif [[ -f "${skey}" ]]; then
       tx_witness="$(mktemp "${TMP_FOLDER}/tx.witness_XXXXXXXXXX")"
       witness_command=(
@@ -1925,7 +1921,7 @@ signTx() {
     if [[ ${hw_wallet} = 'Y' ]]; then
       if ! unlockHWDevice "sign the transaction"; then return 1; fi
       sign_command=(
-        cardano-hw-cli shelley transaction sign
+        cardano-hw-cli transaction sign
         --tx-body-file "${tx_raw}"
         ${tx_sign_out[@]}
         ${NETWORK_IDENTIFIER}
@@ -1969,6 +1965,7 @@ submitTx() {
 # Description : Directions to unlock and open HW device
 # Parameters  : action  >  message for action to be taken
 unlockHWDevice() {
+  if ! HWCLIversionCheck; then waitForInput && return 1; fi
   waitForInput "${FG_BLUE}INFO${NC}: please connect and unlock hardware device" "  ${FG_CYAN}Ledger${NC} - Unlock with pin and open Cardano app" "  ${FG_CYAN}Trezor${NC} - Make sure trezor bridge is installed (https://wallet.trezor.io/#/bridge) " "" "when done, press any key to continue"
   println "ACTION" "cardano-hw-cli device version | cut -d' ' -f4"
   device_app_version="$(cardano-hw-cli device version | cut -d' ' -f4)"
@@ -1981,6 +1978,14 @@ unlockHWDevice() {
   println "DEBUG" "\n${FG_BLUE}INFO${NC}: follow directions on hardware device to $1"
 }
 
+HWCLIversionCheck() {
+  HWCLI_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
+  if ! versionCheck "1.1.3" "${HWCLI_version}"; then
+    println "ERROR" "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_CYAN}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.1.3${NC} !!"
+    return 1
+  fi
+  return 0
+}
 
 # Command     : selectOpMode
 # Description : Helper function to choose operational mode
