@@ -1982,6 +1982,7 @@ HWCLIversionCheck() {
   HWCLI_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
   if ! versionCheck "1.1.3" "${HWCLI_version}"; then
     println "ERROR" "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_CYAN}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.1.3${NC} !!"
+    println "ERROR" "Please run ${FG_CYAN}prereqs.sh -w${NC} to upgrade to the latest version."
     return 1
   fi
   return 0
