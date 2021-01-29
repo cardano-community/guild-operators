@@ -69,35 +69,27 @@ if curl -s -m 10 -o "${PARENT}"/topologyUpdater.sh.tmp ${URL}/topologyUpdater.sh
     ENV_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
     ENV_TEMPL2=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
     if [[ "$(echo ${TU_TEMPL} | sha256sum)" != "$(echo ${TU_TEMPL2} | sha256sum)" || "$(echo ${ENV_TEMPL} | sha256sum)" != "$(echo ${ENV_TEMPL2} | sha256sum)" ]]; then
-      update='N'
-      if [[ ${BATCH_AUTO_UPDATE} = 'Y' ]]; then
-        update='Y'
-      elif [[ -t 1 ]]; then # ask what to do if tty is available
-        echo -e "\nA new version is available, do you want to upgrade? [y|n]"
-        read -r -n 1 -s update
+      . "${PARENT}"/env offline &>/dev/null # source in offline mode and ignore errors to get some common functions, sourced at a later point again
+      if [[ ${BATCH_AUTO_UPDATE} = 'Y' ]] || { [[ -t 1 ]] && getAnswer "\nA new version is available, do you want to upgrade?"; }; then
+        cp "${PARENT}"/topologyUpdater.sh "${PARENT}/topologyUpdater.sh_bkp$(date +%s)"
+        cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
+        TU_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/topologyUpdater.sh)
+        ENV_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
+        printf '%s\n%s\n' "$TU_STATIC" "$TU_TEMPL2" > "${PARENT}"/topologyUpdater.sh.tmp
+        printf '%s\n%s\n' "$ENV_STATIC" "$ENV_TEMPL2" > "${PARENT}"/env.tmp
+        {
+          mv -f "${PARENT}"/topologyUpdater.sh.tmp "${PARENT}"/topologyUpdater.sh && \
+          mv -f "${PARENT}"/env.tmp "${PARENT}"/env && \
+          chmod 755 "${PARENT}"/topologyUpdater.sh "${PARENT}"/env && \
+          echo -e "\nUpdate applied successfully, please run topologyUpdater again!\n" && \
+          exit 0; 
+        } || {
+          echo -e "\n${FG_RED}Update failed!${NC}\n\nplease install topologyUpdater.sh & env with prereqs.sh or manually download from GitHub" && \
+          rm -f "${PARENT}"/topologyUpdater.sh.tmp && \
+          rm -f "${PARENT}"/env.tmp && \
+          exit 1;
+        }
       fi
-      case ${update} in
-        [yY])
-          cp "${PARENT}"/topologyUpdater.sh "${PARENT}/topologyUpdater.sh_bkp$(date +%s)"
-          cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
-          TU_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/topologyUpdater.sh)
-          ENV_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
-          printf '%s\n%s\n' "$TU_STATIC" "$TU_TEMPL2" > "${PARENT}"/topologyUpdater.sh.tmp
-          printf '%s\n%s\n' "$ENV_STATIC" "$ENV_TEMPL2" > "${PARENT}"/env.tmp
-          {
-            mv -f "${PARENT}"/topologyUpdater.sh.tmp "${PARENT}"/topologyUpdater.sh && \
-            mv -f "${PARENT}"/env.tmp "${PARENT}"/env && \
-            chmod 755 "${PARENT}"/topologyUpdater.sh "${PARENT}"/env && \
-            echo -e "\nUpdate applied successfully, please run topologyUpdater again!\n" && \
-            exit 0; 
-          } || {
-            echo -e "\n${FG_RED}Update failed!${NC}\n\nplease install topologyUpdater.sh & env with prereqs.sh or manually download from GitHub" && \
-            rm -f "${PARENT}"/topologyUpdater.sh.tmp && \
-            rm -f "${PARENT}"/env.tmp && \
-            exit 1;
-          } ;;
-        *) : ;; # ignore
-      esac
     fi
   else
     mv "${PARENT}"/env.tmp "${PARENT}"/env
@@ -115,9 +107,6 @@ if [[ ! -f "${PARENT}"/env ]]; then
   echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"
   exit 1
 fi
-
-# source common env variables in case it was updated and run in offline mode, even for TU_PUSH mode as this will be cought by failed EKG query
-if ! . "${PARENT}"/env offline; then exit 1; fi
 
 # source common env variables in case it was updated and run in offline mode, even for TU_PUSH mode as this will be cought by failed EKG query
 if ! . "${PARENT}"/env offline; then exit 1; fi

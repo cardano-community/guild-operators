@@ -140,35 +140,27 @@ cncliInit() {
       ENV_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
       ENV_TEMPL2=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
       if [[ "$(echo ${CNCLI_TEMPL} | sha256sum)" != "$(echo ${CNCLI_TEMPL2} | sha256sum)" || "$(echo ${ENV_TEMPL} | sha256sum)" != "$(echo ${ENV_TEMPL2} | sha256sum)" ]]; then
-        update='N'
-        if [[ ${BATCH_AUTO_UPDATE} = 'Y' ]]; then
-          update='Y'
-        elif [[ -t 1 ]]; then # ask what to do if tty is available
-          echo -e "\nA new version is available, do you want to upgrade? [y|n]"
-          read -r -n 1 -s update
+        . "${PARENT}"/env offline &>/dev/null # source in offline mode and ignore errors to get some common functions, sourced at a later point again
+        if [[ ${BATCH_AUTO_UPDATE} = 'Y' ]] || { [[ -t 1 ]] && getAnswer "\nA new version is available, do you want to upgrade?"; }; then
+          cp "${PARENT}"/cncli.sh "${PARENT}/cncli.sh_bkp$(date +%s)"
+          cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
+          CNCLI_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/cncli.sh)
+          ENV_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
+          printf '%s\n%s\n' "$CNCLI_STATIC" "$CNCLI_TEMPL2" > "${PARENT}"/cncli.sh.tmp
+          printf '%s\n%s\n' "$ENV_STATIC" "$ENV_TEMPL2" > "${PARENT}"/env.tmp
+          {
+            mv -f "${PARENT}"/cncli.sh.tmp "${PARENT}"/cncli.sh && \
+            mv -f "${PARENT}"/env.tmp "${PARENT}"/env && \
+            chmod 755 "${PARENT}"/cncli.sh "${PARENT}"/env && \
+            echo -e "\nUpdate applied successfully, please run cncli again!\n" && \
+            exit 0; 
+          } || {
+            echo -e "\n${FG_RED}Update failed!${NC}\n\nplease install cncli.sh & env with prereqs.sh or manually download from GitHub" && \
+            rm -f "${PARENT}"/cncli.sh.tmp && \
+            rm -f "${PARENT}"/env.tmp && \
+            exit 1;
+          }
         fi
-        case ${update} in
-          [yY])
-            cp "${PARENT}"/cncli.sh "${PARENT}/cncli.sh_bkp$(date +%s)"
-            cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
-            CNCLI_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/cncli.sh)
-            ENV_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
-            printf '%s\n%s\n' "$CNCLI_STATIC" "$CNCLI_TEMPL2" > "${PARENT}"/cncli.sh.tmp
-            printf '%s\n%s\n' "$ENV_STATIC" "$ENV_TEMPL2" > "${PARENT}"/env.tmp
-            {
-              mv -f "${PARENT}"/cncli.sh.tmp "${PARENT}"/cncli.sh && \
-              mv -f "${PARENT}"/env.tmp "${PARENT}"/env && \
-              chmod 755 "${PARENT}"/cncli.sh "${PARENT}"/env && \
-              echo -e "\nUpdate applied successfully, please run cncli again!\n" && \
-              exit 0; 
-            } || {
-              echo -e "\n${FG_RED}Update failed!${NC}\n\nplease install cncli.sh & env with prereqs.sh or manually download from GitHub" && \
-              rm -f "${PARENT}"/cncli.sh.tmp && \
-              rm -f "${PARENT}"/env.tmp && \
-              exit 1;
-            } ;;
-          *) : ;; # ignore
-        esac
       fi
     else
       mv "${PARENT}"/env.tmp "${PARENT}"/env

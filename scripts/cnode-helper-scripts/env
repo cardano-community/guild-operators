@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2034,SC2086,SC2230,SC2009,SC2206,SC2062
+# shellcheck disable=SC2034,SC2086,SC2230,SC2009,SC2206,SC2062,SC2059
 
 ######################################
 # User Variables - Change as desired #
@@ -341,6 +341,24 @@ FG_WHITE='\e[97m'
 STANDOUT='\e[7m'
 BOLD='\e[1m'
 NC='\e[0m'
+
+
+getAnswer() {
+  printf "$* (yes/no): " >&2; read -r answer
+  while : ; do
+    case $answer in
+      [Yy]*) return 0 ;;
+      [Nn]*) return 1 ;;
+      *) printf "%s" "Please enter 'yes' or 'no' to continue: " >&2; read -r answer
+    esac
+  done
+}
+
+waitToProceed() {
+  printf "\npress any key to proceed..."
+  read -r -n 1 -s wait
+  clear
+}
 
 # Description : Query cardano-node for current metrics
 [[ -z ${USE_EKG} ]] && USE_EKG='N'
