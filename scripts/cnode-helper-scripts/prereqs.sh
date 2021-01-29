@@ -336,6 +336,9 @@ if [[ "${INSTALL_VCHC}" = "Y" ]]; then
     if ! versionCheck "${vchc_git_version}" "${vchc_version}"; then
       [[ ${vchc_version} = "0.0.0" ]] && echo "  latest version: ${vchc_git_version}" || echo "  installed version: ${vchc_version}  |  latest version: ${vchc_git_version}"
       mkdir -p "${HOME}"/bin
+      if [ -d "${HOME}"/bin/cardano-hw-cli ]; then
+        rm -rf "${HOME}"/bin/cardano-hw-cli 
+      fi
       pushd "${HOME}"/bin >/dev/null || err_exit
       mv -f /tmp/cardano-hw-cli .
       if ! grep -q "cardano-hw-cli" "${HOME}"/.bashrc; then
