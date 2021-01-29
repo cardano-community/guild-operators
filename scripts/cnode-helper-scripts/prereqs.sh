@@ -335,9 +335,12 @@ if [[ "${INSTALL_VCHC}" = "Y" ]]; then
     vchc_git_version="$(cardano-hw-cli/cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
     if ! versionCheck "${vchc_git_version}" "${vchc_version}"; then
       [[ ${vchc_version} = "0.0.0" ]] && echo "  latest version: ${vchc_git_version}" || echo "  installed version: ${vchc_version}  |  latest version: ${vchc_git_version}"
-      mkdir -p "${HOME}"/bin
+      mkdir -p "${HOME}"/bin/cardano-hw-cli/Release
       pushd "${HOME}"/bin >/dev/null || err_exit
-      mv -f /tmp/cardano-hw-cli .
+      mv -f /tmp/cardano-hw-cli/Release/* cardano-hw-cli/Release/
+      rmdir /tmp/cardano-hw-cli/Release
+      mv -f /tmp/cardano-hw-cli/* cardano-hw-cli/
+      rmdir /tmp/cardano-hw-cli
       if ! grep -q "cardano-hw-cli" "${HOME}"/.bashrc; then
         echo "  adding cardano-hw-cli to PATH and setting Ledger udev rules, reload shell to take effect!"
         echo "  PATH=\"$HOME/bin/cardano-hw-cli:\$PATH\"" >> "${HOME}"/.bashrc
