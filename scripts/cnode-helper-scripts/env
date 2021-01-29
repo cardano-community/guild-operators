@@ -342,6 +342,24 @@ STANDOUT='\e[7m'
 BOLD='\e[1m'
 NC='\e[0m'
 
+
+getAnswer() {
+  printf "%s (yes/no): " "$*" >&2; read -r answer
+  while : ; do
+    case $answer in
+      [Yy]*) return 0 ;;
+      [Nn]*) return 1 ;;
+      *) printf "%s" "Please enter 'yes' or 'no' to continue: " >&2; read -r answer
+    esac
+  done
+}
+
+waitToProceed() {
+  printf "\npress any key to proceed..."
+  read -r -n 1 -s wait
+  clear
+}
+
 # Description : Query cardano-node for current metrics
 [[ -z ${USE_EKG} ]] && USE_EKG='N'
 getNodeMetrics() {

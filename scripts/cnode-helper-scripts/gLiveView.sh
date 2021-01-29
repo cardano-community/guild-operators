@@ -126,19 +126,15 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
       TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
       TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
       if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-        echo -e "\nThe static content from env file does not match with guild-operators repository, do you want to download the updated file? [y|n]\n"
-        read -r -n 1 -s update
-        case ${update} in
-          [yY])
-            cp "${PARENT}"/env "${PARENT}/env_bkp$(printf '%(%s)T\n' -1)"
-            STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
-            printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
-            mv "${PARENT}"/env.tmp "${PARENT}"/env
-            echo -e "\nenv update successfully applied!\n"
-            read -r -n 1 -s -p "press any key to proceed..." wait
-            ;;
-          *) : ;; # ignore
-        esac
+        . "${PARENT}"/env offline &>/dev/null # source in offline mode and ignore errors to get some common functions, sourced at a later point again
+        if getAnswer "\nThe static content from env file does not match with guild-operators repository, do you want to download the updated file?"; then
+          cp "${PARENT}"/env "${PARENT}/env_bkp$(printf '%(%s)T\n' -1)"
+          STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
+          printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
+          mv "${PARENT}"/env.tmp "${PARENT}"/env
+          echo -e "\nenv update successfully applied!"
+          waitToProceed
+        fi
       fi
     else
       mv "${PARENT}"/env.tmp "${PARENT}"/env
@@ -150,8 +146,7 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
   . "${PARENT}"/env
   case $? in
     1) myExit 1 ;;
-    2) printf "\npress any key to proceed..."
-       read -r -n 1 -s wait ;;
+    2) waitToProceed ;;
   esac
 
   echo "Guild LiveView version check..."
@@ -162,9 +157,7 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
       echo -e "\nA new version of Guild LiveView is available"
       echo "Installed Version : ${GLV_VERSION}"
       echo "Available Version : ${GIT_VERSION}"
-      echo -e "\nPress 'u' to update to latest version, or any other key to continue\n"
-      read -r -n 1 -s -p "" answer
-      if [[ "${answer}" = "u" ]]; then
+      if getAnswer "\nDo you want to upgrade to the latest version of Guild LiveView?"; then
         TEMPL_CMD=$(awk '/^# Do NOT modify/,0' /tmp/gLiveView.sh)
         STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/gLiveView.sh")
         printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > /tmp/gLiveView.sh
@@ -176,8 +169,8 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
       fi
     fi
   else
-    echo -e "\nFailed to download gLiveView.sh from GitHub, unable to perform version check!\n"
-    read -r -n 1 -s -p "press any key to proceed" answer
+    echo -e "\nFailed to download gLiveView.sh from GitHub, unable to perform version check!"
+    waitToProceed
   fi
 else
   # source common env variables in offline mode
@@ -425,9 +418,8 @@ if [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
   printf "\n\n Possible causes:"
   printf "\n   - Node in startup mode"
   printf "\n   - Shelley era not reached"
-  printf "\n After successful node boot or when sync to shelley era has been reached, calculations will be correct"
-  printf "\n\n ${style_info}press any key to proceed...${NC}"
-  read -r -n 1 -s wait
+  printf "\n After successful node boot or when sync to shelley era has been reached, calculations will be correct\n"
+  waitToProceed
 fi
 version=$("$(command -v cardano-node)" version)
 node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
