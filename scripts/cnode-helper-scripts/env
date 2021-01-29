@@ -344,7 +344,7 @@ NC='\e[0m'
 
 
 getAnswer() {
-  printf "%s (yes/no): " "$*" >&2; read -r answer
+  printf "$@ (yes/no): " >&2; read -r answer
   while : ; do
     case $answer in
       [Yy]*) return 0 ;;

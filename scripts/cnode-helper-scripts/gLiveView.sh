@@ -82,10 +82,6 @@ while getopts :lpb: opt; do
 done
 shift $((OPTIND -1))
 
-tput smcup # Save screen
-tput civis # Disable cursor
-stty -echo # Disable user input
-
 # General exit handler
 cleanup() {
   [[ -n $1 ]] && err=$1 || err=$?
@@ -427,6 +423,9 @@ node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
 cncli_port=$(ss -tnp state established "( dport = :${CNODE_PORT} )" 2>/dev/null | grep cncli | awk '{print $3}' | cut -d: -f2)
 fail_count=0
 epoch_items_last=0
+
+tput civis # Disable cursor
+stty -echo # Disable user input
 
 clear
 tlines=$(tput lines) # set initial terminal lines
