@@ -119,10 +119,6 @@ fi
 if [[ -z "${SOCKET}" ]]; then
   if [[ "$(ps -ef | grep "[c]ardano-node.*.port ${CNODE_PORT}")" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
     export CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
-    if [[ ! -S $CARDANO_NODE_SOCKET_PATH ]]; then
-      echo "Looks like cardano-node is running with socket-path as ${CARDANO_NODE_SOCKET_PATH}, but the actual socket file does not exist. This could occur if the node hasnt completed startup or if a second instance of node startup was attempted! If this does not resolve automatically in a few minutes, you might want to restart your node and try again"
-      return 1
-    fi
   elif [[ ${OFFLINE_MODE} = "Y" ]]; then
     export CARDANO_NODE_SOCKET_PATH="${CNODE_HOME}/sockets/node0.socket"
   else
@@ -419,7 +415,7 @@ getShelleyTransitionEpoch() {
 
 # Description : Offline calculation of current epoch based on genesis file
 getEpoch() {
-  current_time_sec=$(printf '%(%s)T\n')
+  current_time_sec=$(printf '%(%s)T\n' -1)
   [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && echo 0 && return
   byron_end_time=$(( BYRON_GENESIS_START_SEC + ( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH ) ))
   echo $(( SHELLEY_TRANS_EPOCH + ( (current_time_sec - byron_end_time) / SLOT_LENGTH / EPOCH_LENGTH ) ))
@@ -444,7 +440,7 @@ getDateFromSlot() {
 
 # Description : Offline calculation of time in seconds until next epoch
 timeUntilNextEpoch() {
-  current_time_sec=$(printf '%(%s)T\n')
+  current_time_sec=$(printf '%(%s)T\n' -1)
   [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && echo 0 && return
   echo $(( (SHELLEY_TRANS_EPOCH * BYRON_SLOT_LENGTH * BYRON_EPOCH_LENGTH) + ( ( $(getEpoch) + 1 - SHELLEY_TRANS_EPOCH ) * SLOT_LENGTH * EPOCH_LENGTH ) - current_time_sec + BYRON_GENESIS_START_SEC ))
 }
@@ -464,7 +460,7 @@ timeLeft() {
 
 # Description : Get calculated slot number tip
 getSlotTipRef() {
-  current_time_sec=$(printf '%(%s)T\n')
+  current_time_sec=$(printf '%(%s)T\n' -1)
   [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && echo 0 && return
   byron_slots=$(( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH ))
   byron_end_time=$(( BYRON_GENESIS_START_SEC + ( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH ) ))
@@ -500,8 +496,17 @@ getEraIdentifier() {
   fi
   return 0
 }
-# special exit code for scripts that want to source env and doesn't care about ERA_IDENTIFIER or ERA_WITNESS
-if ! getEraIdentifier; then echo "Failed to query protocol-parameters from node, not yet fully started?" && return 2; fi
+
+# Return code 2 is used for scripts that want to source env but not fail due to a starting node
+
+if [[ ${OFFLINE_MODE} = "N" && ! -S ${CARDANO_NODE_SOCKET_PATH} ]]; then
+  echo -e "${FG_RED}Looks like cardano-node is running with socket-path as ${FG_CYAN}${CARDANO_NODE_SOCKET_PATH}${FG_RED}, but the actual socket file does not exist."
+  echo -e "This could occur if the node hasnt completed startup or if a second instance of node startup was attempted!"
+  echo -e "If this does not resolve automatically in a few minutes, you might want to restart your node and try again.${NC}"
+  return 2
+fi
+
+if ! getEraIdentifier; then echo "${FG_RED}Failed to query protocol-parameters from node, not yet fully started?${NC}" && return 2; fi
 
 PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>&1)"
 if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -er .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi

@@ -51,7 +51,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.19.0
+GLV_VERSION=v1.19.1
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -130,7 +130,7 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
         read -r -n 1 -s update
         case ${update} in
           [yY])
-            cp "${PARENT}"/env "${PARENT}/env_bkp$(printf '%(%s)T\n')"
+            cp "${PARENT}"/env "${PARENT}/env_bkp$(printf '%(%s)T\n' -1)"
             STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
             printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
             mv "${PARENT}"/env.tmp "${PARENT}"/env
@@ -168,7 +168,7 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
         TEMPL_CMD=$(awk '/^# Do NOT modify/,0' /tmp/gLiveView.sh)
         STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/gLiveView.sh")
         printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > /tmp/gLiveView.sh
-        mv -f "${PARENT}/gLiveView.sh" "${PARENT}/gLiveView.sh_bkp$(printf '%(%s)T\n')" && \
+        mv -f "${PARENT}/gLiveView.sh" "${PARENT}/gLiveView.sh_bkp$(printf '%(%s)T\n' -1)" && \
         cp -f /tmp/gLiveView.sh "${PARENT}/gLiveView.sh" && \
         chmod 750 "${PARENT}/gLiveView.sh" && \
         myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!" || \
@@ -310,7 +310,7 @@ setSizeAndStyleOfProgressBar() {
 # Command    : kesExpiration [pools remaining KES periods]
 # Description: Calculate KES expiration
 kesExpiration() {
-  current_time_sec=$(printf '%(%s)T\n')
+  current_time_sec=$(printf '%(%s)T\n' -1)
   tip_ref=$(getSlotTipRef)
   expiration_time_sec=$(( current_time_sec - ( SLOT_LENGTH * (tip_ref % SLOTS_PER_KES_PERIOD) ) + ( SLOT_LENGTH * SLOTS_PER_KES_PERIOD * remaining_kes_periods ) ))
   printf -v kes_expiration '%(%F %T %Z)T' ${expiration_time_sec}
@@ -891,7 +891,7 @@ while true; do
         fi
         
         if [[ -n ${leader_next} ]]; then
-          leader_time_left=$((  $(date -u -d ${leader_next} +%s) - $(printf '%(%s)T\n') ))
+          leader_time_left=$((  $(date -u -d ${leader_next} +%s) - $(printf '%(%s)T\n' -1) ))
           if [[ ${leader_time_left} -gt 0 ]]; then
             setSizeAndStyleOfProgressBar ${leader_time_left}
             leader_time_left_fmt="$(timeLeft ${leader_time_left})"
