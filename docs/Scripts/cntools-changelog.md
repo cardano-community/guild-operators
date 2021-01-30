@@ -5,10 +5,11 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [7.1.2] - 2021-01-30
+## [7.1.2-3] - 2021-01-30
 
 ##### Fixed
 - Vacuumlabs cardano-hw-cli 1.1.3 support, now the minimum supported version
+- Improved error handling
 
 ## [7.1.1] - 2021-01-29
 
