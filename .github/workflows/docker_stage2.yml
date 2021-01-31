@@ -22,4 +22,4 @@ jobs:
         docker push cardanocommunity/cardano-node:stage2
     - name: docker dispatch stage 3
       run: |
-        curl -XPOST -u "${{ secrets.REPO_SCOPED_USER}}:${{secrets.REPO_SCOPED_TOKEN }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" https://api.github.com/repos/cardano-community/guild-operators/actions/workflows/docker-stage3.yml/dispatches --data '{"ref": "master"}'
+        curl -XPOST -u "${{ secrets.REPO_SCOPED_USER}}:${{secrets.REPO_SCOPED_TOKEN }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" https://api.github.com/repos/cardano-community/guild-operators/actions/workflows/docker_stage3.yml/dispatches --data '{"ref": "master"}'
