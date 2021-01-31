@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=7
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=1
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=2
+CNTOOLS_PATCH_VERSION=3
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -1839,7 +1839,7 @@ witnessTx() {
         --out-file "${tx_witness}"
       )
       println "ACTION" "${witness_command[@]}"
-      if ! output=$(${witness_command[@]}) || [[ -n ${output} ]]; then println "ERROR" "${FG_RED}ERROR${NC}: during hw wallet signing:\n${output}" && return 1; fi # cardano-hw-cli seem to return with exit code 0 even on failure
+      if ! ${witness_command[@]}; then println "ERROR" "\n${FG_RED}ERROR${NC}: during hardware wallet signing !!" && return 1; fi
     elif [[ -f "${skey}" ]]; then
       tx_witness="$(mktemp "${TMP_FOLDER}/tx.witness_XXXXXXXXXX")"
       witness_command=(
@@ -1850,9 +1850,9 @@ witnessTx() {
         --out-file "${tx_witness}"
       )
       println "ACTION" "${witness_command[@]}"
-      if ! ${witness_command[@]}; then return 1; fi
+      if ! ${witness_command[@]}; then println "ERROR" "\n${FG_RED}ERROR${NC}: during transaction signing !!" && return 1; fi
     else
-      println "ERROR" "${FG_RED}ERROR${NC}: signing key not found: ${skey}"
+      println "ERROR" "\n${FG_RED}ERROR${NC}: signing key not found: ${skey}"
       return 1
     fi
     tx_witness_files+=( "${tx_witness}" )
@@ -1871,7 +1871,7 @@ assembleTx() {
       if [[ -f "${witness}" ]]; then
         tx_witness_out+=( "--witness-file ${witness}" )
       else
-        println "ERROR" "${FG_RED}ERROR${NC}: witness file not found: ${witness}"
+        println "ERROR" "\n${FG_RED}ERROR${NC}: witness file not found: ${witness}"
         return 1
       fi
     done
@@ -1884,7 +1884,7 @@ assembleTx() {
     println "ACTION" "${sign_command[@]}"
     ${sign_command[@]}
   else
-    println "ERROR" "${FG_RED}ERROR${NC}: no witness files provided, unable to assemble tx!"
+    println "ERROR" "\n${FG_RED}ERROR${NC}: no witness files provided, unable to assemble tx!"
     return 1
   fi
 }
