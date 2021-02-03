@@ -274,7 +274,7 @@ else
   println "$(printf " >> CNTools v%s - %s - ${FG_CYAN}%s${NC} << %$((84-23-${#CNTOOLS_VERSION}-${#NETWORK_NAME}-${#CNTOOLS_MODE}))s" "${CNTOOLS_VERSION}" "${NETWORK_NAME}" "${CNTOOLS_MODE}" "A Guild Operators collaboration")"
 fi
 println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-println "OFF" " Main Menu\n\n"\
+println "OFF" " Main Menu    Telegram Announcement / Support channel: ${FG_CYAN}t.me/guild_operators_official${NC}\n\n"\
 " ) Wallet      - create, show, remove and protect wallets\n"\
 " ) Funds       - send, withdraw and delegate\n"\
 " ) Pool        - pool creation and management\n"\

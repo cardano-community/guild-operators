@@ -51,7 +51,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.19.2
+GLV_VERSION=v1.19.3
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -909,6 +909,7 @@ while true; do
   [[ ${check_peers} = "true" ]] && check_peers=false && show_peers=true && clear && continue
   
   echo "${bdivider}" && ((line++))
+  printf " TG Announcement/Support channel: ${style_info}t.me/guild_operators_official${NC}\n\n" && line=$((line+2))
   if [[ ${show_peers} = "true" && ${show_peers_info} = "true" ]]; then
     printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[b] Back to Peer Analysis${NC}"
     tput el

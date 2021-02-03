@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=7
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=1
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=4
+CNTOOLS_PATCH_VERSION=5
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -946,11 +946,11 @@ isWalletRegistered() {
 # Description : check if wallet is a hardware wallet, 0=yes, 1=cli, 2=cli & encrypted, 3=signing keys missing, 4=verification keys missing
 # Parameters  : wallet name  >  the name of the wallet
 getWalletType() {
+  payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
+  payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SK_FILENAME}"
+  stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
+  stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}"
   if [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}" && -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}" ]]; then # CNTools wallet
-    payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
-    payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SK_FILENAME}"
-    stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
-    stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}"
     if [[ $(jq -r '.description' "${payment_vk_file}") = *"Hardware"* ]]; then
       payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_PAY_SK_FILENAME}"
       stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_STAKE_SK_FILENAME}"
