@@ -77,10 +77,10 @@ fi
 
 amount_lovelace="$2"
 if [[ ${amount_lovelace} != "all" ]]; then
-  if ! ADAtoLovelace "${amount_lovelace}" >/dev/null; then
+  if ! AdaToLovelace "${amount_lovelace}" >/dev/null; then
     echo && exit 1
   fi
-  amount_lovelace=$(ADAtoLovelace "${amount_lovelace}")
+  amount_lovelace=$(AdaToLovelace "${amount_lovelace}")
   if [[ ${amount_lovelace} -gt ${lovelace} ]]; then
     echo -e "${RED}ERROR${NC}: not enough funds available in source address"
     echo && exit 1
@@ -91,7 +91,9 @@ else
   include_fee="yes"
 fi
 
-if ! sendADA; then
+s_payment_sk_file="${payment_sk_file}"
+
+if ! sendAda; then
   echo && exit 1
 fi
 
