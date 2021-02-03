@@ -1,51 +1,50 @@
 {
-    "activeSlotsCoeff": 0.3,
+    "activeSlotsCoeff": 5.0e-2,
     "protocolParams": {
-        "poolDeposit": 50000,
+        "poolDeposit": 500000000,
         "protocolVersion": {
-            "minor": 2,
-            "major": 0
+            "minor": 0,
+            "major": 2
         },
-        "minUTxOValue": 0,
-        "decentralisationParam": 0.5,
+        "minUTxOValue": 1000000,
+        "decentralisationParam": 0.8,
         "maxTxSize": 16384,
-        "minPoolCost": 0,
-        "minFeeA": 10,
+        "minPoolCost": 340000000,
+        "minFeeA": 1,
         "maxBlockBodySize": 65536,
-        "minFeeB": 1,
-        "eMax": 100,
+        "minFeeB": 1000,
+        "eMax": 18,
         "extraEntropy": {
             "tag": "NeutralNonce"
         },
         "maxBlockHeaderSize": 1100,
-        "keyDeposit": 40,
-        "nOpt": 30,
-        "rho": 2.2e-7,
+        "keyDeposit": 2000000,
+        "nOpt": 10,
+        "rho": 3.0e-4,
         "tau": 0.1,
         "a0": 0.3
     },
     "genDelegs": {
-        "297b00b2a0d222bfd26f16d21ae6429a6695d074b8d547503ae9e2d6": {
-            "delegate": "bd834bf1f6127c265f51df458f31f10f857425c4cbc1d1f6b08d0eb7",
-            "vrf": "e5a263fd88d244180ac117ce70ceb16a08935ae0d65d117028891f512fd95053"
+        "e6b7615e22391d0dab0ea9065152c4910ae7a9564451e2df4f34c574": {
+            "delegate": "bc0d803b2b6f63e0be35fd909e1bcd3853cd3b27fa3766c2953b82f4",
+            "vrf": "8a1cc0c913ebc0397850e4b63952a7ab6cb39f4a0cb3a561fecbe6553a469ee3"
         }
     },
     "updateQuorum": 1,
-    "networkId": "Mainnet",
+    "networkId": "Testnet",
     "initialFunds": {
-        "61d8a1114e063b0ca62682f0bbd6235fb471acf138627fd16865e64f23": 22500000000000000,
-        "619b886a9a5ad26be2e61265da447eea7555128129a019e0042fb08bd7": 22500000000000000
+        "609670ec9221a5f5829f991cdb54b3279a18434b0b712421a21071f4a1": 45000000000000000
     },
     "maxLovelaceSupply": 45000000000000000,
-    "networkMagic": 4006,
-    "epochLength": 1800,
+    "networkMagic": 141,
+    "epochLength": 3600,
     "staking": {
         "pools": {},
         "stake": {}
     },
-    "systemStart": "2020-07-21T11:05Z",
-    "slotsPerKESPeriod": 1600,
+    "systemStart": "2021-02-03T01:51:47Z",
+    "slotsPerKESPeriod": 129600,
     "slotLength": 1,
-    "maxKESEvolutions": 120,
-    "securityParam": 108
+    "maxKESEvolutions": 62,
+    "securityParam": 36
 }
