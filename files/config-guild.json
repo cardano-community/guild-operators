@@ -1,6 +1,7 @@
 {
   "ApplicationName": "cardano-sl",
   "ApplicationVersion": 1,
+  "ByronGenesisFile": "/opt/cardano/cnode/files/byron-genesis.json",
   "LastKnownBlockVersion-Alt": 0,
   "LastKnownBlockVersion-Major": 4,
   "LastKnownBlockVersion-Minor": 0,
@@ -8,10 +9,9 @@
   "TestMaryHardForkAtEpoch": 3,
   "TestShelleyHardForkAtEpoch": 1,
   "Protocol": "Cardano",
-  "PBftSignatureThreshold": 1,
   "RequiresNetworkMagic": "RequiresMagic",
-  "ByronGenesisFile": "byron/genesis.json",
-  "ShelleyGenesisFile": "genesis.json",
+  "PBftSignatureThreshold": 1,
+  "ShelleyGenesisFile": "/opt/cardano/cnode/files/genesis.json",
   "TraceBlockFetchClient": false,
   "TraceBlockFetchDecisions": false,
   "TraceBlockFetchProtocol": false,
@@ -48,7 +48,7 @@
   "defaultScribes": [
     [
       "FileSK",
-      "/opt/cdn/cnode/logs/node1.json"
+      "/opt/cardano/cnode/logs/node141.json"
     ]
   ],
   "hasEKG": 17788,
@@ -84,7 +84,7 @@
   "setupScribes": [
     {
       "scKind": "FileSK",
-      "scName": "/opt/cdn/cnode/logs/node1.json",
+      "scName": "/opt/cardano/cnode/logs/node141.json",
       "scFormat": "ScJson",
       "scRotation": null
     }
