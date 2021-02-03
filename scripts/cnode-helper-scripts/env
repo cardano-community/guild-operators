@@ -471,9 +471,7 @@ timeLeft() {
   local H=$((T/60/60%24))
   local M=$((T/60%60))
   local S=$((T%60))
-  (( D > 0 )) && printf '%d day' $D && {
-    (( D > 1 )) && printf 's ' || printf ' '
-  }
+  (( D > 0 )) && printf '%dd ' $D
   printf '%02d:%02d:%02d' $H $M $S
 }
 
