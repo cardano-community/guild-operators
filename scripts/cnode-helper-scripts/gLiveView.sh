@@ -51,7 +51,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.19.2
+GLV_VERSION=v1.19.3
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -233,7 +233,7 @@ else
   UL=$(printf "${NC}\\u2518")
   DR=$(printf "${NC}\\u250C")
   DL=$(printf "${NC}\\u2510")
-  tdivider=$(printf "${NC}\\u250C" && printf "%0.s\\u2500" $(seq $((width-${#title}-4))) && printf "\\u252C" && printf "%0.s\\u2500" $(seq $((${#title}+2))) && printf "\\u2510")
+  tdivider=$(printf "${NC}\\u250C" && printf "%0.s\\u2500" $(seq $((width-${#title}-${#CNODE_PORT}-13))) && printf "\\u252C" && printf "%0.s\\u2500" $(seq $((${#CNODE_PORT}+8))) && printf "\\u252C" && printf "%0.s\\u2500" $(seq $((${#title}+2))) && printf "\\u2510")
   mdivider=$(printf "${NC}\\u251C" && printf "%0.s\\u2500" $(seq $((width-1))) && printf "\\u2524")
   m2divider=$(printf "${NC}\\u2502" && printf "%0.s-" $(seq $((width-1))) && printf "\\u2502")
   m3divider=$(printf "${NC}\\u2502" && printf "%0.s- " $(seq $((width/2))) && printf "\\u2502")
@@ -521,11 +521,15 @@ while true; do
   ## main section ##
   printf "${tdivider}\n" && ((line++))
   printf "${VL} Uptime: ${style_values_1}%s${NC}" "$(timeLeft $(( uptimens/1000 )))"
+  tput cup ${line} $(( width - ${#title} - 3 - ${#CNODE_PORT} - 9 ))
+  printf "${VL} Port: ${style_values_2}${CNODE_PORT} "
   tput cup ${line} $(( width - ${#title} - 3 ))
   printf "${VL} ${style_title}${title} ${VL}\n" && ((line++))
   printf "${m2divider}"
-  tput cup ${line} $(( width - ${#title} - 3 ))
+  tput cup ${line} $(( width - ${#title} - 3 - ${#CNODE_PORT} - 9 ))
   printf "${UR}"
+  printf "%0.s${HL}" $(seq $(( ${#CNODE_PORT} + 8 )))
+  printf "${UHL}"
   printf "%0.s${HL}" $(seq $(( ${#title} + 2 )))
   printf "${LVL}\n" && ((line++))
   
@@ -909,6 +913,7 @@ while true; do
   [[ ${check_peers} = "true" ]] && check_peers=false && show_peers=true && clear && continue
   
   echo "${bdivider}" && ((line++))
+  printf " TG Announcement/Support channel: ${style_info}t.me/guild_operators_official${NC}\n\n" && line=$((line+2))
   if [[ ${show_peers} = "true" && ${show_peers_info} = "true" ]]; then
     printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[b] Back to Peer Analysis${NC}"
     tput el
