@@ -50,11 +50,11 @@ ENV \
     NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     NIX_PATH=/nix/var/nix/profiles/per-user/guild/channels
 
-# PREREQ --no-install-recommends
+# PREREQ 
 RUN apt-get update && apt-get install -y libcap2-bin ncurses-bin iproute2 curl wget apt-utils xz-utils netbase sudo coreutils dnsutils net-tools procps tcptraceroute bc \
     && apt-get install -y --no-install-recommends cron \
-    && sudo apt-get -y purge && sudo apt-get -y clean && sudo apt-get -y autoremove && sudo rm -rf /var/lib/apt/lists/* # && sudo rm -rf /usr/bin/apt*
-
+    && sudo apt-get -y purge && sudo apt-get -y clean && sudo apt-get -y autoremove && sudo rm -rf /var/lib/apt/lists/* # && sudo rm -rf /usr/bin/apt* 
+    
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/crontab /etc/cron.d/crontab
 RUN chmod 0644 /etc/cron.d/crontab && touch /var/log/cron.log
 
@@ -70,6 +70,9 @@ RUN adduser --disabled-password --gecos '' guild \
 
 USER guild
 WORKDIR /home/guild
+
+# Commit Version 
+RUN  curl -sL -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" https://api.github.com/repos/cardano-community/guild-operators/commits | grep -v md | grep -A 2 prereqs.sh | grep sha | head -n 1 | cut -d "\"" -f 4 > ~/guild-latest.txt
 
 # INSTALL NIX
 RUN sudo curl -sL https://nixos.org/nix/install | sh \
