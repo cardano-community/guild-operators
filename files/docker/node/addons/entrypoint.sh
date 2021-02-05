@@ -31,29 +31,29 @@ if [[ "$EKG" == "Y" ]]; then
 socat -d tcp-listen:12782,reuseaddr,fork tcp:127.0.0.1:12781 
 fi
 
+export UPDATE_CHECK='N'
+
 if [[ "$NETWORK" == "mainnet" ]]; then
-  export TOPOLOGY="$CNODE_HOME/priv/files/mainnet-topology.json" \
-  && export CONFIG="$CNODE_HOME/priv/files/mainnet-config.json" \
+  $CNODE_HOME/scripts/prereqs.sh -n mainnet -t cnode -s -f > /dev/null 2>&1 \
   && exec $CNODE_HOME/scripts/cnode.sh
 elif [[ "$NETWORK" == "testnet" ]]; then
-  export TOPOLOGY="$CNODE_HOME/priv/files/testnet-topology.json" \
-  && export CONFIG="$CNODE_HOME/priv/files/testnet-config.json" \
+  $CNODE_HOME/scripts/prereqs.sh -n testnet -t cnode -s -f > /dev/null 2>&1 \
   && exec $CNODE_HOME/scripts/cnode.sh
 elif [[ "$NETWORK" == "launchpad" ]]; then
-  export TOPOLOGY="$CNODE_HOME/priv/files/launchpad-topology.json" \
-  && export CONFIG="$CNODE_HOME/priv/files/launchpad-config.json" \
+  $CNODE_HOME/scripts/prereqs.sh -n launchpad -t cnode -s -f > /dev/null 2>&1 \
   && exec $CNODE_HOME/scripts/cnode.sh
-elif [[ "$NETWORK" == "allegra" ]]; then
-  export TOPOLOGY="$CNODE_HOME/priv/files/allegra-topology.json" \
-  && export CONFIG="$CNODE_HOME/priv/files/allegra-config.json" \
+elif [[ "$NETWORK" == "staging" ]]; then
+  $CNODE_HOME/scripts/prereqs.sh -n staging -t cnode -s -f > /dev/null 2>&1 \
   && exec $CNODE_HOME/scripts/cnode.sh
-elif [[ "$NETWORK" == "guildnet" ]]; then
-  export TOPOLOGY="$CNODE_HOME/files/guildnet-topology.json" \
-  && export CONFIG="${CNODE_HOME}/files/config.json" \
+elif [[ "$NETWORK" == "guild" ]]; then
+  $CNODE_HOME/scripts/prereqs.sh -n mainnet -t cnode -s -f > /dev/null 2>&1 \
   && sudo bash /home/guild/.scripts/guild-topology.sh > /dev/null 2>&1 \
   && exec $CNODE_HOME/scripts/cnode.sh
+elif [[ "$NETWORK" == "guildnet" ]]; then
+  $CNODE_HOME/scripts/prereqs.sh -n guild -t cnode -s -f > /dev/null 2>&1 \
+  && exec $CNODE_HOME/scripts/cnode.sh
 else
-  echo "Please set a NETWORK environment variable to one of: mainnet / testnet / allegra / launchpad / guildnet"
+  echo "Please set a NETWORK environment variable to one of: mainnet / testnet / staging / launchpad / guild / guildnet"
   echo "mount a '$CNODE_HOME/priv/files' volume containing: mainnet-config.json, mainnet-shelley-genesis.json, mainnet-byron-genesis.json, and mainnet-topology.json "
   echo "for active nodes set POOL_DIR environment variable where op.cert, hot.skey and vrf.skey files reside. (usually under '${CNODE_HOME}/priv/pool/$POOL_NAME' ) "
   echo "or just set POOL_NAME environment variable (for default path). "
