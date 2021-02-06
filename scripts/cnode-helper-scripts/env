@@ -293,7 +293,7 @@ SLOTS_PER_KES_PERIOD=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
 MAX_KES_EVOLUTIONS=$(jq -r .maxKESEvolutions "${GENESIS_JSON}")
 BYRON_GENESIS_START_SEC=$(jq -r .startTime "${BYRON_GENESIS_JSON}")
 BYRON_K=$(jq -r .protocolConsts.k "${BYRON_GENESIS_JSON}")
-BYRON_SLOT_LENGTH=$(( $(jq -r .blockVersionData.slotDuration "${BYRON_GENESIS_JSON}") / 1000 ))
+BYRON_SLOT_LENGTH=$(( $(jq -r .blockVersionData.slotDuration "${BYRON_GENESIS_JSON}") ))
 BYRON_EPOCH_LENGTH=$(( 10 * BYRON_K ))
 
 [[ -z ${TOPOLOGY} ]] && TOPOLOGY="${CNODE_HOME}/files/topology.json"
@@ -338,6 +338,9 @@ FG_YELLOW='\e[33m'
 FG_BLUE='\e[34m'
 FG_MAGENTA='\e[35m'
 FG_CYAN='\e[36m'
+FG_LGRAY='\e[37m'
+FG_DGRAY='\e[90m'
+FG_LBLUE='\e[94m'
 FG_WHITE='\e[97m'
 STANDOUT='\e[7m'
 BOLD='\e[1m'
@@ -436,7 +439,7 @@ getShelleyTransitionEpoch() {
 getEpoch() {
   current_time_sec=$(printf '%(%s)T\n' -1)
   [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && echo 0 && return
-  byron_end_time=$(( BYRON_GENESIS_START_SEC + ( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH ) ))
+  byron_end_time=$(( BYRON_GENESIS_START_SEC + ((SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH) / 1000) ))
   echo $(( SHELLEY_TRANS_EPOCH + ( (current_time_sec - byron_end_time) / SLOT_LENGTH / EPOCH_LENGTH ) ))
 }
 
@@ -447,13 +450,13 @@ getEpochFromSlot() {
 
 # Description : Offline calculation of current slot in epoch based on provided slot number and epoch
 getSlotInEpochFromSlot() {
-  echo $(( $1 - ((SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH) + (($2 - SHELLEY_TRANS_EPOCH) * EPOCH_LENGTH )) ))
+  echo $(( $1 - ((SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH) + (($2 - SHELLEY_TRANS_EPOCH) * EPOCH_LENGTH)) ))
 }
 
 # Description : Offline calculation of date based on provided slot number
 getDateFromSlot() {
   byron_slots=$(( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH ))
-  printf -v date_from_slot '%(%FT%T%z)T' $(( (byron_slots * BYRON_SLOT_LENGTH) + (($1-byron_slots) * SLOT_LENGTH) + SHELLEY_GENESIS_START_SEC ))
+  printf -v date_from_slot '%(%FT%T%z)T' $(( ((byron_slots * BYRON_SLOT_LENGTH) / 1000) + (($1-byron_slots) * SLOT_LENGTH) + SHELLEY_GENESIS_START_SEC ))
   echo "${date_from_slot%??}:${date_from_slot: -2}"
 }
 
@@ -461,7 +464,7 @@ getDateFromSlot() {
 timeUntilNextEpoch() {
   current_time_sec=$(printf '%(%s)T\n' -1)
   [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && echo 0 && return
-  echo $(( (SHELLEY_TRANS_EPOCH * BYRON_SLOT_LENGTH * BYRON_EPOCH_LENGTH) + ( ( $(getEpoch) + 1 - SHELLEY_TRANS_EPOCH ) * SLOT_LENGTH * EPOCH_LENGTH ) - current_time_sec + BYRON_GENESIS_START_SEC ))
+  echo $(( ((SHELLEY_TRANS_EPOCH * BYRON_SLOT_LENGTH * BYRON_EPOCH_LENGTH) / 1000) + (($(getEpoch) + 1 - SHELLEY_TRANS_EPOCH) * SLOT_LENGTH * EPOCH_LENGTH) - current_time_sec + BYRON_GENESIS_START_SEC ))
 }
 
 # Description : Calculation of days, hours, minutes and seconds from time in seconds
@@ -480,9 +483,9 @@ getSlotTipRef() {
   current_time_sec=$(printf '%(%s)T\n' -1)
   [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && echo 0 && return
   byron_slots=$(( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH ))
-  byron_end_time=$(( BYRON_GENESIS_START_SEC + ( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH ) ))
+  byron_end_time=$(( BYRON_GENESIS_START_SEC + ((SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH) / 1000) ))
   if [[ ${current_time_sec} -lt ${byron_end_time} ]]; then # In Byron phase
-    echo $(( ( current_time_sec - BYRON_GENESIS_START_SEC ) / BYRON_SLOT_LENGTH ))
+    echo $(( ((current_time_sec - BYRON_GENESIS_START_SEC)*1000) / BYRON_SLOT_LENGTH ))
   else # In Shelley phase
     echo $(( byron_slots + (( current_time_sec - byron_end_time ) / SLOT_LENGTH ) ))
   fi
@@ -517,7 +520,7 @@ getEraIdentifier() {
 # Return code 2 is used for scripts that want to source env but not fail due to a starting node
 
 if [[ ${OFFLINE_MODE} = "N" && ! -S ${CARDANO_NODE_SOCKET_PATH} ]]; then
-  echo -e "${FG_RED}Looks like cardano-node is running with socket-path as ${FG_CYAN}${CARDANO_NODE_SOCKET_PATH}${FG_RED}, but the actual socket file does not exist."
+  echo -e "${FG_RED}Looks like cardano-node is running with socket-path as ${FG_LBLUE}${CARDANO_NODE_SOCKET_PATH}${FG_RED}, but the actual socket file does not exist."
   echo -e "This could occur if the node hasnt completed startup or if a second instance of node startup was attempted!"
   echo -e "If this does not resolve automatically in a few minutes, you might want to restart your node and try again.${NC}"
   return 2
