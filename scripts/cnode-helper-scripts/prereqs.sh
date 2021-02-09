@@ -292,7 +292,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     echo "  previous CNCLI installation found, pulling latest version from GitHub..."
   else
     echo "  downloading CNCLI..."
-    if ! output=$(git clone https://github.com/AndrewWestberg/cncli.git 2>&1); then echo -e "${output}" && err_exit; fi
+    if ! output=$(git clone --recurse-submodules https://github.com/AndrewWestberg/cncli.git 2>&1); then echo -e "${output}" && err_exit; fi
   fi
   pushd ./cncli >/dev/null || err_exit
   if ! output=$(git fetch --all --prune 2>&1); then echo -e "${output}" && err_exit; fi
