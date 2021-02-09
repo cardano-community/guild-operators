@@ -1,5 +1,5 @@
 #!/bin/bash
-# shellcheck disable=SC1090,SC2086,SC2154,SC2034,SC2012,SC2140
+# shellcheck disable=SC1090,SC2086,SC2154,SC2034,SC2012,SC2140,SC2028
 
 ########## Global tasks ###########################################
 
@@ -18,7 +18,7 @@ cleanup() {
 }
 trap cleanup HUP INT TERM
 STTY_SETTINGS="$(stty -g < /dev/tty)"
-trap "stty '$STTY_SETTINGS' < /dev/tty" EXIT
+trap 'stty "$STTY_SETTINGS" < /dev/tty' EXIT
 
 # Command     : myExit [exit code] [message]
 # Description : gracefully handle an exit and restore terminal to original state
@@ -2374,7 +2374,7 @@ EOF
       for wallet_name in "${owner_wallets[@]}"; do
         getBaseAddress ${wallet_name}
         getBalance ${base_addr}
-        total_pledge=$(( total_pledge + ${assets[lovelace]} ))
+        total_pledge=$(( total_pledge + assets[lovelace] ))
         getRewards ${wallet_name}
         [[ ${reward_lovelace} -gt 0 ]] && total_pledge=$(( total_pledge + reward_lovelace ))
       done
@@ -3022,7 +3022,7 @@ EOF
             _jq() { base64 -d <<< ${otx_assets} | jq -r "${1}"; }
             otx_asset=$(_jq '.asset')
             [[ ${otx_asset} = "lovelace" ]] && continue
-            println "DEBUG" "                   ${FG_LBLUE}$(formatAsset $(_jq '.amount'))${NC} ${FG_LGRAY}${otx_asset}${NC}"
+            println "DEBUG" "                   ${FG_LBLUE}$(formatAsset "$(_jq '.amount')")${NC} ${FG_LGRAY}${otx_asset}${NC}"
           done
         fi
         [[ ${otx_type} = "Wallet Rewards Withdrawal" ]] && println "DEBUG" "\nRewards          : ${FG_LBLUE}$(formatLovelace "$(jq -r '.rewards' <<< ${offlineJSON})")${NC} Ada"
@@ -3217,7 +3217,7 @@ EOF
             _jq() { base64 -d <<< ${otx_assets} | jq -r "${1}"; }
             otx_asset=$(_jq '.asset')
             [[ ${otx_asset} = "lovelace" ]] && continue
-            println "DEBUG" "                   ${FG_LBLUE}$(formatAsset $(_jq '.amount'))${NC} ${FG_LGRAY}${otx_asset}${NC}"
+            println "DEBUG" "                   ${FG_LBLUE}$(formatAsset "$(_jq '.amount')")${NC} ${FG_LGRAY}${otx_asset}${NC}"
           done
         fi
         [[ ${otx_type} = "Wallet Rewards Withdrawal" ]] && println "DEBUG" "\nRewards          : ${FG_LBLUE}$(formatLovelace "$(jq -r '.rewards' <<< ${offlineJSON})")${NC} Ada"
