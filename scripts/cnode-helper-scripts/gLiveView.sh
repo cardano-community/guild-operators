@@ -23,7 +23,7 @@ setTheme() {
   if [[ ${THEME} = "dark" ]]; then
     style_title=${FG_MAGENTA}${BOLD}      # style of title
     style_base=${FG_WHITE}                # default color for text and lines
-    style_values_1=${FG_CYAN}             # color of most live values
+    style_values_1=${FG_LBLUE}             # color of most live values
     style_values_2=${FG_GREEN}            # color of node name
     style_values_3=${STANDOUT}            # color of selected outgoing/incoming paging
     style_info=${FG_YELLOW}               # info messages

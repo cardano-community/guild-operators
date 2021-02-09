@@ -93,7 +93,7 @@ fi
 
 s_payment_sk_file="${payment_sk_file}"
 
-if ! sendAda; then
+if ! sendAssets; then
   echo && exit 1
 fi
 
