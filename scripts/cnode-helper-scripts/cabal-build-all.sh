@@ -12,7 +12,7 @@ URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${B
 if [[ "${PWD##*/}" == "cardano-node" ]] && [[ "${OVERWRITE_LOCAL}" == "Y" ]]; then
   echo "Overwriting cabal.project.local with latest file from guild-repo (previous file, if any, will be saved as cabal.project.local.swp).."
   [[ -f cabal.project.local ]] && mv cabal.project.local cabal.project.local.swp
-  curl -s -o cabal.project.local -C - "${URL_RAW}"
+  curl -s -f -o cabal.project.local -C - "${URL_RAW}"
   chmod 640 cabal.project.local
 fi
 
