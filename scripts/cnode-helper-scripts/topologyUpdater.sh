@@ -132,8 +132,8 @@ fi
 
 [[ -z "${CUSTOM_PEERS}" ]] && CUSTOM_PEERS_PARAM="" || CUSTOM_PEERS_PARAM="&customPeers=${CUSTOM_PEERS}"
 
-[[ ${TU_PUSH} = "Y" ]] && curl -s "https://api.clio.one/htopology/v1/?port=${CNODE_PORT}&blockNo=${blockNo}&valency=${CNODE_VALENCY}&magic=${NWMAGIC}${T_HOSTNAME}" | tee -a "${LOG_DIR}"/topologyUpdater_lastresult.json
-[[ ${TU_FETCH} = "Y" ]] && curl -s -o "${TOPOLOGY}".tmp "https://api.clio.one/htopology/v1/fetch/?max=${MAX_PEERS}&magic=${NWMAGIC}${CUSTOM_PEERS_PARAM}" && \
+[[ ${TU_PUSH} = "Y" ]] && curl -s -f "https://api.clio.one/htopology/v1/?port=${CNODE_PORT}&blockNo=${blockNo}&valency=${CNODE_VALENCY}&magic=${NWMAGIC}${T_HOSTNAME}" | tee -a "${LOG_DIR}"/topologyUpdater_lastresult.json
+[[ ${TU_FETCH} = "Y" ]] && curl -s -f -o "${TOPOLOGY}".tmp "https://api.clio.one/htopology/v1/fetch/?max=${MAX_PEERS}&magic=${NWMAGIC}${CUSTOM_PEERS_PARAM}" && \
 mv "${TOPOLOGY}".tmp "${TOPOLOGY}"
 
 exit 0

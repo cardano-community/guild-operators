@@ -107,7 +107,7 @@ myExit() {
 clear
 if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
   URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
-  if curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env 2>/dev/null && [[ -f "${PARENT}"/env.tmp ]]; then
+  if curl -s -f -m 10 -o "${PARENT}"/env.tmp ${URL}/env 2>/dev/null && [[ -f "${PARENT}"/env.tmp ]]; then
     if [[ -f "${PARENT}"/env ]]; then
       if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
         vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
@@ -142,7 +142,7 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
   esac
 
   echo "Guild LiveView version check..."
-  if curl -s -m ${CURL_TIMEOUT} -o /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
+  if curl -s -f -m ${CURL_TIMEOUT} -o /tmp/gLiveView.sh "${URL}/gLiveView.sh" 2>/dev/null; then
     GIT_VERSION=$(grep -r ^GLV_VERSION= /tmp/gLiveView.sh | cut -d'=' -f2)
     : "${GIT_VERSION:=v0.0.0}"
     if ! versionCheck "${GIT_VERSION}" "${GLV_VERSION}"; then
