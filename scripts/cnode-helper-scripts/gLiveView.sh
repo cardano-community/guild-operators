@@ -51,7 +51,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.19.3
+GLV_VERSION=v1.19.4
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -66,7 +66,7 @@ Usage: $(basename "$0") [-l] [-p] [-b <branch name>]
 Guild LiveView - An alternative cardano-node LiveView
 
 -l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
--p    Disable default CNCLI ping and revert to legacy tcptraceroute if available, else use regular ICMP ping.
+-p    Disable default CNCLI ping and revert to ss/tcptraceroute if available, else use regular ICMP ping.
 -b    Use alternate branch to check for updates - only for testing/development (Default: Master)  
 EOF
   exit 1
@@ -100,10 +100,6 @@ myExit() {
   exit_msg="$2"
   cleanup "$1"
 }
-
-if ! command -v "tcptraceroute" &>/dev/null; then
-  myExit 1 "'tcptraceroute' command missing, please install using latest prereqs.sh script or with your packet manager of choice.\nhttps://command-not-found.com/tcptraceroute can be used to check package name to install."
-fi
 
 #######################################################
 # Version Check                                       #
@@ -351,6 +347,8 @@ checkPeers() {
         else # cncli ping failed
           peerRTT=99999
         fi
+      elif command -v ss >/dev/null; then
+        peerRTT=$(ss -ni "dst ${peerIP}:${peerPORT}" | tail -1 | sed -e 's/.*rtt:\(.*\)\/.*.ato.*/\1/' | cut -d. -f1)
       elif command -v tcptraceroute >/dev/null; then
         checkPEER=$(tcptraceroute -n -S -f 255 -m 255 -q 1 -w 1 "${peerIP}" "${peerPORT}" 2>&1 | tail -n 1)
         if [[ ${checkPEER} = *'[open]'* ]]; then
@@ -360,7 +358,7 @@ checkPeers() {
         fi
       elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Ping OK, show RTT
         peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
-      else # cncli & tcptraceroute missing and ping failed
+      else # cncli, ss & tcptraceroute missing and ping failed
         peerRTT=99999
       fi
       [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT))
@@ -572,10 +570,11 @@ while true; do
     printf "${VL} 1. ${style_values_2}cncli${NC} - If available, this gives the most accurate" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL}    measure as it checks the entire handshake process against" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL}    the remote peer." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
-    printf "${VL} 2. ${style_values_2}tcptraceroute${NC} - Sends a TCP SYN package to ping the" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} 2. ${style_values_2}ss${NC} - Sends a TCP SYN package to ping the" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL}    remote peer on the cardano-node port. Should give ~100%%" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL}    success rate." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
-    printf "${VL} 3. ${style_values_2}ping${NC} - fallback method using ICMP ping against IP." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} 3. ${style_values_2}tcptraceroute${NC} - Same as ss" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} 4. ${style_values_2}ping${NC} - fallback method using ICMP ping against IP." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL}    Only work if the FW of remote peer accepts ICMP traffic." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     echo "${blank_line}" && ((line++))
     printf "${VL} For incoming connections, only ICMP ping is used as remote" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
