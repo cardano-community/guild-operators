@@ -1107,19 +1107,21 @@ EOF
       println "DEBUG" "${file}"
     done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
 
-    echo
-    println "DEBUG" "# Decrypting GPG encrypted wallet files"
-    echo
-    if ! getPassword; then # $password variable populated by getPassword function
-      println "\n\n" && println "ERROR" "${FG_RED}ERROR${NC}: password input aborted!"
-      waitForInput && continue
+    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -gt 0 ]]; then
+      echo
+      println "DEBUG" "# Decrypting GPG encrypted wallet files"
+      echo
+      if ! getPassword; then # $password variable populated by getPassword function
+        println "\n\n" && println "ERROR" "${FG_RED}ERROR${NC}: password input aborted!"
+        waitForInput && continue
+      fi
+      while IFS= read -r -d '' file; do
+        decryptFile "${file}" "${password}" && \
+        chmod 600 "${file::-4}" && \
+        keysDecrypted=$((++keysDecrypted))
+      done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0)
+      unset password
     fi
-    while IFS= read -r -d '' file; do
-      decryptFile "${file}" "${password}" && \
-      chmod 600 "${file::-4}" && \
-      keysDecrypted=$((++keysDecrypted))
-    done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0)
-    unset password
 
     echo
     println "Wallet unprotected : ${FG_GREEN}${wallet_name}${NC}"
@@ -1153,25 +1155,31 @@ EOF
     filesLocked=0
     keysEncrypted=0
 
-    echo
-    println "DEBUG" "# Encrypting sensitive wallet keys with GPG"
-    echo
-    if ! getPassword confirm; then # $password variable populated by getPassword function
-      println "\n\n" && println "ERROR" "${FG_RED}ERROR${NC}: password input aborted!"
+    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -le 0 ]]; then
+      echo
+      println "DEBUG" "# Encrypting sensitive wallet keys with GPG"
+      echo
+      if ! getPassword confirm; then # $password variable populated by getPassword function
+        println "\n\n" && println "ERROR" "${FG_RED}ERROR${NC}: password input aborted!"
+        waitForInput && continue
+      fi
+      keyFiles=(
+        "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+        "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+      )
+      for keyFile in "${keyFiles[@]}"; do
+        if [[ -f "${keyFile}" ]]; then
+          chmod 400 "${keyFile}" && \
+          encryptFile "${keyFile}" "${password}" && \
+          keysEncrypted=$((++keysEncrypted))
+        fi
+      done
+      unset password
+    else
+      echo
+      println "DEBUG" "${FG_YELLOW}NOTE${NC}: found GPG encrypted files in folder, please decrypt/unlock wallet files before encrypting"
       waitForInput && continue
     fi
-    keyFiles=(
-      "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-      "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-    )
-    for keyFile in "${keyFiles[@]}"; do
-      if [[ -f "${keyFile}" ]]; then
-        chmod 400 "${keyFile}" && \
-        encryptFile "${keyFile}" "${password}" && \
-        keysEncrypted=$((++keysEncrypted))
-      fi
-    done
-    unset password
 
     echo
     println "DEBUG" "# Write protecting all wallet keys with 400 permission and if enabled 'chattr +i'"
@@ -2841,6 +2849,7 @@ EOF
     filesUnlocked=0
     keysDecrypted=0
 
+    echo
     println "DEBUG" "# Removing write protection from all pool files"
     while IFS= read -r -d '' file; do
       if [[ ${ENABLE_CHATTR} = true && $(lsattr -R "$file") =~ -i- ]]; then
@@ -2851,19 +2860,20 @@ EOF
       println "DEBUG" "${file}"
     done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -print0)
 
-    echo
-    println "# Decrypting GPG encrypted pool files"
-    echo
-    if ! getPassword; then # $password variable populated by getPassword function
-      println "\n\n" && println "ERROR" "${FG_RED}ERROR${NC}: password input aborted!"
-      waitForInput && continue
+    if [[ $(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -gt 0 ]]; then
+      echo
+      println "# Decrypting GPG encrypted pool files"
+      if ! getPassword; then # $password variable populated by getPassword function
+        println "\n\n" && println "ERROR" "${FG_RED}ERROR${NC}: password input aborted!"
+        waitForInput && continue
+      fi
+      while IFS= read -r -d '' file; do
+        decryptFile "${file}" "${password}" && \
+        chmod 600 "${file::-4}" && \
+        keysDecrypted=$((++keysDecrypted))
+      done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0)
+      unset password
     fi
-    while IFS= read -r -d '' file; do
-      decryptFile "${file}" "${password}" && \
-      chmod 600 "${file::-4}" && \
-      keysDecrypted=$((++keysDecrypted))
-    done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0)
-    unset password
 
     echo
     println "Pool decrypted  : ${FG_GREEN}${pool_name}${NC}"
@@ -2897,24 +2907,30 @@ EOF
     filesLocked=0
     keysEncrypted=0
 
-    println "DEBUG" "# Encrypting sensitive pool keys with GPG"
-    echo
-    if ! getPassword confirm; then # $password variable populated by getPassword function
-      println "\n\n" && println "ERROR" "${FG_RED}ERROR${NC}: password input aborted!"
+    if [[ $(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -le 0 ]]; then
+      echo
+      println "DEBUG" "# Encrypting sensitive pool keys with GPG"
+      if ! getPassword confirm; then # $password variable populated by getPassword function
+        println "\n\n" && println "ERROR" "${FG_RED}ERROR${NC}: password input aborted!"
+        waitForInput && continue
+      fi
+      keyFiles=(
+        "${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
+        "${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
+      )
+      for keyFile in "${keyFiles[@]}"; do
+        if [[ -f "${keyFile}" ]]; then
+          chmod 400 "${keyFile}" && \
+          encryptFile "${keyFile}" "${password}" && \
+          keysEncrypted=$((++keysEncrypted))
+        fi
+      done
+      unset password
+    else
+      echo
+      println "DEBUG" "${FG_YELLOW}NOTE${NC}: found GPG encrypted files in folder, please decrypt/unlock pool files before encrypting"
       waitForInput && continue
     fi
-    keyFiles=(
-      "${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
-      "${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
-    )
-    for keyFile in "${keyFiles[@]}"; do
-      if [[ -f "${keyFile}" ]]; then
-        chmod 400 "${keyFile}" && \
-        encryptFile "${keyFile}" "${password}" && \
-        keysEncrypted=$((++keysEncrypted))
-      fi
-    done
-    unset password
 
     echo
     println "DEBUG" "# Write protecting all pool files with 400 permission and if enabled 'chattr +i'"
@@ -3597,6 +3613,7 @@ EOF
               "--delete *${WALLET_PAY_SK_FILENAME}"
               "--delete *${WALLET_STAKE_SK_FILENAME}"
               "--delete *${POOL_COLDKEY_SK_FILENAME}"
+              "--delete *${ASSET_POLICY_SK_FILENAME}"
             )
             backup_file="${backup_path}online_cntools_backup-$(date '+%Y%m%d%H%M%S').tar"
             ;;
@@ -3607,6 +3624,7 @@ EOF
        backup_list=(
          "${WALLET_FOLDER}"
          "${POOL_FOLDER}"
+         "${ASSET_FOLDER}"
          "${BLOCKLOG_DIR}"
          "${CNODE_HOME}/files"
          "${CNODE_HOME}/scripts"
@@ -3914,19 +3932,23 @@ EOF
     println "OFF" " Multi-Asset Token Management\n\n"\
 " ) Create Policy  - create a new asset policy\n"\
 " ) List Assets    - list created/minted policies/assets\n"\
+" ) Decrypt Policy - remove write protection and decrypt policy\n"\
+" ) Encrypt Policy - encrypt policy sign key and make all files immutable\n"\
 " ) Mint Asset     - mint new assets for selected policy\n"\
 " ) Burn Asset     - burn a given amount of assets in selected wallet\n"\
 "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     println "DEBUG" " Select Multi-Asset Operation\n"
-    select_opt "[c] Create Policy" "[l] List Assets" "[m] Mint Asset" "[b] Burn Asset" "[h] Home"
+    select_opt "[c] Create Policy" "[l] List Assets" "[d] Decrypt / Unlock Policy" "[e] Encrypt / Lock Policy" "[m] Mint Asset" "[b] Burn Asset" "[h] Home"
     case $? in
       0) SUBCOMMAND="create-policy" ;;
       1) SUBCOMMAND="list-assets" ;;
-      2) SUBCOMMAND="mint-asset" ;;
-      3) SUBCOMMAND="burn-asset" ;;
-      4) continue ;;
+      2) SUBCOMMAND="decrypt-policy" ;;
+      3) SUBCOMMAND="encrypt-policy" ;;
+      4) SUBCOMMAND="mint-asset" ;;
+      5) SUBCOMMAND="burn-asset" ;;
+      6) continue ;;
     esac
-
+    
     case $SUBCOMMAND in  
       create-policy)
 
@@ -4043,6 +4065,131 @@ EOF
 
       ;; ###################################################################
       
+      decrypt-policy)
+
+      clear
+      println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      println " >> ADVANCED >> MULTI-ASSET >> DECRYPT / UNLOCK POLICY"
+      println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      echo
+      
+      [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No policies available!${NC}" && waitForInput && continue
+
+      println "DEBUG" "# Select policy to decrypt"
+      if ! selectPolicy "encrypted"; then # ${policy_name} populated by selectPolicy function
+        waitForInput && continue
+      fi
+
+      filesUnlocked=0
+      keysDecrypted=0
+
+      echo
+      println "DEBUG" "# Removing write protection from all policy files"
+      while IFS= read -r -d '' file; do
+        if [[ ${ENABLE_CHATTR} = true && $(lsattr -R "$file") =~ -i- ]]; then
+          sudo chattr -i "${file}"
+        fi
+        chmod 600 "${file}"
+        filesUnlocked=$((++filesUnlocked))
+        println "DEBUG" "${file}"
+      done < <(find "${ASSET_FOLDER}/${policy_name}" -mindepth 1 -maxdepth 1 -type f -print0)
+
+      if [[ $(find "${ASSET_FOLDER}/${policy_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -gt 0 ]]; then
+        echo
+        println "# Decrypting GPG encrypted policy key"
+        if ! getPassword; then # $password variable populated by getPassword function
+          println "\n\n" && println "ERROR" "${FG_RED}ERROR${NC}: password input aborted!"
+          waitForInput && continue
+        fi
+        while IFS= read -r -d '' file; do
+          decryptFile "${file}" "${password}" && \
+          chmod 600 "${file::-4}" && \
+          keysDecrypted=$((++keysDecrypted))
+        done < <(find "${ASSET_FOLDER}/${policy_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0)
+        unset password
+      fi
+
+      echo
+      println "Policy decrypted : ${FG_GREEN}${policy_name}${NC}"
+      println "Files unlocked   : ${FG_LBLUE}${filesUnlocked}${NC}"
+      println "Files decrypted  : ${FG_LBLUE}${keysDecrypted}${NC}"
+      if [[ ${filesUnlocked} -ne 0 || ${keysDecrypted} -ne 0 ]]; then
+        echo
+        println "DEBUG" "${FG_YELLOW}Policy files are now unprotected${NC}"
+        println "DEBUG" "Use 'ADVANCED >> MULTI-ASSET >> ENCRYPT / LOCK POLICY' to re-lock"
+      fi
+
+      waitForInput && continue
+
+      ;; ###################################################################
+
+      encrypt-policy)
+
+      clear
+      println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      println " >> ADVANCED >> MULTI-ASSET >> ENCRYPT / LOCK POLICY"
+      println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      echo
+      
+      [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No policies available!${NC}" && waitForInput && continue
+
+      println "DEBUG" "# Select policy to encrypt"
+      if ! selectPolicy "encrypted"; then # ${policy_name} populated by selectPolicy function
+        waitForInput && continue
+      fi
+
+      filesLocked=0
+      keysEncrypted=0
+
+      if [[ $(find "${ASSET_FOLDER}/${policy_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -le 0 ]]; then
+        echo
+        println "DEBUG" "# Encrypting policy signing key with GPG"
+        if ! getPassword confirm; then # $password variable populated by getPassword function
+          println "\n\n" && println "ERROR" "${FG_RED}ERROR${NC}: password input aborted!"
+          waitForInput && continue
+        fi
+        keyFiles=(
+          "${ASSET_FOLDER}/${policy_name}/${ASSET_POLICY_SK_FILENAME}"
+        )
+        for keyFile in "${keyFiles[@]}"; do
+          if [[ -f "${keyFile}" ]]; then
+            chmod 400 "${keyFile}" && \
+            encryptFile "${keyFile}" "${password}" && \
+            keysEncrypted=$((++keysEncrypted))
+          fi
+        done
+        unset password
+      else
+        echo
+        println "DEBUG" "${FG_YELLOW}NOTE${NC}: found GPG encrypted files in folder, please decrypt/unlock policy files before encrypting"
+        waitForInput && continue
+      fi
+
+      echo
+      println "DEBUG" "# Write protecting all policy files with 400 permission and if enabled 'chattr +i'"
+      while IFS= read -r -d '' file; do
+        chmod 400 "$file"
+        if [[ ${ENABLE_CHATTR} = true && ! $(lsattr -R "$file") =~ -i- ]]; then
+          sudo chattr +i "$file"
+        fi
+        filesLocked=$((++filesLocked))
+        println "DEBUG" "$file"
+      done < <(find "${ASSET_FOLDER}/${policy_name}" -mindepth 1 -maxdepth 1 -type f -print0)
+
+      echo
+      println "Policy encrypted : ${FG_GREEN}${policy_name}${NC}"
+      println "Files locked     : ${FG_LBLUE}${filesLocked}${NC}"
+      println "Files encrypted  : ${FG_LBLUE}${keysEncrypted}${NC}"
+      if [[ ${filesLocked} -ne 0 || ${keysEncrypted} -ne 0 ]]; then
+        echo
+        println "DEBUG" "${FG_BLUE}INFO${NC}: policy files are now protected"
+        println "DEBUG" "Use 'ADVANCED >> MULTI-ASSET >> DECRYPT / UNLOCK POLICY' to unlock"
+      fi
+
+      waitForInput && continue
+
+      ;; ###################################################################
+      
       mint-asset)
 
       clear
@@ -4054,7 +4201,7 @@ EOF
       [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies found!${NC}\n\nPlease first create a policy to mint asset with" && waitForInput && continue
       
       println "DEBUG" "# Select the policy to use when minting the asset"
-      if ! selectPolicy "${ASSET_POLICY_SK_FILENAME}" "${ASSET_POLICY_VK_FILENAME}" "${ASSET_POLICY_SCRIPT_FILENAME}" "${ASSET_POLICY_ID_FILENAME}"; then # ${policy_name} populated by selectPolicy function
+      if ! selectPolicy "all" "${ASSET_POLICY_SK_FILENAME}" "${ASSET_POLICY_VK_FILENAME}" "${ASSET_POLICY_SCRIPT_FILENAME}" "${ASSET_POLICY_ID_FILENAME}"; then # ${policy_name} populated by selectPolicy function
         waitForInput && continue
       fi
       policy_folder="${ASSET_FOLDER}/${policy_name}"
