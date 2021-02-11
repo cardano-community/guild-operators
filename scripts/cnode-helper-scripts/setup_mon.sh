@@ -79,7 +79,7 @@ dl() {
 
 usage() {
   cat <<EOF >&2
-Usage: $(basename "$0") [-d directory] [-h hostname] [-p port]
+Usage: $(basename "$0") [-d directory] [-i hostname] [-p port]
 Setup monitoring using Prometheus and Grafana for Cardano Node
 -d directory      Directory where you'd like to deploy the packages for prometheus , node exporter and grafana
 -i IP/hostname    IPv4 address or a FQDN/DNS name where your cardano-node (relay) is running (check for hasPrometheus in config.json; eg: 127.0.0.1 if same machine as cardano-node)
