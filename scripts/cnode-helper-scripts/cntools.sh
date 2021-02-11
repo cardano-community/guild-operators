@@ -1348,7 +1348,7 @@ EOF
       esac
     else
       amount_lovelace=${assets[lovelace]}
-      println "DEBUG" "Ada to send set to total supply: $(formatLovelace ${amount_lovelace})"
+      println "DEBUG" "Ada to send set to total supply: ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC}"
       include_fee="yes"
     fi
     echo
