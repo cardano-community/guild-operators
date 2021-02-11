@@ -12,8 +12,6 @@ fi
 
 . "${PARENT}"/env offline
 
-if nice_cmd="$(command -v nice)"; then nice_cmd+=" -n 19"; else nice_cmd=""; fi
-
 echo -e "\e[32m~~ Cardano Node ~~\e[0m"
 echo "launches the main cnode.sh script to start cardano-node"
 echo
@@ -173,7 +171,7 @@ Restart=on-failure
 RestartSec=20
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
-ExecStart=/bin/bash -l -c \"exec ${nice_cmd} ${CNODE_HOME}/scripts/cncli.sh sync\"
+ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh sync\"
 ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep [c]ncli.sync.*.${CNODE_HOME}/ | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
 KillSignal=SIGINT
 SuccessExitStatus=143
@@ -197,7 +195,7 @@ Restart=on-failure
 RestartSec=20
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
-ExecStart=/bin/bash -l -c \"exec ${nice_cmd} ${CNODE_HOME}/scripts/cncli.sh leaderlog\"
+ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh leaderlog\"
 SuccessExitStatus=143
 StandardOutput=syslog
 StandardError=syslog
@@ -221,7 +219,7 @@ RestartSec=20
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
 ExecStartPre=/bin/sleep 5
-ExecStart=/bin/bash -l -c \"exec ${nice_cmd} ${CNODE_HOME}/scripts/cncli.sh validate\"
+ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh validate\"
 SuccessExitStatus=143
 StandardOutput=syslog
 StandardError=syslog
@@ -252,7 +250,7 @@ Restart=on-failure
 RestartSec=20
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
-ExecStart=/bin/bash -l -c \"exec ${nice_cmd} ${CNODE_HOME}/scripts/cncli.sh ptsendslots\"
+ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh ptsendslots\"
 ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep [c]ncli.sendslots.*.${vname}-pooltool.json | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
 KillSignal=SIGINT
 SuccessExitStatus=143
@@ -294,7 +292,7 @@ Restart=on-failure
 RestartSec=20
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
-ExecStart=/bin/bash -l -c \"exec ${nice_cmd} ${CNODE_HOME}/scripts/logMonitor.sh\"
+ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/logMonitor.sh\"
 ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep -m1 ${CNODE_HOME}/scripts/logMonitor.sh | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
 KillSignal=SIGINT
 SuccessExitStatus=143
@@ -361,7 +359,7 @@ Restart=on-failure
 RestartSec=20
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
-ExecStart=/bin/bash -l -c \"exec ${nice_cmd} ${CNODE_HOME}/scripts/cncli.sh ptsendtip\"
+ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh ptsendtip\"
 ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep [c]ncli.sendtip.*.${vname}-pooltool.json | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
 KillSignal=SIGINT
 SuccessExitStatus=143
