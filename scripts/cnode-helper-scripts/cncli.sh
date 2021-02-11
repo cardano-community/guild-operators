@@ -115,6 +115,9 @@ dumpLedgerState() { # getNodeMetrics expected to have been already run
 #################################
 
 cncliInit() {
+
+  if renice_cmd="$(command -v renice)"; then ${renice_cmd} -n 19 $$ >/dev/null; fi
+
   [[ -z "${BATCH_AUTO_UPDATE}" ]] && BATCH_AUTO_UPDATE=N
   
   if ! command -v sqlite3 >/dev/null; then echo "ERROR: sqlite3 not found, please install before activating blocklog function" && exit 1; fi
