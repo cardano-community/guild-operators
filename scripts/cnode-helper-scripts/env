@@ -60,6 +60,12 @@ CNODE_PORT=6000                                         # Set node port
 #POOL_CURRENT_KES_START="kes.start"
 #POOL_DEREGCERT_FILENAME="pool.dereg"
 
+#ASSET_FOLDER="${CNODE_HOME}/priv/asset"                # Root folder for Multi-Assets containing minted assets and subfolders for Policy IDs
+#ASSET_POLICY_VK_FILENAME="policy.vkey"                 # Standardized names for all multi-asset related files
+#ASSET_POLICY_SK_FILENAME="policy.skey"
+#ASSET_POLICY_SCRIPT_FILENAME="policy.script"           # File extension '.script' mandatory
+#ASSET_POLICY_ID_FILENAME="policy.id"
+
 ######################################
 # Do NOT modify code below           #
 ######################################
@@ -330,6 +336,11 @@ BYRON_EPOCH_LENGTH=$(( 10 * BYRON_K ))
 [[ -z ${POOL_REGCERT_FILENAME} ]] && POOL_REGCERT_FILENAME="pool.cert"
 [[ -z ${POOL_CURRENT_KES_START} ]] && POOL_CURRENT_KES_START="kes.start"
 [[ -z ${POOL_DEREGCERT_FILENAME} ]] && POOL_DEREGCERT_FILENAME="pool.dereg"
+[[ -z ${ASSET_FOLDER} ]] && ASSET_FOLDER="${CNODE_HOME}/priv/asset"
+[[ -z ${ASSET_POLICY_VK_FILENAME} ]] && ASSET_POLICY_VK_FILENAME="policy.vkey"
+[[ -z ${ASSET_POLICY_SK_FILENAME} ]] && ASSET_POLICY_SK_FILENAME="policy.skey"
+[[ -z ${ASSET_POLICY_SCRIPT_FILENAME} ]] && ASSET_POLICY_SCRIPT_FILENAME="policy.script"
+[[ -z ${ASSET_POLICY_ID_FILENAME} ]] && ASSET_POLICY_ID_FILENAME="policy.id"
 
 FG_BLACK='\e[30m'
 FG_RED='\e[31m'
@@ -454,10 +465,12 @@ getSlotInEpochFromSlot() {
 }
 
 # Description : Offline calculation of date based on provided slot number
+#             : $1 = slot, $2 = (optional) printf date format
 getDateFromSlot() {
   byron_slots=$(( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH ))
-  printf -v date_from_slot '%(%FT%T%z)T' $(( ((byron_slots * BYRON_SLOT_LENGTH) / 1000) + (($1-byron_slots) * SLOT_LENGTH) + SHELLEY_GENESIS_START_SEC ))
-  echo "${date_from_slot%??}:${date_from_slot: -2}"
+  [[ -n $2 ]] && date_fmt="$2" || date_fmt='%(%FT%T%z)T'
+  printf -v date_from_slot "${date_fmt}" $(( ((byron_slots * BYRON_SLOT_LENGTH) / 1000) + (($1-byron_slots) * SLOT_LENGTH) + SHELLEY_GENESIS_START_SEC ))
+  [[ -n $2 ]] && echo "${date_from_slot}" || echo "${date_from_slot%??}:${date_from_slot: -2}"
 }
 
 # Description : Offline calculation of time in seconds until next epoch

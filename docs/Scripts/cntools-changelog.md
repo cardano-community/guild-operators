@@ -5,6 +5,15 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.2.0] - 2021-02-15
+
+##### Added
+- Multi Asset Token compatibility added throughout all CNTools operations. 
+  - Sending Ada and custom tokens is done through the normal Funds >> Send operation
+
+##### Changed
+- Metadata moved to a new Advanced section used for devs/advanced operations not normally used by SPOs.
+
 ## [7.1.6] - 2021-02-10
 - Update curl commands when file isnt downloaded correctly (to give correct return code)
 

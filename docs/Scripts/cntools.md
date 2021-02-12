@@ -89,31 +89,31 @@ sequenceDiagram
 You should get a screen that looks something like this:
 ```
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- >> CNTools vX.X.X - CONNECTED <<                    A Guild Operators collaboration
+ >> CNTools vX.X.X - Guild - CONNECTED <<            A Guild Operators collaboration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- Main Menu
+ Main Menu    Telegram Announcement / Support channel: t.me/guild_operators_official
 
  ) Wallet      - create, show, remove and protect wallets
  ) Funds       - send, withdraw and delegate
  ) Pool        - pool creation and management
- ) Transaction - Witness, Sign and Submit a cold transaction (hybrid/offline mode)
- ) Metadata    - Post metadata on-chain (e.g voting)
- ) Blocks      - show core node leader slots
+ ) Transaction - Sign and Submit a cold transaction (hybrid/offline mode)
+ ) Blocks      - show core node leader schedule & block production statistics
  ) Update      - update cntools script and library config files
  ) Backup      - backup & restore of wallet/pool/config
+ ) Advanced    - Developer and advanced features: metadata, multi-assets, ...
  ) Refresh     - reload home screen content
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                                                 Epoch 106 - 106h:14m:26s until next
- What would you like to do?                                         Node Sync: 14 :)
+                                                     Epoch 231 - 00:49:48 until next
+ What would you like to do?                                         Node Sync: 12 :)
 
   [w] Wallet
   [f] Funds
   [p] Pool
   [t] Transaction
-  [m] Metadata
   [b] Blocks
   [u] Update
   [z] Backup & Restore
+  [a] Advanced
   [r] Refresh
   [q] Quit
 ```

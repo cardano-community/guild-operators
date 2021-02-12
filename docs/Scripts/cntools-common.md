@@ -16,24 +16,27 @@ Step by Step guide to create a pool with CNTools in Online mode
 
 **1.** Choose `[w] Wallet` and you will be presented with the following menu:
 ```
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  >> WALLET
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  Wallet Management
 
- ) New      -  create a new wallet
- ) Import   -  import a Daedalus/Yoroi 15/24 word Shelley mnemonic created wallet
- ) Register -  register a wallet on chain (hybrid/offline mode)
- ) List     -  list all available wallets in a compact view
- ) Show     -  show detailed view of a specific wallet
- ) Remove   -  remove a wallet
- ) Decrypt  -  remove write protection and decrypt wallet
- ) Encrypt  -  encrypt wallet keys and make all files immutable
+ ) New         - create a new wallet
+ ) Import      - import a Daedalus/Yoroi 24/25 mnemonic or Ledger/Trezor HW wallet
+ ) Register    - register a wallet on chain
+ ) De-Register - De-Register (retire) a registered wallet
+ ) List        - list all available wallets in a compact view
+ ) Show        - show detailed view of a specific wallet
+ ) Remove      - remove a wallet
+ ) Decrypt     - remove write protection and decrypt wallet
+ ) Encrypt     - encrypt wallet keys and make all files immutable
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- Select Wallet operation
+ Select Wallet Operation
 
   [n] New
   [i] Import
   [r] Register
+  [z] De-Register
   [l] List
   [s] Show
   [x] Remove
@@ -45,19 +48,20 @@ Step by Step guide to create a pool with CNTools in Online mode
 **3.** Give the wallet a name  
 **4.** CNTools will give you the wallet address.  For example:
 ```
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  >> WALLET >> NEW
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Name of new wallet: Test
 
-New Wallet          : Test
-Address             : addr1qxl3cdy7ln0862uwcz7w5slrrueqat54szlevnmt2cyp2mq76qfnv45vcewg6tgsfccpltkmd3ukxhgql93mmncrahsqnkk3lq
-Enterprise Address  : addr1vxl3cdy7ln0862uwcz7w5slrrueqat54szlevnmt2cyp2mqt5kfd7
+New Wallet         : Test
+Address            : addr_test1qpq5qjr774cyc6kxcwp060k4t4hwp42q43v35lmcg3gcycu5uwdwld5yr8m8fgn7su955zf5qahtrgljqfjfa4nr8jfsj4alxk
+Enterprise Address : addr_test1vpq5qjr774cyc6kxcwp060k4t4hwp42q43v35lmcg3gcyccuxhdka
 
-You can now send and receive ADA using the above. Note that Enterprise Address will not take part in staking.
+You can now send and receive Ada using the above addresses.
+Note that Enterprise Address will not take part in staking.
 Wallet will be automatically registered on chain if you
 choose to delegate or pledge wallet when registering a stake pool.
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ```
 **5.**  Send some money to this wallet. Either through the faucet or have a friend send you some.
 
@@ -68,22 +72,22 @@ choose to delegate or pledge wallet when registering a stake pool.
 
 **1.** From the main menu select `[p] Pool`
 ```
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  >> POOL
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  Pool Management
 
- ) New        -  create a new pool
- ) Register   -  register created pool on chain using a stake wallet (pledge wallet)
- ) Modify     -  change pool parameters and register updated pool values on chain
- ) Retire     -  de-register stake pool from chain in specified epoch
- ) List       -  a compact list view of available local pools
- ) Show       -  detailed view of specified pool
- ) Delegators -  list all delegators for pool
- ) Rotate     -  rotate pool KES keys
- ) Decrypt    -  remove write protection and decrypt pool
- ) Encrypt    -  encrypt pool cold keys and make all files immutable
+ ) New      - create a new pool
+ ) Register - register created pool on chain using a stake wallet (pledge wallet)
+ ) Modify   - change pool parameters and register updated pool values on chain
+ ) Retire   - de-register stake pool from chain in specified epoch
+ ) List     - a compact list view of available local pools
+ ) Show     - detailed view of specified pool
+ ) Rotate   - rotate pool KES keys
+ ) Decrypt  - remove write protection and decrypt pool
+ ) Encrypt  - encrypt pool cold keys and make all files immutable
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- Select Pool operation
+ Select Pool Operation
 
   [n] New
   [r] Register
@@ -91,23 +95,23 @@ choose to delegate or pledge wallet when registering a stake pool.
   [x] Retire
   [l] List
   [s] Show
-  [g] Delegators
   [o] Rotate
   [d] Decrypt
   [e] Encrypt
   [h] Home
 ``` 
 **2.**  Select `[n] New` to create a new pool  
-**3.**  Give the pool a name. In our case, we call it LOVE.  The result should look something like this:
+**3.**  Give the pool a name. In our case, we call it TEST.  The result should look something like this:
 ```
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  >> POOL >> NEW
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Pool Name: TEST
 
 Pool: TEST
-PoolPubKey: 88367d5f4fde9c6b3c3c7c0a17ec4a9e46039cb01032cc2baa738b41
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ID (hex)    : 8d5a3510f18ce241115da38a1b2419ed82d308599c16e98caea1b4c0
+ID (bech32) : pool134dr2y833n3yzy2a5w9pkfqeakpdxzzenstwnr9w5x6vqtnclue
 ```
 
 ##### Register Pool
@@ -119,76 +123,92 @@ PoolPubKey: 88367d5f4fde9c6b3c3c7c0a17ec4a9e46039cb01032cc2baa738b41
 
 !> Make sure you set your pledge low enough to insure your funds in your wallet will cover pledge plus pool registration fees.  
 
-**5.**  Select wallet to use as pledge wallet, `bob` in our case.  
+**5.**  Select wallet to use as pledge wallet, `Test` in our case.  
 As this is a newly created wallet you will be prompted to press a key to continue with wallet registration.  
 When complete and if successful, both wallet and pool will be registered on-chain.
 
 It will look something like this:
 ```
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  >> POOL >> REGISTER
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Dumping ledger-state from node, can take a while on larger networks...
+Online mode  -  The default mode to use if all keys are available
 
-Select Pool:
+Hybrid mode  -  1) Go through steps to build a transaction file
+                2) Copy built tx file to offline computer
+                3) Sign it using 'Sign Tx' with keys on offline computer
+                   (CNTools started in offline mode '-o' without node connection)
+                4) Copy the signed tx file back to online computer and submit using 'Submit Tx'
 
-  TEST
-  [c] Cancel
+Selected value: [o] Online
 
- -- Pool Parameters --
+# Select pool
+Selected pool: TEST
 
-Pledge (in ADA, default: 50000): 899
-Margin (in %, default: 7.5): 10
-Cost (in ADA, default: 256): 500
+# Pool Parameters
+press enter to use default value
 
- -- Pool Metadata --
+Pledge (in Ada, default: 50,000):
+Margin (in %, default: 7.5):
+Cost (in Ada, minimum: 340, default: 340):
+
+# Pool Metadata
+
+Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: https://foo.bat/poolmeta.json):
 
 Enter Pool's Name (default: TEST):
 Enter Pool's Ticker , should be between 3-5 characters (default: TEST):
-Enter Pool's Description (default: No Description): My custom description
-Enter Pool's Homepage (default: https://foo.com): https://test.com
-Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: https://foo.bat/poolmeta.json): https://test.com/poolmeta.json
+Enter Pool's Description (default: No Description):
+Enter Pool's Homepage (default: https://foo.com):
 
-Please make sure you host your metadata JSON file (with contents as below) at https://love.fake.com/poolmeta.json :
-
+Optionally set an extended metadata URL?
+Selected value: [n] No
 {
   "name": "TEST",
   "ticker": "TEST",
-  "description": "My custom description",
-  "homepage": "https://test.com"
+  "description": "No Description",
+  "homepage": "https://foo.com",
+  "nonce": "1613146429"
 }
 
- -- Pool Relay Registration --
+Please host file /opt/cardano/guild/priv/pool/TEST/poolmeta.json as-is at https://foo.bat/poolmeta.json
 
-  [d] A or AAAA DNS record  (single)
-  [4] IPv4 address (multiple)
-  [c] Cancel
+# Pool Relay Registration
+Selected value: [d] A or AAAA DNS record (single)
+Enter relays's DNS record, only A or AAAA DNS records: relay.foo.com
+Enter relays's port: 6000
+Add more relay entries?
+Selected value: [n] No
 
-Enter relays's DNS record, only A or AAAA DNS records (default: ): relay.test.com
-Enter relays's port (default: ): 3001
+# Select main owner/pledge wallet (normal CLI wallet)
+Selected wallet: Test (100,000.000000 Ada)
+Wallet Test3 not registered on chain
 
-Select Pledge Wallet:
+Waiting for new block to be created (timeout = 600 slots, 600s)
+INFO: press any key to cancel and return (won't stop transaction)
 
-  bob  (1000.991236 ADA)
-  [c] Cancel
+Owner #1 : Test added!
 
-Funds in pledge wallet: 1000.991236 ADA
+Register a multi-owner pool (you need to have stake.vkey of any additional owner in a seperate wallet folder under $CNODE_HOME/priv/wallet)?
+Selected value: [n] No
 
-Wallet not registered on chain, press any key to continue with registration
+Use a separate rewards wallet from main owner?
+Selected value: [n] No
 
-... *wallet registration and pool registration output* ... 
-```
-**7.**  DONE!  
+Waiting for new block to be created (timeout = 600 slots, 600s)
+INFO: press any key to cancel and return (won't stop transaction)
 
-The final output on successful registration should look something like this:
-```
-New block was created - 23414
+Pool TEST successfully registered!
+Owner #1      : Test
+Reward Wallet : Test
+Pledge        : 50,000 Ada
+Margin        : 7.5 %
+Cost          : 340 Ada
 
-Pool LOVE successfully registered using wallet bob for pledge
-Pledge : 899 ADA
-Margin : 10%
-Cost   : 500 ADA
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Uncomment and set value for POOL_NAME in ./env with 'TEST'
+
+INFO: Total balance in 1 owner/pledge wallet(s) are: 99,497.996518 Ada
 ```
 
 
