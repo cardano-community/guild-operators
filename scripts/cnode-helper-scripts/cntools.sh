@@ -1323,7 +1323,7 @@ EOF
     println "DEBUG" "   ${FG_LGRAY}>${NC} If '${FG_YELLOW}all${NC}' is used and the wallet contain multiple assets,"
     println "DEBUG" "   ${FG_LGRAY}>${NC} then all assets will be transferred(incl Ada) to the destination address"
     println "DEBUG" " Minimum Amount:"
-    println "DEBUG" "   ${FG_LGRAY}>${NC} A minimum of ${FG_YELLOW}$(formatLovelace ${minUTxOValue})${NC} Ada has to be added for each asset(Ada included)"
+    println "DEBUG" "   ${FG_LGRAY}>${NC} A minimum of ${FG_LBLUE}$(formatLovelace ${minUTxOValue})${NC} Ada has to be added for each asset(Ada included)"
     echo
     
     sleep 0.1 && read -r -p "Amount (Ada): " amountADA 2>&6 && println "LOG" "Amount (Ada): ${amountADA}"
@@ -2157,7 +2157,7 @@ EOF
     fi
     
     if [[ ${reuse_wallets} = 'N' ]]; then
-      println "DEBUG" "Register a multi-owner pool (you need to have stake.vkey of any additional owner in a seperate wallet folder under \$CNODE_HOME/priv/wallet)?"
+      println "DEBUG" "\nRegister a multi-owner pool (you need to have stake.vkey of any additional owner in a seperate wallet folder under \$CNODE_HOME/priv/wallet)?"
       while true; do
         select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
         case $? in
@@ -2190,7 +2190,7 @@ EOF
     fi
 
     if [[ ${reuse_wallets} = 'N' ]]; then
-      println "DEBUG" "Use a separate rewards wallet from main owner?"
+      println "DEBUG" "\nUse a separate rewards wallet from main owner?"
       select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
       case $? in
         0) reward_wallet="${owner_wallets[0]}" ;;

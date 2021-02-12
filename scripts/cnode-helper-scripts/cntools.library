@@ -1201,6 +1201,7 @@ registerStakeWallet() {
   if ! submitTx "${tx_signed}"; then return 1; fi
   echo
   if ! verifyTx ${base_addr}; then return 1; fi
+  echo
 
   reward_lovelace=0
 }
