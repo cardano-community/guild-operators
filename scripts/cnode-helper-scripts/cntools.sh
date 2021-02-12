@@ -899,6 +899,7 @@ EOF
 
     getBaseAddress ${wallet_name}
     getPayAddress ${wallet_name}
+    getRewardAddress ${wallet_name}
     base_lovelace=0
     pay_lovelace=0
     
@@ -953,30 +954,27 @@ EOF
       println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Registered" "Unknown")"
     fi
     println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
-    if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-      getAddressInfo "${base_addr}"
-      println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Era" "$(jq -r '.era' <<< ${address_info})")"
-      println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Encoding" "$(jq -r '.encoding' <<< ${address_info})")"
-    fi
     println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Enterprise Address" "${pay_addr}")"
+    println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Reward/Stake Address" "${reward_addr}")"
     if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       getRewards ${wallet_name}
       if [[ "${reward_lovelace}" -ge 0 ]]; then
-        println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Reward/Stake Address" "${reward_addr}")"
-        println "$(printf "%-20s : ${FG_LBLUE}%s${NC} Ada" "Rewards" "$(formatLovelace ${reward_lovelace})")"
+        println "$(printf "%-20s : ${FG_LBLUE}%s${NC} Ada" "Rewards Available" "$(formatLovelace ${reward_lovelace})")"
         println "$(printf "%-20s : ${FG_LBLUE}%s${NC} Ada" "Funds + Rewards" "$(formatLovelace $((pay_lovelace + base_lovelace + reward_lovelace)))")"
-        delegation_pool_id=$(jq -r '.[0].delegation  // empty' <<< "${stake_address_info}")
-        if [[ -n ${delegation_pool_id} ]]; then
-          unset poolName
-          while IFS= read -r -d '' pool; do
-            getPoolID "$(basename ${pool})"
-            if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
-              poolName=$(basename ${pool}) && break
-            fi
-          done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-          echo
-          println "${FG_RED}Delegated${NC} to ${FG_GREEN}${poolName}${NC} ${FG_LGRAY}(${delegation_pool_id})${NC}"
-        fi
+      fi
+      getAddressInfo "${base_addr}"
+      println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Encoding" "$(jq -r '.encoding' <<< ${address_info})")"
+      delegation_pool_id=$(jq -r '.[0].delegation  // empty' <<< "${stake_address_info}" 2>/dev/null)
+      if [[ -n ${delegation_pool_id} ]]; then
+        unset poolName
+        while IFS= read -r -d '' pool; do
+          getPoolID "$(basename ${pool})"
+          if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
+            poolName=$(basename ${pool}) && break
+          fi
+        done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+        echo
+        println "${FG_RED}Delegated${NC} to ${FG_GREEN}${poolName}${NC} ${FG_LGRAY}(${delegation_pool_id})${NC}"
       fi
     fi
 
