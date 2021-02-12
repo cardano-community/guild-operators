@@ -6,6 +6,8 @@
 # Do NOT modify code below           #
 ######################################
 
+if renice_cmd="$(command -v renice)"; then ${renice_cmd} -n 19 $$ >/dev/null; fi
+
 PARENT="$(dirname $0)"
 if [[ ! -f "${PARENT}"/env ]]; then
   echo "ERROR: could not find common env file, please run prereqs.sh or manually download"
