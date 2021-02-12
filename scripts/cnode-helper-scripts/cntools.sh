@@ -4049,7 +4049,7 @@ EOF
         if [[ $(find "${policy}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | wc -c) -gt 0 ]]; then
           while IFS= read -r -d '' asset; do
             asset_filename=$(basename ${asset})
-            [[ -z ${asset_filename%.*} ]] && asset_name="<nameless>" || asset_name="${asset_filename%.*}"
+            [[ -z ${asset_filename%.*} ]] && asset_name="." || asset_name="${asset_filename%.*}"
             println "Asset         : Name: ${FG_MAGENTA}${asset_name}${NC} - Minted: ${FG_LBLUE}$(formatAsset "$(jq .minted "${asset}")")${NC}"
           done < <(find "${policy}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | sort -z)
         else
@@ -4218,7 +4218,7 @@ EOF
         asset_name_maxlen=5; asset_amount_maxlen=12
         while IFS= read -r -d '' asset; do
           asset_filename=$(basename ${asset})
-          [[ -z ${asset_filename%.*} ]] && asset_name="<nameless>" || asset_name="${asset_filename%.*}"
+          [[ -z ${asset_filename%.*} ]] && asset_name="." || asset_name="${asset_filename%.*}"
           [[ ${#asset_name} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#asset_name}
           asset_minted=$(jq '.minted //0' "${asset}")
           [[ ${#asset_minted} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_minted}
@@ -4338,8 +4338,8 @@ EOF
       
       println "Policy Name    : ${FG_GREEN}${policy_name}${NC}"
       println "Policy ID      : ${FG_LGRAY}${policy_id}${NC}"
-      [[ -z ${asset_name} ]] && asset_name_fmt="${FG_YELLOW}<nameless>${NC}" || asset_name_fmt="${FG_MAGENTA}${asset_name}${NC}"
-      println "Asset Name     : ${asset_name_fmt}"
+      [[ -z ${asset_name} ]] && asset_name="."
+      println "Asset Name     : ${FG_MAGENTA}${asset_name}${NC}"
       println "Minted         : ${FG_LBLUE}$(formatAsset ${asset_amount})${NC}"
       println "In Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)"
       
@@ -4478,8 +4478,8 @@ EOF
       
       println "Policy Name         : ${FG_GREEN}${policy_name}${NC}"
       println "Policy ID           : ${FG_LGRAY}${policy_id}${NC}"
-      [[ -z ${asset_name} ]] && asset_name_fmt="${FG_YELLOW}<nameless>${NC}" || asset_name_fmt="${FG_MAGENTA}${asset_name}${NC}"
-      println "Asset Name          : ${asset_name_fmt}"
+      [[ -z ${asset_name} ]] && asset_name="."
+      println "Asset Name          : ${asset_name}"
       println "Burned              : ${FG_LBLUE}$(formatAsset ${assets_to_burn})${NC}"
       println "Left in Address     : ${FG_LBLUE}$(formatAsset $(( asset_amount - assets_to_burn )))${NC}"
       println "Left in Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)"
