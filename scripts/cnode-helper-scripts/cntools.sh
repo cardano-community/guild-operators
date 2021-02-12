@@ -919,26 +919,23 @@ EOF
             if [[ ${#utxo_arr[@]} -eq 2 && ${utxo_arr[1]} = " Ada" ]]; then
               println "DEBUG" "$(printf "%-66s | ${FG_GREEN}%${asset_name_maxlen}s${NC} | ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "${utxo_arr[0]}" "Ada" "$(formatLovelace ${utxos["${utxo}"]})")"
             else
-              if [[ ${#utxo_arr[@]} -eq 3 ]];then
-                println "DEBUG" "$(printf "${FG_DGRAY}%$((69+asset_name_maxlen-${#utxo_arr[2]}-57))s${FG_LGRAY}%s${NC}.${FG_MAGENTA}%s${NC} | ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "PolID: " "${utxo_arr[1]}" "${utxo_arr[2]}" "$(formatAsset ${utxos["${utxo}"]})")"
-              else
-                println "DEBUG" "$(printf "${FG_DGRAY}%$((69+asset_name_maxlen-56))s${FG_LGRAY}%s${NC} | ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "PolID: " "${utxo_arr[1]}" "$(formatAsset ${utxos["${utxo}"]})")"
-              fi
+              [[ ${#utxo_arr[@]} -eq 3 ]] && asset_name="${utxo_arr[2]}" || asset_name="."
+              println "DEBUG" "$(printf "${FG_DGRAY}%10s${NC}${FG_LGRAY}%56s${NC} | ${FG_MAGENTA}%${asset_name_maxlen}s${NC} | ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "PolID: " "${utxo_arr[1]}" "${asset_name}" "$(formatAsset ${utxos["${utxo}"]})")"
             fi
           done
         fi
         for utxo_entry in "${utxo_output[@]}"; do println "DEBUG" "${utxo_entry}"; done
         if [[ ${#assets[@]} -gt 0 ]]; then
           println "\nASSET SUMMARY: ${FG_LBLUE}${#assets[@]} Asset-Type(s)${NC} $([[ ${#assets[@]} -gt 1 ]] && echo -e "/ ${FG_LBLUE}${#policyIDs[@]} Unique Policy ID(s)${NC}")\n"
-          println "DEBUG" "$(printf "%${asset_amount_maxlen}s | %-$((57+asset_name_maxlen))s\n" "Total Amount" "Asset $([[ ${#assets[@]} -gt 1 ]] && echo -e " (${FG_LGRAY}PolicyID[.AssetName]${NC})")")"
-          println "DEBUG" "$(printf "%$((asset_amount_maxlen+1))s+%-$((58+asset_name_maxlen))s\n" "" "" | tr " " "-")"
-          println "DEBUG" "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} | ${FG_GREEN}%s${NC}\n" "$(formatLovelace ${assets[lovelace]})" "Ada")"
+          println "DEBUG" "$(printf "%${asset_amount_maxlen}s | %-${asset_name_maxlen}s%s\n" "Total Amount" "Asset" "$([[ ${#assets[@]} -gt 1 ]] && echo -e " | PolicyID")")"
+          println "DEBUG" "$(printf "%$((asset_amount_maxlen+1))s+%$((asset_name_maxlen+2))s%s\n" "" "" "$([[ ${#assets[@]} -gt 1 ]] && printf "+%57s" "")" | tr " " "-")"
+          println "DEBUG" "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} | ${FG_GREEN}%-${asset_name_maxlen}s${NC}%s\n" "$(formatLovelace ${assets[lovelace]})" "Ada" "$([[ ${#assets[@]} -gt 1 ]] && echo " |")")"
           mapfile -d '' assets_sorted < <(printf '%s\0' "${!assets[@]}" | sort -z)
           for asset in "${assets_sorted[@]}"; do
             [[ ${asset} = "lovelace" ]] && continue
             IFS='.' read -ra asset_arr <<< "${asset}"
-            [[ ${#asset_arr[@]} -eq 1 ]] && asset_name="${FG_LGRAY}${asset_arr[0]}${NC}" || asset_name="${FG_LGRAY}${asset_arr[0]}.${FG_MAGENTA}${asset_arr[1]}${NC}"
-            println "DEBUG" "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} | %s\n" "$(formatAsset ${assets["${asset}"]})" "${asset_name}")"
+            [[ ${#asset_arr[@]} -eq 1 ]] && asset_name="." || asset_name="${asset_arr[1]}"
+            println "DEBUG" "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} | ${FG_MAGENTA}%-${asset_name_maxlen}s${NC} | ${FG_LGRAY}%s${NC}\n" "$(formatAsset ${assets["${asset}"]})" "${asset_name}" "${asset_arr[0]}")"
           done
         fi
         echo -e "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" >&6
