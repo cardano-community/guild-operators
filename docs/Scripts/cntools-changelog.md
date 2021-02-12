@@ -9,10 +9,11 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ##### Added
 - Multi Asset Token compatibility added throughout all CNTools operations. 
-  - Sending Ada and custom tokens is done through the normal Funds >> Send operation
+  - Sending Ada and custom tokens is done through the normal 'Funds >> Send' operation
 
 ##### Changed
 - Metadata moved to a new Advanced section used for devs/advanced operations not normally used by SPOs.
+  - Accessed by enabling developer/advanced mode in cntools.config or by providing runtime flag '-a'
 
 ## [7.1.6] - 2021-02-10
 - Update curl commands when file isnt downloaded correctly (to give correct return code)
