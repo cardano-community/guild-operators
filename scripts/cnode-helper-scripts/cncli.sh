@@ -586,10 +586,12 @@ EOF"
     getNodeMetrics
     [[ ${slotnum} -eq 0 ]] && continue # failed to grab node metrics
     [[ ${sendslots_epoch} -eq ${epochnum} ]] && continue # this epoch is already sent
-    [[ ${slot_in_epoch} -gt 3600 ]] && continue # only allow slots to be sent in the first hour after epoch boundary
+    [[ ${slot_in_epoch} -lt 300 || ${slot_in_epoch} -gt 3600 ]] && continue # only allow slots to be sent in the first hour after epoch boundary, wait 5min after epoch boundary
     leaderlog_cnt=$(sqlite3 "${CNCLI_DB}" "SELECT COUNT(*) FROM slots WHERE epoch=${epochnum} and pool_id='${POOL_ID}';")
     [[ ${leaderlog_cnt} -eq 0 ]] && echo "ERROR: no leaderlogs for epoch ${epochnum} and pool id '${POOL_ID}' found in cncli DB" && continue
-    ${CNCLI} sendslots --config "${pt_config}" --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}"
+    cncli_ptsendslots=$(${CNCLI} sendslots --config "${pt_config}" --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}")
+    echo -e "${cncli_ptsendslots}"
+    if [[ $(jq -r '.status //empty' <<< "${cncli_ptsendslots}" 2>/dev/null) = "error" ]]; then continue; fi
     echo "Slots for epoch ${epochnum} successfully sent to PoolTool for pool id '${POOL_ID}' !"
     sendslots_epoch=${epochnum}
   done
