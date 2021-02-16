@@ -187,7 +187,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
       echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
       err_exit
     fi
-  elif [[ "${OS_ID}" =~ rhel ]] || [[ "${DISTRO}" =~ Fedora ]]; then
+  elif [[ "${OS_ID}" =~ rhel ]] || [ "${OS_ID}" =~ fedora ]] || [[ "${DISTRO}" =~ Fedora ]]; then
     #CentOS/RHEL/Fedora
     echo "Using yum to prepare packages for ${DISTRO} system"
     echo "  Updating system packages..."
