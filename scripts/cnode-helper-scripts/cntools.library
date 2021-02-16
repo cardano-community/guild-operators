@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=7
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=2
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=0
+CNTOOLS_PATCH_VERSION=1
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -21,7 +21,6 @@ CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PAT
 [[ -z ${TMP_FOLDER} ]] && TMP_FOLDER=/tmp/cntools
 [[ -z ${TIMEOUT_NO_OF_SLOTS} ]] && TIMEOUT_NO_OF_SLOTS=600
 [[ -z ${TIMEOUT_LEDGER_STATE} ]] && TIMEOUT_LEDGER_STATE=300
-[[ -z ${SHELLEY_TRANS_FILENAME} ]] && SHELLEY_TRANS_FILENAME="${CNODE_HOME}/guild-db/shelley_trans_epoch"
 [[ ${SHELLEY_TRANS_FILENAME} =~ ^${CNODE_HOME}/db/ ]] && mkdir -p "${CNODE_HOME}/guild-db" && SHELLEY_TRANS_FILENAME="${CNODE_HOME}/guild-db/shelley_trans_epoch"
 [[ -z ${WALLET_SELECTION_FILTER_LIMIT} ]] && WALLET_SELECTION_FILTER_LIMIT=10
 [[ -z ${KES_ALERT_PERIOD} ]] && KES_ALERT_PERIOD=172800 # default 2 days
@@ -947,10 +946,41 @@ getAddressInfo() {
 # Return      : populates associative arrays ${assets[]} & ${policyIDs[]}
 getBalance() {
   declare -gA utxos=(); declare -gA assets=(); declare -gA policyIDs=()
-  assets["lovelace"]=0
+  assets["lovelace"]=0; utxo_cnt=0
   asset_name_maxlen=5; asset_amount_maxlen=12
   tx_in=""
+  
+  if ! utxo_raw=$(${CCLI} query utxo ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${1}"); then return 1; fi
+  
+  [[ -z ${utxo_raw} ]] && return
+  
+  while IFS= read -r line; do
+    IFS=' ' read -ra utxo_entry <<< "${line}"
+    [[ ${#utxo_entry[@]} -lt 4 ]] && continue
+    ((utxo_cnt++))
+    tx_in+=" --tx-in ${utxo_entry[0]}#${utxo_entry[1]}"
+    utxos["${utxo_entry[0]}#${utxo_entry[1]}. Ada"]=${utxo_entry[2]} # Space added before 'Ada' for sort to place it first
+    assets["lovelace"]=$(( ${assets["lovelace"]:-0} + ${utxo_entry[2]} ))
+    if [[ ${#utxo_entry[@]} -gt 4 ]]; then
+      idx=5
+      while [[ ${#utxo_entry[@]} -gt ${idx} ]]; do
+        local asset_amount=${utxo_entry[${idx}]}
+        local asset_hash_name="${utxo_entry[$((idx+1))]}"
+        IFS='.' read -ra asset <<< "${asset_hash_name}"
+        policyIDs["${asset[0]}"]=1
+        [[ ${#asset[@]} -eq 2 && ${#asset[1]} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#asset[1]}
+        [[ ${#asset_amount} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_amount}
+        assets["${asset_hash_name}"]=$(( ${assets["${asset_hash_name}"]:-0} + asset_amount ))
+        utxos["${utxo_entry[0]}#${utxo_entry[1]}.${asset_hash_name}"]=${asset_amount}
+        idx=$(( idx + 3 ))
+      done
+    fi
+  done <<< "${utxo_raw}"
+  local lovelace_fmt="$(formatLovelace ${assets["lovelace"]})"
+  [[ ${#lovelace_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#lovelace_fmt}
 
+  # Alternative code using jq (jq has issues with large integer numbers)
+  : <<'END_COMMENT'
   if ! utxo_JSON=$(${CCLI} query utxo ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${1}" --out-file /dev/stdout); then return 1; fi
   
   utxo_cnt=$(jq length <<< ${utxo_JSON})
@@ -991,6 +1021,7 @@ getBalance() {
       done < <(base64 -d <<< ${assets2_b64} | jq -r 'to_entries[] | [(.value[0] | if . == null or . == "" then "_" else . end), .value[1]//0] | @tsv')
     done < <(base64 -d <<< ${assets_b64} | jq -r 'to_entries[] | [(.value[0] //empty), (.value[1] | @base64)] | @tsv')
   done < <(jq -r 'to_entries[] | [.key, .value.amount[0], (.value.amount[1] | @base64)] | @tsv' <<< ${utxo_JSON})
+END_COMMENT
 }
 
 # Command     : getAssetsTxOut [PolicyID.AssetName] [Amount]
@@ -1107,11 +1138,11 @@ getTTL() {
 # Parameters  : type  >  type of transaction, e.g 'payment'
 buildOfflineJSON() {
   offlineJSON="{}"
-  if ! offlineJSON=$(jq ". += { id: $(date +%s) }" <<< ${offlineJSON}); then return 1; fi
+  if ! offlineJSON=$(jq ". += { id: \"$(date +%s)\" }" <<< ${offlineJSON}); then return 1; fi
   if ! offlineJSON=$(jq ". += { type: \"${1}\" }" <<< ${offlineJSON}); then return 1; fi
   if ! offlineJSON=$(jq ". += { \"date-created\": \"$(date --iso-8601=s)\" }" <<< ${offlineJSON}); then return 1; fi
   if ! offlineJSON=$(jq ". += { \"date-expire\": \"$(date --iso-8601=s --date="@$(($(date +%s)+ttl_enter))")\" }" <<< ${offlineJSON}); then return 1; fi
-  if ! offlineJSON=$(jq ". += { ttl: ${ttl} }" <<< ${offlineJSON}); then return 1; fi
+  if ! offlineJSON=$(jq ". += { ttl: \"${ttl}\" }" <<< ${offlineJSON}); then return 1; fi
 }
 
 # Command     : registerStakeWallet [wallet name] [optional: skip validation]
@@ -1181,13 +1212,13 @@ registerStakeWallet() {
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Registration"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txFee: $(( min_fee + keyDeposit )) }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txFee: \"$(( min_fee + keyDeposit ))\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -1261,14 +1292,14 @@ deregisterStakeWallet() {
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet De-Registration"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"amount-returned\": ${keyDeposit} }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txFee: ${min_fee} }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"amount-returned\": \"${keyDeposit}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -1385,14 +1416,14 @@ sendAssets() {
     if ! offlineJSON=$(jq ". += { \"destination-address\": \"${d_addr}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { "assets": [] }" <<< ${offlineJSON}); then return 1; fi
     for idx in "${!assets_to_send[@]}"; do
-      [[ ${assets_to_send[${idx}]} -gt 0 ]] && if ! offlineJSON=$(jq "."assets" += [{ asset: \"${idx}\", amount: ${assets_to_send[${idx}]} }]" <<< ${offlineJSON}); then return 1; fi
+      [[ ${assets_to_send[${idx}]} -gt 0 ]] && if ! offlineJSON=$(jq "."assets" += [{ asset: \"${idx}\", amount: \"${assets_to_send[${idx}]}\" }]" <<< ${offlineJSON}); then return 1; fi
     done
-    if ! offlineJSON=$(jq ". += { txFee: ${min_fee} }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${s_wallet}' payment signing key\", vkey: $(jq -c . "${s_payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -1453,13 +1484,13 @@ delegate() {
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Delegation"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txFee: ${min_fee} }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -1521,14 +1552,14 @@ withdrawRewards() {
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Rewards Withdrawal"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { rewards: ${reward_lovelace} }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txFee: ${min_fee} }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { rewards: \"${reward_lovelace}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -1620,11 +1651,11 @@ registerPool() {
     if ! buildOfflineJSON "Pool Registration"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-name\": \"${pool_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-metadata\": $(jq -c . "${pool_meta_file}") }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"pool-pledge\": ${pledge_ada} }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"pool-pledge\": \"${pledge_ada}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-margin\": \"${margin}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"pool-cost\": ${cost_ada} }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"pool-cost\": \"${cost_ada}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-reg-cert\": $(jq -c . "${pool_regcert_file}") }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txFee: $(( min_fee + poolDeposit )) }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txFee: \"$(( min_fee + poolDeposit ))\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     for index in "${!owner_wallets[@]}"; do
@@ -1638,7 +1669,7 @@ registerPool() {
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { witness: [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -1719,11 +1750,11 @@ modifyPool() {
     if ! buildOfflineJSON "Pool Update"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-name\": \"${pool_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-metadata\": $(jq -c . "${pool_meta_file}") }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"pool-pledge\": ${pledge_ada} }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"pool-pledge\": \"${pledge_ada}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-margin\": \"${margin}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"pool-cost\": ${cost_ada} }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"pool-cost\": \"${cost_ada}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-reg-cert\": $(jq -c . "${pool_regcert_file}") }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txFee: ${min_fee} }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     for index in "${!owner_wallets[@]}"; do
@@ -1736,7 +1767,7 @@ modifyPool() {
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { witness: [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -1818,14 +1849,14 @@ deRegisterPool() {
       if ! offlineJSON=$(jq ". += { \"pool-name\": \"${pool_name}\" }" <<< ${offlineJSON}); then return 1; fi
       if ! offlineJSON=$(jq ". += { \"pool-ticker\": \"\" }" <<< ${offlineJSON}); then return 1; fi
     fi
-    if ! offlineJSON=$(jq ". += { \"retire-epoch\": ${epoch_enter} }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txFee: ${min_fee} }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"retire-epoch\": \"${epoch_enter}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' stake signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -1926,12 +1957,12 @@ sendMetadata() {
     if ! buildOfflineJSON "Metadata"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { metadata: $(jq -c . "${metafile}") }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txFee: ${min_fee} }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -2005,17 +2036,17 @@ mintAsset() {
     if ! offlineJSON=$(jq ". += { \"policy-name\": \"${policy_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"policy-id\": \"${policy_id}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"asset-name\": \"${asset_name}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"asset-amount\": ${asset_amount} }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"asset-minted\": ${asset_minted} }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"asset-amount\": \"${asset_amount}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"asset-minted\": \"${asset_minted}\" }" <<< ${offlineJSON}); then return 1; fi
     if [[ -n ${metafile_param} ]]; then
       if ! offlineJSON=$(jq ". += { metadata: $(jq -c . "${metafile}") }" <<< ${offlineJSON}); then return 1; fi
     fi
-    if ! offlineJSON=$(jq ". += { txFee: ${min_fee} }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -2088,17 +2119,17 @@ burnAsset() {
     if ! offlineJSON=$(jq ". += { \"policy-name\": \"${policy_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"policy-id\": \"${policy_id}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"asset-name\": \"${asset_name}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"asset-amount\": ${asset_amount} }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"asset-minted\": ${asset_minted} }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"asset-amount\": \"${asset_amount}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"asset-minted\": \"${asset_minted}\" }" <<< ${offlineJSON}); then return 1; fi
     if [[ -n ${metafile_param} ]]; then
       if ! offlineJSON=$(jq ". += { metadata: $(jq -c . "${metafile}") }" <<< ${offlineJSON}); then return 1; fi
     fi
-    if ! offlineJSON=$(jq ". += { txFee: ${min_fee} }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
