@@ -228,38 +228,10 @@ while IFS= read -r -d '' pool; do
 done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
 [[ ${kes_rotation_needed} = "yes" ]] && waitForInput "press any key to proceed"
 
-# Verify shelley transition epoch
-if [[ -z ${SHELLEY_TRANS_EPOCH} ]]; then # unknown network
+# Verify that shelley transition epoch was properly identified by env
+if [[ ${SHELLEY_TRANS_EPOCH} -lt 0 ]]; then # unknown network
   clear
-  SHELLEY_TRANS_EPOCH=$(cat "${SHELLEY_TRANS_FILENAME}" 2>/dev/null)
-  if [[ -z ${SHELLEY_TRANS_EPOCH} ]]; then # not yet identified
-    if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-      getNodeMetrics
-      epoch=$(jq '.cardano.node.metrics.epoch.int.val //0' <<< "${node_metrics}")
-      slot_in_epoch=$(jq '.cardano.node.metrics.slotInEpoch.int.val //0' <<< "${node_metrics}")
-      slot_num=$(jq '.cardano.node.metrics.slotNum.int.val //0' <<< "${node_metrics}")
-      calc_slot=0
-      byron_epochs=${epoch}
-      shelley_epochs=0
-      while [[ ${byron_epochs} -ge 0 ]]; do
-        calc_slot=$(( (byron_epochs*BYRON_EPOCH_LENGTH) + (shelley_epochs*EPOCH_LENGTH) + slot_in_epoch ))
-        [[ ${calc_slot} -eq ${slot_num} ]] && break
-        ((byron_epochs--))
-        ((shelley_epochs++))
-      done
-      node_sync="NODE SYNC: Epoch[${epoch}] - Slot in Epoch[${slot_in_epoch}] - Slot[${slot_num}]\n"
-      if [[ ${calc_slot} -ne ${slot_num} ]]; then
-        myExit 1 "${FG_YELLOW}WARN${NC}: Failed to calculate shelley transition epoch\n\n${node_sync}"
-      elif [[ ${shelley_epochs} -eq 0 ]]; then
-        myExit 1 "${FG_YELLOW}WARN${NC}: The network has not reached the hard fork from Byron to shelley, please wait to use CNTools until your node is in shelley era or start it in Offline mode\n\n${node_sync}"
-      else
-        shelleyTransitionEpoch=${byron_epochs}
-      fi
-    else
-      myExit 1 "${FG_YELLOW}WARN${NC}: Offline mode enabled and this is an unknown network, please manually create and set shelley transition epoch:\nE.g. : ${FG_LGRAY}echo 74 > \"${SHELLEY_TRANS_FILENAME}\"${NC}"
-    fi
-  fi
-  echo "${SHELLEY_TRANS_EPOCH}" > "${SHELLEY_TRANS_FILENAME}"
+  myExit 1 "${FG_YELLOW}WARN${NC}: This is an unknown network, please manually set SHELLEY_TRANS_EPOCH variable in env file"
 fi
 
 ###################################################################
@@ -1472,7 +1444,6 @@ EOF
     for idx in "${!assets_to_send[@]}"; do
       [[ ${idx} = "lovelace" ]] && continue
       println "                  ${FG_LBLUE}$(formatAsset ${assets_to_send[${idx}]})${NC} ${FG_LGRAY}${idx}${NC}"
-      [[ ${assets_to_send[${idx}]} -gt 0 ]] && if ! offlineJSON=$(jq "."assets" += [{ asset: \"${idx}\", amount: ${assets_to_send[${idx}]} }]" <<< ${offlineJSON}); then return 1; fi
     done
     if [[ -n "${d_wallet}" ]]; then
       println "  To            : ${FG_GREEN}${d_wallet}${NC}${d_wallet_type}"
@@ -2333,10 +2304,10 @@ EOF
     done
     owner_json=$({
       printf '['
-      printf '{"id":%s,"wallet_name":"%s"},\n' "${owner_array[@]}" | sed '$s/,$//'
+      printf '{"id":"%s","wallet_name":"%s"},\n' "${owner_array[@]}" | sed '$s/,$//'
       printf ']'
     } | jq -c .)
-    echo "{\"owners\":$owner_json,\"rewardWallet\":\"$reward_wallet\",\"pledgeADA\":$pledge_ada,\"margin\":$margin,\"costADA\":$cost_ada,\"json_url\":\"$meta_json_url\",\"relays\": $relay_json}" > "${pool_config}"
+    echo "{\"owners\":$owner_json,\"rewardWallet\":\"$reward_wallet\",\"pledgeADA\":\"$pledge_ada\",\"margin\":\"$margin\",\"costADA\":\"$cost_ada\",\"json_url\":\"$meta_json_url\",\"relays\": $relay_json}" > "${pool_config}"
     
     chmod 600 "${POOL_FOLDER}/${pool_name}/"*
 
@@ -4035,7 +4006,7 @@ EOF
         echo
         println "Policy Name   : ${FG_GREEN}$(basename "${policy}")${NC}"
         println "Policy ID     : ${FG_LGRAY}$(cat "${policy}/${ASSET_POLICY_ID_FILENAME}")${NC}"
-        ttl=$(jq -e '.scripts[0].slot //0' "${policy}/${ASSET_POLICY_SCRIPT_FILENAME}")
+        ttl=$(jq -er '.scripts[0].slot //0' "${policy}/${ASSET_POLICY_SCRIPT_FILENAME}")
         current_slot=$(getSlotTipRef)
         if [[ ${ttl} -eq 0 ]]; then
           println "Policy Expire : ${FG_LGRAY}unlimited${NC}"
@@ -4048,7 +4019,7 @@ EOF
           while IFS= read -r -d '' asset; do
             asset_filename=$(basename ${asset})
             [[ -z ${asset_filename%.*} ]] && asset_name="." || asset_name="${asset_filename%.*}"
-            println "Asset         : Name: ${FG_MAGENTA}${asset_name}${NC} - Minted: ${FG_LBLUE}$(formatAsset "$(jq .minted "${asset}")")${NC}"
+            println "Asset         : Name: ${FG_MAGENTA}${asset_name}${NC} - Minted: ${FG_LBLUE}$(formatAsset "$(jq -r .minted "${asset}")")${NC}"
           done < <(find "${policy}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | sort -z)
         else
           println "Asset         : ${FG_LGRAY}No assets minted for this policy!${NC}"
@@ -4207,7 +4178,7 @@ EOF
       policy_script_file="${policy_folder}/${ASSET_POLICY_SCRIPT_FILENAME}"
       policy_id_file="${policy_folder}/${ASSET_POLICY_ID_FILENAME}"
       policy_id="$(cat "${policy_id_file}")"
-      policy_ttl=$(jq '.scripts[0].slot //0' "${policy_script_file}")
+      policy_ttl=$(jq -r '.scripts[0].slot //0' "${policy_script_file}")
       [[ ${policy_ttl} -gt 0 && ${policy_ttl} -lt $(getSlotTipRef) ]] && println "ERROR" "${FG_RED}ERROR${NC}: Policy expired!" && waitForInput && continue
       
       echo
@@ -4218,7 +4189,7 @@ EOF
           asset_filename=$(basename ${asset})
           [[ -z ${asset_filename%.*} ]] && asset_name="." || asset_name="${asset_filename%.*}"
           [[ ${#asset_name} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#asset_name}
-          asset_minted=$(jq '.minted //0' "${asset}")
+          asset_minted=$(jq -r '.minted //0' "${asset}")
           [[ ${#asset_minted} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_minted}
         done < <(find "${policy_folder}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | sort -z)
         println "DEBUG" "$(printf "%${asset_amount_maxlen}s | %s\n" "Total Amount" "Policy ID[.AssetName]")"
@@ -4226,7 +4197,7 @@ EOF
         while IFS= read -r -d '' asset; do
           asset_filename=$(basename ${asset})
           [[ -z ${asset_filename%.*} ]] && asset_name="${FG_LGRAY}${policy_id}${NC}" || asset_name="${FG_LGRAY}${policy_id}.${FG_MAGENTA}${asset_filename%.*}${NC}"
-          asset_minted=$(jq '.minted //0' "${asset}")
+          asset_minted=$(jq -r '.minted //0' "${asset}")
           println "DEBUG" "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} | %s\n" "${asset_minted}" "${asset_name}")"
         done < <(find "${policy_folder}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | sort -z)
         println "DEBUG" "\nEnter an existing AssetName to mint more tokens or enter a new name to create a new Asset for this Policy"
@@ -4244,7 +4215,7 @@ EOF
       [[ -z "${asset_amount}" ]] && println "ERROR" "${FG_RED}ERROR${NC}: Amount empty, please set a valid integer number!" && waitForInput && continue
       [[ ! ${asset_amount} =~ [0-9]+ ]] && println "ERROR" "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue
       
-      [[ -f "${asset_file}" ]] && asset_minted=$(( $(jq .minted "${asset_file}") + asset_amount )) || asset_minted=${asset_amount}
+      [[ -f "${asset_file}" ]] && asset_minted=$(( $(jq -r .minted "${asset_file}") + asset_amount )) || asset_minted=${asset_amount}
       
       metafile_param=""
       println "DEBUG" "\nDo you want to attach a metadata JSON file to the minting transaction?"
@@ -4326,7 +4297,7 @@ EOF
       fi
       
       if [[ ! -f "${asset_file}" ]]; then echo "{}" > ${asset_file}; fi
-      assetJSON=$( jq ". += {minted: ${asset_minted}, name: \"${asset_name}\", policyID: \"${policy_id}\", policyValidBeforeSlot: ${policy_ttl}, lastUpdate: \"$(date)\", lastAction: \"mint ${asset_amount}\"}" < ${asset_file})
+      assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"${asset_name}\", policyID: \"${policy_id}\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date)\", lastAction: \"mint ${asset_amount}\"}" < ${asset_file})
       echo -e "${assetJSON}" > ${asset_file}
 
       if ! verifyTx ${addr}; then waitForInput && continue; fi
@@ -4429,7 +4400,7 @@ EOF
       policy_script_file="${policy_folder}/${ASSET_POLICY_SCRIPT_FILENAME}"
       policy_id_file="${policy_folder}/${ASSET_POLICY_ID_FILENAME}"
       policy_id="$(cat "${policy_id_file}")"
-      policy_ttl=$(jq '.scripts[0].slot //0' "${policy_script_file}")
+      policy_ttl=$(jq -r '.scripts[0].slot //0' "${policy_script_file}")
       [[ ${policy_ttl} -gt 0 && ${policy_ttl} -lt $(getSlotTipRef) ]] && println "ERROR" "${FG_RED}ERROR${NC}: Policy expired!" && waitForInput && continue
       
       # Ask amount to burn
@@ -4439,7 +4410,7 @@ EOF
       [[ ${assets_to_burn} = "all" ]] && assets_to_burn=${asset_amount}
       [[ ! ${assets_to_burn} =~ [0-9]+ ]] && println "ERROR" "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue
       [[ ${assets_to_burn} -gt ${asset_amount} ]] && println "ERROR" "${FG_RED}ERROR${NC}: Amount exceeding assets in address, you can only burn ${FG_LBLUE}$(formatAsset "${asset_amount}")${NC}" && waitForInput && continue
-      asset_minted=$(( $(jq .minted "${asset_file}") - assets_to_burn ))
+      asset_minted=$(( $(jq -r .minted "${asset_file}") - assets_to_burn ))
       
       # Attach metadata?
       metafile_param=""
@@ -4466,7 +4437,7 @@ EOF
       
       # TODO: Update asset file
       if [[ ! -f "${asset_file}" ]]; then echo "{}" > ${asset_file}; fi
-      assetJSON=$( jq ". += {minted: ${asset_minted}, name: \"${asset_name}\", policyID: \"${policy_id}\", policyValidBeforeSlot: ${policy_ttl}, lastUpdate: \"$(date)\", lastAction: \"burn ${assets_to_burn}\"}" < ${asset_file})
+      assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"${asset_name}\", policyID: \"${policy_id}\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date)\", lastAction: \"burn ${assets_to_burn}\"}" < ${asset_file})
       echo -e "${assetJSON}" > ${asset_file}
 
       if ! verifyTx ${addr}; then waitForInput && continue; fi
