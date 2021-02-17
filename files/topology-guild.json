@@ -9,5 +9,6 @@
     {"addr": "relay-1.stakepool.at","port": 54326,"valency": 1,"name": "atada"},
     {"addr": "185.161.193.105","port": 6011,"valency": 1,"name": "clio-1"},
     {"addr": "148.72.153.168","port": 18000,"valency": 1,"name": "redo" }
+    {"addr": "relay.guild.cryptobounty.org","port": 9198,"valency": 1,"name": "bnty1" }
   ]
 }
