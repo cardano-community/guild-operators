@@ -4541,16 +4541,16 @@ EOF
     
     key_del_cnt=0
     while IFS= read -r -d '' file; do
-      unlockFile "${file}" && safeDel "${file}" && $((key_del_cnt++))
+      unlockFile "${file}" && safeDel "${file}" && ((key_del_cnt++))
     done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_PAY_SK_FILENAME}${enc_postfix}" -print0 2>/dev/null)
     while IFS= read -r -d '' file; do
-      unlockFile "${file}" && safeDel "${file}" && $((key_del_cnt++))
+      unlockFile "${file}" && safeDel "${file}" && ((key_del_cnt++))
     done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_STAKE_SK_FILENAME}${enc_postfix}" -print0 2>/dev/null)
     while IFS= read -r -d '' file; do
-      unlockFile "${file}" && safeDel "${file}" && $((key_del_cnt++))
+      unlockFile "${file}" && safeDel "${file}" && ((key_del_cnt++))
     done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}${enc_postfix}" -print0 2>/dev/null)
     while IFS= read -r -d '' file; do
-      unlockFile "${file}" && safeDel "${file}" && $((key_del_cnt++))
+      unlockFile "${file}" && safeDel "${file}" && ((key_del_cnt++))
     done < <(find "${ASSET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${ASSET_POLICY_SK_FILENAME}${enc_postfix}" -print0 2>/dev/null)
     
     if [[ ${key_del_cnt} -eq 0 ]]; then
