@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=7
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=2
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=2
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -2075,10 +2075,11 @@ burnAsset() {
     println "LOG" "Current slot is ${tip_ref}, setting ttl to ${ttl} based on policy expiration"
   fi
   
-  getAssetsTxOut "${asset}" "-${assets_to_burn}"
+  [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".${asset_name}"
+  getAssetsTxOut "${policy_id}${asset_name_out}" "-${assets_to_burn}"
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${addr}+0${assets_tx_out}\" --mint \"-${assets_to_burn} ${asset}\" ${metafile_param} --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${addr}+0${assets_tx_out}" --mint "-${assets_to_burn} ${asset}" ${metafile_param} --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${addr}+0${assets_tx_out}\" --mint \"-${assets_to_burn} ${policy_id}${asset_name_out}\" ${metafile_param} --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${addr}+0${assets_tx_out}" --mint "-${assets_to_burn} ${policy_id}${asset_name_out}" ${metafile_param} --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_FOLDER}"/tx0.tmp
@@ -2105,7 +2106,7 @@ burnAsset() {
   build_args=(
     ${tx_in}
     --tx-out "${addr}+${newBalance}${assets_tx_out}"
-    --mint "-${assets_to_burn} ${asset}"
+    --mint "-${assets_to_burn} ${policy_id}${asset_name_out}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
