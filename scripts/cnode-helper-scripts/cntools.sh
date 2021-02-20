@@ -3592,7 +3592,7 @@ EOF
        [[ ${backup_cnt} -eq 0 ]] && println "\nNo folders found to include in backup :(" && waitForInput && continue
        echo
 
-       println "ACTION" "tar cf ${backup_file} ${backup_list[@]}"
+       println "ACTION" "tar cf ${backup_file} ${backup_list[*]}"
        if ! output=$(tar cf "${backup_file}" "${backup_list[@]}" 2>&1); then println "ERROR" "${FG_RED}ERROR${NC}: during tarball creation:\n${output}" && waitForInput && continue; fi
        if [[ ${#excluded_files[@]} -gt 0 ]]; then
          println "ACTION" "tar --wildcards --file=\"${backup_file}\" ${excluded_files[*]}"
@@ -3722,7 +3722,7 @@ EOF
          archive_dest="${CNODE_HOME}/priv/archive"
          if ! mkdir -p "${archive_dest}"; then println "ERROR" "${FG_RED}ERROR${NC}: failed to create archive directory:\n${archive_dest}" && waitForInput && continue; fi
          archive_file="${archive_dest}/archive_$(date '+%Y%m%d%H%M%S').tar.gz"
-         println "ACTION" "tar cfz ${archive_file} ${archive_list[@]}"
+         println "ACTION" "tar cfz ${archive_file} ${archive_list[*]}"
          if ! output=$(tar cfz "${archive_file}" "${archive_list[@]}" 2>&1); then println "ERROR" "${FG_RED}ERROR${NC}: during archive/backup:\n${output}" && waitForInput && continue; fi
          println "DEBUG" "An archive of current priv folder has been taken and stored in ${FG_LGRAY}${archive_file}${NC}"
          println "DEBUG" "Please set a password to GPG encrypt the archive"
@@ -4511,10 +4511,10 @@ EOF
     println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo
     
-    println "DEBUG" "The following files will be removed (incl encrypted versions)"
-    println "DEBUG"
-    println "DEBUG" 
-    println "DEBUG"
+    println "DEBUG" "The following files will be removed"
+    println "DEBUG" "Wallet ${FG_LGRAY}${WALLET_PAY_SK_FILENAME}${NC} / ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}"
+    println "DEBUG" "Pool   ${FG_LGRAY}${POOL_COLDKEY_SK_FILENAME}${NC}"
+    [[ -d "${ASSET_FOLDER}" ]] && println "DEBUG" "Asset  ${FG_LGRAY}${ASSET_POLICY_SK_FILENAME}${NC}"
     echo
     
     println "DEBUG" "${FG_RED}Do you acknowledge that you have already taken a full backup, and are OK to simply delete the private keys? There is no going back !!!${NC}"
@@ -4539,19 +4539,25 @@ EOF
     esac
     echo
     
+    key_del_cnt=0
     while IFS= read -r -d '' file; do
-      unlockFile "${file}" && safeDel "${file}"
-    done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_PAY_SK_FILENAME}${enc_postfix}" -print0)
+      unlockFile "${file}" && safeDel "${file}" && $((key_del_cnt++))
+    done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_PAY_SK_FILENAME}${enc_postfix}" -print0 2>/dev/null)
     while IFS= read -r -d '' file; do
-      unlockFile "${file}" && safeDel "${file}"
-    done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_STAKE_SK_FILENAME}${enc_postfix}" -print0)
+      unlockFile "${file}" && safeDel "${file}" && $((key_del_cnt++))
+    done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_STAKE_SK_FILENAME}${enc_postfix}" -print0 2>/dev/null)
     while IFS= read -r -d '' file; do
-      unlockFile "${file}" && safeDel "${file}"
-    done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}${enc_postfix}" -print0)
+      unlockFile "${file}" && safeDel "${file}" && $((key_del_cnt++))
+    done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}${enc_postfix}" -print0 2>/dev/null)
     while IFS= read -r -d '' file; do
-      unlockFile "${file}" && safeDel "${file}"
-    done < <(find "${ASSET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${ASSET_POLICY_SK_FILENAME}${enc_postfix}" -print0)
-    echo
+      unlockFile "${file}" && safeDel "${file}" && $((key_del_cnt++))
+    done < <(find "${ASSET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${ASSET_POLICY_SK_FILENAME}${enc_postfix}" -print0 2>/dev/null)
+    
+    if [[ ${key_del_cnt} -eq 0 ]]; then
+      println "No private keys found!"
+    else
+      println "\n${FG_LBLUE}${key_del_cnt}${NC} private key(s) found and deleted!"
+    fi
     
     waitForInput && continue
 
