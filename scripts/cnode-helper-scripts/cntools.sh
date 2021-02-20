@@ -1066,10 +1066,7 @@ EOF
     echo
     println "DEBUG" "# Removing write protection from all wallet files"
     while IFS= read -r -d '' file; do
-      if [[ ${ENABLE_CHATTR} = true && $(lsattr -R "$file") =~ -i- ]]; then
-        sudo chattr -i "${file}"
-      fi
-      chmod 600 "${file}"
+      unlockFile "${file}"
       filesUnlocked=$((++filesUnlocked))
       println "DEBUG" "${file}"
     done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
@@ -1152,10 +1149,7 @@ EOF
     println "DEBUG" "# Write protecting all wallet keys with 400 permission and if enabled 'chattr +i'"
     while IFS= read -r -d '' file; do
       [[ ${file} = *.addr ]] && continue
-      chmod 400 "${file}"
-      if [[ ${ENABLE_CHATTR} = true && ! $(lsattr -R "$file") =~ -i- ]]; then
-        sudo chattr +i "${file}"
-      fi
+      lockFile "${file}"
       filesLocked=$((++filesLocked))
       println "DEBUG" "${file}"
     done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
@@ -2818,10 +2812,7 @@ EOF
     echo
     println "DEBUG" "# Removing write protection from all pool files"
     while IFS= read -r -d '' file; do
-      if [[ ${ENABLE_CHATTR} = true && $(lsattr -R "$file") =~ -i- ]]; then
-        sudo chattr -i "${file}"
-      fi
-      chmod 600 "${file}"
+      unlockFile "${file}"
       filesUnlocked=$((++filesUnlocked))
       println "DEBUG" "${file}"
     done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -print0)
@@ -2901,10 +2892,7 @@ EOF
     echo
     println "DEBUG" "# Write protecting all pool files with 400 permission and if enabled 'chattr +i'"
     while IFS= read -r -d '' file; do
-      chmod 400 "$file"
-      if [[ ${ENABLE_CHATTR} = true && ! $(lsattr -R "$file") =~ -i- ]]; then
-        sudo chattr +i "$file"
-      fi
+      lockFile "$file"
       filesLocked=$((++filesLocked))
       println "DEBUG" "$file"
     done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -print0)
@@ -3547,31 +3535,27 @@ EOF
   println " >> BACKUP & RESTORE"
   println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   echo
-  println "DEBUG" "Create or restore a backup of CNTools wallets, pools and configuration files"
+  println "DEBUG" "Create or restore a backup of CNTools wallets & pools"
   echo
   println "DEBUG" "Backup or Restore?"
   select_opt "[b] Backup" "[r] Restore" "[Esc] Cancel"
   case $? in
     0) echo
-       [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter backup directory (created if non existent)" && waitForInput "Press any key to open the file explorer"
-       dirDialog "Enter backup directory (created if non existent)"
+       [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter backup destination directory (created if non existent)" && waitForInput "Press any key to open the file explorer"
+       dirDialog "Enter backup destination directory (created if non existent)"
        [[ "${dir}" != */ ]] && backup_path="${dir}/" || backup_path="${dir}"
        println "DEBUG" "${FG_GREEN}${backup_path}${NC}\n"
        if [[ ! "${backup_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
          println "ERROR" "${FG_RED}ERROR${NC}: invalid path, please specify the full path to backup directory (space not allowed)"
          waitForInput && continue
        fi
-       mkdir -p "${backup_path}" # Create if missing
-       if [[ ! -d "${backup_path}" ]]; then
-         println "ERROR" "${FG_RED}ERROR${NC}: failed to create backup directory:"
-         println "ERROR" "${backup_path}"
-         waitForInput && continue
-       fi
+       if ! mkdir -p "${backup_path}"; then println "ERROR" "${FG_RED}ERROR${NC}: failed to create backup directory:\n${backup_path}" && waitForInput && continue; fi
        
        missing_keys="false"
        excluded_files=()
+       [[ -d "${ASSET_FOLDER}" ]] && asset_out=" and asset ${ASSET_POLICY_SK_FILENAME}" || asset_out=""
        println "DEBUG" "Include private keys in backup?"
-       println "DEBUG" "- No  > create a backup excluding wallets ${WALLET_PAY_SK_FILENAME}/${WALLET_STAKE_SK_FILENAME} and pools ${POOL_COLDKEY_SK_FILENAME}"
+       println "DEBUG" "- No  > create a backup excluding wallets ${WALLET_PAY_SK_FILENAME}/${WALLET_STAKE_SK_FILENAME}, pools ${POOL_COLDKEY_SK_FILENAME}${asset_out}"
        println "DEBUG" "- Yes > create a backup including all available files"
        select_opt "[n] No" "[y] Yes"
        case $? in
@@ -3587,29 +3571,39 @@ EOF
        esac
        echo
        
-       backup_list=(
+       backup_source=(
          "${WALLET_FOLDER}"
          "${POOL_FOLDER}"
          "${ASSET_FOLDER}"
-         "${BLOCKLOG_DIR}"
-         "${CNODE_HOME}/files"
-         "${CNODE_HOME}/scripts"
        )
-       println "DEBUG" "Backup job include:"
-       for item in "${backup_list[@]}"; do
-         println "DEBUG" "${FG_LGRAY}${item}${NC}"
+       backup_list=()
+       backup_cnt=0
+       
+       println "DEBUG" "Backup job include:\n"
+       for item in "${backup_source[@]}"; do
+         [[ ! -d "${item}" ]] && continue
+         println "DEBUG" "$(basename "${item}")"
+         while IFS= read -r -d '' dir; do
+           backup_list+=( "${dir}" )
+           println "DEBUG" "  ${FG_LGRAY}$(basename "${dir}")${NC}"
+           ((backup_cnt++))
+         done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
        done
+       [[ ${backup_cnt} -eq 0 ]] && println "\nNo folders found to include in backup :(" && waitForInput && continue
        echo
 
-       if ! tar cf "${backup_file}" --files-from <(ls -d "${backup_list[@]}" 2>/dev/null) &>/dev/null; then
-         println "ERROR" "${FG_RED}ERROR${NC}: failure during backup creation :("
-         waitForInput && continue
-       fi
+       println "ACTION" "tar cf ${backup_file} ${backup_list[@]}"
+       if ! output=$(tar cf "${backup_file}" "${backup_list[@]}" 2>&1); then println "ERROR" "${FG_RED}ERROR${NC}: during tarball creation:\n${output}" && waitForInput && continue; fi
        if [[ ${#excluded_files[@]} -gt 0 ]]; then
-         tar --wildcards --file="${backup_file}" ${excluded_files[*]} &>/dev/null
-         gzip "${backup_file}" && backup_file+=".gz"
+         println "ACTION" "tar --wildcards --file=\"${backup_file}\" ${excluded_files[*]}"
+         if ! output=$(tar --wildcards --file="${backup_file}" ${excluded_files[*]} 2>&1); then println "ERROR" "${FG_RED}ERROR${NC}: while removing files from tarball:\n${output}" && waitForInput && continue; fi
+         println "ACTION" "gzip ${backup_file}"
+         if ! output=$(gzip "${backup_file}" 2>&1); then println "ERROR" "${FG_RED}ERROR${NC}: gzip error:\n${output}" && waitForInput && continue; fi
+         backup_file+=".gz"
        else
-         gzip "${backup_file}" && backup_file+=".gz"
+         println "ACTION" "gzip ${backup_file}"
+         if ! output=$(gzip "${backup_file}" 2>&1); then println "ERROR" "${FG_RED}ERROR${NC}: gzip error:\n${output}" && waitForInput && continue; fi
+         backup_file+=".gz"
          while IFS= read -r -d '' wallet; do # check for missing signing keys
            wallet_name=$(basename ${wallet})
            [[ -z "$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f \( -name "${WALLET_PAY_SK_FILENAME}*" -o -name "${WALLET_HW_PAY_SK_FILENAME}" \) -print)" ]] && \
@@ -3623,22 +3617,6 @@ EOF
              println "${FG_YELLOW}WARN${NC}: Pool ${FG_GREEN}${pool_name}${NC} missing file ${POOL_COLDKEY_SK_FILENAME}" && missing_keys="true"
          done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
          [[ ${missing_keys} = "true" ]] && echo
-         println "DEBUG" "Do you want to delete private keys?"
-         select_opt "[n] No" "[y] Yes"
-         case $? in
-           0) : ;; # do nothing
-           1) while IFS= read -r -d '' file; do
-                safeDel "${file}"
-              done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_PAY_SK_FILENAME}*" -print0)
-              while IFS= read -r -d '' file; do
-                safeDel "${file}"
-              done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_STAKE_SK_FILENAME}*" -print0)
-              while IFS= read -r -d '' file; do
-                safeDel "${file}"
-              done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}*" -print0)
-              ;;
-         esac
-         echo
        fi
        
        println "DEBUG" "Encrypt backup?"
@@ -3664,10 +3642,8 @@ EOF
          println "Backup file ${FG_LGRAY}${backup_file}${NC} successfully created"
        fi
        ;;
-    1) println "DEBUG" "\nBackups created contain absolute path to files and directories"
-       println "DEBUG" "Restoring a backup does not replace existing files"
-       println "DEBUG" "Please restore to a temporary directory and copy files to restore to appropriate folders\n"
-       [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter file to restore" && waitForInput "Press any key to open the file explorer"
+    1) println "DEBUG" "\nOn restore, if an existing folder is found, it will be archived to ${FG_LGRAY}$CNODE_HOME/priv/archive${NC}\n"
+       [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter backup file to restore" && waitForInput "Press any key to open the file explorer"
        fileDialog "Enter backup file to restore"
        backup_file=${file}
        if [[ ! -f "${backup_file}" ]]; then
@@ -3675,22 +3651,11 @@ EOF
          waitForInput && continue
        fi
        println "DEBUG" "${FG_GREEN}${backup_file}${NC}\n"
-       [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter restore directory (created if non existent)" && waitForInput "Press any key to open the file explorer"
-       dirDialog "Enter restore directory (created if non existent)"
-       [[ "${dir}" != */ ]] && restore_path="${dir}/" || restore_path="${dir}"
-       if [[ ! "${restore_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
-         println "ERROR" "${FG_RED}ERROR${NC}: invalid path, please specify the full path to restore directory (space not allowed):"
-         println "ERROR" "${restore_path}"
-         waitForInput && continue
-       fi
-       println "DEBUG" "${FG_GREEN}${restore_path}${NC}"
-       restore_path="${restore_path}$(basename ${backup_file%%.*})"
-       mkdir -p "${restore_path}" # Create restore directory
-       if [[ ! -d "${restore_path}" ]]; then
-         println "ERROR" "\n${FG_RED}ERROR${NC}: failed to create restore directory:"
-         println "ERROR" "${restore_path}"
-         waitForInput && continue
-       fi
+       
+       restore_path="$(mktemp "${TMP_FOLDER}/restore_XXXXXXXXXX")"
+       
+       if ! mkdir -p "${restore_path}"; then println "ERROR" "${FG_RED}ERROR${NC}: failed to create restore directory:\n${restore_path}" && waitForInput && continue; fi
+       
        if [ "${backup_file##*.}" = "gpg" ]; then
          println "DEBUG" "\nBackup GPG encrypted, enter password to decrypt"
          if getPassword; then # $password variable populated by getPassword function
@@ -3702,11 +3667,76 @@ EOF
            waitForInput && continue
          fi
        fi
-       if ! tar xfzk "${backup_file}" -C "${restore_path}" >/dev/null; then
-         println "ERROR" "${FG_RED}ERROR${NC}: failure during backup restore :("
-         waitForInput && continue
+       
+       println "ACTION" "tar xfzk ${backup_file} -C ${restore_path}"
+       if ! output=$(tar xfzk "${backup_file}" -C "${restore_path}" 2>&1); then println "ERROR" "${FG_RED}ERROR${NC}: during tarball extraction:\n${output}" && waitForInput && continue; fi
+       
+       restore_source=(
+         "${restore_path}/${WALLET_FOLDER}"
+         "${restore_path}/${POOL_FOLDER}"
+         "${restore_path}/${ASSET_FOLDER}"
+       )
+       restore_list=()
+       restore_cnt=0
+       
+       println "DEBUG" "Restore job include:\n"
+       for item in "${restore_source[@]}"; do
+         [[ ! -d "${item}" ]] && continue
+         println "DEBUG" "$(basename "${item}")"
+         while IFS= read -r -d '' dir; do
+           restore_list+=( "${dir}" )
+           println "DEBUG" "  ${FG_LGRAY}$(basename "${dir}")${NC}"
+           ((restore_cnt++))
+         done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+       done
+       [[ ${restore_cnt} -eq 0 ]] && println "\nNothing in backup file to restore :(" && waitForInput && continue
+       echo
+       
+       println "DEBUG" "Continue with restore?"
+       select_opt "[n] No" "[y] Yes"
+       case $? in
+         0) continue ;;
+         1) : ;; # do nothing
+       esac
+       echo
+       
+       # Archive/backup existing priv folders
+       archive_source=(
+         "${WALLET_FOLDER}"
+         "${POOL_FOLDER}"
+         "${ASSET_FOLDER}"
+       )
+       source_cnt=0
+       for item in "${archive_source[@]}"; do
+         [[ ! -d "${item}" ]] && continue
+         while IFS= read -r -d '' dir; do
+           ((source_cnt++))
+         done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+       done
+       if [[ ${source_cnt} -gt 0 ]]; then
+         archive_dest="${CNODE_HOME}/priv/archive"
+         if ! mkdir -p "${archive_dest}"; then println "ERROR" "${FG_RED}ERROR${NC}: failed to create archive directory:\n${archive_dest}" && waitForInput && continue; fi
+         archive_file="${archive_dest}/archive_$(date '+%Y%m%d%H%M%S').tar.gz"
+         println "ACTION" "tar cfz ${archive_file} ${archive_source[@]}"
+         if ! output=$(tar cfz "${archive_file}" "${archive_source[@]}" 2>&1); then println "ERROR" "${FG_RED}ERROR${NC}: during archive/backup:\n${output}" && waitForInput && continue; fi
+         println "DEBUG" "An archive of current priv folder has been taken and stored in ${FG_LGRAY}${archive_file}${NC}"
+         println "DEBUG" "Please set a password to GPG encrypt the archive"
+         if getPassword confirm; then # $password variable populated by getPassword function
+           encryptFile "${backup_file}" "${password}"
+           backup_file="${backup_file}.gpg"
+           unset password
+         else
+           println "ERROR" "\n${FG_RED}ERROR${NC}: password input aborted!"
+           println "DEBUG" "${FG_YELLOW}archive stored unencrypted !!${NC}"
+         fi
+         echo
        fi
-       println "\nBackup successfully restored to ${FG_LGRAY}${restore_path}${NC}"
+       
+       for item in "${restore_list[@]}"; do
+         cp -rf "${item}" "${item:$((${#restore_path}+1))}"
+       done
+       
+       println "Backup successfully restored!"
        ;;
     2) continue ;;
   esac
@@ -3724,13 +3754,15 @@ EOF
   println "OFF" " Developer & Advanced features\n\n"\
 " ) Metadata     - post metadata on-chain\n"\
 " ) Multi-Asset  - multi-asset nanagement\n"\
+" ) Delete Keys  - Delete all sign/cold keys from CNTools (wallet|pool|asset)\n"\
 "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
   println "DEBUG" " Select Operation\n"
-  select_opt "[m] Metadata" "[a] Multi-Asset" "[h] Home"
+  select_opt "[m] Metadata" "[a] Multi-Asset" "[x] Delete Private Keys" "[h] Home"
   case $? in
     0) SUBCOMMAND="metadata" ;;
     1) SUBCOMMAND="multi-asset" ;;
-    2) continue ;;
+    2) SUBCOMMAND="del-keys" ;;
+    3) continue ;;
   esac
 
   case $SUBCOMMAND in  
@@ -4459,6 +4491,60 @@ EOF
       
     esac
     
+    ;; ###################################################################
+    
+    del-keys)
+
+    clear
+    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    println " >> ADVANCED >> DELETE PRIVATE KEYS"
+    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo
+    
+    println "DEBUG" "The following files will be removed (incl encrypted versions)"
+    println "DEBUG"
+    println "DEBUG" 
+    println "DEBUG"
+    echo
+    
+    println "DEBUG" "${FG_RED}Do you acknowledge that you have already taken a full backup, and are OK to simply delete the private keys? There is no going back !!!${NC}"
+    select_opt "[n] No" "[y] Yes"
+    case $? in
+      0) continue ;;
+      1) : ;; # do nothing
+    esac
+    echo
+    println "DEBUG" "${FG_YELLOW}Please confirm!${NC} If unsure, cancel and verify that you have a valid backup. Continue with delete action?"
+    select_opt "[n] No" "[y] Yes"
+    case $? in
+      0) continue ;;
+      1) : ;; # do nothing
+    esac
+    echo
+    println "DEBUG" "Delete encrypted keys as well?"
+    select_opt "[n] No" "[y] Yes"
+    case $? in
+      0) enc_postfix="" ;;
+      1) enc_postfix="*" ;;
+    esac
+    echo
+    
+    while IFS= read -r -d '' file; do
+      unlockFile "${file}" && safeDel "${file}"
+    done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_PAY_SK_FILENAME}${enc_postfix}" -print0)
+    while IFS= read -r -d '' file; do
+      unlockFile "${file}" && safeDel "${file}"
+    done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${WALLET_STAKE_SK_FILENAME}${enc_postfix}" -print0)
+    while IFS= read -r -d '' file; do
+      unlockFile "${file}" && safeDel "${file}"
+    done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}${enc_postfix}" -print0)
+    while IFS= read -r -d '' file; do
+      unlockFile "${file}" && safeDel "${file}"
+    done < <(find "${ASSET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${ASSET_POLICY_SK_FILENAME}${enc_postfix}" -print0)
+    echo
+    
+    waitForInput && continue
+
     ;; ###################################################################
     
   esac
