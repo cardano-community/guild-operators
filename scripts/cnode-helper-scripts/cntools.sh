@@ -3596,7 +3596,7 @@ EOF
        if ! output=$(tar cf "${backup_file}" "${backup_list[@]}" 2>&1); then println "ERROR" "${FG_RED}ERROR${NC}: during tarball creation:\n${output}" && waitForInput && continue; fi
        if [[ ${#excluded_files[@]} -gt 0 ]]; then
          println "ACTION" "tar --wildcards --file=\"${backup_file}\" ${excluded_files[*]}"
-         if ! output=$(tar --wildcards --file="${backup_file}" ${excluded_files[*]} 2>&1); then println "ERROR" "${FG_RED}ERROR${NC}: while removing files from tarball:\n${output}" && waitForInput && continue; fi
+         tar --wildcards --file="${backup_file}" ${excluded_files[*]} &>/dev/null # ignore any error, tar will write error if some of the keys to delete are not found
          println "ACTION" "gzip ${backup_file}"
          if ! output=$(gzip "${backup_file}" 2>&1); then println "ERROR" "${FG_RED}ERROR${NC}: gzip error:\n${output}" && waitForInput && continue; fi
          backup_file+=".gz"
@@ -3642,7 +3642,7 @@ EOF
          println "Backup file ${FG_LGRAY}${backup_file}${NC} successfully created"
        fi
        ;;
-    1) println "DEBUG" "\nOn restore, if an existing folder is found, it will be archived to ${FG_LGRAY}$CNODE_HOME/priv/archive${NC}\n"
+    1) println "DEBUG" "\n${FG_BLUE}INFO${NC}: a backup of existing wallet and pool folders will be made before restore is executed\n"
        [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter backup file to restore" && waitForInput "Press any key to open the file explorer"
        fileDialog "Enter backup file to restore"
        backup_file=${file}
@@ -3652,16 +3652,18 @@ EOF
        fi
        println "DEBUG" "${FG_GREEN}${backup_file}${NC}\n"
        
-       restore_path="$(mktemp "${TMP_FOLDER}/restore_XXXXXXXXXX")"
+       if ! restore_path="$(mktemp -d "${TMP_FOLDER}/restore_XXXXXXXXXX")"; then println "ERROR" "${FG_RED}ERROR${NC}: failed to create restore directory:\n${restore_path}" && waitForInput && continue; fi
        
-       if ! mkdir -p "${restore_path}"; then println "ERROR" "${FG_RED}ERROR${NC}: failed to create restore directory:\n${restore_path}" && waitForInput && continue; fi
-       
+       tmp_bkp_file=""
        if [ "${backup_file##*.}" = "gpg" ]; then
-         println "DEBUG" "\nBackup GPG encrypted, enter password to decrypt"
+         println "DEBUG" "Backup GPG encrypted, enter password to decrypt"
          if getPassword; then # $password variable populated by getPassword function
+           tmp_bkp_file=$(mktemp "${TMP_FOLDER}/bkp_file_XXXXXXXXXX.tar.gz.gpg")
+           cp -f "${backup_file}" "${tmp_bkp_file}"
            decryptFile "${backup_file}" "${password}"
            backup_file="${backup_file%.*}"
            unset password
+           echo
          else
            println "ERROR" "\n${FG_RED}ERROR${NC}: password input aborted!"
            waitForInput && continue
@@ -3670,11 +3672,12 @@ EOF
        
        println "ACTION" "tar xfzk ${backup_file} -C ${restore_path}"
        if ! output=$(tar xfzk "${backup_file}" -C "${restore_path}" 2>&1); then println "ERROR" "${FG_RED}ERROR${NC}: during tarball extraction:\n${output}" && waitForInput && continue; fi
+       [[ -n "${tmp_bkp_file}" ]] && mv -f "${tmp_bkp_file}" "${backup_file}.gpg" && rm -f "${backup_file}" # restore original encrypted backup file
        
        restore_source=(
-         "${restore_path}/${WALLET_FOLDER}"
-         "${restore_path}/${POOL_FOLDER}"
-         "${restore_path}/${ASSET_FOLDER}"
+         "${restore_path}${WALLET_FOLDER}"
+         "${restore_path}${POOL_FOLDER}"
+         "${restore_path}${ASSET_FOLDER}"
        )
        restore_list=()
        restore_cnt=0
@@ -3706,10 +3709,12 @@ EOF
          "${POOL_FOLDER}"
          "${ASSET_FOLDER}"
        )
+       archive_list=()
        source_cnt=0
        for item in "${archive_source[@]}"; do
          [[ ! -d "${item}" ]] && continue
          while IFS= read -r -d '' dir; do
+           archive_list+=( "${item}" )
            ((source_cnt++))
          done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
        done
@@ -3717,13 +3722,13 @@ EOF
          archive_dest="${CNODE_HOME}/priv/archive"
          if ! mkdir -p "${archive_dest}"; then println "ERROR" "${FG_RED}ERROR${NC}: failed to create archive directory:\n${archive_dest}" && waitForInput && continue; fi
          archive_file="${archive_dest}/archive_$(date '+%Y%m%d%H%M%S').tar.gz"
-         println "ACTION" "tar cfz ${archive_file} ${archive_source[@]}"
-         if ! output=$(tar cfz "${archive_file}" "${archive_source[@]}" 2>&1); then println "ERROR" "${FG_RED}ERROR${NC}: during archive/backup:\n${output}" && waitForInput && continue; fi
+         println "ACTION" "tar cfz ${archive_file} ${archive_list[@]}"
+         if ! output=$(tar cfz "${archive_file}" "${archive_list[@]}" 2>&1); then println "ERROR" "${FG_RED}ERROR${NC}: during archive/backup:\n${output}" && waitForInput && continue; fi
          println "DEBUG" "An archive of current priv folder has been taken and stored in ${FG_LGRAY}${archive_file}${NC}"
          println "DEBUG" "Please set a password to GPG encrypt the archive"
          if getPassword confirm; then # $password variable populated by getPassword function
-           encryptFile "${backup_file}" "${password}"
-           backup_file="${backup_file}.gpg"
+           encryptFile "${archive_file}" "${password}"
+           archive_file="${archive_file}.gpg"
            unset password
          else
            println "ERROR" "\n${FG_RED}ERROR${NC}: password input aborted!"
@@ -3733,10 +3738,15 @@ EOF
        fi
        
        for item in "${restore_list[@]}"; do
-         cp -rf "${item}" "${item:$((${#restore_path}+1))}"
+         dest_path="${item:${#restore_path}}"
+         while IFS= read -r -d '' file; do # unlock files to make sure restore is successful
+           unlockFile "${file}"
+         done < <(find "${dest_path}" -mindepth 1 -maxdepth 1 -type f -print0)
+         println "ACTION" "cp -rf ${item} $(dirname "${dest_path}")"
+         cp -rf "${item}" "$(dirname "${dest_path}")"
        done
        
-       println "Backup successfully restored!"
+       println "Backup ${FG_LGRAY}$(basename "${backup_file}")${NC} successfully restored!"
        ;;
     2) continue ;;
   esac

@@ -601,7 +601,7 @@ selectPolicy() {
 # Parameters  : confirm  >  [optional] force user to provide password twice for confirmation
 # Return      : populates ${password} variable, make sure to unset variable when done
 getPassword() {
-  exec >&6 # normal stdout
+  exec >&6 2>&7 # normal stdout/stderr
   sleep 0.1
   while true; do
     readPassword "Enter password (length >= 8)"
@@ -612,7 +612,7 @@ getPassword() {
       echo
       echo "Press q to abort or any other key to retry"
       read -rsn 1 abort
-      [[ ${abort} = "q" ]] && unset password && exec >&8 && return 1
+      [[ ${abort} = "q" ]] && unset password && exec >&8 2>&9 && return 1
       echo
       continue
     fi
@@ -625,16 +625,16 @@ getPassword() {
         echo
         echo "Press q to abort or any other key to retry"
         read -rsn 1 abort
-        [[ ${abort} = "q" ]] && unset password && unset check_password && exec >&8 && return 1
+        [[ ${abort} = "q" ]] && unset password && unset check_password && exec >&8 2>&9 && return 1
         echo
       else
-        echo && unset check_password && exec >&8 && return
+        echo && unset check_password && exec >&8 2>&9 && return
       fi
     else
-      echo && exec >&8 && return
+      echo && exec >&8 2>&9 && return
     fi
   done
-  exec >&8 # custom stdout
+  exec >&8 2>&9 # custom stdout/stderr
 }
 readPassword() {
   read_password=""
@@ -657,15 +657,15 @@ readPassword() {
 # Parameters  : file      >  Path for file to encrypt, will get a new .gpg file extention added to filename
 #             : password  >  Password to encrypt file with
 encryptFile() {
-  exec >&6 # normal stdout
+  exec >&6 2>&7 # normal stdout/stderr
   sleep 0.1
   echo "${2}" | gpg --symmetric --yes --batch --cipher-algo AES256 --passphrase-fd 0 --output "${1}.gpg" "${1}" &>/dev/null && \
   safeDel "${1}" >/dev/null || {
-    exec >&8 # custom stdout
+    exec >&8 2>&9 # custom stdout/stderr
     println "ERROR" "${FG_RED}ERROR${NC}: failed to encrypt ${1}"
     return 1
   }
-  exec >&8 # custom stdout
+  exec >&8 2>&9 # custom stdout/stderr
   println "DEBUG" "${1} successfully encrypted"
 }
 
@@ -675,15 +675,15 @@ encryptFile() {
 # Parameters  : file      >  Path for file to decrypt, file extension .gpg required
 #             : password  >  Password to decrypt file with
 decryptFile() {
-  exec >&6 # normal stdout
+  exec >&6 2>&7 # normal stdout/stderr
   sleep 0.1
   echo "${2}" | gpg --decrypt --batch --yes --passphrase-fd 0 --output "${1%.*}" "${1}" &>/dev/null && \
   rm -f "${1}" || {
-    exec >&8 # custom stdout
+    exec >&8 2>&9 # custom stdout/stderr
     println "ERROR" "${FG_RED}ERROR${NC}: failed to decrypt ${1}"
     return 1
   }
-  exec >&8 # custom stdout
+  exec >&8 2>&9 # custom stdout/stderr
   println "DEBUG" "${1} successfully decrypted"
 }
 
