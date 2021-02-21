@@ -1,4 +1,4 @@
-The addresses, as of now, are just a simple `blake2b-256` hash of the relevant veryifying/public keys contatenated with some metadata that are or can be stored on the `Cardano` blockchain. 
+The addresses, as of now, are just a simple `blake2b-256` hash of the relevant veryifying/public keys concatenated with some metadata that are or can be stored on the `Cardano` blockchain. 
 
 > Addresses in this context are only relevant to the ledger specification and not to any wallet addresses.
 > So, the wallets `m/44'/1852'/0'/{0,1,2}` `bech32` addresses (e.g. `ca1hg9...`) are irrelevant here.
