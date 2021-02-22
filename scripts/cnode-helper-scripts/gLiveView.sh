@@ -61,14 +61,14 @@ PARENT="$(dirname $0)"
 [[ -z "${NO_INTERNET_MODE}" ]] && NO_INTERNET_MODE="N"
 
 usage() {
-  cat <<EOF
-Usage: $(basename "$0") [-l] [-p] [-b <branch name>]
-Guild LiveView - An alternative cardano-node LiveView
-
--l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
--p    Disable default CNCLI ping and revert to ss/tcptraceroute if available, else use regular ICMP ping.
--b    Use alternate branch to check for updates - only for testing/development (Default: Master)  
-EOF
+  cat <<-'EOF'
+		Usage: $(basename "$0") [-l] [-p] [-b <branch name>]
+		Guild LiveView - An alternative cardano-node LiveView
+		
+		-l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
+		-p    Disable default CNCLI ping and revert to ss/tcptraceroute if available, else use regular ICMP ping.
+		-b    Use alternate branch to check for updates - only for testing/development (Default: Master)  
+		EOF
   exit 1
 }
 
@@ -78,7 +78,7 @@ while getopts :lpb: opt; do
     p ) DISABLE_CNCLI="true" ;;
     b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
-    esac
+  esac
 done
 shift $((OPTIND -1))
 
@@ -373,7 +373,7 @@ checkPeers() {
     lastpeerIP=${peerIP}
 
     # Update counters
-      if [[ ${peerRTT} -lt 50    ]]; then ((peerCNT1++))
+    if [[ ${peerRTT} -lt 50    ]]; then ((peerCNT1++))
     elif [[ ${peerRTT} -lt 100   ]]; then ((peerCNT2++))
     elif [[ ${peerRTT} -lt 200   ]]; then ((peerCNT3++))
     elif [[ ${peerRTT} -lt 99999 ]]; then ((peerCNT4++))
