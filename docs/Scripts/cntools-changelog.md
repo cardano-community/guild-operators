@@ -5,7 +5,7 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [7.2.1] - 2021-02-17
+## [8.0.0] - 2021-02-28
 
 ##### Added
 - Multi Asset Token compatibility added throughout all CNTools operations. 
@@ -14,6 +14,10 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ##### Changed
 - Metadata moved to a new Advanced section used for devs/advanced operations not normally used by SPOs.
   - Accessed by enabling developer/advanced mode in cntools.config or by providing runtime flag '-a'
+- Redesign of backup and restore.
+  - Deletion of private keys moved from backup to new section under `Advanced`
+  - Backup now only contain content of priv folder (files & scripts folders dropped)
+  - Restore operation now restore directly to priv folder instead of a random user selected folder to make restore easier and better. Before restore, a new full backup of priv folder is made and stored encrypted in priv/archive
   
 ##### Fixed
 - JQ limitation workaround for large numbers
