@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=7
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=2
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=999
+CNTOOLS_PATCH_VERSION=3
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
