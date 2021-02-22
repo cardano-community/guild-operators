@@ -3355,7 +3355,8 @@ EOF
          println " >> BLOCKS"
          println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
          current_epoch=$(getEpoch)
-         println "DEBUG" "Current epoch: ${FG_LBLUE}${current_epoch}${NC}\n"
+         println "DEBUG" "Current epoch  : ${FG_LBLUE}${current_epoch}${NC}"
+         println "DEBUG" "Selected epoch : ${FG_LBLUE}${epoch_enter}${NC}\n"
          invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='invalid';" 2>/dev/null)
          missed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='missed';" 2>/dev/null)
          ghosted_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='ghosted';" 2>/dev/null)
