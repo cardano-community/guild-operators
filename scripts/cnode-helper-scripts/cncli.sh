@@ -28,24 +28,24 @@
 ######################################
 
 usage() {
-  cat <<EOF >&2
-
-Usage: $(basename "$0") [operation <sub arg>]
-Script to run CNCLI, best launched through systemd deployed by 'deploy-as-systemd.sh'
-
-sync        Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB (deployed as service)
-leaderlog   One-time leader schedule calculation for current epoch, then continously monitors and calculates schedule for coming epochs, 1.5 days before epoch boundary on MainNet (deployed as service)
-  force     Manually force leaderlog calculation and overwrite even if already done, exits after leaderlog is calculated
-validate    Continously monitor and confirm that the blocks made actually was accepted and adopted by chain (deployed as service)
-  all       One-time re-validation of all blocks in blocklog db
-  epoch     One-time re-validation of blocks in blocklog db for the specified epoch 
-ptsendtip   Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge (deployed as service)
-ptsendslots Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs (deployed as service)
-init        One-time initialization adding all minted and confirmed blocks to blocklog
-migrate     One-time migration from old blocklog(cntoolsBlockCollector) to new format (post cncli)
-  path      Path to the old cntoolsBlockCollector blocklog folder holding json files with blocks created
-
-EOF
+  cat <<-'EOF' >&2
+		
+		Usage: $(basename "$0") [operation <sub arg>]
+		Script to run CNCLI, best launched through systemd deployed by 'deploy-as-systemd.sh'
+		
+		sync        Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB (deployed as service)
+		leaderlog   One-time leader schedule calculation for current epoch, then continously monitors and calculates schedule for coming epochs, 1.5 days before epoch boundary on MainNet (deployed as service)
+		  force     Manually force leaderlog calculation and overwrite even if already done, exits after leaderlog is calculated
+		validate    Continously monitor and confirm that the blocks made actually was accepted and adopted by chain (deployed as service)
+		  all       One-time re-validation of all blocks in blocklog db
+		  epoch     One-time re-validation of blocks in blocklog db for the specified epoch 
+		ptsendtip   Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge (deployed as service)
+		ptsendslots Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs (deployed as service)
+		init        One-time initialization adding all minted and confirmed blocks to blocklog
+		migrate     One-time migration from old blocklog(cntoolsBlockCollector) to new format (post cncli)
+		  path      Path to the old cntoolsBlockCollector blocklog folder holding json files with blocks created
+		
+		EOF
   exit 1
 }
 
@@ -62,24 +62,24 @@ else usage; fi
 createBlocklogDB() {
   if ! mkdir -p "${BLOCKLOG_DIR}"; then echo "ERROR: failed to create directory to store blocklog: ${BLOCKLOG_DIR}" && return 1; fi
   if [[ ! -f ${BLOCKLOG_DB} ]]; then # create a fresh DB with latest schema
-    sqlite3 ${BLOCKLOG_DB} <<EOF
-CREATE TABLE blocklog (id INTEGER PRIMARY KEY AUTOINCREMENT, slot INTEGER NOT NULL UNIQUE, at TEXT NOT NULL UNIQUE, epoch INTEGER NOT NULL, block INTEGER NOT NULL DEFAULT 0, slot_in_epoch INTEGER NOT NULL DEFAULT 0, hash TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL);
-CREATE UNIQUE INDEX idx_blocklog_slot ON blocklog (slot);
-CREATE INDEX idx_blocklog_epoch ON blocklog (epoch);
-CREATE INDEX idx_blocklog_status ON blocklog (status);
-CREATE TABLE epochdata (id INTEGER PRIMARY KEY AUTOINCREMENT, epoch INTEGER NOT NULL, epoch_nonce TEXT NOT NULL, pool_id TEXT NOT NULL, sigma TEXT NOT NULL, d REAL NOT NULL, epoch_slots_ideal INTEGER NOT NULL, max_performance REAL NOT NULL, active_stake TEXT NOT NULL, total_active_stake TEXT NOT NULL, UNIQUE(epoch,pool_id));
-CREATE INDEX idx_epochdata_epoch ON epochdata (epoch);
-CREATE INDEX idx_epochdata_pool_id ON epochdata (pool_id);
-PRAGMA user_version = 1;
-EOF
+    sqlite3 ${BLOCKLOG_DB} <<-'EOF'
+			CREATE TABLE blocklog (id INTEGER PRIMARY KEY AUTOINCREMENT, slot INTEGER NOT NULL UNIQUE, at TEXT NOT NULL UNIQUE, epoch INTEGER NOT NULL, block INTEGER NOT NULL DEFAULT 0, slot_in_epoch INTEGER NOT NULL DEFAULT 0, hash TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL);
+			CREATE UNIQUE INDEX idx_blocklog_slot ON blocklog (slot);
+			CREATE INDEX idx_blocklog_epoch ON blocklog (epoch);
+			CREATE INDEX idx_blocklog_status ON blocklog (status);
+			CREATE TABLE epochdata (id INTEGER PRIMARY KEY AUTOINCREMENT, epoch INTEGER NOT NULL, epoch_nonce TEXT NOT NULL, pool_id TEXT NOT NULL, sigma TEXT NOT NULL, d REAL NOT NULL, epoch_slots_ideal INTEGER NOT NULL, max_performance REAL NOT NULL, active_stake TEXT NOT NULL, total_active_stake TEXT NOT NULL, UNIQUE(epoch,pool_id));
+			CREATE INDEX idx_epochdata_epoch ON epochdata (epoch);
+			CREATE INDEX idx_epochdata_pool_id ON epochdata (pool_id);
+			PRAGMA user_version = 1;
+			EOF
     echo "SQLite blocklog DB created: ${BLOCKLOG_DB}"
   else
     if [[ $(sqlite3 ${BLOCKLOG_DB} "PRAGMA user_version;") -eq 0 ]]; then # Upgrade from schema version 0 to 1
-      sqlite3 ${BLOCKLOG_DB} <<EOF
-ALTER TABLE epochdata ADD active_stake TEXT NOT NULL DEFAULT '0';
-ALTER TABLE epochdata ADD total_active_stake TEXT NOT NULL DEFAULT '0';
-PRAGMA user_version = 1;
-EOF
+      sqlite3 ${BLOCKLOG_DB} <<-'EOF'
+				ALTER TABLE epochdata ADD active_stake TEXT NOT NULL DEFAULT '0';
+				ALTER TABLE epochdata ADD total_active_stake TEXT NOT NULL DEFAULT '0';
+				PRAGMA user_version = 1;
+				EOF
     fi
   fi
 }
@@ -273,12 +273,12 @@ cncliLeaderlog() {
       max_performance=$(jq -r '.maxPerformance //0' <<< "${cncli_leaderlog}")
       active_stake=$(jq -r '.activeStake //0' <<< "${cncli_leaderlog}")
       total_active_stake=$(jq -r '.totalActiveStake //0' <<< "${cncli_leaderlog}")
-      sqlite3 ${BLOCKLOG_DB} <<EOF
-UPDATE OR IGNORE epochdata SET epoch_nonce = '${epoch_nonce}', sigma = '${sigma}', d = ${d}, epoch_slots_ideal = ${epoch_slots_ideal}, max_performance = ${max_performance}, active_stake = '${active_stake}', total_active_stake = '${total_active_stake}'
-WHERE epoch = ${curr_epoch} AND pool_id = '${pool_id}';
-INSERT OR IGNORE INTO epochdata (epoch, epoch_nonce, pool_id, sigma, d, epoch_slots_ideal, max_performance, active_stake, total_active_stake)
-VALUES (${curr_epoch}, '${epoch_nonce}', '${pool_id}', '${sigma}', ${d}, ${epoch_slots_ideal}, ${max_performance}, '${active_stake}', '${total_active_stake}');
-EOF
+      sqlite3 ${BLOCKLOG_DB} <<-'EOF'
+				UPDATE OR IGNORE epochdata SET epoch_nonce = '${epoch_nonce}', sigma = '${sigma}', d = ${d}, epoch_slots_ideal = ${epoch_slots_ideal}, max_performance = ${max_performance}, active_stake = '${active_stake}', total_active_stake = '${total_active_stake}'
+				WHERE epoch = ${curr_epoch} AND pool_id = '${pool_id}';
+				INSERT OR IGNORE INTO epochdata (epoch, epoch_nonce, pool_id, sigma, d, epoch_slots_ideal, max_performance, active_stake, total_active_stake)
+				VALUES (${curr_epoch}, '${epoch_nonce}', '${pool_id}', '${sigma}', ${d}, ${epoch_slots_ideal}, ${max_performance}, '${active_stake}', '${total_active_stake}');
+				EOF
       block_cnt=0
       while read -r assigned_slot; do
         block_slot=$(jq -r '.slot' <<< "${assigned_slot}")
@@ -329,13 +329,13 @@ EOF
         epoch_slots_ideal=$(jq -r '.epochSlotsIdeal //0' <<< "${cncli_leaderlog}")
         max_performance=$(jq -r '.maxPerformance //0' <<< "${cncli_leaderlog}")
         active_stake=$(jq -r '.activeStake //0' <<< "${cncli_leaderlog}")
-    total_active_stake=$(jq -r '.totalActiveStake //0' <<< "${cncli_leaderlog}")
-        sqlite3 ${BLOCKLOG_DB} <<EOF
-UPDATE OR IGNORE epochdata SET epoch_nonce = '${epoch_nonce}', sigma = '${sigma}', d = ${d}, epoch_slots_ideal = ${epoch_slots_ideal}, max_performance = ${max_performance}, active_stake = '${active_stake}', total_active_stake = '${total_active_stake}'
-WHERE epoch = ${next_epoch} AND pool_id = '${pool_id}';
-INSERT OR IGNORE INTO epochdata (epoch, epoch_nonce, pool_id, sigma, d, epoch_slots_ideal, max_performance, active_stake, total_active_stake)
-VALUES (${next_epoch}, '${epoch_nonce}', '${pool_id}', '${sigma}', ${d}, ${epoch_slots_ideal}, ${max_performance}, '${active_stake}', '${total_active_stake}');
-EOF
+        total_active_stake=$(jq -r '.totalActiveStake //0' <<< "${cncli_leaderlog}")
+        sqlite3 ${BLOCKLOG_DB} <<-'EOF'
+					UPDATE OR IGNORE epochdata SET epoch_nonce = '${epoch_nonce}', sigma = '${sigma}', d = ${d}, epoch_slots_ideal = ${epoch_slots_ideal}, max_performance = ${max_performance}, active_stake = '${active_stake}', total_active_stake = '${total_active_stake}'
+					WHERE epoch = ${next_epoch} AND pool_id = '${pool_id}';
+					INSERT OR IGNORE INTO epochdata (epoch, epoch_nonce, pool_id, sigma, d, epoch_slots_ideal, max_performance, active_stake, total_active_stake)
+					VALUES (${next_epoch}, '${epoch_nonce}', '${pool_id}', '${sigma}', ${d}, ${epoch_slots_ideal}, ${max_performance}, '${active_stake}', '${total_active_stake}');
+					EOF
         block_cnt=0
         while read -r assigned_slot; do
           block_slot=$(jq -r '.slot' <<< "${assigned_slot}")
@@ -483,12 +483,12 @@ cncliInitBlocklogDB() {
       epoch=$(getEpochFromSlot ${slot_number})
       at=$(getDateFromSlot ${slot_number})
       slot_in_epoch=$(getSlotInEpochFromSlot ${slot_number} ${epoch})
-      sqlite3 ${BLOCKLOG_DB} <<EOF
-UPDATE OR IGNORE blocklog SET at = '${at}', epoch = ${epoch}, block = ${block_number}, slot_in_epoch = ${slot_in_epoch}, hash = '${block_hash}', size = ${block_size}, status = 'adopted'
-WHERE slot = ${slot_number};
-INSERT OR IGNORE INTO blocklog (slot, at, epoch, block, slot_in_epoch, hash, size, status)
-VALUES (${slot_number}, '${at}', ${epoch}, ${block_number}, ${slot_in_epoch}, '${block_hash}', ${block_size}, 'adopted');
-EOF
+      sqlite3 ${BLOCKLOG_DB} <<-'EOF'
+				UPDATE OR IGNORE blocklog SET at = '${at}', epoch = ${epoch}, block = ${block_number}, slot_in_epoch = ${slot_in_epoch}, hash = '${block_hash}', size = ${block_size}, status = 'adopted'
+				WHERE slot = ${slot_number};
+				INSERT OR IGNORE INTO blocklog (slot, at, epoch, block, slot_in_epoch, hash, size, status)
+				VALUES (${slot_number}, '${at}', ${epoch}, ${block_number}, ${slot_in_epoch}, '${block_hash}', ${block_size}, 'adopted');
+				EOF
       ((block_cnt++))
     done < <(printf '%s\n' "${cncli_blocks}")
   fi
@@ -524,12 +524,12 @@ cncliMigrateBlocklog() {
       else
         block_status="leader"
       fi
-      sqlite3 ${BLOCKLOG_DB} <<EOF
-UPDATE OR IGNORE blocklog SET at = '${block_at}', epoch = ${epoch}, slot_in_epoch = ${slot_in_epoch}, hash = '${block_hash}', size = ${block_size}, status = '${block_status}'
-WHERE slot = ${block_slot};
-INSERT OR IGNORE INTO blocklog (slot, at, epoch, slot_in_epoch, hash, size, status)
-VALUES (${block_slot}, '${block_at}', ${epoch}, ${slot_in_epoch}, '${block_hash}', ${block_size}, '${block_status}');
-EOF
+      sqlite3 ${BLOCKLOG_DB} <<-'EOF'
+				UPDATE OR IGNORE blocklog SET at = '${block_at}', epoch = ${epoch}, slot_in_epoch = ${slot_in_epoch}, hash = '${block_hash}', size = ${block_size}, status = '${block_status}'
+				WHERE slot = ${block_slot};
+				INSERT OR IGNORE INTO blocklog (slot, at, epoch, slot_in_epoch, hash, size, status)
+				VALUES (${block_slot}, '${block_at}', ${epoch}, ${slot_in_epoch}, '${block_hash}', ${block_size}, '${block_status}');
+				EOF
       echo "Block at slot ${block_slot} added/updated, status '${block_status}'"
     done < <(jq -c '.[]' <<< "${blocks_data}" 2>/dev/null)
   done < <(find "${subarg}" -mindepth 1 -maxdepth 1 -type f -name "blocks_*.json" -print0 | sort -z)
@@ -545,19 +545,19 @@ cncliPTsendtip() {
     exit 1
   fi
   pt_config="/tmp/${vname}-pooltool.json"
-  bash -c "cat << 'EOF' > ${pt_config}
-{
-  \"api_key\": \"${PT_API_KEY}\",
-  \"pools\": [
-    {
-      \"name\": \"${POOL_TICKER}\",
-      \"pool_id\": \"${POOL_ID}\",
-      \"host\" : \"${PT_HOST}\",
-      \"port\": ${PT_PORT}
-    }
-  ]
-}
-EOF"
+  bash -c "cat <<-'EOF' > ${pt_config}
+		{
+		  \"api_key\": \"${PT_API_KEY}\",
+		  \"pools\": [
+		    {
+		      \"name\": \"${POOL_TICKER}\",
+		      \"pool_id\": \"${POOL_ID}\",
+		      \"host\" : \"${PT_HOST}\",
+		      \"port\": ${PT_PORT}
+		    }
+		  ]
+		}
+		EOF"
   ${CNCLI} sendtip --config "${pt_config}" --cardano-node "${cnode_path}"
 }
 
@@ -567,19 +567,19 @@ cncliPTsendslots() {
   [[ -z ${POOL_ID} || -z ${POOL_TICKER} || -z ${PT_API_KEY} ]] && echo "'POOL_ID' and/or 'POOL_TICKER' and/or 'PT_API_KEY' not set in $(basename "$0"), exiting!" && exit 1
   # Generate a temporary pooltool config
   pt_config="/tmp/${vname}-pooltool.json"
-  bash -c "cat << 'EOF' > ${pt_config}
-{
-  \"api_key\": \"${PT_API_KEY}\",
-  \"pools\": [
-    {
-      \"name\": \"${POOL_TICKER}\",
-      \"pool_id\": \"${POOL_ID}\",
-      \"host\" : \"${PT_HOST}\",
-      \"port\": ${PT_PORT}
-    }
-  ]
-}
-EOF"
+  bash -c "cat <<-'EOF' > ${pt_config}
+		{
+		  \"api_key\": \"${PT_API_KEY}\",
+		  \"pools\": [
+		    {
+		      \"name\": \"${POOL_TICKER}\",
+		      \"pool_id\": \"${POOL_ID}\",
+		      \"host\" : \"${PT_HOST}\",
+		      \"port\": ${PT_PORT}
+		    }
+		  ]
+		}
+		EOF"
   sendslots_epoch=-1
   while true; do
     sleep ${SLEEP_RATE}
