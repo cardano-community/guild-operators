@@ -24,7 +24,7 @@ PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
 
 usage() {
-  cat <<-'EOF'
+  cat <<-EOF
 		Usage: $(basename "$0") [-b <branch name>] [-f] [-p]
 		Topology Updater - Build topology with community pools
 

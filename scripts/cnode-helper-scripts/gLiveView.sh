@@ -61,7 +61,7 @@ PARENT="$(dirname $0)"
 [[ -z "${NO_INTERNET_MODE}" ]] && NO_INTERNET_MODE="N"
 
 usage() {
-  cat <<-'EOF'
+  cat <<-EOF
 		Usage: $(basename "$0") [-l] [-p] [-b <branch name>]
 		Guild LiveView - An alternative cardano-node LiveView
 		

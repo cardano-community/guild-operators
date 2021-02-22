@@ -28,7 +28,7 @@
 ######################################
 
 usage() {
-  cat <<-'EOF' >&2
+  cat <<-EOF >&2
 		
 		Usage: $(basename "$0") [operation <sub arg>]
 		Script to run CNCLI, best launched through systemd deployed by 'deploy-as-systemd.sh'
@@ -62,7 +62,7 @@ else usage; fi
 createBlocklogDB() {
   if ! mkdir -p "${BLOCKLOG_DIR}"; then echo "ERROR: failed to create directory to store blocklog: ${BLOCKLOG_DIR}" && return 1; fi
   if [[ ! -f ${BLOCKLOG_DB} ]]; then # create a fresh DB with latest schema
-    sqlite3 ${BLOCKLOG_DB} <<-'EOF'
+    sqlite3 ${BLOCKLOG_DB} <<-EOF
 			CREATE TABLE blocklog (id INTEGER PRIMARY KEY AUTOINCREMENT, slot INTEGER NOT NULL UNIQUE, at TEXT NOT NULL UNIQUE, epoch INTEGER NOT NULL, block INTEGER NOT NULL DEFAULT 0, slot_in_epoch INTEGER NOT NULL DEFAULT 0, hash TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL);
 			CREATE UNIQUE INDEX idx_blocklog_slot ON blocklog (slot);
 			CREATE INDEX idx_blocklog_epoch ON blocklog (epoch);
@@ -75,7 +75,7 @@ createBlocklogDB() {
     echo "SQLite blocklog DB created: ${BLOCKLOG_DB}"
   else
     if [[ $(sqlite3 ${BLOCKLOG_DB} "PRAGMA user_version;") -eq 0 ]]; then # Upgrade from schema version 0 to 1
-      sqlite3 ${BLOCKLOG_DB} <<-'EOF'
+      sqlite3 ${BLOCKLOG_DB} <<-EOF
 				ALTER TABLE epochdata ADD active_stake TEXT NOT NULL DEFAULT '0';
 				ALTER TABLE epochdata ADD total_active_stake TEXT NOT NULL DEFAULT '0';
 				PRAGMA user_version = 1;
@@ -273,7 +273,7 @@ cncliLeaderlog() {
       max_performance=$(jq -r '.maxPerformance //0' <<< "${cncli_leaderlog}")
       active_stake=$(jq -r '.activeStake //0' <<< "${cncli_leaderlog}")
       total_active_stake=$(jq -r '.totalActiveStake //0' <<< "${cncli_leaderlog}")
-      sqlite3 ${BLOCKLOG_DB} <<-'EOF'
+      sqlite3 ${BLOCKLOG_DB} <<-EOF
 				UPDATE OR IGNORE epochdata SET epoch_nonce = '${epoch_nonce}', sigma = '${sigma}', d = ${d}, epoch_slots_ideal = ${epoch_slots_ideal}, max_performance = ${max_performance}, active_stake = '${active_stake}', total_active_stake = '${total_active_stake}'
 				WHERE epoch = ${curr_epoch} AND pool_id = '${pool_id}';
 				INSERT OR IGNORE INTO epochdata (epoch, epoch_nonce, pool_id, sigma, d, epoch_slots_ideal, max_performance, active_stake, total_active_stake)
@@ -330,7 +330,7 @@ cncliLeaderlog() {
         max_performance=$(jq -r '.maxPerformance //0' <<< "${cncli_leaderlog}")
         active_stake=$(jq -r '.activeStake //0' <<< "${cncli_leaderlog}")
         total_active_stake=$(jq -r '.totalActiveStake //0' <<< "${cncli_leaderlog}")
-        sqlite3 ${BLOCKLOG_DB} <<-'EOF'
+        sqlite3 ${BLOCKLOG_DB} <<-EOF
 					UPDATE OR IGNORE epochdata SET epoch_nonce = '${epoch_nonce}', sigma = '${sigma}', d = ${d}, epoch_slots_ideal = ${epoch_slots_ideal}, max_performance = ${max_performance}, active_stake = '${active_stake}', total_active_stake = '${total_active_stake}'
 					WHERE epoch = ${next_epoch} AND pool_id = '${pool_id}';
 					INSERT OR IGNORE INTO epochdata (epoch, epoch_nonce, pool_id, sigma, d, epoch_slots_ideal, max_performance, active_stake, total_active_stake)
@@ -483,7 +483,7 @@ cncliInitBlocklogDB() {
       epoch=$(getEpochFromSlot ${slot_number})
       at=$(getDateFromSlot ${slot_number})
       slot_in_epoch=$(getSlotInEpochFromSlot ${slot_number} ${epoch})
-      sqlite3 ${BLOCKLOG_DB} <<-'EOF'
+      sqlite3 ${BLOCKLOG_DB} <<-EOF
 				UPDATE OR IGNORE blocklog SET at = '${at}', epoch = ${epoch}, block = ${block_number}, slot_in_epoch = ${slot_in_epoch}, hash = '${block_hash}', size = ${block_size}, status = 'adopted'
 				WHERE slot = ${slot_number};
 				INSERT OR IGNORE INTO blocklog (slot, at, epoch, block, slot_in_epoch, hash, size, status)
@@ -524,7 +524,7 @@ cncliMigrateBlocklog() {
       else
         block_status="leader"
       fi
-      sqlite3 ${BLOCKLOG_DB} <<-'EOF'
+      sqlite3 ${BLOCKLOG_DB} <<-EOF
 				UPDATE OR IGNORE blocklog SET at = '${block_at}', epoch = ${epoch}, slot_in_epoch = ${slot_in_epoch}, hash = '${block_hash}', size = ${block_size}, status = '${block_status}'
 				WHERE slot = ${block_slot};
 				INSERT OR IGNORE INTO blocklog (slot, at, epoch, slot_in_epoch, hash, size, status)
