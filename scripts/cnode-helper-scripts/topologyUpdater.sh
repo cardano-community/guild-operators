@@ -24,15 +24,15 @@ PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
 
 usage() {
-  cat <<EOF
-Usage: $(basename "$0") [-b <branch name>] [-f] [-p]
-Topology Updater - Build topology with community pools
+  cat <<-'EOF'
+		Usage: $(basename "$0") [-b <branch name>] [-f] [-p]
+		Topology Updater - Build topology with community pools
 
--f    Disable fetch of a fresh topology file
--p    Disable node alive push to Topology Updater API
--b    Use alternate branch to check for updates - only for testing/development (Default: master)
-
-EOF
+		-f    Disable fetch of a fresh topology file
+		-p    Disable node alive push to Topology Updater API
+		-b    Use alternate branch to check for updates - only for testing/development (Default: master)
+		
+		EOF
   exit 1
 }
 
@@ -132,8 +132,8 @@ fi
 
 [[ -z "${CUSTOM_PEERS}" ]] && CUSTOM_PEERS_PARAM="" || CUSTOM_PEERS_PARAM="&customPeers=${CUSTOM_PEERS}"
 
-[[ ${TU_PUSH} = "Y" ]] && curl -s -f "https://api.clio.one/htopology/v1/?port=${CNODE_PORT}&blockNo=${blockNo}&valency=${CNODE_VALENCY}&magic=${NWMAGIC}${T_HOSTNAME}" | tee -a "${LOG_DIR}"/topologyUpdater_lastresult.json
-[[ ${TU_FETCH} = "Y" ]] && curl -s -f -o "${TOPOLOGY}".tmp "https://api.clio.one/htopology/v1/fetch/?max=${MAX_PEERS}&magic=${NWMAGIC}${CUSTOM_PEERS_PARAM}" && \
+[[ ${TU_PUSH} = "Y" ]] && curl -s -f -4 "https://api.clio.one/htopology/v1/?port=${CNODE_PORT}&blockNo=${blockNo}&valency=${CNODE_VALENCY}&magic=${NWMAGIC}${T_HOSTNAME}" | tee -a "${LOG_DIR}"/topologyUpdater_lastresult.json
+[[ ${TU_FETCH} = "Y" ]] && curl -s -f -4 -o "${TOPOLOGY}".tmp "https://api.clio.one/htopology/v1/fetch/?max=${MAX_PEERS}&magic=${NWMAGIC}${CUSTOM_PEERS_PARAM}" && \
 mv "${TOPOLOGY}".tmp "${TOPOLOGY}"
 
 exit 0
