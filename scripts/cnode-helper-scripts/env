@@ -381,22 +381,22 @@ getNodeMetrics() {
   if [[ ${USE_EKG} = 'Y' ]]; then
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
     node_metrics_tsv=$(jq -r '[
-.cardano.node.metrics.blockNum.int.val //0,
-.cardano.node.metrics.epoch.int.val //0,
-.cardano.node.metrics.slotInEpoch.int.val //0,
-.cardano.node.metrics.slotNum.int.val //0,
-.cardano.node.metrics.density.real.val //"-",
-.cardano.node.metrics.txsProcessedNum.int.val //0,
-.cardano.node.metrics.txsInMempool.int.val //0,
-.cardano.node.metrics.mempoolBytes.int.val //0,
-.cardano.node.metrics.currentKESPeriod.int.val //0,
-.cardano.node.metrics.remainingKESPeriods.int.val //0,
-.cardano.node.metrics.Forge["node-is-leader"].int.val //0,
-.cardano.node.metrics.Forge.adopted.int.val //0,
-.cardano.node.metrics.Forge["didnt-adopt"].int.val //0,
-.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0,
-.rts.gc.wall_ms.val //0
-] | @tsv' <<< "${node_metrics}")
+    .cardano.node.metrics.blockNum.int.val //0,
+    .cardano.node.metrics.epoch.int.val //0,
+    .cardano.node.metrics.slotInEpoch.int.val //0,
+    .cardano.node.metrics.slotNum.int.val //0,
+    .cardano.node.metrics.density.real.val //"-",
+    .cardano.node.metrics.txsProcessedNum.int.val //0,
+    .cardano.node.metrics.txsInMempool.int.val //0,
+    .cardano.node.metrics.mempoolBytes.int.val //0,
+    .cardano.node.metrics.currentKESPeriod.int.val //0,
+    .cardano.node.metrics.remainingKESPeriods.int.val //0,
+    .cardano.node.metrics.Forge["node-is-leader"].int.val //0,
+    .cardano.node.metrics.Forge.adopted.int.val //0,
+    .cardano.node.metrics.Forge["didnt-adopt"].int.val //0,
+    .cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0,
+    .rts.gc.wall_ms.val //0
+    ] | @tsv' <<< "${node_metrics}")
     read -ra node_metrics_arr <<< ${node_metrics_tsv}
     blocknum=${node_metrics_arr[0]}; epochnum=${node_metrics_arr[1]}; slot_in_epoch=${node_metrics_arr[2]}; slotnum=${node_metrics_arr[3]}
     [[ ${node_metrics_arr[4]} != '-' ]] && density=$(bc <<< "scale=3;$(printf '%3.5f' "${node_metrics_arr[4]}")*100/1") || density=0.0
