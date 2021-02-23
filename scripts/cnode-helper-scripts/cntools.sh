@@ -30,15 +30,15 @@ myExit() {
 clear
 
 usage() {
-  cat <<EOF
-Usage: $(basename "$0") [-o] [-a] [-b <branch name>]
-CNTools - The Cardano SPOs best friend
-
--o    Activate offline mode - run CNTools in offline mode without node access, a limited set of functions available
--a    Enable advanced/developer features like metadata transactions, multi-asset management etc (not needed for SPO usage)
--b    Run CNTools and look for updates on alternate branch instead of master of guild repository (only for testing/development purposes)
-
-EOF
+  cat <<-EOF
+		Usage: $(basename "$0") [-o] [-a] [-b <branch name>]
+		CNTools - The Cardano SPOs best friend
+		
+		-o    Activate offline mode - run CNTools in offline mode without node access, a limited set of functions available
+		-a    Enable advanced/developer features like metadata transactions, multi-asset management etc (not needed for SPO usage)
+		-b    Run CNTools and look for updates on alternate branch instead of master of guild repository (only for testing/development purposes)
+		
+		EOF
 }
 
 CNTOOLS_MODE="CONNECTED"
@@ -87,8 +87,7 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       fi
     else
       mv "${PARENT}"/env.tmp "${PARENT}"/env
-      myExit 0 "Common env file downloaded: ${PARENT}/env\n\
-This is a mandatory prerequisite, please set variables accordingly in User Variables section in the env file and restart CNTools"
+      myExit 0 "Common env file downloaded: ${PARENT}/env\nThis is a mandatory prerequisite, please set variables accordingly in User Variables section in the env file and restart CNTools"
     fi
   fi
   rm -f "${PARENT}"/env.tmp
@@ -193,12 +192,9 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
 
   # Validate protocol parameters
   if grep -q "Network.Socket.connect" <<< "${PROT_PARAMS}"; then
-    myExit 1 "${FG_YELLOW}WARN${NC}: node socket path wrongly configured or node not running, please verify that socket set in env file match what is used to run the node\n\n\
-${FG_BLUE}INFO${NC}: re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality"
+    myExit 1 "${FG_YELLOW}WARN${NC}: node socket path wrongly configured or node not running, please verify that socket set in env file match what is used to run the node\n\n${FG_BLUE}INFO${NC}: re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality"
   elif [[ -z "${PROT_PARAMS}" ]] || ! jq -er . <<< "${PROT_PARAMS}" &>/dev/null; then
-    myExit 1 "${FG_YELLOW}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)\n\n\
-Error message: ${PROT_PARAMS}\n\n\
-${FG_BLUE}INFO${NC}: re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality"
+    myExit 1 "${FG_YELLOW}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)\n\nError message: ${PROT_PARAMS}\n\n${FG_BLUE}INFO${NC}: re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality"
   fi
   echo "${PROT_PARAMS}" > "${TMP_FOLDER}"/protparams.json
 fi
@@ -237,1492 +233,1297 @@ fi
 ###################################################################
 
 function main {
-
-while true; do # Main loop
-
-# Start with a clean slate after each completed or canceled command excluding .dialogrc from purge
-find "${TMP_FOLDER:?}" -type f -not \( -name 'protparams.json' -o -name '.dialogrc' -o -name "offline_tx*" -o -name "*_cntools_backup*" -o -name "metadata_*" \) -delete
-
-clear
-println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-  println "$(printf " >> CNTools v%s - %s - ${FG_GREEN}%s${NC} << %$((84-23-${#CNTOOLS_VERSION}-${#NETWORK_NAME}-${#CNTOOLS_MODE}))s" "${CNTOOLS_VERSION}" "${NETWORK_NAME}" "${CNTOOLS_MODE}" "A Guild Operators collaboration")"
-else
-  println "$(printf " >> CNTools v%s - %s - ${FG_LBLUE}%s${NC} << %$((84-23-${#CNTOOLS_VERSION}-${#NETWORK_NAME}-${#CNTOOLS_MODE}))s" "${CNTOOLS_VERSION}" "${NETWORK_NAME}" "${CNTOOLS_MODE}" "A Guild Operators collaboration")"
-fi
-println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-println "OFF" " Main Menu    Telegram Announcement / Support channel: ${FG_YELLOW}t.me/guild_operators_official${NC}\n\n"\
-" ) Wallet      - create, show, remove and protect wallets\n"\
-" ) Funds       - send, withdraw and delegate\n"\
-" ) Pool        - pool creation and management\n"\
-" ) Transaction - Sign and Submit a cold transaction (hybrid/offline mode)\n"\
-"$([[ -f "${BLOCKLOG_DB}" ]] && echo " ) Blocks      - show core node leader schedule & block production statistics\n")"\
-" ) Update      - update cntools script and library config files\n"\
-" ) Backup      - backup & restore of wallet/pool/config\n"\
-"$([[ ${ADVANCED_MODE} = true ]] && echo " ) Advanced    - Developer and advanced features: metadata, multi-assets, ...\n")"\
-" ) Refresh     - reload home screen content\n"\
-"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-println "DEBUG" "$(printf "%84s" "Epoch $(getEpoch) - $(timeLeft "$(timeUntilNextEpoch)") until next")"
-if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-  println "DEBUG" " What would you like to do?"
-else
-  getNodeMetrics
-  tip_diff=$(( $(getSlotTipRef) - slotnum ))
-  slot_interval=$(slotInterval)
-  if [[ ${tip_diff} -le ${slot_interval} ]]; then
-    println "DEBUG" "$(printf " What would you like to do? %$((84-29-${#tip_diff}-3))s ${FG_GREEN}%s${NC}" "Node Sync:" "${tip_diff} :)")"
-  elif [[ ${tip_diff} -le $(( slot_interval * 2 )) ]]; then
-    println "DEBUG" "$(printf " What would you like to do? %$((84-29-${#tip_diff}-3))s ${FG_YELLOW}%s${NC}" "Node Sync:" "${tip_diff} :|")"
-  else
-    println "DEBUG" "$(printf " What would you like to do? %$((84-29-${#tip_diff}-3))s ${FG_RED}%s${NC}" "Node Sync:" "${tip_diff} :(")"
-  fi
-fi
-echo
-select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[t] Transaction" "$([[ -f "${BLOCKLOG_DB}" ]] && echo "[b] Blocks")" "[u] Update" "[z] Backup & Restore" "$([[ ${ADVANCED_MODE} = true ]] && echo "[a] Advanced")" "[r] Refresh" "[q] Quit"
-case ${selected_value} in
-  "[w]"*) OPERATION="wallet" ;;
-  "[f]"*) OPERATION="funds" ;;
-  "[p]"*) OPERATION="pool" ;;
-  "[t]"*) OPERATION="transaction" ;;
-  "[b]"*) OPERATION="blocks" ;;
-  "[u]"*) OPERATION="update" ;;
-  "[z]"*) OPERATION="backup" ;;
-  "[a]"*) OPERATION="advanced" ;;
-  "[r]"*) continue ;;
-  "[q]"*) myExit 0 "CNTools closed!" ;;
-esac
-
-case $OPERATION in
-  wallet)
-
-  clear
-  println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  println " >> WALLET"
-  println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  println "OFF" " Wallet Management\n\n"\
-" ) New         - create a new wallet\n"\
-" ) Import      - import a Daedalus/Yoroi 24/25 mnemonic or Ledger/Trezor HW wallet\n"\
-" ) Register    - register a wallet on chain\n"\
-" ) De-Register - De-Register (retire) a registered wallet\n"\
-" ) List        - list all available wallets in a compact view\n"\
-" ) Show        - show detailed view of a specific wallet\n"\
-" ) Remove      - remove a wallet\n"\
-" ) Decrypt     - remove write protection and decrypt wallet\n"\
-" ) Encrypt     - encrypt wallet keys and make all files immutable\n"\
-"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  println "DEBUG" " Select Wallet Operation\n"
-  select_opt "[n] New" "[i] Import" "[r] Register" "[z] De-Register" "[l] List" "[s] Show" "[x] Remove" "[d] Decrypt" "[e] Encrypt" "[h] Home"
-  case $? in
-    0) SUBCOMMAND="new" ;;
-    1) SUBCOMMAND="import" ;;
-    2) SUBCOMMAND="register" ;;
-    3) SUBCOMMAND="deregister" ;;
-    4) SUBCOMMAND="list" ;;
-    5) SUBCOMMAND="show" ;;
-    6) SUBCOMMAND="remove" ;;
-    7) SUBCOMMAND="decrypt" ;;
-    8) SUBCOMMAND="encrypt" ;;
-    9) continue ;;
-  esac
-
-  case $SUBCOMMAND in
-    new)
-
+  while true; do # Main loop
+    # Start with a clean slate after each completed or canceled command excluding .dialogrc from purge
+    find "${TMP_FOLDER:?}" -type f -not \( -name 'protparams.json' -o -name '.dialogrc' -o -name "offline_tx*" -o -name "*_cntools_backup*" -o -name "metadata_*" \) -delete
     clear
     println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    println " >> WALLET >> NEW"
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo
-    
-    sleep 0.1 && read -r -p "Name of new wallet: " wallet_name 2>&6 && println "LOG" "Name of new wallet: ${wallet_name}"
-    # Remove unwanted characters from wallet name
-    wallet_name=${wallet_name//[^[:alnum:]]/_}
-    if [[ -z "${wallet_name}" ]]; then
-      println "ERROR" "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
-      waitForInput && continue
+    if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+      println "$(printf " >> CNTools v%s - %s - ${FG_GREEN}%s${NC} << %$((84-23-${#CNTOOLS_VERSION}-${#NETWORK_NAME}-${#CNTOOLS_MODE}))s" "${CNTOOLS_VERSION}" "${NETWORK_NAME}" "${CNTOOLS_MODE}" "A Guild Operators collaboration")"
+    else
+      println "$(printf " >> CNTools v%s - %s - ${FG_LBLUE}%s${NC} << %$((84-23-${#CNTOOLS_VERSION}-${#NETWORK_NAME}-${#CNTOOLS_MODE}))s" "${CNTOOLS_VERSION}" "${NETWORK_NAME}" "${CNTOOLS_MODE}" "A Guild Operators collaboration")"
     fi
-    echo
-    if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
-      println "ERROR" "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
-      waitForInput && continue
-    fi
-
-    # Wallet key filenames
-    payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-    payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
-    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-
-    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
-      println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
-      println "      Choose another name or delete the existing one"
-      waitForInput && continue
-    fi
-
-    println "ACTION" "${CCLI} address key-gen --verification-key-file ${payment_vk_file} --signing-key-file ${payment_sk_file}"
-    if ! ${CCLI} address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}"; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: failure during payment key creation!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
-    fi
-    println "ACTION" "${CCLI} stake-address key-gen --verification-key-file ${stake_vk_file} --signing-key-file ${stake_sk_file}"
-    if ! ${CCLI} stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}"; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: failure during stake key creation!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
-    fi
-    chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
-    getBaseAddress ${wallet_name}
-    getPayAddress ${wallet_name}
-    getRewardAddress ${wallet_name}
-
-    println "New Wallet         : ${FG_GREEN}${wallet_name}${NC}"
-    println "Address            : ${FG_LGRAY}${base_addr}${NC}"
-    println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
-    println "DEBUG" "\nYou can now send and receive Ada using the above addresses."
-    println "DEBUG" "Note that Enterprise Address will not take part in staking."
-    println "DEBUG" "Wallet will be automatically registered on chain if you\nchoose to delegate or pledge wallet when registering a stake pool."
-    
-    waitForInput && continue
-
-    ;; ###################################################################
-    
-    import)
-    
-    clear
     println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    println " >> WALLET >> IMPORT"
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    println "OFF" " Wallet Import\n\n"\
-" ) Mnemonic  - Daedalus/Yoroi 24 or 25 word mnemonic\n"\
-" ) HW Wallet - Ledger/Trezor hardware wallet\n"\
-"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    println "DEBUG" " Select Wallet Import Operation\n"
-    select_opt "[m] Mnemonic" "[w] HW Wallet" "[h] Home"
-    case $? in
-      0) SUBCOMMAND="mnemonic" ;;
-      1) SUBCOMMAND="hardware" ;;
-      2) continue ;;
-    esac
-
-    case $SUBCOMMAND in
-      mnemonic)
-
-      clear
-      println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-      println " >> WALLET >> IMPORT >> MNEMONIC"
-      println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-      echo
-      
-      if ! need_cmd "bech32" || \
-         ! need_cmd "cardano-address"; then
-        println "ERROR" "${FG_RED}ERROR${NC}: cardano-address and/or bech32 executables not found in path!"
-        println "ERROR" "Please run updated prereqs.sh and re-build cardano-node"
-        waitForInput && continue
-      fi
-      
-      sleep 0.1 && read -r -p "Name of imported wallet: " wallet_name 2>&6 && println "LOG" "Name of imported wallet: ${wallet_name}"
-      # Remove unwanted characters from wallet name
-      wallet_name=${wallet_name//[^[:alnum:]]/_}
-      if [[ -z "${wallet_name}" ]]; then
-        println "ERROR" "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
-        waitForInput && continue
-      fi
-      echo
-      if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
-        println "ERROR" "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
-        waitForInput && continue
-      fi
-      
-      if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
-        println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
-        println "      Choose another name or delete the existing one"
-        waitForInput && continue
-      fi
-      
-      sleep 0.1 && read -r -p "24 or 15 word mnemonic(space separated): " mnemonic 2>&6
-      echo
-      IFS=" " read -r -a words <<< "${mnemonic}"
-      if [[ ${#words[@]} -ne 24 ]] && [[ ${#words[@]} -ne 15 ]]; then
-        println "ERROR" "${FG_RED}ERROR${NC}: 24 or 15 words expected, found ${FG_RED}${#words[@]}${NC}"
-        echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
-        waitForInput && continue
-      fi
-      
-      payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-      payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
-      stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-      stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"  
-      
-      if ! root_prv=$(cardano-address key from-recovery-phrase Shelley <<< ${mnemonic}); then
-        echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
-        waitForInput && continue
-      fi
-      payment_xprv=$(cardano-address key child 1852H/1815H/0H/0/0 <<< ${root_prv})
-      stake_xprv=$(cardano-address key child 1852H/1815H/0H/2/0 <<< ${root_prv})
-      
-      payment_xpub=$(cardano-address key public <<< ${payment_xprv})
-      stake_xpub=$(cardano-address key public <<< ${stake_xprv})
-      [[ "${NETWORKID}" = "Mainnet" ]] && network_tag=1 || network_tag=0
-      base_addr_candidate=$(cardano-address address delegation ${stake_xpub} <<< "$(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub})")
-      if [[ "${NETWORKID}" = "Testnet" ]]; then
-        println "LOG" "TestNet, converting address to 'addr_test'"
-        base_addr_candidate=$(bech32 addr_test <<< ${base_addr_candidate})
-      fi
-      println "LOG" "Base address candidate = ${base_addr_candidate}"
-      println "LOG" "Address Inspection:\n$(cardano-address address inspect <<< ${base_addr_candidate})"
-      
-      pes_key=$(bech32 <<< ${payment_xprv} | cut -b -128)$(bech32 <<< ${payment_xpub})
-      ses_key=$(bech32 <<< ${stake_xprv} | cut -b -128)$(bech32 <<< ${stake_xpub})
-      
-      cat << EOF > "${payment_sk_file}"
-{
-    "type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
-    "description": "Payment Signing Key",
-    "cborHex": "5880${pes_key}"
-}
-EOF
-    
-      cat << EOF > "${stake_sk_file}"
-{
-    "type": "StakeExtendedSigningKeyShelley_ed25519_bip32",
-    "description": "",
-    "cborHex": "5880${ses_key}"
-}
-EOF
-      println "ACTION" "${CCLI} key verification-key --signing-key-file ${payment_sk_file} --verification-key-file ${TMP_FOLDER}/payment.evkey"
-      if ! ${CCLI} key verification-key --signing-key-file "${payment_sk_file}" --verification-key-file "${TMP_FOLDER}/payment.evkey"; then
-        println "ERROR" "\n${FG_RED}ERROR${NC}: failure during payment signing key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
-      fi
-      println "ACTION" "${CCLI} key verification-key --signing-key-file ${stake_sk_file} --verification-key-file ${TMP_FOLDER}/stake.evkey"
-      if ! ${CCLI} key verification-key --signing-key-file "${stake_sk_file}" --verification-key-file "${TMP_FOLDER}/stake.evkey"; then
-        println "ERROR" "\n${FG_RED}ERROR${NC}: failure during stake signing key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
-      fi
-
-      println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_FOLDER}/payment.evkey --verification-key-file ${payment_vk_file}"
-      if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_FOLDER}/payment.evkey" --verification-key-file "${payment_vk_file}"; then
-        println "ERROR" "\n${FG_RED}ERROR${NC}: failure during payment verification key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
-      fi
-      println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_FOLDER}/stake.evkey --verification-key-file ${stake_vk_file}"
-      if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_FOLDER}/stake.evkey" --verification-key-file "${stake_vk_file}"; then
-        println "ERROR" "\n${FG_RED}ERROR${NC}: failure during stake verification key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
-      fi
-      
-      chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
-
-      getBaseAddress ${wallet_name}
-      getPayAddress ${wallet_name}
-      getRewardAddress ${wallet_name}
-      
-      if [[ ${base_addr} != "${base_addr_candidate}" ]]; then
-        println "ERROR" "${FG_RED}ERROR${NC}: base address generated doesn't match base address candidate."
-        println "ERROR" "base_addr[${FG_LGRAY}${base_addr}${NC}]\n!=\nbase_addr_candidate[${FG_LGRAY}${base_addr_candidate}${NC}]"
-        println "ERROR" "Create a GitHub issue and include log file from failed CNTools session."
-        echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
-        waitForInput && continue
-      fi
-      
-      echo
-      println "Wallet Imported    : ${FG_GREEN}${wallet_name}${NC}"
-      println "Address            : ${FG_LGRAY}${base_addr}${NC}"
-      println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
-      echo
-      println "DEBUG" "You can now send and receive Ada using the above addresses. Note that Enterprise Address will not take part in staking"
-      println "DEBUG" "Wallet will be automatically registered on chain if you choose to delegate or pledge wallet when registering a stake pool"
-      echo
-      println "DEBUG" "${FG_YELLOW}Using a mnemonic imported wallet in CNTools comes with a few limitations${NC}"
-      echo
-      println "DEBUG" "Only the first address in the HD wallet is extracted and because of this the following apply:"
-      println "DEBUG" " ${FG_LGRAY}>${NC} Address above should match the first address seen in Daedalus/Yoroi, please verify!!!"
-      println "DEBUG" " ${FG_LGRAY}>${NC} If restored wallet contain funds since before, send all Ada through Daedalus/Yoroi to address shown in CNTools"
-      println "DEBUG" " ${FG_LGRAY}>${NC} Only use receive address shown in CNTools"
-      println "DEBUG" " ${FG_LGRAY}>${NC} Only spend Ada from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
-      echo
-      println "DEBUG" "Some of the advantages of using a mnemonic imported wallet instead of CLI are:"
-      println "DEBUG" " ${FG_LGRAY}>${NC} Wallet can be restored from saved 24 or 15 word mnemonic if keys are lost/deleted"
-      println "DEBUG" " ${FG_LGRAY}>${NC} Track rewards in Daedalus/Yoroi"
-      echo
-      println "DEBUG" "Please read more about HD wallets at:"
-      println "DEBUG" "https://cardano-community.github.io/support-faq/#/wallets?id=heirarchical-deterministic-hd-wallets"
-      
-      waitForInput && continue
-
-      ;; ###################################################################
-      
-      hardware)
-
-      clear
-      println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-      println " >> WALLET >> IMPORT >> HARDWARE WALLET"
-      println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-      echo
-      
-      println "DEBUG" "Supported HW wallets: Ledger S, Ledger X, Trezor Model T"
-      println "Is your hardware wallet one of these models?"
-      select_opt "[y] Yes" "[n] No"
-      case $? in
-        0) : ;; # do nothing
-        1) waitForInput "Unsupported hardware wallet, press any key to return home" && continue ;;
-      esac
-      echo
-      
-      if ! need_cmd "cardano-hw-cli"; then
-        println "ERROR" "${FG_RED}ERROR${NC}: cardano-hw-cli executable not found in path!"
-        println "ERROR" "Please run '${FG_YELLOW}prereqs.sh -w${NC}' to add hardware wallet support and install Vaccumlabs cardano-hw-cli, '${FG_YELLOW}prereqs.sh -h${NC}' shows all available options"
-        waitForInput && continue
-      fi
-      if ! HWCLIversionCheck; then waitForInput && continue; fi
-      
-      sleep 0.1 && read -r -p "Name of imported wallet: " wallet_name 2>&6 && println "LOG" "Name of imported wallet: ${wallet_name}"
-      # Remove unwanted characters from wallet name
-      wallet_name=${wallet_name//[^[:alnum:]]/_}
-      if [[ -z "${wallet_name}" ]]; then
-        println "ERROR" "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
-        waitForInput && continue
-      fi
-      
-      if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
-        println "ERROR" "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
-        waitForInput && continue
-      fi
-      
-      if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
-        println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
-        println "      Choose another name or delete the existing one"
-        waitForInput && continue
-      fi
-      
-      payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_PAY_SK_FILENAME}"
-      payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
-      stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_STAKE_SK_FILENAME}"
-      stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"  
-      
-      if ! unlockHWDevice "extract ${FG_LGRAY}payment keys${NC}"; then safeDel "${WALLET_FOLDER}/${wallet_name}"; continue; fi
-      println "ACTION" "cardano-hw-cli address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file ${payment_vk_file} --hw-signing-file ${payment_sk_file}"
-      if ! cardano-hw-cli address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file "${payment_vk_file}" --hw-signing-file "${payment_sk_file}"; then
-        println "ERROR" "\n${FG_RED}ERROR${NC}: failure during payment key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
-      fi
-      jq '.description = "Payment Hardware Verification Key"' "${payment_vk_file}" > "${TMP_FOLDER}/$(basename "${payment_vk_file}").tmp" && mv -f "${TMP_FOLDER}/$(basename "${payment_vk_file}").tmp" "${payment_vk_file}"
-      println "DEBUG" "${FG_BLUE}INFO${NC}: repeat and follow instructions on hardware device to extract the ${FG_LGRAY}stake keys${NC}"
-      println "ACTION" "cardano-hw-cli address key-gen --path 1852H/1815H/0H/2/0 --verification-key-file ${stake_vk_file} --hw-signing-file ${stake_sk_file}"
-      if ! cardano-hw-cli address key-gen --path 1852H/1815H/0H/2/0 --verification-key-file "${stake_vk_file}" --hw-signing-file "${stake_sk_file}"; then
-        println "ERROR" "\n${FG_RED}ERROR${NC}: failure during stake key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
-      fi
-      jq '.description = "Stake Hardware Verification Key"' "${stake_vk_file}" > "${TMP_FOLDER}/$(basename "${stake_vk_file}").tmp" && mv -f "${TMP_FOLDER}/$(basename "${stake_vk_file}").tmp" "${stake_vk_file}"
-      
-      getBaseAddress ${wallet_name}
-      getPayAddress ${wallet_name}
-      getRewardAddress ${wallet_name}
-      
-      echo
-      println "HW Wallet Imported : ${FG_GREEN}${wallet_name}${NC}"
-      println "Address            : ${FG_LGRAY}${base_addr}${NC}"
-      println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
-      echo
-      println "DEBUG" "You can now send and receive Ada using the above addresses. Note that Enterprise Address will not take part in staking"
-      echo
-      println "DEBUG" "All transaction signing is now done through hardware device, please follow directions in both CNTools and the device display!"
-      println "DEBUG" "${FG_YELLOW}Using an imported hardware wallet in CNTools comes with a few limitations${NC}"
-      echo
-      println "DEBUG" "Most operations like delegation and sending funds is seamless. For pool registration/modification however the following apply:"
-      println "DEBUG" " ${FG_LGRAY}>${NC} Pool owner has to be a CLI wallet with enough funds to pay for pool registration deposit and transaction fee"
-      println "DEBUG" " ${FG_LGRAY}>${NC} Add the hardware wallet containing the pledge as a multi-owner to the pool"
-      println "DEBUG" " ${FG_LGRAY}>${NC} The hardware wallet can be used as the reward wallet, but has to be included as a multi-owner if it should be counted to pledge"
-      echo
-      println "DEBUG" "Only the first address in the HD wallet is extracted and because of this the following apply if also synced with Daedalus/Yoroi:"
-      println "DEBUG" " ${FG_LGRAY}>${NC} Address above should match the first address seen in Daedalus/Yoroi, please verify!!!"
-      println "DEBUG" " ${FG_LGRAY}>${NC} If restored wallet contain funds since before, send all Ada through Daedalus/Yoroi to address shown in CNTools"
-      println "DEBUG" " ${FG_LGRAY}>${NC} Only use the address shown in CNTools to receive funds"
-      println "DEBUG" " ${FG_LGRAY}>${NC} Only spend Ada from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
-      
-      waitForInput && continue
-      
-      ;; ###################################################################
-      
-    esac
-
-    ;; ###################################################################
-    
-    register)
-
-    clear
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    println " >> WALLET >> REGISTER"
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    
-    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
-    
+    println "OFF" " Main Menu    Telegram Announcement / Support channel: ${FG_YELLOW}t.me/guild_operators_official${NC}\n"\
+			" ) Wallet      - create, show, remove and protect wallets"\
+			" ) Funds       - send, withdraw and delegate"\
+			" ) Pool        - pool creation and management"\
+			" ) Transaction - Sign and Submit a cold transaction (hybrid/offline mode)"\
+			"$([[ -f "${BLOCKLOG_DB}" ]] && echo " ) Blocks      - show core node leader schedule & block production statistics")"\
+			" ) Update      - update cntools script and library config files"\
+			" ) Backup      - backup & restore of wallet/pool/config"\
+			"$([[ ${ADVANCED_MODE} = true ]] && echo " ) Advanced    - Developer and advanced features: metadata, multi-assets, ...")"\
+			" ) Refresh     - reload home screen content"\
+			"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    println "DEBUG" "$(printf "%84s" "Epoch $(getEpoch) - $(timeLeft "$(timeUntilNextEpoch)") until next")"
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      println "ERROR" "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-      waitForInput && continue
+      println "DEBUG" " What would you like to do?"
     else
-      if ! selectOpMode; then continue; fi
-    fi
-    echo
-    
-    println "DEBUG" "# Select wallet to register (only non-registered wallets shown)"
-    if [[ ${op_mode} = "online" ]]; then
-      if ! selectWallet "non-reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
-        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-      fi
-      getWalletType ${wallet_name}
-      case $? in
-        2) println "ERROR" "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-        3) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
-      esac
-    else
-      if ! selectWallet "non-reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
-        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-      fi
-      getWalletType ${wallet_name}
-    fi
-    
-    getBaseAddress ${wallet_name}
-    getBalance ${base_addr}
-
-    if [[ ${assets[lovelace]} -gt 0 ]]; then
-      if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        println "DEBUG" "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Funds in wallet:"  "$(formatLovelace ${assets[lovelace]})")"
-      fi
-    else
-      println "ERROR" "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
-      keyDeposit=$(jq -r '.keyDeposit' "${TMP_FOLDER}"/protparams.json)
-      println "DEBUG" "Funds for key deposit($(formatLovelace ${keyDeposit}) Ada) + transaction fee needed to register the wallet"
-      waitForInput && continue
-    fi
-    
-    if ! registerStakeWallet ${wallet_name} "true"; then
-      waitForInput && continue
-    fi
-
-    println "\n${FG_GREEN}${wallet_name}${NC} successfully registered on chain!"
-    
-    waitForInput && continue
-
-    ;; ###################################################################
-    
-    deregister)
-
-    clear
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    println " >> WALLET >> DE-REGISTER"
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    
-    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
-    
-    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      println "ERROR" "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-      waitForInput && continue
-    else
-      if ! selectOpMode; then continue; fi
-    fi
-    echo
-    
-    println "DEBUG" "# Select wallet to de-register (only registered wallets shown)"
-    if [[ ${op_mode} = "online" ]]; then
-      if ! selectWallet "reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
-        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-      fi
-      getWalletType ${wallet_name}
-      case $? in
-        2) println "ERROR" "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-        3) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
-      esac
-    else
-      if ! selectWallet "reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
-        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-      fi
-      getWalletType ${wallet_name}
-    fi
-    
-    getRewards ${wallet_name}
-    if [[ "${reward_lovelace}" -gt 0 ]]; then
-      println "\n${FG_YELLOW}WARN${NC}: wallet has unclaimed rewards, please use 'Funds >> Withdraw Rewards' before de-registration to claim your rewards"
-      waitForInput && continue
-    fi
-
-    getBaseAddress ${wallet_name}
-    getBalance ${base_addr}
-    
-    if [[ ${assets[lovelace]} -le 0 ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
-      println "ERROR" "Funds for transaction fee needed to deregister the wallet"
-      waitForInput && continue
-    fi
-    
-    if ! deregisterStakeWallet; then
-      [[ -f ${stake_dereg_file} ]] && rm -f ${stake_dereg_file}
-      waitForInput && continue
-    fi
-    
-    echo
-    if ! verifyTx ${base_addr}; then waitForInput && continue; fi
-
-    echo
-    println "${FG_GREEN}${wallet_name}${NC} successfully de-registered from chain!"
-    println "Key deposit fee that will be refunded : ${FG_LBLUE}$(formatLovelace ${keyDeposit})${NC} Ada"
-    
-    waitForInput && continue
-
-    ;; ###################################################################
-
-    list)
-
-    clear
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    println " >> WALLET >> LIST"
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    
-    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
-
-    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      println "DEBUG" "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, wallet balance not shown!"
-    fi
-
-    while IFS= read -r -d '' wallet; do
-      wallet_name=$(basename ${wallet})
-      enc_files=$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c)
-      if [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && isWalletRegistered ${wallet_name}; then registered="yes"; else registered="no"; fi
-      echo
-      if [[ ${enc_files} -gt 0 && ${registered} = "yes" ]]; then
-        println "${FG_GREEN}${wallet_name}${NC} - ${FG_LGRAY}REGISTERED${NC} (${FG_YELLOW}encrypted${NC})"
-      elif [[ ${registered} = "yes" ]]; then
-        println "${FG_GREEN}${wallet_name}${NC} - ${FG_LGRAY}REGISTERED${NC}"
-      elif [[ ${enc_files} -gt 0 ]]; then
-        println "${FG_GREEN}${wallet_name}${NC} (${FG_YELLOW}encrypted${NC})"
+      getNodeMetrics
+      tip_diff=$(( $(getSlotTipRef) - slotnum ))
+      slot_interval=$(slotInterval)
+      if [[ ${tip_diff} -le ${slot_interval} ]]; then
+        println "DEBUG" "$(printf " What would you like to do? %$((84-29-${#tip_diff}-3))s ${FG_GREEN}%s${NC}" "Node Sync:" "${tip_diff} :)")"
+      elif [[ ${tip_diff} -le $(( slot_interval * 2 )) ]]; then
+        println "DEBUG" "$(printf " What would you like to do? %$((84-29-${#tip_diff}-3))s ${FG_YELLOW}%s${NC}" "Node Sync:" "${tip_diff} :|")"
       else
-        println "${FG_GREEN}${wallet_name}${NC}"
+        println "DEBUG" "$(printf " What would you like to do? %$((84-29-${#tip_diff}-3))s ${FG_RED}%s${NC}" "Node Sync:" "${tip_diff} :(")"
       fi
-      getBaseAddress ${wallet_name}
-      getPayAddress ${wallet_name}
-      if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-        [[ -n ${base_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Address"  "${base_addr}")"
-        [[ -n ${pay_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Enterprise Addr"  "${pay_addr}")"
-      else
-        if [[ -n ${base_addr} ]]; then
-          getBalance ${base_addr}
-          println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "Address"  "${base_addr}")"
-          if [[ ${#assets[@]} -eq 1 ]]; then
-            println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada" "Funds"  "$(formatLovelace ${assets[lovelace]})")"
-          else
-            println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Funds" "$(formatLovelace ${assets[lovelace]})" "$(( ${#assets[@]} - 1 ))")"
-          fi
-        fi
-        if [[ -n ${pay_addr} ]]; then
-          getBalance ${pay_addr}
-          if [[ ${assets[lovelace]} -gt 0 ]]; then
-            println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "Enterprise Address"  "${pay_addr}")"
-            if [[ ${#assets[@]} -eq 1 ]]; then
-              println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada" "Enterprise Funds" "$(formatLovelace ${assets[lovelace]})")"
-            else
-              println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Enterprise Funds" "$(formatLovelace ${assets[lovelace]})" "$(( ${#assets[@]} - 1 ))")"
+    fi
+    echo
+    select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[t] Transaction" "$([[ -f "${BLOCKLOG_DB}" ]] && echo "[b] Blocks")" "[u] Update" "[z] Backup & Restore" "$([[ ${ADVANCED_MODE} = true ]] && echo "[a] Advanced")" "[r] Refresh" "[q] Quit"
+    case ${selected_value} in
+      "[w]"*) OPERATION="wallet" ;;
+      "[f]"*) OPERATION="funds" ;;
+      "[p]"*) OPERATION="pool" ;;
+      "[t]"*) OPERATION="transaction" ;;
+      "[b]"*) OPERATION="blocks" ;;
+      "[u]"*) OPERATION="update" ;;
+      "[z]"*) OPERATION="backup" ;;
+      "[a]"*) OPERATION="advanced" ;;
+      "[r]"*) continue ;;
+      "[q]"*) myExit 0 "CNTools closed!" ;;
+    esac
+    case $OPERATION in
+      wallet)
+        clear
+        println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+        println " >> WALLET"
+        println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+        println "OFF" " Wallet Management\n\n ) New         - create a new wallet"\
+					" ) Import      - import a Daedalus/Yoroi 24/25 mnemonic or Ledger/Trezor HW wallet"\
+					" ) Register    - register a wallet on chain"\
+					" ) De-Register - De-Register (retire) a registered wallet"\
+					" ) List        - list all available wallets in a compact view"\
+					" ) Show        - show detailed view of a specific wallet"\
+					" ) Remove      - remove a wallet"\
+					" ) Decrypt     - remove write protection and decrypt wallet"\
+					" ) Encrypt     - encrypt wallet keys and make all files immutable"\
+					"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+        println "DEBUG" " Select Wallet Operation\n"
+        select_opt "[n] New" "[i] Import" "[r] Register" "[z] De-Register" "[l] List" "[s] Show" "[x] Remove" "[d] Decrypt" "[e] Encrypt" "[h] Home"
+        case $? in
+          0) SUBCOMMAND="new" ;;
+          1) SUBCOMMAND="import" ;;
+          2) SUBCOMMAND="register" ;;
+          3) SUBCOMMAND="deregister" ;;
+          4) SUBCOMMAND="list" ;;
+          5) SUBCOMMAND="show" ;;
+          6) SUBCOMMAND="remove" ;;
+          7) SUBCOMMAND="decrypt" ;;
+          8) SUBCOMMAND="encrypt" ;;
+          9) continue ;;
+        esac
+        case $SUBCOMMAND in
+          new)
+            clear
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            println " >> WALLET >> NEW"
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            echo
+            sleep 0.1 && read -r -p "Name of new wallet: " wallet_name 2>&6 && println "LOG" "Name of new wallet: ${wallet_name}"
+            # Remove unwanted characters from wallet name
+            wallet_name=${wallet_name//[^[:alnum:]]/_}
+            if [[ -z "${wallet_name}" ]]; then
+              println "ERROR" "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
+              waitForInput && continue
             fi
-          fi
-        fi
-        if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
-          println "${FG_RED}Not a supported wallet${NC} - genesis address?"
-          println "Use an external script to send funds to a CNTools compatible wallet"
-          continue
-        fi
-        getRewards ${wallet_name}
-        if [[ "${reward_lovelace}" -ge 0 ]]; then
-          println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada" "Rewards" "$(formatLovelace ${reward_lovelace})")"
-          delegation_pool_id=$(jq -r '.[0].delegation // empty' <<< "${stake_address_info}")
-          if [[ -n ${delegation_pool_id} ]]; then
-            unset poolName
-            while IFS= read -r -d '' pool; do
-              getPoolID "$(basename ${pool})"
-              if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
-                poolName=$(basename ${pool}) && break
+            echo
+            if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
+              println "ERROR" "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
+              waitForInput && continue
+            fi
+            # Wallet key filenames
+            payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+            payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
+            stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+            stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+            if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
+              println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
+              println "      Choose another name or delete the existing one"
+              waitForInput && continue
+            fi
+            println "ACTION" "${CCLI} address key-gen --verification-key-file ${payment_vk_file} --signing-key-file ${payment_sk_file}"
+            if ! ${CCLI} address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}"; then
+              println "ERROR" "\n${FG_RED}ERROR${NC}: failure during payment key creation!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
+            fi
+            println "ACTION" "${CCLI} stake-address key-gen --verification-key-file ${stake_vk_file} --signing-key-file ${stake_sk_file}"
+            if ! ${CCLI} stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}"; then
+              println "ERROR" "\n${FG_RED}ERROR${NC}: failure during stake key creation!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
+            fi
+            chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
+            getBaseAddress ${wallet_name}
+            getPayAddress ${wallet_name}
+            getRewardAddress ${wallet_name}
+            println "New Wallet         : ${FG_GREEN}${wallet_name}${NC}"
+            println "Address            : ${FG_LGRAY}${base_addr}${NC}"
+            println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
+            println "DEBUG" "\nYou can now send and receive Ada using the above addresses."
+            println "DEBUG" "Note that Enterprise Address will not take part in staking."
+            println "DEBUG" "Wallet will be automatically registered on chain if you\nchoose to delegate or pledge wallet when registering a stake pool."
+            waitForInput && continue
+            ;; ###################################################################
+          import)
+            clear
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            println " >> WALLET >> IMPORT"
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            println "OFF" " Wallet Import\n"\
+							" ) Mnemonic  - Daedalus/Yoroi 24 or 25 word mnemonic"\
+							" ) HW Wallet - Ledger/Trezor hardware wallet"\
+							"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            println "DEBUG" " Select Wallet Import Operation\n"
+            select_opt "[m] Mnemonic" "[w] HW Wallet" "[h] Home"
+            case $? in
+              0) SUBCOMMAND="mnemonic" ;;
+              1) SUBCOMMAND="hardware" ;;
+              2) continue ;;
+            esac
+            case $SUBCOMMAND in
+              mnemonic)
+                clear
+                println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                println " >> WALLET >> IMPORT >> MNEMONIC"
+                println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                echo
+                if ! need_cmd "bech32" || \
+                   ! need_cmd "cardano-address"; then
+                  println "ERROR" "${FG_RED}ERROR${NC}: cardano-address and/or bech32 executables not found in path!"
+                  println "ERROR" "Please run updated prereqs.sh and re-build cardano-node"
+                  waitForInput && continue
+                fi
+                sleep 0.1 && read -r -p "Name of imported wallet: " wallet_name 2>&6 && println "LOG" "Name of imported wallet: ${wallet_name}"
+                # Remove unwanted characters from wallet name
+                wallet_name=${wallet_name//[^[:alnum:]]/_}
+                if [[ -z "${wallet_name}" ]]; then
+                  println "ERROR" "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
+                  waitForInput && continue
+                fi
+                echo
+                if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
+                  println "ERROR" "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
+                  waitForInput && continue
+                fi
+                if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
+                  println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
+                  println "      Choose another name or delete the existing one"
+                  waitForInput && continue
+                fi
+                sleep 0.1 && read -r -p "24 or 15 word mnemonic(space separated): " mnemonic 2>&6
+                echo
+                IFS=" " read -r -a words <<< "${mnemonic}"
+                if [[ ${#words[@]} -ne 24 ]] && [[ ${#words[@]} -ne 15 ]]; then
+                  println "ERROR" "${FG_RED}ERROR${NC}: 24 or 15 words expected, found ${FG_RED}${#words[@]}${NC}"
+                  echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
+                  waitForInput && continue
+                fi
+                payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+                payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
+                stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+                stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+                if ! root_prv=$(cardano-address key from-recovery-phrase Shelley <<< ${mnemonic}); then
+                  echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
+                  waitForInput && continue
+                fi
+                payment_xprv=$(cardano-address key child 1852H/1815H/0H/0/0 <<< ${root_prv})
+                stake_xprv=$(cardano-address key child 1852H/1815H/0H/2/0 <<< ${root_prv})
+                payment_xpub=$(cardano-address key public <<< ${payment_xprv})
+                stake_xpub=$(cardano-address key public <<< ${stake_xprv})
+                [[ "${NETWORKID}" = "Mainnet" ]] && network_tag=1 || network_tag=0
+                base_addr_candidate=$(cardano-address address delegation ${stake_xpub} <<< "$(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub})")
+                if [[ "${NETWORKID}" = "Testnet" ]]; then
+                  println "LOG" "TestNet, converting address to 'addr_test'"
+                  base_addr_candidate=$(bech32 addr_test <<< ${base_addr_candidate})
+                fi
+                println "LOG" "Base address candidate = ${base_addr_candidate}"
+                println "LOG" "Address Inspection:\n$(cardano-address address inspect <<< ${base_addr_candidate})"
+                pes_key=$(bech32 <<< ${payment_xprv} | cut -b -128)$(bech32 <<< ${payment_xpub})
+                ses_key=$(bech32 <<< ${stake_xprv} | cut -b -128)$(bech32 <<< ${stake_xpub})
+                cat <<-EOF > "${payment_sk_file}"
+									{
+									    "type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
+									    "description": "Payment Signing Key",
+									    "cborHex": "5880${pes_key}"
+									}
+									EOF
+                cat <<-EOF > "${stake_sk_file}"
+									{
+									    "type": "StakeExtendedSigningKeyShelley_ed25519_bip32",
+									    "description": "",
+									    "cborHex": "5880${ses_key}"
+									}
+									EOF
+                println "ACTION" "${CCLI} key verification-key --signing-key-file ${payment_sk_file} --verification-key-file ${TMP_FOLDER}/payment.evkey"
+                if ! ${CCLI} key verification-key --signing-key-file "${payment_sk_file}" --verification-key-file "${TMP_FOLDER}/payment.evkey"; then
+                  println "ERROR" "\n${FG_RED}ERROR${NC}: failure during payment signing key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
+                fi
+                println "ACTION" "${CCLI} key verification-key --signing-key-file ${stake_sk_file} --verification-key-file ${TMP_FOLDER}/stake.evkey"
+                if ! ${CCLI} key verification-key --signing-key-file "${stake_sk_file}" --verification-key-file "${TMP_FOLDER}/stake.evkey"; then
+                  println "ERROR" "\n${FG_RED}ERROR${NC}: failure during stake signing key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
+                fi
+                println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_FOLDER}/payment.evkey --verification-key-file ${payment_vk_file}"
+                if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_FOLDER}/payment.evkey" --verification-key-file "${payment_vk_file}"; then
+                  println "ERROR" "\n${FG_RED}ERROR${NC}: failure during payment verification key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
+                fi
+                println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_FOLDER}/stake.evkey --verification-key-file ${stake_vk_file}"
+                if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_FOLDER}/stake.evkey" --verification-key-file "${stake_vk_file}"; then
+                  println "ERROR" "\n${FG_RED}ERROR${NC}: failure during stake verification key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
+                fi
+                chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
+                getBaseAddress ${wallet_name}
+                getPayAddress ${wallet_name}
+                getRewardAddress ${wallet_name}
+                if [[ ${base_addr} != "${base_addr_candidate}" ]]; then
+                  println "ERROR" "${FG_RED}ERROR${NC}: base address generated doesn't match base address candidate."
+                  println "ERROR" "base_addr[${FG_LGRAY}${base_addr}${NC}]\n!=\nbase_addr_candidate[${FG_LGRAY}${base_addr_candidate}${NC}]"
+                  println "ERROR" "Create a GitHub issue and include log file from failed CNTools session."
+                  echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
+                  waitForInput && continue
+                fi
+                echo
+                println "Wallet Imported    : ${FG_GREEN}${wallet_name}${NC}"
+                println "Address            : ${FG_LGRAY}${base_addr}${NC}"
+                println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
+                echo
+                println "DEBUG" "You can now send and receive Ada using the above addresses. Note that Enterprise Address will not take part in staking"
+                println "DEBUG" "Wallet will be automatically registered on chain if you choose to delegate or pledge wallet when registering a stake pool"
+                echo
+                println "DEBUG" "${FG_YELLOW}Using a mnemonic imported wallet in CNTools comes with a few limitations${NC}"
+                echo
+                println "DEBUG" "Only the first address in the HD wallet is extracted and because of this the following apply:"
+                println "DEBUG" " ${FG_LGRAY}>${NC} Address above should match the first address seen in Daedalus/Yoroi, please verify!!!"
+                println "DEBUG" " ${FG_LGRAY}>${NC} If restored wallet contain funds since before, send all Ada through Daedalus/Yoroi to address shown in CNTools"
+                println "DEBUG" " ${FG_LGRAY}>${NC} Only use receive address shown in CNTools"
+                println "DEBUG" " ${FG_LGRAY}>${NC} Only spend Ada from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
+                echo
+                println "DEBUG" "Some of the advantages of using a mnemonic imported wallet instead of CLI are:"
+                println "DEBUG" " ${FG_LGRAY}>${NC} Wallet can be restored from saved 24 or 15 word mnemonic if keys are lost/deleted"
+                println "DEBUG" " ${FG_LGRAY}>${NC} Track rewards in Daedalus/Yoroi"
+                echo
+                println "DEBUG" "Please read more about HD wallets at:"
+                println "DEBUG" "https://cardano-community.github.io/support-faq/#/wallets?id=heirarchical-deterministic-hd-wallets"
+                waitForInput && continue
+                ;; ###################################################################
+
+              hardware)
+                clear
+                println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                println " >> WALLET >> IMPORT >> HARDWARE WALLET"
+                println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                echo
+                println "DEBUG" "Supported HW wallets: Ledger S, Ledger X, Trezor Model T"
+                println "Is your hardware wallet one of these models?"
+                select_opt "[y] Yes" "[n] No"
+                case $? in
+                  0) : ;; # do nothing
+                  1) waitForInput "Unsupported hardware wallet, press any key to return home" && continue ;;
+                esac
+                echo
+                if ! need_cmd "cardano-hw-cli"; then
+                  println "ERROR" "${FG_RED}ERROR${NC}: cardano-hw-cli executable not found in path!"
+                  println "ERROR" "Please run '${FG_YELLOW}prereqs.sh -w${NC}' to add hardware wallet support and install Vaccumlabs cardano-hw-cli, '${FG_YELLOW}prereqs.sh -h${NC}' shows all available options"
+                  waitForInput && continue
+                fi
+                if ! HWCLIversionCheck; then waitForInput && continue; fi
+                sleep 0.1 && read -r -p "Name of imported wallet: " wallet_name 2>&6 && println "LOG" "Name of imported wallet: ${wallet_name}"
+                # Remove unwanted characters from wallet name
+                wallet_name=${wallet_name//[^[:alnum:]]/_}
+                if [[ -z "${wallet_name}" ]]; then
+                  println "ERROR" "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
+                  waitForInput && continue
+                fi
+                if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
+                  println "ERROR" "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
+                  waitForInput && continue
+                fi
+                if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
+                  println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
+                  println "      Choose another name or delete the existing one"
+                  waitForInput && continue
+                fi
+                payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_PAY_SK_FILENAME}"
+                payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
+                stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_STAKE_SK_FILENAME}"
+                stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"  
+                if ! unlockHWDevice "extract ${FG_LGRAY}payment keys${NC}"; then safeDel "${WALLET_FOLDER}/${wallet_name}"; continue; fi
+                println "ACTION" "cardano-hw-cli address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file ${payment_vk_file} --hw-signing-file ${payment_sk_file}"
+                if ! cardano-hw-cli address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file "${payment_vk_file}" --hw-signing-file "${payment_sk_file}"; then
+                  println "ERROR" "\n${FG_RED}ERROR${NC}: failure during payment key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
+                fi
+                jq '.description = "Payment Hardware Verification Key"' "${payment_vk_file}" > "${TMP_FOLDER}/$(basename "${payment_vk_file}").tmp" && mv -f "${TMP_FOLDER}/$(basename "${payment_vk_file}").tmp" "${payment_vk_file}"
+                println "DEBUG" "${FG_BLUE}INFO${NC}: repeat and follow instructions on hardware device to extract the ${FG_LGRAY}stake keys${NC}"
+                println "ACTION" "cardano-hw-cli address key-gen --path 1852H/1815H/0H/2/0 --verification-key-file ${stake_vk_file} --hw-signing-file ${stake_sk_file}"
+                if ! cardano-hw-cli address key-gen --path 1852H/1815H/0H/2/0 --verification-key-file "${stake_vk_file}" --hw-signing-file "${stake_sk_file}"; then
+                  println "ERROR" "\n${FG_RED}ERROR${NC}: failure during stake key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
+                fi
+                jq '.description = "Stake Hardware Verification Key"' "${stake_vk_file}" > "${TMP_FOLDER}/$(basename "${stake_vk_file}").tmp" && mv -f "${TMP_FOLDER}/$(basename "${stake_vk_file}").tmp" "${stake_vk_file}"
+                getBaseAddress ${wallet_name}
+                getPayAddress ${wallet_name}
+                getRewardAddress ${wallet_name}
+                echo
+                println "HW Wallet Imported : ${FG_GREEN}${wallet_name}${NC}"
+                println "Address            : ${FG_LGRAY}${base_addr}${NC}"
+                println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
+                echo
+                println "DEBUG" "You can now send and receive Ada using the above addresses. Note that Enterprise Address will not take part in staking"
+                echo
+                println "DEBUG" "All transaction signing is now done through hardware device, please follow directions in both CNTools and the device display!"
+                println "DEBUG" "${FG_YELLOW}Using an imported hardware wallet in CNTools comes with a few limitations${NC}"
+                echo
+                println "DEBUG" "Most operations like delegation and sending funds is seamless. For pool registration/modification however the following apply:"
+                println "DEBUG" " ${FG_LGRAY}>${NC} Pool owner has to be a CLI wallet with enough funds to pay for pool registration deposit and transaction fee"
+                println "DEBUG" " ${FG_LGRAY}>${NC} Add the hardware wallet containing the pledge as a multi-owner to the pool"
+                println "DEBUG" " ${FG_LGRAY}>${NC} The hardware wallet can be used as the reward wallet, but has to be included as a multi-owner if it should be counted to pledge"
+                echo
+                println "DEBUG" "Only the first address in the HD wallet is extracted and because of this the following apply if also synced with Daedalus/Yoroi:"
+                println "DEBUG" " ${FG_LGRAY}>${NC} Address above should match the first address seen in Daedalus/Yoroi, please verify!!!"
+                println "DEBUG" " ${FG_LGRAY}>${NC} If restored wallet contain funds since before, send all Ada through Daedalus/Yoroi to address shown in CNTools"
+                println "DEBUG" " ${FG_LGRAY}>${NC} Only use the address shown in CNTools to receive funds"
+                println "DEBUG" " ${FG_LGRAY}>${NC} Only spend Ada from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
+                waitForInput && continue
+                ;; ###################################################################
+            esac
+            ;; ###################################################################
+          register)
+            clear
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            println " >> WALLET >> REGISTER"
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+            if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+              println "ERROR" "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+              waitForInput && continue
+            else
+              if ! selectOpMode; then continue; fi
+            fi
+            echo
+            println "DEBUG" "# Select wallet to register (only non-registered wallets shown)"
+            if [[ ${op_mode} = "online" ]]; then
+              if ! selectWallet "non-reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
+                [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
               fi
-            done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-            println "${FG_RED}Delegated${NC} to ${FG_GREEN}${poolName}${NC} ${FG_LGRAY}(${delegation_pool_id})${NC}"
-          fi
-        fi
-      fi
-    done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-
-    waitForInput && continue
-    
-    ;; ###################################################################
-
-    show)
-
-    clear
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    println " >> WALLET >> SHOW"
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    
-    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
-
-    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      println "DEBUG" "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, limited wallet info shown!"
-    fi
-
-    tput sc
-    if ! selectWallet "none" "${WALLET_PAY_VK_FILENAME}"; then
-      [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-    fi
-    tput rc && tput ed
-    
-    enc_files=$(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c)
-
-    if [[ ${enc_files} -gt 0 ]]; then
-      println "Wallet: ${FG_GREEN}${wallet_name}${NC} (${FG_YELLOW}encrypted${NC})"
-    else
-      println "Wallet: ${FG_GREEN}${wallet_name}${NC}"
-    fi
-
-    getBaseAddress ${wallet_name}
-    getPayAddress ${wallet_name}
-    getRewardAddress ${wallet_name}
-    base_lovelace=0
-    pay_lovelace=0
-    
-    if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-      for i in {1..2}; do
-        if [[ $i -eq 1 ]]; then getBalance ${base_addr}; base_lovelace=${assets[lovelace]}; address_type="Base"
-        else getBalance ${pay_addr}; pay_lovelace=${assets[lovelace]}; address_type="Enterprise"; fi
-        [[ $i -eq 2 && ${utxo_cnt} -eq 0 ]] && continue
-        echo
-        println "${FG_LBLUE}${utxo_cnt} UTxO(s)${NC} found for ${FG_GREEN}${address_type}${NC} Address!"
-        if [[ ${utxo_cnt} -gt 0 ]]; then
-          echo
-          println "DEBUG" "$(printf "%-66s | %${asset_name_maxlen}s | %-${asset_amount_maxlen}s\n" "Hash#Index" "Asset" "Amount")"
-          println "DEBUG" "$(printf "%67s+%$((asset_name_maxlen+2))s+%$((asset_amount_maxlen+1))s\n" "" "" "" | tr " " "-")"
-          mapfile -d '' utxos_sorted < <(printf '%s\0' "${!utxos[@]}" | sort -z)
-          for utxo in "${utxos_sorted[@]}"; do
-            IFS='.' read -ra utxo_arr <<< "${utxo}"
-            if [[ ${#utxo_arr[@]} -eq 2 && ${utxo_arr[1]} = " Ada" ]]; then
-              println "DEBUG" "$(printf "%-66s | ${FG_GREEN}%${asset_name_maxlen}s${NC} | ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "${utxo_arr[0]}" "Ada" "$(formatLovelace ${utxos["${utxo}"]})")"
+              getWalletType ${wallet_name}
+              case $? in
+                2) println "ERROR" "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
+                3) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+              esac
             else
-              [[ ${#utxo_arr[@]} -eq 3 ]] && asset_name="${utxo_arr[2]}" || asset_name="."
-              println "DEBUG" "$(printf "${FG_DGRAY}%10s${NC}${FG_LGRAY}%56s${NC} | ${FG_MAGENTA}%${asset_name_maxlen}s${NC} | ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "PolID: " "${utxo_arr[1]}" "${asset_name}" "$(formatAsset ${utxos["${utxo}"]})")"
+              if ! selectWallet "non-reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
+                [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+              fi
+              getWalletType ${wallet_name}
             fi
-          done
-        fi
-        for utxo_entry in "${utxo_output[@]}"; do println "DEBUG" "${utxo_entry}"; done
-        if [[ ${#assets[@]} -gt 0 ]]; then
-          println "\nASSET SUMMARY: ${FG_LBLUE}${#assets[@]} Asset-Type(s)${NC} $([[ ${#assets[@]} -gt 1 ]] && echo -e "/ ${FG_LBLUE}${#policyIDs[@]} Unique Policy ID(s)${NC}")\n"
-          println "DEBUG" "$(printf "%${asset_amount_maxlen}s | %-${asset_name_maxlen}s%s\n" "Total Amount" "Asset" "$([[ ${#assets[@]} -gt 1 ]] && echo -e " | PolicyID")")"
-          println "DEBUG" "$(printf "%$((asset_amount_maxlen+1))s+%$((asset_name_maxlen+2))s%s\n" "" "" "$([[ ${#assets[@]} -gt 1 ]] && printf "+%57s" "")" | tr " " "-")"
-          println "DEBUG" "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} | ${FG_GREEN}%-${asset_name_maxlen}s${NC}%s\n" "$(formatLovelace ${assets[lovelace]})" "Ada" "$([[ ${#assets[@]} -gt 1 ]] && echo " |")")"
-          mapfile -d '' assets_sorted < <(printf '%s\0' "${!assets[@]}" | sort -z)
-          for asset in "${assets_sorted[@]}"; do
-            [[ ${asset} = "lovelace" ]] && continue
-            IFS='.' read -ra asset_arr <<< "${asset}"
-            [[ ${#asset_arr[@]} -eq 1 ]] && asset_name="." || asset_name="${asset_arr[1]}"
-            println "DEBUG" "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} | ${FG_MAGENTA}%-${asset_name_maxlen}s${NC} | ${FG_LGRAY}%s${NC}\n" "$(formatAsset ${assets["${asset}"]})" "${asset_name}" "${asset_arr[0]}")"
-          done
-        fi
-        echo -e "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" >&6
-      done
-    fi
-
-    echo
-    if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-      if isWalletRegistered ${wallet_name}; then
-        println "$(printf "%-20s : ${FG_GREEN}%s${NC}" "Registered" "YES")"
-      else
-        println "$(printf "%-20s : ${FG_RED}%s${NC}" "Registered" "NO")"
-      fi
-    else
-      println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Registered" "Unknown")"
-    fi
-    println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
-    println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Enterprise Address" "${pay_addr}")"
-    println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Reward/Stake Address" "${reward_addr}")"
-    if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-      getRewards ${wallet_name}
-      if [[ "${reward_lovelace}" -ge 0 ]]; then
-        println "$(printf "%-20s : ${FG_LBLUE}%s${NC} Ada" "Rewards Available" "$(formatLovelace ${reward_lovelace})")"
-        println "$(printf "%-20s : ${FG_LBLUE}%s${NC} Ada" "Funds + Rewards" "$(formatLovelace $((pay_lovelace + base_lovelace + reward_lovelace)))")"
-      fi
-      getAddressInfo "${base_addr}"
-      println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Encoding" "$(jq -r '.encoding' <<< ${address_info})")"
-      delegation_pool_id=$(jq -r '.[0].delegation  // empty' <<< "${stake_address_info}" 2>/dev/null)
-      if [[ -n ${delegation_pool_id} ]]; then
-        unset poolName
-        while IFS= read -r -d '' pool; do
-          getPoolID "$(basename ${pool})"
-          if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
-            poolName=$(basename ${pool}) && break
-          fi
-        done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-        echo
-        println "${FG_RED}Delegated${NC} to ${FG_GREEN}${poolName}${NC} ${FG_LGRAY}(${delegation_pool_id})${NC}"
-      fi
-    fi
-
-    waitForInput && continue
-
-    ;; ###################################################################
-
-    remove)
-
-    clear
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    println " >> WALLET >> REMOVE"
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-
-    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
-
-    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      println "DEBUG" "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, unable to verify wallet balance"
-    fi
-
-    echo
-    println "DEBUG" "# Select wallet to remove"
-    if ! selectWallet "none"; then # ${wallet_name} populated by selectWallet function
-      [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-    fi
-    echo
-
-    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      println "DEBUG" "Are you sure to delete wallet ${FG_GREEN}${wallet_name}${NC}?"
-      select_opt "[y] Yes" "[n] No"
-      case $? in
-        0) echo && safeDel "${WALLET_FOLDER:?}/${wallet_name}"
-           ;;
-        1) echo && println "skipped removal process for ${FG_GREEN}$wallet_name${NC}"
-           ;;
-      esac
-      waitForInput && continue
-    fi
-
-    if ! getBaseAddress ${wallet_name} && ! getPayAddress ${wallet_name}; then
-      println "DEBUG" "${FG_RED}WARN${NC}: unable to get address for wallet and do a balance check"
-      println "DEBUG" "\nAre you sure to delete wallet ${FG_GREEN}${wallet_name}${NC} anyway?"
-      select_opt "[y] Yes" "[n] No"
-      case $? in
-        0) echo && safeDel "${WALLET_FOLDER:?}/${wallet_name}"
-           ;;
-        1) echo && println "skipped removal process for ${FG_GREEN}$wallet_name${NC}"
-           ;;
-      esac
-      waitForInput && continue
-    fi
-
-    if [[ -n ${base_addr} ]]; then
-      getBalance ${base_addr}
-      base_lovelace=${assets[lovelace]}
-    else
-      base_lovelace=0
-    fi
-    if [[ -n ${pay_addr} ]]; then
-      getBalance ${pay_addr}
-      pay_lovelace=${assets[lovelace]}
-    else
-      pay_lovelace=0
-    fi
-    getRewards ${wallet_name}
-
-    if [[ ${base_lovelace} -eq 0 && ${pay_lovelace} -eq 0 && ${reward_lovelace} -le 0 ]]; then
-      println "DEBUG" "INFO: This wallet appears to be empty"
-      println "DEBUG" "${FG_RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
-      println "DEBUG" "Are you sure to delete wallet ${FG_GREEN}${wallet_name}${NC}?"
-      select_opt "[y] Yes" "[n] No"
-      case $? in
-        0) echo && safeDel "${WALLET_FOLDER:?}/${wallet_name}"
-           ;;
-        1) echo && println "skipped removal process for ${FG_GREEN}$wallet_name${NC}"
-           ;;
-      esac
-    else
-      println "${FG_RED}WARN${NC}: wallet ${FG_GREEN}${wallet_name}${NC} not empty!"
-      [[ ${base_lovelace} -gt 0 ]] && println "Funds : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} Ada"
-      [[ ${pay_lovelace} -gt 0 ]] && println "Enterprise Funds : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} Ada"
-      [[ ${reward_lovelace} -gt 0 ]] && println "Rewards : ${FG_LBLUE}$(formatLovelace ${reward_lovelace})${NC} Ada"
-      echo
-      println "DEBUG" "${FG_RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
-      println "DEBUG" "Are you sure to delete wallet ${FG_GREEN}${wallet_name}${NC}?"
-      select_opt "[y] Yes" "[n] No"
-      case $? in
-        0) echo && safeDel "${WALLET_FOLDER:?}/${wallet_name}"
-           ;;
-        1) echo && println "skipped removal process for ${FG_GREEN}$wallet_name${NC}"
-           ;;
-      esac
-    fi
-
-    waitForInput && continue
-
-    ;; ###################################################################
-
-    decrypt)
-
-    clear
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    println " >> WALLET >> DECRYPT"
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo
-    
-    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
-    
-    println "DEBUG" "# Select wallet to decrypt"
-    if ! selectWallet "encrypted"; then # ${wallet_name} populated by selectWallet function
-      [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-    fi
-
-    filesUnlocked=0
-    keysDecrypted=0
-
-    echo
-    println "DEBUG" "# Removing write protection from all wallet files"
-    while IFS= read -r -d '' file; do
-      unlockFile "${file}"
-      filesUnlocked=$((++filesUnlocked))
-      println "DEBUG" "${file}"
-    done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
-
-    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -gt 0 ]]; then
-      echo
-      println "DEBUG" "# Decrypting GPG encrypted wallet files"
-      echo
-      if ! getPassword; then # $password variable populated by getPassword function
-        println "\n\n" && println "ERROR" "${FG_RED}ERROR${NC}: password input aborted!"
-        waitForInput && continue
-      fi
-      while IFS= read -r -d '' file; do
-        decryptFile "${file}" "${password}" && \
-        chmod 600 "${file::-4}" && \
-        keysDecrypted=$((++keysDecrypted))
-      done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0)
-      unset password
-    fi
-
-    echo
-    println "Wallet unprotected : ${FG_GREEN}${wallet_name}${NC}"
-    println "Files unlocked     : ${FG_LBLUE}${filesUnlocked}${NC}"
-    println "Files decrypted    : ${FG_LBLUE}${keysDecrypted}${NC}"
-    if [[ ${filesUnlocked} -ne 0 || ${keysDecrypted} -ne 0 ]]; then
-      echo
-      println "DEBUG" "${FG_YELLOW}Wallet files are now unprotected${NC}"
-      println "DEBUG" "Use 'WALLET >> ENCRYPT' to re-lock"
-    fi
-
-    waitForInput && continue
-
-    ;; ###################################################################
-
-    encrypt)
-
-    clear
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    println " >> WALLET >> ENCRYPT"
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo
-    
-    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
-
-    println "DEBUG" "# Select wallet to encrypt"
-    if ! selectWallet "encrypted"; then # ${wallet_name} populated by selectWallet function
-      [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-    fi
-
-    filesLocked=0
-    keysEncrypted=0
-
-    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -le 0 ]]; then
-      echo
-      println "DEBUG" "# Encrypting sensitive wallet keys with GPG"
-      echo
-      if ! getPassword confirm; then # $password variable populated by getPassword function
-        println "\n\n" && println "ERROR" "${FG_RED}ERROR${NC}: password input aborted!"
-        waitForInput && continue
-      fi
-      keyFiles=(
-        "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-        "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-      )
-      for keyFile in "${keyFiles[@]}"; do
-        if [[ -f "${keyFile}" ]]; then
-          chmod 400 "${keyFile}" && \
-          encryptFile "${keyFile}" "${password}" && \
-          keysEncrypted=$((++keysEncrypted))
-        fi
-      done
-      unset password
-    else
-      echo
-      println "DEBUG" "${FG_YELLOW}NOTE${NC}: found GPG encrypted files in folder, please decrypt/unlock wallet files before encrypting"
-      waitForInput && continue
-    fi
-
-    echo
-    println "DEBUG" "# Write protecting all wallet keys with 400 permission and if enabled 'chattr +i'"
-    while IFS= read -r -d '' file; do
-      [[ ${file} = *.addr ]] && continue
-      lockFile "${file}"
-      filesLocked=$((++filesLocked))
-      println "DEBUG" "${file}"
-    done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
-
-    echo
-    println "Wallet protected : ${FG_GREEN}${wallet_name}${NC}"
-    println "Files locked     : ${FG_LBLUE}${filesLocked}${NC}"
-    println "Files encrypted  : ${FG_LBLUE}${keysEncrypted}${NC}"
-    if [[ ${filesLocked} -ne 0 || ${keysEncrypted} -ne 0 ]]; then
-      echo
-      println "DEBUG" "${FG_BLUE}INFO${NC}: wallet files are now protected"
-      println "DEBUG" "Use 'WALLET >> DECRYPT' to unlock"
-    fi
-
-    waitForInput && continue
-
-    ;; ###################################################################
-
-  esac
-
-  ;; ###################################################################
-
-  funds)
-
-  clear
-  println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  println " >> FUNDS"
-  println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  println "OFF" " Handle Funds\n\n"\
-" ) Send     - send Ada and/or custom Assets from a local wallet\n"\
-" ) Delegate - delegate wallet to a pool\n"\
-" ) Withdraw - withdraw earned rewards to base address\n"\
-"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-
-  println "DEBUG" " Select Funds Operation\n"
-  select_opt "[s] Send" "[d] Delegate" "[w] Withdraw Rewards" "[h] Home"
-  case $? in
-    0) SUBCOMMAND="send" ;;
-    1) SUBCOMMAND="delegate" ;;
-    2) SUBCOMMAND="withdrawrewards" ;;
-    3) continue ;;
-  esac
-
-  case $SUBCOMMAND in
-    send)
-
-    clear
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    println " >> FUNDS >> SEND"
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    
-    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
-
-    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      println "ERROR" "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-      waitForInput && continue
-    else
-      if ! selectOpMode; then continue; fi
-    fi
-    echo
-
-    println "DEBUG" "# Select ${FG_YELLOW}source${NC} wallet"
-    if [[ ${op_mode} = "online" ]]; then
-      if ! selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-      fi
-      getWalletType ${wallet_name}
-      case $? in
-        2) println "ERROR" "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-        3) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
-      esac
-    else
-      if ! selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-      fi
-      getWalletType ${wallet_name}
-    fi
-    s_wallet="${wallet_name}"
-    s_payment_vk_file="${payment_vk_file}"
-    s_payment_sk_file="${payment_sk_file}"
-    echo
-
-    getBaseAddress ${s_wallet}
-    getPayAddress ${s_wallet}
-    getBalance ${base_addr}
-    base_lovelace=${assets[lovelace]}
-    getBalance ${pay_addr}
-    pay_lovelace=${assets[lovelace]}
-
-    if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
-      # Both payment and base address available with funds, let user choose what to use
-      println "DEBUG" "Select source wallet address"
-      if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        println "DEBUG" "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-        println "DEBUG" "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
-      fi
-      echo
-      select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
-      case $? in
-        0) s_addr="${base_addr}" ;;
-        1) s_addr="${pay_addr}" ;;
-        2) continue ;;
-      esac
-      echo
-    elif [[ ${pay_lovelace} -gt 0 ]]; then
-      s_addr="${pay_addr}"
-      if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        println "DEBUG" "$(printf "%s\t${FG_LBLUE}%s${NC} Ada\n" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
-      fi
-    elif [[ ${base_lovelace} -gt 0 ]]; then
-      s_addr="${base_addr}"
-      if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        println "DEBUG" "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada\n" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-      fi
-    else
-      println "ERROR" "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${s_wallet}${NC}"
-      waitForInput && continue
-    fi
-    
-    getBalance ${s_addr}
-
-    declare -gA assets_left=()
-    for asset in "${!assets[@]}"; do
-      assets_left[${asset}]=${assets[${asset}]}
-    done
-    
-    minUTxOValue=$(jq -r '.minUTxOValue //1000000' "${TMP_FOLDER}"/protparams.json)
-
-    # Amount
-    println "DEBUG" "# Amount to Send (in Ada)"
-    println "DEBUG" " Valid entry:"
-    println "DEBUG" "   ${FG_LGRAY}>${NC} Integer (e.g. 15) or Decimal (e.g. 956.1235), commas allowed as thousand separator"
-    println "DEBUG" "   ${FG_LGRAY}>${NC} The string '${FG_YELLOW}all${NC}' sends all available funds in source wallet"
-    println "DEBUG" " Multi-Asset Info:"
-    println "DEBUG" "   ${FG_LGRAY}>${NC} If '${FG_YELLOW}all${NC}' is used and the wallet contain multiple assets,"
-    println "DEBUG" "   ${FG_LGRAY}>${NC} then all assets will be transferred(incl Ada) to the destination address"
-    println "DEBUG" " Minimum Amount:"
-    println "DEBUG" "   ${FG_LGRAY}>${NC} A minimum of ${FG_LBLUE}$(formatLovelace ${minUTxOValue})${NC} Ada has to be added for each asset(Ada included)"
-    echo
-    
-    sleep 0.1 && read -r -p "Amount (Ada): " amountADA 2>&6 && println "LOG" "Amount (Ada): ${amountADA}"
-    amountADA="${amountADA//,}"
-
-    echo
-    if  [[ ${amountADA} != "all" ]]; then
-      if ! AdaToLovelace "${amountADA}" >/dev/null; then
-        waitForInput && continue
-      fi
-      amount_lovelace=$(AdaToLovelace "${amountADA}")
-      [[ ${amount_lovelace} -gt ${assets[lovelace]} ]] && println "ERROR" "${FG_RED}ERROR${NC}: not enough funds on address, ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada available but trying to send ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} Ada" && waitForInput && continue
-      println "DEBUG" "Fee payed by sender? [else amount sent is reduced]"
-      select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
-      case $? in
-        0) include_fee="no" ;;
-        1) include_fee="yes" ;;
-        2) continue ;;
-      esac
-    else
-      amount_lovelace=${assets[lovelace]}
-      println "DEBUG" "Ada to send set to total supply: ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC}"
-      include_fee="yes"
-    fi
-    echo
-    
-    if [[ ${amount_lovelace} -eq ${assets[lovelace]} ]]; then
-      unset assets_left
-    else
-      assets_left[lovelace]=$(( assets_left[lovelace] - amount_lovelace ))
-    fi
-    
-    declare -gA assets_to_send=()
-    assets_to_send[lovelace]=${amount_lovelace}
-    
-    # Add additional assets to transaction?
-    if [[ ${#assets_left[@]} -gt 0 && ${#assets[@]} -gt 1 ]]; then
-      println "DEBUG" "Additional assets found on address, include in transaction?"
-      asset_cnt=1
-      select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
-      case $? in
-        0) : ;;
-        1) declare -A assets_on_addr=()
-           for asset in "${!assets[@]}"; do
-             [[ ${asset} = "lovelace" ]] && continue
-             assets_on_addr[${asset}]=0 # only interested in the key
-           done
-           while true; do
-             select_opt "${!assets_on_addr[@]}" "[Esc] Cancel"
-             selection=$?
-             [[ ${selected_value} = "[Esc] Cancel" ]] && continue 2
-             println "DEBUG" "Available to send: ${FG_LBLUE}$(formatAsset ${assets[${selected_value}]})${NC}"
-             sleep 0.1 && read -r -p "Amount (commas allowed as thousand separator): " asset_amount 2>&6 && println "LOG" "Amount (commas allowed as thousand separator): ${asset_amount}"
-             asset_amount="${asset_amount//,}"
-             [[ ${asset_amount} = "all" ]] && asset_amount=${assets[${selected_value}]}
-             [[ ! ${asset_amount} =~ [0-9]+ ]] && println "ERROR" "${FG_RED}ERROR${NC}: invalid number, non digit characters found!" && continue
-             if [[ ${asset_amount} -gt ${assets[${selected_value}]} ]]; then
-               println "ERROR" "${FG_RED}ERROR${NC}: you cant send more assets than available on address!" && continue
-             elif [[ ${asset_amount} -eq ${assets[${selected_value}]} ]]; then
-               unset assets_left[${selected_value}]
-             else
-               assets_left[${selected_value}]=$(( assets_left[${selected_value}] - asset_amount ))
-             fi
-             assets_to_send[${selected_value}]=${asset_amount}
-             unset assets_on_addr[${selected_value}]
-             [[ $((++asset_cnt)) -eq ${#assets[@]} ]] && break
-             println "DEBUG" "Add more assets?"
-             select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
-             case $? in
-               0) break ;;
-               1) : ;;
-               2) continue 2 ;;
-             esac
-           done 
-           ;;
-        2) continue ;;
-      esac
-      echo
-      min_amount=$(( minUTxOValue + ($((${#assets_to_send[@]}-1))*minUTxOValue) ))
-      if [[ ${amount_lovelace} -lt ${min_amount} ]]; then
-        println "ERROR" "${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, sending ${FG_LBLUE}${#assets_to_send[@]}${NC} asset(s) require a minimum of ${FG_LBLUE}$(formatLovelace ${min_amount})${NC} Ada to be sent along!"
-        waitForInput && continue
-      fi
-    fi
-
-    # Destination
-    d_wallet=""
-    println "DEBUG" "# Select ${FG_YELLOW}destination${NC} type"
-    select_opt "[w] Wallet" "[a] Address" "[Esc] Cancel"
-    case $? in
-      0) if ! selectWallet "balance"; then # ${wallet_name} populated by selectWallet function
-           [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-         fi
-         d_wallet="${wallet_name}"
-
-         getBaseAddress ${d_wallet}
-         getPayAddress ${d_wallet}
-
-         if [[ -n "${base_addr}" && "${base_addr}" != "${s_addr}" && -n "${pay_addr}" && "${pay_addr}" != "${s_addr}" ]]; then
-           # Both base and enterprise address available, let user choose what to use
-           select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
-           case $? in
-             0) d_addr="${base_addr}" ;;
-             1) d_addr="${pay_addr}" ;;
-             2) continue ;;
-           esac
-         elif [[ -n "${base_addr}" && "${base_addr}" != "${s_addr}" ]]; then
-           d_addr="${base_addr}"
-         elif [[ -n "${pay_addr}" && "${pay_addr}" != "${s_addr}" ]]; then
-           d_addr="${pay_addr}"
-         elif [[ "${base_addr}" = "${s_addr}" || "${pay_addr}" = "${s_addr}" ]]; then
-           println "ERROR" "\n${FG_RED}ERROR${NC}: sending to same address as source not supported"
-           waitForInput && continue
-         else
-           println "ERROR" "\n${FG_RED}ERROR${NC}: no address found for wallet ${FG_GREEN}${d_wallet}${NC} :("
-           waitForInput && continue
-         fi
-         ;;
-      1) sleep 0.1 && read -r -p "Address: " d_addr 2>&6 && println "LOG" "Address: ${d_addr}" ;;
-      2) continue ;;
-    esac
-    # Destination could be empty, if so without getting a valid address
-    if [[ -z ${d_addr} ]]; then
-      println "ERROR" "${FG_RED}ERROR${NC}: destination address field empty"
-      waitForInput && continue
-    fi
-
-    if ! sendAssets; then
-      waitForInput && continue
-    fi
-
-    echo
-    if ! verifyTx ${s_addr}; then waitForInput && continue; fi
-
-    s_balance=${assets[lovelace]}
-    getBalance ${d_addr}
-    d_balance=${assets[lovelace]}
-
-    getPayAddress ${s_wallet}
-    [[ "${pay_addr}" = "${s_addr}" ]] && s_wallet_type=" (Enterprise)" || s_wallet_type=""
-    getPayAddress ${d_wallet}
-    [[ "${pay_addr}" = "${d_addr}" ]] && d_wallet_type=" (Enterprise)" || d_wallet_type=""
-
-    echo
-    println "Transaction"
-    println "  From          : ${FG_GREEN}${s_wallet}${NC}${s_wallet_type}"
-    println "  Amount        : ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} Ada"
-    for idx in "${!assets_to_send[@]}"; do
-      [[ ${idx} = "lovelace" ]] && continue
-      println "                  ${FG_LBLUE}$(formatAsset ${assets_to_send[${idx}]})${NC} ${FG_LGRAY}${idx}${NC}"
-    done
-    if [[ -n "${d_wallet}" ]]; then
-      println "  To            : ${FG_GREEN}${d_wallet}${NC}${d_wallet_type}"
-    else
-      println "  To            : ${FG_LGRAY}${d_addr}${NC}"
-    fi
-    println "  Fees          : ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
-    println "  Balance"
-    println "  - Source      : ${FG_LBLUE}$(formatLovelace ${s_balance})${NC} Ada"
-    println "  - Destination : ${FG_LBLUE}$(formatLovelace ${d_balance})${NC} Ada"
-
-    waitForInput && continue
-
-    ;; ###################################################################
-
-    delegate)  # [WALLET NAME] [POOL NAME]
-
-    clear
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    println " >> FUNDS >> DELEGATE"
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    
-    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
-
-    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      println "ERROR" "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-      waitForInput && continue
-    else
-      if ! selectOpMode; then continue; fi
-    fi
-    echo
-
-    println "DEBUG" "# Select wallet to delegate"
-    if [[ ${op_mode} = "online" ]]; then
-      if ! selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-      fi
-      getWalletType ${wallet_name}
-      case $? in
-        2) println "ERROR" "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-        3) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
-      esac
-    else
-      if ! selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-      fi
-      getWalletType ${wallet_name}
-    fi
-
-    getBaseAddress ${wallet_name}
-    getBalance ${base_addr}
-    if [[ ${assets[lovelace]} -gt 0 ]]; then
-      if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-        println "DEBUG" "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Funds in wallet:"  "$(formatLovelace ${assets[lovelace]})")"
-      fi
-    else
-      println "ERROR" "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
-      waitForInput && continue
-    fi
-    getRewards ${wallet_name}
-
-    if [[ reward_lovelace -eq -1 ]]; then
-      if [[ ${op_mode} = "online" ]]; then
-        if ! registerStakeWallet ${wallet_name}; then waitForInput && continue; fi
-      else
-        println "ERROR" "\n${FG_YELLOW}The wallet is not a registered wallet on chain and CNTools run in hybrid mode${NC}"
-        println "ERROR" "Please first register the wallet using 'Wallet >> Register'"
-        waitForInput && continue
-      fi
-    fi
-
-    echo
-    println "DEBUG" "Do you want to delegate to a local pool or specify the pools cold vkey cbor-hex?"
-    select_opt "[p] Pool" "[v] Vkey" "[Esc] Cancel"
-    case $? in
-      0) if ! selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}"; then # ${pool_name} populated by selectPool function
-           waitForInput && continue
-         fi
-         pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
-         ;;
-      1) sleep 0.1 && read -r -p "vkey cbor-hex(blank to cancel): " vkey_cbor 2>&6 && println "LOG" "vkey cbor-hex(blank to cancel): ${vkey_cbor}"
-         [[ -z "${vkey_cbor}" ]] && continue
-         pool_name="${vkey_cbor}"
-         pool_coldkey_vk_file="${TMP_FOLDER}"/pool_delegation.vkey
-         printf "{\"type\":\"StakePoolVerificationKey_ed25519\",\"description\":\"Stake Pool Operator Verification Key\",\"cborHex\":\"%s\"}" ${vkey_cbor} > "${pool_coldkey_vk_file}"
-         ;;
-      2) continue ;;
-    esac
-
-    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-    pool_delegcert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DELEGCERT_FILENAME}"
-
-    println "ACTION" "${CCLI} stake-address delegation-certificate --stake-verification-key-file ${stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${pool_delegcert_file}"
-    ${CCLI} stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_delegcert_file}"
-
-    if ! delegate; then
-      if [[ ${op_mode} = "online" ]]; then
-        echo && println "ERROR" "${FG_RED}ERROR${NC}: failure during delegation, removing newly created delegation certificate file"
-        rm -f "${pool_delegcert_file}"
-      fi
-      waitForInput && continue
-    fi
-
-    echo
-    if ! verifyTx ${base_addr}; then waitForInput && continue; fi
-
-    echo
-    println "Delegation successfully registered"
-    println "Wallet : ${FG_GREEN}${wallet_name}${NC}"
-    println "Pool   : ${FG_GREEN}${pool_name}${NC}"
-    println "Amount : ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"
-
-    waitForInput && continue
-
-    ;; ###################################################################
-
-    withdrawrewards)
-
-    clear
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    println " >> FUNDS >> WITHDRAW REWARDS"
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    
-    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
-
-    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-      println "ERROR" "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-      waitForInput && continue
-    else
-      if ! selectOpMode; then continue; fi
-    fi
-    echo
-
-    println "DEBUG" "# Select wallet to withdraw funds from"
-    if [[ ${op_mode} = "online" ]]; then
-      if ! selectWallet "reward" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-      fi
-      getWalletType ${wallet_name}
-      case $? in
-        2) println "ERROR" "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-        3) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
-      esac
-    else
-      if ! selectWallet "reward" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-      fi
-      getWalletType ${wallet_name}
-    fi
-    echo
-
-    getBaseAddress ${wallet_name}
-    getBalance ${base_addr}
-    getRewards ${wallet_name}
-
-    if [[ ${reward_lovelace} -le 0 ]]; then
-      println "ERROR" "Failed to locate any rewards associated with the chosen wallet, please try another one"
-      waitForInput && continue
-    elif [[ ${assets[lovelace]} -eq 0 ]]; then
-      println "ERROR" "${FG_YELLOW}WARN${NC}: No funds in base address, please send funds to base address of wallet to cover withdraw transaction fee"
-      waitForInput && continue
-    fi
-
-    println "DEBUG" "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Funds"  "$(formatLovelace ${assets[lovelace]})")"
-    println "DEBUG" "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Rewards"  "$(formatLovelace ${reward_lovelace})")"
-
-    if ! withdrawRewards; then
-      waitForInput && continue
-    fi
-
-    echo
-    if ! verifyTx ${base_addr}; then waitForInput && continue; fi
-
-    getRewards ${wallet_name}
-
-    echo
-    println "Rewards successfully withdrawn"
-    println "New Balance"
-    println "  Funds   : ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"
-    println "  Rewards : ${FG_LBLUE}$(formatLovelace ${reward_lovelace})${NC} Ada"
-
-    waitForInput && continue
-
-    ;; ###################################################################
-
-  esac
-
-  ;; ###################################################################
-
-  pool)
-
-  clear
-  println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  println " >> POOL"
-  println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  println "OFF" " Pool Management\n\n"\
-" ) New      - create a new pool\n"\
-" ) Register - register created pool on chain using a stake wallet (pledge wallet)\n"\
-" ) Modify   - change pool parameters and register updated pool values on chain\n"\
-" ) Retire   - de-register stake pool from chain in specified epoch\n"\
-" ) List     - a compact list view of available local pools\n"\
-" ) Show     - detailed view of specified pool\n"\
-" ) Rotate   - rotate pool KES keys\n"\
-" ) Decrypt  - remove write protection and decrypt pool\n"\
-" ) Encrypt  - encrypt pool cold keys and make all files immutable\n"\
-"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  println "DEBUG" " Select Pool Operation\n"
-  select_opt "[n] New" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home"
-  case $? in
-    0) SUBCOMMAND="new" ;;
-    1) SUBCOMMAND="register" ;;
-    2) SUBCOMMAND="modify" ;;
-    3) SUBCOMMAND="retire" ;;
-    4) SUBCOMMAND="list" ;;
-    5) SUBCOMMAND="show" ;;
-    6) SUBCOMMAND="rotate" ;;
-    7) SUBCOMMAND="decrypt" ;;
-    8) SUBCOMMAND="encrypt" ;;
-    9) continue ;;
-  esac
-
-  case $SUBCOMMAND in
-    new)
-
-    clear
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    println " >> POOL >> NEW"
-    println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo
-    sleep 0.1 && read -r -p "Pool Name: " pool_name 2>&6 && println "LOG" "Pool Name: ${pool_name}"
-    # Remove unwanted characters from pool name
-    pool_name=${pool_name//[^[:alnum:]]/_}
-    if [[ -z "${pool_name}" ]]; then
-      println "ERROR" "${FG_RED}ERROR${NC}: Empty pool name, please retry!"
-      waitForInput && continue
-    fi
-    mkdir -p "${POOL_FOLDER}/${pool_name}"
-
-    pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
-    pool_hotkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_SK_FILENAME}"
-    pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
-    pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
-    pool_opcert_counter_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_COUNTER_FILENAME}"
-    pool_vrf_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_VK_FILENAME}"
-    pool_vrf_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_SK_FILENAME}"
-
-    if [[ -f "${pool_hotkey_vk_file}" ]]; then
-      println "ERROR" "${FG_RED}WARN${NC}: A pool ${FG_GREEN}$pool_name${NC} already exists"
-      println "ERROR" "      Choose another name or delete the existing one"
-      waitForInput && continue
-    fi
-
-    println "ACTION" "${CCLI} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
-    ${CCLI} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
-    if [ -f "${POOL_FOLDER}-pregen/${pool_name}/${POOL_ID_FILENAME}" ]; then
-      mv ${POOL_FOLDER}'-pregen/'${pool_name}/* ${POOL_FOLDER}/${pool_name}/
-      rm -r ${POOL_FOLDER}'-pregen/'${pool_name}
-    else
-      println "ACTION" "${CCLI} node key-gen --cold-verification-key-file ${pool_coldkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
-      ${CCLI} node key-gen --cold-verification-key-file "${pool_coldkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
-    fi
-    println "ACTION" "${CCLI} node key-gen-VRF --verification-key-file ${pool_vrf_vk_file} --signing-key-file ${pool_vrf_sk_file}"
-    ${CCLI} node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
-    chmod 600 "${POOL_FOLDER}/${pool_name}/"*
-    getPoolID ${pool_name}
-
-    echo
-    println "Pool: ${FG_GREEN}${pool_name}${NC}"
-    [[ -n ${pool_id} ]] && println "ID (hex)    : ${pool_id}"
-    [[ -n ${pool_id_bech32} ]] && println "ID (bech32) : ${pool_id_bech32}"
-
-    waitForInput && continue
-
-    ;; ###################################################################
-
-    register|modify)
-
+            getBaseAddress ${wallet_name}
+            getBalance ${base_addr}
+            if [[ ${assets[lovelace]} -gt 0 ]]; then
+              if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+                println "DEBUG" "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Funds in wallet:"  "$(formatLovelace ${assets[lovelace]})")"
+              fi
+            else
+              println "ERROR" "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
+              keyDeposit=$(jq -r '.keyDeposit' "${TMP_FOLDER}"/protparams.json)
+              println "DEBUG" "Funds for key deposit($(formatLovelace ${keyDeposit}) Ada) + transaction fee needed to register the wallet"
+              waitForInput && continue
+            fi
+            if ! registerStakeWallet ${wallet_name} "true"; then
+              waitForInput && continue
+            fi
+            println "\n${FG_GREEN}${wallet_name}${NC} successfully registered on chain!"
+            waitForInput && continue
+            ;; ###################################################################
+          deregister)
+            clear
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            println " >> WALLET >> DE-REGISTER"
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+            if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+              println "ERROR" "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+              waitForInput && continue
+            else
+              if ! selectOpMode; then continue; fi
+            fi
+            echo
+            println "DEBUG" "# Select wallet to de-register (only registered wallets shown)"
+            if [[ ${op_mode} = "online" ]]; then
+              if ! selectWallet "reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
+                [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+              fi
+              getWalletType ${wallet_name}
+              case $? in
+                2) println "ERROR" "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
+                3) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+              esac
+            else
+              if ! selectWallet "reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
+                [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+              fi
+              getWalletType ${wallet_name}
+            fi
+            getRewards ${wallet_name}
+            if [[ "${reward_lovelace}" -gt 0 ]]; then
+              println "\n${FG_YELLOW}WARN${NC}: wallet has unclaimed rewards, please use 'Funds >> Withdraw Rewards' before de-registration to claim your rewards"
+              waitForInput && continue
+            fi
+            getBaseAddress ${wallet_name}
+            getBalance ${base_addr}
+            if [[ ${assets[lovelace]} -le 0 ]]; then
+              println "ERROR" "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
+              println "ERROR" "Funds for transaction fee needed to deregister the wallet"
+              waitForInput && continue
+            fi
+            if ! deregisterStakeWallet; then
+              [[ -f ${stake_dereg_file} ]] && rm -f ${stake_dereg_file}
+              waitForInput && continue
+            fi
+            echo
+            if ! verifyTx ${base_addr}; then waitForInput && continue; fi
+            echo
+            println "${FG_GREEN}${wallet_name}${NC} successfully de-registered from chain!"
+            println "Key deposit fee that will be refunded : ${FG_LBLUE}$(formatLovelace ${keyDeposit})${NC} Ada"
+            waitForInput && continue
+            ;; ###################################################################
+          list)
+            clear
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            println " >> WALLET >> LIST"
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+            if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+              println "DEBUG" "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, wallet balance not shown!"
+            fi
+            while IFS= read -r -d '' wallet; do
+              wallet_name=$(basename ${wallet})
+              enc_files=$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c)
+              if [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && isWalletRegistered ${wallet_name}; then registered="yes"; else registered="no"; fi
+              echo
+              if [[ ${enc_files} -gt 0 && ${registered} = "yes" ]]; then
+                println "${FG_GREEN}${wallet_name}${NC} - ${FG_LGRAY}REGISTERED${NC} (${FG_YELLOW}encrypted${NC})"
+              elif [[ ${registered} = "yes" ]]; then
+                println "${FG_GREEN}${wallet_name}${NC} - ${FG_LGRAY}REGISTERED${NC}"
+              elif [[ ${enc_files} -gt 0 ]]; then
+                println "${FG_GREEN}${wallet_name}${NC} (${FG_YELLOW}encrypted${NC})"
+              else
+                println "${FG_GREEN}${wallet_name}${NC}"
+              fi
+              getBaseAddress ${wallet_name}
+              getPayAddress ${wallet_name}
+              if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+                [[ -n ${base_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Address"  "${base_addr}")"
+                [[ -n ${pay_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Enterprise Addr"  "${pay_addr}")"
+              else
+                if [[ -n ${base_addr} ]]; then
+                  getBalance ${base_addr}
+                  println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "Address"  "${base_addr}")"
+                  if [[ ${#assets[@]} -eq 1 ]]; then
+                    println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada" "Funds"  "$(formatLovelace ${assets[lovelace]})")"
+                  else
+                    println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Funds" "$(formatLovelace ${assets[lovelace]})" "$(( ${#assets[@]} - 1 ))")"
+                  fi
+                fi
+                if [[ -n ${pay_addr} ]]; then
+                  getBalance ${pay_addr}
+                  if [[ ${assets[lovelace]} -gt 0 ]]; then
+                    println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "Enterprise Address"  "${pay_addr}")"
+                    if [[ ${#assets[@]} -eq 1 ]]; then
+                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada" "Enterprise Funds" "$(formatLovelace ${assets[lovelace]})")"
+                    else
+                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Enterprise Funds" "$(formatLovelace ${assets[lovelace]})" "$(( ${#assets[@]} - 1 ))")"
+                    fi
+                  fi
+                fi
+                if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
+                  println "${FG_RED}Not a supported wallet${NC} - genesis address?"
+                  println "Use an external script to send funds to a CNTools compatible wallet"
+                  continue
+                fi
+                getRewards ${wallet_name}
+                if [[ "${reward_lovelace}" -ge 0 ]]; then
+                  println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada" "Rewards" "$(formatLovelace ${reward_lovelace})")"
+                  delegation_pool_id=$(jq -r '.[0].delegation // empty' <<< "${stake_address_info}")
+                  if [[ -n ${delegation_pool_id} ]]; then
+                    unset poolName
+                    while IFS= read -r -d '' pool; do
+                      getPoolID "$(basename ${pool})"
+                      if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
+                        poolName=$(basename ${pool}) && break
+                      fi
+                    done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+                    println "${FG_RED}Delegated${NC} to ${FG_GREEN}${poolName}${NC} ${FG_LGRAY}(${delegation_pool_id})${NC}"
+                  fi
+                fi
+              fi
+            done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+            waitForInput && continue
+            ;; ###################################################################
+          show)
+            clear
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            println " >> WALLET >> SHOW"
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+            if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+              println "DEBUG" "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, limited wallet info shown!"
+            fi
+            tput sc
+            if ! selectWallet "none" "${WALLET_PAY_VK_FILENAME}"; then
+              [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+            fi
+            tput rc && tput ed
+            enc_files=$(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c)
+            if [[ ${enc_files} -gt 0 ]]; then
+              println "Wallet: ${FG_GREEN}${wallet_name}${NC} (${FG_YELLOW}encrypted${NC})"
+            else
+              println "Wallet: ${FG_GREEN}${wallet_name}${NC}"
+            fi
+            getBaseAddress ${wallet_name}
+            getPayAddress ${wallet_name}
+            getRewardAddress ${wallet_name}
+            base_lovelace=0
+            pay_lovelace=0
+            if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+              for i in {1..2}; do
+                if [[ $i -eq 1 ]]; then getBalance ${base_addr}; base_lovelace=${assets[lovelace]}; address_type="Base"
+                else getBalance ${pay_addr}; pay_lovelace=${assets[lovelace]}; address_type="Enterprise"; fi
+                [[ $i -eq 2 && ${utxo_cnt} -eq 0 ]] && continue
+                echo
+                println "${FG_LBLUE}${utxo_cnt} UTxO(s)${NC} found for ${FG_GREEN}${address_type}${NC} Address!"
+                if [[ ${utxo_cnt} -gt 0 ]]; then
+                  echo
+                  println "DEBUG" "$(printf "%-66s | %${asset_name_maxlen}s | %-${asset_amount_maxlen}s\n" "Hash#Index" "Asset" "Amount")"
+                  println "DEBUG" "$(printf "%67s+%$((asset_name_maxlen+2))s+%$((asset_amount_maxlen+1))s\n" "" "" "" | tr " " "-")"
+                  mapfile -d '' utxos_sorted < <(printf '%s\0' "${!utxos[@]}" | sort -z)
+                  for utxo in "${utxos_sorted[@]}"; do
+                    IFS='.' read -ra utxo_arr <<< "${utxo}"
+                    if [[ ${#utxo_arr[@]} -eq 2 && ${utxo_arr[1]} = " Ada" ]]; then
+                      println "DEBUG" "$(printf "%-66s | ${FG_GREEN}%${asset_name_maxlen}s${NC} | ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "${utxo_arr[0]}" "Ada" "$(formatLovelace ${utxos["${utxo}"]})")"
+                    else
+                      [[ ${#utxo_arr[@]} -eq 3 ]] && asset_name="${utxo_arr[2]}" || asset_name="."
+                      println "DEBUG" "$(printf "${FG_DGRAY}%10s${NC}${FG_LGRAY}%56s${NC} | ${FG_MAGENTA}%${asset_name_maxlen}s${NC} | ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "PolID: " "${utxo_arr[1]}" "${asset_name}" "$(formatAsset ${utxos["${utxo}"]})")"
+                    fi
+                  done
+                fi
+                for utxo_entry in "${utxo_output[@]}"; do println "DEBUG" "${utxo_entry}"; done
+                if [[ ${#assets[@]} -gt 0 ]]; then
+                  println "\nASSET SUMMARY: ${FG_LBLUE}${#assets[@]} Asset-Type(s)${NC} $([[ ${#assets[@]} -gt 1 ]] && echo -e "/ ${FG_LBLUE}${#policyIDs[@]} Unique Policy ID(s)${NC}")\n"
+                  println "DEBUG" "$(printf "%${asset_amount_maxlen}s | %-${asset_name_maxlen}s%s\n" "Total Amount" "Asset" "$([[ ${#assets[@]} -gt 1 ]] && echo -e " | PolicyID")")"
+                  println "DEBUG" "$(printf "%$((asset_amount_maxlen+1))s+%$((asset_name_maxlen+2))s%s\n" "" "" "$([[ ${#assets[@]} -gt 1 ]] && printf "+%57s" "")" | tr " " "-")"
+                  println "DEBUG" "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} | ${FG_GREEN}%-${asset_name_maxlen}s${NC}%s\n" "$(formatLovelace ${assets[lovelace]})" "Ada" "$([[ ${#assets[@]} -gt 1 ]] && echo " |")")"
+                  mapfile -d '' assets_sorted < <(printf '%s\0' "${!assets[@]}" | sort -z)
+                  for asset in "${assets_sorted[@]}"; do
+                    [[ ${asset} = "lovelace" ]] && continue
+                    IFS='.' read -ra asset_arr <<< "${asset}"
+                    [[ ${#asset_arr[@]} -eq 1 ]] && asset_name="." || asset_name="${asset_arr[1]}"
+                    println "DEBUG" "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} | ${FG_MAGENTA}%-${asset_name_maxlen}s${NC} | ${FG_LGRAY}%s${NC}\n" "$(formatAsset ${assets["${asset}"]})" "${asset_name}" "${asset_arr[0]}")"
+                  done
+                fi
+                echo -e "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" >&6
+              done
+            fi
+            echo
+            if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+              if isWalletRegistered ${wallet_name}; then
+                println "$(printf "%-20s : ${FG_GREEN}%s${NC}" "Registered" "YES")"
+              else
+                println "$(printf "%-20s : ${FG_RED}%s${NC}" "Registered" "NO")"
+              fi
+            else
+              println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Registered" "Unknown")"
+            fi
+            println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
+            println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Enterprise Address" "${pay_addr}")"
+            println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Reward/Stake Address" "${reward_addr}")"
+            if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+              getRewards ${wallet_name}
+              if [[ "${reward_lovelace}" -ge 0 ]]; then
+                println "$(printf "%-20s : ${FG_LBLUE}%s${NC} Ada" "Rewards Available" "$(formatLovelace ${reward_lovelace})")"
+                println "$(printf "%-20s : ${FG_LBLUE}%s${NC} Ada" "Funds + Rewards" "$(formatLovelace $((pay_lovelace + base_lovelace + reward_lovelace)))")"
+              fi
+              getAddressInfo "${base_addr}"
+              println "$(printf "%-20s : ${FG_LGRAY}%s${NC}" "Encoding" "$(jq -r '.encoding' <<< ${address_info})")"
+              delegation_pool_id=$(jq -r '.[0].delegation  // empty' <<< "${stake_address_info}" 2>/dev/null)
+              if [[ -n ${delegation_pool_id} ]]; then
+                unset poolName
+                while IFS= read -r -d '' pool; do
+                  getPoolID "$(basename ${pool})"
+                  if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
+                    poolName=$(basename ${pool}) && break
+                  fi
+                done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+                echo
+                println "${FG_RED}Delegated${NC} to ${FG_GREEN}${poolName}${NC} ${FG_LGRAY}(${delegation_pool_id})${NC}"
+              fi
+            fi
+            waitForInput && continue
+            ;; ###################################################################
+          remove)
+            clear
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            println " >> WALLET >> REMOVE"
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+            if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+              println "DEBUG" "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, unable to verify wallet balance"
+            fi
+            echo
+            println "DEBUG" "# Select wallet to remove"
+            if ! selectWallet "none"; then # ${wallet_name} populated by selectWallet function
+              [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+            fi
+            echo
+            if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+              println "DEBUG" "Are you sure to delete wallet ${FG_GREEN}${wallet_name}${NC}?"
+              select_opt "[y] Yes" "[n] No"
+              case $? in
+                0) echo && safeDel "${WALLET_FOLDER:?}/${wallet_name}"
+                   ;;
+                1) echo && println "skipped removal process for ${FG_GREEN}$wallet_name${NC}"
+                   ;;
+              esac
+              waitForInput && continue
+            fi
+            if ! getBaseAddress ${wallet_name} && ! getPayAddress ${wallet_name}; then
+              println "DEBUG" "${FG_RED}WARN${NC}: unable to get address for wallet and do a balance check"
+              println "DEBUG" "\nAre you sure to delete wallet ${FG_GREEN}${wallet_name}${NC} anyway?"
+              select_opt "[y] Yes" "[n] No"
+              case $? in
+                0) echo && safeDel "${WALLET_FOLDER:?}/${wallet_name}"
+                   ;;
+                1) echo && println "skipped removal process for ${FG_GREEN}$wallet_name${NC}"
+                   ;;
+              esac
+              waitForInput && continue
+            fi
+            if [[ -n ${base_addr} ]]; then
+              getBalance ${base_addr}
+              base_lovelace=${assets[lovelace]}
+            else
+              base_lovelace=0
+            fi
+            if [[ -n ${pay_addr} ]]; then
+              getBalance ${pay_addr}
+              pay_lovelace=${assets[lovelace]}
+            else
+              pay_lovelace=0
+            fi
+            getRewards ${wallet_name}
+            if [[ ${base_lovelace} -eq 0 && ${pay_lovelace} -eq 0 && ${reward_lovelace} -le 0 ]]; then
+              println "DEBUG" "INFO: This wallet appears to be empty"
+              println "DEBUG" "${FG_RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
+              println "DEBUG" "Are you sure to delete wallet ${FG_GREEN}${wallet_name}${NC}?"
+              select_opt "[y] Yes" "[n] No"
+              case $? in
+                0) echo && safeDel "${WALLET_FOLDER:?}/${wallet_name}"
+                   ;;
+                1) echo && println "skipped removal process for ${FG_GREEN}$wallet_name${NC}"
+                   ;;
+              esac
+            else
+              println "${FG_RED}WARN${NC}: wallet ${FG_GREEN}${wallet_name}${NC} not empty!"
+              [[ ${base_lovelace} -gt 0 ]] && println "Funds : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} Ada"
+              [[ ${pay_lovelace} -gt 0 ]] && println "Enterprise Funds : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} Ada"
+              [[ ${reward_lovelace} -gt 0 ]] && println "Rewards : ${FG_LBLUE}$(formatLovelace ${reward_lovelace})${NC} Ada"
+              echo
+              println "DEBUG" "${FG_RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
+              println "DEBUG" "Are you sure to delete wallet ${FG_GREEN}${wallet_name}${NC}?"
+              select_opt "[y] Yes" "[n] No"
+              case $? in
+                0) echo && safeDel "${WALLET_FOLDER:?}/${wallet_name}"
+                   ;;
+                1) echo && println "skipped removal process for ${FG_GREEN}$wallet_name${NC}"
+                   ;;
+              esac
+            fi
+            waitForInput && continue
+            ;; ###################################################################
+          decrypt)
+            clear
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            println " >> WALLET >> DECRYPT"
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            echo
+            [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+            println "DEBUG" "# Select wallet to decrypt"
+            if ! selectWallet "encrypted"; then # ${wallet_name} populated by selectWallet function
+              [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+            fi
+            filesUnlocked=0
+            keysDecrypted=0
+            echo
+            println "DEBUG" "# Removing write protection from all wallet files"
+            while IFS= read -r -d '' file; do
+              unlockFile "${file}"
+              filesUnlocked=$((++filesUnlocked))
+              println "DEBUG" "${file}"
+            done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
+            if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -gt 0 ]]; then
+              echo
+              println "DEBUG" "# Decrypting GPG encrypted wallet files"
+              echo
+              if ! getPassword; then # $password variable populated by getPassword function
+                println "\n\n" && println "ERROR" "${FG_RED}ERROR${NC}: password input aborted!"
+                waitForInput && continue
+              fi
+              while IFS= read -r -d '' file; do
+                decryptFile "${file}" "${password}" && \
+                chmod 600 "${file::-4}" && \
+                keysDecrypted=$((++keysDecrypted))
+              done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0)
+              unset password
+            fi
+            echo
+            println "Wallet unprotected : ${FG_GREEN}${wallet_name}${NC}"
+            println "Files unlocked     : ${FG_LBLUE}${filesUnlocked}${NC}"
+            println "Files decrypted    : ${FG_LBLUE}${keysDecrypted}${NC}"
+            if [[ ${filesUnlocked} -ne 0 || ${keysDecrypted} -ne 0 ]]; then
+              echo
+              println "DEBUG" "${FG_YELLOW}Wallet files are now unprotected${NC}"
+              println "DEBUG" "Use 'WALLET >> ENCRYPT' to re-lock"
+            fi
+            waitForInput && continue
+            ;; ###################################################################
+          encrypt)
+            clear
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            println " >> WALLET >> ENCRYPT"
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            echo
+            [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+            println "DEBUG" "# Select wallet to encrypt"
+            if ! selectWallet "encrypted"; then # ${wallet_name} populated by selectWallet function
+              [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+            fi
+            filesLocked=0
+            keysEncrypted=0
+            if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -le 0 ]]; then
+              echo
+              println "DEBUG" "# Encrypting sensitive wallet keys with GPG"
+              echo
+              if ! getPassword confirm; then # $password variable populated by getPassword function
+                println "\n\n" && println "ERROR" "${FG_RED}ERROR${NC}: password input aborted!"
+                waitForInput && continue
+              fi
+              keyFiles=(
+                "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+                "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+              )
+              for keyFile in "${keyFiles[@]}"; do
+                if [[ -f "${keyFile}" ]]; then
+                  chmod 400 "${keyFile}" && \
+                  encryptFile "${keyFile}" "${password}" && \
+                  keysEncrypted=$((++keysEncrypted))
+                fi
+              done
+              unset password
+            else
+              echo
+              println "DEBUG" "${FG_YELLOW}NOTE${NC}: found GPG encrypted files in folder, please decrypt/unlock wallet files before encrypting"
+              waitForInput && continue
+            fi
+            echo
+            println "DEBUG" "# Write protecting all wallet keys with 400 permission and if enabled 'chattr +i'"
+            while IFS= read -r -d '' file; do
+              [[ ${file} = *.addr ]] && continue
+              lockFile "${file}"
+              filesLocked=$((++filesLocked))
+              println "DEBUG" "${file}"
+            done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
+            echo
+            println "Wallet protected : ${FG_GREEN}${wallet_name}${NC}"
+            println "Files locked     : ${FG_LBLUE}${filesLocked}${NC}"
+            println "Files encrypted  : ${FG_LBLUE}${keysEncrypted}${NC}"
+            if [[ ${filesLocked} -ne 0 || ${keysEncrypted} -ne 0 ]]; then
+              echo
+              println "DEBUG" "${FG_BLUE}INFO${NC}: wallet files are now protected"
+              println "DEBUG" "Use 'WALLET >> DECRYPT' to unlock"
+            fi
+            waitForInput && continue
+            ;; ###################################################################
+        esac
+        ;; ###################################################################
+      funds)
+        clear
+        println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+        println " >> FUNDS"
+        println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+        println "OFF" " Handle Funds\n"\
+					" ) Send     - send Ada and/or custom Assets from a local wallet"\
+					" ) Delegate - delegate wallet to a pool"\
+					" ) Withdraw - withdraw earned rewards to base address"\
+					"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+        println "DEBUG" " Select Funds Operation\n"
+        select_opt "[s] Send" "[d] Delegate" "[w] Withdraw Rewards" "[h] Home"
+        case $? in
+          0) SUBCOMMAND="send" ;;
+          1) SUBCOMMAND="delegate" ;;
+          2) SUBCOMMAND="withdrawrewards" ;;
+          3) continue ;;
+        esac
+        case $SUBCOMMAND in
+          send)
+            clear
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            println " >> FUNDS >> SEND"
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+            if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+              println "ERROR" "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+              waitForInput && continue
+            else
+              if ! selectOpMode; then continue; fi
+            fi
+            echo
+            println "DEBUG" "# Select ${FG_YELLOW}source${NC} wallet"
+            if [[ ${op_mode} = "online" ]]; then
+              if ! selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+                [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+              fi
+              getWalletType ${wallet_name}
+              case $? in
+                2) println "ERROR" "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
+                3) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+              esac
+            else
+              if ! selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+                [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+              fi
+              getWalletType ${wallet_name}
+            fi
+            s_wallet="${wallet_name}"
+            s_payment_vk_file="${payment_vk_file}"
+            s_payment_sk_file="${payment_sk_file}"
+            echo
+            getBaseAddress ${s_wallet}
+            getPayAddress ${s_wallet}
+            getBalance ${base_addr}
+            base_lovelace=${assets[lovelace]}
+            getBalance ${pay_addr}
+            pay_lovelace=${assets[lovelace]}
+            if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
+              # Both payment and base address available with funds, let user choose what to use
+              println "DEBUG" "Select source wallet address"
+              if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+                println "DEBUG" "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                println "DEBUG" "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+              fi
+              echo
+              select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+              case $? in
+                0) s_addr="${base_addr}" ;;
+                1) s_addr="${pay_addr}" ;;
+                2) continue ;;
+              esac
+              echo
+            elif [[ ${pay_lovelace} -gt 0 ]]; then
+              s_addr="${pay_addr}"
+              if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+                println "DEBUG" "$(printf "%s\t${FG_LBLUE}%s${NC} Ada\n" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+              fi
+            elif [[ ${base_lovelace} -gt 0 ]]; then
+              s_addr="${base_addr}"
+              if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+                println "DEBUG" "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada\n" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+              fi
+            else
+              println "ERROR" "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${s_wallet}${NC}"
+              waitForInput && continue
+            fi
+            getBalance ${s_addr}
+            declare -gA assets_left=()
+            for asset in "${!assets[@]}"; do
+              assets_left[${asset}]=${assets[${asset}]}
+            done
+            minUTxOValue=$(jq -r '.minUTxOValue //1000000' "${TMP_FOLDER}"/protparams.json)
+            # Amount
+            println "DEBUG" "# Amount to Send (in Ada)"
+            println "DEBUG" " Valid entry:"
+            println "DEBUG" "   ${FG_LGRAY}>${NC} Integer (e.g. 15) or Decimal (e.g. 956.1235), commas allowed as thousand separator"
+            println "DEBUG" "   ${FG_LGRAY}>${NC} The string '${FG_YELLOW}all${NC}' sends all available funds in source wallet"
+            println "DEBUG" " Multi-Asset Info:"
+            println "DEBUG" "   ${FG_LGRAY}>${NC} If '${FG_YELLOW}all${NC}' is used and the wallet contain multiple assets,"
+            println "DEBUG" "   ${FG_LGRAY}>${NC} then all assets will be transferred(incl Ada) to the destination address"
+            println "DEBUG" " Minimum Amount:"
+            println "DEBUG" "   ${FG_LGRAY}>${NC} A minimum of ${FG_LBLUE}$(formatLovelace ${minUTxOValue})${NC} Ada has to be added for each asset(Ada included)"
+            echo
+            sleep 0.1 && read -r -p "Amount (Ada): " amountADA 2>&6 && println "LOG" "Amount (Ada): ${amountADA}"
+            amountADA="${amountADA//,}"
+            echo
+            if  [[ ${amountADA} != "all" ]]; then
+              if ! AdaToLovelace "${amountADA}" >/dev/null; then
+                waitForInput && continue
+              fi
+              amount_lovelace=$(AdaToLovelace "${amountADA}")
+              [[ ${amount_lovelace} -gt ${assets[lovelace]} ]] && println "ERROR" "${FG_RED}ERROR${NC}: not enough funds on address, ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada available but trying to send ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} Ada" && waitForInput && continue
+              println "DEBUG" "Fee payed by sender? [else amount sent is reduced]"
+              select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
+              case $? in
+                0) include_fee="no" ;;
+                1) include_fee="yes" ;;
+                2) continue ;;
+              esac
+            else
+              amount_lovelace=${assets[lovelace]}
+              println "DEBUG" "Ada to send set to total supply: ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC}"
+              include_fee="yes"
+            fi
+            echo
+            if [[ ${amount_lovelace} -eq ${assets[lovelace]} ]]; then
+              unset assets_left
+            else
+              assets_left[lovelace]=$(( assets_left[lovelace] - amount_lovelace ))
+            fi
+            declare -gA assets_to_send=()
+            assets_to_send[lovelace]=${amount_lovelace}
+            # Add additional assets to transaction?
+            if [[ ${#assets_left[@]} -gt 0 && ${#assets[@]} -gt 1 ]]; then
+              println "DEBUG" "Additional assets found on address, include in transaction?"
+              asset_cnt=1
+              select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+              case $? in
+                0) : ;;
+                1) declare -A assets_on_addr=()
+                   for asset in "${!assets[@]}"; do
+                     [[ ${asset} = "lovelace" ]] && continue
+                     assets_on_addr[${asset}]=0 # only interested in the key
+                   done
+                   while true; do
+                     select_opt "${!assets_on_addr[@]}" "[Esc] Cancel"
+                     selection=$?
+                     [[ ${selected_value} = "[Esc] Cancel" ]] && continue 2
+                     println "DEBUG" "Available to send: ${FG_LBLUE}$(formatAsset ${assets[${selected_value}]})${NC}"
+                     sleep 0.1 && read -r -p "Amount (commas allowed as thousand separator): " asset_amount 2>&6 && println "LOG" "Amount (commas allowed as thousand separator): ${asset_amount}"
+                     asset_amount="${asset_amount//,}"
+                     [[ ${asset_amount} = "all" ]] && asset_amount=${assets[${selected_value}]}
+                     [[ ! ${asset_amount} =~ [0-9]+ ]] && println "ERROR" "${FG_RED}ERROR${NC}: invalid number, non digit characters found!" && continue
+                     if [[ ${asset_amount} -gt ${assets[${selected_value}]} ]]; then
+                       println "ERROR" "${FG_RED}ERROR${NC}: you cant send more assets than available on address!" && continue
+                     elif [[ ${asset_amount} -eq ${assets[${selected_value}]} ]]; then
+                       unset assets_left[${selected_value}]
+                     else
+                       assets_left[${selected_value}]=$(( assets_left[${selected_value}] - asset_amount ))
+                     fi
+                     assets_to_send[${selected_value}]=${asset_amount}
+                     unset assets_on_addr[${selected_value}]
+                     [[ $((++asset_cnt)) -eq ${#assets[@]} ]] && break
+                     println "DEBUG" "Add more assets?"
+                     select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+                     case $? in
+                       0) break ;;
+                       1) : ;;
+                       2) continue 2 ;;
+                     esac
+                   done 
+                   ;;
+                2) continue ;;
+              esac
+              echo
+              min_amount=$(( minUTxOValue + ($((${#assets_to_send[@]}-1))*minUTxOValue) ))
+              if [[ ${amount_lovelace} -lt ${min_amount} ]]; then
+                println "ERROR" "${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, sending ${FG_LBLUE}${#assets_to_send[@]}${NC} asset(s) require a minimum of ${FG_LBLUE}$(formatLovelace ${min_amount})${NC} Ada to be sent along!"
+                waitForInput && continue
+              fi
+            fi
+            # Destination
+            d_wallet=""
+            println "DEBUG" "# Select ${FG_YELLOW}destination${NC} type"
+            select_opt "[w] Wallet" "[a] Address" "[Esc] Cancel"
+            case $? in
+              0) if ! selectWallet "balance"; then # ${wallet_name} populated by selectWallet function
+                   [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+                 fi
+                 d_wallet="${wallet_name}"
+                 getBaseAddress ${d_wallet}
+                 getPayAddress ${d_wallet}
+                 if [[ -n "${base_addr}" && "${base_addr}" != "${s_addr}" && -n "${pay_addr}" && "${pay_addr}" != "${s_addr}" ]]; then
+                   # Both base and enterprise address available, let user choose what to use
+                   select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+                   case $? in
+                     0) d_addr="${base_addr}" ;;
+                     1) d_addr="${pay_addr}" ;;
+                     2) continue ;;
+                   esac
+                 elif [[ -n "${base_addr}" && "${base_addr}" != "${s_addr}" ]]; then
+                   d_addr="${base_addr}"
+                 elif [[ -n "${pay_addr}" && "${pay_addr}" != "${s_addr}" ]]; then
+                   d_addr="${pay_addr}"
+                 elif [[ "${base_addr}" = "${s_addr}" || "${pay_addr}" = "${s_addr}" ]]; then
+                   println "ERROR" "\n${FG_RED}ERROR${NC}: sending to same address as source not supported"
+                   waitForInput && continue
+                 else
+                   println "ERROR" "\n${FG_RED}ERROR${NC}: no address found for wallet ${FG_GREEN}${d_wallet}${NC} :("
+                   waitForInput && continue
+                 fi
+                 ;;
+              1) sleep 0.1 && read -r -p "Address: " d_addr 2>&6 && println "LOG" "Address: ${d_addr}" ;;
+              2) continue ;;
+            esac
+            # Destination could be empty, if so without getting a valid address
+            if [[ -z ${d_addr} ]]; then
+              println "ERROR" "${FG_RED}ERROR${NC}: destination address field empty"
+              waitForInput && continue
+            fi
+            if ! sendAssets; then
+              waitForInput && continue
+            fi
+            echo
+            if ! verifyTx ${s_addr}; then waitForInput && continue; fi
+            s_balance=${assets[lovelace]}
+            getBalance ${d_addr}
+            d_balance=${assets[lovelace]}
+            getPayAddress ${s_wallet}
+            [[ "${pay_addr}" = "${s_addr}" ]] && s_wallet_type=" (Enterprise)" || s_wallet_type=""
+            getPayAddress ${d_wallet}
+            [[ "${pay_addr}" = "${d_addr}" ]] && d_wallet_type=" (Enterprise)" || d_wallet_type=""
+            echo
+            println "Transaction"
+            println "  From          : ${FG_GREEN}${s_wallet}${NC}${s_wallet_type}"
+            println "  Amount        : ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} Ada"
+            for idx in "${!assets_to_send[@]}"; do
+              [[ ${idx} = "lovelace" ]] && continue
+              println "                  ${FG_LBLUE}$(formatAsset ${assets_to_send[${idx}]})${NC} ${FG_LGRAY}${idx}${NC}"
+            done
+            if [[ -n "${d_wallet}" ]]; then
+              println "  To            : ${FG_GREEN}${d_wallet}${NC}${d_wallet_type}"
+            else
+              println "  To            : ${FG_LGRAY}${d_addr}${NC}"
+            fi
+            println "  Fees          : ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
+            println "  Balance"
+            println "  - Source      : ${FG_LBLUE}$(formatLovelace ${s_balance})${NC} Ada"
+            println "  - Destination : ${FG_LBLUE}$(formatLovelace ${d_balance})${NC} Ada"
+            waitForInput && continue
+            ;; ###################################################################
+          delegate)  # [WALLET NAME] [POOL NAME]
+            clear
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            println " >> FUNDS >> DELEGATE"
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+            if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+              println "ERROR" "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+              waitForInput && continue
+            else
+              if ! selectOpMode; then continue; fi
+            fi
+            echo
+            println "DEBUG" "# Select wallet to delegate"
+            if [[ ${op_mode} = "online" ]]; then
+              if ! selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+                [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+              fi
+              getWalletType ${wallet_name}
+              case $? in
+                2) println "ERROR" "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
+                3) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+              esac
+            else
+              if ! selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+                [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+              fi
+              getWalletType ${wallet_name}
+            fi
+            getBaseAddress ${wallet_name}
+            getBalance ${base_addr}
+            if [[ ${assets[lovelace]} -gt 0 ]]; then
+              if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+                println "DEBUG" "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Funds in wallet:"  "$(formatLovelace ${assets[lovelace]})")"
+              fi
+            else
+              println "ERROR" "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
+              waitForInput && continue
+            fi
+            getRewards ${wallet_name}
+
+            if [[ reward_lovelace -eq -1 ]]; then
+              if [[ ${op_mode} = "online" ]]; then
+                if ! registerStakeWallet ${wallet_name}; then waitForInput && continue; fi
+              else
+                println "ERROR" "\n${FG_YELLOW}The wallet is not a registered wallet on chain and CNTools run in hybrid mode${NC}"
+                println "ERROR" "Please first register the wallet using 'Wallet >> Register'"
+                waitForInput && continue
+              fi
+            fi
+            echo
+            println "DEBUG" "Do you want to delegate to a local pool or specify the pools cold vkey cbor-hex?"
+            select_opt "[p] Pool" "[v] Vkey" "[Esc] Cancel"
+            case $? in
+              0) if ! selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}"; then # ${pool_name} populated by selectPool function
+                   waitForInput && continue
+                 fi
+                 pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
+                 ;;
+              1) sleep 0.1 && read -r -p "vkey cbor-hex(blank to cancel): " vkey_cbor 2>&6 && println "LOG" "vkey cbor-hex(blank to cancel): ${vkey_cbor}"
+                 [[ -z "${vkey_cbor}" ]] && continue
+                 pool_name="${vkey_cbor}"
+                 pool_coldkey_vk_file="${TMP_FOLDER}"/pool_delegation.vkey
+                 printf "{\"type\":\"StakePoolVerificationKey_ed25519\",\"description\":\"Stake Pool Operator Verification Key\",\"cborHex\":\"%s\"}" ${vkey_cbor} > "${pool_coldkey_vk_file}"
+                 ;;
+              2) continue ;;
+            esac
+            stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+            pool_delegcert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DELEGCERT_FILENAME}"
+            println "ACTION" "${CCLI} stake-address delegation-certificate --stake-verification-key-file ${stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${pool_delegcert_file}"
+            ${CCLI} stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_delegcert_file}"
+            if ! delegate; then
+              if [[ ${op_mode} = "online" ]]; then
+                echo && println "ERROR" "${FG_RED}ERROR${NC}: failure during delegation, removing newly created delegation certificate file"
+                rm -f "${pool_delegcert_file}"
+              fi
+              waitForInput && continue
+            fi
+            echo
+            if ! verifyTx ${base_addr}; then waitForInput && continue; fi
+            echo
+            println "Delegation successfully registered"
+            println "Wallet : ${FG_GREEN}${wallet_name}${NC}"
+            println "Pool   : ${FG_GREEN}${pool_name}${NC}"
+            println "Amount : ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"
+            waitForInput && continue
+            ;; ###################################################################
+          withdrawrewards)
+            clear
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            println " >> FUNDS >> WITHDRAW REWARDS"
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+            if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+              println "ERROR" "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+              waitForInput && continue
+            else
+              if ! selectOpMode; then continue; fi
+            fi
+            echo
+            println "DEBUG" "# Select wallet to withdraw funds from"
+            if [[ ${op_mode} = "online" ]]; then
+              if ! selectWallet "reward" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+                [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+              fi
+              getWalletType ${wallet_name}
+              case $? in
+                2) println "ERROR" "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
+                3) println "ERROR" "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+              esac
+            else
+              if ! selectWallet "reward" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+                [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+              fi
+              getWalletType ${wallet_name}
+            fi
+            echo
+            getBaseAddress ${wallet_name}
+            getBalance ${base_addr}
+            getRewards ${wallet_name}
+            if [[ ${reward_lovelace} -le 0 ]]; then
+              println "ERROR" "Failed to locate any rewards associated with the chosen wallet, please try another one"
+              waitForInput && continue
+            elif [[ ${assets[lovelace]} -eq 0 ]]; then
+              println "ERROR" "${FG_YELLOW}WARN${NC}: No funds in base address, please send funds to base address of wallet to cover withdraw transaction fee"
+              waitForInput && continue
+            fi
+            println "DEBUG" "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Funds"  "$(formatLovelace ${assets[lovelace]})")"
+            println "DEBUG" "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Rewards"  "$(formatLovelace ${reward_lovelace})")"
+            if ! withdrawRewards; then
+              waitForInput && continue
+            fi
+            echo
+            if ! verifyTx ${base_addr}; then waitForInput && continue; fi
+            getRewards ${wallet_name}
+            echo
+            println "Rewards successfully withdrawn"
+            println "New Balance"
+            println "  Funds   : ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"
+            println "  Rewards : ${FG_LBLUE}$(formatLovelace ${reward_lovelace})${NC} Ada"
+            waitForInput && continue
+            ;; ###################################################################
+        esac
+        ;; ###################################################################
+      pool)
+        clear
+        println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+        println " >> POOL"
+        println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+        println "OFF" " Pool Management\n"\
+					" ) New      - create a new pool"\
+					" ) Register - register created pool on chain using a stake wallet (pledge wallet)"\
+					" ) Modify   - change pool parameters and register updated pool values on chain"\
+					" ) Retire   - de-register stake pool from chain in specified epoch"\
+					" ) List     - a compact list view of available local pools"\
+					" ) Show     - detailed view of specified pool"\
+					" ) Rotate   - rotate pool KES keys"\
+					" ) Decrypt  - remove write protection and decrypt pool"\
+					" ) Encrypt  - encrypt pool cold keys and make all files immutable"\
+					"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+        println "DEBUG" " Select Pool Operation\n"
+        select_opt "[n] New" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home"
+        case $? in
+          0) SUBCOMMAND="new" ;;
+          1) SUBCOMMAND="register" ;;
+          2) SUBCOMMAND="modify" ;;
+          3) SUBCOMMAND="retire" ;;
+          4) SUBCOMMAND="list" ;;
+          5) SUBCOMMAND="show" ;;
+          6) SUBCOMMAND="rotate" ;;
+          7) SUBCOMMAND="decrypt" ;;
+          8) SUBCOMMAND="encrypt" ;;
+          9) continue ;;
+        esac
+        case $SUBCOMMAND in
+          new)
+            clear
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            println " >> POOL >> NEW"
+            println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            echo
+            sleep 0.1 && read -r -p "Pool Name: " pool_name 2>&6 && println "LOG" "Pool Name: ${pool_name}"
+            # Remove unwanted characters from pool name
+            pool_name=${pool_name//[^[:alnum:]]/_}
+            if [[ -z "${pool_name}" ]]; then
+              println "ERROR" "${FG_RED}ERROR${NC}: Empty pool name, please retry!"
+              waitForInput && continue
+            fi
+            mkdir -p "${POOL_FOLDER}/${pool_name}"
+            pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
+            pool_hotkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_SK_FILENAME}"
+            pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
+            pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
+            pool_opcert_counter_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_COUNTER_FILENAME}"
+            pool_vrf_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_VK_FILENAME}"
+            pool_vrf_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_SK_FILENAME}"
+            if [[ -f "${pool_hotkey_vk_file}" ]]; then
+              println "ERROR" "${FG_RED}WARN${NC}: A pool ${FG_GREEN}$pool_name${NC} already exists"
+              println "ERROR" "      Choose another name or delete the existing one"
+              waitForInput && continue
+            fi
+            println "ACTION" "${CCLI} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
+            ${CCLI} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
+            if [ -f "${POOL_FOLDER}-pregen/${pool_name}/${POOL_ID_FILENAME}" ]; then
+              mv ${POOL_FOLDER}'-pregen/'${pool_name}/* ${POOL_FOLDER}/${pool_name}/
+              rm -r ${POOL_FOLDER}'-pregen/'${pool_name}
+            else
+              println "ACTION" "${CCLI} node key-gen --cold-verification-key-file ${pool_coldkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
+              ${CCLI} node key-gen --cold-verification-key-file "${pool_coldkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
+            fi
+            println "ACTION" "${CCLI} node key-gen-VRF --verification-key-file ${pool_vrf_vk_file} --signing-key-file ${pool_vrf_sk_file}"
+            ${CCLI} node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
+            chmod 600 "${POOL_FOLDER}/${pool_name}/"*
+            getPoolID ${pool_name}
+            echo
+            println "Pool: ${FG_GREEN}${pool_name}${NC}"
+            [[ -n ${pool_id} ]] && println "ID (hex)    : ${pool_id}"
+            [[ -n ${pool_id_bech32} ]] && println "ID (bech32) : ${pool_id_bech32}"
+            waitForInput && continue
+            ;; ###################################################################
+          register|modify)
+
+
+
+          # Resume from here
     clear
     println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     println " >> POOL >> ${SUBCOMMAND^^}"
     println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    
     [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
     [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
-
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
       println "ERROR" "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
       waitForInput && continue
@@ -1730,7 +1531,6 @@ EOF
       if ! selectOpMode; then continue; fi
     fi
     echo
-
     println "DEBUG" "# Select pool"
     [[ ${SUBCOMMAND} = "register" ]] && pool_filter="non-reg" || pool_filter="reg"
     if [[ ${op_mode} = "online" ]]; then
@@ -1743,11 +1543,8 @@ EOF
       fi
     fi
     echo
-
     pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
-    
     println "DEBUG" "# Pool Parameters"
-    
     if [[ ${SUBCOMMAND} = "modify" ]]; then
       if [[ ! -f ${pool_config} ]]; then
         println "${FG_YELLOW}WARN${NC}: Missing pool config file: ${pool_config}"
@@ -1759,7 +1556,6 @@ EOF
       println "DEBUG" "press enter to use default value"
     fi
     echo
-
     pledge_ada=50000 # default pledge
     [[ -f "${pool_config}" ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
     sleep 0.1 && read -r -p "Pledge (in Ada, default: $(formatAsset ${pledge_ada})): " pledge_enter 2>&6 && println "LOG" "Pledge (in Ada, default: $(formatAsset ${pledge_ada})): ${pledge_enter}"
@@ -1773,7 +1569,6 @@ EOF
     else
       pledge_lovelace=$(AdaToLovelace "${pledge_ada}")
     fi
-
     margin=7.5 # default margin in %
     [[ -f "${pool_config}" ]] && margin=$(jq -r '.margin //0' "${pool_config}")
     sleep 0.1 && read -r -p "Margin (in %, default: ${margin}): " margin_enter 2>&6 && println "LOG" "Margin (in %, default: ${margin}): ${margin_enter}"
@@ -1786,7 +1581,6 @@ EOF
     else
       margin_fraction=$(pctToFraction "${margin}")
     fi
-
     minPoolCost=$(( $(jq -r '.minPoolCost //0' "${TMP_FOLDER}"/protparams.json) / 1000000 )) # convert to Ada
     [[ -f ${pool_config} ]] && cost_ada=$(jq -r '.costADA //0' "${pool_config}") || cost_ada=${minPoolCost} # default cost
     [[ ${cost_ada} -lt ${minPoolCost} ]] && cost_ada=${minPoolCost} # raise old value to new minimum cost
@@ -1805,19 +1599,15 @@ EOF
       println "ERROR" "\n${FG_RED}ERROR${NC}: cost set lower than allowed"
       waitForInput && continue
     fi
-
     println "DEBUG" "\n# Pool Metadata\n"
-    
     pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
     if [[ ! -f "${pool_config}" ]] || ! meta_json_url=$(jq -er .json_url "${pool_config}"); then meta_json_url="https://foo.bat/poolmeta.json"; fi
-
     sleep 0.1 && read -r -p "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): " json_url_enter 2>&6 && println "LOG" "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url}): ${json_url_enter}"
     [[ -n "${json_url_enter}" ]] && meta_json_url="${json_url_enter}"
     if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
       println "ERROR" "${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
       waitForInput && continue
     fi
-
     metadata_done=false
     meta_tmp="${TMP_FOLDER}/url_poolmeta.json"
     if curl -sL -f -m ${CURL_TIMEOUT} -o "${meta_tmp}" ${meta_json_url} && jq -er . "${meta_tmp}" &>/dev/null; then
@@ -1843,7 +1633,6 @@ EOF
       if [[ ! -f "${pool_meta_file}" ]] || ! meta_description=$(jq -er .description "${pool_meta_file}"); then meta_description="No Description"; fi
       if [[ ! -f "${pool_meta_file}" ]] || ! meta_homepage=$(jq -er .homepage "${pool_meta_file}"); then meta_homepage="https://foo.com"; fi
       if [[ ! -f "${pool_meta_file}" ]] || ! meta_extended=$(jq -er .extended "${pool_meta_file}"); then meta_extended="https://foo.com/metadata/extended.json"; fi
-
       sleep 0.1 && read -r -p "Enter Pool's Name (default: ${meta_name}): " name_enter 2>&6 && println "LOG" "Enter Pool's Name (default: ${meta_name}): ${name_enter}"
       [[ -n "${name_enter}" ]] && meta_name="${name_enter}"
       if [[ ${#meta_name} -gt 50 ]]; then
@@ -1884,7 +1673,6 @@ EOF
              meta_extended_option=",\"extended\":\"${meta_extended}\""
            fi
       esac
-
       new_pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta-$(date '+%Y%m%d%H%M%S').json"
       echo -e "{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\",\"nonce\":\"$(date +%s)\"${meta_extended_option}}" > "${new_pool_meta_file}"
       jq . "${new_pool_meta_file}"
@@ -1895,11 +1683,9 @@ EOF
       else
         cp -f "${new_pool_meta_file}" "${pool_meta_file}"
       fi
-
       println "DEBUG" "\n${FG_YELLOW}Please host file ${pool_meta_file} as-is at ${meta_json_url}${NC}"
       waitForInput "Press any key to proceed with registration after metadata file is uploaded"
     fi
-
     relay_output=""
     relay_array=()
     println "DEBUG" "\n# Pool Relay Registration"
