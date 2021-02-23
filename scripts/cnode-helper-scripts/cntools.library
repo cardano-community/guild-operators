@@ -170,60 +170,60 @@ safeDel() {
 # Description : set config parameters for dialog formatting
 dialogSetup() {
   export DIALOGRC="${TMP_FOLDER}"/.dialogrc
-  [[ ! -f ${DIALOGRC} ]] && cat << EOF > "${TMP_FOLDER}"/.dialogrc
-# Types of values:
-#
-# Number     -  <number>
-# String     -  "string"
-# Boolean    -  <ON|OFF>
-# Attribute  -  (foreground,background,highlight?)
-# Set aspect-ration.
-aspect = 0
-# Set separator (for multiple widgets output).
-separate_widget = ""
-# Set tab-length (for textbox tab-conversion).
-tab_len = 0
-# Make tab-traversal for checklist, etc., include the list.
-visit_items = OFF
-# Shadow dialog boxes? This also turns on color.
-use_shadow = OFF
-# Turn color support ON or OFF
-use_colors = OFF
-# Screen color
-screen_color = (BLACK,BLACK,OFF)
-# Shadow color
-shadow_color = (BLACK,BLACK,ON)
-# Dialog box color
-dialog_color = (BLACK,BLACK,OFF)
-# Dialog box title color
-title_color = (RED,BLACK,ON)
-# Dialog box border color
-border_color = (BLACK,BLACK,OFF)
-# Active button color
-button_active_color = (WHITE,BLACK,ON)
-# Inactive button color
-button_inactive_color = (BLACK,WHITE,OFF)
-# Active button key color
-button_key_active_color = button_active_color
-# Inactive button key color
-button_key_inactive_color = (RED,BLACK,OFF)
-# Active button label color
-button_label_active_color = (YELLOW,BLACK,OFF)
-# Inactive button label color
-button_label_inactive_color = (BLACK,WHITE,ON)
-# Input box color
-inputbox_color = button_inactive_color
-# Input box border color
-inputbox_border_color = button_inactive_color
-# Item color
-item_color = button_inactive_color
-# Selected item color
-item_selected_color = button_active_color
-# Dialog box border2 color
-border2_color = button_inactive_color
-# Input box border2 color
-inputbox_border2_color = button_inactive_color
-EOF
+  [[ ! -f ${DIALOGRC} ]] && cat <<-EOF > "${TMP_FOLDER}"/.dialogrc
+		# Types of values:
+		#
+		# Number     -  <number>
+		# String     -  "string"
+		# Boolean    -  <ON|OFF>
+		# Attribute  -  (foreground,background,highlight?)
+		# Set aspect-ration.
+		aspect = 0
+		# Set separator (for multiple widgets output).
+		separate_widget = ""
+		# Set tab-length (for textbox tab-conversion).
+		tab_len = 0
+		# Make tab-traversal for checklist, etc., include the list.
+		visit_items = OFF
+		# Shadow dialog boxes? This also turns on color.
+		use_shadow = OFF
+		# Turn color support ON or OFF
+		use_colors = OFF
+		# Screen color
+		screen_color = (BLACK,BLACK,OFF)
+		# Shadow color
+		shadow_color = (BLACK,BLACK,ON)
+		# Dialog box color
+		dialog_color = (BLACK,BLACK,OFF)
+		# Dialog box title color
+		title_color = (RED,BLACK,ON)
+		# Dialog box border color
+		border_color = (BLACK,BLACK,OFF)
+		# Active button color
+		button_active_color = (WHITE,BLACK,ON)
+		# Inactive button color
+		button_inactive_color = (BLACK,WHITE,OFF)
+		# Active button key color
+		button_key_active_color = button_active_color
+		# Inactive button key color
+		button_key_inactive_color = (RED,BLACK,OFF)
+		# Active button label color
+		button_label_active_color = (YELLOW,BLACK,OFF)
+		# Inactive button label color
+		button_label_inactive_color = (BLACK,WHITE,ON)
+		# Input box color
+		inputbox_color = button_inactive_color
+		# Input box border color
+		inputbox_border_color = button_inactive_color
+		# Item color
+		item_color = button_inactive_color
+		# Selected item color
+		item_selected_color = button_active_color
+		# Dialog box border2 color
+		border2_color = button_inactive_color
+		# Input box border2 color
+		inputbox_border2_color = button_inactive_color
+		EOF
 }
 
 # Command     : fileDialog [title] [optional: start path]
@@ -2351,11 +2351,11 @@ HWCLIversionCheck() {
 # Description : Helper function to choose operational mode
 selectOpMode() {
   println "OFF" "\nOnline mode  -  The default mode to use if all keys are available\n\n"\
-"Hybrid mode  -  1) Go through steps to build a transaction file\n"\
-"                2) Copy built tx file to offline computer\n"\
-"                3) Sign it using 'Sign Tx' with keys on offline computer\n"\
-"                   (CNTools started in offline mode '-o' without node connection)\n"\
-"                4) Copy the signed tx file back to online computer and submit using 'Submit Tx'\n"
+		"Hybrid mode  -  1) Go through steps to build a transaction file\n"\
+		"                2) Copy built tx file to offline computer\n"\
+		"                3) Sign it using 'Sign Tx' with keys on offline computer\n"\
+		"                   (CNTools started in offline mode '-o' without node connection)\n"\
+		"                4) Copy the signed tx file back to online computer and submit using 'Submit Tx'\n"
   select_opt "[o] Online" "[h] Hybrid" "[Esc] Cancel"
   case $? in
     0) op_mode="online" ;;
