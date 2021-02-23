@@ -234,20 +234,30 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     echo "CentOS: curl pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd-devel zlib-devel tmux"
     err_exit
   fi
-  if ! ghc --version 2>/dev/null | grep -q 8\.10\.2 || ! cabal --version 2>/dev/null | grep -q version\ 3; then
+  if ! command -v ghc &>/dev/null; then
     echo "Install ghcup (The Haskell Toolchain installer) .."
     # TMP: Dirty hack to prevent ghcup interactive setup, yet allow profile set up
     unset BOOTSTRAP_HASKELL_NONINTERACTIVE
     export BOOTSTRAP_HASKELL_NO_UPGRADE=1
+    export BOOTSTRAP_HASKELL_GHC_VERSION=8.10.2
+    export BOOTSTRAP_HASKELL_CABAL_VERSION=3.2.0.0
     curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sed -e 's#read.*#answer=Y;next_answer=Y;hls_answer=N#' | bash
-    . "${HOME}"/.ghcup/env
-
+  fi
+  . "${HOME}"/.bashrc
+  if ! ghc --version 2>/dev/null | grep -q 8\.10\.2; then
+    echo "Installing GHC v8.10.2 .."
     ghcup install ghc 8.10.2
     ghcup set ghc 8.10.2
     ghc --version
-
-    echo "Installing bundled Cabal .."
-    ghcup install cabal
+  fi
+  cabal_version=$(cabal --version 2>/dev/null | head -n 1 | cut -d' ' -f3)
+  if [[ -z ${cabal_version} || ! ${cabal_version} = "3.2.0.0" ]]; then
+    if [[ -n ${cabal_version} ]]; then
+      echo "Uninstalling Cabal v${cabal_version} .."
+      ghcup rm cabal ${cabal_version}
+    fi
+    echo "Installing Cabal v3.2.0.0 .."
+    ghcup install cabal 3.2.0.0
   fi
 fi
 
