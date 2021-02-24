@@ -124,7 +124,7 @@ fi
 # Note: 
 # if you run your node in IPv4/IPv6 dual stack network configuration and want announced the 
 # IPv4 address only please add the -4 parameter to the curl command below  (curl -4 -s ...)
-if [ "${CNODE_HOSTNAME}" != "CHANGE ME" ]; then
+if [ -n ${CNODE_HOSTNAME} && "${CNODE_HOSTNAME}" != "CHANGE ME" ]; then
   T_HOSTNAME="&hostname=${CNODE_HOSTNAME}"
 else
   T_HOSTNAME=''
@@ -133,7 +133,7 @@ fi
 [[ ${TU_PUSH} = "Y" ]] && curl -s -f -4 "https://api.clio.one/htopology/v1/?port=${CNODE_PORT}&blockNo=${blockNo}&valency=${CNODE_VALENCY}&magic=${NWMAGIC}${T_HOSTNAME}" | tee -a "${LOG_DIR}"/topologyUpdater_lastresult.json
 if [[ ${TU_FETCH} = "Y" ]]; then
   curl -s -f -4 -o "${TOPOLOGY}".tmp "https://api.clio.one/htopology/v1/fetch/?max=${MAX_PEERS}&magic=${NWMAGIC}"
-  if [[ -z "${CUSTOM_PEERS}" ]]; then
+  if [[ -n "${CUSTOM_PEERS}" ]]; then
     topo="$(cat "${TOPOLOGY}".tmp)"
     IFS='|' read -ra cpeers <<< "${CUSTOM_PEERS}"
     for p in "${cpeers[@]}"; do
@@ -146,7 +146,7 @@ if [[ ${TU_FETCH} = "Y" ]]; then
            port=$(cut -d: -f2 <<< "${p}")
            valency=$(cut -d: -f3 <<< "${p}");;
         *) echo "ERROR: Invalid Custom Peer definition '${p}'. Please double check CUSTOM_PEERS definition"
-           exit 1
+           exit 1;;
       esac
       topo=$(jq '.Producers += [{"addr": $addr, "port": $port|tonumber, "valency": $valency|tonumber}]' --arg addr "${addr}" --arg port ${port} --arg valency ${valency} <<< "${topo}")
     done
