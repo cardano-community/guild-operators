@@ -46,9 +46,8 @@ cardano-node version
 Before you go ahead with starting your node, you may want to update values for CNODE_PORT in `$CNODE_HOME/scripts/env`. Note that it is imperative for operational relays and pools to ensure that the port mentioned is opened via firewall to the destination your node is supposed to connect from. Update your network/firewall configuration accordingly. Future executions of prereqs.sh will preserve and not overwrite these values.
 
 ```bash
-POOL_NAME="GUILD"
 CNODE_PORT=6000
-POOL_DIR="$CNODE_HOME/priv/pool/$POOL_NAME"
+POOL_NAME="GUILD"
 ```
 
 > POOL_NAME is the name of folder that you will use when registering pools and starting node in core mode. This folder would typically contain your `hot.skey`,`vrf.skey` and `op.cert` files required. If the mentioned files are absent, the node will automatically start in a passive mode.
