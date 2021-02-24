@@ -15,6 +15,7 @@ CNODE_PORT=6000                                         # Set node port
 #TOPOLOGY="${CNODE_HOME}/files/topology.json"           # Override default topology.json path
 #LOG_DIR="${CNODE_HOME}/logs"                           # Folder where your logs will be sent to (must pre-exist)
 #DB_DIR="${CNODE_HOME}/db"                              # Folder to store the cardano-node blockchain db
+#TMP_DIR="/tmp"                                         # Folder to hold temporary files in the various scripts, each script might create additional subfolders
 #EKG_HOST=127.0.0.1                                     # Set node EKG host IP
 #EKG_PORT=12788                                         # Override automatic detection of node EKG port
 #PROM_HOST=127.0.0.1                                    # Set node Prometheus host IP
@@ -307,6 +308,7 @@ BYRON_EPOCH_LENGTH=$(( 10 * BYRON_K ))
 [[ -z ${LOG_DIR} ]] && LOG_DIR="${CNODE_HOME}/logs"
 [[ -n ${CNODE_LOG_DIR} ]] && LOG_DIR="${CNODE_LOG_DIR}" # compatibility with older topologyUpdater
 [[ -z ${DB_DIR} ]] && DB_DIR="${CNODE_HOME}/db"
+[[ -z ${TMP_DIR} ]] && TMP_DIR="/tmp"
 [[ -z ${WALLET_FOLDER} ]] && WALLET_FOLDER="${CNODE_HOME}/priv/wallet"
 [[ -z ${POOL_FOLDER} ]] && POOL_FOLDER="${CNODE_HOME}/priv/pool"
 [[ -z ${POOL_NAME} ]] && POOL_NAME="CHANGE_ME"
@@ -381,22 +383,22 @@ getNodeMetrics() {
   if [[ ${USE_EKG} = 'Y' ]]; then
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
     node_metrics_tsv=$(jq -r '[
-.cardano.node.metrics.blockNum.int.val //0,
-.cardano.node.metrics.epoch.int.val //0,
-.cardano.node.metrics.slotInEpoch.int.val //0,
-.cardano.node.metrics.slotNum.int.val //0,
-.cardano.node.metrics.density.real.val //"-",
-.cardano.node.metrics.txsProcessedNum.int.val //0,
-.cardano.node.metrics.txsInMempool.int.val //0,
-.cardano.node.metrics.mempoolBytes.int.val //0,
-.cardano.node.metrics.currentKESPeriod.int.val //0,
-.cardano.node.metrics.remainingKESPeriods.int.val //0,
-.cardano.node.metrics.Forge["node-is-leader"].int.val //0,
-.cardano.node.metrics.Forge.adopted.int.val //0,
-.cardano.node.metrics.Forge["didnt-adopt"].int.val //0,
-.cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0,
-.rts.gc.wall_ms.val //0
-] | @tsv' <<< "${node_metrics}")
+    .cardano.node.metrics.blockNum.int.val //0,
+    .cardano.node.metrics.epoch.int.val //0,
+    .cardano.node.metrics.slotInEpoch.int.val //0,
+    .cardano.node.metrics.slotNum.int.val //0,
+    .cardano.node.metrics.density.real.val //"-",
+    .cardano.node.metrics.txsProcessedNum.int.val //0,
+    .cardano.node.metrics.txsInMempool.int.val //0,
+    .cardano.node.metrics.mempoolBytes.int.val //0,
+    .cardano.node.metrics.currentKESPeriod.int.val //0,
+    .cardano.node.metrics.remainingKESPeriods.int.val //0,
+    .cardano.node.metrics.Forge["node-is-leader"].int.val //0,
+    .cardano.node.metrics.Forge.adopted.int.val //0,
+    .cardano.node.metrics.Forge["didnt-adopt"].int.val //0,
+    .cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0,
+    .rts.gc.wall_ms.val //0
+    ] | @tsv' <<< "${node_metrics}")
     read -ra node_metrics_arr <<< ${node_metrics_tsv}
     blocknum=${node_metrics_arr[0]}; epochnum=${node_metrics_arr[1]}; slot_in_epoch=${node_metrics_arr[2]}; slotnum=${node_metrics_arr[3]}
     [[ ${node_metrics_arr[4]} != '-' ]] && density=$(bc <<< "scale=3;$(printf '%3.5f' "${node_metrics_arr[4]}")*100/1") || density=0.0
