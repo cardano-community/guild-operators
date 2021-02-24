@@ -53,7 +53,7 @@ shift $((OPTIND -1))
 
 # Check if update is available
 URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
-if curl -s -m 10 -o "${PARENT}"/topologyUpdater.sh.tmp ${URL}/topologyUpdater.sh && curl -s -m ${CURL_TIMEOUT} -o "${PARENT}"/env.tmp ${URL}/env && [[ -f "${PARENT}"/topologyUpdater.sh.tmp && -f "${PARENT}"/env.tmp ]]; then
+if curl -s -m 10 -o "${PARENT}"/topologyUpdater.sh.tmp ${URL}/topologyUpdater.sh && curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env && [[ -f "${PARENT}"/topologyUpdater.sh.tmp && -f "${PARENT}"/env.tmp ]]; then
   if [[ -f "${PARENT}"/env ]]; then
     if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
       vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")
@@ -124,7 +124,7 @@ fi
 # Note: 
 # if you run your node in IPv4/IPv6 dual stack network configuration and want announced the 
 # IPv4 address only please add the -4 parameter to the curl command below  (curl -4 -s ...)
-if [ -n ${CNODE_HOSTNAME} && "${CNODE_HOSTNAME}" != "CHANGE ME" ]; then
+if [[ -n ${CNODE_HOSTNAME} && "${CNODE_HOSTNAME}" != "CHANGE ME" ]]; then
   T_HOSTNAME="&hostname=${CNODE_HOSTNAME}"
 else
   T_HOSTNAME=''
