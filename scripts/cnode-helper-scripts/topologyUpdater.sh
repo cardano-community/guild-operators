@@ -11,8 +11,8 @@ PARENT="$(dirname $0)"
 
 CNODE_HOSTNAME="CHANGE ME"  # (Optional) Must resolve to the IP you are requesting from
 CNODE_VALENCY=1             # (Optional) for multi-IP hostnames
-MAX_PEERS=15                # Maximum number of peers to return on successful fetch
-#CUSTOM_PEERS="None"        # Additional custom peers to (IP:port[:valency]) to add to your target topology.json
+MAX_PEERS=15                # Maximum number of peers to return on successful fetch (note that a single peer may include valency of up to 3)
+#CUSTOM_PEERS="None"        # *Additional* custom peers to (IP:port[:valency]) to add to your target topology.json
                             # eg: "10.0.0.1:3001|10.0.0.2:3002|relays.mydomain.com:3003:3"
 #BATCH_AUTO_UPDATE=N        # Set to Y to automatically update the script if a new version is available without user interaction
 
@@ -124,16 +124,34 @@ fi
 # Note: 
 # if you run your node in IPv4/IPv6 dual stack network configuration and want announced the 
 # IPv4 address only please add the -4 parameter to the curl command below  (curl -4 -s ...)
-if [ "${CNODE_HOSTNAME}" != "CHANGE ME" ]; then
+if [ -n ${CNODE_HOSTNAME} && "${CNODE_HOSTNAME}" != "CHANGE ME" ]; then
   T_HOSTNAME="&hostname=${CNODE_HOSTNAME}"
 else
   T_HOSTNAME=''
 fi
 
-[[ -z "${CUSTOM_PEERS}" ]] && CUSTOM_PEERS_PARAM="" || CUSTOM_PEERS_PARAM="&customPeers=${CUSTOM_PEERS}"
-
 [[ ${TU_PUSH} = "Y" ]] && curl -s -f -4 "https://api.clio.one/htopology/v1/?port=${CNODE_PORT}&blockNo=${blockNo}&valency=${CNODE_VALENCY}&magic=${NWMAGIC}${T_HOSTNAME}" | tee -a "${LOG_DIR}"/topologyUpdater_lastresult.json
-[[ ${TU_FETCH} = "Y" ]] && curl -s -f -4 -o "${TOPOLOGY}".tmp "https://api.clio.one/htopology/v1/fetch/?max=${MAX_PEERS}&magic=${NWMAGIC}${CUSTOM_PEERS_PARAM}" && \
-mv "${TOPOLOGY}".tmp "${TOPOLOGY}"
-
+if [[ ${TU_FETCH} = "Y" ]]; then
+  curl -s -f -4 -o "${TOPOLOGY}".tmp "https://api.clio.one/htopology/v1/fetch/?max=${MAX_PEERS}&magic=${NWMAGIC}"
+  if [[ -n "${CUSTOM_PEERS}" ]]; then
+    topo="$(cat "${TOPOLOGY}".tmp)"
+    IFS='|' read -ra cpeers <<< "${CUSTOM_PEERS}"
+    for p in "${cpeers[@]}"; do
+      colons=$(echo "${p}" | tr -d -c ':' | awk '{print length}')
+      case $colons in
+        1) addr="$(cut -d: -f1 <<< "${p}")"
+           port=$(cut -d: -f2 <<< "${p}")
+           valency=1;;
+        2) addr="$(cut -d: -f1 <<< "${p}")"
+           port=$(cut -d: -f2 <<< "${p}")
+           valency=$(cut -d: -f3 <<< "${p}");;
+        *) echo "ERROR: Invalid Custom Peer definition '${p}'. Please double check CUSTOM_PEERS definition"
+           exit 1;;
+      esac
+      topo=$(jq '.Producers += [{"addr": $addr, "port": $port|tonumber, "valency": $valency|tonumber}]' --arg addr "${addr}" --arg port ${port} --arg valency ${valency} <<< "${topo}")
+    done
+    echo "${topo}" | jq -r . >/dev/null 2>&1 && echo "${topo}" > "${TOPOLOGY}".tmp
+  fi
+  mv "${TOPOLOGY}".tmp "${TOPOLOGY}"
+fi
 exit 0
