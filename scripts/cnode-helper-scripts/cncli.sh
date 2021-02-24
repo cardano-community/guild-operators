@@ -22,6 +22,7 @@
 #CONFIRM_BLOCK_CNT=15                     # CNCLI validate: require at least these many blocks on top of minted before validating
 #TIMEOUT_LEDGER_STATE=300                 # CNCLI leaderlog: timeout in seconds for ledger-state query
 #BATCH_AUTO_UPDATE=N                      # Set to Y to automatically update the script if a new version is available without user interaction
+#LEDGER_API=true                          # Use API from api.crypto2099.io in cncli call instead of local ledger-state dump to vastly reduce system resources. ONLY for MainNet network (true|false)
 
 ######################################
 # Do NOT modify code below           #
@@ -101,7 +102,7 @@ getPoolVrfVkeyCborHex() {
 }
 
 dumpLedgerState() { # getNodeMetrics expected to have been already run
-  ledger_state_file="/tmp/ledger-state_${epochnum}.json"
+  ledger_state_file="/${TMP_DIR}/ledger-state_${NWMAGIC}_${epochnum}.json"
   [[ -n $(find "${ledger_state_file}" -mmin -60 2>/dev/null) ]] && return 0 # no need to continue, we have a fresh(<1h) ledger-state already
   rm -f /tmp/ledger-state_* # remove old ledger dumps before creating a new
   if ! timeout -k 5 "${TIMEOUT_LEDGER_STATE}" ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${ledger_state_file}"; then
@@ -188,12 +189,14 @@ cncliInit() {
   done
   
   [[ ! -f "${CNCLI}" ]] && echo -e "\nERROR: failed to locate cncli executable, please install with 'prereqs.sh'\n" && exit 1
-  CNCLI_VERSION="$(cncli -V | cut -d' ' -f2)"
-  if ! versionCheck "0.4.1" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, please upgrade to v0.4.1 or newer!"; exit 1; fi
+  CNCLI_VERSION="v$(cncli -V | cut -d' ' -f2)"
+  if ! versionCheck "1.0.0" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, please upgrade to latest version!"; exit 1; fi
+  if ! versionCheck "1.4.0" "${CNCLI_VERSION}"; then echo "WARN: cncli ${CNCLI_VERSION} installed, disabling LEDGER_API !! please upgrade to v1.4.0 or newer to enable"; exit 1; fi
   
   [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
   mkdir -p "${CNCLI_DIR}"
   CNCLI_DB="${CNCLI_DIR}/cncli.db"
+  [[ -z "${LEDGER_API}" ]] && LEDGER_API="true"
   [[ -z "${SLEEP_RATE}" ]] && SLEEP_RATE=60
   [[ -z "${CONFIRM_SLOT_CNT}" ]] && CONFIRM_SLOT_CNT=600
   [[ -z "${CONFIRM_BLOCK_CNT}" ]] && CONFIRM_BLOCK_CNT=15
@@ -252,16 +255,19 @@ cncliLeaderlog() {
     echo "Leaderlogs already calculated for epoch ${curr_epoch}, skipping!"
   else
     echo "Running leaderlogs for epoch ${curr_epoch} and adding leader slots not already in DB"
-    if ! dumpLedgerState; then exit 1; fi
-    cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current --ledger-state "${ledger_state_file}" --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
+    ledger_state_param=""
+    if [[ ${LEDGER_API} = "false" || ${NWMAGIC} -ne 764824073 ]]; then 
+      if ! dumpLedgerState; then exit 1; else ledger_state_param="--ledger-state ${ledger_state_file}"; fi
+    fi
+    cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current ${ledger_state_param} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
     if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
-      error_msg=
+      error_msg=$(jq -r .errorMessage <<< "${cncli_leaderlog}")
       if [[ "${error_msg}" = "Query returned no rows" ]]; then
         echo "No leader slots found for epoch ${curr_epoch} :("
       else
         echo "ERROR: failure in leaderlog while running:"
-        echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set current --ledger-state ${ledger_state_file} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
-        echo "Error message: $(jq -r '.errorMessage //empty' <<< "${cncli_leaderlog}")"
+        echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set current ${ledger_state_param} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
+        echo "Error message: ${error_msg}"
         exit 1
       fi
     else
@@ -306,20 +312,24 @@ cncliLeaderlog() {
     next_epoch=$((curr_epoch+1))
     if [[ ${slotnum} -gt ${slot_for_next_nonce} ]]; then # Run leaderlogs for next epoch
       if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM epochdata WHERE epoch=${next_epoch};" 2>/dev/null) -eq 1 ]]; then # Leaderlogs already calculated for next epoch, skipping!
-        if [[ ${subarg} = "force" ]]; then
-          echo "Leaderlogs already calculated for epoch ${next_epoch}, skipping!" && break
+        if [[ -t 1 ]]; then # manual execution
+          [[ ${subarg} != "force" ]] && echo "Leaderlogs already calculated for epoch ${next_epoch}, skipping!" && break
         else continue; fi
       fi
       echo "Running leaderlogs for next epoch[${next_epoch}]"
-      if ! dumpLedgerState; then sleep 600; continue; fi # Sleep for 10 min before trying to dump ledger-state in case of error
-      cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next --ledger-state "${ledger_state_file}" --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
+      ledger_state_param=""
+      if [[ ${LEDGER_API} = "false" || ${NWMAGIC} -ne 764824073 ]]; then 
+        if ! dumpLedgerState; then sleep 600; continue; else ledger_state_param="--ledger-state ${ledger_state_file}"; fi # Sleep for 10 min before trying to dump ledger-state in case of error
+      fi
+      cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next ${ledger_state_param} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
       if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
+        error_msg=$(jq -r .errorMessage <<< "${cncli_leaderlog}")
         if [[ "${error_msg}" = "Query returned no rows" ]]; then
           echo "No leader slots found for epoch ${curr_epoch} :("
         else
           echo "ERROR: failure in leaderlog while running:"
-          echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set next --ledger-state ${ledger_state_file} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
-          echo "Error message: $(jq -r '.errorMessage //empty' <<< "${cncli_leaderlog}")"
+          echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set next ${ledger_state_param} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
+          echo "Error message: ${error_msg}"
         fi
       else
         epoch_nonce=$(jq -r '.epochNonce' <<< "${cncli_leaderlog}")
@@ -544,7 +554,7 @@ cncliPTsendtip() {
     echo "ERROR: cardano-node not in PATH, please manually set CCLI in env file"
     exit 1
   fi
-  pt_config="/tmp/${vname}-pooltool.json"
+  pt_config="/${TMP_DIR}/$(basename ${CNODE_HOME})-pooltool.json"
   bash -c "cat <<-'EOF' > ${pt_config}
 		{
 		  \"api_key\": \"${PT_API_KEY}\",
@@ -566,7 +576,7 @@ cncliPTsendtip() {
 cncliPTsendslots() {
   [[ -z ${POOL_ID} || -z ${POOL_TICKER} || -z ${PT_API_KEY} ]] && echo "'POOL_ID' and/or 'POOL_TICKER' and/or 'PT_API_KEY' not set in $(basename "$0"), exiting!" && exit 1
   # Generate a temporary pooltool config
-  pt_config="/tmp/${vname}-pooltool.json"
+  pt_config="/${TMP_DIR}/$(basename ${CNODE_HOME})-pooltool.json"
   bash -c "cat <<-'EOF' > ${pt_config}
 		{
 		  \"api_key\": \"${PT_API_KEY}\",
