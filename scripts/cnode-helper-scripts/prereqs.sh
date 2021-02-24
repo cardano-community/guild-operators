@@ -296,7 +296,7 @@ fi
 
 if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
   echo "Installing CNCLI"
-  if command -v cncli >/dev/null; then cncli_version="$(cncli -V | cut -d' ' -f2)"; else cncli_version="v0.0.0"; fi
+  if command -v cncli >/dev/null; then cncli_version="v$(cncli -V | cut -d' ' -f2)"; else cncli_version="v0.0.0"; fi
   pushd "${HOME}"/git >/dev/null || err_exit
   if [[ -d ./cncli ]]; then
     echo "  previous CNCLI installation found, pulling latest version from GitHub..."
@@ -325,7 +325,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     git checkout --quiet ${cncli_git_latestTag}
     echo "  building CNCLI ${cncli_git_latestTag} ..."
     if ! output=$(cargo install --path . --force --locked 2>&1); then echo -e "${output}" && err_exit; fi
-    echo "  $(cncli -V) installed!"
+    echo "  v$(cncli -V) installed!"
   else
     echo "  CNCLI already latest version [${cncli_version}], skipping!"
   fi
