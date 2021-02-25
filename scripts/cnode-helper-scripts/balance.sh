@@ -16,23 +16,23 @@ else
 fi
 
 function cleanup() {
-  rm -rf "/${TMP_DIR}/fullUtxo.out"
-  rm -rf "/${TMP_DIR}/balance.txt"
+  rm -rf "${TMP_DIR}/fullUtxo.out"
+  rm -rf "${TMP_DIR}/balance.txt"
 }
 
 # start with a clean slate
 cleanup
 
-${CCLI} query utxo ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${WALLET_ADDR}" > "/${TMP_DIR}/fullUtxo.out"
-tail -n +3 "/${TMP_DIR}/fullUtxo.out" | sort -k3 -nr > "/${TMP_DIR}/balance.txt"
+${CCLI} query utxo ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${WALLET_ADDR}" > "${TMP_DIR}/fullUtxo.out"
+tail -n +3 "${TMP_DIR}/fullUtxo.out" | sort -k3 -nr > "${TMP_DIR}/balance.txt"
 
 TOTALBALANCE=0
 UTx0_COUNT=0
 
-if [ -s "/${TMP_DIR}/balance.txt" ]; then
+if [ -s "${TMP_DIR}/balance.txt" ]; then
   echo ""
-  head -n 2 "/${TMP_DIR}/fullUtxo.out"
-  head -n 10 "/${TMP_DIR}/balance.txt"
+  head -n 2 "${TMP_DIR}/fullUtxo.out"
+  head -n 10 "${TMP_DIR}/balance.txt"
 fi
 
 while read -r UTxO; do
@@ -43,7 +43,7 @@ while read -r UTxO; do
   UTx0_COUNT=$(( UTx0_COUNT + 1 ))
   TX_IN="${TX_IN} --tx-in ${INADDR}#${IDX}"
   TOTALBALANCE=$(( TOTALBALANCE + BALANCE ))
-done <"/${TMP_DIR}/balance.txt"
+done <"${TMP_DIR}/balance.txt"
 
 [[ ${UTx0_COUNT} -gt 10 ]] && echo "... (top 10 UTx0 with most lovelace)"
 

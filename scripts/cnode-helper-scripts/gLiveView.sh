@@ -142,19 +142,19 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
   esac
 
   echo "Guild LiveView version check..."
-  if curl -s -f -m ${CURL_TIMEOUT} -o "/${TMP_DIR}/gLiveView.sh" "${URL}/gLiveView.sh" 2>/dev/null; then
-    GIT_VERSION=$(grep -r ^GLV_VERSION= "/${TMP_DIR}/gLiveView.sh" | cut -d'=' -f2)
+  if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}/gLiveView.sh" "${URL}/gLiveView.sh" 2>/dev/null; then
+    GIT_VERSION=$(grep -r ^GLV_VERSION= "${TMP_DIR}/gLiveView.sh" | cut -d'=' -f2)
     : "${GIT_VERSION:=v0.0.0}"
     if ! versionCheck "${GIT_VERSION}" "${GLV_VERSION}"; then
       echo -e "\nA new version of Guild LiveView is available"
       echo "Installed Version : ${GLV_VERSION}"
       echo "Available Version : ${GIT_VERSION}"
       if getAnswer "\nDo you want to upgrade to the latest version of Guild LiveView?"; then
-        TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "/${TMP_DIR}/gLiveView.sh")
+        TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${TMP_DIR}/gLiveView.sh")
         STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/gLiveView.sh")
-        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > "/${TMP_DIR}/gLiveView.sh"
+        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > "${TMP_DIR}/gLiveView.sh"
         mv -f "${PARENT}/gLiveView.sh" "${PARENT}/gLiveView.sh_bkp$(printf '%(%s)T\n' -1)" && \
-        cp -f "/${TMP_DIR}/gLiveView.sh" "${PARENT}/gLiveView.sh" && \
+        cp -f "${TMP_DIR}/gLiveView.sh" "${PARENT}/gLiveView.sh" && \
         chmod 750 "${PARENT}/gLiveView.sh" && \
         myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!" || \
         myExit 1 "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
