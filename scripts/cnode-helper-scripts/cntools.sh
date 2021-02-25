@@ -1073,6 +1073,7 @@ function main {
               if ! selectOpMode; then continue; fi
             fi
             echo
+            
             println "DEBUG" "# Select ${FG_YELLOW}source${NC} wallet"
             if [[ ${op_mode} = "online" ]]; then
               if ! selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
@@ -1128,6 +1129,7 @@ function main {
               println "ERROR" "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${s_wallet}${NC}"
               waitForInput && continue
             fi
+            
             getBalance ${s_addr}
             declare -gA assets_left=()
             for asset in "${!assets[@]}"; do
@@ -1167,13 +1169,17 @@ function main {
               include_fee="yes"
             fi
             echo
+            declare -gA assets_to_send=()
             if [[ ${amount_lovelace} -eq ${assets[lovelace]} ]]; then
               unset assets_left
+              for asset in "${!assets[@]}"; do
+                assets_to_send[${asset}]=${assets[${asset}]} # add all assets, e.g clone assets array to assets_to_send
+              done
             else
               assets_left[lovelace]=$(( assets_left[lovelace] - amount_lovelace ))
+              assets_to_send[lovelace]=${amount_lovelace}
             fi
-            declare -gA assets_to_send=()
-            assets_to_send[lovelace]=${amount_lovelace}
+            
             # Add additional assets to transaction?
             if [[ ${#assets_left[@]} -gt 0 && ${#assets[@]} -gt 1 ]]; then
               println "DEBUG" "Additional assets found on address, include in transaction?"
