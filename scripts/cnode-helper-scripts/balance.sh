@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC1090,SC2086
-# Only source env if not done already, this script is sourced from other scripts
-[ "$0" = "${BASH_SOURCE[*]}" ] && . "$(dirname "$0")"/env
+
+. "$(dirname $0)"/env
 
 usage() { echo "Usage: $(basename "$0") <address or path to address file>" 1>&2; exit 1; }
 
@@ -16,23 +16,23 @@ else
 fi
 
 function cleanup() {
-  rm -rf /tmp/fullUtxo.out
-  rm -rf /tmp/balance.txt
+  rm -rf "/${TMP_DIR}/fullUtxo.out"
+  rm -rf "/${TMP_DIR}/balance.txt"
 }
 
 # start with a clean slate
 cleanup
 
-${CCLI} query utxo ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${WALLET_ADDR}" > /tmp/fullUtxo.out
-tail -n +3 /tmp/fullUtxo.out | sort -k3 -nr > /tmp/balance.txt
+${CCLI} query utxo ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${WALLET_ADDR}" > "/${TMP_DIR}/fullUtxo.out"
+tail -n +3 "/${TMP_DIR}/fullUtxo.out" | sort -k3 -nr > "/${TMP_DIR}/balance.txt"
 
 TOTALBALANCE=0
 UTx0_COUNT=0
 
-if [ -s /tmp/balance.txt ]; then
+if [ -s "/${TMP_DIR}/balance.txt" ]; then
   echo ""
-  head -n 2 /tmp/fullUtxo.out
-  head -n 10 /tmp/balance.txt
+  head -n 2 "/${TMP_DIR}/fullUtxo.out"
+  head -n 10 "/${TMP_DIR}/balance.txt"
 fi
 
 while read -r UTxO; do
@@ -43,7 +43,7 @@ while read -r UTxO; do
   UTx0_COUNT=$(( UTx0_COUNT + 1 ))
   TX_IN="${TX_IN} --tx-in ${INADDR}#${IDX}"
   TOTALBALANCE=$(( TOTALBALANCE + BALANCE ))
-done </tmp/balance.txt
+done <"/${TMP_DIR}/balance.txt"
 
 [[ ${UTx0_COUNT} -gt 10 ]] && echo "... (top 10 UTx0 with most lovelace)"
 
