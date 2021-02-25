@@ -53,7 +53,7 @@ setTheme() {
 
 GLV_VERSION=v1.19.4
 
-PARENT="$(dirname $0)"
+PARENT=$( [ -d "$CNODE_HOME/scripts" ] && echo "$CNODE_HOME/scripts" || echo "dirname $0" )
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
 
 # Set default for user variables added in recent versions (for those who may not necessarily have it due to upgrade)
