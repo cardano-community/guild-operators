@@ -18,9 +18,9 @@ CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PAT
 # Default config values                                    #
 # overriden by values set in cntools.config                #
 ############################################################
-[[ -z ${TMP_FOLDER} ]] && TMP_FOLDER=/tmp/cntools
+TMP_DIR="${TMP_DIR}/cntools"
+if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}: Failed to create directory for temporary files: ${TMP_DIR}"; fi
 [[ -z ${TIMEOUT_NO_OF_SLOTS} ]] && TIMEOUT_NO_OF_SLOTS=600
-[[ -z ${TIMEOUT_LEDGER_STATE} ]] && TIMEOUT_LEDGER_STATE=300
 [[ ${SHELLEY_TRANS_FILENAME} =~ ^${CNODE_HOME}/db/ ]] && mkdir -p "${CNODE_HOME}/guild-db" && SHELLEY_TRANS_FILENAME="${CNODE_HOME}/guild-db/shelley_trans_epoch"
 [[ -z ${WALLET_SELECTION_FILTER_LIMIT} ]] && WALLET_SELECTION_FILTER_LIMIT=10
 [[ -z ${KES_ALERT_PERIOD} ]] && KES_ALERT_PERIOD=172800 # default 2 days
@@ -134,10 +134,10 @@ protectionPreRequisites() {
   if ! need_cmd "chattr" &>/dev/null; then
     [[ ${ENABLE_CHATTR} = true ]] && println "ERROR" "chattr command not available but enabled in config, please install or disable in cntools.config and re-run CNTools" && return 1
   elif [[ ${ENABLE_CHATTR} = true ]]; then # chattr available and enabled, make sure sudo access to chattr is enabled
-    touch "${TMP_FOLDER}"/test
+    touch "${TMP_DIR}"/test
     println "DEBUG" "Testing chattr access permission, enter user password if requested..."
-    if ! sudo chattr -i "${TMP_FOLDER}"/test; then
-      rm -f "${TMP_FOLDER}"/test
+    if ! sudo chattr -i "${TMP_DIR}"/test; then
+      rm -f "${TMP_DIR}"/test
       echo
       println "ERROR" "${FG_YELLOW}WARN${NC}: Elevated privileges needed for chattr command used to write protect wallet and pool keys"
       println "ERROR" "Add required sudo permissions or run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
@@ -145,7 +145,7 @@ protectionPreRequisites() {
       println "ERROR" "echo \"$(whoami) ALL=NOPASSWD: $(command -v chattr)\" | sudo tee /etc/sudoers.d/cntools"
       return 1
     fi
-    rm -f "${TMP_FOLDER}"/test
+    rm -f "${TMP_DIR}"/test
   fi
 }
 
@@ -169,8 +169,8 @@ safeDel() {
 # Command     : dialogSetup
 # Description : set config parameters for dialog formatting
 dialogSetup() {
-  export DIALOGRC="${TMP_FOLDER}"/.dialogrc
-  [[ ! -f ${DIALOGRC} ]] && cat <<-EOF > "${TMP_FOLDER}"/.dialogrc
+  export DIALOGRC="${TMP_DIR}"/.dialogrc
+  [[ ! -f ${DIALOGRC} ]] && cat <<-EOF > "${TMP_DIR}"/.dialogrc
 		# Types of values:
 		#
 		# Number     -  <number>
@@ -230,7 +230,7 @@ dialogSetup() {
 # Description : open a file dialog
 # Parameters  : show help  >  [0=no|1=yes] print dialog help text
 #             : title      >  The dialog title text
-#             : verbosity  >  [optional] Start path when dialog is opened, either dir or file (default: /tmp/)
+#             : verbosity  >  [optional] Start path when dialog is opened, either dir or file (default: ${TMP_DIR}/)
 fileDialog() {
   exec >&6 # normal stdout
   if [[ ${ENABLE_DIALOG} = "false" ]]; then
@@ -238,7 +238,7 @@ fileDialog() {
     return
   fi
   dialogSetup
-  [[ -n $2 ]] && start_path="$2" || start_path="/tmp/"
+  [[ -n $2 ]] && start_path="$2" || start_path="${TMP_DIR}/"
   file=$(dialog --stdout --clear --keep-tite --title "$1" --fselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)))
   exec >&8 # custom stdout
 }
@@ -246,7 +246,7 @@ fileDialog() {
 # Description : open a directory dialog
 # Parameters  : show help  >  [0=no|1=yes] print dialog help text
 #             : title      >  The dialog title text
-#             : verbosity  >  [optional] Start path when dialog is opened, either dir or file (default: /tmp/)
+#             : verbosity  >  [optional] Start path when dialog is opened, either dir or file (default: ${TMP_DIR}/)
 dirDialog() {
   exec >&6 # normal stdout
   if [[ ${ENABLE_DIALOG} = "false" ]]; then
@@ -254,7 +254,7 @@ dirDialog() {
     return
   fi
   dialogSetup
-  [[ -n $2 ]] && start_path="$2" || start_path="/tmp/"
+  [[ -n $2 ]] && start_path="$2" || start_path="${TMP_DIR}/"
   dir=$(dialog --stdout --clear --keep-tite --title "$1" --dselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)))
   exec >&8 # custom stdout
 }
@@ -1064,10 +1064,10 @@ getAssetsTxOut() {
 
 # Command     : getMinUTxObalance
 # Description : calculate minimum balance needed in source wallet UTxOs for transaction to be valid
-#               getBalance assumed to be run before and protocol params file available at "${TMP_FOLDER}"/protparams.json
+#               getBalance assumed to be run before and protocol params file available at "${TMP_DIR}"/protparams.json
 # Return      : populates ${min_utxo_balance}
 getMinUTxObalance() {
-  [[ -z ${minUTxOValue} ]] && minUTxOValue=$(jq -r '.minUTxOValue //1000000' "${TMP_FOLDER}"/protparams.json)
+  [[ -z ${minUTxOValue} ]] && minUTxOValue=$(jq -r '.minUTxOValue //1000000' "${TMP_DIR}"/protparams.json)
   min_utxo_balance=$(( minUTxOValue + ($((${#assets[@]}-1))*minUTxOValue) ))	# TODO: improve when better calculations are provided in cardano-cli
 }
 
@@ -1189,22 +1189,22 @@ registerStakeWallet() {
   if ! ${CCLI} stake-address registration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cert_file}"; then return 1; fi
 
   if ! getTTL; then return 1; fi
-  keyDeposit=$(jq -r '.keyDeposit' "${TMP_FOLDER}"/protparams.json)
+  keyDeposit=$(jq -r '.keyDeposit' "${TMP_DIR}"/protparams.json)
   println "LOG" "Key Deposit is ${keyDeposit}"
 
   getAssetsTxOut
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${stake_cert_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${stake_cert_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${stake_cert_file} ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${stake_cert_file} ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
-    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
+    --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
     --tx-out-count 1
     ${NETWORK_IDENTIFIER}
     --witness-count 2
     --byron-witness-count 0
-    --protocol-params-file "${TMP_FOLDER}"/protparams.json
+    --protocol-params-file "${TMP_DIR}"/protparams.json
   )
   println "ACTION" "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
@@ -1225,7 +1225,7 @@ registerStakeWallet() {
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     --certificate-file ${stake_cert_file}
-    --out-file "${TMP_FOLDER}"/tx.raw
+    --out-file "${TMP_DIR}"/tx.raw
   )
   if ! buildTx; then return 1; fi
   
@@ -1233,12 +1233,12 @@ registerStakeWallet() {
     if ! buildOfflineJSON "Wallet Registration"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"$(( min_fee + keyDeposit ))\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -1248,7 +1248,7 @@ registerStakeWallet() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_FOLDER}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+  if ! signTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
   echo
   if ! verifyTx ${base_addr}; then return 1; fi
@@ -1269,22 +1269,22 @@ deregisterStakeWallet() {
 
   if ! getTTL; then return 1; fi
   
-  keyDeposit=$(jq -r '.keyDeposit' "${TMP_FOLDER}"/protparams.json)
+  keyDeposit=$(jq -r '.keyDeposit' "${TMP_DIR}"/protparams.json)
   println "LOG" "Key Deposit is ${keyDeposit}"
 
   getAssetsTxOut
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${stake_dereg_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${stake_dereg_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${stake_dereg_file} ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${stake_dereg_file} ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
-    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
+    --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
     --tx-out-count 1
     ${NETWORK_IDENTIFIER}
     --witness-count 2
     --byron-witness-count 0
-    --protocol-params-file "${TMP_FOLDER}"/protparams.json
+    --protocol-params-file "${TMP_DIR}"/protparams.json
   )
   println "ACTION" "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
@@ -1305,7 +1305,7 @@ deregisterStakeWallet() {
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     --certificate-file ${stake_dereg_file}
-    --out-file "${TMP_FOLDER}"/tx.raw
+    --out-file "${TMP_DIR}"/tx.raw
   )
   if ! buildTx; then return 1; fi
   
@@ -1314,12 +1314,12 @@ deregisterStakeWallet() {
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"amount-returned\": \"${keyDeposit}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -1329,7 +1329,7 @@ deregisterStakeWallet() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_FOLDER}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+  if ! signTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -1363,7 +1363,7 @@ sendAssets() {
     --invalid-hereafter ${ttl}
     --fee 0
     ${ERA_IDENTIFIER}
-    --out-file "${TMP_FOLDER}"/tx0.tmp
+    --out-file "${TMP_DIR}"/tx0.tmp
   )
   if [[ ${outCount} -eq 1 ]]; then
     dummy_build_args+=( --tx-out "${d_addr}+0${assets_tx_out_d}" )
@@ -1375,13 +1375,13 @@ sendAssets() {
   
   min_fee_args=(
     transaction calculate-min-fee
-    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
+    --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
     --tx-out-count ${outCount}
     ${NETWORK_IDENTIFIER}
     --witness-count 1
     --byron-witness-count 0
-    --protocol-params-file "${TMP_FOLDER}"/protparams.json
+    --protocol-params-file "${TMP_DIR}"/protparams.json
   )
   println "ACTION" "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
@@ -1391,10 +1391,10 @@ sendAssets() {
     ${tx_in}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
-    --out-file "${TMP_FOLDER}"/tx.raw
+    --out-file "${TMP_DIR}"/tx.raw
   )
   
-  [[ -z ${minUTxOValue} ]] && minUTxOValue=$(jq -r '.minUTxOValue //1000000' "${TMP_FOLDER}"/protparams.json)
+  [[ -z ${minUTxOValue} ]] && minUTxOValue=$(jq -r '.minUTxOValue //1000000' "${TMP_DIR}"/protparams.json)
   
   if [[ ${outCount} -eq 1 ]]; then # all assets to destination, nothing to return
     newBalance=0
@@ -1439,11 +1439,11 @@ sendAssets() {
       [[ ${assets_to_send[${idx}]} -gt 0 ]] && if ! offlineJSON=$(jq "."assets" += [{ asset: \"${idx}\", amount: \"${assets_to_send[${idx}]}\" }]" <<< ${offlineJSON}); then return 1; fi
     done
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${s_wallet}' payment signing key\", vkey: $(jq -c . "${s_payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -1452,7 +1452,7 @@ sendAssets() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_FOLDER}/tx.raw" "${s_payment_sk_file}"; then return 1; fi
+  if ! signTx "${TMP_DIR}/tx.raw" "${s_payment_sk_file}"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -1466,17 +1466,17 @@ delegate() {
   
   getAssetsTxOut
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_delegcert_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_delegcert_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_delegcert_file} ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_delegcert_file} ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
-    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
+    --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
     --tx-out-count 1
     ${NETWORK_IDENTIFIER}
     --witness-count 2
     --byron-witness-count 0
-    --protocol-params-file "${TMP_FOLDER}"/protparams.json
+    --protocol-params-file "${TMP_DIR}"/protparams.json
   )
   println "ACTION" "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
@@ -1497,7 +1497,7 @@ delegate() {
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     --certificate-file ${pool_delegcert_file}
-    --out-file "${TMP_FOLDER}"/tx.raw
+    --out-file "${TMP_DIR}"/tx.raw
   )
   if ! buildTx; then return 1; fi
 
@@ -1505,12 +1505,12 @@ delegate() {
     if ! buildOfflineJSON "Wallet Delegation"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -1520,7 +1520,7 @@ delegate() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_FOLDER}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+  if ! signTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -1534,17 +1534,17 @@ withdrawRewards() {
   
   getAssetsTxOut
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
-    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
+    --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
     --tx-out-count 1
     ${NETWORK_IDENTIFIER}
     --witness-count 2
     --byron-witness-count 0
-    --protocol-params-file "${TMP_FOLDER}"/protparams.json
+    --protocol-params-file "${TMP_DIR}"/protparams.json
   )
   println "ACTION" "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
@@ -1565,7 +1565,7 @@ withdrawRewards() {
     --withdrawal ${reward_addr}+${reward_lovelace}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
-    --out-file "${TMP_FOLDER}"/tx.raw
+    --out-file "${TMP_DIR}"/tx.raw
   )
   if ! buildTx; then return 1; fi
 
@@ -1574,12 +1574,12 @@ withdrawRewards() {
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { rewards: \"${reward_lovelace}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -1589,7 +1589,7 @@ withdrawRewards() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_FOLDER}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+  if ! signTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -1602,7 +1602,7 @@ registerPool() {
   
   if ! getTTL; then return 1; fi
   
-  poolDeposit=$(jq -r '.poolDeposit' "${TMP_FOLDER}"/protparams.json)
+  poolDeposit=$(jq -r '.poolDeposit' "${TMP_DIR}"/protparams.json)
   println "LOG" "Pool Deposit is ${poolDeposit}"
   
   owner_delegation_cert=""
@@ -1630,17 +1630,17 @@ registerPool() {
   
   getAssetsTxOut
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} ${owner_delegation_cert} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} ${owner_delegation_cert} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} ${owner_delegation_cert} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} ${owner_delegation_cert} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
-    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
+    --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
     --tx-out-count 1
     ${NETWORK_IDENTIFIER}
     --witness-count ${witness_count}
     --byron-witness-count 0
-    --protocol-params-file "${TMP_FOLDER}"/protparams.json
+    --protocol-params-file "${TMP_DIR}"/protparams.json
   )
   println "ACTION" "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
@@ -1663,7 +1663,7 @@ registerPool() {
     --certificate-file ${pool_regcert_file}
     ${owner_delegation_cert}
     ${reward_delegation_cert}
-    --out-file "${TMP_FOLDER}"/tx.raw
+    --out-file "${TMP_DIR}"/tx.raw
   )
   if ! buildTx; then return 1; fi
   
@@ -1676,7 +1676,7 @@ registerPool() {
     if ! offlineJSON=$(jq ". += { \"pool-cost\": \"${cost_ada}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-reg-cert\": $(jq -c . "${pool_regcert_file}") }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"$(( min_fee + poolDeposit ))\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     for index in "${!owner_wallets[@]}"; do
       if [[ ${index} -eq 0 ]]; then
@@ -1689,7 +1689,7 @@ registerPool() {
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { witness: [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -1712,8 +1712,8 @@ registerPool() {
     multi_owner_keys+=( "${stake_sk_file}" )
   done
   
-  if ! witnessTx "${TMP_FOLDER}/tx.raw" "${owner_payment_sk_file}" "${pool_coldkey_sk_file}" "${owner_stake_sk_file}" "${reward_stake_sk_file}" "${multi_owner_keys[@]}"; then return 1; fi
-  if ! assembleTx "${TMP_FOLDER}/tx.raw"; then return 1; fi
+  if ! witnessTx "${TMP_DIR}/tx.raw" "${owner_payment_sk_file}" "${pool_coldkey_sk_file}" "${owner_stake_sk_file}" "${reward_stake_sk_file}" "${multi_owner_keys[@]}"; then return 1; fi
+  if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -1731,17 +1731,17 @@ modifyPool() {
   
   getAssetsTxOut
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
-    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
+    --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
     --tx-out-count 1
     ${NETWORK_IDENTIFIER}
     --witness-count ${witness_count}
     --byron-witness-count 0
-    --protocol-params-file "${TMP_FOLDER}"/protparams.json
+    --protocol-params-file "${TMP_DIR}"/protparams.json
   )
   println "ACTION" "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
@@ -1762,7 +1762,7 @@ modifyPool() {
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     --certificate-file ${pool_regcert_file}
-    --out-file "${TMP_FOLDER}"/tx.raw
+    --out-file "${TMP_DIR}"/tx.raw
   )
   if ! buildTx; then return 1; fi
   
@@ -1775,7 +1775,7 @@ modifyPool() {
     if ! offlineJSON=$(jq ". += { \"pool-cost\": \"${cost_ada}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-reg-cert\": $(jq -c . "${pool_regcert_file}") }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     for index in "${!owner_wallets[@]}"; do
       if [[ ${index} -eq 0 ]]; then
@@ -1787,7 +1787,7 @@ modifyPool() {
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { witness: [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -1808,8 +1808,8 @@ modifyPool() {
     multi_owner_keys+=( "${stake_sk_file}" )
   done
   
-  if ! witnessTx "${TMP_FOLDER}/tx.raw" "${owner_payment_sk_file}" "${pool_coldkey_sk_file}" "${owner_stake_sk_file}" "${multi_owner_keys[@]}"; then return 1; fi
-  if ! assembleTx "${TMP_FOLDER}/tx.raw"; then return 1; fi
+  if ! witnessTx "${TMP_DIR}/tx.raw" "${owner_payment_sk_file}" "${pool_coldkey_sk_file}" "${owner_stake_sk_file}" "${multi_owner_keys[@]}"; then return 1; fi
+  if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -1824,17 +1824,17 @@ deRegisterPool() {
   
   getAssetsTxOut
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_deregcert_file} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_deregcert_file} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_deregcert_file} ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_deregcert_file} ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
-    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
+    --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
     --tx-out-count 1
     ${NETWORK_IDENTIFIER}
     --witness-count 2
     --byron-witness-count 0
-    --protocol-params-file "${TMP_FOLDER}"/protparams.json
+    --protocol-params-file "${TMP_DIR}"/protparams.json
   )
   println "ACTION" "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
@@ -1855,7 +1855,7 @@ deRegisterPool() {
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     --certificate-file ${pool_deregcert_file}
-    --out-file "${TMP_FOLDER}"/tx.raw
+    --out-file "${TMP_DIR}"/tx.raw
   )
   if ! buildTx; then return 1; fi
   
@@ -1871,12 +1871,12 @@ deRegisterPool() {
     fi
     if ! offlineJSON=$(jq ". += { \"retire-epoch\": \"${epoch_enter}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' stake signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -1886,7 +1886,7 @@ deRegisterPool() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_FOLDER}/tx.raw" "${payment_sk_file}" "${pool_coldkey_sk_file}"; then return 1; fi
+  if ! signTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${pool_coldkey_sk_file}"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -1938,17 +1938,17 @@ sendMetadata() {
   
   getAssetsTxOut
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 ${metafile_param} ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 ${metafile_param} ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 ${metafile_param} ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 ${metafile_param} ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
-    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
+    --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
     --tx-out-count 1
     ${NETWORK_IDENTIFIER}
     --witness-count 1
     --byron-witness-count 0
-    --protocol-params-file "${TMP_FOLDER}"/protparams.json
+    --protocol-params-file "${TMP_DIR}"/protparams.json
   )
   println "ACTION" "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
@@ -1969,7 +1969,7 @@ sendMetadata() {
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
-    --out-file "${TMP_FOLDER}"/tx.raw
+    --out-file "${TMP_DIR}"/tx.raw
   )
   if ! buildTx; then return 1; fi
   
@@ -1978,11 +1978,11 @@ sendMetadata() {
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { metadata: $(jq -c . "${metafile}") }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -1991,7 +1991,7 @@ sendMetadata() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_FOLDER}/tx.raw" "${payment_sk_file}"; then return 1; fi
+  if ! signTx "${TMP_DIR}/tx.raw" "${payment_sk_file}"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -2014,17 +2014,17 @@ mintAsset() {
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".${asset_name}"
   getAssetsTxOut "${policy_id}${asset_name_out}" "${asset_amount}"
   
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${addr}+0${assets_tx_out}\" --mint \"${asset_amount} ${policy_id}${asset_name_out}\" ${metafile_param} --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${addr}+0${assets_tx_out}" --mint "${asset_amount} ${policy_id}${asset_name_out}" ${metafile_param} --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${addr}+0${assets_tx_out}\" --mint \"${asset_amount} ${policy_id}${asset_name_out}\" ${metafile_param} --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${addr}+0${assets_tx_out}" --mint "${asset_amount} ${policy_id}${asset_name_out}" ${metafile_param} --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
-    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
+    --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
     --tx-out-count 1
     ${NETWORK_IDENTIFIER}
     --witness-count 2
     --byron-witness-count 0
-    --protocol-params-file "${TMP_FOLDER}"/protparams.json
+    --protocol-params-file "${TMP_DIR}"/protparams.json
   )
   println "ACTION" "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
@@ -2046,7 +2046,7 @@ mintAsset() {
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
-    --out-file "${TMP_FOLDER}"/tx.raw
+    --out-file "${TMP_DIR}"/tx.raw
   )
   if ! buildTx; then return 1; fi
   
@@ -2062,11 +2062,11 @@ mintAsset() {
       if ! offlineJSON=$(jq ". += { metadata: $(jq -c . "${metafile}") }" <<< ${offlineJSON}); then return 1; fi
     fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -2077,7 +2077,7 @@ mintAsset() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_FOLDER}/tx.raw" "${payment_sk_file}" "${policy_sk_file}" "${policy_script_file}"; then return 1; fi
+  if ! signTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${policy_sk_file}" "${policy_script_file}"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -2098,17 +2098,17 @@ burnAsset() {
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".${asset_name}"
   getAssetsTxOut "${policy_id}${asset_name_out}" "-${assets_to_burn}"
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${addr}+0${assets_tx_out}\" --mint \"-${assets_to_burn} ${policy_id}${asset_name_out}\" ${metafile_param} --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_FOLDER}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${addr}+0${assets_tx_out}" --mint "-${assets_to_burn} ${policy_id}${asset_name_out}" ${metafile_param} --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_FOLDER}"/tx0.tmp; then return 1; fi
+  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${addr}+0${assets_tx_out}\" --mint \"-${assets_to_burn} ${policy_id}${asset_name_out}\" ${metafile_param} --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
+  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${addr}+0${assets_tx_out}" --mint "-${assets_to_burn} ${policy_id}${asset_name_out}" ${metafile_param} --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
-    --tx-body-file "${TMP_FOLDER}"/tx0.tmp
+    --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
     --tx-out-count 1
     ${NETWORK_IDENTIFIER}
     --witness-count 2
     --byron-witness-count 0
-    --protocol-params-file "${TMP_FOLDER}"/protparams.json
+    --protocol-params-file "${TMP_DIR}"/protparams.json
   )
   println "ACTION" "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
@@ -2130,7 +2130,7 @@ burnAsset() {
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
-    --out-file "${TMP_FOLDER}"/tx.raw
+    --out-file "${TMP_DIR}"/tx.raw
   )
   if ! buildTx; then return 1; fi
   
@@ -2146,11 +2146,11 @@ burnAsset() {
       if ! offlineJSON=$(jq ". += { metadata: $(jq -c . "${metafile}") }" <<< ${offlineJSON}); then return 1; fi
     fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_FOLDER}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
-    offline_tx="${TMP_FOLDER}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
+    offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
@@ -2161,7 +2161,7 @@ burnAsset() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_FOLDER}/tx.raw" "${payment_sk_file}" "${policy_sk_file}" "${policy_script_file}"; then return 1; fi
+  if ! signTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${policy_sk_file}" "${policy_script_file}"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -2190,7 +2190,7 @@ witnessTx() {
       return 1
     elif [[ $(jq -r '.description' "${skey}") = *"Hardware"* ]]; then # HW signing key
       if ! unlockHWDevice "witness the transaction"; then return 1; fi
-      tx_witness="$(mktemp "${TMP_FOLDER}/tx.witness_XXXXXXXXXX")"
+      tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
       witness_command=(
         cardano-hw-cli transaction witness
         --tx-body-file "${tx_raw}"
@@ -2201,7 +2201,7 @@ witnessTx() {
       println "ACTION" "${witness_command[@]}"
       if ! ${witness_command[@]}; then println "ERROR" "\n${FG_RED}ERROR${NC}: during hardware wallet signing !!" && return 1; fi
     else
-      tx_witness="$(mktemp "${TMP_FOLDER}/tx.witness_XXXXXXXXXX")"
+      tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
       witness_command=(
         ${CCLI} transaction witness
         --tx-body-file "${tx_raw}"
@@ -2220,7 +2220,7 @@ witnessTx() {
 # Description : Helper function to witnessTx for assembling a signed tx using witnesses from tx_witness_files[] array
 assembleTx() {
   tx_raw="$1"
-  tx_signed="${TMP_FOLDER}/tx.signed_$(date +%s)"
+  tx_signed="${TMP_DIR}/tx.signed_$(date +%s)"
   if [[ ${#tx_witness_files[@]} -gt 0 ]]; then # assemble witness files and sign
     tx_witness_out=()
     for witness in "${tx_witness_files[@]}"; do
@@ -2253,7 +2253,7 @@ assembleTx() {
 signTx() {
   tx_raw="$1"
   shift
-  tx_signed="${TMP_FOLDER}/tx.signed_$(date +%s)"
+  tx_signed="${TMP_DIR}/tx.signed_$(date +%s)"
   if [[ $# -gt 0 ]]; then
     tx_sign_out=()
     hw_wallet='N'
