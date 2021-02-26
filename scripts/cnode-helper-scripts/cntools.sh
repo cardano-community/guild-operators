@@ -102,12 +102,6 @@ fi
 # get helper functions from library file
 . "${PARENT}"/cntools.library
 
-# create temporary directory if missing & remove lockfile if it exist
-mkdir -p "${TMP_FOLDER}" # Create if missing
-if [[ ! -d "${TMP_FOLDER}" ]]; then
-  myExit 1 "${FG_RED}ERROR${NC}: Failed to create directory for temporary files:\n${TMP_FOLDER}"
-fi
-
 archiveLog # archive current log and cleanup log archive folder
 
 exec 6>&1 # Link file descriptor #6 with normal stdout.
@@ -144,10 +138,10 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   # check to see if there are any updates available
   clear
   println "DEBUG" "CNTools version check...\n"
-  if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library" && [[ -f "${TMP_FOLDER}"/cntools.library ]]; then
-    GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-    GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-    GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+  if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}"/cntools.library "${URL}/cntools.library" && [[ -f "${TMP_DIR}"/cntools.library ]]; then
+    GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_DIR}"/cntools.library |sed -e "s#.*=##")
+    GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_DIR}"/cntools.library |sed -e "s#.*=##")
+    GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_DIR}"/cntools.library |sed -e "s#.*=##")
     if [[ "$GIT_PATCH_VERSION" -eq 999  ]]; then
       ((GIT_MAJOR_VERSION++))
       GIT_MINOR_VERSION=0
@@ -163,22 +157,22 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       waitForInput "press any key to proceed"
     else
       # check if CNTools was recently updated, if so show whats new
-      if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
-        if ! cmp -s "${TMP_FOLDER}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"; then
+      if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
+        if ! cmp -s "${TMP_DIR}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"; then
           # Latest changes not shown, show whats new and copy changelog
           clear 
           exec >&6 # normal stdout
           sleep 0.1
           if [[ ! -f "${PARENT}/cntools-changelog.md" ]]; then 
             # special case for first installation or 5.0.0 upgrade, print release notes until previous major version
-            println "OFF" "~ CNTools - What's New ~\n\n" "$(sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_FOLDER}"/cntools-changelog.md | head -n -2)" | less -X
+            println "OFF" "~ CNTools - What's New ~\n\n" "$(sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_DIR}"/cntools-changelog.md | head -n -2)" | less -X
           else
             # print release notes from current until previously installed version
             [[ $(cat "${PARENT}/cntools-changelog.md") =~ \[([[:digit:]])\.([[:digit:]])\.([[:digit:]])\] ]]
-            cat <(println "OFF" "~ CNTools - What's New ~\n") <(awk "1;/\[${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}\.${BASH_REMATCH[3]}\]/{exit}" "${TMP_FOLDER}"/cntools-changelog.md | head -n -2 | tail -n +7) <(echo -e "\n [Press 'q' to quit and proceed to CNTools main menu]\n") | less -X
+            cat <(println "OFF" "~ CNTools - What's New ~\n") <(awk "1;/\[${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}\.${BASH_REMATCH[3]}\]/{exit}" "${TMP_DIR}"/cntools-changelog.md | head -n -2 | tail -n +7) <(echo -e "\n [Press 'q' to quit and proceed to CNTools main menu]\n") | less -X
           fi
           exec >&8 # custom stdout
-          cp "${TMP_FOLDER}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"
+          cp "${TMP_DIR}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"
         fi
       else
         println "ERROR" "\n${FG_RED}ERROR${NC}: failed to download changelog from GitHub!"
@@ -196,7 +190,7 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   elif [[ -z "${PROT_PARAMS}" ]] || ! jq -er . <<< "${PROT_PARAMS}" &>/dev/null; then
     myExit 1 "${FG_YELLOW}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)\n\nError message: ${PROT_PARAMS}\n\n${FG_BLUE}INFO${NC}: re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality"
   fi
-  echo "${PROT_PARAMS}" > "${TMP_FOLDER}"/protparams.json
+  echo "${PROT_PARAMS}" > "${TMP_DIR}"/protparams.json
 fi
 
 # check if there are pools in need of KES key rotation
@@ -235,7 +229,7 @@ fi
 function main {
   while true; do # Main loop
     # Start with a clean slate after each completed or canceled command excluding .dialogrc from purge
-    find "${TMP_FOLDER:?}" -type f -not \( -name 'protparams.json' -o -name '.dialogrc' -o -name "offline_tx*" -o -name "*_cntools_backup*" -o -name "metadata_*" \) -delete
+    find "${TMP_DIR:?}" -type f -not \( -name 'protparams.json' -o -name '.dialogrc' -o -name "offline_tx*" -o -name "*_cntools_backup*" -o -name "metadata_*" \) -delete
     clear
     println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
@@ -453,20 +447,20 @@ function main {
 									    "cborHex": "5880${ses_key}"
 									}
 									EOF
-                println "ACTION" "${CCLI} key verification-key --signing-key-file ${payment_sk_file} --verification-key-file ${TMP_FOLDER}/payment.evkey"
-                if ! ${CCLI} key verification-key --signing-key-file "${payment_sk_file}" --verification-key-file "${TMP_FOLDER}/payment.evkey"; then
+                println "ACTION" "${CCLI} key verification-key --signing-key-file ${payment_sk_file} --verification-key-file ${TMP_DIR}/payment.evkey"
+                if ! ${CCLI} key verification-key --signing-key-file "${payment_sk_file}" --verification-key-file "${TMP_DIR}/payment.evkey"; then
                   println "ERROR" "\n${FG_RED}ERROR${NC}: failure during payment signing key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
                 fi
-                println "ACTION" "${CCLI} key verification-key --signing-key-file ${stake_sk_file} --verification-key-file ${TMP_FOLDER}/stake.evkey"
-                if ! ${CCLI} key verification-key --signing-key-file "${stake_sk_file}" --verification-key-file "${TMP_FOLDER}/stake.evkey"; then
+                println "ACTION" "${CCLI} key verification-key --signing-key-file ${stake_sk_file} --verification-key-file ${TMP_DIR}/stake.evkey"
+                if ! ${CCLI} key verification-key --signing-key-file "${stake_sk_file}" --verification-key-file "${TMP_DIR}/stake.evkey"; then
                   println "ERROR" "\n${FG_RED}ERROR${NC}: failure during stake signing key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
                 fi
-                println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_FOLDER}/payment.evkey --verification-key-file ${payment_vk_file}"
-                if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_FOLDER}/payment.evkey" --verification-key-file "${payment_vk_file}"; then
+                println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_DIR}/payment.evkey --verification-key-file ${payment_vk_file}"
+                if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/payment.evkey" --verification-key-file "${payment_vk_file}"; then
                   println "ERROR" "\n${FG_RED}ERROR${NC}: failure during payment verification key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
                 fi
-                println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_FOLDER}/stake.evkey --verification-key-file ${stake_vk_file}"
-                if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_FOLDER}/stake.evkey" --verification-key-file "${stake_vk_file}"; then
+                println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_DIR}/stake.evkey --verification-key-file ${stake_vk_file}"
+                if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/stake.evkey" --verification-key-file "${stake_vk_file}"; then
                   println "ERROR" "\n${FG_RED}ERROR${NC}: failure during stake verification key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
                 fi
                 chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
@@ -550,13 +544,13 @@ function main {
                 if ! cardano-hw-cli address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file "${payment_vk_file}" --hw-signing-file "${payment_sk_file}"; then
                   println "ERROR" "\n${FG_RED}ERROR${NC}: failure during payment key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
                 fi
-                jq '.description = "Payment Hardware Verification Key"' "${payment_vk_file}" > "${TMP_FOLDER}/$(basename "${payment_vk_file}").tmp" && mv -f "${TMP_FOLDER}/$(basename "${payment_vk_file}").tmp" "${payment_vk_file}"
+                jq '.description = "Payment Hardware Verification Key"' "${payment_vk_file}" > "${TMP_DIR}/$(basename "${payment_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${payment_vk_file}").tmp" "${payment_vk_file}"
                 println "DEBUG" "${FG_BLUE}INFO${NC}: repeat and follow instructions on hardware device to extract the ${FG_LGRAY}stake keys${NC}"
                 println "ACTION" "cardano-hw-cli address key-gen --path 1852H/1815H/0H/2/0 --verification-key-file ${stake_vk_file} --hw-signing-file ${stake_sk_file}"
                 if ! cardano-hw-cli address key-gen --path 1852H/1815H/0H/2/0 --verification-key-file "${stake_vk_file}" --hw-signing-file "${stake_sk_file}"; then
                   println "ERROR" "\n${FG_RED}ERROR${NC}: failure during stake key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
                 fi
-                jq '.description = "Stake Hardware Verification Key"' "${stake_vk_file}" > "${TMP_FOLDER}/$(basename "${stake_vk_file}").tmp" && mv -f "${TMP_FOLDER}/$(basename "${stake_vk_file}").tmp" "${stake_vk_file}"
+                jq '.description = "Stake Hardware Verification Key"' "${stake_vk_file}" > "${TMP_DIR}/$(basename "${stake_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${stake_vk_file}").tmp" "${stake_vk_file}"
                 getBaseAddress ${wallet_name}
                 getPayAddress ${wallet_name}
                 getRewardAddress ${wallet_name}
@@ -621,7 +615,7 @@ function main {
               fi
             else
               println "ERROR" "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
-              keyDeposit=$(jq -r '.keyDeposit' "${TMP_FOLDER}"/protparams.json)
+              keyDeposit=$(jq -r '.keyDeposit' "${TMP_DIR}"/protparams.json)
               println "DEBUG" "Funds for key deposit($(formatLovelace ${keyDeposit}) Ada) + transaction fee needed to register the wallet"
               waitForInput && continue
             fi
@@ -1073,6 +1067,7 @@ function main {
               if ! selectOpMode; then continue; fi
             fi
             echo
+            
             println "DEBUG" "# Select ${FG_YELLOW}source${NC} wallet"
             if [[ ${op_mode} = "online" ]]; then
               if ! selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
@@ -1128,12 +1123,13 @@ function main {
               println "ERROR" "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${s_wallet}${NC}"
               waitForInput && continue
             fi
+            
             getBalance ${s_addr}
             declare -gA assets_left=()
             for asset in "${!assets[@]}"; do
               assets_left[${asset}]=${assets[${asset}]}
             done
-            minUTxOValue=$(jq -r '.minUTxOValue //1000000' "${TMP_FOLDER}"/protparams.json)
+            minUTxOValue=$(jq -r '.minUTxOValue //1000000' "${TMP_DIR}"/protparams.json)
             # Amount
             println "DEBUG" "# Amount to Send (in Ada)"
             println "DEBUG" " Valid entry:"
@@ -1167,13 +1163,17 @@ function main {
               include_fee="yes"
             fi
             echo
+            declare -gA assets_to_send=()
             if [[ ${amount_lovelace} -eq ${assets[lovelace]} ]]; then
               unset assets_left
+              for asset in "${!assets[@]}"; do
+                assets_to_send[${asset}]=${assets[${asset}]} # add all assets, e.g clone assets array to assets_to_send
+              done
             else
               assets_left[lovelace]=$(( assets_left[lovelace] - amount_lovelace ))
+              assets_to_send[lovelace]=${amount_lovelace}
             fi
-            declare -gA assets_to_send=()
-            assets_to_send[lovelace]=${amount_lovelace}
+            
             # Add additional assets to transaction?
             if [[ ${#assets_left[@]} -gt 0 && ${#assets[@]} -gt 1 ]]; then
               println "DEBUG" "Additional assets found on address, include in transaction?"
@@ -1355,7 +1355,7 @@ function main {
               1) sleep 0.1 && read -r -p "vkey cbor-hex(blank to cancel): " vkey_cbor 2>&6 && println "LOG" "vkey cbor-hex(blank to cancel): ${vkey_cbor}"
                  [[ -z "${vkey_cbor}" ]] && continue
                  pool_name="${vkey_cbor}"
-                 pool_coldkey_vk_file="${TMP_FOLDER}"/pool_delegation.vkey
+                 pool_coldkey_vk_file="${TMP_DIR}"/pool_delegation.vkey
                  printf "{\"type\":\"StakePoolVerificationKey_ed25519\",\"description\":\"Stake Pool Operator Verification Key\",\"cborHex\":\"%s\"}" ${vkey_cbor} > "${pool_coldkey_vk_file}"
                  ;;
               2) continue ;;
@@ -1577,7 +1577,7 @@ function main {
             else
               margin_fraction=$(pctToFraction "${margin}")
             fi
-            minPoolCost=$(( $(jq -r '.minPoolCost //0' "${TMP_FOLDER}"/protparams.json) / 1000000 )) # convert to Ada
+            minPoolCost=$(( $(jq -r '.minPoolCost //0' "${TMP_DIR}"/protparams.json) / 1000000 )) # convert to Ada
             [[ -f ${pool_config} ]] && cost_ada=$(jq -r '.costADA //0' "${pool_config}") || cost_ada=${minPoolCost} # default cost
             [[ ${cost_ada} -lt ${minPoolCost} ]] && cost_ada=${minPoolCost} # raise old value to new minimum cost
             sleep 0.1 && read -r -p "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAsset ${cost_ada})): " cost_enter 2>&6 && println "LOG" "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAsset ${cost_ada})): ${cost_enter}"
@@ -1605,7 +1605,7 @@ function main {
               waitForInput && continue
             fi
             metadata_done=false
-            meta_tmp="${TMP_FOLDER}/url_poolmeta.json"
+            meta_tmp="${TMP_DIR}/url_poolmeta.json"
             if curl -sL -f -m ${CURL_TIMEOUT} -o "${meta_tmp}" ${meta_json_url} && jq -er . "${meta_tmp}" &>/dev/null; then
               [[ $(wc -c <"${meta_tmp}") -gt 512 ]] && println "ERROR" "${FG_RED}ERROR${NC}: file at specified URL contain more than allowed 512b of data!" && waitForInput && continue
               echo && jq -r . "${meta_tmp}" >&3 && echo
@@ -2159,7 +2159,7 @@ function main {
             fi
             echo
             epoch=$(getEpoch)
-            eMax=$(jq -r '.eMax' "${TMP_FOLDER}"/protparams.json)
+            eMax=$(jq -r '.eMax' "${TMP_DIR}"/protparams.json)
             println "DEBUG" "Current epoch: ${FG_LBLUE}${epoch}${NC}"
             epoch_start=$((epoch + 1))
             epoch_end=$((epoch + eMax))
@@ -2297,8 +2297,8 @@ function main {
             tput rc && tput ed
             if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
               tput sc && println "DEBUG" "Dumping ledger-state from node, can take a while on larger networks...\n"
-              println "ACTION" "timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file ${TMP_FOLDER}/ledger-state.json"
-              if ! timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_FOLDER}"/ledger-state.json; then
+              println "ACTION" "timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file ${TMP_DIR}/ledger-state.json"
+              if ! timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_DIR}"/ledger-state.json; then
                 tput rc && tput ed
                 println "ERROR" "${FG_RED}ERROR${NC}: ledger dump failed/timed out"
                 println "ERROR" "increase timeout value in cntools.config"
@@ -2312,7 +2312,7 @@ function main {
               [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}" ]] && ledger_retiring="?" || ledger_retiring=""
             else
               tput sc && println "Parsing ledger-state, can take a while on larger networks...\n"
-              ledger_pstate=$(jq -r '.nesEs.esLState._delegationState._pstate' "${TMP_FOLDER}"/ledger-state.json)
+              ledger_pstate=$(jq -r '.nesEs.esLState._delegationState._pstate' "${TMP_DIR}"/ledger-state.json)
               ledger_pParams=$(jq -r '._pParams."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
               ledger_fPParams=$(jq -r '._fPParams."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
               ledger_retiring=$(jq -r '._retiring."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
@@ -2349,15 +2349,15 @@ function main {
               else
                 meta_json_url=$(jq -r '.metadata.url //empty' <<< "${ledger_fPParams}")
               fi
-              if [[ -n ${meta_json_url} ]] && curl -sL -f -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}/url_poolmeta.json" ${meta_json_url}; then
+              if [[ -n ${meta_json_url} ]] && curl -sL -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}/url_poolmeta.json" ${meta_json_url}; then
                 println "Metadata"
-                println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Name" "$(jq -r .name "$TMP_FOLDER/url_poolmeta.json")")"
-                println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Ticker" "$(jq -r .ticker "$TMP_FOLDER/url_poolmeta.json")")"
-                println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Homepage" "$(jq -r .homepage "$TMP_FOLDER/url_poolmeta.json")")"
-                println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Description" "$(jq -r .description "$TMP_FOLDER/url_poolmeta.json")")"
+                println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Name" "$(jq -r .name "$TMP_DIR/url_poolmeta.json")")"
+                println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Ticker" "$(jq -r .ticker "$TMP_DIR/url_poolmeta.json")")"
+                println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Homepage" "$(jq -r .homepage "$TMP_DIR/url_poolmeta.json")")"
+                println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Description" "$(jq -r .description "$TMP_DIR/url_poolmeta.json")")"
                 println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "URL" "${meta_json_url}")"
-                println "ACTION" "${CCLI} stake-pool metadata-hash --pool-metadata-file ${TMP_FOLDER}/url_poolmeta.json"
-                meta_hash_url="$( ${CCLI} stake-pool metadata-hash --pool-metadata-file "${TMP_FOLDER}/url_poolmeta.json" )"
+                println "ACTION" "${CCLI} stake-pool metadata-hash --pool-metadata-file ${TMP_DIR}/url_poolmeta.json"
+                meta_hash_url="$( ${CCLI} stake-pool metadata-hash --pool-metadata-file "${TMP_DIR}/url_poolmeta.json" )"
                 meta_hash_pParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_pParams}")
                 meta_hash_fPParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_fPParams}")
                 println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Hash URL" "${meta_hash_url}")"
@@ -2645,7 +2645,7 @@ function main {
             println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
             echo
             [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter path to offline tx file to sign" && waitForInput "Press any key to open the file explorer"
-            fileDialog "Enter path to offline tx file to sign" "${TMP_FOLDER}/"
+            fileDialog "Enter path to offline tx file to sign" "${TMP_DIR}/"
             println "DEBUG" "${FG_LGRAY}${file}${NC}\n"
             offline_tx=${file}
             [[ -z "${offline_tx}" ]] && continue
@@ -2661,7 +2661,7 @@ function main {
             if ! otx_date_expire="$(jq -er '."date-expire"' <<< ${offlineJSON})"; then println "ERROR" "${FG_RED}ERROR${NC}: field 'date-expire' not found in: ${offline_tx}" && waitForInput && continue; fi
             if ! otx_txFee=$(jq -er '.txFee' <<< ${offlineJSON}); then println "ERROR" "${FG_RED}ERROR${NC}: field 'txFee' not found in: ${offline_tx}" && waitForInput && continue; fi
             if ! otx_txBody=$(jq -er '.txBody' <<< ${offlineJSON}); then println "ERROR" "${FG_RED}ERROR${NC}: field 'txBody' not found in: ${offline_tx}" && waitForInput && continue; fi
-            echo -e "${otx_txBody}" > "${TMP_FOLDER}"/tx.raw
+            echo -e "${otx_txBody}" > "${TMP_DIR}"/tx.raw
             [[ $(jq -r '."signed-txBody" | length' <<< ${offlineJSON}) -gt 0 ]] && println "ERROR" "${FG_RED}ERROR${NC}: transaction already signed, please submit transaction to complete!" && waitForInput && continue
             println "DEBUG" "Transaction type : ${FG_GREEN}${otx_type}${NC}"
             if wallet_name=$(jq -er '."wallet-name"' <<< ${offlineJSON}); then 
@@ -2723,16 +2723,16 @@ function main {
                       waitForInput && continue 2
                     fi
                   else
-                    println "ACTION" "${CCLI} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_FOLDER}/tmp.vkey"
-                    if ! ${CCLI} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_FOLDER}"/tmp.vkey; then waitForInput && continue 2; fi
+                    println "ACTION" "${CCLI} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
+                    if ! ${CCLI} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey; then waitForInput && continue 2; fi
                     if [[ $(jq -r '.type' "${file}") = *"Extended"* ]]; then
-                      println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_FOLDER}/tmp.vkey --verification-key-file ${TMP_FOLDER}/tmp2.vkey"
-                      if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_FOLDER}/tmp.vkey" --verification-key-file "${TMP_FOLDER}/tmp2.vkey"; then waitForInput && continue 2; fi
-                      mv -f "${TMP_FOLDER}/tmp2.vkey" "${TMP_FOLDER}/tmp.vkey"
+                      println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
+                      if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey"; then waitForInput && continue 2; fi
+                      mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
                     fi
-                    if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_FOLDER}"/tmp.vkey) ]]; then
+                    if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey) ]]; then
                       println "ERROR" "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
-                      println "ERROR" "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_FOLDER}"/tmp.vkey)"
+                      println "ERROR" "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey)"
                       println "ERROR" "Transaction verification cborHex: ${otx_vkey_cborHex}"
                       waitForInput && continue 2
                     fi
@@ -2741,7 +2741,7 @@ function main {
                   tx_sign_files+=( "${file}" )
                 done
                 if [[ ${#tx_sign_files[@]} -gt 0 ]]; then
-                  if ! signTx "${TMP_FOLDER}"/tx.raw "${tx_sign_files[@]}"; then waitForInput && continue; fi
+                  if ! signTx "${TMP_DIR}"/tx.raw "${tx_sign_files[@]}"; then waitForInput && continue; fi
                   echo
                   if jq ". += { \"signed-txBody\": $(jq -c . "${tx_signed}") }" <<< "${offlineJSON}" > "${offline_tx}"; then
                     println "Offline transaction successfully signed, please move ${offline_tx} back to online node and submit before ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}!"
@@ -2781,21 +2781,21 @@ function main {
                            waitForInput && continue 2
                          fi
                        else
-                         println "ACTION" "${CCLI} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_FOLDER}/tmp.vkey"
-                         if ! ${CCLI} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_FOLDER}"/tmp.vkey; then waitForInput && continue 2; fi
+                         println "ACTION" "${CCLI} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
+                         if ! ${CCLI} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey; then waitForInput && continue 2; fi
                          if [[ $(jq -r '.type' "${file}") = *"Extended"* ]]; then
-                           println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_FOLDER}/tmp.vkey --verification-key-file ${TMP_FOLDER}/tmp2.vkey"
-                           if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_FOLDER}/tmp.vkey" --verification-key-file "${TMP_FOLDER}/tmp2.vkey"; then waitForInput && continue 2; fi
-                           mv -f "${TMP_FOLDER}/tmp2.vkey" "${TMP_FOLDER}/tmp.vkey"
+                           println "ACTION" "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
+                           if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey"; then waitForInput && continue 2; fi
+                           mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
                          fi
-                         if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_FOLDER}"/tmp.vkey) ]]; then
+                         if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey) ]]; then
                            println "ERROR" "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
-                           println "ERROR" "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_FOLDER}"/tmp.vkey)"
+                           println "ERROR" "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey)"
                            println "ERROR" "Transaction verification cborHex: ${otx_vkey_cborHex}"
                            waitForInput && continue 2
                          fi
                        fi
-                       if ! witnessTx "${TMP_FOLDER}/tx.raw" "${file}"; then waitForInput && continue 2; fi
+                       if ! witnessTx "${TMP_DIR}/tx.raw" "${file}"; then waitForInput && continue 2; fi
                        if ! offlineJSON=$(jq ".witness += [{ name: \"${otx_signing_name}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
                        jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
                        ;;
@@ -2806,11 +2806,11 @@ function main {
                 if [[ $(jq -r '."signing-file" | length' <<< "${offlineJSON}") -eq $(jq -r '.witness | length' <<< "${offlineJSON}") ]]; then # witnessed by all signing keys
                   for otx_witness in $(jq -r '.witness[] | @base64' <<< "${offlineJSON}"); do
                     _jq() { base64 -d <<< ${otx_witness} | jq -r "${1}"; }
-                    tx_witness="$(mktemp "${TMP_FOLDER}/tx.witness_XXXXXXXXXX")"
+                    tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
                     jq -r . <<< "$(_jq '.witnessBody')" > "${tx_witness}"
                     tx_witness_files+=( "${tx_witness}" )
                   done
-                  if ! assembleTx "${TMP_FOLDER}/tx.raw"; then waitForInput && continue; fi
+                  if ! assembleTx "${TMP_DIR}/tx.raw"; then waitForInput && continue; fi
                   if jq ". += { \"signed-txBody\": $(jq -c . "${tx_signed}") }" <<< "${offlineJSON}" > "${offline_tx}"; then
                     println "Offline transaction successfully assembled and signed by all signing keys"
                     println "please move ${offline_tx} back to online node and submit before ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}!"
@@ -2836,7 +2836,7 @@ function main {
             fi
             echo
             [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter path to offline tx file to submit" && waitForInput "Press any key to open the file explorer"
-            fileDialog "Enter path to offline tx file to submit" "${TMP_FOLDER}/"
+            fileDialog "Enter path to offline tx file to submit" "${TMP_DIR}/"
             println "DEBUG" "${FG_LGRAY}${file}${NC}\n"
             offline_tx=${file}
             [[ -z "${offline_tx}" ]] && continue
@@ -2899,7 +2899,7 @@ function main {
                 [[ ${otx_type} = "Asset Burning" ]] && println "DEBUG" "Assets To Burn   : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-amount"' <<< ${offlineJSON})")${NC}"
                 [[ ${otx_type} = "Asset Burning" ]] && println "DEBUG" "Assets Left      : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-minted"' <<< ${offlineJSON})")${NC}"
                 if [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && otx_metadata=$(jq -er '.metadata' <<< ${offlineJSON}); then println "DEBUG" "Metadata         : \n${otx_metadata}\n"; fi
-                tx_signed="${TMP_FOLDER}/tx.signed_$(date +%s)"
+                tx_signed="${TMP_DIR}/tx.signed_$(date +%s)"
                 println "DEBUG" "\nProceed to submit transaction?"
                 select_opt "[y] Yes" "[n] No"
                 case $? in
@@ -3145,10 +3145,10 @@ function main {
         echo
         println "DEBUG" "Full changelog available at:\nhttps://cardano-community.github.io/guild-operators/#/Scripts/cntools-changelog"
         echo
-        if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_FOLDER}"/cntools.library "${URL}/cntools.library"; then
-          GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-          GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
-          GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_FOLDER}"/cntools.library |sed -e "s#.*=##")
+        if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}"/cntools.library "${URL}/cntools.library"; then
+          GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_DIR}"/cntools.library |sed -e "s#.*=##")
+          GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_DIR}"/cntools.library |sed -e "s#.*=##")
+          GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_DIR}"/cntools.library |sed -e "s#.*=##")
           GIT_VERSION="${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}"
           if [[ ${CNTOOLS_MAJOR_VERSION} -lt ${GIT_MAJOR_VERSION} ]]; then
             println "DEBUG" "New major version available: ${FG_GREEN}${GIT_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
@@ -3312,12 +3312,12 @@ function main {
               waitForInput && continue
             fi
             println "DEBUG" "${FG_GREEN}${backup_file}${NC}\n"
-            if ! restore_path="$(mktemp -d "${TMP_FOLDER}/restore_XXXXXXXXXX")"; then println "ERROR" "${FG_RED}ERROR${NC}: failed to create restore directory:\n${restore_path}" && waitForInput && continue; fi
+            if ! restore_path="$(mktemp -d "${TMP_DIR}/restore_XXXXXXXXXX")"; then println "ERROR" "${FG_RED}ERROR${NC}: failed to create restore directory:\n${restore_path}" && waitForInput && continue; fi
             tmp_bkp_file=""
             if [ "${backup_file##*.}" = "gpg" ]; then
               println "DEBUG" "Backup GPG encrypted, enter password to decrypt"
               if getPassword; then # $password variable populated by getPassword function
-                tmp_bkp_file=$(mktemp "${TMP_FOLDER}/bkp_file_XXXXXXXXXX.tar.gz.gpg")
+                tmp_bkp_file=$(mktemp "${TMP_DIR}/bkp_file_XXXXXXXXXX.tar.gz.gpg")
                 cp -f "${backup_file}" "${tmp_bkp_file}"
                 decryptFile "${backup_file}" "${password}"
                 backup_file="${backup_file%.*}"
@@ -3450,7 +3450,7 @@ function main {
               metafile="${file}"
               println "DEBUG" "${FG_LGRAY}${metafile}${NC}\n"
             else
-              metafile="${TMP_FOLDER}/metadata_$(date '+%Y%m%d%H%M%S').json"
+              metafile="${TMP_DIR}/metadata_$(date '+%Y%m%d%H%M%S').json"
               println "DEBUG" "\nDo you want to select a metadata file, enter URL to metadata file, or enter/paste metadata content?"
               select_opt "[f] File" "[u] URL" "[e] Enter"
               case $? in
@@ -3847,7 +3847,7 @@ function main {
                 case $? in
                   0) : ;; # do nothing
                   1) [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter path to metadata JSON file" && waitForInput "Press any key to open the file explorer"
-                     fileDialog "Enter path to metadata JSON file" "${TMP_FOLDER}/"
+                     fileDialog "Enter path to metadata JSON file" "${TMP_DIR}/"
                      println "DEBUG" "${FG_LGRAY}${file}${NC}\n"
                      metafile=${file}
                      [[ -z "${metafile}" ]] && println "ERROR" "${FG_RED}ERROR${NC}: Metadata file path empty!" && waitForInput && continue
@@ -4025,7 +4025,7 @@ function main {
                 case $? in
                   0) : ;; # do nothing
                   1) [[ ${ENABLE_DIALOG} = "true" ]] && println "DEBUG" "Enter path to metadata JSON file" && waitForInput "Press any key to open the file explorer"
-                     fileDialog "Enter path to metadata JSON file" "${TMP_FOLDER}/"
+                     fileDialog "Enter path to metadata JSON file" "${TMP_DIR}/"
                      println "DEBUG" "${FG_LGRAY}${file}${NC}\n"
                      metafile=${file}
                      [[ -z "${metafile}" ]] && println "ERROR" "${FG_RED}ERROR${NC}: Metadata file path empty!" && waitForInput && continue

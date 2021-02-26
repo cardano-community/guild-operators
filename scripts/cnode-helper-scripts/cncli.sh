@@ -20,7 +20,6 @@
 #SLEEP_RATE=60                            # CNCLI leaderlog/validate: time to wait until next check (in seconds)
 #CONFIRM_SLOT_CNT=600                     # CNCLI validate: require at least these many slots to have passed before validating
 #CONFIRM_BLOCK_CNT=15                     # CNCLI validate: require at least these many blocks on top of minted before validating
-#TIMEOUT_LEDGER_STATE=300                 # CNCLI leaderlog: timeout in seconds for ledger-state query
 #BATCH_AUTO_UPDATE=N                      # Set to Y to automatically update the script if a new version is available without user interaction
 #LEDGER_API=true                          # Use API from api.crypto2099.io in cncli call instead of local ledger-state dump to vastly reduce system resources. ONLY for MainNet network (true|false)
 
@@ -61,7 +60,7 @@ else usage; fi
 ######################################
 
 createBlocklogDB() {
-  if ! mkdir -p "${BLOCKLOG_DIR}"; then echo "ERROR: failed to create directory to store blocklog: ${BLOCKLOG_DIR}" && return 1; fi
+  if ! mkdir -p "${BLOCKLOG_DIR}" 2>/dev/null; then echo "ERROR: failed to create directory to store blocklog: ${BLOCKLOG_DIR}" && return 1; fi
   if [[ ! -f ${BLOCKLOG_DB} ]]; then # create a fresh DB with latest schema
     sqlite3 ${BLOCKLOG_DB} <<-EOF
 			CREATE TABLE blocklog (id INTEGER PRIMARY KEY AUTOINCREMENT, slot INTEGER NOT NULL UNIQUE, at TEXT NOT NULL UNIQUE, epoch INTEGER NOT NULL, block INTEGER NOT NULL DEFAULT 0, slot_in_epoch INTEGER NOT NULL DEFAULT 0, hash TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL);
@@ -102,9 +101,9 @@ getPoolVrfVkeyCborHex() {
 }
 
 dumpLedgerState() { # getNodeMetrics expected to have been already run
-  ledger_state_file="/${TMP_DIR}/ledger-state_${NWMAGIC}_${epochnum}.json"
+  ledger_state_file="${TMP_DIR}/ledger-state_${NWMAGIC}_${epochnum}.json"
   [[ -n $(find "${ledger_state_file}" -mmin -60 2>/dev/null) ]] && return 0 # no need to continue, we have a fresh(<1h) ledger-state already
-  rm -f /tmp/ledger-state_* # remove old ledger dumps before creating a new
+  rm -f "${TMP_DIR}/ledger-state_"* # remove old ledger dumps before creating a new
   if ! timeout -k 5 "${TIMEOUT_LEDGER_STATE}" ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${ledger_state_file}"; then
     echo "ERROR: ledger dump failed/timed out, increase timeout value"
     [[ -f "${ledger_state_file}" ]] && rm -f "${ledger_state_file}"
@@ -188,19 +187,21 @@ cncliInit() {
     sleep 10
   done
   
+  TMP_DIR="${TMP_DIR}/cncli"
+  if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then echo "ERROR: Failed to create directory for temporary files: ${TMP_DIR}"; exit 1; fi
+  
   [[ ! -f "${CNCLI}" ]] && echo -e "\nERROR: failed to locate cncli executable, please install with 'prereqs.sh'\n" && exit 1
   CNCLI_VERSION="v$(cncli -V | cut -d' ' -f2)"
   if ! versionCheck "1.0.0" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, please upgrade to latest version!"; exit 1; fi
   if ! versionCheck "1.4.0" "${CNCLI_VERSION}"; then echo "WARN: cncli ${CNCLI_VERSION} installed, disabling LEDGER_API !! please upgrade to v1.4.0 or newer to enable"; exit 1; fi
   
   [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
-  mkdir -p "${CNCLI_DIR}"
+  if ! mkdir -p "${CNCLI_DIR}" 2>/dev/null; then echo "ERROR: Failed to create CNCLI DB directory: ${CNCLI_DIR}"; exit 1; fi
   CNCLI_DB="${CNCLI_DIR}/cncli.db"
   [[ -z "${LEDGER_API}" ]] && LEDGER_API="true"
   [[ -z "${SLEEP_RATE}" ]] && SLEEP_RATE=60
   [[ -z "${CONFIRM_SLOT_CNT}" ]] && CONFIRM_SLOT_CNT=600
   [[ -z "${CONFIRM_BLOCK_CNT}" ]] && CONFIRM_BLOCK_CNT=15
-  [[ -z "${TIMEOUT_LEDGER_STATE}" ]] && TIMEOUT_LEDGER_STATE=300
   [[ -z "${PT_HOST}" ]] && PT_HOST="127.0.0.1"
   [[ -z "${PT_PORT}" ]] && PT_PORT="${CNODE_PORT}"
   if [[ -d "${POOL_DIR}" ]]; then
@@ -554,7 +555,7 @@ cncliPTsendtip() {
     echo "ERROR: cardano-node not in PATH, please manually set CCLI in env file"
     exit 1
   fi
-  pt_config="/${TMP_DIR}/$(basename ${CNODE_HOME})-pooltool.json"
+  pt_config="${TMP_DIR}/$(basename ${CNODE_HOME})-pooltool.json"
   bash -c "cat <<-'EOF' > ${pt_config}
 		{
 		  \"api_key\": \"${PT_API_KEY}\",
@@ -576,7 +577,7 @@ cncliPTsendtip() {
 cncliPTsendslots() {
   [[ -z ${POOL_ID} || -z ${POOL_TICKER} || -z ${PT_API_KEY} ]] && echo "'POOL_ID' and/or 'POOL_TICKER' and/or 'PT_API_KEY' not set in $(basename "$0"), exiting!" && exit 1
   # Generate a temporary pooltool config
-  pt_config="/${TMP_DIR}/$(basename ${CNODE_HOME})-pooltool.json"
+  pt_config="${TMP_DIR}/$(basename ${CNODE_HOME})-pooltool.json"
   bash -c "cat <<-'EOF' > ${pt_config}
 		{
 		  \"api_key\": \"${PT_API_KEY}\",
