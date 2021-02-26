@@ -21,6 +21,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
 ##### Fixed
 - JQ limitation workaround for large numbers
+- Dialog compatibility improvement by preventing dialog launching a subshell on some systems causing dialog not to run
 
 ## [7.1.6] - 2021-02-10
 - Update curl commands when file isnt downloaded correctly (to give correct return code)

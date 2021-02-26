@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=7
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=2
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=4
+CNTOOLS_PATCH_VERSION=5
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -232,15 +232,16 @@ dialogSetup() {
 #             : title      >  The dialog title text
 #             : verbosity  >  [optional] Start path when dialog is opened, either dir or file (default: ${TMP_DIR}/)
 fileDialog() {
-  exec >&6 # normal stdout
+  exec >&6 2>&7 # normal stdout/stderr
   if [[ ${ENABLE_DIALOG} = "false" ]]; then
     printf "$1: " && read -r file
     return
   fi
   dialogSetup
   [[ -n $2 ]] && start_path="$2" || start_path="${TMP_DIR}/"
-  file=$(dialog --stdout --clear --keep-tite --title "$1" --fselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)))
-  exec >&8 # custom stdout
+  dialog --clear --keep-tite --title "$1" --fselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)) 2>"${TMP_DIR}/dialog.out"
+  file=$([[ -f "${TMP_DIR}/dialog.out" ]] && cat "${TMP_DIR}/dialog.out" || echo "")
+  exec >&8 2>&9 # custom stdout/stderr
 }
 # Command     : dirDialog [title] [optional: start dir]
 # Description : open a directory dialog
@@ -248,15 +249,16 @@ fileDialog() {
 #             : title      >  The dialog title text
 #             : verbosity  >  [optional] Start path when dialog is opened, either dir or file (default: ${TMP_DIR}/)
 dirDialog() {
-  exec >&6 # normal stdout
+  exec >&6 2>&7 # normal stdout/stderr
   if [[ ${ENABLE_DIALOG} = "false" ]]; then
     printf "$1: " && read -r dir
     return
   fi
   dialogSetup
   [[ -n $2 ]] && start_path="$2" || start_path="${TMP_DIR}/"
-  dir=$(dialog --stdout --clear --keep-tite --title "$1" --dselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)))
-  exec >&8 # custom stdout
+  dialog --clear --keep-tite --title "$1" --dselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)) 2>"${TMP_DIR}/dialog.out"
+  dir=$([[ -f "${TMP_DIR}/dialog.out" ]] && cat "${TMP_DIR}/dialog.out" || echo "")
+  exec >&8 2>&9 # custom stdout/stderr
 }
 
 
