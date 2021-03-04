@@ -1,3 +1,5 @@
+# Cardano Docker run howto
+
 ## Run you own __Cardano Node__ 
 
 ## OS Requirements
@@ -16,8 +18,9 @@
 docker run -dit 
 -e NETWORK=mainnet 
 --name <YourCName>
--p <your_custom_path>:/opt/cardano/cnode/priv
--p <your_custom_db_path>:/opt/cardano/cnode/db
+--cap-drop ALL
+-v <your_custom_path>:/opt/cardano/cnode/priv
+-v <your_custom_db_path>:/opt/cardano/cnode/db
 cardanocommunity/cardano-node 
 ```
 
@@ -33,9 +36,11 @@ docker run -dit
 -e NETWORK=mainnet
 -p 6000:6000
 -e NETWORK=mainnet  
--p <your_custom_path>:/opt/cardano/cnode/priv
--p <your_custom_db_path>:/opt/cardano/cnode/db
+-v <your_custom_path>:/opt/cardano/cnode/priv
+-v <your_custom_db_path>:/opt/cardano/cnode/db
 cardanocommunity/cardano-node 
 ```
 
 * Note: --entrypoint=bash       # This option wont start the node but only the docker os, ready to get in and play with it.
+
+[**Next** Cardano Node - Docker Tips](docker/tips.md)

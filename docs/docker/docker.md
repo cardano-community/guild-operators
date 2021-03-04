@@ -3,6 +3,8 @@
 
 Running your own Cardano node has never been so fast and easy.
 
+> But first a kindly reminder to the security aspects of running containers. [Here some Docker security concepts and best practice](docker/docker_security.md)
+
 ## External resources
 
 - [DockerHub Guild's images](https://hub.docker.com/u/cardanocommunity)
