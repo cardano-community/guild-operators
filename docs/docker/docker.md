@@ -1,6 +1,8 @@
 Running your own Cardano node has never been so fast and easy.
 
-### 🔔 Built-in tools  {docsify-ignore}
+!> A kind reminder to consider the security aspects when running containers. You can find some best practices and concepts [here](docker/docker_security.md)
+
+## 🔔 Built-in tools
 
 - cntools
 - gLiveView
