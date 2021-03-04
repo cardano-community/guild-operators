@@ -1,11 +1,8 @@
-# Cardano Node - Docker Tips
-
-## How to run a **Cardano Node** with Docker
+### How to run a **Cardano Node** with Docker
 
 With this quick guide you will be able to run a cardano node in seconds and also have the powerfull Guild operator's scripts *built-in*.
-- - -
 
-## How to operate interactively within the container
+### How to operate interactively within the container
 
 Once executed the container as a deamon with attached tty by using the flags `-dit` you are then enable to enter within the container
 
@@ -16,9 +13,8 @@ docker exec -it CN bash
 ```
 
 This command will bring you within the contaner bash env ready to use the Guild tools.
-- - -
 
-## Docker flags explained
+### Docker flags explained
 
 ```bash
 "docker build" options explained:
@@ -34,9 +30,7 @@ This command will bring you within the contaner bash env ready to use the Guild 
  --name : Container's name
 ```
 
-- - -
-
-## Custom container with your own cfg
+### Custom container with your own cfg
 
 ```bash
 docker run -itd  
@@ -49,9 +43,9 @@ docker run -itd
 cardanocommunity/cardano-node:latest          #Mandatory: image to run
 ```
 
-## Docker cli managment
+### Docker CLI managment
 
-### Official
+#### Official
 - docker inspect
 - docker ps
 - docker ls

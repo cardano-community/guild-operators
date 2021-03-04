@@ -1,14 +1,10 @@
-# Cardano Docker run howto
-
-## Run you own __Cardano Node__ 
-
-## OS Requirements
+### OS Requirements
 
 - "docker-ce" installed.
 
-## Private mode
+### Private mode
 
-### use cases
+#### Use Cases
 
 - Pool Management
 - Wallet Management
@@ -24,9 +20,9 @@ docker run -dit
 cardanocommunity/cardano-node 
 ```
 
-## Public mode
+### Public mode
 
-### use cases:
+#### Use Cases:
 
 - Node Relay
 

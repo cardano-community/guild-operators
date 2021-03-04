@@ -1,14 +1,6 @@
-
-# Cardano Docker by Guild Operators
-
 Running your own Cardano node has never been so fast and easy.
 
-> But first a kindly reminder to the security aspects of running containers. [Here some Docker security concepts and best practice](docker/docker_security.md)
-
-## External resources
-
-- [DockerHub Guild's images](https://hub.docker.com/u/cardanocommunity)
-- [YouTube Guild's Videos](https://www.youtube.com/channel/UC1eg3ljUWjIHeU0Vpqicj6A)
+!> A kind reminder to consider the security aspects when running containers. You can find some best practices and concepts [here](docker/docker_security.md)
 
 ## 🔔 Built-in tools
 
@@ -19,7 +11,7 @@ Running your own Cardano node has never been so fast and easy.
   - EKG, Prometheus
 
 
-## Guild Operators Docker startegy (testnet / mainnet)
+### Guild Operators Docker startegy (testnet / mainnet / staging / guild)  {docsify-ignore}
 
 Modular docker images based on Debian.
 
@@ -29,24 +21,27 @@ Based on the Guild's work we decided to build the Cardano Node images in 3 stage
 - 2nd stage: based on stage1 this stage intent is to compile and produce the binaries of the node. -> [Stage2](../files/docker/dockerfile_stage2)
 - 3rd stage: based upon a minimal debian image it incorporates the node's binaries as well as all the Guild's tools. -> [Stage3](../files/docker/dockerfile_stage3)
 
-## Additional docs
+### Additional docs  {docsify-ignore}
 
 If you prefer to build the images your own than you can check:
 
-- [Docker Build Documentaion](docker/build.md)
+- [Docker Build Documentation](docker/build.md)
 - [Docker Wallet Image](docker/wallet.md)
 - [Docker Tips](docker/tips.md)
 - [Podman Tips](docker/podman.md)
 
-***
+### Port mapping  {docsify-ignore}
 
-## Port mapping
+ The dockerfiles are located in ./files/docker/
 
-> The dockerfiles are located in ./files/docker/
+| Node Ports        |  Wallet Ports      | Flavors
+|------------:      | -------------:     | :-------------:
+|Node  (6000)       | Wallet (8090)      | Debian (`Dockerfile`)
+|Prometheus (12798) | Prometheus (12798) |
+|EKG (12781)        |                    |
 
-> Node Ports        |  Wallet Ports      | Flavors
->------------:      | -------------:     | :-------------:
->Node  (6000)       | Wallet (8090)      | Debian (`Dockerfile`)
->Prometheus (12798) | Prometheus (12798) |
->EKG (12781)        |                    |
-***
+### External resources  {docsify-ignore}
+
+- [DockerHub Guild's images](https://hub.docker.com/u/cardanocommunity)
+- [YouTube Guild's Videos](https://www.youtube.com/channel/UC1eg3ljUWjIHeU0Vpqicj6A)
+
