@@ -112,6 +112,12 @@ exec 7>&2 # Link file descriptor #7 with normal stderr.
 exec 8>&1 # Link file descriptor #8 with custom stdout.
 exec 9>&2 # Link file descriptor #9 with custom stderr.
 
+# check that bash version is > 4.4.0
+[[ $(bash --version | head -n 1) =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] || myExit 1 "Unable to get BASH version"
+if ! versionCheck "4.4.0" "${BASH_REMATCH[1]}"; then
+  myExit 1 "BASH does not meet the minimum required version of ${FG_LBLUE}4.4.0${NC}, found ${FG_LBLUE}${BASH_REMATCH[1]}${NC}\n\nPlease upgrade to a newer Linux distribution or compile latest BASH following official docs.\n\nINSTALL:  https://tiswww.case.edu/php/chet/bash/INSTALL\nDOWNLOAD: http://git.savannah.gnu.org/cgit/bash.git/ (latest stable TAG)"
+fi
+
 # check for required command line tools
 if ! need_cmd "curl" || \
    ! need_cmd "jq" || \
@@ -119,7 +125,7 @@ if ! need_cmd "curl" || \
    ! need_cmd "sed" || \
    ! need_cmd "awk" || \
    ! need_cmd "column" || \
-   ! protectionPreRequisites; then waitForInput "Missing one or more of the required command line tools, press any key to exit"; myExit 1
+   ! protectionPreRequisites; then myExit 1 "Missing one or more of the required command line tools, press any key to exit"
 fi
 
 if [[ "$CNTOOLS_PATCH_VERSION" -eq 999  ]]; then
