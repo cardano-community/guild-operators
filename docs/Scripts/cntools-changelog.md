@@ -5,6 +5,11 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.0.1] - 2021-03-05
+
+##### Fixed
+- Add BASH version check, version 4.4 or newer required
+
 ## [8.0.0] - 2021-02-28
 
 ##### Added
@@ -21,6 +26,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   
 ##### Fixed
 - JQ limitation workaround for large numbers
+- Dialog compatibility improvement by preventing dialog launching a subshell on some systems causing dialog not to run
 
 ## [7.1.6] - 2021-02-10
 - Update curl commands when file isnt downloaded correctly (to give correct return code)
