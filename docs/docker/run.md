@@ -12,9 +12,9 @@
 
 ```bash
 docker run -dit 
--e NETWORK=mainnet 
 --name <YourCName>
---cap-drop ALL
+--security-opt=no-new-privileges
+-e NETWORK=mainnet 
 -v <your_custom_path>:/opt/cardano/cnode/priv
 -v <your_custom_db_path>:/opt/cardano/cnode/db
 cardanocommunity/cardano-node 
@@ -29,6 +29,7 @@ cardanocommunity/cardano-node
 ```bash
 docker run -dit 
 --name <YourCName> 
+--security-opt=no-new-privileges
 -e NETWORK=mainnet
 -p 6000:6000
 -e NETWORK=mainnet  

@@ -49,10 +49,10 @@ Guild tips:
 - Do not Change **`Docker Socket Ownership`
 - Do not `Run Docker Containers as Root`
 - `Use Trusted Docker Images`
-- Restrict container capabilities: `"--cap-drop ALL"`
 - `Use Privileged Mode Carefully` (This is usually done by adding --privileged you can use `--security-opt=no-new-privileges` instead)
 
 Some more general tips:
+- Restrict container capabilities: `"--cap-drop ALL"`
 - [Use Docker Secrets](https://www.docker.com/blog/docker-secrets-management/)
 - Change DOCKER_OPTS to ***Respect IP Table Firewall 
 - [Control Docker Resource Usage](https://docs.docker.com/config/containers/resource_constraints/)
