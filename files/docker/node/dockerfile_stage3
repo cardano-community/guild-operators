@@ -92,7 +92,7 @@ RUN /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -i python3 systemd 
 
 # ENTRY SCRIPT
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/banner.txt /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/master-topology.sh /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/guild-topology.sh /home/guild/.scripts/
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/block_watcher.sh /home/guild/.scripts/
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/healthcheck.sh /home/guild/.scripts/
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/scripts/cnode-helper-scripts/prereqs.sh /opt/cardano/cnode/scripts/
