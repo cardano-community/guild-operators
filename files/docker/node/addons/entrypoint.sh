@@ -16,9 +16,6 @@ echo "NETWORK: $NETWORK $POOL_NAME";
 echo "NODE: $HOSTNAME - Port:$CNODE_PORT - $POOL_NAME";
 cardano-node --version;
 
-sudo touch /etc/crontab /etc/cron.*/*
-sudo cron  > /dev/null 2>&1
-
 dbsize=$(du -s ${CNODE_HOME}/db | awk '{print $1}')
 bksizedb=$(du -s $CNODE_HOME/priv/$NETWORK-db 2>/dev/null | awk '{print $1}')
 
