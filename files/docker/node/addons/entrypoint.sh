@@ -45,15 +45,15 @@ elif [[ "$NETWORK" == "launchpad" ]]; then
 elif [[ "$NETWORK" == "staging" ]]; then
   $CNODE_HOME/scripts/prereqs.sh -n staging -t cnode -s -f > /dev/null 2>&1 \
   && exec $CNODE_HOME/scripts/cnode.sh
-elif [[ "$NETWORK" == "guild" ]]; then
+elif [[ "$NETWORK" == "guild-mainnet" ]]; then
   $CNODE_HOME/scripts/prereqs.sh -n mainnet -t cnode -s -f > /dev/null 2>&1 \
-  && sudo bash /home/guild/.scripts/guild-topology.sh > /dev/null 2>&1 \
+  && bash /home/guild/.scripts/guild-topology.sh > /dev/null 2>&1 \
   && exec $CNODE_HOME/scripts/cnode.sh
-elif [[ "$NETWORK" == "guildnet" ]]; then
+elif [[ "$NETWORK" == "guild" ]]; then
   $CNODE_HOME/scripts/prereqs.sh -n guild -t cnode -s -f > /dev/null 2>&1 \
   && exec $CNODE_HOME/scripts/cnode.sh
 else
-  echo "Please set a NETWORK environment variable to one of: mainnet / testnet / staging / launchpad / guild / guildnet"
+  echo "Please set a NETWORK environment variable to one of: mainnet / testnet / staging / launchpad / guild-mainnet / guild"
   echo "mount a '$CNODE_HOME/priv/files' volume containing: mainnet-config.json, mainnet-shelley-genesis.json, mainnet-byron-genesis.json, and mainnet-topology.json "
   echo "for active nodes set POOL_DIR environment variable where op.cert, hot.skey and vrf.skey files reside. (usually under '${CNODE_HOME}/priv/pool/$POOL_NAME' ) "
   echo "or just set POOL_NAME environment variable (for default path). "
