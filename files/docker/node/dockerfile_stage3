@@ -51,12 +51,9 @@ ENV \
     NIX_PATH=/nix/var/nix/profiles/per-user/guild/channels
 
 # PREREQ 
-RUN apt-get update && apt-get install -y libcap2-bin ncurses-bin iproute2 curl wget apt-utils xz-utils netbase sudo coreutils dnsutils net-tools procps tcptraceroute bc \
+RUN apt-get update && apt-get install -y libcap2-bin ncurses-bin iproute2 curl wget apt-utils xz-utils netbase sudo coreutils dnsutils net-tools procps tcptraceroute bc usbip kmod \
     && apt-get install -y --no-install-recommends cron \
     && sudo apt-get -y purge && sudo apt-get -y clean && sudo apt-get -y autoremove && sudo rm -rf /var/lib/apt/lists/* # && sudo rm -rf /usr/bin/apt* 
-    
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/crontab /etc/cron.d/crontab
-RUN chmod 0644 /etc/cron.d/crontab && touch /var/log/cron.log
 
 RUN cd /usr/bin \
 && sudo wget http://www.vdberg.org/~richard/tcpping \
@@ -78,7 +75,6 @@ RUN  curl -sL -H "Accept: application/vnd.github.everest-preview+json" -H "Conte
 RUN sudo curl -sL https://nixos.org/nix/install | sh \
     && sudo ln -s /nix/var/nix/profiles/per-user/etc/profile.d/nix.sh /etc/profile.d/ \
     && . /home/guild/.nix-profile/etc/profile.d/nix.sh \
-    && sudo crontab -u guild /etc/cron.d/crontab \
     && echo "head -n 8 /home/guild/.scripts/banner.txt" >> ~/.bashrc \
     && echo "grep MENU -A 6 /home/guild/.scripts/banner.txt | grep -v MENU" >> ~/.bashrc \
     && echo "alias env=/usr/bin/env" >> ~/.bashrc \
@@ -96,7 +92,7 @@ RUN /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -i python3 systemd 
 
 # ENTRY SCRIPT
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/banner.txt /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/master-topology.sh /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/guild-topology.sh /home/guild/.scripts/
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/block_watcher.sh /home/guild/.scripts/
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/healthcheck.sh /home/guild/.scripts/
 ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/scripts/cnode-helper-scripts/prereqs.sh /opt/cardano/cnode/scripts/
@@ -104,9 +100,8 @@ ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/fi
 
 RUN sudo chown -R guild:guild $CNODE_HOME/* \
     && sudo chown -R guild:guild /home/guild/.* \
-    && sudo chmod a+x /home/guild/.scripts/*.sh /opt/cardano/cnode/scripts/*.sh /home/guild/entrypoint.sh \
-    && find /opt/cardano/cnode -name "*config*.json" -print0 | xargs -0 sed -i 's/127.0.0.1/0.0.0.0/g' 2> /dev/null
-
+    && sudo chmod a+x /home/guild/.scripts/*.sh /opt/cardano/cnode/scripts/*.sh /home/guild/entrypoint.sh 
+    
 HEALTHCHECK --start-period=5m --interval=5m --timeout=100s CMD /home/guild/.scripts/healthcheck.sh
 
 ENTRYPOINT ["./entrypoint.sh"]
