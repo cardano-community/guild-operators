@@ -218,7 +218,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
   elif [[ $(uname) == Darwin ]]; then
     echo "MacOS detected";
     pkg_list="coreutils gnupg jq libsodium tcptraceroute"
-    brew install "${pkg_list}" > /dev/null;rc=$?
+    brew install ${pkg_list} > /dev/null;rc=$?
 
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
