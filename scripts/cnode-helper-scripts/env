@@ -112,11 +112,6 @@ else
   CCLI_PARENT="$(dirname ${CCLI})"
   export PATH="${CCLI_PARENT}":$PATH
 fi
-node_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
-if ! versionCheck "1.25.1" "${node_version}"; then
-  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.25.1 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
-  return 1
-fi
 
 if [[ -z "${CNCLI}" ]]; then
   CNCLI=$(command -v cncli) || CNCLI="${HOME}/.cargo/bin/cncli"
@@ -280,30 +275,6 @@ if [[ -n "${CNODE_PID}" ]]; then
   fi
 fi
 
-PROTOCOL=$(jq -r .Protocol "${CONFIG}")
-NETWORKID=$(jq -r .networkId ${GENESIS_JSON})
-MAGIC=$(jq -r .protocolMagicId < ${GENESIS_JSON})
-NWMAGIC=$(jq -r .networkMagic < ${GENESIS_JSON})
-[[ ${NETWORKID} = "Mainnet" ]] && HASH_IDENTIFIER="--mainnet" || HASH_IDENTIFIER="--testnet-magic ${NWMAGIC}"
-case ${NWMAGIC} in
-  764824073) NETWORK_NAME="Mainnet"; [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=208; NETWORK_IDENTIFIER="--mainnet" ;;
-  1097911063) NETWORK_NAME="Testnet"; [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=74; NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
-  633343913) NETWORK_NAME="Staging"; [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=208; NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
-  141) NETWORK_NAME="Guild"; [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=1; NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
-  *) NETWORK_NAME="Custom"; [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=-1; NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
-esac
-
-SHELLEY_GENESIS_START_SEC=$(date --date="$(jq -r .systemStart "${GENESIS_JSON}")" +%s)
-EPOCH_LENGTH=$(jq -r .epochLength "${GENESIS_JSON}")
-SLOT_LENGTH=$(jq -r .slotLength "${GENESIS_JSON}")
-ACTIVE_SLOTS_COEFF=$(jq -r .activeSlotsCoeff "${GENESIS_JSON}")
-SLOTS_PER_KES_PERIOD=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
-MAX_KES_EVOLUTIONS=$(jq -r .maxKESEvolutions "${GENESIS_JSON}")
-BYRON_GENESIS_START_SEC=$(jq -r .startTime "${BYRON_GENESIS_JSON}")
-BYRON_K=$(jq -r .protocolConsts.k "${BYRON_GENESIS_JSON}")
-BYRON_SLOT_LENGTH=$(( $(jq -r .blockVersionData.slotDuration "${BYRON_GENESIS_JSON}") ))
-BYRON_EPOCH_LENGTH=$(( 10 * BYRON_K ))
-
 [[ -z ${TOPOLOGY} ]] && TOPOLOGY="${CNODE_HOME}/files/topology.json"
 [[ -n ${CNODE_TOPOLOGY} ]] && TOPOLOGY="${CNODE_TOPOLOGY}" # compatibility with older topologyUpdater
 [[ -z ${LOG_DIR} ]] && LOG_DIR="${CNODE_HOME}/logs"
@@ -346,6 +317,36 @@ if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then echo "ERROR: Failed to create direc
 [[ -z ${ASSET_POLICY_SK_FILENAME} ]] && ASSET_POLICY_SK_FILENAME="policy.skey"
 [[ -z ${ASSET_POLICY_SCRIPT_FILENAME} ]] && ASSET_POLICY_SCRIPT_FILENAME="policy.script"
 [[ -z ${ASSET_POLICY_ID_FILENAME} ]] && ASSET_POLICY_ID_FILENAME="policy.id"
+
+node_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
+if ! versionCheck "1.25.1" "${node_version}"; then
+  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.25.1 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
+  return 1
+fi
+
+PROTOCOL=$(jq -r .Protocol "${CONFIG}")
+NETWORKID=$(jq -r .networkId ${GENESIS_JSON})
+MAGIC=$(jq -r .protocolMagicId < ${GENESIS_JSON})
+NWMAGIC=$(jq -r .networkMagic < ${GENESIS_JSON})
+[[ ${NETWORKID} = "Mainnet" ]] && HASH_IDENTIFIER="--mainnet" || HASH_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+case ${NWMAGIC} in
+  764824073) NETWORK_NAME="Mainnet"; [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=208; NETWORK_IDENTIFIER="--mainnet" ;;
+  1097911063) NETWORK_NAME="Testnet"; [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=74; NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
+  633343913) NETWORK_NAME="Staging"; [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=208; NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
+  141) NETWORK_NAME="Guild"; [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=1; NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
+  *) NETWORK_NAME="Custom"; [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=-1; NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
+esac
+
+SHELLEY_GENESIS_START_SEC=$(date --date="$(jq -r .systemStart "${GENESIS_JSON}")" +%s)
+EPOCH_LENGTH=$(jq -r .epochLength "${GENESIS_JSON}")
+SLOT_LENGTH=$(jq -r .slotLength "${GENESIS_JSON}")
+ACTIVE_SLOTS_COEFF=$(jq -r .activeSlotsCoeff "${GENESIS_JSON}")
+SLOTS_PER_KES_PERIOD=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
+MAX_KES_EVOLUTIONS=$(jq -r .maxKESEvolutions "${GENESIS_JSON}")
+BYRON_GENESIS_START_SEC=$(jq -r .startTime "${BYRON_GENESIS_JSON}")
+BYRON_K=$(jq -r .protocolConsts.k "${BYRON_GENESIS_JSON}")
+BYRON_SLOT_LENGTH=$(( $(jq -r .blockVersionData.slotDuration "${BYRON_GENESIS_JSON}") ))
+BYRON_EPOCH_LENGTH=$(( 10 * BYRON_K ))
 
 FG_BLACK='\e[30m'
 FG_RED='\e[31m'
