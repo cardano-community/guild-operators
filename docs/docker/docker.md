@@ -1,8 +1,14 @@
+
 Running your own Cardano node has never been so fast and easy.
 
-!> A kind reminder to consider the security aspects when running containers. You can find some best practices and concepts [here](docker/docker_security.md)
+> But first a kindly reminder to the security aspects of running containers. [Here some Docker security concepts and best practice](docker/docker_security.md)
 
-## 🔔 Built-in tools
+### External resources
+
+- [DockerHub Guild's images](https://hub.docker.com/u/cardanocommunity)
+- [YouTube Guild's Videos](https://www.youtube.com/channel/UC1eg3ljUWjIHeU0Vpqicj6A)
+
+### 🔔 Built-in tools
 
 - cntools
 - gLiveView
@@ -10,8 +16,7 @@ Running your own Cardano node has never been so fast and easy.
 - Monitoring ready
   - EKG, Prometheus
 
-
-### Guild Operators Docker startegy (testnet / mainnet / staging / guild)  {docsify-ignore}
+#### Guild Operators Docker startegy (testnet / mainnet / staging / guild)  {docsify-ignore}
 
 Modular docker images based on Debian.
 
@@ -30,18 +35,15 @@ If you prefer to build the images your own than you can check:
 - [Docker Tips](docker/tips.md)
 - [Podman Tips](docker/podman.md)
 
-### Port mapping  {docsify-ignore}
+### Port mapping
 
- The dockerfiles are located in ./files/docker/
+> The dockerfiles are located in ./files/docker/
 
-| Node Ports        |  Wallet Ports      | Flavors
-|------------:      | -------------:     | :-------------:
-|Node  (6000)       | Wallet (8090)      | Debian (`Dockerfile`)
-|Prometheus (12798) | Prometheus (12798) |
-|EKG (12781)        |                    |
+> Node Ports        |  Wallet Ports      | Flavors
+>------------:      | -------------:     | :-------------:
+>Node  (6000)       | Wallet (8090)      | Debian (`Dockerfile`)
+>Prometheus (12798) | Prometheus (12798) |
+>EKG (12781)        |                    |
+***
 
-### External resources  {docsify-ignore}
-
-- [DockerHub Guild's images](https://hub.docker.com/u/cardanocommunity)
-- [YouTube Guild's Videos](https://www.youtube.com/channel/UC1eg3ljUWjIHeU0Vpqicj6A)
-
+[**Next** Cardano Docker run howto](docker/run.md)
