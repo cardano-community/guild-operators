@@ -204,7 +204,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo yum -y --allowerasing install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
-      echo "sudo yum -y install ${pkg_list}"
+      echo "sudo yum -y --allowerasing install ${pkg_list}"
       echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
       err_exit
     fi
@@ -218,7 +218,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
   elif [[ $(uname) == Darwin ]]; then
     echo "MacOS detected";
     pkg_list="coreutils gnupg jq libsodium tcptraceroute"
-    brew install "${pkg_list}" > /dev/null;rc=$?
+    brew install ${pkg_list} > /dev/null;rc=$?
 
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"

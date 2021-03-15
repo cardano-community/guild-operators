@@ -12,10 +12,12 @@
 #POOL_ID=""                               # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation & pooltool sendtip, lower-case hex pool id
 #POOL_VRF_SKEY=""                         # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation, path to pool's vrf.skey file
 #POOL_VRF_VKEY=""                         # Automatically detected if POOL_NAME is set in env. Required for block validation, path to pool's vrf.vkey file
-#PT_API_KEY=""                            # POOLTOOL sendtip: set API key, e.g "a47811d3-0008-4ecd-9f3e-9c22bdb7c82d"
-#POOL_TICKER=""                           # POOLTOOL sendtip: set the pools ticker, e.g "TCKR"
-#PT_HOST="127.0.0.1"                      # POOLTOOL sendtip: connect to a remote node, preferably block producer (default localhost)
-#PT_PORT="${CNODE_PORT}"                  # POOLTOOL sendtip: port of node to connect to (default CNODE_PORT from env file)
+#PT_API_KEY=""                            # POOLTOOL: set API key, e.g "a47811d3-0008-4ecd-9f3e-9c22bdb7c82d"
+#POOL_TICKER=""                           # POOLTOOL: set the pools ticker, e.g "TCKR"
+#PT_HOST="127.0.0.1"                      # POOLTOOL: connect to a remote node, preferably block producer (default localhost)
+#PT_PORT="${CNODE_PORT}"                  # POOLTOOL: port of node to connect to (default CNODE_PORT from env file)
+#PT_SENDSLOTS_START=30                    # POOLTOOL sendslots: delay after epoch boundary before sending slots (in minutes)
+#PT_SENDSLOTS_STOP=60                     # POOLTOOL sendslots: prohibit sending of slots to pooltool after X number of minutes (blocked on pooltool end as well)
 #CNCLI_DIR="${CNODE_HOME}/guild-db/cncli" # path to folder for cncli sqlite db
 #SLEEP_RATE=60                            # CNCLI leaderlog/validate: time to wait until next check (in seconds)
 #CONFIRM_SLOT_CNT=600                     # CNCLI validate: require at least these many slots to have passed before validating
@@ -41,6 +43,7 @@ usage() {
 		  epoch     One-time re-validation of blocks in blocklog db for the specified epoch 
 		ptsendtip   Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge (deployed as service)
 		ptsendslots Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs (deployed as service)
+		  force     Manually force pooltool sendslots submission ignoring configured time window 
 		init        One-time initialization adding all minted and confirmed blocks to blocklog
 		migrate     One-time migration from old blocklog(cntoolsBlockCollector) to new format (post cncli)
 		  path      Path to the old cntoolsBlockCollector blocklog folder holding json files with blocks created
@@ -204,6 +207,8 @@ cncliInit() {
   [[ -z "${CONFIRM_BLOCK_CNT}" ]] && CONFIRM_BLOCK_CNT=15
   [[ -z "${PT_HOST}" ]] && PT_HOST="127.0.0.1"
   [[ -z "${PT_PORT}" ]] && PT_PORT="${CNODE_PORT}"
+  [[ -z "${PT_SENDSLOTS_START}" ]] && PT_SENDSLOTS_START=30
+  [[ -z "${PT_SENDSLOTS_STOP}" ]] && PT_SENDSLOTS_STOP=60
   if [[ -d "${POOL_DIR}" ]]; then
     [[ -z "${POOL_ID}" && -f "${POOL_DIR}/${POOL_ID_FILENAME}" ]] && POOL_ID=$(cat "${POOL_DIR}/${POOL_ID_FILENAME}")
     [[ -z "${POOL_VRF_SKEY}" ]] && POOL_VRF_SKEY="${POOL_DIR}/${POOL_VRF_SK_FILENAME}"
@@ -597,8 +602,8 @@ cncliPTsendslots() {
     getNodeMetrics
     [[ ${slotnum} -eq 0 ]] && continue # failed to grab node metrics
     [[ ${sendslots_epoch} -eq ${epochnum} ]] && continue # this epoch is already sent
-    if [[ ${slot_in_epoch} -lt 900 || ${slot_in_epoch} -gt 3600 ]]; then # only allow slots to be sent in the first hour after epoch boundary, wait 15min after epoch boundary
-      [[ -t 1 ]] && echo "${FG_YELLOW}WARN${NC}: Valid window to send slots is ${FG_LBLUE}15 - 60${NC} min after epoch boundary" && break
+    if [[ ( ${slot_in_epoch} -lt ${PT_SENDSLOTS_START} || ${slot_in_epoch} -gt ${PT_SENDSLOTS_STOP} ) && ${subarg} != "force" ]]; then # only allow slots to be sent in the interval defined (default 30-60 min after epoch boundary)
+      [[ -t 1 ]] && echo "${FG_YELLOW}WARN${NC}: Configured window to send slots is ${FG_LBLUE}${PT_SENDSLOTS_START} - ${PT_SENDSLOTS_STOP}${NC} min after epoch boundary" && break
       continue 
     fi
     leaderlog_cnt=$(sqlite3 "${CNCLI_DB}" "SELECT COUNT(*) FROM slots WHERE epoch=${epochnum} and pool_id='${POOL_ID}';")
@@ -608,6 +613,7 @@ cncliPTsendslots() {
     if [[ $(jq -r '.status //empty' <<< "${cncli_ptsendslots}" 2>/dev/null) = "error" ]]; then continue; fi
     echo "Slots for epoch ${epochnum} successfully sent to PoolTool for pool id '${POOL_ID}' !"
     sendslots_epoch=${epochnum}
+    [[ -t 1 ]] && break # manual execution of script in tty mode, exit after first run
   done
 }
 

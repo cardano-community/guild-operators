@@ -3,12 +3,12 @@ Running your own Cardano node has never been so fast and easy.
 
 > But first a kindly reminder to the security aspects of running containers. [Here some Docker security concepts and best practice](docker/docker_security.md)
 
-## External resources
+### External resources
 
 - [DockerHub Guild's images](https://hub.docker.com/u/cardanocommunity)
 - [YouTube Guild's Videos](https://www.youtube.com/channel/UC1eg3ljUWjIHeU0Vpqicj6A)
 
-## 🔔 Built-in tools
+### 🔔 Built-in tools
 
 - cntools
 - gLiveView
@@ -16,7 +16,7 @@ Running your own Cardano node has never been so fast and easy.
 - Monitoring ready
   - EKG, Prometheus
 
-## Guild Operators Docker startegy (testnet / mainnet)
+#### Guild Operators Docker startegy (testnet / mainnet / staging / guild)  {docsify-ignore}
 
 Modular docker images based on Debian.
 
@@ -26,18 +26,16 @@ Based on the Guild's work we decided to build the Cardano Node images in 3 stage
 - 2nd stage: based on stage1 this stage intent is to compile and produce the binaries of the node. -> [Stage2](../files/docker/dockerfile_stage2)
 - 3rd stage: based upon a minimal debian image it incorporates the node's binaries as well as all the Guild's tools. -> [Stage3](../files/docker/dockerfile_stage3)
 
-## Additional docs
+### Additional docs  {docsify-ignore}
 
 If you prefer to build the images your own than you can check:
 
-- [Docker Build Documentaion](docker/build.md)
+- [Docker Build Documentation](docker/build.md)
 - [Docker Wallet Image](docker/wallet.md)
 - [Docker Tips](docker/tips.md)
 - [Podman Tips](docker/podman.md)
 
-***
-
-## Port mapping
+### Port mapping
 
 > The dockerfiles are located in ./files/docker/
 
