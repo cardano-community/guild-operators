@@ -2328,20 +2328,34 @@ submitTx() {
 unlockHWDevice() {
   if ! HWCLIversionCheck; then waitForInput && return 1; fi
   waitForInput "${FG_BLUE}INFO${NC}: please connect and unlock hardware device" "  ${FG_YELLOW}Ledger${NC} - Unlock with pin and open Cardano app" "  ${FG_YELLOW}Trezor${NC} - Make sure trezor bridge is installed (https://wallet.trezor.io/#/bridge) " "" "when done, press any key to continue"
-  println "ACTION" "cardano-hw-cli device version | cut -d' ' -f4"
-  device_app_version="$(cardano-hw-cli device version | cut -d' ' -f4)"
+  println "ACTION" "cardano-hw-cli device version"
+  device_app="$(cardano-hw-cli device version)"
+  device_app_vendor="$(cut -d' ' -f1 <<< "${device_app}")"
+  device_app_version="$(cut -d' ' -f4 <<< "${device_app}")"
   if [[ ! ${device_app_version} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     println "ERROR" "${FG_RED}ERROR${NC}: unable to identify connected hardware device, is the device plugged in and unlocked?"
     println "ERROR" "Make sure device is seen by OS using tools like lsusb etc and is working correctly"
     waitForInput && return 1
+  elif [[ ${device_app_vendor} = Ledger ]]; then
+    if ! versionCheck "2.2.0" "${device_app_version}"; then
+      println "ERROR" "${FG_RED}ERROR${NC}: Cardano app version installed on Ledger is ${FG_LGRAY}v${device_app_version}${NC}, minimum required version is ${FG_GREEN}v2.2.0${NC} !!"
+      return 1
+    fi
+  elif [[ ${device_app_vendor} = Trezor ]]; then
+    if ! versionCheck "2.3.6" "${device_app_version}"; then
+      println "ERROR" "${FG_RED}ERROR${NC}: Trezor firmware installed on device is ${FG_LGRAY}v${device_app_version}${NC}, minimum required version is ${FG_GREEN}v2.3.6${NC} !!"
+      return 1
+    fi
+  else
+    println "ERROR" "${FG_RED}ERROR${NC}: Unknown vendor: ${FG_LGRAY}${device_app_vendor}${NC} !!"
+    return 1
   fi
-  
   println "DEBUG" "\n${FG_BLUE}INFO${NC}: follow directions on hardware device to $1"
 }
 
 HWCLIversionCheck() {
   HWCLI_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
-  if ! versionCheck "1.1.3" "${HWCLI_version}"; then
+  if ! versionCheck "1.2.0" "${HWCLI_version}"; then
     println "ERROR" "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.1.3${NC} !!"
     println "ERROR" "Please run ${FG_LGRAY}prereqs.sh -w${NC} to upgrade to the latest version."
     return 1

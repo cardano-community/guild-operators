@@ -5,6 +5,13 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.0.2] - 2021-03-15
+
+##### Fixed
+- Bump cardano-hw-cli minimum version to 1.2.0
+- Add Ledger Cardano app version check with minimum enforced version of 2.2.0
+- Add Trezor firmware check with minimum enforced version of 2.3.6
+
 ## [8.0.1] - 2021-03-05
 
 ##### Fixed
