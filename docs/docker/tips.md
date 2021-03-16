@@ -37,12 +37,14 @@ docker run -itd
 -name Relay                                   #Optional(raccomended for quick access): set a name to your newly created container.
 -p 9000:6000                                  #Optional: to expose the internal container's port (6000) to the host <IP> port 9000
 -e NETWORK=mainnet                            #Mandatory: mainnet / testnet / staging / launchpad / guild-mainnet / guild
---security-opt=no-new-privileges              #Option to prevent privilege escalations
+--security-opt=no-new-privileges              #Option to prevent privilege escalations 
 -v <YourNetPath>:/opt/cardano/cnode/sockets   #Optional: useful to share the node socket wit other containers
 -v <YourCfgPath>:/opt/cardano/cnode/priv      #Optional: if used has to contain all the configuration files nedeed to run a node 
 -v <YourDBbk>:/opt/cardano/cnode/db           #Optional: if not set a fresh DB will be downloaded from scatch
 cardanocommunity/cardano-node:latest          #Mandatory: image to run
 ```
+
+> Note: to be able to use the cntools encryption key feature you need to manually change in "cntools.config" ENABLE_CHATTR to "true" and not use the "--security-opt=no-new-privileges" docker run option.
 
 ### Docker CLI managment
 
