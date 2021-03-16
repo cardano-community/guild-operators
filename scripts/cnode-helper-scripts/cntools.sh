@@ -1200,7 +1200,7 @@ function main {
                      sleep 0.1 && read -r -p "Amount (commas allowed as thousand separator): " asset_amount 2>&6 && println "LOG" "Amount (commas allowed as thousand separator): ${asset_amount}"
                      asset_amount="${asset_amount//,}"
                      [[ ${asset_amount} = "all" ]] && asset_amount=${assets[${selected_value}]}
-                     [[ ! ${asset_amount} =~ [0-9]+ ]] && println "ERROR" "${FG_RED}ERROR${NC}: invalid number, non digit characters found!" && continue
+                     if ! isNumber ${asset_amount}; then println "ERROR" "${FG_RED}ERROR${NC}: invalid number, non digit characters found!" && continue; fi
                      if [[ ${asset_amount} -gt ${assets[${selected_value}]} ]]; then
                        println "ERROR" "${FG_RED}ERROR${NC}: you cant send more assets than available on address!" && continue
                      elif [[ ${asset_amount} -eq ${assets[${selected_value}]} ]]; then
@@ -1721,7 +1721,7 @@ function main {
                      else
                        sleep 0.1 && read -r -p "Enter relays's port: " relay_port_enter 2>&6 && println "LOG" "Enter relays's port: ${relay_port_enter}"
                        if [[ -n "${relay_port_enter}" ]]; then
-                         if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
+                         if ! isNumber ${relay_port_enter} || [[ ${relay_port_enter} -lt 1 || ${relay_port_enter} -gt 65535 ]]; then
                            println "ERROR" "${FG_RED}ERROR${NC}: invalid port number!"
                          else
                            relay_array+=( "type" "DNS_A" "address" "${relay_dns_enter}" "port" "${relay_port_enter}" )
@@ -1734,12 +1734,12 @@ function main {
                      ;;
                   1) sleep 0.1 && read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter 2>&6 && println "LOG" "Enter relays's IPv4 address: ${relay_ipv4_enter}"
                      if [[ -n "${relay_ipv4_enter}" ]]; then
-                       if ! validIP "${relay_ipv4_enter}"; then
+                       if ! isValidIPv4 "${relay_ipv4_enter}"; then
                          println "ERROR" "${FG_RED}ERROR${NC}: invalid IPv4 address format!"
                        else
                          sleep 0.1 && read -r -p "Enter relays's port: " relay_port_enter 2>&6 && println "LOG" "Enter relays's port: ${relay_port_enter}"
                          if [[ -n "${relay_port_enter}" ]]; then
-                           if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
+                           if ! isNumber ${relay_port_enter} || [[ ${relay_port_enter} -lt 1 || ${relay_port_enter} -gt 65535 ]]; then
                              println "ERROR" "${FG_RED}ERROR${NC}: invalid port number!"
                            else
                              relay_array+=( "type" "IPv4" "address" "${relay_ipv4_enter}" "port" "${relay_port_enter}" )
@@ -2955,7 +2955,7 @@ function main {
         case $? in
           0) echo && sleep 0.1 && read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter 2>&6 && println "LOG" "Enter number of epochs to show (enter for 10): ${epoch_enter}"
              epoch_enter=${epoch_enter:-10}
-             if ! [[ ${epoch_enter} =~ ^[0-9]+$ ]]; then
+             if ! isNumber ${epoch_enter}; then
                println "ERROR" "\n${FG_RED}ERROR${NC}: not a number"
                waitForInput && continue
              fi
@@ -3636,7 +3636,7 @@ function main {
                 println "DEBUG" "${FG_YELLOW}Setting a limit will prevent you from minting/burning assets after the policy expire !!\nLeave blank/unlimited if unsure and just press enter${NC}"
                 sleep 0.1 && read -r -p "TTL (in seconds): " ttl_enter 2>&6 && println "LOG" "TTL (in seconds): ${ttl_enter}"
                 ttl_enter=${ttl_enter:-0}
-                if [[ ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
+                if ! isNumber ${ttl_enter}; then
                   println "ERROR" "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
                   safeDel "${policy_folder}"; waitForInput && continue
                 fi
@@ -3845,7 +3845,7 @@ function main {
                 sleep 0.1 && read -r -p "Amount (commas allowed as thousand separator): " asset_amount 2>&6 && println "LOG" "Amount (commas allowed as thousand separator): ${asset_amount}"
                 asset_amount="${asset_amount//,}"
                 [[ -z "${asset_amount}" ]] && println "ERROR" "${FG_RED}ERROR${NC}: Amount empty, please set a valid integer number!" && waitForInput && continue
-                [[ ! ${asset_amount} =~ [0-9]+ ]] && println "ERROR" "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue
+                if ! isNumber ${asset_amount}; then println "ERROR" "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue; fi
                 [[ -f "${asset_file}" ]] && asset_minted=$(( $(jq -r .minted "${asset_file}") + asset_amount )) || asset_minted=${asset_amount}
                 metafile_param=""
                 println "DEBUG" "\nDo you want to attach a metadata JSON file to the minting transaction?"
@@ -4021,7 +4021,7 @@ function main {
                 sleep 0.1 && read -r -p "Amount (commas allowed as thousand separator): " assets_to_burn 2>&6 && println "LOG" "Amount (commas allowed as thousand separator): ${assets_to_burn}"
                 assets_to_burn="${assets_to_burn//,}"
                 [[ ${assets_to_burn} = "all" ]] && assets_to_burn=${asset_amount}
-                [[ ! ${assets_to_burn} =~ [0-9]+ ]] && println "ERROR" "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue
+                if ! isNumber ${assets_to_burn}; then println "ERROR" "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue; fi
                 [[ ${assets_to_burn} -gt ${asset_amount} ]] && println "ERROR" "${FG_RED}ERROR${NC}: Amount exceeding assets in address, you can only burn ${FG_LBLUE}$(formatAsset "${asset_amount}")${NC}" && waitForInput && continue
                 asset_minted=$(( $(jq -r .minted "${asset_file}") - assets_to_burn ))
                 # Attach metadata?

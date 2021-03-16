@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=8
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=0
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=2
+CNTOOLS_PATCH_VERSION=3
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -367,25 +367,6 @@ select_opt() {
   selected_value="${opts[${answer}]}"
   println "DEBUG" "Selected value: ${selected_value}"
   return $answer
-}
-
-# Command     : validIP [IP address]
-# Description : A helper function to validate input for valid IPv4 address
-# Parameters  : IP address  >  the IPv4 address to validate
-# Return      : 1 on success
-validIP() {
-  local  ip=$1
-  local  stat=1
-
-  if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-    OIFS=$IFS
-    IFS='.'
-    ip=($ip)
-    IFS=$OIFS
-    [[ ${ip[0]} -le 255 && ${ip[1]} -le 255 && ${ip[2]} -le 255 && ${ip[3]} -le 255 ]]
-    stat=$?
-  fi
-  return $stat
 }
 
 # Command     : getDirs [path to folder]
@@ -786,8 +767,7 @@ validateDecimalNbr() {
 # Description : Pretty print Lovelace value
 # Parameters  : Lovelace  >  Amount in Lovelace
 formatLovelace() {
-  re_int_nbr='^[0-9]+$'
-  if [[ $1 =~ ${re_int_nbr} ]]; then
+  if isNumber $1; then
     [[ $1 -eq 0 ]] && echo 0 && return
     [[ $1 -le 999999 ]] && printf '0.%06d' "$1" && return
     printf '%s.%s' "$(sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< ${1::-6})" "${1: -6}"
@@ -801,8 +781,7 @@ formatLovelace() {
 # Description : Pretty print Ada value
 # Parameters  : Ada  >  Amount in Ada
 formatAsset() {
-  re_int_nbr='^[0-9]+$'
-  if [[ $1 =~ ${re_int_nbr} ]]; then
+  if isNumber $1; then
     sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< $1
   else
     println "ERROR" "${FG_RED}ERROR${NC}: must be a valid integer number"
@@ -1144,7 +1123,7 @@ getTTL() {
     println "DEBUG" "\nHow long do you want the transaction to be valid?"
     sleep 0.1 && read -r -p "TTL (in seconds, default: 1800/30min): " ttl_enter 2>&6 && println "LOG" "TTL (in seconds, default: 1800/30min): ${ttl_enter}"
     ttl_enter=${ttl_enter:-1800}
-    if [[ ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
+    if ! isNumber ${ttl_enter}; then
       println "ERROR" "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
       return 1
     fi
