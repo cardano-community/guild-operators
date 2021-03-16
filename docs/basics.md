@@ -23,7 +23,7 @@ Please familiarise with the syntax of prereqs.sh before proceeding. The usage sy
 
 ```
 
-Usage: prereqs.sh [-f] [-s] [-i] [-l] [-c] [-w] [-p] [-b <branch>] [-n <mainnet|testnet|launchpad|guild|staging>] [-t <name>] [-m <seconds>]
+Usage: prereqs.sh [-f] [-s] [-i] [-l] [-c] [-w] [-p] [-b <branch>] [-n <mainnet|testnet|guild|staging>] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano node and using CNTools
 
 -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
