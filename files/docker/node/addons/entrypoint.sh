@@ -57,5 +57,5 @@ else
 fi
 
 find /opt/cardano/cnode -name "*config*.json" -print0 | xargs -0 sed -i 's/127.0.0.1/0.0.0.0/g' 2> /dev/null 
-find /opt/cardano/cnode -name "cntools.config" -print0  | xargs -0 sed -i 's/ENABLE_CHATTR=true/ENABLE_CHATTR=false/g' 2> /dev/null 
 find /opt/cardano/cnode -name "*config*.json" -print0 | xargs -0 sed -i 's/\"TraceMempool\": true/\"TraceMempool\": false/g' 2> /dev/null 
+find /opt/cardano/cnode -name "cntools.config" -print0 | xargs -0 sed -i 's/ENABLE_CHATTR=true/ENABLE_CHATTR=false/g' 2> /dev/null 
