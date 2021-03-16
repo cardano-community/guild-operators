@@ -40,9 +40,11 @@ docker run -itd
 --security-opt=no-new-privileges              #Option to prevent privilege escalations
 -v <YourNetPath>:/opt/cardano/cnode/sockets   #Optional: useful to share the node socket wit other containers
 -v <YourCfgPath>:/opt/cardano/cnode/priv      #Optional: if used has to contain all the configuration files nedeed to run a node 
--v <YourDBbk>:/opt/cardano/cnode/db           #Optional: if not set a fresh DB will be downloaded from scatch
+-v <YourDBbk>:/opt/cardano/cnode/db           #Optional: if not set a fresh DB will be downloaded from scratch
 cardanocommunity/cardano-node:latest          #Mandatory: image to run
 ```
+
+> Note: to be able to use the cntools encryption key feature you need to manually change in "cntools.config" ENABLE_CHATTR to "true" and not use the "--security-opt=no-new-privileges" docker run option.
 
 ### Docker CLI managment
 
