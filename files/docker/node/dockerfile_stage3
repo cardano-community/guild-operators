@@ -2,20 +2,6 @@ FROM debian:stable-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ENV \
-    ENV=/etc/profile \
-    LC_ALL=en_US.UTF-8 \
-    LANG=en_US.UTF-8 \
-    LANGUAGE=en_US.UTF-8 \
-    CNODE_HOME=/opt/cardano/cnode \
-    PATH=/nix/var/nix/profiles/per-user/guild/profile/bin:/nix/var/nix/profiles/per-user/guild/profile/sbin:/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.cabal/bin \
-    GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
-    NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
-    NIX_PATH=/nix/var/nix/profiles/per-user/guild/channels
-
-USER root
-WORKDIR /
-
 # COPY NODE BINS AND DEPS 
 COPY --from=cardanocommunity/cardano-node:stage2 /root/.cabal/bin/* /usr/local/bin/
 COPY --from=cardanocommunity/cardano-node:stage2 /lib/x86_64-linux-gnu/lib* /lib/x86_64-linux-gnu/
