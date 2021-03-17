@@ -29,6 +29,7 @@ CNODE_PORT=6000                                         # Set node port
 #TG_CHAT_ID=""                                          # https://cardano-community.github.io/guild-operators/#/Scripts/sendalerts
 #USE_EKG="N"                                            # Use EKG metrics from the node instead of Promethus. Promethus metrics(default) should yield slightly better performance
 #TIMEOUT_LEDGER_STATE=300                               # Timeout in seconds for querying and dumping ledger-state
+#IP_VERSION=4                                           # The IP version to use for push and fetch, valid options: 4 | 6 | mix (Default: 4)
 
 #WALLET_FOLDER="${CNODE_HOME}/priv/wallet"              # Root folder for Wallets
 #POOL_FOLDER="${CNODE_HOME}/priv/pool"                  # Root folder for Pools
@@ -258,6 +259,8 @@ fi
 BLOCKLOG_DB="${BLOCKLOG_DIR}/blocklog.db"
 [[ -z ${BLOCKLOG_TZ} ]] && BLOCKLOG_TZ="UTC"
 [[ -z ${CNODE_PORT} ]] && CNODE_PORT=6000
+[[ -z "${IP_VERSION}" ]] && IP_VERSION=4
+IP_VERSION=$(tr '[:upper:]' '[:lower:]' <<< "${IP_VERSION}")
 
 CNODE_PID=$(pgrep -fn "[c]ardano-node.*.--port ${CNODE_PORT}")
 

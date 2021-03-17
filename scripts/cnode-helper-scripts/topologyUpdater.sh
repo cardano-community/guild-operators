@@ -12,7 +12,6 @@ PARENT="$(dirname $0)"
 CNODE_HOSTNAME="CHANGE ME"  # (Optional) Must resolve to the IP you are requesting from
 CNODE_VALENCY=1             # (Optional) for multi-IP hostnames
 MAX_PEERS=15                # Maximum number of peers to return on successful fetch (note that a single peer may include valency of up to 3)
-IP_VERSION=4                # The IP version to use for push and fetch, valid options: 4 | 6 | mix (Default: 4)
 #CUSTOM_PEERS="None"        # *Additional* custom peers to (IP,port[,valency]) to add to your target topology.json
                             # eg: "10.0.0.1,3001|10.0.0.2,3002|relays.mydomain.com,3003,3"
 #BATCH_AUTO_UPDATE=N        # Set to Y to automatically update the script if a new version is available without user interaction
@@ -26,12 +25,11 @@ PARENT="$(dirname $0)"
 
 usage() {
   cat <<-EOF
-		Usage: $(basename "$0") [-b <branch name>] [-i <ip version>] [-f] [-p]
+		Usage: $(basename "$0") [-b <branch name>] [-f] [-p]
 		Topology Updater - Build topology with community pools
 
 		-f    Disable fetch of a fresh topology file
 		-p    Disable node alive push to Topology Updater API
-		-i    IP version to use [4|6|mix] (Default: 4)
 		-b    Use alternate branch to check for updates - only for testing/development (Default: master)
 		
 		EOF
@@ -41,14 +39,10 @@ usage() {
 TU_FETCH='Y'
 TU_PUSH='Y'
 
-while getopts :fpi:b: opt; do
+while getopts :fpb: opt; do
   case ${opt} in
     f ) TU_FETCH='N' ;;
     p ) TU_PUSH='N' ;;
-    i ) case ${OPTARG} in
-          4|6|mix) IP_VERSION=${OPTARG} ;;
-          *) usage ;;
-        esac ;;
     b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
   esac
@@ -56,8 +50,6 @@ done
 shift $((OPTIND -1))
 
 [[ -z "${BATCH_AUTO_UPDATE}" ]] && BATCH_AUTO_UPDATE=N
-[[ -z "${IP_VERSION}" ]] && IP_VERSION=4
-IP_VERSION=$(tr '[:upper:]' '[:lower:]' <<< "${IP_VERSION}")
 
 # Check if update is available
 URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
