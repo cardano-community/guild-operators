@@ -45,7 +45,7 @@ if [[ -f "${POOL_DIR}/${POOL_OPCERT_FILENAME}" && -f "${POOL_DIR}/${POOL_VRF_SK_
     --shelley-vrf-key "${POOL_DIR}/${POOL_VRF_SK_FILENAME}" \
     --shelley-operational-certificate "${POOL_DIR}/${POOL_OPCERT_FILENAME}" \
     --port ${CNODE_PORT} \
-    ${host_addr[@]}
+    "${host_addr[@]}"
 else
   cardano-node +RTS -N${CPU_CORES} -RTS run \
     --topology "${TOPOLOGY}" \
@@ -53,5 +53,5 @@ else
     --database-path "${DB_DIR}" \
     --socket-path "${CARDANO_NODE_SOCKET_PATH}" \
     --port ${CNODE_PORT} \
-    ${host_addr[@]}
+    "${host_addr[@]}"
 fi
