@@ -143,6 +143,7 @@ fi
 if [[ ${TU_PUSH} = "Y" ]]; then
   if [[ ${IP_VERSION} = "4" || ${IP_VERSION} = "mix" ]]; then
     curl -s -f -4 "https://api.clio.one/htopology/v1/?port=${CNODE_PORT}&blockNo=${blockNo}&valency=${CNODE_VALENCY}&magic=${NWMAGIC}${T_HOSTNAME}" | tee -a "${LOG_DIR}"/topologyUpdater_lastresult.json
+  fi
   if [[ ${IP_VERSION} = "6" || ${IP_VERSION} = "mix" ]]; then
     curl -s -f -6 "https://api.clio.one/htopology/v1/?port=${CNODE_PORT}&blockNo=${blockNo}&valency=${CNODE_VALENCY}&magic=${NWMAGIC}${T_HOSTNAME}" | tee -a "${LOG_DIR}"/topologyUpdater_lastresult.json
   fi
