@@ -7,13 +7,14 @@
 # Common variables set in env file   #
 ######################################
 
-NODE_NAME="Cardano Node"                   # Change your node's name prefix here, keep at or below 19 characters!
-REFRESH_RATE=2                             # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
-LEGACY_MODE=false                          # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
-RETRIES=3                                  # How many attempts to connect to running Cardano node before erroring out and quitting
-THEME="dark"                               # dark  = suited for terminals with a dark background
-                                           # light = suited for terminals with a bright background
-NO_INTERNET_MODE="N"                       # To skip checking for auto updates or make outgoing connections to guild-operators github repository
+NODE_NAME="Cardano Node"                  # Change your node's name prefix here, keep at or below 19 characters!
+REFRESH_RATE=2                            # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
+LEGACY_MODE=false                         # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
+RETRIES=3                                 # How many attempts to connect to running Cardano node before erroring out and quitting
+THEME="dark"                              # dark  = suited for terminals with a dark background
+                                          # light = suited for terminals with a bright background
+NO_INTERNET_MODE="N"                      # To skip checking for auto updates or make outgoing connections to guild-operators github repository
+ENABLE_IP_GEOLOCATION="Y"                 # Enable IP geolocation on outgoing and incoming connections using ip-api.com
 
 #####################################
 # Themes                            #
@@ -23,9 +24,10 @@ setTheme() {
   if [[ ${THEME} = "dark" ]]; then
     style_title=${FG_MAGENTA}${BOLD}      # style of title
     style_base=${FG_WHITE}                # default color for text and lines
-    style_values_1=${FG_LBLUE}             # color of most live values
+    style_values_1=${FG_LBLUE}            # color of most live values
     style_values_2=${FG_GREEN}            # color of node name
     style_values_3=${STANDOUT}            # color of selected outgoing/incoming paging
+    style_values_4=${FG_LGRAY}               # color of informational text
     style_info=${FG_YELLOW}               # info messages
     style_status_1=${FG_GREEN}            # :)
     style_status_2=${FG_YELLOW}           # :|
@@ -37,6 +39,7 @@ setTheme() {
     style_values_1=${FG_BLUE}             # color of most live values
     style_values_2=${FG_GREEN}            # color of node name
     style_values_3=${STANDOUT}            # color of selected outgoing/incoming paging
+    style_values_4=${FG_LGRAY}               # color of informational text
     style_info=${FG_YELLOW}               # info messages
     style_status_1=${FG_GREEN}            # :)
     style_status_2=${FG_YELLOW}           # :|
@@ -51,7 +54,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.19.4
+GLV_VERSION=v1.20.0
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -178,6 +181,10 @@ fi
 
 [[ ! ${REFRESH_RATE} =~ ^[0-9]+$ ]] && myExit 1 "Please set a valid refresh rate number!"
 
+[[ -z ${ENABLE_IP_GEOLOCATION} ]] && ENABLE_IP_GEOLOCATION=Y
+declare -gA geoIP=()
+[[ -f "$0.geodb" ]] && . -- "$0.geodb"
+
 # Style
 width=63
 second_col=$((width/2 + 3))
@@ -292,6 +299,20 @@ setSizeAndStyleOfProgressBar() {
   fi
 }
 
+# Command    : alignLeft <nbr chars> <string>
+# Description: printf align helpers useful to handle umlauts correctly
+alignLeft () {
+  (($#==2)) || return 2
+  ((${#2}>$1)) && return 1
+  printf '%s%*s' "$2" $(($1-${#2})) ''
+}
+# Command    : alignRight <nbr chars> <string>
+alignRight () {
+  (($#==2)) || return 2
+  ((${#2}>$1)) && return 1
+  printf '%*s%s' $(($1-${#2})) '' "$2"
+}
+
 # Command    : kesExpiration [pools remaining KES periods]
 # Description: Calculate KES expiration
 kesExpiration() {
@@ -311,6 +332,7 @@ checkPeers() {
   peerPCT1items=0; peerPCT2items=0; peerPCT3items=0; peerPCT4items=0
   peerRTTSUM=0; peerRTTAVG=0
   rttResults=(); rttResultsSorted=""
+  geoIPquery="[]"; geoIPqueryCNT=0
   direction=$1
 
   if [[ ${direction} = "out" ]]; then
@@ -329,17 +351,25 @@ checkPeers() {
   fi
   [[ -z ${peers} ]] && return
   
-  netstatSorted=$(printf '%s\n' "${peers[@]}" | sort)
+  peersSorted=$(printf '%s\n' "${peers[@]}" | sort)
   peerCNT=$(wc -w <<< "${peers}")
   
   # Ping every node in the list
   lastpeerIP=""
-  for peer in ${netstatSorted}; do
+  for peer in ${peersSorted}; do
     peerIP=$(echo "${peer}" | cut -d: -f1)
     peerPORT=$(echo "${peer}" | cut -d: -f2)
     [[ -z ${peerIP} || -z ${peerPORT} ]] && continue
     
-    if [[ ${direction} = "out" ]]; then
+    if [[ ${ENABLE_IP_GEOLOCATION} = "Y" && "${peerIP}" != "${lastpeerIP}" ]] && ! isPrivateIP "${peerIP}"; then
+      if [[ ! -v "geoIP[${peerIP}]" && $((++geoIPqueryCNT)) -le 100 ]]; then # not previously checked and less than 100 queries
+        geoIPquery=$(jq --arg addr "${peerIP}" '. += [{"query": $addr, "fields": "city,countryCode,query"}]' <<< ${geoIPquery})
+      fi
+    fi
+    
+    if [[ "${peerIP}" = "${lastpeerIP}" ]]; then
+      [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT)) # skip RTT check and reuse old ${peerRTT} number if reachable
+    elif [[ ${direction} = "out" ]]; then
       if [[ -n ${CNCLI} && -f ${CNCLI} && ${DISABLE_CNCLI} != "true" ]]; then
         checkPEER=$(${CNCLI} ping --host "${peerIP}" --port "${peerPORT}" --network-magic "${NWMAGIC}")
         if [[ $(jq -r .status <<< "${checkPEER}") = "ok" ]]; then
@@ -362,8 +392,6 @@ checkPeers() {
         peerRTT=99999
       fi
       [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT))
-    elif [[ "${peerIP}" = "${lastpeerIP}" ]]; then
-      [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT)) # skip RTT check and reuse old ${peerRTT} number if reachable
     elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Incoming connection, ping OK, show RTT.
       peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
       peerRTTSUM=$((peerRTTSUM + peerRTT))
@@ -378,7 +406,7 @@ checkPeers() {
     elif [[ ${peerRTT} -lt 200   ]]; then ((peerCNT3++))
     elif [[ ${peerRTT} -lt 99999 ]]; then ((peerCNT4++))
     else ((peerCNT0++)); fi
-    rttResults+=("${peerRTT}:${peerIP}:${peerPORT} ")
+    rttResults+=( "${peerRTT}:${peerIP}:${peerPORT}" )
   done
   
   [[ ${#rttResults[@]} ]] && rttResultsSorted=$(printf '%s\n' "${rttResults[@]}" | sort -n)
@@ -394,6 +422,19 @@ checkPeers() {
     peerPCT3items=$(printf %.0f "$(echo "scale=4;${peerPCT3}*${granularity_small}/100" | bc -l)")
     peerPCT4=$(echo "scale=4;(${peerCNT4}/${peerCNTreachable})*100" | bc -l)
     peerPCT4items=$(printf %.0f "$(echo "scale=4;${peerPCT4}*${granularity_small}/100" | bc -l)")
+  fi
+  
+  if [[ ${geoIPquery} != "[]" ]]; then
+    geoIPdata="$(curl -s -f http://ip-api.com/batch --data "${geoIPquery}")"
+    if [[ -n "${geoIPdata}" ]] || jq -e . <<< "${geoIPdata}" &>/dev/null; then # successfully grabbed
+      for entry in $(jq -r '.[] | @base64' <<< "${geoIPdata}"); do
+        _jq() { base64 -d <<< ${entry} | jq -r "${1}"; }
+        local query_ip=$(_jq '.query //empty')
+        local city=$(_jq '.city // "?"')
+        local countryCode=$(_jq '.countryCode // "?"')
+        geoIP[${query_ip}]="${city}, ${countryCode}"
+      done
+    fi
   fi
 }
 
@@ -558,6 +599,8 @@ while true; do
     peerRTTAVG_in=${peerRTTAVG}; rttResultsSorted_in=${rttResultsSorted}
     peerNbr_start_in=1
     printf -v peer_analysis_date '%(%Y-%m-%d %H:%M:%S)T\n' -1
+    
+    [[ ${#geoIP[@]} -gt 0 ]] && declare -p geoIP > "$0.geodb"
   elif [[ ${show_peers} = "true" && ${show_peers_info} = "true" ]]; then
     printf "${VL}${STANDOUT} INFO ${NC} One-shot peer analysis last run at ${style_values_1}%s${NC}" "${peer_analysis_date}" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     echo "${blank_line}" && ((line++))
@@ -628,21 +671,33 @@ while true; do
     if [[ -n ${rttResultsSorted_out} ]]; then
       echo "${m3divider}" && ((line++))
       
-      printf "${VL}${style_info}   # : %20s   : RTT (ms)${NC}\n" "REMOTE PEER"
+      printf "${VL}${style_info}   #  %21s  RTT    Geolocation${NC}\n" "REMOTE PEER"
       header_line=$((line++))
       
       peerNbr_out=0
+      peerLocationWidth=$((width-38))
       for peer in ${rttResultsSorted_out}; do
         ((peerNbr_out++))
         [[ ${peerNbr_out} -lt ${peerNbr_start_out} ]] && continue
         peerRTT=$(echo ${peer} | cut -d: -f1)
         peerIP=$(echo ${peer} | cut -d: -f2)
         peerPORT=$(echo ${peer} | cut -d: -f3)
-          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_1}%-5s${NC} %$((width-39))s${VL}\n" ${peerNbr_out} ${peerIP} ${peerPORT} ${peerRTT}
-        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_2}%-5s${NC} %$((width-39))s${VL}\n" ${peerNbr_out} ${peerIP} ${peerPORT} ${peerRTT}
-        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_3}%-5s${NC} %$((width-39))s${VL}\n" ${peerNbr_out} ${peerIP} ${peerPORT} ${peerRTT}
-        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_4}%-5s${NC} %$((width-39))s${VL}\n" ${peerNbr_out} ${peerIP} ${peerPORT} ${peerRTT}
-        else printf "${VL} %3s : %15s:%-6s : --- %$((width-37))s${VL}\n" ${peerNbr_out} ${peerIP} ${peerPORT}; fi
+        IFS=',' read -ra peerLocation <<< "${geoIP[${peerIP}]}"
+        if isPrivateIP ${peerIP}; then
+          peerLocationFmt="(Private IP)"
+        elif [[ ${#peerLocation[@]} -eq 2 ]]; then
+          peerLocationCity="${peerLocation[0]}"
+          peerLocationCC="${peerLocation[1]}"
+          [[ ${#peerLocationCity} -gt $((peerLocationWidth-4)) ]] && peerLocationCity="${peerLocationCity:0:$((peerLocationWidth-6))}.."
+          peerLocationFmt="${peerLocationCity},${peerLocationCC}"
+        else
+          peerLocationFmt="Unknown location"
+        fi
+          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_1}%-5s${NC}  ${style_values_4}%s${NC} ${VL}\n" "${peerNbr_out}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_2}%-5s${NC}  ${style_values_4}%s${NC} ${VL}\n" "${peerNbr_out}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_3}%-5s${NC}  ${style_values_4}%s${NC} ${VL}\n" "${peerNbr_out}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_4}%-5s${NC}  ${style_values_4}%s${NC} ${VL}\n" "${peerNbr_out}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        else printf "${VL} %3s  %15s:%-5s  %-5s  ${style_values_4}%s${NC} ${VL}\n" "${peerNbr_out}" "${peerIP}" "${peerPORT}" "---" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"; fi
         ((line++))
         [[ ${peerNbr_out} -eq $((peerNbr_start_out+7)) ]] && break
       done
@@ -705,21 +760,33 @@ while true; do
     if [[ -n ${rttResultsSorted_in} ]]; then
       echo "${m3divider}" && ((line++))
       
-      printf "${VL}${style_info}   # : %20s   : RTT (ms)${NC}\n" "REMOTE PEER"
+      printf "${VL}${style_info}   #  %21s  RTT    Geolocation${NC}\n" "REMOTE PEER"
       header_line=$((line++))
       
       peerNbr_in=0
+      peerLocationWidth=$((width-38))
       for peer in ${rttResultsSorted_in}; do
         ((peerNbr_in++))
         [[ ${peerNbr_in} -lt ${peerNbr_start_in} ]] && continue
         peerRTT=$(echo ${peer} | cut -d: -f1)
         peerIP=$(echo ${peer} | cut -d: -f2)
         peerPORT=$(echo ${peer} | cut -d: -f3)
-          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_1}%-5s${NC} %$((width-39))s${VL}\n" ${peerNbr_in} ${peerIP} ${peerPORT} ${peerRTT}
-        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_2}%-5s${NC} %$((width-39))s${VL}\n" ${peerNbr_in} ${peerIP} ${peerPORT} ${peerRTT}
-        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_3}%-5s${NC} %$((width-39))s${VL}\n" ${peerNbr_in} ${peerIP} ${peerPORT} ${peerRTT}
-        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s : %15s:%-6s : ${style_status_4}%-5s${NC} %$((width-39))s${VL}\n" ${peerNbr_in} ${peerIP} ${peerPORT} ${peerRTT}
-        else printf "${VL} %3s : %15s:%-6s : --- %$((width-37))s${VL}\n" ${peerNbr_in} ${peerIP} ${peerPORT}; fi
+        IFS=',' read -ra peerLocation <<< "${geoIP[${peerIP}]}"
+        if isPrivateIP ${peerIP}; then
+          peerLocationFmt="(Private IP)"
+        elif [[ ${#peerLocation[@]} -eq 2 ]]; then
+          peerLocationCity="${peerLocation[0]}"
+          peerLocationCC="${peerLocation[1]}"
+          [[ ${#peerLocationCity} -gt $((peerLocationWidth-4)) ]] && peerLocationCity="${peerLocationCity:0:$((peerLocationWidth-6))}.."
+          peerLocationFmt="${peerLocationCity},${peerLocationCC}"
+        else
+          peerLocationFmt="Unknown location"
+        fi
+          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_1}%-5s${NC}  ${style_values_4}%s${NC} ${VL}\n" "${peerNbr_in}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_2}%-5s${NC}  ${style_values_4}%s${NC} ${VL}\n" "${peerNbr_in}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_3}%-5s${NC}  ${style_values_4}%s${NC} ${VL}\n" "${peerNbr_in}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_4}%-5s${NC}  ${style_values_4}%s${NC} ${VL}\n" "${peerNbr_in}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        else printf "${VL} %3s  %15s:%-5s  %-5s  ${style_values_4}%s${NC} ${VL}\n" "${peerNbr_in}" "${peerIP}" "${peerPORT}" "---" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"; fi
         ((line++))
         [[ ${peerNbr_in} -eq $((peerNbr_start_in+7)) ]] && break
       done

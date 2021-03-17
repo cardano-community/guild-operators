@@ -417,6 +417,16 @@ isValidIPv6() {
   return 1
 }
 
+# Description : Helper function to validate if IP address is in a private range
+#             : $1 = IP
+isPrivateIP() {
+  local ip=$1
+  [[ -z ${ip} ]] && return 1
+  private_ip_regex="^(127\.|0?10\.|172\.0?1[6-9]\.|172\.0?2[0-9]\.|172\.0?3[0-2]\.|192\.168\.|169\.254\.|::1|[fF][cCdD][0-9a-fA-F]{2}:|[fF][eE][89aAbB][0-9a-fA-F]:)"
+  [[ ${ip} =~ ${private_ip_regex} ]] && return 0
+  return 1
+}
+
 # Description : Query cardano-node for current metrics
 [[ -z ${USE_EKG} ]] && USE_EKG='N'
 getNodeMetrics() {
