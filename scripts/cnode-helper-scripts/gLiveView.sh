@@ -429,9 +429,9 @@ checkPeers() {
     if [[ -n "${geoIPdata}" ]] || jq -e . <<< "${geoIPdata}" &>/dev/null; then # successfully grabbed
       for entry in $(jq -r '.[] | @base64' <<< "${geoIPdata}"); do
         _jq() { base64 -d <<< ${entry} | jq -r "${1}"; }
-        local query_ip=$(_jq '.query //empty')
-        local city=$(_jq '.city // "?"')
-        local countryCode=$(_jq '.countryCode // "?"')
+        query_ip=$(_jq '.query //empty')
+        city=$(_jq '.city // "?"')
+        countryCode=$(_jq '.countryCode // "?"')
         geoIP[${query_ip}]="${city}, ${countryCode}"
       done
     fi
