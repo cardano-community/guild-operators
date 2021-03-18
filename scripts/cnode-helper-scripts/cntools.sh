@@ -1350,26 +1350,24 @@ function main {
               fi
             fi
             echo
-            println "DEBUG" "Do you want to delegate to a local pool or specify the pools cold vkey cbor-hex?"
-            select_opt "[p] Pool" "[v] Vkey" "[Esc] Cancel"
+            println "DEBUG" "Do you want to delegate to a local CNTools pool or specify the pool ID?"
+            select_opt "[p] CNTools Pool" "[i] Pool ID" "[Esc] Cancel"
             case $? in
               0) if ! selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}"; then # ${pool_name} populated by selectPool function
                    waitForInput && continue
                  fi
-                 pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
+                 getPoolID "${pool_name}"
                  ;;
-              1) sleep 0.1 && read -r -p "vkey cbor-hex(blank to cancel): " vkey_cbor 2>&6 && println "LOG" "vkey cbor-hex(blank to cancel): ${vkey_cbor}"
-                 [[ -z "${vkey_cbor}" ]] && continue
-                 pool_name="${vkey_cbor}"
-                 pool_coldkey_vk_file="${TMP_DIR}"/pool_delegation.vkey
-                 printf "{\"type\":\"StakePoolVerificationKey_ed25519\",\"description\":\"Stake Pool Operator Verification Key\",\"cborHex\":\"%s\"}" ${vkey_cbor} > "${pool_coldkey_vk_file}"
+              1) sleep 0.1 && read -r -p "Pool ID (blank to cancel): " pool_id 2>&6 && println "LOG" "Pool ID (blank to cancel): ${pool_id}"
+                 [[ -z "${pool_id}" ]] && continue
+                 pool_name="${pool_id}"
                  ;;
               2) continue ;;
             esac
             stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
             pool_delegcert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DELEGCERT_FILENAME}"
-            println "ACTION" "${CCLI} stake-address delegation-certificate --stake-verification-key-file ${stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${pool_delegcert_file}"
-            ${CCLI} stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_delegcert_file}"
+            println "ACTION" "${CCLI} stake-address delegation-certificate --stake-verification-key-file ${stake_vk_file} --stake-pool-id ${pool_id} --out-file ${pool_delegcert_file}"
+            ${CCLI} stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --stake-pool-id "${pool_id}" --out-file "${pool_delegcert_file}"
             if ! delegate; then
               if [[ ${op_mode} = "online" ]]; then
                 echo && println "ERROR" "${FG_RED}ERROR${NC}: failure during delegation, removing newly created delegation certificate file"
