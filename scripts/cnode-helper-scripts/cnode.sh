@@ -25,7 +25,7 @@ if [[ -S "${CARDANO_NODE_SOCKET_PATH}" ]]; then
   fi
 fi
 
-[[ -z ${CPU_CORES} ]] && CPU_CORES=2
+[[ -n ${CPU_CORES} ]] && CPU_RUNTIME=( "+RTS" "-N${CPU_CORES}" "-RTS" ) || CPU_RUNTIME=()
 
 [[ ! -d "${LOG_DIR}/archive" ]] && mkdir -p "${LOG_DIR}/archive"
 
@@ -36,7 +36,7 @@ host_addr=()
 [[ ${IP_VERSION} = "6" || ${IP_VERSION} = "mix" ]] && host_addr+=("--host-ipv6-addr" "::/0")
 
 if [[ -f "${POOL_DIR}/${POOL_OPCERT_FILENAME}" && -f "${POOL_DIR}/${POOL_VRF_SK_FILENAME}" && -f "${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}" ]]; then
-  cardano-node +RTS -N${CPU_CORES} -RTS run \
+  cardano-node "${CPU_RUNTIME[@]}" run \
     --topology "${TOPOLOGY}" \
     --config "${CONFIG}" \
     --database-path "${DB_DIR}" \
