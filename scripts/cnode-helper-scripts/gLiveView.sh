@@ -354,12 +354,17 @@ checkPeers() {
   peersSorted=$(printf '%s\n' "${peers[@]}" | sort)
   peerCNT=$(wc -w <<< "${peers}")
   
+  print_start=$(( width - (${#peerCNT}*2) - 2 ))
+  tput cup ${line} ${print_start}
+  printf "${style_values_1}%${#peerCNT}s${NC}/${style_values_2}%s${NC}" "0" "${peerCNT}"
+  
   # Ping every node in the list
+  index=0
   lastpeerIP=""
   for peer in ${peersSorted}; do
     peerIP=$(echo "${peer}" | cut -d: -f1)
     peerPORT=$(echo "${peer}" | cut -d: -f2)
-    [[ -z ${peerIP} || -z ${peerPORT} ]] && continue
+    [[ -z ${peerIP} || -z ${peerPORT} ]] && tput cup ${line} ${print_start} && printf "${style_values_1}%${#peerCNT}s${NC}" "$((++index))" && continue
     
     if [[ ${ENABLE_IP_GEOLOCATION} = "Y" && "${peerIP}" != "${lastpeerIP}" ]] && ! isPrivateIP "${peerIP}"; then
       if [[ ! -v "geoIP[${peerIP}]" && $((++geoIPqueryCNT)) -le 100 ]]; then # not previously checked and less than 100 queries
@@ -407,7 +412,12 @@ checkPeers() {
     elif [[ ${peerRTT} -lt 99999 ]]; then ((peerCNT4++))
     else ((peerCNT0++)); fi
     rttResults+=( "${peerRTT}:${peerIP}:${peerPORT}" )
+    
+    tput cup ${line} ${print_start}
+    printf "${style_values_1}%${#peerCNT}s${NC}" "$((++index))"
   done
+  tput cup ${line} ${print_start}
+  printf "${style_values_2}%${#peerCNT}s${NC}" "${index}"
   
   [[ ${#rttResults[@]} ]] && rttResultsSorted=$(printf '%s\n' "${rttResults[@]}" | sort -n)
   
@@ -574,7 +584,7 @@ while true; do
   
   if [[ ${check_peers} = "true" ]]; then
     tput ed
-    printf "${VL} ${style_info}%-$((width-3))s${NC} ${VL}\n" "Output peer analysis started... please wait!"
+    printf "${VL} ${style_info}%-$((width-3))s${NC} ${VL}\n" "Outgoing peer analysis started... please wait!"
     echo "${bdivider}"
     checkPeers out
     # Save values
@@ -584,13 +594,12 @@ while true; do
     peerRTTAVG_out=${peerRTTAVG}; rttResultsSorted_out=${rttResultsSorted}
     peerNbr_start_out=1
     tput cup ${line} 0
-    tput ed
-    printf "${VL} ${style_info}%-$((width-3))s${NC} ${VL}\n" "Output peer analysis done!" && ((line++))
+    printf "${VL} ${style_info}%-46s${NC}" "Outgoing peer analysis done!" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
       
     echo "${m2divider}" && ((line++))
 
-    printf "${VL} ${style_info}%-$((width-3))s${NC} ${VL}\n" "Input peer analysis started... please wait!" && ((line++))
-    echo "${bdivider}" && ((line++))
+    printf "${VL} ${style_info}%-$((width-3))s${NC} ${VL}\n" "Incoming peer analysis started... please wait!"
+    echo "${bdivider}"
     checkPeers in
     # Save values
     peerCNT_in=${peerCNT}; peerCNT0_in=${peerCNT0}; peerCNT1_in=${peerCNT1}; peerCNT2_in=${peerCNT2}; peerCNT3_in=${peerCNT3}; peerCNT4_in=${peerCNT4}
@@ -598,8 +607,11 @@ while true; do
     peerPCT1items_in=${peerPCT1items}; peerPCT2items_in=${peerPCT2items}; peerPCT3items_in=${peerPCT3items}; peerPCT4items_in=${peerPCT4items}
     peerRTTAVG_in=${peerRTTAVG}; rttResultsSorted_in=${rttResultsSorted}
     peerNbr_start_in=1
-    printf -v peer_analysis_date '%(%Y-%m-%d %H:%M:%S)T\n' -1
+    tput cup ${line} 0
+    printf "${VL} ${style_info}%-46s${NC}" "Incoming peer analysis done!" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     
+    printf -v peer_analysis_date '%(%Y-%m-%d %H:%M:%S)T\n' -1
+    sleep 1
     [[ ${#geoIP[@]} -gt 0 ]] && declare -p geoIP > "$0.geodb"
   elif [[ ${show_peers} = "true" && ${show_peers_info} = "true" ]]; then
     printf "${VL}${STANDOUT} INFO ${NC} One-shot peer analysis last run at ${style_values_1}%s${NC}" "${peer_analysis_date}" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
