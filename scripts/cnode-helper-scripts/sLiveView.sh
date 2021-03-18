@@ -49,7 +49,7 @@ do
   epochnum=$(jq '.cardano.node.metrics.epoch.int.val //0' <<< "${data}")
   slotnum=$(jq '.cardano.node.metrics.slotInEpoch.int.val //0' <<< "${data}")
   density=$(jq -r '.cardano.node.metrics.density.real.val //0' <<< "${data}")
-  uptimens=$(jq '.rts.gc.wall_ms.val //0' <<< "${data}")
+  uptimens=$(( $(date +%s) - $(jq '.cardano.node.metrics.nodeStartTime.int.val //0' <<< "${data}") ))
   transactions=$(jq '.cardano.node.metrics.txsProcessedNum.int.val //0' <<< "${data}")
   kesperiod=$(jq '.cardano.node.metrics.currentKESPeriod.int.val //0' <<< "${data}")
   kesremain=$(jq '.cardano.node.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
