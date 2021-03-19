@@ -1702,6 +1702,8 @@ function main {
                        relay_output+="--single-host-pool-relay ${address} --pool-relay-port ${port} "
                      elif [[ ${type} = "IPv4" ]]; then
                        relay_output+="--pool-relay-port ${port} --pool-relay-ipv4 ${address} "
+                     elif [[ ${type} = "IPv6" ]]; then
+                       relay_output+="--pool-relay-port ${port} --pool-relay-ipv6 ${address} "
                      fi
                    done< <(jq -r '.relays[] | "\(.type) \(.address) \(.port)"' "${pool_config}")
                    ;;
@@ -1711,7 +1713,7 @@ function main {
             fi
             if [[ -z ${relay_output} ]]; then
               while true; do
-                select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[Esc] Cancel"
+                select_opt "[d] A or AAAA DNS record" "[i] IPv4/v6 address" "[Esc] Cancel"
                 case $? in
                   0) sleep 0.1 && read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter 2>&6 && println "LOG" "Enter relays's DNS record, only A or AAAA DNS records: ${relay_dns_enter}"
                      if [[ -z "${relay_dns_enter}" ]]; then
@@ -1730,18 +1732,21 @@ function main {
                        fi
                      fi
                      ;;
-                  1) sleep 0.1 && read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter 2>&6 && println "LOG" "Enter relays's IPv4 address: ${relay_ipv4_enter}"
-                     if [[ -n "${relay_ipv4_enter}" ]]; then
-                       if ! isValidIPv4 "${relay_ipv4_enter}"; then
-                         println "ERROR" "${FG_RED}ERROR${NC}: invalid IPv4 address format!"
+                  1) sleep 0.1 && read -r -p "Enter relays's IPv4/v6 address: " relay_ip_enter 2>&6 && println "LOG" "Enter relays's IPv4/v6 address: ${relay_ip_enter}"
+                     if [[ -n "${relay_ip_enter}" ]]; then
+                       if ! isValidIPv4 "${relay_ip_enter}" || ! isValidIPv6 "${relay_ip_enter}"; then
+                         println "ERROR" "${FG_RED}ERROR${NC}: invalid IPv4/v6 address format!"
                        else
                          sleep 0.1 && read -r -p "Enter relays's port: " relay_port_enter 2>&6 && println "LOG" "Enter relays's port: ${relay_port_enter}"
                          if [[ -n "${relay_port_enter}" ]]; then
                            if ! isNumber ${relay_port_enter} || [[ ${relay_port_enter} -lt 1 || ${relay_port_enter} -gt 65535 ]]; then
                              println "ERROR" "${FG_RED}ERROR${NC}: invalid port number!"
+                           elif isValidIPv4 "${relay_ip_enter}"; then
+                             relay_array+=( "type" "IPv4" "address" "${relay_ip_enter}" "port" "${relay_port_enter}" )
+                             relay_output+="--pool-relay-port ${relay_port_enter} --pool-relay-ipv4 ${relay_ip_enter} "
                            else
-                             relay_array+=( "type" "IPv4" "address" "${relay_ipv4_enter}" "port" "${relay_port_enter}" )
-                             relay_output+="--pool-relay-port ${relay_port_enter} --pool-relay-ipv4 ${relay_ipv4_enter} "
+                             relay_array+=( "type" "IPv6" "address" "${relay_ip_enter}" "port" "${relay_port_enter}" )
+                             relay_output+="--pool-relay-port ${relay_port_enter} --pool-relay-ipv6 ${relay_ip_enter} "
                            fi
                          else
                            println "ERROR" "${FG_RED}ERROR${NC}: Port can not be empty!"
@@ -2392,8 +2397,8 @@ function main {
                   println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Reward Wallet" "${conf_reward}")"
                   relay_title="Relay(s)"
                   while read -r type address port; do
-                    if [[ ${type} != "DNS_A" && ${type} != "IPv4" ]]; then
-                      println "$(printf "%-21s : ${FG_YELLOW}%s${NC}" "${relay_title}" "unknown type (only IPv4/DNS supported in CNTools)")"
+                    if [[ ${type} != "DNS_A" && ${type} != "IPv4" && ${type} != "IPv6" ]]; then
+                      println "$(printf "%-21s : ${FG_YELLOW}%s${NC}" "${relay_title}" "unknown type (only IPv4/v6/DNS supported in CNTools)")"
                     else
                       println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${address}" "${port}")"
                     fi
@@ -2430,15 +2435,23 @@ function main {
                 if [[ -n "${ledger_relays}" ]]; then
                   while read -r relay; do
                     relay_ipv4="$(jq -r '."single host address".IPv4 //empty' <<< ${relay})"
-                    relay_dns="$(jq -r '."single host name".dnsName //empty' <<< ${relay})"
                     if [[ -n ${relay_ipv4} ]]; then
                       relay_port="$(jq -r '."single host address".port //empty' <<< ${relay})"
                       println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${relay_ipv4}" "${relay_port}")"
-                    elif [[ -n ${relay_dns} ]]; then
-                      relay_port="$(jq -r '."single host name".port //empty' <<< ${relay})"
-                      println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${relay_dns}" "${relay_port}")"
                     else
-                      println "$(printf "%-21s : ${FG_YELLOW}%s${NC}" "${relay_title}" "unknown type (only IPv4/DNS supported in CNTools)")"
+                      relay_dns="$(jq -r '."single host name".dnsName //empty' <<< ${relay})"
+                      if [[ -n ${relay_dns} ]]; then
+                        relay_port="$(jq -r '."single host name".port //empty' <<< ${relay})"
+                        println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${relay_dns}" "${relay_port}")"
+                      else
+                        relay_ipv6="$(jq -r '."single host address".IPv6 //empty' <<< ${relay})"
+                        if [[ -n ${relay_ipv6} ]]; then
+                          relay_port="$(jq -r '."single host address".port //empty' <<< ${relay})"
+                          println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${relay_ipv6}" "${relay_port}")"
+                        else
+                          println "$(printf "%-21s : ${FG_YELLOW}%s${NC}" "${relay_title}" "unknown type (only IPv4/v6/DNS supported in CNTools)")"
+                        fi
+                      fi
                     fi
                     relay_title=""
                   done <<< "${ledger_relays}"

@@ -5,6 +5,15 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.1.0] - 2021-03-22
+
+##### Added
+- IPv6 support in pool registration/modification
+
+##### Changed
+- Wallet delegation now lets you specify Pool ID in addition to local CNTools pool instead of previous cold.vkey cbor string
+- A couple of functions regarding number validation moved to common env file
+
 ## [8.0.2] - 2021-03-15
 
 ##### Fixed
