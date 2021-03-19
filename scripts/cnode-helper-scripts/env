@@ -389,7 +389,7 @@ waitToProceed() {
 #             : $1 = number
 isNumber() {
   [[ -z $1 ]] && return 1
-  [[ $1 = ^[0-9]+$ ]] && return 0 || return 1
+  [[ $1 =~ ^[0-9]+$ ]] && return 0 || return 1
 }
 
 # Description : Helper function to validate IPv4 address
