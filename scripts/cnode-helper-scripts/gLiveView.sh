@@ -482,7 +482,7 @@ while true; do
   if [[ -z "${PROT_PARAMS}" ]]; then
     getEraIdentifier
     PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
-    if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
+    if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralization <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
   fi
   
   if [[ ${show_peers} = "false" ]]; then
@@ -508,7 +508,7 @@ while true; do
       curr_epoch=${epochnum}
       getEraIdentifier
       PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
-      if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
+      if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralization <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
     fi
   fi
 

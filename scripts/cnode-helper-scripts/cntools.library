@@ -1066,10 +1066,10 @@ getAssetsTxOut() {
 
 # Command     : getMinUTxObalance
 # Description : calculate minimum balance needed in source wallet UTxOs for transaction to be valid
-#               getBalance assumed to be run before and protocol params file available at "${TMP_DIR}"/protparams.json
+#               getBalance assumed to be run before
 # Return      : populates ${min_utxo_balance}
 getMinUTxObalance() {
-  [[ -z ${minUTxOValue} ]] && minUTxOValue=$(jq -r '.minUTxOValue //1000000' "${TMP_DIR}"/protparams.json)
+  [[ -z ${minUTxOValue} ]] && minUTxOValue=$(jq -r '.minUTxOValue //1000000' <<< "${PROT_PARAMS}")
   min_utxo_balance=$(( minUTxOValue + ($((${#assets[@]}-1))*minUTxOValue) ))	# TODO: improve when better calculations are provided in cardano-cli
 }
 
@@ -1191,8 +1191,8 @@ registerStakeWallet() {
   if ! ${CCLI} stake-address registration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cert_file}"; then return 1; fi
 
   if ! getTTL; then return 1; fi
-  keyDeposit=$(jq -r '.keyDeposit' "${TMP_DIR}"/protparams.json)
-  println "LOG" "Key Deposit is ${keyDeposit}"
+  stakeAddressDeposit=$(jq -r '.stakeAddressDeposit' <<< "${PROT_PARAMS}")
+  println "LOG" "Key Deposit is ${stakeAddressDeposit}"
 
   getAssetsTxOut
 
@@ -1213,13 +1213,13 @@ registerStakeWallet() {
   println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
   getMinUTxObalance
-  if [[ ${assets[lovelace]} -lt $(( min_utxo_balance + keyDeposit )) ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address ( $(formatLovelace ${assets[lovelace]}) < $(formatLovelace ${keyDeposit}) + $(formatLovelace ${min_utxo_balance}) )"
+  if [[ ${assets[lovelace]} -lt $(( min_utxo_balance + stakeAddressDeposit )) ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address ( $(formatLovelace ${assets[lovelace]}) < $(formatLovelace ${stakeAddressDeposit}) + $(formatLovelace ${min_utxo_balance}) )"
     return 1
   fi
 
-  newBalance=$(( ${assets[lovelace]} - min_fee - keyDeposit ))
-  println "LOG" "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) Ada ($(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${keyDeposit}))"
+  newBalance=$(( ${assets[lovelace]} - min_fee - stakeAddressDeposit ))
+  println "LOG" "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) Ada ($(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakeAddressDeposit}))"
   
   build_args=(
     ${tx_in}
@@ -1234,7 +1234,7 @@ registerStakeWallet() {
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Registration"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txFee: \"$(( min_fee + keyDeposit ))\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txFee: \"$(( min_fee + stakeAddressDeposit ))\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
@@ -1271,8 +1271,8 @@ deregisterStakeWallet() {
 
   if ! getTTL; then return 1; fi
   
-  keyDeposit=$(jq -r '.keyDeposit' "${TMP_DIR}"/protparams.json)
-  println "LOG" "Key Deposit is ${keyDeposit}"
+  stakeAddressDeposit=$(jq -r '.stakeAddressDeposit' <<< "${PROT_PARAMS}")
+  println "LOG" "Key Deposit is ${stakeAddressDeposit}"
 
   getAssetsTxOut
 
@@ -1293,13 +1293,13 @@ deregisterStakeWallet() {
   println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
   getMinUTxObalance
-  if [[ $(( ${assets[lovelace]} + keyDeposit - min_fee )) -lt ${min_utxo_balance} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address ( $(formatLovelace ${assets[lovelace]}) + $(formatLovelace ${keyDeposit}) < $(formatLovelace ${min_utxo_balance}) )"
+  if [[ $(( ${assets[lovelace]} + stakeAddressDeposit - min_fee )) -lt ${min_utxo_balance} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address ( $(formatLovelace ${assets[lovelace]}) + $(formatLovelace ${stakeAddressDeposit}) < $(formatLovelace ${min_utxo_balance}) )"
     return 1
   fi
 
-  newBalance=$(( ${assets[lovelace]} + keyDeposit - min_fee ))
-  println "LOG" "New balance after returned key deposit and subtracted tx fee is $(formatLovelace ${newBalance}) Ada ($(formatLovelace ${assets[lovelace]}) + $(formatLovelace ${keyDeposit}) - $(formatLovelace ${min_fee}))"
+  newBalance=$(( ${assets[lovelace]} + stakeAddressDeposit - min_fee ))
+  println "LOG" "New balance after returned key deposit and subtracted tx fee is $(formatLovelace ${newBalance}) Ada ($(formatLovelace ${assets[lovelace]}) + $(formatLovelace ${stakeAddressDeposit}) - $(formatLovelace ${min_fee}))"
   
   build_args=(
     ${tx_in}
@@ -1314,7 +1314,7 @@ deregisterStakeWallet() {
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet De-Registration"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"amount-returned\": \"${keyDeposit}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"amount-returned\": \"${stakeAddressDeposit}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
@@ -1396,7 +1396,7 @@ sendAssets() {
     --out-file "${TMP_DIR}"/tx.raw
   )
   
-  [[ -z ${minUTxOValue} ]] && minUTxOValue=$(jq -r '.minUTxOValue //1000000' "${TMP_DIR}"/protparams.json)
+  [[ -z ${minUTxOValue} ]] && minUTxOValue=$(jq -r '.minUTxOValue //1000000' <<< "${PROT_PARAMS}")
   
   if [[ ${outCount} -eq 1 ]]; then # all assets to destination, nothing to return
     newBalance=0
@@ -1604,8 +1604,8 @@ registerPool() {
   
   if ! getTTL; then return 1; fi
   
-  poolDeposit=$(jq -r '.poolDeposit' "${TMP_DIR}"/protparams.json)
-  println "LOG" "Pool Deposit is ${poolDeposit}"
+  stakePoolDeposit=$(jq -r '.stakePoolDeposit' <<< "${PROT_PARAMS}")
+  println "LOG" "Pool Deposit is ${stakePoolDeposit}"
   
   owner_delegation_cert=""
   [[ ${delegate_owner_wallet} = 'Y' ]] && owner_delegation_cert="--certificate-file ${owner_delegation_cert_file}"
@@ -1649,13 +1649,13 @@ registerPool() {
   println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
   getMinUTxObalance
-  if [[ ${assets[lovelace]} -lt $(( min_utxo_balance + poolDeposit )) ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address ( $(formatLovelace ${assets[lovelace]}) < $(formatLovelace ${min_utxo_balance}) + $(formatLovelace ${poolDeposit}) )"
+  if [[ ${assets[lovelace]} -lt $(( min_utxo_balance + stakePoolDeposit )) ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address ( $(formatLovelace ${assets[lovelace]}) < $(formatLovelace ${min_utxo_balance}) + $(formatLovelace ${stakePoolDeposit}) )"
     return 1
   fi
 
-  newBalance=$(( ${assets[lovelace]} - min_fee - poolDeposit ))
-  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${poolDeposit}) )"
+  newBalance=$(( ${assets[lovelace]} - min_fee - stakePoolDeposit ))
+  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakePoolDeposit}) )"
   
   build_args=(
     ${tx_in}
@@ -1677,7 +1677,7 @@ registerPool() {
     if ! offlineJSON=$(jq ". += { \"pool-margin\": \"${margin}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-cost\": \"${cost_ada}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-reg-cert\": $(jq -c . "${pool_regcert_file}") }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txFee: \"$(( min_fee + poolDeposit ))\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txFee: \"$(( min_fee + stakePoolDeposit ))\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     for index in "${!owner_wallets[@]}"; do

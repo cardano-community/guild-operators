@@ -621,8 +621,8 @@ function main {
               fi
             else
               println "ERROR" "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
-              keyDeposit=$(jq -r '.keyDeposit' "${TMP_DIR}"/protparams.json)
-              println "DEBUG" "Funds for key deposit($(formatLovelace ${keyDeposit}) Ada) + transaction fee needed to register the wallet"
+              stakeAddressDeposit=$(jq -r '.stakeAddressDeposit' <<< "${PROT_PARAMS}")
+              println "DEBUG" "Funds for key deposit($(formatLovelace ${stakeAddressDeposit}) Ada) + transaction fee needed to register the wallet"
               waitForInput && continue
             fi
             if ! registerStakeWallet ${wallet_name} "true"; then
@@ -680,7 +680,7 @@ function main {
             if ! verifyTx ${base_addr}; then waitForInput && continue; fi
             echo
             println "${FG_GREEN}${wallet_name}${NC} successfully de-registered from chain!"
-            println "Key deposit fee that will be refunded : ${FG_LBLUE}$(formatLovelace ${keyDeposit})${NC} Ada"
+            println "Key deposit fee that will be refunded : ${FG_LBLUE}$(formatLovelace ${stakeAddressDeposit})${NC} Ada"
             waitForInput && continue
             ;; ###################################################################
           list)
@@ -1135,7 +1135,7 @@ function main {
             for asset in "${!assets[@]}"; do
               assets_left[${asset}]=${assets[${asset}]}
             done
-            minUTxOValue=$(jq -r '.minUTxOValue //1000000' "${TMP_DIR}"/protparams.json)
+            minUTxOValue=$(jq -r '.minUTxOValue //1000000' <<< "${PROT_PARAMS}")
             # Amount
             println "DEBUG" "# Amount to Send (in Ada)"
             println "DEBUG" " Valid entry:"
@@ -1583,7 +1583,7 @@ function main {
             else
               margin_fraction=$(pctToFraction "${margin}")
             fi
-            minPoolCost=$(( $(jq -r '.minPoolCost //0' "${TMP_DIR}"/protparams.json) / 1000000 )) # convert to Ada
+            minPoolCost=$(( $(jq -r '.minPoolCost //0' <<< "${PROT_PARAMS}") / 1000000 )) # convert to Ada
             [[ -f ${pool_config} ]] && cost_ada=$(jq -r '.costADA //0' "${pool_config}") || cost_ada=${minPoolCost} # default cost
             [[ ${cost_ada} -lt ${minPoolCost} ]] && cost_ada=${minPoolCost} # raise old value to new minimum cost
             sleep 0.1 && read -r -p "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAsset ${cost_ada})): " cost_enter 2>&6 && println "LOG" "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAsset ${cost_ada})): ${cost_enter}"
@@ -2165,10 +2165,10 @@ function main {
             fi
             echo
             epoch=$(getEpoch)
-            eMax=$(jq -r '.eMax' "${TMP_DIR}"/protparams.json)
+            poolRetireMaxEpoch=$(jq -r '.poolRetireMaxEpoch' <<< "${PROT_PARAMS}")
             println "DEBUG" "Current epoch: ${FG_LBLUE}${epoch}${NC}"
             epoch_start=$((epoch + 1))
-            epoch_end=$((epoch + eMax))
+            epoch_end=$((epoch + poolRetireMaxEpoch))
             println "DEBUG" "earlist epoch to retire pool is ${FG_LBLUE}${epoch_start}${NC} and latest ${FG_LBLUE}${epoch_end}${NC}"
             echo
             sleep 0.1 && read -r -p "Enter epoch in which to retire pool (blank for ${epoch_start}): " epoch_enter 2>&6 && println "LOG" "Enter epoch in which to retire pool (blank for ${epoch_start}): ${epoch_enter}"
