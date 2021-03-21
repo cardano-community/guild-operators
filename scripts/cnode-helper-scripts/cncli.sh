@@ -17,7 +17,7 @@
 #PT_HOST="127.0.0.1"                      # POOLTOOL: connect to a remote node, preferably block producer (default localhost)
 #PT_PORT="${CNODE_PORT}"                  # POOLTOOL: port of node to connect to (default CNODE_PORT from env file)
 #PT_SENDSLOTS_START=30                    # POOLTOOL sendslots: delay after epoch boundary before sending slots (in minutes)
-#PT_SENDSLOTS_STOP=60                     # POOLTOOL sendslots: prohibit sending of slots to pooltool after X number of minutes (blocked on pooltool end as well)
+#PT_SENDSLOTS_STOP=60                     # POOLTOOL sendslots: prohibit sending of slots to pooltool after X number of minutes (in minutes, blocked on pooltool end as well)
 #CNCLI_DIR="${CNODE_HOME}/guild-db/cncli" # path to folder for cncli sqlite db
 #SLEEP_RATE=60                            # CNCLI leaderlog/validate: time to wait until next check (in seconds)
 #CONFIRM_SLOT_CNT=600                     # CNCLI validate: require at least these many slots to have passed before validating
@@ -195,8 +195,7 @@ cncliInit() {
   
   [[ ! -f "${CNCLI}" ]] && echo -e "\nERROR: failed to locate cncli executable, please install with 'prereqs.sh'\n" && exit 1
   CNCLI_VERSION="v$(cncli -V | cut -d' ' -f2)"
-  if ! versionCheck "1.0.0" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, please upgrade to latest version!"; exit 1; fi
-  if ! versionCheck "1.4.0" "${CNCLI_VERSION}"; then echo "WARN: cncli ${CNCLI_VERSION} installed, disabling LEDGER_API !! please upgrade to v1.4.0 or newer to enable"; exit 1; fi
+  if ! versionCheck "1.5.0" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, please upgrade to latest version!"; exit 1; fi
   
   [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
   if ! mkdir -p "${CNCLI_DIR}" 2>/dev/null; then echo "ERROR: Failed to create CNCLI DB directory: ${CNCLI_DIR}"; exit 1; fi
@@ -208,7 +207,9 @@ cncliInit() {
   [[ -z "${PT_HOST}" ]] && PT_HOST="127.0.0.1"
   [[ -z "${PT_PORT}" ]] && PT_PORT="${CNODE_PORT}"
   [[ -z "${PT_SENDSLOTS_START}" ]] && PT_SENDSLOTS_START=30
+  PT_SENDSLOTS_START=$((PT_SENDSLOTS_START*60))
   [[ -z "${PT_SENDSLOTS_STOP}" ]] && PT_SENDSLOTS_STOP=60
+  PT_SENDSLOTS_STOP=$((PT_SENDSLOTS_STOP*60))
   if [[ -d "${POOL_DIR}" ]]; then
     [[ -z "${POOL_ID}" && -f "${POOL_DIR}/${POOL_ID_FILENAME}" ]] && POOL_ID=$(cat "${POOL_DIR}/${POOL_ID_FILENAME}")
     [[ -z "${POOL_VRF_SKEY}" ]] && POOL_VRF_SKEY="${POOL_DIR}/${POOL_VRF_SK_FILENAME}"
@@ -554,7 +555,9 @@ cncliMigrateBlocklog() {
 #################################
 
 cncliPTsendtip() {
+  [[ ${NWMAGIC} -ne 764824073 ]] && echo "PoolTool sendtip only available on MainNet, exiting!" && exit 1
   [[ -z ${POOL_ID} || -z ${POOL_TICKER} || -z ${PT_API_KEY} ]] && echo "'POOL_ID' and/or 'POOL_TICKER' and/or 'PT_API_KEY' not set in $(basename "$0"), exiting!" && exit 1
+  
   # Generate a temporary pooltool config
   if ! cnode_path=$(command -v cardano-node 2>/dev/null); then
     echo "ERROR: cardano-node not in PATH, please manually set CCLI in env file"
@@ -580,7 +583,9 @@ cncliPTsendtip() {
 #################################
 
 cncliPTsendslots() {
+  [[ ${NWMAGIC} -ne 764824073 ]] && echo "PoolTool sendslots only available on MainNet, exiting!" && exit 1
   [[ -z ${POOL_ID} || -z ${POOL_TICKER} || -z ${PT_API_KEY} ]] && echo "'POOL_ID' and/or 'POOL_TICKER' and/or 'PT_API_KEY' not set in $(basename "$0"), exiting!" && exit 1
+  
   # Generate a temporary pooltool config
   pt_config="${TMP_DIR}/$(basename ${CNODE_HOME})-pooltool.json"
   bash -c "cat <<-'EOF' > ${pt_config}
@@ -598,7 +603,7 @@ cncliPTsendslots() {
 		EOF"
   sendslots_epoch=-1
   while true; do
-    sleep ${SLEEP_RATE}
+    [[ ${subarg} != "force" ]] && sleep ${SLEEP_RATE}
     getNodeMetrics
     [[ ${slotnum} -eq 0 ]] && continue # failed to grab node metrics
     [[ ${sendslots_epoch} -eq ${epochnum} ]] && continue # this epoch is already sent
