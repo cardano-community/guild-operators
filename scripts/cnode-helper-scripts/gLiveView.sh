@@ -522,7 +522,7 @@ while true; do
   # Gather some data
   getNodeMetrics
   [[ ${fail_count} -eq ${RETRIES} ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}"
-  if [[ ${uptimens} -le 0 ]]; then
+  if [[ ${uptimes} -le 0 ]]; then
     ((fail_count++))
     clear && tput cup 1 1
     printf "${style_status_3}Connection to node lost, retrying (${fail_count}/${RETRIES})!${NC}"
@@ -575,7 +575,7 @@ while true; do
 
   ## main section ##
   printf "${tdivider}\n" && ((line++))
-  printf "${VL} Uptime: ${style_values_1}%s${NC}" "$(timeLeft $(( uptimens/1000 )))"
+  printf "${VL} Uptime: ${style_values_1}%s${NC}" "$(timeLeft ${uptimes})"
   tput cup ${line} $(( width - ${#title} - 3 - ${#CNODE_PORT} - 9 ))
   printf "${VL} Port: ${style_values_2}${CNODE_PORT} "
   tput cup ${line} $(( width - ${#title} - 3 ))
