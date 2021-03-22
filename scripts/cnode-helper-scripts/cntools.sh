@@ -2306,8 +2306,8 @@ function main {
             tput rc && tput ed
             if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
               tput sc && println "DEBUG" "Dumping ledger-state from node, can take a while on larger networks...\n"
-              println "ACTION" "timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${NETWORK_IDENTIFIER} --out-file ${TMP_DIR}/ledger-state.json"
-              if ! timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${NETWORK_IDENTIFIER} --out-file "${TMP_DIR}"/ledger-state.json; then
+              println "ACTION" "timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${NETWORK_IDENTIFIER}"
+              if ! ledger_state=$(timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${NETWORK_IDENTIFIER}); then
                 tput rc && tput ed
                 println "ERROR" "${FG_RED}ERROR${NC}: ledger dump failed/timed out"
                 println "ERROR" "increase timeout value in cntools.config"
@@ -2321,10 +2321,12 @@ function main {
               [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}" ]] && ledger_retiring="?" || ledger_retiring=""
             else
               tput sc && println "Parsing ledger-state, can take a while on larger networks...\n"
-              ledger_pstate=$(jq -r '.nesEs.esLState._delegationState._pstate' "${TMP_DIR}"/ledger-state.json)
-              ledger_pParams=$(jq -r '._pParams."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
-              ledger_fPParams=$(jq -r '._fPParams."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
-              ledger_retiring=$(jq -r '._retiring."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
+              ledger_pstate=$(jq -r '.stateBefore.esLState.delegationState.pstate' <<< ${ledger_state})
+              unset ledger_state
+              ledger_pParams=$(jq -r '.["pParams pState"]."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
+              ledger_fPParams=$(jq -r '.["fPParams pState"]."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
+              ledger_retiring=$(jq -r '.["retiring pState"]."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
+              unset ledger_pstate
               [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
               [[ -n "${ledger_pParams}" ]] && pool_registered="YES" || pool_registered="NO"
               tput rc && tput ed
