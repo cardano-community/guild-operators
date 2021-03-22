@@ -325,7 +325,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     git checkout --quiet ${cncli_git_latestTag}
     echo "  building CNCLI ${cncli_git_latestTag} ..."
     if ! output=$(cargo install --path . --force --locked 2>&1); then echo -e "${output}" && err_exit; fi
-    echo "  v$(cncli -V) installed!"
+    echo "  $(cncli -V) installed!"
   else
     echo "  CNCLI already latest version [${cncli_version}], skipping!"
   fi
