@@ -175,10 +175,10 @@ cncliInit() {
       echo -e "This is a mandatory prerequisite, please set variables accordingly in User Variables section in the env file and restart cncli.sh\n"
       exit 0
     fi
-  else # Download failed, ignore update check
-    rm -f "${PARENT}"/cncli.sh.tmp
-    rm -f "${PARENT}"/env.tmp
   fi
+  rm -f "${PARENT}"/cncli.sh.tmp
+  rm -f "${PARENT}"/env.tmp
+
   if [[ ! -f "${PARENT}"/env ]]; then
     echo -e "\nCommon env file missing: ${PARENT}/env"
     echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"

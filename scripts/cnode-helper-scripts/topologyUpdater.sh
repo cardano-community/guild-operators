@@ -98,10 +98,10 @@ if curl -s -m 10 -o "${PARENT}"/topologyUpdater.sh.tmp ${URL}/topologyUpdater.sh
     echo -e "This is a mandatory prerequisite, please set variables accordingly in User Variables section in the env file and restart topologyUpdater.sh\n"
     exit 0
   fi
-else # Download failed, ignore update check
-  rm -f "${PARENT}"/topologyUpdater.sh.tmp
-  rm -f "${PARENT}"/env.tmp
 fi
+rm -f "${PARENT}"/topologyUpdater.sh.tmp
+rm -f "${PARENT}"/env.tmp
+
 if [[ ! -f "${PARENT}"/env ]]; then
   echo -e "\nCommon env file missing: ${PARENT}/env"
   echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"
