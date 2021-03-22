@@ -1200,7 +1200,7 @@ function main {
                      sleep 0.1 && read -r -p "Amount (commas allowed as thousand separator): " asset_amount 2>&6 && println "LOG" "Amount (commas allowed as thousand separator): ${asset_amount}"
                      asset_amount="${asset_amount//,}"
                      [[ ${asset_amount} = "all" ]] && asset_amount=${assets[${selected_value}]}
-                     [[ ! ${asset_amount} =~ [0-9]+ ]] && println "ERROR" "${FG_RED}ERROR${NC}: invalid number, non digit characters found!" && continue
+                     if ! isNumber ${asset_amount}; then println "ERROR" "${FG_RED}ERROR${NC}: invalid number, non digit characters found!" && continue; fi
                      if [[ ${asset_amount} -gt ${assets[${selected_value}]} ]]; then
                        println "ERROR" "${FG_RED}ERROR${NC}: you cant send more assets than available on address!" && continue
                      elif [[ ${asset_amount} -eq ${assets[${selected_value}]} ]]; then
@@ -1350,26 +1350,24 @@ function main {
               fi
             fi
             echo
-            println "DEBUG" "Do you want to delegate to a local pool or specify the pools cold vkey cbor-hex?"
-            select_opt "[p] Pool" "[v] Vkey" "[Esc] Cancel"
+            println "DEBUG" "Do you want to delegate to a local CNTools pool or specify the pool ID?"
+            select_opt "[p] CNTools Pool" "[i] Pool ID" "[Esc] Cancel"
             case $? in
               0) if ! selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}"; then # ${pool_name} populated by selectPool function
                    waitForInput && continue
                  fi
-                 pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
+                 getPoolID "${pool_name}"
                  ;;
-              1) sleep 0.1 && read -r -p "vkey cbor-hex(blank to cancel): " vkey_cbor 2>&6 && println "LOG" "vkey cbor-hex(blank to cancel): ${vkey_cbor}"
-                 [[ -z "${vkey_cbor}" ]] && continue
-                 pool_name="${vkey_cbor}"
-                 pool_coldkey_vk_file="${TMP_DIR}"/pool_delegation.vkey
-                 printf "{\"type\":\"StakePoolVerificationKey_ed25519\",\"description\":\"Stake Pool Operator Verification Key\",\"cborHex\":\"%s\"}" ${vkey_cbor} > "${pool_coldkey_vk_file}"
+              1) sleep 0.1 && read -r -p "Pool ID (blank to cancel): " pool_id 2>&6 && println "LOG" "Pool ID (blank to cancel): ${pool_id}"
+                 [[ -z "${pool_id}" ]] && continue
+                 pool_name="${pool_id}"
                  ;;
               2) continue ;;
             esac
             stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
             pool_delegcert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DELEGCERT_FILENAME}"
-            println "ACTION" "${CCLI} stake-address delegation-certificate --stake-verification-key-file ${stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${pool_delegcert_file}"
-            ${CCLI} stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${pool_delegcert_file}"
+            println "ACTION" "${CCLI} stake-address delegation-certificate --stake-verification-key-file ${stake_vk_file} --stake-pool-id ${pool_id} --out-file ${pool_delegcert_file}"
+            ${CCLI} stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --stake-pool-id "${pool_id}" --out-file "${pool_delegcert_file}"
             if ! delegate; then
               if [[ ${op_mode} = "online" ]]; then
                 echo && println "ERROR" "${FG_RED}ERROR${NC}: failure during delegation, removing newly created delegation certificate file"
@@ -1704,6 +1702,8 @@ function main {
                        relay_output+="--single-host-pool-relay ${address} --pool-relay-port ${port} "
                      elif [[ ${type} = "IPv4" ]]; then
                        relay_output+="--pool-relay-port ${port} --pool-relay-ipv4 ${address} "
+                     elif [[ ${type} = "IPv6" ]]; then
+                       relay_output+="--pool-relay-port ${port} --pool-relay-ipv6 ${address} "
                      fi
                    done< <(jq -r '.relays[] | "\(.type) \(.address) \(.port)"' "${pool_config}")
                    ;;
@@ -1713,7 +1713,7 @@ function main {
             fi
             if [[ -z ${relay_output} ]]; then
               while true; do
-                select_opt "[d] A or AAAA DNS record (single)" "[4] IPv4 address (multiple)" "[Esc] Cancel"
+                select_opt "[d] A or AAAA DNS record" "[i] IPv4/v6 address" "[Esc] Cancel"
                 case $? in
                   0) sleep 0.1 && read -r -p "Enter relays's DNS record, only A or AAAA DNS records: " relay_dns_enter 2>&6 && println "LOG" "Enter relays's DNS record, only A or AAAA DNS records: ${relay_dns_enter}"
                      if [[ -z "${relay_dns_enter}" ]]; then
@@ -1721,7 +1721,7 @@ function main {
                      else
                        sleep 0.1 && read -r -p "Enter relays's port: " relay_port_enter 2>&6 && println "LOG" "Enter relays's port: ${relay_port_enter}"
                        if [[ -n "${relay_port_enter}" ]]; then
-                         if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
+                         if ! isNumber ${relay_port_enter} || [[ ${relay_port_enter} -lt 1 || ${relay_port_enter} -gt 65535 ]]; then
                            println "ERROR" "${FG_RED}ERROR${NC}: invalid port number!"
                          else
                            relay_array+=( "type" "DNS_A" "address" "${relay_dns_enter}" "port" "${relay_port_enter}" )
@@ -1732,18 +1732,21 @@ function main {
                        fi
                      fi
                      ;;
-                  1) sleep 0.1 && read -r -p "Enter relays's IPv4 address: " relay_ipv4_enter 2>&6 && println "LOG" "Enter relays's IPv4 address: ${relay_ipv4_enter}"
-                     if [[ -n "${relay_ipv4_enter}" ]]; then
-                       if ! validIP "${relay_ipv4_enter}"; then
-                         println "ERROR" "${FG_RED}ERROR${NC}: invalid IPv4 address format!"
+                  1) sleep 0.1 && read -r -p "Enter relays's IPv4/v6 address: " relay_ip_enter 2>&6 && println "LOG" "Enter relays's IPv4/v6 address: ${relay_ip_enter}"
+                     if [[ -n "${relay_ip_enter}" ]]; then
+                       if ! isValidIPv4 "${relay_ip_enter}" || ! isValidIPv6 "${relay_ip_enter}"; then
+                         println "ERROR" "${FG_RED}ERROR${NC}: invalid IPv4/v6 address format!"
                        else
                          sleep 0.1 && read -r -p "Enter relays's port: " relay_port_enter 2>&6 && println "LOG" "Enter relays's port: ${relay_port_enter}"
                          if [[ -n "${relay_port_enter}" ]]; then
-                           if [[ ! "${relay_port_enter}" =~ ^[0-9]+$ || "${relay_port_enter}" -lt 1 || "${relay_port_enter}" -gt 65535 ]]; then
+                           if ! isNumber ${relay_port_enter} || [[ ${relay_port_enter} -lt 1 || ${relay_port_enter} -gt 65535 ]]; then
                              println "ERROR" "${FG_RED}ERROR${NC}: invalid port number!"
+                           elif isValidIPv4 "${relay_ip_enter}"; then
+                             relay_array+=( "type" "IPv4" "address" "${relay_ip_enter}" "port" "${relay_port_enter}" )
+                             relay_output+="--pool-relay-port ${relay_port_enter} --pool-relay-ipv4 ${relay_ip_enter} "
                            else
-                             relay_array+=( "type" "IPv4" "address" "${relay_ipv4_enter}" "port" "${relay_port_enter}" )
-                             relay_output+="--pool-relay-port ${relay_port_enter} --pool-relay-ipv4 ${relay_ipv4_enter} "
+                             relay_array+=( "type" "IPv6" "address" "${relay_ip_enter}" "port" "${relay_port_enter}" )
+                             relay_output+="--pool-relay-port ${relay_port_enter} --pool-relay-ipv6 ${relay_ip_enter} "
                            fi
                          else
                            println "ERROR" "${FG_RED}ERROR${NC}: Port can not be empty!"
@@ -2394,8 +2397,8 @@ function main {
                   println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Reward Wallet" "${conf_reward}")"
                   relay_title="Relay(s)"
                   while read -r type address port; do
-                    if [[ ${type} != "DNS_A" && ${type} != "IPv4" ]]; then
-                      println "$(printf "%-21s : ${FG_YELLOW}%s${NC}" "${relay_title}" "unknown type (only IPv4/DNS supported in CNTools)")"
+                    if [[ ${type} != "DNS_A" && ${type} != "IPv4" && ${type} != "IPv6" ]]; then
+                      println "$(printf "%-21s : ${FG_YELLOW}%s${NC}" "${relay_title}" "unknown type (only IPv4/v6/DNS supported in CNTools)")"
                     else
                       println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${address}" "${port}")"
                     fi
@@ -2432,15 +2435,23 @@ function main {
                 if [[ -n "${ledger_relays}" ]]; then
                   while read -r relay; do
                     relay_ipv4="$(jq -r '."single host address".IPv4 //empty' <<< ${relay})"
-                    relay_dns="$(jq -r '."single host name".dnsName //empty' <<< ${relay})"
                     if [[ -n ${relay_ipv4} ]]; then
                       relay_port="$(jq -r '."single host address".port //empty' <<< ${relay})"
                       println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${relay_ipv4}" "${relay_port}")"
-                    elif [[ -n ${relay_dns} ]]; then
-                      relay_port="$(jq -r '."single host name".port //empty' <<< ${relay})"
-                      println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${relay_dns}" "${relay_port}")"
                     else
-                      println "$(printf "%-21s : ${FG_YELLOW}%s${NC}" "${relay_title}" "unknown type (only IPv4/DNS supported in CNTools)")"
+                      relay_dns="$(jq -r '."single host name".dnsName //empty' <<< ${relay})"
+                      if [[ -n ${relay_dns} ]]; then
+                        relay_port="$(jq -r '."single host name".port //empty' <<< ${relay})"
+                        println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${relay_dns}" "${relay_port}")"
+                      else
+                        relay_ipv6="$(jq -r '."single host address".IPv6 //empty' <<< ${relay})"
+                        if [[ -n ${relay_ipv6} ]]; then
+                          relay_port="$(jq -r '."single host address".port //empty' <<< ${relay})"
+                          println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${relay_ipv6}" "${relay_port}")"
+                        else
+                          println "$(printf "%-21s : ${FG_YELLOW}%s${NC}" "${relay_title}" "unknown type (only IPv4/v6/DNS supported in CNTools)")"
+                        fi
+                      fi
                     fi
                     relay_title=""
                   done <<< "${ledger_relays}"
@@ -2955,7 +2966,7 @@ function main {
         case $? in
           0) echo && sleep 0.1 && read -r -p "Enter number of epochs to show (enter for 10): " epoch_enter 2>&6 && println "LOG" "Enter number of epochs to show (enter for 10): ${epoch_enter}"
              epoch_enter=${epoch_enter:-10}
-             if ! [[ ${epoch_enter} =~ ^[0-9]+$ ]]; then
+             if ! isNumber ${epoch_enter}; then
                println "ERROR" "\n${FG_RED}ERROR${NC}: not a number"
                waitForInput && continue
              fi
@@ -3636,7 +3647,7 @@ function main {
                 println "DEBUG" "${FG_YELLOW}Setting a limit will prevent you from minting/burning assets after the policy expire !!\nLeave blank/unlimited if unsure and just press enter${NC}"
                 sleep 0.1 && read -r -p "TTL (in seconds): " ttl_enter 2>&6 && println "LOG" "TTL (in seconds): ${ttl_enter}"
                 ttl_enter=${ttl_enter:-0}
-                if [[ ! ${ttl_enter} =~ ^[0-9]+$ ]]; then
+                if ! isNumber ${ttl_enter}; then
                   println "ERROR" "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
                   safeDel "${policy_folder}"; waitForInput && continue
                 fi
@@ -3845,7 +3856,7 @@ function main {
                 sleep 0.1 && read -r -p "Amount (commas allowed as thousand separator): " asset_amount 2>&6 && println "LOG" "Amount (commas allowed as thousand separator): ${asset_amount}"
                 asset_amount="${asset_amount//,}"
                 [[ -z "${asset_amount}" ]] && println "ERROR" "${FG_RED}ERROR${NC}: Amount empty, please set a valid integer number!" && waitForInput && continue
-                [[ ! ${asset_amount} =~ [0-9]+ ]] && println "ERROR" "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue
+                if ! isNumber ${asset_amount}; then println "ERROR" "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue; fi
                 [[ -f "${asset_file}" ]] && asset_minted=$(( $(jq -r .minted "${asset_file}") + asset_amount )) || asset_minted=${asset_amount}
                 metafile_param=""
                 println "DEBUG" "\nDo you want to attach a metadata JSON file to the minting transaction?"
@@ -4021,7 +4032,7 @@ function main {
                 sleep 0.1 && read -r -p "Amount (commas allowed as thousand separator): " assets_to_burn 2>&6 && println "LOG" "Amount (commas allowed as thousand separator): ${assets_to_burn}"
                 assets_to_burn="${assets_to_burn//,}"
                 [[ ${assets_to_burn} = "all" ]] && assets_to_burn=${asset_amount}
-                [[ ! ${assets_to_burn} =~ [0-9]+ ]] && println "ERROR" "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue
+                if ! isNumber ${assets_to_burn}; then println "ERROR" "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue; fi
                 [[ ${assets_to_burn} -gt ${asset_amount} ]] && println "ERROR" "${FG_RED}ERROR${NC}: Amount exceeding assets in address, you can only burn ${FG_LBLUE}$(formatAsset "${asset_amount}")${NC}" && waitForInput && continue
                 asset_minted=$(( $(jq -r .minted "${asset_file}") - assets_to_burn ))
                 # Attach metadata?
