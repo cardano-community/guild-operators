@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=8
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=0
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=2
+CNTOOLS_PATCH_VERSION=3
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -475,7 +475,7 @@ selectWallet() {
         [[ -z ${base_addr} ]] && wallet_dirs+=("${dir}") && continue # ignore and add wallet without extra details
         getBalance ${base_addr}
         if getRewardAddress ${dir}; then
-          delegation_pool_id=$(${CCLI} query stake-address-info ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].delegation // empty')
+          delegation_pool_id=$(${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].delegation // empty')
           unset poolName
           if [[ -n ${delegation_pool_id} ]]; then
             while IFS= read -r -d '' pool; do
@@ -972,7 +972,7 @@ getBalance() {
   asset_name_maxlen=5; asset_amount_maxlen=12
   tx_in=""
   
-  if ! utxo_raw=$(${CCLI} query utxo ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${1}"); then return 1; fi
+  if ! utxo_raw=$(${CCLI} query utxo ${NETWORK_IDENTIFIER} --address "${1}"); then return 1; fi
   
   [[ -z ${utxo_raw} ]] && return
   
@@ -1003,7 +1003,7 @@ getBalance() {
 
   # Alternative code using jq (jq has issues with large integer numbers)
   : <<'END_COMMENT'
-  if ! utxo_JSON=$(${CCLI} query utxo ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address "${1}" --out-file /dev/stdout); then return 1; fi
+  if ! utxo_JSON=$(${CCLI} query utxo ${NETWORK_IDENTIFIER} --address "${1}" --out-file /dev/stdout); then return 1; fi
   
   utxo_cnt=$(jq length <<< ${utxo_JSON})
   [[ ${utxo_cnt} = 0 ]] && return
@@ -1092,8 +1092,8 @@ getRewards() {
 # Parameters  : stake address  >  the address from stake.vkey
 # Return      : populates ${reward_lovelace}
 getRewardsFromAddr() {
-  println "ACTION" "${CCLI} query stake-address-info ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${1}"
-  stake_address_info=$(${CCLI} query stake-address-info ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${1})
+  println "ACTION" "${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}"
+  stake_address_info=$(${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1})
   reward_lovelace=0
   for reward_entry in $(jq -r '.[] | @base64' <<< "${stake_address_info}"); do
     _jq() { base64 -d <<< ${reward_entry} | jq -r "${1}"; }
@@ -1106,8 +1106,8 @@ getRewardsFromAddr() {
 # Parameters  : wallet name  >  the name of the wallet
 isWalletRegistered() {
   if getRewardAddress $1; then
-    println "ACTION" "${CCLI} query stake-address-info ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${reward_addr}"
-    stake_address_info=$(${CCLI} query stake-address-info ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --address ${reward_addr})
+    println "ACTION" "${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr}"
+    stake_address_info=$(${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr})
     [[ -n "${stake_address_info}" && $(jq -r 'length' <<< ${stake_address_info}) -gt 0 ]] && return 0
   fi
   return 1

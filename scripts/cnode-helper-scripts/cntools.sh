@@ -2303,8 +2303,8 @@ function main {
             tput rc && tput ed
             if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
               tput sc && println "DEBUG" "Dumping ledger-state from node, can take a while on larger networks...\n"
-              println "ACTION" "timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file ${TMP_DIR}/ledger-state.json"
-              if ! timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_DIR}"/ledger-state.json; then
+              println "ACTION" "timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${NETWORK_IDENTIFIER} --out-file ${TMP_DIR}/ledger-state.json"
+              if ! timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${NETWORK_IDENTIFIER} --out-file "${TMP_DIR}"/ledger-state.json; then
                 tput rc && tput ed
                 println "ERROR" "${FG_RED}ERROR${NC}: ledger dump failed/timed out"
                 println "ERROR" "increase timeout value in cntools.config"
@@ -2473,8 +2473,8 @@ function main {
                     println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "Reward account" "${reward_account}")"
                   fi
                 fi
-                println "ACTION" "LC_NUMERIC=C printf %.10f \$(${CCLI} query stake-distribution ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} | grep ${pool_id_bech32} | tr -s ' ' | cut -d ' ' -f 2))"
-                stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} query stake-distribution ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} | grep "${pool_id_bech32}" | tr -s ' ' | cut -d ' ' -f 2)")")
+                println "ACTION" "LC_NUMERIC=C printf %.10f \$(${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | grep ${pool_id_bech32} | tr -s ' ' | cut -d ' ' -f 2))"
+                stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | grep "${pool_id_bech32}" | tr -s ' ' | cut -d ' ' -f 2)")")
                 if validateDecimalNbr ${stake_pct}; then
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Stake distribution" "${stake_pct}")"
                 fi
