@@ -545,9 +545,9 @@ if [[ ${OFFLINE_MODE} = "N" && ! -S ${CARDANO_NODE_SOCKET_PATH} ]]; then
   return 2
 fi
 
-if ! getEraIdentifier; then echo "${FG_RED}Failed to query protocol-parameters from node, not yet fully started?${NC}" && return 2; fi
+if ! ${CCLI} query protocol-parameters ${NETWORK_IDENTIFIER} &>/dev/null; then echo "${FG_RED}Failed to query protocol-parameters from node, not yet fully started?${NC}" && return 2; fi
 
-PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>&1)"
+PROT_PARAMS="$(${CCLI} query protocol-parameters ${NETWORK_IDENTIFIER} 2>&1)"
 if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -er .decentralization <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
 
 return 0

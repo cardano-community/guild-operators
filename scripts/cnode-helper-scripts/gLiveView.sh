@@ -480,8 +480,7 @@ while true; do
   fi
   
   if [[ -z "${PROT_PARAMS}" ]]; then
-    getEraIdentifier
-    PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
+    PROT_PARAMS="$(${CCLI} query protocol-parameters ${NETWORK_IDENTIFIER} 2>/dev/null)"
     if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralization <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
   fi
   
@@ -506,8 +505,7 @@ while true; do
     fi
     if [[ ${curr_epoch} -ne ${epochnum} ]]; then # only update on new epoch to save on processing
       curr_epoch=${epochnum}
-      getEraIdentifier
-      PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
+      PROT_PARAMS="$(${CCLI} query protocol-parameters ${NETWORK_IDENTIFIER} 2>/dev/null)"
       if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralization <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
     fi
   fi
