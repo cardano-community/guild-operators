@@ -29,6 +29,7 @@ CNODE_PORT=6000                                         # Set node port
 #TG_CHAT_ID=""                                          # https://cardano-community.github.io/guild-operators/#/Scripts/sendalerts
 #USE_EKG="N"                                            # Use EKG metrics from the node instead of Promethus. Promethus metrics(default) should yield slightly better performance
 #TIMEOUT_LEDGER_STATE=300                               # Timeout in seconds for querying and dumping ledger-state
+#IP_VERSION=4                                           # The IP version to use for push and fetch, valid options: 4 | 6 | mix (Default: 4)
 
 #WALLET_FOLDER="${CNODE_HOME}/priv/wallet"              # Root folder for Wallets
 #POOL_FOLDER="${CNODE_HOME}/priv/pool"                  # Root folder for Pools
@@ -258,6 +259,8 @@ fi
 BLOCKLOG_DB="${BLOCKLOG_DIR}/blocklog.db"
 [[ -z ${BLOCKLOG_TZ} ]] && BLOCKLOG_TZ="UTC"
 [[ -z ${CNODE_PORT} ]] && CNODE_PORT=6000
+[[ -z "${IP_VERSION}" ]] && IP_VERSION=4
+IP_VERSION=$(tr '[:upper:]' '[:lower:]' <<< "${IP_VERSION}")
 
 CNODE_PID=$(pgrep -fn "[c]ardano-node.*.--port ${CNODE_PORT}")
 
@@ -363,7 +366,7 @@ STANDOUT='\e[7m'
 BOLD='\e[1m'
 NC='\e[0m'
 
-
+# Description : Query user for yes or no answer
 getAnswer() {
   printf "$* (yes/no): " >&2; read -r answer
   while : ; do
@@ -375,10 +378,53 @@ getAnswer() {
   done
 }
 
+# Description : Wait for any key press before proceeding and clear screen
 waitToProceed() {
   printf "\npress any key to proceed..."
   read -r -n 1 -s wait
   clear
+}
+
+# Description : Helper function to validate that input is a number
+#             : $1 = number
+isNumber() {
+  [[ -z $1 ]] && return 1
+  [[ $1 =~ ^[0-9]+$ ]] && return 0 || return 1
+}
+
+# Description : Helper function to validate IPv4 address
+#             : $1 = IP
+isValidIPv4() {
+  local ip=$1
+  [[ -z ${ip} ]] && return 1
+  if [[ ${ip} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+    IFS='.' read -ra ip_octets <<< "${ip}"
+    for ip_octet in "${ip_octets[@]}"; do
+      [[ ${ip_octet} -gt 255 ]] && return 1
+    done
+    return 0
+  fi
+  return 1
+}
+
+# Description : Helper function to validate IPv6 address, works for normal IPv6 addresses, not dual incl IPv4
+#             : $1 = IP
+isValidIPv6() {
+  local ip=$1
+  [[ -z ${ip} ]] && return 1
+  ipv6_regex="^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$"
+  [[ ${ip} =~ ${ipv6_regex} ]] && return 0
+  return 1
+}
+
+# Description : Helper function to validate if IP address is in a private range
+#             : $1 = IP
+isPrivateIP() {
+  local ip=$1
+  [[ -z ${ip} ]] && return 1
+  private_ip_regex="^(127\.|0?10\.|172\.0?1[6-9]\.|172\.0?2[0-9]\.|172\.0?3[0-2]\.|192\.168\.|169\.254\.|::1|[fF][cCdD][0-9a-fA-F]{2}:|[fF][eE][89aAbB][0-9a-fA-F]:)"
+  [[ ${ip} =~ ${private_ip_regex} ]] && return 0
+  return 1
 }
 
 # Description : Query cardano-node for current metrics
