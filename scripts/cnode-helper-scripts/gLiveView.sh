@@ -54,7 +54,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.20.1
+GLV_VERSION=v1.20.2
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -390,7 +390,7 @@ checkPeers() {
           peerRTT=99999
         fi
       elif command -v ss >/dev/null; then
-        peerRTT=$(ss -ni "dst ${peerIP}:${peerPORT}" | tail -1 | sed -e 's/.*rtt:\(.*\)\/.*.ato.*/\1/' | cut -d. -f1)
+        [[ $(ss -ni "dst ${peerIP}:${peerPORT}" | tail -1) =~ rtt:([0-9]+) ]] && peerRTT=${BASH_REMATCH[1]} || peerRTT=99999
       elif command -v tcptraceroute >/dev/null; then
         checkPEER=$(tcptraceroute -n -S -f 255 -m 255 -q 1 -w 1 "${peerIP}" "${peerPORT}" 2>&1 | tail -n 1)
         if [[ ${checkPEER} = *'[open]'* ]]; then
@@ -403,10 +403,11 @@ checkPeers() {
       else # cncli, ss & tcptraceroute missing and ping failed
         peerRTT=99999
       fi
+      ! isNumber ${peerRTT} && peerRTT=99999
       [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT))
     elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Incoming connection, ping OK, show RTT.
       peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
-      peerRTTSUM=$((peerRTTSUM + peerRTT))
+      ! isNumber ${peerRTT} && peerRTT=99999 || peerRTTSUM=$((peerRTTSUM + peerRTT))
     else # Incoming connection, ping failed, set as unreachable
       peerRTT=99999
     fi
