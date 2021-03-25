@@ -13,7 +13,10 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ##### Changed
 - Wallet delegation now lets you specify Pool ID in addition to local CNTools pool instead of previous cold.vkey cbor string
 - A couple of functions regarding number validation moved to common env file
-- Code adapted for changes in ledger-state dump used by 'Pool >> Show' 
+- Code adapted for changes in ledger-state dump used by 'Pool >> Show'
+
+##### Fixed
+- Backup & restore now exclude gpg encrypted keys from online backup and suppression of false alarms
 
 ## [8.0.2] - 2021-03-15
 

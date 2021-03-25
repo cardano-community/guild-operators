@@ -2604,7 +2604,6 @@ function main {
                 waitForInput && continue
               fi
               keyFiles=(
-                "${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
                 "${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
               )
               for keyFile in "${keyFiles[@]}"; do
@@ -3246,9 +3245,13 @@ function main {
             case $? in
               0) excluded_files=(
                    "--delete *${WALLET_PAY_SK_FILENAME}"
+                   "--delete *${WALLET_PAY_SK_FILENAME}.gpg"
                    "--delete *${WALLET_STAKE_SK_FILENAME}"
+                   "--delete *${WALLET_STAKE_SK_FILENAME}.gpg"
                    "--delete *${POOL_COLDKEY_SK_FILENAME}"
+                   "--delete *${POOL_COLDKEY_SK_FILENAME}.gpg"
                    "--delete *${ASSET_POLICY_SK_FILENAME}"
+                   "--delete *${ASSET_POLICY_SK_FILENAME}.gpg"
                  )
                  backup_file="${backup_path}online_cntools_backup-$(date '+%Y%m%d%H%M%S').tar"
                  ;;
@@ -3270,7 +3273,7 @@ function main {
                 backup_list+=( "${dir}" )
                 println "DEBUG" "  ${FG_LGRAY}$(basename "${dir}")${NC}"
                 ((backup_cnt++))
-              done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+              done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | sort -z)
             done
             [[ ${backup_cnt} -eq 0 ]] && println "\nNo folders found to include in backup :(" && waitForInput && continue
             echo
@@ -3292,12 +3295,12 @@ function main {
                   println "${FG_YELLOW}WARN${NC}: Wallet ${FG_GREEN}${wallet_name}${NC} missing payment signing key file" && missing_keys="true"
                 [[ -z "$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f \( -name "${WALLET_STAKE_SK_FILENAME}*" -o -name "${WALLET_HW_STAKE_SK_FILENAME}" \) -print)" ]] && \
                   println "${FG_YELLOW}WARN${NC}: Wallet ${FG_GREEN}${wallet_name}${NC} missing stake signing key file" && missing_keys="true"
-              done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+              done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | sort -z)
               while IFS= read -r -d '' pool; do
                 pool_name=$(basename ${pool})
                 [[ -z "$(find "${pool}" -mindepth 1 -maxdepth 1 -type f -name "${POOL_COLDKEY_SK_FILENAME}*" -print)" ]] && \
                   println "${FG_YELLOW}WARN${NC}: Pool ${FG_GREEN}${pool_name}${NC} missing file ${POOL_COLDKEY_SK_FILENAME}" && missing_keys="true"
-              done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+              done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | sort -z)
               [[ ${missing_keys} = "true" ]] && echo
             fi
              println "DEBUG" "Encrypt backup?"
@@ -3365,7 +3368,7 @@ function main {
                 restore_list+=( "${dir}" )
                 println "DEBUG" "  ${FG_LGRAY}$(basename "${dir}")${NC}"
                 ((restore_cnt++))
-              done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+              done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | sort -z)
             done
             [[ ${restore_cnt} -eq 0 ]] && println "\nNothing in backup file to restore :(" && waitForInput && continue
             echo
@@ -3389,7 +3392,7 @@ function main {
               while IFS= read -r -d '' dir; do
                 archive_list+=( "${item}" )
                 ((source_cnt++))
-              done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+              done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | sort -z)
             done
             if [[ ${source_cnt} -gt 0 ]]; then
               archive_dest="${CNODE_HOME}/priv/archive"
@@ -3413,7 +3416,7 @@ function main {
               dest_path="${item:${#restore_path}}"
               while IFS= read -r -d '' file; do # unlock files to make sure restore is successful
                 unlockFile "${file}"
-              done < <(find "${dest_path}" -mindepth 1 -maxdepth 1 -type f -print0)
+              done < <(find "${dest_path}" -mindepth 1 -maxdepth 1 -type f -print0 2>/dev/null)
               println "ACTION" "cp -rf ${item} $(dirname "${dest_path}")"
               cp -rf "${item}" "$(dirname "${dest_path}")"
             done

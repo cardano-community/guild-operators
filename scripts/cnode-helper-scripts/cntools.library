@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=8
 # Changes that can be applied without breaking existing functionality that can be applied from within CNTools
 CNTOOLS_MINOR_VERSION=0
 # Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=4
+CNTOOLS_PATCH_VERSION=5
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -20,6 +20,9 @@ CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PAT
 ############################################################
 TMP_DIR="${TMP_DIR}/cntools"
 if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}: Failed to create directory for temporary files: ${TMP_DIR}"; fi
+if ! mkdir -p "${WALLET_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}: Failed to create wallet directory: ${WALLET_FOLDER}"; fi
+if ! mkdir -p "${POOL_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}: Failed to create pool directory: ${POOL_FOLDER}"; fi
+if ! mkdir -p "${ASSET_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}: Failed to create asset directory: ${POOL_ASSET}"; fi
 [[ -z ${TIMEOUT_NO_OF_SLOTS} ]] && TIMEOUT_NO_OF_SLOTS=600
 [[ ${SHELLEY_TRANS_FILENAME} =~ ^${CNODE_HOME}/db/ ]] && mkdir -p "${CNODE_HOME}/guild-db" && SHELLEY_TRANS_FILENAME="${CNODE_HOME}/guild-db/shelley_trans_epoch"
 [[ -z ${WALLET_SELECTION_FILTER_LIMIT} ]] && WALLET_SELECTION_FILTER_LIMIT=10
