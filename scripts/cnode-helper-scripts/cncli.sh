@@ -107,7 +107,7 @@ dumpLedgerState() { # getNodeMetrics expected to have been already run
   ledger_state_file="${TMP_DIR}/ledger-state_${NWMAGIC}_${epochnum}.json"
   [[ -n $(find "${ledger_state_file}" -mmin -60 2>/dev/null) ]] && return 0 # no need to continue, we have a fresh(<1h) ledger-state already
   rm -f "${TMP_DIR}/ledger-state_"* # remove old ledger dumps before creating a new
-  if ! timeout -k 5 "${TIMEOUT_LEDGER_STATE}" ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${ledger_state_file}"; then
+  if ! timeout -k 5 "${TIMEOUT_LEDGER_STATE}" ${CCLI} query ledger-state ${NETWORK_IDENTIFIER} --out-file "${ledger_state_file}"; then
     echo "ERROR: ledger dump failed/timed out, increase timeout value"
     [[ -f "${ledger_state_file}" ]] && rm -f "${ledger_state_file}"
     return 1
@@ -175,10 +175,10 @@ cncliInit() {
       echo -e "This is a mandatory prerequisite, please set variables accordingly in User Variables section in the env file and restart cncli.sh\n"
       exit 0
     fi
-  else # Download failed, ignore update check
-    rm -f "${PARENT}"/cncli.sh.tmp
-    rm -f "${PARENT}"/env.tmp
   fi
+  rm -f "${PARENT}"/cncli.sh.tmp
+  rm -f "${PARENT}"/env.tmp
+
   if [[ ! -f "${PARENT}"/env ]]; then
     echo -e "\nCommon env file missing: ${PARENT}/env"
     echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"
@@ -195,7 +195,7 @@ cncliInit() {
   
   [[ ! -f "${CNCLI}" ]] && echo -e "\nERROR: failed to locate cncli executable, please install with 'prereqs.sh'\n" && exit 1
   CNCLI_VERSION="v$(cncli -V | cut -d' ' -f2)"
-  if ! versionCheck "1.5.0" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, please upgrade to latest version!"; exit 1; fi
+  if ! versionCheck "1.5.1" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, minimum required version is 1.5.1, please upgrade to latest version!"; exit 1; fi
   
   [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
   if ! mkdir -p "${CNCLI_DIR}" 2>/dev/null; then echo "ERROR: Failed to create CNCLI DB directory: ${CNCLI_DIR}"; exit 1; fi

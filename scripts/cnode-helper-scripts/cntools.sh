@@ -621,8 +621,8 @@ function main {
               fi
             else
               println "ERROR" "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
-              keyDeposit=$(jq -r '.keyDeposit' "${TMP_DIR}"/protparams.json)
-              println "DEBUG" "Funds for key deposit($(formatLovelace ${keyDeposit}) Ada) + transaction fee needed to register the wallet"
+              stakeAddressDeposit=$(jq -r '.stakeAddressDeposit' <<< "${PROT_PARAMS}")
+              println "DEBUG" "Funds for key deposit($(formatLovelace ${stakeAddressDeposit}) Ada) + transaction fee needed to register the wallet"
               waitForInput && continue
             fi
             if ! registerStakeWallet ${wallet_name} "true"; then
@@ -680,7 +680,7 @@ function main {
             if ! verifyTx ${base_addr}; then waitForInput && continue; fi
             echo
             println "${FG_GREEN}${wallet_name}${NC} successfully de-registered from chain!"
-            println "Key deposit fee that will be refunded : ${FG_LBLUE}$(formatLovelace ${keyDeposit})${NC} Ada"
+            println "Key deposit fee that will be refunded : ${FG_LBLUE}$(formatLovelace ${stakeAddressDeposit})${NC} Ada"
             waitForInput && continue
             ;; ###################################################################
           list)
@@ -1135,7 +1135,7 @@ function main {
             for asset in "${!assets[@]}"; do
               assets_left[${asset}]=${assets[${asset}]}
             done
-            minUTxOValue=$(jq -r '.minUTxOValue //1000000' "${TMP_DIR}"/protparams.json)
+            minUTxOValue=$(jq -r '.minUTxOValue //1000000' <<< "${PROT_PARAMS}")
             # Amount
             println "DEBUG" "# Amount to Send (in Ada)"
             println "DEBUG" " Valid entry:"
@@ -1581,7 +1581,7 @@ function main {
             else
               margin_fraction=$(pctToFraction "${margin}")
             fi
-            minPoolCost=$(( $(jq -r '.minPoolCost //0' "${TMP_DIR}"/protparams.json) / 1000000 )) # convert to Ada
+            minPoolCost=$(( $(jq -r '.minPoolCost //0' <<< "${PROT_PARAMS}") / 1000000 )) # convert to Ada
             [[ -f ${pool_config} ]] && cost_ada=$(jq -r '.costADA //0' "${pool_config}") || cost_ada=${minPoolCost} # default cost
             [[ ${cost_ada} -lt ${minPoolCost} ]] && cost_ada=${minPoolCost} # raise old value to new minimum cost
             sleep 0.1 && read -r -p "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAsset ${cost_ada})): " cost_enter 2>&6 && println "LOG" "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAsset ${cost_ada})): ${cost_enter}"
@@ -2168,10 +2168,10 @@ function main {
             fi
             echo
             epoch=$(getEpoch)
-            eMax=$(jq -r '.eMax' "${TMP_DIR}"/protparams.json)
+            poolRetireMaxEpoch=$(jq -r '.poolRetireMaxEpoch' <<< "${PROT_PARAMS}")
             println "DEBUG" "Current epoch: ${FG_LBLUE}${epoch}${NC}"
             epoch_start=$((epoch + 1))
-            epoch_end=$((epoch + eMax))
+            epoch_end=$((epoch + poolRetireMaxEpoch))
             println "DEBUG" "earlist epoch to retire pool is ${FG_LBLUE}${epoch_start}${NC} and latest ${FG_LBLUE}${epoch_end}${NC}"
             echo
             sleep 0.1 && read -r -p "Enter epoch in which to retire pool (blank for ${epoch_start}): " epoch_enter 2>&6 && println "LOG" "Enter epoch in which to retire pool (blank for ${epoch_start}): ${epoch_enter}"
@@ -2306,8 +2306,8 @@ function main {
             tput rc && tput ed
             if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
               tput sc && println "DEBUG" "Dumping ledger-state from node, can take a while on larger networks...\n"
-              println "ACTION" "timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file ${TMP_DIR}/ledger-state.json"
-              if ! timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file "${TMP_DIR}"/ledger-state.json; then
+              println "ACTION" "timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${NETWORK_IDENTIFIER}"
+              if ! ledger_state=$(timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${NETWORK_IDENTIFIER}); then
                 tput rc && tput ed
                 println "ERROR" "${FG_RED}ERROR${NC}: ledger dump failed/timed out"
                 println "ERROR" "increase timeout value in cntools.config"
@@ -2321,10 +2321,12 @@ function main {
               [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}" ]] && ledger_retiring="?" || ledger_retiring=""
             else
               tput sc && println "Parsing ledger-state, can take a while on larger networks...\n"
-              ledger_pstate=$(jq -r '.nesEs.esLState._delegationState._pstate' "${TMP_DIR}"/ledger-state.json)
-              ledger_pParams=$(jq -r '._pParams."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
-              ledger_fPParams=$(jq -r '._fPParams."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
-              ledger_retiring=$(jq -r '._retiring."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
+              ledger_pstate=$(jq -r '.stateBefore.esLState.delegationState.pstate' <<< ${ledger_state})
+              unset ledger_state
+              ledger_pParams=$(jq -r '.["pParams pState"]."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
+              ledger_fPParams=$(jq -r '.["fPParams pState"]."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
+              ledger_retiring=$(jq -r '.["retiring pState"]."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
+              unset ledger_pstate
               [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
               [[ -n "${ledger_pParams}" ]] && pool_registered="YES" || pool_registered="NO"
               tput rc && tput ed
@@ -2484,8 +2486,8 @@ function main {
                     println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "Reward account" "${reward_account}")"
                   fi
                 fi
-                println "ACTION" "LC_NUMERIC=C printf %.10f \$(${CCLI} query stake-distribution ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} | grep ${pool_id_bech32} | tr -s ' ' | cut -d ' ' -f 2))"
-                stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} query stake-distribution ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} | grep "${pool_id_bech32}" | tr -s ' ' | cut -d ' ' -f 2)")")
+                println "ACTION" "LC_NUMERIC=C printf %.10f \$(${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | grep ${pool_id_bech32} | tr -s ' ' | cut -d ' ' -f 2))"
+                stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | grep "${pool_id_bech32}" | tr -s ' ' | cut -d ' ' -f 2)")")
                 if validateDecimalNbr ${stake_pct}; then
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Stake distribution" "${stake_pct}")"
                 fi
@@ -2602,7 +2604,6 @@ function main {
                 waitForInput && continue
               fi
               keyFiles=(
-                "${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
                 "${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
               )
               for keyFile in "${keyFiles[@]}"; do
@@ -3244,9 +3245,13 @@ function main {
             case $? in
               0) excluded_files=(
                    "--delete *${WALLET_PAY_SK_FILENAME}"
+                   "--delete *${WALLET_PAY_SK_FILENAME}.gpg"
                    "--delete *${WALLET_STAKE_SK_FILENAME}"
+                   "--delete *${WALLET_STAKE_SK_FILENAME}.gpg"
                    "--delete *${POOL_COLDKEY_SK_FILENAME}"
+                   "--delete *${POOL_COLDKEY_SK_FILENAME}.gpg"
                    "--delete *${ASSET_POLICY_SK_FILENAME}"
+                   "--delete *${ASSET_POLICY_SK_FILENAME}.gpg"
                  )
                  backup_file="${backup_path}online_cntools_backup-$(date '+%Y%m%d%H%M%S').tar"
                  ;;
@@ -3268,7 +3273,7 @@ function main {
                 backup_list+=( "${dir}" )
                 println "DEBUG" "  ${FG_LGRAY}$(basename "${dir}")${NC}"
                 ((backup_cnt++))
-              done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+              done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | sort -z)
             done
             [[ ${backup_cnt} -eq 0 ]] && println "\nNo folders found to include in backup :(" && waitForInput && continue
             echo
@@ -3290,12 +3295,12 @@ function main {
                   println "${FG_YELLOW}WARN${NC}: Wallet ${FG_GREEN}${wallet_name}${NC} missing payment signing key file" && missing_keys="true"
                 [[ -z "$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f \( -name "${WALLET_STAKE_SK_FILENAME}*" -o -name "${WALLET_HW_STAKE_SK_FILENAME}" \) -print)" ]] && \
                   println "${FG_YELLOW}WARN${NC}: Wallet ${FG_GREEN}${wallet_name}${NC} missing stake signing key file" && missing_keys="true"
-              done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+              done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | sort -z)
               while IFS= read -r -d '' pool; do
                 pool_name=$(basename ${pool})
                 [[ -z "$(find "${pool}" -mindepth 1 -maxdepth 1 -type f -name "${POOL_COLDKEY_SK_FILENAME}*" -print)" ]] && \
                   println "${FG_YELLOW}WARN${NC}: Pool ${FG_GREEN}${pool_name}${NC} missing file ${POOL_COLDKEY_SK_FILENAME}" && missing_keys="true"
-              done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+              done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | sort -z)
               [[ ${missing_keys} = "true" ]] && echo
             fi
              println "DEBUG" "Encrypt backup?"
@@ -3363,7 +3368,7 @@ function main {
                 restore_list+=( "${dir}" )
                 println "DEBUG" "  ${FG_LGRAY}$(basename "${dir}")${NC}"
                 ((restore_cnt++))
-              done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+              done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | sort -z)
             done
             [[ ${restore_cnt} -eq 0 ]] && println "\nNothing in backup file to restore :(" && waitForInput && continue
             echo
@@ -3387,7 +3392,7 @@ function main {
               while IFS= read -r -d '' dir; do
                 archive_list+=( "${item}" )
                 ((source_cnt++))
-              done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+              done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | sort -z)
             done
             if [[ ${source_cnt} -gt 0 ]]; then
               archive_dest="${CNODE_HOME}/priv/archive"
@@ -3411,7 +3416,7 @@ function main {
               dest_path="${item:${#restore_path}}"
               while IFS= read -r -d '' file; do # unlock files to make sure restore is successful
                 unlockFile "${file}"
-              done < <(find "${dest_path}" -mindepth 1 -maxdepth 1 -type f -print0)
+              done < <(find "${dest_path}" -mindepth 1 -maxdepth 1 -type f -print0 2>/dev/null)
               println "ACTION" "cp -rf ${item} $(dirname "${dest_path}")"
               cp -rf "${item}" "$(dirname "${dest_path}")"
             done

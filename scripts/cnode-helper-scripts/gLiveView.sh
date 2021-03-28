@@ -54,7 +54,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.20.0
+GLV_VERSION=v1.20.2
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -145,20 +145,20 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
   esac
 
   echo "Guild LiveView version check..."
-  if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}/gLiveView.sh" "${URL}/gLiveView.sh" 2>/dev/null; then
-    GIT_VERSION=$(grep -r ^GLV_VERSION= "${TMP_DIR}/gLiveView.sh" | cut -d'=' -f2)
+  if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/gLiveView.sh.tmp ${URL}/gLiveView.sh 2>/dev/null && [[ -f "${PARENT}"/gLiveView.sh.tmp ]]; then
+    GIT_VERSION=$(grep -r ^GLV_VERSION= "${PARENT}"/gLiveView.sh.tmp | cut -d'=' -f2)
     : "${GIT_VERSION:=v0.0.0}"
     if ! versionCheck "${GIT_VERSION}" "${GLV_VERSION}"; then
       echo -e "\nA new version of Guild LiveView is available"
       echo "Installed Version : ${GLV_VERSION}"
       echo "Available Version : ${GIT_VERSION}"
       if getAnswer "\nDo you want to upgrade to the latest version of Guild LiveView?"; then
-        TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${TMP_DIR}/gLiveView.sh")
-        STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/gLiveView.sh")
-        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > "${TMP_DIR}/gLiveView.sh"
-        mv -f "${PARENT}/gLiveView.sh" "${PARENT}/gLiveView.sh_bkp$(printf '%(%s)T\n' -1)" && \
-        cp -f "${TMP_DIR}/gLiveView.sh" "${PARENT}/gLiveView.sh" && \
-        chmod 750 "${PARENT}/gLiveView.sh" && \
+        TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/gLiveView.sh.tmp)
+        STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/gLiveView.sh)
+        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > "${PARENT}"/gLiveView.sh.tmp
+        mv -f "${PARENT}"/gLiveView.sh "${PARENT}/gLiveView.sh_bkp$(printf '%(%s)T\n' -1)" && \
+        mv -f "${PARENT}"/gLiveView.sh.tmp "${PARENT}"/gLiveView.sh && \
+        chmod 750 "${PARENT}"/gLiveView.sh && \
         myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!" || \
         myExit 1 "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
       fi
@@ -167,6 +167,7 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
     echo -e "\nFailed to download gLiveView.sh from GitHub, unable to perform version check!"
     waitToProceed
   fi
+  rm -f "${PARENT}"/gLiveView.sh.tmp
 else
   # source common env variables in offline mode
   if ! . "${PARENT}"/env offline; then myExit 1; fi
@@ -389,7 +390,7 @@ checkPeers() {
           peerRTT=99999
         fi
       elif command -v ss >/dev/null; then
-        peerRTT=$(ss -ni "dst ${peerIP}:${peerPORT}" | tail -1 | sed -e 's/.*rtt:\(.*\)\/.*.ato.*/\1/' | cut -d. -f1)
+        [[ $(ss -ni "dst ${peerIP}:${peerPORT}" | tail -1) =~ rtt:([0-9]+) ]] && peerRTT=${BASH_REMATCH[1]} || peerRTT=99999
       elif command -v tcptraceroute >/dev/null; then
         checkPEER=$(tcptraceroute -n -S -f 255 -m 255 -q 1 -w 1 "${peerIP}" "${peerPORT}" 2>&1 | tail -n 1)
         if [[ ${checkPEER} = *'[open]'* ]]; then
@@ -402,10 +403,10 @@ checkPeers() {
       else # cncli, ss & tcptraceroute missing and ping failed
         peerRTT=99999
       fi
-      [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT))
+      ! isNumber ${peerRTT} && peerRTT=99999 || peerRTTSUM=$((peerRTTSUM + peerRTT))
     elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Incoming connection, ping OK, show RTT.
       peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
-      peerRTTSUM=$((peerRTTSUM + peerRTT))
+      ! isNumber ${peerRTT} && peerRTT=99999 || peerRTTSUM=$((peerRTTSUM + peerRTT))
     else # Incoming connection, ping failed, set as unreachable
       peerRTT=99999
     fi
@@ -537,9 +538,8 @@ while true; do
   fi
   
   if [[ -z "${PROT_PARAMS}" ]]; then
-    getEraIdentifier
-    PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
-    if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
+    PROT_PARAMS="$(${CCLI} query protocol-parameters ${NETWORK_IDENTIFIER} 2>/dev/null)"
+    if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralization <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
   fi
   
   if [[ ${show_peers} = "false" ]]; then
@@ -563,9 +563,8 @@ while true; do
     fi
     if [[ ${curr_epoch} -ne ${epochnum} ]]; then # only update on new epoch to save on processing
       curr_epoch=${epochnum}
-      getEraIdentifier
-      PROT_PARAMS="$(${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} 2>/dev/null)"
-      if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralisationParam <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
+      PROT_PARAMS="$(${CCLI} query protocol-parameters ${NETWORK_IDENTIFIER} 2>/dev/null)"
+      if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralization <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
     fi
   fi
 

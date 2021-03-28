@@ -45,7 +45,7 @@ fi
 rm -f "${TMP_FOLDER}"/*
 
 # Get protocol parameters and save to ${TMP_FOLDER}/protparams.json
-${CCLI} query protocol-parameters ${ERA_IDENTIFIER} ${NETWORK_IDENTIFIER} --out-file ${TMP_FOLDER}/protparams.json || {
+${CCLI} query protocol-parameters ${NETWORK_IDENTIFIER} --out-file ${TMP_FOLDER}/protparams.json || {
   echo
   echo -e "${RED}ERROR${NC}: failed to query protocol parameters, node running and env parameters correct?"
   customExit 1
