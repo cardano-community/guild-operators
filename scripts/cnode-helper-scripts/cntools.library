@@ -514,6 +514,7 @@ selectPool() {
   pool_dirs=()
   mode=$1 && shift
   enc_req_files=0
+  current_epoch=$(getEpoch) # Needed for isPoolRegistered() using REST API, best to call outside of loop
   if ! getDirs "${POOL_FOLDER}"; then return 1; fi # dirs() array populated with all pool folders
   for dir in "${dirs[@]}"; do
     for req_file in "$@"; do # check if pool is missing a required file and if so hide it
@@ -528,10 +529,14 @@ selectPool() {
         pool_dirs+=("${dir} (${FG_YELLOW}unprotected${NC})")
       fi
       continue
-    elif [[ ${mode} = "non-reg" ]]; then
-      [[ -f "${POOL_FOLDER}/${dir}/${POOL_REGCERT_FILENAME}" ]] && continue
-    elif [[ ${mode} = "reg" ]]; then
-      [[ ! -f "${POOL_FOLDER}/${dir}/${POOL_REGCERT_FILENAME}" ]] && continue
+    elif [[ ${mode} = "non-reg" || ${mode} = "reg" ]]; then
+      isPoolRegistered "${dir}"
+      case $? in
+        0) println "ERROR" "PGREST_API: ${error_msg}" &>/dev/null ;; # log error without printing but show pool
+        1) [[ ${mode} = "reg" ]] && continue ;;
+        2) [[ ${mode} = "non-reg" ]] && continue ;;
+        3) [[ ${mode} = "reg" ]] && continue ;;
+      esac
     fi
     pool_dirs+=("${dir}")
   done
@@ -543,6 +548,38 @@ selectPool() {
   [[ ${enc_req_files} -gt 0 ]] && println "DEBUG" "${FG_YELLOW}encrypted pools found but NOT listed, please decrypt to show${NC}"
   if ! selectDir "pool" "${pool_dirs[@]}"; then return 1; fi # ${dir_name} populated by selectDir function
   pool_name="$(echo ${dir_name} | cut -d' ' -f1)"
+}
+
+# Command     : isPoolRegistered [pool_name]
+# Description : check if pool is registered on chain
+#               existence of POOL_REGCERT_FILENAME checked when REST API is not available
+# Parameters  : pool_name   >  the name of the pool to check
+# Return      : 0 => error quering REST API (error message saved in ${error_msg})
+#               1 => pool NOT registered
+#               2 => registered
+#               3 => retired (only for REST API)
+isPoolRegistered() {
+  error_msg=""; pupd_latest=""; pupd_latest_epoch=""; p_hash_id=""; pretire=""; retiring_epoch=0
+  if [[ ${CNTOOLS_MODE} = "OFFLINE" || -z ${PGREST_API} ]]; then
+    [[ -f "${POOL_FOLDER}/${1}/${POOL_DEREGCERT_FILENAME}" ]] && retiring_epoch=-1 || retiring_epoch=0
+    [[ -f "${POOL_FOLDER}/${1}/${POOL_REGCERT_FILENAME}" ]] && return 2 || return 1
+  else
+    getPoolID "$1"
+    ! pupd_latest=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -d _state=latest "${PGREST_API}"/rpc/get_pool_update 2>&1) && error_msg=${pupd_latest} && return 0
+    pupd_latest_epoch=$(jq '.[0].active_epoch_no //empty' <<< ${pupd_latest})
+    if [[ -z ${pupd_latest_epoch} ]]; then
+      return 1
+    else
+      p_hash_id=$(jq '.[0].hash_id' <<< ${pupd_latest})
+      ! pretire=$(curl -sSL -f -d _pool_hash_id=${p_hash_id} -s "${PGREST_API}"/rpc/get_pool_retire 2>&1) && error_msg=${pretire} && return 0
+      retiring_epoch=$(jq -e '.[0].retiring_epoch' <<< ${pretire}) || retiring_epoch=0
+      if [[ ${retiring_epoch} -gt 0 ]]; then
+        [[ $(jq '.[0].announced_tx_id' <<< ${pretire}) -lt $(jq '.[0].tx_id' <<< ${pupd_latest}) ]] && retiring_epoch=0 # invalidated by newer update
+        [[ ${retiring_epoch} -gt 0 && ${retiring_epoch} -le ${current_epoch} ]] && return 3 # pool retired
+      fi
+      return 2
+    fi
+  fi
 }
 
 
@@ -758,7 +795,7 @@ verifyTx() {
 # Description : validate decimal number
 # Parameters  : decimalNbr  >  decimal number
 validateDecimalNbr() {
-  re_decimal_nbr='^[0-9]+([.][0-9]+)?$'
+  re_decimal_nbr='^([0-9]+)?([.][0-9]+)?$'
   if [[ $1 =~ ${re_decimal_nbr} ]]; then
     return 0
   else
