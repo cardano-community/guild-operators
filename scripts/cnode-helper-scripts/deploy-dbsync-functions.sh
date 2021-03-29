@@ -81,7 +81,7 @@ echo -e "${FG_GREEN}get_pool_retire(_pool_hash_id numeric)${NC}"
 echo -e "Function to check if a pool retire transaction has been sent"
 echo -e "${FG_LGRAY}_pool_hash_id${NC}: hash_id from get_pool_update()"
 echo -e "Example rest query: curl -d _pool_hash_id=127 -s http://localhost:8050/rpc/get_pool_retire"
-! output=$(cat <<'SQL' | tr '\n' ' ' | psql cexplorer
+! output=$(cat <<'SQL' | tr '\n' ' ' | psql cexplorer 2>&1
 CREATE OR REPLACE FUNCTION get_pool_retire(
   _pool_hash_id numeric
 )
@@ -99,7 +99,7 @@ BEGIN
   );
 END; $$ LANGUAGE PLPGSQL IMMUTABLE;
 SQL
-2>&1) && echo -e "${FG_RED}ERROR${NC}: ${output}" && exit 1
+) && echo -e "${FG_RED}ERROR${NC}: ${output}" && exit 1
 
 echo
 echo -e "${FG_GREEN}get_pool_metadata(_pool_meta_id numeric)${NC}"
