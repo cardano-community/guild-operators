@@ -107,7 +107,7 @@ dumpLedgerState() { # getNodeMetrics expected to have been already run
   ledger_state_file="${TMP_DIR}/ledger-state_${NWMAGIC}_${epochnum}.json"
   [[ -n $(find "${ledger_state_file}" -mmin -60 2>/dev/null) ]] && return 0 # no need to continue, we have a fresh(<1h) ledger-state already
   rm -f "${TMP_DIR}/ledger-state_"* # remove old ledger dumps before creating a new
-  if ! timeout -k 5 "${TIMEOUT_LEDGER_STATE}" ${CCLI} query ledger-state ${NETWORK_IDENTIFIER} --out-file "${ledger_state_file}"; then
+  if ! timeout -k 5 ${TIMEOUT_LEDGER_STATE} ${CCLI} query ledger-state ${NETWORK_IDENTIFIER} > "${ledger_state_file}"; then
     echo "ERROR: ledger dump failed/timed out, increase timeout value"
     [[ -f "${ledger_state_file}" ]] && rm -f "${ledger_state_file}"
     return 1
