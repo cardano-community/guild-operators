@@ -54,7 +54,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.20.2
+GLV_VERSION=v1.20.3
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -141,7 +141,7 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
   . "${PARENT}"/env
   case $? in
     1) myExit 1 ;;
-    2) waitToProceed ;;
+    2) clear ;;
   esac
 
   echo "Guild LiveView version check..."
@@ -170,7 +170,11 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
   rm -f "${PARENT}"/gLiveView.sh.tmp
 else
   # source common env variables in offline mode
-  if ! . "${PARENT}"/env offline; then myExit 1; fi
+  . "${PARENT}"/env offline
+  case $? in
+    1) myExit 1 ;;
+    2) clear ;;
+  esac
 fi
 
 #######################################################
