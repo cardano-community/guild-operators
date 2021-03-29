@@ -30,7 +30,7 @@ echo -e "${FG_LGRAY}_pool_bech32${NC}: the pool id in bech32 format"
 echo -e "${FG_LGRAY}_current_epoch_no${NC}: only needed when using 'active' state"
 echo -e "${FG_LGRAY}_state${NC}: only needed when using 'active' state"
 echo -e "Example rest query: curl -d _pool_bech32=pool1pvyt2d468tlzr77cymae90hgj73aret457zfktnvgev6kmx5nk3 -d _current_epoch_no=121 -d _state=active -s http://localhost:8050/rpc/get_pool_update"
-! output=$(cat <<'SQL' | tr '\n' ' ' | psql cexplorer
+! output=$(cat <<'SQL' | tr '\n' ' ' | psql cexplorer 2>&1
 CREATE OR REPLACE FUNCTION get_pool_update(
   _pool_bech32 text,
   _current_epoch_no numeric default 0,
@@ -74,7 +74,7 @@ BEGIN
   );
 END; $$ LANGUAGE PLPGSQL IMMUTABLE;
 SQL
-2>&1) && echo -e "${FG_RED}ERROR${NC}: ${output}" && exit 1
+) && echo -e "${FG_RED}ERROR${NC}: ${output}" && exit 1
 
 echo
 echo -e "${FG_GREEN}get_pool_retire(_pool_hash_id numeric)${NC}"
@@ -106,7 +106,7 @@ echo -e "${FG_GREEN}get_pool_metadata(_pool_meta_id numeric)${NC}"
 echo -e "Function to get pool metadata url and hash"
 echo -e "${FG_LGRAY}_pool_meta_id${NC}: meta_id from get_pool_update()"
 echo -e "Example rest query: curl -d _pool_meta_id=125 -s http://localhost:8050/rpc/get_pool_metadata"
-! output=$(cat <<'SQL' | tr '\n' ' ' | psql cexplorer
+! output=$(cat <<'SQL' | tr '\n' ' ' | psql cexplorer 2>&1
 CREATE OR REPLACE FUNCTION get_pool_metadata(
   _pool_meta_id numeric
 )
@@ -122,14 +122,14 @@ BEGIN
   );
 END; $$ LANGUAGE PLPGSQL IMMUTABLE;
 SQL
-2>&1) && echo -e "${FG_RED}ERROR${NC}: ${output}" && exit 1
+) && echo -e "${FG_RED}ERROR${NC}: ${output}" && exit 1
 
 echo
 echo -e "${FG_GREEN}get_pool_relays(_pool_update_id numeric)${NC}"
 echo -e "Function to get registered pool relays"
 echo -e "${FG_LGRAY}_pool_update_id${NC}: update_id from get_pool_update()"
 echo -e "Example rest query: curl -d _pool_update_id=1296 -s http://localhost:8050/rpc/get_pool_relays"
-! output=$(cat <<'SQL' | tr '\n' ' ' | psql cexplorer
+! output=$(cat <<'SQL' | tr '\n' ' ' | psql cexplorer 2>&1
 CREATE OR REPLACE FUNCTION get_pool_relays(
   _pool_update_id numeric
 )
@@ -148,14 +148,14 @@ BEGIN
   );
 END; $$ LANGUAGE PLPGSQL IMMUTABLE;
 SQL
-2>&1) && echo -e "${FG_RED}ERROR${NC}: ${output}" && exit 1
+) && echo -e "${FG_RED}ERROR${NC}: ${output}" && exit 1
 
 echo
 echo -e "${FG_GREEN}get_pool_owners(_pool_tx_id numeric)${NC}"
 echo -e "Function to get registered pool owners"
 echo -e "${FG_LGRAY}_pool_tx_id${NC}: tx_id from get_pool_update()"
 echo -e "Example rest query: curl -d _pool_tx_id=142292 -s http://localhost:8050/rpc/get_pool_owners"
-! output=$(cat <<'SQL' | tr '\n' ' ' | psql cexplorer
+! output=$(cat <<'SQL' | tr '\n' ' ' | psql cexplorer 2>&1
 CREATE OR REPLACE FUNCTION get_pool_owners(
   _pool_tx_id numeric
 )
@@ -172,7 +172,7 @@ BEGIN
   );
 END; $$ LANGUAGE PLPGSQL IMMUTABLE;
 SQL
-2>&1) && echo -e "${FG_RED}ERROR${NC}: ${output}" && exit 1
+) && echo -e "${FG_RED}ERROR${NC}: ${output}" && exit 1
 
 echo
 echo -e "${FG_GREEN}get_active_stake(_pool_hash_id numeric default null, _epoch_no numeric default null)${NC}"
@@ -180,7 +180,7 @@ echo -e "Function to get the pools active stake in lovelace for specified epoch,
 echo -e "${FG_LGRAY}_pool_hash_id${NC}: hash_id from get_pool_update()"
 echo -e "${FG_LGRAY}_epoch_no${NC}: the epoch number to get active stake for"
 echo -e "Example rest query: curl -d _pool_hash_id=127 -d _epoch_no=122 -s http://localhost:8050/rpc/get_active_stake"
-! output=$(cat <<'SQL' | tr '\n' ' ' | psql cexplorer
+! output=$(cat <<'SQL' | tr '\n' ' ' | psql cexplorer 2>&1
 CREATE OR REPLACE FUNCTION get_active_stake(
   _pool_hash_id numeric default null,
   _epoch_no numeric default null
@@ -209,14 +209,14 @@ BEGIN
   END IF;
 END; $$ LANGUAGE PLPGSQL IMMUTABLE;
 SQL
-2>&1) && echo -e "${FG_RED}ERROR${NC}: ${output}" && exit 1
+) && echo -e "${FG_RED}ERROR${NC}: ${output}" && exit 1
 
 echo
 echo -e "${FG_GREEN}get_delegator_count(_pool_hash_id numeric)${NC}"
 echo -e "Function to get live delegator count"
 echo -e "${FG_LGRAY}_pool_hash_id${NC}: hash_id from get_pool_update()"
 echo -e "Example rest query: curl -d _pool_hash_id=127 -s http://localhost:8050/rpc/get_delegator_count"
-! output=$(cat <<'SQL' | tr '\n' ' ' | psql cexplorer
+! output=$(cat <<'SQL' | tr '\n' ' ' | psql cexplorer 2>&1
 CREATE OR REPLACE FUNCTION get_delegator_count(
   _pool_hash_id numeric
 )
@@ -241,7 +241,7 @@ BEGIN
   );
 END; $$ LANGUAGE PLPGSQL IMMUTABLE;
 SQL
-2>&1) && echo -e "${FG_RED}ERROR${NC}: ${output}" && exit 1
+) && echo -e "${FG_RED}ERROR${NC}: ${output}" && exit 1
 
 echo
 echo "All functions successfully injected in DBSync"
