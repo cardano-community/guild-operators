@@ -1689,7 +1689,7 @@ function main {
             relay_output=""
             relay_array=()
             println "DEBUG" "\n# Pool Relay Registration"
-            # ToDo SRV & IPv6 support
+            # ToDo SRV support
             if [[ -f "${pool_config}" && $(jq '.relays | length' "${pool_config}") -gt 0 ]]; then
               println "DEBUG" "\nPrevious relay configuration:\n"
               jq -r '["TYPE","ADDRESS","PORT"], (.relays[] | [.type //"-",.address //"-",.port //"-"]) | @tsv' "${pool_config}" | column -t >&3
@@ -1734,7 +1734,7 @@ function main {
                      ;;
                   1) sleep 0.1 && read -r -p "Enter relays's IPv4/v6 address: " relay_ip_enter 2>&6 && println "LOG" "Enter relays's IPv4/v6 address: ${relay_ip_enter}"
                      if [[ -n "${relay_ip_enter}" ]]; then
-                       if ! isValidIPv4 "${relay_ip_enter}" || ! isValidIPv6 "${relay_ip_enter}"; then
+                       if ! isValidIPv4 "${relay_ip_enter}" && ! isValidIPv6 "${relay_ip_enter}"; then
                          println "ERROR" "${FG_RED}ERROR${NC}: invalid IPv4/v6 address format!"
                        else
                          sleep 0.1 && read -r -p "Enter relays's port: " relay_port_enter 2>&6 && println "LOG" "Enter relays's port: ${relay_port_enter}"
@@ -1753,7 +1753,7 @@ function main {
                          fi
                        fi
                      else
-                       println "ERROR" "${FG_RED}ERROR${NC}: IPv4 address can not be empty!"
+                       println "ERROR" "${FG_RED}ERROR${NC}: IPv4/v6 address empty!"
                      fi
                      ;;
                   2) continue 2 ;;
