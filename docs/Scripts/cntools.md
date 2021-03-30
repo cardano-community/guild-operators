@@ -1,6 +1,6 @@
 !> Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
 
-CNTools is like a swiss army knife for pool operators to simplify typical operations regarding their wallet keys and pool management. Please note that this tool is tested on Linux platforms only at this point and should **NOT** act as an excuse for Pool Operators to skip reading about how Staking works or basics of Linux operations. The skills highlighted in [official documentation](https://docs.cardano.org/en/latest/getting-started/stake-pool-operators/prerequisites.html) are paramount for a stake pool operator, and so is the understanding of configuration files and network.
+CNTools is like a swiss army knife for pool operators to simplify typical operations regarding their wallet keys and pool management. Please note that this tool is tested on Linux platforms only at this point and should **NOT** act as an excuse for Pool Operators to skip reading about how Staking works or basics of Linux operations. The skills highlighted on the [home page](README.md) are paramount for a stake pool operator, and so is the understanding of configuration files and network. Please ensure you've read and understood the disclaimers **before** proceeding.
 
 Visit the [Changelog](Scripts/cntools-changelog.md) section to see progress and current release.
 
