@@ -1734,7 +1734,7 @@ function main {
                      ;;
                   1) sleep 0.1 && read -r -p "Enter relays's IPv4/v6 address: " relay_ip_enter 2>&6 && println "LOG" "Enter relays's IPv4/v6 address: ${relay_ip_enter}"
                      if [[ -n "${relay_ip_enter}" ]]; then
-                       if ! isValidIPv4 "${relay_ip_enter}" || ! isValidIPv6 "${relay_ip_enter}"; then
+                       if ! isValidIPv4 "${relay_ip_enter}" && ! isValidIPv6 "${relay_ip_enter}"; then
                          println "ERROR" "${FG_RED}ERROR${NC}: invalid IPv4/v6 address format!"
                        else
                          sleep 0.1 && read -r -p "Enter relays's port: " relay_port_enter 2>&6 && println "LOG" "Enter relays's port: ${relay_port_enter}"

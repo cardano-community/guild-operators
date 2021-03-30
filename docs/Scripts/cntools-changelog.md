@@ -5,6 +5,11 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.1.1] - 2021-03-30
+##### Fixed
+- Relay registration condition
+- Version number
+
 ## [8.1.0] - 2021-03-26
 
 ##### Added
