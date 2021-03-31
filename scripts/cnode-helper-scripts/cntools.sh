@@ -160,14 +160,16 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       println "DEBUG" "Installed Version : ${FG_LGRAY}${CNTOOLS_VERSION}${NC}"
       println "DEBUG" "Available Version : ${FG_GREEN}${GIT_VERSION}${NC}"
       if getAnswer "\nDo you want to upgrade to the latest version of CNTools?"; then
-        curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/cntools.sh.tmp "${URL}/cntools.sh" && \
+        if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/cntools.sh.tmp "${URL}/cntools.sh" && \
         mv -f "${PARENT}"/cntools.sh "${PARENT}/cntools.sh_bkp$(printf '%(%s)T\n' -1)" && \
         mv -f "${PARENT}"/cntools.library "${PARENT}/cntools.library_bkp$(printf '%(%s)T\n' -1)" && \
         mv -f "${PARENT}"/cntools.sh.tmp "${PARENT}"/cntools.sh && \
         mv -f "${PARENT}"/cntools.library.tmp "${PARENT}"/cntools.library && \
-        chmod 750 "${PARENT}"/cntools.sh && \
-        myExit 0 "Update applied successfully!\n\nPlease start CNTools again!" || \
-        myExit 1 "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually update CNTools"
+        chmod 750 "${PARENT}"/cntools.sh; then
+          myExit 0 "Update applied successfully!\n\nPlease start CNTools again!"
+        else
+          myExit 1 "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually update CNTools"
+        fi
       fi
       #println "DEBUG" "\nGo to Update section for upgrade\n\nAlternately, follow https://cardano-community.github.io/guild-operators/#/basics?id=pre-requisites to update cntools as well alongwith any other files"
       waitForInput "press any key to proceed"
