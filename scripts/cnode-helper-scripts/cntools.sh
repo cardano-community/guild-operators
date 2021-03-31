@@ -144,10 +144,10 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   # check to see if there are any updates available
   clear
   println "DEBUG" "CNTools version check...\n"
-  if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}"/cntools.library "${URL}/cntools.library" && [[ -f "${TMP_DIR}"/cntools.library ]]; then
-    GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_DIR}"/cntools.library |sed -e "s#.*=##")
-    GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_DIR}"/cntools.library |sed -e "s#.*=##")
-    GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_DIR}"/cntools.library |sed -e "s#.*=##")
+  if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/cntools.library.tmp "${URL}/cntools.library" && [[ -f "${PARENT}"/cntools.library.tmp ]]; then
+    GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${PARENT}"/cntools.library.tmp |sed -e "s#.*=##")
+    GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${PARENT}"/cntools.library.tmp |sed -e "s#.*=##")
+    GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${PARENT}"/cntools.library.tmp |sed -e "s#.*=##")
     if [[ "$GIT_PATCH_VERSION" -eq 999  ]]; then
       ((GIT_MAJOR_VERSION++))
       GIT_MINOR_VERSION=0
@@ -159,7 +159,17 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       echo
       println "DEBUG" "Installed Version : ${FG_LGRAY}${CNTOOLS_VERSION}${NC}"
       println "DEBUG" "Available Version : ${FG_GREEN}${GIT_VERSION}${NC}"
-      println "DEBUG" "\nGo to Update section for upgrade\n\nAlternately, follow https://cardano-community.github.io/guild-operators/#/basics?id=pre-requisites to update cntools as well alongwith any other files"
+      if getAnswer "\nDo you want to upgrade to the latest version of CNTools?"; then
+        curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/cntools.sh.tmp "${URL}/cntools.sh" && \
+        mv -f "${PARENT}"/cntools.sh "${PARENT}/cntools.sh_bkp$(printf '%(%s)T\n' -1)" && \
+        mv -f "${PARENT}"/cntools.library "${PARENT}/cntools.library_bkp$(printf '%(%s)T\n' -1)" && \
+        mv -f "${PARENT}"/cntools.sh.tmp "${PARENT}"/cntools.sh && \
+        mv -f "${PARENT}"/cntools.library.tmp "${PARENT}"/cntools.library && \
+        chmod 750 "${PARENT}"/cntools.sh && \
+        myExit 0 "Update applied successfully!\n\nPlease start CNTools again!" || \
+        myExit 1 "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually update CNTools"
+      fi
+      #println "DEBUG" "\nGo to Update section for upgrade\n\nAlternately, follow https://cardano-community.github.io/guild-operators/#/basics?id=pre-requisites to update cntools as well alongwith any other files"
       waitForInput "press any key to proceed"
     else
       # check if CNTools was recently updated, if so show whats new
@@ -184,6 +194,8 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
         println "ERROR" "\n${FG_RED}ERROR${NC}: failed to download changelog from GitHub!"
         waitForInput "press any key to proceed"
       fi
+      rm -f "${PARENT}"/cntools.sh.tmp
+      rm -f "${PARENT}"/cntools.library.tmp
     fi
   else
     println "ERROR" "\n${FG_RED}ERROR${NC}: failed to download cntools.library from GitHub, unable to perform version check!"
