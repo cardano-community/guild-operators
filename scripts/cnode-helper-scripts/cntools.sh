@@ -262,7 +262,6 @@ function main {
 			" ) Pool        - pool creation and management"\
 			" ) Transaction - Sign and Submit a cold transaction (hybrid/offline mode)"\
 			"$([[ -f "${BLOCKLOG_DB}" ]] && echo " ) Blocks      - show core node leader schedule & block production statistics")"\
-			" ) Update      - update cntools script and library config files"\
 			" ) Backup      - backup & restore of wallet/pool/config"\
 			"$([[ ${ADVANCED_MODE} = true ]] && echo " ) Advanced    - Developer and advanced features: metadata, multi-assets, ...")"\
 			" ) Refresh     - reload home screen content"\
@@ -283,14 +282,13 @@ function main {
       fi
     fi
     echo
-    select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[t] Transaction" "$([[ -f "${BLOCKLOG_DB}" ]] && echo "[b] Blocks")" "[u] Update" "[z] Backup & Restore" "$([[ ${ADVANCED_MODE} = true ]] && echo "[a] Advanced")" "[r] Refresh" "[q] Quit"
+    select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[t] Transaction" "$([[ -f "${BLOCKLOG_DB}" ]] && echo "[b] Blocks")" "[z] Backup & Restore" "$([[ ${ADVANCED_MODE} = true ]] && echo "[a] Advanced")" "[r] Refresh" "[q] Quit"
     case ${selected_value} in
       "[w]"*) OPERATION="wallet" ;;
       "[f]"*) OPERATION="funds" ;;
       "[p]"*) OPERATION="pool" ;;
       "[t]"*) OPERATION="transaction" ;;
       "[b]"*) OPERATION="blocks" ;;
-      "[u]"*) OPERATION="update" ;;
       "[z]"*) OPERATION="backup" ;;
       "[a]"*) OPERATION="advanced" ;;
       "[r]"*) continue ;;
@@ -3165,65 +3163,6 @@ function main {
              ;;
           2) continue ;;
         esac
-        waitForInput && continue
-        ;; ###################################################################
-      update)
-        clear
-        println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-        println " >> UPDATE"
-        println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-        echo
-        println "DEBUG" "Full changelog available at:\nhttps://cardano-community.github.io/guild-operators/#/Scripts/cntools-changelog"
-        echo
-        if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}"/cntools.library "${URL}/cntools.library"; then
-          GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${TMP_DIR}"/cntools.library |sed -e "s#.*=##")
-          GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${TMP_DIR}"/cntools.library |sed -e "s#.*=##")
-          GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${TMP_DIR}"/cntools.library |sed -e "s#.*=##")
-          GIT_VERSION="${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}"
-          if [[ ${CNTOOLS_MAJOR_VERSION} -lt ${GIT_MAJOR_VERSION} ]]; then
-            println "DEBUG" "New major version available: ${FG_GREEN}${GIT_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
-            println "DEBUG" "${FG_RED}WARNING${NC}: Breaking changes were made to CNTools!"
-            println "DEBUG" "\nPlease read changelog available at the above URL carefully and then follow directions below"
-            waitForInput "We will not overwrite your changes automatically, press any key for update instructions"
-            println "DEBUG" "\n\n1) Please use the built in Backup option in CNTools before proceeding"
-            println "DEBUG" "\n2) After backup, re-run updated prereqs.sh script with appropriate arguments, info and directions available at:"
-            println "DEBUG" "   https://cardano-community.github.io/guild-operators/#/basics?id=pre-requisites"
-            println "DEBUG" "\n3) As the last step, restore any modified parameters in cntools.config / env if needed"
-          elif ! versionCheck "${GIT_VERSION}" "${CNTOOLS_VERSION}"; then
-            if [[ "${GIT_PATCH_VERSION}" -eq 999  ]]; then
-              ((GIT_MAJOR_VERSION++))
-              GIT_MINOR_VERSION=0
-              GIT_PATCH_VERSION=0
-            fi
-            println "DEBUG" "New version available: ${FG_GREEN}${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}${NC} (Current: ${CNTOOLS_VERSION})\n"
-            println "DEBUG" "${FG_BLUE}INFO${NC} - the following files will be overwritten:"
-            println "DEBUG" "${PARENT}/cntools.sh"
-            println "DEBUG" "${PARENT}/cntools.library"
-            println "DEBUG" "\nProceed with update?"
-            select_opt "[y] Yes" "[n] No"
-            case $? in
-              0) : ;; # do nothing
-              1) continue ;; 
-            esac
-            println "\nApplying update..."
-            if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}/cntools.sh.tmp" "${URL}/cntools.sh" &&
-               curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}/cntools.library.tmp" "${URL}/cntools.library" &&
-               [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]] &&
-               sed -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}/cntools".*.tmp; then
-              mv -f "${PARENT}/cntools.sh.tmp" "${PARENT}/cntools.sh"
-              mv -f "${PARENT}/cntools.library.tmp" "${PARENT}/cntools.library"
-              chmod 755 "${PARENT}/cntools.sh"
-              println "Update applied successfully!"
-              myExit 0 "Update applied successfully!\n\nPlease start CNTools again!"
-            else
-              println "ERROR" "\n${FG_RED}ERROR${NC}: update failed! :(\n"
-            fi
-          else
-            println "${FG_GREEN}Up to Date${NC}: You're using the latest version. No updates required!"
-          fi
-        else
-          println "ERROR" "\n${FG_RED}ERROR${NC}: download from GitHub failed, unable to perform version check!\n"
-        fi
         waitForInput && continue
         ;; ###################################################################
       backup)
