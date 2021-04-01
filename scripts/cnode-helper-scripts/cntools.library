@@ -6,12 +6,12 @@
 ############################################################
 # The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 # and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
-# Any breaking changes (eg: that requires change of cntools.config, env or a change in priv folder would be considered breaking and will be exempt from auto-update)
+# Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
 CNTOOLS_MAJOR_VERSION=8
-# Changes that can be applied without breaking existing functionality that can be applied from within CNTools
-CNTOOLS_MINOR_VERSION=0
-# Backwards compatible bug fixes. No additional functionality or major changes and can be applied from within CNTools
-CNTOOLS_PATCH_VERSION=5
+# Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
+CNTOOLS_MINOR_VERSION=1
+# Patch: Backwards compatible bug fixes. No additional functionality or major changes
+CNTOOLS_PATCH_VERSION=3
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
