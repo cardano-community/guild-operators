@@ -441,4 +441,4 @@ Only the most noticeable changes added to changelog.
 
 
 #### [1.0.0] - 2020-07-07
-- First official mayor release
+- First official major release
