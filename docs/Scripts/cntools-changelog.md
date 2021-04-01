@@ -5,6 +5,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.1.3] - 2021-04-01
+##### Fixed
+- Alignment fix in blocks table
+
 ## [8.1.2] - 2021-03-31
 ##### Changed
 - Manual CNTools update replaced with automatic by asking to update on startup like the rest of the scripts in the guild repository. 

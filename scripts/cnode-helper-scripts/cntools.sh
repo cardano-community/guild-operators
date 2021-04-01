@@ -3078,7 +3078,7 @@ function main {
                [[ ${slot_len} -lt 4 ]] && slot_len=4
                slot_in_epoch_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(slot_in_epoch) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(slot_in_epoch) DESC LIMIT 1;")
                [[ ${slot_in_epoch_len} -lt 11 ]] && slot_in_epoch_len=11
-               at_len=23
+               at_len=24
                size_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(size) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(size) DESC LIMIT 1;")
                [[ ${size_len} -lt 4 ]] && size_len=4
                hash_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(hash) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(hash) DESC LIMIT 1;")
