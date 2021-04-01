@@ -128,17 +128,6 @@ if ! need_cmd "curl" || \
    ! protectionPreRequisites; then myExit 1 "Missing one or more of the required command line tools, press any key to exit"
 fi
 
-if [[ "$CNTOOLS_PATCH_VERSION" -eq 999  ]]; then
-  # CNTools was updated using special 999 patch tag, apply correct version in cntools.library and update variables already sourced
-  sed -i "s/CNTOOLS_MAJOR_VERSION=[[:digit:]]\+/CNTOOLS_MAJOR_VERSION=$((++CNTOOLS_MAJOR_VERSION))/" "${PARENT}/cntools.library"
-  sed -i "s/CNTOOLS_MINOR_VERSION=[[:digit:]]\+/CNTOOLS_MINOR_VERSION=0/" "${PARENT}/cntools.library"
-  sed -i "s/CNTOOLS_PATCH_VERSION=[[:digit:]]\+/CNTOOLS_PATCH_VERSION=0/" "${PARENT}/cntools.library"
-  # CNTOOLS_MAJOR_VERSION variable already updated in sed replace command
-  CNTOOLS_MINOR_VERSION=0
-  CNTOOLS_PATCH_VERSION=0
-  CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
-fi
-
 # Do some checks when run in connected mode
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   # check to see if there are any updates available
@@ -148,11 +137,6 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${PARENT}"/cntools.library.tmp |sed -e "s#.*=##")
     GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${PARENT}"/cntools.library.tmp |sed -e "s#.*=##")
     GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${PARENT}"/cntools.library.tmp |sed -e "s#.*=##")
-    if [[ "$GIT_PATCH_VERSION" -eq 999  ]]; then
-      ((GIT_MAJOR_VERSION++))
-      GIT_MINOR_VERSION=0
-      GIT_PATCH_VERSION=0
-    fi
     GIT_VERSION="${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}"
     if ! versionCheck "${GIT_VERSION}" "${CNTOOLS_VERSION}"; then
       println "DEBUG" "A new version of CNTools is available"
