@@ -53,7 +53,7 @@ shift $((OPTIND -1))
 
 # Check if update is available
 URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
-if curl -s -m 10 -o "${PARENT}"/topologyUpdater.sh.tmp ${URL}/topologyUpdater.sh && curl -s -m 10 -o "${PARENT}"/env.tmp ${URL}/env && [[ -f "${PARENT}"/topologyUpdater.sh.tmp && -f "${PARENT}"/env.tmp ]]; then
+if curl -s -f -m 10 -o "${PARENT}"/topologyUpdater.sh.tmp ${URL}/topologyUpdater.sh && curl -s -f -m 10 -o "${PARENT}"/env.tmp ${URL}/env && [[ -f "${PARENT}"/topologyUpdater.sh.tmp && -f "${PARENT}"/env.tmp ]]; then
   if [[ -f "${PARENT}"/env ]]; then
     if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
       vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")
@@ -118,7 +118,7 @@ fi
 
 if [[ ${TU_PUSH} = "Y" ]]; then
   fail_cnt=0
-  while ! blockNo=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null | jq -er '.cardano.node.metrics.blockNum.int.val //0' ); do
+  while ! blockNo=$(curl -s -f -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null | jq -er '.cardano.node.metrics.blockNum.int.val //0' ); do
     ((fail_cnt++))
     [[ ${fail_cnt} -eq 5 ]] && echo "5 consecutive EKG queries failed, aborting!"
     echo "(${fail_cnt}/5) Failed to grab blockNum from node EKG metrics, sleeping for 30s before retrying... (ctrl-c to exit)"
