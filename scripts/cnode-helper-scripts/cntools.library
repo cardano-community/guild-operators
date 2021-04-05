@@ -1057,8 +1057,8 @@ getMinUTxO() {
 
   # chain constants
   local coinSize=0 # will be changed to 2 in the next HFE
-  local pidSize=28	# current value, unchanged in the next era/HFE
-  local utxoEntrySizeWithoutVal=27 	# 6+txOutLenNoVal(14)+txInLen(7)
+  local pidSize=28 # current value, unchanged in the next era/HFE
+  local utxoEntrySizeWithoutVal=27 # 6 + txOutLenNoVal(14) + txInLen(7)
   local adaOnlyUTxOSize=$((${utxoEntrySizeWithoutVal} + ${coinSize}))
   
   # split the tx-out string into the assets
@@ -1090,13 +1090,10 @@ getMinUTxO() {
     
     local numPIDs=$(echo -ne "${pidCollector}" | sort | uniq | wc -l)
     local numAssets=$(echo -ne "${assetsCollector}" | sort | uniq | wc -l)
-
     local sumAssetNameLengths=$(( $(echo -ne "${nameCollector}" | sort | uniq | tr -d '\n' | wc -c) / 2 )) # divide consolidated hex string length by 2 because 2 hex chars -> 1 byte
-
     local roundupBytesToWords=$(bc <<< "scale=0; ( ${numAssets}*12 + ${sumAssetNameLengths} + ${numPIDs}*${pidSize} + 7 ) / 8")
-    local tokenBundleSize=$(( 6 + ${roundupBytesToWords} ))
-
-    local minAda=$(( $(bc <<< "scale=0; ${minUTxOValue} / ${adaOnlyUTxOSize}") * ( ${utxoEntrySizeWithoutVal} + ${tokenBundleSize} ) ))
+    local tokenBundleSize=$(( 6 + roundupBytesToWords ))
+    local minAda=$(( $(bc <<< "scale=0; ${minUTxOValue} / ${adaOnlyUTxOSize}") * ( utxoEntrySizeWithoutVal + tokenBundleSize ) ))
     [[ ${minAda} -gt ${minUTxOValue} ]] && min_utxo_out=${minAda}
   fi
 }
