@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=1
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=3
+CNTOOLS_PATCH_VERSION=4
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -1046,13 +1046,54 @@ getAssetsTxOut() {
   done
 }
 
-# Command     : getMinUTxObalance
+# Command     : getMinUTxO [--tx-out string]
 # Description : calculate minimum balance needed in source wallet UTxOs for transaction to be valid
 #               getBalance assumed to be run before
-# Return      : populates ${min_utxo_balance}
-getMinUTxObalance() {
+#               based on calculations from https://github.com/input-output-hk/cardano-ledger-specs/blob/master/doc/explanations/min-utxo.rst
+# Return      : populates ${min_utxo_out}
+getMinUTxO() {
   [[ -z ${minUTxOValue} ]] && minUTxOValue=$(jq -r '.minUTxOValue //1000000' <<< "${PROT_PARAMS}")
-  min_utxo_balance=$(( minUTxOValue + ($((${#assets[@]}-1))*minUTxOValue) ))	# TODO: improve when better calculations are provided in cardano-cli
+  min_utxo_out=${minUTxOValue}
+
+  # chain constants
+  local coinSize=0 # will be changed to 2 in the next HFE
+  local pidSize=28 # current value, unchanged in the next era/HFE
+  local utxoEntrySizeWithoutVal=27 # 6 + txOutLenNoVal(14) + txInLen(7)
+  local adaOnlyUTxOSize=$(( utxoEntrySizeWithoutVal + coinSize ))
+  
+  # split the tx-out string into the assets
+  IFS='+' read -ra asset_entry <<< "${1}"
+  
+  if [[ ${#asset_entry[@]} -gt 2 ]]; then # contains assets, do calculations.
+    local idx=2
+    declare -A pidCollector=()    # holds the list of individual policyIDs
+    declare -A assetsCollector=() # holds the list of individual assetNumbers
+    declare -A nameCollector=()   # holde the list of individual assetNames(hex format)
+    
+    while [[ ${#asset_entry[@]} -gt ${idx} ]]; do
+      # separate asset amount from hash(policyID.assetName)
+      IFS=' ' read -ra asset <<< "${asset_entry[${idx}]}"
+      local asset_hash=${asset[1]}
+
+      # split asset_hash_name into policy ID and asset name(hex)
+      IFS='.' read -ra asset_split <<< "${asset_hash}"
+      local asset_hash_policy=${asset_split[0]}
+      local asset_hash_name=${asset_split[1]}
+
+      # collect the entries in individual lists to sort them later
+      pidCollector[${asset_hash_policy}]=1
+      assetsCollector[${asset_hash_policy}${asset_hash_name}]=1
+      [[ -n ${asset_hash_name} ]] && nameCollector[${asset_hash_name}]=1
+      
+      ((idx++))
+    done
+    
+    local sumAssetNameLengths=$(_len=0;for K in "${!nameCollector[@]}";do ((_len+=$(printf "%s" "$K" | wc -c)));done;echo ${_len})
+    local roundupBytesToWords=$(bc <<< "scale=0; ( ${#assetsCollector[@]}*12 + ${sumAssetNameLengths} + ${#pidCollector[@]}*${pidSize} + 7 ) / 8")
+    local tokenBundleSize=$(( 6 + roundupBytesToWords ))
+    local minAda=$(( $(bc <<< "scale=0; ${minUTxOValue} / ${adaOnlyUTxOSize}") * ( utxoEntrySizeWithoutVal + tokenBundleSize ) ))
+    [[ ${minAda} -gt ${minUTxOValue} ]] && min_utxo_out=${minAda}
+  fi
 }
 
 # Command     : getRewards [wallet name]
@@ -1177,9 +1218,19 @@ registerStakeWallet() {
   println "LOG" "Key Deposit is ${stakeAddressDeposit}"
 
   getAssetsTxOut
-
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${stake_cert_file} ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${stake_cert_file} ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
+  
+  dummy_build_args=(
+    ${tx_in}
+    --tx-out "${base_addr}+0${assets_tx_out}"
+    --invalid-hereafter ${ttl}
+    --fee 0
+    --certificate-file "${stake_cert_file}"
+    ${ERA_IDENTIFIER}
+    --out-file "${TMP_DIR}"/tx0.tmp
+  )
+  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+  
   min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
@@ -1194,21 +1245,29 @@ registerStakeWallet() {
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
-  getMinUTxObalance
-  if [[ ${assets[lovelace]} -lt $(( min_utxo_balance + stakeAddressDeposit )) ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address ( $(formatLovelace ${assets[lovelace]}) < $(formatLovelace ${stakeAddressDeposit}) + $(formatLovelace ${min_utxo_balance}) )"
-    return 1
-  fi
-
   newBalance=$(( ${assets[lovelace]} - min_fee - stakeAddressDeposit ))
   println "LOG" "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) Ada ($(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakeAddressDeposit}))"
+
+  if [[ ${assets[lovelace]} -lt $(( min_fee + stakeAddressDeposit )) ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee and key deposit!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee + stakeAddressDeposit )))${NC} Ada"
+    return 1
+  fi
+  
+  tx_out="${base_addr}+${newBalance}${assets_tx_out}"
+  getMinUTxO "${tx_out}"
+  if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee and key deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    return 1
+  fi
   
   build_args=(
     ${tx_in}
-    --tx-out "${base_addr}+${newBalance}${assets_tx_out}"
+    --tx-out "${tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
-    --certificate-file ${stake_cert_file}
+    --certificate-file "${stake_cert_file}"
     --out-file "${TMP_DIR}"/tx.raw
   )
   if ! buildTx; then return 1; fi
@@ -1258,8 +1317,18 @@ deregisterStakeWallet() {
 
   getAssetsTxOut
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${stake_dereg_file} ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${stake_dereg_file} ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
+  dummy_build_args=(
+    ${tx_in}
+    --tx-out "${base_addr}+0${assets_tx_out}"
+    --invalid-hereafter ${ttl}
+    --fee 0
+    --certificate-file "${stake_dereg_file}"
+    ${ERA_IDENTIFIER}
+    --out-file "${TMP_DIR}"/tx0.tmp
+  )
+  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
   min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
@@ -1274,21 +1343,29 @@ deregisterStakeWallet() {
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
-  getMinUTxObalance
-  if [[ $(( ${assets[lovelace]} + stakeAddressDeposit - min_fee )) -lt ${min_utxo_balance} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address ( $(formatLovelace ${assets[lovelace]}) + $(formatLovelace ${stakeAddressDeposit}) < $(formatLovelace ${min_utxo_balance}) )"
-    return 1
-  fi
-
   newBalance=$(( ${assets[lovelace]} + stakeAddressDeposit - min_fee ))
   println "LOG" "New balance after returned key deposit and subtracted tx fee is $(formatLovelace ${newBalance}) Ada ($(formatLovelace ${assets[lovelace]}) + $(formatLovelace ${stakeAddressDeposit}) - $(formatLovelace ${min_fee}))"
   
+  if [[ $(( ${assets[lovelace]} + stakeAddressDeposit )) -lt ${min_fee} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee - stakeAddressDeposit )))${NC} Ada"
+    return 1
+  fi
+  
+  tx_out="${base_addr}+${newBalance}${assets_tx_out}"
+  getMinUTxO "${tx_out}"
+  if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee and returned key deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    return 1
+  fi
+  
   build_args=(
     ${tx_in}
-    --tx-out "${base_addr}+${newBalance}${assets_tx_out}"
+    --tx-out "${tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
-    --certificate-file ${stake_dereg_file}
+    --certificate-file "${stake_dereg_file}"
     --out-file "${TMP_DIR}"/tx.raw
   )
   if ! buildTx; then return 1; fi
@@ -1378,37 +1455,41 @@ sendAssets() {
     --out-file "${TMP_DIR}"/tx.raw
   )
   
-  [[ -z ${minUTxOValue} ]] && minUTxOValue=$(jq -r '.minUTxOValue //1000000' <<< "${PROT_PARAMS}")
-  
   if [[ ${outCount} -eq 1 ]]; then # all assets to destination, nothing to return
     newBalance=0
-    min_utxo_balance=$(( minUTxOValue + ($((${#assets_to_send[@]}-1))*minUTxOValue) )) # TODO: improve when better calculations are provided in cardano-cli
-    if [[ ${assets_to_send[lovelace]} -lt ${min_utxo_balance} ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in address ( $(formatLovelace ${assets_to_send[lovelace]}) < $(formatLovelace ${min_utxo_balance}) )"
+    tx_out="${d_addr}+$(( ${assets_to_send[lovelace]} - min_fee ))${assets_tx_out_d}"
+    getMinUTxO "${tx_out}"
+    if [[ ${assets_to_send[lovelace]} -lt ${min_utxo_out} ]]; then
+      println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in address ( $(formatLovelace ${assets_to_send[lovelace]}) < $(formatLovelace ${min_utxo_out}) )"
       println "ERROR" "Top up wallet with enough Ada to cover minimum UTxO balance"
       return 1
     fi
-    build_args+=( --tx-out "${d_addr}+$(( ${assets_to_send[lovelace]} - min_fee ))${assets_tx_out_d}" )
+    build_args+=( --tx-out "${tx_out}" )
   else
     if [[ ${include_fee} = "no" ]]; then
       newBalance=$(( ${assets[lovelace]} - ${assets_to_send[lovelace]} - min_fee ))
-      build_args+=( --tx-out "${d_addr}+${assets_to_send[lovelace]}${assets_tx_out_d}" )
+      tx_out_d="${d_addr}+${assets_to_send[lovelace]}${assets_tx_out_d}"
     else
       newBalance=$(( ${assets[lovelace]} - ${assets_to_send[lovelace]} ))
-      build_args+=( --tx-out "${d_addr}+$(( ${assets_to_send[lovelace]} - min_fee ))${assets_tx_out_d}" )
+      tx_out_d="${d_addr}+$(( ${assets_to_send[lovelace]} - min_fee ))${assets_tx_out_d}"
     fi
-    min_utxo_balance_s=$(( ${#assets_left[@]} * minUTxOValue )) # TODO: improve when better calculations are provided in cardano-cli
-    min_utxo_balance_d=$(( ${#assets_to_send[@]} * minUTxOValue )) # TODO: improve when better calculations are provided in cardano-cli
-    if [[ ${newBalance} -lt ${min_utxo_balance_s} ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada left in source address ( $(formatLovelace ${newBalance}) < $(formatLovelace ${min_utxo_balance_s}) )"
+    getMinUTxO "${tx_out_d}"
+    min_utxo_out_d=${min_utxo_out}
+    build_args+=( --tx-out "${tx_out_d}" )
+    
+    tx_out_s="${s_addr}+${newBalance}${assets_tx_out_s}"
+    getMinUTxO "${tx_out_s}"
+    min_utxo_out_s=${min_utxo_out}
+    build_args+=( --tx-out "${tx_out_s}" )
+    
+    if [[ ${newBalance} -lt ${min_utxo_out_s} ]]; then
+      println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada left in source address ( $(formatLovelace ${newBalance}) < $(formatLovelace ${min_utxo_out_s}) )"
       println "ERROR" "Send all Ada or top up wallet with enough Ada to cover minimum UTxO balance"
       return 1
-    elif [[ ${assets_to_send[lovelace]} -lt ${min_utxo_balance_d} ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada included in the transaction ( $(formatLovelace ${assets_to_send[lovelace]}) < $(formatLovelace ${min_utxo_balance_d}) )"
-      println "ERROR" "A minimum of ${FG_LBLUE}$(formatLovelace ${minUTxOValue})${NC} Ada has to be added for each asset(Ada included)"
+    elif [[ ${assets_to_send[lovelace]} -lt ${min_utxo_out_d} ]]; then
+      println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, requires ${FG_LBLUE}$(formatLovelace ${min_utxo_out_d})${NC} Ada to be sent along!"
       return 1
     fi
-    build_args+=( --tx-out "${s_addr}+${newBalance}${assets_tx_out_s}" )
   fi
   
   if ! buildTx; then return 1; fi
@@ -1449,9 +1530,19 @@ delegate() {
   if ! getTTL; then return 1; fi
   
   getAssetsTxOut
+  
+  dummy_build_args=(
+    ${tx_in}
+    --tx-out "${base_addr}+0${assets_tx_out}"
+    --invalid-hereafter ${ttl}
+    --fee 0
+    --certificate-file "${pool_delegcert_file}"
+    ${ERA_IDENTIFIER}
+    --out-file "${TMP_DIR}"/tx0.tmp
+  )
+  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_delegcert_file} ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_delegcert_file} ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
@@ -1466,21 +1557,29 @@ delegate() {
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
-  getMinUTxObalance
-  if [[ ${assets[lovelace]} -lt ${min_utxo_balance} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address ( $(formatLovelace ${assets[lovelace]}) < $(formatLovelace ${min_utxo_balance}) )"
-    return 1
-  fi
-
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
   
+  if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
+    return 1
+  fi
+  
+  tx_out="${base_addr}+${newBalance}${assets_tx_out}"
+  getMinUTxO "${tx_out}"
+  if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    return 1
+  fi
+  
   build_args=(
     ${tx_in}
-    --tx-out "${base_addr}+${newBalance}${assets_tx_out}"
+    --tx-out "${tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
-    --certificate-file ${pool_delegcert_file}
+    --certificate-file "${pool_delegcert_file}"
     --out-file "${TMP_DIR}"/tx.raw
   )
   if ! buildTx; then return 1; fi
@@ -1517,9 +1616,18 @@ withdrawRewards() {
   if ! getTTL; then return 1; fi
   
   getAssetsTxOut
+  
+  dummy_build_args=(
+    ${tx_in}
+    --tx-out "${base_addr}+0${assets_tx_out}"
+    --invalid-hereafter ${ttl}
+    --fee 0
+    ${ERA_IDENTIFIER}
+    --out-file "${TMP_DIR}"/tx0.tmp
+  )
+  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
@@ -1534,18 +1642,26 @@ withdrawRewards() {
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
-  getMinUTxObalance
-  if [[ ${assets[lovelace]} -lt ${min_utxo_balance} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address ( $(formatLovelace ${assets[lovelace]}) < $(formatLovelace ${min_utxo_balance}) )"
-    return 1
-  fi
-
   newBalance=$(( ${assets[lovelace]} - min_fee + reward_lovelace ))
   println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+
+  if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace $((min_fee - reward_lovelace)))${NC} Ada"
+    return 1
+  fi
+  
+  tx_out="${base_addr}+${newBalance}${assets_tx_out}"
+  getMinUTxO "${tx_out}"
+  if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee and withdrawal, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    return 1
+  fi
   
   build_args=(
     ${tx_in}
-    --tx-out "${base_addr}+${newBalance}${assets_tx_out}"
+    --tx-out "${tx_out}"
     --withdrawal ${reward_addr}+${reward_lovelace}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
@@ -1597,7 +1713,7 @@ registerPool() {
   reward_delegation_cert=""
   reward_wallet_stake_key=""
   if [[ ${delegate_reward_wallet} = 'Y' ]]; then
-    reward_delegation_cert="--certificate-file ${reward_delegation_cert_file}"
+    reward_delegation_cert="${reward_delegation_cert_file}"
     reward_mu='N'
     for wallet_name in ${owner_wallets[@]}; do
       [[ "${wallet_name}" = "${reward_wallet}" ]] && reward_mu='Y' && break # reward wallet is also a multi owner, witness count already include reward wallet stake key
@@ -1609,13 +1725,25 @@ registerPool() {
   
   owner_delegation_cert=""
   if [[ ${delegate_owner_wallet} = 'Y' ]]; then
-    owner_delegation_cert="--certificate-file ${owner_delegation_cert_file}"
+    owner_delegation_cert="${owner_delegation_cert_file}"
   fi
   
   getAssetsTxOut
+  
+  dummy_build_args=(
+    ${tx_in}
+    --tx-out "${base_addr}+0${assets_tx_out}"
+    --invalid-hereafter ${ttl}
+    --fee 0
+    --certificate-file "${pool_regcert_file}"
+    ${ERA_IDENTIFIER}
+    --out-file "${TMP_DIR}"/tx0.tmp
+  )
+  [[ -n ${owner_delegation_cert} ]] && dummy_build_args+=( --certificate-file "${owner_delegation_cert}" )
+  [[ -n ${reward_delegation_cert} ]] && dummy_build_args+=( --certificate-file "${reward_delegation_cert}" )
+  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} ${owner_delegation_cert} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} ${owner_delegation_cert} ${reward_delegation_cert} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
@@ -1630,25 +1758,33 @@ registerPool() {
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
-  getMinUTxObalance
-  if [[ ${assets[lovelace]} -lt $(( min_utxo_balance + stakePoolDeposit )) ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address ( $(formatLovelace ${assets[lovelace]}) < $(formatLovelace ${min_utxo_balance}) + $(formatLovelace ${stakePoolDeposit}) )"
-    return 1
-  fi
-
   newBalance=$(( ${assets[lovelace]} - min_fee - stakePoolDeposit ))
   println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakePoolDeposit}) )"
   
+  if [[ ${assets[lovelace]} -lt $(( min_fee + stakePoolDeposit )) ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee and pool registration deposit!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee + stakePoolDeposit )))${NC} Ada"
+    return 1
+  fi
+  
+  tx_out="${base_addr}+${newBalance}${assets_tx_out}"
+  getMinUTxO "${tx_out}"
+  if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee and pool registration deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    return 1
+  fi
+  
   build_args=(
     ${tx_in}
-    --tx-out "${base_addr}+${newBalance}${assets_tx_out}"
+    --tx-out "${tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
-    --certificate-file ${pool_regcert_file}
-    ${owner_delegation_cert}
-    ${reward_delegation_cert}
+    --certificate-file "${pool_regcert_file}"
     --out-file "${TMP_DIR}"/tx.raw
   )
+  [[ -n ${owner_delegation_cert} ]] && build_args+=( --certificate-file "${owner_delegation_cert}" )
+  [[ -n ${reward_delegation_cert} ]] && build_args+=( --certificate-file "${reward_delegation_cert}" )
   if ! buildTx; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -1714,9 +1850,19 @@ modifyPool() {
   witness_count=$(( 2 + ${#owner_wallets[@]} )) # owner payment + cold + multi-owners(main owner included)
   
   getAssetsTxOut
+  
+  dummy_build_args=(
+    ${tx_in}
+    --tx-out "${base_addr}+0${assets_tx_out}"
+    --invalid-hereafter ${ttl}
+    --fee 0
+    --certificate-file "${pool_regcert_file}"
+    ${ERA_IDENTIFIER}
+    --out-file "${TMP_DIR}"/tx0.tmp
+  )
+  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${base_addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${base_addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --certificate-file ${pool_regcert_file} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
@@ -1731,21 +1877,29 @@ modifyPool() {
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
-  getMinUTxObalance
-  if [[ ${assets[lovelace]} -lt ${min_utxo_balance} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address ( $(formatLovelace ${assets[lovelace]}) < $(formatLovelace ${min_utxo_balance}) )"
-    return 1
-  fi
-
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+
+  if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
+    return 1
+  fi
+  
+  tx_out="${base_addr}+${newBalance}${assets_tx_out}"
+  getMinUTxO "${tx_out}"
+  if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    return 1
+  fi
   
   build_args=(
     ${tx_in}
-    --tx-out "${base_addr}+${newBalance}${assets_tx_out}"
+    --tx-out "${tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
-    --certificate-file ${pool_regcert_file}
+    --certificate-file "${pool_regcert_file}"
     --out-file "${TMP_DIR}"/tx.raw
   )
   if ! buildTx; then return 1; fi
@@ -1807,9 +1961,19 @@ deRegisterPool() {
   if ! getTTL; then return 1; fi
   
   getAssetsTxOut
+  
+  dummy_build_args=(
+    ${tx_in}
+    --tx-out "${addr}+0${assets_tx_out}"
+    --invalid-hereafter ${ttl}
+    --fee 0
+    --certificate-file "${pool_deregcert_file}"
+    ${ERA_IDENTIFIER}
+    --out-file "${TMP_DIR}"/tx0.tmp
+  )
+  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_deregcert_file} ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 --certificate-file ${pool_deregcert_file} ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
@@ -1824,21 +1988,29 @@ deRegisterPool() {
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
-  getMinUTxObalance
-  if [[ ${assets[lovelace]} -lt ${min_utxo_balance} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in address ( $(formatLovelace ${assets[lovelace]}) < $(formatLovelace ${min_utxo_balance}) )"
-    return 1
-  fi
-
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+
+  if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
+    return 1
+  fi
+  
+  tx_out="${addr}+${newBalance}${assets_tx_out}"
+  getMinUTxO "${tx_out}"
+  if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    return 1
+  fi
   
   build_args=(
     ${tx_in}
-    --tx-out "${addr}+${newBalance}${assets_tx_out}"
+    --tx-out "${tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
-    --certificate-file ${pool_deregcert_file}
+    --certificate-file "${pool_deregcert_file}"
     --out-file "${TMP_DIR}"/tx.raw
   )
   if ! buildTx; then return 1; fi
@@ -1921,9 +2093,19 @@ sendMetadata() {
   if ! getTTL; then return 1; fi
   
   getAssetsTxOut
+  
+  dummy_build_args=(
+    ${tx_in}
+    --tx-out "${addr}+0${assets_tx_out}"
+    --invalid-hereafter ${ttl}
+    --fee 0
+    ${metafile_param}
+    ${ERA_IDENTIFIER}
+    --out-file "${TMP_DIR}"/tx0.tmp
+  )
+  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${addr}+0${assets_tx_out}\" --invalid-hereafter ${ttl} --fee 0 ${metafile_param} ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${addr}+0${assets_tx_out}" --invalid-hereafter ${ttl} --fee 0 ${metafile_param} ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
@@ -1938,18 +2120,26 @@ sendMetadata() {
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
 
-  getMinUTxObalance
-  if [[ ${assets[lovelace]} -lt ${min_utxo_balance} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in address ( $(formatLovelace ${assets[lovelace]}) < $(formatLovelace ${min_utxo_balance}) )"
-    return 1
-  fi
-
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+
+  if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
+    return 1
+  fi
+  
+  tx_out="${addr}+${newBalance}${assets_tx_out}"
+  getMinUTxO "${tx_out}"
+  if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    return 1
+  fi
   
   build_args=(
     ${tx_in}
-    --tx-out "${addr}+${newBalance}${assets_tx_out}"
+    --tx-out "${tx_out}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
@@ -1998,8 +2188,19 @@ mintAsset() {
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".${asset_name}"
   getAssetsTxOut "${policy_id}${asset_name_out}" "${asset_amount}"
   
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${addr}+0${assets_tx_out}\" --mint \"${asset_amount} ${policy_id}${asset_name_out}\" ${metafile_param} --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${addr}+0${assets_tx_out}" --mint "${asset_amount} ${policy_id}${asset_name_out}" ${metafile_param} --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
+  dummy_build_args=(
+    ${tx_in}
+    --tx-out "${addr}+0${assets_tx_out}"
+    --mint "${asset_amount} ${policy_id}${asset_name_out}"
+    ${metafile_param}
+    --invalid-hereafter ${ttl}
+    --fee 0
+    ${ERA_IDENTIFIER}
+    --out-file "${TMP_DIR}"/tx0.tmp
+  )
+  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+  
   min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
@@ -2013,19 +2214,27 @@ mintAsset() {
   println "ACTION" "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
-  
-  getMinUTxObalance
-  if [[ ${assets[lovelace]} -lt ${min_utxo_balance} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in address ( $(formatLovelace ${assets[lovelace]}) < $(formatLovelace ${min_utxo_balance}) )"
-    return 1
-  fi
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+
+  if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
+    return 1
+  fi
+  
+  tx_out="${addr}+${newBalance}${assets_tx_out}"
+  getMinUTxO "${tx_out}"
+  if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    return 1
+  fi
   
   build_args=(
     ${tx_in}
-    --tx-out "${addr}+${newBalance}${assets_tx_out}"
+    --tx-out "${tx_out}"
     --mint "${asset_amount} ${policy_id}${asset_name_out}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
@@ -2081,9 +2290,20 @@ burnAsset() {
   
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".${asset_name}"
   getAssetsTxOut "${policy_id}${asset_name_out}" "-${assets_to_burn}"
+  
+  dummy_build_args=(
+    ${tx_in}
+    --tx-out "${addr}+0${assets_tx_out}"
+    --mint "-${assets_to_burn} ${policy_id}${asset_name_out}"
+    ${metafile_param}
+    --invalid-hereafter ${ttl}
+    --fee 0
+    ${ERA_IDENTIFIER}
+    --out-file "${TMP_DIR}"/tx0.tmp
+  )
+  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
-  println "ACTION" "${CCLI} transaction build-raw ${tx_in} --tx-out \"${addr}+0${assets_tx_out}\" --mint \"-${assets_to_burn} ${policy_id}${asset_name_out}\" ${metafile_param} --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file ${TMP_DIR}/tx0.tmp"
-  if ! ${CCLI} transaction build-raw ${tx_in} --tx-out "${addr}+0${assets_tx_out}" --mint "-${assets_to_burn} ${policy_id}${asset_name_out}" ${metafile_param} --invalid-hereafter ${ttl} --fee 0 ${ERA_IDENTIFIER} --out-file "${TMP_DIR}"/tx0.tmp; then return 1; fi
   min_fee_args=(
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
@@ -2098,18 +2318,26 @@ burnAsset() {
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
   
-  getMinUTxObalance
-  if [[ ${assets[lovelace]} -lt ${min_utxo_balance} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in address ( $(formatLovelace ${assets[lovelace]}) < $(formatLovelace ${min_utxo_balance}) )"
-    return 1
-  fi
-
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
   
+  if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
+    return 1
+  fi
+  
+  tx_out="${addr}+${newBalance}${assets_tx_out}"
+  getMinUTxO "${tx_out}"
+  if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    return 1
+  fi
+  
   build_args=(
     ${tx_in}
-    --tx-out "${addr}+${newBalance}${assets_tx_out}"
+    --tx-out "${tx_out}"
     --mint "-${assets_to_burn} ${policy_id}${asset_name_out}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
@@ -2348,11 +2576,11 @@ HWCLIversionCheck() {
 # Command     : selectOpMode
 # Description : Helper function to choose operational mode
 selectOpMode() {
-  println "OFF" "\nOnline mode  -  The default mode to use if all keys are available\n\n"\
-		"Hybrid mode  -  1) Go through steps to build a transaction file\n"\
-		"                2) Copy built tx file to offline computer\n"\
-		"                3) Sign it using 'Sign Tx' with keys on offline computer\n"\
-		"                   (CNTools started in offline mode '-o' without node connection)\n"\
+  println "OFF" "\nOnline mode  -  The default mode to use if all keys are available\n"\
+		"Hybrid mode  -  1) Go through steps to build a transaction file"\
+		"                2) Copy built tx file to offline computer"\
+		"                3) Sign it using 'Sign Tx' with keys on offline computer"\
+		"                   (CNTools started in offline mode '-o' without node connection)"\
 		"                4) Copy the signed tx file back to online computer and submit using 'Submit Tx'\n"
   select_opt "[o] Online" "[h] Hybrid" "[Esc] Cancel"
   case $? in

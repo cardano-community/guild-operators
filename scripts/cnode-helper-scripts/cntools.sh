@@ -1140,9 +1140,9 @@ function main {
             println "DEBUG" " Multi-Asset Info:"
             println "DEBUG" "   ${FG_LGRAY}>${NC} If '${FG_YELLOW}all${NC}' is used and the wallet contain multiple assets,"
             println "DEBUG" "   ${FG_LGRAY}>${NC} then all assets will be transferred(incl Ada) to the destination address"
-            println "DEBUG" " Minimum Amount:"
-            println "DEBUG" "   ${FG_LGRAY}>${NC} A minimum of ${FG_LBLUE}$(formatLovelace ${minUTxOValue})${NC} Ada has to be added for each asset(Ada included)"
-            echo
+            println "DEBUG" " Minimum Amount: ${FG_LBLUE}$(formatLovelace ${minUTxOValue})${NC} Ada"
+            println "DEBUG" "   ${FG_LGRAY}>${NC} To calculate the minimum Ada required if additional assets/tokens are to be sent,"\
+							"     make a dummy transaction with ${FG_LBLUE}0${NC} Ada selecting the tokens to send with the correct amount\n"
             sleep 0.1 && read -r -p "Amount (Ada): " amountADA 2>&6 && println "LOG" "Amount (Ada): ${amountADA}"
             amountADA="${amountADA//,}"
             echo
@@ -1219,11 +1219,6 @@ function main {
                 2) continue ;;
               esac
               echo
-              min_amount=$(( minUTxOValue + ($((${#assets_to_send[@]}-1))*minUTxOValue) ))
-              if [[ ${amount_lovelace} -lt ${min_amount} ]]; then
-                println "ERROR" "${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, sending ${FG_LBLUE}${#assets_to_send[@]}${NC} asset(s) require a minimum of ${FG_LBLUE}$(formatLovelace ${min_amount})${NC} Ada to be sent along!"
-                waitForInput && continue
-              fi
             fi
             # Destination
             d_wallet=""
