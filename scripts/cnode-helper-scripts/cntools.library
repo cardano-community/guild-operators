@@ -1059,16 +1059,16 @@ getMinUTxO() {
   local coinSize=0 # will be changed to 2 in the next HFE
   local pidSize=28 # current value, unchanged in the next era/HFE
   local utxoEntrySizeWithoutVal=27 # 6 + txOutLenNoVal(14) + txInLen(7)
-  local adaOnlyUTxOSize=$((${utxoEntrySizeWithoutVal} + ${coinSize}))
+  local adaOnlyUTxOSize=$(( utxoEntrySizeWithoutVal + coinSize ))
   
   # split the tx-out string into the assets
   IFS='+' read -ra asset_entry <<< "${1}"
   
   if [[ ${#asset_entry[@]} -gt 2 ]]; then # contains assets, do calculations.
     local idx=2
-    local pidCollector=""    # holds the list of individual policyIDs
-    local assetsCollector="" # holds the list of individual assetNumbers
-    local nameCollector=""   # holde the list of individual assetNames(hex format)
+    declare -A pidCollector=()    # holds the list of individual policyIDs
+    declare -A assetsCollector=() # holds the list of individual assetNumbers
+    declare -A nameCollector=()   # holde the list of individual assetNames(hex format)
     
     while [[ ${#asset_entry[@]} -gt ${idx} ]]; do
       # separate asset amount from hash(policyID.assetName)
@@ -1078,20 +1078,18 @@ getMinUTxO() {
       # split asset_hash_name into policy ID and asset name(hex)
       IFS='.' read -ra asset_split <<< "${asset_hash}"
       local asset_hash_policy=${asset_split[0]}
-      local asset_hash_hexname=$(xxd -b -ps -c 80 <<< "${asset_split[1]}" | tr -d '\n')
+      local asset_hash_hexname=$(for ((i=0;i<${#asset_split[1]};i++));do printf %02x \'${asset_split[1]:$i:1};done)
 
       # collect the entries in individual lists to sort them later
-      local pidCollector="${pidCollector}${asset_hash_policy}\n"
-      local assetsCollector="${assetsCollector}${asset_hash_policy}${asset_hash_hexname}\n"
-      [[ -n ${asset_hash_hexname} ]] && nameCollector="${nameCollector}${asset_hash_hexname}\n"
-
+      pidCollector[${asset_hash_policy}]=1
+      assetsCollector[${asset_hash_policy}${asset_hash_hexname}]=1
+      [[ -n ${asset_hash_hexname} ]] && nameCollector[${asset_hash_hexname}]=1
+      
       ((idx++))
     done
     
-    local numPIDs=$(echo -ne "${pidCollector}" | sort | uniq | wc -l)
-    local numAssets=$(echo -ne "${assetsCollector}" | sort | uniq | wc -l)
-    local sumAssetNameLengths=$(( $(echo -ne "${nameCollector}" | sort | uniq | tr -d '\n' | wc -c) / 2 )) # divide consolidated hex string length by 2 because 2 hex chars -> 1 byte
-    local roundupBytesToWords=$(bc <<< "scale=0; ( ${numAssets}*12 + ${sumAssetNameLengths} + ${numPIDs}*${pidSize} + 7 ) / 8")
+    local sumAssetNameLengths=$(_len=0;for K in "${!nameCollector[@]}";do ((_len+=${#K}));done;echo $((_len/2))) # divide consolidated hex string length by 2 because 2 hex chars -> 1 byte
+    local roundupBytesToWords=$(bc <<< "scale=0; ( ${#assetsCollector[@]}*12 + ${sumAssetNameLengths} + ${#pidCollector[@]}*${pidSize} + 7 ) / 8")
     local tokenBundleSize=$(( 6 + roundupBytesToWords ))
     local minAda=$(( $(bc <<< "scale=0; ${minUTxOValue} / ${adaOnlyUTxOSize}") * ( utxoEntrySizeWithoutVal + tokenBundleSize ) ))
     [[ ${minAda} -gt ${minUTxOValue} ]] && min_utxo_out=${minAda}
