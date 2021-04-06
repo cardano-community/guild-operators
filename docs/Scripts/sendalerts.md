@@ -14,7 +14,7 @@ To do this, you first have to activate your own bot and link it to your own Tele
 
 3. define a name for your bot, such as `cntools_[POOLNAME]_alerts`
 
-4. Botfather will confirm the creation of your bot by giving you the unique **bot access token**. Keep it save and private.
+4. Botfather will confirm the creation of your bot by giving you the unique **bot access token**. Keep it safe and private.
 
 5. Now send at least one direct message to your new bot.
 
