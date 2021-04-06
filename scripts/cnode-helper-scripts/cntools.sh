@@ -125,7 +125,6 @@ if ! need_cmd "curl" || \
    ! need_cmd "sed" || \
    ! need_cmd "awk" || \
    ! need_cmd "column" || \
-   ! need_cmd "xxd" || \
    ! protectionPreRequisites; then myExit 1 "Missing one or more of the required command line tools, press any key to exit"
 fi
 

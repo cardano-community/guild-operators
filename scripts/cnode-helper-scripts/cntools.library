@@ -1078,17 +1078,17 @@ getMinUTxO() {
       # split asset_hash_name into policy ID and asset name(hex)
       IFS='.' read -ra asset_split <<< "${asset_hash}"
       local asset_hash_policy=${asset_split[0]}
-      local asset_hash_hexname=$(for ((i=0;i<${#asset_split[1]};i++));do printf %02x \'${asset_split[1]:$i:1};done)
+      local asset_hash_name=${asset_split[1]}
 
       # collect the entries in individual lists to sort them later
       pidCollector[${asset_hash_policy}]=1
-      assetsCollector[${asset_hash_policy}${asset_hash_hexname}]=1
-      [[ -n ${asset_hash_hexname} ]] && nameCollector[${asset_hash_hexname}]=1
+      assetsCollector[${asset_hash_policy}${asset_hash_name}]=1
+      [[ -n ${asset_hash_name} ]] && nameCollector[${asset_hash_name}]=1
       
       ((idx++))
     done
     
-    local sumAssetNameLengths=$(_len=0;for K in "${!nameCollector[@]}";do ((_len+=${#K}));done;echo $((_len/2))) # divide consolidated hex string length by 2 because 2 hex chars -> 1 byte
+    local sumAssetNameLengths=$(_len=0;for K in "${!nameCollector[@]}";do ((_len+=$(printf "%s" "$K" | wc -c)));done;echo ${_len})
     local roundupBytesToWords=$(bc <<< "scale=0; ( ${#assetsCollector[@]}*12 + ${sumAssetNameLengths} + ${#pidCollector[@]}*${pidSize} + 7 ) / 8")
     local tokenBundleSize=$(( 6 + roundupBytesToWords ))
     local minAda=$(( $(bc <<< "scale=0; ${minUTxOValue} / ${adaOnlyUTxOSize}") * ( utxoEntrySizeWithoutVal + tokenBundleSize ) ))
