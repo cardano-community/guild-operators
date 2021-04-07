@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script takes the first event identified as fisrt time block seen and stores it in a 5k file (/tmp/block_index.log) ready to be digested in our case by loki in grafana.
 # 

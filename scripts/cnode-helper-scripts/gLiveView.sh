@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #shellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015,SC2154
 #shellcheck source=/dev/null
 

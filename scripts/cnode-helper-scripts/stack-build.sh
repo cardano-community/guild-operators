@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Install stack if not installed on system
 if ! command -v stack >/dev/null; then

@@ -26,7 +26,7 @@ chmod 750 setup_mon.sh
 The default selection may not always be usable for everyone. You can customise further environment variable settings by opening in editor (eg: `vi setup_mon.sh` ), and updating variables below to your liking:
 
 ``` bash
-#!/bin/bash
+#!/usr/bin/env bash
 # shellcheck disable=SC2209,SC2164
 
 ######################################################################
