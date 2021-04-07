@@ -161,12 +161,13 @@ if [[ ${TU_FETCH} = "Y" ]]; then
         *) echo "ERROR: Invalid Custom Peer definition '${cpeer}'. Please double check CUSTOM_PEERS definition"
            exit 1 ;;
       esac
-	  if [[ ${addr} == *.* ]] ; then
-	    if ! isValidIPv4 "${addr}"; then echo "ERROR: Invalid IPv4 address or hostname '${addr}'. Please double check CUSTOM_PEERS definition"; fi
-	  elif [[ ${addr} == *:* ]] ; then
-	    if ! isValidIPv6 "${addr}"; then echo "ERROR: Invalid IPv6 address '${addr}'. Please double check CUSTOM_PEERS definition"; fi
-      elif ! isNumber ${port}; then echo "ERROR: Invalid port number '${port}'. Please double check CUSTOM_PEERS definition"
-      elif ! isNumber ${valency}; then echo "ERROR: Invalid valency number '${valency}'. Please double check CUSTOM_PEERS definition"; fi
+	    if [[ ${addr} = *.* ]]; then
+	      ! isValidIPv4 "${addr}" && echo "ERROR: Invalid IPv4 address or hostname '${addr}'. Please check CUSTOM_PEERS definition" && continue
+	    elif [[ ${addr} = *:* ]]; then
+	      ! isValidIPv6 "${addr}" && echo "ERROR: Invalid IPv6 address '${addr}'. Please check CUSTOM_PEERS definition" && continue
+      fi
+      ! isNumber ${port} && echo "ERROR: Invalid port number '${port}'. Please check CUSTOM_PEERS definition" && continue
+      ! isNumber ${valency} && echo "ERROR: Invalid valency number '${valency}'. Please check CUSTOM_PEERS definition" && continue
       topo=$(jq '.Producers += [{"addr": $addr, "port": $port|tonumber, "valency": $valency|tonumber}]' --arg addr "${addr}" --arg port ${port} --arg valency ${valency} <<< "${topo}")
     done
     echo "${topo}" | jq -r . >/dev/null 2>&1 && echo "${topo}" > "${TOPOLOGY}".tmp
