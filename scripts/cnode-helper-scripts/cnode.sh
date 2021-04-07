@@ -47,7 +47,7 @@ if [[ -f "${POOL_DIR}/${POOL_OPCERT_FILENAME}" && -f "${POOL_DIR}/${POOL_VRF_SK_
     --port ${CNODE_PORT} \
     "${host_addr[@]}"
 else
-  cardano-node +RTS -N${CPU_CORES} -RTS run \
+  cardano-node "${CPU_RUNTIME[@]}" run \
     --topology "${TOPOLOGY}" \
     --config "${CONFIG}" \
     --database-path "${DB_DIR}" \
