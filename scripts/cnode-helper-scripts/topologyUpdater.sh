@@ -109,7 +109,13 @@ if [[ ! -f "${PARENT}"/env ]]; then
 fi
 
 # source common env variables in case it was updated and run in offline mode, even for TU_PUSH mode as this will be cought by failed EKG query
-if ! . "${PARENT}"/env offline; then exit 1; fi
+# ignore exit code 0 and 2, any other exits script
+. "${PARENT}"/env offline
+case $? in
+  0) : ;; # ok
+  2) echo "continuing with topology update..." ;;
+  *) exit 1 ;;
+esac
 
 # Check if old style CUSTOM_PEERS with colon separator is used, if so convert to use commas
 if [[ -n ${CUSTOM_PEERS} && ${CUSTOM_PEERS} != *","* ]]; then
