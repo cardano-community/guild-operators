@@ -161,10 +161,10 @@ if [[ ${TU_FETCH} = "Y" ]]; then
         *) echo "ERROR: Invalid Custom Peer definition '${cpeer}'. Please double check CUSTOM_PEERS definition"
            exit 1 ;;
       esac
-	    if [[ ${addr} = *.* ]]; then
-	      ! isValidIPv4 "${addr}" && echo "ERROR: Invalid IPv4 address or hostname '${addr}'. Please check CUSTOM_PEERS definition" && continue
-	    elif [[ ${addr} = *:* ]]; then
-	      ! isValidIPv6 "${addr}" && echo "ERROR: Invalid IPv6 address '${addr}'. Please check CUSTOM_PEERS definition" && continue
+      if [[ ${addr} = *.* ]]; then
+        ! isValidIPv4 "${addr}" && echo "ERROR: Invalid IPv4 address or hostname '${addr}'. Please check CUSTOM_PEERS definition" && continue
+      elif [[ ${addr} = *:* ]]; then
+        ! isValidIPv6 "${addr}" && echo "ERROR: Invalid IPv6 address '${addr}'. Please check CUSTOM_PEERS definition" && continue
       fi
       ! isNumber ${port} && echo "ERROR: Invalid port number '${port}'. Please check CUSTOM_PEERS definition" && continue
       ! isNumber ${valency} && echo "ERROR: Invalid valency number '${valency}'. Please check CUSTOM_PEERS definition" && continue
