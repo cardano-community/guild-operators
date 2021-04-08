@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 trap 'killall -s SIGTERM cardano-node' SIGINT SIGTERM
 # "docker run --init" to enable the docker init proxy

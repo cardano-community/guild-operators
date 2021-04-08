@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
  
 export CNODE_HOME=/opt/cardano/cnode
 

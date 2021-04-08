@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #shellcheck disable=SC2009,SC2034
 
 # Credits to original Author of the script : Adam Dean (from BUFFY | SPIKE pool) by Crypto2099
