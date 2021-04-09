@@ -153,6 +153,7 @@ if [[ "${INTERACTIVE}" = 'Y' ]]; then
   clear
   CNODE_PATH=$(get_input "Please enter the project path" ${CNODE_PATH})
   CNODE_NAME=$(get_input "Please enter directory name" ${CNODE_NAME})
+  CNODE_NAME=${CNODE_NAME//[^[:alnum:]]/_}
   CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
   CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
 

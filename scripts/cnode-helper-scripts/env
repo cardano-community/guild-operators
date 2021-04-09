@@ -184,7 +184,7 @@ else
 fi
 
 if [[ -z ${EKG_PORT} ]]; then
-  if ! EKG_PORT=$(jq -er '.hasEKG' "${CONFIG}" 2>/dev/null); then
+  if ! EKG_PORT=$(jq -er '.hasEKG | if .|type=="array" then .[1] else . end' "${CONFIG}" 2>/dev/null); then
     if [[ ${OFFLINE_MODE} = "N" ]]; then
       echo "Could not get 'hasEKG' port in ${CONFIG}"
       return 1
