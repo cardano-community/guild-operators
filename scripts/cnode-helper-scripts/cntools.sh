@@ -60,8 +60,6 @@ URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${B
 URL="${URL_RAW}/scripts/cnode-helper-scripts"
 URL_DOCS="${URL_RAW}/docs/Scripts"
 
-[[ ${CNTOOLS_MODE} = "CONNECTED" ]] && env_mode="" || env_mode="offline"
-
 # env version check
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   if curl -s -f -m 10 -o "${PARENT}"/env.tmp ${URL}/env 2>/dev/null && [[ -f "${PARENT}"/env.tmp ]]; then
@@ -91,16 +89,21 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     fi
   fi
   rm -f "${PARENT}"/env.tmp
-fi
-if ! . "${PARENT}"/env ${env_mode}; then
-  myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub"
+  ! . "${PARENT}"/env && myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub"
+else
+  . "${PARENT}"/env offline
+  case $? in # ignore exit code 0 and 2, any other exits script
+    0) : ;; # ok
+    2) clear ;; # ignore
+    *) myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
+  esac
 fi
 
 # get cntools config parameters
-. "${PARENT}"/cntools.config
+! . "${PARENT}"/cntools.config && myExit 1
 
 # get helper functions from library file
-. "${PARENT}"/cntools.library
+! . "${PARENT}"/cntools.library && myExit 1
 
 archiveLog # archive current log and cleanup log archive folder
 
