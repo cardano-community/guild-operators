@@ -94,7 +94,7 @@ else
   . "${PARENT}"/env offline
   case $? in # ignore exit code 0 and 2, any other exits script
     0) : ;; # ok
-    2) echo -e "\ncontinuing with CNTools in offline mode..." ;;
+    2) clear ;; # ignore
     *) myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
   esac
 fi
