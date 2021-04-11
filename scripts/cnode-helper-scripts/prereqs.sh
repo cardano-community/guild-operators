@@ -257,7 +257,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
       echo "Uninstalling Cabal v${cabal_version} .."
       ghcup rm cabal ${cabal_version}
     fi
-    echo "Installing Cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION}.."
+    echo "Installing Cabal v${BOOTSTRAP_HASKELL_CABAL_VERSION}.."
     ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION}
   fi
 fi
