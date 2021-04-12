@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
 # shellcheck disable=SC1090,SC2086
 
 PARENT="$(dirname "$0")" 

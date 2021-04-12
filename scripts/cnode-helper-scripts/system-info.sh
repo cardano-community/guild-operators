@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # pHTN testnet watchdog
 # 2020-04-09 v0.1  initial proposal
