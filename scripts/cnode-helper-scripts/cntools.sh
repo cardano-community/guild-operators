@@ -3503,7 +3503,7 @@ function main {
         println " >> ADVANCED"
         println "DEBUG" "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
         println "OFF" " Developer & Advanced features\n"\
-					" ) Metadata     - post metadata on-chain"\
+					" ) Metadata     - create and optionally post metadata on-chain"\
 					" ) Multi-Asset  - multi-asset nanagement"\
 					" ) Delete Keys  - Delete all sign/cold keys from CNTools (wallet|pool|asset)"\
 					"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -3570,15 +3570,23 @@ function main {
                    tput rc && tput ed
                    println "Metadata file successfully downloaded to: ${FG_LGRAY}${metafile}${NC}"
                    ;;
-                2) tput sc
+                2) println "Add an example metadata JSON scaffold?"
+                   select_opt "[y] Yes" "[n] No"
+                   case $? in
+                     0) jq <<< '{"1815":{"name":"Ada Lovelace","age":36,"parents":[{"id":0,"name":"George Gordon Byron"},{"id":1,"name":"Anne Isabella Byron"}]}}' > "${metafile}" ;;
+                     1) : ;; # do nothing
+                   esac
+                   tput sc
                    DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
                    println "OFF" "\nPaste or enter the metadata text, opening text editor ${FG_LGRAY}${DEFAULTEDITOR}${NC}"
                    println "OFF" "${FG_YELLOW}Please don't change default file path when saving${NC}"
+                   exec >&6 2>&7 # normal stdout/stderr
                    waitForInput "press any key to open ${DEFAULTEDITOR}"
                    ${DEFAULTEDITOR} "${metafile}"
+                   exec >&8 2>&9 # custom stdout/stderr
                    if [[ ! -f "${metafile}" ]] || ! jq -er . "${metafile}" &>/dev/null; then
-                     println "ERROR" "${FG_RED}ERROR${NC}: invalid JSON format or file not found"
-                     println "ERROR" "${FG_LGRAY}${metafile}${NC}"
+                     println "ERROR" "${FG_RED}ERROR${NC}: file not found or invalid JSON format"
+                     println "ERROR" "File: ${FG_LGRAY}${metafile}${NC}"
                      waitForInput && continue
                    fi
                    tput rc && tput ed
