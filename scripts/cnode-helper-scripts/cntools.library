@@ -9,9 +9,9 @@
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
 CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=1
+CNTOOLS_MINOR_VERSION=2
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=6
+CNTOOLS_PATCH_VERSION=0
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -52,7 +52,7 @@ logln() {
   done
 }
 
-# Command     : println [log level] [message]
+# Command     : println [log level] [newline] [message]
 # Description : print and log(if enabled) message
 # Parameters  : log level  >  log level (default: INFO)
 #                             OFF    : logging disabled, output only to tty
@@ -61,20 +61,46 @@ logln() {
 #                             INFO   : normal output printed to tty and logged
 #                             ACTION : e.g cardano-cli executions etc, logged but not printed to tty
 #                             ERROR  : stderr output and error messages
+#             : newline    >  Add a newline at the end for tty output (default true) 
 #             : message    >  The message to print/log
 println() {  
   sleep 0.05 # hack, sleep 50ms before each print to preserve order of execution
   local log_level=$1
   shift
+  local newline="\n"
+  if [[ $1 =~ true|false ]]; then
+    [[ $1 = false ]] && newline=""
+    shift
+  fi
   case $log_level in
-    OFF) printf '%b\n' "$@" >&6 ;;
+    OFF) printf "%b${newline}" "$@" >&6 ;;
     LOG) logln "DEBUG" "$@" ;;
-    DEBUG) printf '%b\n' "$@" >&6; logln "DEBUG" "$@" ;;
-    INFO) printf '%b\n' "$@" ;;
+    DEBUG) printf "%b${newline}" "$@" >&6; logln "DEBUG" "$@" ;;
+    INFO) printf "%b${newline}" "$@" ;;
     ACTION) logln "ACTION" "$@" ;;
-    ERROR) printf '%b\n' "$@" >&2 ;;
-    *) printf '%b\n' "${log_level}"; [[ $# -ge 1 ]] && printf '%s\n' "$@" ;;
+    ERROR) printf "%b${newline}" "$@" >&2 ;;
+    *) printf "%b${newline}" "${log_level}"; [[ $# -ge 1 ]] && printf "%b${newline}" "$@" ;;
   esac
+}
+
+# Command     : ask [variable name] [log] [question]
+# Description : read input from stdin and save response into provided variable name while also logging response
+# Parameters  : variable name  >  the name of the variable to save users response into
+#             : log            >  [true|false] log question (default: true)
+#             : question       >  what to ask user to input
+ask() {
+  sleep 0.1 # hack, sleep 100ms before asking question to preserve order
+  var_name=$1
+  shift
+  local log_question=true
+  if [[ $1 =~ true|false ]]; then
+    [[ $1 = false ]] && log_question=false
+    shift
+  fi
+  printf "%b: ${FG_LGRAY}" "$*" >&6
+  read -r ${var_name} </dev/tty
+  printf "${NC}"
+  [[ ${log_question} = true ]] && println LOG "$*: ${!var_name}"
 }
 
 # Command     : distanceToBottom [rows]
@@ -99,8 +125,9 @@ archiveLog() {
 # Parameters  : message  >  [optional]: override default 'press any key to return to home menu' message
 waitForInput() {
   exec >&6 # normal stdout
+  IFS=';' read -sdR -p $'\E[6n' ROW COL
+  echo
   createDistanceToBottom $(( $# + 1 ))
-  tput sc
   ESC=$(printf "\033")
   echo
   if [[ $# -eq 0 ]]; then
@@ -112,7 +139,8 @@ waitForInput() {
   if [[ $key == $ESC ]]; then
     read -rsn2 key # read 2 more chars
   fi
-  tput rc && tput ed
+  tput cup ${ROW#*[} ${COL}
+  tput ed
   exec >&8 # custom stdout
 }
 
@@ -121,7 +149,7 @@ waitForInput() {
 # Parameters  : command  >  The command to check
 need_cmd() {
   if ! command -v "$1" &>/dev/null; then
-    println "ERROR" "${FG_RED}ERROR${NC}: need '$1' (command not found)\ntry 'sudo apt install $1'\nplease install with your packet manager of choice(apt/yum etc..) and relaunch CNTools"
+    println ERROR "${FG_RED}ERROR${NC}: need '$1' (command not found)\ntry 'sudo apt install $1'\nplease install with your packet manager of choice(apt/yum etc..) and relaunch CNTools"
     return 1
   fi
 }
@@ -135,17 +163,17 @@ protectionPreRequisites() {
   fi
 
   if ! need_cmd "chattr" &>/dev/null; then
-    [[ ${ENABLE_CHATTR} = true ]] && println "ERROR" "chattr command not available but enabled in config, please install or disable in cntools.config and re-run CNTools" && return 1
+    [[ ${ENABLE_CHATTR} = true ]] && println ERROR "chattr command not available but enabled in config, please install or disable in cntools.config and re-run CNTools" && return 1
   elif [[ ${ENABLE_CHATTR} = true ]]; then # chattr available and enabled, make sure sudo access to chattr is enabled
     touch "${TMP_DIR}"/test
-    println "DEBUG" "Testing chattr access permission, enter user password if requested..."
+    println DEBUG "Testing chattr access permission, enter user password if requested..."
     if ! sudo chattr -i "${TMP_DIR}"/test; then
       rm -f "${TMP_DIR}"/test
       echo
-      println "ERROR" "${FG_YELLOW}WARN${NC}: Elevated privileges needed for chattr command used to write protect wallet and pool keys"
-      println "ERROR" "Add required sudo permissions or run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
+      println ERROR "${FG_YELLOW}WARN${NC}: Elevated privileges needed for chattr command used to write protect wallet and pool keys"
+      println ERROR "Add required sudo permissions or run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
       echo
-      println "ERROR" "echo \"$(whoami) ALL=NOPASSWD: $(command -v chattr)\" | sudo tee /etc/sudoers.d/cntools"
+      println ERROR "echo \"$(whoami) ALL=NOPASSWD: $(command -v chattr)\" | sudo tee /etc/sudoers.d/cntools"
       return 1
     fi
     rm -f "${TMP_DIR}"/test
@@ -163,7 +191,7 @@ safeDel() {
   if "${delcommand}" -rf "${path}"; then
     println "Deleted: ${path}"
   else
-    println "ERROR" "${FG_RED}ERROR${NC}: delete failed for ${path}"
+    println ERROR "${FG_RED}ERROR${NC}: delete failed for ${path}"
     return 1
   fi
   return 0
@@ -235,16 +263,21 @@ dialogSetup() {
 #             : title      >  The dialog title text
 #             : verbosity  >  [optional] Start path when dialog is opened, either dir or file (default: ${TMP_DIR}/)
 fileDialog() {
-  exec >&6 2>&7 # normal stdout/stderr
   if [[ ${ENABLE_DIALOG} = "false" ]]; then
-    printf "$1: " && read -r file
-    return
+    ask file "$1" && return
+  else
+    println DEBUG false "${1}: "
+    waitForInput "Press any key to open the file explorer [cancel to skip!]"
   fi
+  exec >&6 2>&7 # normal stdout/stderr
+  sleep 0.1
   dialogSetup
   [[ -n $2 ]] && start_path="$2" || start_path="${TMP_DIR}/"
   dialog --clear --keep-tite --title "$1" --fselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)) 2>"${TMP_DIR}/dialog.out"
   file=$([[ -f "${TMP_DIR}/dialog.out" ]] && cat "${TMP_DIR}/dialog.out" || echo "")
+  tput cup $(( ${ROW#*[} -1 )) $(( ${COL} -1 ))
   exec >&8 2>&9 # custom stdout/stderr
+  println DEBUG "${FG_LGRAY}${file}${NC}"
 }
 # Command     : dirDialog [title] [optional: start dir]
 # Description : open a directory dialog
@@ -252,16 +285,21 @@ fileDialog() {
 #             : title      >  The dialog title text
 #             : verbosity  >  [optional] Start path when dialog is opened, either dir or file (default: ${TMP_DIR}/)
 dirDialog() {
-  exec >&6 2>&7 # normal stdout/stderr
   if [[ ${ENABLE_DIALOG} = "false" ]]; then
-    printf "$1: " && read -r dir
-    return
+    ask dir "$1" && return
+  else
+    println DEBUG false "${1}: "
+    waitForInput "Press any key to open the file explorer [cancel to skip!]"
   fi
+  exec >&6 2>&7 # normal stdout/stderr
+  sleep 0.1
   dialogSetup
   [[ -n $2 ]] && start_path="$2" || start_path="${TMP_DIR}/"
   dialog --clear --keep-tite --title "$1" --dselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)) 2>"${TMP_DIR}/dialog.out"
   dir=$([[ -f "${TMP_DIR}/dialog.out" ]] && cat "${TMP_DIR}/dialog.out" || echo "")
+  tput cup $(( ${ROW#*[} -1 )) $(( ${COL} -1 ))
   exec >&8 2>&9 # custom stdout/stderr
+  println DEBUG "${FG_LGRAY}${dir}${NC}"
 }
 
 
@@ -368,7 +406,7 @@ select_opt() {
   local answer=$?
   exec >&8 # custom stdout
   selected_value="${opts[${answer}]}"
-  println "DEBUG" "Selected value: ${selected_value}"
+  println DEBUG "Selected value: ${selected_value}"
   return $answer
 }
 
@@ -378,7 +416,7 @@ select_opt() {
 # Return      : populates ${dirs} array
 getDirs() {
   if [[ ! -d "$1" ]]; then
-    println "ERROR" "${FG_RED}ERROR${NC}: Missing folder: $1"
+    println ERROR "${FG_RED}ERROR${NC}: Missing folder: $1"
     waitForInput && return 1
   fi
   dirs=()
@@ -402,7 +440,7 @@ selectDir() {
   dir_name=${dirs[$?]}
   [[ "${dir_name}" = "[Esc] Cancel" ]] && return 1
   exec >&8 # custom stdout
-  println "DEBUG" "Selected ${type}: ${dir_name}"
+  println DEBUG "Selected ${type}: ${dir_name}"
 }
 
 # Command     : selectWallet [mode] [file1 file2 ... | wallet_name1 wallet_name1 ... ]
@@ -417,7 +455,7 @@ selectWallet() {
   if [[ ${CNTOOLS_MODE} = "CONNECTED" && ${mode} != "none" ]]; then
     tput sc
     wallet_count=${#dirs[@]}
-    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && println "OFF" "Balance checking wallets..."
+    [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]] && println OFF "Balance checking wallets..."
   fi
   for dir in "${dirs[@]}"; do
     for arg in "$@"; do # check if wallet is missing a required file or name matches execution, if so hide it
@@ -491,13 +529,13 @@ selectWallet() {
   if [[ ${CNTOOLS_MODE} = "CONNECTED" && ${mode} != "none" ]]; then tput rc && tput ed; fi
   if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
     if [[ ${mode} = "balance" ]]; then
-      println "ERROR" "${FG_YELLOW}WARN${NC}: No wallets with funds available for selection! Required files:\n$(printf '%b\n' "$@")"
+      println ERROR "${FG_YELLOW}WARN${NC}: No wallets with funds available for selection! Required files:\n$(printf '%b\n' "$@")"
     elif [[ ${mode} = "delegate" ]]; then
-      println "ERROR" "${FG_YELLOW}WARN${NC}: No wallets available that can be delegated or used as pool pledge/owner/reward wallet! Required files:\n$(printf '%b\n' "$@")"
+      println ERROR "${FG_YELLOW}WARN${NC}: No wallets available that can be delegated or used as pool pledge/owner/reward wallet! Required files:\n$(printf '%b\n' "$@")"
     elif [[ ${mode} = "reward" ]]; then
-      println "ERROR" "${FG_YELLOW}WARN${NC}: No wallets available that have rewards to withdraw!"
+      println ERROR "${FG_YELLOW}WARN${NC}: No wallets available that have rewards to withdraw!"
     else
-      println "ERROR" "${FG_YELLOW}WARN${NC}: No wallets available for selection! Required files:\n$(printf '%b\n' "$@")"
+      println ERROR "${FG_YELLOW}WARN${NC}: No wallets available for selection! Required files:\n$(printf '%b\n' "$@")"
     fi
     return 1
   fi
@@ -536,11 +574,11 @@ selectPool() {
     pool_dirs+=("${dir}")
   done
   if [[ ${#pool_dirs[@]} -eq 0 ]]; then
-    println "ERROR" "${FG_YELLOW}WARN${NC}: No pools available that can be selected! Required files:\n$(printf '%b\n' "$@")"
-    [[ ${enc_req_files} -gt 0 ]] && println "DEBUG" "\n${FG_YELLOW}* Encrypted pools found but not listed *${NC}"
+    println ERROR "${FG_YELLOW}WARN${NC}: No pools available that can be selected! Required files:\n$(printf '%b\n' "$@")"
+    [[ ${enc_req_files} -gt 0 ]] && println DEBUG "\n${FG_YELLOW}* Encrypted pools found but not listed *${NC}"
     return 1
   fi
-  [[ ${enc_req_files} -gt 0 ]] && println "DEBUG" "${FG_YELLOW}encrypted pools found but NOT listed, please decrypt to show${NC}"
+  [[ ${enc_req_files} -gt 0 ]] && println DEBUG "${FG_YELLOW}encrypted pools found but NOT listed, please decrypt to show${NC}"
   if ! selectDir "pool" "${pool_dirs[@]}"; then return 1; fi # ${dir_name} populated by selectDir function
   pool_name="$(echo ${dir_name} | cut -d' ' -f1)"
 }
@@ -548,7 +586,7 @@ selectPool() {
 
 # Command     : selectPolicy [mode] [file1 file2 ...]
 # Description : A helper function to select a Multi-Asset policy
-# Parameters  : fileX  >  array of files required to exist in pool folder for it to be selectable
+# Parameters  : fileX  >  array of files required to exist in policy folder for it to be selectable
 # Return      : populates ${policy_name} variable with selected policy
 selectPolicy() {
   policy_dirs=()
@@ -572,15 +610,14 @@ selectPolicy() {
     policy_dirs+=("${dir}")
   done
   if [[ ${#policy_dirs[@]} -eq 0 ]]; then
-    println "ERROR" "${FG_YELLOW}WARN${NC}: No policies available that can be selected! Required files:\n$(printf '%b\n' "$@")"
-    [[ ${enc_req_files} -gt 0 ]] && println "DEBUG" "\n${FG_YELLOW}* Encrypted policies found but not listed *${NC}"
+    println ERROR "${FG_YELLOW}WARN${NC}: No policies available that can be selected! Required files:\n$(printf '%b\n' "$@")"
+    [[ ${enc_req_files} -gt 0 ]] && println DEBUG "\n${FG_YELLOW}* Encrypted policies found but not listed *${NC}"
     return 1
   fi
-  [[ ${enc_req_files} -gt 0 ]] && println "DEBUG" "${FG_YELLOW}encrypted policies found but NOT listed, please decrypt to show${NC}"
+  [[ ${enc_req_files} -gt 0 ]] && println DEBUG "${FG_YELLOW}encrypted policies found but NOT listed, please decrypt to show${NC}"
   if ! selectDir "policy" "${policy_dirs[@]}"; then return 1; fi # ${dir_name} populated by selectDir function
   policy_name="$(echo ${dir_name} | cut -d' ' -f1)"
 }
-
 
 # Command     : getPassword [optional: confirm]
 # Description : Get password from user on STDIN
@@ -648,11 +685,11 @@ encryptFile() {
   echo "${2}" | gpg --symmetric --yes --batch --cipher-algo AES256 --passphrase-fd 0 --output "${1}.gpg" "${1}" &>/dev/null && \
   safeDel "${1}" >/dev/null || {
     exec >&8 2>&9 # custom stdout/stderr
-    println "ERROR" "${FG_RED}ERROR${NC}: failed to encrypt ${1}"
+    println ERROR "${FG_RED}ERROR${NC}: failed to encrypt ${1}"
     return 1
   }
   exec >&8 2>&9 # custom stdout/stderr
-  println "DEBUG" "${1} successfully encrypted"
+  println DEBUG "${1} successfully encrypted"
 }
 
 
@@ -666,11 +703,11 @@ decryptFile() {
   echo "${2}" | gpg --decrypt --batch --yes --passphrase-fd 0 --output "${1%.*}" "${1}" &>/dev/null && \
   rm -f "${1}" || {
     exec >&8 2>&9 # custom stdout/stderr
-    println "ERROR" "${FG_RED}ERROR${NC}: failed to decrypt ${1}"
+    println ERROR "${FG_RED}ERROR${NC}: failed to decrypt ${1}"
     return 1
   }
   exec >&8 2>&9 # custom stdout/stderr
-  println "DEBUG" "${1} successfully decrypted"
+  println DEBUG "${1} successfully decrypted"
 }
 
 # Command     : unlockFile [file]
@@ -699,7 +736,7 @@ lockFile() {
 # Return      : expiration date can be accessed through variable ${expiration_date} after function has been executed
 kesExpiration() {
   if [[ -z "${1##*[!0-9]*}" ]]; then
-    println "ERROR" "${FG_RED}ERROR${NC}: KES start period must be an integer number [$1]"
+    println ERROR "${FG_RED}ERROR${NC}: KES start period must be an integer number [$1]"
     return 1
   fi
   pool_kes_start_period=$1
@@ -716,8 +753,8 @@ kesExpiration() {
 # Parameters  : silent  >  any argument to function will prevent DEBUG output to tty
 waitNewBlockCreated() {
   counter=${TIMEOUT_NO_OF_SLOTS}
-  [[ $# -eq 0 ]] && println "DEBUG" "Waiting for new block to be created (timeout = ${counter} slots, $(( counter * SLOT_LENGTH ))s)"
-  [[ $# -eq 0 ]] && println "DEBUG" "${FG_BLUE}INFO${NC}: press any key to cancel and return (won't stop transaction)"
+  [[ $# -eq 0 ]] && println DEBUG "Waiting for new block to be created (timeout = ${counter} slots, $(( counter * SLOT_LENGTH ))s)"
+  [[ $# -eq 0 ]] && println DEBUG "${FG_BLUE}INFO${NC}: press any key to cancel and return (won't stop transaction)"
   getNodeMetrics
   initialTip=${slotnum}
   actualTip=${slotnum}
@@ -736,7 +773,7 @@ waitNewBlockCreated() {
       return 1
     fi
   done
-  println "LOG" "New block was created - ${actualTip}"
+  println LOG "New block was created - ${actualTip}"
 }
 
 # Command     : verifyTx [address]
@@ -746,8 +783,8 @@ verifyTx() {
   if ! waitNewBlockCreated; then return 1; fi
   getBalance ${1}
   while [[ ${assets[lovelace]} -ne ${newBalance} ]]; do
-    println "DEBUG" "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
-    println "LOG" "$(formatLovelace ${assets[lovelace]}) != $(formatLovelace ${newBalance})"
+    println DEBUG "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+    println LOG "$(formatLovelace ${assets[lovelace]}) != $(formatLovelace ${newBalance})"
     if ! waitNewBlockCreated "silent"; then return 1; fi
     getBalance ${1}
   done
@@ -775,7 +812,7 @@ formatLovelace() {
     [[ $1 -le 999999 ]] && printf '0.%06d' "$1" && return
     printf '%s.%s' "$(sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< ${1::-6})" "${1: -6}"
   else
-    println "ERROR" "${FG_RED}ERROR${NC}: must be a valid integer number"
+    println ERROR "${FG_RED}ERROR${NC}: must be a valid integer number"
     return 1
   fi
 }
@@ -787,7 +824,7 @@ formatAsset() {
   if isNumber $1; then
     sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< $1
   else
-    println "ERROR" "${FG_RED}ERROR${NC}: must be a valid integer number"
+    println ERROR "${FG_RED}ERROR${NC}: must be a valid integer number"
     return 1
   fi
 }
@@ -799,7 +836,7 @@ AdaToLovelace() {
   if validateDecimalNbr $1; then
     echo "$1 * 1000000 / 1" | bc # /1 is to remove decimals from bc command
   else
-    println "ERROR" "${FG_RED}ERROR${NC}: must be a valid integer or decimal number"
+    println ERROR "${FG_RED}ERROR${NC}: must be a valid integer or decimal number"
     return 1
   fi
 }
@@ -810,13 +847,13 @@ AdaToLovelace() {
 pctToFraction() {
   if validateDecimalNbr $1; then
     if [[ $(bc <<< "$1 >= 0" ) -eq 0 || $(bc <<< "$1 <= 100" ) -eq 0 ]]; then
-      println "ERROR" "${FG_RED}ERROR${NC}: must be a number between 0-100"
+      println ERROR "${FG_RED}ERROR${NC}: must be a number between 0-100"
       return 1
     else
       echo "x=$1 / 100; if(x<1) print 0; x" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//'
     fi
   else
-    println "ERROR" "${FG_RED}ERROR${NC}: must be a valid integer or decimal number"
+    println ERROR "${FG_RED}ERROR${NC}: must be a valid integer or decimal number"
     return 1
   fi
 }
@@ -832,7 +869,7 @@ fractionToPCT() {
       echo 0
     fi
   else
-    println "ERROR" "${FG_RED}ERROR${NC}: must be a valid decimal number"
+    println ERROR "${FG_RED}ERROR${NC}: must be a valid decimal number"
     return 1
   fi
 }
@@ -849,8 +886,8 @@ getPoolID() {
   pool_id_bech32=""
   pool_coldkey_vk_file="${POOL_FOLDER}/${1}/${POOL_COLDKEY_VK_FILENAME}"
   if [[ -f ${pool_coldkey_vk_file} ]]; then
-    println "ACTION" "${CCLI} stake-pool id --cold-verification-key-file ${pool_coldkey_vk_file} --output-format hex"
-    println "ACTION" "${CCLI} stake-pool id --cold-verification-key-file ${pool_coldkey_vk_file}"
+    println ACTION "${CCLI} stake-pool id --cold-verification-key-file ${pool_coldkey_vk_file} --output-format hex"
+    println ACTION "${CCLI} stake-pool id --cold-verification-key-file ${pool_coldkey_vk_file}"
     if ! pool_id=$(${CCLI} stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" --output-format hex 2>/dev/null) || \
        ! pool_id_bech32=$(${CCLI} stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" 2>/dev/null); then
       return 1
@@ -872,7 +909,7 @@ getPayAddress() {
   [[ -f ${payment_addr_file} ]] && pay_addr=$(cat "${payment_addr_file}") && return 0
   pay_addr=""
   if [[ -f "${payment_vk_file}" ]]; then
-    println "ACTION" "${CCLI} address build --payment-verification-key-file ${payment_vk_file} --out-file ${payment_addr_file} ${HASH_IDENTIFIER}"
+    println ACTION "${CCLI} address build --payment-verification-key-file ${payment_vk_file} --out-file ${payment_addr_file} ${HASH_IDENTIFIER}"
     if ${CCLI} address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" ${HASH_IDENTIFIER} 2>/dev/null; then
       pay_addr=$(cat "${payment_addr_file}")
       return 0
@@ -892,13 +929,13 @@ getBaseAddress() {
   [[ -f ${base_addr_file} ]] && base_addr=$(cat "${base_addr_file}") && return 0
   base_addr=""
   if [[ -f "${payment_vk_file}" && -f "${stake_vk_file}" ]]; then
-    println "ACTION" "${CCLI} address build --payment-verification-key-file ${payment_vk_file} --stake-verification-key-file ${stake_vk_file} --out-file ${base_addr_file} ${HASH_IDENTIFIER}"
+    println ACTION "${CCLI} address build --payment-verification-key-file ${payment_vk_file} --stake-verification-key-file ${stake_vk_file} --out-file ${base_addr_file} ${HASH_IDENTIFIER}"
     if ${CCLI} address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${HASH_IDENTIFIER} 2>/dev/null; then
       base_addr=$(cat "${base_addr_file}")
       return 0
     fi
   elif [[ $# -eq 2 && -f "${1}" && -f "${2}" ]]; then
-    println "ACTION" "${CCLI} address build --payment-verification-key-file ${1} --stake-verification-key-file ${2} ${HASH_IDENTIFIER}"
+    println ACTION "${CCLI} address build --payment-verification-key-file ${1} --stake-verification-key-file ${2} ${HASH_IDENTIFIER}"
     base_addr=$(${CCLI} address build --payment-verification-key-file "${1}" --stake-verification-key-file "${2}" ${HASH_IDENTIFIER} 2>/dev/null)
   fi
   return 1
@@ -914,13 +951,13 @@ getRewardAddress() {
   [[ -f ${stake_addr_file} ]] && reward_addr=$(cat "${stake_addr_file}") && return 0
   reward_addr=""
   if [[ -f "${stake_vk_file}" ]]; then
-    println "ACTION" "${CCLI} stake-address build --stake-verification-key-file ${stake_vk_file} --out-file ${stake_addr_file} ${HASH_IDENTIFIER}"
+    println ACTION "${CCLI} stake-address build --stake-verification-key-file ${stake_vk_file} --out-file ${stake_addr_file} ${HASH_IDENTIFIER}"
     if ${CCLI} stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" ${HASH_IDENTIFIER} 2>/dev/null; then
       reward_addr=$(cat "${stake_addr_file}")
       return 0
     fi
   elif [[ -f "${1}" ]]; then
-    println "ACTION" "${CCLI} stake-address build --stake-verification-key-file ${1} ${HASH_IDENTIFIER}"
+    println ACTION "${CCLI} stake-address build --stake-verification-key-file ${1} ${HASH_IDENTIFIER}"
     reward_addr=$(${CCLI} stake-address build --stake-verification-key-file "${1}" ${HASH_IDENTIFIER} 2>/dev/null)
   fi
   return 1
@@ -931,7 +968,7 @@ getRewardAddress() {
 # Parameters  : stake key  >  path to stake.vkey file
 # Return      : populates ${reward_addr}
 getRewardAddressFromKey() {
-  println "ACTION" "${CCLI} stake-address build --stake-verification-key-file ${1} ${HASH_IDENTIFIER}"
+  println ACTION "${CCLI} stake-address build --stake-verification-key-file ${1} ${HASH_IDENTIFIER}"
   reward_addr=$(${CCLI} stake-address build --stake-verification-key-file "${1}" ${HASH_IDENTIFIER} 2>/dev/null)
 }
 
@@ -940,7 +977,7 @@ getRewardAddressFromKey() {
 # Parameters  : address  >  the wallet address to query
 # Return      : populates ${address_info}
 getAddressInfo() {
-  println "ACTION" "${CCLI} address info --address $1"
+  println ACTION "${CCLI} address info --address $1"
   address_info=$(${CCLI} address info --address $1)
 }
 
@@ -964,7 +1001,7 @@ getBalance() {
     ((utxo_cnt++))
     tx_in+=" --tx-in ${utxo_entry[0]}#${utxo_entry[1]}"
     utxos["${utxo_entry[0]}#${utxo_entry[1]}. Ada"]=${utxo_entry[2]} # Space added before 'Ada' for sort to place it first
-    assets["lovelace"]=$(( ${assets["lovelace"]:-0} + ${utxo_entry[2]} ))
+    assets["lovelace"]=$(( ${assets["lovelace"]:-0} + utxo_entry[2] ))
     if [[ ${#utxo_entry[@]} -gt 4 ]]; then
       idx=5
       while [[ ${#utxo_entry[@]} -gt ${idx} ]]; do
@@ -973,7 +1010,8 @@ getBalance() {
         IFS='.' read -ra asset <<< "${asset_hash_name}"
         policyIDs["${asset[0]}"]=1
         [[ ${#asset[@]} -eq 2 && ${#asset[1]} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#asset[1]}
-        [[ ${#asset_amount} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_amount}
+        local asset_fmt="$(formatAsset ${asset_amount})"
+        [[ ${#asset_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_fmt}
         assets["${asset_hash_name}"]=$(( ${assets["${asset_hash_name}"]:-0} + asset_amount ))
         utxos["${utxo_entry[0]}#${utxo_entry[1]}.${asset_hash_name}"]=${asset_amount}
         idx=$(( idx + 3 ))
@@ -1046,6 +1084,34 @@ getAssetsTxOut() {
   done
 }
 
+# Command     : getAssetIDBech32 [PolicyID] [AssetName]
+# Description : generate asset id according to CIP-14 standard
+#               https://github.com/cardano-foundation/CIPs/pull/64
+# Parameters  : PolicyID   >  hex-encoded policy ID
+#               AssetName  >  ASCII formatted asset name
+# Return      : populates ${assets_id_bech32}
+getAssetIDBech32() {
+  assets_id_bech32=""
+  if ! need_cmd "bech32" || \
+     ! need_cmd "b2sum"; then
+    println ERROR "${FG_RED}ERROR${NC}: b2sum and/or bech32 executables not found in path!"
+    waitForInput && return 1
+  fi
+  assets_id_bech32=$(printf "$(echo -n $1 | sed 's/../\\x&/g')%s" "$2" | b2sum -l 160 -b | cut -d' ' -f 1 | bech32 asset)
+}
+
+# Command     : asciiToHex [string]
+# Description : convert a normal 1 byte ASCII string to hex (alnum chars)
+# Parameters  : string   >  ASCII string to convert
+# Return      : hex string on stdout
+asciiToHex() {
+  local ascwrd=$1
+  [[ -z ${ascwrd} ]] && return 0
+  for ((i=0;i<${#ascwrd};i++)); do
+    printf %02x \'${ascwrd:$i:1}
+  done
+}
+
 # Command     : getMinUTxO [--tx-out string]
 # Description : calculate minimum balance needed in source wallet UTxOs for transaction to be valid
 #               getBalance assumed to be run before
@@ -1055,11 +1121,14 @@ getMinUTxO() {
   [[ -z ${minUTxOValue} ]] && minUTxOValue=$(jq -r '.minUTxOValue //1000000' <<< "${PROT_PARAMS}")
   min_utxo_out=${minUTxOValue}
 
-  # chain constants
-  local coinSize=0 # will be changed to 2 in the next HFE
-  local pidSize=28 # current value, unchanged in the next era/HFE
-  local utxoEntrySizeWithoutVal=27 # 6 + txOutLenNoVal(14) + txInLen(7)
-  local adaOnlyUTxOSize=$(( utxoEntrySizeWithoutVal + coinSize ))
+  # chain constants, based on: https://hydra.iohk.io/build/5949624/download/1/shelley-ma.pdf
+  local k0=0				                # coinSize=0 in mary-era, 2 in alonzo-era
+  local k1=6
+  local k2=12				                # assetSize=12
+  local k3=28				                # pidSize=28
+  local k4=8				                # word=8 bytes
+  local utxoEntrySizeWithoutVal=27 	# 6 + txOutLenNoVal(14) + txInLen(7)
+  local adaOnlyUTxOSize=$((${utxoEntrySizeWithoutVal} + ${k0}))
   
   # split the tx-out string into the assets
   IFS='+' read -ra asset_entry <<< "${1}"
@@ -1089,8 +1158,8 @@ getMinUTxO() {
     done
     
     local sumAssetNameLengths=$(_len=0;for K in "${!nameCollector[@]}";do ((_len+=$(printf "%s" "$K" | wc -c)));done;echo ${_len})
-    local roundupBytesToWords=$(bc <<< "scale=0; ( ${#assetsCollector[@]}*12 + ${sumAssetNameLengths} + ${#pidCollector[@]}*${pidSize} + 7 ) / 8")
-    local tokenBundleSize=$(( 6 + roundupBytesToWords ))
+    local roundupBytesToWords=$(bc <<< "scale=0; ( ${#assetsCollector[@]}*${k2} + ${sumAssetNameLengths} + ${#pidCollector[@]}*${k3} + (${k4}-1) ) / ${k4}")
+    local tokenBundleSize=$(( k1 + roundupBytesToWords ))
     local minAda=$(( $(bc <<< "scale=0; ${minUTxOValue} / ${adaOnlyUTxOSize}") * ( utxoEntrySizeWithoutVal + tokenBundleSize ) ))
     [[ ${minAda} -gt ${minUTxOValue} ]] && min_utxo_out=${minAda}
   fi
@@ -1115,7 +1184,7 @@ getRewards() {
 # Parameters  : stake address  >  the address from stake.vkey
 # Return      : populates ${reward_lovelace}
 getRewardsFromAddr() {
-  println "ACTION" "${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}"
+  println ACTION "${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}"
   stake_address_info=$(${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1})
   reward_lovelace=0
   for reward_entry in $(jq -r '.[] | @base64' <<< "${stake_address_info}"); do
@@ -1129,7 +1198,7 @@ getRewardsFromAddr() {
 # Parameters  : wallet name  >  the name of the wallet
 isWalletRegistered() {
   if getRewardAddress $1; then
-    println "ACTION" "${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr}"
+    println ACTION "${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr}"
     stake_address_info=$(${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr})
     [[ -n "${stake_address_info}" && $(jq -r 'length' <<< ${stake_address_info}) -gt 0 ]] && return 0
   fi
@@ -1164,18 +1233,18 @@ getWalletType() {
 getTTL() {
   tip_ref=$(getSlotTipRef)
   if [[ ${op_mode} = "hybrid" ]]; then
-    println "DEBUG" "\nHow long do you want the transaction to be valid?"
-    sleep 0.1 && read -r -p "TTL (in seconds, default: 1800/30min): " ttl_enter 2>&6 && println "LOG" "TTL (in seconds, default: 1800/30min): ${ttl_enter}"
+    println DEBUG "\nHow long do you want the transaction to be valid?"
+    ask ttl_enter "TTL (in seconds, default: 1800/30min)"
     ttl_enter=${ttl_enter:-1800}
     if ! isNumber ${ttl_enter}; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
+      println ERROR "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
       return 1
     fi
     ttl=$(( tip_ref + (ttl_enter/SLOT_LENGTH) ))
   else
     ttl=$(( tip_ref + (600/SLOT_LENGTH) )) # TTL default: 10min
   fi
-  println "LOG" "Current slot is ${tip_ref}, setting ttl to ${ttl}"
+  println LOG "Current slot is ${tip_ref}, setting ttl to ${ttl}"
 }
 
 # Command     : buildOfflineJSON [type]
@@ -1200,7 +1269,7 @@ registerStakeWallet() {
   wallet_source="base"
 
   if [[ -z $2 || $2 = "false" ]]; then
-    println "DEBUG" "Wallet ${FG_GREEN}${wallet_name}${NC} not registered on chain"
+    println DEBUG "Wallet ${FG_GREEN}${wallet_name}${NC} not registered on chain"
     waitForInput "press any key to continue with registration"
   fi
 
@@ -1210,12 +1279,12 @@ registerStakeWallet() {
   getBaseAddress "${wallet_name}"
   getBalance ${base_addr}
   
-  println "ACTION" "${CCLI} stake-address registration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cert_file}"
+  println ACTION "${CCLI} stake-address registration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cert_file}"
   if ! ${CCLI} stake-address registration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cert_file}"; then return 1; fi
 
   if ! getTTL; then return 1; fi
   stakeAddressDeposit=$(jq -r '.stakeAddressDeposit' <<< "${PROT_PARAMS}")
-  println "LOG" "Key Deposit is ${stakeAddressDeposit}"
+  println LOG "Key Deposit is ${stakeAddressDeposit}"
 
   getAssetsTxOut
   
@@ -1228,7 +1297,7 @@ registerStakeWallet() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
   
   min_fee_args=(
@@ -1241,15 +1310,15 @@ registerStakeWallet() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_DIR}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
 
   newBalance=$(( ${assets[lovelace]} - min_fee - stakeAddressDeposit ))
-  println "LOG" "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) Ada ($(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakeAddressDeposit}))"
+  println LOG "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) Ada ($(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakeAddressDeposit}))"
 
   if [[ ${assets[lovelace]} -lt $(( min_fee + stakeAddressDeposit )) ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee and key deposit!"\
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee and key deposit!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee + stakeAddressDeposit )))${NC} Ada"
     return 1
@@ -1258,7 +1327,7 @@ registerStakeWallet() {
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee and key deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee and key deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
     return 1
   fi
   
@@ -1285,9 +1354,9 @@ registerStakeWallet() {
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println "DEBUG" "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println "DEBUG" "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
-    println "DEBUG" "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}" 
+    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
+    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
+    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}" 
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -1307,13 +1376,13 @@ deregisterStakeWallet() {
   wallet_source="base"
 
   stake_dereg_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_DEREG_FILENAME}"
-  println "ACTION" "${CCLI} stake-address deregistration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_dereg_file}"
+  println ACTION "${CCLI} stake-address deregistration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_dereg_file}"
   if ! ${CCLI} stake-address deregistration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_dereg_file}"; then return 1; fi
 
   if ! getTTL; then return 1; fi
   
   stakeAddressDeposit=$(jq -r '.stakeAddressDeposit' <<< "${PROT_PARAMS}")
-  println "LOG" "Key Deposit is ${stakeAddressDeposit}"
+  println LOG "Key Deposit is ${stakeAddressDeposit}"
 
   getAssetsTxOut
 
@@ -1326,7 +1395,7 @@ deregisterStakeWallet() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -1339,15 +1408,15 @@ deregisterStakeWallet() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_DIR}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
 
   newBalance=$(( ${assets[lovelace]} + stakeAddressDeposit - min_fee ))
-  println "LOG" "New balance after returned key deposit and subtracted tx fee is $(formatLovelace ${newBalance}) Ada ($(formatLovelace ${assets[lovelace]}) + $(formatLovelace ${stakeAddressDeposit}) - $(formatLovelace ${min_fee}))"
+  println LOG "New balance after returned key deposit and subtracted tx fee is $(formatLovelace ${newBalance}) Ada ($(formatLovelace ${assets[lovelace]}) + $(formatLovelace ${stakeAddressDeposit}) - $(formatLovelace ${min_fee}))"
   
   if [[ $(( ${assets[lovelace]} + stakeAddressDeposit )) -lt ${min_fee} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee!"\
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee - stakeAddressDeposit )))${NC} Ada"
     return 1
@@ -1356,7 +1425,7 @@ deregisterStakeWallet() {
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee and returned key deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee and returned key deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
     return 1
   fi
   
@@ -1384,9 +1453,9 @@ deregisterStakeWallet() {
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println "DEBUG" "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println "DEBUG" "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
-    println "DEBUG" "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}" 
+    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
+    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
+    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}" 
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -1431,7 +1500,7 @@ sendAssets() {
   else
     dummy_build_args+=( --tx-out "${s_addr}+0${assets_tx_out_s}" --tx-out "${d_addr}+0${assets_tx_out_d}" )
   fi
-  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[*]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
   
   min_fee_args=(
@@ -1444,9 +1513,9 @@ sendAssets() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_DIR}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
   
   build_args=(
     ${tx_in}
@@ -1460,8 +1529,8 @@ sendAssets() {
     tx_out="${d_addr}+$(( ${assets_to_send[lovelace]} - min_fee ))${assets_tx_out_d}"
     getMinUTxO "${tx_out}"
     if [[ ${assets_to_send[lovelace]} -lt ${min_utxo_out} ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in address ( $(formatLovelace ${assets_to_send[lovelace]}) < $(formatLovelace ${min_utxo_out}) )"
-      println "ERROR" "Top up wallet with enough Ada to cover minimum UTxO balance"
+      println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in address ( $(formatLovelace ${assets_to_send[lovelace]}) < $(formatLovelace ${min_utxo_out}) )"
+      println ERROR "Top up wallet with enough Ada to cover minimum UTxO balance"
       return 1
     fi
     build_args+=( --tx-out "${tx_out}" )
@@ -1483,11 +1552,11 @@ sendAssets() {
     build_args+=( --tx-out "${tx_out_s}" )
     
     if [[ ${newBalance} -lt ${min_utxo_out_s} ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada left in source address ( $(formatLovelace ${newBalance}) < $(formatLovelace ${min_utxo_out_s}) )"
-      println "ERROR" "Send all Ada or top up wallet with enough Ada to cover minimum UTxO balance"
+      println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada left in source address ( $(formatLovelace ${newBalance}) < $(formatLovelace ${min_utxo_out_s}) )"
+      println ERROR "Send all Ada or top up wallet with enough Ada to cover minimum UTxO balance"
       return 1
     elif [[ ${assets_to_send[lovelace]} -lt ${min_utxo_out_d} ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, requires ${FG_LBLUE}$(formatLovelace ${min_utxo_out_d})${NC} Ada to be sent along!"
+      println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, requires ${FG_LBLUE}$(formatLovelace ${min_utxo_out_d})${NC} Ada to be sent along!"
       return 1
     fi
   fi
@@ -1512,8 +1581,8 @@ sendAssets() {
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println "DEBUG" "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println "DEBUG" "Source Wallet ${FG_GREEN}${s_wallet} ${FG_LGRAY}$(basename ${s_payment_sk_file})${NC}"  
+    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
+    println DEBUG "Source Wallet ${FG_GREEN}${s_wallet} ${FG_LGRAY}$(basename ${s_payment_sk_file})${NC}"  
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -1540,7 +1609,7 @@ delegate() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -1553,15 +1622,15 @@ delegate() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_DIR}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
   
   if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee!"\
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
     return 1
@@ -1570,7 +1639,7 @@ delegate() {
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
     return 1
   fi
   
@@ -1597,9 +1666,9 @@ delegate() {
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println "DEBUG" "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println "DEBUG" "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
-    println "DEBUG" "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}" 
+    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
+    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
+    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}" 
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -1625,7 +1694,7 @@ withdrawRewards() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -1638,15 +1707,15 @@ withdrawRewards() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_DIR}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
 
   newBalance=$(( ${assets[lovelace]} - min_fee + reward_lovelace ))
-  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
 
   if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee!"\
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace $((min_fee - reward_lovelace)))${NC} Ada"
     return 1
@@ -1655,7 +1724,7 @@ withdrawRewards() {
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee and withdrawal, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee and withdrawal, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
     return 1
   fi
   
@@ -1683,9 +1752,9 @@ withdrawRewards() {
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println "DEBUG" "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println "DEBUG" "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
-    println "DEBUG" "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}" 
+    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
+    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
+    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}" 
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -1703,7 +1772,7 @@ registerPool() {
   if ! getTTL; then return 1; fi
   
   stakePoolDeposit=$(jq -r '.stakePoolDeposit' <<< "${PROT_PARAMS}")
-  println "LOG" "Pool Deposit is ${stakePoolDeposit}"
+  println LOG "Pool Deposit is ${stakePoolDeposit}"
   
   owner_delegation_cert=""
   [[ ${delegate_owner_wallet} = 'Y' ]] && owner_delegation_cert="--certificate-file ${owner_delegation_cert_file}"
@@ -1741,7 +1810,7 @@ registerPool() {
   )
   [[ -n ${owner_delegation_cert} ]] && dummy_build_args+=( --certificate-file "${owner_delegation_cert}" )
   [[ -n ${reward_delegation_cert} ]] && dummy_build_args+=( --certificate-file "${reward_delegation_cert}" )
-  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -1754,15 +1823,15 @@ registerPool() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_DIR}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
 
   newBalance=$(( ${assets[lovelace]} - min_fee - stakePoolDeposit ))
-  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakePoolDeposit}) )"
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakePoolDeposit}) )"
   
   if [[ ${assets[lovelace]} -lt $(( min_fee + stakePoolDeposit )) ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee and pool registration deposit!"\
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee and pool registration deposit!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee + stakePoolDeposit )))${NC} Ada"
     return 1
@@ -1771,7 +1840,7 @@ registerPool() {
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee and pool registration deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee and pool registration deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
     return 1
   fi
   
@@ -1813,14 +1882,14 @@ registerPool() {
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println "DEBUG" "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println "DEBUG" "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}${POOL_COLDKEY_SK_FILENAME}${NC}" 
-    println "DEBUG" "Owner #1 ${FG_GREEN}${owner_wallets[0]} ${FG_LGRAY}${WALLET_PAY_SK_FILENAME}${NC} & ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}" 
+    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
+    println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}${POOL_COLDKEY_SK_FILENAME}${NC}" 
+    println DEBUG "Owner #1 ${FG_GREEN}${owner_wallets[0]} ${FG_LGRAY}${WALLET_PAY_SK_FILENAME}${NC} & ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}" 
     for index in "${!owner_wallets[@]}"; do
       [[ ${index} -eq 0 ]] && continue # skip main owner
-      println "DEBUG" "Owner #$((index+1)) ${FG_GREEN}${owner_wallets[${index}]} ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}"
+      println DEBUG "Owner #$((index+1)) ${FG_GREEN}${owner_wallets[${index}]} ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}"
     done
-    [[ delegate_reward_wallet = 'Y' ]] && println "DEBUG" "Reward wallet ${FG_GREEN}${reward_wallet} ${FG_LGRAY}$(basename ${reward_stake_sk_file})${NC}"
+    [[ delegate_reward_wallet = 'Y' ]] && println DEBUG "Reward wallet ${FG_GREEN}${reward_wallet} ${FG_LGRAY}$(basename ${reward_stake_sk_file})${NC}"
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -1860,7 +1929,7 @@ modifyPool() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -1873,15 +1942,15 @@ modifyPool() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_DIR}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
 
   if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee!"\
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
     return 1
@@ -1890,7 +1959,7 @@ modifyPool() {
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
     return 1
   fi
   
@@ -1929,12 +1998,12 @@ modifyPool() {
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println "DEBUG" "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println "DEBUG" "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}${POOL_COLDKEY_SK_FILENAME}${NC}" 
-    println "DEBUG" "Owner #1 ${FG_GREEN}${owner_wallets[0]} ${FG_LGRAY}${WALLET_PAY_SK_FILENAME}${NC} & ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}" 
+    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
+    println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}${POOL_COLDKEY_SK_FILENAME}${NC}" 
+    println DEBUG "Owner #1 ${FG_GREEN}${owner_wallets[0]} ${FG_LGRAY}${WALLET_PAY_SK_FILENAME}${NC} & ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}" 
     for index in "${!owner_wallets[@]}"; do
       [[ ${index} -eq 0 ]] && continue # skip main owner
-      println "DEBUG" "Owner #$((index+1)) ${FG_GREEN}${owner_wallets[${index}]} ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}"
+      println DEBUG "Owner #$((index+1)) ${FG_GREEN}${owner_wallets[${index}]} ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}"
     done
     return 2 # return as failed to stop main processing and return to home menu
   fi
@@ -1971,7 +2040,7 @@ deRegisterPool() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -1984,15 +2053,15 @@ deRegisterPool() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_DIR}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
 
   if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
     return 1
@@ -2001,7 +2070,7 @@ deRegisterPool() {
   tx_out="${addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
     return 1
   fi
   
@@ -2036,9 +2105,9 @@ deRegisterPool() {
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println "DEBUG" "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println "DEBUG" "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
-    println "DEBUG" "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}$(basename ${pool_coldkey_sk_file})${NC}" 
+    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
+    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
+    println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}$(basename ${pool_coldkey_sk_file})${NC}" 
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -2063,9 +2132,9 @@ rotatePoolKeys() {
   current_kes_period=$(getCurrentKESperiod)
   echo "${current_kes_period}" > ${pool_saved_kes_start}
 
-  println "ACTION" "${CCLI} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
+  println ACTION "${CCLI} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
   if ! ${CCLI} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"; then return 1; fi
-  println "ACTION" "${CCLI} node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
+  println ACTION "${CCLI} node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
   if ! ${CCLI} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}"; then return 1; fi
   chmod 700 ${POOL_FOLDER}/${pool_name}/*
 
@@ -2085,7 +2154,7 @@ sendMetadata() {
   elif [[ ${metatype} = "cbor" ]]; then
     metafile_param="--metadata-cbor-file ${metafile}"
   else
-    println "ERROR" "${FG_RED}ERROR${NC}: unknown metadata type '${metatype}'"
+    println ERROR "${FG_RED}ERROR${NC}: unknown metadata type '${metatype}'"
     return 1
   fi
 
@@ -2103,7 +2172,7 @@ sendMetadata() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -2116,15 +2185,15 @@ sendMetadata() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_DIR}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
 
   if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
     return 1
@@ -2133,7 +2202,7 @@ sendMetadata() {
   tx_out="${addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
     return 1
   fi
   
@@ -2160,8 +2229,8 @@ sendMetadata() {
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println "DEBUG" "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println "DEBUG" "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
+    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
+    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -2182,7 +2251,7 @@ mintAsset() {
   else
     ttl=${policy_ttl}
     tip_ref=$(getSlotTipRef)
-    println "LOG" "Current slot is ${tip_ref}, setting ttl to ${ttl} based on policy expiration"
+    println LOG "Current slot is ${tip_ref}, setting ttl to ${ttl} based on policy expiration"
   fi
   
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".${asset_name}"
@@ -2198,7 +2267,7 @@ mintAsset() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
   
   min_fee_args=(
@@ -2211,15 +2280,15 @@ mintAsset() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_DIR}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
 
   if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
     return 1
@@ -2228,7 +2297,7 @@ mintAsset() {
   tx_out="${addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
     return 1
   fi
   
@@ -2263,10 +2332,10 @@ mintAsset() {
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println "DEBUG" "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println "DEBUG" "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
-    println "DEBUG" "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_sk_file})${NC}"
-    println "DEBUG" "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_script_file})${NC}"
+    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
+    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
+    println DEBUG "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_sk_file})${NC}"
+    println DEBUG "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_script_file})${NC}"
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -2285,7 +2354,7 @@ burnAsset() {
   else
     ttl=${policy_ttl}
     tip_ref=$(getSlotTipRef)
-    println "LOG" "Current slot is ${tip_ref}, setting ttl to ${ttl} based on policy expiration"
+    println LOG "Current slot is ${tip_ref}, setting ttl to ${ttl} based on policy expiration"
   fi
   
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".${asset_name}"
@@ -2301,7 +2370,7 @@ burnAsset() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println "ACTION" "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -2314,15 +2383,15 @@ burnAsset() {
     --byron-witness-count 0
     --protocol-params-file "${TMP_DIR}"/protparams.json
   )
-  println "ACTION" "${CCLI} ${min_fee_args[*]}"
+  println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println "LOG" "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
   
   newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println "LOG" "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
   
   if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
     return 1
@@ -2331,7 +2400,7 @@ burnAsset() {
   tx_out="${addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
     return 1
   fi
   
@@ -2366,10 +2435,10 @@ burnAsset() {
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println "DEBUG" "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println "DEBUG" "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
-    println "DEBUG" "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_sk_file})${NC}"
-    println "DEBUG" "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_script_file})${NC}"
+    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
+    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
+    println DEBUG "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_sk_file})${NC}"
+    println DEBUG "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_script_file})${NC}"
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -2383,7 +2452,7 @@ burnAsset() {
 #             : populate an array variable called 'build_args' with all data
 # Parameters  : build_args  >  an array with all the arguments to assemble the transaction
 buildTx() {
-  println "ACTION" "${CCLI} transaction build-raw ${ERA_IDENTIFIER} ${build_args[*]}"
+  println ACTION "${CCLI} transaction build-raw ${ERA_IDENTIFIER} ${build_args[*]}"
   ${CCLI} transaction build-raw ${ERA_IDENTIFIER} "${build_args[@]}"
 }
 
@@ -2398,7 +2467,7 @@ witnessTx() {
   for skey in "$@"; do
     [[ -z ${skey//[[:blank:]]/} ]] && continue
     if [[ ! -f "${skey}" ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: file not found: ${skey}"
+      println ERROR "\n${FG_RED}ERROR${NC}: file not found: ${skey}"
       return 1
     elif [[ $(jq -r '.description' "${skey}") = *"Hardware"* ]]; then # HW signing key
       if ! unlockHWDevice "witness the transaction"; then return 1; fi
@@ -2410,8 +2479,8 @@ witnessTx() {
         ${NETWORK_IDENTIFIER}
         --out-file "${tx_witness}"
       )
-      println "ACTION" "${witness_command[@]}"
-      if ! ${witness_command[@]}; then println "ERROR" "\n${FG_RED}ERROR${NC}: during hardware wallet signing !!" && return 1; fi
+      println ACTION "${witness_command[@]}"
+      if ! ${witness_command[@]}; then println ERROR "\n${FG_RED}ERROR${NC}: during hardware wallet signing !!" && return 1; fi
     else
       tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
       witness_command=(
@@ -2421,8 +2490,8 @@ witnessTx() {
         ${NETWORK_IDENTIFIER}
         --out-file "${tx_witness}"
       )
-      println "ACTION" "${witness_command[@]}"
-      if ! ${witness_command[@]}; then println "ERROR" "\n${FG_RED}ERROR${NC}: during transaction signing !!" && return 1; fi
+      println ACTION "${witness_command[@]}"
+      if ! ${witness_command[@]}; then println ERROR "\n${FG_RED}ERROR${NC}: during transaction signing !!" && return 1; fi
     fi
     tx_witness_files+=( "${tx_witness}" )
   done
@@ -2440,7 +2509,7 @@ assembleTx() {
       if [[ -f "${witness}" ]]; then
         tx_witness_out+=( "--witness-file ${witness}" )
       else
-        println "ERROR" "\n${FG_RED}ERROR${NC}: witness file not found: ${witness}"
+        println ERROR "\n${FG_RED}ERROR${NC}: witness file not found: ${witness}"
         return 1
       fi
     done
@@ -2450,10 +2519,10 @@ assembleTx() {
       ${tx_witness_out[@]}
       --out-file "${tx_signed}"
     )
-    println "ACTION" "${sign_command[@]}"
+    println ACTION "${sign_command[@]}"
     ${sign_command[@]}
   else
-    println "ERROR" "\n${FG_RED}ERROR${NC}: no witness files provided, unable to assemble tx!"
+    println ERROR "\n${FG_RED}ERROR${NC}: no witness files provided, unable to assemble tx!"
     return 1
   fi
 }
@@ -2473,7 +2542,7 @@ signTx() {
       [[ -z ${skey//[[:blank:]]/} ]] && continue
       skey_desc="$(jq -r '.description //empty' "${skey}")"
       if [[ ! -f "${skey}" ]]; then
-        println "ERROR" "\n${FG_RED}ERROR${NC}: file not found: ${skey}"
+        println ERROR "\n${FG_RED}ERROR${NC}: file not found: ${skey}"
         return 1
       elif [[ ${skey} = *".script" ]]; then
         tx_sign_out+=( "--script-file ${skey}" )
@@ -2508,11 +2577,11 @@ signTx() {
       )
     fi
   else
-    println "ERROR" "\n${FG_RED}ERROR${NC}: no signing keys provided, unable to sign tx!"
+    println ERROR "\n${FG_RED}ERROR${NC}: no signing keys provided, unable to sign tx!"
     return 1
   fi
   
-  println "ACTION" "${sign_command[@]}"
+  println ACTION "${sign_command[@]}"
   ${sign_command[@]}
 }
 
@@ -2528,7 +2597,7 @@ submitTx() {
     ${NETWORK_IDENTIFIER}
   )
   
-  println "ACTION" "${submit_command[@]}"
+  println ACTION "${submit_command[@]}"
   ${submit_command[@]}
 }
 
@@ -2538,36 +2607,36 @@ submitTx() {
 unlockHWDevice() {
   if ! HWCLIversionCheck; then waitForInput && return 1; fi
   waitForInput "${FG_BLUE}INFO${NC}: please connect and unlock hardware device" "  ${FG_YELLOW}Ledger${NC} - Unlock with pin and open Cardano app" "  ${FG_YELLOW}Trezor${NC} - Make sure trezor bridge is installed (https://wallet.trezor.io/#/bridge) " "" "when done, press any key to continue"
-  println "ACTION" "cardano-hw-cli device version"
+  println ACTION "cardano-hw-cli device version"
   device_app="$(cardano-hw-cli device version)"
   device_app_vendor="$(cut -d' ' -f1 <<< "${device_app}")"
   device_app_version="$(cut -d' ' -f4 <<< "${device_app}")"
   if [[ ! ${device_app_version} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    println "ERROR" "${FG_RED}ERROR${NC}: unable to identify connected hardware device, is the device plugged in and unlocked?"
-    println "ERROR" "Make sure device is seen by OS using tools like lsusb etc and is working correctly"
+    println ERROR "${FG_RED}ERROR${NC}: unable to identify connected hardware device, is the device plugged in and unlocked?"
+    println ERROR "Make sure device is seen by OS using tools like lsusb etc and is working correctly"
     waitForInput && return 1
   elif [[ ${device_app_vendor} = Ledger ]]; then
     if ! versionCheck "2.2.0" "${device_app_version}"; then
-      println "ERROR" "${FG_RED}ERROR${NC}: Cardano app version installed on Ledger is ${FG_LGRAY}v${device_app_version}${NC}, minimum required version is ${FG_GREEN}v2.2.0${NC} !!"
+      println ERROR "${FG_RED}ERROR${NC}: Cardano app version installed on Ledger is ${FG_LGRAY}v${device_app_version}${NC}, minimum required version is ${FG_GREEN}v2.2.0${NC} !!"
       return 1
     fi
   elif [[ ${device_app_vendor} = Trezor ]]; then
     if ! versionCheck "2.3.6" "${device_app_version}"; then
-      println "ERROR" "${FG_RED}ERROR${NC}: Trezor firmware installed on device is ${FG_LGRAY}v${device_app_version}${NC}, minimum required version is ${FG_GREEN}v2.3.6${NC} !!"
+      println ERROR "${FG_RED}ERROR${NC}: Trezor firmware installed on device is ${FG_LGRAY}v${device_app_version}${NC}, minimum required version is ${FG_GREEN}v2.3.6${NC} !!"
       return 1
     fi
   else
-    println "ERROR" "${FG_RED}ERROR${NC}: Unknown vendor: ${FG_LGRAY}${device_app_vendor}${NC} !!"
+    println ERROR "${FG_RED}ERROR${NC}: Unknown vendor: ${FG_LGRAY}${device_app_vendor}${NC} !!"
     return 1
   fi
-  println "DEBUG" "\n${FG_BLUE}INFO${NC}: follow directions on hardware device to $1"
+  println DEBUG "\n${FG_BLUE}INFO${NC}: follow directions on hardware device to $1"
 }
 
 HWCLIversionCheck() {
   HWCLI_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
   if ! versionCheck "1.2.0" "${HWCLI_version}"; then
-    println "ERROR" "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.1.3${NC} !!"
-    println "ERROR" "Please run ${FG_LGRAY}prereqs.sh -w${NC} to upgrade to the latest version."
+    println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.1.3${NC} !!"
+    println ERROR "Please run ${FG_LGRAY}prereqs.sh -w${NC} to upgrade to the latest version."
     return 1
   fi
   return 0
@@ -2576,7 +2645,7 @@ HWCLIversionCheck() {
 # Command     : selectOpMode
 # Description : Helper function to choose operational mode
 selectOpMode() {
-  println "OFF" "\nOnline mode  -  The default mode to use if all keys are available\n"\
+  println OFF "\nOnline mode  -  The default mode to use if all keys are available\n"\
 		"Hybrid mode  -  1) Go through steps to build a transaction file"\
 		"                2) Copy built tx file to offline computer"\
 		"                3) Sign it using 'Sign Tx' with keys on offline computer"\
