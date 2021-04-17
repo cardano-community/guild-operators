@@ -800,7 +800,7 @@ function main {
                 
                 # loop all assets to query metadata register for token data
                 for asset in "${!assets[@]}"; do
-                  assets_total[${asset}]=$(( assets_total[${asset}] + assets[${asset}] ))
+                  assets_total[${asset}]=$(( assets_total[asset] + assets[asset] ))
                   [[ ${asset} = "lovelace" ]] && continue
                   IFS='.' read -ra asset_arr <<< "${asset}"
                   [[ ${#asset_arr[@]} -eq 1 ]] && asset_name="" || asset_name="${asset_arr[1]}"
@@ -4164,28 +4164,28 @@ function main {
                 [[ -n ${meta_url} ]] && cmd_args+=( "--url" "${meta_url}" )
                 [[ -n ${meta_logo} ]] && cmd_args+=( "--logo" "${meta_logo}" )
                 
-                pushd ${policy_folder} &>/dev/null
+                pushd ${policy_folder} &>/dev/null || ( println ERROR "\n${FG_RED}ERROR${NC}: unable to change directory to: ${policy_folder}" && waitForInput && continue )
                 
                 # Create JSON draft
                 println DEBUG false "\nCreating Cardano Metadata Registry JSON draft file ..."
-                ! meta_file=$(token-metadata-creator "${cmd_args[@]}" 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator draft:\n${meta_file}" && popd &>/dev/null && waitForInput && continue
+                ! meta_file=$(token-metadata-creator "${cmd_args[@]}" 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator draft:\n${meta_file}" && popd >/dev/null && waitForInput && continue
                 println DEBUG " ${FG_GREEN}OK${NC}!"
                 
                 # Update the sequence number if needed
                 if [[ ${sequence_number} -ne 0 ]]; then
                   println DEBUG false "Updating sequence number to ${FG_LBLUE}${sequence_number}${NC} ..."
-                  ! sed -i "s/\"sequenceNumber\":\ .*,/\"sequenceNumber\":\ ${sequence_number},/g" ${meta_file} && popd &>/dev/null && waitForInput && continue
+                  ! sed -i "s/\"sequenceNumber\":\ .*,/\"sequenceNumber\":\ ${sequence_number},/g" ${meta_file} && popd >/dev/null && waitForInput && continue
                   println DEBUG " ${FG_GREEN}OK${NC}!"
                 fi
                 
                 # Signing draft file with policy signing key
                 println DEBUG false "Signing draft file with policy signing key ..."
-                ! meta_file=$(token-metadata-creator entry ${asset_subject} -a "${policy_sk_file}" 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator signing:\n${meta_file}" && popd &>/dev/null && waitForInput && continue
+                ! meta_file=$(token-metadata-creator entry ${asset_subject} -a "${policy_sk_file}" 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator signing:\n${meta_file}" && popd >/dev/null && waitForInput && continue
                 println DEBUG " ${FG_GREEN}OK${NC}!"
                 
                 # Finalizing the draft file
                 println DEBUG false "Finalizing the draft file ..."
-                ! meta_file=$(token-metadata-creator entry ${asset_subject} --finalize 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator finalize:\n${meta_file}" && popd &>/dev/null && waitForInput && continue
+                ! meta_file=$(token-metadata-creator entry ${asset_subject} --finalize 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator finalize:\n${meta_file}" && popd >/dev/null && waitForInput && continue
                 println DEBUG " ${FG_GREEN}OK${NC}!"
                 
                 # Adding Creator-Credits
@@ -4195,10 +4195,10 @@ function main {
                 
                 # Validating the final metadata registry submission file
                 println DEBUG false "Validating the final metadata registry submission file ..."
-                ! output=$(token-metadata-creator validate ${meta_file} 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator validation:\n${output}" && popd &>/dev/null && waitForInput && continue
+                ! output=$(token-metadata-creator validate ${meta_file} 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator validation:\n${output}" && popd >/dev/null && waitForInput && continue
                 println DEBUG " ${FG_GREEN}OK${NC}!"
                 
-                popd &>/dev/null
+                popd &>/dev/null || println ERROR "\n${FG_RED}ERROR${NC}: unable to return to previous directory!"
                 
                 # Update .asset file with registered metadata
                 assetFileJSON=$(cat ${asset_file})
