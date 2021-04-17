@@ -4164,7 +4164,7 @@ function main {
                 [[ -n ${meta_url} ]] && cmd_args+=( "--url" "${meta_url}" )
                 [[ -n ${meta_logo} ]] && cmd_args+=( "--logo" "${meta_logo}" )
                 
-                pushd ${policy_folder} &>/dev/null || ( println ERROR "\n${FG_RED}ERROR${NC}: unable to change directory to: ${policy_folder}" && waitForInput && continue )
+                pushd ${policy_folder} &>/dev/null || { println ERROR "\n${FG_RED}ERROR${NC}: unable to change directory to: ${policy_folder}" && waitForInput && continue; }
                 
                 # Create JSON draft
                 println DEBUG false "\nCreating Cardano Metadata Registry JSON draft file ..."
