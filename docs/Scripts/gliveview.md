@@ -46,12 +46,13 @@ A manual peer analysis can be triggered by key press `p`. A latency test will be
 
 Outgoing connections(peers in topology file), ping type used is done in this order:
 1. cncli - If available, this gives the most accurate measure as it checks the entire handshake process against the remote peer.
-2. tcptraceroute - Sends a TCP SYN package to ping the remote peer on the cardano-node port. Should give ~100% success rate.
+2. ss - Sends a TCP SYN package to ping the remote peer on the cardano-node port. Should give ~100% success rate.
+2. tcptraceroute - Same as ss.
 3. ping - fallback method using ICMP ping against IP. Will only work if firewall of remote peer accept ICMP traffic.
 
-For incoming connections, only ICMP ping is used as remote peer port is unknown. It's not uncommon to see many unreachable peers for incoming connections as it's a good security practice to disable ICMP in firewall.
+For incoming connections, only ICMP ping is used as remote peer port is unknown. It's not uncommon to see many undetermined peers for incoming connections as it's a good security practice to disable ICMP in firewall.
 
-Once the analysis is finished, it will display the RTTs for the peers and group them in ranges 0-50, 50-100, 100-200, 200<. The analysis is **NOT** live. Press `[h] Home` to go back to default view or `[i] Info` to show in-script help text. `Up` and `Down` arrow keys is used to select incoming or outgoing detailed list of IPs and their RTT value. If more than 8 peer connections are established for either incoming or outgoing, `Left (<)` and `Right (>)` arrow keys can be used to navigate the selected list. 
+Once the analysis is finished, it will display the RTTs for the peers and group them in ranges 0-50, 50-100, 100-200, 200<. The analysis is **NOT** live. Press `[h] Home` to go back to default view or `[i] Info` to show in-script help text. `Up` and `Down` arrow keys is used to select incoming or outgoing detailed list of IPs and their RTT value. `Left (<)` and `Right (>)` arrow keys can be used to navigate the pages in the selected list. 
 
 ##### Troubleshooting/Customisations
 

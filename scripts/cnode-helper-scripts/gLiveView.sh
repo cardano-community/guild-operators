@@ -11,6 +11,7 @@ NODE_NAME="Cardano Node"                  # Change your node's name prefix here,
 REFRESH_RATE=2                            # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
 LEGACY_MODE=false                         # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
 RETRIES=3                                 # How many attempts to connect to running Cardano node before erroring out and quitting
+PEER_LIST_CNT=6                           # Number of peers to show on each in/out page in peer analysis view
 THEME="dark"                              # dark  = suited for terminals with a dark background
                                           # light = suited for terminals with a bright background
 NO_INTERNET_MODE="N"                      # To skip checking for auto updates or make outgoing connections to guild-operators github repository
@@ -54,7 +55,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.20.3
+GLV_VERSION=v1.20.4
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -190,6 +191,8 @@ fi
 declare -gA geoIP=()
 [[ -f "$0.geodb" ]] && . -- "$0.geodb"
 
+[[ -z ${PEER_LIST_CNT} ]] && PEER_LIST_CNT=6
+
 # Style
 width=63
 second_col=$((width/2 + 3))
@@ -274,12 +277,12 @@ waitForInput() {
     [[ ${key2} = "[A" ]] && selected_direction="out" && return # Up arrow
     [[ ${key2} = "[B" ]] && selected_direction="in" && return # Down arrow
     if [[ ${key2} = "[C" && ${show_peers} = "true" ]]; then # Right arrow
-      [[ ${selected_direction} = "out" && ${peerCNT_out} -gt ${peerNbr_out} ]] && peerNbr_start_out=$((peerNbr_start_out+8)) && clear && return
-      [[ ${selected_direction} = "in" && ${peerCNT_in} -gt ${peerNbr_in} ]] && peerNbr_start_in=$((peerNbr_start_in+8)) && clear && return
+      [[ ${selected_direction} = "out" && ${peerCNT_out} -gt ${peerNbr_out} ]] && peerNbr_start_out=$((peerNbr_start_out+PEER_LIST_CNT)) && clear && return
+      [[ ${selected_direction} = "in" && ${peerCNT_in} -gt ${peerNbr_in} ]] && peerNbr_start_in=$((peerNbr_start_in+PEER_LIST_CNT)) && clear && return
     fi
     if [[ ${key2} = "[D" && ${show_peers} = "true" ]]; then # Left arrow
-      [[ ${selected_direction} = "out" && ${peerNbr_start_out} -gt 8 ]] && peerNbr_start_out=$((peerNbr_start_out-8)) && clear && return
-      [[ ${selected_direction} = "in" && ${peerNbr_start_in} -gt 8 ]] && peerNbr_start_in=$((peerNbr_start_in-8)) && clear && return
+      [[ ${selected_direction} = "out" && ${peerNbr_start_out} -gt ${PEER_LIST_CNT} ]] && peerNbr_start_out=$((peerNbr_start_out-PEER_LIST_CNT)) && clear && return
+      [[ ${selected_direction} = "in" && ${peerNbr_start_in} -gt ${PEER_LIST_CNT} ]] && peerNbr_start_in=$((peerNbr_start_in-PEER_LIST_CNT)) && clear && return
     fi
   fi
 }
@@ -411,7 +414,7 @@ checkPeers() {
     elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Incoming connection, ping OK, show RTT.
       peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
       ! isNumber ${peerRTT} && peerRTT=99999 || peerRTTSUM=$((peerRTTSUM + peerRTT))
-    else # Incoming connection, ping failed, set as unreachable
+    else # Incoming connection, ping failed, set as undetermined
       peerRTT=99999
     fi
     lastpeerIP=${peerIP}
@@ -498,8 +501,8 @@ printf "${NC}"       # reset and set default color
 while true; do
   tlines=$(tput lines) # update terminal lines
   tcols=$(tput cols)   # update terminal columns
-  [[ ${width} -ge $((tcols)) || ${line} -ge $((tlines)) ]] && clear
-  while [[ ${width} -ge $((tcols)) ]]; do
+  [[ ${width} -ge ${tcols} || ${line} -ge $((tlines - 1)) ]] && clear
+  while [[ ${width} -ge ${tcols} ]]; do
     tput cup 1 1
     printf "${style_status_3}Terminal width too small!${NC}"
     tput cup 3 1
@@ -510,11 +513,11 @@ while true; do
     tlines=$(tput lines) # update terminal lines
     tcols=$(tput cols)   # update terminal columns
   done
-  while [[ ${line} -ge $((tlines)) ]]; do
+  while [[ ${line} -ge $((tlines - 1)) ]]; do
     tput cup 1 1
     printf "${style_status_3}Terminal height too small!${NC}"
     tput cup 3 1
-    printf "Please increase by ${style_info}$(( line - tlines + 1 ))${NC} lines"
+    printf "Please increase by ${style_info}$(( line - tlines + 2 ))${NC} lines"
     tput cup 5 1
     printf "${style_info}[esc/q] Quit${NC}"
     waitForInput
@@ -643,7 +646,7 @@ while true; do
     echo "${blank_line}" && ((line++))
     printf "${VL} For incoming connections, only ICMP ping is used as remote" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL} peer port is unknown. It's not uncommon to see many" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
-    printf "${VL} unreachable peers for incoming connections as it's a good" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} undetermined peers for incoming connections as it's a good" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL} security practice to disable ICMP in firewall." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
   elif [[ ${show_peers} = "true" ]]; then    
     printf "${VL}${STANDOUT} OUT ${NC}  RTT : Peers / Percent" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
@@ -678,8 +681,8 @@ while true; do
     
     echo "${m3divider}" && ((line++))
     
-    printf "${VL} Total / Unreachable : ${style_values_1}%s${NC} / " "${peerCNT_out}"
-    [[ ${peerCNT0_out} -eq 0 ]] && printf "${style_values_1}0${NC}" || printf "${style_status_3}%s${NC}" "${peerCNT0_out}"
+    printf "${VL} Total / Undetermined : ${style_values_1}%s${NC} / " "${peerCNT_out}"
+    [[ ${peerCNT0_out} -eq 0 ]] && printf "${style_values_1}0${NC}" || printf "${style_values_4}%s${NC}" "${peerCNT0_out}"
     tput cup ${line} $((second_col-1))
     if [[ ${peerRTTAVG_out} -ge 200 ]]; then printf "Average RTT : ${style_status_4}%s${NC} ms" "${peerRTTAVG_out}"
     elif [[ ${peerRTTAVG_out} -ge 100 ]]; then printf "Average RTT : ${style_status_3}%s${NC} ms" "${peerRTTAVG_out}"
@@ -720,7 +723,7 @@ while true; do
         elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_4}%-5s${NC}  ${style_values_4}%s${NC} ${VL}\n" "${peerNbr_out}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
         else printf "${VL} %3s  %15s:%-5s  %-5s  ${style_values_4}%s${NC} ${VL}\n" "${peerNbr_out}" "${peerIP}" "${peerPORT}" "---" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"; fi
         ((line++))
-        [[ ${peerNbr_out} -eq $((peerNbr_start_out+7)) ]] && break
+        [[ ${peerNbr_out} -eq $((peerNbr_start_out+PEER_LIST_CNT-1)) ]] && break
       done
       
       [[ ${peerNbr_start_out} -gt 1 ]] && nav_str="< " || nav_str=""
@@ -767,8 +770,8 @@ while true; do
     
     echo "${m3divider}" && ((line++))
     
-    printf "${VL} Total / Unreachable : ${style_values_1}%s${NC} / " "${peerCNT_in}"
-    [[ ${peerCNT0_in} -eq 0 ]] && printf "${style_values_1}0${NC}" || printf "${style_status_3}%s${NC}" "${peerCNT0_in}"
+    printf "${VL} Total / Undetermined : ${style_values_1}%s${NC} / " "${peerCNT_in}"
+    [[ ${peerCNT0_in} -eq 0 ]] && printf "${style_values_1}0${NC}" || printf "${style_values_4}%s${NC}" "${peerCNT0_in}"
     tput cup ${line} $((second_col-1))
     if [[ ${peerRTTAVG_in} -ge 200 ]]; then printf "Average RTT : ${style_status_4}%s${NC} ms" "${peerRTTAVG_in}"
     elif [[ ${peerRTTAVG_in} -ge 100 ]]; then printf "Average RTT : ${style_status_3}%s${NC} ms" "${peerRTTAVG_in}"
@@ -809,7 +812,7 @@ while true; do
         elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_4}%-5s${NC}  ${style_values_4}%s${NC} ${VL}\n" "${peerNbr_in}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
         else printf "${VL} %3s  %15s:%-5s  %-5s  ${style_values_4}%s${NC} ${VL}\n" "${peerNbr_in}" "${peerIP}" "${peerPORT}" "---" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"; fi
         ((line++))
-        [[ ${peerNbr_in} -eq $((peerNbr_start_in+7)) ]] && break
+        [[ ${peerNbr_in} -eq $((peerNbr_start_in+PEER_LIST_CNT-1)) ]] && break
       done
       
       [[ ${peerNbr_start_in} -gt 1 ]] && nav_str="< " || nav_str=""
