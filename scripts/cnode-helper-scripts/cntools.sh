@@ -80,7 +80,7 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
           printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
           mv "${PARENT}"/env.tmp "${PARENT}"/env
           echo -e "\nenv update successfully applied!"
-          waitToProceed
+          waitToProceed && clear
         fi
       fi
     else
@@ -122,12 +122,12 @@ if ! versionCheck "4.4.0" "${BASH_REMATCH[1]}"; then
 fi
 
 # check for required command line tools
-if ! need_cmd "curl" || \
-   ! need_cmd "jq" || \
-   ! need_cmd "bc" || \
-   ! need_cmd "sed" || \
-   ! need_cmd "awk" || \
-   ! need_cmd "column" || \
+if ! cmdAvailable "curl" || \
+   ! cmdAvailable "jq" || \
+   ! cmdAvailable "bc" || \
+   ! cmdAvailable "sed" || \
+   ! cmdAvailable "awk" || \
+   ! cmdAvailable "column" || \
    ! protectionPreRequisites; then myExit 1 "Missing one or more of the required command line tools, press any key to exit"
 fi
 
@@ -320,7 +320,7 @@ function main {
             println " >> WALLET >> NEW"
             println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
             echo
-            ask wallet_name "Name of new wallet" wallet_name
+            getAnswerAnyCust wallet_name "Name of new wallet" wallet_name
             # Remove unwanted characters from wallet name
             wallet_name=${wallet_name//[^[:alnum:]]/_}
             if [[ -z "${wallet_name}" ]]; then
@@ -385,13 +385,13 @@ function main {
                 println " >> WALLET >> IMPORT >> MNEMONIC"
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 echo
-                if ! need_cmd "bech32" || \
-                   ! need_cmd "cardano-address"; then
-                  println ERROR "${FG_RED}ERROR${NC}: cardano-address and/or bech32 executables not found in path!"
+                if ! cmdAvailable "bech32" &>/dev/null || \
+                   ! cmdAvailable "cardano-address" &>/dev/null; then
+                  println ERROR "${FG_RED}ERROR${NC}: bech32 and/or cardano-address not found in '\$PATH'" 
                   println ERROR "Please run updated prereqs.sh and re-build cardano-node"
                   waitForInput && continue
                 fi
-                ask wallet_name "Name of imported wallet"
+                getAnswerAnyCust wallet_name "Name of imported wallet"
                 # Remove unwanted characters from wallet name
                 wallet_name=${wallet_name//[^[:alnum:]]/_}
                 if [[ -z "${wallet_name}" ]]; then
@@ -408,7 +408,7 @@ function main {
                   println "      Choose another name or delete the existing one"
                   waitForInput && continue
                 fi
-                ask mnemonic false "24 or 15 word mnemonic(space separated)"
+                getAnswerAnyCust mnemonic false "24 or 15 word mnemonic(space separated)"
                 echo
                 IFS=" " read -r -a words <<< "${mnemonic}"
                 if [[ ${#words[@]} -ne 24 ]] && [[ ${#words[@]} -ne 15 ]]; then
@@ -521,13 +521,13 @@ function main {
                   1) waitForInput "Unsupported hardware wallet, press any key to return home" && continue ;;
                 esac
                 echo
-                if ! need_cmd "cardano-hw-cli"; then
+                if ! cmdAvailable "cardano-hw-cli" &>/dev/null; then
                   println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli executable not found in path!"
                   println ERROR "Please run '${FG_YELLOW}prereqs.sh -w${NC}' to add hardware wallet support and install Vaccumlabs cardano-hw-cli, '${FG_YELLOW}prereqs.sh -h${NC}' shows all available options"
                   waitForInput && continue
                 fi
                 if ! HWCLIversionCheck; then waitForInput && continue; fi
-                ask wallet_name "Name of imported wallet"
+                getAnswerAnyCust wallet_name "Name of imported wallet"
                 # Remove unwanted characters from wallet name
                 wallet_name=${wallet_name//[^[:alnum:]]/_}
                 if [[ -z "${wallet_name}" ]]; then
@@ -831,7 +831,7 @@ function main {
                       else
                         tname="${asset_name}"
                       fi
-                      ! getAssetIDBech32 ${utxo_arr[1]} ${asset_name} && continue 3
+                      ! assets_id_bech32=$(getAssetIDBech32 ${utxo_arr[1]} ${asset_name}) && continue 3
                       println DEBUG "$(printf "${FG_DGRAY}%22s${NC}${FG_LGRAY}%44s${NC} ${FG_DGRAY}|${NC} ${FG_MAGENTA}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "Asset Fingerprint: " "${assets_id_bech32}" "${tname}" "$(formatAsset ${utxos["${utxo}"]})")"
                     fi
                   done
@@ -851,7 +851,7 @@ function main {
                     else
                       tname="${asset_name}"
                     fi
-                    ! getAssetIDBech32 ${asset_arr[0]} ${asset_name} && continue 2
+                    ! assets_id_bech32=$(getAssetIDBech32 ${asset_arr[0]} ${asset_name}) && continue 2
                     println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_MAGENTA}%-${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LGRAY}%s${NC}\n" "$(formatAsset ${assets["${asset}"]})" "${tname}" "${assets_id_bech32}")"
                   done
                 fi
@@ -865,7 +865,7 @@ function main {
                   [[ ${asset} = "lovelace" ]] && continue
                   IFS='.' read -ra asset_arr <<< "${asset}"
                   [[ ${#asset_arr[@]} -eq 1 ]] && asset_name="" || asset_name="${asset_arr[1]}"
-                  getAssetIDBech32 ${asset_arr[0]} ${asset_name}
+                  ! assets_id_bech32=$(getAssetIDBech32 ${asset_arr[0]} ${asset_name}) && continue 2
                   println DEBUG "$(printf "%20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Asset Fingerprint" "${assets_id_bech32}")"
                   if [[ -n ${token_data[${asset}]} ]]; then
                     if jq -er .ticker.value <<< "${token_data[${asset}]}" &>/dev/null; then MetaNameColor=${FG_LGRAY}; MetaTickerColor=${FG_MAGENTA}; else MetaNameColor=${FG_MAGENTA}; MetaTickerColor=${FG_LGRAY}; fi
@@ -1028,7 +1028,7 @@ function main {
               echo
               println DEBUG "# Decrypting GPG encrypted wallet files"
               echo
-              if ! getPassword; then # $password variable populated by getPassword function
+              if ! getPasswordCust; then # $password variable populated by getPasswordCust function
                 println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
                 waitForInput && continue
               fi
@@ -1067,7 +1067,7 @@ function main {
               echo
               println DEBUG "# Encrypting sensitive wallet keys with GPG"
               echo
-              if ! getPassword confirm; then # $password variable populated by getPassword function
+              if ! getPasswordCust confirm; then # $password variable populated by getPasswordCust function
                 println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
                 waitForInput && continue
               fi
@@ -1215,7 +1215,7 @@ function main {
             println DEBUG " Minimum Amount: ${FG_LBLUE}$(formatLovelace ${minUTxOValue})${NC} Ada"
             println DEBUG "   ${FG_LGRAY}>${NC} To calculate the minimum Ada required if additional assets/tokens are to be sent,"\
 							"     make a dummy transaction with ${FG_LBLUE}0${NC} Ada selecting the tokens to send with the correct amount\n"
-            ask amountADA "Amount (Ada)"
+            getAnswerAnyCust amountADA "Amount (Ada)"
             amountADA="${amountADA//,}"
             echo
             if  [[ ${amountADA} != "all" ]]; then
@@ -1265,7 +1265,7 @@ function main {
                      selection=$?
                      [[ ${selected_value} = "[Esc] Cancel" ]] && continue 2
                      println DEBUG "Available to send: ${FG_LBLUE}$(formatAsset ${assets[${selected_value}]})${NC}"
-                     ask asset_amount "Amount (commas allowed as thousand separator)"
+                     getAnswerAnyCust asset_amount "Amount (commas allowed as thousand separator)"
                      asset_amount="${asset_amount//,}"
                      [[ ${asset_amount} = "all" ]] && asset_amount=${assets[${selected_value}]}
                      if ! isNumber ${asset_amount}; then println ERROR "${FG_RED}ERROR${NC}: invalid number, non digit characters found!" && continue; fi
@@ -1323,7 +1323,7 @@ function main {
                    waitForInput && continue
                  fi
                  ;;
-              1) ask d_addr "Address" ;;
+              1) getAnswerAnyCust d_addr "Address" ;;
               2) continue ;;
             esac
             # Destination could be empty, if so without getting a valid address
@@ -1421,7 +1421,7 @@ function main {
                  fi
                  getPoolID "${pool_name}"
                  ;;
-              1) ask pool_id "Pool ID (blank to cancel)"
+              1) getAnswerAnyCust pool_id "Pool ID (blank to cancel)"
                  [[ -z "${pool_id}" ]] && continue
                  pool_name="${pool_id}"
                  ;;
@@ -1541,7 +1541,7 @@ function main {
             println " >> POOL >> NEW"
             println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
             echo
-            ask pool_name "Pool Name"
+            getAnswerAnyCust pool_name "Pool Name"
             # Remove unwanted characters from pool name
             pool_name=${pool_name//[^[:alnum:]]/_}
             if [[ -z "${pool_name}" ]]; then
@@ -1621,7 +1621,7 @@ function main {
             echo
             pledge_ada=50000 # default pledge
             [[ -f "${pool_config}" ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
-            ask pledge_enter "Pledge (in Ada, default: $(formatAsset ${pledge_ada}))"
+            getAnswerAnyCust pledge_enter "Pledge (in Ada, default: $(formatAsset ${pledge_ada}))"
             pledge_enter="${pledge_enter//,}"
             if [[ -n "${pledge_enter}" ]]; then
               if ! AdaToLovelace "${pledge_enter}" >/dev/null; then
@@ -1634,7 +1634,7 @@ function main {
             fi
             margin=7.5 # default margin in %
             [[ -f "${pool_config}" ]] && margin=$(jq -r '.margin //0' "${pool_config}")
-            ask margin_enter "Margin (in %, default: ${margin})"
+            getAnswerAnyCust margin_enter "Margin (in %, default: ${margin})"
             if [[ -n "${margin_enter}" ]]; then
               if ! pctToFraction "${margin_enter}" >/dev/null; then
                 waitForInput && continue
@@ -1647,7 +1647,7 @@ function main {
             minPoolCost=$(( $(jq -r '.minPoolCost //0' <<< "${PROT_PARAMS}") / 1000000 )) # convert to Ada
             [[ -f ${pool_config} ]] && cost_ada=$(jq -r '.costADA //0' "${pool_config}") || cost_ada=${minPoolCost} # default cost
             [[ ${cost_ada} -lt ${minPoolCost} ]] && cost_ada=${minPoolCost} # raise old value to new minimum cost
-            ask cost_enter "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAsset ${cost_ada}))"
+            getAnswerAnyCust cost_enter "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAsset ${cost_ada}))"
             cost_enter="${cost_enter//,}"
             if [[ -n "${cost_enter}" ]]; then
               if ! AdaToLovelace "${cost_enter}" >/dev/null; then
@@ -1665,7 +1665,7 @@ function main {
             println DEBUG "\n# Pool Metadata\n"
             pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
             if [[ ! -f "${pool_config}" ]] || ! meta_json_url=$(jq -er .json_url "${pool_config}"); then meta_json_url="https://foo.bat/poolmeta.json"; fi
-            ask json_url_enter "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url})"
+            getAnswerAnyCust json_url_enter "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url})"
             [[ -n "${json_url_enter}" ]] && meta_json_url="${json_url_enter}"
             if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
               println ERROR "${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
@@ -1696,26 +1696,26 @@ function main {
               if [[ ! -f "${pool_meta_file}" ]] || ! meta_description=$(jq -er .description "${pool_meta_file}"); then meta_description="No Description"; fi
               if [[ ! -f "${pool_meta_file}" ]] || ! meta_homepage=$(jq -er .homepage "${pool_meta_file}"); then meta_homepage="https://foo.com"; fi
               if [[ ! -f "${pool_meta_file}" ]] || ! meta_extended=$(jq -er .extended "${pool_meta_file}"); then meta_extended="https://foo.com/metadata/extended.json"; fi
-              ask name_enter "Enter Pool's Name (default: ${meta_name})"
+              getAnswerAnyCust name_enter "Enter Pool's Name (default: ${meta_name})"
               [[ -n "${name_enter}" ]] && meta_name="${name_enter}"
               if [[ ${#meta_name} -gt 50 ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: Name cannot exceed 50 characters"
                 waitForInput && continue
               fi
-              ask ticker_enter "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker})"
+              getAnswerAnyCust ticker_enter "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker})"
               ticker_enter=${ticker_enter//[^[:alnum:]]/}
               [[ -n "${ticker_enter}" ]] && meta_ticker="${ticker_enter^^}"
               if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: ticker must be between 3-5 characters"
                 waitForInput && continue
               fi
-              ask desc_enter "Enter Pool's Description (default: ${meta_description})"
+              getAnswerAnyCust desc_enter "Enter Pool's Description (default: ${meta_description})"
               [[ -n "${desc_enter}" ]] && meta_description="${desc_enter}"
               if [[ ${#meta_description} -gt 255 ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: Description cannot exceed 255 characters"
                 waitForInput && continue
               fi
-              ask homepage_enter "Enter Pool's Homepage (default: ${meta_homepage})"
+              getAnswerAnyCust homepage_enter "Enter Pool's Homepage (default: ${meta_homepage})"
               [[ -n "${homepage_enter}" ]] && meta_homepage="${homepage_enter}"
               if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
@@ -1726,7 +1726,7 @@ function main {
               case $? in
                 0) meta_extended_option=""
                    ;;
-                1) ask extended_enter "Enter URL to extended metadata (default: ${meta_extended})"
+                1) getAnswerAnyCust extended_enter "Enter URL to extended metadata (default: ${meta_extended})"
                    extended_enter="${extended_enter}"
                    [[ -n "${extended_enter}" ]] && meta_extended="${extended_enter}"
                    if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 64 ]]; then
@@ -1778,11 +1778,11 @@ function main {
               while true; do
                 select_opt "[d] A or AAAA DNS record" "[i] IPv4/v6 address" "[Esc] Cancel"
                 case $? in
-                  0) ask relay_dns_enter "Enter relays's DNS record, only A or AAAA DNS records"
+                  0) getAnswerAnyCust relay_dns_enter "Enter relays's DNS record, only A or AAAA DNS records"
                      if [[ -z "${relay_dns_enter}" ]]; then
                        println ERROR "${FG_RED}ERROR${NC}: DNS record can not be empty!"
                      else
-                       ask relay_port_enter "Enter relays's port"
+                       getAnswerAnyCust relay_port_enter "Enter relays's port"
                        if [[ -n "${relay_port_enter}" ]]; then
                          if ! isNumber ${relay_port_enter} || [[ ${relay_port_enter} -lt 1 || ${relay_port_enter} -gt 65535 ]]; then
                            println ERROR "${FG_RED}ERROR${NC}: invalid port number!"
@@ -1795,12 +1795,12 @@ function main {
                        fi
                      fi
                      ;;
-                  1) ask relay_ip_enter "Enter relays's IPv4/v6 address"
+                  1) getAnswerAnyCust relay_ip_enter "Enter relays's IPv4/v6 address"
                      if [[ -n "${relay_ip_enter}" ]]; then
                        if ! isValidIPv4 "${relay_ip_enter}" && ! isValidIPv6 "${relay_ip_enter}"; then
                          println ERROR "${FG_RED}ERROR${NC}: invalid IPv4/v6 address format!"
                        else
-                         ask relay_port_enter "Enter relays's port"
+                         getAnswerAnyCust relay_port_enter "Enter relays's port"
                          if [[ -n "${relay_port_enter}" ]]; then
                            if ! isNumber ${relay_port_enter} || [[ ${relay_port_enter} -lt 1 || ${relay_port_enter} -gt 65535 ]]; then
                              println ERROR "${FG_RED}ERROR${NC}: invalid port number!"
@@ -2237,7 +2237,7 @@ function main {
             epoch_end=$((epoch + poolRetireMaxEpoch))
             println DEBUG "earlist epoch to retire pool is ${FG_LBLUE}${epoch_start}${NC} and latest ${FG_LBLUE}${epoch_end}${NC}"
             echo
-            ask epoch_enter "Enter epoch in which to retire pool (blank for ${epoch_start})"
+            getAnswerAnyCust epoch_enter "Enter epoch in which to retire pool (blank for ${epoch_start})"
             [[ -z "${epoch_enter}" ]] && epoch_enter=${epoch_start}
             echo
             if [[ ${epoch_enter} -lt ${epoch_start} || ${epoch_enter} -gt ${epoch_end} ]]; then
@@ -2624,7 +2624,7 @@ function main {
             if [[ $(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -gt 0 ]]; then
               echo
               println "# Decrypting GPG encrypted pool files"
-              if ! getPassword; then # $password variable populated by getPassword function
+              if ! getPasswordCust; then # $password variable populated by getPasswordCust function
                 println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
                 waitForInput && continue
               fi
@@ -2662,7 +2662,7 @@ function main {
             if [[ $(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -le 0 ]]; then
               echo
               println DEBUG "# Encrypting sensitive pool keys with GPG"
-              if ! getPassword confirm; then # $password variable populated by getPassword function
+              if ! getPasswordCust confirm; then # $password variable populated by getPasswordCust function
                 println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
                 waitForInput && continue
               fi
@@ -3024,7 +3024,7 @@ function main {
         println DEBUG "Show a block summary for all epochs or a detailed view for a specific epoch?"
         select_opt "[s] Summary" "[e] Epoch" "[Esc] Cancel"
         case $? in
-          0) ask epoch_enter "Enter number of epochs to show (enter for 10)"
+          0) getAnswerAnyCust epoch_enter "Enter number of epochs to show (enter for 10)"
              epoch_enter=${epoch_enter:-10}
              if ! isNumber ${epoch_enter}; then
                println ERROR "\n${FG_RED}ERROR${NC}: not a number"
@@ -3095,7 +3095,7 @@ function main {
              done
              ;;
           1) [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=$((current_epoch+1)) LIMIT 1);" 2>/dev/null) -eq 1 ]] && println DEBUG "\n${FG_YELLOW}Leader schedule for next epoch[$((current_epoch+1))] available${NC}"
-             echo && ask epoch_enter "Enter epoch to list (enter for current)"
+             echo && getAnswerAnyCust epoch_enter "Enter epoch to list (enter for current)"
              [[ -z "${epoch_enter}" ]] && epoch_enter=${current_epoch}
              if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=${epoch_enter} LIMIT 1);" 2>/dev/null) -eq 0 ]]; then
                println "No blocks in epoch ${epoch_enter}"
@@ -3305,7 +3305,7 @@ function main {
              select_opt "[y] Yes" "[n] No"
              case $? in
                0) echo
-                  if getPassword confirm; then # $password variable populated by getPassword function
+                  if getPasswordCust confirm; then # $password variable populated by getPasswordCust function
                     encryptFile "${backup_file}" "${password}"
                     backup_file="${backup_file}.gpg"
                     unset password
@@ -3334,7 +3334,7 @@ function main {
             tmp_bkp_file=""
             if [ "${backup_file##*.}" = "gpg" ]; then
               println DEBUG "Backup GPG encrypted, enter password to decrypt"
-              if getPassword; then # $password variable populated by getPassword function
+              if getPasswordCust; then # $password variable populated by getPasswordCust function
                 tmp_bkp_file=$(mktemp "${TMP_DIR}/bkp_file_XXXXXXXXXX.tar.gz.gpg")
                 cp -f "${backup_file}" "${tmp_bkp_file}"
                 decryptFile "${backup_file}" "${password}"
@@ -3398,7 +3398,7 @@ function main {
               if ! output=$(tar cfz "${archive_file}" "${archive_list[@]}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: during archive/backup:\n${output}" && waitForInput && continue; fi
               println DEBUG "An archive of current priv folder has been taken and stored in ${FG_LGRAY}${archive_file}${NC}"
               println DEBUG "Please set a password to GPG encrypt the archive"
-              if getPassword confirm; then # $password variable populated by getPassword function
+              if getPasswordCust confirm; then # $password variable populated by getPasswordCust function
                 encryptFile "${archive_file}" "${password}"
                 archive_file="${archive_file}.gpg"
                 unset password
@@ -3480,7 +3480,7 @@ function main {
                    println DEBUG "$(cat "${metafile}")\n"
                    ;;
                 1) tput sc && echo
-                   ask meta_json_url "Enter URL to JSON metadata file"
+                   getAnswerAnyCust meta_json_url "Enter URL to JSON metadata file"
                    if [[ ! "${meta_json_url}" =~ https?://.* ]]; then
                      println ERROR "${FG_RED}ERROR${NC}: invalid URL format"
                      waitForInput && continue
@@ -3619,7 +3619,7 @@ function main {
                 println " >> ADVANCED >> MULTI-ASSET >> CREATE POLICY"
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 echo
-                ask policy_name "Internal name to give the generated policy"
+                getAnswerAnyCust policy_name "Internal name to give the generated policy"
                 # Remove unwanted characters from policy name
                 policy_name=${policy_name//[^[:alnum:]]/_}
                 if [[ -z "${policy_name}" ]]; then
@@ -3652,7 +3652,7 @@ function main {
                 fi
                 println DEBUG "How long do you want the policy to be valid? (0/blank=unlimited)"
                 println DEBUG "${FG_YELLOW}Setting a limit will prevent you from minting/burning assets after the policy expire !!\nLeave blank/unlimited if unsure and just press enter${NC}"
-                ask ttl_enter "TTL (in seconds)"
+                getAnswerAnyCust ttl_enter "TTL (in seconds)"
                 ttl_enter=${ttl_enter:-0}
                 if ! isNumber ${ttl_enter}; then
                   println ERROR "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
@@ -3735,7 +3735,7 @@ function main {
                 if [[ $(find "${ASSET_FOLDER}/${policy_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -gt 0 ]]; then
                   echo
                   println "# Decrypting GPG encrypted policy key"
-                  if ! getPassword; then # $password variable populated by getPassword function
+                  if ! getPasswordCust; then # $password variable populated by getPasswordCust function
                     println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
                     waitForInput && continue
                   fi
@@ -3773,7 +3773,7 @@ function main {
                 if [[ $(find "${ASSET_FOLDER}/${policy_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -le 0 ]]; then
                   echo
                   println DEBUG "# Encrypting policy signing key with GPG"
-                  if ! getPassword confirm; then # $password variable populated by getPassword function
+                  if ! getPasswordCust confirm; then # $password variable populated by getPasswordCust function
                     println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
                     waitForInput && continue
                   fi
@@ -3855,12 +3855,12 @@ function main {
                   done < <(find "${policy_folder}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | sort -z)
                   println DEBUG "\nEnter an existing AssetName to mint more tokens or enter a new name to create a new Asset for this Policy"
                 fi
-                ask asset_name "Asset Name (empty valid)"
+                getAnswerAnyCust asset_name "Asset Name (empty valid)"
                 [[ ${asset_name} =~ ^[^[:alnum:]]$ ]] && println ERROR "${FG_RED}ERROR${NC}: Asset name should only contain alphanummeric chars!" && waitForInput && continue
                 [[ ${#asset_name} -gt 32 ]] && println ERROR "${FG_RED}ERROR${NC}: Asset name is limited to 32 chars in length!" && waitForInput && continue
                 asset_file="${policy_folder}/${asset_name}.asset"
                 echo
-                ask asset_amount "Amount (commas allowed as thousand separator)"
+                getAnswerAnyCust asset_amount "Amount (commas allowed as thousand separator)"
                 asset_amount="${asset_amount//,}"
                 [[ -z "${asset_amount}" ]] && println ERROR "${FG_RED}ERROR${NC}: Amount empty, please set a valid integer number!" && waitForInput && continue
                 if ! isNumber ${asset_amount}; then println ERROR "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue; fi
@@ -4032,9 +4032,9 @@ function main {
                 policy_id="$(cat "${policy_id_file}")"
                 policy_ttl=$(jq -r '.scripts[0].slot //0' "${policy_script_file}")
                 [[ ${policy_ttl} -gt 0 && ${policy_ttl} -lt $(getSlotTipRef) ]] && println ERROR "${FG_RED}ERROR${NC}: Policy expired!" && waitForInput && continue
-                # Ask amount to burn
+                # ask amount to burn
                 println DEBUG "Available assets to burn: ${FG_LBLUE}$(formatAsset "${asset_amount}")${NC}\n"
-                ask assets_to_burn "Amount (commas allowed as thousand separator)"
+                getAnswerAnyCust assets_to_burn "Amount (commas allowed as thousand separator)"
                 assets_to_burn="${assets_to_burn//,}"
                 [[ ${assets_to_burn} = "all" ]] && assets_to_burn=${asset_amount}
                 if ! isNumber ${assets_to_burn}; then println ERROR "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue; fi
@@ -4081,8 +4081,7 @@ function main {
                 println " >> ADVANCED >> MULTI-ASSET >> REGISTER ASSET"
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 echo
-                if ! need_cmd "token-metadata-creator"; then
-                  println ERROR "${FG_RED}ERROR${NC}: token-metadata-creator executable not found in path!"
+                if ! cmdAvailable "token-metadata-creator"; then
                   println ERROR "Please follow instructions on Guild Operators site to download or build the tool:"
                   println ERROR "${FG_YELLOW}https://cardano-community.github.io/guild-operators/#/Build/offchainMetadataTools${NC}"
                   waitForInput && continue
@@ -4119,7 +4118,7 @@ function main {
                   echo
                 fi
                 println "Please enter the asset name as part of PolicyID.AssetName to create registry file for, either a previously minted coin or new"
-                ask asset_name "Asset Name (empty valid)"
+                getAnswerAnyCust asset_name "Asset Name (empty valid)"
                 [[ ${asset_name} =~ ^[^[:alnum:]]$ ]] && println ERROR "${FG_RED}ERROR${NC}: Asset name should only contain alphanummeric chars!" && waitForInput && continue
                 [[ ${#asset_name} -gt 32 ]] && println ERROR "${FG_RED}ERROR${NC}: Asset name is limited to 32 chars in length!" && waitForInput && continue
                 asset_file="${policy_folder}/${asset_name}.asset"
@@ -4134,13 +4133,13 @@ function main {
                   fi
                 fi
                 println DEBUG "# Enter metadata (optional fields can be left empty)"
-                ask meta_name "Name        [${FG_RED}required${NC}] (Max. 50 chars) "
+                getAnswerAnyCust meta_name "Name        [${FG_RED}required${NC}] (Max. 50 chars) "
                 [[ -z ${meta_name} || ${#meta_name} -gt 50 ]] && println ERROR "\${FG_RED}ERROR${NC}: Metadata name is a required field and limited to 50 chars in length!" && waitForInput && continue
-                ask meta_desc "Description [${FG_RED}required${NC}] (Max. 500 chars)"
+                getAnswerAnyCust meta_desc "Description [${FG_RED}required${NC}] (Max. 500 chars)"
                 [[ -z ${meta_desc} || ${#meta_desc} -gt 500 ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata description is a required field and limited to 500 chars in length!" && waitForInput && continue
-                ask meta_ticker "Ticker      [${FG_YELLOW}optional${NC}] (3-5 chars)     "
+                getAnswerAnyCust meta_ticker "Ticker      [${FG_YELLOW}optional${NC}] (3-5 chars)     "
                 [[ -n ${meta_ticker} && ( ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ) ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata ticker is limited to 3-5 chars in length!" && waitForInput && continue
-                ask meta_url "URL         [${FG_YELLOW}optional${NC}] (Max. 250 chars)"
+                getAnswerAnyCust meta_url "URL         [${FG_YELLOW}optional${NC}] (Max. 250 chars)"
                 [[ -n ${meta_url} && ( ! ${meta_url} =~ https://.* || ${#meta_url} -gt 250 ) ]] && println ERROR "\n${FG_RED}ERROR${NC}: Invalid metadata URL format or greater than 250 char limit!" && waitForInput && continue
                 fileDialog "Logo/Icon   [${FG_YELLOW}optional${NC}] (PNG, <64kb)    " "${TMP_DIR}/"
                 meta_logo="${file}"

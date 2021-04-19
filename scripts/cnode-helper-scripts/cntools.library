@@ -83,12 +83,13 @@ println() {
   esac
 }
 
-# Command     : ask [variable name] [log] [question]
-# Description : read input from stdin and save response into provided variable name while also logging response
+# Command     : getAnswerAnyCust [variable name] [log] [question]
+# Description : wrapper function for getAnswerAny() in env to read input from stdin 
+#               and save response into provided variable name while also logging response
 # Parameters  : variable name  >  the name of the variable to save users response into
 #             : log            >  [true|false] log question (default: true)
 #             : question       >  what to ask user to input
-ask() {
+getAnswerAnyCust() {
   sleep 0.1 # hack, sleep 100ms before asking question to preserve order
   var_name=$1
   shift
@@ -97,16 +98,8 @@ ask() {
     [[ $1 = false ]] && log_question=false
     shift
   fi
-  printf "%b: ${FG_LGRAY}" "$*" >&6
-  read -r ${var_name} </dev/tty
-  printf "${NC}"
+  getAnswerAny "${var_name}" "$*" >&6
   [[ ${log_question} = true ]] && println LOG "$*: ${!var_name}"
-}
-
-# Command     : distanceToBottom [rows]
-# Description : print blank rows and reset cursor position
-createDistanceToBottom() {
-  printf "%0.s\n" $(seq $1) >&6; printf "\033[$1A" >&6
 }
 
 # Command     : archiveLog
@@ -122,47 +115,19 @@ archiveLog() {
 
 # Command     : waitForInput [optional: message]
 # Description : wait for user keypress to continue
-# Parameters  : message  >  [optional]: override default 'press any key to return to home menu' message
+# Parameters  : message  >  [optional]: override default 'press any key to proceed ..' message
 waitForInput() {
   exec >&6 # normal stdout
-  IFS=';' read -sdR -p $'\E[6n' ROW COL
-  echo
-  createDistanceToBottom $(( $# + 1 ))
-  ESC=$(printf "\033")
-  echo
-  if [[ $# -eq 0 ]]; then
-    echo "press any key to return to home menu"
-  else
-    printf '%b\n' "$@"
-  fi
-  read -rsn1 key # get 1 character
-  if [[ $key == $ESC ]]; then
-    read -rsn2 key # read 2 more chars
-  fi
-  tput cup ${ROW#*[} ${COL}
-  tput ed
+  waitToProceed $*
   exec >&8 # custom stdout
 }
-
-# Command     : need_cmd [command]
-# Description : Check if command is available, else print error
-# Parameters  : command  >  The command to check
-need_cmd() {
-  if ! command -v "$1" &>/dev/null; then
-    println ERROR "${FG_RED}ERROR${NC}: need '$1' (command not found)\ntry 'sudo apt install $1'\nplease install with your packet manager of choice(apt/yum etc..) and relaunch CNTools"
-    return 1
-  fi
-}
-
 
 # Command     : protectionPreRequisites
 # Description : Check if needed protection prerequisites is available, else print error
 protectionPreRequisites() {
-  if ! need_cmd "gpg"; then
-    return 1
-  fi
+  ! cmdAvailable "gpg" && return 1
 
-  if ! need_cmd "chattr" &>/dev/null; then
+  if ! cmdAvailable "chattr" &>/dev/null; then
     [[ ${ENABLE_CHATTR} = true ]] && println ERROR "chattr command not available but enabled in config, please install or disable in cntools.config and re-run CNTools" && return 1
   elif [[ ${ENABLE_CHATTR} = true ]]; then # chattr available and enabled, make sure sudo access to chattr is enabled
     touch "${TMP_DIR}"/test
@@ -264,7 +229,7 @@ dialogSetup() {
 #             : verbosity  >  [optional] Start path when dialog is opened, either dir or file (default: ${TMP_DIR}/)
 fileDialog() {
   if [[ ${ENABLE_DIALOG} = "false" ]]; then
-    ask file "$1" && return
+    getAnswerAnyCust file "$1" && return
   else
     println DEBUG false "${1}: "
     waitForInput "Press any key to open the file explorer [cancel to skip!]"
@@ -286,7 +251,7 @@ fileDialog() {
 #             : verbosity  >  [optional] Start path when dialog is opened, either dir or file (default: ${TMP_DIR}/)
 dirDialog() {
   if [[ ${ENABLE_DIALOG} = "false" ]]; then
-    ask dir "$1" && return
+    getAnswerAnyCust dir "$1" && return
   else
     println DEBUG false "${1}: "
     waitForInput "Press any key to open the file explorer [cancel to skip!]"
@@ -619,61 +584,18 @@ selectPolicy() {
   policy_name="$(echo ${dir_name} | cut -d' ' -f1)"
 }
 
-# Command     : getPassword [optional: confirm]
+# Command     : getPasswordCust [optional: confirm]
 # Description : Get password from user on STDIN
 # Parameters  : confirm  >  [optional] force user to provide password twice for confirmation
 # Return      : populates ${password} variable, make sure to unset variable when done
-getPassword() {
+getPasswordCust() {
   exec >&6 2>&7 # normal stdout/stderr
   sleep 0.1
-  while true; do
-    readPassword "Enter password (length >= 8)"
-    password=${read_password} && unset read_password
-    if [ ${#password} -lt 8 ]; then
-      echo
-      echo -e "${FG_RED}ERROR${NC}: password length too short, please use a minimum of 8 characters."
-      echo
-      echo "Press q to abort or any other key to retry"
-      read -rsn 1 abort
-      [[ ${abort} = "q" ]] && unset password && exec >&8 2>&9 && return 1
-      echo
-      continue
-    fi
-    if [[ "$1" = "confirm" ]]; then
-      echo && readPassword "Confirm password"
-      check_password=${read_password} && unset read_password
-      if [[ "${password}" != "${check_password}" ]]; then
-        echo
-        echo -e "${FG_RED}ERROR${NC}: password missmatch!"
-        echo
-        echo "Press q to abort or any other key to retry"
-        read -rsn 1 abort
-        [[ ${abort} = "q" ]] && unset password && unset check_password && exec >&8 2>&9 && return 1
-        echo
-      else
-        echo && unset check_password && exec >&8 2>&9 && return
-      fi
-    else
-      echo && exec >&8 2>&9 && return
-    fi
-  done
+  getPassword 8 $1
+  return_code=$?
   exec >&8 2>&9 # custom stdout/stderr
+  return ${return_code}
 }
-readPassword() {
-  read_password=""
-  prompt="$1: "
-  while IFS= read -p "${prompt}" -r -s -n 1 char; do
-    if [[ ${char} == $'\0' ]]; then break; fi
-    if [[ ${char} == $'\b' ]]; then
-      [[ ${#read_password} -gt 0 ]] && printf "\033[1D\033[0K" && read_password=${read_password%?}
-      prompt=''
-    else
-      prompt='*'
-      read_password+="${char}"
-    fi
-  done
-}
-
 
 # Command     : encryptFile [file] [password]
 # Description : Encrypt file with GPG
@@ -789,89 +711,6 @@ verifyTx() {
     getBalance ${1}
   done
   return 0
-}
-
-# Command     : validateDecimalNbr [decimalNbr]
-# Description : validate decimal number
-# Parameters  : decimalNbr  >  decimal number
-validateDecimalNbr() {
-  re_decimal_nbr='^[0-9]+([.][0-9]+)?$'
-  if [[ $1 =~ ${re_decimal_nbr} ]]; then
-    return 0
-  else
-    return 1
-  fi
-}
-
-# Command     : formatLovelace
-# Description : Pretty print Lovelace value
-# Parameters  : Lovelace  >  Amount in Lovelace
-formatLovelace() {
-  if isNumber $1; then
-    [[ $1 -eq 0 ]] && echo 0 && return
-    [[ $1 -le 999999 ]] && printf '0.%06d' "$1" && return
-    printf '%s.%s' "$(sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< ${1::-6})" "${1: -6}"
-  else
-    println ERROR "${FG_RED}ERROR${NC}: must be a valid integer number"
-    return 1
-  fi
-}
-
-# Command     : formatAsset
-# Description : Pretty print Ada value
-# Parameters  : Ada  >  Amount in Ada
-formatAsset() {
-  if isNumber $1; then
-    sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< $1
-  else
-    println ERROR "${FG_RED}ERROR${NC}: must be a valid integer number"
-    return 1
-  fi
-}
-
-# Command     : AdaToLovelace [Ada]
-# Description : Convert number in Ada to Lovelace
-# Parameters  : Ada  >  Amount in Ada, decimal number accepted
-AdaToLovelace() {
-  if validateDecimalNbr $1; then
-    echo "$1 * 1000000 / 1" | bc # /1 is to remove decimals from bc command
-  else
-    println ERROR "${FG_RED}ERROR${NC}: must be a valid integer or decimal number"
-    return 1
-  fi
-}
-
-# Command     : pctToFraction [percent]
-# Description : Convert number as percent to fraction
-# Parameters  : percent  >  number to be converted in range 0-100
-pctToFraction() {
-  if validateDecimalNbr $1; then
-    if [[ $(bc <<< "$1 >= 0" ) -eq 0 || $(bc <<< "$1 <= 100" ) -eq 0 ]]; then
-      println ERROR "${FG_RED}ERROR${NC}: must be a number between 0-100"
-      return 1
-    else
-      echo "x=$1 / 100; if(x<1) print 0; x" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//'
-    fi
-  else
-    println ERROR "${FG_RED}ERROR${NC}: must be a valid integer or decimal number"
-    return 1
-  fi
-}
-
-# Command     : fractionToPCT [fraction]
-# Description : Convert fraction number to precent
-# Parameters  : fraction  >  number to be converted
-fractionToPCT() {
-  if validateDecimalNbr $1; then
-    if (( $(bc <<<"$1 > 0") )); then
-      echo "x=$1 * 100; if(x<1) print 0; x" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//'
-    else
-      echo 0
-    fi
-  else
-    println ERROR "${FG_RED}ERROR${NC}: must be a valid decimal number"
-    return 1
-  fi
 }
 
 # Command     : getPoolID [pool name]
@@ -1084,34 +923,6 @@ getAssetsTxOut() {
   done
 }
 
-# Command     : getAssetIDBech32 [PolicyID] [AssetName]
-# Description : generate asset id according to CIP-14 standard
-#               https://github.com/cardano-foundation/CIPs/pull/64
-# Parameters  : PolicyID   >  hex-encoded policy ID
-#               AssetName  >  ASCII formatted asset name
-# Return      : populates ${assets_id_bech32}
-getAssetIDBech32() {
-  assets_id_bech32=""
-  if ! need_cmd "bech32" || \
-     ! need_cmd "b2sum"; then
-    println ERROR "${FG_RED}ERROR${NC}: b2sum and/or bech32 executables not found in path!"
-    waitForInput && return 1
-  fi
-  assets_id_bech32=$(printf "$(echo -n $1 | sed 's/../\\x&/g')%s" "$2" | b2sum -l 160 -b | cut -d' ' -f 1 | bech32 asset)
-}
-
-# Command     : asciiToHex [string]
-# Description : convert a normal 1 byte ASCII string to hex (alnum chars)
-# Parameters  : string   >  ASCII string to convert
-# Return      : hex string on stdout
-asciiToHex() {
-  local ascwrd=$1
-  [[ -z ${ascwrd} ]] && return 0
-  for ((i=0;i<${#ascwrd};i++)); do
-    printf %02x \'${ascwrd:$i:1}
-  done
-}
-
 # Command     : getMinUTxO [--tx-out string]
 # Description : calculate minimum balance needed in source wallet UTxOs for transaction to be valid
 #               getBalance assumed to be run before
@@ -1234,7 +1045,7 @@ getTTL() {
   tip_ref=$(getSlotTipRef)
   if [[ ${op_mode} = "hybrid" ]]; then
     println DEBUG "\nHow long do you want the transaction to be valid?"
-    ask ttl_enter "TTL (in seconds, default: 1800/30min)"
+    getAnswerAnyCust ttl_enter "TTL (in seconds, default: 1800/30min)"
     ttl_enter=${ttl_enter:-1800}
     if ! isNumber ${ttl_enter}; then
       println ERROR "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"

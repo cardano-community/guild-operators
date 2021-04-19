@@ -55,7 +55,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.20.4
+GLV_VERSION=v1.20.5
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -129,7 +129,7 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
           printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
           mv "${PARENT}"/env.tmp "${PARENT}"/env
           echo -e "\nenv update successfully applied!"
-          waitToProceed
+          waitToProceed && clear
         fi
       fi
     else
@@ -166,7 +166,7 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
     fi
   else
     echo -e "\nFailed to download gLiveView.sh from GitHub, unable to perform version check!"
-    waitToProceed
+    waitToProceed && clear
   fi
   rm -f "${PARENT}"/gLiveView.sh.tmp
 else
@@ -478,7 +478,7 @@ if [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
   printf "\n   - Node in startup mode"
   printf "\n   - Shelley era not reached"
   printf "\n After successful node boot or when sync to shelley era has been reached, calculations will be correct\n"
-  waitToProceed
+  waitToProceed && clear
 fi
 version=$("$(command -v cardano-node)" version)
 node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
