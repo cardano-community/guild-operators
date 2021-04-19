@@ -74,6 +74,7 @@ CNODE_PORT=6000                                         # Set node port
 ######################################
 
 PARENT="$(dirname $0)"
+[[ -z ${BRANCH} ]] && { [[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master; }
 URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
 URL="${URL_RAW}/scripts/cnode-helper-scripts"
 URL_DOCS="${URL_RAW}/docs/Scripts"
