@@ -62,6 +62,8 @@ if [[ ! -f "${PARENT}"/env ]]; then
   myExit 1
 fi
 
+. "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
+
 # env version check
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   ! checkUpdate env && myExit 1
