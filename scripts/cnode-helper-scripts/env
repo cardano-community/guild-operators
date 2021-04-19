@@ -73,6 +73,11 @@ CNODE_PORT=6000                                         # Set node port
 # Do NOT modify code below           #
 ######################################
 
+PARENT="$(dirname $0)"
+URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
+URL="${URL_RAW}/scripts/cnode-helper-scripts"
+URL_DOCS="${URL_RAW}/docs/Scripts"
+
 versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=minimal_needed_version, $2=current_node_version
 
 OFFLINE_MODE='N'
@@ -387,6 +392,41 @@ getAnswerAny() {
   printf "%b: ${FG_LGRAY}" "$*"
   read -r ${var_name} </dev/tty
   printf "${NC}"
+}
+
+# Description : Query user for any question
+#             : $1 = name of script to update
+#             : $2 = [Y|N] ignore question and auto update
+# return code : 0 = no update
+#             : 1 = update applied
+#             : 2 = update failed
+checkUpdate() {
+  if curl -s -f -m 10 -o "${PARENT}/${1}".tmp "${URL}/${1}" 2>/dev/null; then
+    # get vname from env file
+    if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
+      vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
+      # replace default CNODE with custom name if needed
+      [[ ${vname} != cnode ]] && sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}/${1}".tmp
+    else
+      printf "${FG_RED}ERROR${NC}: '${1}' update failed! Please use prereqs.sh to force an update or manually download the file from GitHub"
+      return 2
+    fi
+    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}")
+    TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}".tmp)
+    if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
+      if [[ $2 = Y ]] || { [[ -t 1 ]] && getAnswer "\nThe static content from ${FG_YELLOW}${1}${NC} does not match with guild-operators repository, do you want to download the updated file?"; }; then
+        cp "${PARENT}/${1}" "${PARENT}/${1}_bkp$(date +%s)"
+        STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/${1}")
+        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}/${1}".tmp
+        mv "${PARENT}/${1}".tmp "${PARENT}/${1}"
+        echo -e "\n${FG_YELLOW}${1}${NC} update successfully applied!"
+        [[ -t 1 ]] && waitToProceed && clear
+        return 1
+      fi
+    fi
+  fi
+  rm -f "${PARENT}/${1}".tmp
+  return 0
 }
 
 # Description : Check if command is available

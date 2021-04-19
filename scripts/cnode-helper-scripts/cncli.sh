@@ -126,64 +126,16 @@ cncliInit() {
   if ! command -v sqlite3 >/dev/null; then echo "ERROR: sqlite3 not found, please install before activating blocklog function" && exit 1; fi
 
   PARENT="$(dirname $0)"
-
-  # Check if update is available
-  [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
-  URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
-  if curl -s -f -m 10 -o "${PARENT}"/cncli.sh.tmp ${URL}/cncli.sh && curl -s -f -m 10 -o "${PARENT}"/env.tmp ${URL}/env && [[ -f "${PARENT}"/cncli.sh.tmp && -f "${PARENT}"/env.tmp ]]; then
-    if [[ -f "${PARENT}"/env ]]; then
-      if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
-        vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")
-      else
-        echo -e "\nFailed to get cnode instance name from env file, aborting!\n"
-        rm -f "${PARENT}"/cncli.sh.tmp
-        rm -f "${PARENT}"/env.tmp
-        exit 1
-      fi
-      sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/cncli.sh.tmp -i "${PARENT}"/env.tmp
-      CNCLI_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}"/cncli.sh)
-      CNCLI_TEMPL2=$(awk '/^# Do NOT modify/,0' "${PARENT}"/cncli.sh.tmp)
-      ENV_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
-      ENV_TEMPL2=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
-      if [[ "$(echo ${CNCLI_TEMPL} | sha256sum)" != "$(echo ${CNCLI_TEMPL2} | sha256sum)" || "$(echo ${ENV_TEMPL} | sha256sum)" != "$(echo ${ENV_TEMPL2} | sha256sum)" ]]; then
-        . "${PARENT}"/env offline &>/dev/null # source in offline mode and ignore errors to get some common functions, sourced at a later point again
-        if [[ ${BATCH_AUTO_UPDATE} = 'Y' ]] || { [[ -t 1 ]] && getAnswer "\nA new version is available, do you want to upgrade?"; }; then
-          cp "${PARENT}"/cncli.sh "${PARENT}/cncli.sh_bkp$(date +%s)"
-          cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
-          CNCLI_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/cncli.sh)
-          ENV_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
-          printf '%s\n%s\n' "$CNCLI_STATIC" "$CNCLI_TEMPL2" > "${PARENT}"/cncli.sh.tmp
-          printf '%s\n%s\n' "$ENV_STATIC" "$ENV_TEMPL2" > "${PARENT}"/env.tmp
-          {
-            mv -f "${PARENT}"/cncli.sh.tmp "${PARENT}"/cncli.sh && \
-            mv -f "${PARENT}"/env.tmp "${PARENT}"/env && \
-            chmod 755 "${PARENT}"/cncli.sh "${PARENT}"/env && \
-            echo -e "\nUpdate applied successfully, please run cncli again!\n" && \
-            exit 0; 
-          } || {
-            echo -e "\n${FG_RED}Update failed!${NC}\n\nplease install cncli.sh & env with prereqs.sh or manually download from GitHub" && \
-            rm -f "${PARENT}"/cncli.sh.tmp && \
-            rm -f "${PARENT}"/env.tmp && \
-            exit 1;
-          }
-        fi
-      fi
-    else
-      mv "${PARENT}"/env.tmp "${PARENT}"/env
-      rm -f "${PARENT}"/cncli.sh.tmp
-      echo -e "\nCommon env file downloaded: ${PARENT}/env"
-      echo -e "This is a mandatory prerequisite, please set variables accordingly in User Variables section in the env file and restart cncli.sh\n"
-      exit 0
-    fi
-  fi
-  rm -f "${PARENT}"/cncli.sh.tmp
-  rm -f "${PARENT}"/env.tmp
-
+  
   if [[ ! -f "${PARENT}"/env ]]; then
     echo -e "\nCommon env file missing: ${PARENT}/env"
     echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"
     exit 1
   fi
+
+  # Check if update is available
+  ! checkUpdate env ${BATCH_AUTO_UPDATE} && exit 1
+  ! checkUpdate cncli.sh ${BATCH_AUTO_UPDATE} && exit 1
   
   until . "${PARENT}"/env; do
     echo "sleeping for 10s and testing again..."

@@ -56,39 +56,15 @@ while getopts :oab: opt; do
 done
 shift $((OPTIND -1))
 
-URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
-URL="${URL_RAW}/scripts/cnode-helper-scripts"
-URL_DOCS="${URL_RAW}/docs/Scripts"
+if [[ ! -f "${PARENT}"/env ]]; then
+  echo -e "\nCommon env file missing: ${PARENT}/env"
+  echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"
+  myExit 1
+fi
 
 # env version check
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-  if curl -s -f -m 10 -o "${PARENT}"/env.tmp ${URL}/env 2>/dev/null && [[ -f "${PARENT}"/env.tmp ]]; then
-    if [[ -f "${PARENT}"/env ]]; then
-      if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
-        vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
-        sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
-      else
-        myExit 1 "Update for env file failed! Please use prereqs.sh to force an update or manually download $(basename $0) + env from GitHub"
-      fi
-      TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
-      TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
-      if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-        . "${PARENT}"/env offline &>/dev/null # source in offline mode and ignore errors to get some common functions, sourced at a later point again
-        if getAnswer "\nThe static content from env file does not match with guild-operators repository, do you want to download the updated file?"; then
-          cp "${PARENT}"/env "${PARENT}/env_bkp$(date +%s)"
-          STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
-          printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
-          mv "${PARENT}"/env.tmp "${PARENT}"/env
-          echo -e "\nenv update successfully applied!"
-          waitToProceed && clear
-        fi
-      fi
-    else
-      mv "${PARENT}"/env.tmp "${PARENT}"/env
-      myExit 0 "Common env file downloaded: ${PARENT}/env\nThis is a mandatory prerequisite, please set variables accordingly in User Variables section in the env file and restart CNTools"
-    fi
-  fi
-  rm -f "${PARENT}"/env.tmp
+  ! checkUpdate env && myExit 1
   ! . "${PARENT}"/env && myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub"
 else
   . "${PARENT}"/env offline
@@ -114,12 +90,6 @@ exec 7>&2 # Link file descriptor #7 with normal stderr.
 [[ -n ${CNTOOLS_LOG} ]] && exec 3> >( tee >( while read -r line; do logln "DEBUG" "${line}"; done ) >&6 )
 exec 8>&1 # Link file descriptor #8 with custom stdout.
 exec 9>&2 # Link file descriptor #9 with custom stderr.
-
-# check that bash version is > 4.4.0
-[[ $(bash --version | head -n 1) =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] || myExit 1 "Unable to get BASH version"
-if ! versionCheck "4.4.0" "${BASH_REMATCH[1]}"; then
-  myExit 1 "BASH does not meet the minimum required version of ${FG_LBLUE}4.4.0${NC}, found ${FG_LBLUE}${BASH_REMATCH[1]}${NC}\n\nPlease upgrade to a newer Linux distribution or compile latest BASH following official docs.\n\nINSTALL:  https://www.gnu.org/software/bash/manual/html_node/Installing-Bash.html\nDOWNLOAD: http://git.savannah.gnu.org/cgit/bash.git/ (latest stable TAG)"
-fi
 
 # check for required command line tools
 if ! cmdAvailable "curl" || \
@@ -157,9 +127,8 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
         else
           myExit 1 "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually update CNTools"
         fi
+        waitForInput "press any key to proceed"
       fi
-      #println DEBUG "\nGo to Update section for upgrade\n\nAlternately, follow https://cardano-community.github.io/guild-operators/#/basics?id=pre-requisites to update cntools as well alongwith any other files"
-      waitForInput "press any key to proceed"
     else
       # check if CNTools was recently updated, if so show whats new
       if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
@@ -183,9 +152,9 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
         println ERROR "\n${FG_RED}ERROR${NC}: failed to download changelog from GitHub!"
         waitForInput "press any key to proceed"
       fi
-      rm -f "${PARENT}"/cntools.sh.tmp
-      rm -f "${PARENT}"/cntools.library.tmp
     fi
+    rm -f "${PARENT}"/cntools.sh.tmp
+    rm -f "${PARENT}"/cntools.library.tmp
   else
     println ERROR "\n${FG_RED}ERROR${NC}: failed to download cntools.library from GitHub, unable to perform version check!"
     waitForInput "press any key to proceed"
@@ -198,6 +167,12 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     myExit 1 "${FG_YELLOW}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)\n\nError message: ${PROT_PARAMS}\n\n${FG_BLUE}INFO${NC}: re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality"
   fi
   echo "${PROT_PARAMS}" > "${TMP_DIR}"/protparams.json
+fi
+
+# check that bash version is > 4.4.0
+[[ $(bash --version | head -n 1) =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] || myExit 1 "Unable to get BASH version"
+if ! versionCheck "4.4.0" "${BASH_REMATCH[1]}"; then
+  myExit 1 "BASH does not meet the minimum required version of ${FG_LBLUE}4.4.0${NC}, found ${FG_LBLUE}${BASH_REMATCH[1]}${NC}\n\nPlease upgrade to a newer Linux distribution or compile latest BASH following official docs.\n\nINSTALL:  https://www.gnu.org/software/bash/manual/html_node/Installing-Bash.html\nDOWNLOAD: http://git.savannah.gnu.org/cgit/bash.git/ (latest stable TAG)"
 fi
 
 # check if there are pools in need of KES key rotation
