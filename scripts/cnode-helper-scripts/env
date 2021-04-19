@@ -389,7 +389,7 @@ getAnswer() {
 getAnswerAny() {
   var_name=$1
   shift
-  printf "%b: ${FG_LGRAY}" "$*"
+  printf "%b: ${FG_GREEN}" "$*"
   read -r ${var_name} </dev/tty
   printf "${NC}"
 }
