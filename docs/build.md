@@ -8,7 +8,7 @@ For most Pool Operators, simply building [cardano-node](Build/node-cli.md) shoul
 graph TB
   A(Need to interact with <br/>HD Wallets or query<br/> pool metadata locally?)
   B(Need to explore <br/> blockchain locally?)
-  C(Manage pool <br/> setup, maintenance <br/> tasks using <br/> menu navigations?)
+  C(Manage pool-ops <br/> and asset operation <br/> tasks using <br/> menu navigations?)
   D(Create Custom Assets?)
   E(Monitor node <br/> using Terminal UI)
   O{{Node}}
