@@ -34,6 +34,8 @@ See [CNCLI](Scripts/cncli.md) and [Log Monitor](Scripts/logmonitor.md) sections 
 ##### Download and Update
 The update functionality is provided from within CNTools. In case of breaking changes, please follow the prompts post upgrade. If stuck, it's always best to re-run latest prereqs before proceeding.
 
+!> If you have not updated in a while, it is possible that you might come from a release with breaking change. If so, please be sure to check out the [upgrade](upgrade.md) instructions
+
 ##### Navigation
 The scripts menu supports both arrow key navigation and shortcut key selection. The character within the square brackets is the shortcut to press for quick navigation. For other selections like wallet and pool menu that doesn't contain shortcuts, there is a third way to navigate. Key pressed is compared to the first character of the menu option and if there is a match selection jumps to this location. A handy way to quickly navigate a large menu. 
 
@@ -51,6 +53,7 @@ Supported devices: Model T
 Make sure the latest firmware is installed on the device. In addition to this, install `Trezor Bridge` for your system before trying to use your Trezor device in CNTools. You can find the latest version of the bridge at https://wallet.trezor.io/#/bridge
 
 ##### Offline Workflow
+
 CNTools can be run in online and offline mode. At a very high level, for working with offline devices, remember that you need to use CNTools on an online node to generate a staging transaction for the desired type of transaction, and then move the staging transaction to offline node to sign (authorize) using your offline node signing keys - and then bring back updated transaction to the online node for submission to chain. 
 
 For offline workflow all wallet and pool keys should be kept on the offline node. The backup function in CNTools has an option to create a backup without private keys(sensitive signing keys) to be transfered to online node. All other files are included in the backup to be transfered to the online node. 
@@ -59,7 +62,7 @@ Keys excluded from backup when created without private keys:
 **Wallet** - payment.skey, stake.skey
 **Pool**   - cold.skey
 
-Example workflow for creating a wallet and pool
+Note that setting up an offline server requires good sysops background (you need to be aware of how to set up your server with offline mirror repository, how to transfer files across and be fairly familiar with the disk layout of guild tools). The prereqs.sh in its current state is not expected to run on an offline machine. Essentially you simply need `cardano-cli`,`bech32`,`cardano-address` binary in your $PATH, OS level dependency packages [ `jq`,`coreutils`,`pkgconfig`,`gcc-c++` and `bc` ], perhaps a copy from your online cnode folder (to ensure you have the right genesis/config files on your offline server). We strongly recommend you to familiarise with the workflow on testnet / guild network first, before attempting on mainnet. Example workflow for creating a wallet and pool
 
 ``` mermaid
 

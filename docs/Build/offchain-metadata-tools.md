@@ -1,6 +1,8 @@
-!> - An average pool operator may not require cardano-wallet at all. Please verify if it is required for your use as mentioned [here](build.md#components)
+!> - An average pool operator may not require offline-metadata-tools at all. Please verify if it is required for your use as mentioned [here](build.md#components)
 
 >Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
+
+In the Cardano multi-asset era, this project helps you create and submit metadata describing your assets, storing them off-the-chain.
 
 ##### Download pre-built binaries
 
