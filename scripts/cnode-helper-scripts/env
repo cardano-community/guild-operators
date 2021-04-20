@@ -448,7 +448,7 @@ waitToProceed() {
   createDistanceToBottom $(( $# + 1 ))
   ESC=$(printf "\033")
   echo
-  if [[ $# -eq 0 ]]; then
+  if [[ $# -eq 0 || -z $1 ]]; then
     echo "press any key to proceed .."
   else
     printf '%b\n' "$@"

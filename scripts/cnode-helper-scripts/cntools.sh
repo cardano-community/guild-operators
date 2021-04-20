@@ -3472,7 +3472,7 @@ function main {
                 2) println "Add an example metadata JSON scaffold?"
                    select_opt "[y] Yes" "[n] No"
                    case $? in
-                     0) jq <<< '{"1815":{"name":"Ada Lovelace","age":36,"parents":[{"id":0,"name":"George Gordon Byron"},{"id":1,"name":"Anne Isabella Byron"}]}}' > "${metafile}" ;;
+                     0) jq . <<< '{"1815":{"name":"Ada Lovelace","age":36,"parents":[{"id":0,"name":"George Gordon Byron"},{"id":1,"name":"Anne Isabella Byron"}]}}' > "${metafile}" ;;
                      1) : ;; # do nothing
                    esac
                    tput sc
