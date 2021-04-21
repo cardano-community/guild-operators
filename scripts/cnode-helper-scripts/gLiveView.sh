@@ -55,7 +55,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.20.4
+GLV_VERSION=v1.20.5
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -109,35 +109,20 @@ myExit() {
 # Version Check                                       #
 #######################################################
 clear
+
+if [[ ! -f "${PARENT}"/env ]]; then
+  echo -e "\nCommon env file missing: ${PARENT}/env"
+  echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"
+  myExit 1
+fi
+
+. "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
+
 if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
-  URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts"
-  if curl -s -f -m 10 -o "${PARENT}"/env.tmp ${URL}/env 2>/dev/null && [[ -f "${PARENT}"/env.tmp ]]; then
-    if [[ -f "${PARENT}"/env ]]; then
-      if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
-        vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
-        sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}"/env.tmp
-      else
-        myExit 1 "\nUpdate for env file failed! Please use prereqs.sh to force an update or manually download $(basename $0) + env from GitHub\n"
-      fi
-      TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env)
-      TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/env.tmp)
-      if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-        . "${PARENT}"/env offline &>/dev/null # source in offline mode and ignore errors to get some common functions, sourced at a later point again
-        if getAnswer "\nThe static content from env file does not match with guild-operators repository, do you want to download the updated file?"; then
-          cp "${PARENT}"/env "${PARENT}/env_bkp$(printf '%(%s)T\n' -1)"
-          STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/env)
-          printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/env.tmp
-          mv "${PARENT}"/env.tmp "${PARENT}"/env
-          echo -e "\nenv update successfully applied!"
-          waitToProceed
-        fi
-      fi
-    else
-      mv "${PARENT}"/env.tmp "${PARENT}"/env
-      myExit 0 "Common env file downloaded: ${PARENT}/env\nThis is a mandatory prerequisite, please set variables accordingly in User Variables section in the env file and restart Guild LiveView\n"
-    fi
-  fi
-  rm -f "${PARENT}"/env.tmp
+  echo "Guild LiveView version check..."
+  # check for env update
+  ! checkUpdate env && myExit 1
+  ! . "${PARENT}"/env && myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub"
   # source common env variables in case it was updated
   . "${PARENT}"/env
   case $? in
@@ -145,7 +130,6 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
     2) clear ;;
   esac
 
-  echo "Guild LiveView version check..."
   if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/gLiveView.sh.tmp ${URL}/gLiveView.sh 2>/dev/null && [[ -f "${PARENT}"/gLiveView.sh.tmp ]]; then
     GIT_VERSION=$(grep -r ^GLV_VERSION= "${PARENT}"/gLiveView.sh.tmp | cut -d'=' -f2)
     : "${GIT_VERSION:=v0.0.0}"
@@ -166,7 +150,7 @@ if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
     fi
   else
     echo -e "\nFailed to download gLiveView.sh from GitHub, unable to perform version check!"
-    waitToProceed
+    waitToProceed && clear
   fi
   rm -f "${PARENT}"/gLiveView.sh.tmp
 else
@@ -478,7 +462,7 @@ if [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
   printf "\n   - Node in startup mode"
   printf "\n   - Shelley era not reached"
   printf "\n After successful node boot or when sync to shelley era has been reached, calculations will be correct\n"
-  waitToProceed
+  waitToProceed && clear
 fi
 version=$("$(command -v cardano-node)" version)
 node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)

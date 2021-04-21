@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2034,SC2086,SC2230,SC2009,SC2206,SC2062,SC2059
+# shellcheck disable=SC2034,SC2086,SC2230,SC2009,SC2206,SC2062,SC2059,SC2229,SC2154,SC2162,SC2120
 
 ######################################
 # User Variables - Change as desired #
@@ -72,6 +72,12 @@ CNODE_PORT=6000                                         # Set node port
 ######################################
 # Do NOT modify code below           #
 ######################################
+
+PARENT="$(dirname $0)"
+[[ -z ${BRANCH} ]] && { [[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master; }
+URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
+URL="${URL_RAW}/scripts/cnode-helper-scripts"
+URL_DOCS="${URL_RAW}/docs/Scripts"
 
 versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=minimal_needed_version, $2=current_node_version
 
@@ -368,21 +374,110 @@ NC='\e[0m'
 
 # Description : Query user for yes or no answer
 getAnswer() {
-  printf "$* (yes/no): " >&2; read -r answer
+  getAnswerAny answer "$* (yes/no)"
   while : ; do
     case $answer in
       [Yy]*) return 0 ;;
       [Nn]*) return 1 ;;
-      *) printf "%s" "Please enter 'yes' or 'no' to continue: " >&2; read -r answer
+      *) getAnswerAny answer "Please enter 'yes' or 'no' to continue"
     esac
   done
 }
 
-# Description : Wait for any key press before proceeding and clear screen
+# Description : Query user for any question
+#             : $1 = the name of the variable to save users response into
+#             : $2 = what to ask user to input
+getAnswerAny() {
+  var_name=$1
+  shift
+  printf "%b: ${FG_GREEN}" "$*"
+  read -r ${var_name} </dev/tty
+  printf "${NC}"
+}
+
+# Description : Query user for any question
+#             : $1 = name of script to update
+#             : $2 = [Y|N] ignore question and auto update
+# return code : 0 = no update
+#             : 1 = update applied
+#             : 2 = update failed
+checkUpdate() {
+  if curl -s -f -m 10 -o "${PARENT}/${1}".tmp "${URL}/${1}" 2>/dev/null; then
+    # get vname from env file
+    if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
+      vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
+      # replace default CNODE with custom name if needed
+      [[ ${vname} != cnode ]] && sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}/${1}".tmp
+    else
+      printf "${FG_RED}ERROR${NC}: '${1}' update failed! Please use prereqs.sh to force an update or manually download the file from GitHub"
+      return 2
+    fi
+    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}")
+    TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}".tmp)
+    if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
+      if [[ $2 = Y ]] || { [[ -t 1 ]] && getAnswer "\nThe static content from ${FG_YELLOW}${1}${NC} does not match with guild-operators repository, do you want to download the updated file?"; }; then
+        cp "${PARENT}/${1}" "${PARENT}/${1}_bkp$(date +%s)"
+        STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/${1}")
+        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}/${1}".tmp
+        mv "${PARENT}/${1}".tmp "${PARENT}/${1}"
+        echo -e "\n${FG_YELLOW}${1}${NC} update successfully applied!"
+        [[ -t 1 ]] && waitToProceed && clear
+        return 1
+      fi
+    fi
+  fi
+  rm -f "${PARENT}/${1}".tmp
+  return 0
+}
+
+# Description : Check if command is available
+#             : $1 = executable to validate
+cmdAvailable() {
+  if ! command -v "$1" &>/dev/null; then
+    printf "${FG_RED}ERROR${NC}: need '$1' (command not found)\nplease install with your packet manager of choice(apt/yum etc..) and relaunch CNTools\nhttps://command-not-found.com/$1" 1>&2
+    return 1
+  fi
+  return 0
+}
+
+# Description : wait for user keypress to continue
+# Parameters  : message  >  [optional]: override default 'press any key to return to home menu' message
 waitToProceed() {
-  printf "\npress any key to proceed..."
-  read -r -n 1 -s wait
-  clear
+  IFS=';' read -sdR -p $'\E[6n' ROW COL
+  echo
+  createDistanceToBottom $(( $# + 1 ))
+  ESC=$(printf "\033")
+  echo
+  if [[ $# -eq 0 || -z $1 ]]; then
+    echo "press any key to proceed .."
+  else
+    printf '%b\n' "$@"
+  fi
+  read -rsn1 key # get 1 character
+  if [[ $key == "$ESC" ]]; then
+    read -rsn2 key # read 2 more chars
+  fi
+  tput cup ${ROW#*[} ${COL}
+  tput ed
+}
+
+# Description : Generate asset id according to CIP-14 standard
+#               https://github.com/cardano-foundation/CIPs/pull/64
+#             : $1 = hex-encoded policy ID
+#             : $2 = ASCII formatted asset name
+getAssetIDBech32() {
+  { ! cmdAvailable "bech32" || ! cmdAvailable "b2sum"; } && return 1
+  printf "$(echo -n $1 | sed 's/../\\x&/g')%s" "$2" | b2sum -l 160 -b | cut -d' ' -f 1 | bech32 asset
+}
+
+# Description : Convert a normal 1 byte ASCII string to hex (alnum chars)
+#             : $1 = ASCII string to convert
+asciiToHex() {
+  local ascwrd=$1
+  [[ -z ${ascwrd} ]] && return
+  for ((i=0;i<${#ascwrd};i++)); do
+    printf %02x \'${ascwrd:$i:1}
+  done
 }
 
 # Description : Helper function to validate that input is a number
@@ -390,6 +485,79 @@ waitToProceed() {
 isNumber() {
   [[ -z $1 ]] && return 1
   [[ $1 =~ ^[0-9]+$ ]] && return 0 || return 1
+}
+
+# Description : Validate decimal number
+#             : $1 = decimal number to validate
+validateDecimalNbr() {
+  re_decimal_nbr='^[0-9]+([.][0-9]+)?$'
+  [[ $1 =~ ${re_decimal_nbr} ]] && return 0 || return 1
+}
+
+# Description : Pretty print Lovelace value
+#             : $1 = Amount in Lovelace
+formatLovelace() {
+  if isNumber $1; then
+    [[ $1 -eq 0 ]] && echo 0 && return
+    [[ $1 -le 999999 ]] && printf '0.%06d' "$1" && return
+    printf '%s.%s' "$(sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< ${1::-6})" "${1: -6}"
+  else
+    printf "${FG_RED}ERROR${NC}: must be a valid integer number" 1>&2
+    return 1
+  fi
+}
+
+# Description : Pretty print Ada/Token value
+#             : $1 = Amount as Integer
+formatAsset() {
+  if isNumber $1; then
+    sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< $1
+  else
+    printf "${FG_RED}ERROR${NC}: must be a valid integer number" 1>&2
+    return 1
+  fi
+}
+
+# Description : Convert number in Ada to Lovelace
+#             : $1 = Amount in Ada, decimal number accepted (using dot)
+AdaToLovelace() {
+  if validateDecimalNbr $1; then
+    echo "$1 * 1000000 / 1" | bc # /1 is to remove decimals from bc command
+  else
+    printf "${FG_RED}ERROR${NC}: must be a valid integer or decimal number" 1>&2
+    return 1
+  fi
+}
+
+# Description : Convert number as percent to fraction
+#             : $1 = number to be converted in range 0-100
+pctToFraction() {
+  if validateDecimalNbr $1; then
+    if [[ $(bc <<< "$1 >= 0" ) -eq 0 || $(bc <<< "$1 <= 100" ) -eq 0 ]]; then
+      printf "${FG_RED}ERROR${NC}: must be a number between 0-100" 1>&2
+      return 1
+    else
+      echo "x=$1 / 100; if(x<1) print 0; x" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//'
+    fi
+  else
+    printf "${FG_RED}ERROR${NC}: must be a valid integer or decimal number" 1>&2
+    return 1
+  fi
+}
+
+# Description : Convert fraction number to precent
+#             : $1 = number to be converted
+fractionToPCT() {
+  if validateDecimalNbr $1; then
+    if (( $(bc <<<"$1 > 0") )); then
+      echo "x=$1 * 100; if(x<1) print 0; x" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//'
+    else
+      echo 0
+    fi
+  else
+    printf "${FG_RED}ERROR${NC}: must be a valid decimal number" 1>&2
+    return 1
+  fi
 }
 
 # Description : Helper function to validate IPv4 address
@@ -401,6 +569,58 @@ isValidIPv4() {
     return 0
   fi
   return 1
+}
+
+# Description : Get password from user on STDIN
+#             : populates ${password} variable, make sure to unset variable when done
+#             : $1 = Minimum password length
+#             : $2 = The string 'confirm' to force user to provide password twice for confirmation (optional)
+getPassword() {
+  while true; do
+    readPassword "Enter password (length >= 8)"
+    password=${read_password} && unset read_password
+    if [ ${#password} -lt $1 ]; then
+      echo
+      echo -e "${FG_RED}ERROR${NC}: password length too short, please use a minimum of $1 characters."
+      echo
+      echo "Press q to abort or any other key to retry"
+      read -rsn 1 abort
+      [[ ${abort} = "q" ]] && unset password && return 1
+      echo
+      continue
+    fi
+    if [[ $2 = "confirm" ]]; then
+      echo && readPassword "Confirm password"
+      check_password=${read_password} && unset read_password
+      if [[ "${password}" != "${check_password}" ]]; then
+        echo
+        echo -e "${FG_RED}ERROR${NC}: password missmatch!"
+        echo
+        echo "Press q to abort or any other key to retry"
+        read -rsn 1 abort
+        [[ ${abort} = "q" ]] && unset password && unset check_password && return 1
+        echo
+      else
+        echo && unset check_password && return 0
+      fi
+    else
+      echo && return 0
+    fi
+  done
+}
+readPassword() {
+  read_password=""
+  prompt="$1: "
+  while IFS= read -p "${prompt}" -r -s -n 1 char; do
+    if [[ ${char} == $'\0' ]]; then break; fi
+    if [[ ${char} == $'\b' ]]; then
+      [[ ${#read_password} -gt 0 ]] && printf "\033[1D\033[0K" && read_password=${read_password%?}
+      prompt=''
+    else
+      prompt='*'
+      read_password+="${char}"
+    fi
+  done
 }
 
 # Description : Helper function to validate IPv6 address, works for normal IPv6 addresses, not dual incl IPv4
@@ -421,6 +641,13 @@ isPrivateIP() {
   private_ip_regex="^(127\.|0?10\.|172\.0?1[6-9]\.|172\.0?2[0-9]\.|172\.0?3[0-2]\.|192\.168\.|169\.254\.|::1|[fF][cCdD][0-9a-fA-F]{2}:|[fF][eE][89aAbB][0-9a-fA-F]:)"
   [[ ${ip} =~ ${private_ip_regex} ]] && return 0
   return 1
+}
+
+# Description : Print blank rows and reset cursor position
+#             : $1 = number of rows
+createDistanceToBottom() {
+  printf "%0.s\n" $(seq $1)
+  printf "\033[$1A"
 }
 
 # Description : Query cardano-node for current metrics

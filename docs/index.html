@@ -66,7 +66,7 @@
           hook.beforeEach(function(content) {
             // Invoked each time before parsing the Markdown file.
             // ...
-            var custommarkdown = '!> Note that there was a breaking change introduced to guild repository scripts on 15th October. If you are coming from release before, please be sure to check out the [upgrade](upgrade.md) instructions\n'
+            var custommarkdown = ''
             return custommarkdown + '\n' + content;
           });
           //hook.doneEach(function() {

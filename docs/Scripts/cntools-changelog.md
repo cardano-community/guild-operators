@@ -5,6 +5,17 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.2.0] - 2021-04-18
+##### Added
+- Ability to create & update a Cardano Token Registry submission JSON file
+  - Requires 'token-metadata-creator' tool, instructions to download/build this tool added to Guild Operators documentation:
+  - https://cardano-community.github.io/guild-operators/#/Build/offchainMetadataTools
+- Token Registry lookup in Wallet >> Show
+- Token asset fingerprint generation according to https://github.com/cardano-foundation/CIPs/pull/64
+
+##### Changed
+- Redesigned input handling to be more flexible and improve output
+
 ## [8.1.6] - 2021-04-14
 ##### Changed
 - Metadata creation now offer the choice to add a metadata JSON scaffold to see the required structure
