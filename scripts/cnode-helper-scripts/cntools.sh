@@ -2693,7 +2693,7 @@ function main {
             echo
             [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
             println DEBUG "# Select pool to rotate KES keys on"
-            if ! selectPool "all" "${POOL_COLDKEY_SK_FILENAME}" "${POOL_HOTKEY_SK_FILENAME}" "${POOL_HOTKEY_VK_FILENAME}" "${POOL_OPCERT_COUNTER_FILENAME}"; then # ${pool_name} populated by selectPool function
+            if ! selectPool "all" "${POOL_COLDKEY_SK_FILENAME}" "${POOL_OPCERT_COUNTER_FILENAME}"; then # ${pool_name} populated by selectPool function
               waitForInput && continue
             fi
             if ! rotatePoolKeys; then
