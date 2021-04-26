@@ -14,7 +14,6 @@ RETRIES=3                                 # How many attempts to connect to runn
 PEER_LIST_CNT=6                           # Number of peers to show on each in/out page in peer analysis view
 THEME="dark"                              # dark  = suited for terminals with a dark background
                                           # light = suited for terminals with a bright background
-NO_INTERNET_MODE="N"                      # To skip checking for auto updates or make outgoing connections to guild-operators github repository
 ENABLE_IP_GEOLOCATION="Y"                 # Enable IP geolocation on outgoing and incoming connections using ip-api.com
 
 #####################################
@@ -55,14 +54,13 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.20.5
+GLV_VERSION=v1.20.6
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
 
 # Set default for user variables added in recent versions (for those who may not necessarily have it due to upgrade)
 [[ -z "${RETRIES}" ]]  && RETRIES=3
-[[ -z "${NO_INTERNET_MODE}" ]] && NO_INTERNET_MODE="N"
 
 usage() {
   cat <<-EOF
@@ -118,7 +116,7 @@ fi
 
 . "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
 
-if [[ "${NO_INTERNET_MODE}" == "N" ]]; then
+if [[ "${UPDATE_CHECK}" == "Y" ]]; then
   echo "Guild LiveView version check..."
   # check for env update
   ! checkUpdate env && myExit 1

@@ -15,6 +15,7 @@ CNODE_PORT=6000                                         # Set node port
 #TOPOLOGY="${CNODE_HOME}/files/topology.json"           # Override default topology.json path
 #LOG_DIR="${CNODE_HOME}/logs"                           # Folder where your logs will be sent to (must pre-exist)
 #DB_DIR="${CNODE_HOME}/db"                              # Folder to store the cardano-node blockchain db
+#UPDATE_CHECK="Y"                                       # Check for updates to scripts, it will still be prompted before proceeding (Y|N).
 #TMP_DIR="/tmp/cnode"                                   # Folder to hold temporary files in the various scripts, each script might create additional subfolders
 #EKG_HOST=127.0.0.1                                     # Set node EKG host IP
 #EKG_PORT=12788                                         # Override automatic detection of node EKG port
@@ -284,6 +285,7 @@ if [[ -n "${CNODE_PID}" ]]; then
   fi
 fi
 
+[[ -z ${UPDATE_CHECK} ]] && UPDATE_CHECK="Y"
 [[ -z ${TOPOLOGY} ]] && TOPOLOGY="${CNODE_HOME}/files/topology.json"
 [[ -n ${CNODE_TOPOLOGY} ]] && TOPOLOGY="${CNODE_TOPOLOGY}" # compatibility with older topologyUpdater
 [[ -z ${LOG_DIR} ]] && LOG_DIR="${CNODE_HOME}/logs"
@@ -402,6 +404,7 @@ getAnswerAny() {
 #             : 1 = update applied
 #             : 2 = update failed
 checkUpdate() {
+  [[ "${UPDATE_CHECK}" != "Y" ]] && return 0
   if curl -s -f -m 10 -o "${PARENT}/${1}".tmp "${URL}/${1}" 2>/dev/null; then
     # get vname from env file
     if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
