@@ -2413,7 +2413,7 @@ function main {
                 *) println "$(printf "%-21s : ${pool_reg_color}%s${NC} - Retired in epoch ${FG_LBLUE}%s${NC}" "Registered" "${pool_registered}" "${retiring_epoch}")" ;;
               esac
             else
-              println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "Registered" "status unavailable in offline mode")" ;;
+              println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "Registered" "status unavailable in offline mode")"
             fi
             pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
             pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
