@@ -40,10 +40,10 @@ for row in $(jq -r '.[] | @base64' <<< ${rpc_file_list}); do
   echo -e "${FG_GREEN}$(jq -r '.function' <<< ${file_content})${NC}"
   echo -e "${FG_LGRAY}$(jq -r '.description' <<< ${file_content})${NC}"
   for param in $(jq -r '.parameters[] | @base64' <<< ${file_content}); do
-    echo -e "${FG_LBLUE}$(jqDecode '.name' "${param}")${NC}: ${FG_LGRAY}$(jqDecode '.name' "${description}")${NC}"
+    echo -e "${FG_LBLUE}$(jqDecode '.name' "${param}")${NC}: ${FG_LGRAY}$(jqDecode '.description' "${param}")${NC}"
   done
   for example in $(jq -r '.example[] | @base64' <<< ${file_content}); do
-    echo -e "Example ${FG_LGRAY}$(jqDecode '.type' "${example}")${NC} query: ${FG_LGRAY}$(jqDecode '.type' "${command}")${NC}"
+    echo -e "Example ${FG_LGRAY}$(jqDecode '.type' "${example}")${NC} query: ${FG_LGRAY}$(jqDecode '.command' "${example}")${NC}"
   done
   ! output=$(jq -r '.sql | join("\n")' <<< ${file_content} | psql cexplorer 2>&1) && echo -e "${FG_RED}ERROR${NC}: ${output}" && exit 1
   echo -e "Function from ${FG_LGRAY}${file_name}${NC} successfully added to DBSync!\n"
