@@ -495,7 +495,7 @@ isNumber() {
 # Description : Validate decimal number
 #             : $1 = decimal number to validate
 validateDecimalNbr() {
-  re_decimal_nbr='^[0-9]+([.][0-9]+)?$'
+  re_decimal_nbr='^([0-9]+)?([.][0-9]+)?$'
   [[ $1 =~ ${re_decimal_nbr} ]] && return 0 || return 1
 }
 
