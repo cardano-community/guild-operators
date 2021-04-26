@@ -25,7 +25,7 @@
     "CREATE OR REPLACE FUNCTION get_pool_update(_pool_bech32 text, _current_epoch_no numeric default 0, _state text default '' )",
     "RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$",
     "BEGIN",
-      "RETURN ( SELECT json_build_object(",
+      "RETURN ( SELECT json_agg( json_build_object(",
           "'update_id', pu.id,",
           "'hash_id', pu.hash_id,",
           "'registered_tx_id', pu.registered_tx_id,",
@@ -48,7 +48,7 @@
         "LIMIT CASE",
           "WHEN _state = 'active' OR _state = 'latest' THEN 1",
         "END",
-      ");",
+      "));",
     "END; $$;"
   ]
 }
