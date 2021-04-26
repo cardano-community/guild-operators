@@ -404,7 +404,7 @@ getAnswerAny() {
 #             : 1 = update applied
 #             : 2 = update failed
 checkUpdate() {
-  [[ "${UPDATE_CHECK}" != "N" ]] && return 0
+  [[ "${UPDATE_CHECK}" != "Y" ]] && return 0
   if curl -s -f -m 10 -o "${PARENT}/${1}".tmp "${URL}/${1}" 2>/dev/null; then
     # get vname from env file
     if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
