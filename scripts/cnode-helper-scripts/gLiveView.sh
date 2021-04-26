@@ -116,7 +116,7 @@ fi
 
 . "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
 
-if [[ "${NO_INTERNET}" != "N" ]]; then
+if [[ "${UPDATE_CHECK}" == "Y" ]]; then
   echo "Guild LiveView version check..."
   # check for env update
   ! checkUpdate env && myExit 1

@@ -7,7 +7,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [8.2.1] - 2021-04-26
 ##### Changed
-- Make use of NO_INTERNET environment variable to skip any checks to internet by default
+- Make use of UPDATE_CHECK environment variable to skip any checks to internet by default
 
 ## [8.2.0] - 2021-04-18
 ##### Added
