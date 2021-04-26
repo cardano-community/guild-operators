@@ -107,59 +107,61 @@ fi
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   # check to see if there are any updates available
   clear
-  println DEBUG "CNTools version check...\n"
-  if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/cntools.library.tmp "${URL}/cntools.library" && [[ -f "${PARENT}"/cntools.library.tmp ]]; then
-    GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${PARENT}"/cntools.library.tmp |sed -e "s#.*=##")
-    GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${PARENT}"/cntools.library.tmp |sed -e "s#.*=##")
-    GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${PARENT}"/cntools.library.tmp |sed -e "s#.*=##")
-    GIT_VERSION="${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}"
-    if ! versionCheck "${GIT_VERSION}" "${CNTOOLS_VERSION}"; then
-      println DEBUG "A new version of CNTools is available"
-      echo
-      println DEBUG "Installed Version : ${FG_LGRAY}${CNTOOLS_VERSION}${NC}"
-      println DEBUG "Available Version : ${FG_GREEN}${GIT_VERSION}${NC}"
-      if getAnswer "\nDo you want to upgrade to the latest version of CNTools?"; then
-        if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/cntools.sh.tmp "${URL}/cntools.sh" && \
-        mv -f "${PARENT}"/cntools.sh "${PARENT}/cntools.sh_bkp$(printf '%(%s)T\n' -1)" && \
-        mv -f "${PARENT}"/cntools.library "${PARENT}/cntools.library_bkp$(printf '%(%s)T\n' -1)" && \
-        mv -f "${PARENT}"/cntools.sh.tmp "${PARENT}"/cntools.sh && \
-        mv -f "${PARENT}"/cntools.library.tmp "${PARENT}"/cntools.library && \
-        chmod 750 "${PARENT}"/cntools.sh; then
-          myExit 0 "Update applied successfully!\n\nPlease start CNTools again!"
-        else
-          myExit 1 "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually update CNTools"
-        fi
-        waitForInput "press any key to proceed"
-      fi
-    else
-      # check if CNTools was recently updated, if so show whats new
-      if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
-        if ! cmp -s "${TMP_DIR}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"; then
-          # Latest changes not shown, show whats new and copy changelog
-          clear 
-          exec >&6 # normal stdout
-          sleep 0.1
-          if [[ ! -f "${PARENT}/cntools-changelog.md" ]]; then 
-            # special case for first installation or 5.0.0 upgrade, print release notes until previous major version
-            println OFF "~ CNTools - What's New ~\n\n" "$(sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_DIR}"/cntools-changelog.md | head -n -2)" | less -X
+  if [[ "${NO_INTERNET}" != "N" ]]; then 
+    println DEBUG "CNTools version check...\n"
+    if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/cntools.library.tmp "${URL}/cntools.library" && [[ -f "${PARENT}"/cntools.library.tmp ]]; then
+      GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${PARENT}"/cntools.library.tmp |sed -e "s#.*=##")
+      GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${PARENT}"/cntools.library.tmp |sed -e "s#.*=##")
+      GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${PARENT}"/cntools.library.tmp |sed -e "s#.*=##")
+      GIT_VERSION="${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}"
+      if ! versionCheck "${GIT_VERSION}" "${CNTOOLS_VERSION}"; then
+        println DEBUG "A new version of CNTools is available"
+        echo
+        println DEBUG "Installed Version : ${FG_LGRAY}${CNTOOLS_VERSION}${NC}"
+        println DEBUG "Available Version : ${FG_GREEN}${GIT_VERSION}${NC}"
+        if getAnswer "\nDo you want to upgrade to the latest version of CNTools?"; then
+          if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/cntools.sh.tmp "${URL}/cntools.sh" && \
+          mv -f "${PARENT}"/cntools.sh "${PARENT}/cntools.sh_bkp$(printf '%(%s)T\n' -1)" && \
+          mv -f "${PARENT}"/cntools.library "${PARENT}/cntools.library_bkp$(printf '%(%s)T\n' -1)" && \
+          mv -f "${PARENT}"/cntools.sh.tmp "${PARENT}"/cntools.sh && \
+          mv -f "${PARENT}"/cntools.library.tmp "${PARENT}"/cntools.library && \
+          chmod 750 "${PARENT}"/cntools.sh; then
+            myExit 0 "Update applied successfully!\n\nPlease start CNTools again!"
           else
-            # print release notes from current until previously installed version
-            [[ $(cat "${PARENT}/cntools-changelog.md") =~ \[([[:digit:]])\.([[:digit:]])\.([[:digit:]])\] ]]
-            cat <(println OFF "~ CNTools - What's New ~\n") <(awk "1;/\[${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}\.${BASH_REMATCH[3]}\]/{exit}" "${TMP_DIR}"/cntools-changelog.md | head -n -2 | tail -n +7) <(echo -e "\n [Press 'q' to quit and proceed to CNTools main menu]\n") | less -X
+            myExit 1 "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually update CNTools"
           fi
-          exec >&8 # custom stdout
-          cp "${TMP_DIR}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"
+          waitForInput "press any key to proceed"
         fi
       else
-        println ERROR "\n${FG_RED}ERROR${NC}: failed to download changelog from GitHub!"
-        waitForInput "press any key to proceed"
+        # check if CNTools was recently updated, if so show whats new
+        if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
+          if ! cmp -s "${TMP_DIR}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"; then
+            # Latest changes not shown, show whats new and copy changelog
+            clear 
+            exec >&6 # normal stdout
+            sleep 0.1
+            if [[ ! -f "${PARENT}/cntools-changelog.md" ]]; then 
+              # special case for first installation or 5.0.0 upgrade, print release notes until previous major version
+              println OFF "~ CNTools - What's New ~\n\n" "$(sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_DIR}"/cntools-changelog.md | head -n -2)" | less -X
+            else
+              # print release notes from current until previously installed version
+              [[ $(cat "${PARENT}/cntools-changelog.md") =~ \[([[:digit:]])\.([[:digit:]])\.([[:digit:]])\] ]]
+              cat <(println OFF "~ CNTools - What's New ~\n") <(awk "1;/\[${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}\.${BASH_REMATCH[3]}\]/{exit}" "${TMP_DIR}"/cntools-changelog.md | head -n -2 | tail -n +7) <(echo -e "\n [Press 'q' to quit and proceed to CNTools main menu]\n") | less -X
+            fi
+            exec >&8 # custom stdout
+            cp "${TMP_DIR}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"
+          fi
+        else
+          println ERROR "\n${FG_RED}ERROR${NC}: failed to download changelog from GitHub!"
+          waitForInput "press any key to proceed"
+        fi
       fi
+      rm -f "${PARENT}"/cntools.sh.tmp
+      rm -f "${PARENT}"/cntools.library.tmp
+    else
+      println ERROR "\n${FG_RED}ERROR${NC}: failed to download cntools.library from GitHub, unable to perform version check!"
+      waitForInput "press any key to proceed"
     fi
-    rm -f "${PARENT}"/cntools.sh.tmp
-    rm -f "${PARENT}"/cntools.library.tmp
-  else
-    println ERROR "\n${FG_RED}ERROR${NC}: failed to download cntools.library from GitHub, unable to perform version check!"
-    waitForInput "press any key to proceed"
   fi
 
   # Validate protocol parameters

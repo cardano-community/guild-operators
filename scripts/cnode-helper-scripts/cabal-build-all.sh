@@ -3,16 +3,31 @@
 # executes cabal build all
 # parses executables created from compiler output and copies it to ~./cabal/bin folder.
 
-OVERWRITE_LOCAL="N"
-
-[[ -f "${CNODE_HOME}"/scripts/.env_branch ]] && BRANCH="$(cat "${CNODE_HOME}"/scripts/.env_branch)" || BRANCH="master"
-URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/files/cabal.project.local"
-[[ "$1" == "-o" ]] && OVERWRITE_LOCAL="Y"
-
-if [[ "${PWD##*/}" == "cardano-node" ]] && [[ "${OVERWRITE_LOCAL}" == "Y" ]]; then
+if [[ "${PWD##*/}" == "cardano-node" ]]; then
   echo "Overwriting cabal.project.local with latest file from guild-repo (previous file, if any, will be saved as cabal.project.local.swp).."
   [[ -f cabal.project.local ]] && mv cabal.project.local cabal.project.local.swp
-  curl -s -f -o cabal.project.local -C - "${URL_RAW}"
+  cat <<-EOF > cabal.project.local
+	package cardano-crypto-praos
+	flags: -external-libsodium-vrf
+	
+	source-repository-package
+	  type: git
+	  location: https://github.com/input-output-hk/bech32
+	  tag: v1.1.0
+	  subdir: bech32
+	
+	source-repository-package
+	  type: git
+	  location: https://github.com/input-output-hk/cardano-addresses
+	  tag: 2.1.0
+	  subdir: core
+	
+	source-repository-package
+	  type: git
+	  location: https://github.com/input-output-hk/cardano-addresses
+	  tag: 2.1.0
+	  subdir: command-line
+	EOF
   chmod 640 cabal.project.local
 fi
 
