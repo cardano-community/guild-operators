@@ -25,7 +25,7 @@
     "CREATE OR REPLACE FUNCTION get_pool_update(_pool_bech32 text, _current_epoch_no numeric default 0, _state text default '' )",
     "RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$",
     "BEGIN",
-      "RETURN ( SELECT json_agg( json_build_object(",
+      "RETURN ( SELECT json_agg(js) json_final FROM ( SELECT json_build_object(",
           "'update_id', pu.id,",
           "'hash_id', pu.hash_id,",
           "'registered_tx_id', pu.registered_tx_id,",
@@ -35,7 +35,7 @@
           "'fixed_cost', pu.fixed_cost,",
           "'reward_addr', RIGHT(encode(pu.reward_addr::bytea, 'hex'), -2),",
           "'meta_id', pu.meta_id",
-        ")",
+        ") js",
         "FROM pool_update AS pu",
         "INNER JOIN pool_hash AS ph ON pu.hash_id = ph.id",
         "WHERE ph.view = _pool_bech32",
@@ -48,7 +48,7 @@
         "LIMIT CASE",
           "WHEN _state = 'active' OR _state = 'latest' THEN 1",
         "END",
-      "));",
+      ") t );",
     "END; $$;"
   ]
 }

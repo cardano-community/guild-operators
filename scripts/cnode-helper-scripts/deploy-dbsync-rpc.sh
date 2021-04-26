@@ -34,6 +34,7 @@ jqDecode() {
 
 for row in $(jq -r '.[] | @base64' <<< ${rpc_file_list}); do
   file_name=$(jqDecode '.name' "${row}")
+  [[ -z ${file_name} || ${file_name} != *.json ]] && continue
   dl_url=$(jqDecode '.download_url //empty' "${row}")
   [[ -z ${dl_url} ]] && continue
   ! file_content=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && echo -e "${FG_RED}ERROR${NC}: download failed: ${dl_url}" && exit 1
@@ -45,7 +46,7 @@ for row in $(jq -r '.[] | @base64' <<< ${rpc_file_list}); do
   for example in $(jq -r '.example[] | @base64' <<< ${file_content}); do
     echo -e "Example $(jqDecode '.type' "${example}") query: ${FG_LGRAY}$(jqDecode '.command' "${example}")${NC}"
   done
-  ! output=$(jq -r '.sql | join("\n")' <<< ${file_content} | psql cexplorer 2>&1) && echo -e "${FG_RED}ERROR${NC}: ${output}" && exit 1
+  ! output=$(jq -r '.sql | join("\n")' <<< ${file_content} | psql cexplorer -v "ON_ERROR_STOP=1" 2>&1) && echo -e "\n${FG_RED}ERROR${NC}: ${output}"
   echo
 done
 
