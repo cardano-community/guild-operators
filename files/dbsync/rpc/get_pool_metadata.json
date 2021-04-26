@@ -1,0 +1,29 @@
+{
+  "function": "get_pool_metadata(_pool_meta_id)",
+  "description": "Get pool metadata url and hash",
+  "parameters": [
+    {
+      "name": "_pool_meta_id",
+      "description": "meta_id from get_pool_update() function"
+    }
+  ],
+  "example": [
+    {
+      "type": "rest",
+      "command": "curl -d _pool_meta_id=125 -s http://localhost:8050/rpc/get_pool_metadata"
+    }
+  ],
+  "sql": [
+    "CREATE OR REPLACE FUNCTION get_pool_metadata(_pool_meta_id numeric)",
+    "RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$",
+    "BEGIN",
+      "RETURN ( SELECT json_build_object(",
+          "'meta_url', pmd.url,",
+          "'meta_hash', encode(pmd.hash::bytea, 'hex')",
+        ")",
+        "FROM pool_meta_data AS pmd",
+        "WHERE pmd.id = _pool_meta_id",
+      ");",
+    "END; $$;"
+  ]
+}

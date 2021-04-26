@@ -2363,11 +2363,7 @@ function main {
             current_epoch=$(getEpoch)
             getPoolID ${pool_name}
             if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-              isPoolRegistered ${pool_name}
-              case $? in
-                1) pool_registered="NO" ;;
-                2) pool_registered="YES" ;;
-              esac
+              pool_registered="UNKNOWN"
             elif [[ -z ${PGREST_API} ]]; then
               tput sc && println "Parsing ledger-state, can take a while on larger networks...\n"
               ledger_pstate=$(jq -r '.stateBefore.esLState.delegationState.pstate' <<< ${ledger_state})
@@ -2409,12 +2405,16 @@ function main {
             println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Pool" "${pool_name}")"
             println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (hex)" "${pool_id}")"
             [[ -n ${pool_id_bech32} ]] && println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (bech32)" "${pool_id_bech32}")"
-            [[ ${pool_registered} = "YES" ]] && pool_reg_color="${FG_GREEN}" || pool_reg_color="${FG_RED}"
-            case ${retiring_epoch} in
-              -1) println "$(printf "%-21s : ${pool_reg_color}%s${NC} - ${FG_RED}Retired in epoch %s${NC}" "Registered" "${pool_registered}" "?")" ;;
-              0) println "$(printf "%-21s : ${pool_reg_color}%s${NC}" "Registered" "${pool_registered}")" ;;
-              *) println "$(printf "%-21s : ${pool_reg_color}%s${NC} - Retired in epoch ${FG_LBLUE}%s${NC}" "Registered" "${pool_registered}" "${retiring_epoch}")" ;;
-            esac
+            if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+              [[ ${pool_registered} = "YES" ]] && pool_reg_color="${FG_GREEN}" || pool_reg_color="${FG_RED}"
+              case ${retiring_epoch} in
+                -1) println "$(printf "%-21s : ${pool_reg_color}%s${NC} - ${FG_RED}Retired in epoch %s${NC}" "Registered" "${pool_registered}" "?")" ;;
+                0) println "$(printf "%-21s : ${pool_reg_color}%s${NC}" "Registered" "${pool_registered}")" ;;
+                *) println "$(printf "%-21s : ${pool_reg_color}%s${NC} - Retired in epoch ${FG_LBLUE}%s${NC}" "Registered" "${pool_registered}" "${retiring_epoch}")" ;;
+              esac
+            else
+              println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "Registered" "status unavailable in offline mode")" ;;
+            fi
             pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
             pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
             if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
@@ -2471,204 +2471,201 @@ function main {
                 println "$(printf "%-21s : %s" "Metadata" "download failed for ${meta_json_url}")"
               fi
             fi
-            if [[ "${pool_registered}" = "YES" ]]; then
-              if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-                if [[ -f "${pool_config}" ]]; then
-                  conf_pledge=$(( $(jq -r '.pledgeADA //0' "${pool_config}") * 1000000 ))
-                  conf_margin=$(jq -r '.margin //0' "${pool_config}")
-                  conf_cost=$(( $(jq -r '.costADA //0' "${pool_config}") * 1000000 ))
-                  conf_owner=$(jq -r '.pledgeWallet //"unknown"' "${pool_config}")
-                  conf_reward=$(jq -r '.rewardWallet //"unknown"' "${pool_config}")
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Pledge" "$(formatAsset "${conf_pledge::-6}")")"
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Margin" "${conf_margin}")"
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Cost" "$(formatAsset "${conf_cost::-6}")")"
-                  println "$(printf "%-21s : ${FG_GREEN}%s${NC} (%s)" "Owner Wallet" "${conf_owner}" "primary only, use online mode for multi-owner")"
-                  println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Reward Wallet" "${conf_reward}")"
-                  relay_title="Relay(s)"
-                  while read -r type address port; do
-                    if [[ ${type} != "DNS_A" && ${type} != "IPv4" && ${type} != "IPv6" ]]; then
-                      println "$(printf "%-21s : ${FG_YELLOW}%s${NC}" "${relay_title}" "unknown type (only IPv4/v6/DNS supported in CNTools)")"
-                    else
-                      println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${address}" "${port}")"
-                    fi
-                    relay_title=""
-                  done < <(jq -r '.relays[] | "\(.type) \(.address) \(.port)"' "${pool_config}")
+            if [[ ${CNTOOLS_MODE} = "OFFLINE" && -f "${pool_config}" ]]; then
+              conf_pledge=$(( $(jq -r '.pledgeADA //0' "${pool_config}") * 1000000 ))
+              conf_margin=$(jq -r '.margin //0' "${pool_config}")
+              conf_cost=$(( $(jq -r '.costADA //0' "${pool_config}") * 1000000 ))
+              conf_owner=$(jq -r '.pledgeWallet //"unknown"' "${pool_config}")
+              conf_reward=$(jq -r '.rewardWallet //"unknown"' "${pool_config}")
+              println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Pledge" "$(formatAsset "${conf_pledge::-6}")")"
+              println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Margin" "${conf_margin}")"
+              println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Cost" "$(formatAsset "${conf_cost::-6}")")"
+              println "$(printf "%-21s : ${FG_GREEN}%s${NC} (%s)" "Owner Wallet" "${conf_owner}" "primary only, use online mode for multi-owner")"
+              println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Reward Wallet" "${conf_reward}")"
+              relay_title="Relay(s)"
+              while read -r type address port; do
+                if [[ ${type} != "DNS_A" && ${type} != "IPv4" && ${type} != "IPv6" ]]; then
+                  println "$(printf "%-21s : ${FG_YELLOW}%s${NC}" "${relay_title}" "unknown type (only IPv4/v6/DNS supported in CNTools)")"
+                else
+                  println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${address}" "${port}")"
                 fi
+                relay_title=""
+              done < <(jq -r '.relays[] | "\(.type) \(.address) \(.port)"' "${pool_config}")
+            elif [[ "${pool_registered}" = "YES" ]]; then
+              # get pledge
+              if [[ -z ${PGREST_API} ]]; then
+                pParams_pledge=$(jq -r '.pledge //0' <<< "${ledger_pParams}")
+                fPParams_pledge=$(jq -r '.pledge //0' <<< "${ledger_fPParams}")
               else
-                # get pledge
-                if [[ -z ${PGREST_API} ]]; then
-                  pParams_pledge=$(jq -r '.pledge //0' <<< "${ledger_pParams}")
-                  fPParams_pledge=$(jq -r '.pledge //0' <<< "${ledger_fPParams}")
+                fPParams_pledge=$(jq -r '.[0].pledge //0' <<< "${pupd_latest}")
+                if [[ -n ${pupd_active} ]]; then
+                  pParams_pledge=$(jq -r '.[0].pledge //0' <<< "${pupd_active}")
                 else
-                  fPParams_pledge=$(jq -r '.[0].pledge //0' <<< "${pupd_latest}")
-                  if [[ -n ${pupd_active} ]]; then
-                    pParams_pledge=$(jq -r '.[0].pledge //0' <<< "${pupd_active}")
-                  else
-                    pParams_pledge=${fPParams_pledge}
-                  fi
-                fi
-                if [[ ${pParams_pledge} -eq ${fPParams_pledge} ]]; then
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Pledge" "$(formatAsset "${pParams_pledge::-6}")")"
-                else
-                  println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} Ada" "Pledge" "new" "$(formatAsset "${fPParams_pledge::-6}")" )"
-                fi
-                
-                # get margin
-                if [[ -z ${PGREST_API} ]]; then
-                  pParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_pParams}")")
-                  fPParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_fPParams}")")
-                else
-                  fPParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.[0].margin //0' <<< "${pupd_latest}")")
-                  if [[ -n ${pupd_active} ]]; then
-                    pParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.[0].margin //0' <<< "${pupd_active}")")
-                  else
-                    pParams_margin=${fPParams_margin}
-                  fi
-                fi
-                if [[ "${pParams_margin}" = "${fPParams_margin}" ]]; then
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Margin" "$(fractionToPCT "${pParams_margin}")")"
-                else
-                  println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} %%" "Margin" "new" "$(fractionToPCT "${fPParams_margin}")" )"
-                fi
-                
-                # get fixed cost
-                if [[ -z ${PGREST_API} ]]; then
-                  pParams_cost=$(jq -r '.cost //0' <<< "${ledger_pParams}")
-                  fPParams_cost=$(jq -r '.cost //0' <<< "${ledger_fPParams}")
-                else
-                  fPParams_cost=$(jq -r '.[0].fixed_cost //0' <<< "${pupd_latest}")
-                  if [[ -n ${pupd_active} ]]; then
-                    pParams_cost=$(jq -r '.[0].fixed_cost //0' <<< "${pupd_active}")
-                  else
-                    pParams_cost=${fPParams_cost}
-                  fi
-                fi
-                if [[ ${pParams_cost} -eq ${fPParams_cost} ]]; then
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Cost" "$(formatAsset "${pParams_cost::-6}")")"
-                else
-                  println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} Ada" "Cost" "new" "$(formatAsset "${fPParams_cost::-6}")" )"
-                fi
-                
-                # get relays
-                if [[ -z ${PGREST_API} ]]; then
-                  relays=$(jq -c '.relays[] //empty' <<< "${ledger_fPParams}")
-                  if [[ ${relays} != $(jq -c '.relays[] //empty' <<< "${ledger_pParams}") ]]; then
-                    println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Relay(s) updated, showing latest registered")"
-                  fi
-                else
-                  relays=$(jq -c '.[] //empty' <<< "${prelay_latest}")
-                  if [[ ${relays} != $(jq -c '.[] //empty' <<< "${prelay_active}") ]]; then
-                    println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Relay(s) updated, showing latest registered")"
-                  fi
-                fi
-                relay_title="Relay(s)"
-                if [[ -n "${relays}" ]]; then
-                  while read -r relay; do
-                    relay_addr=""; relay_port=""                  
-                    if [[ -z ${PGREST_API} ]]; then
-                      relay_addr="$(jq -r '."single host address".IPv4 //empty' <<< ${relay})"
-                      if [[ -n ${relay_addr} ]]; then
-                        relay_port="$(jq -r '."single host address".port //empty' <<< ${relay})"
-                      else
-                        relay_addr="$(jq -r '."single host name".dnsName //empty' <<< ${relay})"
-                        if [[ -n ${relay_addr} ]]; then
-                          relay_port="$(jq -r '."single host name".port //empty' <<< ${relay})"
-                        else
-                          relay_addr="$(jq -r '."single host address".IPv6 //empty' <<< ${relay})"
-                          if [[ -n ${relay_addr} ]]; then
-                            relay_port="$(jq -r '."single host address".port //empty' <<< ${relay})"
-                          else
-                            relay_addr="unknown type"
-                            relay_port=" only IPv4/v6/DNS supported in CNTools"
-                          fi
-                        fi
-                      fi
-                    else
-                      relay_addr="$(jq -r '.ipv4 //empty' <<< ${relay})"
-                      relay_port="$(jq -r '.port //empty' <<< ${relay})"
-                      if [[ -z ${relay_addr} ]]; then
-                        relay_addr="$(jq -r '.dns //empty' <<< ${relay})"
-                        if [[ -z ${relay_addr} ]]; then
-                          relay_addr="$(jq -r '.ipv6 //empty' <<< ${relay})"
-                          if [[ -z ${relay_addr} ]]; then
-                            relay_addr="unknown type"
-                            relay_port=" only IPv4/v6/DNS supported in CNTools"
-                          fi
-                        fi
-                      fi
-                    fi
-                    println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${relay_addr}" "${relay_port}")"
-                    relay_title=""
-                  done <<< "${relays}"
-                fi
-                
-                # get owners
-                if [[ -z ${PGREST_API} ]]; then
-                  owners=$(jq -c '.owners[] // empty' <<< "${ledger_fPParams}")
-                  if [[ ${owners} != $(jq -c '.owners[] // empty' <<< "${ledger_pParams}") ]]; then
-                    println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Owner(s) updated, showing latest registered")"
-                  fi
-                else
-                  owners=$(jq -c '.[] //empty' <<< "${powner_latest}")
-                  if [[ ${owners} != $(jq -c '.[] //empty' <<< "${powner_active}") ]]; then
-                    println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Owner(s) updated, showing latest registered")"
-                  fi
-                fi
-                owner_title="Owner(s)"
-                while read -r owner; do
-                  [[ -z ${PGREST_API} ]] && owner_hash=${owner} || owner_hash=$(jq -r '.owner_hash //empty' <<< "${owner}")
-                  owner_wallet=$(grep -r ${owner_hash} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
-                  if [[ -n ${owner_wallet} ]]; then
-                    owner_wallet="$(basename "$(dirname "${owner_wallet}")")"
-                    println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "${owner_title}" "${owner_wallet}")"
-                  else
-                    if [[ -z ${PGREST_API} ]]; then
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "${owner_title}" "${owner}")"
-                    else
-                      ! owner_addr=$(jq -er '.reward_addr //empty' <<< "${owner}") && owner_addr=${owner_hash}
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "${owner_title}" "${owner_addr}")"
-                    fi
-                  fi
-                  owner_title=""
-                done <<< "${owners}"
-                
-                # get reward account
-                if [[ -z ${PGREST_API} ]]; then
-                  reward_account=$(jq -r '.rewardAccount.credential."key hash" // empty' <<< "${ledger_fPParams}")
-                  if [[ ${reward_account} != $(jq -r '.rewardAccount.credential."key hash" // empty' <<< "${ledger_pParams}") ]]; then
-                    println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Reward account updated, showing latest registered")"
-                  fi
-                else
-                  reward_account=$(jq -r '.[0].reward_addr //empty' <<< "${pupd_latest}")
-                  if [[ ${reward_account} != $(jq -r '.[0].reward_addr //empty' <<< "${pupd_active}") ]]; then
-                    println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Reward account updated, showing latest registered")"
-                  fi
-                fi
-                if [[ -n ${reward_account} ]]; then
-                  reward_wallet=$(grep -r ${reward_account} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
-                  if [[ -n ${reward_wallet} ]]; then
-                    reward_wallet="$(basename "$(dirname "${reward_wallet}")")"
-                    println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Reward wallet" "${reward_wallet}")"
-                  else
-                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "Reward account" "${reward_account}")"
-                  fi
-                fi
-                
-                # get stake distribution
-                if [[ -z ${PGREST_API} ]]; then
-                  println "ACTION" "LC_NUMERIC=C printf %.10f \$(${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | grep ${pool_id_bech32} | tr -s ' ' | cut -d ' ' -f 2))"
-                  stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | grep "${pool_id_bech32}" | tr -s ' ' | cut -d ' ' -f 2)")")
-                  if validateDecimalNbr ${stake_pct}; then
-                    println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Stake distribution" "${stake_pct}")"
-                  fi
-                else
-                  p_active_stake=$(jq -r '.[0].active_stake_sum //0' <<< "${p_active_stake}")
-                  t_active_stake=$(jq -r '.[0].active_stake_sum //0' <<< "${t_active_stake}")
-                  p_delegator_cnt=$(jq -r '.[0].delegator_count //0' <<< "${p_delegator_cnt}")
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada (${FG_LBLUE}%s${NC} %%)" "Active Stake" "$(formatLovelace "${p_active_stake}")" "$(LC_NUMERIC=C printf "%.4f" "$(fractionToPCT "$(bc -l <<< "${p_active_stake}/${t_active_stake}")")")")"
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} (incl owners)" "Total Delegators" "${p_delegator_cnt}")"
+                  pParams_pledge=${fPParams_pledge}
                 fi
               fi
+              if [[ ${pParams_pledge} -eq ${fPParams_pledge} ]]; then
+                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Pledge" "$(formatAsset "${pParams_pledge::-6}")")"
+              else
+                println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} Ada" "Pledge" "new" "$(formatAsset "${fPParams_pledge::-6}")" )"
+              fi
+              
+              # get margin
+              if [[ -z ${PGREST_API} ]]; then
+                pParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_pParams}")")
+                fPParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_fPParams}")")
+              else
+                fPParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.[0].margin //0' <<< "${pupd_latest}")")
+                if [[ -n ${pupd_active} ]]; then
+                  pParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.[0].margin //0' <<< "${pupd_active}")")
+                else
+                  pParams_margin=${fPParams_margin}
+                fi
+              fi
+              if [[ "${pParams_margin}" = "${fPParams_margin}" ]]; then
+                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Margin" "$(fractionToPCT "${pParams_margin}")")"
+              else
+                println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} %%" "Margin" "new" "$(fractionToPCT "${fPParams_margin}")" )"
+              fi
+              
+              # get fixed cost
+              if [[ -z ${PGREST_API} ]]; then
+                pParams_cost=$(jq -r '.cost //0' <<< "${ledger_pParams}")
+                fPParams_cost=$(jq -r '.cost //0' <<< "${ledger_fPParams}")
+              else
+                fPParams_cost=$(jq -r '.[0].fixed_cost //0' <<< "${pupd_latest}")
+                if [[ -n ${pupd_active} ]]; then
+                  pParams_cost=$(jq -r '.[0].fixed_cost //0' <<< "${pupd_active}")
+                else
+                  pParams_cost=${fPParams_cost}
+                fi
+              fi
+              if [[ ${pParams_cost} -eq ${fPParams_cost} ]]; then
+                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Cost" "$(formatAsset "${pParams_cost::-6}")")"
+              else
+                println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} Ada" "Cost" "new" "$(formatAsset "${fPParams_cost::-6}")" )"
+              fi
+              
+              # get relays
+              if [[ -z ${PGREST_API} ]]; then
+                relays=$(jq -c '.relays[] //empty' <<< "${ledger_fPParams}")
+                if [[ ${relays} != $(jq -c '.relays[] //empty' <<< "${ledger_pParams}") ]]; then
+                  println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Relay(s) updated, showing latest registered")"
+                fi
+              else
+                relays=$(jq -c '.[] //empty' <<< "${prelay_latest}")
+                if [[ ${relays} != $(jq -c '.[] //empty' <<< "${prelay_active}") ]]; then
+                  println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Relay(s) updated, showing latest registered")"
+                fi
+              fi
+              relay_title="Relay(s)"
+              if [[ -n "${relays}" ]]; then
+                while read -r relay; do
+                  relay_addr=""; relay_port=""                  
+                  if [[ -z ${PGREST_API} ]]; then
+                    relay_addr="$(jq -r '."single host address".IPv4 //empty' <<< ${relay})"
+                    if [[ -n ${relay_addr} ]]; then
+                      relay_port="$(jq -r '."single host address".port //empty' <<< ${relay})"
+                    else
+                      relay_addr="$(jq -r '."single host name".dnsName //empty' <<< ${relay})"
+                      if [[ -n ${relay_addr} ]]; then
+                        relay_port="$(jq -r '."single host name".port //empty' <<< ${relay})"
+                      else
+                        relay_addr="$(jq -r '."single host address".IPv6 //empty' <<< ${relay})"
+                        if [[ -n ${relay_addr} ]]; then
+                          relay_port="$(jq -r '."single host address".port //empty' <<< ${relay})"
+                        else
+                          relay_addr="unknown type"
+                          relay_port=" only IPv4/v6/DNS supported in CNTools"
+                        fi
+                      fi
+                    fi
+                  else
+                    relay_addr="$(jq -r '.ipv4 //empty' <<< ${relay})"
+                    relay_port="$(jq -r '.port //empty' <<< ${relay})"
+                    if [[ -z ${relay_addr} ]]; then
+                      relay_addr="$(jq -r '.dns //empty' <<< ${relay})"
+                      if [[ -z ${relay_addr} ]]; then
+                        relay_addr="$(jq -r '.ipv6 //empty' <<< ${relay})"
+                        if [[ -z ${relay_addr} ]]; then
+                          relay_addr="unknown type"
+                          relay_port=" only IPv4/v6/DNS supported in CNTools"
+                        fi
+                      fi
+                    fi
+                  fi
+                  println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${relay_addr}" "${relay_port}")"
+                  relay_title=""
+                done <<< "${relays}"
+              fi
+              
+              # get owners
+              if [[ -z ${PGREST_API} ]]; then
+                owners=$(jq -c '.owners[] // empty' <<< "${ledger_fPParams}")
+                if [[ ${owners} != $(jq -c '.owners[] // empty' <<< "${ledger_pParams}") ]]; then
+                  println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Owner(s) updated, showing latest registered")"
+                fi
+              else
+                owners=$(jq -c '.[] //empty' <<< "${powner_latest}")
+                if [[ ${owners} != $(jq -c '.[] //empty' <<< "${powner_active}") ]]; then
+                  println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Owner(s) updated, showing latest registered")"
+                fi
+              fi
+              owner_title="Owner(s)"
+              while read -r owner; do
+                [[ -z ${PGREST_API} ]] && owner_hash=${owner} || owner_hash=$(jq -r '.owner_hash //empty' <<< "${owner}")
+                owner_wallet=$(grep -r ${owner_hash} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
+                if [[ -n ${owner_wallet} ]]; then
+                  owner_wallet="$(basename "$(dirname "${owner_wallet}")")"
+                  println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "${owner_title}" "${owner_wallet}")"
+                else
+                  if [[ -z ${PGREST_API} ]]; then
+                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "${owner_title}" "${owner}")"
+                  else
+                    ! owner_addr=$(jq -er '.reward_addr //empty' <<< "${owner}") && owner_addr=${owner_hash}
+                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "${owner_title}" "${owner_addr}")"
+                  fi
+                fi
+                owner_title=""
+              done <<< "${owners}"
+              
+              # get reward account
+              if [[ -z ${PGREST_API} ]]; then
+                reward_account=$(jq -r '.rewardAccount.credential."key hash" // empty' <<< "${ledger_fPParams}")
+                if [[ ${reward_account} != $(jq -r '.rewardAccount.credential."key hash" // empty' <<< "${ledger_pParams}") ]]; then
+                  println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Reward account updated, showing latest registered")"
+                fi
+              else
+                reward_account=$(jq -r '.[0].reward_addr //empty' <<< "${pupd_latest}")
+                if [[ ${reward_account} != $(jq -r '.[0].reward_addr //empty' <<< "${pupd_active}") ]]; then
+                  println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Reward account updated, showing latest registered")"
+                fi
+              fi
+              if [[ -n ${reward_account} ]]; then
+                reward_wallet=$(grep -r ${reward_account} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
+                if [[ -n ${reward_wallet} ]]; then
+                  reward_wallet="$(basename "$(dirname "${reward_wallet}")")"
+                  println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Reward wallet" "${reward_wallet}")"
+                else
+                  println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "Reward account" "${reward_account}")"
+                fi
+              fi
+              
+              # get stake distribution
+              if [[ -z ${PGREST_API} ]]; then
+                println "ACTION" "LC_NUMERIC=C printf %.10f \$(${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | grep ${pool_id_bech32} | tr -s ' ' | cut -d ' ' -f 2))"
+                stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | grep "${pool_id_bech32}" | tr -s ' ' | cut -d ' ' -f 2)")")
+                if validateDecimalNbr ${stake_pct}; then
+                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Stake distribution" "${stake_pct}")"
+                fi
+              else
+                p_active_stake=$(jq -r '.[0].active_stake_sum //0' <<< "${p_active_stake}")
+                t_active_stake=$(jq -r '.[0].active_stake_sum //0' <<< "${t_active_stake}")
+                p_delegator_cnt=$(jq -r '.[0].delegator_count //0' <<< "${p_delegator_cnt}")
+                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada (${FG_LBLUE}%s${NC} %%)" "Active Stake" "$(formatLovelace "${p_active_stake}")" "$(LC_NUMERIC=C printf "%.4f" "$(fractionToPCT "$(bc -l <<< "${p_active_stake}/${t_active_stake}")")")")"
+                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} (incl owners)" "Total Delegators" "${p_delegator_cnt}")"
+              fi
+
               if [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]]; then
                 kesExpiration "$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
                 if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then

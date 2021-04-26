@@ -1,0 +1,32 @@
+{
+  "function": "get_pool_relays(_pool_update_id)",
+  "description": "Get registered pool relays",
+  "parameters": [
+    {
+      "name": "_pool_update_id",
+      "description": "update_id from get_pool_update() function"
+    }
+  ],
+  "example": [
+    {
+      "type": "rest",
+      "command": "curl -d _pool_update_id=1296 -s http://localhost:8050/rpc/get_pool_relays"
+    }
+  ],
+  "sql": [
+    "CREATE OR REPLACE FUNCTION get_pool_relays(_pool_update_id numeric)",
+    "RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$",
+    "BEGIN",
+      "RETURN ( SELECT json_build_object(",
+          "'ipv4', pr.ipv4,",
+          "'ipv6', pr.ipv6,",
+          "'dns', pr.dns_name,",
+          "'srv', pr.dns_srv_name,",
+          "'port', pr.port",
+        ")",
+        "FROM pool_relay AS pr",
+        "WHERE pr.update_id = _pool_update_id",
+      ");",
+    "END; $$;"
+  ]
+}
