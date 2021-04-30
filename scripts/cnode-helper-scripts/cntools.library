@@ -272,22 +272,22 @@ dirDialog() {
 # Description : Create a bash menu to select one of the provided options
 # Parameters  : optX  >  a list of available options to choose from
 ESC=$(printf "\033")
-cursor_blink_on()  { printf "$ESC[?25h"; }
-cursor_blink_off() { printf "$ESC[?25l"; }
-cursor_to()        { printf "$ESC[$1;${2:-1}H"; }
+cursor_blink_on()  { printf "${ESC}[?25h"; }
+cursor_blink_off() { printf "${ESC}[?25l"; }
+cursor_to()        { printf "${ESC}[$1;${2:-1}H"; }
 print_option()     { printf "  $1 "; }
-print_selected()   { printf " $ESC[7m $1 $ESC[27m$2"; }
+print_selected()   { printf " ${ESC}[7m $1 ${ESC}[27m$2"; }
 get_cursor_row()   { IFS=';' read -sdR -p $'\E[6n' ROW COL; echo ${ROW#*[}; }
 key_input()        { key2=""
                      read -rsn1 key1   # get 1 character
-                     if [[ $key1 == $ESC ]]; then
+                     if [[ $key1 == "${ESC}" ]]; then
                        read -rsn2 -t 0.3 key2 # read 2 more chars, 1s timeout
                      fi
-                       if [[ $key2 = "[A" ]]; then echo up;
-                     elif [[ $key2 = "[B" ]]; then echo down;
-                     elif [[ $key1 = $ESC && $key2 = "" ]]; then echo Esc;
-                     elif [[ $key1 = ""   ]]; then echo enter;
-                     else echo $key1; fi; }
+                       if [[ ${key2} = "[A" ]]; then echo up;
+                     elif [[ ${key2} = "[B" ]]; then echo down;
+                     elif [[ ${key1} = "${ESC}" && ${key2} = "" ]]; then echo Esc;
+                     elif [[ ${key1} = ""   ]]; then echo enter;
+                     else echo ${key1}; fi; }
 opt_shortcut()     { [[ "$1" =~ ^\[([[:alnum:]]+)\].* ]] && echo ${BASH_REMATCH[1]}; }
 opt_firstchar()    { printf "${1:0:1}" | tr '[:upper:]' '[:lower:]'; }
 selectOption() {
@@ -297,8 +297,7 @@ selectOption() {
   printf "\n" && for opt; do printf "\n"; done
 
   # determine current screen position for overwriting the options
-  local lastrow=$(get_cursor_row)
-  local startrow=$(($lastrow - $# - 1))
+  local startrow=$(( $(get_cursor_row) - $# - 1 ))
 
   cursor_blink_off
 
@@ -315,11 +314,11 @@ selectOption() {
       else
         opt_part1="$opt"
       fi
-      cursor_to $(($startrow + $idx))
-      if [ $idx -eq $selected ]; then
-        print_selected "$opt_part1" "$opt_part2"
+      cursor_to $(( startrow + idx ))
+      if [ ${idx} -eq ${selected} ]; then
+        print_selected "${opt_part1}" "${opt_part2}"
       else
-        print_option "$opt_part1$opt_part2"
+        print_option "${opt_part1}${opt_part2}"
       fi
       ((idx++))
     done
@@ -331,19 +330,19 @@ selectOption() {
     case ${key_pressed} in
       enter) break;;
       up)    ((selected--));
-             if [ $selected -lt 0 ]; then selected=$(($# - 1)); fi;;
+             if [ ${selected} -lt 0 ]; then selected=$(($# - 1)); fi;;
       down)  ((selected++));
-             if [ $selected -ge $# ]; then selected=0; fi;;
+             if [ ${selected} -ge $# ]; then selected=0; fi;;
       *)     # shortcut available for selected key?
              i=0
              for opt; do
-               [[ ${key_pressed} = $(opt_shortcut "$opt") ]] && selected=${i} && shortcut_found="yes" && break
+               [[ ${key_pressed} = $(opt_shortcut "${opt}") ]] && selected=${i} && shortcut_found="yes" && break
                ((i++))
              done
              # If no shortcut is found, lets see if it matches the first char of any of the options
              j=0
              for opt; do
-               [[ "${shortcut_found}" != "yes" && ${key_pressed} = $(opt_firstchar "$opt") ]] && selected=${j} && break
+               [[ "${shortcut_found}" != "yes" && ${key_pressed} = $(opt_firstchar "${opt}") ]] && selected=${j} && break
                ((j++))
              done
              ;;
@@ -1145,7 +1144,7 @@ registerStakeWallet() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
   
   min_fee_args=(
@@ -1243,7 +1242,7 @@ deregisterStakeWallet() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -1457,7 +1456,7 @@ delegate() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -1542,7 +1541,7 @@ withdrawRewards() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -1632,7 +1631,7 @@ registerPool() {
   if [[ ${delegate_reward_wallet} = 'Y' ]]; then
     reward_delegation_cert="${reward_delegation_cert_file}"
     reward_mu='N'
-    for wallet_name in ${owner_wallets[@]}; do
+    for wallet_name in "${owner_wallets[@]}"; do
       [[ "${wallet_name}" = "${reward_wallet}" ]] && reward_mu='Y' && break # reward wallet is also a multi owner, witness count already include reward wallet stake key
     done
     [[ ${reward_mu} = 'N' ]] && ((witness_count++)) # reward wallet to be delegated but not a multi-owner, increase witness count
@@ -1658,7 +1657,7 @@ registerPool() {
   )
   [[ -n ${owner_delegation_cert} ]] && dummy_build_args+=( --certificate-file "${owner_delegation_cert}" )
   [[ -n ${reward_delegation_cert} ]] && dummy_build_args+=( --certificate-file "${reward_delegation_cert}" )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -1777,7 +1776,7 @@ modifyPool() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -1888,7 +1887,7 @@ deRegisterPool() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -2020,7 +2019,7 @@ sendMetadata() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -2115,7 +2114,7 @@ mintAsset() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
   
   min_fee_args=(
@@ -2218,7 +2217,7 @@ burnAsset() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -2328,7 +2327,7 @@ witnessTx() {
         --out-file "${tx_witness}"
       )
       println ACTION "${witness_command[@]}"
-      if ! ${witness_command[@]}; then println ERROR "\n${FG_RED}ERROR${NC}: during hardware wallet signing !!" && return 1; fi
+      if ! "${witness_command[@]}"; then println ERROR "\n${FG_RED}ERROR${NC}: during hardware wallet signing !!" && return 1; fi
     else
       tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
       witness_command=(
@@ -2339,7 +2338,7 @@ witnessTx() {
         --out-file "${tx_witness}"
       )
       println ACTION "${witness_command[@]}"
-      if ! ${witness_command[@]}; then println ERROR "\n${FG_RED}ERROR${NC}: during transaction signing !!" && return 1; fi
+      if ! "${witness_command[@]}"; then println ERROR "\n${FG_RED}ERROR${NC}: during transaction signing !!" && return 1; fi
     fi
     tx_witness_files+=( "${tx_witness}" )
   done
@@ -2368,7 +2367,7 @@ assembleTx() {
       --out-file "${tx_signed}"
     )
     println ACTION "${sign_command[@]}"
-    ${sign_command[@]}
+    "${sign_command[@]}"
   else
     println ERROR "\n${FG_RED}ERROR${NC}: no witness files provided, unable to assemble tx!"
     return 1
@@ -2430,7 +2429,7 @@ signTx() {
   fi
   
   println ACTION "${sign_command[@]}"
-  ${sign_command[@]}
+  "${sign_command[@]}"
 }
 
 # Command     : submitTx [signed tx file]
@@ -2446,7 +2445,7 @@ submitTx() {
   )
   
   println ACTION "${submit_command[@]}"
-  ${submit_command[@]}
+  "${submit_command[@]}"
 }
 
 # Command     : unlockHWDevice [action]
@@ -2505,4 +2504,65 @@ selectOpMode() {
     1) op_mode="hybrid" ;;
     2) return 1 ;;
   esac
+}
+
+# Command     : runDBSyncQuery [json query]
+# Description : Helper function to execute DB-Sync query
+# Parameters  : json query  >  JSON schema for the query to run
+runDBSyncQuery() {
+  json_query=$1
+  
+  declare -A variables=()
+  for variable in $(jq -r '.variables[] | @base64' <<< "${json_query}"); do
+    v_name=$(base64 -d <<< ${variable} | jq -r '.name')
+    v_name=${v_name//[^[:alnum:]]/_}
+    v_question=$(base64 -d <<< ${variable} | jq -r '.question')
+    v_mandatory=$(base64 -d <<< ${variable} | jq -r '.mandatory')
+    echo
+    getAnswerAnyCust answer "${v_question}"
+    [[ -z ${answer} && ${v_mandatory} = true ]] && println ERROR "${FG_RED}ERROR${NC}: answer empty for a mandatory question :(" && return 1
+    variables[${v_name}]="${answer}"
+  done
+  echo
+
+  for query in $(jq -r '.queries[] | @base64' <<< "${json_query}"); do
+    q_name=$(base64 -d <<< ${query} | jq -r '.name')
+    q_print=$(base64 -d <<< ${query} | jq -r '.print')
+    q_uri=$(base64 -d <<< ${query} | jq -r '.uri')
+
+    q_data=()
+    for data in $(base64 -d <<< ${query} | jq -r '.data[] | @base64'); do
+      d_type=$(base64 -d <<< ${data} | jq -r '.type')
+      [[ ${d_type} = query_result ]] && d_q_name=$(base64 -d <<< ${data} | jq -r '.queryName') && d_q_name=${d_q_name//[^[:alnum:]]/_}
+      d_arg=$(base64 -d <<< ${data} | jq -r '.arg')
+      d_payload=$(base64 -d <<< ${data} | jq -r '.payload')
+      if [[ ${d_type} = query_result && -n ${d_q_name} && ${variables[query_${d_q_name}]+isset} ]]; then
+        q_json_payload=$(jq -r "${d_payload}" <<< "${variables[query_${d_q_name}]}")
+        q_data+=( "-d" "${d_arg}=${q_json_payload}" )
+      elif [[ ${d_type} = query_variable && ${variables[${d_payload}]+isset} ]]; then
+        q_data+=( "-d" "${d_arg}=${variables[${d_payload}]}" )
+      elif [[ ${d_type} = cntools_variable && -n ${!d_payload} ]]; then
+        q_data+=( "-d" "${d_arg}=${!d_payload}" )
+      else
+        println ERROR "\n${FG_RED}ERROR${NC}: variable defined in query not set: '${d_payload}'\n" && return 1
+      fi
+    done
+
+    println LOG "curl -sSL -f ${q_data[*]} ${PGREST_API}/${q_uri}"
+    if ! q_result=$(curl -sSL -f "${q_data[@]}" "${PGREST_API}/${q_uri}" 2>&1) || ! jq -e . <<< ${q_result} &>/dev/null; then
+      println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: ${q_uri}: ${q_result}" && return 1
+    fi
+    println LOG "$(jq -c . <<< ${q_result})"
+    variables[query_${q_name//[^[:alnum:]]/_}]="${q_result}"
+    if [[ ${q_print} = true ]]; then
+      exec >&6 # normal stdout
+      println OFF "  ${FG_LBLUE}> ${FG_GREEN}${q_name} ${FG_LBLUE}<${NC}"
+      jq -r . <<< ${q_result}
+      exec >&8 # custom stdout
+    fi
+
+    echo
+  done
+
+  return 0
 }
