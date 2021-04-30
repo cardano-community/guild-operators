@@ -4412,6 +4412,7 @@ function main {
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
                 declare -A ca_menu1=(); declare -A ca_menu2=(); declare -A ca_menu3=()
+                mkdir -p "${DBSYNC_QUERY_FOLDER}"
                 while IFS= read -r -d '' query_file; do
                   ! query_file_json=$(jq -er '.' "${query_file}") && println ERROR "${FG_RED}ERROR${NC}: .menuPath missing in '${FG_LGRAY}${query_file}${NC}'" && waitForInput && break 2
                   ! menu_path=$(jq -er '.menuPath' <<< ${query_file_json}) && println ERROR "${FG_RED}ERROR${NC}: .menuPath missing in '${FG_LGRAY}${query_file}${NC}'" && waitForInput && break 2
@@ -4430,9 +4431,8 @@ function main {
                   fi
                 done < <(find "${DBSYNC_QUERY_FOLDER}" -mindepth 1 -maxdepth 1 -type f -name '*.json' -print0)
 
-                [[ ${#ca_menu1[@]} -eq 0 ]] && println "${FG_YELLOW}INFO${NC}: No menu entries found parsing files in '${FG_LGRAY}${DBSYNC_QUERY_FOLDER}${NC}'" && waitForInput && break
-
                 println OFF " Chain Analysis - Main Menu\n"
+                
                 index=0; ca_menu1_select=()
                 for mi in "${!ca_menu1[@]}"; do
                   mi_desc=$(jq -er '.description //empty' <<< "${ca_menu1[${mi}]}")
@@ -4453,7 +4453,7 @@ function main {
                   println " >> ADVANCED >> CHAIN-ANALYSIS >> DOWNLOAD QUERIES"
                   println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                   println DEBUG "\nDownloading official DBSync queries from Guild Operators GitHub site ..\n"
-                  if ! rpc_file_list=$(curl -s -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/dbsync/queries?ref=${BRANCH}); then
+                  if ! query_file_list=$(curl -s -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/dbsync/queries?ref=${BRANCH}); then
                     println ERROR "${FG_RED}ERROR${NC}: ${query_file_list}" && waitForInput && continue
                   fi
                   for row in $(jq -r '.[] | @base64' <<< ${query_file_list}); do
@@ -4471,7 +4471,7 @@ function main {
                     echo
                   done
                   println DEBUG "${FG_GREEN}All DBSync queries successfully download!${NC}"
-                  println DEBUG "${FG_YELLOW}'ADVANCED >> CHAIN-ANALYSIS' menu will automatically be populated${NC}\n"
+                  println DEBUG "${FG_YELLOW}'ADVANCED >> CHAIN-ANALYSIS' menu will automatically be populated${NC}"
                   waitForInput && continue
                 fi
 

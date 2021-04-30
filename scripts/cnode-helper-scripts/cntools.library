@@ -2523,12 +2523,13 @@ runDBSyncQuery() {
     [[ -z ${answer} && ${v_mandatory} = true ]] && println ERROR "${FG_RED}ERROR${NC}: answer empty for a mandatory question :(" && return 1
     variables[${v_name}]="${answer}"
   done
-  echo
 
   for query in $(jq -r '.queries[] | @base64' <<< "${json_query}"); do
     q_name=$(base64 -d <<< ${query} | jq -r '.name')
     q_print=$(base64 -d <<< ${query} | jq -r '.print')
     q_uri=$(base64 -d <<< ${query} | jq -r '.uri')
+
+    [[ ${q_print} = true ]] && echo
 
     q_data=()
     for data in $(base64 -d <<< ${query} | jq -r '.data[] | @base64'); do
@@ -2560,8 +2561,6 @@ runDBSyncQuery() {
       jq -r . <<< ${q_result}
       exec >&8 # custom stdout
     fi
-
-    echo
   done
 
   return 0
