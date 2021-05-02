@@ -5,6 +5,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.2.2] - 2021-05-02
+##### Fixed
+- KES expiration date fix
+
 ## [8.2.1] - 2021-04-26
 ##### Changed
 - Make use of UPDATE_CHECK environment variable to skip any checks to internet by default
