@@ -108,8 +108,8 @@ getLedgerData() { # getNodeMetrics expected to have been already run
     echo "ERROR: stake-snapshot query failed: ${stake_snapshot}"
     return 1
   fi
-  pool_stake_go=$(jq -r .poolStakeGo <<< ${stake_snapshot})
-  active_stake_go=$(jq -r .activeStakeGo <<< ${stake_snapshot})
+  #pool_stake_go=$(jq -r .poolStakeGo <<< ${stake_snapshot})
+  #active_stake_go=$(jq -r .activeStakeGo <<< ${stake_snapshot})
   pool_stake_mark=$(jq -r .poolStakeMark <<< ${stake_snapshot})
   active_stake_mark=$(jq -r .activeStakeMark <<< ${stake_snapshot})
   pool_stake_set=$(jq -r .poolStakeSet <<< ${stake_snapshot})
