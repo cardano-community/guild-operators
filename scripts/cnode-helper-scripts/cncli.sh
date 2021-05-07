@@ -218,7 +218,7 @@ cncliLeaderlog() {
     echo "Running leaderlogs for epoch ${curr_epoch} and adding leader slots not already in DB"
     stake_param_current=""
     if [[ ${LEDGER_API} = false || ${NWMAGIC} -ne 764824073 ]]; then 
-      if ! getLedgerData; then exit 1; else stake_param_current="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"; fi
+      if ! getLedgerData; then exit 1; else stake_param_current="--active-stake ${active_stake_set} --pool-stake ${pool_stake_set}"; fi
     fi
     cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current ${stake_param_current} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
     if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
@@ -280,7 +280,7 @@ cncliLeaderlog() {
       echo "Running leaderlogs for next epoch[${next_epoch}]"
       stake_param_next=""
       if [[ ${LEDGER_API} = false || ${NWMAGIC} -ne 764824073 ]]; then 
-        if ! getLedgerData; then sleep 300; continue; else stake_param_next="--active-stake ${active_stake_set} --pool-stake ${pool_stake_set}"; fi # Sleep for 5 min before retrying to query stake snapshot in case of error
+        if ! getLedgerData; then sleep 300; continue; else stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"; fi # Sleep for 5 min before retrying to query stake snapshot in case of error
       fi
       cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next ${stake_param_next} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
       if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
