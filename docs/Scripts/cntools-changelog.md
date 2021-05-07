@@ -5,6 +5,24 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.3.0] - 2021-05-16
+##### Added
+- New env variable called PGREST_API and if set and reachable, used instead of local node queries and for advanced modes
+- New library function isPoolRegistered() for verifying if a pool is registered or not using either simple reg cert file detection (if REST API not set/reachable) or proper dbsync lookup using REST API. Used by Pool >> Show|List|Register|Modify
+- ** ADVANCED FEATURE ** - Chain Queries
+  - Menu is dynamically built based on queries(JSON files) in DBSYNC_QUERY_FOLDER (env variable, default files/dbsync/queries) three levels deep.
+  - A download option lets the user download the latest uploaded queries on Guild Operators GitHub site.
+  - Query files
+    - Contains menu path, description, variables, and queries(multiple)
+    - Executes a predefined DBSync RPC/function through PostgREST API
+    - Variables used in RPC call can either be user input, CNTools variables like EKG metrics, or an item in the result from a previous query(in the same query file)
+    - Result from RPC call can either be printed or silent(only to be used for later query)
+    - Output is printed as JSON
+##### Changed
+- Minimum node version bumped to 1.27.0
+- Menu has been re-designed with both back & home options. Instead of returning to home menu after the completed operation user is returned to the last menu.
+- Pool >> Show now use PostgREST API(if set), or the new pool-params cli query as fallback method.
+
 ## [8.2.2] - 2021-05-02
 ##### Fixed
 - KES expiration date fix

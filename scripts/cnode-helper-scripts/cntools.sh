@@ -2360,49 +2360,24 @@ function main {
               getPoolID ${pool_name}
               tput rc && tput ed
               if [[ ${CNTOOLS_MODE} = "CONNECTED" && -z ${PGREST_API} ]]; then
-                if versionCheck "1.27.0" "${node_version}"; then
-                  tput sc && println DEBUG "Quering pool parameters from node, can take a while...\n"
-                  println ACTION "${CCLI} query pool-params --stake-pool-id ${pool_id_bech32} ${NETWORK_IDENTIFIER}"
-                  if ! pool_params=$(${CCLI} query pool-params --stake-pool-id ${pool_id_bech32} ${NETWORK_IDENTIFIER} 2>&1); then
-                    tput rc && tput ed
-                    println ERROR "${FG_RED}ERROR${NC}: pool-params query failed: ${pool_params}"
-                    waitForInput && continue
-                  fi
-                else
-                  tput sc && println DEBUG "Dumping ledger-state from node, can take a while...\n"
-                  println ACTION "timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${NETWORK_IDENTIFIER}"
-                  if ! ledger_state=$(timeout -k 5 $TIMEOUT_LEDGER_STATE ${CCLI} query ledger-state ${NETWORK_IDENTIFIER}); then
-                    tput rc && tput ed
-                    println ERROR "${FG_RED}ERROR${NC}: ledger dump failed/timed out"
-                    println ERROR "increase timeout value in cntools.config"
-                    waitForInput && continue
-                  fi
+                tput sc && println DEBUG "Quering pool parameters from node, can take a while...\n"
+                println ACTION "${CCLI} query pool-params --stake-pool-id ${pool_id_bech32} ${NETWORK_IDENTIFIER}"
+                if ! pool_params=$(${CCLI} query pool-params --stake-pool-id ${pool_id_bech32} ${NETWORK_IDENTIFIER} 2>&1); then
+                  tput rc && tput ed
+                  println ERROR "${FG_RED}ERROR${NC}: pool-params query failed: ${pool_params}"
+                  waitForInput && continue
                 fi
                 tput rc && tput ed
               fi
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 pool_registered="UNKNOWN"
               elif [[ -z ${PGREST_API} ]]; then
-                if versionCheck "1.27.0" "${node_version}"; then
-                  ledger_pParams=$(jq -r '.poolParams // empty' <<< ${pool_params})
-                  ledger_fPParams=$(jq -r '.futurePoolParams // empty' <<< ${pool_params})
-                  ledger_retiring=$(jq -r '.retiring // empty' <<< ${pool_params})
-                  [[ -z ${ledger_retiring} ]] && retiring_epoch=0 || retiring_epoch=${ledger_retiring}
-                  [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
-                  [[ -n "${ledger_pParams}" ]] && pool_registered="YES" || pool_registered="NO"
-                else
-                  tput sc && println "Parsing ledger-state, can take a while...\n"
-                  ledger_pstate=$(jq -r '.stateBefore.esLState.delegationState.pstate' <<< ${ledger_state})
-                  unset ledger_state
-                  ledger_pParams=$(jq -r '.["pParams pState"]."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
-                  ledger_fPParams=$(jq -r '.["fPParams pState"]."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
-                  ledger_retiring=$(jq -r '.["retiring pState"]."'"${pool_id}"'" // empty' <<< ${ledger_pstate})
-                  unset ledger_pstate
-                  [[ -z ${ledger_retiring} ]] && retiring_epoch=0 || retiring_epoch=${ledger_retiring}
-                  [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
-                  [[ -n "${ledger_pParams}" ]] && pool_registered="YES" || pool_registered="NO"
-                  tput rc && tput ed
-                fi
+                ledger_pParams=$(jq -r '.poolParams // empty' <<< ${pool_params})
+                ledger_fPParams=$(jq -r '.futurePoolParams // empty' <<< ${pool_params})
+                ledger_retiring=$(jq -r '.retiring // empty' <<< ${pool_params})
+                [[ -z ${ledger_retiring} ]] && retiring_epoch=0 || retiring_epoch=${ledger_retiring}
+                [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
+                [[ -n "${ledger_pParams}" ]] && pool_registered="YES" || pool_registered="NO"
               else
                 isPoolRegistered ${pool_name} # re-using variables from function [pupd_latest, pupd_latest_epoch, p_hash_id, pretire, retiring_epoch, error_msg]
                 case $? in
