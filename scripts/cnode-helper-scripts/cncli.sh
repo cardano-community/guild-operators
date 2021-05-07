@@ -23,7 +23,7 @@
 #CONFIRM_SLOT_CNT=600                     # CNCLI validate: require at least these many slots to have passed before validating
 #CONFIRM_BLOCK_CNT=15                     # CNCLI validate: require at least these many blocks on top of minted before validating
 #BATCH_AUTO_UPDATE=N                      # Set to Y to automatically update the script if a new version is available without user interaction
-#LEDGER_API=true                          # Use API from api.crypto2099.io in cncli call instead of local ledger-state dump to vastly reduce system resources. ONLY for MainNet network (true|false)
+#LEDGER_API=false                         # Use API from api.crypto2099.io in cncli leaderlog instead of local stake-snapshot query to reduce system resources. ONLY for MainNet network (true|false)
 
 ######################################
 # Do NOT modify code below           #
@@ -103,15 +103,17 @@ getPoolVrfVkeyCborHex() {
   fi
 }
 
-dumpLedgerState() { # getNodeMetrics expected to have been already run
-  ledger_state_file="${TMP_DIR}/ledger-state_${NWMAGIC}_${epochnum}.json"
-  [[ -n $(find "${ledger_state_file}" -mmin -60 2>/dev/null) ]] && return 0 # no need to continue, we have a fresh(<1h) ledger-state already
-  rm -f "${TMP_DIR}/ledger-state_"* # remove old ledger dumps before creating a new
-  if ! timeout -k 5 ${TIMEOUT_LEDGER_STATE} ${CCLI} query ledger-state ${NETWORK_IDENTIFIER} > "${ledger_state_file}"; then
-    echo "ERROR: ledger dump failed/timed out, increase timeout value"
-    [[ -f "${ledger_state_file}" ]] && rm -f "${ledger_state_file}"
+getLedgerData() { # getNodeMetrics expected to have been already run
+  if ! stake_snapshot=$(${CCLI} query stake-snapshot --stake-pool-id ${POOL_ID} ${NETWORK_IDENTIFIER} 2>&1); then
+    echo "ERROR: stake-snapshot query failed: ${stake_snapshot}"
     return 1
   fi
+  pool_stake_go=$(jq -r .poolStakeGo <<< ${stake_snapshot})
+  active_stake_go=$(jq -r .activeStakeGo <<< ${stake_snapshot})
+  pool_stake_mark=$(jq -r .poolStakeMark <<< ${stake_snapshot})
+  active_stake_mark=$(jq -r .activeStakeMark <<< ${stake_snapshot})
+  pool_stake_set=$(jq -r .poolStakeSet <<< ${stake_snapshot})
+  active_stake_set=$(jq -r .activeStakeSet <<< ${stake_snapshot})
   return 0
 }
 
@@ -147,12 +149,12 @@ cncliInit() {
   
   [[ ! -f "${CNCLI}" ]] && echo -e "\nERROR: failed to locate cncli executable, please install with 'prereqs.sh'\n" && exit 1
   CNCLI_VERSION="v$(cncli -V | cut -d' ' -f2)"
-  if ! versionCheck "1.5.1" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, minimum required version is 1.5.1, please upgrade to latest version!"; exit 1; fi
+  if ! versionCheck "2.1.0" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, minimum required version is 2.1.0, please upgrade to latest version!"; exit 1; fi
   
   [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
   if ! mkdir -p "${CNCLI_DIR}" 2>/dev/null; then echo "ERROR: Failed to create CNCLI DB directory: ${CNCLI_DIR}"; exit 1; fi
   CNCLI_DB="${CNCLI_DIR}/cncli.db"
-  [[ -z "${LEDGER_API}" ]] && LEDGER_API="true"
+  [[ -z "${LEDGER_API}" ]] && LEDGER_API=false
   [[ -z "${SLEEP_RATE}" ]] && SLEEP_RATE=60
   [[ -z "${CONFIRM_SLOT_CNT}" ]] && CONFIRM_SLOT_CNT=600
   [[ -z "${CONFIRM_BLOCK_CNT}" ]] && CONFIRM_BLOCK_CNT=15
@@ -214,18 +216,18 @@ cncliLeaderlog() {
     echo "Leaderlogs already calculated for epoch ${curr_epoch}, skipping!"
   else
     echo "Running leaderlogs for epoch ${curr_epoch} and adding leader slots not already in DB"
-    ledger_state_param=""
-    if [[ ${LEDGER_API} = "false" || ${NWMAGIC} -ne 764824073 ]]; then 
-      if ! dumpLedgerState; then exit 1; else ledger_state_param="--ledger-state ${ledger_state_file}"; fi
+    stake_param_current=""
+    if [[ ${LEDGER_API} = false || ${NWMAGIC} -ne 764824073 ]]; then 
+      if ! getLedgerData; then exit 1; else stake_param_current="--active-stake ${active_stake_set} --pool-stake ${pool_stake_set}"; fi
     fi
-    cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current ${ledger_state_param} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
+    cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current ${stake_param_current} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
     if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
       error_msg=$(jq -r .errorMessage <<< "${cncli_leaderlog}")
       if [[ "${error_msg}" = "Query returned no rows" ]]; then
         echo "No leader slots found for epoch ${curr_epoch} :("
       else
         echo "ERROR: failure in leaderlog while running:"
-        echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set current ${ledger_state_param} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
+        echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set current ${stake_param_current} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
         echo "Error message: ${error_msg}"
         exit 1
       fi
@@ -263,7 +265,7 @@ cncliLeaderlog() {
     getNodeMetrics
     if ! cncliDBinSync; then # verify that cncli DB is still in sync
       echo "CNCLI DB out of sync :( [$(printf "%2.4f %%" ${cncli_sync_prog})] ... checking again in ${SLEEP_RATE}s"
-      [[ ${subarg} = "force" ]] && sleep ${SLEEP_RATE}
+      [[ ${subarg} = force ]] && sleep ${SLEEP_RATE}
       continue
     fi
     slot_for_next_nonce=$(echo "(${slotnum} - ${slot_in_epoch} + ${EPOCH_LENGTH}) - (3 * ${BYRON_K} / ${ACTIVE_SLOTS_COEFF})" | bc) # firstSlotOfNextEpoch - stabilityWindow(3 * k / f)
@@ -276,18 +278,18 @@ cncliLeaderlog() {
         else continue; fi
       fi
       echo "Running leaderlogs for next epoch[${next_epoch}]"
-      ledger_state_param=""
-      if [[ ${LEDGER_API} = "false" || ${NWMAGIC} -ne 764824073 ]]; then 
-        if ! dumpLedgerState; then sleep 600; continue; else ledger_state_param="--ledger-state ${ledger_state_file}"; fi # Sleep for 10 min before trying to dump ledger-state in case of error
+      stake_param_next=""
+      if [[ ${LEDGER_API} = false || ${NWMAGIC} -ne 764824073 ]]; then 
+        if ! getLedgerData; then sleep 300; continue; else stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"; fi # Sleep for 5 min before retrying to query stake snapshot in case of error
       fi
-      cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next ${ledger_state_param} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
+      cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next ${stake_param_next} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
       if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
         error_msg=$(jq -r .errorMessage <<< "${cncli_leaderlog}")
         if [[ "${error_msg}" = "Query returned no rows" ]]; then
           echo "No leader slots found for epoch ${curr_epoch} :("
         else
           echo "ERROR: failure in leaderlog while running:"
-          echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set next ${ledger_state_param} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
+          echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set next ${stake_param_next} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
           echo "Error message: ${error_msg}"
         fi
       else
