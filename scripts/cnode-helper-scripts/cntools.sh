@@ -2876,7 +2876,7 @@ function main {
               tx_witness_files=()
               tx_sign_files=()
               case "${otx_type}" in
-                "Wallet Registration"|"Wallet De-Registration"|"Payment"|"Wallet Delegation"|"Wallet Rewards Withdrawal"|"Pool De-Registration"|"Metadata")
+                Wallet*|Payment|"Pool De-Registration"|Metadata|Asset*)
                   [[ ${otx_type} = "Wallet De-Registration" ]] && println DEBUG "\nAmount returned  : ${FG_LBLUE}$(formatLovelace "$(jq -r '."amount-returned"' <<< ${offlineJSON})")${NC} Ada"
                   if [[ ${otx_type} = "Payment" ]]; then
                     println DEBUG "\nSource addr      : ${FG_LGRAY}$(jq -r '."source-address"' <<< ${offlineJSON})${NC}"
@@ -2904,12 +2904,60 @@ function main {
                   for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
                     _jq() { base64 -d <<< ${otx_signing_file} | jq -r "${1}"; }
                     otx_signing_name=$(_jq '.name')
-                    println DEBUG "\n# Sign the transaction with: ${FG_YELLOW}${otx_signing_name}${NC}"
-                    [[ ${otx_signing_name} = "Wallet "* ]] && dialog_start_path="${WALLET_FOLDER}" || dialog_start_path="${POOL_FOLDER}"
-                    fileDialog "Enter path to ${otx_signing_name}" "${dialog_start_path}/"
+                    otx_vkey_cborHex="$(_jq '.vkey.cborHex' 2>/dev/null)"
+                    
+                    skey_path=""
+                    # look for signing key in wallet folder
+                    while IFS= read -r -d '' w_file; do
+                      if [[ ${w_file} = */"${WALLET_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_STAKE_SK_FILENAME}" ]]; then
+                        ! ${CCLI} key verification-key --signing-key-file "${w_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
+                        if [[ $(jq -er '.type' "${w_file}" 2>/dev/null) = *"Extended"* ]]; then
+                          ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" && continue
+                          mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
+                        fi
+                        grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${w_file}" && break
+                      elif [[ ${w_file} = */"${WALLET_HW_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_HW_STAKE_SK_FILENAME}" ]]; then
+                        grep -q "${otx_vkey_cborHex:4}" "${w_file}" && skey_path="${w_file}" && break # strip 5820 prefix
+                      fi
+                    done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -print0 2>/dev/null)
+                    # look for cold signing key in pool folder
+                    if [[ -z ${skey_path} ]]; then
+                      while IFS= read -r -d '' p_file; do
+                        grep -q "${otx_vkey_cborHex}" "${p_file}" && skey_path="${p_file}" && break
+                      done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}" -print0 2>/dev/null)
+                    fi
+                    # look for signing key in asset folder
+                    if [[ -z ${skey_path} ]]; then
+                      while IFS= read -r -d '' a_file; do
+                        ! ${CCLI} key verification-key --signing-key-file "${a_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
+                        grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${a_file}" && break
+                      done < <(find "${ASSET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${ASSET_POLICY_SK_FILENAME}" -print0 2>/dev/null)
+                    fi
+
+                    if [[ -n ${skey_path} ]]; then
+                      println DEBUG "\nFound a match for ${otx_signing_name}, use this file ? : ${FG_LGRAY}${skey_path}${NC}"
+                      select_opt "[y] Yes" "[n] No, continue with manual selection"
+                      case $? in
+                        0)  println DEBUG "${FG_GREEN}Successfully added!${NC}"
+                            tx_sign_files+=( "${skey_path}" )
+                            continue ;;
+                        1)  : ;; # do nothing
+                      esac
+                    fi
+
+                    if [[ ${otx_signing_name} = "Pool "* ]]; then dialog_start_path="${POOL_FOLDER}"
+                    elif [[ ${otx_signing_name} = "Asset "* ]]; then dialog_start_path="${POOL_FOLDER}"
+                    else dialog_start_path="${WALLET_FOLDER}"; fi
+                    fileDialog "\nEnter path to ${otx_signing_name}" "${dialog_start_path}/"
                     [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitForInput && continue 2
-                    otx_vkey_cborHex="$(_jq '.vkey.cborHex')"
-                    if [[ $(jq -r '.description' "${file}") = *"Hardware"* ]]; then
+                    if [[ ${file} = "${ASSET_POLICY_SCRIPT_FILENAME}" ]]; then
+                      if ! grep -q "$(_jq '.script.keyHash')" "${file}"; then
+                        println ERROR "${FG_RED}ERROR${NC}: script file provided doesn't match with script hash in offline transaction for: ${otx_signing_name}"
+                        println ERROR "Provided asset script keyHash: $(jq -r '.keyHash' "${file}")"
+                        println ERROR "Transaction asset script keyHash: $(_jq '.script.keyHash')"
+                        waitForInput && continue 2
+                      fi
+                    elif [[ $(jq -er '.description' "${file}" 2>/dev/null) = *"Hardware"* ]]; then
                       if ! grep -q "${otx_vkey_cborHex:4}" "${file}"; then # strip 5820 prefix
                         println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
                         println ERROR "Provided hardware signing key's verification cborXPubKeyHex: $(jq -r .cborXPubKeyHex "${file}")"
@@ -2931,6 +2979,7 @@ function main {
                         waitForInput && continue 2
                       fi
                     fi
+                    
                     println DEBUG "${FG_GREEN}Successfully added!${NC}"
                     tx_sign_files+=( "${file}" )
                   done
@@ -2957,44 +3006,82 @@ function main {
                   for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
                     _jq() { base64 -d <<< ${otx_signing_file} | jq -r "${1}"; }
                     otx_signing_name=$(_jq '.name')
+                    otx_vkey_cborHex="$(_jq '.vkey.cborHex')"
+
                     for otx_witness in $(jq -r '.witness[] | @base64' <<< "${offlineJSON}"); do
                       __jq() { base64 -d <<< ${otx_witness} | jq -r "${1}"; }
                       [[ $(_jq '.name') = $(__jq '.name') ]] && continue 2 # offline transaction already witnessed by this signing key
                     done
-                    println DEBUG "\nDo you want to sign ${otx_type} with: ${FG_LGRAY}${otx_signing_name}${NC} ?"
-                    select_opt "[y] Yes" "[n] No"
-                    case $? in
-                      0) [[ ${otx_signing_name} = "Pool "* ]] && dialog_start_path="${POOL_FOLDER}" || dialog_start_path="${WALLET_FOLDER}"
-                        fileDialog "Enter path to ${otx_signing_name}" "${dialog_start_path}/"
-                        [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitForInput && continue 2
-                        otx_vkey_cborHex="$(_jq '.vkey.cborHex')"
-                        if [[ $(jq -r '.description' "${file}") = *"Hardware"* ]]; then
-                          if ! grep -q "${otx_vkey_cborHex:4}" "${file}"; then # strip 5820 prefix
-                            println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
-                            println ERROR "Provided hardware signing key's verification cborXPubKeyHex: $(jq -r .cborXPubKeyHex "${file}")"
-                            println ERROR "Transaction verification cborHex: ${otx_vkey_cborHex:4}"
-                            waitForInput && continue 2
-                          fi
-                        else
-                          println ACTION "${CCLI} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
-                          if ! ${CCLI} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey; then waitForInput && continue 2; fi
-                          if [[ $(jq -r '.type' "${file}") = *"Extended"* ]]; then
-                            println ACTION "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
-                            if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey"; then waitForInput && continue 2; fi
-                            mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
-                          fi
-                          if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey) ]]; then
-                            println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
-                            println ERROR "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey)"
-                            println ERROR "Transaction verification cborHex: ${otx_vkey_cborHex}"
-                            waitForInput && continue 2
-                          fi
+
+                    skey_path=""
+                    # look for signing key in wallet folder
+                    while IFS= read -r -d '' w_file; do
+                      if [[ ${w_file} = */"${WALLET_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_STAKE_SK_FILENAME}" ]]; then
+                        ! ${CCLI} key verification-key --signing-key-file "${w_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
+                        if [[ $(jq -er '.type' "${w_file}" 2>/dev/null) = *"Extended"* ]]; then
+                          ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" && continue
+                          mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
                         fi
-                        if ! witnessTx "${TMP_DIR}/tx.raw" "${file}"; then waitForInput && continue 2; fi
-                        if ! offlineJSON=$(jq ".witness += [{ name: \"${otx_signing_name}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
-                        jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
-                        ;;
-                      1) continue ;;
+                        grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${w_file}" && break
+                      elif [[ ${w_file} = */"${WALLET_HW_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_HW_STAKE_SK_FILENAME}" ]]; then
+                        grep -q "${otx_vkey_cborHex:4}" "${w_file}" && skey_path="${w_file}" && break # strip 5820 prefix
+                      fi
+                    done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -print0 2>/dev/null)
+                    # look for cold signing key in pool folder
+                    if [[ -z ${skey_path} ]]; then
+                      while IFS= read -r -d '' p_file; do
+                        grep -q "${otx_vkey_cborHex}" "${p_file}" && skey_path="${p_file}" && break
+                      done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}" -print0 2>/dev/null)
+                    fi
+
+                    if [[ -n ${skey_path} ]]; then
+                      println DEBUG "\nFound a match for ${otx_signing_name}, use this file ? : ${FG_LGRAY}${skey_path}${NC}"
+                      select_opt "[y] Yes" "[n] No, continue with manual selection" "[s] Skip"
+                      case $? in
+                        0)  if ! witnessTx "${TMP_DIR}/tx.raw" "${skey_path}"; then waitForInput && continue 2; fi
+                            if ! offlineJSON=$(jq ".witness += [{ name: \"${otx_signing_name}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
+                            jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
+                            continue ;;
+                        1)  selection=0 ;;
+                        2)  continue ;;
+                      esac
+                    else
+                      println DEBUG "\nDo you want to sign ${otx_type} with: ${FG_LGRAY}${otx_signing_name}${NC} ?"
+                      select_opt "[y] Yes" "[s] Skip"
+                      selection=$?
+                    fi
+
+                    case ${selection} in
+                      0) [[ ${otx_signing_name} = "Pool "* ]] && dialog_start_path="${POOL_FOLDER}" || dialog_start_path="${WALLET_FOLDER}"
+                          fileDialog "Enter path to ${otx_signing_name}" "${dialog_start_path}/"
+                          [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitForInput && continue 2
+                          if [[ $(jq -r '.description' "${file}") = *"Hardware"* ]]; then
+                            if ! grep -q "${otx_vkey_cborHex:4}" "${file}"; then # strip 5820 prefix
+                              println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
+                              println ERROR "Provided hardware signing key's verification cborXPubKeyHex: $(jq -r .cborXPubKeyHex "${file}")"
+                              println ERROR "Transaction verification cborHex: ${otx_vkey_cborHex:4}"
+                              waitForInput && continue 2
+                            fi
+                          else
+                            println ACTION "${CCLI} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
+                            if ! ${CCLI} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey; then waitForInput && continue 2; fi
+                            if [[ $(jq -r '.type' "${file}") = *"Extended"* ]]; then
+                              println ACTION "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
+                              if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey"; then waitForInput && continue 2; fi
+                              mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
+                            fi
+                            if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey) ]]; then
+                              println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
+                              println ERROR "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey)"
+                              println ERROR "Transaction verification cborHex: ${otx_vkey_cborHex}"
+                              waitForInput && continue 2
+                            fi
+                          fi
+                          if ! witnessTx "${TMP_DIR}/tx.raw" "${file}"; then waitForInput && continue 2; fi
+                          if ! offlineJSON=$(jq ".witness += [{ name: \"${otx_signing_name}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
+                          jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
+                          ;;
+                      1)  continue ;;
                     esac
                   done
                   echo
@@ -3939,6 +4026,13 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> ADVANCED >> MULTI-ASSET >> MINT ASSET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+                    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+                      println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+                      waitForInput && continue
+                    else
+                      if ! selectOpMode; then continue; fi
+                    fi
                     echo
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies found!${NC}\n\nPlease first create a policy to mint asset with" && waitForInput && continue
                     println DEBUG "# Select the policy to use when minting the asset"
@@ -4076,6 +4170,13 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> ADVANCED >> MULTI-ASSET >> BURN ASSET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+                    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+                      println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+                      waitForInput && continue
+                    else
+                      if ! selectOpMode; then continue; fi
+                    fi
                     echo
                     println DEBUG "# Select wallet with assets to burn"
                     if [[ ${op_mode} = "online" ]]; then

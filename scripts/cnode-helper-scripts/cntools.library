@@ -1947,7 +1947,7 @@ deRegisterPool() {
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' stake signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
@@ -2109,6 +2109,7 @@ mintAsset() {
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --mint "${asset_amount} ${policy_id}${asset_name_out}"
+    --minting-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee 0
@@ -2153,6 +2154,7 @@ mintAsset() {
     ${tx_in}
     --tx-out "${tx_out}"
     --mint "${asset_amount} ${policy_id}${asset_name_out}"
+    --minting-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
@@ -2175,6 +2177,7 @@ mintAsset() {
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Asset '${policy_sk_file}' policy signing key\", vkey: $(jq -c . "${policy_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
@@ -2183,7 +2186,6 @@ mintAsset() {
     println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
     println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
     println DEBUG "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_sk_file})${NC}"
-    println DEBUG "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_script_file})${NC}"
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -2212,6 +2214,7 @@ burnAsset() {
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --mint "-${assets_to_burn} ${policy_id}${asset_name_out}"
+    --minting-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee 0
@@ -2256,6 +2259,7 @@ burnAsset() {
     ${tx_in}
     --tx-out "${tx_out}"
     --mint "-${assets_to_burn} ${policy_id}${asset_name_out}"
+    --minting-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
@@ -2278,6 +2282,7 @@ burnAsset() {
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Asset '${policy_sk_file}' policy signing key\", vkey: $(jq -c . "${policy_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
@@ -2286,7 +2291,6 @@ burnAsset() {
     println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
     println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
     println DEBUG "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_sk_file})${NC}"
-    println DEBUG "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_script_file})${NC}"
     return 2 # return as failed to stop main processing and return to home menu
   fi
   

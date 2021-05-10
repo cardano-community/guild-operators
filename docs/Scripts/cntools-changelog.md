@@ -9,6 +9,8 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ##### Added
 - New env variable called PGREST_API and if set and reachable, used instead of local node queries and for advanced modes
 - New library function isPoolRegistered() for verifying if a pool is registered or not using either simple reg cert file detection (if REST API not set/reachable) or proper dbsync lookup using REST API. Used by Pool >> Show|List|Register|Modify
+- Option to mint/burn assets in hybrid mode
+- Transaction >> Sign now automatically tries to find the correct signing keys instead of having the user manually select the correct files
 - ** ADVANCED FEATURE ** - Chain Queries
   - Menu is dynamically built based on queries(JSON files) in DBSYNC_QUERY_FOLDER (env variable, default files/dbsync/queries) three levels deep.
   - A download option lets the user download the latest uploaded queries on Guild Operators GitHub site.
@@ -22,6 +24,9 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Minimum node version bumped to 1.27.0
 - Menu has been re-designed with both back & home options. Instead of returning to home menu after the completed operation user is returned to the last menu.
 - Pool >> Show now use PostgREST API(if set), or the new pool-params cli query as fallback method.
+
+##### Fixed
+- 1.27.0 introduced a few changes in CLI commands for assets minting/burning
 
 ## [8.2.2] - 2021-05-02
 ##### Fixed
