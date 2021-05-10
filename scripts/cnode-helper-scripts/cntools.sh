@@ -2923,7 +2923,8 @@ function main {
                     # look for cold signing key in pool folder
                     if [[ -z ${skey_path} ]]; then
                       while IFS= read -r -d '' p_file; do
-                        grep -q "${otx_vkey_cborHex}" "${p_file}" && skey_path="${p_file}" && break
+                        ! ${CCLI} key verification-key --signing-key-file "${p_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
+                        grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${p_file}" && break
                       done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}" -print0 2>/dev/null)
                     fi
                     # look for signing key in asset folder
@@ -3030,7 +3031,8 @@ function main {
                     # look for cold signing key in pool folder
                     if [[ -z ${skey_path} ]]; then
                       while IFS= read -r -d '' p_file; do
-                        grep -q "${otx_vkey_cborHex}" "${p_file}" && skey_path="${p_file}" && break
+                        ! ${CCLI} key verification-key --signing-key-file "${p_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
+                        grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${p_file}" && break
                       done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}" -print0 2>/dev/null)
                     fi
 
