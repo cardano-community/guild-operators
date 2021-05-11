@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=2
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=2
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -662,10 +662,11 @@ kesExpiration() {
     return 1
   fi
   pool_kes_start_period=$1
-  current_kes_period=$(getCurrentKESperiod)
-  remaining_kes_periods=$(( MAX_KES_EVOLUTIONS - ( current_kes_period - pool_kes_start_period ) ))
+  current_kes_period_ref=$(getCurrentKESperiod)
+  remaining_kes_periods_ref=$(( MAX_KES_EVOLUTIONS - ( current_kes_period_ref - pool_kes_start_period ) ))
+  tip_ref=$(getSlotTipRef)
   current_time_sec=$(date -u +%s)
-  expiration_time_sec=$(( current_time_sec - ( SLOT_LENGTH * (tip_ref % SLOTS_PER_KES_PERIOD) ) + ( SLOT_LENGTH * SLOTS_PER_KES_PERIOD * remaining_kes_periods ) ))
+  expiration_time_sec=$(( current_time_sec - ( SLOT_LENGTH * (tip_ref % SLOTS_PER_KES_PERIOD) ) + ( SLOT_LENGTH * SLOTS_PER_KES_PERIOD * remaining_kes_periods_ref ) ))
   expiration_time_sec_diff=$(( expiration_time_sec - current_time_sec ))
   expiration_date=$(date '+%F %T %Z' --date=@${expiration_time_sec})
 }
