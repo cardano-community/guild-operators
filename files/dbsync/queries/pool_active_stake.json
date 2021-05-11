@@ -44,5 +44,6 @@
             ],
             "uri": "rpc/get_active_stake"
         }
-    ]
+    ],
+    "script": []
 }

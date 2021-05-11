@@ -114,5 +114,6 @@
             ],
             "uri": "rpc/get_delegator_count"
         }
-    ]
+    ],
+    "script": []
 }

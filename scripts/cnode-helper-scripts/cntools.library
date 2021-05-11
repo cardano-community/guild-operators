@@ -2568,5 +2568,30 @@ runDBSyncQuery() {
     fi
   done
 
+  ! query_script=$(jq -er '.script | join("\n")' <<< ${json_query} 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during script parsing: ${query_script}\n" && return 1
+
+  [[ -z ${query_script} ]] && return 0
+
+  script_file="$(mktemp "${TMP_DIR}/query_script_XXXXXXXXXX.sh")"
+  echo -e '#!/usr/bin/env bash' "\n${query_script}" > "${script_file}"
+  chmod +x "${script_file}"
+
+  echo
+  tput sc
+  exec >&6 # normal stdout
+  echo -e "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~${FG_LBLUE}"
+  cat "${script_file}"
+  echo -e "${NC}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+  exec >&8 # custom stdout
+
+  println DEBUG "\nProceed to run above script?"
+  select_opt "[y] Yes" "[n] No"
+  selection=$?
+  tput rc && tput ed
+  case ${selection} in
+    0) . "${script_file}" ;;
+    1) : ;;
+  esac
+
   return 0
 }

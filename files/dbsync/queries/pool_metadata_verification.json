@@ -1,0 +1,58 @@
+{
+    "menuPath": "Pool Queries/Metadata Hash",
+    "description": "Print and Verify that registered(latest) metadata hash match URL metadata hash",
+    "variables": [
+        {
+            "name": "pool_id_bech32",
+            "question": "Enter pool id in Bech32 format (pool..)",
+            "mandatory": true
+        }
+    ],
+    "queries": [
+        {
+            "name": "Pool Updates",
+            "print": false,
+            "data": [
+                {
+                    "type": "query_variable",
+                    "arg": "_pool_bech32",
+                    "payload": "pool_id_bech32"
+                }
+            ],
+            "uri": "rpc/get_pool_update"
+        },
+        {
+            "name": "Metadata",
+            "print": false,
+            "data": [
+                {
+                    "type": "query_result",
+                    "queryName": "Pool Updates",
+                    "arg": "_pool_meta_id",
+                    "payload": ".[0].meta_id"
+                }
+            ],
+            "uri": "rpc/get_pool_metadata"
+        }
+    ],
+    "script": [
+        "meta_json_url=$(jq -r '.meta_url //empty' <<< \"${variables[query_Metadata]}\")",
+        "println \"Metadata\"",
+        "if [[ -n ${meta_json_url} ]] && curl -sL -f -m ${CURL_TIMEOUT} -o \"${TMP_DIR}/url_poolmeta.json\" ${meta_json_url}; then",
+        "  println \"$(printf \"  %-16s : ${FG_LGRAY}%s${NC}\" \"Name\" \"$(jq -r .name \"$TMP_DIR/url_poolmeta.json\")\")\"",
+        "  println \"$(printf \"  %-16s : ${FG_LGRAY}%s${NC}\" \"Ticker\" \"$(jq -r .ticker \"$TMP_DIR/url_poolmeta.json\")\")\"",
+        "  println \"$(printf \"  %-16s : ${FG_LGRAY}%s${NC}\" \"Homepage\" \"$(jq -r .homepage \"$TMP_DIR/url_poolmeta.json\")\")\"",
+        "  println \"$(printf \"  %-16s : ${FG_LGRAY}%s${NC}\" \"Description\" \"$(jq -r .description \"$TMP_DIR/url_poolmeta.json\")\")\"",
+        "  println \"$(printf \"  %-16s : ${FG_LGRAY}%s${NC}\" \"URL\" \"${meta_json_url}\")\"",
+        "  echo",
+        "  meta_hash_url=\"$( ${CCLI} stake-pool metadata-hash --pool-metadata-file \"${TMP_DIR}/url_poolmeta.json\" )\"",
+        "  println \"$(printf \"  %-16s : ${FG_LGRAY}%s${NC}\" \"Hash URL\" \"${meta_hash_url}\")\"",
+        "  meta_hash_chain=$(jq -r '.meta_hash //empty' <<< \"${variables[query_Metadata]}\")",
+        "  println \"$(printf \"  %-16s : ${FG_LGRAY}%s${NC}\" \"Hash Registered\" \"${meta_hash_chain}\")\"",
+        "  printf '\\nHash Verification: '",
+        "  if [[ ${meta_hash_url} = ${meta_hash_chain} ]]; then println \"${FG_GREEN}MATCH!${NC}\"; else println \"${FG_YELLOW}MISSMATCH!${NC}\"; fi",
+        "else",
+        "  println \"${FG_RED}Failed to download metadata from URL!${NC}\"",
+        "fi"
+    ]
+}

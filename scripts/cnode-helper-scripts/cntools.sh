@@ -4508,6 +4508,11 @@ function main {
                 println " >> ADVANCED >> CHAIN-ANALYSIS"
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
+                if [[ -z ${PGREST_API} ]]; then
+                  println ERROR "${FG_RED}ERROR${NC}: PGREST_API not set in env or DB-Sync PostgREST API unavailable!"
+                  waitForInput && break
+                fi
+
                 declare -A ca_menu1=(); declare -A ca_menu2=(); declare -A ca_menu3=()
                 mkdir -p "${DBSYNC_QUERY_FOLDER}"
                 while IFS= read -r -d '' query_file; do
