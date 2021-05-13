@@ -51,24 +51,37 @@ shift $((OPTIND -1))
 
 [[ -z "${BATCH_AUTO_UPDATE}" ]] && BATCH_AUTO_UPDATE=N
 
+#######################################################
+# Version Check                                       #
+#######################################################
+clear
+
 if [[ ! -f "${PARENT}"/env ]]; then
   echo -e "\nCommon env file missing: ${PARENT}/env"
   echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"
   exit 1
 fi
 
-# Check if update is available
-! checkUpdate env ${BATCH_AUTO_UPDATE} && exit 1
-! checkUpdate topologyUpdater.sh ${BATCH_AUTO_UPDATE} && exit 1
+. "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
 
-# source common env variables in case it was updated and run in offline mode, even for TU_PUSH mode as this will be cought by failed EKG query
-# ignore exit code 0 and 2, any other exits script
-. "${PARENT}"/env offline
-case $? in
-  0) : ;; # ok
-  2) echo "continuing with topology update..." ;;
-  *) exit 1 ;;
-esac
+if [[ "${UPDATE_CHECK}" == "Y" ]] && [[ "${BATCH_AUTO_UPDATE}" == "N" ]]; then
+  echo "Checking for script updates..."
+  # Check availability of checkUpdate function
+  if [[ $(command -v checkUpdate) ]]; then
+    echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
+    exit 1
+  fi
+  # check for env update
+  ! checkUpdate env ${BATCH_AUTO_UPDATE} && exit 1
+  ! checkUpdate topologyUpdater.sh ${BATCH_AUTO_UPDATE} && exit 1
+  # source common env variables in case it was updated
+  . "${PARENT}"/env offline &>/dev/null
+  case $? in
+    0) : ;; # ok
+    2) echo "continuing with topology update..." ;;
+    *) exit 1 ;;
+  esac
+fi
 
 # Check if old style CUSTOM_PEERS with colon separator is used, if so convert to use commas
 if [[ -n ${CUSTOM_PEERS} && ${CUSTOM_PEERS} != *","* ]]; then

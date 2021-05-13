@@ -56,6 +56,11 @@ while getopts :oab: opt; do
 done
 shift $((OPTIND -1))
 
+#######################################################
+# Version Check                                       #
+#######################################################
+clear
+
 if [[ ! -f "${PARENT}"/env ]]; then
   echo -e "\nCommon env file missing: ${PARENT}/env"
   echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"
@@ -64,18 +69,28 @@ fi
 
 . "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
 
-# env version check
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-  ! checkUpdate env && myExit 1
-  ! . "${PARENT}"/env && myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub"
+  if [[ "${UPDATE_CHECK}" == "Y" ]]; then
+    echo "Checking for script updates..."
+    # Check availability of checkUpdate function
+    if [[ $(command -v checkUpdate) ]]; then
+      echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
+      myExit 1
+    fi
+    # check for env update
+    ! checkUpdate env && myExit 1
+  fi
+  . "${PARENT}"/env
+  rc=$?
 else
   . "${PARENT}"/env offline
-  case $? in # ignore exit code 0 and 2, any other exits script
-    0) : ;; # ok
-    2) clear ;; # ignore
-    *) myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
-  esac
+  rc=$?
 fi
+case $rc in # ignore exit code 0 and 2, any other exits script
+  0) : ;; # ok
+  2) clear ;; # ignore
+  *) myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
+esac
 
 # get cntools config parameters
 ! . "${PARENT}"/cntools.config && myExit 1
@@ -107,7 +122,7 @@ fi
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   # check to see if there are any updates available
   clear
-  if [[ "${UPDATE_CHECK}" == "Y" ]] && [[ $(command -v checkUpdate) ]]; then 
+  if [[ "${UPDATE_CHECK}" == "Y" ]]; then 
     println DEBUG "CNTools version check...\n"
     if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/cntools.library.tmp "${URL}/cntools.library" && [[ -f "${PARENT}"/cntools.library.tmp ]]; then
       GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${PARENT}"/cntools.library.tmp |sed -e "s#.*=##")
