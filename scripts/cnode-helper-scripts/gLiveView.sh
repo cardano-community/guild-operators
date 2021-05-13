@@ -119,7 +119,7 @@ fi
 if [[ "${UPDATE_CHECK}" == "Y" ]]; then
   echo "Checking for script updates..."
   # Check availability of checkUpdate function
-  if [[ $(command -v checkUpdate) ]]; then
+  if [[ ! $(command -v checkUpdate) ]]; then
     echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
     myExit 1
   fi

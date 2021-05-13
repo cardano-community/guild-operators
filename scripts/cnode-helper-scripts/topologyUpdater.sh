@@ -67,7 +67,7 @@ fi
 if [[ "${UPDATE_CHECK}" == "Y" ]] && [[ "${BATCH_AUTO_UPDATE}" == "N" ]]; then
   echo "Checking for script updates..."
   # Check availability of checkUpdate function
-  if [[ $(command -v checkUpdate) ]]; then
+  if [[ ! $(command -v checkUpdate) ]]; then
     echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
     exit 1
   fi
