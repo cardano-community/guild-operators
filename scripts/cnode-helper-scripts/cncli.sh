@@ -120,25 +120,36 @@ getLedgerData() { # getNodeMetrics expected to have been already run
 #################################
 
 cncliInit() {
-
   if renice_cmd="$(command -v renice)"; then ${renice_cmd} -n 19 $$ >/dev/null; fi
-
   [[ -z "${BATCH_AUTO_UPDATE}" ]] && BATCH_AUTO_UPDATE=N
-  
   if ! command -v sqlite3 >/dev/null; then echo "ERROR: sqlite3 not found, please install before activating blocklog function" && exit 1; fi
-
   PARENT="$(dirname $0)"
+  
+  #######################################################
+  # Version Check                                       #
+  #######################################################
+  clear
   
   if [[ ! -f "${PARENT}"/env ]]; then
     echo -e "\nCommon env file missing: ${PARENT}/env"
     echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"
-    exit 1
+    myExit 1
   fi
-
-  # Check if update is available
-  ! checkUpdate env ${BATCH_AUTO_UPDATE} && exit 1
-  ! checkUpdate cncli.sh ${BATCH_AUTO_UPDATE} && exit 1
   
+  . "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
+  
+  if [[ "${UPDATE_CHECK}" == "Y" ]]; then
+    echo "Checking for script updates..."
+    # Check availability of checkUpdate function
+    if [[ $(command -v checkUpdate) ]]; then
+      echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
+      myExit 1
+    fi
+    # check for env update
+    ! checkUpdate env ${BATCH_AUTO_UPDATE} && myExit 1
+    ! checkUpdate cncli.sh ${BATCH_AUTO_UPDATE} && myExit 1
+  fi
+  # source common env variables in case it was updated
   until . "${PARENT}"/env; do
     echo "sleeping for 10s and testing again..."
     sleep 10
