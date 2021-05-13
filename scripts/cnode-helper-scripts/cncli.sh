@@ -133,7 +133,7 @@ cncliInit() {
   if [[ ! -f "${PARENT}"/env ]]; then
     echo -e "\nCommon env file missing: ${PARENT}/env"
     echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"
-    myExit 1
+    exit 1
   fi
   
   . "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
@@ -143,11 +143,11 @@ cncliInit() {
     # Check availability of checkUpdate function
     if [[ $(command -v checkUpdate) ]]; then
       echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
-      myExit 1
+      exit 1
     fi
     # check for env update
-    ! checkUpdate env ${BATCH_AUTO_UPDATE} && myExit 1
-    ! checkUpdate cncli.sh ${BATCH_AUTO_UPDATE} && myExit 1
+    ! checkUpdate env ${BATCH_AUTO_UPDATE} && exit 1
+    ! checkUpdate cncli.sh ${BATCH_AUTO_UPDATE} && exit 1
   fi
   # source common env variables in case it was updated
   until . "${PARENT}"/env; do

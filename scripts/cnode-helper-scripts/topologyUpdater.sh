@@ -69,14 +69,13 @@ if [[ "${UPDATE_CHECK}" == "Y" ]] && [[ "${BATCH_AUTO_UPDATE}" == "N" ]]; then
   # Check availability of checkUpdate function
   if [[ $(command -v checkUpdate) ]]; then
     echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
-    myExit 1
+    exit 1
   fi
   # check for env update
-  ! checkUpdate env ${BATCH_AUTO_UPDATE} && myExit 1
-  ! checkUpdate topologyUpdater.sh ${BATCH_AUTO_UPDATE} && myExit 1
-  ! . "${PARENT}"/env && myExit 1 "ERROR: Topology Updater failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub"
+  ! checkUpdate env ${BATCH_AUTO_UPDATE} && exit 1
+  ! checkUpdate topologyUpdater.sh ${BATCH_AUTO_UPDATE} && exit 1
   # source common env variables in case it was updated
-  . "${PARENT}"/env
+  . "${PARENT}"/env offline &>/dev/null
   case $? in
     0) : ;; # ok
     2) echo "continuing with topology update..." ;;

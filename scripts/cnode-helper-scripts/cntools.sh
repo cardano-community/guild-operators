@@ -79,22 +79,23 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     fi
     # check for env update
     ! checkUpdate env && myExit 1
-    ! . "${PARENT}"/env && myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub"
-    # source common env variables in case it was updated
     . "${PARENT}"/env
     case $? in
       1) myExit 1 ;;
       2) clear ;;
     esac
   fi
+  . "${PARENT}"/env
+  rc=$?
 else
   . "${PARENT}"/env offline
-  case $? in # ignore exit code 0 and 2, any other exits script
-    0) : ;; # ok
-    2) clear ;; # ignore
-    *) myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
-  esac
+  rc=$?
 fi
+case $rc in # ignore exit code 0 and 2, any other exits script
+  0) : ;; # ok
+  2) clear ;; # ignore
+  *) myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
+esac
 
 # get cntools config parameters
 ! . "${PARENT}"/cntools.config && myExit 1
