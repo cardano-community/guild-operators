@@ -107,7 +107,7 @@ fi
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   # check to see if there are any updates available
   clear
-  if [[ "${UPDATE_CHECK}" == "Y" ]]; then 
+  if [[ "${UPDATE_CHECK}" == "Y" ]] && [[ $(command -v checkUpdate) ]]; then 
     println DEBUG "CNTools version check...\n"
     if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/cntools.library.tmp "${URL}/cntools.library" && [[ -f "${PARENT}"/cntools.library.tmp ]]; then
       GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${PARENT}"/cntools.library.tmp |sed -e "s#.*=##")

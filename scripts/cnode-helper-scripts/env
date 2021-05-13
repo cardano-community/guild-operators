@@ -76,7 +76,7 @@ CNODE_PORT=6000                                         # Set node port
 # Do NOT modify code below           #
 ######################################
 
-PARENT="$(dirname $0)"
+[[ ${0} != '-bash' ]] && PARENT=$(dirname $0) || PARENT="$(pwd)" # If sourcing at terminal, $0 would be "-bash" , which is invalid. Thus, fallback to present working directory
 [[ -z ${BRANCH} ]] && { [[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master; }
 URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
 URL="${URL_RAW}/scripts/cnode-helper-scripts"
@@ -173,9 +173,6 @@ if ! jq -r . "${CONFIG}" >/dev/null 2>&1; then
   return 1
 elif [[ "$(jq -r .TraceChainDb ${CONFIG})" != "true" ]]; then
   echo "The ${CONFIG} file suggests that you have set TraceChainDb parameter to false. Please change it to true, as it is required to extract statistics from node."
-  return 1
-elif jq -e .options.mapBackends.\"cardano.node.BlockFetchDecision.peers\" "${CONFIG}" &>/dev/null; then
-  echo "It seems your ${CONFIG} file was not upgraded from version before cardano-node 1.25.1. Please download it from guild-operators repository!"
   return 1
 fi
 
