@@ -79,11 +79,6 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     fi
     # check for env update
     ! checkUpdate env && myExit 1
-    . "${PARENT}"/env
-    case $? in
-      1) myExit 1 ;;
-      2) clear ;;
-    esac
   fi
   . "${PARENT}"/env
   rc=$?
