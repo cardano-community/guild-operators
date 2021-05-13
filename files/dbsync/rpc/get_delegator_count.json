@@ -1,0 +1,32 @@
+{
+  "function": "get_delegator_count(_pool_hash_id)",
+  "description": "Get live delegator count",
+  "parameters": [
+    {
+      "name": "_pool_hash_id",
+      "description": "hash_id from get_pool_update() function"
+    }
+  ],
+  "example": [
+    {
+      "type": "rest",
+      "command": "curl -d _pool_hash_id=127 -s http://localhost:8050/rpc/get_delegator_count"
+    }
+  ],
+  "sql": [
+    "CREATE OR REPLACE FUNCTION get_delegator_count(_pool_hash_id numeric)",
+    "RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$",
+    "BEGIN",
+      "RETURN ( SELECT json_build_object(",
+          "'delegator_count', COUNT(*)",
+        ")",
+        "FROM delegation d",
+        "WHERE pool_hash_id=_pool_hash_id",
+          "AND NOT EXISTS",
+            "(SELECT TRUE FROM delegation d2 WHERE d2.addr_id=d.addr_id AND d2.id > d.id)",
+          "AND NOT EXISTS",
+            "(SELECT TRUE FROM stake_deregistration sd WHERE sd.addr_id=d.addr_id AND sd.tx_id > d.tx_id)",
+      ");",
+    "END; $$;"
+  ]
+}

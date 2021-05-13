@@ -31,6 +31,8 @@ CNODE_PORT=6000                                         # Set node port
 #USE_EKG="N"                                            # Use EKG metrics from the node instead of Promethus. Promethus metrics(default) should yield slightly better performance
 #TIMEOUT_LEDGER_STATE=300                               # Timeout in seconds for querying and dumping ledger-state
 #IP_VERSION=4                                           # The IP version to use for push and fetch, valid options: 4 | 6 | mix (Default: 4)
+#PGREST_API="http://127.0.0.1:8050"                     # Uncomment and set to enable PostgREST API queries against DB-Sync
+#DBSYNC_QUERY_FOLDER="${CNODE_HOME}/files/dbsync/queries" # [advanced feature] Folder containing DB-Sync chain analysis queries
 
 #WALLET_FOLDER="${CNODE_HOME}/priv/wallet"              # Root folder for Wallets
 #POOL_FOLDER="${CNODE_HOME}/priv/pool"                  # Root folder for Pools
@@ -74,7 +76,7 @@ CNODE_PORT=6000                                         # Set node port
 # Do NOT modify code below           #
 ######################################
 
-PARENT="$(dirname $0)"
+[[ ${0} != '-bash' ]] && PARENT=$(dirname $0) || PARENT="$(pwd)" # If sourcing at terminal, $0 would be "-bash" , which is invalid. Thus, fallback to present working directory
 [[ -z ${BRANCH} ]] && { [[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master; }
 URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
 URL="${URL_RAW}/scripts/cnode-helper-scripts"
@@ -171,9 +173,6 @@ if ! jq -r . "${CONFIG}" >/dev/null 2>&1; then
   return 1
 elif [[ "$(jq -r .TraceChainDb ${CONFIG})" != "true" ]]; then
   echo "The ${CONFIG} file suggests that you have set TraceChainDb parameter to false. Please change it to true, as it is required to extract statistics from node."
-  return 1
-elif jq -e .options.mapBackends.\"cardano.node.BlockFetchDecision.peers\" "${CONFIG}" &>/dev/null; then
-  echo "It seems your ${CONFIG} file was not upgraded from version before cardano-node 1.25.1. Please download it from guild-operators repository!"
   return 1
 fi
 
@@ -294,6 +293,8 @@ fi
 [[ -z ${TMP_DIR} ]] && TMP_DIR="/tmp/$(basename "${CNODE_HOME}")"
 if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then echo "ERROR: Failed to create directory for temporary files, please set TMP_DIR to a valid folder in 'env', current folder: ${TMP_DIR}" && exit 1; fi
 [[ -z ${TIMEOUT_LEDGER_STATE} ]] && TIMEOUT_LEDGER_STATE=300
+[[ -n ${PGREST_API} && $(curl -Isf -m 5 ${PGREST_API} | head -1) != *"200 OK"* ]] && unset PGREST_API
+[[ -z ${DBSYNC_QUERY_FOLDER} ]] && DBSYNC_QUERY_FOLDER="${CNODE_HOME}/files/dbsync/queries"
 [[ -z ${WALLET_FOLDER} ]] && WALLET_FOLDER="${CNODE_HOME}/priv/wallet"
 [[ -z ${POOL_FOLDER} ]] && POOL_FOLDER="${CNODE_HOME}/priv/pool"
 [[ -z ${POOL_NAME} ]] && POOL_NAME="CHANGE_ME"
@@ -330,8 +331,8 @@ if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then echo "ERROR: Failed to create direc
 [[ -z ${ASSET_POLICY_ID_FILENAME} ]] && ASSET_POLICY_ID_FILENAME="policy.id"
 
 node_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
-if ! versionCheck "1.26.0" "${node_version}"; then
-  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.26.0 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
+if ! versionCheck "1.27.0" "${node_version}"; then
+  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.27.0 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
   return 1
 fi
 
@@ -493,7 +494,7 @@ isNumber() {
 # Description : Validate decimal number
 #             : $1 = decimal number to validate
 validateDecimalNbr() {
-  re_decimal_nbr='^[0-9]+([.][0-9]+)?$'
+  re_decimal_nbr='^([0-9]+)?([.][0-9]+)?$'
   [[ $1 =~ ${re_decimal_nbr} ]] && return 0 || return 1
 }
 

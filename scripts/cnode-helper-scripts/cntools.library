@@ -9,9 +9,9 @@
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
 CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=2
+CNTOOLS_MINOR_VERSION=3
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=2
+CNTOOLS_PATCH_VERSION=0
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -272,22 +272,22 @@ dirDialog() {
 # Description : Create a bash menu to select one of the provided options
 # Parameters  : optX  >  a list of available options to choose from
 ESC=$(printf "\033")
-cursor_blink_on()  { printf "$ESC[?25h"; }
-cursor_blink_off() { printf "$ESC[?25l"; }
-cursor_to()        { printf "$ESC[$1;${2:-1}H"; }
+cursor_blink_on()  { printf "${ESC}[?25h"; }
+cursor_blink_off() { printf "${ESC}[?25l"; }
+cursor_to()        { printf "${ESC}[$1;${2:-1}H"; }
 print_option()     { printf "  $1 "; }
-print_selected()   { printf " $ESC[7m $1 $ESC[27m$2"; }
+print_selected()   { printf " ${ESC}[7m $1 ${ESC}[27m$2"; }
 get_cursor_row()   { IFS=';' read -sdR -p $'\E[6n' ROW COL; echo ${ROW#*[}; }
 key_input()        { key2=""
                      read -rsn1 key1   # get 1 character
-                     if [[ $key1 == $ESC ]]; then
+                     if [[ $key1 == "${ESC}" ]]; then
                        read -rsn2 -t 0.3 key2 # read 2 more chars, 1s timeout
                      fi
-                       if [[ $key2 = "[A" ]]; then echo up;
-                     elif [[ $key2 = "[B" ]]; then echo down;
-                     elif [[ $key1 = $ESC && $key2 = "" ]]; then echo Esc;
-                     elif [[ $key1 = ""   ]]; then echo enter;
-                     else echo $key1; fi; }
+                       if [[ ${key2} = "[A" ]]; then echo up;
+                     elif [[ ${key2} = "[B" ]]; then echo down;
+                     elif [[ ${key1} = "${ESC}" && ${key2} = "" ]]; then echo Esc;
+                     elif [[ ${key1} = ""   ]]; then echo enter;
+                     else echo ${key1}; fi; }
 opt_shortcut()     { [[ "$1" =~ ^\[([[:alnum:]]+)\].* ]] && echo ${BASH_REMATCH[1]}; }
 opt_firstchar()    { printf "${1:0:1}" | tr '[:upper:]' '[:lower:]'; }
 selectOption() {
@@ -297,8 +297,7 @@ selectOption() {
   printf "\n" && for opt; do printf "\n"; done
 
   # determine current screen position for overwriting the options
-  local lastrow=$(get_cursor_row)
-  local startrow=$(($lastrow - $# - 1))
+  local startrow=$(( $(get_cursor_row) - $# - 1 ))
 
   cursor_blink_off
 
@@ -315,11 +314,11 @@ selectOption() {
       else
         opt_part1="$opt"
       fi
-      cursor_to $(($startrow + $idx))
-      if [ $idx -eq $selected ]; then
-        print_selected "$opt_part1" "$opt_part2"
+      cursor_to $(( startrow + idx ))
+      if [ ${idx} -eq ${selected} ]; then
+        print_selected "${opt_part1}" "${opt_part2}"
       else
-        print_option "$opt_part1$opt_part2"
+        print_option "${opt_part1}${opt_part2}"
       fi
       ((idx++))
     done
@@ -331,19 +330,19 @@ selectOption() {
     case ${key_pressed} in
       enter) break;;
       up)    ((selected--));
-             if [ $selected -lt 0 ]; then selected=$(($# - 1)); fi;;
+             if [ ${selected} -lt 0 ]; then selected=$(($# - 1)); fi;;
       down)  ((selected++));
-             if [ $selected -ge $# ]; then selected=0; fi;;
+             if [ ${selected} -ge $# ]; then selected=0; fi;;
       *)     # shortcut available for selected key?
              i=0
              for opt; do
-               [[ ${key_pressed} = $(opt_shortcut "$opt") ]] && selected=${i} && shortcut_found="yes" && break
+               [[ ${key_pressed} = $(opt_shortcut "${opt}") ]] && selected=${i} && shortcut_found="yes" && break
                ((i++))
              done
              # If no shortcut is found, lets see if it matches the first char of any of the options
              j=0
              for opt; do
-               [[ "${shortcut_found}" != "yes" && ${key_pressed} = $(opt_firstchar "$opt") ]] && selected=${j} && break
+               [[ "${shortcut_found}" != "yes" && ${key_pressed} = $(opt_firstchar "${opt}") ]] && selected=${j} && break
                ((j++))
              done
              ;;
@@ -517,6 +516,7 @@ selectPool() {
   pool_dirs=()
   mode=$1 && shift
   enc_req_files=0
+  current_epoch=$(getEpoch) # Needed for isPoolRegistered() using REST API, best to call outside of loop
   if ! getDirs "${POOL_FOLDER}"; then return 1; fi # dirs() array populated with all pool folders
   for dir in "${dirs[@]}"; do
     for req_file in "$@"; do # check if pool is missing a required file and if so hide it
@@ -531,10 +531,14 @@ selectPool() {
         pool_dirs+=("${dir} (${FG_YELLOW}unprotected${NC})")
       fi
       continue
-    elif [[ ${mode} = "non-reg" ]]; then
-      [[ -f "${POOL_FOLDER}/${dir}/${POOL_REGCERT_FILENAME}" ]] && continue
-    elif [[ ${mode} = "reg" ]]; then
-      [[ ! -f "${POOL_FOLDER}/${dir}/${POOL_REGCERT_FILENAME}" ]] && continue
+    elif [[ ${mode} = "non-reg" || ${mode} = "reg" ]]; then
+      isPoolRegistered "${dir}"
+      case $? in
+        0) println "ERROR" "PGREST_API: ${error_msg}" &>/dev/null ;; # log error without printing but show pool
+        1) [[ ${mode} = "reg" ]] && continue ;;
+        2) [[ ${mode} = "non-reg" ]] && continue ;;
+        3) [[ ${mode} = "reg" ]] && continue ;;
+      esac
     fi
     pool_dirs+=("${dir}")
   done
@@ -546,6 +550,38 @@ selectPool() {
   [[ ${enc_req_files} -gt 0 ]] && println DEBUG "${FG_YELLOW}encrypted pools found but NOT listed, please decrypt to show${NC}"
   if ! selectDir "pool" "${pool_dirs[@]}"; then return 1; fi # ${dir_name} populated by selectDir function
   pool_name="$(echo ${dir_name} | cut -d' ' -f1)"
+}
+
+# Command     : isPoolRegistered [pool_name]
+# Description : check if pool is registered on chain
+#               existence of POOL_REGCERT_FILENAME checked when REST API is not available
+# Parameters  : pool_name   >  the name of the pool to check
+# Return      : 0 => error quering REST API (error message saved in ${error_msg})
+#               1 => pool NOT registered
+#               2 => registered
+#               3 => retired (only for REST API)
+isPoolRegistered() {
+  error_msg=""; pupd_latest=""; pupd_latest_epoch=""; p_hash_id=""; pretire=""; retiring_epoch=0
+  if [[ ${CNTOOLS_MODE} = "OFFLINE" || -z ${PGREST_API} ]]; then
+    [[ -f "${POOL_FOLDER}/${1}/${POOL_DEREGCERT_FILENAME}" ]] && retiring_epoch=-1 || retiring_epoch=0
+    [[ -f "${POOL_FOLDER}/${1}/${POOL_REGCERT_FILENAME}" ]] && return 2 || return 1
+  else
+    getPoolID "$1"
+    ! pupd_latest=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -d _state=latest "${PGREST_API}"/rpc/get_pool_update 2>&1) && error_msg=${pupd_latest} && return 0
+    pupd_latest_epoch=$(jq '.[0].active_epoch_no //empty' <<< ${pupd_latest})
+    if [[ -z ${pupd_latest_epoch} ]]; then
+      return 1
+    else
+      p_hash_id=$(jq '.[0].hash_id' <<< ${pupd_latest})
+      ! pretire=$(curl -sSL -f -d _pool_hash_id=${p_hash_id} -s "${PGREST_API}"/rpc/get_pool_retire 2>&1) && error_msg=${pretire} && return 0
+      retiring_epoch=$(jq -e '.retiring_epoch' <<< ${pretire}) || retiring_epoch=0
+      if [[ ${retiring_epoch} -gt 0 ]]; then
+        [[ $(jq '.announced_tx_id' <<< ${pretire}) -lt $(jq '.[0].registered_tx_id' <<< ${pupd_latest}) ]] && retiring_epoch=0 # invalidated by newer update
+        [[ ${retiring_epoch} -gt 0 && ${retiring_epoch} -le ${current_epoch} ]] && return 3 # pool retired
+      fi
+      return 2
+    fi
+  fi
 }
 
 
@@ -1109,7 +1145,7 @@ registerStakeWallet() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
   
   min_fee_args=(
@@ -1207,7 +1243,7 @@ deregisterStakeWallet() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -1421,7 +1457,7 @@ delegate() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -1506,7 +1542,7 @@ withdrawRewards() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -1596,7 +1632,7 @@ registerPool() {
   if [[ ${delegate_reward_wallet} = 'Y' ]]; then
     reward_delegation_cert="${reward_delegation_cert_file}"
     reward_mu='N'
-    for wallet_name in ${owner_wallets[@]}; do
+    for wallet_name in "${owner_wallets[@]}"; do
       [[ "${wallet_name}" = "${reward_wallet}" ]] && reward_mu='Y' && break # reward wallet is also a multi owner, witness count already include reward wallet stake key
     done
     [[ ${reward_mu} = 'N' ]] && ((witness_count++)) # reward wallet to be delegated but not a multi-owner, increase witness count
@@ -1622,7 +1658,7 @@ registerPool() {
   )
   [[ -n ${owner_delegation_cert} ]] && dummy_build_args+=( --certificate-file "${owner_delegation_cert}" )
   [[ -n ${reward_delegation_cert} ]] && dummy_build_args+=( --certificate-file "${reward_delegation_cert}" )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -1741,7 +1777,7 @@ modifyPool() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -1852,7 +1888,7 @@ deRegisterPool() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -1911,7 +1947,7 @@ deRegisterPool() {
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' stake signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
@@ -1984,7 +2020,7 @@ sendMetadata() {
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -2073,13 +2109,14 @@ mintAsset() {
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --mint "${asset_amount} ${policy_id}${asset_name_out}"
+    --minting-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee 0
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
   
   min_fee_args=(
@@ -2117,6 +2154,7 @@ mintAsset() {
     ${tx_in}
     --tx-out "${tx_out}"
     --mint "${asset_amount} ${policy_id}${asset_name_out}"
+    --minting-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
@@ -2139,6 +2177,7 @@ mintAsset() {
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Asset '${policy_sk_file}' policy signing key\", vkey: $(jq -c . "${policy_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
@@ -2147,7 +2186,6 @@ mintAsset() {
     println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
     println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
     println DEBUG "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_sk_file})${NC}"
-    println DEBUG "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_script_file})${NC}"
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -2176,13 +2214,14 @@ burnAsset() {
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --mint "-${assets_to_burn} ${policy_id}${asset_name_out}"
+    --minting-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee 0
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
   min_fee_args=(
@@ -2220,6 +2259,7 @@ burnAsset() {
     ${tx_in}
     --tx-out "${tx_out}"
     --mint "-${assets_to_burn} ${policy_id}${asset_name_out}"
+    --minting-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
@@ -2242,6 +2282,7 @@ burnAsset() {
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Asset '${policy_sk_file}' policy signing key\", vkey: $(jq -c . "${policy_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
@@ -2250,7 +2291,6 @@ burnAsset() {
     println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
     println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
     println DEBUG "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_sk_file})${NC}"
-    println DEBUG "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_script_file})${NC}"
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -2292,7 +2332,7 @@ witnessTx() {
         --out-file "${tx_witness}"
       )
       println ACTION "${witness_command[@]}"
-      if ! ${witness_command[@]}; then println ERROR "\n${FG_RED}ERROR${NC}: during hardware wallet signing !!" && return 1; fi
+      if ! "${witness_command[@]}"; then println ERROR "\n${FG_RED}ERROR${NC}: during hardware wallet signing !!" && return 1; fi
     else
       tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
       witness_command=(
@@ -2303,7 +2343,7 @@ witnessTx() {
         --out-file "${tx_witness}"
       )
       println ACTION "${witness_command[@]}"
-      if ! ${witness_command[@]}; then println ERROR "\n${FG_RED}ERROR${NC}: during transaction signing !!" && return 1; fi
+      if ! "${witness_command[@]}"; then println ERROR "\n${FG_RED}ERROR${NC}: during transaction signing !!" && return 1; fi
     fi
     tx_witness_files+=( "${tx_witness}" )
   done
@@ -2332,7 +2372,7 @@ assembleTx() {
       --out-file "${tx_signed}"
     )
     println ACTION "${sign_command[@]}"
-    ${sign_command[@]}
+    "${sign_command[@]}"
   else
     println ERROR "\n${FG_RED}ERROR${NC}: no witness files provided, unable to assemble tx!"
     return 1
@@ -2394,7 +2434,7 @@ signTx() {
   fi
   
   println ACTION "${sign_command[@]}"
-  ${sign_command[@]}
+  "${sign_command[@]}"
 }
 
 # Command     : submitTx [signed tx file]
@@ -2410,7 +2450,7 @@ submitTx() {
   )
   
   println ACTION "${submit_command[@]}"
-  ${submit_command[@]}
+  "${submit_command[@]}"
 }
 
 # Command     : unlockHWDevice [action]
@@ -2469,4 +2509,89 @@ selectOpMode() {
     1) op_mode="hybrid" ;;
     2) return 1 ;;
   esac
+}
+
+# Command     : runDBSyncQuery [json query]
+# Description : Helper function to execute DB-Sync query
+# Parameters  : json query  >  JSON schema for the query to run
+runDBSyncQuery() {
+  json_query=$1
+  
+  declare -A variables=()
+  for variable in $(jq -r '.variables[] | @base64' <<< "${json_query}"); do
+    v_name=$(base64 -d <<< ${variable} | jq -r '.name')
+    v_name=${v_name//[^[:alnum:]]/_}
+    v_question=$(base64 -d <<< ${variable} | jq -r '.question')
+    v_mandatory=$(base64 -d <<< ${variable} | jq -r '.mandatory')
+    echo
+    getAnswerAnyCust answer "${v_question}"
+    [[ -z ${answer} && ${v_mandatory} = true ]] && println ERROR "${FG_RED}ERROR${NC}: answer empty for a mandatory question :(" && return 1
+    variables[${v_name}]="${answer}"
+  done
+
+  for query in $(jq -r '.queries[] | @base64' <<< "${json_query}"); do
+    q_name=$(base64 -d <<< ${query} | jq -r '.name')
+    q_print=$(base64 -d <<< ${query} | jq -r '.print')
+    q_uri=$(base64 -d <<< ${query} | jq -r '.uri')
+
+    [[ ${q_print} = true ]] && echo
+
+    q_data=()
+    for data in $(base64 -d <<< ${query} | jq -r '.data[] | @base64'); do
+      d_type=$(base64 -d <<< ${data} | jq -r '.type')
+      [[ ${d_type} = query_result ]] && d_q_name=$(base64 -d <<< ${data} | jq -r '.queryName') && d_q_name=${d_q_name//[^[:alnum:]]/_}
+      d_arg=$(base64 -d <<< ${data} | jq -r '.arg')
+      d_payload=$(base64 -d <<< ${data} | jq -r '.payload')
+      if [[ ${d_type} = query_result && -n ${d_q_name} && ${variables[query_${d_q_name}]+isset} ]]; then
+        q_json_payload=$(jq -r "${d_payload}" <<< "${variables[query_${d_q_name}]}")
+        q_data+=( "-d" "${d_arg}=${q_json_payload}" )
+      elif [[ ${d_type} = query_variable && ${variables[${d_payload}]+isset} ]]; then
+        q_data+=( "-d" "${d_arg}=${variables[${d_payload}]}" )
+      elif [[ ${d_type} = cntools_variable && -n ${!d_payload} ]]; then
+        q_data+=( "-d" "${d_arg}=${!d_payload}" )
+      else
+        println ERROR "\n${FG_RED}ERROR${NC}: variable defined in query not set: '${d_payload}'\n" && return 1
+      fi
+    done
+
+    println LOG "curl -sSL -f ${q_data[*]} ${PGREST_API}/${q_uri}"
+    if ! q_result=$(curl -sSL -f "${q_data[@]}" "${PGREST_API}/${q_uri}" 2>&1) || ! jq -e . <<< ${q_result} &>/dev/null; then
+      println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: ${q_uri}: ${q_result}" && return 1
+    fi
+    println LOG "$(jq -c . <<< ${q_result})"
+    variables[query_${q_name//[^[:alnum:]]/_}]="${q_result}"
+    if [[ ${q_print} = true ]]; then
+      exec >&6 # normal stdout
+      println OFF "  ${FG_LBLUE}> ${FG_GREEN}${q_name} ${FG_LBLUE}<${NC}"
+      jq -r . <<< ${q_result}
+      exec >&8 # custom stdout
+    fi
+  done
+
+  ! query_script=$(jq -er '.script | join("\n")' <<< ${json_query} 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during script parsing: ${query_script}\n" && return 1
+
+  [[ -z ${query_script} ]] && return 0
+
+  script_file="$(mktemp "${TMP_DIR}/query_script_XXXXXXXXXX.sh")"
+  echo -e '#!/usr/bin/env bash' "\n${query_script}" > "${script_file}"
+  chmod +x "${script_file}"
+
+  echo
+  tput sc
+  exec >&6 # normal stdout
+  echo -e "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~${FG_LBLUE}"
+  cat "${script_file}"
+  echo -e "${NC}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+  exec >&8 # custom stdout
+
+  println DEBUG "\nProceed to run above script?"
+  select_opt "[y] Yes" "[n] No"
+  selection=$?
+  tput rc && tput ed
+  case ${selection} in
+    0) . "${script_file}" ;;
+    1) : ;;
+  esac
+
+  return 0
 }

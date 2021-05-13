@@ -1,0 +1,30 @@
+{
+  "function": "get_pool_owners(_pool_tx_id)",
+  "description": "Get registered pool owners",
+  "parameters": [
+    {
+      "name": "_pool_tx_id",
+      "description": "tx_id from get_pool_update() function"
+    }
+  ],
+  "example": [
+    {
+      "type": "rest",
+      "command": "curl -d _pool_tx_id=142292 -s http://localhost:8050/rpc/get_pool_owners"
+    }
+  ],
+  "sql": [
+    "CREATE OR REPLACE FUNCTION get_pool_owners(_pool_tx_id numeric)",
+    "RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$",
+    "BEGIN",
+      "RETURN ( SELECT json_agg(js) json_final FROM ( SELECT json_build_object(",
+          "'owner_hash', encode(po.hash::bytea, 'hex'),",
+          "'reward_addr', sa.view",
+        ") js",
+        "FROM pool_owner AS po",
+        "LEFT JOIN stake_address AS sa ON RIGHT(encode(sa.hash_raw::bytea, 'hex'), -2) = encode(po.hash::bytea, 'hex')",
+        "WHERE po.registered_tx_id = _pool_tx_id",
+      ") t );",
+    "END; $$;"
+  ]
+}

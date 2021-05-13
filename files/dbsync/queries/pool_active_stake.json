@@ -1,0 +1,49 @@
+{
+    "menuPath": "Pool Queries/Active Stake",
+    "description": "Get active stake for specified pool and epoch",
+    "variables": [
+        {
+            "name": "pool_id_bech32",
+            "question": "Enter pool id in Bech32 format (pool..)",
+            "mandatory": true
+        },
+        {
+            "name": "epoch_no",
+            "question": "Enter the epoch number to get active stake for (current epoch if omitted)",
+            "mandatory": false
+        }
+    ],
+    "queries": [
+        {
+            "name": "Pool Updates",
+            "print": false,
+            "data": [
+                {
+                    "type": "query_variable",
+                    "arg": "_pool_bech32",
+                    "payload": "pool_id_bech32"
+                }
+            ],
+            "uri": "rpc/get_pool_update"
+        },
+        {
+            "name": "Pool Active Stake",
+            "print": true,
+            "data": [
+                {
+                    "type": "query_result",
+                    "queryName": "Pool Updates",
+                    "arg": "_pool_hash_id",
+                    "payload": ".[0].hash_id"
+                },
+                {
+                    "type": "query_variable",
+                    "arg": "_epoch_no",
+                    "payload": "epoch_no"
+                }
+            ],
+            "uri": "rpc/get_active_stake"
+        }
+    ],
+    "script": []
+}

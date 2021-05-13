@@ -1,0 +1,119 @@
+{
+    "menuPath": "Pool Queries/Info",
+    "description": "Collection of queries to grab pool data based pool id in bech32 format",
+    "variables": [
+        {
+            "name": "pool_id_bech32",
+            "question": "Enter pool id to search for in Bech32 format (pool..)",
+            "mandatory": true
+        },
+        {
+            "name": "pool_state",
+            "question": "Enter the state to retrieve, all entries returned if blank [latest|active|_]",
+            "mandatory": false
+        }
+    ],
+    "queries": [
+        {
+            "name": "Pool Updates",
+            "print": true,
+            "data": [
+                {
+                    "type": "query_variable",
+                    "arg": "_pool_bech32",
+                    "payload": "pool_id_bech32"
+                },
+                {
+                    "type": "query_variable",
+                    "arg": "_state",
+                    "payload": "pool_state"
+                },
+                {
+                    "type": "cntools_variable",
+                    "arg": "_current_epoch_no",
+                    "payload": "epochnum"
+                }
+            ],
+            "uri": "rpc/get_pool_update"
+        },
+        {
+            "name": "Metadata",
+            "print": true,
+            "data": [
+                {
+                    "type": "query_result",
+                    "queryName": "Pool Updates",
+                    "arg": "_pool_meta_id",
+                    "payload": ".[0].meta_id"
+                }
+            ],
+            "uri": "rpc/get_pool_metadata"
+        },
+        {
+            "name": "Retired",
+            "print": true,
+            "data": [
+                {
+                    "type": "query_result",
+                    "queryName": "Pool Updates",
+                    "arg": "_pool_hash_id",
+                    "payload": ".[0].hash_id"
+                }
+            ],
+            "uri": "rpc/get_pool_retire"
+        },
+        {
+            "name": "Relays",
+            "print": true,
+            "data": [
+                {
+                    "type": "query_result",
+                    "queryName": "Pool Updates",
+                    "arg": "_pool_update_id",
+                    "payload": ".[0].update_id"
+                }
+            ],
+            "uri": "rpc/get_pool_relays"
+        },
+        {
+            "name": "Owners",
+            "print": true,
+            "data": [
+                {
+                    "type": "query_result",
+                    "queryName": "Pool Updates",
+                    "arg": "_pool_tx_id",
+                    "payload": ".[0].registered_tx_id"
+                }
+            ],
+            "uri": "rpc/get_pool_owners"
+        },
+        {
+            "name": "Active Stake",
+            "print": true,
+            "data": [
+                {
+                    "type": "query_result",
+                    "queryName": "Pool Updates",
+                    "arg": "_pool_hash_id",
+                    "payload": ".[0].hash_id"
+                }
+            ],
+            "uri": "rpc/get_active_stake"
+        },
+        {
+            "name": "Delegator Count",
+            "print": true,
+            "data": [
+                {
+                    "type": "query_result",
+                    "queryName": "Pool Updates",
+                    "arg": "_pool_hash_id",
+                    "payload": ".[0].hash_id"
+                }
+            ],
+            "uri": "rpc/get_delegator_count"
+        }
+    ],
+    "script": []
+}

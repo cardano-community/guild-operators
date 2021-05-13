@@ -1,0 +1,45 @@
+{
+  "function": "get_active_stake(_pool_hash_id, _epoch_no)",
+  "description": "Get the pools active stake in lovelace for specified epoch, current epoch if empty",
+  "parameters": [
+    {
+      "name": "_pool_hash_id",
+      "description": "[optional] hash_id from get_pool_update() function. Total stake for epoch if omitted."
+    },
+    {
+      "name": "_epoch_no",
+      "description": "[optional] the epoch number to get active stake for. Current epoch if omitted."
+    }
+  ],
+  "example": [
+    {
+      "type": "rest",
+      "command": "curl -d _pool_hash_id=127 -d _epoch_no=122 -s http://localhost:8050/rpc/get_active_stake"
+    }
+  ],
+  "sql": [
+    "CREATE OR REPLACE FUNCTION get_active_stake(_pool_hash_id numeric default null, _epoch_no numeric default null)",
+    "RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$",
+    "BEGIN",
+      "IF _epoch_no IS NULL THEN",
+        "SELECT epoch.no INTO _epoch_no FROM epoch ORDER BY epoch.no DESC LIMIT 1;",
+      "END IF;",
+      "IF _pool_hash_id IS NULL THEN",
+        "RETURN ( SELECT json_build_object(",
+            "'active_stake_sum', SUM (es.amount)",
+          ")",
+          "FROM epoch_stake AS es",
+          "WHERE es.epoch_no = _epoch_no",
+        ");",
+      "ELSE",
+        "RETURN ( SELECT json_build_object(",
+            "'active_stake_sum', SUM (es.amount)",
+          ")",
+          "FROM epoch_stake AS es",
+          "WHERE es.epoch_no = _epoch_no",
+            "AND es.pool_id = _pool_hash_id",
+        ");",
+      "END IF;",
+    "END; $$;"
+  ]
+}

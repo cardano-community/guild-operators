@@ -1,0 +1,54 @@
+{
+  "function": "get_pool_update(_pool_bech32, _current_epoch_no, _state)",
+  "description": "Grab latest, active or all pool updates for specified pool",
+  "parameters": [
+    {
+      "name": "_pool_bech32",
+      "description": "pool id in bech32 format"
+    },
+    {
+      "name": "_current_epoch_no",
+      "description": "[optional] only needed for 'active' state"
+    },
+    {
+      "name": "_state",
+      "description": "[optional] [latest|active] the pool update to retrieve, all entries returned if blank/omitted"
+    }
+  ],
+  "example": [
+    {
+      "type": "rest",
+      "command": "curl -d _pool_bech32=pool1pvyt2d468tlzr77cymae90hgj73aret457zfktnvgev6kmx5nk3 -d _current_epoch_no=121 -d _state=active -s http://localhost:8050/rpc/get_pool_update"
+    }
+  ],
+  "sql": [
+    "CREATE OR REPLACE FUNCTION get_pool_update(_pool_bech32 text, _current_epoch_no numeric default 0, _state text default '' )",
+    "RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$",
+    "BEGIN",
+      "RETURN ( SELECT json_agg(js) json_final FROM ( SELECT json_build_object(",
+          "'update_id', pu.id,",
+          "'hash_id', pu.hash_id,",
+          "'registered_tx_id', pu.registered_tx_id,",
+          "'active_epoch_no', pu.active_epoch_no,",
+          "'pledge', pu.pledge,",
+          "'margin', pu.margin,",
+          "'fixed_cost', pu.fixed_cost,",
+          "'reward_addr', RIGHT(encode(pu.reward_addr::bytea, 'hex'), -2),",
+          "'meta_id', pu.meta_id",
+        ") js",
+        "FROM pool_update AS pu",
+        "INNER JOIN pool_hash AS ph ON pu.hash_id = ph.id",
+        "WHERE ph.view = _pool_bech32",
+        "AND CASE",
+          "WHEN _state = 'active' AND pu.active_epoch_no <= _current_epoch_no THEN 'True'",
+          "WHEN _state = 'active' THEN 'False'",
+          "ELSE 'True'",
+        "END = 'True'",
+        "ORDER BY pu.id DESC",
+        "LIMIT CASE",
+          "WHEN _state = 'active' OR _state = 'latest' THEN 1",
+        "END",
+      ") t );",
+    "END; $$;"
+  ]
+}
