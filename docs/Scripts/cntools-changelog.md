@@ -5,7 +5,11 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [8.3.0] - 2021-05-16
+## [8.4.0] - 2021-05-16
+##### Added
+- Compatibility with cardano-address 3.4.0 (while retaining support for 2.1.0)
+
+## [8.3.0] - 2021-05-15
 ##### Added
 - New env variable called PGREST_API and if set and reachable, used instead of local node queries and for advanced modes
 - New library function isPoolRegistered() for verifying if a pool is registered or not using either simple reg cert file detection (if REST API not set/reachable) or proper dbsync lookup using REST API. Used by Pool >> Show|List|Register|Modify
