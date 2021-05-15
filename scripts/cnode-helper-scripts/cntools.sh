@@ -418,6 +418,8 @@ function main {
                     payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
                     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
                     stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+                    caddr_v="$(cardano-address -v | awk '{print $1}')"
+                    [[ "${caddr_v}" == 3* ]] && caddr_arg="--with-chain-code" || caddr_arg=""
                     if ! root_prv=$(cardano-address key from-recovery-phrase Shelley <<< ${mnemonic}); then
                       echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
                       unset mnemonic; unset words
@@ -426,11 +428,11 @@ function main {
                     unset mnemonic; unset words
                     payment_xprv=$(cardano-address key child 1852H/1815H/0H/0/0 <<< ${root_prv})
                     stake_xprv=$(cardano-address key child 1852H/1815H/0H/2/0 <<< ${root_prv})
-                    payment_xpub=$(cardano-address key public <<< ${payment_xprv})
-                    stake_xpub=$(cardano-address key public <<< ${stake_xprv})
+                    payment_xpub=$(cardano-address key public ${caddr_arg} <<< ${payment_xprv})
+                    stake_xpub=$(cardano-address key public ${caddr_arg} <<< ${stake_xprv})
                     [[ "${NETWORKID}" = "Mainnet" ]] && network_tag=1 || network_tag=0
                     base_addr_candidate=$(cardano-address address delegation ${stake_xpub} <<< "$(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub})")
-                    if [[ "${NETWORKID}" = "Testnet" ]]; then
+                    if [[ "${caddr_v}" == 2* ]] && [[ "${NETWORKID}" = "Testnet" ]]; then
                       println LOG "TestNet, converting address to 'addr_test'"
                       base_addr_candidate=$(bech32 addr_test <<< ${base_addr_candidate})
                     fi

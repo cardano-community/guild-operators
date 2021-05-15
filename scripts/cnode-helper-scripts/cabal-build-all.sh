@@ -19,13 +19,13 @@ if [[ "${PWD##*/}" == "cardano-node" ]]; then
 	source-repository-package
 	  type: git
 	  location: https://github.com/input-output-hk/cardano-addresses
-	  tag: 2.1.0
+	  tag: 3.4.0
 	  subdir: core
 	
 	source-repository-package
 	  type: git
 	  location: https://github.com/input-output-hk/cardano-addresses
-	  tag: 2.1.0
+	  tag: 3.4.0
 	  subdir: command-line
 	EOF
   chmod 640 cabal.project.local
