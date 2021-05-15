@@ -693,7 +693,6 @@ getShelleyTransitionEpoch() {
     return 0
   fi
 }
-[[ ${OFFLINE_MODE} = "N" && ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && getNodeMetrics && getShelleyTransitionEpoch
 
 # Description : Offline calculation of current epoch based on genesis file
 getEpoch() {
@@ -810,6 +809,8 @@ BYRON_SLOT_LENGTH=$(( $(jq -r .blockVersionData.slotDuration "${BYRON_GENESIS_JS
 BYRON_EPOCH_LENGTH=$(( 10 * BYRON_K ))
 
 # Return code 2 is used for scripts that want to source env but not fail due to a starting node
+
+[[ ${OFFLINE_MODE} = "N" && ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && getNodeMetrics && getShelleyTransitionEpoch
 
 if [[ ${OFFLINE_MODE} = "N" && ! -S ${CARDANO_NODE_SOCKET_PATH} ]]; then
   echo -e "${FG_RED}Looks like cardano-node is running with socket-path as ${FG_LBLUE}${CARDANO_NODE_SOCKET_PATH}${FG_RED}, but the actual socket file does not exist."
