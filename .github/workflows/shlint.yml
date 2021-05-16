@@ -15,6 +15,6 @@ jobs:
     # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
     - uses: actions/checkout@v1
     - name: SH Lint Check
-      uses: azohra/shell-linter@v0.3.0
+      uses: azohra/shell-linter@vlatest
       with:
         path: "scripts/cnode-helper-scripts"
