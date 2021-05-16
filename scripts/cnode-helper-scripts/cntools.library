@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=4
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=2
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -2463,18 +2463,22 @@ unlockHWDevice() {
   device_app="$(cardano-hw-cli device version)"
   device_app_vendor="$(cut -d' ' -f1 <<< "${device_app}")"
   device_app_version="$(cut -d' ' -f4 <<< "${device_app}")"
+  println LOG "hardware device: vendor=${device_app_vendor} version=${device_app_version}"
   if [[ ! ${device_app_version} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     println ERROR "${FG_RED}ERROR${NC}: unable to identify connected hardware device, is the device plugged in and unlocked?"
     println ERROR "Make sure device is seen by OS using tools like lsusb etc and is working correctly"
     waitForInput && return 1
   elif [[ ${device_app_vendor} = Ledger ]]; then
-    if ! versionCheck "2.2.0" "${device_app_version}"; then
+    if ! versionCheck "2.3.2" "${device_app_version}"; then
       println ERROR "${FG_RED}ERROR${NC}: Cardano app version installed on Ledger is ${FG_LGRAY}v${device_app_version}${NC}, minimum required version is ${FG_GREEN}v2.2.0${NC} !!"
       return 1
     fi
   elif [[ ${device_app_vendor} = Trezor ]]; then
     if ! versionCheck "2.3.6" "${device_app_version}"; then
       println ERROR "${FG_RED}ERROR${NC}: Trezor firmware installed on device is ${FG_LGRAY}v${device_app_version}${NC}, minimum required version is ${FG_GREEN}v2.3.6${NC} !!"
+      return 1
+    elif versionCheck "1.4.0" "${HWCLI_version}" && ! versionCheck "2.3.7" "${device_app_version}"; then
+      println ERROR "${FG_RED}ERROR${NC}: Trezor fw ${FG_LGRAY}v${device_app_version}${NC} not compatible with cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC}, please upgrade Trezor fw version (if available) or downgrade cardano-hw-cli to ${FG_LGRAY}v1.2.0${NC} !!"
       return 1
     fi
   else
@@ -2485,7 +2489,9 @@ unlockHWDevice() {
 }
 
 HWCLIversionCheck() {
+  println ACTION "cardano-hw-cli version"
   HWCLI_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
+  println LOG "cardano-hw-cli version: ${HWCLI_version}"
   if ! versionCheck "1.2.0" "${HWCLI_version}"; then
     println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.1.3${NC} !!"
     println ERROR "Please run ${FG_LGRAY}prereqs.sh -w${NC} to upgrade to the latest version."
