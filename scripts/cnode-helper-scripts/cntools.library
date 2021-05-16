@@ -2458,7 +2458,7 @@ submitTx() {
 # Parameters  : action  >  message for action to be taken
 unlockHWDevice() {
   if ! HWCLIversionCheck; then waitForInput && return 1; fi
-  waitForInput "${FG_BLUE}INFO${NC}: please connect and unlock hardware device" "  ${FG_YELLOW}Ledger${NC} - Unlock with pin and open Cardano app" "  ${FG_YELLOW}Trezor${NC} - Make sure trezor bridge is installed (https://wallet.trezor.io/#/bridge) " "" "when done, press any key to continue"
+  waitForInput "${FG_BLUE}INFO${NC}: please connect and unlock hardware device" "\n  ${FG_YELLOW}Ledger${NC} - Unlock with pin and open Cardano app" "\n  ${FG_YELLOW}Trezor${NC} - Make sure trezor bridge is installed (https://wallet.trezor.io/#/bridge) " "\n\nwhen done, press any key to continue"
   println ACTION "cardano-hw-cli device version"
   device_app="$(cardano-hw-cli device version)"
   device_app_vendor="$(cut -d' ' -f1 <<< "${device_app}")"
