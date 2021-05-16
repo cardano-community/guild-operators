@@ -710,6 +710,10 @@ function main {
                 fi
                 getBaseAddress ${wallet_name}
                 getPayAddress ${wallet_name}
+                if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
+                  println ERROR "${FG_RED}ERROR${NC}: wallet missing pay/base addr files or vkey files to generate them!"
+                  continue
+                fi
                 if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                   [[ -n ${base_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Address"  "${base_addr}")"
                   [[ -n ${pay_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Enterprise Addr"  "${pay_addr}")"
@@ -768,7 +772,7 @@ function main {
                 println DEBUG "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, limited wallet info shown!"
               fi
               tput sc
-              if ! selectWallet "none" "${WALLET_PAY_VK_FILENAME}"; then
+              if ! selectWallet "none"; then
                 [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
               fi
               tput rc && tput ed
@@ -780,6 +784,10 @@ function main {
               fi
               getBaseAddress ${wallet_name}
               getPayAddress ${wallet_name}
+              if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
+                println ERROR "\n${FG_RED}ERROR${NC}: wallet missing pay/base addr files or vkey files to generate them!"
+                waitForInput && continue
+              fi
               getRewardAddress ${wallet_name}
               base_lovelace=0
               pay_lovelace=0
@@ -794,9 +802,14 @@ function main {
                   *) token_meta_server="" ;; # Not a valid asset metadata network
                 esac
                 for i in {1..2}; do
-                  if [[ $i -eq 1 ]]; then getBalance ${base_addr}; base_lovelace=${assets[lovelace]}; address_type="Base"
-                  else getBalance ${pay_addr}; pay_lovelace=${assets[lovelace]}; address_type="Enterprise"; fi
-                  [[ $i -eq 2 && ${utxo_cnt} -eq 0 ]] && continue
+                  if [[ $i -eq 1 ]]; then 
+                    address_type="Base"
+                    getBalance ${base_addr} && base_lovelace=${assets[lovelace]}
+                  else
+                    address_type="Enterprise"
+                    getBalance ${pay_addr} && pay_lovelace=${assets[lovelace]}
+                  fi
+                  [[ $i -eq 2 && ${utxo_cnt} -eq 0 ]] && continue # Dont print Enterprise if empty
                   
                   # loop all assets to query metadata register for token data
                   for asset in "${!assets[@]}"; do
@@ -898,18 +911,20 @@ function main {
                 println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Registered" "Unknown")"
               fi
 
-              println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
-              println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Enterprise Address" "${pay_addr}")"
-              println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Reward/Stake Address" "${reward_addr}")"
+              [[ -n ${base_addr} ]]   && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
+              [[ -n ${pay_addr} ]]    && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Enterprise Address" "${pay_addr}")"
+              [[ -n ${reward_addr} ]] && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Reward/Stake Address" "${reward_addr}")"
               if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-                getRewards ${wallet_name}
-                if [[ "${reward_lovelace}" -ge 0 ]]; then
-                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} Ada" "Rewards Available" "$(formatLovelace ${reward_lovelace})")"
-                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} Ada" "Funds + Rewards" "$(formatLovelace $((pay_lovelace + base_lovelace + reward_lovelace)))")"
+                if [[ -n ${reward_addr} ]]; then
+                  getRewardsFromAddr ${reward_addr}
+                  if [[ "${reward_lovelace}" -ge 0 ]]; then
+                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} Ada" "Rewards Available" "$(formatLovelace ${reward_lovelace})")"
+                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} Ada" "Funds + Rewards" "$(formatLovelace $((pay_lovelace + base_lovelace + reward_lovelace)))")"
+                  fi
                 fi
-                getAddressInfo "${base_addr}"
+                if [[ -n ${base_addr} ]]; then getAddressInfo "${base_addr}"; else getAddressInfo "${pay_addr}"; fi
                 println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Encoding" "$(jq -r '.encoding' <<< ${address_info})")"
-                delegation_pool_id=$(jq -r '.[0].delegation  // empty' <<< "${stake_address_info}" 2>/dev/null)
+                if [[ -n ${reward_addr} ]]; then delegation_pool_id=$(jq -r '.[0].delegation  // empty' <<< "${stake_address_info}" 2>/dev/null); else unset delegation_pool_id; fi
                 if [[ -n ${delegation_pool_id} ]]; then
                   unset poolName
                   while IFS= read -r -d '' pool; do
@@ -921,6 +936,12 @@ function main {
                   echo
                   println "${FG_RED}Delegated${NC} to ${FG_GREEN}${poolName}${NC} ${FG_LGRAY}(${delegation_pool_id})${NC}"
                 fi
+              fi
+              if [[ -z ${pay_addr} || -z ${base_addr} || -z ${reward_addr} ]]; then
+                echo
+                [[ -z ${pay_addr} ]]    && println "${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_PAY_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_PAY_VK_FILENAME}${NC}' to generate it!"
+                [[ -z ${base_addr} ]]   && println "${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_BASE_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_PAY_VK_FILENAME}${NC}/${FG_LGRAY}${WALLET_STAKE_VK_FILENAME}${NC}' to generate it!"
+                [[ -z ${reward_addr} ]] && println "${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_STAKE_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_STAKE_VK_FILENAME}${NC}' to generate it!"
               fi
               waitForInput && continue
               ;; ###################################################################

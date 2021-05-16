@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=4
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=0
+CNTOOLS_PATCH_VERSION=1
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -867,7 +867,7 @@ getBalance() {
   asset_name_maxlen=5; asset_amount_maxlen=12
   tx_in=""
   
-  if ! utxo_raw=$(${CCLI} query utxo ${NETWORK_IDENTIFIER} --address "${1}"); then return 1; fi
+  if [[ -z ${1} ]] || ! utxo_raw=$(${CCLI} query utxo ${NETWORK_IDENTIFIER} --address "${1}"); then return 1; fi
   
   [[ -z ${utxo_raw} ]] && return
   
@@ -2458,7 +2458,7 @@ submitTx() {
 # Parameters  : action  >  message for action to be taken
 unlockHWDevice() {
   if ! HWCLIversionCheck; then waitForInput && return 1; fi
-  waitForInput "${FG_BLUE}INFO${NC}: please connect and unlock hardware device" "  ${FG_YELLOW}Ledger${NC} - Unlock with pin and open Cardano app" "  ${FG_YELLOW}Trezor${NC} - Make sure trezor bridge is installed (https://wallet.trezor.io/#/bridge) " "" "when done, press any key to continue"
+  waitForInput "${FG_BLUE}INFO${NC}: please connect and unlock hardware device" "\n  ${FG_YELLOW}Ledger${NC} - Unlock with pin and open Cardano app" "\n  ${FG_YELLOW}Trezor${NC} - Make sure trezor bridge is installed (https://wallet.trezor.io/#/bridge) " "\n\nwhen done, press any key to continue"
   println ACTION "cardano-hw-cli device version"
   device_app="$(cardano-hw-cli device version)"
   device_app_vendor="$(cut -d' ' -f1 <<< "${device_app}")"
