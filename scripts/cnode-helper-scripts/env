@@ -418,7 +418,6 @@ cmdAvailable() {
 # Parameters  : message  >  [optional]: override default 'press any key to return to home menu' message
 waitToProceed() {
   IFS=';' read -sdR -p $'\E[6n' ROW COL
-  echo
   createDistanceToBottom $(( $# + 1 ))
   ESC=$(printf "\033")
   echo
@@ -431,7 +430,7 @@ waitToProceed() {
   if [[ $key == "$ESC" ]]; then
     read -rsn2 key # read 2 more chars
   fi
-  tput cup ${ROW#*[} ${COL}
+  tput cup ${ROW#*[} 0
   tput ed
 }
 
