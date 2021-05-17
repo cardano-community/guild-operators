@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=4
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=2
+CNTOOLS_PATCH_VERSION=3
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -2189,7 +2189,7 @@ mintAsset() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${policy_sk_file}" "${policy_script_file}"; then return 1; fi
+  if ! signTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${policy_sk_file}"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -2294,7 +2294,7 @@ burnAsset() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${policy_sk_file}" "${policy_script_file}"; then return 1; fi
+  if ! signTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${policy_sk_file}"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -2396,8 +2396,6 @@ signTx() {
       if [[ ! -f "${skey}" ]]; then
         println ERROR "\n${FG_RED}ERROR${NC}: file not found: ${skey}"
         return 1
-      elif [[ ${skey} = *".script" ]]; then
-        tx_sign_out+=( "--script-file ${skey}" )
       elif [[ ${skey_desc} = *"Hardware"* ]]; then # HW signing key
         tx_sign_out+=( "--hw-signing-file ${skey}" )
         if [[ ${wallet_source} = "base" && ${skey_desc} = "Payment"* ]]; then

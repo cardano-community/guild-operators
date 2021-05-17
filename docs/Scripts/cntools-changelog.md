@@ -5,6 +5,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.4.3] - 2021-05-17
+##### Fixed
+- Token Mint/Burn script file signing not completely removed in all places (1.27.0 change)
+
 ## [8.4.2] - 2021-05-16
 ##### Fixed
 - cardano-hw-cli version limited to 1.2.0 for current Trezor fw v2.3.6. Please manually downgrade version, available at https://github.com/vacuumlabs/cardano-hw-cli/releases , placing files in $HOME/bin/cardano-hw-cli
