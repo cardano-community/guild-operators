@@ -273,7 +273,7 @@ User=$(whoami)
 Restart=on-failure
 ExecStart=$PROM_DIR/prometheus \
   --config.file=$PROM_DIR/prometheus.yml \
-  --storage.tsdb.path=$PROM_DIR/data --web.listen-address=$PROM_HOST:$PROM_PORT
+  --storage.tsdb.path=$PROM_DIR/data --collector.systemd --web.listen-address=$PROM_HOST:$PROM_PORT
 WorkingDirectory=$PROM_DIR
 LimitNOFILE=10000
 
