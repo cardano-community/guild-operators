@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=4
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=3
+CNTOOLS_PATCH_VERSION=4
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -2468,7 +2468,7 @@ unlockHWDevice() {
     waitForInput && return 1
   elif [[ ${device_app_vendor} = Ledger ]]; then
     if ! versionCheck "2.3.2" "${device_app_version}"; then
-      println ERROR "${FG_RED}ERROR${NC}: Cardano app version installed on Ledger is ${FG_LGRAY}v${device_app_version}${NC}, minimum required version is ${FG_GREEN}v2.2.0${NC} !!"
+      println ERROR "${FG_RED}ERROR${NC}: Cardano app version installed on Ledger is ${FG_LGRAY}v${device_app_version}${NC}, minimum required app version is ${FG_GREEN}v2.3.2${NC} !!"
       return 1
     fi
   elif [[ ${device_app_vendor} = Trezor ]]; then

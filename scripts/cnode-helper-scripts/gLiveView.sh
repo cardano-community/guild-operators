@@ -54,7 +54,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.20.6
+GLV_VERSION=v1.20.7
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -125,11 +125,10 @@ if [[ "${UPDATE_CHECK}" == "Y" ]]; then
   fi
   # check for env update
   ! checkUpdate env && myExit 1
-  ! . "${PARENT}"/env && myExit 1 "ERROR: gLiveView failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub"
   # source common env variables in case it was updated
   . "${PARENT}"/env
   case $? in
-    1) myExit 1 ;;
+    1) myExit 1 "ERROR: gLiveView failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
     2) clear ;;
   esac
 
@@ -160,7 +159,7 @@ else
   # source common env variables in offline mode
   . "${PARENT}"/env offline
   case $? in
-    1) myExit 1 ;;
+    1) myExit 1 "ERROR: gLiveView failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
     2) clear ;;
   esac
 fi
