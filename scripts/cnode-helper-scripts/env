@@ -394,6 +394,7 @@ checkUpdate() {
         STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/${1}")
         printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}/${1}".tmp
         mv "${PARENT}/${1}".tmp "${PARENT}/${1}"
+        [[ ! "${1}" == "env" ]] && chmod +x "${1}"
         echo -e "\n${FG_YELLOW}${1}${NC} update successfully applied!"
         [[ -t 1 ]] && waitToProceed && clear
         return 1
