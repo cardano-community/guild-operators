@@ -26,9 +26,9 @@ git pull
 # Include the cardano-crypto-praos and libsodium components for db-sync
 # On CentOS 7 (GCC 4.8.5) we should also do
 # echo -e "package cryptonite\n  flags: -use_target_attributes" >> cabal.project.local
-echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > cabal.project.local
 # Replace tag against checkout if you do not want to build the latest released version
 git checkout $(curl -s https://api.github.com/repos/input-output-hk/cardano-db-sync/releases/latest | jq -r .tag_name)
+# Use `-l` argument if you'd like to use system libsodium instead of IOG fork of libsodium while compiling
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
 The above would copy the binaries into `~/.cabal/bin` folder.
