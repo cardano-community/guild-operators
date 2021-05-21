@@ -17,6 +17,7 @@ CNODE_PORT=6000                                         # Set node port
 #DB_DIR="${CNODE_HOME}/db"                              # Folder to store the cardano-node blockchain db
 #UPDATE_CHECK="Y"                                       # Check for updates to scripts, it will still be prompted before proceeding (Y|N).
 #TMP_DIR="/tmp/cnode"                                   # Folder to hold temporary files in the various scripts, each script might create additional subfolders
+#USE_EKG="Y"                                            # Use EKG metrics from the node instead of Prometheus. Prometheus metrics yield slightly better performance but can be unresponsive at times (default EKG)
 #EKG_HOST=127.0.0.1                                     # Set node EKG host IP
 #EKG_PORT=12788                                         # Override automatic detection of node EKG port
 #PROM_HOST=127.0.0.1                                    # Set node Prometheus host IP
@@ -28,7 +29,6 @@ CNODE_PORT=6000                                         # Set node port
 #SHELLEY_TRANS_EPOCH=208                                # Override automatic detection of shelley epoch start, e.g 208 for mainnet
 #TG_BOT_TOKEN=""                                        # Uncomment and set to enable telegramSend function. To create your own BOT-token and Chat-Id follow guide at:
 #TG_CHAT_ID=""                                          # https://cardano-community.github.io/guild-operators/#/Scripts/sendalerts
-#USE_EKG="N"                                            # Use EKG metrics from the node instead of Promethus. Promethus metrics(default) should yield slightly better performance
 #TIMEOUT_LEDGER_STATE=300                               # Timeout in seconds for querying and dumping ledger-state
 #IP_VERSION=4                                           # The IP version to use for push and fetch, valid options: 4 | 6 | mix (Default: 4)
 #PGREST_API="http://127.0.0.1:8050"                     # Uncomment and set to enable PostgREST API queries against DB-Sync
@@ -267,7 +267,7 @@ BLOCKLOG_DB="${BLOCKLOG_DIR}/blocklog.db"
 [[ -z ${CNODE_PORT} ]] && CNODE_PORT=6000
 [[ -z "${IP_VERSION}" ]] && IP_VERSION=4
 IP_VERSION=$(tr '[:upper:]' '[:lower:]' <<< "${IP_VERSION}")
-
+[[ -z ${USE_EKG} ]] && USE_EKG='Y'
 CNODE_PID=$(pgrep -fn "[c]ardano-node.*.--port ${CNODE_PORT}")
 
 if [[ -n "${CNODE_PID}" ]]; then
@@ -625,7 +625,6 @@ createDistanceToBottom() {
 }
 
 # Description : Query cardano-node for current metrics
-[[ -z ${USE_EKG} ]] && USE_EKG='N'
 getNodeMetrics() {
   if [[ ${USE_EKG} = 'Y' ]]; then
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
