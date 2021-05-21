@@ -22,7 +22,7 @@ git fetch --tags --all
 git pull
 git checkout $(curl -s https://api.github.com/repos/input-output-hk/cardano-node/releases/latest | jq -r .tag_name)
 
-# The "-o" flag against script below will download cabal.project.local to depend on system libSodium package, and include cardano-address and bech32 binaries to your build
+# Use `-l` argument if you'd like to use system libsodium instead of IOG fork of libsodium while compiling
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
 

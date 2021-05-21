@@ -3,12 +3,14 @@
 # executes cabal build all
 # parses executables created from compiler output and copies it to ~./cabal/bin folder.
 
-if [[ "${PWD##*/}" == "cardano-node" ]]; then
-  echo "Overwriting cabal.project.local with latest file from guild-repo (previous file, if any, will be saved as cabal.project.local.swp).."
+[[ "$1" == "-l" ]] && USE_SYSTEM_LIBSODIUM="package cardano-crypto-praos
+flags: -external-libsodium-vrf"
+
+if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" ]]; then
+  echo "Overwriting cabal.project.local to include cardano-addresses and bech32 (previous file, if any, will be saved as cabal.project.local.swp).."
   [[ -f cabal.project.local ]] && mv cabal.project.local cabal.project.local.swp
   cat <<-EOF > cabal.project.local
-	package cardano-crypto-praos
-	flags: -external-libsodium-vrf
+	${USE_SYSTEM_LIBSODIUM}
 	
 	source-repository-package
 	  type: git

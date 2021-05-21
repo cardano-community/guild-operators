@@ -14,7 +14,7 @@ unset CNODE_HOME
 #WANT_BUILD_DEPS='Y'    # Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
 #FORCE_OVERWRITE='N'    # Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
                         # topology.json, config.json and genesis files normally saved will also be overwritten
-#LIBSODIUM_FORK='N'     # Use IOG fork of libsodium - Recommended as per IOG instructions (Default: system build)
+#LIBSODIUM_FORK='Y'     # Use IOG fork of libsodium instead of official repositories - Recommended as per IOG instructions (Default: IOG fork)
 #INSTALL_CNCLI='N'      # Install/Upgrade and build CNCLI with RUST
 #INSTALL_VCHC='N'       # Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
 #CNODE_NAME='cnode'     # Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
@@ -66,7 +66,7 @@ Install pre-requisites for building cardano node and using CNTools
       eg: -n testnet
 -t    Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
--l    Use IOG fork of libsodium - Recommended as per IOG instructions (Default: system build)
+-l    Use system libsodium instead of IOG fork (Default: use libsodium from IOG fork)
 -c    Install/Upgrade and build CNCLI with RUST
 -w    Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
 -p    Install/Upgrade PostgREST binary to query postgres DB as a service
@@ -83,7 +83,7 @@ while getopts :in:sflcwpt:m:b: opt; do
     n ) NETWORK=${OPTARG} ;;
     s ) WANT_BUILD_DEPS='N' ;;
     f ) FORCE_OVERWRITE='Y' ;;
-    l ) LIBSODIUM_FORK='Y' ;;
+    l ) LIBSODIUM_FORK='N' ;;
     c ) INSTALL_CNCLI='Y' ;;
     w ) INSTALL_VCHC='Y' ;;
     p ) INSTALL_POSTGREST='Y' ;;
@@ -99,7 +99,7 @@ shift $((OPTIND -1))
 [[ -z ${NETWORK} ]] && NETWORK='mainnet'
 [[ -z ${WANT_BUILD_DEPS} ]] && WANT_BUILD_DEPS='Y'
 [[ -z ${FORCE_OVERWRITE} ]] && FORCE_OVERWRITE='N'
-[[ -z ${LIBSODIUM_FORK} ]] && LIBSODIUM_FORK='N'
+[[ -z ${LIBSODIUM_FORK} ]] && LIBSODIUM_FORK='Y'
 [[ -z ${INSTALL_CNCLI} ]] && INSTALL_CNCLI='N'
 [[ -z ${INSTALL_VCHC} ]] && INSTALL_VCHC='N'
 [[ -z ${INSTALL_POSTGREST} ]] && INSTALL_POSTGREST='N'
@@ -285,7 +285,7 @@ if [[ "${LIBSODIUM_FORK}" = "Y" ]]; then
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
   fi
   pushd "${HOME}"/git >/dev/null || err_exit
-  git clone https://github.com/input-output-hk/libsodium &>/dev/null
+  [[ ! -d "./libsodium" ]] && git clone https://github.com/input-output-hk/libsodium &>/dev/null
   pushd libsodium >/dev/null || err_exit
   git checkout 66f017f1 &>/dev/null
   ./autogen.sh > autogen.log > /tmp/libsodium.log 2>&1

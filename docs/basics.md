@@ -33,7 +33,7 @@ Install pre-requisites for building cardano node and using CNTools
       eg: -n testnet
 -t    Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
--l    Use IOG fork of libsodium - Recommended as per IOG instructions (Default: system build)
+-l    Use system libsodium instead of IOG fork (Default: use libsodium from IOG fork)
 -c    Install/Upgrade and build CNCLI with RUST
 -w    Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
 -p    Install/Upgrade PostgREST binary to query postgres DB as a service
