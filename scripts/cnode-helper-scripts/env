@@ -127,6 +127,8 @@ if [[ -z "${CNCLI}" ]]; then
   CNCLI=$(command -v cncli) || CNCLI="${HOME}/.cargo/bin/cncli"
 fi
 
+[[ -f /usr/local/lib/libsodium.so ]] && export LD_LIBRARY_PATH=/usr/local/lib:"${LD_LIBRARY_PATH}" && PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:"${PKG_CONFIG_PATH}"
+
 [[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
 
 if [[ -z "${SOCKET}" ]]; then
