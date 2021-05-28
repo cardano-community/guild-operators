@@ -3,6 +3,8 @@
 # executes cabal build all
 # parses executables created from compiler output and copies it to ~./cabal/bin folder.
 
+[[ -f /usr/local/lib/libsodium.so ]] && export LD_LIBRARY_PATH=/usr/local/lib:"${LD_LIBRARY_PATH}" && PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:"${PKG_CONFIG_PATH}"
+
 [[ "$1" == "-l" ]] && USE_SYSTEM_LIBSODIUM="package cardano-crypto-praos
 flags: -external-libsodium-vrf"
 
