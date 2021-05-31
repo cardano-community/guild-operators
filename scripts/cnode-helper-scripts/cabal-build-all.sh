@@ -6,7 +6,7 @@
 [[ -f /usr/local/lib/libsodium.so ]] && export LD_LIBRARY_PATH=/usr/local/lib:"${LD_LIBRARY_PATH}" && PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:"${PKG_CONFIG_PATH}"
 
 [[ "$1" == "-l" ]] && USE_SYSTEM_LIBSODIUM="package cardano-crypto-praos
-flags: -external-libsodium-vrf"
+  flags: -external-libsodium-vrf"
 
 if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" ]]; then
   echo "Overwriting cabal.project.local to include cardano-addresses and bech32 (previous file, if any, will be saved as cabal.project.local.swp).."
@@ -17,22 +17,20 @@ if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" 
 	source-repository-package
 	  type: git
 	  location: https://github.com/input-output-hk/bech32
-	  tag: v1.1.0
+	  tag: c33dbf2edeb6930328503871e145f011cb20127e
 	  subdir: bech32
 	
 	source-repository-package
 	  type: git
 	  location: https://github.com/input-output-hk/cardano-addresses
-	  tag: 3.4.0
-	  subdir: core
+	  tag: 9fe7084c9c53b9edf3eba34ee8459c896734ac7a
+	  subdir:
+	    command-line
+	    core
 	
-	source-repository-package
-	  type: git
-	  location: https://github.com/input-output-hk/cardano-addresses
-	  tag: 3.4.0
-	  subdir: command-line
 	EOF
   chmod 640 cabal.project.local
+  cabal install bech32 cardano-addresses-cli  --overwrite-policy=always 2>&1 | tee /tmp/build-b32-caddr.log
 fi
 
 echo "Running cabal update to ensure you're on latest dependencies.."
