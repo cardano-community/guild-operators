@@ -5,6 +5,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.4.5] - 2021-05-31
+##### Fixed
+- Reset IFS at main loop, fixes invalid tip difference on home screen after going to Block > Summary
+
 ## [8.4.4] - 2021-05-19
 ##### Fixed
 - Typo in Ledger ledger version requirement error and make it clearer that its the app version, not fw version.
