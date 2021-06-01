@@ -1,6 +1,6 @@
 ### OS Requirements
 
-- "docker-ce" installed.
+- `docker-ce` installed - [Get Docker](https://docs.docker.com/get-docker/).
 
 ### Private mode
 
@@ -11,13 +11,13 @@
 - Node testing
 
 ```bash
-docker run -dit 
+docker run -dit
 --name <YourCName>
 --security-opt=no-new-privileges
--e NETWORK=mainnet 
+-e NETWORK=mainnet
 -v <your_custom_path>:/opt/cardano/cnode/priv
 -v <your_custom_db_path>:/opt/cardano/cnode/db
-cardanocommunity/cardano-node 
+cardanocommunity/cardano-node
 ```
 
 ### Public mode
@@ -27,16 +27,14 @@ cardanocommunity/cardano-node
 - Node Relay
 
 ```bash
-docker run -dit 
---name <YourCName> 
+docker run -dit
+--name <YourCName>
 --security-opt=no-new-privileges
 -e NETWORK=mainnet
--p 6000:6000 
+-p 6000:6000
 -v <your_custom_path>:/opt/cardano/cnode/priv
 -v <your_custom_db_path>:/opt/cardano/cnode/db
-cardanocommunity/cardano-node 
+cardanocommunity/cardano-node
 ```
 
-* Note: --entrypoint=bash       # This option wont start the node but only the docker os, ready to get in and play with it.
-
-[**Next** Cardano Node - Docker Tips](docker/tips.md)
+> Note: `--entrypoint=bash` # This option won't start the node but only the docker OS, ready to get in and play with it.

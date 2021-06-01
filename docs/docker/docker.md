@@ -1,7 +1,7 @@
 
 Running your own Cardano node has never been so fast and easy.
 
-> But first a kindly reminder to the security aspects of running containers. [Here some Docker security concepts and best practice](docker/docker_security.md)
+> But first, a kindly reminder to the security aspects of running containers. [Here some Docker security concepts and best practice](docker/docker_security.md).
 
 ### External resources
 
@@ -10,9 +10,9 @@ Running your own Cardano node has never been so fast and easy.
 
 ### 🔔 Built-in tools
 
-- cntools
+- CNTools
 - gLiveView
-- cncli
+- CNCLI
 - Monitoring ready
   - EKG, Prometheus
 
@@ -23,7 +23,7 @@ Modular docker images based on Debian.
 Based on the Guild's work we decided to build the Cardano Node images in 3 stages:
 
 - 1st stage: it uses `prereq.sh` to prepare the development enviroment before compiling the node source code.  -> [Stage1](../files/docker/dockerfile_stage1)
-- 2nd stage: based on stage1 this stage intent is to compile and produce the binaries of the node. -> [Stage2](../files/docker/dockerfile_stage2)
+- 2nd stage: based on stage1, this stage intent is to compile and produce the binaries of the node. -> [Stage2](../files/docker/dockerfile_stage2)
 - 3rd stage: based upon a minimal debian image it incorporates the node's binaries as well as all the Guild's tools. -> [Stage3](../files/docker/dockerfile_stage3)
 
 ### Additional docs  {docsify-ignore}
@@ -44,6 +44,3 @@ If you prefer to build the images your own than you can check:
 >Node  (6000)       | Wallet (8090)      | Debian (`Dockerfile`)
 >Prometheus (12798) | Prometheus (12798) |
 >EKG (12781)        |                    |
-***
-
-[**Next** Cardano Docker run howto](docker/run.md)
