@@ -18,8 +18,8 @@ You can use the instructions below to build the latest release of [cardano-node]
 
 ``` bash
 git fetch --tags --all
-# Replace tag against checkout if you do not want to build the latest released version
 git pull
+# Replace tag against checkout if you do not want to build the latest released version
 git checkout $(curl -s https://api.github.com/repos/input-output-hk/cardano-node/releases/latest | jq -r .tag_name)
 
 # Use `-l` argument if you'd like to use system libsodium instead of IOG fork of libsodium while compiling
