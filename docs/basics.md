@@ -40,7 +40,7 @@ Install pre-requisites for building cardano-node and using CNTools
 -i    Interactive mode (Default: silent mode)
 ```
 
-Running without any parameters will run script in silent mode with OS Dependencies, no Libsodium fork, and *NOT* force overwrite of all files (only static files will be overwritten, which should not contain user modifications):
+Running without any parameters will run script in silent mode with OS Dependencies, no libsodium fork, and *NOT* force overwrite of all files (only static files will be overwritten, which should not contain user modifications):
 
 ``` bash
 ./prereqs.sh

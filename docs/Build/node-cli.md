@@ -4,7 +4,7 @@
 
 ##### Clone the repository
 
-Execute the below to clone the cardano-node repository to $HOME/git folder on your system:
+Execute the below to clone the cardano-node repository to `$HOME/git` folder on your system:
 
 ``` bash
 cd ~/git
@@ -14,7 +14,7 @@ cd cardano-node
 
 ##### Build Cardano Node
 
-You can use the instructions below to build the cardano-node, same steps can be executed in future to update the binaries (replacing appropriate tag) as well.
+You can use the instructions below to build the latest release of [cardano-node](https://github.com/input-output-hk/cardano-node). 
 
 ``` bash
 git fetch --tags --all
@@ -30,7 +30,7 @@ The above would copy the binaries built into `~/.cabal/bin` folder.
 
 ##### Verify
 
-Execute cardano-cli and cardano-node to verify output as below:
+Execute `cardano-cli` and `cardano-node` to verify output as below:
 
 ```bash
 cardano-cli version
@@ -43,7 +43,7 @@ cardano-node version
 
 ##### Update port number or pool name for relative paths
 
-Before you go ahead with starting your node, you may want to update values for CNODE_PORT in `$CNODE_HOME/scripts/env`. Note that it is imperative for operational relays and pools to ensure that the port mentioned is opened via firewall to the destination your node is supposed to connect from. Update your network/firewall configuration accordingly. Future executions of prereqs.sh will preserve and not overwrite these values.
+Before you go ahead with starting your node, you may want to update values for `CNODE_PORT` in `$CNODE_HOME/scripts/env`. Note that it is imperative for operational relays and pools to ensure that the port mentioned is opened via firewall to the destination your node is supposed to connect from. Update your network/firewall configuration accordingly. Future executions of `prereqs.sh` will preserve and not overwrite these values.
 
 ```bash
 CNODE_PORT=6000
@@ -54,7 +54,7 @@ POOL_NAME="GUILD"
 
 ##### Start the node
 
-To test starting the node in interactive mode, you can use the pre-built script below (note that your node logs are being written to $CNODE_HOME/logs folder, you may not see much output beyond `Listening on http://127.0.0.1:12798`):
+To test starting the node in interactive mode, you can use the pre-built script below (note that your node logs are being written to `$CNODE_HOME/logs` folder, you may not see much output beyond `Listening on http://127.0.0.1:12798`):
 
 ```bash
 cd $CNODE_HOME/scripts
@@ -86,7 +86,11 @@ Replace `status` with `stop`/`start`/`restart` depending on what action to take.
 sudo systemctl status cnode.service
 ```
 
-?> In case you see the node exit unsuccessfully upon checking status, please verify you've followed the transition process correctly as documented below, and that you do not have another instance of node already running. It would help to check your system logs (/var/log/syslog for debian-based and /var/log/messages for redhat/CentOS/Fedora systems) for any errors while starting node.
+?> In case you see the node exit unsuccessfully upon checking status, please verify you've followed the transition process correctly as documented below, and that you do not have another instance of node already running. It would help to check your system logs (`/var/log/syslog` for debian-based and `/var/log/messages` for Red Hat/CentOS/Fedora systems) for any errors while starting node.
 
-You can use [gLiveView](Scripts/gliveview.md) to monitor your pool that was started as systemd, if you miss the LiveView functionality.
+You can use [gLiveView](Scripts/gliveview.md) to monitor your node that was started as a systemd service.
 
+```bash
+cd $CNODE_HOME/scripts
+./gLiveView.sh
+```
