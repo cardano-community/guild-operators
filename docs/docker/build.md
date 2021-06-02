@@ -6,7 +6,7 @@ For easy of use and maintenance we adopted a 3 stage building strategy.
 
 Each stage derives from a specific phase of the building strategy:
 
-* stage1 --> is the first stage of the builds and the only thing it does is to prep the compiling enviroment.
+* stage1 --> is the first stage of the builds and the only thing it does is to prepare the compiling environment.
 * stage2 --> at this stage the Cardano source code is downloaded and compiled on top of the stage1.
 * stage3 --> Here is where we copy over a new debian-slim image the results of the copiled software (binaries and libs) including the guild's scripts and tools.
 
