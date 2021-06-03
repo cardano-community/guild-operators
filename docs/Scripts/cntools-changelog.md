@@ -5,6 +5,12 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.4.6] - 2021-06-04
+##### Fixed
+- Add balance check for main pool owner, that there is at least one utxo available
+- Allow utxo without lovelace (for future when we might have tokens on utxo without Ada, like on Alonzo TestNet)
+- pctToFraction helper function didn't properly handle 0 value
+
 ## [8.4.5] - 2021-05-31
 ##### Fixed
 - Reset IFS at main loop, fixes invalid tip difference on home screen after going to Block > Summary
