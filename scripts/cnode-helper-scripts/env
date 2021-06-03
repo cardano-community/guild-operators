@@ -509,9 +509,10 @@ AdaToLovelace() {
 #             : $1 = number to be converted in range 0-100
 pctToFraction() {
   if validateDecimalNbr $1; then
-    if [[ $(bc <<< "$1 >= 0" ) -eq 0 || $(bc <<< "$1 <= 100" ) -eq 0 ]]; then
+    if [[ $(bc <<< "$1 >= 0") -eq 0 || $(bc <<< "$1 <= 100" ) -eq 0 ]]; then
       printf "${FG_RED}ERROR${NC}: must be a number between 0-100" 1>&2
       return 1
+    elif [[ $(bc <<< "$1 == 0") -eq 1 ]]; then echo 0 # special case not properly handled by below code
     else
       echo "x=$1 / 100; if(x<1) print 0; x" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//'
     fi
