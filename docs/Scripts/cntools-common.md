@@ -3,7 +3,7 @@
 This chapter describes some common tasks for wallet and pool creation when running CNTools in Online mode.  
 CNTools contains more functionality not described here.
 
-!> Familiarize yourself with the Online workflow of creating wallets and pools on the TestNet. You can then move on to test the [Offline Workflow](#offline-workflow). The Offline workflow means that the private keys never touch the Online node. First when comfortable with both the online and offline CNTools workflow, it's time to deploy what you learnt on MainNet.
+!> Familiarize yourself with the Online workflow of creating wallets and pools on the Testnet. You can then move on to test the [Offline Workflow](#offline-workflow). The Offline workflow means that the private keys never touch the Online node. When comfortable with both the online and offline CNTools workflow, it's time to deploy what you learnt on the mainnet.
 
 Step by Step guide to create a pool with CNTools in Online mode
 
@@ -101,7 +101,7 @@ choose to delegate or pledge wallet when registering a stake pool.
   [h] Home
 ``` 
 **2.**  Select `[n] New` to create a new pool  
-**3.**  Give the pool a name. In our case, we call it TEST.  The result should look something like this:
+**3.**  Give the pool a name. In our case, we call it TEST. The result should look something like this:
 ```
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  >> POOL >> NEW
@@ -135,11 +135,11 @@ It will look something like this:
 
 Online mode  -  The default mode to use if all keys are available
 
-Hybrid mode  -  1) Go through steps to build a transaction file
-                2) Copy built tx file to offline computer
-                3) Sign it using 'Sign Tx' with keys on offline computer
+Hybrid mode  -  1) Go through the steps to build a transaction file
+                2) Copy the built tx file to an offline node
+                3) Sign it using 'Sign Tx' with keys on offline node
                    (CNTools started in offline mode '-o' without node connection)
-                4) Copy the signed tx file back to online computer and submit using 'Submit Tx'
+                4) Copy the signed tx file back to the online node and submit using 'Submit Tx'
 
 Selected value: [o] Online
 
@@ -212,5 +212,43 @@ INFO: Total balance in 1 owner/pledge wallet(s) are: 99,497.996518 Ada
 ```
 
 
-**8.**  Start or restart your cardano-node (eg: if using cnode.sh, update parameters in that file) with the parameters as shown.  This will ensure your node has all the information necessary to create blocks.
+**6.** As mentioned in the above output: *Uncomment and set value for `POOL_NAME` in `./env` with 'TEST'* (in our case, the `POOL_NAME` is `TEST`).
+
+The `cnode.sh` script will automatically detect whether the files required to run as a block producing node are present in the `$CNODE_HOME/priv/pool/<POOL_NAME>` directory.
+
+**7.** Rotate KES keys for the first time to generate the operational certificate - `op.cert`.
+
+*  From the main menu select `[p] Pool`  
+*  Select `[o] Rotate`  
+*  Select the pool you just created  
+*  
+The output should look like:
+
+```
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ >> POOL >> ROTATE KES
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Select pool to rotate KES keys on
+Selected pool: TEST
+
+Pool KES keys successfully updated
+New KES start period  : 240
+KES keys will expire  : 302 - 2021-09-04 11:24:31 UTC
+
+Restart your pool node for changes to take effect
+
+press any key to return to home menu
+```
+
+
+**8.** Start or restart your `cardano-node`.
+
+If deployed as a `systemd` service as shown [here](Build/node-cli?id=run-as-systemd-service), you can run `sudo systemctl restart cnode`.
+
+**8.** Ensure the node is running as a block producing (core) node.
+
+You can use [gLiveView](Scripts/gliveview) - the output at the top should say `> Cardano Node - (Core - Testnet)`.
+
+Alternatively, you can check the node logs in `$CNODE_HOME/logs/` to see whether the node is performing leadership checks (`TraceStartLeadershipCheck`, `TraceNodeIsNotLeader`, etc.) 
 
