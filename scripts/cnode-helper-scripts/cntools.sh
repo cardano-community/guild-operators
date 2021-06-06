@@ -1857,6 +1857,7 @@ function main {
                 done
               fi
               echo
+
               owner_wallets=()
               reward_wallet=""
               hw_reward_wallet='N'
@@ -1864,6 +1865,7 @@ function main {
               reuse_wallets='N'
               # Old owner/reward wallets
               if [[ -f ${pool_config} ]]; then
+
                 println DEBUG "# Previous Owner(s)/Reward wallets"
                 if jq -er '.pledgeWallet' "${pool_config}" &>/dev/null; then # legacy support
                   owner_wallets+=( "$(jq -r '.pledgeWallet' "${pool_config}")" )
@@ -1875,6 +1877,7 @@ function main {
                     println DEBUG "Owner wallet #$(jq -r '.id' <<< "${owner}") : ${FG_GREEN}${wallet_name}${NC}"
                   done
                 fi
+
                 reward_wallet=$(jq -r '.rewardWallet //empty' "${pool_config}")
                 println DEBUG "Reward wallet   : ${FG_GREEN}${reward_wallet}${NC}"
                 println DEBUG "\nReuse previous Owner(s)/Reward wallets?"
@@ -1914,6 +1917,7 @@ function main {
                         if ! registerStakeWallet ${wallet_name}; then waitForInput && continue 2; fi
                       fi
                     done
+
                     getWalletType ${reward_wallet}
                     case $? in
                       0) hw_reward_is_mu='N'
@@ -1936,6 +1940,7 @@ function main {
                       4) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake verification keys missing from reward wallet ${FG_GREEN}${reward_wallet}${NC}!"
                           waitForInput "Unable to reuse old configuration, please set new owner(s) & reward wallet" && owner_wallets=() && reward_wallet="" && reuse_wallets='N' ;;
                     esac
+
                     if ! isWalletRegistered ${reward_wallet}; then
                       if [[ ${op_mode} = "hybrid" ]]; then
                         println ERROR "\n${FG_RED}ERROR${NC}: reward wallet ${FG_GREEN}${reward_wallet}${NC} not a registered wallet on chain and CNTools run in hybrid mode"
@@ -1957,6 +1962,7 @@ function main {
                   2) continue ;;
                 esac
               fi
+
               if [[ ${reuse_wallets} = 'N' ]]; then
                 println DEBUG "# Select main ${FG_YELLOW}owner/pledge${NC} wallet (normal CLI wallet)"
                 if [[ ${op_mode} = "online" ]]; then
@@ -1995,6 +2001,14 @@ function main {
                 owner_wallets+=( "${wallet_name}" )
                 println DEBUG "Owner #1 : ${FG_GREEN}${wallet_name}${NC} added!"
               fi
+
+              getBaseAddress ${wallet_name}
+              getBalance ${base_addr}
+              if [[ ${assets[lovelace]} -eq 0 ]]; then
+                println ERROR "\n${FG_RED}ERROR${NC}: no funds available in owner wallet ${FG_GREEN}${owner_wallets[0]}${NC}"
+                waitForInput && continue
+              fi
+
               if [[ ${reuse_wallets} = 'N' ]]; then
                 println DEBUG "\nRegister a multi-owner pool (you need to have stake.vkey of any additional owner in a seperate wallet folder under \$CNODE_HOME/priv/wallet)?"
                 while true; do
@@ -2027,6 +2041,7 @@ function main {
                   println DEBUG "Add more owners?"
                 done
               fi
+
               if [[ ${reuse_wallets} = 'N' ]]; then
                 println DEBUG "\nUse a separate rewards wallet from main owner?"
                 select_opt "[n] No" "[y] Yes" "[Esc] Cancel"

@@ -876,10 +876,16 @@ getBalance() {
     [[ ${#utxo_entry[@]} -lt 4 ]] && continue
     ((utxo_cnt++))
     tx_in+=" --tx-in ${utxo_entry[0]}#${utxo_entry[1]}"
-    utxos["${utxo_entry[0]}#${utxo_entry[1]}. Ada"]=${utxo_entry[2]} # Space added before 'Ada' for sort to place it first
-    assets["lovelace"]=$(( ${assets["lovelace"]:-0} + utxo_entry[2] ))
-    if [[ ${#utxo_entry[@]} -gt 4 ]]; then
+    if [[ ${utxo_entry[3]} = "lovelace" ]]; then
+      utxos["${utxo_entry[0]}#${utxo_entry[1]}. Ada"]=${utxo_entry[2]} # Space added before 'Ada' for sort to place it first
+      assets["lovelace"]=$(( ${assets["lovelace"]:-0} + utxo_entry[2] ))
       idx=5
+    else
+      utxos["${utxo_entry[0]}#${utxo_entry[1]}. Ada"]=0 # Space added before 'Ada' for sort to place it first
+      assets["lovelace"]=0
+      idx=2
+    fi
+    if [[ ${#utxo_entry[@]} -gt "${idx}" ]]; then
       while [[ ${#utxo_entry[@]} -gt ${idx} ]]; do
         local asset_amount=${utxo_entry[${idx}]}
         local asset_hash_name="${utxo_entry[$((idx+1))]}"
