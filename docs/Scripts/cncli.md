@@ -10,7 +10,7 @@
 - **SENDSLOTS** - Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs.
 
 ##### Installation
-`cncli.sh` script's main functions, `sync`, `leaderlog`, `validate` and PoolTool `sendslots`/`sendtip` are not meant to be run manually, but instead deployed as systemd services that run in the background to do the block scraping and validation automatically. Additional commands exist for manual execution to initiate the `sqlite` db, filling the blocklog DB with all blocks created by the pool known to the blockchain, migration of old cntoolsBlockCollector JSON blocklog, re-validation of blocks and leaderlogs. See usage output below for a complete list of available commands.
+`cncli.sh` script's main functions, `sync`, `leaderlog`, `validate` and PoolTool `sendslots`/`sendtip` are not meant to be run manually, but instead deployed as systemd services that run in the background to do the block scraping and validation automatically. Additional commands exist for manual execution to initiate the `sqlite` db, filling the blocklog DB with all blocks created by the pool known to the blockchain, migration of old cntoolsBlockCollector JSON blocklog, and re-validation of blocks and leaderlogs. See usage output below for a complete list of available commands.
 
 The script works in tandem with [Log Monitor](Scripts/logmonitor.md) to provide faster adopted status but mainly to catch slots the node is leader for but are unable to create a block for. These are marked as invalid. Blocklog will however work fine without the `logMonitor` service and `CNCLI` is able to handle everything except catching invalid blocks.
 
