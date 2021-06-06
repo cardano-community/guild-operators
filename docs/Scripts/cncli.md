@@ -1,43 +1,43 @@
 !> Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
 
-`cncli.sh` is a script to download and deploy [CNCLI](https://github.com/AndrewWestberg/cncli) created and maintained by Andrew Westberg. It's a community-based CLI tool written in RUST for low-level cardano-node communication. Usage is **optional** and no script is dependent on it. The main features include:
+`cncli.sh` is a script to download and deploy [CNCLI](https://github.com/AndrewWestberg/cncli) created and maintained by Andrew Westberg. It's a community-based CLI tool written in RUST for low-level `cardano-node` communication. Usage is **optional** and no script is dependent on it. The main features include:
 
-- **PING** - Validates that the remote server is on the given network and returns its response time. Utilized by gLiveView for peer analysis if available. 
-- **SYNC** - Connects to a node(local or remote) and synchronizes blocks to a local sqlite database. 
+- **PING** - Validates that the remote server is on the given network and returns its response time. Utilized by `gLiveView` for peer analysis if available. 
+- **SYNC** - Connects to a node (local or remote) and synchronizes blocks to a local `sqlite` database. 
 - **VALIDATE** - Validates that a block hash or partial block hash is on-chain.
-- **LEADERLOG** - Calculates a stakepool's expected slot list. On MainNet and the official TestNet, leader schedule is available 1.5 days before the end of the epoch (`firstSlotOfNextEpoch - (3 * k / f)`).
-- **SENDTIP** - Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge.
+- **LEADERLOG** - Calculates a stakepool's expected slot list. On the mainnet and the official testnet, the next epoch's leader schedule is available 1.5 days before the end of the epoch (`firstSlotOfNextEpoch - (3 * k / f)`).
+- **SENDTIP** - Send node tip to [PoolTool](https://pooltool.io/) for network analysis and to show that your node is alive and well with a green badge.
 - **SENDSLOTS** - Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs.
 
 ##### Installation
-`cncli.sh` script's main functions, sync, leaderlog, validate and PoolTool sendslots/sendtip are not meant to be run manually, but instead deployed as systemd services that run in the background to do the block scraping and validation automatically. Additional commands exist for manual execution to initiate db, filling the blocklog DB with all blocks created by the pool known to the blockchain. Migration of old cntoolsBlockCollector JSON blocklog, re-validation of blocks and leaderlogs are other manual commands possible to execute. See usage output below for a complete list of available commands.
+`cncli.sh` script's main functions, `sync`, `leaderlog`, `validate` and PoolTool `sendslots`/`sendtip` are not meant to be run manually, but instead deployed as systemd services that run in the background to do the block scraping and validation automatically. Additional commands exist for manual execution to initiate the `sqlite` db, filling the blocklog DB with all blocks created by the pool known to the blockchain, migration of old cntoolsBlockCollector JSON blocklog, and re-validation of blocks and leaderlogs. See usage output below for a complete list of available commands.
 
-The script work in tandem with [Log Monitor](Scripts/logmonitor.md) to provide faster adopted status but mainly to catch slots node is leader for but are unable to create a block for. These are marked as invalid. Blocklog will however work fine without logmonitor service and CNCLI is able to handle everything except catching invalid blocks.
+The script works in tandem with [Log Monitor](Scripts/logmonitor.md) to provide faster adopted status but mainly to catch slots the node is leader for but are unable to create a block for. These are marked as invalid. Blocklog will however work fine without the `logMonitor` service and `CNCLI` is able to handle everything except catching invalid blocks.
 
-1. Run the latest version of prereqs.sh with `prereqs.sh -c` to download and install RUST and CNCLI. IOG fork of libsodium required by CNCLI is automatically compiled by CNCLI build process. If a previous installation is found, RUST and CNCLI will be updated to the latest version.
+1. Run the latest version of `prereqs.sh` with `prereqs.sh -c` to download and install RUST and CNCLI. IOG fork of libsodium required by CNCLI is automatically compiled by CNCLI build process. If a previous installation is found, RUST and CNCLI will be updated to the latest version.
 2. Run `deploy-as-systemd.sh` to deploy the systemd services that handle all the work in the background. Six systemd services in total are deployed whereof four are related to CNCLI. See above for the different purposes they serve.
 3. If you want to disable some of the deployed services, run `sudo systemctl disable <service>`
 
-- cnode.service (main cardano-node launcher)
-- cnode-cncli-sync.service
-- cnode-cncli-leaderlog.service 
-- cnode-cncli-validate.service
-- cnode-cncli-ptsendtip.service
-- cnode-cncli-ptsendslots.service
-- cnode-logmonitor.service (see [Log Monitor](Scripts/logmonitor.md))
+- `cnode.service` (main `cardano-node` launcher)
+- `cnode-cncli-sync.service`
+- `cnode-cncli-leaderlog.service`
+- `cnode-cncli-validate.service`
+- `cnode-cncli-ptsendtip.service`
+- `cnode-cncli-ptsendslots.service`
+- `cnode-logmonitor.service` (see [Log Monitor](Scripts/logmonitor.md))
 
 ##### Configuration
-You can override the values in the script at the User Variables section shown below. **POOL_ID**, **POOL_VRF_SKEY** and **POOL_VRF_VKEY** should automatically be detected if POOL_NAME is set in the common `env` file and can be left commented. **PT_API_KEY** and **POOL_TICKER** need to be set in the script if PoolTool sendtip/sendslots are to be used before starting the services. For the rest of the commented values, if the default do not provide the right value, uncomment and make adjustments.
+You can override the values in the script at the User Variables section shown below. **POOL_ID**, **POOL_VRF_SKEY** and **POOL_VRF_VKEY** should automatically be detected if `POOL_NAME` is set in the common `env` file and can be left commented. **PT_API_KEY** and **POOL_TICKER** need to be set in the script if PoolTool `sendtip`/`sendslots` are to be used before starting the services. For the rest of the commented values, if the defaults do not provide the right values, uncomment and make adjustments.
 
 ```
 #POOL_ID=""                               # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation & pooltool sendtip, lower-case hex pool id
 #POOL_VRF_SKEY=""                         # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation, path to pool's vrf.skey file
 #POOL_VRF_VKEY=""                         # Automatically detected if POOL_NAME is set in env. Required for block validation, path to pool's vrf.vkey file
 #PT_API_KEY=""                            # POOLTOOL sendtip: set API key, e.g "a47811d3-0008-4ecd-9f3e-9c22bdb7c82d"
-#POOL_TICKER=""                           # POOLTOOL sendtip: set the pools ticker, e.g "TCKR"
+#POOL_TICKER=""                           # POOLTOOL sendtip: set the pools ticker, e.g. "TCKR"
 #PT_HOST="127.0.0.1"                      # POOLTOOL sendtip: connect to a remote node, preferably block producer (default localhost)
-#PT_PORT="${CNODE_PORT}"                  # POOLTOOL sendtip: port of node to connect to (default CNODE_PORT from env file)
-#CNCLI_DIR="${CNODE_HOME}/guild-db/cncli" # path to folder for cncli sqlite db
+#PT_PORT="${CNODE_PORT}"                  # POOLTOOL sendtip: port of node to connect to (default is CNODE_PORT from the env file)
+#CNCLI_DIR="${CNODE_HOME}/guild-db/cncli" # path to the directory for cncli sqlite db
 #SLEEP_RATE=60                            # CNCLI leaderlog/validate: time to wait until next check (in seconds)
 #CONFIRM_SLOT_CNT=600                     # CNCLI validate: require at least these many slots to have passed before validating
 #CONFIRM_BLOCK_CNT=15                     # CNCLI validate: require at least these many blocks on top of minted before validating
@@ -47,20 +47,20 @@ You can override the values in the script at the User Variables section shown be
 
 ##### Run
 Services are controlled by `sudo systemctl <status|start|stop|restart> <service name>`  
-All services are configured as child services to cnode.service and as such, when an action is taken against this service it's replicated to all child services. E.g running `sudo systemctl start cnode.service` will also start all child services. 
+All services are configured as child services to `cnode.service` and as such, when an action is taken against this service it's replicated to all child services. E.g running `sudo systemctl start cnode.service` will also start all child services. 
 
 > Make sure to set appropriate values according to [Configuration](#configuration) section before starting services.
 
-Log output is handled by syslog and end up in the systems standard syslog file, normally `/var/log/syslog`. `journalctl -f -u <service>` can be used to check service output(follow mode). Other logging configurations are not covered here. 
+Log output is handled by syslog and end up in the systems standard syslog file, normally `/var/log/syslog`. `journalctl -f -u <service>` can be used to check service output (follow mode). Other logging configurations are not covered here. 
 
 Recommended workflow to get started with CNCLI blocklog.
 
 1. Install and deploy services according to [Installation](#installation) section.
 2. Set required user variables according to [Configuration](#configuration) section.
 3. (**optional**) If a previous blocklog db exist created by cntoolsBlockCollector, run this command to migrate json storage to new SQLite DB:
-   * `$CNODE_HOME/scripts/cncli.sh migrate <path>` where <path> is the location for the directory containing all blocks_<epoch>.json files.
+   * `$CNODE_HOME/scripts/cncli.sh migrate <path>` where <path> is the location to the directory containing all blocks_<epoch>.json files.
 4. Start deployed services with:
-   * `sudo systemctl start cnode-cncli-sync.service` (starts leaderlog, validate & ptsendslots automatically)
+   * `sudo systemctl start cnode-cncli-sync.service` (starts `leaderlog`, `validate` & `ptsendslots` automatically)
    * `sudo systemctl start cnode-logmonitor.service`
    * `sudo systemctl start cnode-cncli-ptsendtip.service` (**optional but recommended**)
    * alternatively restart the main service that will trigger a start of all services with:
@@ -74,29 +74,29 @@ Usage: cncli.sh [operation <sub arg>]
 Script to run CNCLI, best launched through systemd deployed by 'deploy-as-systemd.sh'
 
 sync        Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB (deployed as service)
-leaderlog   One-time leader schedule calculation for current epoch, then continously monitors and calculates schedule for coming epochs, 1.5 days before epoch boundary on MainNet (deployed as service)
+leaderlog   One-time leader schedule calculation for current epoch, then continuously monitors and calculates schedule for coming epochs, 1.5 days before epoch boundary on the mainnet (deployed as service)
   force     Manually force leaderlog calculation and overwrite even if already done, exits after leaderlog is calculated
-validate    Continously monitor and confirm that the blocks made actually was accepted and adopted by chain (deployed as service)
+validate    Continuously monitor and confirm that the blocks made actually was accepted and adopted by chain (deployed as service)
   all       One-time re-validation of all blocks in blocklog db
   epoch     One-time re-validation of blocks in blocklog db for the specified epoch 
 ptsendtip   Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge (deployed as service)
 ptsendslots Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs (deployed as service)
 init        One-time initialization adding all minted and confirmed blocks to blocklog
-migrate     One-time migration from old blocklog(cntoolsBlockCollector) to new format (post cncli)
+migrate     One-time migration from old blocklog (cntoolsBlockCollector) to new format (post cncli)
   path      Path to the old cntoolsBlockCollector blocklog folder holding json files with blocks created
 ```
 
 ##### View Blocklog
-Best and easiest viewed in CNTools and gLiveView but the blocklog database is a SQLite DB so if you are comfortable with SQL, sqlite3 command can be used to query the DB. 
+Best and easiest viewed in CNTools and `gLiveView` but the blocklog database is a SQLite DB so if you are comfortable with SQL, the `sqlite3` command can be used to query the DB. 
 
 **Block status**
 - Leader    : Scheduled to make block at this slot
-- Ideal     : Expected/Ideal number of blocks assigned based on active stake (sigma)"
-- Luck      : Leader slots assigned vs Ideal slots for this epoch"
+- Ideal     : Expected/Ideal number of blocks assigned based on active stake (sigma)
+- Luck      : Leader slots assigned vs ideal slots for this epoch
 - Adopted   : Block created successfully
 - Confirmed : Block created validated to be on-chain with the certainty set in `cncli.sh` for `CONFIRM_BLOCK_CNT`
-- Missed    : Scheduled at slot but no record of it in cncli DB and no other pool has made a block for this slot
-- Ghosted   : Block created but marked as orphaned and no other pool has made a valid block for this slot, height battle or block propagation issue
+- Missed    : Scheduled at slot but no record of it in CNCLI DB and no other pool has made a block for this slot
+- Ghosted   : Block created but marked as orphaned and no other pool has made a valid block for this slot -> height battle or block propagation issue
 - Stolen    : Another pool has a valid block registered on-chain for the same slot
 - Invalid   : Pool failed to create block, base64 encoded error message can be decoded with `echo <base64 hash> | base64 -d | jq -r`
 
