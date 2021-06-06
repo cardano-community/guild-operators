@@ -60,7 +60,7 @@ Recommended workflow to get started with CNCLI blocklog.
 3. (**optional**) If a previous blocklog db exist created by cntoolsBlockCollector, run this command to migrate json storage to new SQLite DB:
    * `$CNODE_HOME/scripts/cncli.sh migrate <path>` where <path> is the location to the directory containing all blocks_<epoch>.json files.
 4. Start deployed services with:
-   * `sudo systemctl start cnode-cncli-sync.service` (starts `leaderlog`, `validate` & PT `sendslots` automatically)
+   * `sudo systemctl start cnode-cncli-sync.service` (starts `leaderlog`, `validate` & `ptsendslots` automatically)
    * `sudo systemctl start cnode-logmonitor.service`
    * `sudo systemctl start cnode-cncli-ptsendtip.service` (**optional but recommended**)
    * alternatively restart the main service that will trigger a start of all services with:
