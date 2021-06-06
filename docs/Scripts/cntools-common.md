@@ -1,11 +1,10 @@
-!> Note that if you'd like to use Import function to import a Daedalus/Yoroi based 15 or 24 word wallet seed, please ensure that you've rebuilt your `cardano-node` using instructions [here]() or alternately ensure that `cardano-address` and `bech32` are available in your $PATH environment variable.
-
 This chapter describes some common tasks for wallet and pool creation when running CNTools in Online mode.  
 CNTools contains more functionality not described here.
 
-!> Familiarize yourself with the Online workflow of creating wallets and pools on the Testnet. You can then move on to test the [Offline Workflow](#offline-workflow). The Offline workflow means that the private keys never touch the Online node. When comfortable with both the online and offline CNTools workflow, it's time to deploy what you learnt on the mainnet.
+!> Familiarize yourself with the Online workflow of creating wallets and pools on the Testnet. You can then move on to test the [Offline Workflow](Scripts/cntools#offline-workflow). The Offline workflow means that the private keys never touch the Online node. When comfortable with both the online and offline CNTools workflow, it's time to deploy what you learnt on the mainnet.
 
-Step by Step guide to create a pool with CNTools in Online mode
+### Create and register a stake pool
+Step by Step guide to create a pool with CNTools in Online mode:
 
 * [Create Wallet](#create-wallet) - a wallet is needed for pledge and to pay for pool registration fee
 * [Create Pool](#create-pool) - create the necessary pool keys 
@@ -44,7 +43,7 @@ Step by Step guide to create a pool with CNTools in Online mode
   [e] Encrypt
   [h] Home
 ```
-**2.** Choose `[n] New` to create a new wallet. `[i] Import` can also be used to import a Daedalus/Yoroi based 15 or 24 word wallet seed  
+**2.** Choose `[n] New` to create a new wallet. [`[i] Import`](#import-daedalusyoroihw-wallet) can also be used to import a Daedalus/Yoroi based 15 or 24 word wallet seed  
 **3.** Give the wallet a name  
 **4.** CNTools will give you the wallet address.  For example:
 ```
@@ -252,3 +251,49 @@ You can use [gLiveView](Scripts/gliveview) - the output at the top should say `>
 
 Alternatively, you can check the node logs in `$CNODE_HOME/logs/` to see whether the node is performing leadership checks (`TraceStartLeadershipCheck`, `TraceNodeIsNotLeader`, etc.) 
 
+
+### Import Daedalus/Yoroi/HW Wallet
+
+The `Import` feature of CNTools uses the [guide](https://gist.github.com/ilap/3fd57e39520c90f084d25b0ef2b96894) from [Ilap](https://github.com/ilap).
+
+If you would like to use `Import` function to import a Daedalus/Yoroi based 15 or 24 word wallet seed, please ensure that `cardano-address` and `bech32` bineries are available in your `$PATH` environment variable:
+```
+bech32 --version
+1.1.0
+
+cardano-address --version
+3.5.0
+```
+!> If not, please run the latest `prereqs.sh` from [here](basics.md) and rebuild `cardano-node` as instructed [here](Build/node-cli.md).
+
+To import a Daedalus/Yoroi wallet to CNTools, open CNTools and select the `[w] Wallet` option:
+```
+$CNODE_HOME/scripts/cntools.sh
+```
+From the `Wallet` menu, select the `[i] Import` option, the following menu will appear:
+```
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ >> WALLET >> IMPORT
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ Wallet Import
+
+ ) Mnemonic  - Daedalus/Yoroi 24 or 25 word mnemonic
+ ) HW Wallet - Ledger/Trezor hardware wallet
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ Select Wallet operation
+
+  [m] Mnemonic
+  [w] HW Wallet
+  [h] Home
+```
+Select the wallet you want to import, for Daedalus / Yoroi wallets select `[m] Mnemonic`:
+```
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ >> WALLET >> IMPORT >> MNEMONIC
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Name of imported wallet: TEST
+
+24 or 15 word mnemonic(space separated):
+```
+Give your wallet a name (in this case 'TEST'), and enter your mnemonic phrase.
