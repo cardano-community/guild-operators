@@ -1,6 +1,7 @@
 {
   "Providers": [
-    {"addr":"178.238.224.187","port":8053}
+    {"addr":"178.238.224.187","port":8053},
+    {"addr":"rest-guild.ahlnet.nu","port":2162}
   ],
   "Consumers": []
 }
