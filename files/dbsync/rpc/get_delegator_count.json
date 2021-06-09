@@ -1,27 +1,27 @@
 {
-  "function": "get_delegator_count(_pool_hash_id)",
+  "function": "get_delegator_count(_pool_bech32)",
   "description": "Get live delegator count",
   "parameters": [
     {
-      "name": "_pool_hash_id",
-      "description": "hash_id from get_pool_update() function"
+      "name": "_pool_bech32",
+      "description": "pool id in bech32 format"
     }
   ],
   "example": [
     {
       "type": "rest",
-      "command": "curl -d _pool_hash_id=127 -s http://localhost:8050/rpc/get_delegator_count"
+      "command": "curl -d _pool_bech32=pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr -s http://localhost:8050/rpc/get_delegator_count"
     }
   ],
   "sql": [
-    "CREATE OR REPLACE FUNCTION get_delegator_count(_pool_hash_id numeric)",
+    "CREATE OR REPLACE FUNCTION get_delegator_count(_pool_bech32 text)",
     "RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$",
     "BEGIN",
       "RETURN ( SELECT json_build_object(",
           "'delegator_count', COUNT(*)",
         ")",
         "FROM delegation d",
-        "WHERE pool_hash_id=_pool_hash_id",
+        "WHERE pool_hash_id = (SELECT id from pool_hash where view=_pool_bech32)",
           "AND NOT EXISTS",
             "(SELECT TRUE FROM delegation d2 WHERE d2.addr_id=d.addr_id AND d2.id > d.id)",
           "AND NOT EXISTS",
