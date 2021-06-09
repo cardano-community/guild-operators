@@ -1,7 +1,8 @@
 {
   "Providers": [
     {"addr":"178.238.224.187","port":8053},
-    {"addr":"pgrest-guild.ahlnet.nu","port":2162}
+    {"addr":"pgrest-guild.ahlnet.nu","port":2162},
+    {"addr":"195.201.129.190","port":8050}
   ],
   "Consumers": []
 }
