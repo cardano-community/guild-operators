@@ -39,7 +39,7 @@
         "FROM pool_update AS pu",
         "INNER JOIN pool_hash AS ph ON pu.hash_id = ph.id",
         "LEFT JOIN pool_retire AS pr ON pu.hash_id = pr.hash_id",
-        "LEFT JOIN pool_meta_data as pmd ON pmd.id = pu.meta_id",
+        "LEFT JOIN pool_metadata_ref as pmd ON pmd.id = pu.meta_id",
         "LEFT JOIN tx_out as tout ON tout.id = pu.registered_tx_id",
         "LEFT JOIN stake_address as sa ON sa.hash_raw = pu.reward_addr",
         "WHERE ph.view = _pool_bech32",
