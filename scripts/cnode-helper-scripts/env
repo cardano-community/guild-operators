@@ -654,7 +654,7 @@ getNodeMetrics() {
     tx_processed=${node_metrics_arr[5]}; mempool_tx=${node_metrics_arr[6]}; mempool_bytes=${node_metrics_arr[7]}
     kesperiod=${node_metrics_arr[8]}; remaining_kes_periods=${node_metrics_arr[9]}
     isleader=${node_metrics_arr[10]}; adopted=${node_metrics_arr[11]}; didntadopt=${node_metrics_arr[12]}; about_to_lead=${node_metrics_arr[13]}
-    uptimes=$(( $(date +%s) - node_metrics_arr[14] ))
+    nodeStartTime=${node_metrics_arr[14]};uptimes=$(( $(date +%s) - node_metrics_arr[14] ))
   else
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
     [[ ${node_metrics} =~ cardano_node_metrics_nodeStartTime_int[[:space:]]([^[:space:]]*) ]] && uptimes=$(( $(date +%s) - BASH_REMATCH[1] )) || uptimes=0
