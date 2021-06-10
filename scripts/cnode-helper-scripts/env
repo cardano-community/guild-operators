@@ -657,7 +657,7 @@ getNodeMetrics() {
     nodeStartTime=${node_metrics_arr[14]};uptimes=$(( $(date +%s) - node_metrics_arr[14] ))
   else
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
-    [[ ${node_metrics} =~ cardano_node_metrics_nodeStartTime_int[[:space:]]([^[:space:]]*) ]] && uptimes=$(( $(date +%s) - BASH_REMATCH[1] )) || uptimes=0
+    [[ ${node_metrics} =~ cardano_node_metrics_nodeStartTime_int[[:space:]]([^[:space:]]*) ]] && { nodeStartTime=${BASH_REMATCH[1]} && uptimes=$(( $(date +%s) - BASH_REMATCH[1] )); } || uptimes=0
     [[ ${node_metrics} =~ cardano_node_metrics_blockNum_int[[:space:]]([^[:space:]]*) ]] && blocknum=${BASH_REMATCH[1]} || blocknum=0
     [[ ${node_metrics} =~ cardano_node_metrics_epoch_int[[:space:]]([^[:space:]]*) ]] && epochnum=${BASH_REMATCH[1]} || epochnum=0
     [[ ${node_metrics} =~ cardano_node_metrics_slotInEpoch_int[[:space:]]([^[:space:]]*) ]] && slot_in_epoch=${BASH_REMATCH[1]} || slot_in_epoch=0
