@@ -2441,24 +2441,21 @@ function main {
                   3) pool_registered="NO" ;; # retired, ${retiring_epoch} containing the epoch number it was retired
                 esac
                 if [[ ${pool_registered} = YES ]]; then
-                  ! p_active_stake=$(curl -sSL -f -d _pool_hash_id=${p_hash_id} -d _epoch_no=${current_epoch} "${PGREST_API}"/rpc/get_active_stake 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: p_active_stake: ${p_active_stake}" && waitForInput && continue
+                  ! p_active_stake=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -d _epoch_no=${current_epoch} "${PGREST_API}"/rpc/get_active_stake 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: p_active_stake: ${p_active_stake}" && waitForInput && continue
                   ! t_active_stake=$(curl -sSL -f -d _epoch_no=${current_epoch} "${PGREST_API}"/rpc/get_active_stake 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: t_active_stake: ${t_active_stake}" && waitForInput && continue
-                  ! p_delegator_cnt=$(curl -sSL -f -d _pool_hash_id=${p_hash_id} "${PGREST_API}"/rpc/get_delegator_count 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: p_delegator_cnt: ${p_delegator_cnt}" && waitForInput && continue
-                  ! pmeta_latest=$(curl -sSL -f -d _pool_meta_id="$(jq '.[0].meta_id' <<< ${pupd_latest})" "${PGREST_API}"/rpc/get_pool_metadata 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: pmeta_latest: ${pmeta_latest}" && waitForInput && continue
-                  ! prelay_latest=$(curl -sSL -f -d _pool_update_id="$(jq '.[0].update_id' <<< ${pupd_latest})" "${PGREST_API}"/rpc/get_pool_relays 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: prelay_latest: ${prelay_latest}" && waitForInput && continue
-                  ! powner_latest=$(curl -sSL -f -d _pool_tx_id="$(jq '.[0].registered_tx_id' <<< ${pupd_latest})" "${PGREST_API}"/rpc/get_pool_owners 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: powner_latest: ${powner_latest}" && waitForInput && continue
+                  ! p_delegator_cnt=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} "${PGREST_API}"/rpc/get_delegator_count 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: p_delegator_cnt: ${p_delegator_cnt}" && waitForInput && continue
+                  ! prelay_latest=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} "${PGREST_API}"/rpc/get_pool_relays 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: prelay_latest: ${prelay_latest}" && waitForInput && continue
+                  ! powner_latest=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} "${PGREST_API}"/rpc/get_pool_owners 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: powner_latest: ${powner_latest}" && waitForInput && continue
                   if [[ ${pupd_latest_epoch} -gt ${current_epoch} ]]; then # pool update/modification submitted, grab active pool data as well
                     ! pupd_active=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -d _current_epoch_no=${current_epoch} -d _state=active "${PGREST_API}"/rpc/get_pool_update 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: pupd_active: ${pupd_active}" && waitForInput && continue
-                    ! pmeta_active=$(curl -sSL -f -d _pool_meta_id="$(jq '.[0].meta_id' <<< ${pupd_active})" "${PGREST_API}"/rpc/get_pool_metadata 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: pmeta_active: ${pmeta_active}" && waitForInput && continue
-                    ! prelay_active=$(curl -sSL -f -d _pool_update_id="$(jq '.[0].update_id' <<< ${pupd_active})" "${PGREST_API}"/rpc/get_pool_relays 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: prelay_active: ${prelay_active}" && waitForInput && continue
-                    ! powner_active=$(curl -sSL -f -d _pool_tx_id="$(jq '.[0].registered_tx_id' <<< ${pupd_active})" "${PGREST_API}"/rpc/get_pool_owners 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: powner_active: ${powner_active}" && waitForInput && continue
                   else # grab the rest of the pool data from latest update
                     unset pupd_active
                   fi
                 fi
               fi
               echo
-              println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Pool" "${pool_name}")"
+              pool_upd_notice="" && [[ -n ${PGREST_API} && ${pupd_latest_epoch} -gt ${current_epoch} ]] && pool_upd_notice=" (pool modified recently, showing latest registered)"
+              println "$(printf "%-21s : ${FG_GREEN}%s${NC}${FG_LGRAY}%s${NC}" "Pool" "${pool_name}" "${pool_upd_notice}")"
               println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (hex)" "${pool_id}")"
               [[ -n ${pool_id_bech32} ]] && println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (bech32)" "${pool_id_bech32}")"
               if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
@@ -2487,12 +2484,12 @@ function main {
                   println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Hash" "${meta_hash}")"
                 fi
               elif [[ ${pool_registered} = YES ]]; then
-                if [[ -f "${pool_config}" ]]; then
-                  meta_json_url=$(jq -r .json_url "${pool_config}")
-                elif [[ -z ${PGREST_API} ]]; then
+                if [[ -n ${PGREST_API} ]]; then
+                  meta_json_url=$(jq -r '.[0].meta_url //empty' <<< "${pupd_latest}")
+                elif [[ -n ${ledger_fPParams} ]]; then
                   meta_json_url=$(jq -r '.metadata.url //empty' <<< "${ledger_fPParams}")
-                else
-                  meta_json_url=$(jq -r '.meta_url //empty' <<< "${pmeta_latest}")
+                elif [[ -f "${pool_config}" ]]; then
+                  meta_json_url=$(jq -r .json_url "${pool_config}")
                 fi
                 if [[ -n ${meta_json_url} ]] && curl -sL -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}/url_poolmeta.json" ${meta_json_url}; then
                   println "Metadata"
@@ -2509,9 +2506,9 @@ function main {
                       meta_hash_pParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_pParams}")
                       meta_hash_fPParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_fPParams}")
                     else
-                      meta_hash_fPParams=$(jq -r '.meta_hash //empty' <<< "${pmeta_latest}")
+                      meta_hash_fPParams=$(jq -r '.[0].meta_hash //empty' <<< "${pupd_latest}")
                       if [[ -n ${pupd_active} ]]; then
-                        meta_hash_pParams=$(jq -r '.meta_hash //empty' <<< "${pmeta_active}")
+                        meta_hash_pParams=$(jq -r '.meta_hash //empty' <<< "${pupd_active}")
                       else
                         meta_hash_pParams=${meta_hash_fPParams}
                       fi
@@ -2610,9 +2607,6 @@ function main {
                   fi
                 else
                   relays=$(jq -c '.[] //empty' <<< "${prelay_latest}")
-                  if [[ -n ${prelay_active} && ${relays} != $(jq -c '.[] //empty' <<< "${prelay_active}") ]]; then
-                    println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Relay(s) updated, showing latest registered")"
-                  fi
                 fi
                 relay_title="Relay(s)"
                 if [[ -n "${relays}" ]]; then
@@ -2663,14 +2657,11 @@ function main {
                   fi
                 else
                   owners=$(jq -rc '.[] //empty' <<< "${powner_latest}")
-                  if [[ -n ${powner_active} && ${owners} != $(jq -rc '.[] //empty' <<< "${powner_active}") ]]; then
-                    println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Owner(s) updated, showing latest registered")"
-                  fi
                 fi
                 owner_title="Owner(s)"
                 while read -r owner; do
-                  [[ -z ${PGREST_API} ]] && owner_hash=${owner} || owner_hash=$(jq -r '.owner_hash //empty' <<< "${owner}")
-                  owner_wallet=$(grep -r ${owner_hash} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
+                  [[ -z ${PGREST_API} ]] && owner_reward_addr=${owner} || owner_reward_addr=$(jq -r '.reward_addr //empty' <<< "${owner}")
+                  owner_wallet=$(grep -r ${owner_reward_addr} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
                   if [[ -n ${owner_wallet} ]]; then
                     owner_wallet="$(basename "$(dirname "${owner_wallet}")")"
                     println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "${owner_title}" "${owner_wallet}")"
@@ -2678,8 +2669,7 @@ function main {
                     if [[ -z ${PGREST_API} ]]; then
                       println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "${owner_title}" "${owner}")"
                     else
-                      ! owner_addr=$(jq -er '.reward_addr //empty' <<< "${owner}") && owner_addr=${owner_hash}
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "${owner_title}" "${owner_addr}")"
+                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "${owner_title}" "${owner_reward_addr}")"
                     fi
                   fi
                   owner_title=""

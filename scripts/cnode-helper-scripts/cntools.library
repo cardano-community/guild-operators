@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=4
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=5
+CNTOOLS_PATCH_VERSION=6
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -572,11 +572,11 @@ isPoolRegistered() {
     if [[ -z ${pupd_latest_epoch} ]]; then
       return 1
     else
-      p_hash_id=$(jq '.[0].hash_id' <<< ${pupd_latest})
-      ! pretire=$(curl -sSL -f -d _pool_hash_id=${p_hash_id} -s "${PGREST_API}"/rpc/get_pool_retire 2>&1) && error_msg=${pretire} && return 0
+      ! pretire=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -s "${PGREST_API}"/rpc/get_pool_retire 2>&1) && error_msg=${pretire} && return 0
       retiring_epoch=$(jq -e '.retiring_epoch' <<< ${pretire}) || retiring_epoch=0
       if [[ ${retiring_epoch} -gt 0 ]]; then
-        [[ $(jq '.announced_tx_id' <<< ${pretire}) -lt $(jq '.[0].registered_tx_id' <<< ${pupd_latest}) ]] && retiring_epoch=0 # invalidated by newer update
+        # TODO: update rpc to handle below check
+        #[[ $(jq '.announced_tx_id' <<< ${pretire}) -lt $(jq '.[0].registered_tx_id' <<< ${pupd_latest}) ]] && retiring_epoch=0 # invalidated by newer update
         [[ ${retiring_epoch} -gt 0 && ${retiring_epoch} -le ${current_epoch} ]] && return 3 # pool retired
       fi
       return 2
