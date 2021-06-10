@@ -49,7 +49,8 @@ do
   epochnum=$(jq '.cardano.node.metrics.epoch.int.val //0' <<< "${data}")
   slotnum=$(jq '.cardano.node.metrics.slotInEpoch.int.val //0' <<< "${data}")
   density=$(jq -r '.cardano.node.metrics.density.real.val //0' <<< "${data}")
-  uptimes=$(( $(date +%s) - $(jq '.cardano.node.metrics.nodeStartTime.int.val //0' <<< "${data}") ))
+  nodeStartTime=$(jq '.cardano.node.metrics.nodeStartTime.int.val //0' <<< "${data}")
+  uptimes=$(( $(date +%s) - nodeStartTime ))
   transactions=$(jq '.cardano.node.metrics.txsProcessedNum.int.val //0' <<< "${data}")
   kesperiod=$(jq '.cardano.node.metrics.currentKESPeriod.int.val //0' <<< "${data}")
   kesremain=$(jq '.cardano.node.metrics.remainingKESPeriods.int.val //0' <<< "${data}")
@@ -64,7 +65,7 @@ do
     name=$(printf "%s - Relay\n" "${nodename}")
   fi
 
-  if ((uptimes<=0)); then
+  if ((nodeStartTime<=0)); then
     echo -e "${REKT}COULD NOT CONNECT TO A RUNNING INSTANCE! PLEASE CHECK THE PROMETHEUS PORT AND TRY AGAIN!${NC}"
     exit
   fi
