@@ -2454,8 +2454,8 @@ function main {
                 fi
               fi
               echo
-              pool_upd_notice="" && [[ -n ${PGREST_API} && ${pupd_latest_epoch} -gt ${current_epoch} ]] && pool_upd_notice=" (pool modified recently, showing latest registered)"
-              println "$(printf "%-21s : ${FG_GREEN}%s${NC}${FG_LGRAY}%s${NC}" "Pool" "${pool_name}" "${pool_upd_notice}")"
+              [[ -n ${PGREST_API} && ${pupd_latest_epoch} -gt ${current_epoch} ]] && println "${FG_YELLOW}Pool modified recently, displaying latest registered.${NC}\n"
+              println "$(printf "%-21s : ${FG_GREEN}%s${NC}${FG_YELLOW}%s${NC}" "Pool Name" "${pool_name}" "${pool_upd_notice}")"
               println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (hex)" "${pool_id}")"
               [[ -n ${pool_id_bech32} ]] && println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (bech32)" "${pool_id_bech32}")"
               if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
@@ -2508,7 +2508,7 @@ function main {
                     else
                       meta_hash_fPParams=$(jq -r '.[0].meta_hash //empty' <<< "${pupd_latest}")
                       if [[ -n ${pupd_active} ]]; then
-                        meta_hash_pParams=$(jq -r '.meta_hash //empty' <<< "${pupd_active}")
+                        meta_hash_pParams=$(jq -r '.[0].meta_hash //empty' <<< "${pupd_active}")
                       else
                         meta_hash_pParams=${meta_hash_fPParams}
                       fi
