@@ -26,10 +26,9 @@
             "print": false,
             "data": [
                 {
-                    "type": "query_result",
-                    "queryName": "Pool Updates",
-                    "arg": "_pool_meta_id",
-                    "payload": ".[0].meta_id"
+                    "type": "query_variable",
+                    "arg": "_pool_bech32",
+                    "payload": "pool_id_bech32"
                 }
             ],
             "uri": "rpc/get_pool_metadata"
