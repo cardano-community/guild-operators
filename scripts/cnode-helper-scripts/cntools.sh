@@ -1166,6 +1166,7 @@ function main {
               fi
               echo
               
+              # source wallet
               println DEBUG "# Select ${FG_YELLOW}source${NC} wallet"
               if [[ ${op_mode} = "online" ]]; then
                 if ! selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
@@ -1185,7 +1186,6 @@ function main {
               s_wallet="${wallet_name}"
               s_payment_vk_file="${payment_vk_file}"
               s_payment_sk_file="${payment_sk_file}"
-              echo
               getBaseAddress ${s_wallet}
               getPayAddress ${s_wallet}
               getBalance ${base_addr}
@@ -1199,7 +1199,6 @@ function main {
                   println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
                   println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
-                echo
                 select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
                 case $? in
                   0) s_addr="${base_addr}" ;;
@@ -1221,15 +1220,15 @@ function main {
                 println ERROR "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${s_wallet}${NC}"
                 waitForInput && continue
               fi
-              
               getBalance ${s_addr}
               declare -gA assets_left=()
               for asset in "${!assets[@]}"; do
                 assets_left[${asset}]=${assets[${asset}]}
               done
               minUTxOValue=$(jq -r '.minUTxOValue //1000000' <<< "${PROT_PARAMS}")
+
               # Amount
-              println DEBUG "# Amount to Send (in Ada)"
+              println DEBUG "\n# Amount to Send (in Ada)"
               println DEBUG " Valid entry:"
               println DEBUG "   ${FG_LGRAY}>${NC} Integer (e.g. 15) or Decimal (e.g. 956.1235), commas allowed as thousand separator"
               println DEBUG "   ${FG_LGRAY}>${NC} The string '${FG_YELLOW}all${NC}' sends all available funds in source wallet"
@@ -1316,6 +1315,7 @@ function main {
                 esac
                 echo
               fi
+
               # Destination
               d_wallet=""
               println DEBUG "# Select ${FG_YELLOW}destination${NC} type"
@@ -1355,6 +1355,52 @@ function main {
                 println ERROR "${FG_RED}ERROR${NC}: destination address field empty"
                 waitForInput && continue
               fi
+
+              # Optional metadata/message
+              println "\n# Add a message to the transaction?"
+              select_opt "[y] Yes" "[n] No"
+              case $? in
+                0)  metafile="${TMP_DIR}/metadata_$(date '+%Y%m%d%H%M%S').json"
+                    DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
+                    println OFF "\nA maximum of 64 characters is allowed per line."
+                    println OFF "${FG_YELLOW}Please don't change default file path when saving.${NC}"
+                    exec >&6 2>&7 # normal stdout/stderr
+                    waitForInput "press any key to open '${FG_LGRAY}${DEFAULTEDITOR}${NC}' text editor"
+                    ${DEFAULTEDITOR} "${metafile}"
+                    exec >&8 2>&9 # custom stdout/stderr
+                    if [[ ! -f "${metafile}" ]]; then
+                      println ERROR "${FG_RED}ERROR${NC}: file not found"
+                      println ERROR "File: ${FG_LGRAY}${metafile}${NC}"
+                      waitForInput && continue
+                    fi
+                    tput cuu 4 && tput ed
+                    if [[ ! -s ${metafile} ]]; then
+                      println "Message empty, skip and continue with transaction without message? No to abort!"
+                      select_opt "[y] Yes" "[n] No"
+                      case $? in
+                        0) unset metafile ;;
+                        1) continue ;;
+                      esac
+                    else
+                      tx_msg='{"674":{"msg":[]}}'
+                      error=""
+                      while IFS="" read -r line || [[ -n "${line}" ]]; do
+                        if [[ ${#line} -gt 64 ]]; then
+                          error="${FG_RED}ERROR${NC}: line contains more that 64 characters [${#line}]\nLine: ${FG_LGRAY}${line}${NC}" && break
+                        fi
+                        if ! tx_msg=$(jq -er ".\"674\".msg += [\"${line}\"]" <<< "${tx_msg}" 2>&1); then
+                          error="${FG_RED}ERROR${NC}: ${tx_msg}" && break
+                        fi
+                      done < "${metafile}"
+                      [[ -n ${error} ]] && println ERROR "${error}" && waitForInput && continue
+                      jq -c . <<< "${tx_msg}" > "${metafile}"
+                      jq -r . "${metafile}" >&3 && echo
+                      println LOG "Transaction message: ${tx_msg}"
+                    fi
+                    ;;
+                1)  unset metafile ;;
+              esac
+
               if ! sendAssets; then
                 waitForInput && continue
               fi
@@ -2937,7 +2983,7 @@ function main {
                   [[ ${otx_type} = "Pool De-Registration" ]] && println DEBUG "\nPool name        : ${FG_LGRAY}$(jq -r '."pool-name"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Pool De-Registration" ]] && println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-ticker"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Pool De-Registration" ]] && println DEBUG "To be retired    : epoch ${FG_LGRAY}$(jq -r '."retire-epoch"' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Metadata" ]] && println DEBUG "\nMetadata         :\n$(jq -r '.metadata' <<< ${offlineJSON})\n"
+                  jq -er '.metadata' <<< ${offlineJSON} &>/dev/null && println DEBUG "\nMetadata         :\n$(jq -r '.metadata' <<< ${offlineJSON})\n"
                   [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "\nPolicy Name      : ${FG_LGRAY}$(jq -r '."policy-name"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Policy ID        : ${FG_LGRAY}$(jq -r '."policy-id"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Asset Name       : ${FG_LGRAY}$(jq -r '."asset-name"' <<< ${offlineJSON})${NC}"
