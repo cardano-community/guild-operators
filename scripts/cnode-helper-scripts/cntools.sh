@@ -1362,7 +1362,7 @@ function main {
               case $? in
                 0)  metafile="${TMP_DIR}/metadata_$(date '+%Y%m%d%H%M%S').json"
                     DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
-                    println OFF "\nA maximum of 64 characters is allowed per line."
+                    println OFF "\nA maximum of 64 characters(bytes) is allowed per line."
                     println OFF "${FG_YELLOW}Please don't change default file path when saving.${NC}"
                     exec >&6 2>&7 # normal stdout/stderr
                     waitForInput "press any key to open '${FG_LGRAY}${DEFAULTEDITOR}${NC}' text editor"
@@ -1385,8 +1385,9 @@ function main {
                       tx_msg='{"674":{"msg":[]}}'
                       error=""
                       while IFS="" read -r line || [[ -n "${line}" ]]; do
-                        if [[ ${#line} -gt 64 ]]; then
-                          error="${FG_RED}ERROR${NC}: line contains more that 64 characters [${#line}]\nLine: ${FG_LGRAY}${line}${NC}" && break
+                        line_bytes=$(echo -n "${line}" | wc -c)
+                        if [[ ${line_bytes} -gt 64 ]]; then
+                          error="${FG_RED}ERROR${NC}: line contains more that 64 bytes(characters) [${line_bytes}]\nLine: ${FG_LGRAY}${line}${NC}" && break
                         fi
                         if ! tx_msg=$(jq -er ".\"674\".msg += [\"${line}\"]" <<< "${tx_msg}" 2>&1); then
                           error="${FG_RED}ERROR${NC}: ${tx_msg}" && break
