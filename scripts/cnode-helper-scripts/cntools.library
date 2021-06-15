@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=4
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=9
+CNTOOLS_PATCH_VERSION=10
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -888,6 +888,7 @@ getBalance() {
     if [[ ${#utxo_entry[@]} -gt "${idx}" ]]; then
       while [[ ${#utxo_entry[@]} -gt ${idx} ]]; do
         local asset_amount=${utxo_entry[${idx}]}
+        if ! isNumber "${asset_amount}"; then break; fi
         local asset_hash_name="${utxo_entry[$((idx+1))]}"
         IFS='.' read -ra asset <<< "${asset_hash_name}"
         policyIDs["${asset[0]}"]=1
@@ -1521,6 +1522,10 @@ delegate() {
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Delegation"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"pool-id\": \"${pool_id}\" }" <<< ${offlineJSON}); then return 1; fi
+    if [[ ${pool_name} != "${pool_id}" ]]; then
+      if ! offlineJSON=$(jq ". += { \"pool-name\": \"${pool_name}\" }" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
