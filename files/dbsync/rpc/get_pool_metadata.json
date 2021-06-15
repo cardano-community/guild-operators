@@ -1,20 +1,20 @@
 {
-  "function": "get_pool_metadata(_pool_meta_id)",
+  "function": "get_pool_metadata(_pool_bech32)",
   "description": "Get pool metadata url and hash",
   "parameters": [
     {
-      "name": "_pool_meta_id",
-      "description": "meta_id from get_pool_update() function"
+      "name": "_pool_bech32",
+      "description": "pool id in bech32 format"
     }
   ],
   "example": [
     {
       "type": "rest",
-      "command": "curl -d _pool_meta_id=125 -s http://localhost:8050/rpc/get_pool_metadata"
+      "command": "curl -d _pool_bech32=pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr -s http://localhost:8050/rpc/get_pool_metadata"
     }
   ],
   "sql": [
-    "CREATE OR REPLACE FUNCTION get_pool_metadata(_pool_meta_id numeric)",
+    "CREATE OR REPLACE FUNCTION get_pool_metadata(_pool_bech32 text)",
     "RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$",
     "BEGIN",
       "RETURN ( SELECT json_build_object(",
@@ -22,7 +22,7 @@
           "'meta_hash', encode(pmd.hash::bytea, 'hex')",
         ")",
         "FROM pool_meta_data AS pmd",
-        "WHERE pmd.id = _pool_meta_id",
+        "WHERE pmd.id = (SELECT id from pool_hash where view=_pool_bech32)",
       ");",
     "END; $$;"
   ]

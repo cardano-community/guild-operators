@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=4
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=5
+CNTOOLS_PATCH_VERSION=9
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -572,11 +572,11 @@ isPoolRegistered() {
     if [[ -z ${pupd_latest_epoch} ]]; then
       return 1
     else
-      p_hash_id=$(jq '.[0].hash_id' <<< ${pupd_latest})
-      ! pretire=$(curl -sSL -f -d _pool_hash_id=${p_hash_id} -s "${PGREST_API}"/rpc/get_pool_retire 2>&1) && error_msg=${pretire} && return 0
+      ! pretire=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -s "${PGREST_API}"/rpc/get_pool_retire 2>&1) && error_msg=${pretire} && return 0
       retiring_epoch=$(jq -e '.retiring_epoch' <<< ${pretire}) || retiring_epoch=0
       if [[ ${retiring_epoch} -gt 0 ]]; then
-        [[ $(jq '.announced_tx_id' <<< ${pretire}) -lt $(jq '.[0].registered_tx_id' <<< ${pupd_latest}) ]] && retiring_epoch=0 # invalidated by newer update
+        # TODO: update rpc to handle below check
+        #[[ $(jq '.announced_tx_id' <<< ${pretire}) -lt $(jq '.[0].registered_tx_id' <<< ${pupd_latest}) ]] && retiring_epoch=0 # invalidated by newer update
         [[ ${retiring_epoch} -gt 0 && ${retiring_epoch} -le ${current_epoch} ]] && return 3 # pool retired
       fi
       return 2
@@ -1326,6 +1326,12 @@ sendAssets() {
   [[ $(cat "${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${s_addr}" ]] && wallet_source="enterprise" || wallet_source="base"
 
   if ! getTTL; then return 1; fi
+
+  if [[ -n ${metafile} && -f ${metafile} ]]; then
+    metafile_param="--json-metadata-no-schema --metadata-json-file ${metafile}"
+  else
+    metafile_param=""
+  fi
   
   getBalance ${s_addr}
 
@@ -1346,6 +1352,7 @@ sendAssets() {
     ${tx_in}
     --invalid-hereafter ${ttl}
     --fee 0
+    ${metafile_param}
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
@@ -1375,6 +1382,7 @@ sendAssets() {
     ${tx_in}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
+    ${metafile_param}
     --out-file "${TMP_DIR}"/tx.raw
   )
   
@@ -1426,6 +1434,9 @@ sendAssets() {
     for idx in "${!assets_to_send[@]}"; do
       [[ ${assets_to_send[${idx}]} -gt 0 ]] && if ! offlineJSON=$(jq "."assets" += [{ asset: \"${idx}\", amount: \"${assets_to_send[${idx}]}\" }]" <<< ${offlineJSON}); then return 1; fi
     done
+    if [[ -n ${metafile_param} ]]; then
+      if ! offlineJSON=$(jq ". += { metadata: $(jq -c . "${metafile}") }" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
@@ -1975,6 +1986,7 @@ deRegisterPool() {
 rotatePoolKeys() {
   # cold keys
   pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
+  pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
 
   # generated files
   pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
@@ -1983,13 +1995,34 @@ rotatePoolKeys() {
   pool_saved_kes_start="${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}"
   pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
 
+  if [[ ! -f ${pool_coldkey_vk_file} ]]; then # lets re-generate it from cold signing key
+    println ACTION "${CCLI} key verification-key --signing-key-file ${pool_coldkey_sk_file} --verification-key-file ${pool_coldkey_vk_file}"
+    ! ${CCLI} key verification-key --signing-key-file "${pool_coldkey_sk_file}" --verification-key-file "${pool_coldkey_vk_file}" && return 1
+    output=$(jq '.description = "Stake Pool Operator Verification Key"' "${pool_coldkey_vk_file}") && jq <<< ${output} > "${pool_coldkey_vk_file}"
+  fi
+
   current_kes_period=$(getCurrentKESperiod)
   echo "${current_kes_period}" > ${pool_saved_kes_start}
 
   println ACTION "${CCLI} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
-  if ! ${CCLI} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"; then return 1; fi
+  ! ${CCLI} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}" && return 1
+
+  p_opcert=""
+  if [[ -n ${PGREST_API} ]]; then
+    ! getPoolID "${pool_name}" && println "ERROR" "\n${FG_RED}ERROR${NC}: failed to get pool ID!\n" && return 1
+    ! p_opcert=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} "${PGREST_API}"/rpc/get_pool_opcert 2>&1) && println "ERROR" "\n${FG_RED}PGREST_API ERROR${NC}: p_opcert: ${p_opcert}\n" && p_opcert="" # print error but ignore
+    if old_counter_nbr=$(jq -er '.op_cert_counter' <<< "${p_opcert}" 2>/dev/null); then
+      println ACTION "${CCLI} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value $(( old_counter_nbr + 1 )) --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
+      ! ${CCLI} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value $(( old_counter_nbr + 1 )) --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1
+    elif [[ ! -f ${pool_opcert_counter_file} ]]; then
+      println "ERROR" "\n${FG_RED}ERROR${NC}: op cert counter file missing and unable to get previous counter value!\n" && return 1
+    fi
+  elif [[ ! -f ${pool_opcert_counter_file} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: op cert counter file missing and unable to get previous counter value!\n" && return 1
+  fi
+
   println ACTION "${CCLI} node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
-  if ! ${CCLI} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}"; then return 1; fi
+  ! ${CCLI} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}" && return 1
   chmod 700 ${POOL_FOLDER}/${pool_name}/*
 
   kesExpiration "${current_kes_period}"

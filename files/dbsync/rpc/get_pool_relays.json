@@ -1,20 +1,20 @@
 {
-  "function": "get_pool_relays(_pool_update_id)",
+  "function": "get_pool_relays(_pool_bech32)",
   "description": "Get registered pool relays",
   "parameters": [
     {
-      "name": "_pool_update_id",
-      "description": "update_id from get_pool_update() function"
+      "name": "_pool_bech32",
+      "description": "pool id in bech32 format"
     }
   ],
   "example": [
     {
       "type": "rest",
-      "command": "curl -d _pool_update_id=1296 -s http://localhost:8050/rpc/get_pool_relays"
+      "command": "curl -d _pool_bech32=pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr -s http://localhost:8050/rpc/get_pool_relays"
     }
   ],
   "sql": [
-    "CREATE OR REPLACE FUNCTION get_pool_relays(_pool_update_id numeric)",
+    "CREATE OR REPLACE FUNCTION get_pool_relays(_pool_bech32 text)",
     "RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$",
     "BEGIN",
       "RETURN ( SELECT json_agg(js) json_final FROM ( SELECT json_build_object(",
@@ -25,7 +25,7 @@
           "'port', pr.port",
         ") js",
         "FROM pool_relay AS pr",
-        "WHERE pr.update_id = _pool_update_id",
+        "WHERE pr.update_id = (SELECT id from pool_hash where view=_pool_bech32)",
       ") t );",
     "END; $$;"
   ]

@@ -31,10 +31,9 @@
             "print": true,
             "data": [
                 {
-                    "type": "query_result",
-                    "queryName": "Pool Updates",
-                    "arg": "_pool_hash_id",
-                    "payload": ".[0].hash_id"
+                    "type": "query_variable",
+                    "arg": "_pool_bech32",
+                    "payload": "pool_id_bech32"
                 },
                 {
                     "type": "query_variable",
