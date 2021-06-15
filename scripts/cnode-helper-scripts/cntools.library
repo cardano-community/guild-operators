@@ -888,7 +888,7 @@ getBalance() {
     if [[ ${#utxo_entry[@]} -gt "${idx}" ]]; then
       while [[ ${#utxo_entry[@]} -gt ${idx} ]]; do
         local asset_amount=${utxo_entry[${idx}]}
-        if [[ ${asset_amount} = "TxOutDatumHashNone" ]] || ! isNumber ${asset_amount}; then break; fi
+        if ! isNumber "${asset_amount}"; then break; fi
         local asset_hash_name="${utxo_entry[$((idx+1))]}"
         IFS='.' read -ra asset <<< "${asset_hash_name}"
         policyIDs["${asset[0]}"]=1
