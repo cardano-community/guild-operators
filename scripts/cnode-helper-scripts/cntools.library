@@ -1522,6 +1522,10 @@ delegate() {
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Delegation"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"pool-id\": \"${pool_id}\" }" <<< ${offlineJSON}); then return 1; fi
+    if [[ ${pool_name} != "${pool_id}" ]]; then
+      if ! offlineJSON=$(jq ". += { \"pool-name\": \"${pool_name}\" }" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
