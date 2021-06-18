@@ -31,7 +31,11 @@ A sample output from both core and relay (with peer analysis):
 
 ![Core](https://raw.githubusercontent.com/cardano-community/guild-operators/images/gliveview-core.png)
 
+![Core-Peer-Analysis](https://raw.githubusercontent.com/cardano-community/guild-operators/images/core-peer-analysis.png)
+
 ![Relay](https://raw.githubusercontent.com/cardano-community/guild-operators/images/gliveview-relay.png)
+
+![Relay-Peer-Analysis](https://raw.githubusercontent.com/cardano-community/guild-operators/images/relay-peer-analysis.png)
 
 ##### Description
 
