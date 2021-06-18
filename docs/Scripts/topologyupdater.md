@@ -1,14 +1,14 @@
-Since the test network has to get along without the P2P network module for the time being, it needs static topology files. This "TopologyUpdater" service, which is far from being perfect due to its centralization factor, is intended to be a **temporary** solution to allow everyone to activate their relay nodes without having to postpone and wait for manual topology completion requests.
+Since the network has to get along without the P2P network module for the time being, it needs static topology files. This "TopologyUpdater" service, which is far from being perfect due to its centralization factor, is intended to be a **temporary** solution to allow everyone to activate their relay nodes without having to postpone and wait for manual topology completion requests.
 
-The topologyupdater shell script must be executed on the relay node as a cronjob **exactly every 60 minutes**. After **4 consecutive requests (3 hours)** the node is considered a new relay node in listed in the topology file. If the node is turned off, it's automatically delisted after 3 hours.
+The topologyUpdater shell script must be executed on the relay node as a cronjob **exactly every 60 minutes**. After **4 consecutive requests (3 hours)** the node is considered a new relay node in listed in the topology file. If the node is turned off, it's automatically delisted after 3 hours.
 
 #### Download and Configure topologyUpdater.sh
 
-If you have run [prereqs.sh](basics.md#pre-requisites), this should already be available in your scripts folder and make this step unnecessary. 
+If you have run [prereqs.sh](basics.md#pre-requisites), this should already be available in your scripts folder and make this step unnecessary.
 
-Before the updater can make a valid request to the central topology service, he must query the current tip/blockNo from the well synced local node. It connects to your node through the configuration in the script as well as the common env configuration file. Customize these files for your needs.  
+Before the updater can make a valid request to the central topology service, it must query the current tip/blockNo from the well-synced local node. It connects to your node through the configuration in the script as well as the common `env` configuration file. Customize these files for your needs.
 
-To download topologyupdater.sh manually you can execute the commands below and test executing topology Updater once (it's OK if first execution gives back an error):
+To download `topologyUpdater.sh` manually, you can execute the commands below and test executing Topology Updater once (it's OK if first execution gives back an error):
 ``` bash
 cd $CNODE_HOME/scripts
 curl -s -o topologyUpdater.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/topologyUpdater.sh
@@ -19,7 +19,7 @@ chmod 750 topologyUpdater.sh
 
 #### Examine and modify the variables within topologyUpdater.sh script
 
-Out of the box, the scripts might come with some assumptions, that may or may not be valid for your environment. One of the common changes as a SPO would be to **complete CUSTOM_PEERS section** as below to include your local relays/BP nodes, and any additional peers you'd like to be always available at minimum. Please do take time to update the variables in User Variables section in  `env` & `topologyUpdater.sh`:
+Out of the box, the scripts might come with some assumptions, that may or may not be valid for your environment. One of the common changes as an SPO would be to **complete CUSTOM_PEERS section** as below to include your local relays/BP nodes, and any additional peers you'd like to be always available at minimum. Please do take time to update the variables in User Variables section in  `env` & `topologyUpdater.sh`:
 
 ``` bash
 ### topologyUpdater.sh
@@ -33,11 +33,12 @@ CNODE_VALENCY=1                                           # (Optional) for multi
 MAX_PEERS=15                                              # Maximum number of peers to return on successful fetch
 #CUSTOM_PEERS="None"                                      # Additional custom peers to (IP:port[:valency]) to add to your target topology.json
                                                           # eg: "10.0.0.1:3001|10.0.0.2:3002|relays.mydomain.com:3003:3"
+#BATCH_AUTO_UPDATE=N                                      # Set to Y to automatically update the script if a new version is available without user interaction
 ```
 
 Upon first run,
 
-!> Any customisations you add above, will be saved across future prereqs.sh executions , unless you specify `-f` flag to overwrite completely.
+!> Any customisations you add above, will be saved across future `prereqs.sh` executions, unless you specify the `-f` flag to overwrite completely.
 
 #### Deploy the script
 
