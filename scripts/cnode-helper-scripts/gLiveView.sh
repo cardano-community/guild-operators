@@ -54,7 +54,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.20.8
+GLV_VERSION=v1.20.9
 
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
@@ -305,15 +305,6 @@ alignRight () {
   (($#==2)) || return 2
   ((${#2}>$1)) && return 1
   printf '%*s%s' $(($1-${#2})) '' "$2"
-}
-
-# Command    : kesExpiration [pools remaining KES periods]
-# Description: Calculate KES expiration
-kesExpiration() {
-  current_time_sec=$(printf '%(%s)T\n' -1)
-  tip_ref=$(getSlotTipRef)
-  expiration_time_sec=$(( current_time_sec - ( SLOT_LENGTH * (tip_ref % SLOTS_PER_KES_PERIOD) ) + ( SLOT_LENGTH * SLOTS_PER_KES_PERIOD * remaining_kes_periods ) ))
-  printf -v kes_expiration '%(%F %T %Z)T' ${expiration_time_sec}
 }
 
 # Command    : checkPeers [direction: in|out]
