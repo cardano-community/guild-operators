@@ -1,13 +1,13 @@
 !> Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
 
-**Guild LiveView - gLiveView** is a utility to display an equivalent subset (and more) of the deprecated LiveView interface that `cardano-node` users have grown accustomed to. This is especially useful when moving to a systemd deployment - if you haven't done so already - while looking for a familiar UI to monitor the node status.
+**Guild LiveView - gLiveView** is a local monitoring tool to use in addition to remote monitoring tools like Prometheus/Grafana, Zabbix or IOG's RTView. This is especially useful when moving to a systemd deployment - if you haven't done so already - as it offers an intuitive UI to monitor the node status.
 
 The tool is independent from other files and can run as a standalone utility that can be stopped/started without affecting the status of `cardano-node`.
 
 ##### Download
 
-If you've used [prereqs.sh](basics.md#pre-requisites), you can skip this part, as this is already set up for you. The tool relies on the common `env` configuration file.  
-To get current epoch blocks, the [cntoolsBlockCollector.sh](Scripts/logmonitor.md) script is needed. This is optional and **Guild LiveView** will function without it.
+If you've used [prereqs.sh](basics.md#pre-requisites), you can skip this part, as this is already set up for you. The tool relies on the common `env` configuration file.
+To get current epoch blocks, the [logMonitor.sh](Scripts/logmonitor.md) script is needed (and can be combined with [CNCLI](Scripts/cncli.md)). This is optional and **Guild LiveView** will function without it.
 
 ?> For those who follow guild's [folder structure](basics.md#folder-structure) and do not wish to run `prereqs.sh`, you can run the below in `$CNODE_HOME/scripts` folder
 
@@ -68,11 +68,12 @@ In case you run into trouble while running the script, you might want to edit `e
 # User Variables - Change as desired #
 ######################################
 
-NODE_NAME="Cardano Node"                   # Change your node's name prefix here, keep at or below 19 characters!
-REFRESH_RATE=2                             # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
-LEGACY_MODE=false                          # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
-RETRIES=3                                  # How many attempts to connect to running Cardano node before erroring out and quitting
-THEME="dark"                               # dark  = suited for terminals with a dark background
-                                           # light = suited for terminals with a bright background
-NO_INTERNET_MODE="N"                       # To skip checking for auto updates or make outgoing connections to guild-operators github repository
+NODE_NAME="Cardano Node"                  # Change your node's name prefix here, keep at or below 19 characters!
+REFRESH_RATE=2                            # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
+LEGACY_MODE=false                         # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
+RETRIES=3                                 # How many attempts to connect to running Cardano node before erroring out and quitting
+PEER_LIST_CNT=6                           # Number of peers to show on each in/out page in peer analysis view
+THEME="dark"                              # dark  = suited for terminals with a dark background
+                                          # light = suited for terminals with a bright background
+ENABLE_IP_GEOLOCATION="Y"                 # Enable IP geolocation on outgoing and incoming connections using ip-api.com
 ```

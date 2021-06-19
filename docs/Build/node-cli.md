@@ -54,8 +54,17 @@ POOL_NAME="GUILD"
 
 ##### Start the node
 
-To test starting the node in interactive mode, you can use the pre-built script below (note that your node logs are being written to `$CNODE_HOME/logs` folder, you may not see much output beyond `Listening on http://127.0.0.1:12798`):
+To test starting the node in interactive mode, you can use the pre-built script below (`cnode.sh`) (note that your node logs are being written to `$CNODE_HOME/logs` folder, you may not see much output beyond `Listening on http://127.0.0.1:12798`). This script automatically determines whether to start the node as a relay or block producer (if the required pool keys are present in the `$CNODE_HOME/priv/pool/<POOL_NAME>` as mentioned above). The script contains a user-defined variable `CPU_CORES` which determines the number of CPU cores the node will use upon start-up:
 
+```bash
+######################################
+# User Variables - Change as desired #
+# Common variables set in env file   #
+######################################
+
+#CPU_CORES=2            # Number of CPU cores cardano-node process has access to (please don't set higher than physical core count, 2-4 recommended)
+```
+You can uncomment this and set to the desired number, but be wary not to go above your physical core count.
 ```bash
 cd $CNODE_HOME/scripts
 ./cnode.sh
