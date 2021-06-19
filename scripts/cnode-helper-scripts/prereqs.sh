@@ -419,7 +419,10 @@ pushd "${CNODE_HOME}"/files >/dev/null || err_exit
 
 
 if ! curl -s -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-mainnet.json 2>/dev/null ; then
-  err_exit "ERROR!! Specified branch could not be found! Kindly re-check the branch name and internet connection from the server"
+  echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to alpha branch\n"
+  BRANCH=alpha
+  URL_RAW="${REPO_RAW}/${BRANCH}"
+  echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
 else
   echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
 fi
