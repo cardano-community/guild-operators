@@ -688,25 +688,6 @@ lockFile() {
   fi
 }
 
-# Command     : kesExpiration [Pool KES start period]
-# Description : Calculate KES expiration
-# Parameters  : Pool KES start period  >  KES start stored in POOL_CURRENT_KES_START file for pool in question
-# Return      : expiration date can be accessed through variable ${expiration_date} after function has been executed
-kesExpiration() {
-  if [[ -z "${1##*[!0-9]*}" ]]; then
-    println ERROR "${FG_RED}ERROR${NC}: KES start period must be an integer number [$1]"
-    return 1
-  fi
-  pool_kes_start_period=$1
-  current_kes_period_ref=$(getCurrentKESperiod)
-  remaining_kes_periods_ref=$(( MAX_KES_EVOLUTIONS - ( current_kes_period_ref - pool_kes_start_period ) ))
-  tip_ref=$(getSlotTipRef)
-  current_time_sec=$(date -u +%s)
-  expiration_time_sec=$(( current_time_sec - ( SLOT_LENGTH * (tip_ref % SLOTS_PER_KES_PERIOD) ) + ( SLOT_LENGTH * SLOTS_PER_KES_PERIOD * remaining_kes_periods_ref ) ))
-  expiration_time_sec_diff=$(( expiration_time_sec - current_time_sec ))
-  expiration_date=$(date '+%F %T %Z' --date=@${expiration_time_sec})
-}
-
 # Command     : waitNewBlockCreated [optional: silent]
 # Description : Wait for a new block to be created
 # Parameters  : silent  >  any argument to function will prevent DEBUG output to tty
