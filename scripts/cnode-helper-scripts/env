@@ -86,19 +86,6 @@ OFFLINE_MODE='N'
 [[ $(basename $0 2>/dev/null) = "topologyUpdater.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
 
 [[ -z ${BRANCH} ]] && { [[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master; }
-REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
-
-if [[ ${OFFLINE_MODE} = N && ${BRANCH} != master && ${BRANCH} != alpha ]]; then
-  if ! curl -s -f -m ${CURL_TIMEOUT} -o config.json.tmp ${REPO_RAW}/files/config-mainnet.json 2>/dev/null ; then
-    echo -e "WARN!! The folder was configured against ${BRANCH} branch - which does not exist anymore, falling back to alpha branch"
-    BRANCH=alpha
-    echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
-  fi
-fi
-
-URL_RAW="${REPO_RAW}/${BRANCH}"
-URL="${URL_RAW}/scripts/cnode-helper-scripts"
-URL_DOCS="${URL_RAW}/docs/Scripts"
 
 export LC_ALL=C.UTF-8
 
@@ -389,7 +376,20 @@ getAnswerAny() {
 #             : 2 = update failed
 checkUpdate() {
   [[ "${UPDATE_CHECK}" != "Y" ]] && return 0
-  if curl -s -f -m 10 -o "${PARENT}/${1}".tmp "${URL}/${1}" 2>/dev/null; then
+
+  if [[ ${OFFLINE_MODE} = N && ${BRANCH} != master && ${BRANCH} != alpha ]]; then
+    if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name | contains(\"${BRANCH}\"))" &>/dev/null ; then
+      echo -e "WARN!! The folder was configured against ${BRANCH} branch - which does not exist anymore, falling back to alpha branch"
+      BRANCH=alpha
+      echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
+    fi
+  fi
+
+  URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
+  URL="${URL_RAW}/scripts/cnode-helper-scripts"
+  URL_DOCS="${URL_RAW}/docs/Scripts"
+
+  if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}/${1}".tmp "${URL}/${1}" 2>/dev/null; then
     # get vname from env file
     if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
       vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
