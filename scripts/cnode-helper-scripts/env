@@ -85,7 +85,7 @@ OFFLINE_MODE='N'
 [[ $(basename $0 2>/dev/null) = "cnode.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
 [[ $(basename $0 2>/dev/null) = "topologyUpdater.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
 
-[[ -z ${BRANCH} ]] && { [[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master; }
+[[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master
 
 export LC_ALL=C.UTF-8
 

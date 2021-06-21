@@ -50,7 +50,7 @@ while getopts :oab: opt; do
   case ${opt} in
     o ) CNTOOLS_MODE="OFFLINE" ;;
     a ) ADVANCED_MODE="true" ;;
-    b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${PARENT}"/.env_branch ;;
+    b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
     \? ) myExit 1 "$(usage)" ;;
     esac
 done

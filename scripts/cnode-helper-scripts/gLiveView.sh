@@ -57,7 +57,6 @@ setTheme() {
 GLV_VERSION=v1.20.9
 
 PARENT="$(dirname $0)"
-[[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
 
 # Set default for user variables added in recent versions (for those who may not necessarily have it due to upgrade)
 [[ -z "${RETRIES}" ]]  && RETRIES=3
@@ -78,7 +77,7 @@ while getopts :lpb: opt; do
   case ${opt} in
     l ) LEGACY_MODE="true" ;;
     p ) DISABLE_CNCLI="true" ;;
-    b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${PARENT}"/.env_branch ;;
+    b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
   esac
 done
