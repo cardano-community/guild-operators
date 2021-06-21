@@ -378,7 +378,7 @@ checkUpdate() {
   [[ "${UPDATE_CHECK}" != "Y" ]] && return 0
 
   if [[ ${OFFLINE_MODE} = N && ${BRANCH} != master && ${BRANCH} != alpha ]]; then
-    if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name | contains(\"${BRANCH}\"))" &>/dev/null ; then
+    if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
       echo -e "WARN!! The folder was configured against ${BRANCH} branch - which does not exist anymore, falling back to alpha branch"
       BRANCH=alpha
       echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch

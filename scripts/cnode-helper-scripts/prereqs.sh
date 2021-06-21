@@ -418,7 +418,7 @@ echo "Downloading files..."
 pushd "${CNODE_HOME}"/files >/dev/null || err_exit
 
 
-if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name | contains(\"${BRANCH}\"))" &>/dev/null ; then
+if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
   echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to alpha branch\n"
   BRANCH=alpha
   URL_RAW="${REPO_RAW}/${BRANCH}"
