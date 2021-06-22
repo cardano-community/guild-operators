@@ -43,7 +43,7 @@ while getopts :fpb: opt; do
   case ${opt} in
     f ) TU_FETCH='N' ;;
     p ) TU_PUSH='N' ;;
-    b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${PARENT}"/.env_branch ;;
+    b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
   esac
 done

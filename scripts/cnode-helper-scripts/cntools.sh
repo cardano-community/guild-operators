@@ -50,7 +50,7 @@ while getopts :oab: opt; do
   case ${opt} in
     o ) CNTOOLS_MODE="OFFLINE" ;;
     a ) ADVANCED_MODE="true" ;;
-    b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${PARENT}"/.env_branch ;;
+    b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
     \? ) myExit 1 "$(usage)" ;;
     esac
 done
@@ -198,23 +198,29 @@ fi
 clear
 kes_rotation_needed="no"
 while IFS= read -r -d '' pool; do
-  if [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]]; then
-    kesExpiration "$(cat "${pool}/${POOL_CURRENT_KES_START}")"
-    if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
-      kes_rotation_needed="yes"
-      println "\n** WARNING **\nPool ${FG_GREEN}$(basename ${pool})${NC} in need of KES key rotation"
-      if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
-        println DEBUG "${FG_RED}Keys expired!${NC} : ${FG_RED}$(timeLeft ${expiration_time_sec_diff:1})${NC} ago"
-      else
-        println DEBUG "Remaining KES periods : ${FG_RED}${remaining_kes_periods}${NC}"
-        println DEBUG "Time left             : ${FG_RED}$(timeLeft ${expiration_time_sec_diff})${NC}"
-      fi
-    elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
-      kes_rotation_needed="yes"
-      println DEBUG "\nPool ${FG_GREEN}$(basename ${pool})${NC} soon in need of KES key rotation"
-      println DEBUG "Remaining KES periods : ${FG_YELLOW}${remaining_kes_periods}${NC}"
-      println DEBUG "Time left             : ${FG_YELLOW}$(timeLeft ${expiration_time_sec_diff})${NC}"
+  unset pool_kes_start
+  if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+    getNodeMetrics
+  else
+    [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"
+  fi
+
+  if ! kesExpiration ${pool_kes_start}; then println ERROR "${FG_RED}ERROR${NC}: failure during KES calculation for ${FG_GREEN}$(basename ${pool})${NC}" && waitForInput && continue; fi
+
+  if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
+    kes_rotation_needed="yes"
+    println "\n** WARNING **\nPool ${FG_GREEN}$(basename ${pool})${NC} in need of KES key rotation"
+    if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
+      println DEBUG "${FG_RED}Keys expired!${NC} : ${FG_RED}$(timeLeft ${expiration_time_sec_diff:1})${NC} ago"
+    else
+      println DEBUG "Remaining KES periods : ${FG_RED}${remaining_kes_periods}${NC}"
+      println DEBUG "Time left             : ${FG_RED}$(timeLeft ${expiration_time_sec_diff})${NC}"
     fi
+  elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
+    kes_rotation_needed="yes"
+    println DEBUG "\nPool ${FG_GREEN}$(basename ${pool})${NC} soon in need of KES key rotation"
+    println DEBUG "Remaining KES periods : ${FG_YELLOW}${remaining_kes_periods}${NC}"
+    println DEBUG "Time left             : ${FG_YELLOW}$(timeLeft ${expiration_time_sec_diff})${NC}"
   fi
 done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
 [[ ${kes_rotation_needed} = "yes" ]] && waitForInput
@@ -2427,18 +2433,25 @@ function main {
                 println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (hex)" "${pool_id}")"
                 [[ -n ${pool_id_bech32} ]] && println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (bech32)" "${pool_id_bech32}")"
                 println "$(printf "%-21s : %s" "Registered" "${pool_registered}")"
-                if [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]]; then
-                  kesExpiration "$(cat "${pool}/${POOL_CURRENT_KES_START}")"
+                unset pool_kes_start
+                if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+                  getNodeMetrics
+                else
+                  [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"
+                fi
+                if ! kesExpiration ${pool_kes_start}; then 
+                  println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC}%s${FG_GREEN}%s${NC}" "KES expiration date" "ERROR" ": failure during KES calculation for " "$(basename ${pool})")"
+                else
                   if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
                     if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s ago" "KES expiration date" "${expiration_date}" "EXPIRED!" "$(timeLeft ${expiration_time_sec_diff:1})")"
+                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s ago" "KES expiration date" "${kes_expiration}" "EXPIRED!" "$(timeLeft ${expiration_time_sec_diff:1})")"
                     else
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "ALERT!" "$(timeLeft ${expiration_time_sec_diff})")"
+                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s until expiration" "KES expiration date" "${kes_expiration}" "ALERT!" "$(timeLeft ${expiration_time_sec_diff})")"
                     fi
                   elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
-                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_YELLOW}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "WARNING!" "$(timeLeft ${expiration_time_sec_diff})")"
+                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_YELLOW}%s${NC} %s until expiration" "KES expiration date" "${kes_expiration}" "WARNING!" "$(timeLeft ${expiration_time_sec_diff})")"
                   else
-                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "KES expiration date" "${expiration_date}")"
+                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "KES expiration date" "${kes_expiration}")"
                   fi
                 fi
               done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
@@ -2762,18 +2775,25 @@ function main {
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} (incl owners)" "Total Delegators" "${p_delegator_cnt}")"
                 fi
 
-                if [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]]; then
-                  kesExpiration "$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
+                unset pool_kes_start
+                if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+                  getNodeMetrics
+                else
+                  [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
+                fi
+                if ! kesExpiration ${pool_kes_start}; then 
+                  println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC}%s${FG_GREEN}%s${NC}" "KES expiration date" "ERROR" ": failure during KES calculation for " "$(basename ${pool})")"
+                else
                   if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
                     if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s ago" "KES expiration date" "${expiration_date}" "EXPIRED!" "$(timeLeft ${expiration_time_sec_diff:1})")"
+                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s ago" "KES expiration date" "${kes_expiration}" "EXPIRED!" "$(timeLeft ${expiration_time_sec_diff:1})")"
                     else
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "ALERT!" "$(timeLeft ${expiration_time_sec_diff})")"
+                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s until expiration" "KES expiration date" "${kes_expiration}" "ALERT!" "$(timeLeft ${expiration_time_sec_diff})")"
                     fi
                   elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
-                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_YELLOW}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "WARNING!" "$(timeLeft ${expiration_time_sec_diff})")"
+                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_YELLOW}%s${NC} %s until expiration" "KES expiration date" "${kes_expiration}" "WARNING!" "$(timeLeft ${expiration_time_sec_diff})")"
                   else
-                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "KES expiration date" "${expiration_date}")"
+                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "KES expiration date" "${kes_expiration}")"
                   fi
                 fi
               fi
@@ -2796,7 +2816,7 @@ function main {
               echo
               println "Pool KES keys successfully updated"
               println "New KES start period : ${FG_LBLUE}${current_kes_period}${NC}"
-              println "KES keys will expire : ${FG_LBLUE}$(( current_kes_period + MAX_KES_EVOLUTIONS ))${NC} - ${FG_LGRAY}${expiration_date}${NC}"
+              println "KES keys will expire : ${FG_LBLUE}$(( current_kes_period + MAX_KES_EVOLUTIONS ))${NC} - ${FG_LGRAY}${kes_expiration}${NC}"
               echo
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println DEBUG "Copy updated files to pool node replacing existing files:"
