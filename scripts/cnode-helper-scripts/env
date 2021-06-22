@@ -77,10 +77,6 @@ CNODE_PORT=6000                                         # Set node port
 ######################################
 
 [[ ${0} != '-bash' ]] && PARENT=$(dirname $0) || PARENT="$(pwd)" # If sourcing at terminal, $0 would be "-bash" , which is invalid. Thus, fallback to present working directory
-[[ -z ${BRANCH} ]] && { [[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master; }
-URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
-URL="${URL_RAW}/scripts/cnode-helper-scripts"
-URL_DOCS="${URL_RAW}/docs/Scripts"
 
 versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=minimal_needed_version, $2=current_node_version
 
@@ -88,6 +84,8 @@ OFFLINE_MODE='N'
 [[ $1 = "offline" ]] && OFFLINE_MODE='Y'
 [[ $(basename $0 2>/dev/null) = "cnode.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
 [[ $(basename $0 2>/dev/null) = "topologyUpdater.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
+
+[[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master
 
 export LC_ALL=C.UTF-8
 
@@ -378,7 +376,20 @@ getAnswerAny() {
 #             : 2 = update failed
 checkUpdate() {
   [[ "${UPDATE_CHECK}" != "Y" ]] && return 0
-  if curl -s -f -m 10 -o "${PARENT}/${1}".tmp "${URL}/${1}" 2>/dev/null; then
+
+  if [[ ${OFFLINE_MODE} = N && ${BRANCH} != master && ${BRANCH} != alpha ]]; then
+    if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
+      echo -e "WARN!! The folder was configured against ${BRANCH} branch - which does not exist anymore, falling back to alpha branch"
+      BRANCH=alpha
+      echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
+    fi
+  fi
+
+  URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
+  URL="${URL_RAW}/scripts/cnode-helper-scripts"
+  URL_DOCS="${URL_RAW}/docs/Scripts"
+
+  if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}/${1}".tmp "${URL}/${1}" 2>/dev/null; then
     # get vname from env file
     if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
       vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
@@ -754,11 +765,28 @@ getSlotTipRef() {
   fi
 }
 
-# Command     : getCurrentKESperiod
 # Description : Offline calculation of current KES period based on reference tip
 getCurrentKESperiod() {
   tip_ref=$(getSlotTipRef)
   echo $(( tip_ref / SLOTS_PER_KES_PERIOD ))
+}
+
+# Description: Calculate KES expiration based on node metrics with manual pool KES start period as fallback
+# Note       : Its assumed getNodeMetrics() has been run before calling this function
+#            : $1 = (optional) Pools KES start period, fallback method to node metrics
+kesExpiration() {
+  unset kes_expiration expiration_time_sec expiration_time_sec_diff
+  if [[ -z ${remaining_kes_periods} ]]; then
+    if [[ $# -ne 1 ]] || ! isNumber $1; then return 1; fi
+    current_kes_period_ref=$(getCurrentKESperiod)
+    remaining_kes_periods=$(( MAX_KES_EVOLUTIONS - ( current_kes_period_ref - $1 ) ))
+  else
+    tip_ref=$(getSlotTipRef)
+  fi
+  current_time_sec=$(printf '%(%s)T\n' -1)
+  expiration_time_sec=$(( current_time_sec - ( SLOT_LENGTH * (tip_ref % SLOTS_PER_KES_PERIOD) ) + ( SLOT_LENGTH * SLOTS_PER_KES_PERIOD * remaining_kes_periods ) ))
+  expiration_time_sec_diff=$(( expiration_time_sec - current_time_sec ))
+  printf -v kes_expiration '%(%F %T %Z)T' ${expiration_time_sec}
 }
 
 # Description : Calculate expected interval between blocks
