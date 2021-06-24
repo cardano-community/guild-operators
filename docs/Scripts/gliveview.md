@@ -29,13 +29,21 @@ The tool can be run in legacy mode with only standard ASCII characters for termi
 
 A sample output from both core and relay (with peer analysis):
 
-![Core](https://raw.githubusercontent.com/cardano-community/guild-operators/images/gliveview-core.png)
+<!-- tabs:start -->
 
-![Core-Peer-Analysis](https://raw.githubusercontent.com/cardano-community/guild-operators/images/core-peer-analysis.png)
+#### ** Core **
 
-![Relay](https://raw.githubusercontent.com/cardano-community/guild-operators/images/gliveview-relay.png)
+![Core](https://raw.githubusercontent.com/cardano-community/guild-operators/images/gliveview-core.png ':size=35%')
 
-![Relay-Peer-Analysis](https://raw.githubusercontent.com/cardano-community/guild-operators/images/relay-peer-analysis.png)
+![Core-Peer-Analysis](https://raw.githubusercontent.com/cardano-community/guild-operators/images/core-peer-analysis.png ':size=35%')
+
+#### ** Relay **
+
+![Relay](https://raw.githubusercontent.com/cardano-community/guild-operators/images/gliveview-relay.png ':size=35%')
+
+![Relay-Peer-Analysis](https://raw.githubusercontent.com/cardano-community/guild-operators/images/relay-peer-analysis.png ':size=35%')
+
+<!-- tabs:end -->
 
 ##### Description
 
