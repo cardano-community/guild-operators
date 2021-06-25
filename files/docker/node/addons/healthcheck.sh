@@ -4,13 +4,15 @@ source /opt/cardano/cnode/scripts/env
 
 CCLI=$(which cardano-cli)
 
-if [[ "$NETWORK" == "guildnet" ]]; then NETWORK=mainnet; fi
+if [[ "$NETWORK" == "guild-mainnet" ]]; then NETWORK=mainnet; fi
 
-FIRST=$($CCLI query tip --shelley-mode --testnet-magic $(jq .networkMagic /opt/cardano/cnode/priv/files/$NETWORK-shelley-genesis.json) | jq .blockNo)
+# For querying tip, the seperation of testnet-magic vs mainnet as argument is optional
+
+FIRST=$($CCLI query tip --testnet-magic ${NWMAGIC} | jq .block)
 
 sleep 60;
 
-SECOND=$($CCLI query tip --shelley-mode --testnet-magic $(jq .networkMagic /opt/cardano/cnode/priv/files/$NETWORK-shelley-genesis.json) | jq .blockNo)
+SECOND=$($CCLI query tip --testnet-magic ${NWMAGIC} | jq .block)
 
 
 if [[ "$FIRST" -ge "$SECOND" ]]; then
