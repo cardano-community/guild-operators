@@ -5,6 +5,20 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.4.11] - 2021-06-25
+##### Changed
+- KES calculation moved from CNTools & gLiveView into a common function in env file. For online mode node metrics is used for KES expiration instead of static pool KES start period.
+- General message metadata to funds >> send added (unrelated to PR but was easier to add in this PR) according to CIP-0020.
+
+## [8.4.10] - 2021-06-15
+##### Fixed
+- Fix display issue for CLI that were upgraded to Alonzo-Blue networks
+
+## [8.4.9] - 2021-06-15
+##### Changed
+- Handle Various updates to pgrest queries [disabled] to make them independent of instances.
+Note: Version incremented thrice on PR branch itself
+
 ## [8.4.6] - 2021-06-04
 ##### Fixed
 - Add balance check for main pool owner, that there is at least one utxo available
