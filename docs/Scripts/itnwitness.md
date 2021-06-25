@@ -1,10 +1,10 @@
 > ##### Disclaimer:
-> - Currently this is to protect the existing pools from ITN who have already a delegator base to prevent spoofing against - to avoid scammers building on results of ITN from known pools. There would be a solution in future for Mainnet nodes too - but it doesnt apply to those in its current form.
+> - Currently this is to protect the existing pools from the ITN who already have a delegator base against spoofing - to avoid scammers building on results of ITN from known pools. There would be a solution in the future for Mainnet nodes too - but it doesn't apply to those in its current form.
 
 
 #### Concept
 
-Due to the expected Ticker spoofing attack for pools that were famous during ITN, some of the community members have proposed an interim solution to verify the legitimacy of a pool for delegators. You can check the high-level workflow below:
+Due to the expected ticker spoofing attack for pools that were famous during ITN, some of the community members have proposed an interim solution to verify the legitimacy of a pool for delegators. You can check the high-level workflow below:
 
 <!--details>
 <summary>Expand to view</summary-->
@@ -24,7 +24,7 @@ graph TB
 
 #### Steps
 The actual implementation is pretty straightforward, we will keep it brisk - as we assume ones participating are fairly familiar with `jcli` usage.
-- You need to use your owner keys that was used to register your pool , and it should match the owner _public_ key you presented on [official cardano-foundation github](https://github.com/cardano-foundation/incentivized-testnet-stakepool-registry) while registering metadata.
+- You need to use your owner keys that were used to register your pool, and it should match the owner _public_ key you presented on [official cardano-foundation github](https://github.com/cardano-foundation/incentivized-testnet-stakepool-registry) while registering metadata.
 - Store your pool ID in a file (eg: `mainnet_pool.id`)
 - Sign the file using your owner secret key from ITN (eg: `owner_skey`) as per below:
 ``` bash
@@ -41,10 +41,10 @@ cat mainnet_pool.sig
   }
 }
 ```
-- Host this signature file online at a URL with raw contents easily accessible on internet (eg: https://my.pool.com/extended-metadata.json)
+- Host this signature file online at a URL with raw contents easily accessible on the internet (eg: https://my.pool.com/extended-metadata.json)
 - When you register/modify a pool using CNTools, use the above mentioned URL to add to your pool metadata.
 
-If the process is approved to appear for wallets, we may consider providing easier alternatives. If any queries about the process, or any additions please create a git issue/PR against guild repository - to capture common queries and update instructions/help text where appropriate.
+If the process is approved to appear for wallets, we may consider providing easier alternatives. If any queries about the process, or any additions please create a git issue/PR against [guild repository](https://github.com/cardano-community/guild-operators/issues) - to capture common queries and update instructions/help text where appropriate.
 
 #### Sample output of JSON files generated
 

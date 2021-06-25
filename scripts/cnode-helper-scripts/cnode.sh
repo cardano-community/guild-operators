@@ -9,7 +9,7 @@
 # Common variables set in env file   #
 ######################################
 
-#CPU_CORES=2            # Number of CPU cores cardano-node process has access to (please dont set higher than physical core count, 2-4 recommended)
+#CPU_CORES=2            # Number of CPU cores cardano-node process has access to (please don't set higher than physical core count, 2-4 recommended)
 
 ######################################
 # Do NOT modify code below           #
