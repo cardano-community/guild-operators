@@ -8,6 +8,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [8.4.11] - 2021-06-25
 ##### Changed
 - KES calculation moved from CNTools & gLiveView into a common function in env file. For online mode node metrics is used for KES expiration instead of static pool KES start period.
+- General message metadata support added to 'funds >> send' according to CIP-0020.
 
 ## [8.4.10] - 2021-06-15
 ##### Fixed
