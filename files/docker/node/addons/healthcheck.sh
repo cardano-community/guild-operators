@@ -4,7 +4,7 @@ source /opt/cardano/cnode/scripts/env
 
 CCLI=$(which cardano-cli)
 
-if [[ "$NETWORK" == "guildnet" ]]; then NETWORK=mainnet; fi
+if [[ "$NETWORK" == "guild-mainnet" ]]; then NETWORK=mainnet; fi
 
 # For querying tip, the seperation of testnet-magic vs mainnet as argument is optional
 
