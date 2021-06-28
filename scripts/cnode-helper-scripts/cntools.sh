@@ -27,8 +27,6 @@ myExit() {
   cleanup "$1"
 }
 
-clear
-
 usage() {
   cat <<-EOF
 		Usage: $(basename "$0") [-o] [-a] [-b <branch name>]
@@ -67,7 +65,12 @@ if [[ ! -f "${PARENT}"/env ]]; then
   myExit 1
 fi
 
-. "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
+# Source env file, re-sourced later
+if [[ "${CNTOOLS_MODE}" == "OFFLINE" ]]; then
+  . "${PARENT}"/env offline &>/dev/null
+else
+  . "${PARENT}"/env &>/dev/null
+fi
 
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   if [[ "${UPDATE_CHECK}" == "Y" ]]; then
