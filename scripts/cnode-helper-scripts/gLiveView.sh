@@ -54,7 +54,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.20.9
+GLV_VERSION=v1.20.10
 
 PARENT="$(dirname $0)"
 
@@ -113,7 +113,7 @@ if [[ ! -f "${PARENT}"/env ]]; then
   myExit 1
 fi
 
-. "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
+. "${PARENT}"/env &>/dev/null # ignore any errors, re-sourced later
 
 if [[ "${UPDATE_CHECK}" == "Y" ]]; then
   echo "Checking for script updates..."

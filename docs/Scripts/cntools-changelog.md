@@ -5,6 +5,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.4.12] - 2021-06-28
+##### Fixed
+- Pre-source env in offline/online mode for checkUpdate depending on argument provided to cntools.sh
+
 ## [8.4.11] - 2021-06-25
 ##### Changed
 - KES calculation moved from CNTools & gLiveView into a common function in env file. For online mode node metrics is used for KES expiration instead of static pool KES start period.
