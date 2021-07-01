@@ -1,10 +1,10 @@
 {
   "Providers": [
-    {"addr":"178.238.224.187","port":8053},
-    {"addr":"pgrest-guild.ahlnet.nu","port":2162},
-    {"addr":"195.201.129.190","port":8050},
-    {"addr":"95.216.188.94","port":9000},
-    {"addr":"185.161.193.105","port":6029}
+    {"name":"rdlrt","addr":"209.145.50.190","port":8053},
+    {"name":"ola","addr":"pgrest-guild.ahlnet.nu","port":2162},
+    {"name":"damjan","addr":"195.201.129.190","port":8050},
+    {"name":"homer","addr":"95.216.188.94","port":9000},
+    {"name":"gufmar","addr":"185.161.193.105","port":6029}
   ],
   "Consumers": []
 }
