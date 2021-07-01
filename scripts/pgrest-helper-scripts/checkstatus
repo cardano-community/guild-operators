@@ -1,1 +1,1 @@
-watch 'nc 127.0.0.1 8055 <<< "show stat" | grep ^pgrest | cut -d, -f 2,18 | sed -e '"'"'s#,# #g'"'"' | column -t | sort'
+watch 'echo "show stat" | nc 127.0.0.1 8055 | grep ^pgrest | cut -d, -f 2,18 | tr "," " " | column -t | sort'
