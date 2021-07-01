@@ -14,8 +14,9 @@
 export PGPASSFILE=${CNODE_HOME}/priv/.pgpass
 export PATH="${HOME}/.cabal/bin":$PATH
 
-STATE_DIR="state"
-SCHEMA_DIR="schema"
+DBSYNC_STATE_DIR="state"
+DBSYNC_SCHEMA_DIR="schema"
+DBSYNC_CONFIG="files/dbsync.yaml"
 
 ######################################
 # Do NOT modify code below           #
@@ -37,8 +38,8 @@ fi
 
 # let's go relational ;)
 cardano-db-sync-extended \
-	--config files/config-dbsync.yaml \
+	--config ${DBSYNC_CONFIG} \
 	--socket-path "${CARDANO_NODE_SOCKET_PATH}" \
-	--schema-dir ${SCHEMA_DIR} \
-	--state-dir ${SCHEMA_DIR} \
+	--schema-dir ${DBSYNC_SCHEMA_DIR} \
+	--state-dir ${DBSYNC_STATE_DIR} \
 	>> ${LOG_DIR}/dbsync.log 2>&1
