@@ -1,0 +1,22 @@
+[Unit]
+Description=Cardano DBSync
+After=cnode.service
+Requires=cnode.service
+PartOf=cnode.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+User=mgu
+WorkingDirectory=/opt/cardano/cnode
+ExecStart=/bin/bash -l -c "exec /opt/cardano/cnode/scripts/dbsync.sh"
+KillSignal=SIGINT
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=dbsync
+TimeoutStopSec=5
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target
