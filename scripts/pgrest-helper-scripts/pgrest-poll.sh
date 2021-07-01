@@ -14,7 +14,7 @@ haproxy_ip="${1}"
 haproxy_port="${2}"
 server="${3}"
 port="${4}"
-dbtip=$(curl -f -H "Accept: text/plain" "http://127.0.0.1:8050/epoch?select=end_time::text&order=id.desc.nullslast&limit=1" 2>/dev/null)
+dbtip=$(curl -f -H "Accept: text/plain" "http://${3}:${4}/epoch?select=end_time::text&order=id.desc.nullslast&limit=1" 2>/dev/null)
 currtip=$(TZ='UTC' date "+%Y-%m-%d %H:%M:%S")
 echo ${dbtip} - ${currtip}
 if [[ -n "{dbtip}" ]] ; then
