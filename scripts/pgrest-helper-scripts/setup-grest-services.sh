@@ -40,13 +40,13 @@ EOF
 
 while getopts :ft:b: opt; do
   case ${opt} in
-    f ) FORCE_OVERWRITE='Y' ;;
-    t ) CNODE_NAME=${OPTARG//[^[:alnum:]]/_} ;;
-    b ) BRANCH=${OPTARG} ;;
-    \? ) usage ;;
-    esac
+  f) FORCE_OVERWRITE='Y' ;;
+  t) CNODE_NAME=${OPTARG//[^[:alnum:]]/_} ;;
+  b) BRANCH=${OPTARG} ;;
+  \?) usage ;;
+  esac
 done
-shift $((OPTIND -1))
+shift $((OPTIND - 1))
 
 dirs -c # clear dir stack
 [[ -z ${FORCE_OVERWRITE} ]] && FORCE_OVERWRITE='N'
@@ -69,15 +69,15 @@ if [[ "${UPDATE_CHECK}" = 'Y' ]] && curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"
   if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
     cp "${PARENT}"/setup-grest-services.sh "${PARENT}/setup-grest-services.sh_bkp$(date +%s)"
     STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/setup-grest-services.sh)
-    printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/setup-grest-services.sh.tmp
+    printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" >"${PARENT}"/setup-grest-services.sh.tmp
     {
-      mv -f "${PARENT}"/setup-grest-services.sh.tmp "${PARENT}"/setup-grest-services.sh && \
-      chmod 755 "${PARENT}"/setup-grest-services.sh && \
-      echo -e "\nUpdate applied successfully, please run setup-grest-services again!\n" && \
-      exit 0;
+      mv -f "${PARENT}"/setup-grest-services.sh.tmp "${PARENT}"/setup-grest-services.sh &&
+        chmod 755 "${PARENT}"/setup-grest-services.sh &&
+        echo -e "\nUpdate applied successfully, please run setup-grest-services again!\n" &&
+        exit 0
     } || {
-      echo -e "Update failed!\n\nPlease manually download latest version of setup-grest-services.sh script from GitHub" && \
-      exit 1;
+      echo -e "Update failed!\n\nPlease manually download latest version of setup-grest-services.sh script from GitHub" &&
+        exit 1
     }
   fi
 fi
@@ -90,7 +90,7 @@ if ! command -v postgrest >/dev/null; then
   pushd ~/tmp >/dev/null || err_exit
   pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-x64-static.tar.xz')"
   if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest.tar.xz "${pgrest_asset_url}"; then
-    tar xf postgrest-linux-x64.tar.xz &>/dev/null && rm -f postgrest.tar.xz
+    tar xf postgrest.tar.xz &>/dev/null && rm -f postgrest.tar.xz
     [[ -f postgrest ]] || err_exit "ERROR!! postgrest archive downloaded but binary not found after attempting to extract package!"
     mv ./postgrest ~/.cabal/bin/
   else
@@ -106,7 +106,7 @@ if [ ! -f /usr/local/sbin/haproxy ]; then
   if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
     tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
     if command -v apt >/dev/null; then
-     sudo apt -y install libpcre3-dev || err_exit "ERROR!! 'sudo apt -y install libpcre3-dev' failed!"
+      sudo apt -y install libpcre3-dev || err_exit "ERROR!! 'sudo apt -y install libpcre3-dev' failed!"
     fi
     if command -v yum >/dev/null; then
       sudo yum -y install pcre-devel || err_exit "ERROR!! 'sudo yum -y install prce-devel' failed!"
@@ -186,7 +186,7 @@ updateWithCustomConfig() {
         return
       fi
       STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' ${file})
-      printf '%s\n%s\n' "${STATIC_CMD}" "${TEMPL_CMD}" > ${file}.tmp
+      printf '%s\n%s\n' "${STATIC_CMD}" "${TEMPL_CMD}" >${file}.tmp
     else
       rm -f ${file}.tmp
       return
@@ -276,9 +276,10 @@ EOF"
 
 sudo systemctl daemon-reload
 
-if ! command -v cardano-db-sync-extended >/dev/null ; then
+if ! command -v cardano-db-sync-extended >/dev/null; then
   echo "NOTE: We could not find 'cardano-db-sync-extended' binary in \$PATH , please ensure you've followed the instructions below:"
   echo "  https://cardano-community.github.io/guild-operators/#/Build/dbsync"
 fi
 
-pushd -0 >/dev/null || err_exit; dirs -c
+pushd -0 >/dev/null || err_exit
+dirs -c
