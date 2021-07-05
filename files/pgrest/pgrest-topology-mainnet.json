@@ -1,0 +1,6 @@
+{
+  "Providers": [
+      { "name": "damjan", "addr": "65.21.183.97", "port": 8053 }
+  ],
+  "Consumers": []
+}
