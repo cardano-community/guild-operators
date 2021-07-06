@@ -90,7 +90,7 @@ if ! command -v postgrest >/dev/null; then
   pushd ~/tmp >/dev/null || err_exit
   pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-x64-static.tar.xz')"
   if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest.tar.xz "${pgrest_asset_url}"; then
-    tar xf postgrest-linux-x64.tar.xz &>/dev/null && rm -f postgrest.tar.xz
+    tar xf postgrest.tar.xz &>/dev/null && rm -f postgrest.tar.xz
     [[ -f postgrest ]] || err_exit "ERROR!! postgrest archive downloaded but binary not found after attempting to extract package!"
     mv ./postgrest ~/.cabal/bin/
   else
