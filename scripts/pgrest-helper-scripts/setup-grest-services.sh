@@ -201,6 +201,7 @@ updateWithCustomConfig() {
 
 updateWithCustomConfig "pgrest-poll.sh"
 updateWithCustomConfig "dbsync.sh"
+updateWithCustomConfig "checkstatus.sh"
 
 sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./dbsync.sh
 
