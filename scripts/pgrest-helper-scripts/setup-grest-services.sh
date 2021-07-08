@@ -154,7 +154,7 @@ backend pgrest_core
   server local 127.0.0.1:8050 check inter 5000
   server rdlrt 209.145.50.190:8053 check inter 5000 backup
   server homer 95.216.188.94:8053 check inter 5000 backup
-  server ola pgrest-guild.ahlnet.nu:8053 check inter 5000 backup
+  server ola pgrest-guild.ahlnet.nu:2163 check inter 5000 backup
   server damjan 195.201.129.190:8053 check inter 5000 backup
   server gufmar 185.161.193.105:6029 check inter 5000 backup
 EOF"
