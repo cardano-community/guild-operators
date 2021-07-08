@@ -21,4 +21,5 @@ To report **bugs** and **issues** with scripts and documentation please open a [
 
 Use the sidebar to navigate through the topics. Note that the instructions assume the folder structure as per [here](basics.md#folder-structure).
 
-> Again, Feedback/Contribution and ownership of tasks is always welcome. If you're interested in collaborating regularly, make a start - and you should be part of the guild already :smile:.
+!!! question ""
+    Again, Feedback/Contribution and ownership of tasks is *always welcome*. If you're interested in collaborating regularly, make a start - and you should be part of the guild already :smile:.

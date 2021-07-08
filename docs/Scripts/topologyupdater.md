@@ -1,12 +1,12 @@
-Since the network has to get along without the P2P network module for the time being, it needs static topology files. This "TopologyUpdater" service, which is far from being perfect due to its centralization factor, is intended to be a **temporary** solution to allow everyone to activate their relay nodes without having to postpone and wait for manual topology completion requests.
+!!! tip "Reminder !!"
+    - Since the network has to get along without the P2P network module for the time being, it needs static topology files. This "TopologyUpdater" service, which is far from being perfect due to its centralization factor, is intended to be a **temporary** solution to allow everyone to activate their relay nodes without having to postpone and wait for manual topology completion requests.
+    - You should **NOT** set up topologyUpdater for your block producing nodes.
 
 The topologyUpdater shell script must be executed on the relay node as a cronjob **exactly every 60 minutes**. After **4 consecutive requests (3 hours)** the node is considered a new relay node in listed in the topology file. If the node is turned off, it's automatically delisted after 3 hours.
 
-!> Note: You should **NOT** set up topologyUpdater for your block producing nodes.
+#### Download and Configure {: id="download"}
 
-#### Download and Configure topologyUpdater.sh
-
-If you have run [prereqs.sh](basics.md#pre-requisites), this should already be available in your scripts folder and make this step unnecessary.
+If you have run [prereqs.sh](../basics.md#pre-requisites), this should already be available in your scripts folder and make this step unnecessary.
 
 Before the updater can make a valid request to the central topology service, it must query the current tip/blockNo from the well-synced local node. It connects to your node through the configuration in the script as well as the common `env` configuration file. Customize these files for your needs.
 
@@ -19,7 +19,7 @@ chmod 750 topologyUpdater.sh
 ./topologyUpdater.sh
 ```
 
-#### Examine and modify the variables within topologyUpdater.sh script
+#### Examine and modify the variables within topologyUpdater.sh script {: id="modify"}
 
 Out of the box, the scripts might come with some assumptions, that may or may not be valid for your environment. One of the common changes as an SPO would be to the **complete CUSTOM_PEERS section** as below to include your local relays/BP nodes (described in the [How do I add my own nodes section](#how-do-i-add-my-own-relaysstatic-nodes-in-addition-to-dynamic-list-generated-by-topologyupdater)), and any additional peers you'd like to be always available at minimum. Please do take time to update the variables in User Variables section in  `env` & `topologyUpdater.sh`:
 
@@ -38,14 +38,12 @@ MAX_PEERS=15                                              # Maximum number of pe
 #BATCH_AUTO_UPDATE=N                                      # Set to Y to automatically update the script if a new version is available without user interaction
 ```
 
-Upon first run,
+Any customisations you add above, will be saved across future `prereqs.sh` executions, unless you specify the `-f` flag to overwrite completely.
 
-!> Any customisations you add above, will be saved across future `prereqs.sh` executions, unless you specify the `-f` flag to overwrite completely.
-
-#### Deploy the script
+#### Deploy the script {: id="deploy"}
 
 **systemd service**  
-The script can be deployed as a background service in different ways but the recommended and easiest way if [prereqs.sh](basics.md#pre-requisites) was used, is to utilize the `deploy-as-systemd.sh` script to setup and schedule the execution. This will deploy both push & fetch service files as well as timers for a scheduled 60 min node alive message and cnode restart at the user set interval (default: 24 hours) when running the deploy script.
+The script can be deployed as a background service in different ways but the recommended and easiest way if [prereqs.sh](../basics.md#pre-requisites) was used, is to utilize the `deploy-as-systemd.sh` script to setup and schedule the execution. This will deploy both push & fetch service files as well as timers for a scheduled 60 min node alive message and cnode restart at the user set interval (default: 24 hours) when running the deploy script.
 
 - `cnode-tu-push.service`    : pushes a node alive message to Topology Updater API
 - `cnode-tu-push.timer`      : schedules the push service to execute once every hour
@@ -62,14 +60,15 @@ Another way to deploy the `topologyUpdater.sh` script is as a `crontab` job. Add
 25 * * * * /opt/cardano/cnode/scripts/topologyUpdater.sh
 ```
 
-
 #### Logs
 You can check the last result of push message in `logs/topologyUpdater_lastresult.json`.  
 If deployed as systemd service, use `sudo journalctl -u <service>` to check output from service.
 
 If one of the parameters is outside the allowed ranges, invalid or missing the returned JSON will tell you what needs to be fixed.
 
-!> Don't try to execute the script more often than once per hour. It's completely useless and may lead to a temporary blacklisting.
+!!! info ""
+    Don't try to execute the script more often than once per hour. It's completely useless and may lead to a temporary blacklisting.
+
 #### Why does my topology file only contain IOG peers?
 
 Each subscribed node (4 consecutive requests) is allowed to fetch a subset of other nodes to prove loyalty/stability of the relay. Until reaching this point, your fetch calls will only return IOG peers combined with any custom peers added in *USER VARIABLES* section of `topologyUpdater.sh` script

@@ -1,4 +1,4 @@
-These deployment instructions used for reference while building [cardano-db-sync](Build/dbsync.md) tool. These are just for reference and ease of set up and consistency for those who are new to Postgres DB.
+These deployment instructions used for reference while building [cardano-db-sync](../Build/dbsync.md) tool. These are just for reference and ease of set up and consistency for those who are new to Postgres DB.
 It is recommended to customise these as per your needs for Production builds.
 
 #### Install PostgreSQL Server
@@ -17,14 +17,12 @@ if [ -z "${OS_ID##*debian*}" ]; then
   echo "deb http://apt.postgresql.org/pub/repos/apt/ ${RELEASE}"-pgdg main | sudo tee  /etc/apt/sources.list.d/pgdg.list
   sudo apt-get update
   sudo apt-get -y install postgresql-11 postgresql-server-dev-11 postgresql-contrib libghc-hdbc-postgresql-dev
-  sudo sed -i "s#  ident#  md5#g" /etc/postgresql/11/main/pg_hba.conf
   sudo systemctl restart postgresql
   sudo systemctl enable postgresql
 elif [ -z "${OS_ID##*rhel*}" ]; then
   #CentOS/RHEL/Fedora
   sudo yum install -y postgresql-server postgresql-server-devel postgresql-contrib postgresql-devel libpq-devel
   sudo postgresql-setup initdb
-  sudo sed -i "s#  ident#  md5#g" /var/lib/pgsql/data/pg_hba.conf
   sudo systemctl start postgresql
   sudo systemctl enable postgresql
 else
@@ -57,7 +55,7 @@ Type `exit` at shell to return to your user from postgres
 
 ``` bash
 export PGPASSFILE=$CNODE_HOME/priv/.pgpass
-echo "localhost:5432:cexplorer:$(whoami):PasswordYouWant" > $PGPASSFILE
+echo "/var/run/postgresql:5432:cexplorer:*:*" > $PGPASSFILE
 chmod 0600 $PGPASSFILE
 psql postgres
 # psql (10.6)

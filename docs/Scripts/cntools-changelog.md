@@ -1,9 +1,14 @@
 All notable changes to this tool will be documented in this file.
 
-!> Whenever you're updating between versions where format/hash of keys have changed , or you're changing networks - it is recommended to Backup your Wallet and Pool folders before you proceed with launching cntools on a fresh network.
+!!! info ""
+    Whenever you're updating between versions where format/hash of keys have changed , or you're changing networks - it is recommended to Backup your Wallet and Pool folders before you proceed with launching cntools on a fresh network.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [8.4.13] - 2021-07-08
+##### Changed
+- Documentation references updated to new site layout
 
 ## [8.4.12] - 2021-06-28
 ##### Fixed
@@ -88,7 +93,7 @@ Note: Version incremented thrice on PR branch itself
 ##### Added
 - Ability to create & update a Cardano Token Registry submission JSON file
   - Requires 'token-metadata-creator' tool, instructions to download/build this tool added to Guild Operators documentation:
-  - https://cardano-community.github.io/guild-operators/#/Build/offchainMetadataTools
+  - https://cardano-community.github.io/guild-operators/Build/offchainMetadataTools
 - Token Registry lookup in Wallet >> Show
 - Token asset fingerprint generation according to https://github.com/cardano-foundation/CIPs/pull/64
 
@@ -274,8 +279,8 @@ Only the most noticeable changes added to changelog.
 
 ##### Changed
 - Blocks view updated to adapt to the added CNCLI integration and changes made to block collector(logMonitor)
-  - [CNCLI](https://cardano-community.github.io/guild-operators/#/Scripts/cncli)
-  - [Log Monitor](https://cardano-community.github.io/guild-operators/#/Scripts/logmonitor)
+  - [CNCLI](https://cardano-community.github.io/guild-operators/Scripts/cncli)
+  - [Log Monitor](https://cardano-community.github.io/guild-operators/Scripts/logmonitor)
 - chattr file locking now optional to use, a new setting in cntools.config added for it.
 
 ##### Fixed
@@ -316,7 +321,7 @@ Only the most noticeable changes added to changelog.
 
 ## [6.0.0] - 2020-10-15
 
-> This is a major release with a lot of changes. It is highly recommended that you familiarise yourself with the usage for Hybrid or Online v/s Offline mode on a testnet environment before doing it on production. Please visit https://cardano-community.github.io/guild-operators/#/upgrade for details.
+> This is a major release with a lot of changes. It is highly recommended that you familiarise yourself with the usage for Hybrid or Online v/s Offline mode on a testnet environment before doing it on production. Please visit https://cardano-community.github.io/guild-operators/upgrade for details.
 
 ##### Added
 - Allow CNTools to operate in offline mode. Offline features include:
@@ -392,7 +397,7 @@ Only the most noticeable changes added to changelog.
 ##### Removed
 - `Pool >> Delegators` removed.
   - If/when a better option than dumping and parsing ledger-state dump arise re-adding it will be considered. 
-  - Utilize the community explorers listed at https://cardano-community.github.io/support-faq/#/explorers 
+  - Utilize the community explorers listed at https://cardano-community.github.io/support-faq/explorers 
 - POOL_PLEDGECERT_FILENAME removed from config, WALLET_DELEGCERT_FILENAME is used instead for delegation cert to pool, no need to keep a separate cert in pool folder for this, its the wallet that is delegated.
 - Redundant sections in guide
 - Stale delegate.counter

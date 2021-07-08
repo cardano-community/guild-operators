@@ -48,7 +48,7 @@ echo
 echo -e "\e[32m~~ Topology Updater ~~\e[0m"
 echo "An intermediate centralized solution for relay nodes to handle the static topology files until P2P network module is implemented on protocol level."
 echo "A service file is deployed that once every 60 min send a message to API. After 4 consecutive successful requests (3 hours) the relay is accepted and available for others to fetch. If the node is turned off, it’s automatically delisted after 3 hours."
-echo "For more info, visit https://cardano-community.github.io/guild-operators/#/Scripts/topologyupdater"
+echo "For more info, visit https://cardano-community.github.io/guild-operators/Scripts/topologyupdater"
 echo
 echo "Deploy Topology Updater as systemd services? (only for relay nodes) [y|n]"
 read -rsn1 yn

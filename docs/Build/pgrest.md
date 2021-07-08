@@ -1,12 +1,13 @@
-!> - An average pool operator may not require this component at all. Please verify if it is required for your use as mentioned [here](build.md#components)
+!!! important
 
-> Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
+    - An average pool operator may not require this component at all. Please verify if it is required for your use as mentioned [here](../build.md#components)
+    - Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
 
 [PostgREST](https://postgrest.org/en/latest) is a web server that serves any PostgreSQL database (in our case, useful for `cardano-db-sync` and `smash`) as a RESTful Web Service. The endpoints of PostgREST in itself are essentially the table itself. You can read more about exploring the API [here](https://postgrest.org/en/latest/api.html). Understandably, it would of course rely on an existing PostgreSQL server. At the moment of writing, this is being used as an easy alternative - which will remain up-to-date since it is directly serving the underlying database as an API, as compared to `Cardano GraphQL` component. Some of the other advantages would also be that you can serve JWT authentication, or use native Postgres DB authentication against the Rest Interface as well (see [here](https://postgrest.org/en/latest/tutorials/tut1.html) for adding this to your instance), and the web server it uses can be hardened or served behind another nginx/httpd/.. reverse proxy as per your SecOps preferences.
 
-Again, the focus of this guide (for now) is not to tell you how to secure your PostgREST instance, but to get you up and running quickly. You'd want to harden your instance as per instructions [here](https://postgrest.org/en/latest/admin.html?highlight=SSL) once you're happy with the usage. The guide below assumes PostgreSQL instance has already been set up (refer to [Sample Local PostgreSQL Server Deployment instructions](Appendix/postgres.md) ) along with [cardano-db-sync](build/dbsync.md).
+Again, the focus of this guide (for now) is not to tell you how to secure your PostgREST instance, but to get you up and running quickly. You'd want to harden your instance as per instructions [here](https://postgrest.org/en/latest/admin.html?highlight=SSL) once you're happy with the usage. The guide below assumes PostgreSQL instance has already been set up (refer to [Sample Local PostgreSQL Server Deployment instructions](../Appendix/postgres.md) ) along with [cardano-db-sync](../Build/dbsync.md).
 
-#### Prepare Database {docsify-ignore}
+### Enable permissions in Database {: id="perms"}
 
 For simplicity, the download of latest PostgREST instance is already available via executing the below:
 
@@ -16,9 +17,9 @@ wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/
 ./prereqs.sh -p
 ```
 
-This would download and make `postgrest` binary available in `${HOME}/.cabal/bin` which is also where your DB Sync binaries would be, assuming you've followed [this guide](build/dbsync.md).
+This would download and make `postgrest` binary available in `${HOME}/.cabal/bin` which is also where your DB Sync binaries would be, assuming you've followed [this guide](../Build/dbsync.md).
 
-To start with you'd want to ensure your current shell session has access to Postgres credentials, continuing from examples from the above mentioned [Sample Postgres deployment guide](Appendix/postgres.md).
+To start with you'd want to ensure your current shell session has access to Postgres credentials, continuing from examples from the above mentioned [Sample Postgres deployment guide](../Appendix/postgres.md).
 
 ``` bash
 cd $CNODE_HOME/priv
@@ -36,15 +37,16 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO web_anon;
 
 You can now quit your psql session using `\q`.
 
-##### Create Config and Start PostgREST
+#### Create Config and Start PostgREST {: id="start-pgrest"}
 
 Now that your user is created in database, you can create the postgrest config. A basic sample is below:
 
-!> Replace `${USER}` and `${PASSWORD}` to match the username and password you can authenticate with for `psql` (defined in `$CNODE_HOME/priv/.pgpass` file in our example).
+!!! info "Reminder !!"
+    Replace `${USER}` and `${PASSWORD}` to match the username and password you can authenticate with for `psql` (defined in `$CNODE_HOME/priv/.pgpass` file in our example).
 
 ``` bash
 cat << 'EOF' > $CNODE_HOME/priv/pgrest.conf
-db-uri = "postgres://${USER}:${PASSWORD}@localhost/cexplorer"
+db-uri = "postgres://${USER}@/cexplorer"
 db-schema = "public"
 db-anon-role = "web_anon"
 server-host = "127.0.0.1"
@@ -70,7 +72,7 @@ postgrest $CNODE_HOME/priv/pgrest.conf
 ## Connection successful
 ```
 
-##### Test queries
+### Validation
 
 While you can query PostgREST a browser from a browser if listening on `0.0.0.0` , we'd stick to querying your instance via `curl` on terminal, so that we're not troubleshooting any firewall/network configuration issues. Now, the nomenclature we used should have connected you to the `cardano-db-sync` instance. Assuming it is already populated (even partially), you can try explore tables as REST endpoints.
 
