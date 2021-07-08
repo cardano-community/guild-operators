@@ -5,27 +5,27 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
-<link href="https://cardano-community.github.io/guild-operators/" rel="canonical"/>
-<link href="overrides/guildicon.png" rel="icon"/>
+<link href="https://cardano-community.github.io/guild-operators/Build/graphql/" rel="canonical"/>
+<link href="../../overrides/guildicon.png" rel="icon"/>
 <meta content="mkdocs-1.2.1, mkdocs-material-7.1.9" name="generator"/>
-<title>Guild Operators</title>
-<link href="assets/stylesheets/main.ca7ac06f.min.css" rel="stylesheet"/>
-<link href="assets/stylesheets/palette.f1a3b89f.min.css" rel="stylesheet"/>
+<title>Graphql - Guild Operators</title>
+<link href="../../assets/stylesheets/main.ca7ac06f.min.css" rel="stylesheet"/>
+<link href="../../assets/stylesheets/palette.f1a3b89f.min.css" rel="stylesheet"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&amp;display=fallback" rel="stylesheet"/>
 <style>:root{--md-text-font-family:"Roboto";--md-code-font-family:"Roboto Mono"}</style>
-<link href="overrides/custom.css" rel="stylesheet"/>
+<link href="../../overrides/custom.css" rel="stylesheet"/>
 <script>function gtag(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],gtag("js",new Date),gtag("config","G-MLM58HW7RF"),document.addEventListener("DOMContentLoaded",function(){"undefined"!=typeof location$&&location$.subscribe(function(t){gtag("config","G-MLM58HW7RF",{page_path:t.pathname})})})</script>
 <script async="" src="https://www.googletagmanager.com/gtag/js?id=G-MLM58HW7RF"></script>
 </head>
 <body data-md-color-accent="green" data-md-color-primary="green" data-md-color-scheme="slate" dir="ltr">
-<script>function __prefix(e){return new URL(".",location).pathname+"."+e}function __get(e,t=localStorage){return JSON.parse(t.getItem(__prefix(e)))}</script>
+<script>function __prefix(e){return new URL("../..",location).pathname+"."+e}function __get(e,t=localStorage){return JSON.parse(t.getItem(__prefix(e)))}</script>
 <script>var palette=__get("__palette");if(null!==palette&&"object"==typeof palette.color)for(var key in palette.color)document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
 <input autocomplete="off" class="md-toggle" data-md-toggle="drawer" id="__drawer" type="checkbox"/>
 <input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
 <label class="md-overlay" for="__drawer"></label>
 <div data-md-component="skip">
-<a class="md-skip" href="#support">
+<a class="md-skip" href="#build-hasura-graphql-engine">
           Skip to content
         </a>
 </div>
@@ -33,8 +33,8 @@
 </div>
 <header class="md-header" data-md-component="header">
 <nav aria-label="Header" class="md-header__inner md-grid">
-<a aria-label="Guild Operators" class="md-header__button md-logo" data-md-component="logo" href="." title="Guild Operators">
-<img alt="logo" src="overrides/guildicon.png"/>
+<a aria-label="Guild Operators" class="md-header__button md-logo" data-md-component="logo" href="../.." title="Guild Operators">
+<img alt="logo" src="../../overrides/guildicon.png"/>
 </a>
 <label class="md-header__button md-icon" for="__drawer">
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"></path></svg>
@@ -49,7 +49,7 @@
 <div class="md-header__topic" data-md-component="header-topic">
 <span class="md-ellipsis">
             
-              Home
+              Graphql
             
           </span>
 </div>
@@ -113,8 +113,8 @@
 <div class="md-sidebar__inner">
 <nav aria-label="Navigation" class="md-nav md-nav--primary" data-md-level="0">
 <label class="md-nav__title" for="__drawer">
-<a aria-label="Guild Operators" class="md-nav__button md-logo" data-md-component="logo" href="." title="Guild Operators">
-<img alt="logo" src="overrides/guildicon.png"/>
+<a aria-label="Guild Operators" class="md-nav__button md-logo" data-md-component="logo" href="../.." title="Guild Operators">
+<img alt="logo" src="../../overrides/guildicon.png"/>
 </a>
     Guild Operators
   </label>
@@ -129,36 +129,13 @@
 </a>
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
-<li class="md-nav__item md-nav__item--active">
-<input class="md-nav__toggle md-toggle" data-md-toggle="toc" id="__toc" type="checkbox"/>
-<label class="md-nav__link md-nav__link--active" for="__toc">
-          Home
-          <span class="md-nav__icon md-icon"></span>
-</label>
-<a class="md-nav__link md-nav__link--active" href=".">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../..">
         Home
       </a>
-<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
-<label class="md-nav__title" for="__toc">
-<span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#support">
-    Support
-  </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="#getting-started">
-    Getting Started
-  </a>
-</li>
-</ul>
-</nav>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="basics/">
+<a class="md-nav__link" href="../../basics/">
         Basics
       </a>
 </li>
@@ -175,27 +152,27 @@
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="build/">
+<a class="md-nav__link" href="../../build/">
         Overview
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Build/node-cli/">
+<a class="md-nav__link" href="../node-cli/">
         Node &amp; CLI
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Build/dbsync/">
+<a class="md-nav__link" href="../dbsync/">
         DBSync
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Build/pgrest/">
+<a class="md-nav__link" href="../pgrest/">
         PostgREST
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Build/offchain-metadata-tools/">
+<a class="md-nav__link" href="../offchain-metadata-tools/">
         Offchain Metadata Tools
       </a>
 </li>
@@ -215,7 +192,7 @@
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/env/">
+<a class="md-nav__link" href="../../Scripts/env/">
         Common env
       </a>
 </li>
@@ -232,22 +209,22 @@
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/cntools/">
+<a class="md-nav__link" href="../../Scripts/cntools/">
         Overview
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/cntools-common/">
+<a class="md-nav__link" href="../../Scripts/cntools-common/">
         Common Tasks
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/cntools-changelog/">
+<a class="md-nav__link" href="../../Scripts/cntools-changelog/">
         Changelog
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/logmonitor/">
+<a class="md-nav__link" href="../../Scripts/logmonitor/">
         Log Monitor
       </a>
 </li>
@@ -255,27 +232,27 @@
 </nav>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/cncli/">
+<a class="md-nav__link" href="../../Scripts/cncli/">
         CNCLI
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/gliveview/">
+<a class="md-nav__link" href="../../Scripts/gliveview/">
         Guild LiveView
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/topologyupdater/">
+<a class="md-nav__link" href="../../Scripts/topologyupdater/">
         Topology Updater
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/itnwitness/">
+<a class="md-nav__link" href="../../Scripts/itnwitness/">
         ITN Metadata Proof
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/itnrewards/">
+<a class="md-nav__link" href="../../Scripts/itnrewards/">
         ITN Rewards
       </a>
 </li>
@@ -295,22 +272,22 @@
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="docker/docker/">
+<a class="md-nav__link" href="../../docker/docker/">
         Overview
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="docker/build/">
+<a class="md-nav__link" href="../../docker/build/">
         Build
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="docker/run/">
+<a class="md-nav__link" href="../../docker/run/">
         Run
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="docker/tips/">
+<a class="md-nav__link" href="../../docker/tips/">
         Tips
       </a>
 </li>
@@ -330,17 +307,17 @@
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="Appendix/postgres/">
+<a class="md-nav__link" href="../../Appendix/postgres/">
         Sample Postgres Setup
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="pgrest-meetings/25Jun2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
         PGRest meetings 1
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="pgrest-meetings/02Jul2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
         PGRest meetings 2
       </a>
 </li>
@@ -348,7 +325,7 @@
 </nav>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="contributors/">
+<a class="md-nav__link" href="../../contributors/">
         Contributors
       </a>
 </li>
@@ -367,13 +344,8 @@
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="#support">
-    Support
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#getting-started">
-    Getting Started
+<a class="md-nav__link" href="#build-hasura-graphql-engine">
+    Build Hasura graphql-engine
   </a>
 </li>
 </ul>
@@ -383,49 +355,82 @@
 </div>
 <div class="md-content" data-md-component="content">
 <article class="md-content__inner md-typeset">
-<a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/index.md" title="Edit this page">
+<a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/Build/graphql.md" title="Edit this page">
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
-<h1>Home</h1>
-<p>This documentation site (rather the repository itself) is created by some of the well known and experienced community members and contains instructions/information about various guild tools which simplify various stake-ops (setting up, managing and monitoring pools) for operators. Note that the guides are present to help you simplify your tasks - but as an entity responsible for creating blocks on a financial platform, we expect the pre-requisite skill sets - at professional level - before entering the portal:</p>
-<ul>
-<li>Learn about working with architecture, setup and essentials (SysOps);</li>
-<li>Understand how to secure your server (SecOps);</li>
-<li>Be comfortable with working with <code>cardano-cli</code>, and have worked on testnet for pool operations without use of wrapper scripts - as an education exercise;</li>
-<li>Read the documentation and disclaimers. The guide and tools only aim to simplify your tasks, it will not try to do everything for you - neither scope best practices.</li>
-<li>We recommend anyone using these instructions to use offline workflow, and <strong>NEVER</strong> have their wallet keys and pool keys to be made available to online servers, as supported by the tools.</li>
-</ul>
-<p>Everyone is welcome to contribute to the repository (via documentation, testing, code, videos, etc). Our aim is to work together and reduce confusion rather than hosting 100 versions of documentation - each marketing their pool in a way.</p>
-<h4 docsify-ignore="docsify-ignore" id="support">Support<a class="headerlink" href="#support" title="Permanent link">⚓︎</a></h4>
-<p>The Telegram announcement &amp; support channel is used to announce new releases and changes to the code base. This is also the place to ask general questions regarding the Guild Operators documentation and scripts.<br/>
-<a href="https://t.me/guild_operators_official">Telegram Announcement &amp; Support channel</a></p>
-<p>To report <strong>bugs</strong> and <strong>issues</strong> with scripts and documentation please open a <a href="https://github.com/cardano-community/guild-operators/issues/new/choose">GitHub Issue</a>.<br/>
-<strong>Feature requests</strong> are best opened as a <a href="https://github.com/cardano-community/guild-operators/discussions/new">discussion thread</a>.</p>
-<h4 docsify-ignore="docsify-ignore" id="getting-started">Getting Started<a class="headerlink" href="#getting-started" title="Permanent link">⚓︎</a></h4>
-<p>Use the sidebar to navigate through the topics. Note that the instructions assume the folder structure as per <a href="basics/#folder-structure">here</a>.</p>
-<div class="admonition question">
-<p>Again, Feedback/Contribution and ownership of tasks is <em>always welcome</em>. If you're interested in collaborating regularly, make a start - and you should be part of the guild already <img alt="😄" class="twemoji" src="https://twemoji.maxcdn.com/v/latest/svg/1f604.svg" title=":smile:">.</img></p>
-</div>
+<h1>Graphql</h1>
+<p>!&gt; We have stopped maintaining documentation for Cardano-GraphQL, and prefer use of <a href="../pgrest/">PostgREST</a> instead. The specific component does not follow the process/technology/language (requires npm, yarn) used by other components (cabal/stack), and the value provided by <code>cardano-graphql</code> over the (haskell-based) hasura instance has been negligible. Also, an average pool operator may not require cardano-graphql at all, please verify if it is required for your use as mentioned <a href="../../build/#components">here</a>. The instructions below are <code>out of date</code>.</p>
+<blockquote>
+<p>Ensure the <a href="../../basics/#pre-requisites">Pre-Requisites</a> are in place before you proceed.</p>
+</blockquote>
+<h4 docsify-ignore="docsify-ignore" id="build-hasura-graphql-engine">Build Hasura graphql-engine<a class="headerlink" href="#build-hasura-graphql-engine" title="Permanent link">⚓︎</a></h4>
+<p>Going with the spirit of the documentation here, instruction to build the graphql-engine binary :)
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span> ~/git
+git clone https://github.com/hasura/graphql-engine
+<span class="nb">cd</span> graphql-engine/server
+<span class="nv">$CNODE_HOME</span>/scripts/cabal-build-all.sh
+</code></pre></div>
+This should make <code>graphql-engine</code> available at ~/.cabal/bin.</p>
+<h5 id="build-cardano-graphql">Build cardano-graphql<a class="headerlink" href="#build-cardano-graphql" title="Permanent link">⚓︎</a></h5>
+<p>The build will fail if you are running a version of node.js earlier than 10.0.0 (which could happen if you have a conflicting version in your $PATH). You can verify your node version by executing the below:</p>
+<div class="highlight"><pre><span></span><code><span class="c1">#check your version of node.js</span>
+node -v
+<span class="c1">#if response is 10.0.0 or higher build can proceed. </span>
+</code></pre></div>
+<p>The commands below will help you compile the cardano-graphql node:
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span> ~/git
+git clone https://github.com/input-output-hk/cardano-graphql
+<span class="nb">cd</span> cardano-graphql
+git checkout v1.1.1
+yarn
+<span class="c1">#yarn install v1.22.4</span>
+<span class="c1"># [1/4] Resolving packages...</span>
+<span class="c1"># [2/4] Fetching packages...</span>
+<span class="c1"># info fsevents@2.1.2: The platform "linux" is incompatible with this module.</span>
+<span class="c1"># info "fsevents@2.1.2" is an optional dependency and failed compatibility check. Excluding it from installation.</span>
+<span class="c1"># info fsevents@1.2.12: The platform "linux" is incompatible with this module.</span>
+<span class="c1"># info "fsevents@1.2.12" is an optional dependency and failed compatibility check. Excluding it from installation.</span>
+<span class="c1"># [3/4] Linking dependencies...</span>
+<span class="c1"># warning " &gt; graphql-type-datetime@0.2.4" has incorrect peer dependency "graphql@^0.13.2".</span>
+<span class="c1"># warning " &gt; @typescript-eslint/eslint-plugin@1.13.0" has incorrect peer dependency "eslint@^5.0.0".</span>
+<span class="c1"># warning " &gt; @typescript-eslint/parser@1.13.0" has incorrect peer dependency "eslint@^5.0.0".</span>
+<span class="c1"># [4/4] Building fresh packages...</span>
+<span class="c1"># Done in 20.70s.</span>
+yarn build
+<span class="c1"># yarn run v1.22.4</span>
+<span class="c1"># $ yarn codegen:internal &amp;&amp; yarn codegen:external &amp;&amp; tsc -p . &amp;&amp; shx cp src/schema.graphql dist/</span>
+<span class="c1"># $ graphql-codegen</span>
+<span class="c1">#   ✔ Parse configuration</span>
+<span class="c1">#   ✔ Generate outputs</span>
+<span class="c1"># $ graphql-codegen --config ./codegen.external.yml</span>
+<span class="c1">#   ✔ Parse configuration</span>
+<span class="c1">#   ✔ Generate outputs</span>
+<span class="c1"># Done in 38.11s.</span>
+<span class="nb">cd</span> dist
+rsync -arvh ../node_modules ./
+</code></pre></div></p>
+<h5 id="set-up-environment-for-cardano-graphql">Set up environment for cardano-graphql<a class="headerlink" href="#set-up-environment-for-cardano-graphql" title="Permanent link">⚓︎</a></h5>
+<p>cardano-graphql requires cardano-node, cardano-db-sync-extended, postgresql and graphql-engine to be set up and running.
+The below will help you map the components:
+<div class="highlight"><pre><span></span><code><span class="nb">export</span> <span class="nv">PGPASSFILE</span><span class="o">=</span><span class="nv">$CNODE_HOME</span>/priv/.pgpass
+<span class="nv">IFS</span><span class="o">=</span><span class="s1">':'</span> <span class="nb">read</span> -r -a PGPASS <span class="o">&lt;&lt;&lt;</span> <span class="k">$(</span>cat <span class="nv">$PGPASSFILE</span><span class="k">)</span>
+<span class="nb">export</span> <span class="nv">HASURA_GRAPHQL_ENABLE_TELEMETRY</span><span class="o">=</span><span class="nb">false</span>  <span class="c1"># Optional.  To send usage data to Hasura, set to true.</span>
+<span class="nb">export</span> <span class="nv">HASURA_GRAPHQL_DATABASE_URL</span><span class="o">=</span>postgres://<span class="si">${</span><span class="nv">PGPASS</span><span class="p">[3]</span><span class="si">}</span>:<span class="si">${</span><span class="nv">PGPASS</span><span class="p">[4]</span><span class="si">}</span>@<span class="si">${</span><span class="nv">PGPASS</span><span class="p">[0]</span><span class="si">}</span>:<span class="si">${</span><span class="nv">PGPASS</span><span class="p">[1]</span><span class="si">}</span>/<span class="si">${</span><span class="nv">PGPASS</span><span class="p">[2]</span><span class="si">}</span>
+<span class="nb">export</span> <span class="nv">HASURA_GRAPHQL_ENABLE_CONSOLE</span><span class="o">=</span><span class="nb">true</span>
+<span class="nb">export</span> <span class="nv">HASURA_GRAPHQL_ENABLED_LOG_TYPES</span><span class="o">=</span><span class="s2">"startup, http-log, webhook-log, websocket-log, query-log"</span>
+<span class="nb">export</span> <span class="nv">HASURA_GRAPHQL_SERVER_PORT</span><span class="o">=</span><span class="m">4080</span>
+<span class="nb">export</span> <span class="nv">HASURA_GRAPHQL_SERVER_HOST</span><span class="o">=</span><span class="m">0</span>.0.0.0
+<span class="nb">export</span> <span class="nv">CACHE_ENABLED</span><span class="o">=</span><span class="nb">true</span>
+<span class="nb">export</span> <span class="nv">HASURA_URI</span><span class="o">=</span>http://127.0.0.1:4080
+<span class="nb">cd</span> ~/git/cardano-graphql/dist
+graphql-engine serve <span class="p">&amp;</span>
+node index.js
+</code></pre></div></p>
 </article>
 </div>
 </div>
 </main>
 <footer class="md-footer">
-<nav aria-label="Footer" class="md-footer__inner md-grid">
-<a aria-label="Next: Basics" class="md-footer__link md-footer__link--next" href="basics/" rel="next">
-<div class="md-footer__title">
-<div class="md-ellipsis">
-<span class="md-footer__direction">
-                Next
-              </span>
-              Basics
-            </div>
-</div>
-<div class="md-footer__button md-icon">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"></path></svg>
-</div>
-</a>
-</nav>
 <div class="md-footer-meta md-typeset">
 <div class="md-footer-meta__inner md-grid">
 <div class="md-footer-copyright">
@@ -448,7 +453,7 @@
 <div class="md-dialog" data-md-component="dialog">
 <div class="md-dialog__inner md-typeset"></div>
 </div>
-<script id="__config" type="application/json">{"base": ".", "features": ["search.highlight", "search.share", "navigation.indexes"], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "search": "assets/javascripts/workers/search.477d984a.min.js", "version": null}</script>
-<script src="assets/javascripts/bundle.82b56eb2.min.js"></script>
+<script id="__config" type="application/json">{"base": "../..", "features": ["search.highlight", "search.share", "navigation.indexes"], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "search": "../../assets/javascripts/workers/search.477d984a.min.js", "version": null}</script>
+<script src="../../assets/javascripts/bundle.82b56eb2.min.js"></script>
 </body>
 </html>

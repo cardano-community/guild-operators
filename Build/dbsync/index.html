@@ -5,27 +5,27 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
-<link href="https://cardano-community.github.io/guild-operators/" rel="canonical"/>
-<link href="overrides/guildicon.png" rel="icon"/>
+<link href="https://cardano-community.github.io/guild-operators/Build/dbsync/" rel="canonical"/>
+<link href="../../overrides/guildicon.png" rel="icon"/>
 <meta content="mkdocs-1.2.1, mkdocs-material-7.1.9" name="generator"/>
-<title>Guild Operators</title>
-<link href="assets/stylesheets/main.ca7ac06f.min.css" rel="stylesheet"/>
-<link href="assets/stylesheets/palette.f1a3b89f.min.css" rel="stylesheet"/>
+<title>DBSync - Guild Operators</title>
+<link href="../../assets/stylesheets/main.ca7ac06f.min.css" rel="stylesheet"/>
+<link href="../../assets/stylesheets/palette.f1a3b89f.min.css" rel="stylesheet"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&amp;display=fallback" rel="stylesheet"/>
 <style>:root{--md-text-font-family:"Roboto";--md-code-font-family:"Roboto Mono"}</style>
-<link href="overrides/custom.css" rel="stylesheet"/>
+<link href="../../overrides/custom.css" rel="stylesheet"/>
 <script>function gtag(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],gtag("js",new Date),gtag("config","G-MLM58HW7RF"),document.addEventListener("DOMContentLoaded",function(){"undefined"!=typeof location$&&location$.subscribe(function(t){gtag("config","G-MLM58HW7RF",{page_path:t.pathname})})})</script>
 <script async="" src="https://www.googletagmanager.com/gtag/js?id=G-MLM58HW7RF"></script>
 </head>
 <body data-md-color-accent="green" data-md-color-primary="green" data-md-color-scheme="slate" dir="ltr">
-<script>function __prefix(e){return new URL(".",location).pathname+"."+e}function __get(e,t=localStorage){return JSON.parse(t.getItem(__prefix(e)))}</script>
+<script>function __prefix(e){return new URL("../..",location).pathname+"."+e}function __get(e,t=localStorage){return JSON.parse(t.getItem(__prefix(e)))}</script>
 <script>var palette=__get("__palette");if(null!==palette&&"object"==typeof palette.color)for(var key in palette.color)document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
 <input autocomplete="off" class="md-toggle" data-md-toggle="drawer" id="__drawer" type="checkbox"/>
 <input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
 <label class="md-overlay" for="__drawer"></label>
 <div data-md-component="skip">
-<a class="md-skip" href="#support">
+<a class="md-skip" href="#build-instructions">
           Skip to content
         </a>
 </div>
@@ -33,8 +33,8 @@
 </div>
 <header class="md-header" data-md-component="header">
 <nav aria-label="Header" class="md-header__inner md-grid">
-<a aria-label="Guild Operators" class="md-header__button md-logo" data-md-component="logo" href="." title="Guild Operators">
-<img alt="logo" src="overrides/guildicon.png"/>
+<a aria-label="Guild Operators" class="md-header__button md-logo" data-md-component="logo" href="../.." title="Guild Operators">
+<img alt="logo" src="../../overrides/guildicon.png"/>
 </a>
 <label class="md-header__button md-icon" for="__drawer">
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"></path></svg>
@@ -49,7 +49,7 @@
 <div class="md-header__topic" data-md-component="header-topic">
 <span class="md-ellipsis">
             
-              Home
+              DBSync
             
           </span>
 </div>
@@ -113,8 +113,8 @@
 <div class="md-sidebar__inner">
 <nav aria-label="Navigation" class="md-nav md-nav--primary" data-md-level="0">
 <label class="md-nav__title" for="__drawer">
-<a aria-label="Guild Operators" class="md-nav__button md-logo" data-md-component="logo" href="." title="Guild Operators">
-<img alt="logo" src="overrides/guildicon.png"/>
+<a aria-label="Guild Operators" class="md-nav__button md-logo" data-md-component="logo" href="../.." title="Guild Operators">
+<img alt="logo" src="../../overrides/guildicon.png"/>
 </a>
     Guild Operators
   </label>
@@ -129,41 +129,18 @@
 </a>
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
-<li class="md-nav__item md-nav__item--active">
-<input class="md-nav__toggle md-toggle" data-md-toggle="toc" id="__toc" type="checkbox"/>
-<label class="md-nav__link md-nav__link--active" for="__toc">
-          Home
-          <span class="md-nav__icon md-icon"></span>
-</label>
-<a class="md-nav__link md-nav__link--active" href=".">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../..">
         Home
       </a>
-<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
-<label class="md-nav__title" for="__toc">
-<span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#support">
-    Support
-  </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="#getting-started">
-    Getting Started
-  </a>
-</li>
-</ul>
-</nav>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="basics/">
+<a class="md-nav__link" href="../../basics/">
         Basics
       </a>
 </li>
-<li class="md-nav__item md-nav__item--nested">
-<input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" id="__nav_3" type="checkbox"/>
+<li class="md-nav__item md-nav__item--active md-nav__item--nested">
+<input checked="" class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" id="__nav_3" type="checkbox"/>
 <label class="md-nav__link" for="__nav_3">
         Build and Run
         <span class="md-nav__icon md-icon"></span>
@@ -175,27 +152,74 @@
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="build/">
+<a class="md-nav__link" href="../../build/">
         Overview
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Build/node-cli/">
+<a class="md-nav__link" href="../node-cli/">
         Node &amp; CLI
       </a>
 </li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="Build/dbsync/">
+<li class="md-nav__item md-nav__item--active">
+<input class="md-nav__toggle md-toggle" data-md-toggle="toc" id="__toc" type="checkbox"/>
+<label class="md-nav__link md-nav__link--active" for="__toc">
+          DBSync
+          <span class="md-nav__icon md-icon"></span>
+</label>
+<a class="md-nav__link md-nav__link--active" href="./">
         DBSync
       </a>
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#build-instructions">
+    Build Instructions
+  </a>
+<nav aria-label="Build Instructions" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#clone-the-repository">
+    Clone the repository
+  </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Build/pgrest/">
+<a class="md-nav__link" href="#build-cardano-db-sync">
+    Build Cardano DB Sync
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#prepare-db-for-sync">
+    Prepare DB for sync
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#start-synching">
+    Start Synching
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#validation">
+    Validation
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../pgrest/">
         PostgREST
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Build/offchain-metadata-tools/">
+<a class="md-nav__link" href="../offchain-metadata-tools/">
         Offchain Metadata Tools
       </a>
 </li>
@@ -215,7 +239,7 @@
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/env/">
+<a class="md-nav__link" href="../../Scripts/env/">
         Common env
       </a>
 </li>
@@ -232,22 +256,22 @@
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/cntools/">
+<a class="md-nav__link" href="../../Scripts/cntools/">
         Overview
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/cntools-common/">
+<a class="md-nav__link" href="../../Scripts/cntools-common/">
         Common Tasks
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/cntools-changelog/">
+<a class="md-nav__link" href="../../Scripts/cntools-changelog/">
         Changelog
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/logmonitor/">
+<a class="md-nav__link" href="../../Scripts/logmonitor/">
         Log Monitor
       </a>
 </li>
@@ -255,27 +279,27 @@
 </nav>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/cncli/">
+<a class="md-nav__link" href="../../Scripts/cncli/">
         CNCLI
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/gliveview/">
+<a class="md-nav__link" href="../../Scripts/gliveview/">
         Guild LiveView
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/topologyupdater/">
+<a class="md-nav__link" href="../../Scripts/topologyupdater/">
         Topology Updater
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/itnwitness/">
+<a class="md-nav__link" href="../../Scripts/itnwitness/">
         ITN Metadata Proof
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="Scripts/itnrewards/">
+<a class="md-nav__link" href="../../Scripts/itnrewards/">
         ITN Rewards
       </a>
 </li>
@@ -295,22 +319,22 @@
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="docker/docker/">
+<a class="md-nav__link" href="../../docker/docker/">
         Overview
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="docker/build/">
+<a class="md-nav__link" href="../../docker/build/">
         Build
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="docker/run/">
+<a class="md-nav__link" href="../../docker/run/">
         Run
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="docker/tips/">
+<a class="md-nav__link" href="../../docker/tips/">
         Tips
       </a>
 </li>
@@ -330,17 +354,17 @@
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="Appendix/postgres/">
+<a class="md-nav__link" href="../../Appendix/postgres/">
         Sample Postgres Setup
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="pgrest-meetings/25Jun2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
         PGRest meetings 1
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="pgrest-meetings/02Jul2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
         PGRest meetings 2
       </a>
 </li>
@@ -348,7 +372,7 @@
 </nav>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="contributors/">
+<a class="md-nav__link" href="../../contributors/">
         Contributors
       </a>
 </li>
@@ -367,13 +391,37 @@
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="#support">
-    Support
+<a class="md-nav__link" href="#build-instructions">
+    Build Instructions
+  </a>
+<nav aria-label="Build Instructions" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#clone-the-repository">
+    Clone the repository
   </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="#getting-started">
-    Getting Started
+<a class="md-nav__link" href="#build-cardano-db-sync">
+    Build Cardano DB Sync
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#prepare-db-for-sync">
+    Prepare DB for sync
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#start-synching">
+    Start Synching
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#validation">
+    Validation
   </a>
 </li>
 </ul>
@@ -383,42 +431,140 @@
 </div>
 <div class="md-content" data-md-component="content">
 <article class="md-content__inner md-typeset">
-<a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/index.md" title="Edit this page">
+<a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/Build/dbsync.md" title="Edit this page">
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
-<h1>Home</h1>
-<p>This documentation site (rather the repository itself) is created by some of the well known and experienced community members and contains instructions/information about various guild tools which simplify various stake-ops (setting up, managing and monitoring pools) for operators. Note that the guides are present to help you simplify your tasks - but as an entity responsible for creating blocks on a financial platform, we expect the pre-requisite skill sets - at professional level - before entering the portal:</p>
+<h1>DBSync</h1>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>An average pool operator may not require cardano-db-sync at all. Please verify if it is required for your use as mentioned <a href="../../build/#components">here</a>.  </p>
 <ul>
-<li>Learn about working with architecture, setup and essentials (SysOps);</li>
-<li>Understand how to secure your server (SecOps);</li>
-<li>Be comfortable with working with <code>cardano-cli</code>, and have worked on testnet for pool operations without use of wrapper scripts - as an education exercise;</li>
-<li>Read the documentation and disclaimers. The guide and tools only aim to simplify your tasks, it will not try to do everything for you - neither scope best practices.</li>
-<li>We recommend anyone using these instructions to use offline workflow, and <strong>NEVER</strong> have their wallet keys and pool keys to be made available to online servers, as supported by the tools.</li>
+<li>Ensure the <a href="../../basics/#pre-requisites">Pre-Requisites</a> are in place before you proceed.</li>
+<li>The <a href="https://github.com/input-output-hk/cardano-db-sync">Cardano DB Sync</a> relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to <a href="../../Appendix/postgres/">Sample Local PostgreSQL Server Deployment instructions</a> for setting up a Postgres instance. Specifically, we expect the <code>PGPASSFILE</code> environment variable is set as per the instructions in the sample guide, for <code>db-sync</code> to be able to connect.</li>
 </ul>
-<p>Everyone is welcome to contribute to the repository (via documentation, testing, code, videos, etc). Our aim is to work together and reduce confusion rather than hosting 100 versions of documentation - each marketing their pool in a way.</p>
-<h4 docsify-ignore="docsify-ignore" id="support">Support<a class="headerlink" href="#support" title="Permanent link">⚓︎</a></h4>
-<p>The Telegram announcement &amp; support channel is used to announce new releases and changes to the code base. This is also the place to ask general questions regarding the Guild Operators documentation and scripts.<br/>
-<a href="https://t.me/guild_operators_official">Telegram Announcement &amp; Support channel</a></p>
-<p>To report <strong>bugs</strong> and <strong>issues</strong> with scripts and documentation please open a <a href="https://github.com/cardano-community/guild-operators/issues/new/choose">GitHub Issue</a>.<br/>
-<strong>Feature requests</strong> are best opened as a <a href="https://github.com/cardano-community/guild-operators/discussions/new">discussion thread</a>.</p>
-<h4 docsify-ignore="docsify-ignore" id="getting-started">Getting Started<a class="headerlink" href="#getting-started" title="Permanent link">⚓︎</a></h4>
-<p>Use the sidebar to navigate through the topics. Note that the instructions assume the folder structure as per <a href="basics/#folder-structure">here</a>.</p>
-<div class="admonition question">
-<p>Again, Feedback/Contribution and ownership of tasks is <em>always welcome</em>. If you're interested in collaborating regularly, make a start - and you should be part of the guild already <img alt="😄" class="twemoji" src="https://twemoji.maxcdn.com/v/latest/svg/1f604.svg" title=":smile:">.</img></p>
 </div>
+<h3 id="build-instructions">Build Instructions<a class="headerlink" href="#build-instructions" title="Permanent link">⚓︎</a></h3>
+<h4 id="clone-the-repository">Clone the repository<a class="headerlink" href="#clone-the-repository" title="Permanent link">⚓︎</a></h4>
+<p>Execute the below to clone the <code>cardano-db-sync</code> repository to <code>$HOME/git</code> folder on your system:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span> ~/git
+git clone https://github.com/input-output-hk/cardano-db-sync
+<span class="nb">cd</span> cardano-db-sync
+</code></pre></div>
+<h4 id="build-cardano-db-sync">Build Cardano DB Sync<a class="headerlink" href="#build-cardano-db-sync" title="Permanent link">⚓︎</a></h4>
+<p>You can use the instructions below to build the latest release of <code>cardano-db-sync</code>.</p>
+<p><div class="highlight"><pre><span></span><code>git fetch --tags --all
+git pull
+<span class="c1"># Include the cardano-crypto-praos and libsodium components for db-sync</span>
+<span class="c1"># On CentOS 7 (GCC 4.8.5) we should also do</span>
+<span class="c1"># echo -e "package cryptonite\n  flags: -use_target_attributes" &gt;&gt; cabal.project.local</span>
+<span class="c1"># Replace tag against checkout if you do not want to build the latest released version</span>
+git checkout <span class="k">$(</span>curl -s https://api.github.com/repos/input-output-hk/cardano-db-sync/releases/latest <span class="p">|</span> jq -r .tag_name<span class="k">)</span>
+<span class="c1"># Use `-l` argument if you'd like to use system libsodium instead of IOG fork of libsodium while compiling</span>
+<span class="nv">$CNODE_HOME</span>/scripts/cabal-build-all.sh
+</code></pre></div>
+The above would copy the binaries into <code>~/.cabal/bin</code> folder.</p>
+<h4 id="prepare-db-for-sync">Prepare DB for sync<a class="headerlink" href="#prepare-db-for-sync" title="Permanent link">⚓︎</a></h4>
+<p>Now that binaries are available, let's create our database (when going through breaking changes, you may need to use <code>--recreatedb</code> instead of <code>--createdb</code> used for the first time. Again, we expect that <code>PGPASSFILE</code> environment variable is already set (refer to the top of this guide for sample instructions):</p>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span> ~/git/cardano-db-sync
+<span class="c1"># scripts/postgresql-setup.sh --dropdb #if exists already, will fail if it doesnt - thats OK</span>
+scripts/postgresql-setup.sh --createdb
+<span class="c1"># Password:</span>
+<span class="c1"># Password:</span>
+<span class="c1"># All good!</span>
+<span class="c1">## Verify you can see "All good!" as above</span>
+</code></pre></div>
+<h4 id="start-synching">Start Synching<a class="headerlink" href="#start-synching" title="Permanent link">⚓︎</a></h4>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span> ~/git/cardano-db-sync
+cardano-db-sync-extended --config <span class="nv">$CNODE_HOME</span>/files/dbsync.json --socket-path <span class="nv">$CNODE_HOME</span>/sockets/node0.socket --state-dir <span class="nv">$CNODE_HOME</span>/guild-db/ledger-state --schema-dir schema/
+</code></pre></div>
+<p>You can use same instructions above to repeat and execute <code>cardano-db-sync</code> as well, but <code>cardano-db-sync-extended</code> provides additional views/useful data ready to be consumed by query layer. Note that synching entire blockchain from scratch could take a few hours.</p>
+<h3 id="validation">Validation<a class="headerlink" href="#validation" title="Permanent link">⚓︎</a></h3>
+<p>To validate, connect to your <code>postgres</code> instance and execute commands as per below:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span> <span class="nv">PGPASSFILE</span><span class="o">=</span><span class="nv">$CNODE_HOME</span>/priv/.pgpass
+psql cexplorer
+</code></pre></div>
+<p>You should be at the <code>psql</code> prompt, you can check the tables and verify they're populated:</p>
+<div class="highlight"><pre><span></span><code><span class="err">\</span><span class="n">dt</span>
+<span class="k">select</span> <span class="o">*</span> <span class="k">from</span> <span class="n">meta</span><span class="p">;</span>
+</code></pre></div>
+<p>A sample output of the above two commands may look like below (the number of tables and names may vary between versions):</p>
+<div class="highlight"><pre><span></span><code>cexplorer=# \dt
+List of relations
+ Schema |           Name            | Type  | Owner
+--------+---------------------------+-------+-------
+ public | ada_pots                  | table | centos
+ public | admin_user                | table | centos
+ public | block                     | table | centos
+ public | delegation                | table | centos
+ public | delisted_pool             | table | centos
+ public | epoch                     | table | centos
+ public | epoch_param               | table | centos
+ public | epoch_stake               | table | centos
+ public | ma_tx_mint                | table | centos
+ public | ma_tx_out                 | table | centos
+ public | meta                      | table | centos
+ public | orphaned_reward           | table | centos
+ public | param_proposal            | table | centos
+ public | pool_hash                 | table | centos
+ public | pool_meta_data            | table | centos
+ public | pool_metadata             | table | centos
+ public | pool_metadata_fetch_error | table | centos
+ public | pool_metadata_ref         | table | centos
+ public | pool_owner                | table | centos
+ public | pool_relay                | table | centos
+ public | pool_retire               | table | centos
+ public | pool_update               | table | centos
+ public | pot_transfer              | table | centos
+ public | reserve                   | table | centos
+ public | reserved_ticker           | table | centos
+ public | reward                    | table | centos
+ public | schema_version            | table | centos
+ public | slot_leader               | table | centos
+ public | stake_address             | table | centos
+ public | stake_deregistration      | table | centos
+ public | stake_registration        | table | centos
+ public | treasury                  | table | centos
+ public | tx                        | table | centos
+ public | tx_in                     | table | centos
+ public | tx_metadata               | table | centos
+ public | tx_out                    | table | centos
+ public | withdrawal                | table | centos
+(37 rows)
+
+
+
+select * from meta;
+ id |     start_time      | network_name
+----+---------------------+--------------
+  1 | 2017-09-23 21:44:51 | mainnet
+(1 row)
+</code></pre></div>
 </article>
 </div>
 </div>
 </main>
 <footer class="md-footer">
 <nav aria-label="Footer" class="md-footer__inner md-grid">
-<a aria-label="Next: Basics" class="md-footer__link md-footer__link--next" href="basics/" rel="next">
+<a aria-label="Previous: Node &amp; CLI" class="md-footer__link md-footer__link--prev" href="../node-cli/" rel="prev">
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"></path></svg>
+</div>
+<div class="md-footer__title">
+<div class="md-ellipsis">
+<span class="md-footer__direction">
+                Previous
+              </span>
+              Node &amp; CLI
+            </div>
+</div>
+</a>
+<a aria-label="Next: PostgREST" class="md-footer__link md-footer__link--next" href="../pgrest/" rel="next">
 <div class="md-footer__title">
 <div class="md-ellipsis">
 <span class="md-footer__direction">
                 Next
               </span>
-              Basics
+              PostgREST
             </div>
 </div>
 <div class="md-footer__button md-icon">
@@ -448,7 +594,7 @@
 <div class="md-dialog" data-md-component="dialog">
 <div class="md-dialog__inner md-typeset"></div>
 </div>
-<script id="__config" type="application/json">{"base": ".", "features": ["search.highlight", "search.share", "navigation.indexes"], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "search": "assets/javascripts/workers/search.477d984a.min.js", "version": null}</script>
-<script src="assets/javascripts/bundle.82b56eb2.min.js"></script>
+<script id="__config" type="application/json">{"base": "../..", "features": ["search.highlight", "search.share", "navigation.indexes"], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "search": "../../assets/javascripts/workers/search.477d984a.min.js", "version": null}</script>
+<script src="../../assets/javascripts/bundle.82b56eb2.min.js"></script>
 </body>
 </html>

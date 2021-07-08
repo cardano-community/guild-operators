@@ -1,0 +1,1578 @@
+
+<!DOCTYPE html>
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<link href="https://cardano-community.github.io/guild-operators/Scripts/cntools-changelog/" rel="canonical"/>
+<link href="../../overrides/guildicon.png" rel="icon"/>
+<meta content="mkdocs-1.2.1, mkdocs-material-7.1.9" name="generator"/>
+<title>Changelog - Guild Operators</title>
+<link href="../../assets/stylesheets/main.ca7ac06f.min.css" rel="stylesheet"/>
+<link href="../../assets/stylesheets/palette.f1a3b89f.min.css" rel="stylesheet"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&amp;display=fallback" rel="stylesheet"/>
+<style>:root{--md-text-font-family:"Roboto";--md-code-font-family:"Roboto Mono"}</style>
+<link href="../../overrides/custom.css" rel="stylesheet"/>
+<script>function gtag(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],gtag("js",new Date),gtag("config","G-MLM58HW7RF"),document.addEventListener("DOMContentLoaded",function(){"undefined"!=typeof location$&&location$.subscribe(function(t){gtag("config","G-MLM58HW7RF",{page_path:t.pathname})})})</script>
+<script async="" src="https://www.googletagmanager.com/gtag/js?id=G-MLM58HW7RF"></script>
+</head>
+<body data-md-color-accent="green" data-md-color-primary="green" data-md-color-scheme="slate" dir="ltr">
+<script>function __prefix(e){return new URL("../..",location).pathname+"."+e}function __get(e,t=localStorage){return JSON.parse(t.getItem(__prefix(e)))}</script>
+<script>var palette=__get("__palette");if(null!==palette&&"object"==typeof palette.color)for(var key in palette.color)document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+<input autocomplete="off" class="md-toggle" data-md-toggle="drawer" id="__drawer" type="checkbox"/>
+<input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
+<label class="md-overlay" for="__drawer"></label>
+<div data-md-component="skip">
+<a class="md-skip" href="#8412-2021-06-28">
+          Skip to content
+        </a>
+</div>
+<div data-md-component="announce">
+</div>
+<header class="md-header" data-md-component="header">
+<nav aria-label="Header" class="md-header__inner md-grid">
+<a aria-label="Guild Operators" class="md-header__button md-logo" data-md-component="logo" href="../.." title="Guild Operators">
+<img alt="logo" src="../../overrides/guildicon.png"/>
+</a>
+<label class="md-header__button md-icon" for="__drawer">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"></path></svg>
+</label>
+<div class="md-header__title" data-md-component="header-title">
+<div class="md-header__ellipsis">
+<div class="md-header__topic">
+<span class="md-ellipsis">
+            Guild Operators
+          </span>
+</div>
+<div class="md-header__topic" data-md-component="header-topic">
+<span class="md-ellipsis">
+            
+              Changelog
+            
+          </span>
+</div>
+</div>
+</div>
+<form class="md-header__option" data-md-component="palette">
+<input aria-label="Switch to light mode" class="md-option" data-md-color-accent="green" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-primary="green" data-md-color-scheme="slate" id="__palette_1" name="__palette" type="radio"/>
+<label class="md-header__button md-icon" for="__palette_2" hidden="" title="Switch to light mode">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3 3.19.09m3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95 2.06.05m-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31z"></path></svg>
+</label>
+<input aria-label="Switch to dark mode" class="md-option" data-md-color-accent="green" data-md-color-media="(prefers-color-scheme: light)" data-md-color-primary="green" data-md-color-scheme="default" id="__palette_2" name="__palette" type="radio"/>
+<label class="md-header__button md-icon" for="__palette_1" hidden="" title="Switch to dark mode">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5c-.84 0-1.65.15-2.39.42L12 2M3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29L3.34 7m.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14L3.36 17M20.65 7l-1.77 3.79a7.023 7.023 0 0 0-2.38-4.15l4.15.36m-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29L20.64 17M12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44L12 22z"></path></svg>
+</label>
+</form>
+<label class="md-header__button md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"></path></svg>
+</label>
+<div class="md-search" data-md-component="search" role="dialog">
+<label class="md-search__overlay" for="__search"></label>
+<div class="md-search__inner" role="search">
+<form class="md-search__form" name="search">
+<input aria-label="Search" autocapitalize="off" autocomplete="off" autocorrect="off" class="md-search__input" data-md-component="search-query" data-md-state="active" name="query" placeholder="Search" required="" spellcheck="false" type="text"/>
+<label class="md-search__icon md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"></path></svg>
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"></path></svg>
+</label>
+<button aria-label="Clear" class="md-search__icon md-icon" tabindex="-1" type="reset">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg>
+</button>
+</form>
+<div class="md-search__output">
+<div class="md-search__scrollwrap" data-md-scrollfix="">
+<div class="md-search-result" data-md-component="search-result">
+<div class="md-search-result__meta">
+            Initializing search
+          </div>
+<ol class="md-search-result__list"></ol>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="md-header__source">
+<a class="md-source" data-md-component="source" href="https://github.com/cardano-community/guild-operators/" title="Go to repository">
+<div class="md-source__icon md-icon">
+<svg viewbox="0 0 448 512" xmlns="http://www.w3.org/2000/svg"><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"></path></svg>
+</div>
+<div class="md-source__repository">
+    cardano-community/guild-operators
+  </div>
+</a>
+</div>
+</nav>
+</header>
+<div class="md-container" data-md-component="container">
+<main class="md-main" data-md-component="main">
+<div class="md-main__inner md-grid">
+<div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="Navigation" class="md-nav md-nav--primary" data-md-level="0">
+<label class="md-nav__title" for="__drawer">
+<a aria-label="Guild Operators" class="md-nav__button md-logo" data-md-component="logo" href="../.." title="Guild Operators">
+<img alt="logo" src="../../overrides/guildicon.png"/>
+</a>
+    Guild Operators
+  </label>
+<div class="md-nav__source">
+<a class="md-source" data-md-component="source" href="https://github.com/cardano-community/guild-operators/" title="Go to repository">
+<div class="md-source__icon md-icon">
+<svg viewbox="0 0 448 512" xmlns="http://www.w3.org/2000/svg"><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"></path></svg>
+</div>
+<div class="md-source__repository">
+    cardano-community/guild-operators
+  </div>
+</a>
+</div>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../..">
+        Home
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../basics/">
+        Basics
+      </a>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" id="__nav_3" type="checkbox"/>
+<label class="md-nav__link" for="__nav_3">
+        Build and Run
+        <span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-label="Build and Run" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_3">
+<span class="md-nav__icon md-icon"></span>
+          Build and Run
+        </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../build/">
+        Overview
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../Build/node-cli/">
+        Node &amp; CLI
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../Build/dbsync/">
+        DBSync
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../Build/pgrest/">
+        PostgREST
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../Build/offchain-metadata-tools/">
+        Offchain Metadata Tools
+      </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--active md-nav__item--nested">
+<input checked="" class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" id="__nav_4" type="checkbox"/>
+<label class="md-nav__link" for="__nav_4">
+        Scripts
+        <span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-label="Scripts" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_4">
+<span class="md-nav__icon md-icon"></span>
+          Scripts
+        </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../env/">
+        Common env
+      </a>
+</li>
+<li class="md-nav__item md-nav__item--active md-nav__item--nested">
+<input checked="" class="md-nav__toggle md-toggle" data-md-toggle="__nav_4_2" id="__nav_4_2" type="checkbox"/>
+<label class="md-nav__link" for="__nav_4_2">
+        CNTools
+        <span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-label="CNTools" class="md-nav" data-md-level="2">
+<label class="md-nav__title" for="__nav_4_2">
+<span class="md-nav__icon md-icon"></span>
+          CNTools
+        </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../cntools/">
+        Overview
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../cntools-common/">
+        Common Tasks
+      </a>
+</li>
+<li class="md-nav__item md-nav__item--active">
+<input class="md-nav__toggle md-toggle" data-md-toggle="toc" id="__toc" type="checkbox"/>
+<label class="md-nav__link md-nav__link--active" for="__toc">
+          Changelog
+          <span class="md-nav__icon md-icon"></span>
+</label>
+<a class="md-nav__link md-nav__link--active" href="./">
+        Changelog
+      </a>
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#8412-2021-06-28">
+    [8.4.12] - 2021-06-28
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#8411-2021-06-25">
+    [8.4.11] - 2021-06-25
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#8410-2021-06-15">
+    [8.4.10] - 2021-06-15
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#849-2021-06-15">
+    [8.4.9] - 2021-06-15
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#846-2021-06-04">
+    [8.4.6] - 2021-06-04
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#845-2021-05-31">
+    [8.4.5] - 2021-05-31
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#844-2021-05-19">
+    [8.4.4] - 2021-05-19
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#843-2021-05-17">
+    [8.4.3] - 2021-05-17
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#842-2021-05-16">
+    [8.4.2] - 2021-05-16
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#841-2021-05-16">
+    [8.4.1] - 2021-05-16
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#840-2021-05-16">
+    [8.4.0] - 2021-05-16
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#830-2021-05-15">
+    [8.3.0] - 2021-05-15
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#822-2021-05-02">
+    [8.2.2] - 2021-05-02
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#821-2021-04-26">
+    [8.2.1] - 2021-04-26
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#820-2021-04-18">
+    [8.2.0] - 2021-04-18
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#816-2021-04-14">
+    [8.1.6] - 2021-04-14
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#815-2021-04-09">
+    [8.1.5] - 2021-04-09
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#814-2021-04-05">
+    [8.1.4] - 2021-04-05
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#813-2021-04-01">
+    [8.1.3] - 2021-04-01
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#812-2021-03-31">
+    [8.1.2] - 2021-03-31
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#811-2021-03-30">
+    [8.1.1] - 2021-03-30
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#810-2021-03-26">
+    [8.1.0] - 2021-03-26
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#802-2021-03-15">
+    [8.0.2] - 2021-03-15
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#801-2021-03-05">
+    [8.0.1] - 2021-03-05
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#800-2021-02-28">
+    [8.0.0] - 2021-02-28
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#716-2021-02-10">
+    [7.1.6] - 2021-02-10
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#715-2021-02-03">
+    [7.1.5] - 2021-02-03
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#714-2021-02-01">
+    [7.1.4] - 2021-02-01
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#713-2021-01-30">
+    [7.1.3] - 2021-01-30
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#711-2021-01-29">
+    [7.1.1] - 2021-01-29
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#710-2021-01-29">
+    [7.1.0] - 2021-01-29
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#702-2021-01-17">
+    [7.0.2] - 2021-01-17
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#701-2021-01-13">
+    [7.0.1] - 2021-01-13
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#700-2021-01-11">
+    [7.0.0] - 2021-01-11
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#631-2020-12-14">
+    [6.3.1] - 2020-12-14
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#630-2020-12-03">
+    [6.3.0] - 2020-12-03
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#621-2020-11-28">
+    [6.2.1] - 2020-11-28
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#620-alpha-branch">
+    [6.2.0] - (alpha branch)
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#610-2020-10-22">
+    [6.1.0] - 2020-10-22
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#603-2020-10-16">
+    [6.0.3] - 2020-10-16
+  </a>
+<nav aria-label="[6.0.3] - 2020-10-16" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#fixed_26">
+    Fixed
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#602-2020-10-16">
+    [6.0.2] - 2020-10-16
+  </a>
+<nav aria-label="[6.0.2] - 2020-10-16" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#fixed_27">
+    Fixed
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#601-2020-10-16">
+    [6.0.1] - 2020-10-16
+  </a>
+<nav aria-label="[6.0.1] - 2020-10-16" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#fixed_28">
+    Fixed
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#600-2020-10-15">
+    [6.0.0] - 2020-10-15
+  </a>
+<nav aria-label="[6.0.0] - 2020-10-15" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#500-2020-07-20">
+    [5.0.0] - 2020-07-20
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#400-2020-07-13">
+    [4.0.0] - 2020-07-13
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#300-2020-07-12">
+    [3.0.0] - 2020-07-12
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#200-2020-07-12">
+    [2.0.0] - 2020-07-12
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#100-2020-07-07">
+    [1.0.0] - 2020-07-07
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../logmonitor/">
+        Log Monitor
+      </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../cncli/">
+        CNCLI
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../gliveview/">
+        Guild LiveView
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../topologyupdater/">
+        Topology Updater
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../itnwitness/">
+        ITN Metadata Proof
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../itnrewards/">
+        ITN Rewards
+      </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" data-md-toggle="__nav_5" id="__nav_5" type="checkbox"/>
+<label class="md-nav__link" for="__nav_5">
+        Docker
+        <span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-label="Docker" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_5">
+<span class="md-nav__icon md-icon"></span>
+          Docker
+        </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../docker/docker/">
+        Overview
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../docker/build/">
+        Build
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../docker/run/">
+        Run
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../docker/tips/">
+        Tips
+      </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" id="__nav_6" type="checkbox"/>
+<label class="md-nav__link" for="__nav_6">
+        Appendix
+        <span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-label="Appendix" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_6">
+<span class="md-nav__icon md-icon"></span>
+          Appendix
+        </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../Appendix/postgres/">
+        Sample Postgres Setup
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
+        PGRest meetings 1
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
+        PGRest meetings 2
+      </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../contributors/">
+        Contributors
+      </a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#8412-2021-06-28">
+    [8.4.12] - 2021-06-28
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#8411-2021-06-25">
+    [8.4.11] - 2021-06-25
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#8410-2021-06-15">
+    [8.4.10] - 2021-06-15
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#849-2021-06-15">
+    [8.4.9] - 2021-06-15
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#846-2021-06-04">
+    [8.4.6] - 2021-06-04
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#845-2021-05-31">
+    [8.4.5] - 2021-05-31
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#844-2021-05-19">
+    [8.4.4] - 2021-05-19
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#843-2021-05-17">
+    [8.4.3] - 2021-05-17
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#842-2021-05-16">
+    [8.4.2] - 2021-05-16
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#841-2021-05-16">
+    [8.4.1] - 2021-05-16
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#840-2021-05-16">
+    [8.4.0] - 2021-05-16
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#830-2021-05-15">
+    [8.3.0] - 2021-05-15
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#822-2021-05-02">
+    [8.2.2] - 2021-05-02
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#821-2021-04-26">
+    [8.2.1] - 2021-04-26
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#820-2021-04-18">
+    [8.2.0] - 2021-04-18
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#816-2021-04-14">
+    [8.1.6] - 2021-04-14
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#815-2021-04-09">
+    [8.1.5] - 2021-04-09
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#814-2021-04-05">
+    [8.1.4] - 2021-04-05
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#813-2021-04-01">
+    [8.1.3] - 2021-04-01
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#812-2021-03-31">
+    [8.1.2] - 2021-03-31
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#811-2021-03-30">
+    [8.1.1] - 2021-03-30
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#810-2021-03-26">
+    [8.1.0] - 2021-03-26
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#802-2021-03-15">
+    [8.0.2] - 2021-03-15
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#801-2021-03-05">
+    [8.0.1] - 2021-03-05
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#800-2021-02-28">
+    [8.0.0] - 2021-02-28
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#716-2021-02-10">
+    [7.1.6] - 2021-02-10
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#715-2021-02-03">
+    [7.1.5] - 2021-02-03
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#714-2021-02-01">
+    [7.1.4] - 2021-02-01
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#713-2021-01-30">
+    [7.1.3] - 2021-01-30
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#711-2021-01-29">
+    [7.1.1] - 2021-01-29
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#710-2021-01-29">
+    [7.1.0] - 2021-01-29
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#702-2021-01-17">
+    [7.0.2] - 2021-01-17
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#701-2021-01-13">
+    [7.0.1] - 2021-01-13
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#700-2021-01-11">
+    [7.0.0] - 2021-01-11
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#631-2020-12-14">
+    [6.3.1] - 2020-12-14
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#630-2020-12-03">
+    [6.3.0] - 2020-12-03
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#621-2020-11-28">
+    [6.2.1] - 2020-11-28
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#620-alpha-branch">
+    [6.2.0] - (alpha branch)
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#610-2020-10-22">
+    [6.1.0] - 2020-10-22
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#603-2020-10-16">
+    [6.0.3] - 2020-10-16
+  </a>
+<nav aria-label="[6.0.3] - 2020-10-16" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#fixed_26">
+    Fixed
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#602-2020-10-16">
+    [6.0.2] - 2020-10-16
+  </a>
+<nav aria-label="[6.0.2] - 2020-10-16" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#fixed_27">
+    Fixed
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#601-2020-10-16">
+    [6.0.1] - 2020-10-16
+  </a>
+<nav aria-label="[6.0.1] - 2020-10-16" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#fixed_28">
+    Fixed
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#600-2020-10-15">
+    [6.0.0] - 2020-10-15
+  </a>
+<nav aria-label="[6.0.0] - 2020-10-15" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#500-2020-07-20">
+    [5.0.0] - 2020-07-20
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#400-2020-07-13">
+    [4.0.0] - 2020-07-13
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#300-2020-07-12">
+    [3.0.0] - 2020-07-12
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#200-2020-07-12">
+    [2.0.0] - 2020-07-12
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#100-2020-07-07">
+    [1.0.0] - 2020-07-07
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-content" data-md-component="content">
+<article class="md-content__inner md-typeset">
+<a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/Scripts/cntools-changelog.md" title="Edit this page">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
+</a>
+<h1>Changelog</h1>
+<p>All notable changes to this tool will be documented in this file.</p>
+<div class="admonition info">
+<p>Whenever you're updating between versions where format/hash of keys have changed , or you're changing networks - it is recommended to Backup your Wallet and Pool folders before you proceed with launching cntools on a fresh network.</p>
+</div>
+<p>The format is based on <a href="https://keepachangelog.com/en/1.0.0/">Keep a Changelog</a>,
+and this adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
+<h2 id="8412-2021-06-28">[8.4.12] - 2021-06-28<a class="headerlink" href="#8412-2021-06-28" title="Permanent link">⚓︎</a></h2>
+<h5 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Pre-source env in offline/online mode for checkUpdate depending on argument provided to cntools.sh</li>
+</ul>
+<h2 id="8411-2021-06-25">[8.4.11] - 2021-06-25<a class="headerlink" href="#8411-2021-06-25" title="Permanent link">⚓︎</a></h2>
+<h5 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>KES calculation moved from CNTools &amp; gLiveView into a common function in env file. For online mode node metrics is used for KES expiration instead of static pool KES start period.</li>
+<li>General message metadata support added to 'funds &gt;&gt; send' according to CIP-0020.</li>
+</ul>
+<h2 id="8410-2021-06-15">[8.4.10] - 2021-06-15<a class="headerlink" href="#8410-2021-06-15" title="Permanent link">⚓︎</a></h2>
+<h5 id="fixed_1">Fixed<a class="headerlink" href="#fixed_1" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Fix display issue for CLI that were upgraded to Alonzo-Blue networks</li>
+</ul>
+<h2 id="849-2021-06-15">[8.4.9] - 2021-06-15<a class="headerlink" href="#849-2021-06-15" title="Permanent link">⚓︎</a></h2>
+<h5 id="changed_1">Changed<a class="headerlink" href="#changed_1" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Handle Various updates to pgrest queries [disabled] to make them independent of instances.
+Note: Version incremented thrice on PR branch itself</li>
+</ul>
+<h2 id="846-2021-06-04">[8.4.6] - 2021-06-04<a class="headerlink" href="#846-2021-06-04" title="Permanent link">⚓︎</a></h2>
+<h5 id="fixed_2">Fixed<a class="headerlink" href="#fixed_2" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Add balance check for main pool owner, that there is at least one utxo available</li>
+<li>Allow utxo without lovelace (for future when we might have tokens on utxo without Ada, like on Alonzo TestNet)</li>
+<li>pctToFraction helper function didn't properly handle 0 value</li>
+</ul>
+<h2 id="845-2021-05-31">[8.4.5] - 2021-05-31<a class="headerlink" href="#845-2021-05-31" title="Permanent link">⚓︎</a></h2>
+<h5 id="fixed_3">Fixed<a class="headerlink" href="#fixed_3" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Reset IFS at main loop, fixes invalid tip difference on home screen after going to Block &gt; Summary</li>
+</ul>
+<h2 id="844-2021-05-19">[8.4.4] - 2021-05-19<a class="headerlink" href="#844-2021-05-19" title="Permanent link">⚓︎</a></h2>
+<h5 id="fixed_4">Fixed<a class="headerlink" href="#fixed_4" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Typo in Ledger ledger version requirement error and make it clearer that its the app version, not fw version.</li>
+</ul>
+<h2 id="843-2021-05-17">[8.4.3] - 2021-05-17<a class="headerlink" href="#843-2021-05-17" title="Permanent link">⚓︎</a></h2>
+<h5 id="fixed_5">Fixed<a class="headerlink" href="#fixed_5" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Token Mint/Burn script file signing not completely removed in all places (1.27.0 change)</li>
+</ul>
+<h2 id="842-2021-05-16">[8.4.2] - 2021-05-16<a class="headerlink" href="#842-2021-05-16" title="Permanent link">⚓︎</a></h2>
+<h5 id="fixed_6">Fixed<a class="headerlink" href="#fixed_6" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>cardano-hw-cli version limited to 1.2.0 for current Trezor fw v2.3.6. Please manually downgrade version, available at <a href="https://github.com/vacuumlabs/cardano-hw-cli/releases">https://github.com/vacuumlabs/cardano-hw-cli/releases</a> , placing files in $HOME/bin/cardano-hw-cli</li>
+</ul>
+<h2 id="841-2021-05-16">[8.4.1] - 2021-05-16<a class="headerlink" href="#841-2021-05-16" title="Permanent link">⚓︎</a></h2>
+<h5 id="changed_2">Changed<a class="headerlink" href="#changed_2" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Wallet &gt;&gt; Show no longer require payment.vkey to be present, as long as either payment or base .addr file(s) exist</li>
+</ul>
+<h2 id="840-2021-05-16">[8.4.0] - 2021-05-16<a class="headerlink" href="#840-2021-05-16" title="Permanent link">⚓︎</a></h2>
+<h5 id="added">Added<a class="headerlink" href="#added" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Compatibility with cardano-address 3.4.0 (while retaining support for 2.1.0)</li>
+</ul>
+<h2 id="830-2021-05-15">[8.3.0] - 2021-05-15<a class="headerlink" href="#830-2021-05-15" title="Permanent link">⚓︎</a></h2>
+<h5 id="added_1">Added<a class="headerlink" href="#added_1" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>New env variable called PGREST_API and if set and reachable, used instead of local node queries and for advanced modes</li>
+<li>New library function isPoolRegistered() for verifying if a pool is registered or not using either simple reg cert file detection (if REST API not set/reachable) or proper dbsync lookup using REST API. Used by Pool &gt;&gt; Show|List|Register|Modify</li>
+<li>Option to mint/burn assets in hybrid mode</li>
+<li>Transaction &gt;&gt; Sign now automatically tries to find the correct signing keys instead of having the user manually select the correct files</li>
+<li>** ADVANCED FEATURE ** - Chain Queries</li>
+<li>Menu is dynamically built based on queries(JSON files) in DBSYNC_QUERY_FOLDER (env variable, default files/dbsync/queries) three levels deep.</li>
+<li>A download option lets the user download the latest uploaded queries on Guild Operators GitHub site.</li>
+<li>Query files<ul>
+<li>Contains menu path, description, variables, and queries(multiple)</li>
+<li>Executes a predefined DBSync RPC/function through PostgREST API</li>
+<li>Variables used in RPC call can either be user input, CNTools variables like EKG metrics, or an item in the result from a previous query(in the same query file)</li>
+<li>Result from RPC call can either be printed or silent(only to be used for later query)</li>
+<li>Output is printed as JSON</li>
+</ul>
+</li>
+</ul>
+<h5 id="changed_3">Changed<a class="headerlink" href="#changed_3" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Minimum node version bumped to 1.27.0</li>
+<li>Menu has been re-designed with both back &amp; home options. Instead of returning to home menu after the completed operation user is returned to the last menu.</li>
+<li>Pool &gt;&gt; Show now use PostgREST API(if set), or the new pool-params cli query as fallback method.</li>
+</ul>
+<h5 id="fixed_7">Fixed<a class="headerlink" href="#fixed_7" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>1.27.0 introduced a few changes in CLI commands for assets minting/burning</li>
+</ul>
+<h2 id="822-2021-05-02">[8.2.2] - 2021-05-02<a class="headerlink" href="#822-2021-05-02" title="Permanent link">⚓︎</a></h2>
+<h5 id="fixed_8">Fixed<a class="headerlink" href="#fixed_8" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>KES expiration date fix</li>
+</ul>
+<h2 id="821-2021-04-26">[8.2.1] - 2021-04-26<a class="headerlink" href="#821-2021-04-26" title="Permanent link">⚓︎</a></h2>
+<h5 id="changed_4">Changed<a class="headerlink" href="#changed_4" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Make use of UPDATE_CHECK environment variable to skip any checks to internet by default</li>
+</ul>
+<h2 id="820-2021-04-18">[8.2.0] - 2021-04-18<a class="headerlink" href="#820-2021-04-18" title="Permanent link">⚓︎</a></h2>
+<h5 id="added_2">Added<a class="headerlink" href="#added_2" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Ability to create &amp; update a Cardano Token Registry submission JSON file</li>
+<li>Requires 'token-metadata-creator' tool, instructions to download/build this tool added to Guild Operators documentation:</li>
+<li><a href="https://cardano-community.github.io/guild-operators/#/Build/offchainMetadataTools">https://cardano-community.github.io/guild-operators/#/Build/offchainMetadataTools</a></li>
+<li>Token Registry lookup in Wallet &gt;&gt; Show</li>
+<li>Token asset fingerprint generation according to <a href="https://github.com/cardano-foundation/CIPs/pull/64">https://github.com/cardano-foundation/CIPs/pull/64</a></li>
+</ul>
+<h5 id="changed_5">Changed<a class="headerlink" href="#changed_5" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Redesigned input handling to be more flexible and improve output</li>
+</ul>
+<h2 id="816-2021-04-14">[8.1.6] - 2021-04-14<a class="headerlink" href="#816-2021-04-14" title="Permanent link">⚓︎</a></h2>
+<h5 id="changed_6">Changed<a class="headerlink" href="#changed_6" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Metadata creation now offer the choice to add a metadata JSON scaffold to see the required structure</li>
+</ul>
+<h5 id="fixed_9">Fixed<a class="headerlink" href="#fixed_9" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Fixed metadata creation entering JSON metadata through text editor</li>
+</ul>
+<h2 id="815-2021-04-09">[8.1.5] - 2021-04-09<a class="headerlink" href="#815-2021-04-09" title="Permanent link">⚓︎</a></h2>
+<h5 id="fixed_10">Fixed<a class="headerlink" href="#fixed_10" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Offline mode fix to ignore error when sourcing env</li>
+</ul>
+<h2 id="814-2021-04-05">[8.1.4] - 2021-04-05<a class="headerlink" href="#814-2021-04-05" title="Permanent link">⚓︎</a></h2>
+<h5 id="changed_7">Changed<a class="headerlink" href="#changed_7" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Enhanced minimum utxo calculation (credits to Martin providing this)</li>
+<li>based on calculations from <a href="https://github.com/input-output-hk/cardano-ledger-specs/blob/master/doc/explanations/min-utxo.rst">https://github.com/input-output-hk/cardano-ledger-specs/blob/master/doc/explanations/min-utxo.rst</a></li>
+<li>Validation of wallet address balance on transactions improved</li>
+</ul>
+<h2 id="813-2021-04-01">[8.1.3] - 2021-04-01<a class="headerlink" href="#813-2021-04-01" title="Permanent link">⚓︎</a></h2>
+<h5 id="fixed_11">Fixed<a class="headerlink" href="#fixed_11" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Alignment fix in blocks table</li>
+</ul>
+<h2 id="812-2021-03-31">[8.1.2] - 2021-03-31<a class="headerlink" href="#812-2021-03-31" title="Permanent link">⚓︎</a></h2>
+<h5 id="changed_8">Changed<a class="headerlink" href="#changed_8" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Manual CNTools update replaced with automatic by asking to update on startup like the rest of the scripts in the guild repository. </li>
+<li>Changelog truncated up to v6.0.0. Minor and patch version changelog entries merged with next major release changelog.</li>
+</ul>
+<h2 id="811-2021-03-30">[8.1.1] - 2021-03-30<a class="headerlink" href="#811-2021-03-30" title="Permanent link">⚓︎</a></h2>
+<h5 id="fixed_12">Fixed<a class="headerlink" href="#fixed_12" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Relay registration condition</li>
+<li>Version number</li>
+</ul>
+<h2 id="810-2021-03-26">[8.1.0] - 2021-03-26<a class="headerlink" href="#810-2021-03-26" title="Permanent link">⚓︎</a></h2>
+<h5 id="added_3">Added<a class="headerlink" href="#added_3" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>IPv6 support in pool registration/modification</li>
+</ul>
+<h5 id="changed_9">Changed<a class="headerlink" href="#changed_9" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Wallet delegation now lets you specify Pool ID in addition to local CNTools pool instead of previous cold.vkey cbor string</li>
+<li>A couple of functions regarding number validation moved to common env file</li>
+<li>Code adapted for changes in ledger-state dump used by 'Pool &gt;&gt; Show'</li>
+</ul>
+<h5 id="fixed_13">Fixed<a class="headerlink" href="#fixed_13" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Backup &amp; restore now exclude gpg encrypted keys from online backup and suppression of false alarms</li>
+</ul>
+<h2 id="802-2021-03-15">[8.0.2] - 2021-03-15<a class="headerlink" href="#802-2021-03-15" title="Permanent link">⚓︎</a></h2>
+<h5 id="fixed_14">Fixed<a class="headerlink" href="#fixed_14" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Bump cardano-hw-cli minimum version to 1.2.0</li>
+<li>Add Ledger Cardano app version check with minimum enforced version of 2.2.0</li>
+<li>Add Trezor firmware check with minimum enforced version of 2.3.6</li>
+</ul>
+<h2 id="801-2021-03-05">[8.0.1] - 2021-03-05<a class="headerlink" href="#801-2021-03-05" title="Permanent link">⚓︎</a></h2>
+<h5 id="fixed_15">Fixed<a class="headerlink" href="#fixed_15" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Add BASH version check, version 4.4 or newer required</li>
+</ul>
+<h2 id="800-2021-02-28">[8.0.0] - 2021-02-28<a class="headerlink" href="#800-2021-02-28" title="Permanent link">⚓︎</a></h2>
+<h5 id="added_4">Added<a class="headerlink" href="#added_4" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Multi Asset Token compatibility added throughout all CNTools operations. </li>
+<li>Sending Ada and custom tokens is done through the normal 'Funds &gt;&gt; Send' operation</li>
+</ul>
+<h5 id="changed_10">Changed<a class="headerlink" href="#changed_10" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Metadata moved to a new Advanced section used for devs/advanced operations not normally used by SPOs.</li>
+<li>Accessed by enabling developer/advanced mode in cntools.config or by providing runtime flag '-a'</li>
+<li>Redesign of backup and restore.</li>
+<li>Deletion of private keys moved from backup to new section under <code>Advanced</code></li>
+<li>Backup now only contain content of priv folder (files &amp; scripts folders dropped)</li>
+<li>Restore operation now restore directly to priv folder instead of a random user selected folder to make restore easier and better. Before restore, a new full backup of priv folder is made and stored encrypted in priv/archive</li>
+</ul>
+<h5 id="fixed_16">Fixed<a class="headerlink" href="#fixed_16" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>JQ limitation workaround for large numbers</li>
+<li>Dialog compatibility improvement by preventing dialog launching a subshell on some systems causing dialog not to run</li>
+</ul>
+<h2 id="716-2021-02-10">[7.1.6] - 2021-02-10<a class="headerlink" href="#716-2021-02-10" title="Permanent link">⚓︎</a></h2>
+<ul>
+<li>Update curl commands when file isnt downloaded correctly (to give correct return code)</li>
+</ul>
+<h2 id="715-2021-02-03">[7.1.5] - 2021-02-03<a class="headerlink" href="#715-2021-02-03" title="Permanent link">⚓︎</a></h2>
+<h5 id="changed_11">Changed<a class="headerlink" href="#changed_11" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Guild Announcement/Support Telegram channel added to CNTools GUI</li>
+</ul>
+<h5 id="fixed_17">Fixed<a class="headerlink" href="#fixed_17" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Fix for a special case using an incomplete wallet (missing stake keys) </li>
+</ul>
+<h2 id="714-2021-02-01">[7.1.4] - 2021-02-01<a class="headerlink" href="#714-2021-02-01" title="Permanent link">⚓︎</a></h2>
+<h5 id="fixed_18">Fixed<a class="headerlink" href="#fixed_18" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Typo in function name after harmonization between scripts</li>
+</ul>
+<h2 id="713-2021-01-30">[7.1.3] - 2021-01-30<a class="headerlink" href="#713-2021-01-30" title="Permanent link">⚓︎</a></h2>
+<h5 id="fixed_19">Fixed<a class="headerlink" href="#fixed_19" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Vacuumlabs cardano-hw-cli 1.1.3 support, now the minimum supported version</li>
+<li>Improved error handling</li>
+</ul>
+<h2 id="711-2021-01-29">[7.1.1] - 2021-01-29<a class="headerlink" href="#711-2021-01-29" title="Permanent link">⚓︎</a></h2>
+<h5 id="changed_12">Changed<a class="headerlink" href="#changed_12" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Minor change to future update notification for common env file</li>
+</ul>
+<h2 id="710-2021-01-29">[7.1.0] - 2021-01-29<a class="headerlink" href="#710-2021-01-29" title="Permanent link">⚓︎</a></h2>
+<h5 id="changed_13">Changed<a class="headerlink" href="#changed_13" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Remove ChainDB metrics references to align with cardano-node 1.25.1</li>
+<li>Moved some functions to env for reusability between tools</li>
+</ul>
+<h2 id="702-2021-01-17">[7.0.2] - 2021-01-17<a class="headerlink" href="#702-2021-01-17" title="Permanent link">⚓︎</a></h2>
+<h5 id="changed_14">Changed<a class="headerlink" href="#changed_14" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Re-add the option in offline workflow to use wallet folder that only contains stake keys for multi-owner pools</li>
+</ul>
+<h5 id="fixed_20">Fixed<a class="headerlink" href="#fixed_20" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Verification of signing key in offline mode for extended signing keys (mnemonics imported wallets)</li>
+</ul>
+<h2 id="701-2021-01-13">[7.0.1] - 2021-01-13<a class="headerlink" href="#701-2021-01-13" title="Permanent link">⚓︎</a></h2>
+<h5 id="changed_15">Changed<a class="headerlink" href="#changed_15" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Add prompt before updating common env file, instead of auto-update</li>
+</ul>
+<h2 id="700-2021-01-11">[7.0.0] - 2021-01-11<a class="headerlink" href="#700-2021-01-11" title="Permanent link">⚓︎</a></h2>
+<p>Though mostly unchanged in the user interface, this is a major update with most of the code re-written/touched in the back-end.<br/>
+Only the most noticeable changes added to changelog. </p>
+<h5 id="added_5">Added<a class="headerlink" href="#added_5" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>HW Wallet support through Vacuumlabs cardano-hw-cli (Ledger Nano X/S &amp; Trezor T)</li>
+<li>Vacuumlabs cardano-hw-cli added as build option to prereqs.sh, option '-w' incl Ledger udev rules. Software from Vacuumlabs and Ledger app still early in development and may contain limitations that require workarounds. Users are recommended to familiarise their usage using test wallets first.</li>
+<li>Because of HW wallet support, transaction signing has been re-designed. For CLI and HW wallet pool reg, raw tx is first witnessed by all signing keys separately and then assembled and signed instead of signing directly with all signing keys. But for all other HW wallet transactions, signing is done directly without first witnessing.</li>
+<li>Requires updated Cardano app in Ledger/Trezor set to be released in January 2021 to use in pool registration/modification.</li>
+<li>Option added to disable Dialog for file/dir input in cntools.config</li>
+</ul>
+<h5 id="changed_16">Changed<a class="headerlink" href="#changed_16" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Logging completely re-designed from the ground. Previous selective logging wasn't very useful. All output(almost) now outputted to both the screen and to a timestamped log file. One log file is created per CNTools session. Old log file archived in logs/archive subfolder and last 10 log files kept, rest is pruned on CNTools startup.</li>
+<li>DEBUG    : Verbose output, most output printed on screen is logged as debug messages except explicitly disabled, like menu printing.</li>
+<li>INFO     : Informational and the most important output.</li>
+<li>ACTION   : e.g cardano-cli executions etc</li>
+<li>ERROR    : error messages and stderr output</li>
+<li>Verbosity setting in cntools.config removed.</li>
+<li>Offline workflow now use a single JSON transaction file holding all data needed. This allows us to bake in additional data in the JSON file in addition to the tx body to make it much more clear what the offline transaction do. Like signing key verification, transaction data like fee, source wallet, pool name etc. It also lets the user know on offline computer what signing keys is needed to sign the transaction.</li>
+<li>Sign Tx moved to Transaction &gt;&gt; Sign</li>
+<li>Submit Tx moved to Transaction &gt;&gt; Submit</li>
+</ul>
+<h5 id="fixed_21">Fixed<a class="headerlink" href="#fixed_21" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Remove intermediate prompt for showing changelog, so that it's directly visible.</li>
+</ul>
+<h2 id="631-2020-12-14">[6.3.1] - 2020-12-14<a class="headerlink" href="#631-2020-12-14" title="Permanent link">⚓︎</a></h2>
+<h5 id="fixed_22">Fixed<a class="headerlink" href="#fixed_22" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Array expansion not correctly handled for multi-owner signing keys</li>
+<li>KES rotation output fix in OFFLINE mode, op.cert should be copied, not cold.counter</li>
+<li>Output and file explorer workflow redesigned a bit for a better flow</li>
+<li>formatLovelace() thousand separator fix after forcing locale to C.UTF-8 in env</li>
+<li>formatAda() function added to pretty print pledge and cost w/o Lovelace</li>
+</ul>
+<h2 id="630-2020-12-03">[6.3.0] - 2020-12-03<a class="headerlink" href="#630-2020-12-03" title="Permanent link">⚓︎</a></h2>
+<h5 id="changed_17">Changed<a class="headerlink" href="#changed_17" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>printTable function replaced with bash printf due to compatibility issues</li>
+<li>Improved workflow in pool registration/modification for relays and multi-owner.</li>
+<li>Standardized names for wallet and pool files/folders moved to env file from cntools.config</li>
+<li>Compatibility with 1.24.2 node (accomodate ledger schema and CLI changes), use 1.24.2 as baseline</li>
+<li>Move version check to env</li>
+</ul>
+<h5 id="fixed_23">Fixed<a class="headerlink" href="#fixed_23" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Error output for prerequisite checks</li>
+</ul>
+<h2 id="621-2020-11-28">[6.2.1] - 2020-11-28<a class="headerlink" href="#621-2020-11-28" title="Permanent link">⚓︎</a></h2>
+<h5 id="changed_18">Changed<a class="headerlink" href="#changed_18" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Compatibility changes for cardano-node 1.23.0, now minimum version to run CNTools 6.2.1</li>
+<li>Cleanup of old code</li>
+</ul>
+<h2 id="620-alpha-branch">[6.2.0] - (alpha branch)<a class="headerlink" href="#620-alpha-branch" title="Permanent link">⚓︎</a></h2>
+<h5 id="added_6">Added<a class="headerlink" href="#added_6" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Ability to post metadata on-chain, e.g. (but not limited to) Adams <a href="https://vote.crypto2099.io/">https://vote.crypto2099.io/</a></li>
+</ul>
+<h5 id="changed_19">Changed<a class="headerlink" href="#changed_19" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Blocks view updated to adapt to the added CNCLI integration and changes made to block collector(logMonitor)</li>
+<li><a href="https://cardano-community.github.io/guild-operators/#/Scripts/cncli">CNCLI</a></li>
+<li><a href="https://cardano-community.github.io/guild-operators/#/Scripts/logmonitor">Log Monitor</a></li>
+<li>chattr file locking now optional to use, a new setting in cntools.config added for it.</li>
+</ul>
+<h5 id="fixed_24">Fixed<a class="headerlink" href="#fixed_24" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>unnecessary bech32 conversion in wallet import (non-breaking) </li>
+</ul>
+<h2 id="610-2020-10-22">[6.1.0] - 2020-10-22<a class="headerlink" href="#610-2020-10-22" title="Permanent link">⚓︎</a></h2>
+<h5 id="added_7">Added<a class="headerlink" href="#added_7" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Wallet de-registration with key deposit refund (new cntools.config parameter, WALLET_STAKE_DEREG_FILENAME)</li>
+<li>Default values loaded for all config variables if omitted/missing in cntools.config</li>
+</ul>
+<h5 id="changed_20">Changed<a class="headerlink" href="#changed_20" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Prometheus node metrics replaced with EKG</li>
+<li>Allow and handle missing pool.config in pool &gt;&gt; modify and show</li>
+<li>Cancel and return added in several helper functions if cardano-cli execution fails</li>
+<li>Various tweaks to the output</li>
+</ul>
+<h5 id="fixed_25">Fixed<a class="headerlink" href="#fixed_25" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Script execution permissions after internal update</li>
+<li>Handle redirect in curl metadata fetch</li>
+</ul>
+<h2 id="603-2020-10-16">[6.0.3] - 2020-10-16<a class="headerlink" href="#603-2020-10-16" title="Permanent link">⚓︎</a></h2>
+<h4 id="fixed_26">Fixed<a class="headerlink" href="#fixed_26" title="Permanent link">⚓︎</a></h4>
+<ul>
+<li>Shelley epoch transition calculation used the wrong byron metric in the calculation</li>
+</ul>
+<h2 id="602-2020-10-16">[6.0.2] - 2020-10-16<a class="headerlink" href="#602-2020-10-16" title="Permanent link">⚓︎</a></h2>
+<h4 id="fixed_27">Fixed<a class="headerlink" href="#fixed_27" title="Permanent link">⚓︎</a></h4>
+<ul>
+<li>Internal update had the wrong path to env file breaking automatic update, please use prereqs.sh to update</li>
+<li>Fix in 6.0.1 broke pool id retrieval, now compatible with both pre and post cardano-node 1.21.2 syntax.</li>
+</ul>
+<h2 id="601-2020-10-16">[6.0.1] - 2020-10-16<a class="headerlink" href="#601-2020-10-16" title="Permanent link">⚓︎</a></h2>
+<h4 id="fixed_28">Fixed<a class="headerlink" href="#fixed_28" title="Permanent link">⚓︎</a></h4>
+<ul>
+<li>As per change to cardano-cli syntax, pool ID requires <code>--cold-verification-key-file</code> instead of <code>--verification-key-file</code></li>
+</ul>
+<h2 id="600-2020-10-15">[6.0.0] - 2020-10-15<a class="headerlink" href="#600-2020-10-15" title="Permanent link">⚓︎</a></h2>
+<blockquote>
+<p>This is a major release with a lot of changes. It is highly recommended that you familiarise yourself with the usage for Hybrid or Online v/s Offline mode on a testnet environment before doing it on production. Please visit <a href="https://cardano-community.github.io/guild-operators/#/upgrade">https://cardano-community.github.io/guild-operators/#/upgrade</a> for details.</p>
+</blockquote>
+<h5 id="added_8">Added<a class="headerlink" href="#added_8" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Allow CNTools to operate in offline mode. Offline features include:</li>
+<li>Simplified Walet Show/List menu</li>
+<li>Wallet delete without balance check option</li>
+<li>Pool KES Rotation</li>
+<li>Sign a staging transaction.</li>
+<li>Allow creation of staging tx files using ttl as input in an online/offline-hybrid mode, that can be sent to offline server to sign.</li>
+<li>To Transfer Funds</li>
+<li>Withdraw Rewards</li>
+<li>Delegate</li>
+<li>Register/Modify/Retire pool</li>
+<li>Allow import of a signed transaction to submit in online mode</li>
+<li>Allow import of 15/24 words based wallets. Note that you'd need <code>cardano-address</code> and <code>bech32</code> in yout $PATH to use this feature (available if you rebuild <code>cardano-node</code> using updated <code>cabal-build-all.sh</code>), reusing <a href="https://gist.github.com/ilap/3fd57e39520c90f084d25b0ef2b96894">guide from @ilap</a>.</li>
+<li>Backup now offer the ability to create an online backup without wallet payment/stake and pool cold sign keys</li>
+<li>Regular(offline) backup now display a warning if wallet payment/stake and pool cold sign keys are missing due to being deleted manually or by previous backup</li>
+<li>Retire notification in pool &gt;&gt; show</li>
+<li>Sanity check before launching a second instance of cnode.sh</li>
+<li>Doc update to run cnode.sh as a systemd service</li>
+<li>Use secure remove (<code>srm</code>) when available when deleting files.</li>
+<li>Balance check notification added before wallet selection menus are shown to know that work is done in the background</li>
+<li>Ability to select a different pool owner and reward wallet</li>
+<li>Multi-owner support using stake vkey/skey files</li>
+<li>Added TIMEOUT_LEDGER_STATE(default 300s) in cntools.config to be used instead of static 60 seconds for querying shelley ledger-state.</li>
+<li>Option to delete private keys after successful backup</li>
+<li>itnRewards.sh script to claim ITN rewards incl docs update</li>
+<li>More explicit error messages at startup</li>
+<li>Basic sanity checks for socket file</li>
+<li>Backup &amp; Restore of wallets, pools and configuration files</li>
+<li>External KES rotation script using CNTools library</li>
+<li>Add few flags to control prereqs to allow skipping overwriting files, deploying OS packages, etc</li>
+<li>cntools.sh: Drop an error if log not found, indicating config with no JSON being used</li>
+</ul>
+<h5 id="changed_21">Changed<a class="headerlink" href="#changed_21" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Improved trap/exit handling</li>
+<li>Allow thousand separator(<code>,</code>) in user input for sending ADA and pledge/cost at pool registration to make it easier to count the zeros</li>
+<li>User input for files and directories now open a dialog gui to make it easier to find the correct path</li>
+<li>CNTools now uses and works with <code>cardano-node 1.19.0</code>, please upgrade if you're not using this version.</li>
+<li>Use manual calculation based on slot tip to get KES period</li>
+<li>Removed ledger dump dependency from Pool Register, Modify, Retire and List.</li>
+<li>The cost of the ledger dump is too high, replaced with a simple check if pools registration certificate exist in pool folder</li>
+<li>Pool &gt;&gt; Show|Delegators are now the only options dumping the ledger-state</li>
+<li>Wallet vkeys no longer encrypted as skeys are the only ones in need of protection</li>
+<li>Update command change (change applied after this release is active):</li>
+<li>Minor/Patch release: it will warn, backup and replace CNTools script files including cntools.config</li>
+<li>Major release: No change, prompt user to backup and run prereqs.sh according to instructions.</li>
+<li>Troubleshooting improvements:</li>
+<li>Split 'config in json format' and 'hasPrometheus' checks</li>
+<li>Output node sync stats if Shelley transition epoch is to be calculated</li>
+<li>Protocol parameters output check to give an improved error message</li>
+<li>Pool &gt;&gt; Show view updated to show modified pool values if Pool &gt;&gt; Modify has been used to update pool parameters</li>
+<li>The section has also been updated to make it a little bit easier to read</li>
+<li>Pool &gt;&gt; Delegators view also use updated pledge value if a pool modification has been registered to check if pledge is met</li>
+<li>Use mainnet as default, since other testnets are either retired or not being maintained :(</li>
+<li>Backup original files when doing upgrades, so that users do not lose their changes.</li>
+<li>Major update description updated</li>
+<li>env file update removed from minor update</li>
+<li>Prometheus metrics used for various functions and now required to run CNTools, enabled by default</li>
+<li>Changed references to ptn0 to generalize the usage</li>
+<li>Change CNTools changelog heading format - +1 sublevels for headings (used by newer documentation)</li>
+<li>Delegators previously displayed in <code>Pool &gt;&gt; Show</code> now moved to its own menu option
+  This is to de-clutter and because it takes time to parse this data from ledger-state</li>
+<li>stake.cert no longer encrypted in wallet</li>
+<li>Meta description now has a limit of 255 chars to match smash server limit</li>
+<li>ledger-state timeout increased to 60s</li>
+<li>Update ptn0 config to align with hydra config as much as possible, while keeping trace options on</li>
+<li>moved update check to be one of the first things CNTools does after start to be able to show critical changes before anything else runs.</li>
+<li>Parse node logs to check the transition from Byron to shelley era, and save the epoch for transition in db folder. This is required for calculating KES keys.</li>
+<li>Please make sure to use <strong>config files created by the prereqs.sh, or enable JSON loggers for your config</strong>.</li>
+<li>Update cnode.sh.templ to archive logs every time node is restart, this ensures that we're not searching for previous log history when network was changed. Network being changed would automatically deduce db folder was deleted.</li>
+<li>Update default network to MC3</li>
+</ul>
+<h5 id="removed">Removed<a class="headerlink" href="#removed" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li><code>Pool &gt;&gt; Delegators</code> removed.</li>
+<li>If/when a better option than dumping and parsing ledger-state dump arise re-adding it will be considered. </li>
+<li>Utilize the community explorers listed at <a href="https://cardano-community.github.io/support-faq/#/explorers">https://cardano-community.github.io/support-faq/#/explorers</a> </li>
+<li>POOL_PLEDGECERT_FILENAME removed from config, WALLET_DELEGCERT_FILENAME is used instead for delegation cert to pool, no need to keep a separate cert in pool folder for this, its the wallet that is delegated.</li>
+<li>Redundant sections in guide</li>
+<li>Stale delegate.counter</li>
+</ul>
+<h5 id="fixed_29">Fixed<a class="headerlink" href="#fixed_29" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Check <code>pool &gt;&gt; show</code> stake distribution showing up as always 0.</li>
+<li>KES expiration calculation</li>
+<li>Slot interval calculation</li>
+<li>Custom vname replacement(when using <code>prereqs.sh -t</code>) fix for internal update</li>
+<li>Pool registration and de-registration certificates removed in case of retire/re-registration</li>
+<li>KES Expiry to use KES Period instead of Epoch duration</li>
+<li>Block Collector script adapted for cardano-node 1.19.0.</li>
+<li>Block hash is now truncated in log, issue <a href="https://github.com/input-output-hk/cardano-node/issues/1738">https://github.com/input-output-hk/cardano-node/issues/1738</a></li>
+<li>High cpu usage reported in a few cases when running Block Collector</li>
+<li>Depending on log level, parsing and byte64 enc each entry with jq could potentially put high load on weaker systems. Replaced with grep to only parse entries containing specific traces.</li>
+<li>Docs for creating systemd block collector service file updated to include user env in run command</li>
+<li>cardano-node 1.19.0 introduced an issue that required us to use KES as current - 1 while rotating.</li>
+<li>A new getPoolID helper function added to extract both hex and bech32 pool ID</li>
+<li>Added <code>--output-format hex</code> when extracting pool ID in hex format</li>
+<li>A new pool.id-bech32 file gets created if cold.vkey is available and decrypted</li>
+<li>Added error check to see if cardano-cli is in $PATH before continuing.</li>
+<li>Backup &amp; Restore paths were failing on machines due to alnum class availability on certain interpreters.</li>
+<li>Rewards were not counted in stake and pledge</li>
+<li>Removed +i file locking on .addr files when using <code>Wallet &gt;&gt; Encrypt</code> as these are re-generated from keys and need to be writable</li>
+<li>Balance check added to <code>Funds &gt;&gt; Withdraw</code> for base address as this is used to pay the withdraw transaction fee</li>
+<li>Resolve issue with Multi Owner causing an error with new pool registration (error was due to quotes)</li>
+<li>Mainnet uses dedicated condition for slot checks</li>
+<li>Timeout moved to a variable in cntools.library</li>
+<li>KES Calculation for current KES period and KES expiration date
+  <strong>Please re-check expiration date using Pool &gt;&gt; Show</strong></li>
+<li>calc_slots to be network independent</li>
+<li>prom_host should be calculated from config file, instead of having to update a config</li>
+<li>Minor typo in menu</li>
+<li>Parse Config for virtual forks, which adds supports for MC4</li>
+<li>CNTools block collector fix</li>
+<li>column application added as a prereq, bsdmainutils/util-linux</li>
+<li>cntoolsBlockCollector.sh get epoch using function</li>
+<li>KES count was not showing up in Katip</li>
+<li>Funds -&gt; Delegation was broken as per recent changes in 1.17, corrected key type for delegation certificate</li>
+<li><code>Pool &gt;&gt; Show</code> delegator rewards parsing from ledger-state</li>
+<li>Slot sync format improvement</li>
+<li>kesExpiration function to use 17 fixed byron transition epochs </li>
+</ul>
+<h4 id="500-2020-07-20">[5.0.0] - 2020-07-20<a class="headerlink" href="#500-2020-07-20" title="Permanent link">⚓︎</a></h4>
+<h5 id="added_9">Added<a class="headerlink" href="#added_9" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>HASH_IDENTIFIER where applicable to differentiate between network modes for commands used, required due to legacy Byron considerations</li>
+<li>add ptn0-praos.json and ptn0-combinator.json to reduce confusion between formats, make prereqs default to combinator, and accept p argument to indicate praos mode.</li>
+<li>cardano-node 1.16.0 refers to txhash using quotes, sed them out</li>
+<li>show what's new at startup after update</li>
+<li>file size check for pool metadata file</li>
+<li>Add nonce in pool metadata JSON to keep registration attempts unique, avoiding one hash pointing to multiple URLs</li>
+<li>Change default network to <code>mainnet_candidate</code>, and add second argument (g) to run prereqs against guild network</li>
+<li>allow the use of pre-existing metadata from URL when registering or modifying pool</li>
+<li>minimum pool cost check against protocol</li>
+<li>Refresh option to home screen</li>
+<li>Ability to register multiple relay DNS A records as well as a mix of DNS A and IPv4</li>
+<li>Valid for pool registration and modification</li>
+</ul>
+<h5 id="changed_22">Changed<a class="headerlink" href="#changed_22" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Default config switched to combinator instead of testnet</li>
+<li>Start maintaining seperate versions of praos and combinator config files.</li>
+<li>Add 10s timeout to wget commmands in case of issue</li>
+<li>timestamp added to pool metadata file to make every creation unique</li>
+<li>Cancel shortcut changed from <code>[c]</code> to <code>[Esc]</code></li>
+<li>Default pool cost from 256 -&gt; 400</li>
+<li>slotinterval calculation to include decentralisation parameter</li>
+<li>mainnet candidate compatible slot calculation, 17 fixed byron transition epochs (needs to be fixed for mainnet)</li>
+<li>Pool metadata information to copy file as-is as well as wait for keypress to make sure file is copied before proceeding with registration.</li>
+<li>Now use internal table builder to display previous relays</li>
+<li>Instead of giving relays from previous registration as default values it will now ask if you want to re-register relays exactly as before to minimize steps and complexity</li>
+</ul>
+<h5 id="removed_1">Removed<a class="headerlink" href="#removed_1" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Delete cntools-updater script</li>
+<li>NODE_SOCKET_PATH config parameter(replaced by CARDANO_NODE_SOCKET_PATH)</li>
+</ul>
+<h5 id="fixed_30">Fixed<a class="headerlink" href="#fixed_30" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Slots reference was mixing up for shelley testnet in absence of a combinator network</li>
+<li>numfmt dependency removed in favor of printf formatting</li>
+<li>Vkey delegation fix due to json format switch</li>
+<li>ADA not displayed in a couple of the wallet selection menus</li>
+<li>KES calculation support for both MC and Shelley Testnet</li>
+<li>Slot tip reference calculation for shelley testnet</li>
+</ul>
+<h4 id="400-2020-07-13">[4.0.0] - 2020-07-13<a class="headerlink" href="#400-2020-07-13" title="Permanent link">⚓︎</a></h4>
+<h5 id="added_10">Added<a class="headerlink" href="#added_10" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Add PROTOCOL_IDENTIFIER and NETWORK_IDENTIFIER instead of harcoded entries for combinator v/s TPraos &amp; testnet v/s magic differentiators respectively.</li>
+<li>Keep both ptn0.yaml and ptn0-combinator.yaml to keep validity with mainnet-combinator</li>
+</ul>
+<h5 id="changed_23">Changed<a class="headerlink" href="#changed_23" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Revert back default for Public network to Shelley_Testnet as per <a href="https://t.me/CardanoStakePoolWorkgroup/282606">https://t.me/CardanoStakePoolWorkgroup/282606</a></li>
+</ul>
+<h4 id="300-2020-07-12">[3.0.0] - 2020-07-12<a class="headerlink" href="#300-2020-07-12" title="Permanent link">⚓︎</a></h4>
+<h5 id="added_11">Added<a class="headerlink" href="#added_11" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Basic health check data on main menu</li>
+<li>Epoch, time until next epoch, node tip vs calculated reference tip and a warning if node is lagging behind.</li>
+<li>Address era and encoding to <code>Wallet &gt;&gt; Show</code></li>
+</ul>
+<h5 id="changed_24">Changed<a class="headerlink" href="#changed_24" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Release <code>2.1.1</code> included a change to env file and thus require a major version bump.</li>
+<li>Modified output on Update screen slightly.</li>
+<li>KES calculation, now take into account the byron era and the transition period until shelley start</li>
+<li>Credit to Martin @ ATADA for inspiration on how to calculate this</li>
+</ul>
+<h5 id="fixed_31">Fixed<a class="headerlink" href="#fixed_31" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Version fix to include patch version</li>
+</ul>
+<h4 id="200-2020-07-12">[2.0.0] - 2020-07-12<a class="headerlink" href="#200-2020-07-12" title="Permanent link">⚓︎</a></h4>
+<h5 id="added_12">Added<a class="headerlink" href="#added_12" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Support for cardano-node 1.15.x  </li>
+<li>calculate-min-fee update to reflect change in 1.15.<br/>
+    change was required to support byron witnesses.</li>
+<li>gettip update as output is now json formatted</li>
+<li>bech32 addressing in 1.15 required changes to delegator lookup in <code>Pool &gt;&gt; Show</code></li>
+<li>add --cardano-mode to query parameters</li>
+<li>--mainnet flag for address generation</li>
+<li>Output verbosity<br/>
+  A new config parameter added for output verbosity using say function.<br/>
+  0 = Minimal - Show relevant information (default)<br/>
+  1 = Normal  - More information about whats going on behind the scene<br/>
+  2 = Maximal - Debug level for troubleshooting</li>
+<li>Improve delegators list in <code>Pool &gt;&gt; Show</code></li>
+<li>Identify owners delegations</li>
+<li>Display owner stake in red if <code>(stake + reward)</code> is below pledge (single-owner only for now)</li>
+<li>Display all lovelace values in floating point ADA with 6 decimals (lovelaces) using locales</li>
+<li>Block Collector summary view</li>
+<li>KES rotation notification/warning on startup and in pool list/show views</li>
+<li>Live stake and delegators in <code>Pool &gt;&gt; Show</code></li>
+<li>Changelog </li>
+</ul>
+<h5 id="changed_25">Changed<a class="headerlink" href="#changed_25" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>op-cert creation moved from <code>Pool &gt;&gt; New</code> to <code>Pool &gt;&gt; Register</code>.</li>
+<li>Output changed in various places throughout.</li>
+<li>Include reward in delegators stake.</li>
+<li>Release now include patch version in addition to major and minor version.<br/>
+  In-app update modified to reflect this change.</li>
+<li>Block Collector table view</li>
+<li>Various minor code improvements</li>
+</ul>
+<h5 id="removed_2">Removed<a class="headerlink" href="#removed_2" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Enterprise wallet upgrade option in <code>Wallet &gt;&gt; List</code> </li>
+<li><code>Not a registered wallet on chain</code> information from Wallet listing</li>
+<li>en_US.UTF-8 locale dependency</li>
+</ul>
+<h5 id="fixed_32">Fixed<a class="headerlink" href="#fixed_32" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>meta_json_url check</li>
+<li>Invalid tx_in when registering stake wallet</li>
+<li>Delegators rewards in <code>Pool &gt;&gt; Show</code></li>
+<li>Work-around awk versions that only support 32-bit integers</li>
+<li>Sometimes cardano-node log contain duplicate traces for the same slot at log file rollover, now filtered</li>
+<li>Correct nwmagic - was hardcoded to 42</li>
+<li>Set script locale to fix format issue</li>
+</ul>
+<h4 id="100-2020-07-07">[1.0.0] - 2020-07-07<a class="headerlink" href="#100-2020-07-07" title="Permanent link">⚓︎</a></h4>
+<ul>
+<li>First official major release</li>
+</ul>
+</article>
+</div>
+</div>
+</main>
+<footer class="md-footer">
+<nav aria-label="Footer" class="md-footer__inner md-grid">
+<a aria-label="Previous: Common Tasks" class="md-footer__link md-footer__link--prev" href="../cntools-common/" rel="prev">
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"></path></svg>
+</div>
+<div class="md-footer__title">
+<div class="md-ellipsis">
+<span class="md-footer__direction">
+                Previous
+              </span>
+              Common Tasks
+            </div>
+</div>
+</a>
+<a aria-label="Next: Log Monitor" class="md-footer__link md-footer__link--next" href="../logmonitor/" rel="next">
+<div class="md-footer__title">
+<div class="md-ellipsis">
+<span class="md-footer__direction">
+                Next
+              </span>
+              Log Monitor
+            </div>
+</div>
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"></path></svg>
+</div>
+</a>
+</nav>
+<div class="md-footer-meta md-typeset">
+<div class="md-footer-meta__inner md-grid">
+<div class="md-footer-copyright">
+<div class="md-footer-copyright__highlight">
+            Copyright © 2019-2021 Guild-Operators
+          </div>
+<a href="https://cardano-community.github.io/guild-operators" rel="noopener" target="_blank">
+          Guild-Operators
+        </a>
+</div>
+<div class="md-footer-social">
+<a class="md-footer-social__link" href="https://github.com/cardano-community" rel="noopener" target="_blank" title="github.com">
+<svg viewbox="0 0 496 512" xmlns="http://www.w3.org/2000/svg"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"></path></svg>
+</a>
+</div>
+</div>
+</div>
+</footer>
+</div>
+<div class="md-dialog" data-md-component="dialog">
+<div class="md-dialog__inner md-typeset"></div>
+</div>
+<script id="__config" type="application/json">{"base": "../..", "features": ["search.highlight", "search.share", "navigation.indexes"], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "search": "../../assets/javascripts/workers/search.477d984a.min.js", "version": null}</script>
+<script src="../../assets/javascripts/bundle.82b56eb2.min.js"></script>
+</body>
+</html>
