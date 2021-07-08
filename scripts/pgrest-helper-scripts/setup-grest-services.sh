@@ -276,6 +276,9 @@ WantedBy=multi-user.target
 EOF"
 
 sudo systemctl daemon-reload
+sudo systemctl ${CNODE_NAME}-dbsync.service
+sudo systemctl enable postgrest.service
+sudo systemctl enable haproxy.service
 
 if ! command -v cardano-db-sync-extended >/dev/null ; then
   echo "NOTE: We could not find 'cardano-db-sync-extended' binary in \$PATH , please ensure you've followed the instructions below:"
