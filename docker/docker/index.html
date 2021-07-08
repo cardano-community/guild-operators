@@ -130,7 +130,7 @@
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../..">
+<a class="md-nav__link" href="../../index.md">
         Home
       </a>
 </li>
@@ -298,7 +298,7 @@
 <nav aria-label="🔔 Built-in tools" class="md-nav">
 <ul class="md-nav__list">
 <li class="md-nav__item">
-<a class="md-nav__link" href="#strategy">
+<a class="md-nav__link" href="#guild-operators-docker-startegy-testnet-mainnet-staging-guild">
     Guild Operators Docker startegy (testnet / mainnet / staging / guild)
   </a>
 </li>
@@ -354,12 +354,12 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021.md">
         PGRest meetings 1
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021.md">
         PGRest meetings 2
       </a>
 </li>
@@ -397,7 +397,7 @@
 <nav aria-label="🔔 Built-in tools" class="md-nav">
 <ul class="md-nav__list">
 <li class="md-nav__item">
-<a class="md-nav__link" href="#strategy">
+<a class="md-nav__link" href="#guild-operators-docker-startegy-testnet-mainnet-staging-guild">
     Guild Operators Docker startegy (testnet / mainnet / staging / guild)
   </a>
 </li>
@@ -426,9 +426,9 @@
 </a>
 <h1>Overview</h1>
 <p>Running your own Cardano node has never been so fast and easy.</p>
-<div class="admonition info">
-<p>But first, a kind reminder to the <a href="../security/">security aspects of running docker containers</a>.</p>
-</div>
+<blockquote>
+<p>But first, a kindly reminder to the security aspects of running containers. <a href="docker/docker_security.md">Here some Docker security concepts and best practice</a>.</p>
+</blockquote>
 <h3 id="external-resources">External resources<a class="headerlink" href="#external-resources" title="Permanent link">⚓︎</a></h3>
 <ul>
 <li><a href="https://hub.docker.com/u/cardanocommunity">DockerHub Guild's images</a></li>
@@ -439,38 +439,41 @@
 <li>CNTools</li>
 <li>gLiveView</li>
 <li>CNCLI</li>
-<li>Monitoring ready  </li>
+<li>Monitoring ready</li>
 <li>EKG, Prometheus</li>
 </ul>
-<h4 id="strategy">Guild Operators Docker startegy (testnet / mainnet / staging / guild)<a class="headerlink" href="#strategy" title="Permanent link">⚓︎</a></h4>
+<h4 docsify-ignore="docsify-ignore" id="guild-operators-docker-startegy-testnet-mainnet-staging-guild">Guild Operators Docker startegy (testnet / mainnet / staging / guild)<a class="headerlink" href="#guild-operators-docker-startegy-testnet-mainnet-staging-guild" title="Permanent link">⚓︎</a></h4>
 <p>Modular docker images based on Debian.</p>
 <p>Based on the Guild's work we decided to build the Cardano Node images in 3 stages:</p>
 <ul>
-<li>1<sup>st</sup> stage: it uses <code>prereq.sh</code> to prepare the development enviroment before compiling the node source code.  -&gt; <a href="https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_stage1">Stage1</a></li>
-<li>2<sup>nd</sup> stage: based on stage1, this stage intent is to compile and produce the binaries of the node. -&gt; <a href="https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_stage2">Stage2</a></li>
-<li>3<sup>rd</sup> stage: based upon a minimal debian image it incorporates the node's binaries as well as all the Guild's tools. -&gt; <a href="https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_stage3">Stage3</a></li>
+<li>1<sup>st</sup> stage: it uses <code>prereq.sh</code> to prepare the development enviroment before compiling the node source code.  -&gt; <a href="../files/docker/dockerfile_stage1">Stage1</a></li>
+<li>2<sup>nd</sup> stage: based on stage1, this stage intent is to compile and produce the binaries of the node. -&gt; <a href="../files/docker/dockerfile_stage2">Stage2</a></li>
+<li>3<sup>rd</sup> stage: based upon a minimal debian image it incorporates the node's binaries as well as all the Guild's tools. -&gt; <a href="../files/docker/dockerfile_stage3">Stage3</a></li>
 </ul>
-<h3 id="additional-docs">Additional docs<a class="headerlink" href="#additional-docs" title="Permanent link">⚓︎</a></h3>
+<h3 docsify-ignore="docsify-ignore" id="additional-docs">Additional docs<a class="headerlink" href="#additional-docs" title="Permanent link">⚓︎</a></h3>
 <p>If you prefer to build the images your own than you can check:</p>
 <ul>
-<li><a href="../build/">Docker Build Documentation</a></li>
-<li><a href="../tips/">Docker Tips</a></li>
+<li><a href="docker/build.md">Docker Build Documentation</a></li>
+<li><a href="docker/wallet.md">Docker Wallet Image</a></li>
+<li><a href="docker/tips.md">Docker Tips</a></li>
+<li><a href="docker/podman.md">Podman Tips</a></li>
 </ul>
 <h3 id="port-mapping">Port mapping<a class="headerlink" href="#port-mapping" title="Permanent link">⚓︎</a></h3>
+<blockquote>
 <p>The dockerfiles are located in ./files/docker/</p>
 <table>
 <thead>
 <tr>
 <th align="right">Node Ports</th>
 <th align="right">Wallet Ports</th>
-<th align="center">Flavor</th>
+<th align="center">Flavors</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td align="right">Node  (6000)</td>
 <td align="right">Wallet (8090)</td>
-<td align="center">Debian</td>
+<td align="center">Debian (<code>Dockerfile</code>)</td>
 </tr>
 <tr>
 <td align="right">Prometheus (12798)</td>
@@ -484,6 +487,7 @@
 </tr>
 </tbody>
 </table>
+</blockquote>
 </article>
 </div>
 </div>

@@ -6,6 +6,16 @@
          <changefreq>daily</changefreq>
     </url>
     <url>
+         <loc>https://cardano-community.github.io/guild-operators/_navbar/</loc>
+         <lastmod>2021-07-08</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://cardano-community.github.io/guild-operators/_sidebar/</loc>
+         <lastmod>2021-07-08</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
          <loc>https://cardano-community.github.io/guild-operators/basics/</loc>
          <lastmod>2021-07-08</lastmod>
          <changefreq>daily</changefreq>
@@ -96,6 +106,11 @@
          <changefreq>daily</changefreq>
     </url>
     <url>
+         <loc>https://cardano-community.github.io/guild-operators/Scripts/createAddr/</loc>
+         <lastmod>2021-07-08</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
          <loc>https://cardano-community.github.io/guild-operators/Scripts/env/</loc>
          <lastmod>2021-07-08</lastmod>
          <changefreq>daily</changefreq>
@@ -121,12 +136,57 @@
          <changefreq>daily</changefreq>
     </url>
     <url>
+         <loc>https://cardano-community.github.io/guild-operators/Scripts/sendADA/</loc>
+         <lastmod>2021-07-08</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
          <loc>https://cardano-community.github.io/guild-operators/Scripts/sendalerts/</loc>
          <lastmod>2021-07-08</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Scripts/topologyupdater/</loc>
+         <lastmod>2021-07-08</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://cardano-community.github.io/guild-operators/Staking/Addresses/</loc>
+         <lastmod>2021-07-08</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://cardano-community.github.io/guild-operators/Staking/Certificates/</loc>
+         <lastmod>2021-07-08</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://cardano-community.github.io/guild-operators/Staking/Delegates/</loc>
+         <lastmod>2021-07-08</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://cardano-community.github.io/guild-operators/Staking/Keys/</loc>
+         <lastmod>2021-07-08</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://cardano-community.github.io/guild-operators/Staking/Main/</loc>
+         <lastmod>2021-07-08</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://cardano-community.github.io/guild-operators/Staking/Operators/</loc>
+         <lastmod>2021-07-08</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://cardano-community.github.io/guild-operators/Staking/Owners/</loc>
+         <lastmod>2021-07-08</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://cardano-community.github.io/guild-operators/Staking/StakeHolders/</loc>
          <lastmod>2021-07-08</lastmod>
          <changefreq>daily</changefreq>
     </url>
@@ -141,12 +201,17 @@
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://cardano-community.github.io/guild-operators/docker/run/</loc>
+         <loc>https://cardano-community.github.io/guild-operators/docker/docker_security/</loc>
          <lastmod>2021-07-08</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://cardano-community.github.io/guild-operators/docker/security/</loc>
+         <loc>https://cardano-community.github.io/guild-operators/docker/podman/</loc>
+         <lastmod>2021-07-08</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://cardano-community.github.io/guild-operators/docker/run/</loc>
          <lastmod>2021-07-08</lastmod>
          <changefreq>daily</changefreq>
     </url>
@@ -156,12 +221,7 @@
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://cardano-community.github.io/guild-operators/pgrest-meetings/02Jul2021/</loc>
-         <lastmod>2021-07-08</lastmod>
-         <changefreq>daily</changefreq>
-    </url>
-    <url>
-         <loc>https://cardano-community.github.io/guild-operators/pgrest-meetings/25Jun2021/</loc>
+         <loc>https://cardano-community.github.io/guild-operators/docker/wallet/</loc>
          <lastmod>2021-07-08</lastmod>
          <changefreq>daily</changefreq>
     </url>

@@ -5,10 +5,10 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
-<link href="https://cardano-community.github.io/guild-operators/pgrest-meetings/25Jun2021/" rel="canonical"/>
+<link href="https://cardano-community.github.io/guild-operators/docker/docker_security/" rel="canonical"/>
 <link href="../../overrides/guildicon.png" rel="icon"/>
 <meta content="mkdocs-1.2.1, mkdocs-material-7.1.9" name="generator"/>
-<title>PGRest meetings 1 - Guild Operators</title>
+<title>Docker Security best practice - Guild Operators</title>
 <link href="../../assets/stylesheets/main.ca7ac06f.min.css" rel="stylesheet"/>
 <link href="../../assets/stylesheets/palette.f1a3b89f.min.css" rel="stylesheet"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -25,7 +25,7 @@
 <input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
 <label class="md-overlay" for="__drawer"></label>
 <div data-md-component="skip">
-<a class="md-skip" href="#1st-meeting">
+<a class="md-skip" href="#docker-security-best-practice">
           Skip to content
         </a>
 </div>
@@ -49,7 +49,7 @@
 <div class="md-header__topic" data-md-component="header-topic">
 <span class="md-ellipsis">
             
-              PGRest meetings 1
+              Docker Security best practice
             
           </span>
 </div>
@@ -130,7 +130,7 @@
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../..">
+<a class="md-nav__link" href="../../index.md">
         Home
       </a>
 </li>
@@ -272,30 +272,30 @@
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../docker/docker/">
+<a class="md-nav__link" href="../docker/">
         Overview
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../docker/build/">
+<a class="md-nav__link" href="../build/">
         Build
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../docker/run/">
+<a class="md-nav__link" href="../run/">
         Run
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../docker/tips/">
+<a class="md-nav__link" href="../tips/">
         Tips
       </a>
 </li>
 </ul>
 </nav>
 </li>
-<li class="md-nav__item md-nav__item--active md-nav__item--nested">
-<input checked="" class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" id="__nav_6" type="checkbox"/>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" id="__nav_6" type="checkbox"/>
 <label class="md-nav__link" for="__nav_6">
         Appendix
         <span class="md-nav__icon md-icon"></span>
@@ -311,51 +311,13 @@
         Sample Postgres Setup
       </a>
 </li>
-<li class="md-nav__item md-nav__item--active">
-<input class="md-nav__toggle md-toggle" data-md-toggle="toc" id="__toc" type="checkbox"/>
-<label class="md-nav__link md-nav__link--active" for="__toc">
-          PGRest meetings 1
-          <span class="md-nav__icon md-icon"></span>
-</label>
-<a class="md-nav__link md-nav__link--active" href="./">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021.md">
         PGRest meetings 1
       </a>
-<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
-<label class="md-nav__title" for="__toc">
-<span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#participants">
-    Participants:
-  </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="#meeting-structure">
-    Meeting Structure
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#stand-ups">
-    Stand-ups
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#main-discussion-points">
-    Main discussion points
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#next-meeting">
-    Next meeting
-  </a>
-</li>
-</ul>
-</nav>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../02Jul2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021.md">
         PGRest meetings 2
       </a>
 </li>
@@ -382,29 +344,33 @@
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="#participants">
-    Participants:
+<a class="md-nav__link" href="#intro">
+    Intro
   </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="#meeting-structure">
-    Meeting Structure
+<a class="md-nav__link" href="#here-below-some-key-concepts">
+    Here below some key concepts:
   </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="#stand-ups">
-    Stand-ups
+<a class="md-nav__link" href="#security-docker-best-practice">
+    Security Docker best practice:
+  </a>
+<nav aria-label="Security Docker best practice:" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#the-guild-docker-images-are-not-using-all-the-following-tips-due-to-functional-purpose">
+    The Guild Docker images are not using all the following tips due to functional purpose
   </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="#main-discussion-points">
-    Main discussion points
+<a class="md-nav__link" href="#notes">
+    Notes:
   </a>
 </li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#next-meeting">
-    Next meeting
-  </a>
+</ul>
+</nav>
 </li>
 </ul>
 </nav>
@@ -413,83 +379,86 @@
 </div>
 <div class="md-content" data-md-component="content">
 <article class="md-content__inner md-typeset">
-<a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/pgrest-meetings/25Jun2021.md" title="Edit this page">
+<a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/docker/docker_security.md" title="Edit this page">
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
-<h1 id="1st-meeting">1<sup>st</sup> Meeting<a class="headerlink" href="#1st-meeting" title="Permanent link">⚓︎</a></h1>
-<p>Thank you all for joining and working on the project <img alt="😄" class="twemoji" src="https://twemoji.maxcdn.com/v/latest/svg/1f604.svg" title=":smile:"/></p>
-<p>I will try to provide a short summary of the 1<sup>st</sup> guild pgREST meeting (held at <code>25/06/2021 - 07:00 UTC</code>), both for logging purposes and for those who were not able to attend. </p>
-<h3 id="participants">Participants:<a class="headerlink" href="#participants" title="Permanent link">⚓︎</a></h3>
+<h1 id="docker-security-best-practice">Docker Security best practice<a class="headerlink" href="#docker-security-best-practice" title="Permanent link">⚓︎</a></h1>
+<h2 id="intro">Intro<a class="headerlink" href="#intro" title="Permanent link">⚓︎</a></h2>
+<p>On the security front, Docker developers are faced with different types of security attacks such as:</p>
 <ul>
-<li>Homer</li>
-<li>Ola</li>
-<li>Markus</li>
-<li>Priyank</li>
-<li>Damjan</li>
+<li>Kernel exploits: Since the host’s kernel is shared in the container, a compromised container can attack the entire host.</li>
+<li>Container breakouts: Caused when the user is able to escape the container namespace and interact with other processes on the host.</li>
+<li>Denial-of-service attacks: Occur when some containers take up enough resources to hamper the functioning of other applications.</li>
+<li>Poisoned images: Caused when an untrusted image is being run and a hacker is able to access application data and, potentially, the host itself.</li>
 </ul>
-<h3 id="meeting-structure">Meeting Structure<a class="headerlink" href="#meeting-structure" title="Permanent link">⚓︎</a></h3>
-<p>As this was the first meeting, at the start we discussed about the meeting structure. In general, we agreed to something like listed below, but this can definitely change in the future:
-1) 2-liner (60s) round the table stand-ups by everyone to sync up on what they were doing / are planning to do / mention struggles etc. This itself often sparks discussions
-2) going through the Trello board tasks with the intention of discussing and possbily assigning them to individuals / smaller groups (maybe 1-2-3 people choose to work together on a single task)</p>
-<h3 id="stand-ups">Stand-ups<a class="headerlink" href="#stand-ups" title="Permanent link">⚓︎</a></h3>
-<p>We then proceeded to give a status of where we are individually in terms of what's been done, a summary below:
-- Homer, Ola, Markus, Priyank and Damjan have all set up their dbsync + pgrest endpoints against guild network and added to topology.
-- Ola laid down the groundwork for CNTools to integrate with API endpoints created so far.
-- Markus has created the systemd scripts and will add them soon to repo
-- Damjan is tracking live stake query that includes payment + stake address, but is awaiting fix on dbsync for pool refund (contextual reserves -&gt; account) , also need to validate reserve -&gt; MIR certs
-- Priyank created initial haproxy settings for polls done, need to complete agent based on design finalisation</p>
-<h3 id="main-discussion-points">Main discussion points<a class="headerlink" href="#main-discussion-points" title="Permanent link">⚓︎</a></h3>
+<blockquote>
+<p>Docker containers are now being exploited to covertly mine for cryptocurrency, marking a shift from ransomware to cryptocurrency malware. 
+As with all things in security, also Docker security is a moving target — so it’s helpful to have access to up-to-date information, including experience-based best practices, for securing your containerized environments.</p>
+</blockquote>
+<h2 id="here-below-some-key-concepts">Here below some key concepts:<a class="headerlink" href="#here-below-some-key-concepts" title="Permanent link">⚓︎</a></h2>
 <ol>
 <li>
-<p>Directory structure on the repo -&gt; General agreement is to have anything related to db-sync/postgREST separated from the current cnode-helper-scripts directory. We can finalise the end locations of files a bit later, for now intent should be to simply add them all to /files/dbsync folder. <code>prereqs.sh</code> addendum can be done once artifacts are finalised (added a Trello ticket for tracking).</p>
+<p>Use a Third-Party Security Tool
+Docker allows you to use containers from untrusted public repositories, which increases the need to scrutinize whether the container was created securely and whether it is free of any corrupt or malicious files. For this, use a multi-purpose security tool that gives extensive dev-to-production security controls.(keep reading below)</p>
 </li>
 <li>
-<p>DNS/haproxy configurations:<br/>
-  We have two options:</p>
-<p>a. controlled approach for endpoints - wherein there is a layer of haproxy that will load balance and ensure tip being in sync for individual providers (individuals can provide haproxy OR pgrest instances).<br/>
-b. completely decentralised - each client to maintain haproxy endpoint, and fails over to other node if its not up to recent tip.  </p>
-<p>I think that in general, it was agreed to use a hybrid approach. Details are captured in diagram <a href="https://t.me/c/1499031483/335">here</a>. DNS endpoint can be reserved post initial testing of haproxy-agent against mainnet nodes.</p>
+<p>Manage Vulnerability
+It is best to have a sound vulnerability management program that has multiple checks throughout the container lifecycle. Vulnerability management should incorporate quality gates to detect access issues and weaknesses for a potential exploit from dev-to-production environments.</p>
 </li>
 <li>
-<p>Internal monitoring system</p>
+<p>Monitor and Audit Container Activity
+It is vital to monitor the container ecosystem and detect suspicious activity. Container monitoring activities provide real-time reports that can help you react promptly to a security breach.</p>
+</li>
+<li>
+<p>Enable Docker Content Trust
+<a href="https://docs.docker.com/engine/security/trust/">Docker Content Trust</a>is a new feature incorporated into Docker 1.8. It is disabled by default, but once enabled, allows you to verify the integrity, authenticity, and publication date of all Docker images from the Docker Hub Registry.</p>
+</li>
+<li>
+<p>Use Docker Bench for Security
+You should consider <a href="https://github.com/docker/docker-bench-security">Docker Bench for Security</a> as your must-use script. Once the script is run, you will notice a lot of information regarding configuration best practices for deploying Docker containers that can be used to further secure your Docker server and containers.</p>
+</li>
+<li>
+<p>Resource Utilization
+To reduce performance impacts and denial-of-service attacks, it is a good practice to implement limits on the system resources that the containers can consume. If, for example, a web server is compromised, it helps to limit the impact to the other processes that are running on a host.</p>
+</li>
+<li>
+<p>RBAC
+RBAC is role-based access control. If you have multiple users accessing you enviroment, this is a must-have. It can be quite expensive to implement but <a href="https://www.funkypenguin.co.nz/blog/docker-rbac-with-portainer/">portainer</a> makes it super easy.</p>
 </li>
 </ol>
-<p>This would be important and useful and has not been mentioned before this meeting (as far as I know). Basically, a system for monitoring all of our instances together and also handling alerts. Not only for ensuring good quality of service, but also for logging and inspection of short- and long-term trends to better understand what's happening. A ticket is added to trello board</p>
-<h3 id="next-meeting">Next meeting<a class="headerlink" href="#next-meeting" title="Permanent link">⚓︎</a></h3>
-<p>All in all, I think we saw that there is need for these meetings as there are a lot of things to discuss and new ideas come up (like the monitoring system). We went for over an hour (~1h15min) and still didn't have enough time to go through the board, we basically only touched the DNS/haproxy part of the board. This tells me that we are in a stage where more frequent meetings are required, weekly instead of biweekly, as we are in the initial stage and it's important to build things right from the start rather than having to refactor later on. With that, the participants in general agreed to another meeting next week, but this will be confirmed in the TG chat and the times can be discussed then.</p>
+<h2 id="security-docker-best-practice">Security Docker best practice:<a class="headerlink" href="#security-docker-best-practice" title="Permanent link">⚓︎</a></h2>
+<h4 id="the-guild-docker-images-are-not-using-all-the-following-tips-due-to-functional-purpose">The Guild Docker images are not using all the following tips due to functional purpose<a class="headerlink" href="#the-guild-docker-images-are-not-using-all-the-following-tips-due-to-functional-purpose" title="Permanent link">⚓︎</a></h4>
+<p>Guild tips:
+- <strong><code>NEVER NEVER NEVER expose Docker API publicly!!!</code></strong> (disabled by default)</p>
+<ul>
+<li>Keep Docker Host Up-to-date</li>
+<li>Reverse uptime: containers that are frequently shut down and replaced by new container are more difficult for hackers to attack.</li>
+<li>Use a Firewall or Expose only the ports you need to be public.</li>
+<li>Use a *<code>Reverse Proxy</code></li>
+<li>Do not Change **<code>Docker Socket Ownership</code></li>
+<li>Do not <code>Run Docker Containers as Root</code></li>
+<li><code>Use Trusted Docker Images</code></li>
+<li><code>Use Privileged Mode Carefully</code> (This is usually done by adding --privileged you can use <code>--security-opt=no-new-privileges</code> instead)</li>
+</ul>
+<p>Some more general tips:
+- Restrict container capabilities: <code>"--cap-drop ALL"</code>
+- <a href="https://www.docker.com/blog/docker-secrets-management/">Use Docker Secrets</a>
+- Change DOCKER_OPTS to ***Respect IP Table Firewall 
+- <a href="https://docs.docker.com/config/containers/resource_constraints/">Control Docker Resource Usage</a>
+- <a href="https://docs.docker.com/docker-hub/download-rate-limit/">Rate Limit</a>: is quite common to mitigate brute force or denial of service attacks.
+- <a href="https://www.fail2ban.org/wiki/index.php/Main_Page">Fail2ban</a>: Fail2ban scans your log files and bans IP address that shows malicious intent
+- <a href="https://github.com/quay/clair">Container Vulnerability Scanner</a></p>
+<h3 id="notes">Notes:<a class="headerlink" href="#notes" title="Permanent link">⚓︎</a></h3>
+<ul>
+<li>*Nginx is a very good choice as load balancer and/or reverse proxy.</li>
+<li>**By default the socket is owned by root user and docker group.</li>
+<li>*** On Ubuntu/Debian based systems, edit /etc/default/docker and add the following line: <code>DOCKER_OPTS= "--iptables=false"</code></li>
+</ul>
 </article>
 </div>
 </div>
 </main>
 <footer class="md-footer">
-<nav aria-label="Footer" class="md-footer__inner md-grid">
-<a aria-label="Previous: Sample Postgres Setup" class="md-footer__link md-footer__link--prev" href="../../Appendix/postgres/" rel="prev">
-<div class="md-footer__button md-icon">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"></path></svg>
-</div>
-<div class="md-footer__title">
-<div class="md-ellipsis">
-<span class="md-footer__direction">
-                Previous
-              </span>
-              Sample Postgres Setup
-            </div>
-</div>
-</a>
-<a aria-label="Next: PGRest meetings 2" class="md-footer__link md-footer__link--next" href="../02Jul2021/" rel="next">
-<div class="md-footer__title">
-<div class="md-ellipsis">
-<span class="md-footer__direction">
-                Next
-              </span>
-              PGRest meetings 2
-            </div>
-</div>
-<div class="md-footer__button md-icon">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"></path></svg>
-</div>
-</a>
-</nav>
 <div class="md-footer-meta md-typeset">
 <div class="md-footer-meta__inner md-grid">
 <div class="md-footer-copyright">

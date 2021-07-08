@@ -5,10 +5,10 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
-<link href="https://cardano-community.github.io/guild-operators/pgrest-meetings/02Jul2021/" rel="canonical"/>
+<link href="https://cardano-community.github.io/guild-operators/Staking/Certificates/" rel="canonical"/>
 <link href="../../overrides/guildicon.png" rel="icon"/>
 <meta content="mkdocs-1.2.1, mkdocs-material-7.1.9" name="generator"/>
-<title>PGRest meetings 2 - Guild Operators</title>
+<title>Certificates - Guild Operators</title>
 <link href="../../assets/stylesheets/main.ca7ac06f.min.css" rel="stylesheet"/>
 <link href="../../assets/stylesheets/palette.f1a3b89f.min.css" rel="stylesheet"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -25,7 +25,7 @@
 <input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
 <label class="md-overlay" for="__drawer"></label>
 <div data-md-component="skip">
-<a class="md-skip" href="#2nd-meeting">
+<a class="md-skip" href="#operational-key-certificates">
           Skip to content
         </a>
 </div>
@@ -49,7 +49,7 @@
 <div class="md-header__topic" data-md-component="header-topic">
 <span class="md-ellipsis">
             
-              PGRest meetings 2
+              Certificates
             
           </span>
 </div>
@@ -130,7 +130,7 @@
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../..">
+<a class="md-nav__link" href="../../index.md">
         Home
       </a>
 </li>
@@ -294,8 +294,8 @@
 </ul>
 </nav>
 </li>
-<li class="md-nav__item md-nav__item--active md-nav__item--nested">
-<input checked="" class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" id="__nav_6" type="checkbox"/>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" id="__nav_6" type="checkbox"/>
 <label class="md-nav__link" for="__nav_6">
         Appendix
         <span class="md-nav__icon md-icon"></span>
@@ -312,62 +312,14 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../25Jun2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021.md">
         PGRest meetings 1
       </a>
 </li>
-<li class="md-nav__item md-nav__item--active">
-<input class="md-nav__toggle md-toggle" data-md-toggle="toc" id="__toc" type="checkbox"/>
-<label class="md-nav__link md-nav__link--active" for="__toc">
-          PGRest meetings 2
-          <span class="md-nav__icon md-icon"></span>
-</label>
-<a class="md-nav__link md-nav__link--active" href="./">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021.md">
         PGRest meetings 2
       </a>
-<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
-<label class="md-nav__title" for="__toc">
-<span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#participants">
-    Participants:
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#deployment-scripts">
-    Deployment scripts
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#switch-to-mainnet">
-    Switch to Mainnet
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#supported-networks">
-    Supported Networks
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#monitoring-system">
-    Monitoring System
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#handling-ssl">
-    Handling SSL
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#next-meeting">
-    Next meeting
-  </a>
-</li>
-</ul>
-</nav>
 </li>
 </ul>
 </nav>
@@ -392,38 +344,23 @@
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="#participants">
-    Participants:
+<a class="md-nav__link" href="#operational-key-certificates">
+    Operational key certificates
   </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="#deployment-scripts">
-    Deployment scripts
+<a class="md-nav__link" href="#stake-key-registration-certificates">
+    Stake Key registration certificates
   </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="#switch-to-mainnet">
-    Switch to Mainnet
+<a class="md-nav__link" href="#delegation-certificates">
+    Delegation certificates
   </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="#supported-networks">
-    Supported Networks
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#monitoring-system">
-    Monitoring System
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#handling-ssl">
-    Handling SSL
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#next-meeting">
-    Next meeting
+<a class="md-nav__link" href="#stake-pool-certificates">
+    Stake pool certificates
   </a>
 </li>
 </ul>
@@ -433,72 +370,38 @@
 </div>
 <div class="md-content" data-md-component="content">
 <article class="md-content__inner md-typeset">
-<a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/pgrest-meetings/02Jul2021.md" title="Edit this page">
+<a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/Staking/Certificates.md" title="Edit this page">
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
-<h1 id="2nd-meeting">2<sup>nd</sup> Meeting<a class="headerlink" href="#2nd-meeting" title="Permanent link">⚓︎</a></h1>
-<p>Thank you all for joining and working on the project <img alt="😄" class="twemoji" src="https://twemoji.maxcdn.com/v/latest/svg/1f604.svg" title=":smile:"/></p>
-<p>I will try to provide a short summary of the 2<sup>nd</sup> guild pgREST meeting (held on <code>02/07/2021 - 07:00 UTC</code>), both for logging purposes and for those who were not able to attend.</p>
-<h3 id="participants">Participants:<a class="headerlink" href="#participants" title="Permanent link">⚓︎</a></h3>
-<ul>
-<li>Homer</li>
-<li>Ola</li>
-<li>Markus</li>
-<li>Priyank</li>
-<li>Damjan</li>
-</ul>
-<p>After the initial stand-up updates from participants, we went through the entire Trello board, updating/deleting existing tickets and creating some new ones.</p>
-<h3 id="deployment-scripts">Deployment scripts<a class="headerlink" href="#deployment-scripts" title="Permanent link">⚓︎</a></h3>
-<p>During the last week, work has been done on deployment scripts for all services (db-sync, pgREST and haproxy) -&gt; this is now in testing with updated instructions on <a href="https://trello.com/c/1GS8VpNP/2-add-haproxy-config-to-setup">trello</a>. Everybody can put their name down on the ticket to signify when the setup is complete and note down any comments for bugs/improvements. This is the main priority at the moment as it would allow us to start transferring our setups to mainnet.</p>
-<h3 id="switch-to-mainnet">Switch to Mainnet<a class="headerlink" href="#switch-to-mainnet" title="Permanent link">⚓︎</a></h3>
-<p>Following on from that, we created a ticket for starting to set up mainnet instances -&gt; we can use 32GB RAM to start and increase later. While making sure everything works against the guild network is priority, people are free to start on this as well as we anticipate we are almost ready for the switch.</p>
-<h3 id="supported-networks">Supported Networks<a class="headerlink" href="#supported-networks" title="Permanent link">⚓︎</a></h3>
-<p>This brings me to another discussion point which is on which networks are to be supported. After some discussion, it was agreed to keep beefy servers for mainnet, and have small independent instances for testnet maintained by those interested, while guild instance is pretty lightweight and useful to keep.</p>
-<h3 id="monitoring-system">Monitoring System<a class="headerlink" href="#monitoring-system" title="Permanent link">⚓︎</a></h3>
-<p>The ticket for creating a centralised monitoring system was discussed and updated. I would say it would be good to have at least a basic version of the system in place around the time we switch to mainnet. The system could eventually serve for:<br/>
- - analysis of instance<br/>
- - performances and subsequent tuning<br/>
- - endpoints usage<br/>
- - anticipation of system requirements increases<br/>
- - etc.</p>
-<p>I would say that this should be an important topic of the next meeting to come up with an approach on how we will structure this system so that we can start building it in time for mainnet switch.</p>
-<h3 id="handling-ssl">Handling SSL<a class="headerlink" href="#handling-ssl" title="Permanent link">⚓︎</a></h3>
-<p>Enabling SSL was agreed to not be required by each instance, but is optional and documentation should be created for how to automate the process of renewing SSL certificates for those wishing to add it to their instance. The end user facing endpoints "Instance Checker" will of course be SSL-enabled.</p>
-<h3 id="next-meeting">Next meeting<a class="headerlink" href="#next-meeting" title="Permanent link">⚓︎</a></h3>
-<p>We somewhat agreed to another meeting next week again at the same time, but some participants aren't 100% for availability. Friday at 07:00 UTC might be a good standard time we hold on to, but I will make a poll like last time so that we can get more info before confirming the meeting.</p>
+<h1>Certificates</h1>
+<p>Shelley's PoS protocol requires different certificates posted to the blockhain; which will be publicly available for all participants. Those are valid until explicitly overwritten or revoked.</p>
+<p>There are four main type of certificates in Shelley:
+1. Operational key certificates (<strong>off chain</strong>),
+2. Stake Key registration certificates (<strong>on chain</strong>),
+3. Delegation certificates (<strong>on chain</strong>) and
+4. Stake pool certificates (<strong>on chain</strong>).</p>
+<h3 id="operational-key-certificates">Operational key certificates<a class="headerlink" href="#operational-key-certificates" title="Permanent link">⚓︎</a></h3>
+<p>The <code>operational key certificate</code>'s is created from a <code>staking key</code>
+used by stake pool operators for protecting their pool(s) and keys, signing bocke, participating in the lottery and not for delegating staking rights.
+This certificate needs for operating a node as a stake pool. </p>
+<p>See <a href="Staking/Operators.md#run-a-node-with-operational-key-certificate">detailed example here</a></p>
+<h3 id="stake-key-registration-certificates">Stake Key registration certificates<a class="headerlink" href="#stake-key-registration-certificates" title="Permanent link">⚓︎</a></h3>
+<p>All participants, who want to participate in staking, need to register a <strong>stake key</strong> on the blockchain by posting a <strong>stake key registration certificate</strong>. The registration requires a key deposit specified in the genesis (400K lovelace for FnF), but do not require any <code>signature</code> signed by the corresponding <code>stake signing key</code>.</p>
+<p>The registration is revoked when a de-registration certificate signed by the account's <code>stake signing key</code> is posted to the blockchain, causing the account to be deleted (<strong>Ask what is the impact of this</strong>).</p>
+<p>See <a href="Staking/Operators.md#create-stake-key-registration-certificate">detailed example here</a></p>
+<h3 id="delegation-certificates">Delegation certificates<a class="headerlink" href="#delegation-certificates" title="Permanent link">⚓︎</a></h3>
+<p>Delegation certificates uses a <code>staking key</code> to grant the right to sign blocks to another key. </p>
+<p>See <a href="Staking/Operators.md#create-the-stake-owners-delegation-certificate">detailed example here</a></p>
+<h3 id="stake-pool-certificates">Stake pool certificates<a class="headerlink" href="#stake-pool-certificates" title="Permanent link">⚓︎</a></h3>
+<p>A node for operating as a stake pool must post a <code>stake pool registration certificate</code> signed by all the owners' <code>staking signing key</code> and the pool operator's <code>operational signing key</code>. </p>
+<p>To revoke the certificate a <code>stake pool retirement certificate</code> must be posted to the chain signed by <strong>only</strong> the pool's <code>operational signing key</code>.</p>
+<p>No owner(s) is/are required to sign the retirement certificate.</p>
+<p>See <a href="Staking/Operators.md#run-a-node-with-operational-key-certificate">detailed example here</a></p>
 </article>
 </div>
 </div>
 </main>
 <footer class="md-footer">
-<nav aria-label="Footer" class="md-footer__inner md-grid">
-<a aria-label="Previous: PGRest meetings 1" class="md-footer__link md-footer__link--prev" href="../25Jun2021/" rel="prev">
-<div class="md-footer__button md-icon">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"></path></svg>
-</div>
-<div class="md-footer__title">
-<div class="md-ellipsis">
-<span class="md-footer__direction">
-                Previous
-              </span>
-              PGRest meetings 1
-            </div>
-</div>
-</a>
-<a aria-label="Next: Contributors" class="md-footer__link md-footer__link--next" href="../../contributors/" rel="next">
-<div class="md-footer__title">
-<div class="md-ellipsis">
-<span class="md-footer__direction">
-                Next
-              </span>
-              Contributors
-            </div>
-</div>
-<div class="md-footer__button md-icon">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"></path></svg>
-</div>
-</a>
-</nav>
 <div class="md-footer-meta md-typeset">
 <div class="md-footer-meta__inner md-grid">
 <div class="md-footer-copyright">

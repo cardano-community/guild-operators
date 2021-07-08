@@ -25,9 +25,6 @@
 <input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
 <label class="md-overlay" for="__drawer"></label>
 <div data-md-component="skip">
-<a class="md-skip" href="#download-pre-built-binaries">
-          Skip to content
-        </a>
 </div>
 <div data-md-component="announce">
 </div>
@@ -130,7 +127,7 @@
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../..">
+<a class="md-nav__link" href="../../index.md">
         Home
       </a>
 </li>
@@ -173,50 +170,9 @@
 </li>
 <li class="md-nav__item md-nav__item--active">
 <input class="md-nav__toggle md-toggle" data-md-toggle="toc" id="__toc" type="checkbox"/>
-<label class="md-nav__link md-nav__link--active" for="__toc">
-          Offchain Metadata Tools
-          <span class="md-nav__icon md-icon"></span>
-</label>
 <a class="md-nav__link md-nav__link--active" href="./">
         Offchain Metadata Tools
       </a>
-<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
-<label class="md-nav__title" for="__toc">
-<span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#download-pre-built-binaries">
-    Download pre-built binaries
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#build-instructions">
-    Build Instructions
-  </a>
-<nav aria-label="Build Instructions" class="md-nav">
-<ul class="md-nav__list">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#clone-the-repository">
-    Clone the repository
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#build-token-metadata-creator">
-    Build token-metadata-creator
-  </a>
-</li>
-</ul>
-</nav>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#verify">
-    Verify
-  </a>
-</li>
-</ul>
-</nav>
 </li>
 </ul>
 </nav>
@@ -354,12 +310,12 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021.md">
         PGRest meetings 1
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021.md">
         PGRest meetings 2
       </a>
 </li>
@@ -376,74 +332,28 @@
 </div>
 </div>
 </div>
-<div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
-<div class="md-sidebar__scrollwrap">
-<div class="md-sidebar__inner">
-<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
-<label class="md-nav__title" for="__toc">
-<span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#download-pre-built-binaries">
-    Download pre-built binaries
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#build-instructions">
-    Build Instructions
-  </a>
-<nav aria-label="Build Instructions" class="md-nav">
-<ul class="md-nav__list">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#clone-the-repository">
-    Clone the repository
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#build-token-metadata-creator">
-    Build token-metadata-creator
-  </a>
-</li>
-</ul>
-</nav>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#verify">
-    Verify
-  </a>
-</li>
-</ul>
-</nav>
-</div>
-</div>
-</div>
 <div class="md-content" data-md-component="content">
 <article class="md-content__inner md-typeset">
 <a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/Build/offchain-metadata-tools.md" title="Edit this page">
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
 <h1>Offchain Metadata Tools</h1>
-<div class="admonition important">
-<p class="admonition-title">Important</p>
-<ul>
-<li>An average pool operator may not require offline-metadata-tools at all. Please verify if it is required for your use as mentioned <a href="../../build/#components">here</a></li>
-<li>Ensure the <a href="../../basics/#pre-requisites">Pre-Requisites</a> are in place before you proceed.</li>
-</ul>
-</div>
+<p>!&gt; - An average pool operator may not require offline-metadata-tools at all. Please verify if it is required for your use as mentioned <a href="build.md#components">here</a></p>
+<blockquote>
+<p>Ensure the <a href="basics.md#pre-requisites">Pre-Requisites</a> are in place before you proceed.</p>
+</blockquote>
 <p>In the Cardano multi-asset era, this project helps you create and submit metadata describing your assets, storing them off-chain.</p>
-<h3 id="download-pre-built-binaries">Download pre-built binaries<a class="headerlink" href="#download-pre-built-binaries" title="Permanent link">⚓︎</a></h3>
+<h5 id="download-pre-built-binaries">Download pre-built binaries<a class="headerlink" href="#download-pre-built-binaries" title="Permanent link">⚓︎</a></h5>
 <p>Go to <a href="https://github.com/input-output-hk/offchain-metadata-tools#pre-built-binaries">input-output-hk/offchain-metadata-tools</a> to download the binaries and place in a directory specified by <code>PATH</code>, e.g. <code>$HOME/.cabal/bin/</code>. </p>
-<h3 id="build-instructions">Build Instructions<a class="headerlink" href="#build-instructions" title="Permanent link">⚓︎</a></h3>
+<h5 id="build-instructions">Build Instructions<a class="headerlink" href="#build-instructions" title="Permanent link">⚓︎</a></h5>
 <p>An alternative to pre-built binaries - instructions describe how to build the <code>token-metadata-creator</code> tool but the offchain-metadata-tools repository contains other tools as well. Build the ones needed for your installation.</p>
-<h4 id="clone-the-repository">Clone the repository<a class="headerlink" href="#clone-the-repository" title="Permanent link">⚓︎</a></h4>
+<h5 id="clone-the-repository">Clone the repository<a class="headerlink" href="#clone-the-repository" title="Permanent link">⚓︎</a></h5>
 <p>Execute the below to clone the offchain-metadata-tools repository to $HOME/git folder on your system:</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span> ~/git
 git clone https://github.com/input-output-hk/offchain-metadata-tools.git
 <span class="nb">cd</span> offchain-metadata-tools/token-metadata-creator
 </code></pre></div>
-<h4 id="build-token-metadata-creator">Build token-metadata-creator<a class="headerlink" href="#build-token-metadata-creator" title="Permanent link">⚓︎</a></h4>
+<h5 id="build-token-metadata-creator">Build token-metadata-creator<a class="headerlink" href="#build-token-metadata-creator" title="Permanent link">⚓︎</a></h5>
 <p>You can use the instructions below to build <code>token-metadata-creator</code>, same steps can be executed in future to update the binaries (replacing appropriate tag) as well.</p>
 <p><div class="highlight"><pre><span></span><code>git fetch --tags --all
 git pull
@@ -452,7 +362,7 @@ git checkout master
 <span class="nv">$CNODE_HOME</span>/scripts/cabal-build-all.sh
 </code></pre></div>
 The above would copy the binaries into <code>~/.cabal/bin</code> folder.</p>
-<h3 id="verify">Verify<a class="headerlink" href="#verify" title="Permanent link">⚓︎</a></h3>
+<h5 id="verify-that-token-metadata-creator-is-installed">Verify that token-metadata-creator is installed<a class="headerlink" href="#verify-that-token-metadata-creator-is-installed" title="Permanent link">⚓︎</a></h5>
 <p>Verify that the tool is executable from anywhere by running:</p>
 <div class="highlight"><pre><span></span><code>token-metadata-creator -h
 </code></pre></div>

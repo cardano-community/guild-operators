@@ -130,7 +130,7 @@
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../..">
+<a class="md-nav__link" href="../../index.md">
         Home
       </a>
 </li>
@@ -340,12 +340,12 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021.md">
         PGRest meetings 1
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021.md">
         PGRest meetings 2
       </a>
 </li>
@@ -397,48 +397,51 @@
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
 <h1>ITN Metadata Proof</h1>
-<div class="admonition info">
-<p class="admonition-title">Disclaimer</p>
-<p>Currently this is to protect the existing pools from the ITN who already have a delegator base against spoofing - to avoid scammers building on results of ITN from known pools. There would be a solution in the future for Mainnet nodes too - but it doesn't apply to those in its current form.</p>
-</div>
+<blockquote>
+<h5 id="disclaimer">Disclaimer:<a class="headerlink" href="#disclaimer" title="Permanent link">⚓︎</a></h5>
+<ul>
+<li>Currently this is to protect the existing pools from the ITN who already have a delegator base against spoofing - to avoid scammers building on results of ITN from known pools. There would be a solution in the future for Mainnet nodes too - but it doesn't apply to those in its current form.</li>
+</ul>
+</blockquote>
 <h4 id="concept">Concept<a class="headerlink" href="#concept" title="Permanent link">⚓︎</a></h4>
 <p>Due to the expected ticker spoofing attack for pools that were famous during ITN, some of the community members have proposed an interim solution to verify the legitimacy of a pool for delegators. You can check the high-level workflow below:</p>
+<!--details>
+<summary>Expand to view</summary-->
 <div align="center" class="mermaid">graph TB
-    A("ITN Owner skey (ed25519/ed25519e) ..") --x C(["jcli key sign .."])
-    B("Haskell Pool ID (pool.id) ..") --x C
-    C --x D("Signature key, (pool.sig) ..")
-    E("ITN Owner vkey (ed25519_pk) ..") --x F("Extended Metadata JSON (poolmeta_extended.json) ..")
+    AITN Owner skey (ed25519/ed25519e) .. --x C(["jcli key sign .."])
+    BHaskell Pool ID (pool.id) .. --x C
+    C --x DSignature key, (pool.sig) ..
+    EITN Owner vkey (ed25519_pk) .. --x FExtended Metadata JSON (poolmeta_extended.json) ..
     D --x F
-    F --x G("Pool Meta JSON (poolmeta.json) ..")
+    F --x GPool Meta JSON (poolmeta.json) ..
     ;
 </div>
+<!--/details-->
 <h4 id="steps">Steps<a class="headerlink" href="#steps" title="Permanent link">⚓︎</a></h4>
-<p>The actual implementation is pretty straightforward, we will keep it brisk - as we assume ones participating are fairly familiar with <code>jcli</code> usage.</p>
-<ul>
-<li>You need to use your owner keys that were used to register your pool, and it should match the owner <em>public</em> key you presented on <a href="https://github.com/cardano-foundation/incentivized-testnet-stakepool-registry">official cardano-foundation github</a> while registering metadata.</li>
-<li>Store your pool ID in a file (eg: <code>mainnet_pool.id</code>)</li>
-<li>Sign the file using your owner secret key from ITN (eg: <code>owner_skey</code>) as per below:
-  <div class="highlight"><pre><span></span><code>jcli key sign --secret-key ~/jormu/account/priv/owner.sk <span class="nv">$CNODE_HOME</span>/priv/pool/TEST/pool.id --output mainnet_pool.sig
+<p>The actual implementation is pretty straightforward, we will keep it brisk - as we assume ones participating are fairly familiar with <code>jcli</code> usage.
+- You need to use your owner keys that were used to register your pool, and it should match the owner <em>public</em> key you presented on <a href="https://github.com/cardano-foundation/incentivized-testnet-stakepool-registry">official cardano-foundation github</a> while registering metadata.
+- Store your pool ID in a file (eg: <code>mainnet_pool.id</code>)
+- Sign the file using your owner secret key from ITN (eg: <code>owner_skey</code>) as per below:
+<div class="highlight"><pre><span></span><code>jcli key sign --secret-key ~/jormu/account/priv/owner.sk <span class="nv">$CNODE_HOME</span>/priv/pool/TEST/pool.id --output mainnet_pool.sig
 cat mainnet_pool.sig
 <span class="c1"># ed25519_sig1sn32v3z...d72rg7rc6gs</span>
-</code></pre></div></li>
-<li>Add this signature and owner <em>public</em> key to the extended pool JSON , so that it looks like below:
-  <div class="highlight"><pre><span></span><code><span class="p">{</span>
+</code></pre></div>
+- Add this signature and owner <em>public</em> key to the extended pool JSON , so that it looks like below:
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
   <span class="nt">"itn"</span><span class="p">:</span> <span class="p">{</span>
     <span class="nt">"owner"</span><span class="p">:</span> <span class="s2">"ed25519_pk1..."</span><span class="p">,</span>
     <span class="nt">"witness"</span><span class="p">:</span> <span class="s2">"ed25519_sig1..."</span>
- <span class="p">}</span>
+  <span class="p">}</span>
 <span class="p">}</span>
-</code></pre></div></li>
-<li>Host this signature file online at a URL with raw contents easily accessible on the internet (eg: <a href="https://my.pool.com/extended-metadata.json">https://my.pool.com/extended-metadata.json</a>)</li>
-<li>When you register/modify a pool using CNTools, use the above mentioned URL to add to your pool metadata.</li>
-</ul>
+</code></pre></div>
+- Host this signature file online at a URL with raw contents easily accessible on the internet (eg: <a href="https://my.pool.com/extended-metadata.json">https://my.pool.com/extended-metadata.json</a>)
+- When you register/modify a pool using CNTools, use the above mentioned URL to add to your pool metadata.</p>
 <p>If the process is approved to appear for wallets, we may consider providing easier alternatives. If any queries about the process, or any additions please create a git issue/PR against <a href="https://github.com/cardano-community/guild-operators/issues">guild repository</a> - to capture common queries and update instructions/help text where appropriate.</p>
 <h4 id="sample-output-of-json-files-generated">Sample output of JSON files generated<a class="headerlink" href="#sample-output-of-json-files-generated" title="Permanent link">⚓︎</a></h4>
 <ul>
-<li>
-<p>Metadata JSON used for registering pool (one that will be hosted URL used to define pool, eg: <a href="https://hosting.site/poolmeta.json">https://hosting.site/poolmeta.json</a>)
-  <div class="highlight"><pre><span></span><code><span class="p">{</span>
+<li>Metadata JSON used for registering pool (one that will be hosted URL used to define pool, eg: <a href="https://hosting.site/poolmeta.json">https://hosting.site/poolmeta.json</a>)</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
   <span class="nt">"name"</span><span class="p">:</span><span class="s2">"Test"</span><span class="p">,</span>
   <span class="nt">"ticker"</span><span class="p">:</span><span class="s2">"TEST"</span><span class="p">,</span>
   <span class="nt">"description"</span><span class="p">:</span><span class="s2">"For demo purposes only"</span><span class="p">,</span>
@@ -446,11 +449,9 @@ cat mainnet_pool.sig
   <span class="nt">"nonce"</span><span class="p">:</span><span class="s2">"1595816423"</span><span class="p">,</span>
   <span class="nt">"extended"</span><span class="p">:</span><span class="s2">"https://hosting.site/poolmeta_extended.json"</span>
 <span class="p">}</span>
-</code></pre></div></p>
-</li>
-<li>
-<p>Extended Metadata JSON used for hosting additional metadata  (hosted at URL referred in <code>extended</code> field above, thus - eg : <a href="https://hosting.site/poolmeta_extended.json">https://hosting.site/poolmeta_extended.json</a>)</p>
-</li>
+</code></pre></div>
+<ul>
+<li>Extended Metadata JSON used for hosting additional metadata  (hosted at URL referred in <code>extended</code> field above, thus - eg : <a href="https://hosting.site/poolmeta_extended.json">https://hosting.site/poolmeta_extended.json</a>)</li>
 </ul>
 <div class="highlight"><pre><span></span><code><span class="p">{</span>
   <span class="nt">"itn"</span><span class="p">:</span> <span class="p">{</span>

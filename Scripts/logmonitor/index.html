@@ -127,7 +127,7 @@
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../..">
+<a class="md-nav__link" href="../../index.md">
         Home
       </a>
 </li>
@@ -310,12 +310,12 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021.md">
         PGRest meetings 1
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021.md">
         PGRest meetings 2
       </a>
 </li>
@@ -338,17 +338,17 @@
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
 <h1>Log Monitor</h1>
-<p>!&gt; Ensure the <a href="../../basics/#pre-requisites">Pre-Requisites</a> are in place before you proceed.</p>
+<p>!&gt; Ensure the <a href="basics.md#pre-requisites">Pre-Requisites</a> are in place before you proceed.</p>
 <p><code>logMonitor.sh</code> is a general purpose JSON log monitoring script for traces created by <code>cardano-node</code>. Currently, it looks for traces related to leader slots and block creation but other uses could be added in the future. </p>
 <h5 id="block-traces">Block traces<a class="headerlink" href="#block-traces" title="Permanent link">⚓︎</a></h5>
 <p>For the core node (block producer) the <code>logMonitor.sh</code> script can be run to monitor the JSON log file created by <code>cardano-node</code> for traces related to leader slots and block creation.   </p>
-<p>For optimal coverage, it's best run together with <a href="../cncli/">CNCLI</a> scripts as they provide different functionalities. Together, they create a complete picture of blocks assigned, created, validated or invalidated due to node issues. </p>
+<p>For optimal coverage, it's best run together with <a href="Scripts/cncli.md">CNCLI</a> scripts as they provide different functionalities. Together, they create a complete picture of blocks assigned, created, validated or invalidated due to node issues. </p>
 <h5 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">⚓︎</a></h5>
 <p>The script is best run as a background process. This can be accomplished in many ways but the preferred method is to run it as a systemd service. A terminal multiplexer like tmux or screen could also be used but not covered here.</p>
-<p>Use the <code>deploy-as-systemd.sh</code> script to create a systemd unit file (deployed together with <a href="../cncli/">CNCLI</a>).
+<p>Use the <code>deploy-as-systemd.sh</code> script to create a systemd unit file (deployed together with <a href="Scripts/cncli.md">CNCLI</a>).
 Log output is handled by syslog and end up in the systems standard syslog file, normally <code>/var/log/syslog</code>. <code>journalctl -f -u cnode-logmonitor.service</code> can be used to check service output (follow mode). Other logging configurations are not covered here. </p>
 <h5 id="view-blocklog">View Blocklog<a class="headerlink" href="#view-blocklog" title="Permanent link">⚓︎</a></h5>
-<p>Best viewed in CNTools or gLiveView. See <a href="../cncli/">CNCLI</a> for example output.</p>
+<p>Best viewed in CNTools or gLiveView. See <a href="Scripts/cncli.md">CNCLI</a> for example output.</p>
 </article>
 </div>
 </div>

@@ -130,7 +130,7 @@
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../..">
+<a class="md-nav__link" href="../../index.md">
         Home
       </a>
 </li>
@@ -335,12 +335,12 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021.md">
         PGRest meetings 1
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021.md">
         PGRest meetings 2
       </a>
 </li>
@@ -387,9 +387,9 @@
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
 <h1>Common env</h1>
-<p>A common environment file called <code>env</code> is sourced by most scripts in the Guild Operators repository. This file holds common variables and functions needed by other scripts. There are several benefits to this, not having to specify duplicate settings and being able to reuse functions decreasing the risk of misconfiguration and inconsistency.</p>
+<p>A common environment file called <code>env</code> is sourced by most scripts in the Guild Operators repository. This file holds common variables and functions needed by more than one script. There are several benefits to this, not having duplicate settings in several files being one of them decreasing the risk of misconfiguration.</p>
 <h4 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">⚓︎</a></h4>
-<p><code>env</code> file is downloaded together with the rest of the scripts when <a href="../../basics/#pre-requisites">Pre-Requisites</a> if followed and located in the <code>$CNODE_HOME/scripts/</code> directory. The file is also automatically downloaded/updated by some of the individual scripts if missing, like <code>cntools.sh</code>, <code>gLiveView.sh</code> and <code>topologyUpdater.sh</code>. All custom changes in User Variables section are untouched on updates unless a forced overwrite is selected when running <code>prereqs.sh</code>.</p>
+<p><code>env</code> file is downloaded together with the rest of the scripts when <a href="basics.md#pre-requisites">Pre-Requisites</a> if followed and located in the <code>$CNODE_HOME/scripts/</code> directory. The file is also automatically downloaded/updated by some of the individual scripts if missing, like <code>cntools.sh</code>, <code>gLiveView.sh</code> and <code>topologyUpdater.sh</code>. All custom changes in User Variables section are untouched on updates unless a forced overwrite is selected when running <code>prereqs.sh</code>.</p>
 <h4 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">⚓︎</a></h4>
 <p>Most variables can be left commented to use the automatically detected or default value. But there are some that need to be set as explained below.</p>
 <ul>
@@ -397,7 +397,7 @@
 <li><code>CNODE_HOME</code> - The root directory of the Cardano node holding all the files needed. Can be left commented if <code>prereqs.sh</code> has been run as this variable is then exported and added as a system environment variable.</li>
 <li><code>POOL_NAME</code> - If the node is to be started as a block producer by <code>cnode.sh</code> this variable needs to be uncommented and set. This is the name given to the pool in CNTools (not ticker), i.e. the pool directory name under <code>$CNODE_HOME/priv/pool/&lt;POOL_NAME&gt;</code></li>
 </ul>
-<p><strong>Take your time and look through the different variables</strong> and their explanations and decide if you need/want to change the default setting. For a default deployment using <code>prereqs.sh</code>, the <code>CNODE_PORT</code> (all installs) and <code>POOL_NAME</code> (only block producer) should be the only variables needed to be set.</p>
+<p>Take your time and look through the different variables and their explanations and decide if you need/want to change the default setting. For a default deployment using <code>prereqs.sh</code>, the <code>CNODE_PORT</code> (all installs) and <code>POOL_NAME</code> (only block producer) should be the only variables needed to be set. A snippet of the <code>env</code> file shown below.</p>
 <div class="highlight"><pre><span></span><code><span class="c1">######################################</span>
 <span class="c1"># User Variables - Change as desired #</span>
 <span class="c1"># Leave as is if unsure              #</span>

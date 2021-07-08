@@ -25,7 +25,7 @@
 <input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
 <label class="md-overlay" for="__drawer"></label>
 <div data-md-component="skip">
-<a class="md-skip" href="#components">
+<a class="md-skip" href="#macro-syntax-error">
           Skip to content
         </a>
 </div>
@@ -130,7 +130,7 @@
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="..">
+<a class="md-nav__link" href="../index.md">
         Home
       </a>
 </li>
@@ -153,26 +153,9 @@
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item md-nav__item--active">
 <input class="md-nav__toggle md-toggle" data-md-toggle="toc" id="__toc" type="checkbox"/>
-<label class="md-nav__link md-nav__link--active" for="__toc">
-          Overview
-          <span class="md-nav__icon md-icon"></span>
-</label>
 <a class="md-nav__link md-nav__link--active" href="./">
         Overview
       </a>
-<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
-<label class="md-nav__title" for="__toc">
-<span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#components">
-    Components
-  </a>
-</li>
-</ul>
-</nav>
 </li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="../Build/node-cli/">
@@ -330,12 +313,12 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../pgrest-meetings/25Jun2021/">
+<a class="md-nav__link" href="../pgrest-meetings/25Jun2021.md">
         PGRest meetings 1
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../pgrest-meetings/02Jul2021/">
+<a class="md-nav__link" href="../pgrest-meetings/02Jul2021.md">
         PGRest meetings 2
       </a>
 </li>
@@ -356,17 +339,6 @@
 <div class="md-sidebar__scrollwrap">
 <div class="md-sidebar__inner">
 <nav aria-label="Table of contents" class="md-nav md-nav--secondary">
-<label class="md-nav__title" for="__toc">
-<span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#components">
-    Components
-  </a>
-</li>
-</ul>
 </nav>
 </div>
 </div>
@@ -376,44 +348,10 @@
 <a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/build.md" title="Edit this page">
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
-<h1>Overview</h1>
-<p>The documentation here uses instructions from <a href="https://github.com/input-output-hk">IOHK repositories</a> as a foundation, with additional info which we can contribute to where appropriate. Note that not everyone needs to build each component. You can refer to <a href="https://docs.cardano.org/explore-cardano/cardano-architecture">architecture</a> to understand and qualify which components you want to run.</p>
-<h4 id="components">Components<a class="headerlink" href="#components" title="Permanent link">⚓︎</a></h4>
-<p>For most Pool Operators, simply building <a href="../Build/node-cli/">cardano-node</a> should be enough. Use the below to decide whether you need other components:</p>
-<div align="center" class="mermaid">graph TB
-  A(Need to interact with <br/>HD Wallets with keys<br/>saved locally?)
-  B(Need to explore <br/> blockchain locally?)
-  C(Manage pool-ops, <br/> asset operation tasks <br/> easily?)
-  D(Create Custom Assets?)
-  E(Monitor node <br/> using Terminal UI)
-  O(Node)
-  P(PostgREST)
-  Q(DBSync)
-  R(Wallet)
-  S(CNTools)
-  T(Rest)
-  U(GraphQL)
-  V(OfflineMetadataTools)
-  X(gLiveView)
-
-O --x E --x X
-O --x C --x S
-O --x D
-D --x S
-D --x V
-O --x B
-B --x P --x Q
-B --x T --x Q
-B --x U --x Q
-O --x A --x R
-</div>
-<div class="admonition warning">
-<p>We strongly prefer use of PostgREST over Rest/GraphQL components due to performance, security, simplicity, control and most importantly - consistency benefits. Please refer to <a href="https://docs.cardano.org">official documentations</a> if you're interested in <code>GraphQL</code> or <code>Cardano-Rest</code> components instead.</p>
-</div>
-<div class="admonition info">
-<p class="admonition-title">Note</p>
-<p><strong>The instructions are intentionally limited to stack/cabal</strong> to avoid wait times/availability of nix/docker files on a rapidly developing codebase - this also helps us prevent managing multiple versions of instructions.</p>
-</div>
+<h1 id="macro-syntax-error"><em>Macro Syntax Error</em><a class="headerlink" href="#macro-syntax-error" title="Permanent link">⚓︎</a></h1>
+<p><em>Line 19 in Markdown file:</em> <strong>unexpected '*'</strong>
+<div class="highlight"><pre><span></span><code>  <span class="n">T</span><span class="p">{{</span><span class="o">*</span><span class="n">Rest</span><span class="p">}}</span>
+</code></pre></div></p>
 </article>
 </div>
 </div>
@@ -471,16 +409,5 @@ O --x A --x R
 </div>
 <script id="__config" type="application/json">{"base": "..", "features": ["search.highlight", "search.share", "navigation.indexes"], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "search": "../assets/javascripts/workers/search.477d984a.min.js", "version": null}</script>
 <script src="../assets/javascripts/bundle.82b56eb2.min.js"></script>
-<script src="https://unpkg.com/mermaid@latest/dist/mermaid.min.js"></script><script>mermaid.initialize({
-    theme: "forest",
-    themeVariables: {
-        lineColor: "green",
-        actorBkg: "#4CAE4F",
-        actorLineColor: "#4CAE4F",
-        signalColor: "#4CAE4F",
-        signalTextColor: "#de649e",
-        noteBorderColor: "#000000",
-        loopTextColor: "#FFFFFF"
-    }
-});</script></body>
+</body>
 </html>

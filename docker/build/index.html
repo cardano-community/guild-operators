@@ -130,7 +130,7 @@
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../..">
+<a class="md-nav__link" href="../../index.md">
         Home
       </a>
 </li>
@@ -349,12 +349,12 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021.md">
         PGRest meetings 1
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021.md">
         PGRest meetings 2
       </a>
 </li>
@@ -424,7 +424,7 @@
 <li>stage2 → at this stage the Cardano source code is downloaded and compiled on top of the stage1.</li>
 <li>stage3 → Here is where we copy over a new debian-slim image the results of the copiled software (binaries and libs) including the guild's scripts and tools.</li>
 </ul>
-<h4 id="how-to-build">How to build<a class="headerlink" href="#how-to-build" title="Permanent link">⚓︎</a></h4>
+<h4 docsify-ignore="docsify-ignore" id="how-to-build">How to build<a class="headerlink" href="#how-to-build" title="Permanent link">⚓︎</a></h4>
 <p>You can chose to just start building from the stage3 (or a custom stage3 dockerfile) or build all 3 stages from scratch.</p>
 <p>Instead of specifying a context, you can pass a single Dockerfile in the URL or pipe the file in via STDIN.
 Pipe the chosen Dockerfile (i.e. <code>dockerfile_stage3</code>) from STDIN:</p>
@@ -443,12 +443,12 @@ Pipe the chosen Dockerfile (i.e. <code>dockerfile_stage3</code>) from STDIN:</p>
 </ul>
 <div class="highlight"><pre><span></span><code>docker build -t cardanocommunity/cardano-node:stage3 - &lt; dockerfile_stage3 
 </code></pre></div>
-<h4 id="for-windows-users">For Windows Users<a class="headerlink" href="#for-windows-users" title="Permanent link">⚓︎</a></h4>
+<h4 docsify-ignore="docsify-ignore" id="for-windows-users">For Windows Users<a class="headerlink" href="#for-windows-users" title="Permanent link">⚓︎</a></h4>
 <p>With Powershell on Windows, you can run docker by typing the following command:</p>
 <div class="highlight"><pre><span></span><code>Get-Content dockerfile_stage3  | docker build -t guild-operators/cardano-node:latest -
 </code></pre></div>
-<h4 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">⚓︎</a></h4>
-<p><a href="../tips/">Docker Tips</a></p>
+<h4 docsify-ignore="docsify-ignore" id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">⚓︎</a></h4>
+<p><a href="docker/tips.md">Docker Tips</a></p>
 <p><a href="https://docs.docker.com/">Docker Official Docs</a></p>
 </article>
 </div>

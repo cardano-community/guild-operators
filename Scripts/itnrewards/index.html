@@ -130,7 +130,7 @@
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../..">
+<a class="md-nav__link" href="../../index.md">
         Home
       </a>
 </li>
@@ -335,12 +335,12 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021.md">
         PGRest meetings 1
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021.md">
         PGRest meetings 2
       </a>
 </li>
@@ -389,22 +389,25 @@
 <h1>ITN Rewards</h1>
 <h4 id="concept">Concept<a class="headerlink" href="#concept" title="Permanent link">⚓︎</a></h4>
 <p>To claim rewards earned during the Incentivized TestNet the private and public keys from ITN must be converted to Shelley stake keys. A script called <code>itnRewards.sh</code> has been created to guide you through the process of converting the keys and to create a CNTools compatible wallet from were the rewards can be withdrawn. </p>
+<!--details>
+<summary>Expand to view</summary-->
 <div align="center" class="mermaid">graph TB
     A(["itnRewards.sh"])
-    A --x B(["ITN Owner skey (ed25519[e]_sk).."]) --x D(["cardano-cli shelley key <br/>convert-itn-key .."])
-    A --x C(["ITN Owner vkey (ed25519_pk).."]) --x D
-    D --x E(["Stake skey/vkey"]) --x L
+    A --x BITN Owner skey (ed25519[e]_sk).. --x D(["cardano-cli shelley key <br/>convert-itn-key .."])
+    A --x CITN Owner vkey (ed25519_pk).. --x D
+    D --x EStake skey/vkey --x L
     A --x F(["cardano-cli shelley .."])
-    F --x G(["Payment skey/vkey/addr"]) --x L
-    F --x H(["Reward addr"]) --x L
-    F --x I(["Base addr"]) --x L
+    F --x GPayment skey/vkey/addr --x L
+    F --x HReward addr --x L
+    F --x IBase addr --x L
     L[CNTools Wallet]
     ;
 </div>
+<!--/details-->
 <h4 id="steps">Steps<a class="headerlink" href="#steps" title="Permanent link">⚓︎</a></h4>
 <ul>
 <li>If the secret key used for <code>jcli</code> account in ITN was ed25519_sk (not extended), you can run the <code>itnRewards.sh</code> script providing the name for the CNTools wallet and ITN owner <em>public</em>/<em>secret</em> keys that were used to register your pool as below.
-  <div class="highlight"><pre><span></span><code><span class="nb">cd</span> <span class="nv">$CNODE_HOME</span>/scripts
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span> <span class="nv">$CNODE_HOME</span>/scripts
 ./itnRewards.sh MyITNWallet ~/jormu/account/priv/owner.sk ~/jormu/account/priv/owner.pk
 </code></pre></div></li>
 <li>Start CNTools and verify that the correct balance is shown in the wallet reward address</li>

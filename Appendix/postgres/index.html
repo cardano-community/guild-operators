@@ -130,7 +130,7 @@
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../..">
+<a class="md-nav__link" href="../../index.md">
         Home
       </a>
 </li>
@@ -340,12 +340,12 @@
 </nav>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021.md">
         PGRest meetings 1
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021.md">
         PGRest meetings 2
       </a>
 </li>
@@ -397,7 +397,7 @@
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
 <h1>Sample Postgres Setup</h1>
-<p>These deployment instructions used for reference while building <a href="../../Build/dbsync/">cardano-db-sync</a> tool. These are just for reference and ease of set up and consistency for those who are new to Postgres DB.
+<p>These deployment instructions used for reference while building <a href="Build/dbsync.md">cardano-db-sync</a> tool. These are just for reference and ease of set up and consistency for those who are new to Postgres DB.
 It is recommended to customise these as per your needs for Production builds.</p>
 <h4 id="install-postgresql-server">Install PostgreSQL Server<a class="headerlink" href="#install-postgresql-server" title="Permanent link">⚓︎</a></h4>
 <p>Execute commands below to set up Postgres Server</p>
@@ -412,12 +412,14 @@ It is recommended to customise these as per your needs for Production builds.</p
   <span class="nb">echo</span> <span class="s2">"deb http://apt.postgresql.org/pub/repos/apt/ </span><span class="si">${</span><span class="nv">RELEASE</span><span class="si">}</span><span class="s2">"</span>-pgdg main <span class="p">|</span> sudo tee  /etc/apt/sources.list.d/pgdg.list
   sudo apt-get update
   sudo apt-get -y install postgresql-11 postgresql-server-dev-11 postgresql-contrib libghc-hdbc-postgresql-dev
+  sudo sed -i <span class="s2">"s#  ident#  md5#g"</span> /etc/postgresql/11/main/pg_hba.conf
   sudo systemctl restart postgresql
   sudo systemctl <span class="nb">enable</span> postgresql
 <span class="k">elif</span> <span class="o">[</span> -z <span class="s2">"</span><span class="si">${</span><span class="nv">OS_ID</span><span class="p">##*rhel*</span><span class="si">}</span><span class="s2">"</span> <span class="o">]</span><span class="p">;</span> <span class="k">then</span>
   <span class="c1">#CentOS/RHEL/Fedora</span>
   sudo yum install -y postgresql-server postgresql-server-devel postgresql-contrib postgresql-devel libpq-devel
   sudo postgresql-setup initdb
+  sudo sed -i <span class="s2">"s#  ident#  md5#g"</span> /var/lib/pgsql/data/pg_hba.conf
   sudo systemctl start postgresql
   sudo systemctl <span class="nb">enable</span> postgresql
 <span class="k">else</span>
@@ -440,7 +442,7 @@ Execute the below in psql prompt. Replace <strong><username></username></strong>
 Type <code>exit</code> at shell to return to your user from postgres</p>
 <h4 id="verify-login-to-postgres-instance">Verify Login to postgres instance<a class="headerlink" href="#verify-login-to-postgres-instance" title="Permanent link">⚓︎</a></h4>
 <div class="highlight"><pre><span></span><code><span class="nb">export</span> <span class="nv">PGPASSFILE</span><span class="o">=</span><span class="nv">$CNODE_HOME</span>/priv/.pgpass
-<span class="nb">echo</span> <span class="s2">"/var/run/postgresql:5432:cexplorer:*:*"</span> &gt; <span class="nv">$PGPASSFILE</span>
+<span class="nb">echo</span> <span class="s2">"localhost:5432:cexplorer:</span><span class="k">$(</span>whoami<span class="k">)</span><span class="s2">:PasswordYouWant"</span> &gt; <span class="nv">$PGPASSFILE</span>
 chmod <span class="m">0600</span> <span class="nv">$PGPASSFILE</span>
 psql postgres
 <span class="c1"># psql (10.6)</span>
@@ -467,13 +469,13 @@ psql postgres
             </div>
 </div>
 </a>
-<a aria-label="Next: PGRest meetings 1" class="md-footer__link md-footer__link--next" href="../../pgrest-meetings/25Jun2021/" rel="next">
+<a aria-label="Next: Contributors" class="md-footer__link md-footer__link--next" href="../../contributors/" rel="next">
 <div class="md-footer__title">
 <div class="md-ellipsis">
 <span class="md-footer__direction">
                 Next
               </span>
-              PGRest meetings 1
+              Contributors
             </div>
 </div>
 <div class="md-footer__button md-icon">

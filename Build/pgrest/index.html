@@ -25,7 +25,7 @@
 <input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
 <label class="md-overlay" for="__drawer"></label>
 <div data-md-component="skip">
-<a class="md-skip" href="#perms">
+<a class="md-skip" href="#prepare-database">
           Skip to content
         </a>
 </div>
@@ -130,7 +130,7 @@
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../..">
+<a class="md-nav__link" href="../../index.md">
         Home
       </a>
 </li>
@@ -182,22 +182,8 @@
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="#perms">
-    Enable permissions in Database
-  </a>
-<nav aria-label="Enable permissions in Database" class="md-nav">
-<ul class="md-nav__list">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#start-pgrest">
-    Create Config and Start PostgREST
-  </a>
-</li>
-</ul>
-</nav>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#validation">
-    Validation
+<a class="md-nav__link" href="#prepare-database">
+    Prepare Database
   </a>
 </li>
 </ul>
@@ -344,12 +330,12 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021.md">
         PGRest meetings 1
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021.md">
         PGRest meetings 2
       </a>
 </li>
@@ -376,22 +362,8 @@
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="#perms">
-    Enable permissions in Database
-  </a>
-<nav aria-label="Enable permissions in Database" class="md-nav">
-<ul class="md-nav__list">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#start-pgrest">
-    Create Config and Start PostgREST
-  </a>
-</li>
-</ul>
-</nav>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#validation">
-    Validation
+<a class="md-nav__link" href="#prepare-database">
+    Prepare Database
   </a>
 </li>
 </ul>
@@ -405,23 +377,20 @@
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
 <h1>PostgREST</h1>
-<div class="admonition important">
-<p class="admonition-title">Important</p>
-<ul>
-<li>An average pool operator may not require this component at all. Please verify if it is required for your use as mentioned <a href="../../build/#components">here</a></li>
-<li>Ensure the <a href="../../basics/#pre-requisites">Pre-Requisites</a> are in place before you proceed.</li>
-</ul>
-</div>
+<p>!&gt; - An average pool operator may not require this component at all. Please verify if it is required for your use as mentioned <a href="build.md#components">here</a></p>
+<blockquote>
+<p>Ensure the <a href="basics.md#pre-requisites">Pre-Requisites</a> are in place before you proceed.</p>
+</blockquote>
 <p><a href="https://postgrest.org/en/latest">PostgREST</a> is a web server that serves any PostgreSQL database (in our case, useful for <code>cardano-db-sync</code> and <code>smash</code>) as a RESTful Web Service. The endpoints of PostgREST in itself are essentially the table itself. You can read more about exploring the API <a href="https://postgrest.org/en/latest/api.html">here</a>. Understandably, it would of course rely on an existing PostgreSQL server. At the moment of writing, this is being used as an easy alternative - which will remain up-to-date since it is directly serving the underlying database as an API, as compared to <code>Cardano GraphQL</code> component. Some of the other advantages would also be that you can serve JWT authentication, or use native Postgres DB authentication against the Rest Interface as well (see <a href="https://postgrest.org/en/latest/tutorials/tut1.html">here</a> for adding this to your instance), and the web server it uses can be hardened or served behind another nginx/httpd/.. reverse proxy as per your SecOps preferences.</p>
-<p>Again, the focus of this guide (for now) is not to tell you how to secure your PostgREST instance, but to get you up and running quickly. You'd want to harden your instance as per instructions <a href="https://postgrest.org/en/latest/admin.html?highlight=SSL">here</a> once you're happy with the usage. The guide below assumes PostgreSQL instance has already been set up (refer to <a href="../../Appendix/postgres/">Sample Local PostgreSQL Server Deployment instructions</a> ) along with <a href="../dbsync/">cardano-db-sync</a>.</p>
-<h3 id="perms">Enable permissions in Database<a class="headerlink" href="#perms" title="Permanent link">⚓︎</a></h3>
+<p>Again, the focus of this guide (for now) is not to tell you how to secure your PostgREST instance, but to get you up and running quickly. You'd want to harden your instance as per instructions <a href="https://postgrest.org/en/latest/admin.html?highlight=SSL">here</a> once you're happy with the usage. The guide below assumes PostgreSQL instance has already been set up (refer to <a href="Appendix/postgres.md">Sample Local PostgreSQL Server Deployment instructions</a> ) along with <a href="build/dbsync.md">cardano-db-sync</a>.</p>
+<h4 docsify-ignore="docsify-ignore" id="prepare-database">Prepare Database<a class="headerlink" href="#prepare-database" title="Permanent link">⚓︎</a></h4>
 <p>For simplicity, the download of latest PostgREST instance is already available via executing the below:</p>
 <div class="highlight"><pre><span></span><code>mkdir ~/tmp<span class="p">;</span><span class="nb">cd</span> ~/tmp
 wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh
 ./prereqs.sh -p
 </code></pre></div>
-<p>This would download and make <code>postgrest</code> binary available in <code>${HOME}/.cabal/bin</code> which is also where your DB Sync binaries would be, assuming you've followed <a href="../dbsync/">this guide</a>.</p>
-<p>To start with you'd want to ensure your current shell session has access to Postgres credentials, continuing from examples from the above mentioned <a href="../../Appendix/postgres/">Sample Postgres deployment guide</a>.</p>
+<p>This would download and make <code>postgrest</code> binary available in <code>${HOME}/.cabal/bin</code> which is also where your DB Sync binaries would be, assuming you've followed <a href="build/dbsync.md">this guide</a>.</p>
+<p>To start with you'd want to ensure your current shell session has access to Postgres credentials, continuing from examples from the above mentioned <a href="Appendix/postgres.md">Sample Postgres deployment guide</a>.</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span> <span class="nv">$CNODE_HOME</span>/priv
 <span class="nv">PGPASSFILE</span><span class="o">=</span><span class="nv">$CNODE_HOME</span>/priv/.pgpass
 </code></pre></div>
@@ -432,14 +401,11 @@ wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/
 <span class="k">ALTER</span> <span class="k">DEFAULT</span> <span class="k">PRIVILEGES</span> <span class="k">IN</span> <span class="k">SCHEMA</span> <span class="k">public</span> <span class="k">GRANT</span> <span class="k">SELECT</span> <span class="k">ON</span> <span class="n">TABLES</span> <span class="k">TO</span> <span class="n">web_anon</span><span class="p">;</span>
 </code></pre></div>
 <p>You can now quit your psql session using <code>\q</code>.</p>
-<h4 id="start-pgrest">Create Config and Start PostgREST<a class="headerlink" href="#start-pgrest" title="Permanent link">⚓︎</a></h4>
+<h5 id="create-config-and-start-postgrest">Create Config and Start PostgREST<a class="headerlink" href="#create-config-and-start-postgrest" title="Permanent link">⚓︎</a></h5>
 <p>Now that your user is created in database, you can create the postgrest config. A basic sample is below:</p>
-<div class="admonition info">
-<p class="admonition-title">Reminder !!</p>
-<p>Replace <code>${USER}</code> and <code>${PASSWORD}</code> to match the username and password you can authenticate with for <code>psql</code> (defined in <code>$CNODE_HOME/priv/.pgpass</code> file in our example).</p>
-</div>
+<p>!&gt; Replace <code>${USER}</code> and <code>${PASSWORD}</code> to match the username and password you can authenticate with for <code>psql</code> (defined in <code>$CNODE_HOME/priv/.pgpass</code> file in our example).</p>
 <div class="highlight"><pre><span></span><code>cat <span class="s">&lt;&lt; 'EOF' &gt; $CNODE_HOME/priv/pgrest.conf</span>
-<span class="s">db-uri = "postgres://${USER}@/cexplorer"</span>
+<span class="s">db-uri = "postgres://${USER}:${PASSWORD}@localhost/cexplorer"</span>
 <span class="s">db-schema = "public"</span>
 <span class="s">db-anon-role = "web_anon"</span>
 <span class="s">server-host = "127.0.0.1"</span>
@@ -459,7 +425,7 @@ wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/
 <span class="c1">## Listening on port 8050</span>
 <span class="c1">## Connection successful</span>
 </code></pre></div>
-<h3 id="validation">Validation<a class="headerlink" href="#validation" title="Permanent link">⚓︎</a></h3>
+<h5 id="test-queries">Test queries<a class="headerlink" href="#test-queries" title="Permanent link">⚓︎</a></h5>
 <p>While you can query PostgREST a browser from a browser if listening on <code>0.0.0.0</code> , we'd stick to querying your instance via <code>curl</code> on terminal, so that we're not troubleshooting any firewall/network configuration issues. Now, the nomenclature we used should have connected you to the <code>cardano-db-sync</code> instance. Assuming it is already populated (even partially), you can try explore tables as REST endpoints.</p>
 <ol>
 <li>

@@ -130,7 +130,7 @@
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../..">
+<a class="md-nav__link" href="../../index.md">
         Home
       </a>
 </li>
@@ -179,35 +179,6 @@
 <li class="md-nav__item">
 <a class="md-nav__link" href="#build-instructions">
     Build Instructions
-  </a>
-<nav aria-label="Build Instructions" class="md-nav">
-<ul class="md-nav__list">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#clone-the-repository">
-    Clone the repository
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#build-cardano-db-sync">
-    Build Cardano DB Sync
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#prepare-db-for-sync">
-    Prepare DB for sync
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#start-synching">
-    Start Synching
-  </a>
-</li>
-</ul>
-</nav>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#validation">
-    Validation
   </a>
 </li>
 </ul>
@@ -359,12 +330,12 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021.md">
         PGRest meetings 1
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021.md">
         PGRest meetings 2
       </a>
 </li>
@@ -394,35 +365,6 @@
 <a class="md-nav__link" href="#build-instructions">
     Build Instructions
   </a>
-<nav aria-label="Build Instructions" class="md-nav">
-<ul class="md-nav__list">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#clone-the-repository">
-    Clone the repository
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#build-cardano-db-sync">
-    Build Cardano DB Sync
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#prepare-db-for-sync">
-    Prepare DB for sync
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#start-synching">
-    Start Synching
-  </a>
-</li>
-</ul>
-</nav>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#validation">
-    Validation
-  </a>
 </li>
 </ul>
 </nav>
@@ -435,22 +377,20 @@
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
 <h1>DBSync</h1>
-<div class="admonition important">
-<p class="admonition-title">Important</p>
-<p>An average pool operator may not require cardano-db-sync at all. Please verify if it is required for your use as mentioned <a href="../../build/#components">here</a>.  </p>
-<ul>
-<li>Ensure the <a href="../../basics/#pre-requisites">Pre-Requisites</a> are in place before you proceed.</li>
-<li>The <a href="https://github.com/input-output-hk/cardano-db-sync">Cardano DB Sync</a> relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to <a href="../../Appendix/postgres/">Sample Local PostgreSQL Server Deployment instructions</a> for setting up a Postgres instance. Specifically, we expect the <code>PGPASSFILE</code> environment variable is set as per the instructions in the sample guide, for <code>db-sync</code> to be able to connect.</li>
-</ul>
-</div>
-<h3 id="build-instructions">Build Instructions<a class="headerlink" href="#build-instructions" title="Permanent link">⚓︎</a></h3>
-<h4 id="clone-the-repository">Clone the repository<a class="headerlink" href="#clone-the-repository" title="Permanent link">⚓︎</a></h4>
+<p>!&gt; - An average pool operator may not require cardano-db-sync at all. Please verify if it is required for your use as mentioned <a href="build.md#components">here</a></p>
+<blockquote>
+<p>Ensure the <a href="basics.md#pre-requisites">Pre-Requisites</a> are in place before you proceed.
+- The <a href="https://github.com/input-output-hk/cardano-db-sync">Cardano DB Sync</a> relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to <a href="Appendix/postgres.md">Sample Local PostgreSQL Server Deployment instructions</a> for setting up a Postgres instance. Specifically, we expect the <code>PGPASSFILE</code> environment variable is set as per the instructions in the sample guide, for <code>db-sync</code> to be able to connect.
+- The instructions are not maintained daily, but will be with major releases (expect a bit of time post new release to get those updated)</p>
+</blockquote>
+<h4 docsify-ignore="docsify-ignore" id="build-instructions">Build Instructions<a class="headerlink" href="#build-instructions" title="Permanent link">⚓︎</a></h4>
+<h5 id="clone-the-repository">Clone the repository<a class="headerlink" href="#clone-the-repository" title="Permanent link">⚓︎</a></h5>
 <p>Execute the below to clone the <code>cardano-db-sync</code> repository to <code>$HOME/git</code> folder on your system:</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span> ~/git
 git clone https://github.com/input-output-hk/cardano-db-sync
 <span class="nb">cd</span> cardano-db-sync
 </code></pre></div>
-<h4 id="build-cardano-db-sync">Build Cardano DB Sync<a class="headerlink" href="#build-cardano-db-sync" title="Permanent link">⚓︎</a></h4>
+<h5 id="build-cardano-db-sync">Build Cardano DB Sync<a class="headerlink" href="#build-cardano-db-sync" title="Permanent link">⚓︎</a></h5>
 <p>You can use the instructions below to build the latest release of <code>cardano-db-sync</code>.</p>
 <p><div class="highlight"><pre><span></span><code>git fetch --tags --all
 git pull
@@ -463,7 +403,7 @@ git checkout <span class="k">$(</span>curl -s https://api.github.com/repos/input
 <span class="nv">$CNODE_HOME</span>/scripts/cabal-build-all.sh
 </code></pre></div>
 The above would copy the binaries into <code>~/.cabal/bin</code> folder.</p>
-<h4 id="prepare-db-for-sync">Prepare DB for sync<a class="headerlink" href="#prepare-db-for-sync" title="Permanent link">⚓︎</a></h4>
+<h5 id="prepare-db-for-cardano-db-sync">Prepare DB for cardano-db-sync :<a class="headerlink" href="#prepare-db-for-cardano-db-sync" title="Permanent link">⚓︎</a></h5>
 <p>Now that binaries are available, let's create our database (when going through breaking changes, you may need to use <code>--recreatedb</code> instead of <code>--createdb</code> used for the first time. Again, we expect that <code>PGPASSFILE</code> environment variable is already set (refer to the top of this guide for sample instructions):</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span> ~/git/cardano-db-sync
 <span class="c1"># scripts/postgresql-setup.sh --dropdb #if exists already, will fail if it doesnt - thats OK</span>
@@ -473,12 +413,12 @@ scripts/postgresql-setup.sh --createdb
 <span class="c1"># All good!</span>
 <span class="c1">## Verify you can see "All good!" as above</span>
 </code></pre></div>
-<h4 id="start-synching">Start Synching<a class="headerlink" href="#start-synching" title="Permanent link">⚓︎</a></h4>
+<h5 id="start-cardano-db-sync-tool">Start cardano-db-sync-tool<a class="headerlink" href="#start-cardano-db-sync-tool" title="Permanent link">⚓︎</a></h5>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span> ~/git/cardano-db-sync
 cardano-db-sync-extended --config <span class="nv">$CNODE_HOME</span>/files/dbsync.json --socket-path <span class="nv">$CNODE_HOME</span>/sockets/node0.socket --state-dir <span class="nv">$CNODE_HOME</span>/guild-db/ledger-state --schema-dir schema/
 </code></pre></div>
-<p>You can use same instructions above to repeat and execute <code>cardano-db-sync</code> as well, but <code>cardano-db-sync-extended</code> provides additional views/useful data ready to be consumed by query layer. Note that synching entire blockchain from scratch could take a few hours.</p>
-<h3 id="validation">Validation<a class="headerlink" href="#validation" title="Permanent link">⚓︎</a></h3>
+<p>You can use same instructions above to repeat and execute <code>cardano-db-sync</code> as well, but <a href="Build/graphql.md">cardano-graphql</a> uses <code>cardano-db-sync-extended</code>, so we'll stick to it.</p>
+<h5 id="validation">Validation<a class="headerlink" href="#validation" title="Permanent link">⚓︎</a></h5>
 <p>To validate, connect to your <code>postgres</code> instance and execute commands as per below:</p>
 <div class="highlight"><pre><span></span><code><span class="nb">export</span> <span class="nv">PGPASSFILE</span><span class="o">=</span><span class="nv">$CNODE_HOME</span>/priv/.pgpass
 psql cexplorer
@@ -487,7 +427,7 @@ psql cexplorer
 <div class="highlight"><pre><span></span><code><span class="err">\</span><span class="n">dt</span>
 <span class="k">select</span> <span class="o">*</span> <span class="k">from</span> <span class="n">meta</span><span class="p">;</span>
 </code></pre></div>
-<p>A sample output of the above two commands may look like below (the number of tables and names may vary between versions):</p>
+<p>A sample output of the above two commands may look like below:</p>
 <div class="highlight"><pre><span></span><code>cexplorer=# \dt
 List of relations
  Schema |           Name            | Type  | Owner

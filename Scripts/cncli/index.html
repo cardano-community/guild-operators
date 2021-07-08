@@ -25,9 +25,6 @@
 <input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
 <label class="md-overlay" for="__drawer"></label>
 <div data-md-component="skip">
-<a class="md-skip" href="#installation">
-          Skip to content
-        </a>
 </div>
 <div data-md-component="announce">
 </div>
@@ -130,7 +127,7 @@
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../..">
+<a class="md-nav__link" href="../../index.md">
         Home
       </a>
 </li>
@@ -233,41 +230,9 @@
 </li>
 <li class="md-nav__item md-nav__item--active">
 <input class="md-nav__toggle md-toggle" data-md-toggle="toc" id="__toc" type="checkbox"/>
-<label class="md-nav__link md-nav__link--active" for="__toc">
-          CNCLI
-          <span class="md-nav__icon md-icon"></span>
-</label>
 <a class="md-nav__link md-nav__link--active" href="./">
         CNCLI
       </a>
-<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
-<label class="md-nav__title" for="__toc">
-<span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#installation">
-    Installation
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#configuration">
-    Configuration
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#run">
-    Run
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#view-blocklog">
-    View Blocklog
-  </a>
-</li>
-</ul>
-</nav>
 </li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="../gliveview/">
@@ -345,12 +310,12 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021.md">
         PGRest meetings 1
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021.md">
         PGRest meetings 2
       </a>
 </li>
@@ -367,50 +332,13 @@
 </div>
 </div>
 </div>
-<div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
-<div class="md-sidebar__scrollwrap">
-<div class="md-sidebar__inner">
-<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
-<label class="md-nav__title" for="__toc">
-<span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#installation">
-    Installation
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#configuration">
-    Configuration
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#run">
-    Run
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#view-blocklog">
-    View Blocklog
-  </a>
-</li>
-</ul>
-</nav>
-</div>
-</div>
-</div>
 <div class="md-content" data-md-component="content">
 <article class="md-content__inner md-typeset">
 <a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/Scripts/cncli.md" title="Edit this page">
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
 <h1>CNCLI</h1>
-<div class="admonition info">
-<p class="admonition-title">Reminder !!</p>
-<p>Ensure the <a href="../../basics/#pre-requisites">Pre-Requisites</a> are in place before you proceed.</p>
-</div>
+<p>!&gt; Ensure the <a href="basics.md#pre-requisites">Pre-Requisites</a> are in place before you proceed.</p>
 <p><code>cncli.sh</code> is a script to download and deploy <a href="https://github.com/AndrewWestberg/cncli">CNCLI</a> created and maintained by Andrew Westberg. It's a community-based CLI tool written in RUST for low-level <code>cardano-node</code> communication. Usage is <strong>optional</strong> and no script is dependent on it. The main features include:</p>
 <ul>
 <li><strong>PING</strong> - Validates that the remote server is on the given network and returns its response time. Utilized by <code>gLiveView</code> for peer analysis if available. </li>
@@ -420,9 +348,9 @@
 <li><strong>SENDTIP</strong> - Send node tip to <a href="https://pooltool.io/">PoolTool</a> for network analysis and to show that your node is alive and well with a green badge.</li>
 <li><strong>SENDSLOTS</strong> - Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs.</li>
 </ul>
-<h4 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">⚓︎</a></h4>
+<h5 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">⚓︎</a></h5>
 <p><code>cncli.sh</code> script's main functions, <code>sync</code>, <code>leaderlog</code>, <code>validate</code> and PoolTool <code>sendslots</code>/<code>sendtip</code> are not meant to be run manually, but instead deployed as systemd services that run in the background to do the block scraping and validation automatically. Additional commands exist for manual execution to initiate the <code>sqlite</code> db, filling the blocklog DB with all blocks created by the pool known to the blockchain, migration of old cntoolsBlockCollector JSON blocklog, and re-validation of blocks and leaderlogs. See usage output below for a complete list of available commands.</p>
-<p>The script works in tandem with <a href="../logmonitor/">Log Monitor</a> to provide faster adopted status but mainly to catch slots the node is leader for but are unable to create a block for. These are marked as invalid. Blocklog will however work fine without the <code>logMonitor</code> service and <code>CNCLI</code> is able to handle everything except catching invalid blocks.</p>
+<p>The script works in tandem with <a href="Scripts/logmonitor.md">Log Monitor</a> to provide faster adopted status but mainly to catch slots the node is leader for but are unable to create a block for. These are marked as invalid. Blocklog will however work fine without the <code>logMonitor</code> service and <code>CNCLI</code> is able to handle everything except catching invalid blocks.</p>
 <ol>
 <li>Run the latest version of <code>prereqs.sh</code> with <code>prereqs.sh -c</code> to download and install RUST and CNCLI. IOG fork of libsodium required by CNCLI is automatically compiled by CNCLI build process. If a previous installation is found, RUST and CNCLI will be updated to the latest version.</li>
 <li>Run <code>deploy-as-systemd.sh</code> to deploy the systemd services that handle all the work in the background. Six systemd services in total are deployed whereof four are related to CNCLI. See above for the different purposes they serve.</li>
@@ -437,9 +365,9 @@
 <li><code>cnode-cncli-validate.service</code></li>
 <li><code>cnode-cncli-ptsendtip.service</code></li>
 <li><code>cnode-cncli-ptsendslots.service</code></li>
-<li><code>cnode-logmonitor.service</code> (see <a href="../logmonitor/">Log Monitor</a>)</li>
+<li><code>cnode-logmonitor.service</code> (see <a href="Scripts/logmonitor.md">Log Monitor</a>)</li>
 </ol>
-<h4 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">⚓︎</a></h4>
+<h5 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">⚓︎</a></h5>
 <p>You can override the values in the script at the User Variables section shown below. <strong>POOL_ID</strong>, <strong>POOL_VRF_SKEY</strong> and <strong>POOL_VRF_VKEY</strong> should automatically be detected if <code>POOL_NAME</code> is set in the common <code>env</code> file and can be left commented. <strong>PT_API_KEY</strong> and <strong>POOL_TICKER</strong> need to be set in the script if PoolTool <code>sendtip</code>/<code>sendslots</code> are to be used before starting the services. For the rest of the commented values, if the defaults do not provide the right values, uncomment and make adjustments.</p>
 <div class="highlight"><pre><span></span><code>#POOL_ID=""                               # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation &amp; pooltool sendtip, lower-case hex pool id
 #POOL_VRF_SKEY=""                         # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation, path to pool's vrf.skey file
@@ -455,9 +383,12 @@
 #TIMEOUT_LEDGER_STATE=300                 # CNCLI leaderlog: timeout in seconds for ledger-state query
 #BATCH_AUTO_UPDATE=N                      # Set to Y to automatically update the script if a new version is available without user interaction
 </code></pre></div>
-<h4 id="run">Run<a class="headerlink" href="#run" title="Permanent link">⚓︎</a></h4>
+<h5 id="run">Run<a class="headerlink" href="#run" title="Permanent link">⚓︎</a></h5>
 <p>Services are controlled by <code>sudo systemctl &lt;status|start|stop|restart&gt; &lt;service name&gt;</code><br/>
 All services are configured as child services to <code>cnode.service</code> and as such, when an action is taken against this service it's replicated to all child services. E.g running <code>sudo systemctl start cnode.service</code> will also start all child services. </p>
+<blockquote>
+<p>Make sure to set appropriate values according to <a href="#configuration">Configuration</a> section before starting services.</p>
+</blockquote>
 <p>Log output is handled by syslog and end up in the systems standard syslog file, normally <code>/var/log/syslog</code>. <code>journalctl -f -u &lt;service&gt;</code> can be used to check service output (follow mode). Other logging configurations are not covered here. </p>
 <p>Recommended workflow to get started with CNCLI blocklog.</p>
 <ol>
@@ -490,7 +421,7 @@ init        One-time initialization adding all minted and confirmed blocks to bl
 migrate     One-time migration from old blocklog (cntoolsBlockCollector) to new format (post cncli)
   path      Path to the old cntoolsBlockCollector blocklog folder holding json files with blocks created
 </code></pre></div>
-<h4 id="view-blocklog">View Blocklog<a class="headerlink" href="#view-blocklog" title="Permanent link">⚓︎</a></h4>
+<h5 id="view-blocklog">View Blocklog<a class="headerlink" href="#view-blocklog" title="Permanent link">⚓︎</a></h5>
 <p>Best and easiest viewed in CNTools and <code>gLiveView</code> but the blocklog database is a SQLite DB so if you are comfortable with SQL, the <code>sqlite3</code> command can be used to query the DB. </p>
 <p><strong>Block status</strong>
 - Leader    : Scheduled to make block at this slot
@@ -502,11 +433,11 @@ migrate     One-time migration from old blocklog (cntoolsBlockCollector) to new 
 - Ghosted   : Block created but marked as orphaned and no other pool has made a valid block for this slot -&gt; height battle or block propagation issue
 - Stolen    : Another pool has a valid block registered on-chain for the same slot
 - Invalid   : Pool failed to create block, base64 encoded error message can be decoded with <code>echo &lt;base64 hash&gt; | base64 -d | jq -r</code></p>
-<div class="tabbed-set" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio"><label for="__tabbed_1_1">CNTools</label><div class="tabbed-content">
-<p>Open CNTools and select <code>[b] Blocks</code> to open the block viewer.<br/>
+<p><strong>CNTools</strong>
+Open CNTools and select <code>[b] Blocks</code> to open the block viewer.<br/>
 Either select <code>Epoch</code> and enter the epoch you want to see a detailed view for or choose <code>Summary</code> to display blocks for last x epochs.</p>
 <p>If the node was elected to create blocks in the selected epoch it could look something like this:</p>
-<div class="tabbed-set" data-tabs="2:2"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio"><label for="__tabbed_2_1">Summary</label><div class="tabbed-content">
+<p><strong>CNTools Summary</strong>
 <div class="highlight"><pre><span></span><code> &gt;&gt; BLOCKS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Current epoch: 96
@@ -520,8 +451,7 @@ Current epoch: 96
 
 [h] Home | [b] Block View | [i] Info | [*] Refresh
 </code></pre></div>
-</div>
-<input id="__tabbed_2_2" name="__tabbed_2" type="radio"><label for="__tabbed_2_2">Epoch</label><div class="tabbed-content">
+<strong>CNTools Epoch</strong>
 <div class="highlight"><pre><span></span><code> &gt;&gt; BLOCKS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Current epoch: 96
@@ -570,20 +500,15 @@ Current epoch: 96
 | 33  | leader     | -        | 11518958 | 416558   | 2020-11-20 17:02:54 CET  | -     | -                                                                 |
 | 34  | leader     | -        | 11533254 | 430854   | 2020-11-20 21:01:10 CET  | -     | -                                                                 |
 +-----+------------+----------+---------------------+--------------------------+-------+-------------------------------------------------------------------+
-</code></pre></div>
-</div>
-</input></input></div>
-</div>
-<input id="__tabbed_1_2" name="__tabbed_1" type="radio"><label for="__tabbed_1_2">gLiveView</label><div class="tabbed-content">
-<p>Currently shows a block summary for current epoch. For full block details use CNTools for now. Invalid, missing, ghosted and stolen blocks only shown in case of a non-zero value.</p>
+</code></pre></div></p>
+<p><strong>gLiveView</strong>
+Currently shows a block summary for current epoch. For full block details use CNTools for now. Invalid, missing, ghosted and stolen blocks only shown in case of a non-zero value.
 <div class="highlight"><pre><span></span><code>│--------------------------------------------------------------│
 │ BLOCKS   Leader  | Ideal  | Luck    | Adopted | Confirmed    │
 │          24        27.42    87.53%    1         1            │
 │          08:07:57 until leader XXXXXXXXX.....................│
-└────────────────────────────────────────────────────────────────────┘
-</code></pre></div>
-</div>
-</input></input></div>
+└──────────────────────────────────────────────────────────────┘
+</code></pre></div></p>
 </article>
 </div>
 </div>
