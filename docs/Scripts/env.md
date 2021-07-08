@@ -1,7 +1,7 @@
-A common environment file called `env` is sourced by most scripts in the Guild Operators repository. This file holds common variables and functions needed by more than one script. There are several benefits to this, not having duplicate settings in several files being one of them decreasing the risk of misconfiguration.
+A common environment file called `env` is sourced by most scripts in the Guild Operators repository. This file holds common variables and functions needed by other scripts. There are several benefits to this, not having to specify duplicate settings and being able to reuse functions decreasing the risk of misconfiguration and inconsistency.
 
 #### Installation
-`env` file is downloaded together with the rest of the scripts when [Pre-Requisites](basics.md#pre-requisites) if followed and located in the `$CNODE_HOME/scripts/` directory. The file is also automatically downloaded/updated by some of the individual scripts if missing, like `cntools.sh`, `gLiveView.sh` and `topologyUpdater.sh`. All custom changes in User Variables section are untouched on updates unless a forced overwrite is selected when running `prereqs.sh`.
+`env` file is downloaded together with the rest of the scripts when [Pre-Requisites](../basics.md#pre-requisites) if followed and located in the `$CNODE_HOME/scripts/` directory. The file is also automatically downloaded/updated by some of the individual scripts if missing, like `cntools.sh`, `gLiveView.sh` and `topologyUpdater.sh`. All custom changes in User Variables section are untouched on updates unless a forced overwrite is selected when running `prereqs.sh`.
 
 #### Configuration
 Most variables can be left commented to use the automatically detected or default value. But there are some that need to be set as explained below.
@@ -10,7 +10,7 @@ Most variables can be left commented to use the automatically detected or defaul
 * `CNODE_HOME` - The root directory of the Cardano node holding all the files needed. Can be left commented if `prereqs.sh` has been run as this variable is then exported and added as a system environment variable.
 * `POOL_NAME` - If the node is to be started as a block producer by `cnode.sh` this variable needs to be uncommented and set. This is the name given to the pool in CNTools (not ticker), i.e. the pool directory name under `$CNODE_HOME/priv/pool/<POOL_NAME>`
 
-Take your time and look through the different variables and their explanations and decide if you need/want to change the default setting. For a default deployment using `prereqs.sh`, the `CNODE_PORT` (all installs) and `POOL_NAME` (only block producer) should be the only variables needed to be set. A snippet of the `env` file shown below.
+**Take your time and look through the different variables** and their explanations and decide if you need/want to change the default setting. For a default deployment using `prereqs.sh`, the `CNODE_PORT` (all installs) and `POOL_NAME` (only block producer) should be the only variables needed to be set.
 
 ``` bash
 ######################################
@@ -39,7 +39,7 @@ CNODE_PORT=6000                                         # Set node port
 #BLOCKLOG_TZ="UTC"                                      # TimeZone to use when displaying blocklog - https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 #SHELLEY_TRANS_EPOCH=208                                # Override automatic detection of shelley epoch start, e.g 208 for mainnet
 #TG_BOT_TOKEN=""                                        # Uncomment and set to enable telegramSend function. To create your own BOT-token and Chat-Id follow guide at:
-#TG_CHAT_ID=""                                          # https://cardano-community.github.io/guild-operators/#/Scripts/sendalerts
+#TG_CHAT_ID=""                                          # https://cardano-community.github.io/guild-operators/Scripts/sendalerts
 #USE_EKG="N"                                            # Use EKG metrics from the node instead of Promethus. Promethus metrics(default) should yield slightly better performance
 #TIMEOUT_LEDGER_STATE=300                               # Timeout in seconds for querying and dumping ledger-state
 #IP_VERSION=4                                           # The IP version to use for push and fetch, valid options: 4 | 6 | mix (Default: 4)

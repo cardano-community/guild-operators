@@ -512,7 +512,7 @@ function main {
                     println DEBUG " ${FG_LGRAY}>${NC} Track rewards in Daedalus/Yoroi"
                     echo
                     println DEBUG "Please read more about HD wallets at:"
-                    println DEBUG "https://cardano-community.github.io/support-faq/#/wallets?id=heirarchical-deterministic-hd-wallets"
+                    println DEBUG "https://cardano-community.github.io/support-faq/wallets?id=heirarchical-deterministic-hd-wallets"
                     waitForInput && continue
                     ;; ###################################################################
 
@@ -4429,7 +4429,7 @@ function main {
                     echo
                     if ! cmdAvailable "token-metadata-creator"; then
                       println ERROR "Please follow instructions on Guild Operators site to download or build the tool:"
-                      println ERROR "${FG_YELLOW}https://cardano-community.github.io/guild-operators/#/Build/offchainMetadataTools${NC}"
+                      println ERROR "${FG_YELLOW}https://cardano-community.github.io/guild-operators/Build/offchainMetadataTools${NC}"
                       waitForInput && continue
                     fi
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies found!${NC}\n\nPlease first create a policy to use for Cardano Token Registry" && waitForInput && continue
@@ -4535,7 +4535,7 @@ function main {
                     
                     # Adding Creator-Credits
                     tmpJSON=$(cat ${meta_file})
-                    tmpJSON=$(jq ". += {tool: {description: \"CNTools by Guild Operators\", url: \"https://cardano-community.github.io/guild-operators/#/Scripts/cntools\"} } " <<< ${tmpJSON})
+                    tmpJSON=$(jq ". += {tool: {description: \"CNTools by Guild Operators\", url: \"https://cardano-community.github.io/guild-operators/Scripts/cntools\"} } " <<< ${tmpJSON})
                     echo -e "${tmpJSON}" > ${meta_file}
                     
                     # Validating the final metadata registry submission file

@@ -6,19 +6,19 @@ PARENT="$(dirname "$0")"
 
 if ! command -v psql &>/dev/null; then 
   echo -e "${FG_RED}ERROR${NC}: psql command not found, make sure that you have Cardano DBSync setup correctly"
-  echo -e "\nhttps://cardano-community.github.io/guild-operators/#/Appendix/postgres\n"
+  echo -e "\nhttps://cardano-community.github.io/guild-operators/Appendix/postgres\n"
   exit 1
 fi
 
 if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" ]]; then
   echo -e "${FG_RED}ERROR${NC}: PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}"
-  echo -e "\nhttps://cardano-community.github.io/guild-operators/#/Build/dbsync\n"
+  echo -e "\nhttps://cardano-community.github.io/guild-operators/Build/dbsync\n"
   exit 1
 fi
 
 if ! dbsync_network=$(psql -qtAX -d cexplorer -c "select network_name from meta;" 2>&1); then
   echo -e "${FG_RED}ERROR${NC}: querying Cardano DBSync PostgreSQL DB:\n${dbsync_network}"
-  echo -e "\nhttps://cardano-community.github.io/guild-operators/#/Build/dbsync\n"
+  echo -e "\nhttps://cardano-community.github.io/guild-operators/Build/dbsync\n"
   exit 1
 fi
 echo -e "Successfully connected to ${FG_LBLUE}${dbsync_network}${NC} Cardano DBSync PostgreSQL DB!"

@@ -1,29 +1,31 @@
-The documentation here uses instructions from [IOHK repositories](https://github.com/input-output-hk) as a foundation, with additional info which we can contribute to where appropriate. Note that not everyone needs to build each component. You can refer to [architecture](basics.md#architecture) to understand and qualify which components you want to run.
+The documentation here uses instructions from [IOHK repositories](https://github.com/input-output-hk) as a foundation, with additional info which we can contribute to where appropriate. Note that not everyone needs to build each component. You can refer to [architecture](https://docs.cardano.org/explore-cardano/cardano-architecture) to understand and qualify which components you want to run.
 
-##### Components
+#### Components
 
 For most Pool Operators, simply building [cardano-node](Build/node-cli.md) should be enough. Use the below to decide whether you need other components:
 
-```mermaid
+``` mermaid
 graph TB
-  A(Need to interact with <br/>HD Wallets or query<br/> pool metadata locally?)
+  A(Need to interact with <br/>HD Wallets with keys<br/>saved locally?)
   B(Need to explore <br/> blockchain locally?)
-  C(Manage pool-ops <br/> and asset operation <br/> tasks using <br/> menu navigations?)
+  C(Manage pool-ops, <br/> asset operation tasks <br/> easily?)
   D(Create Custom Assets?)
   E(Monitor node <br/> using Terminal UI)
-  O{{Node}}
-  P{{PostgREST}}
-  Q{{DBSync }}
-  R{{Wallet}}
-  S{{CNTools}}
-  T{{*Rest}}
-  U{{*GraphQL}}
-  V{{Offline Metadata Tools}}
-  X{{gLiveView}}
+  O(Node)
+  P(PostgREST)
+  Q(DBSync)
+  R(Wallet)
+  S(CNTools)
+  T(Rest)
+  U(GraphQL)
+  V(OfflineMetadataTools)
+  X(gLiveView)
 
 O --x E --x X
 O --x C --x S
-O --x D --x V
+O --x D
+D --x S
+D --x V
 O --x B
 B --x P --x Q
 B --x T --x Q
@@ -31,9 +33,9 @@ B --x U --x Q
 O --x A --x R
 ```
 
-> We have retired usage of Rest/GraphQL components from guild website due to lack of advantages over PostgREST , as well as simplicity/not having to work with/mix different technologies for base layer itself.
+!!! warning ""
+    We strongly prefer use of PostgREST over Rest/GraphQL components due to performance, security, simplicity, control and most importantly - consistency benefits. Please refer to [official documentations](https://docs.cardano.org) if you're interested in `GraphQL` or `Cardano-Rest` components instead.
 
-**The instructions are intentionally limited to stack/cabal** to avoid wait times/availability of nix/docker files on, what we expect to be, a rapidly developing codebase - this will also help prevent managing multiple versions of instructions (at least for now).
-
-Note that the instructions are predominantly focused around building Cardano components and OS/3rd-party software (eg: postgres) setup instructions are intended to provide basic information only.
+!!! info "Note"
+    **The instructions are intentionally limited to stack/cabal** to avoid wait times/availability of nix/docker files on a rapidly developing codebase - this also helps us prevent managing multiple versions of instructions.
 

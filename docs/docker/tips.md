@@ -6,7 +6,7 @@ With this quick guide you will be able to run a cardano node in seconds and also
 
 Once executed the container as a deamon with attached tty you are then able to enter the container by using the flag `-dit` .
 
-While if you have a hook within the continer console, use the following command (change `CN` with your container name):
+While if you have a hook within the container console, use the following command (change `CN` with your container name):
 
 ```bash
 docker exec -it CN bash 
@@ -44,7 +44,8 @@ docker run -itd
 cardanocommunity/cardano-node:latest          # Mandatory: image to run
 ```
 
-> Note: to be able to use the CNTools encryption key feature you need to manually change in "cntools.config" ENABLE_CHATTR to "true" and not use the `--security-opt=no-new-privileges` docker run option.
+!!! info "Note"
+    To be able to use the CNTools encryption key feature you need to manually change in "cntools.config" ENABLE_CHATTR to "true" and not use the `--security-opt=no-new-privileges` docker run option.
 
 ### Docker CLI managment
 
