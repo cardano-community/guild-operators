@@ -25,6 +25,9 @@
 <input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
 <label class="md-overlay" for="__drawer"></label>
 <div data-md-component="skip">
+<a class="md-skip" href="#overview">
+          Skip to content
+        </a>
 </div>
 <div data-md-component="announce">
 </div>
@@ -127,7 +130,7 @@
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../index.md">
+<a class="md-nav__link" href="../..">
         Home
       </a>
 </li>
@@ -207,9 +210,46 @@
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item md-nav__item--active">
 <input class="md-nav__toggle md-toggle" data-md-toggle="toc" id="__toc" type="checkbox"/>
+<label class="md-nav__link md-nav__link--active" for="__toc">
+          Overview
+          <span class="md-nav__icon md-icon"></span>
+</label>
 <a class="md-nav__link md-nav__link--active" href="./">
         Overview
       </a>
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#overview">
+    Overview
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#download-and-update">
+    Download and Update
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#navigation">
+    Navigation
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#hardware-wallet">
+    Hardware Wallet
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#offline-workflow">
+    Offline Workflow
+  </a>
+</li>
+</ul>
+</nav>
 </li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="../cntools-common/">
@@ -310,12 +350,12 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021.md">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
         PGRest meetings 1
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021.md">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
         PGRest meetings 2
       </a>
 </li>
@@ -332,55 +372,107 @@
 </div>
 </div>
 </div>
+<div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#overview">
+    Overview
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#download-and-update">
+    Download and Update
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#navigation">
+    Navigation
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#hardware-wallet">
+    Hardware Wallet
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#offline-workflow">
+    Offline Workflow
+  </a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
 <div class="md-content" data-md-component="content">
 <article class="md-content__inner md-typeset">
 <a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/Scripts/cntools.md" title="Edit this page">
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
 <h1>Overview</h1>
-<p>!&gt; Ensure the <a href="basics.md#pre-requisites">Pre-Requisites</a> are in place before you proceed.</p>
-<p>CNTools is like a swiss army knife for pool operators to simplify typical operations regarding their wallet keys and pool management. Please note that this tool is tested on Linux platforms only at this point and should <strong>NOT</strong> act as an excuse for Pool Operators to skip reading about how Staking works or basics of Linux operations. The skills highlighted on the <a href="README.md">home page</a> are paramount for a stake pool operator, and so is the understanding of configuration files and network. Please ensure you've read and understood the disclaimers <strong>before</strong> proceeding.</p>
-<p>Visit the <a href="Scripts/cntools-changelog.md">Changelog</a> section to see progress and current release.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
 <ul>
-<li><a href="#overview">Overview</a></li>
-<li><a href="#download-and-update">Download and Update</a></li>
-<li><a href="#navigation">Navigation</a></li>
-<li><a href="#hardware-wallet">Hardware Wallet</a></li>
-<li><a href="#offline-workflow">Offline Workflow</a></li>
-<li><a href="#start-cntools-in-online-mode">Start CNTools in Online Mode</a></li>
-<li><a href="#start-cntools-in-offline-mode">Start CNTools in Offline Mode</a></li>
+<li>Ensure the <a href="../../basics/#pre-requisites">Pre-Requisites</a> are in place before you proceed.</li>
+<li>The active testers for this script use Fedora/CentOS/RHEL/Ubuntu operating systems, other OS may require customisations.</li>
+<li>The tool uses the folder structure defined <a href="../../basics/#folder-structure">here</a>. Everyone is free to customise, but while doing so beware that you may introduce changes that may not be tested during updates.</li>
+<li>Always use Testnet/Guild network first to familiarise, read the warning/messages in full, maintain your keys/backups with passwords (no one other than yourself can retrieve the funds if you make an accident), before performing actions on mainnet.</li>
 </ul>
-<h5 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">⚓︎</a></h5>
-<p>The tool consist of three files.<br/>
-* <code>cntools.sh</code> - the main script to launch cntools.
-* <code>cntools.library</code> - internal script with helper functions.
-* <code>cntools.config</code> - configuration file to modify certain behaviours, paths and name schema used.</p>
-<p>In addition to the above files, there is also a dependency on the common <a href="Scripts/env.md"><code>env</code></a> file. CNTools connects to your node through the configuration in the <code>env</code> file located in the same directory as the script. Customize <code>env</code> and <code>cntools.config</code> files for your needs. CNTools can operate in an Offline mode without node access by providing the <code>-o</code> runtime argument. This launches CNTools with a limited set of features.
-* Online - When all wallet and pool keys are available on the hot node, use this option.
-* Hybrid - Option on hot node with offline workflow in mind when the signing keys are kept off the hot node to create an offline transaction file.
-* Offline - When CNTools is launched with <code>-o</code> runtime argument. Mainly used to access <code>Transaction &gt;&gt; Sign</code> to sign an offline transaction file created in Hybrid mode.</p>
-<p><code>cncli.sh</code> is a companion script with optional functionalities to run on the core node (block producer) such as monitoring created blocks, calculating leader schedules and block validation.<br/>
-<code>logMonitor.sh</code> is another companion script meant to be run together with the <code>cncli.sh</code> script to give a more complete picture.<br/>
-See <a href="Scripts/cncli.md">CNCLI</a> and <a href="Scripts/logmonitor.md">Log Monitor</a> sections for more details.  </p>
-<blockquote>
-<p>The tool in its default state uses the folder structure <a href="basics.md#folder-structure">here</a>. Everyone is free to customise, but while doing so beware that you may introduce changes that were not tested.</p>
-</blockquote>
-<p>!&gt; It is important that you familiarise yourself with the usage using Testnet network (on a seperate machine) first, read the warnings/messages, maintain your keys and backups with passwords (no one other than yourself can retrieve the funds if you make an accident), before performing actions on mainnet.</p>
-<h5 id="download-and-update">Download and Update<a class="headerlink" href="#download-and-update" title="Permanent link">⚓︎</a></h5>
+</div>
+<p>CNTools is like a swiss army knife for pool operators to simplify typical operations regarding their wallet keys and pool management. Please note that this tool only aims to simplify usual tasks for its users, but it should <strong>NOT</strong> act as an excuse to skip understanding how to manually work through things or basics of Linux operations. The skills highlighted on the <a href="../..">home page</a> are paramount for a stake pool operator, and so is the understanding of configuration files and network. Please ensure you've read and understood the disclaimers <strong>before</strong> proceeding.</p>
+<p>Visit the <a href="../cntools-changelog/">Changelog</a> section to see progress and current release.</p>
+<h4 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">⚓︎</a></h4>
+<p>The tool consist of three files.  </p>
+<ul>
+<li><code>cntools.sh</code> - the main script to launch cntools.</li>
+<li><code>cntools.library</code> - internal script with helper functions.</li>
+<li><code>cntools.config</code> - configuration file to modify certain behaviours, paths and name schema used.</li>
+</ul>
+<p>In addition to the above files, there is also a dependency on the common <a href="../env/"><code>env</code></a> file. CNTools connects to your node through the configuration in the <code>env</code> file located in the same directory as the script. Customize <code>env</code> and <code>cntools.config</code> files to your needs.</p>
+<p>Additionally, CNTools can integrate and enable optional functionalities based on external components:</p>
+<ul>
+<li><code>cncli.sh</code> is a companion script with optional functionalities to run on the core node (block producer) such as monitoring created blocks, calculating leader schedules and block validation.</li>
+<li><code>logMonitor.sh</code> is another companion script meant to be run together with the <code>cncli.sh</code> script to give a more complete picture.</li>
+</ul>
+<p>See <a href="../cncli/">CNCLI</a> and <a href="../logmonitor/">Log Monitor</a> sections for more details.</p>
+<p>CNTools can operate in following modes:</p>
+<ul>
+<li>Advanced - When CNTools is launched with <code>-a</code> runtime argument, this launches CNTools exposing a new <code>Advanced</code> menu, which allows users to manage (create/mint/burn) new assets.</li>
+<li>Online - When all wallet and pool keys are available on the hot node, use this option. This is the default mode when you start CNTools without parameters.</li>
+<li>Hybrid - When running in online mode, this option can be used in menus to create offline transaction files that can be passed to Offline CNTools to sign.</li>
+<li>Offline - When CNTools is launched with <code>-o</code> runtime argument, this launches CNTools with limited set of features. This mode <strong>does not require access to cardano-node</strong>. It is mainly used to create Wallet/Pool and access <code>Transaction &gt;&gt; Sign</code> to sign an offline transaction file created in Hybrid mode.</li>
+</ul>
+<h4 id="download-and-update">Download and Update<a class="headerlink" href="#download-and-update" title="Permanent link">⚓︎</a></h4>
 <p>The update functionality is provided from within CNTools. In case of breaking changes, please follow the prompts post-upgrade. If stuck, it's always best to re-run the latest <code>prereqs.sh</code> before proceeding.</p>
-<p>!&gt; If you have not updated in a while, it is possible that you might come from a release with breaking changes. If so, please be sure to check out the <a href="upgrade.md">upgrade</a> instructions.</p>
-<h5 id="navigation">Navigation<a class="headerlink" href="#navigation" title="Permanent link">⚓︎</a></h5>
+<div class="admonition info">
+<p>If you have not updated in a while, it is possible that you might come from a release with breaking changes. If so, please be sure to check out the <a href="../../upgrade/">upgrade</a> instructions.</p>
+</div>
+<h4 id="navigation">Navigation<a class="headerlink" href="#navigation" title="Permanent link">⚓︎</a></h4>
 <p>The scripts menu supports both arrow key navigation and shortcut key selection. The character within the square brackets is the shortcut to press for quick navigation. For other selections like wallet and pool menu that don't contain shortcuts, there is a third way to navigate. Key pressed is compared to the first character of the menu option and if there is a match the selection jumps to this location. A handy way to quickly navigate a large menu. </p>
-<h5 id="hardware-wallet">Hardware Wallet<a class="headerlink" href="#hardware-wallet" title="Permanent link">⚓︎</a></h5>
+<h4 id="hardware-wallet">Hardware Wallet<a class="headerlink" href="#hardware-wallet" title="Permanent link">⚓︎</a></h4>
 <p>CNTools include hardware wallet support since version <code>7.0.0</code> through Vacuumlabs <code>cardano-hw-cli</code> application. Initialize and update firmware/app on the device to the latest version before usage following the manufacturer instructions.</p>
 <p>To enable hardware support run <code>prereqs.sh -w</code>. This downloads and installs Vacuumlabs <code>cardano-hw-cli</code> including <code>udev</code> configuration. When a new version of Vacuumlabs <code>cardano-hw-cli</code> is released, run <code>prereqs.sh -w</code> again to update. For additional runtime options, run <code>prereqs.sh -h</code>.</p>
-<p><strong>Ledger</strong><br/>
-Supported devices: Nano S / Nano X<br/>
-Make sure the latest cardano app is installed on the device.</p>
-<p><strong>Trezor</strong><br/>
-Supported devices: Model T<br/>
-Make sure the latest firmware is installed on the device. In addition to this, install <code>Trezor Bridge</code> for your system before trying to use your Trezor device in CNTools. You can find the latest version of the bridge at <a href="https://wallet.trezor.io/#/bridge">https://wallet.trezor.io/#/bridge</a></p>
-<h5 id="offline-workflow">Offline Workflow<a class="headerlink" href="#offline-workflow" title="Permanent link">⚓︎</a></h5>
+<div class="tabbed-set" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio"><label for="__tabbed_1_1">Ledger</label><div class="tabbed-content">
+<ul>
+<li>Supported devices: Nano S / Nano X  </li>
+<li>Make sure the latest cardano app is installed on the device.</li>
+</ul>
+</div>
+<input id="__tabbed_1_2" name="__tabbed_1" type="radio"><label for="__tabbed_1_2">Trezor</label><div class="tabbed-content">
+<ul>
+<li>Supported devices: Model T  </li>
+<li>Make sure the latest firmware is installed on the device. In addition to this, install <code>Trezor Bridge</code> for your system before trying to use your Trezor device in CNTools. You can find the latest version of the bridge at <a href="https://wallet.trezor.io/#/bridge">https://wallet.trezor.io/#/bridge</a></li>
+</ul>
+</div>
+</input></input></div>
+<h4 id="offline-workflow">Offline Workflow<a class="headerlink" href="#offline-workflow" title="Permanent link">⚓︎</a></h4>
 <p>CNTools can be run in online and offline mode. At a very high level, for working with offline devices, remember that you need to use CNTools in an online node to generate a staging transaction for the desired type of transaction, and then move the staging transaction to an offline node to sign (authorize) using the signing keys on your offline node - and then bring back the signed transaction to the online node for submission to the chain. </p>
 <p>For the offline workflow, all the wallet and pool keys should be kept on the offline node. The backup function in CNTools has an option to create a backup without private keys (sensitive signing keys) to be transferred to online node. All other files are included in the backup to be transferred to the online node. </p>
 <p>Keys excluded from backup when created without private keys:
@@ -408,12 +500,12 @@ sequenceDiagram
     Note over Online: Verify that pool was successfully registered with ' Pool » Show '
 
 </div>
-<h5 id="start-cntools-in-online-mode">Start CNTools in Online Mode<a class="headerlink" href="#start-cntools-in-online-mode" title="Permanent link">⚓︎</a></h5>
-<p>To start CNTools in Online Mode, execute the script from the <code>$CNODE_HOME/scripts/</code> directory:
+<div class="tabbed-set" data-tabs="2:2"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio"><label for="__tabbed_2_1">Online mode</label><div class="tabbed-content">
+<p>To start CNTools in Online (advanced) Mode, execute the script from the <code>$CNODE_HOME/scripts/</code> directory:
 <div class="highlight"><pre><span></span><code>cd $CNODE_HOME/scripts
-./cntools.sh
+./cntools.sh -a
 </code></pre></div></p>
-<p>You should get a screen that looks something like this:
+<p>You should get a screen that looks something like this:</p>
 <div class="highlight"><pre><span></span><code>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  &gt;&gt; CNTools vX.X.X - Guild - CONNECTED &lt;&lt;            A Guild Operators collaboration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -424,12 +516,11 @@ sequenceDiagram
  ) Pool        - pool creation and management
  ) Transaction - Sign and Submit a cold transaction (hybrid/offline mode)
  ) Blocks      - show core node leader schedule &amp; block production statistics
- ) Update      - update cntools script and library config files
  ) Backup      - backup &amp; restore of wallet/pool/config
  ) Advanced    - Developer and advanced features: metadata, multi-assets, ...
  ) Refresh     - reload home screen content
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                                                     Epoch 231 - 00:49:48 until next
+                                                  Epoch 276 - 3d 19:08:27 until next
  What would you like to do?                                         Node Sync: 12 :)
 
   [w] Wallet
@@ -442,17 +533,41 @@ sequenceDiagram
   [a] Advanced
   [r] Refresh
   [q] Quit
-</code></pre></div></p>
-<h5 id="start-cntools-in-offline-mode">Start CNTools in Offline Mode<a class="headerlink" href="#start-cntools-in-offline-mode" title="Permanent link">⚓︎</a></h5>
+</code></pre></div>
+</div>
+<input id="__tabbed_2_2" name="__tabbed_2" type="radio"><label for="__tabbed_2_2">Offline mode</label><div class="tabbed-content">
 <p>To start CNTools in Offline Mode, execute the script from the <code>$CNODE_HOME/scripts/</code> directory using the <code>-o</code> flag:
 <div class="highlight"><pre><span></span><code>cd $CNODE_HOME/scripts
 ./cntools.sh -o
 </code></pre></div></p>
 <p>The main menu header should let you know that node is started in offline mode:
-<div class="highlight"><pre><span></span><code> &gt;&gt; CNTools vX.X.X - OFFLINE &lt;&lt;                      A Guild Operators collaboration
+<div class="highlight"><pre><span></span><code>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ &gt;&gt; CNTools vX.X.X - Guild - OFFLINE &lt;&lt;              A Guild Operators collaboration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-...
+ Main Menu    Telegram Announcement / Support channel: t.me/guild_operators_official
+
+ ) Wallet      - create, show, remove and protect wallets
+ ) Funds       - send, withdraw and delegate
+ ) Pool        - pool creation and management
+ ) Transaction - Sign and Submit a cold transaction (hybrid/offline mode)
+
+ ) Backup      - backup &amp; restore of wallet/pool/config
+
+ ) Refresh     - reload home screen content
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                                                  Epoch 276 - 3d 19:03:46 until next
+ What would you like to do?
+
+  [w] Wallet
+  [f] Funds
+  [p] Pool
+  [t] Transaction
+  [z] Backup &amp; Restore
+  [r] Refresh
+  [q] Quit
 </code></pre></div></p>
+</div>
+</input></input></div>
 </article>
 </div>
 </div>

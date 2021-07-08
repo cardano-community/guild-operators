@@ -25,9 +25,6 @@
 <input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
 <label class="md-overlay" for="__drawer"></label>
 <div data-md-component="skip">
-<a class="md-skip" href="#create-and-register-a-stake-pool">
-          Skip to content
-        </a>
 </div>
 <div data-md-component="announce">
 </div>
@@ -130,7 +127,7 @@
 </div>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../index.md">
+<a class="md-nav__link" href="../..">
         Home
       </a>
 </li>
@@ -215,31 +212,9 @@
 </li>
 <li class="md-nav__item md-nav__item--active">
 <input class="md-nav__toggle md-toggle" data-md-toggle="toc" id="__toc" type="checkbox"/>
-<label class="md-nav__link md-nav__link--active" for="__toc">
-          Common Tasks
-          <span class="md-nav__icon md-icon"></span>
-</label>
 <a class="md-nav__link md-nav__link--active" href="./">
         Common Tasks
       </a>
-<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
-<label class="md-nav__title" for="__toc">
-<span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#create-and-register-a-stake-pool">
-    Create and register a stake pool
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#import-daedalusyoroihw-wallet">
-    Import Daedalus/Yoroi/HW Wallet
-  </a>
-</li>
-</ul>
-</nav>
 </li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="../cntools-changelog/">
@@ -335,12 +310,12 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021.md">
+<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
         PGRest meetings 1
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021.md">
+<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
         PGRest meetings 2
       </a>
 </li>
@@ -357,49 +332,22 @@
 </div>
 </div>
 </div>
-<div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
-<div class="md-sidebar__scrollwrap">
-<div class="md-sidebar__inner">
-<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
-<label class="md-nav__title" for="__toc">
-<span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#create-and-register-a-stake-pool">
-    Create and register a stake pool
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#import-daedalusyoroihw-wallet">
-    Import Daedalus/Yoroi/HW Wallet
-  </a>
-</li>
-</ul>
-</nav>
-</div>
-</div>
-</div>
 <div class="md-content" data-md-component="content">
 <article class="md-content__inner md-typeset">
 <a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/Scripts/cntools-common.md" title="Edit this page">
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
 <h1>Common Tasks</h1>
-<p>This chapter describes some common tasks for wallet and pool creation when running CNTools in Online mode.<br/>
-CNTools contains more functionality not described here.</p>
-<p>!&gt; Familiarize yourself with the Online workflow of creating wallets and pools on the Testnet. You can then move on to test the <a href="Scripts/cntools#offline-workflow">Offline Workflow</a>. The Offline workflow means that the private keys never touch the Online node. When comfortable with both the online and offline CNTools workflow, it's time to deploy what you learnt on the mainnet.</p>
-<h3 id="create-and-register-a-stake-pool">Create and register a stake pool<a class="headerlink" href="#create-and-register-a-stake-pool" title="Permanent link">⚓︎</a></h3>
-<p>Step by Step guide to create a pool with CNTools in Online mode:</p>
-<ul>
-<li><a href="#create-wallet">Create Wallet</a> - a wallet is needed for pledge and to pay for pool registration fee</li>
-<li><a href="#create-pool">Create Pool</a> - create the necessary pool keys </li>
-<li><a href="#create-pool">Register Pool</a> - register the pool on-chain</li>
-</ul>
-<h5 id="create-wallet">Create Wallet<a class="headerlink" href="#create-wallet" title="Permanent link">⚓︎</a></h5>
-<p><strong>1.</strong> Choose <code>[w] Wallet</code> and you will be presented with the following menu:
-<div class="highlight"><pre><span></span><code>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Familiarize yourself with the Online workflow of creating wallets and pools on the Testnet. You can then move on to test the <a href="../cntools/#offline-workflow">Offline Workflow</a>. The Offline workflow means that the private keys never touch the Online node. When comfortable with both the online and offline CNTools workflow, it's time to deploy what you learnt on the mainnet.</p>
+</div>
+<p>This chapter describes some common use-cases for wallet and pool creation when running CNTools in Online mode. CNTools contains much more functionality not described here.</p>
+<div class="tabbed-set" data-tabs="1:5"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio"><label for="__tabbed_1_1">Create Wallet</label><div class="tabbed-content">
+<p>A wallet is needed for pledge and to pay for pool registration fee.</p>
+<ol>
+<li>Choose <code>[w] Wallet</code> and you will be presented with the following menu:
+  <div class="highlight"><pre><span></span><code>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  &gt;&gt; WALLET
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  Wallet Management
@@ -426,11 +374,11 @@ CNTools contains more functionality not described here.</p>
   [d] Decrypt
   [e] Encrypt
   [h] Home
-</code></pre></div>
-<strong>2.</strong> Choose <code>[n] New</code> to create a new wallet. <a href="#import-daedalusyoroihw-wallet"><code>[i] Import</code></a> can also be used to import a Daedalus/Yoroi based 15 or 24 word wallet seed<br/>
-<strong>3.</strong> Give the wallet a name<br/>
-<strong>4.</strong> CNTools will give you the wallet address.  For example:
-<div class="highlight"><pre><span></span><code>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+</code></pre></div></li>
+<li>Choose <code>[n] New</code> to create a new wallet. <code>[i] Import</code> can also be used to import a Daedalus/Yoroi based 15 or 24 word wallet seed  </li>
+<li>Give the wallet a name  </li>
+<li>CNTools will give you the wallet address.  For example:
+  <div class="highlight"><pre><span></span><code>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  &gt;&gt; WALLET &gt;&gt; NEW
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -444,11 +392,62 @@ You can now send and receive Ada using the above addresses.
 Note that Enterprise Address will not take part in staking.
 Wallet will be automatically registered on chain if you
 choose to delegate or pledge wallet when registering a stake pool.
+</code></pre></div></li>
+<li>Send some money to this wallet. Either through the faucet or have a friend send you some.</li>
+</ol>
+<div class="admonition info">
+<ul>
+<li>The wallet must have funds in it before you can proceed.</li>
+<li>The Wallet created from here is not derived from mnemonics, please use next tab if you'd like to use a wallet that can also be accessed from Daedalus/Yoroi</li>
+</ul>
+</div>
+</div>
+<input id="__tabbed_1_2" name="__tabbed_1" type="radio"><label for="__tabbed_1_2">Import Daedalus/Yoroi/HW Wallet</label><div class="tabbed-content">
+<p>The <code>Import</code> feature of CNTools is originally based on <a href="https://gist.github.com/ilap/3fd57e39520c90f084d25b0ef2b96894">this guide</a> from <a href="https://github.com/ilap">Ilap</a>.</p>
+<p>If you would like to use <code>Import</code> function to import a Daedalus/Yoroi based 15 or 24 word wallet seed, please ensure that <code>cardano-address</code> and <code>bech32</code> bineries are available in your <code>$PATH</code> environment variable:
+  <div class="highlight"><pre><span></span><code>bech32 --version
+1.1.0
+
+cardano-address --version
+3.5.0
+</code></pre></div></p>
+<div class="admonition info">
+<p>If the version is not as per above, please run the latest <code>prereqs.sh</code> from <a href="../../basics/">here</a> and rebuild <code>cardano-node</code> as instructed <a href="../../Build/node-cli/">here</a>.</p>
+</div>
+<p>To import a Daedalus/Yoroi wallet to CNTools, open CNTools and select the <code>[w] Wallet</code> option, and then select the <code>[i] Import</code>, the following menu will appear:
+  <div class="highlight"><pre><span></span><code>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ &gt;&gt; WALLET &gt;&gt; IMPORT
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ Wallet Import
+
+ ) Mnemonic  - Daedalus/Yoroi 24 or 25 word mnemonic
+ ) HW Wallet - Ledger/Trezor hardware wallet
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ Select Wallet operation
+
+  [m] Mnemonic
+  [w] HW Wallet
+  [h] Home
+</code></pre></div></p>
+<div class="admonition info">
+<p class="admonition-title">Note</p>
+<p>You can import Hardware wallet using <code>[w] HW Wallet</code> above, but please note that before you are able to use hardware wallet in CNTools, you need to ensure you can detect your hardware device at OS level using <code>cardano-hw-cli</code></p>
+</div>
+<p>Select the wallet you want to import, for Daedalus / Yoroi wallets select <code>[m] Mnemonic</code>:
+  <div class="highlight"><pre><span></span><code>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ &gt;&gt; WALLET &gt;&gt; IMPORT &gt;&gt; MNEMONIC
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Name of imported wallet: TEST
+
+24 or 15 word mnemonic(space separated):
 </code></pre></div>
-<strong>5.</strong>  Send some money to this wallet. Either through the faucet or have a friend send you some.</p>
-<p>!&gt; The wallet must have funds in it before you can proceed.  </p>
-<h5 id="create-pool">Create Pool<a class="headerlink" href="#create-pool" title="Permanent link">⚓︎</a></h5>
-<p><strong>1.</strong> From the main menu select <code>[p] Pool</code>
+Give your wallet a name (in this case 'TEST'), and enter your mnemonic phrase. Please ensure that you **READ* through the complete notes presented by CNTools before proceeding.</p>
+</div>
+<input id="__tabbed_1_3" name="__tabbed_1" type="radio"><label for="__tabbed_1_3">Create Pool</label><div class="tabbed-content">
+<p>Create the necessary pool keys.</p>
+<ol>
+<li>From the main menu select <code>[p] Pool</code>
 <div class="highlight"><pre><span></span><code>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  &gt;&gt; POOL
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -476,10 +475,10 @@ choose to delegate or pledge wallet when registering a stake pool.
   [d] Decrypt
   [e] Encrypt
   [h] Home
-</code></pre></div>
-<strong>2.</strong>  Select <code>[n] New</code> to create a new pool<br/>
-<strong>3.</strong>  Give the pool a name. In our case, we call it TEST. The result should look something like this:
-<div class="highlight"><pre><span></span><code>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+</code></pre></div></li>
+<li>Select <code>[n] New</code> to create a new pool  </li>
+<li>Give the pool a name. In our case, we call it TEST. The result should look something like this:
+  <div class="highlight"><pre><span></span><code>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  &gt;&gt; POOL &gt;&gt; NEW
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -488,18 +487,25 @@ Pool Name: TEST
 Pool: TEST
 ID (hex)    : 8d5a3510f18ce241115da38a1b2419ed82d308599c16e98caea1b4c0
 ID (bech32) : pool134dr2y833n3yzy2a5w9pkfqeakpdxzzenstwnr9w5x6vqtnclue
-</code></pre></div></p>
-<h5 id="register-pool">Register Pool<a class="headerlink" href="#register-pool" title="Permanent link">⚓︎</a></h5>
-<p><strong>1.</strong>  From the main menu select <code>[p] Pool</code><br/>
-<strong>2.</strong>  Select <code>[r] Register</code><br/>
-<strong>3.</strong>  Select the pool you just created<br/>
-<strong>4.</strong>  CNTools will give you prompts to set pledge, margin, cost, metadata, and relays. Enter values that are useful to you.  </p>
-<p>!&gt; Make sure you set your pledge low enough to insure your funds in your wallet will cover pledge plus pool registration fees.  </p>
-<p><strong>5.</strong>  Select wallet to use as pledge wallet, <code>Test</code> in our case.<br/>
-As this is a newly created wallet you will be prompted to press a key to continue with wallet registration.<br/>
-When complete and if successful, both wallet and pool will be registered on-chain.</p>
+</code></pre></div></li>
+</ol>
+</div>
+<input id="__tabbed_1_4" name="__tabbed_1" type="radio"><label for="__tabbed_1_4">Register Pool</label><div class="tabbed-content">
+<p>Register the pool on-chain.</p>
+<ol>
+<li>From the main menu select <code>[p] Pool</code> </li>
+<li>Select <code>[r] Register</code> </li>
+<li>Select the pool you just created  </li>
+<li>CNTools will give you prompts to set pledge, margin, cost, metadata, and relays. Enter values that are useful to you.  </li>
+</ol>
+<div class="admonition info">
+<p>Make sure you set your pledge low enough to insure your funds in your wallet will cover pledge plus pool registration fees.  </p>
+</div>
+<ol>
+<li>Select wallet to use as pledge wallet, <code>Test</code> in our case. As this is a newly created wallet, you will be prompted to continue with wallet registration. When complete and if successful, both wallet and pool will be registered on-chain.</li>
+</ol>
 <p>It will look something like this:
-<div class="highlight"><pre><span></span><code>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  <div class="highlight"><pre><span></span><code>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  &gt;&gt; POOL &gt;&gt; REGISTER
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -580,15 +586,23 @@ Uncomment and set value for POOL_NAME in ./env with 'TEST'
 
 INFO: Total balance in 1 owner/pledge wallet(s) are: 99,497.996518 Ada
 </code></pre></div></p>
-<p><strong>6.</strong> As mentioned in the above output: <em>Uncomment and set value for <code>POOL_NAME</code> in <code>./env</code> with 'TEST'</em> (in our case, the <code>POOL_NAME</code> is <code>TEST</code>).</p>
-<p>The <code>cnode.sh</code> script will automatically detect whether the files required to run as a block producing node are present in the <code>$CNODE_HOME/priv/pool/&lt;POOL_NAME&gt;</code> directory.</p>
-<p><strong>7.</strong> Rotate KES keys for the first time to generate the operational certificate - <code>op.cert</code>.</p>
-<ul>
-<li>From the main menu select <code>[p] Pool</code> </li>
+<ol>
+<li>As mentioned in the above output: <em>Uncomment and set value for <code>POOL_NAME</code> in <code>./env</code> with 'TEST'</em> (in our case, the <code>POOL_NAME</code> is <code>TEST</code>). The <code>cnode.sh</code> script will automatically detect whether the files required to run as a block producing node are present in the <code>$CNODE_HOME/priv/pool/&lt;POOL_NAME&gt;</code> directory.</li>
+</ol>
+</div>
+<input id="__tabbed_1_5" name="__tabbed_1" type="radio"><label for="__tabbed_1_5">Rotate KES Keys</label><div class="tabbed-content">
+<p>The node runs with an operational certificate, generated using the KES hot key. For security reasons, the protocol asks to re-generate (or rotate) your KES key once reaching expiry. On mainnet, this expiry is in 62 cycles of 18 hours (thus, to ask for rotation quarterly), after which your node will not be able to forge valid blocks unless rotated. To be able to rotate KES keys, your cold keys files (<code>cold.skey</code>, <code>cold.vkey</code> and <code>cold.counter</code>) need to be present on the machine where you run CNTools to rotate your KES key.</p>
+<ol>
+<li>
+<p>To Rotate KES keys and generate the operational certificate - <code>op.cert</code>.</p>
+</li>
+<li>
+<p>From the main menu select <code>[p] Pool</code> </p>
+</li>
 <li>Select <code>[o] Rotate</code> </li>
 <li>Select the pool you just created  </li>
-<li>The output should look like:</li>
-</ul>
+</ol>
+<p>The output should look like:</p>
 <div class="highlight"><pre><span></span><code>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  &gt;&gt; POOL &gt;&gt; ROTATE KES
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -604,49 +618,14 @@ Restart your pool node for changes to take effect
 
 press any key to return to home menu
 </code></pre></div>
-<p><strong>8.</strong> Start or restart your <code>cardano-node</code>.</p>
-<p>If deployed as a <code>systemd</code> service as shown <a href="Build/node-cli?id=run-as-systemd-service">here</a>, you can run <code>sudo systemctl restart cnode</code>.</p>
-<p><strong>8.</strong> Ensure the node is running as a block producing (core) node.</p>
+<ol>
+<li>Start or restart your <code>cardano-node</code>. If deployed as a <code>systemd</code> service as shown <a href="Build/node-cli?id=run-as-systemd-service">here</a>, you can run <code>sudo systemctl restart cnode</code>.</li>
+<li>Ensure the node is running as a block producing (core) node.</li>
+</ol>
 <p>You can use <a href="Scripts/gliveview">gLiveView</a> - the output at the top should say <code>&gt; Cardano Node - (Core - Testnet)</code>.</p>
 <p>Alternatively, you can check the node logs in <code>$CNODE_HOME/logs/</code> to see whether the node is performing leadership checks (<code>TraceStartLeadershipCheck</code>, <code>TraceNodeIsNotLeader</code>, etc.) </p>
-<h3 id="import-daedalusyoroihw-wallet">Import Daedalus/Yoroi/HW Wallet<a class="headerlink" href="#import-daedalusyoroihw-wallet" title="Permanent link">⚓︎</a></h3>
-<p>The <code>Import</code> feature of CNTools uses the <a href="https://gist.github.com/ilap/3fd57e39520c90f084d25b0ef2b96894">guide</a> from <a href="https://github.com/ilap">Ilap</a>.</p>
-<p>If you would like to use <code>Import</code> function to import a Daedalus/Yoroi based 15 or 24 word wallet seed, please ensure that <code>cardano-address</code> and <code>bech32</code> bineries are available in your <code>$PATH</code> environment variable:
-<div class="highlight"><pre><span></span><code>bech32 --version
-1.1.0
-
-cardano-address --version
-3.5.0
-</code></pre></div>
-!&gt; If not, please run the latest <code>prereqs.sh</code> from <a href="basics.md">here</a> and rebuild <code>cardano-node</code> as instructed <a href="Build/node-cli.md">here</a>.</p>
-<p>To import a Daedalus/Yoroi wallet to CNTools, open CNTools and select the <code>[w] Wallet</code> option:
-<div class="highlight"><pre><span></span><code>$CNODE_HOME/scripts/cntools.sh
-</code></pre></div>
-From the <code>Wallet</code> menu, select the <code>[i] Import</code> option, the following menu will appear:
-<div class="highlight"><pre><span></span><code>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- &gt;&gt; WALLET &gt;&gt; IMPORT
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- Wallet Import
-
- ) Mnemonic  - Daedalus/Yoroi 24 or 25 word mnemonic
- ) HW Wallet - Ledger/Trezor hardware wallet
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- Select Wallet operation
-
-  [m] Mnemonic
-  [w] HW Wallet
-  [h] Home
-</code></pre></div>
-Select the wallet you want to import, for Daedalus / Yoroi wallets select <code>[m] Mnemonic</code>:
-<div class="highlight"><pre><span></span><code>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- &gt;&gt; WALLET &gt;&gt; IMPORT &gt;&gt; MNEMONIC
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Name of imported wallet: TEST
-
-24 or 15 word mnemonic(space separated):
-</code></pre></div>
-Give your wallet a name (in this case 'TEST'), and enter your mnemonic phrase.</p>
+</div>
+</input></input></input></input></input></div>
 </article>
 </div>
 </div>
