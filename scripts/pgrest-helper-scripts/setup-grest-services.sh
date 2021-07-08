@@ -276,7 +276,7 @@ WantedBy=multi-user.target
 EOF"
 
 sudo systemctl daemon-reload
-sudo systemctl ${CNODE_NAME}-dbsync.service
+sudo systemctl enable ${CNODE_NAME}-dbsync.service
 sudo systemctl enable postgrest.service
 sudo systemctl enable haproxy.service
 
