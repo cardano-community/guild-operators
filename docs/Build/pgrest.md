@@ -42,7 +42,7 @@ You can now quit your psql session using `\q`.
 Now that your user is created in database, you can create the postgrest config. A basic sample is below:
 
 !!! info "Reminder !!"
-    Replace `${USER}` and `${PASSWORD}` to match the username and password you can authenticate with for `psql` (defined in `$CNODE_HOME/priv/.pgpass` file in our example).
+    Verify and update db-uri if required, the given value configures it for user running the command below (and relies on socket connection to postgres sever.
 
 ``` bash
 cat << 'EOF' > $CNODE_HOME/priv/pgrest.conf
