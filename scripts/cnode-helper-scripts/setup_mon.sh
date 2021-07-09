@@ -277,7 +277,7 @@ User=$(whoami)
 Restart=on-failure
 ExecStart=$PROM_DIR/prometheus \
   --config.file=$PROM_DIR/prometheus.yml \
-  --storage.tsdb.path=$PROM_DIR/data --collector.systemd --web.listen-address=$PROM_HOST:$PROM_PORT
+  --storage.tsdb.path=$PROM_DIR/data --web.listen-address=$PROM_HOST:$PROM_PORT
 WorkingDirectory=$PROM_DIR
 LimitNOFILE=10000
 
@@ -294,7 +294,7 @@ After=network-online.target
 [Service]
 User=$(whoami)
 Restart=on-failure
-ExecStart=$NEXP_DIR/node_exporter --web.listen-address="$CNODE_IP:$NEXP_PORT"
+ExecStart=$NEXP_DIR/node_exporter --collector.systemd --web.listen-address="$CNODE_IP:$NEXP_PORT"
 WorkingDirectory=$NEXP_DIR
 LimitNOFILE=3500
 
