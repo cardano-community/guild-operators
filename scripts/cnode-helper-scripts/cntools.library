@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=4
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=4
+CNTOOLS_PATCH_VERSION=13
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -572,11 +572,11 @@ isPoolRegistered() {
     if [[ -z ${pupd_latest_epoch} ]]; then
       return 1
     else
-      p_hash_id=$(jq '.[0].hash_id' <<< ${pupd_latest})
-      ! pretire=$(curl -sSL -f -d _pool_hash_id=${p_hash_id} -s "${PGREST_API}"/rpc/get_pool_retire 2>&1) && error_msg=${pretire} && return 0
+      ! pretire=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -s "${PGREST_API}"/rpc/get_pool_retire 2>&1) && error_msg=${pretire} && return 0
       retiring_epoch=$(jq -e '.retiring_epoch' <<< ${pretire}) || retiring_epoch=0
       if [[ ${retiring_epoch} -gt 0 ]]; then
-        [[ $(jq '.announced_tx_id' <<< ${pretire}) -lt $(jq '.[0].registered_tx_id' <<< ${pupd_latest}) ]] && retiring_epoch=0 # invalidated by newer update
+        # TODO: update rpc to handle below check
+        #[[ $(jq '.announced_tx_id' <<< ${pretire}) -lt $(jq '.[0].registered_tx_id' <<< ${pupd_latest}) ]] && retiring_epoch=0 # invalidated by newer update
         [[ ${retiring_epoch} -gt 0 && ${retiring_epoch} -le ${current_epoch} ]] && return 3 # pool retired
       fi
       return 2
@@ -686,25 +686,6 @@ lockFile() {
   if [[ ${ENABLE_CHATTR} = true && ! $(lsattr -R "$1") =~ -i- ]]; then
     sudo chattr +i "$1"
   fi
-}
-
-# Command     : kesExpiration [Pool KES start period]
-# Description : Calculate KES expiration
-# Parameters  : Pool KES start period  >  KES start stored in POOL_CURRENT_KES_START file for pool in question
-# Return      : expiration date can be accessed through variable ${expiration_date} after function has been executed
-kesExpiration() {
-  if [[ -z "${1##*[!0-9]*}" ]]; then
-    println ERROR "${FG_RED}ERROR${NC}: KES start period must be an integer number [$1]"
-    return 1
-  fi
-  pool_kes_start_period=$1
-  current_kes_period_ref=$(getCurrentKESperiod)
-  remaining_kes_periods_ref=$(( MAX_KES_EVOLUTIONS - ( current_kes_period_ref - pool_kes_start_period ) ))
-  tip_ref=$(getSlotTipRef)
-  current_time_sec=$(date -u +%s)
-  expiration_time_sec=$(( current_time_sec - ( SLOT_LENGTH * (tip_ref % SLOTS_PER_KES_PERIOD) ) + ( SLOT_LENGTH * SLOTS_PER_KES_PERIOD * remaining_kes_periods_ref ) ))
-  expiration_time_sec_diff=$(( expiration_time_sec - current_time_sec ))
-  expiration_date=$(date '+%F %T %Z' --date=@${expiration_time_sec})
 }
 
 # Command     : waitNewBlockCreated [optional: silent]
@@ -876,12 +857,19 @@ getBalance() {
     [[ ${#utxo_entry[@]} -lt 4 ]] && continue
     ((utxo_cnt++))
     tx_in+=" --tx-in ${utxo_entry[0]}#${utxo_entry[1]}"
-    utxos["${utxo_entry[0]}#${utxo_entry[1]}. Ada"]=${utxo_entry[2]} # Space added before 'Ada' for sort to place it first
-    assets["lovelace"]=$(( ${assets["lovelace"]:-0} + utxo_entry[2] ))
-    if [[ ${#utxo_entry[@]} -gt 4 ]]; then
+    if [[ ${utxo_entry[3]} = "lovelace" ]]; then
+      utxos["${utxo_entry[0]}#${utxo_entry[1]}. Ada"]=${utxo_entry[2]} # Space added before 'Ada' for sort to place it first
+      assets["lovelace"]=$(( ${assets["lovelace"]:-0} + utxo_entry[2] ))
       idx=5
+    else
+      utxos["${utxo_entry[0]}#${utxo_entry[1]}. Ada"]=0 # Space added before 'Ada' for sort to place it first
+      assets["lovelace"]=0
+      idx=2
+    fi
+    if [[ ${#utxo_entry[@]} -gt "${idx}" ]]; then
       while [[ ${#utxo_entry[@]} -gt ${idx} ]]; do
         local asset_amount=${utxo_entry[${idx}]}
+        if ! isNumber "${asset_amount}"; then break; fi
         local asset_hash_name="${utxo_entry[$((idx+1))]}"
         IFS='.' read -ra asset <<< "${asset_hash_name}"
         policyIDs["${asset[0]}"]=1
@@ -1320,6 +1308,12 @@ sendAssets() {
   [[ $(cat "${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${s_addr}" ]] && wallet_source="enterprise" || wallet_source="base"
 
   if ! getTTL; then return 1; fi
+
+  if [[ -n ${metafile} && -f ${metafile} ]]; then
+    metafile_param="--json-metadata-no-schema --metadata-json-file ${metafile}"
+  else
+    metafile_param=""
+  fi
   
   getBalance ${s_addr}
 
@@ -1340,6 +1334,7 @@ sendAssets() {
     ${tx_in}
     --invalid-hereafter ${ttl}
     --fee 0
+    ${metafile_param}
     ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
@@ -1369,6 +1364,7 @@ sendAssets() {
     ${tx_in}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
+    ${metafile_param}
     --out-file "${TMP_DIR}"/tx.raw
   )
   
@@ -1420,6 +1416,9 @@ sendAssets() {
     for idx in "${!assets_to_send[@]}"; do
       [[ ${assets_to_send[${idx}]} -gt 0 ]] && if ! offlineJSON=$(jq "."assets" += [{ asset: \"${idx}\", amount: \"${assets_to_send[${idx}]}\" }]" <<< ${offlineJSON}); then return 1; fi
     done
+    if [[ -n ${metafile_param} ]]; then
+      if ! offlineJSON=$(jq ". += { metadata: $(jq -c . "${metafile}") }" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
@@ -1504,6 +1503,10 @@ delegate() {
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Delegation"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"pool-id\": \"${pool_id}\" }" <<< ${offlineJSON}); then return 1; fi
+    if [[ ${pool_name} != "${pool_id}" ]]; then
+      if ! offlineJSON=$(jq ". += { \"pool-name\": \"${pool_name}\" }" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
@@ -1969,6 +1972,7 @@ deRegisterPool() {
 rotatePoolKeys() {
   # cold keys
   pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
+  pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
 
   # generated files
   pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
@@ -1977,13 +1981,34 @@ rotatePoolKeys() {
   pool_saved_kes_start="${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}"
   pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
 
+  if [[ ! -f ${pool_coldkey_vk_file} ]]; then # lets re-generate it from cold signing key
+    println ACTION "${CCLI} key verification-key --signing-key-file ${pool_coldkey_sk_file} --verification-key-file ${pool_coldkey_vk_file}"
+    ! ${CCLI} key verification-key --signing-key-file "${pool_coldkey_sk_file}" --verification-key-file "${pool_coldkey_vk_file}" && return 1
+    output=$(jq '.description = "Stake Pool Operator Verification Key"' "${pool_coldkey_vk_file}") && jq <<< ${output} > "${pool_coldkey_vk_file}"
+  fi
+
   current_kes_period=$(getCurrentKESperiod)
   echo "${current_kes_period}" > ${pool_saved_kes_start}
 
   println ACTION "${CCLI} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
-  if ! ${CCLI} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"; then return 1; fi
+  ! ${CCLI} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}" && return 1
+
+  p_opcert=""
+  if [[ -n ${PGREST_API} ]]; then
+    ! getPoolID "${pool_name}" && println "ERROR" "\n${FG_RED}ERROR${NC}: failed to get pool ID!\n" && return 1
+    ! p_opcert=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} "${PGREST_API}"/rpc/get_pool_opcert 2>&1) && println "ERROR" "\n${FG_RED}PGREST_API ERROR${NC}: p_opcert: ${p_opcert}\n" && p_opcert="" # print error but ignore
+    if old_counter_nbr=$(jq -er '.op_cert_counter' <<< "${p_opcert}" 2>/dev/null); then
+      println ACTION "${CCLI} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value $(( old_counter_nbr + 1 )) --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
+      ! ${CCLI} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value $(( old_counter_nbr + 1 )) --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1
+    elif [[ ! -f ${pool_opcert_counter_file} ]]; then
+      println "ERROR" "\n${FG_RED}ERROR${NC}: op cert counter file missing and unable to get previous counter value!\n" && return 1
+    fi
+  elif [[ ! -f ${pool_opcert_counter_file} ]]; then
+    println "ERROR" "\n${FG_RED}ERROR${NC}: op cert counter file missing and unable to get previous counter value!\n" && return 1
+  fi
+
   println ACTION "${CCLI} node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
-  if ! ${CCLI} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}"; then return 1; fi
+  ! ${CCLI} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}" && return 1
   chmod 700 ${POOL_FOLDER}/${pool_name}/*
 
   kesExpiration "${current_kes_period}"

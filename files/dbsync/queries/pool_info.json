@@ -41,10 +41,9 @@
             "print": true,
             "data": [
                 {
-                    "type": "query_result",
-                    "queryName": "Pool Updates",
-                    "arg": "_pool_meta_id",
-                    "payload": ".[0].meta_id"
+                    "type": "query_variable",
+                    "arg": "_pool_bech32",
+                    "payload": "pool_id_bech32"
                 }
             ],
             "uri": "rpc/get_pool_metadata"
@@ -54,10 +53,9 @@
             "print": true,
             "data": [
                 {
-                    "type": "query_result",
-                    "queryName": "Pool Updates",
-                    "arg": "_pool_hash_id",
-                    "payload": ".[0].hash_id"
+                    "type": "query_variable",
+                    "arg": "_pool_bech32",
+                    "payload": "pool_id_bech32"
                 }
             ],
             "uri": "rpc/get_pool_retire"
@@ -67,10 +65,9 @@
             "print": true,
             "data": [
                 {
-                    "type": "query_result",
-                    "queryName": "Pool Updates",
-                    "arg": "_pool_update_id",
-                    "payload": ".[0].update_id"
+                    "type": "query_variable",
+                    "arg": "_pool_bech32",
+                    "payload": "pool_id_bech32"
                 }
             ],
             "uri": "rpc/get_pool_relays"
@@ -80,10 +77,9 @@
             "print": true,
             "data": [
                 {
-                    "type": "query_result",
-                    "queryName": "Pool Updates",
-                    "arg": "_pool_tx_id",
-                    "payload": ".[0].registered_tx_id"
+                    "type": "query_variable",
+                    "arg": "_pool_bech32",
+                    "payload": "pool_id_bech32"
                 }
             ],
             "uri": "rpc/get_pool_owners"
@@ -93,10 +89,9 @@
             "print": true,
             "data": [
                 {
-                    "type": "query_result",
-                    "queryName": "Pool Updates",
-                    "arg": "_pool_hash_id",
-                    "payload": ".[0].hash_id"
+                    "type": "query_variable",
+                    "arg": "_pool_bech32",
+                    "payload": "pool_id_bech32"
                 }
             ],
             "uri": "rpc/get_active_stake"
@@ -106,13 +101,24 @@
             "print": true,
             "data": [
                 {
-                    "type": "query_result",
-                    "queryName": "Pool Updates",
-                    "arg": "_pool_hash_id",
-                    "payload": ".[0].hash_id"
+                    "type": "query_variable",
+                    "arg": "_pool_bech32",
+                    "payload": "pool_id_bech32"
                 }
             ],
             "uri": "rpc/get_delegator_count"
+        },
+        {
+            "name": "Operational Certificate",
+            "print": true,
+            "data": [
+                {
+                    "type": "query_variable",
+                    "arg": "_pool_bech32",
+                    "payload": "pool_id_bech32"
+                }
+            ],
+            "uri": "rpc/get_pool_opcert"
         }
     ],
     "script": []

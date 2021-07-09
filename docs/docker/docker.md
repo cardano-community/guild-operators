@@ -1,7 +1,8 @@
 
 Running your own Cardano node has never been so fast and easy.
 
-> But first a kindly reminder to the security aspects of running containers. [Here some Docker security concepts and best practice](docker/docker_security.md)
+!!! info ""
+    But first, a kind reminder to the [security aspects of running docker containers](../docker/security.md).
 
 ### External resources
 
@@ -10,40 +11,35 @@ Running your own Cardano node has never been so fast and easy.
 
 ### 🔔 Built-in tools
 
-- cntools
+- CNTools
 - gLiveView
-- cncli
-- Monitoring ready
-  - EKG, Prometheus
+- CNCLI
+- Monitoring ready  
+- EKG, Prometheus
 
-#### Guild Operators Docker startegy (testnet / mainnet / staging / guild)  {docsify-ignore}
+#### Guild Operators Docker startegy (testnet / mainnet / staging / guild)  {: id="strategy"}
 
 Modular docker images based on Debian.
 
 Based on the Guild's work we decided to build the Cardano Node images in 3 stages:
 
-- 1st stage: it uses `prereq.sh` to prepare the development enviroment before compiling the node source code.  -> [Stage1](../files/docker/dockerfile_stage1)
-- 2nd stage: based on stage1 this stage intent is to compile and produce the binaries of the node. -> [Stage2](../files/docker/dockerfile_stage2)
-- 3rd stage: based upon a minimal debian image it incorporates the node's binaries as well as all the Guild's tools. -> [Stage3](../files/docker/dockerfile_stage3)
+- 1st stage: it uses `prereq.sh` to prepare the development enviroment before compiling the node source code.  -> [Stage1](https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_stage1)
+- 2nd stage: based on stage1, this stage intent is to compile and produce the binaries of the node. -> [Stage2](https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_stage2)
+- 3rd stage: based upon a minimal debian image it incorporates the node's binaries as well as all the Guild's tools. -> [Stage3](https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_stage3)
 
-### Additional docs  {docsify-ignore}
+### Additional docs
 
 If you prefer to build the images your own than you can check:
 
-- [Docker Build Documentation](docker/build.md)
-- [Docker Wallet Image](docker/wallet.md)
-- [Docker Tips](docker/tips.md)
-- [Podman Tips](docker/podman.md)
+- [Docker Build Documentation](../docker/build.md)
+- [Docker Tips](../docker/tips.md)
 
 ### Port mapping
 
-> The dockerfiles are located in ./files/docker/
+ The dockerfiles are located in ./files/docker/
 
-> Node Ports        |  Wallet Ports      | Flavors
->------------:      | -------------:     | :-------------:
->Node  (6000)       | Wallet (8090)      | Debian (`Dockerfile`)
->Prometheus (12798) | Prometheus (12798) |
->EKG (12781)        |                    |
-***
-
-[**Next** Cardano Docker run howto](docker/run.md)
+| Node Ports        |  Wallet Ports      | Flavor        |
+| ------------:     | -------------:     |:-------------:|
+| Node  (6000)      | Wallet (8090)      | Debian        |
+| Prometheus (12798)| Prometheus (12798) |               |
+| EKG (12781)       |                    |               |

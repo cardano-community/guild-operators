@@ -1,9 +1,42 @@
 All notable changes to this tool will be documented in this file.
 
-!> Whenever you're updating between versions where format/hash of keys have changed , or you're changing networks - it is recommended to Backup your Wallet and Pool folders before you proceed with launching cntools on a fresh network.
+!!! info ""
+    Whenever you're updating between versions where format/hash of keys have changed , or you're changing networks - it is recommended to Backup your Wallet and Pool folders before you proceed with launching cntools on a fresh network.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [8.4.13] - 2021-07-08
+##### Changed
+- Documentation references updated to new site layout
+
+## [8.4.12] - 2021-06-28
+##### Fixed
+- Pre-source env in offline/online mode for checkUpdate depending on argument provided to cntools.sh
+
+## [8.4.11] - 2021-06-25
+##### Changed
+- KES calculation moved from CNTools & gLiveView into a common function in env file. For online mode node metrics is used for KES expiration instead of static pool KES start period.
+- General message metadata support added to 'funds >> send' according to CIP-0020.
+
+## [8.4.10] - 2021-06-15
+##### Fixed
+- Fix display issue for CLI that were upgraded to Alonzo-Blue networks
+
+## [8.4.9] - 2021-06-15
+##### Changed
+- Handle Various updates to pgrest queries [disabled] to make them independent of instances.
+Note: Version incremented thrice on PR branch itself
+
+## [8.4.6] - 2021-06-04
+##### Fixed
+- Add balance check for main pool owner, that there is at least one utxo available
+- Allow utxo without lovelace (for future when we might have tokens on utxo without Ada, like on Alonzo TestNet)
+- pctToFraction helper function didn't properly handle 0 value
+
+## [8.4.5] - 2021-05-31
+##### Fixed
+- Reset IFS at main loop, fixes invalid tip difference on home screen after going to Block > Summary
 
 ## [8.4.4] - 2021-05-19
 ##### Fixed
@@ -60,7 +93,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ##### Added
 - Ability to create & update a Cardano Token Registry submission JSON file
   - Requires 'token-metadata-creator' tool, instructions to download/build this tool added to Guild Operators documentation:
-  - https://cardano-community.github.io/guild-operators/#/Build/offchainMetadataTools
+  - https://cardano-community.github.io/guild-operators/Build/offchainMetadataTools
 - Token Registry lookup in Wallet >> Show
 - Token asset fingerprint generation according to https://github.com/cardano-foundation/CIPs/pull/64
 
@@ -246,8 +279,8 @@ Only the most noticeable changes added to changelog.
 
 ##### Changed
 - Blocks view updated to adapt to the added CNCLI integration and changes made to block collector(logMonitor)
-  - [CNCLI](https://cardano-community.github.io/guild-operators/#/Scripts/cncli)
-  - [Log Monitor](https://cardano-community.github.io/guild-operators/#/Scripts/logmonitor)
+  - [CNCLI](https://cardano-community.github.io/guild-operators/Scripts/cncli)
+  - [Log Monitor](https://cardano-community.github.io/guild-operators/Scripts/logmonitor)
 - chattr file locking now optional to use, a new setting in cntools.config added for it.
 
 ##### Fixed
@@ -288,7 +321,7 @@ Only the most noticeable changes added to changelog.
 
 ## [6.0.0] - 2020-10-15
 
-> This is a major release with a lot of changes. It is highly recommended that you familiarise yourself with the usage for Hybrid or Online v/s Offline mode on a testnet environment before doing it on production. Please visit https://cardano-community.github.io/guild-operators/#/upgrade for details.
+> This is a major release with a lot of changes. It is highly recommended that you familiarise yourself with the usage for Hybrid or Online v/s Offline mode on a testnet environment before doing it on production. Please visit https://cardano-community.github.io/guild-operators/upgrade for details.
 
 ##### Added
 - Allow CNTools to operate in offline mode. Offline features include:
@@ -364,7 +397,7 @@ Only the most noticeable changes added to changelog.
 ##### Removed
 - `Pool >> Delegators` removed.
   - If/when a better option than dumping and parsing ledger-state dump arise re-adding it will be considered. 
-  - Utilize the community explorers listed at https://cardano-community.github.io/support-faq/#/explorers 
+  - Utilize the community explorers listed at https://cardano-community.github.io/support-faq/explorers 
 - POOL_PLEDGECERT_FILENAME removed from config, WALLET_DELEGCERT_FILENAME is used instead for delegation cert to pool, no need to keep a separate cert in pool folder for this, its the wallet that is delegated.
 - Redundant sections in guide
 - Stale delegate.counter

@@ -16,11 +16,11 @@ NEXP_PORT=$(( PROM_PORT + 1 ))
 ######################################################################
 #### Static Variables
 ######################################################################
-ARCHS=("darwin-amd64" "linux-amd64"  "linux-armv6")
+ARCHS=("darwin-amd64" "linux-amd64"  "linux-armv6" "linux-arm64" "linux-aarch64")
 TMP_DIR=$(mktemp -d "/tmp/cnode_monitoring.XXXXXXXX")
-PROM_VER=2.20.0
-GRAF_VER=7.1.2
-NEXP_VER=1.0.1
+PROM_VER=2.27.1
+GRAF_VER=7.5.7
+NEXP_VER=1.1.2
 NEXP="node_exporter"
 SKY_DB_URL="https://raw.githubusercontent.com/Oqulent/SkyLight-Pool/master/Haskel_Node_SKY_Relay1_Dash.json"
 IOHK_DB="cardano-application-dashboard-v2.json"
@@ -51,8 +51,12 @@ get_idx () {
         "linux-gnu"*)
             if [[ $HOSTTYPE == *"x86_64"* ]]; then
                 IDX=1
-            elif [[ $HOSTTYPE == *"arm"* ]]; then
+            elif [[ $HOSTTYPE == *"arm64"* ]]; then
+                IDX=3
+            elif [[ $HOSTTYPE == *"armv"* ]]; then
                 IDX=2
+            elif [[ $HOSTTYPE == *"aarch64"* ]]; then
+                IDX=3
             else
                 message "The $HOSTTYPE  is not supported"
             fi

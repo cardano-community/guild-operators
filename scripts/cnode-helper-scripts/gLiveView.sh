@@ -54,10 +54,9 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.20.7
+GLV_VERSION=v1.20.10
 
 PARENT="$(dirname $0)"
-[[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
 
 # Set default for user variables added in recent versions (for those who may not necessarily have it due to upgrade)
 [[ -z "${RETRIES}" ]]  && RETRIES=3
@@ -78,7 +77,7 @@ while getopts :lpb: opt; do
   case ${opt} in
     l ) LEGACY_MODE="true" ;;
     p ) DISABLE_CNCLI="true" ;;
-    b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${PARENT}"/.env_branch ;;
+    b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
   esac
 done
@@ -114,7 +113,7 @@ if [[ ! -f "${PARENT}"/env ]]; then
   myExit 1
 fi
 
-. "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
+. "${PARENT}"/env &>/dev/null # ignore any errors, re-sourced later
 
 if [[ "${UPDATE_CHECK}" == "Y" ]]; then
   echo "Checking for script updates..."
@@ -305,15 +304,6 @@ alignRight () {
   (($#==2)) || return 2
   ((${#2}>$1)) && return 1
   printf '%*s%s' $(($1-${#2})) '' "$2"
-}
-
-# Command    : kesExpiration [pools remaining KES periods]
-# Description: Calculate KES expiration
-kesExpiration() {
-  current_time_sec=$(printf '%(%s)T\n' -1)
-  tip_ref=$(getSlotTipRef)
-  expiration_time_sec=$(( current_time_sec - ( SLOT_LENGTH * (tip_ref % SLOTS_PER_KES_PERIOD) ) + ( SLOT_LENGTH * SLOTS_PER_KES_PERIOD * remaining_kes_periods ) ))
-  printf -v kes_expiration '%(%F %T %Z)T' ${expiration_time_sec}
 }
 
 # Command    : checkPeers [direction: in|out]
@@ -516,7 +506,7 @@ while true; do
   # Gather some data
   getNodeMetrics
   [[ ${fail_count} -eq ${RETRIES} ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}"
-  if [[ ${uptimes} -le 0 ]]; then
+  if [[ ${nodeStartTime} -le 0 ]]; then
     ((fail_count++))
     clear && tput cup 1 1
     printf "${style_status_3}Connection to node lost, retrying (${fail_count}/${RETRIES})!${NC}"

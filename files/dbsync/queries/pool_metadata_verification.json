@@ -26,10 +26,9 @@
             "print": false,
             "data": [
                 {
-                    "type": "query_result",
-                    "queryName": "Pool Updates",
-                    "arg": "_pool_meta_id",
-                    "payload": ".[0].meta_id"
+                    "type": "query_variable",
+                    "arg": "_pool_bech32",
+                    "payload": "pool_id_bech32"
                 }
             ],
             "uri": "rpc/get_pool_metadata"
@@ -50,7 +49,7 @@
         "  meta_hash_chain=$(jq -r '.meta_hash //empty' <<< \"${variables[query_Metadata]}\")",
         "  println \"$(printf \"  %-16s : ${FG_LGRAY}%s${NC}\" \"Hash Registered\" \"${meta_hash_chain}\")\"",
         "  printf '\\nHash Verification: '",
-        "  if [[ ${meta_hash_url} = ${meta_hash_chain} ]]; then println \"${FG_GREEN}MATCH!${NC}\"; else println \"${FG_YELLOW}MISSMATCH!${NC}\"; fi",
+        "  if [[ ${meta_hash_url} = ${meta_hash_chain} ]]; then println \"${FG_GREEN}MATCH!${NC}\"; else println \"${FG_YELLOW}MISMATCH!${NC}\"; fi",
         "else",
         "  println \"${FG_RED}Failed to download metadata from URL!${NC}\"",
         "fi"

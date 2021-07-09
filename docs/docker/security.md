@@ -1,7 +1,7 @@
 
-# Docker Security best practice
+### Docker Security best practices
 
-## Intro
+#### Intro
 
 On the security front, Docker developers are faced with different types of security attacks such as:
 
@@ -13,7 +13,7 @@ On the security front, Docker developers are faced with different types of secur
 > Docker containers are now being exploited to covertly mine for cryptocurrency, marking a shift from ransomware to cryptocurrency malware. 
 As with all things in security, also Docker security is a moving target — so it’s helpful to have access to up-to-date information, including experience-based best practices, for securing your containerized environments.
 
-## Here below some key concepts:
+#### Here below some key concepts:
 
 1. Use a Third-Party Security Tool
 Docker allows you to use containers from untrusted public repositories, which increases the need to scrutinize whether the container was created securely and whether it is free of any corrupt or malicious files. For this, use a multi-purpose security tool that gives extensive dev-to-production security controls.(keep reading below)
@@ -36,7 +36,8 @@ To reduce performance impacts and denial-of-service attacks, it is a good practi
 7. RBAC
 RBAC is role-based access control. If you have multiple users accessing you enviroment, this is a must-have. It can be quite expensive to implement but [portainer](https://www.funkypenguin.co.nz/blog/docker-rbac-with-portainer/) makes it super easy.
 
-## Security Docker best practice: 
+### Security Docker best practices: 
+
 #### The Guild Docker images are not using all the following tips due to functional purpose
 
 Guild tips:
@@ -60,7 +61,7 @@ Some more general tips:
 - [Fail2ban](https://www.fail2ban.org/wiki/index.php/Main_Page): Fail2ban scans your log files and bans IP address that shows malicious intent
 - [Container Vulnerability Scanner](https://github.com/quay/clair)
 
-### Notes:
+#### Notes:
 - *Nginx is a very good choice as load balancer and/or reverse proxy.
 - **By default the socket is owned by root user and docker group.
 - *** On Ubuntu/Debian based systems, edit /etc/default/docker and add the following line: ```DOCKER_OPTS= "--iptables=false"```

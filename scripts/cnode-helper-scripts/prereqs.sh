@@ -236,7 +236,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     err_exit
   fi
   export BOOTSTRAP_HASKELL_NO_UPGRADE=1
-  export BOOTSTRAP_HASKELL_GHC_VERSION=8.10.2
+  export BOOTSTRAP_HASKELL_GHC_VERSION=8.10.4
   export BOOTSTRAP_HASKELL_CABAL_VERSION=3.4.0.0
   if ! command -v ghc &>/dev/null; then
     echo "Install ghcup (The Haskell Toolchain installer) .."
@@ -416,10 +416,13 @@ $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
 echo "Downloading files..."
 
 pushd "${CNODE_HOME}"/files >/dev/null || err_exit
-curl -s -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-mainnet.json 2>/dev/null
 
-if grep -i '404: Not Found' config.json.tmp >/dev/null ; then
-  err_exit "ERROR!! Specified branch could not be found! Kindly re-check the branch name and internet connection from the server"
+
+if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
+  echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to alpha branch\n"
+  BRANCH=alpha
+  URL_RAW="${REPO_RAW}/${BRANCH}"
+  echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
 else
   echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
 fi
@@ -477,9 +480,18 @@ sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HO
 ### Update file retaining existing custom configs
 updateWithCustomConfig() {
   file=$1
+  if [[ ! -f ${file}.tmp ]]; then
+    echo "ERROR!! Failed to download '${file}' from GitHub"
+    return
+  fi
   if [[ -f ${file} && ${FORCE_OVERWRITE} = 'N' ]]; then
     if grep '^# Do NOT modify' ${file} >/dev/null 2>&1; then
       TEMPL_CMD=$(awk '/^# Do NOT modify/,0' ${file}.tmp)
+      if [[ -z ${TEMPL_CMD} ]]; then
+        echo "ERROR!! Script downloaded from GitHub corrupt, ignoring update for '${file}'"
+        rm -f ${file}.tmp
+        return
+      fi
       STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' ${file})
       printf '%s\n%s\n' "${STATIC_CMD}" "${TEMPL_CMD}" > ${file}.tmp
     else

@@ -49,7 +49,7 @@ if [[ $(cat "${itn_signing_key_file}") == ed25519e_* ]]; then
   if ! ${CCLI} key 2>&1 | grep -q "convert-itn-extended-key"; then
     echo -e "\n${ORANGE}WARNING${NC}: cardano-cli lacks support for extended ITN key conversion: ${CCLI}\n"
     echo -e "If a special version of cardano-cli is built with this support, please specify path below, else follow instructions available at:"
-    echo -e "  https://cardano-community.github.io/guild-operators/#/Scripts/itnrewards\n"
+    echo -e "  https://cardano-community.github.io/guild-operators/Scripts/itnrewards\n"
     while true; do
       read -r -p "Enter path to cardano-cli with support for extended key conversion or press enter to quit: " CCLI
       [[ -z "${CCLI}" ]] && rm -rf "${WALLET_FOLDER:?}/${wallet_name}" && exit 1

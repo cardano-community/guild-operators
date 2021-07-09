@@ -27,8 +27,6 @@ myExit() {
   cleanup "$1"
 }
 
-clear
-
 usage() {
   cat <<-EOF
 		Usage: $(basename "$0") [-o] [-a] [-b <branch name>]
@@ -50,7 +48,7 @@ while getopts :oab: opt; do
   case ${opt} in
     o ) CNTOOLS_MODE="OFFLINE" ;;
     a ) ADVANCED_MODE="true" ;;
-    b ) BRANCH=${OPTARG}; echo "${BRANCH}" > "${PARENT}"/.env_branch ;;
+    b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
     \? ) myExit 1 "$(usage)" ;;
     esac
 done
@@ -67,7 +65,12 @@ if [[ ! -f "${PARENT}"/env ]]; then
   myExit 1
 fi
 
-. "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
+# Source env file, re-sourced later
+if [[ "${CNTOOLS_MODE}" == "OFFLINE" ]]; then
+  . "${PARENT}"/env offline &>/dev/null
+else
+  . "${PARENT}"/env &>/dev/null
+fi
 
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   if [[ "${UPDATE_CHECK}" == "Y" ]]; then
@@ -198,23 +201,29 @@ fi
 clear
 kes_rotation_needed="no"
 while IFS= read -r -d '' pool; do
-  if [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]]; then
-    kesExpiration "$(cat "${pool}/${POOL_CURRENT_KES_START}")"
-    if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
-      kes_rotation_needed="yes"
-      println "\n** WARNING **\nPool ${FG_GREEN}$(basename ${pool})${NC} in need of KES key rotation"
-      if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
-        println DEBUG "${FG_RED}Keys expired!${NC} : ${FG_RED}$(timeLeft ${expiration_time_sec_diff:1})${NC} ago"
-      else
-        println DEBUG "Remaining KES periods : ${FG_RED}${remaining_kes_periods}${NC}"
-        println DEBUG "Time left             : ${FG_RED}$(timeLeft ${expiration_time_sec_diff})${NC}"
-      fi
-    elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
-      kes_rotation_needed="yes"
-      println DEBUG "\nPool ${FG_GREEN}$(basename ${pool})${NC} soon in need of KES key rotation"
-      println DEBUG "Remaining KES periods : ${FG_YELLOW}${remaining_kes_periods}${NC}"
-      println DEBUG "Time left             : ${FG_YELLOW}$(timeLeft ${expiration_time_sec_diff})${NC}"
+  unset pool_kes_start
+  if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+    getNodeMetrics
+  else
+    [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"
+  fi
+
+  if ! kesExpiration ${pool_kes_start}; then println ERROR "${FG_RED}ERROR${NC}: failure during KES calculation for ${FG_GREEN}$(basename ${pool})${NC}" && waitForInput && continue; fi
+
+  if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
+    kes_rotation_needed="yes"
+    println "\n** WARNING **\nPool ${FG_GREEN}$(basename ${pool})${NC} in need of KES key rotation"
+    if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
+      println DEBUG "${FG_RED}Keys expired!${NC} : ${FG_RED}$(timeLeft ${expiration_time_sec_diff:1})${NC} ago"
+    else
+      println DEBUG "Remaining KES periods : ${FG_RED}${remaining_kes_periods}${NC}"
+      println DEBUG "Time left             : ${FG_RED}$(timeLeft ${expiration_time_sec_diff})${NC}"
     fi
+  elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
+    kes_rotation_needed="yes"
+    println DEBUG "\nPool ${FG_GREEN}$(basename ${pool})${NC} soon in need of KES key rotation"
+    println DEBUG "Remaining KES periods : ${FG_YELLOW}${remaining_kes_periods}${NC}"
+    println DEBUG "Time left             : ${FG_YELLOW}$(timeLeft ${expiration_time_sec_diff})${NC}"
   fi
 done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
 [[ ${kes_rotation_needed} = "yes" ]] && waitForInput
@@ -231,6 +240,7 @@ function main {
   while true; do # Main loop
     # Start with a clean slate after each completed or canceled command excluding .dialogrc from purge
     find "${TMP_DIR:?}" -type f -not \( -name 'protparams.json' -o -name '.dialogrc' -o -name "offline_tx*" -o -name "*_cntools_backup*" -o -name "metadata_*" -o -name "asset*" \) -delete
+    unset IFS
     clear
     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
@@ -502,7 +512,7 @@ function main {
                     println DEBUG " ${FG_LGRAY}>${NC} Track rewards in Daedalus/Yoroi"
                     echo
                     println DEBUG "Please read more about HD wallets at:"
-                    println DEBUG "https://cardano-community.github.io/support-faq/#/wallets?id=heirarchical-deterministic-hd-wallets"
+                    println DEBUG "https://cardano-community.github.io/support-faq/wallets?id=heirarchical-deterministic-hd-wallets"
                     waitForInput && continue
                     ;; ###################################################################
 
@@ -1165,6 +1175,7 @@ function main {
               fi
               echo
               
+              # source wallet
               println DEBUG "# Select ${FG_YELLOW}source${NC} wallet"
               if [[ ${op_mode} = "online" ]]; then
                 if ! selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
@@ -1184,7 +1195,6 @@ function main {
               s_wallet="${wallet_name}"
               s_payment_vk_file="${payment_vk_file}"
               s_payment_sk_file="${payment_sk_file}"
-              echo
               getBaseAddress ${s_wallet}
               getPayAddress ${s_wallet}
               getBalance ${base_addr}
@@ -1198,7 +1208,6 @@ function main {
                   println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
                   println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
-                echo
                 select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
                 case $? in
                   0) s_addr="${base_addr}" ;;
@@ -1220,15 +1229,15 @@ function main {
                 println ERROR "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${s_wallet}${NC}"
                 waitForInput && continue
               fi
-              
               getBalance ${s_addr}
               declare -gA assets_left=()
               for asset in "${!assets[@]}"; do
                 assets_left[${asset}]=${assets[${asset}]}
               done
               minUTxOValue=$(jq -r '.minUTxOValue //1000000' <<< "${PROT_PARAMS}")
+
               # Amount
-              println DEBUG "# Amount to Send (in Ada)"
+              println DEBUG "\n# Amount to Send (in Ada)"
               println DEBUG " Valid entry:"
               println DEBUG "   ${FG_LGRAY}>${NC} Integer (e.g. 15) or Decimal (e.g. 956.1235), commas allowed as thousand separator"
               println DEBUG "   ${FG_LGRAY}>${NC} The string '${FG_YELLOW}all${NC}' sends all available funds in source wallet"
@@ -1315,6 +1324,7 @@ function main {
                 esac
                 echo
               fi
+
               # Destination
               d_wallet=""
               println DEBUG "# Select ${FG_YELLOW}destination${NC} type"
@@ -1354,6 +1364,53 @@ function main {
                 println ERROR "${FG_RED}ERROR${NC}: destination address field empty"
                 waitForInput && continue
               fi
+
+              # Optional metadata/message
+              println "\n# Add a message to the transaction?"
+              select_opt "[y] Yes" "[n] No"
+              case $? in
+                0)  metafile="${TMP_DIR}/metadata_$(date '+%Y%m%d%H%M%S').json"
+                    DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
+                    println OFF "\nA maximum of 64 characters(bytes) is allowed per line."
+                    println OFF "${FG_YELLOW}Please don't change default file path when saving.${NC}"
+                    exec >&6 2>&7 # normal stdout/stderr
+                    waitForInput "press any key to open '${FG_LGRAY}${DEFAULTEDITOR}${NC}' text editor"
+                    ${DEFAULTEDITOR} "${metafile}"
+                    exec >&8 2>&9 # custom stdout/stderr
+                    if [[ ! -f "${metafile}" ]]; then
+                      println ERROR "${FG_RED}ERROR${NC}: file not found"
+                      println ERROR "File: ${FG_LGRAY}${metafile}${NC}"
+                      waitForInput && continue
+                    fi
+                    tput cuu 4 && tput ed
+                    if [[ ! -s ${metafile} ]]; then
+                      println "Message empty, skip and continue with transaction without message? No to abort!"
+                      select_opt "[y] Yes" "[n] No"
+                      case $? in
+                        0) unset metafile ;;
+                        1) continue ;;
+                      esac
+                    else
+                      tx_msg='{"674":{"msg":[]}}'
+                      error=""
+                      while IFS="" read -r line || [[ -n "${line}" ]]; do
+                        line_bytes=$(echo -n "${line}" | wc -c)
+                        if [[ ${line_bytes} -gt 64 ]]; then
+                          error="${FG_RED}ERROR${NC}: line contains more that 64 bytes(characters) [${line_bytes}]\nLine: ${FG_LGRAY}${line}${NC}" && break
+                        fi
+                        if ! tx_msg=$(jq -er ".\"674\".msg += [\"${line}\"]" <<< "${tx_msg}" 2>&1); then
+                          error="${FG_RED}ERROR${NC}: ${tx_msg}" && break
+                        fi
+                      done < "${metafile}"
+                      [[ -n ${error} ]] && println ERROR "${error}" && waitForInput && continue
+                      jq -c . <<< "${tx_msg}" > "${metafile}"
+                      jq -r . "${metafile}" >&3 && echo
+                      println LOG "Transaction message: ${tx_msg}"
+                    fi
+                    ;;
+                1)  unset metafile ;;
+              esac
+
               if ! sendAssets; then
                 waitForInput && continue
               fi
@@ -1856,6 +1913,7 @@ function main {
                 done
               fi
               echo
+
               owner_wallets=()
               reward_wallet=""
               hw_reward_wallet='N'
@@ -1863,6 +1921,7 @@ function main {
               reuse_wallets='N'
               # Old owner/reward wallets
               if [[ -f ${pool_config} ]]; then
+
                 println DEBUG "# Previous Owner(s)/Reward wallets"
                 if jq -er '.pledgeWallet' "${pool_config}" &>/dev/null; then # legacy support
                   owner_wallets+=( "$(jq -r '.pledgeWallet' "${pool_config}")" )
@@ -1874,6 +1933,7 @@ function main {
                     println DEBUG "Owner wallet #$(jq -r '.id' <<< "${owner}") : ${FG_GREEN}${wallet_name}${NC}"
                   done
                 fi
+
                 reward_wallet=$(jq -r '.rewardWallet //empty' "${pool_config}")
                 println DEBUG "Reward wallet   : ${FG_GREEN}${reward_wallet}${NC}"
                 println DEBUG "\nReuse previous Owner(s)/Reward wallets?"
@@ -1913,6 +1973,7 @@ function main {
                         if ! registerStakeWallet ${wallet_name}; then waitForInput && continue 2; fi
                       fi
                     done
+
                     getWalletType ${reward_wallet}
                     case $? in
                       0) hw_reward_is_mu='N'
@@ -1935,6 +1996,7 @@ function main {
                       4) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake verification keys missing from reward wallet ${FG_GREEN}${reward_wallet}${NC}!"
                           waitForInput "Unable to reuse old configuration, please set new owner(s) & reward wallet" && owner_wallets=() && reward_wallet="" && reuse_wallets='N' ;;
                     esac
+
                     if ! isWalletRegistered ${reward_wallet}; then
                       if [[ ${op_mode} = "hybrid" ]]; then
                         println ERROR "\n${FG_RED}ERROR${NC}: reward wallet ${FG_GREEN}${reward_wallet}${NC} not a registered wallet on chain and CNTools run in hybrid mode"
@@ -1956,6 +2018,7 @@ function main {
                   2) continue ;;
                 esac
               fi
+
               if [[ ${reuse_wallets} = 'N' ]]; then
                 println DEBUG "# Select main ${FG_YELLOW}owner/pledge${NC} wallet (normal CLI wallet)"
                 if [[ ${op_mode} = "online" ]]; then
@@ -1994,6 +2057,14 @@ function main {
                 owner_wallets+=( "${wallet_name}" )
                 println DEBUG "Owner #1 : ${FG_GREEN}${wallet_name}${NC} added!"
               fi
+
+              getBaseAddress ${wallet_name}
+              getBalance ${base_addr}
+              if [[ ${assets[lovelace]} -eq 0 ]]; then
+                println ERROR "\n${FG_RED}ERROR${NC}: no funds available in owner wallet ${FG_GREEN}${owner_wallets[0]}${NC}"
+                waitForInput && continue
+              fi
+
               if [[ ${reuse_wallets} = 'N' ]]; then
                 println DEBUG "\nRegister a multi-owner pool (you need to have stake.vkey of any additional owner in a seperate wallet folder under \$CNODE_HOME/priv/wallet)?"
                 while true; do
@@ -2026,6 +2097,7 @@ function main {
                   println DEBUG "Add more owners?"
                 done
               fi
+
               if [[ ${reuse_wallets} = 'N' ]]; then
                 println DEBUG "\nUse a separate rewards wallet from main owner?"
                 select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
@@ -2329,6 +2401,7 @@ function main {
               println LOG "creating de-registration cert"
               println ACTION "${CCLI} stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file}"
               ${CCLI} stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file}
+              echo
               if ! deRegisterPool; then
                 waitForInput && continue
               fi
@@ -2363,18 +2436,25 @@ function main {
                 println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (hex)" "${pool_id}")"
                 [[ -n ${pool_id_bech32} ]] && println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (bech32)" "${pool_id_bech32}")"
                 println "$(printf "%-21s : %s" "Registered" "${pool_registered}")"
-                if [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]]; then
-                  kesExpiration "$(cat "${pool}/${POOL_CURRENT_KES_START}")"
+                unset pool_kes_start
+                if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+                  getNodeMetrics
+                else
+                  [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"
+                fi
+                if ! kesExpiration ${pool_kes_start}; then 
+                  println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC}%s${FG_GREEN}%s${NC}" "KES expiration date" "ERROR" ": failure during KES calculation for " "$(basename ${pool})")"
+                else
                   if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
                     if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s ago" "KES expiration date" "${expiration_date}" "EXPIRED!" "$(timeLeft ${expiration_time_sec_diff:1})")"
+                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s ago" "KES expiration date" "${kes_expiration}" "EXPIRED!" "$(timeLeft ${expiration_time_sec_diff:1})")"
                     else
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "ALERT!" "$(timeLeft ${expiration_time_sec_diff})")"
+                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s until expiration" "KES expiration date" "${kes_expiration}" "ALERT!" "$(timeLeft ${expiration_time_sec_diff})")"
                     fi
                   elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
-                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_YELLOW}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "WARNING!" "$(timeLeft ${expiration_time_sec_diff})")"
+                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_YELLOW}%s${NC} %s until expiration" "KES expiration date" "${kes_expiration}" "WARNING!" "$(timeLeft ${expiration_time_sec_diff})")"
                   else
-                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "KES expiration date" "${expiration_date}")"
+                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "KES expiration date" "${kes_expiration}")"
                   fi
                 fi
               done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
@@ -2425,24 +2505,21 @@ function main {
                   3) pool_registered="NO" ;; # retired, ${retiring_epoch} containing the epoch number it was retired
                 esac
                 if [[ ${pool_registered} = YES ]]; then
-                  ! p_active_stake=$(curl -sSL -f -d _pool_hash_id=${p_hash_id} -d _epoch_no=${current_epoch} "${PGREST_API}"/rpc/get_active_stake 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: p_active_stake: ${p_active_stake}" && waitForInput && continue
+                  ! p_active_stake=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -d _epoch_no=${current_epoch} "${PGREST_API}"/rpc/get_active_stake 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: p_active_stake: ${p_active_stake}" && waitForInput && continue
                   ! t_active_stake=$(curl -sSL -f -d _epoch_no=${current_epoch} "${PGREST_API}"/rpc/get_active_stake 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: t_active_stake: ${t_active_stake}" && waitForInput && continue
-                  ! p_delegator_cnt=$(curl -sSL -f -d _pool_hash_id=${p_hash_id} "${PGREST_API}"/rpc/get_delegator_count 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: p_delegator_cnt: ${p_delegator_cnt}" && waitForInput && continue
-                  ! pmeta_latest=$(curl -sSL -f -d _pool_meta_id="$(jq '.[0].meta_id' <<< ${pupd_latest})" "${PGREST_API}"/rpc/get_pool_metadata 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: pmeta_latest: ${pmeta_latest}" && waitForInput && continue
-                  ! prelay_latest=$(curl -sSL -f -d _pool_update_id="$(jq '.[0].update_id' <<< ${pupd_latest})" "${PGREST_API}"/rpc/get_pool_relays 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: prelay_latest: ${prelay_latest}" && waitForInput && continue
-                  ! powner_latest=$(curl -sSL -f -d _pool_tx_id="$(jq '.[0].registered_tx_id' <<< ${pupd_latest})" "${PGREST_API}"/rpc/get_pool_owners 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: powner_latest: ${powner_latest}" && waitForInput && continue
+                  ! p_delegator_cnt=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} "${PGREST_API}"/rpc/get_delegator_count 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: p_delegator_cnt: ${p_delegator_cnt}" && waitForInput && continue
+                  ! prelay_latest=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} "${PGREST_API}"/rpc/get_pool_relays 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: prelay_latest: ${prelay_latest}" && waitForInput && continue
+                  ! powner_latest=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} "${PGREST_API}"/rpc/get_pool_owners 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: powner_latest: ${powner_latest}" && waitForInput && continue
                   if [[ ${pupd_latest_epoch} -gt ${current_epoch} ]]; then # pool update/modification submitted, grab active pool data as well
                     ! pupd_active=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -d _current_epoch_no=${current_epoch} -d _state=active "${PGREST_API}"/rpc/get_pool_update 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: pupd_active: ${pupd_active}" && waitForInput && continue
-                    ! pmeta_active=$(curl -sSL -f -d _pool_meta_id="$(jq '.[0].meta_id' <<< ${pupd_active})" "${PGREST_API}"/rpc/get_pool_metadata 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: pmeta_active: ${pmeta_active}" && waitForInput && continue
-                    ! prelay_active=$(curl -sSL -f -d _pool_update_id="$(jq '.[0].update_id' <<< ${pupd_active})" "${PGREST_API}"/rpc/get_pool_relays 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: prelay_active: ${prelay_active}" && waitForInput && continue
-                    ! powner_active=$(curl -sSL -f -d _pool_tx_id="$(jq '.[0].registered_tx_id' <<< ${pupd_active})" "${PGREST_API}"/rpc/get_pool_owners 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: powner_active: ${powner_active}" && waitForInput && continue
                   else # grab the rest of the pool data from latest update
                     unset pupd_active
                   fi
                 fi
               fi
               echo
-              println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Pool" "${pool_name}")"
+              [[ -n ${PGREST_API} && ${pupd_latest_epoch} -gt ${current_epoch} ]] && println "${FG_YELLOW}Pool modified recently, displaying latest registered.${NC}\n"
+              println "$(printf "%-21s : ${FG_GREEN}%s${NC}${FG_YELLOW}%s${NC}" "Pool Name" "${pool_name}" "${pool_upd_notice}")"
               println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (hex)" "${pool_id}")"
               [[ -n ${pool_id_bech32} ]] && println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (bech32)" "${pool_id_bech32}")"
               if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
@@ -2471,12 +2548,12 @@ function main {
                   println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Hash" "${meta_hash}")"
                 fi
               elif [[ ${pool_registered} = YES ]]; then
-                if [[ -f "${pool_config}" ]]; then
-                  meta_json_url=$(jq -r .json_url "${pool_config}")
-                elif [[ -z ${PGREST_API} ]]; then
+                if [[ -n ${PGREST_API} ]]; then
+                  meta_json_url=$(jq -r '.[0].meta_url //empty' <<< "${pupd_latest}")
+                elif [[ -n ${ledger_fPParams} ]]; then
                   meta_json_url=$(jq -r '.metadata.url //empty' <<< "${ledger_fPParams}")
-                else
-                  meta_json_url=$(jq -r '.meta_url //empty' <<< "${pmeta_latest}")
+                elif [[ -f "${pool_config}" ]]; then
+                  meta_json_url=$(jq -r .json_url "${pool_config}")
                 fi
                 if [[ -n ${meta_json_url} ]] && curl -sL -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}/url_poolmeta.json" ${meta_json_url}; then
                   println "Metadata"
@@ -2493,9 +2570,9 @@ function main {
                       meta_hash_pParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_pParams}")
                       meta_hash_fPParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_fPParams}")
                     else
-                      meta_hash_fPParams=$(jq -r '.meta_hash //empty' <<< "${pmeta_latest}")
+                      meta_hash_fPParams=$(jq -r '.[0].meta_hash //empty' <<< "${pupd_latest}")
                       if [[ -n ${pupd_active} ]]; then
-                        meta_hash_pParams=$(jq -r '.meta_hash //empty' <<< "${pmeta_active}")
+                        meta_hash_pParams=$(jq -r '.[0].meta_hash //empty' <<< "${pupd_active}")
                       else
                         meta_hash_pParams=${meta_hash_fPParams}
                       fi
@@ -2594,9 +2671,6 @@ function main {
                   fi
                 else
                   relays=$(jq -c '.[] //empty' <<< "${prelay_latest}")
-                  if [[ -n ${prelay_active} && ${relays} != $(jq -c '.[] //empty' <<< "${prelay_active}") ]]; then
-                    println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Relay(s) updated, showing latest registered")"
-                  fi
                 fi
                 relay_title="Relay(s)"
                 if [[ -n "${relays}" ]]; then
@@ -2647,14 +2721,11 @@ function main {
                   fi
                 else
                   owners=$(jq -rc '.[] //empty' <<< "${powner_latest}")
-                  if [[ -n ${powner_active} && ${owners} != $(jq -rc '.[] //empty' <<< "${powner_active}") ]]; then
-                    println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Owner(s) updated, showing latest registered")"
-                  fi
                 fi
                 owner_title="Owner(s)"
                 while read -r owner; do
-                  [[ -z ${PGREST_API} ]] && owner_hash=${owner} || owner_hash=$(jq -r '.owner_hash //empty' <<< "${owner}")
-                  owner_wallet=$(grep -r ${owner_hash} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
+                  [[ -z ${PGREST_API} ]] && owner_reward_addr=${owner} || owner_reward_addr=$(jq -r '.reward_addr //empty' <<< "${owner}")
+                  owner_wallet=$(grep -r ${owner_reward_addr} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
                   if [[ -n ${owner_wallet} ]]; then
                     owner_wallet="$(basename "$(dirname "${owner_wallet}")")"
                     println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "${owner_title}" "${owner_wallet}")"
@@ -2662,8 +2733,7 @@ function main {
                     if [[ -z ${PGREST_API} ]]; then
                       println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "${owner_title}" "${owner}")"
                     else
-                      ! owner_addr=$(jq -er '.reward_addr //empty' <<< "${owner}") && owner_addr=${owner_hash}
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "${owner_title}" "${owner_addr}")"
+                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "${owner_title}" "${owner_reward_addr}")"
                     fi
                   fi
                   owner_title=""
@@ -2708,18 +2778,25 @@ function main {
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} (incl owners)" "Total Delegators" "${p_delegator_cnt}")"
                 fi
 
-                if [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]]; then
-                  kesExpiration "$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
+                unset pool_kes_start
+                if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+                  getNodeMetrics
+                else
+                  [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
+                fi
+                if ! kesExpiration ${pool_kes_start}; then 
+                  println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC}%s${FG_GREEN}%s${NC}" "KES expiration date" "ERROR" ": failure during KES calculation for " "$(basename ${pool})")"
+                else
                   if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
                     if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s ago" "KES expiration date" "${expiration_date}" "EXPIRED!" "$(timeLeft ${expiration_time_sec_diff:1})")"
+                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s ago" "KES expiration date" "${kes_expiration}" "EXPIRED!" "$(timeLeft ${expiration_time_sec_diff:1})")"
                     else
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "ALERT!" "$(timeLeft ${expiration_time_sec_diff})")"
+                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s until expiration" "KES expiration date" "${kes_expiration}" "ALERT!" "$(timeLeft ${expiration_time_sec_diff})")"
                     fi
                   elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
-                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_YELLOW}%s${NC} %s until expiration" "KES expiration date" "${expiration_date}" "WARNING!" "$(timeLeft ${expiration_time_sec_diff})")"
+                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_YELLOW}%s${NC} %s until expiration" "KES expiration date" "${kes_expiration}" "WARNING!" "$(timeLeft ${expiration_time_sec_diff})")"
                   else
-                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "KES expiration date" "${expiration_date}")"
+                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "KES expiration date" "${kes_expiration}")"
                   fi
                 fi
               fi
@@ -2733,7 +2810,7 @@ function main {
               echo
               [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
               println DEBUG "# Select pool to rotate KES keys on"
-              if ! selectPool "all" "${POOL_COLDKEY_SK_FILENAME}" "${POOL_OPCERT_COUNTER_FILENAME}"; then # ${pool_name} populated by selectPool function
+              if ! selectPool "all" "${POOL_COLDKEY_SK_FILENAME}"; then # ${pool_name} populated by selectPool function
                 waitForInput && continue
               fi
               if ! rotatePoolKeys; then
@@ -2742,7 +2819,7 @@ function main {
               echo
               println "Pool KES keys successfully updated"
               println "New KES start period : ${FG_LBLUE}${current_kes_period}${NC}"
-              println "KES keys will expire : ${FG_LBLUE}$(( current_kes_period + MAX_KES_EVOLUTIONS ))${NC} - ${FG_LGRAY}${expiration_date}${NC}"
+              println "KES keys will expire : ${FG_LBLUE}$(( current_kes_period + MAX_KES_EVOLUTIONS ))${NC} - ${FG_LGRAY}${kes_expiration}${NC}"
               echo
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println DEBUG "Copy updated files to pool node replacing existing files:"
@@ -2915,9 +2992,10 @@ function main {
               tx_sign_files=()
               case "${otx_type}" in
                 Wallet*|Payment|"Pool De-Registration"|Metadata|Asset*)
-                  [[ ${otx_type} = "Wallet De-Registration" ]] && println DEBUG "\nAmount returned  : ${FG_LBLUE}$(formatLovelace "$(jq -r '."amount-returned"' <<< ${offlineJSON})")${NC} Ada"
+                  echo
+                  [[ ${otx_type} = "Wallet De-Registration" ]] && println DEBUG "Amount returned  : ${FG_LBLUE}$(formatLovelace "$(jq -r '."amount-returned"' <<< ${offlineJSON})")${NC} Ada"
                   if [[ ${otx_type} = "Payment" ]]; then
-                    println DEBUG "\nSource addr      : ${FG_LGRAY}$(jq -r '."source-address"' <<< ${offlineJSON})${NC}"
+                    println DEBUG "Source addr      : ${FG_LGRAY}$(jq -r '."source-address"' <<< ${offlineJSON})${NC}"
                     println DEBUG "Destination addr : ${FG_LGRAY}$(jq -r '."destination-address"' <<< ${offlineJSON})${NC}"
                     println DEBUG "Amount           : ${FG_LBLUE}$(formatLovelace "$(jq -r '.assets[] | select(.asset=="lovelace") | .amount' <<< ${offlineJSON})")${NC} Ada"
                     for otx_assets in $(jq -r '.assets[] | @base64' <<< "${offlineJSON}"); do
@@ -2927,14 +3005,15 @@ function main {
                       println DEBUG "                   ${FG_LBLUE}$(formatAsset "$(_jq '.amount')")${NC} ${FG_LGRAY}${otx_asset}${NC}"
                     done
                   fi
-                  [[ ${otx_type} = "Wallet Rewards Withdrawal" ]] && println DEBUG "\nRewards          : ${FG_LBLUE}$(formatLovelace "$(jq -r '.rewards' <<< ${offlineJSON})")${NC} Ada"
-                  [[ ${otx_type} = "Pool De-Registration" ]] && println DEBUG "\nPool name        : ${FG_LGRAY}$(jq -r '."pool-name"' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Pool De-Registration" ]] && println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-ticker"' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Pool De-Registration" ]] && println DEBUG "To be retired    : epoch ${FG_LGRAY}$(jq -r '."retire-epoch"' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Metadata" ]] && println DEBUG "\nMetadata         :\n$(jq -r '.metadata' <<< ${offlineJSON})\n"
-                  [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "\nPolicy Name      : ${FG_LGRAY}$(jq -r '."policy-name"' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Policy ID        : ${FG_LGRAY}$(jq -r '."policy-id"' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Asset Name       : ${FG_LGRAY}$(jq -r '."asset-name"' <<< ${offlineJSON})${NC}"
+                  jq -er '.rewards' <<< ${offlineJSON} &>/dev/null && println DEBUG "Rewards          : ${FG_LBLUE}$(formatLovelace "$(jq -r '.rewards' <<< ${offlineJSON})")${NC} Ada"
+                  jq -er '."pool-id"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Pool ID          : ${FG_LGRAY}$(jq -r '."pool-id"' <<< ${offlineJSON})${NC}"
+                  jq -er '."pool-name"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Pool name        : ${FG_LGRAY}$(jq -r '."pool-name"' <<< ${offlineJSON})${NC}"
+                  jq -er '."pool-ticker"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-ticker"' <<< ${offlineJSON})${NC}"
+                  jq -er '."retire-epoch"' <<< ${offlineJSON} &>/dev/null && println DEBUG "To be retired    : epoch ${FG_LGRAY}$(jq -r '."retire-epoch"' <<< ${offlineJSON})${NC}"
+                  jq -er '.metadata' <<< ${offlineJSON} &>/dev/null && println DEBUG "Metadata         :\n$(jq -r '.metadata' <<< ${offlineJSON})\n"
+                  jq -er '."policy-name"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Policy Name      : ${FG_LGRAY}$(jq -r '."policy-name"' <<< ${offlineJSON})${NC}"
+                  jq -er '."policy-id"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Policy ID        : ${FG_LGRAY}$(jq -r '."policy-id"' <<< ${offlineJSON})${NC}"
+                  jq -er '."asset-name"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Asset Name       : ${FG_LGRAY}$(jq -r '."asset-name"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Asset Minting" ]] && println DEBUG "Assets To Mint   : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-amount"' <<< ${offlineJSON})")${NC}"
                   [[ ${otx_type} = "Asset Minting" ]] && println DEBUG "Assets Minted    : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-minted"' <<< ${offlineJSON})")${NC}"
                   [[ ${otx_type} = "Asset Burning" ]] && println DEBUG "Assets To Burn   : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-amount"' <<< ${offlineJSON})")${NC}"
@@ -3189,9 +3268,10 @@ function main {
               fi
               case "${otx_type}" in
                 "Wallet Registration"|"Wallet De-Registration"|"Payment"|"Wallet Delegation"|"Wallet Rewards Withdrawal"|"Pool De-Registration"|"Metadata"|"Pool Registration"|"Pool Update"|"Asset Minting"|"Asset Burning")
-                  [[ ${otx_type} = "Wallet De-Registration" ]] && println DEBUG "\nAmount returned  : ${FG_LBLUE}$(formatLovelace "$(jq -r '."amount-returned"' <<< ${offlineJSON})")${NC} Ada"
+                  echo
+                  [[ ${otx_type} = "Wallet De-Registration" ]] && println DEBUG "Amount returned  : ${FG_LBLUE}$(formatLovelace "$(jq -r '."amount-returned"' <<< ${offlineJSON})")${NC} Ada"
                   if [[ ${otx_type} = "Payment" ]]; then
-                    println DEBUG "\nSource addr      : ${FG_LGRAY}$(jq -r '."source-address"' <<< ${offlineJSON})${NC}"
+                    println DEBUG "Source addr      : ${FG_LGRAY}$(jq -r '."source-address"' <<< ${offlineJSON})${NC}"
                     println DEBUG "Destination addr : ${FG_LGRAY}$(jq -r '."destination-address"' <<< ${offlineJSON})${NC}"
                     println DEBUG "Amount           : ${FG_LBLUE}$(formatLovelace "$(jq -r '.assets[] | select(.asset=="lovelace") | .amount' <<< ${offlineJSON})")${NC} ${FG_GREEN}Ada${NC}"
                     for otx_assets in $(jq -r '.assets[] | @base64' <<< "${offlineJSON}"); do
@@ -3201,17 +3281,20 @@ function main {
                       println DEBUG "                   ${FG_LBLUE}$(formatAsset "$(_jq '.amount')")${NC} ${FG_LGRAY}${otx_asset}${NC}"
                     done
                   fi
-                  [[ ${otx_type} = "Wallet Rewards Withdrawal" ]] && println DEBUG "\nRewards          : ${FG_LBLUE}$(formatLovelace "$(jq -r '.rewards' <<< ${offlineJSON})")${NC} Ada"
-                  [[ ${otx_type} = "Pool De-Registration" ]] && println DEBUG "\nPool name        : ${FG_LGRAY}$(jq -r '."pool-name"' <<< ${offlineJSON})${NC}"
+                  [[ ${otx_type} = "Wallet Rewards Withdrawal" ]] && println DEBUG "Rewards          : ${FG_LBLUE}$(formatLovelace "$(jq -r '.rewards' <<< ${offlineJSON})")${NC} Ada"
+                  jq -er '."pool-id"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Pool ID          : ${FG_LGRAY}$(jq -r '."pool-id"' <<< ${offlineJSON})${NC}"
+                  if jq -er '."pool-name"' <<< ${offlineJSON} &>/dev/null; then
+                    [[ ${otx_type} != "Pool Registration" ]] && println DEBUG "Pool name        : ${FG_LGRAY}$(jq -r '."pool-name"' <<< ${offlineJSON})${NC}"
+                  fi
                   [[ ${otx_type} = "Pool De-Registration" ]] && println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-ticker"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Pool De-Registration" ]] && println DEBUG "To be retired    : epoch ${FG_LGRAY}$(jq -r '."retire-epoch"' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Metadata" ]] && println DEBUG "\nMetadata         :\n$(jq -r '.metadata' <<< ${offlineJSON})\n"
-                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "\nPool name        : ${FG_LGRAY}$(jq -r '."pool-metadata".name' <<< ${offlineJSON})${NC}"
+                  jq -er '.metadata' <<< ${offlineJSON} &>/dev/null && println DEBUG "Metadata         :\n$(jq -r '.metadata' <<< ${offlineJSON})\n"
+                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Pool name        : ${FG_LGRAY}$(jq -r '."pool-metadata".name' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-metadata".ticker' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Pledge           : ${FG_LBLUE}$(formatAsset "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")${NC} Ada"
                   [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Margin           : ${FG_LBLUE}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
                   [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Cost             : ${FG_LBLUE}$(formatAsset "$(jq -r '."pool-cost"' <<< ${offlineJSON})")${NC} Ada"
-                  [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "\nPolicy Name      : ${FG_LGRAY}$(jq -r '."policy-name"' <<< ${offlineJSON})${NC}"
+                  [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Policy Name      : ${FG_LGRAY}$(jq -r '."policy-name"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Policy ID        : ${FG_LGRAY}$(jq -r '."policy-id"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Asset Name       : ${FG_LGRAY}$(jq -r '."asset-name"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Asset Minting" ]] && println DEBUG "Assets To Mint   : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-amount"' <<< ${offlineJSON})")${NC}"
@@ -3285,14 +3368,14 @@ function main {
                  [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=$((current_epoch+1)) LIMIT 1);" 2>/dev/null) -eq 1 ]] && ((current_epoch++))
                  first_epoch=$(( current_epoch - epoch_enter ))
                  [[ ${first_epoch} -lt 0 ]] && first_epoch=0
-                      ideal_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(epoch_slots_ideal) FROM epochdata WHERE epoch BETWEEN ${first_epoch} and ${current_epoch} ORDER BY LENGTH(epoch_slots_ideal) DESC LIMIT 1;")
+                 ideal_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(epoch_slots_ideal) FROM epochdata WHERE epoch BETWEEN ${first_epoch} and ${current_epoch} ORDER BY LENGTH(epoch_slots_ideal) DESC LIMIT 1;")
                  [[ ${ideal_len} -lt 5 ]] && ideal_len=5
                  luck_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(max_performance) FROM epochdata WHERE epoch BETWEEN ${first_epoch} and ${current_epoch} ORDER BY LENGTH(max_performance) DESC LIMIT 1;")
                  [[ $((luck_len+1)) -le 4 ]] && luck_len=4 || luck_len=$((luck_len+1))
                  printf '|' >&3; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "=" >&3; printf '|\n' >&3
                  printf "| %-5s | %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_LBLUE}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "Epoch" "Leader" "Ideal" "Luck" "Adopted" "Confirmed" "Missed" "Ghosted" "Stolen" "Invalid" >&3
                  printf '|' >&3; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "=" >&3; printf '|\n' >&3
-                      while [[ ${current_epoch} -gt ${first_epoch} ]]; do
+                 while [[ ${current_epoch} -gt ${first_epoch} ]]; do
                    invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='invalid';" 2>/dev/null)
                    missed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='missed';" 2>/dev/null)
                    ghosted_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='ghosted';" 2>/dev/null)
@@ -3327,7 +3410,7 @@ function main {
                  println OFF "            can be decoded with 'echo <base64 hash> | base64 -d | jq -r'"
                fi
                echo
-                    println OFF "[h] Home | ${view_output} | [*] Refresh"
+               println OFF "[h] Home | ${view_output} | [*] Refresh"
                read -rsn1 key
                case ${key} in
                  h ) continue 2 ;;
@@ -4194,6 +4277,7 @@ function main {
                     if [[ ! -f "${asset_file}" ]]; then echo "{}" > ${asset_file}; fi
                     assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"${asset_name}\", policyID: \"${policy_id}\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"mint ${asset_amount}\"}" < ${asset_file})
                     echo -e "${assetJSON}" > ${asset_file}
+                    echo
                     if ! verifyTx ${addr}; then waitForInput && continue; fi
                     echo
                     println "Assets successfully minted!"
@@ -4324,7 +4408,8 @@ function main {
                     if [[ ! -f "${asset_file}" ]]; then echo "{}" > ${asset_file}; fi
                     assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"${asset_name}\", policyID: \"${policy_id}\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"burn ${assets_to_burn}\"}" < ${asset_file})
                     echo -e "${assetJSON}" > ${asset_file}
-                                if ! verifyTx ${addr}; then waitForInput && continue; fi
+                    echo
+                    if ! verifyTx ${addr}; then waitForInput && continue; fi
                     echo
                     println "Assets successfully burned!"
                     println "Policy Name         : ${FG_GREEN}${policy_name}${NC}"
@@ -4344,7 +4429,7 @@ function main {
                     echo
                     if ! cmdAvailable "token-metadata-creator"; then
                       println ERROR "Please follow instructions on Guild Operators site to download or build the tool:"
-                      println ERROR "${FG_YELLOW}https://cardano-community.github.io/guild-operators/#/Build/offchainMetadataTools${NC}"
+                      println ERROR "${FG_YELLOW}https://cardano-community.github.io/guild-operators/Build/offchainMetadataTools${NC}"
                       waitForInput && continue
                     fi
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies found!${NC}\n\nPlease first create a policy to use for Cardano Token Registry" && waitForInput && continue
@@ -4450,7 +4535,7 @@ function main {
                     
                     # Adding Creator-Credits
                     tmpJSON=$(cat ${meta_file})
-                    tmpJSON=$(jq ". += {tool: {description: \"CNTools by Guild Operators\", url: \"https://cardano-community.github.io/guild-operators/#/Scripts/cntools\"} } " <<< ${tmpJSON})
+                    tmpJSON=$(jq ". += {tool: {description: \"CNTools by Guild Operators\", url: \"https://cardano-community.github.io/guild-operators/Scripts/cntools\"} } " <<< ${tmpJSON})
                     echo -e "${tmpJSON}" > ${meta_file}
                     
                     # Validating the final metadata registry submission file

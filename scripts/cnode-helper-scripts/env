@@ -28,7 +28,7 @@ CNODE_PORT=6000                                         # Set node port
 #BLOCKLOG_TZ="UTC"                                      # TimeZone to use when displaying blocklog - https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 #SHELLEY_TRANS_EPOCH=208                                # Override automatic detection of shelley epoch start, e.g 208 for mainnet
 #TG_BOT_TOKEN=""                                        # Uncomment and set to enable telegramSend function. To create your own BOT-token and Chat-Id follow guide at:
-#TG_CHAT_ID=""                                          # https://cardano-community.github.io/guild-operators/#/Scripts/sendalerts
+#TG_CHAT_ID=""                                          # https://cardano-community.github.io/guild-operators/Scripts/sendalerts
 #TIMEOUT_LEDGER_STATE=300                               # Timeout in seconds for querying and dumping ledger-state
 #IP_VERSION=4                                           # The IP version to use for push and fetch, valid options: 4 | 6 | mix (Default: 4)
 #PGREST_API="http://127.0.0.1:8050"                     # Uncomment and set to enable PostgREST API queries against DB-Sync
@@ -77,10 +77,6 @@ CNODE_PORT=6000                                         # Set node port
 ######################################
 
 [[ ${0} != '-bash' ]] && PARENT=$(dirname $0) || PARENT="$(pwd)" # If sourcing at terminal, $0 would be "-bash" , which is invalid. Thus, fallback to present working directory
-[[ -z ${BRANCH} ]] && { [[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master; }
-URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
-URL="${URL_RAW}/scripts/cnode-helper-scripts"
-URL_DOCS="${URL_RAW}/docs/Scripts"
 
 versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=minimal_needed_version, $2=current_node_version
 
@@ -88,6 +84,8 @@ OFFLINE_MODE='N'
 [[ $1 = "offline" ]] && OFFLINE_MODE='Y'
 [[ $(basename $0 2>/dev/null) = "cnode.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
 [[ $(basename $0 2>/dev/null) = "topologyUpdater.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
+
+[[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master
 
 export LC_ALL=C.UTF-8
 
@@ -378,7 +376,20 @@ getAnswerAny() {
 #             : 2 = update failed
 checkUpdate() {
   [[ "${UPDATE_CHECK}" != "Y" ]] && return 0
-  if curl -s -f -m 10 -o "${PARENT}/${1}".tmp "${URL}/${1}" 2>/dev/null; then
+
+  if [[ ${OFFLINE_MODE} = N && ${BRANCH} != master && ${BRANCH} != alpha ]]; then
+    if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
+      echo -e "WARN!! The folder was configured against ${BRANCH} branch - which does not exist anymore, falling back to alpha branch"
+      BRANCH=alpha
+      echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
+    fi
+  fi
+
+  URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
+  URL="${URL_RAW}/scripts/cnode-helper-scripts"
+  URL_DOCS="${URL_RAW}/docs/Scripts"
+
+  if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}/${1}".tmp "${URL}/${1}" 2>/dev/null; then
     # get vname from env file
     if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
       vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
@@ -509,9 +520,10 @@ AdaToLovelace() {
 #             : $1 = number to be converted in range 0-100
 pctToFraction() {
   if validateDecimalNbr $1; then
-    if [[ $(bc <<< "$1 >= 0" ) -eq 0 || $(bc <<< "$1 <= 100" ) -eq 0 ]]; then
+    if [[ $(bc <<< "$1 >= 0") -eq 0 || $(bc <<< "$1 <= 100" ) -eq 0 ]]; then
       printf "${FG_RED}ERROR${NC}: must be a number between 0-100" 1>&2
       return 1
+    elif [[ $(bc <<< "$1 == 0") -eq 1 ]]; then echo 0 # special case not properly handled by below code
     else
       echo "x=$1 / 100; if(x<1) print 0; x" | bc -l | sed '/\./ s/\.\{0,1\}0\{1,\}$//'
     fi
@@ -653,10 +665,10 @@ getNodeMetrics() {
     tx_processed=${node_metrics_arr[5]}; mempool_tx=${node_metrics_arr[6]}; mempool_bytes=${node_metrics_arr[7]}
     kesperiod=${node_metrics_arr[8]}; remaining_kes_periods=${node_metrics_arr[9]}
     isleader=${node_metrics_arr[10]}; adopted=${node_metrics_arr[11]}; didntadopt=${node_metrics_arr[12]}; about_to_lead=${node_metrics_arr[13]}
-    uptimes=$(( $(date +%s) - node_metrics_arr[14] ))
+    nodeStartTime=${node_metrics_arr[14]};uptimes=$(( $(date +%s) - node_metrics_arr[14] ))
   else
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
-    [[ ${node_metrics} =~ cardano_node_metrics_nodeStartTime_int[[:space:]]([^[:space:]]*) ]] && uptimes=$(( $(date +%s) - BASH_REMATCH[1] )) || uptimes=0
+    [[ ${node_metrics} =~ cardano_node_metrics_nodeStartTime_int[[:space:]]([^[:space:]]*) ]] && { nodeStartTime=${BASH_REMATCH[1]} && uptimes=$(( $(date +%s) - BASH_REMATCH[1] )); } || uptimes=0
     [[ ${node_metrics} =~ cardano_node_metrics_blockNum_int[[:space:]]([^[:space:]]*) ]] && blocknum=${BASH_REMATCH[1]} || blocknum=0
     [[ ${node_metrics} =~ cardano_node_metrics_epoch_int[[:space:]]([^[:space:]]*) ]] && epochnum=${BASH_REMATCH[1]} || epochnum=0
     [[ ${node_metrics} =~ cardano_node_metrics_slotInEpoch_int[[:space:]]([^[:space:]]*) ]] && slot_in_epoch=${BASH_REMATCH[1]} || slot_in_epoch=0
@@ -753,11 +765,28 @@ getSlotTipRef() {
   fi
 }
 
-# Command     : getCurrentKESperiod
 # Description : Offline calculation of current KES period based on reference tip
 getCurrentKESperiod() {
   tip_ref=$(getSlotTipRef)
   echo $(( tip_ref / SLOTS_PER_KES_PERIOD ))
+}
+
+# Description: Calculate KES expiration based on node metrics with manual pool KES start period as fallback
+# Note       : Its assumed getNodeMetrics() has been run before calling this function
+#            : $1 = (optional) Pools KES start period, fallback method to node metrics
+kesExpiration() {
+  unset kes_expiration expiration_time_sec expiration_time_sec_diff
+  if [[ -z ${remaining_kes_periods} ]]; then
+    if [[ $# -ne 1 ]] || ! isNumber $1; then return 1; fi
+    current_kes_period_ref=$(getCurrentKESperiod)
+    remaining_kes_periods=$(( MAX_KES_EVOLUTIONS - ( current_kes_period_ref - $1 ) ))
+  else
+    tip_ref=$(getSlotTipRef)
+  fi
+  current_time_sec=$(printf '%(%s)T\n' -1)
+  expiration_time_sec=$(( current_time_sec - ( SLOT_LENGTH * (tip_ref % SLOTS_PER_KES_PERIOD) ) + ( SLOT_LENGTH * SLOTS_PER_KES_PERIOD * remaining_kes_periods ) ))
+  expiration_time_sec_diff=$(( expiration_time_sec - current_time_sec ))
+  printf -v kes_expiration '%(%F %T %Z)T' ${expiration_time_sec}
 }
 
 # Description : Calculate expected interval between blocks
