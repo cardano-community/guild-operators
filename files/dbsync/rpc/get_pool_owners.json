@@ -22,10 +22,14 @@
           "'reward_addr', sa.view",
         ") js",
         "FROM pool_owner AS po",
-        "LEFT JOIN stake_address AS sa ON sa.id = po.addr_id",
-        "LEFT JOIN tx_out as tout ON tout.tx_id = po.registered_tx_id",
-        "WHERE po.pool_hash_id = (SELECT id from pool_hash where view=_pool_bech32)",
-        "ORDER BY po.id DESC LIMIT 1",
+        "LEFT JOIN tx_out as tout ON tout.stake_address_id = po.addr_id",
+        "LEFT JOIN stake_address AS sa ON sa.id = tout.stake_address_id",
+        "WHERE po.registered_tx_id = (",
+          "SELECT MAX(pool_owner.registered_tx_id)",
+          "FROM pool_owner",
+          "INNER JOIN pool_hash ON pool_owner.pool_hash_id = pool_hash.id",
+            "and pool_hash.view=_pool_bech32",
+          ") GROUP BY tout.address, sa.view",
       ") t );",
     "END; $$;"
   ]
