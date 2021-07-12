@@ -18,7 +18,7 @@
     "RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$",
     "BEGIN",
       "RETURN ( SELECT json_agg(js) json_final FROM ( SELECT json_build_object(",
-          "'owner', sa.view,",
+          "'owner', sa.view",
         ") js",
         "FROM pool_owner AS po",
         "INNER JOIN stake_address AS sa ON sa.id = po.addr_id",

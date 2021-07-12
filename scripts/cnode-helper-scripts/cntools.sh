@@ -2724,7 +2724,7 @@ function main {
                 fi
                 owner_title="Owner(s)"
                 while read -r owner; do
-                  [[ -z ${PGREST_API} ]] && owner_reward_addr=${owner} || owner_reward_addr=$(jq -r '.reward_addr //empty' <<< "${owner}")
+                  [[ -z ${PGREST_API} ]] && owner_reward_addr=${owner} || owner_reward_addr=$(jq -r '.owner //empty' <<< "${owner}")
                   owner_wallet=$(grep -r ${owner_reward_addr} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
                   if [[ -n ${owner_wallet} ]]; then
                     owner_wallet="$(basename "$(dirname "${owner_wallet}")")"
