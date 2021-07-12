@@ -168,6 +168,7 @@ else
   curl -s -f -m ${CURL_TIMEOUT} -o pgrest-poll.sh.tmp ${URL_RAW}/scripts/pgrest-helper-scripts/pgrest-poll.sh
   curl -s -f -m ${CURL_TIMEOUT} -o dbsync.sh.tmp ${URL_RAW}/scripts/pgrest-helper-scripts/dbsync.sh
   curl -s -f -m ${CURL_TIMEOUT} -o checkstatus.sh ${URL_RAW}/scripts/pgrest-helper-scripts/checkstatus.sh
+  curl -s -f -m ${CURL_TIMEOUT} -o getmetrics.sh ${URL_RAW}/scripts/pgrest-helper-scripts/getmetrics.sh
 fi
 
 ### Update file retaining existing custom configs
@@ -202,6 +203,7 @@ updateWithCustomConfig() {
 updateWithCustomConfig "pgrest-poll.sh"
 updateWithCustomConfig "dbsync.sh"
 updateWithCustomConfig "checkstatus.sh"
+updateWithCustomConfig "getmetrics.sh"
 
 sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./dbsync.sh
 
@@ -275,10 +277,43 @@ Type=notify
 WantedBy=multi-user.target
 EOF"
 
+echo -e "\e[32m~~ GRest Exporter Service ~~\e[0m"
+e=!
+sudo bash -c "cat << 'EOF' > ${CNODE_HOME}/scripts/grest-exporter.sh
+#${e}/usr/bin/env bash
+socat TCP-LISTEN:8059,reuseaddr,fork     SYSTEM:\"echo HTTP/1.1 200 OK;SERVED=true bash ${CNODE_HOME}/scripts/getmetrics.sh;\"
+EOF"
+sudo chown $USER:$USER "${CNODE_HOME}"/scripts/grest-exporter.sh
+chmod 755 "${CNODE_HOME}"/scripts/grest-exporter.sh
+sudo bash -c "cat << 'EOF' > /etc/systemd/system/grest_exporter.service
+[Unit]
+Description=Guild Rest Services Metrics Exporter
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+User=${USER}
+WorkingDirectory=${CNODE_HOME}/scripts
+ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/grest-exporter.sh\"
+KillSignal=SIGINT
+SuccessExitStatus=143
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=grest_exporter
+TimeoutStopSec=5
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target
+EOF"
+
 sudo systemctl daemon-reload
 sudo systemctl enable ${CNODE_NAME}-dbsync.service
 sudo systemctl enable postgrest.service
 sudo systemctl enable haproxy.service
+sudo systemctl enable grest_exporter.service
 
 if ! command -v cardano-db-sync-extended >/dev/null ; then
   echo "NOTE: We could not find 'cardano-db-sync-extended' binary in \$PATH , please ensure you've followed the instructions below:"
