@@ -6,6 +6,14 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.4.15] - 2021-07-15
+##### Changed
+- Switch default to 'No' adding a message when sending funds
+
+## [8.4.14] - 2021-07-14
+##### Fixed
+- Fix for upcoming unreleased dbsync rest endpoint 
+
 ## [8.4.13] - 2021-07-08
 ##### Changed
 - Documentation references updated to new site layout

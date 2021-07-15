@@ -1367,9 +1367,10 @@ function main {
 
               # Optional metadata/message
               println "\n# Add a message to the transaction?"
-              select_opt "[y] Yes" "[n] No"
+              select_opt "[n] No" "[y] Yes"
               case $? in
-                0)  metafile="${TMP_DIR}/metadata_$(date '+%Y%m%d%H%M%S').json"
+                0)  unset metafile ;;
+                1)  metafile="${TMP_DIR}/metadata_$(date '+%Y%m%d%H%M%S').json"
                     DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
                     println OFF "\nA maximum of 64 characters(bytes) is allowed per line."
                     println OFF "${FG_YELLOW}Please don't change default file path when saving.${NC}"
@@ -1408,7 +1409,6 @@ function main {
                       println LOG "Transaction message: ${tx_msg}"
                     fi
                     ;;
-                1)  unset metafile ;;
               esac
 
               if ! sendAssets; then
