@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=4
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=15
+CNTOOLS_PATCH_VERSION=16
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -567,12 +567,12 @@ isPoolRegistered() {
     [[ -f "${POOL_FOLDER}/${1}/${POOL_REGCERT_FILENAME}" ]] && return 2 || return 1
   else
     getPoolID "$1"
-    ! pupd_latest=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -d _state=latest "${PGREST_API}"/rpc/get_pool_update 2>&1) && error_msg=${pupd_latest} && return 0
+    ! pupd_latest=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -d _state=latest "${PGREST_API}"/rpc/pool_update 2>&1) && error_msg=${pupd_latest} && return 0
     pupd_latest_epoch=$(jq '.[0].active_epoch_no //empty' <<< ${pupd_latest})
     if [[ -z ${pupd_latest_epoch} ]]; then
       return 1
     else
-      ! pretire=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -s "${PGREST_API}"/rpc/get_pool_retire 2>&1) && error_msg=${pretire} && return 0
+      ! pretire=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -s "${PGREST_API}"/rpc/pool_retire 2>&1) && error_msg=${pretire} && return 0
       retiring_epoch=$(jq -e '.retiring_epoch' <<< ${pretire}) || retiring_epoch=0
       if [[ ${retiring_epoch} -gt 0 ]]; then
         # TODO: update rpc to handle below check
@@ -1996,7 +1996,7 @@ rotatePoolKeys() {
   p_opcert=""
   if [[ -n ${PGREST_API} ]]; then
     ! getPoolID "${pool_name}" && println "ERROR" "\n${FG_RED}ERROR${NC}: failed to get pool ID!\n" && return 1
-    ! p_opcert=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} "${PGREST_API}"/rpc/get_pool_opcert 2>&1) && println "ERROR" "\n${FG_RED}PGREST_API ERROR${NC}: p_opcert: ${p_opcert}\n" && p_opcert="" # print error but ignore
+    ! p_opcert=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} "${PGREST_API}"/rpc/pool_opcert 2>&1) && println "ERROR" "\n${FG_RED}PGREST_API ERROR${NC}: p_opcert: ${p_opcert}\n" && p_opcert="" # print error but ignore
     if old_counter_nbr=$(jq -er '.op_cert_counter' <<< "${p_opcert}" 2>/dev/null); then
       println ACTION "${CCLI} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value $(( old_counter_nbr + 1 )) --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
       ! ${CCLI} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value $(( old_counter_nbr + 1 )) --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1
