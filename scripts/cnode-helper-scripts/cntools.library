@@ -567,7 +567,7 @@ isPoolRegistered() {
     [[ -f "${POOL_FOLDER}/${1}/${POOL_REGCERT_FILENAME}" ]] && return 2 || return 1
   else
     getPoolID "$1"
-    ! pupd_latest=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -d _state=latest "${PGREST_API}"/rpc/pool_update 2>&1) && error_msg=${pupd_latest} && return 0
+    ! pupd_latest=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -d _state=latest "${PGREST_API}"/rpc/pool_updates 2>&1) && error_msg=${pupd_latest} && return 0
     pupd_latest_epoch=$(jq '.[0].active_epoch_no //empty' <<< ${pupd_latest})
     if [[ -z ${pupd_latest_epoch} ]]; then
       return 1

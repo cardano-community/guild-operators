@@ -2511,7 +2511,7 @@ function main {
                   ! prelay_latest=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} "${PGREST_API}"/rpc/pool_relays 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: prelay_latest: ${prelay_latest}" && waitForInput && continue
                   ! powner_latest=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} "${PGREST_API}"/rpc/pool_owners 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: powner_latest: ${powner_latest}" && waitForInput && continue
                   if [[ ${pupd_latest_epoch} -gt ${current_epoch} ]]; then # pool update/modification submitted, grab active pool data as well
-                    ! pupd_active=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -d _current_epoch_no=${current_epoch} -d _state=active "${PGREST_API}"/rpc/pool_update 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: pupd_active: ${pupd_active}" && waitForInput && continue
+                    ! pupd_active=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -d _current_epoch_no=${current_epoch} -d _state=active "${PGREST_API}"/rpc/pool_updates 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: pupd_active: ${pupd_active}" && waitForInput && continue
                   else # grab the rest of the pool data from latest update
                     unset pupd_active
                   fi
