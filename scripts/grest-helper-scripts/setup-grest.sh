@@ -405,9 +405,9 @@ echo -e "  \e[94msudo systemctl restart postgrest.service\e[0m\n"
 if ! command -v socat >/dev/null; then
   echo -e "\nInstalling socat .."
   if command -v apt >/dev/null; then
-     sudo apt -y install libpcre3-dev || err_exit "ERROR!! 'sudo apt -y install libpcre3-dev' failed!"
+     sudo apt -y install socat || err_exit "ERROR!! 'sudo apt -y install socat' failed!"
   elif command -v yum >/dev/null; then
-    sudo yum -y install pcre-devel || err_exit "ERROR!! 'sudo yum -y install prce-devel' failed!"
+    sudo yum -y install socat || err_exit "ERROR!! 'sudo yum -y install socat' failed!"
   else
     err_exit "ERROR!! 'socat' not found in \$PATH, needed to for node exporter monitoring!"
   fi
