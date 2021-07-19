@@ -104,8 +104,8 @@ if [ ! -f /usr/local/sbin/haproxy ]; then
   haproxy_url="http://www.haproxy.org/download/2.4/src/haproxy-2.4.1.tar.gz"
   if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
     tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
-    if command -v apt >/dev/null; then
-     sudo apt -y install libpcre3-dev || err_exit "ERROR!! 'sudo apt -y install libpcre3-dev' failed!"
+    if command -v apt-get >/dev/null; then
+     sudo apt-get -y install libpcre3-dev || err_exit "ERROR!! 'sudo apt-get -y install libpcre3-dev' failed!"
     fi
     if command -v yum >/dev/null; then
       sudo yum -y install pcre-devel || err_exit "ERROR!! 'sudo yum -y install prce-devel' failed!"
@@ -161,10 +161,10 @@ fi
 
 if ! command -v socat >/dev/null; then
   echo -e "Installing socat .."
-  if command -v apt >/dev/null; then
-     sudo apt -y install socat || err_exit "ERROR!! 'sudo apt -y install socat' failed!"
+  if command -v apt-get >/dev/null; then
+     sudo apt-get -y install socat >/dev/null || err_exit "ERROR!! 'sudo apt-get -y install socat' failed!"
   elif command -v yum >/dev/null; then
-    sudo yum -y install socat || err_exit "ERROR!! 'sudo yum -y install socat' failed!"
+    sudo yum -y install socat >/dev/null || err_exit "ERROR!! 'sudo yum -y install socat' failed!"
   else
     err_exit "ERROR!! 'socat' not found in \$PATH, needed to for node exporter monitoring!"
   fi
