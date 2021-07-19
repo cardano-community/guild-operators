@@ -166,8 +166,8 @@ else
   pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
   curl -s -f -m ${CURL_TIMEOUT} -o grest-poll.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/grest-poll.sh
   curl -s -f -m ${CURL_TIMEOUT} -o dbsync.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/dbsync.sh
-  curl -s -f -m ${CURL_TIMEOUT} -o checkstatus.sh ${URL_RAW}/scripts/grest-helper-scripts/checkstatus.sh
-  curl -s -f -m ${CURL_TIMEOUT} -o getmetrics.sh ${URL_RAW}/scripts/grest-helper-scripts/getmetrics.sh
+  curl -s -f -m ${CURL_TIMEOUT} -o checkstatus.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/checkstatus.sh
+  curl -s -f -m ${CURL_TIMEOUT} -o getmetrics.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/getmetrics.sh
 fi
 
 ### Update file retaining existing custom configs
@@ -331,7 +331,7 @@ if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" ]]; then
 fi
 
 if ! dbsync_network=$(psql -qtAX -d cexplorer -c "select network_name from meta;" 2>&1); then
-  echo -e "${FG_RED}ERROR${NC}: querying Cardano DBSync PostgreSQL DB:\n${dbsync_network}"
+  echo -e "${FG_RED}ERROR${NC}: querying Cardano DBSync PostgreSQL DB, please re-run script after DBSync has started/finished it's syncronization."
   echo -e "\nhttps://cardano-community.github.io/guild-operators/Build/dbsync\n"
   exit 1
 fi
