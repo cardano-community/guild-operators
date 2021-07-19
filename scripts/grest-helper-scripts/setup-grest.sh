@@ -32,7 +32,7 @@ Install and setup haproxy, and create systemd services for haproxy, postgREST an
 
 -f    Force overwrite of all files including normally saved user config sections 
 -t    Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
--b    Use alternate branch of scripts to download - only recommended for testing/development (Default: ${DEF_BRANCH})
+-b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 
 EOF
   exit 1
@@ -55,7 +55,15 @@ CNODE_PATH="/opt/cardano"
 CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
 CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
 
-[[ -z "${BRANCH}" ]] && BRANCH="${DEF_BRANCH}"
+[[ -f "${CNODE_HOME}"/scripts/.env_branch ]] && BRANCH=$(cat "${CNODE_HOME}"/scripts/.env_branch) || BRANCH=master
+
+if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
+  echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to alpha branch\n"
+  BRANCH=alpha
+  echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
+else
+  echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
+fi
 
 REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
 URL_RAW="${REPO_RAW}/${BRANCH}"
