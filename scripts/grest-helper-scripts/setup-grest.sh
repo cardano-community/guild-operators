@@ -309,22 +309,22 @@ sudo systemctl enable haproxy.service
 sudo systemctl enable grest_exporter.service
 
 if ! command -v cardano-db-sync-extended >/dev/null; then
-  err_exit "\n\e[31mERROR\e[0m: We could not find 'cardano-db-sync-extended' binary in \$PATH , please ensure you've followed the instructions below:" \
+  err_exit "\n\e[31mERROR\e[0m: We could not find 'cardano-db-sync-extended' binary in \$PATH , please ensure you've followed the instructions below:\n" \
     "  https://cardano-community.github.io/guild-operators/#/Build/dbsync\n"
 fi
 
 if ! command -v psql &>/dev/null; then 
-  err_exit "\n\e[31mERROR\e[0m: We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:" \
+  err_exit "\n\e[31mERROR\e[0m: We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:\n" \
     "  https://cardano-community.github.io/guild-operators/Appendix/postgres\n"
 fi
 
 if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" ]]; then
-  err_exit "\n\e[31mERROR\e[0m: PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}" \
+  err_exit "\n\e[31mERROR\e[0m: PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}\n" \
     "  https://cardano-community.github.io/guild-operators/Build/dbsync\n"
 fi
 
 if ! dbsync_network=$(psql -qtAX -d cexplorer -c "select network_name from meta;" 2>&1); then
-  err_exit "\n\e[31mERROR\e[0m: querying Cardano DBSync PostgreSQL DB, please re-run script after DBSync has started/finished its syncronization." \
+  err_exit "\n\e[31mERROR\e[0m: querying Cardano DBSync PostgreSQL DB, please re-run script after DBSync has started/finished its syncronization.\n" \
     "  https://cardano-community.github.io/guild-operators/Build/dbsync\n"
 fi
 echo -e "Successfully connected to \e[94m${dbsync_network}\e[0m Cardano DBSync PostgreSQL DB!"
