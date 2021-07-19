@@ -72,7 +72,8 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO web_anon;
 GRANT SELECT ON ALL TABLES IN SCHEMA grest TO web_anon;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO web_anon;
 ALTER DEFAULT PRIVILEGES IN SCHEMA grest GRANT SELECT ON TABLES TO web_anon;
-
+ALTER ROLE CURRENT_USER SET search_path TO grest, public;
+ALTER ROLE web_anon SET search_path TO grest, public;
 COMMIT;
 SQL
 
@@ -81,7 +82,7 @@ echo -e "\n${FG_GREEN}Deploying RPCs to DBSync..${NC}\n"
 for row in $(jq -r '.[] | @base64' <<< ${rpc_file_list}); do
   if [[ $(jqDecode '.type' "${row}") = 'dir' ]]; then
     echo -e "\nDownloading DBSync RPC functions from subdir $(jqDecode '.name' "${row}")\n"
-    if ! rpc_file_list_subdir=$(curl -s -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc?ref=${BRANCH}); then
+    if ! rpc_file_list_subdir=$(curl -s -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc/$(jqDecode '.name' "${row}")?ref=${BRANCH}); then
       echo -e "${FG_RED}ERROR${NC}: ${rpc_file_list_subdir}" && continue
     fi
     for row2 in $(jq -r '.[] | @base64' <<< ${rpc_file_list_subdir}); do
@@ -94,4 +95,4 @@ done
 
 echo -e "${FG_GREEN}All RPC functions successfully added to DBSync!${NC}\n"
 echo -e "${FG_YELLOW}Please restart PostgREST before attempting to use the added functions${NC}"
-echo -e "${FG_LBLUE}sudo systemctl restart postgrest.service${NC}\n"
+echo -e "  ${FG_LBLUE}sudo systemctl restart postgrest.service${NC}\n"
