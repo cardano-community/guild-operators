@@ -75,8 +75,7 @@ if [[ "${UPDATE_CHECK}" = 'Y' ]] && curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"
       echo -e "\nUpdate applied successfully, please run setup-grest again!\n" && \
       exit 0;
     } || {
-      echo -e "Update failed!\n\nPlease manually download latest version of setup-grest.sh script from GitHub" && \
-      exit 1;
+      err_exit "Update failed!\n\nPlease manually download latest version of setup-grest.sh script from GitHub"
     }
   fi
 fi
@@ -309,32 +308,29 @@ sudo systemctl enable haproxy.service
 sudo systemctl enable grest_exporter.service
 
 if ! command -v cardano-db-sync-extended >/dev/null ; then
-  echo -e "\n\e[31mERROR\e[0m: We could not find 'cardano-db-sync-extended' binary in \$PATH , please ensure you've followed the instructions below:"
-  echo -e "  https://cardano-community.github.io/guild-operators/#/Build/dbsync\n"
+  err_exit "\n\e[31mERROR\e[0m: We could not find 'cardano-db-sync-extended' binary in \$PATH , please ensure you've followed the instructions below:" \
+    "  https://cardano-community.github.io/guild-operators/#/Build/dbsync\n"
 fi
 
 if ! command -v psql &>/dev/null; then 
-  echo -e "\n\e[31mERROR\e[0m: We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:"
-  echo -e "  https://cardano-community.github.io/guild-operators/Appendix/postgres\n"
-  exit 1
+  err_exit "\n\e[31mERROR\e[0m: We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:" \
+    "  https://cardano-community.github.io/guild-operators/Appendix/postgres\n"
 fi
 
 if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" ]]; then
-  echo -e "\n\e[31mERROR\e[0m: PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}"
-  echo -e "  https://cardano-community.github.io/guild-operators/Build/dbsync\n"
-  exit 1
+  err_exit "\n\e[31mERROR\e[0m: PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}" \
+    "  https://cardano-community.github.io/guild-operators/Build/dbsync\n"
 fi
 
 if ! dbsync_network=$(psql -qtAX -d cexplorer -c "select network_name from meta;" 2>&1); then
-  echo -e "\n\e[31mERROR\e[0m: querying Cardano DBSync PostgreSQL DB, please re-run script after DBSync has started/finished it's syncronization."
-  echo -e "  https://cardano-community.github.io/guild-operators/Build/dbsync\n"
-  exit 1
+  err_exit "\n\e[31mERROR\e[0m: querying Cardano DBSync PostgreSQL DB, please re-run script after DBSync has started/finished it's syncronization." \
+    "  https://cardano-community.github.io/guild-operators/Build/dbsync\n"
 fi
 echo -e "Successfully connected to \e[94m${dbsync_network}\e[0m Cardano DBSync PostgreSQL DB!"
 
 echo -e "Downloading DBSync RPC functions from Guild Operators GitHub store .."
 if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc?ref=${BRANCH} 2>&1); then
-  echo -e "\e[31mERROR\e[0m: ${rpc_file_list}" && exit 1
+  err_exit "\e[31mERROR\e[0m: ${rpc_file_list}"
 fi
 
 jqDecode() {
@@ -405,5 +401,15 @@ done
 echo -e "\e[32mAll RPC functions successfully added to DBSync!\e[0m\n"
 echo -e "\e[33mPlease restart PostgREST before attempting to use the added functions\e[0m"
 echo -e "  \e[94msudo systemctl restart postgrest.service\e[0m\n"
+
+if ! command -v socat >/dev/null ; then
+  if command -v apt >/dev/null; then
+     sudo apt -y install libpcre3-dev || err_exit "ERROR!! 'sudo apt -y install libpcre3-dev' failed!"
+  elif command -v yum >/dev/null; then
+    sudo yum -y install pcre-devel || err_exit "ERROR!! 'sudo yum -y install prce-devel' failed!"
+  else
+    err_exit "ERROR!! 'socat' not found in \$PATH, needed to for node exporter monitoring!"
+  fi
+fi
 
 pushd -0 >/dev/null || err_exit; dirs -c
