@@ -159,6 +159,17 @@ backend grest_core
 EOF"
 fi
 
+if ! command -v socat >/dev/null; then
+  echo -e "Installing socat .."
+  if command -v apt >/dev/null; then
+     sudo apt -y install socat || err_exit "ERROR!! 'sudo apt -y install socat' failed!"
+  elif command -v yum >/dev/null; then
+    sudo yum -y install socat || err_exit "ERROR!! 'sudo yum -y install socat' failed!"
+  else
+    err_exit "ERROR!! 'socat' not found in \$PATH, needed to for node exporter monitoring!"
+  fi
+fi
+
 pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
 
 curl -s -f -m ${CURL_TIMEOUT} -o grest-poll.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/grest-poll.sh
@@ -386,7 +397,7 @@ echo -e "\e[32mDeploying RPCs to DBSync ..\e[0m"
 
 for row in $(jq -r '.[] | @base64' <<< ${rpc_file_list}); do
   if [[ $(jqDecode '.type' "${row}") = 'dir' ]]; then
-    echo -e "Downloading RPC functions from subdir $(jqDecode '.name' "${row}")"
+    echo -e "\nDownloading RPC functions from subdir $(jqDecode '.name' "${row}")"
     if ! rpc_file_list_subdir=$(curl -s -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc/$(jqDecode '.name' "${row}")?ref=${BRANCH}"); then
       echo -e "  \e[31mERROR\e[0m: ${rpc_file_list_subdir}" && continue
     fi
@@ -398,19 +409,8 @@ for row in $(jq -r '.[] | @base64' <<< ${rpc_file_list}); do
   fi
 done
 
-echo -e "\e[32mAll RPC functions successfully added to DBSync!\e[0m\n"
+echo -e "\n\e[32mAll RPC functions successfully added to DBSync!\e[0m\n"
 echo -e "\e[33mPlease restart PostgREST before attempting to use the added functions\e[0m"
 echo -e "  \e[94msudo systemctl restart postgrest.service\e[0m\n"
-
-if ! command -v socat >/dev/null; then
-  echo -e "\nInstalling socat .."
-  if command -v apt >/dev/null; then
-     sudo apt -y install socat || err_exit "ERROR!! 'sudo apt -y install socat' failed!"
-  elif command -v yum >/dev/null; then
-    sudo yum -y install socat || err_exit "ERROR!! 'sudo yum -y install socat' failed!"
-  else
-    err_exit "ERROR!! 'socat' not found in \$PATH, needed to for node exporter monitoring!"
-  fi
-fi
 
 pushd -0 >/dev/null || err_exit; dirs -c
