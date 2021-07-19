@@ -308,7 +308,7 @@ sudo systemctl enable postgrest.service
 sudo systemctl enable haproxy.service
 sudo systemctl enable grest_exporter.service
 
-if ! command -v cardano-db-sync-extended >/dev/null ; then
+if ! command -v cardano-db-sync-extended >/dev/null; then
   err_exit "\n\e[31mERROR\e[0m: We could not find 'cardano-db-sync-extended' binary in \$PATH , please ensure you've followed the instructions below:" \
     "  https://cardano-community.github.io/guild-operators/#/Build/dbsync\n"
 fi
@@ -324,7 +324,7 @@ if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" ]]; then
 fi
 
 if ! dbsync_network=$(psql -qtAX -d cexplorer -c "select network_name from meta;" 2>&1); then
-  err_exit "\n\e[31mERROR\e[0m: querying Cardano DBSync PostgreSQL DB, please re-run script after DBSync has started/finished it's syncronization." \
+  err_exit "\n\e[31mERROR\e[0m: querying Cardano DBSync PostgreSQL DB, please re-run script after DBSync has started/finished its syncronization." \
     "  https://cardano-community.github.io/guild-operators/Build/dbsync\n"
 fi
 echo -e "Successfully connected to \e[94m${dbsync_network}\e[0m Cardano DBSync PostgreSQL DB!"
@@ -403,7 +403,7 @@ echo -e "\e[32mAll RPC functions successfully added to DBSync!\e[0m\n"
 echo -e "\e[33mPlease restart PostgREST before attempting to use the added functions\e[0m"
 echo -e "  \e[94msudo systemctl restart postgrest.service\e[0m\n"
 
-if ! command -v socat >/dev/null ; then
+if ! command -v socat >/dev/null; then
   if command -v apt >/dev/null; then
      sudo apt -y install libpcre3-dev || err_exit "ERROR!! 'sudo apt -y install libpcre3-dev' failed!"
   elif command -v yum >/dev/null; then
