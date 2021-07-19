@@ -1,0 +1,418 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "version": "0.1.0",
+    "title": "Cardano Queries API 1.0",
+    "description": "Elastic RESTful query layer for exploring Cardano blockchain"
+  },
+  "host": "cardanoqueries.io",
+  "consumes": [
+    "application/json",
+    "application/vnd.pgrst.object+json",
+    "text/csv"
+  ],
+  "produces": [
+    "application/json",
+    "application/vnd.pgrst.object+json",
+    "text/csv"
+  ],
+  "paths": {
+        "/rpc/pool_delegator_count": {
+      "post": {
+        "tags": [
+          "(rpc) pool_delegator_count"
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": [
+                "_pool_bech32"
+              ],
+              "type": "object",
+              "properties": {
+                "_pool_bech32": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/pool_updates": {
+      "post": {
+        "tags": [
+          "(rpc) pool_updates"
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": [
+                "_pool_bech32"
+              ],
+              "type": "object",
+              "properties": {
+                "_state": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "_pool_bech32": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "_current_epoch_no": {
+                  "format": "numeric",
+                  "type": "number"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/pool_retire": {
+      "post": {
+        "tags": [
+          "(rpc) pool_retire"
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": [
+                "_pool_bech32"
+              ],
+              "type": "object",
+              "properties": {
+                "_pool_bech32": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/pool_relays": {
+      "post": {
+        "tags": [
+          "(rpc) pool_relays"
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": [
+                "_pool_bech32"
+              ],
+              "type": "object",
+              "properties": {
+                "_pool_bech32": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/pool_active_stake": {
+      "post": {
+        "tags": [
+          "(rpc) pool_active_stake"
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_epoch_no": {
+                  "format": "numeric",
+                  "type": "number"
+                },
+                "_pool_bech32": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/pool_opcert": {
+      "post": {
+        "tags": [
+          "(rpc) pool_opcert"
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": [
+                "_pool_bech32"
+              ],
+              "type": "object",
+              "properties": {
+                "_pool_bech32": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/pool_owners": {
+      "post": {
+        "tags": [
+          "(rpc) pool_owners"
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": [
+                "_pool_bech32"
+              ],
+              "type": "object",
+              "properties": {
+                "_pool_bech32": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/pool_metadata": {
+      "post": {
+        "tags": [
+          "(rpc) pool_metadata"
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": [
+                "_pool_bech32"
+              ],
+              "type": "object",
+              "properties": {
+                "_pool_bech32": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  },
+  "parameters": {
+    "preferParams": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "in": "header",
+      "type": "string",
+      "enum": [
+        "params=single-object"
+      ]
+    },
+    "preferReturn": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "in": "header",
+      "type": "string",
+      "enum": [
+        "return=representation",
+        "return=minimal",
+        "return=none"
+      ]
+    },
+    "preferCount": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "in": "header",
+      "type": "string",
+      "enum": [
+        "count=none"
+      ]
+    },
+    "select": {
+      "name": "select",
+      "description": "Filtering Columns",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "on_conflict": {
+      "name": "on_conflict",
+      "description": "On Conflict",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "order": {
+      "name": "order",
+      "description": "Ordering",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "range": {
+      "name": "Range",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "in": "header",
+      "type": "string"
+    },
+    "rangeUnit": {
+      "name": "Range-Unit",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "default": "items",
+      "in": "header",
+      "type": "string"
+    },
+    "offset": {
+      "name": "offset",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "limit": {
+      "name": "limit",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    }
+  }
+}
