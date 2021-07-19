@@ -345,7 +345,7 @@ deployRPC() {
   [[ -z ${dl_url} ]] && return
   ! rpc_desc=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url}" && return 1
   ! rpc_sql=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url%.json}.sql 2>/dev/null) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url%.json}.sql" && return 1
-  echo -e "Function:    \e[32m$(jq -r '.function' <<< ${rpc_desc})\e[0m"
+  echo -e "\nFunction:    \e[32m$(jq -r '.function' <<< ${rpc_desc})\e[0m"
   echo -e "  Description: \e[37m$(jq -r '.description' <<< ${rpc_desc})\e[0m"
   for param in $(jq -r '.parameters[] | @base64' <<< ${rpc_desc}); do
     echo -e "  Parameter:   \e[94m$(jqDecode '.name' "${param}")\e[0m => \e[37m$(jqDecode '.description' "${param}")\e[0m"
@@ -354,7 +354,6 @@ deployRPC() {
     echo -e "  Example $(jqDecode '.type' "${example}") query: \e[37m$(jqDecode '.command' "${example}")\e[0m"
   done
   ! output=$(psql cexplorer -v "ON_ERROR_STOP=1" <<< ${rpc_sql} 2>&1) && echo -e "  \e[31mERROR\e[0m: ${output}"
-  echo
 }
 
 # add grest schema if missing and grant usage for web_anon
@@ -404,6 +403,7 @@ echo -e "\e[33mPlease restart PostgREST before attempting to use the added funct
 echo -e "  \e[94msudo systemctl restart postgrest.service\e[0m\n"
 
 if ! command -v socat >/dev/null; then
+  echo -e "\nInstalling socat .."
   if command -v apt >/dev/null; then
      sudo apt -y install libpcre3-dev || err_exit "ERROR!! 'sudo apt -y install libpcre3-dev' failed!"
   elif command -v yum >/dev/null; then
