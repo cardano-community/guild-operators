@@ -10,7 +10,7 @@ unset CNODE_HOME
 ##########################################
 
 CURL_TIMEOUT=60         # Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
-UPDATE_CHECK='Y'        # Check if there is an updated version of setup-grest-services.sh script to download
+UPDATE_CHECK='Y'        # Check if there is an updated version of setup-grest.sh script to download
 
 ######################################
 # Do NOT modify code below           #
@@ -62,25 +62,25 @@ PARENT="$(dirname $0)"
 [[ -z ${UPDATE_CHECK} ]] && UPDATE_CHECK='Y'
 [[ ! -d "${HOME}"/.cabal/bin ]] && mkdir -p "${HOME}"/.cabal/bin
 
-if [[ "${UPDATE_CHECK}" = 'Y' ]] && curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/setup-grest-services.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/setup-grest-services.sh 2>/dev/null; then
-  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/setup-grest-services.sh)
-  TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/setup-grest-services.sh.tmp)
+if [[ "${UPDATE_CHECK}" = 'Y' ]] && curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/setup-grest.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/setup-grest.sh 2>/dev/null; then
+  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/setup-grest.sh)
+  TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/setup-grest.sh.tmp)
   if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-    cp "${PARENT}"/setup-grest-services.sh "${PARENT}/setup-grest-services.sh_bkp$(date +%s)"
-    STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/setup-grest-services.sh)
-    printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/setup-grest-services.sh.tmp
+    cp "${PARENT}"/setup-grest.sh "${PARENT}/setup-grest.sh_bkp$(date +%s)"
+    STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/setup-grest.sh)
+    printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/setup-grest.sh.tmp
     {
-      mv -f "${PARENT}"/setup-grest-services.sh.tmp "${PARENT}"/setup-grest-services.sh && \
-      chmod 755 "${PARENT}"/setup-grest-services.sh && \
-      echo -e "\nUpdate applied successfully, please run setup-grest-services again!\n" && \
+      mv -f "${PARENT}"/setup-grest.sh.tmp "${PARENT}"/setup-grest.sh && \
+      chmod 755 "${PARENT}"/setup-grest.sh && \
+      echo -e "\nUpdate applied successfully, please run setup-grest again!\n" && \
       exit 0;
     } || {
-      echo -e "Update failed!\n\nPlease manually download latest version of setup-grest-services.sh script from GitHub" && \
+      echo -e "Update failed!\n\nPlease manually download latest version of setup-grest.sh script from GitHub" && \
       exit 1;
     }
   fi
 fi
-rm -f "${PARENT}"/setup-grest-services.sh.tmp
+rm -f "${PARENT}"/setup-grest.sh.tmp
 
 mkdir -p ~/tmp
 
@@ -317,5 +317,98 @@ if ! command -v cardano-db-sync-extended >/dev/null ; then
   echo "NOTE: We could not find 'cardano-db-sync-extended' binary in \$PATH , please ensure you've followed the instructions below:"
   echo "  https://cardano-community.github.io/guild-operators/#/Build/dbsync"
 fi
+
+if ! command -v psql &>/dev/null; then 
+  echo -e "${FG_RED}ERROR${NC}: psql command not found, make sure that you have Cardano DBSync setup correctly"
+  echo -e "\nhttps://cardano-community.github.io/guild-operators/Appendix/postgres\n"
+  exit 1
+fi
+
+if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" ]]; then
+  echo -e "${FG_RED}ERROR${NC}: PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}"
+  echo -e "\nhttps://cardano-community.github.io/guild-operators/Build/dbsync\n"
+  exit 1
+fi
+
+if ! dbsync_network=$(psql -qtAX -d cexplorer -c "select network_name from meta;" 2>&1); then
+  echo -e "${FG_RED}ERROR${NC}: querying Cardano DBSync PostgreSQL DB:\n${dbsync_network}"
+  echo -e "\nhttps://cardano-community.github.io/guild-operators/Build/dbsync\n"
+  exit 1
+fi
+echo -e "Successfully connected to ${FG_LBLUE}${dbsync_network}${NC} Cardano DBSync PostgreSQL DB!"
+
+echo -e "\nDownloading DBSync RPC functions from Guild Operators GitHub store ..\n"
+if ! rpc_file_list=$(curl -s -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc?ref=${BRANCH}); then
+  echo -e "${FG_RED}ERROR${NC}: ${rpc_file_list}" && exit 1
+fi
+
+jqDecode() {
+  base64 --decode <<< $2 | jq -r "$1"
+}
+
+deployRPC() {
+  file_name=$(jqDecode '.name' "${1}")
+  [[ -z ${file_name} || ${file_name} != *.json ]] && return
+  dl_url=$(jqDecode '.download_url //empty' "${1}")
+  [[ -z ${dl_url} ]] && return
+  ! rpc_desc=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && echo -e "${FG_RED}ERROR${NC}: download failed: ${dl_url}" && return 1
+  ! rpc_sql=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url%.json}.sql 2>/dev/null) && echo -e "${FG_RED}ERROR${NC}: download failed: ${dl_url%.json}.sql" && return 1
+  echo -e "Function:    ${FG_GREEN}$(jq -r '.function' <<< ${rpc_desc})${NC}"
+  echo -e "Description: ${FG_LGRAY}$(jq -r '.description' <<< ${rpc_desc})${NC}"
+  for param in $(jq -r '.parameters[] | @base64' <<< ${rpc_desc}); do
+    echo -e "Parameter:   ${FG_LBLUE}$(jqDecode '.name' "${param}")${NC} => ${FG_LGRAY}$(jqDecode '.description' "${param}")${NC}"
+  done
+  for example in $(jq -r '.example[] | @base64' <<< ${rpc_desc}); do
+    echo -e "Example $(jqDecode '.type' "${example}") query: ${FG_LGRAY}$(jqDecode '.command' "${example}")${NC}"
+  done
+  ! output=$(psql cexplorer -v "ON_ERROR_STOP=1" <<< ${rpc_sql} 2>&1) && echo -e "\n${FG_RED}ERROR${NC}: ${output}"
+  echo
+}
+
+# add grest schema if missing and grant usage for web_anon
+echo -e "\n${FG_GREEN}Add grest schema if missing and grant usage for web_anon${NC}\n"
+psql cexplorer << 'SQL'
+BEGIN;
+
+DO
+$$
+BEGIN
+	CREATE ROLE web_anon nologin;
+	EXCEPTION WHEN DUPLICATE_OBJECT THEN
+		RAISE NOTICE 'web_anon exists, skipping...';
+END
+$$;
+
+CREATE SCHEMA IF NOT EXISTS grest;
+GRANT USAGE ON SCHEMA public TO web_anon;
+GRANT USAGE ON SCHEMA grest TO web_anon;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO web_anon;
+GRANT SELECT ON ALL TABLES IN SCHEMA grest TO web_anon;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO web_anon;
+ALTER DEFAULT PRIVILEGES IN SCHEMA grest GRANT SELECT ON TABLES TO web_anon;
+ALTER ROLE CURRENT_USER SET search_path TO grest, public;
+ALTER ROLE web_anon SET search_path TO grest, public;
+COMMIT;
+SQL
+
+echo -e "\n${FG_GREEN}Deploying RPCs to DBSync ..${NC}\n"
+
+for row in $(jq -r '.[] | @base64' <<< ${rpc_file_list}); do
+  if [[ $(jqDecode '.type' "${row}") = 'dir' ]]; then
+    echo -e "\nDownloading DBSync RPC functions from subdir $(jqDecode '.name' "${row}")\n"
+    if ! rpc_file_list_subdir=$(curl -s -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc/$(jqDecode '.name' "${row}")?ref=${BRANCH}"); then
+      echo -e "${FG_RED}ERROR${NC}: ${rpc_file_list_subdir}" && continue
+    fi
+    for row2 in $(jq -r '.[] | @base64' <<< ${rpc_file_list_subdir}); do
+      deployRPC ${row2}
+    done
+  else
+    deployRPC ${row}
+  fi
+done
+
+echo -e "${FG_GREEN}All RPC functions successfully added to DBSync!${NC}\n"
+echo -e "${FG_YELLOW}Please restart PostgREST before attempting to use the added functions${NC}"
+echo -e "  ${FG_LBLUE}sudo systemctl restart postgrest.service${NC}\n"
 
 pushd -0 >/dev/null || err_exit; dirs -c
