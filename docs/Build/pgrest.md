@@ -45,17 +45,17 @@ Now that your user is created in database, you can create the postgrest config. 
     Verify and update db-uri if required, the given value configures it for user running the command below (and relies on socket connection to postgres sever.
 
 ``` bash
-cat << 'EOF' > $CNODE_HOME/priv/pgrest.conf
+cat << 'EOF' > $CNODE_HOME/priv/grest.conf
 db-uri = "postgres://${USER}@/cexplorer"
-db-schema = "public"
+db-schema = "grest, public"
 db-anon-role = "web_anon"
 server-host = "127.0.0.1"
 server-port = 8050
 #jwt-secret = "secret-token"
 #db-pool = 10
 #db-pool-timeout = 10
-#db-extra-search-path = "public"
-#max-rows = 1000
+db-extra-search-path = "public"
+max-rows = 1000
 
 EOF
 
