@@ -160,15 +160,11 @@ EOF"
 fi
 
 pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
-if [ ! -f "$CNODE_HOME"/scripts/env ]; then
-  err_exit "ERROR!! Folder '${CNODE_HOME}/scripts' does not exist, please ensure you're running instance as per https://cardano-community.github.io/guild-operators/basics?id=pre-requisites"
-else
-  pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
-  curl -s -f -m ${CURL_TIMEOUT} -o grest-poll.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/grest-poll.sh
-  curl -s -f -m ${CURL_TIMEOUT} -o dbsync.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/dbsync.sh
-  curl -s -f -m ${CURL_TIMEOUT} -o checkstatus.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/checkstatus.sh
-  curl -s -f -m ${CURL_TIMEOUT} -o getmetrics.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/getmetrics.sh
-fi
+
+curl -s -f -m ${CURL_TIMEOUT} -o grest-poll.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/grest-poll.sh
+curl -s -f -m ${CURL_TIMEOUT} -o dbsync.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/dbsync.sh
+curl -s -f -m ${CURL_TIMEOUT} -o checkstatus.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/checkstatus.sh
+curl -s -f -m ${CURL_TIMEOUT} -o getmetrics.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/getmetrics.sh
 
 ### Update file retaining existing custom configs
 updateWithCustomConfig() {
@@ -207,7 +203,6 @@ updateWithCustomConfig "getmetrics.sh"
 sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./dbsync.sh
 
 echo "Deploying systemd services.."
-. "${PARENT}"/env offline
 echo -e "\e[32m~~ Cardano DB Sync ~~\e[0m"
 sudo bash -c "cat << 'EOF' > /etc/systemd/system/${CNODE_NAME}-dbsync.service
 [Unit]
@@ -314,32 +309,32 @@ sudo systemctl enable haproxy.service
 sudo systemctl enable grest_exporter.service
 
 if ! command -v cardano-db-sync-extended >/dev/null ; then
-  echo -e "\n${FG_RED}ERROR${NC}: We could not find 'cardano-db-sync-extended' binary in \$PATH , please ensure you've followed the instructions below:"
+  echo -e "\n\e[31mERROR\e[0m: We could not find 'cardano-db-sync-extended' binary in \$PATH , please ensure you've followed the instructions below:"
   echo -e "  https://cardano-community.github.io/guild-operators/#/Build/dbsync\n"
 fi
 
 if ! command -v psql &>/dev/null; then 
-  echo -e "\n${FG_RED}ERROR${NC}: We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:"
+  echo -e "\n\e[31mERROR\e[0m: We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:"
   echo -e "  https://cardano-community.github.io/guild-operators/Appendix/postgres\n"
   exit 1
 fi
 
 if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" ]]; then
-  echo -e "\n${FG_RED}ERROR${NC}: PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}"
+  echo -e "\n\e[31mERROR\e[0m: PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}"
   echo -e "  https://cardano-community.github.io/guild-operators/Build/dbsync\n"
   exit 1
 fi
 
 if ! dbsync_network=$(psql -qtAX -d cexplorer -c "select network_name from meta;" 2>&1); then
-  echo -e "\n${FG_RED}ERROR${NC}: querying Cardano DBSync PostgreSQL DB, please re-run script after DBSync has started/finished it's syncronization."
+  echo -e "\n\e[31mERROR\e[0m: querying Cardano DBSync PostgreSQL DB, please re-run script after DBSync has started/finished it's syncronization."
   echo -e "  https://cardano-community.github.io/guild-operators/Build/dbsync\n"
   exit 1
 fi
-echo -e "Successfully connected to ${FG_LBLUE}${dbsync_network}${NC} Cardano DBSync PostgreSQL DB!"
+echo -e "Successfully connected to \e[94m${dbsync_network}\e[0m Cardano DBSync PostgreSQL DB!"
 
 echo -e "Downloading DBSync RPC functions from Guild Operators GitHub store .."
-if ! rpc_file_list=$(curl -s -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc?ref=${BRANCH}); then
-  echo -e "${FG_RED}ERROR${NC}: ${rpc_file_list}" && exit 1
+if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc?ref=${BRANCH} 2>&1); then
+  echo -e "\e[31mERROR\e[0m: ${rpc_file_list}" && exit 1
 fi
 
 jqDecode() {
@@ -351,23 +346,23 @@ deployRPC() {
   [[ -z ${file_name} || ${file_name} != *.json ]] && return
   dl_url=$(jqDecode '.download_url //empty' "${1}")
   [[ -z ${dl_url} ]] && return
-  ! rpc_desc=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && echo -e "${FG_RED}ERROR${NC}: download failed: ${dl_url}" && return 1
-  ! rpc_sql=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url%.json}.sql 2>/dev/null) && echo -e "${FG_RED}ERROR${NC}: download failed: ${dl_url%.json}.sql" && return 1
-  echo -e "Function:    ${FG_GREEN}$(jq -r '.function' <<< ${rpc_desc})${NC}"
-  echo -e "  Description: ${FG_LGRAY}$(jq -r '.description' <<< ${rpc_desc})${NC}"
+  ! rpc_desc=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url}" && return 1
+  ! rpc_sql=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url%.json}.sql 2>/dev/null) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url%.json}.sql" && return 1
+  echo -e "Function:    \e[32m$(jq -r '.function' <<< ${rpc_desc})\e[0m"
+  echo -e "  Description: \e[37m$(jq -r '.description' <<< ${rpc_desc})\e[0m"
   for param in $(jq -r '.parameters[] | @base64' <<< ${rpc_desc}); do
-    echo -e "  Parameter:   ${FG_LBLUE}$(jqDecode '.name' "${param}")${NC} => ${FG_LGRAY}$(jqDecode '.description' "${param}")${NC}"
+    echo -e "  Parameter:   \e[94m$(jqDecode '.name' "${param}")\e[0m => \e[37m$(jqDecode '.description' "${param}")\e[0m"
   done
   for example in $(jq -r '.example[] | @base64' <<< ${rpc_desc}); do
-    echo -e "  Example $(jqDecode '.type' "${example}") query: ${FG_LGRAY}$(jqDecode '.command' "${example}")${NC}"
+    echo -e "  Example $(jqDecode '.type' "${example}") query: \e[37m$(jqDecode '.command' "${example}")\e[0m"
   done
-  ! output=$(psql cexplorer -v "ON_ERROR_STOP=1" <<< ${rpc_sql} 2>&1) && echo -e "  ${FG_RED}ERROR${NC}: ${output}"
+  ! output=$(psql cexplorer -v "ON_ERROR_STOP=1" <<< ${rpc_sql} 2>&1) && echo -e "  \e[31mERROR\e[0m: ${output}"
   echo
 }
 
 # add grest schema if missing and grant usage for web_anon
-echo -e "${FG_GREEN}Add grest schema if missing and grant usage for web_anon${NC}"
-psql cexplorer << 'SQL'
+echo -e "\e[32mAdd grest schema if missing and grant usage for web_anon\e[0m"
+psql cexplorer >/dev/null << 'SQL'
 BEGIN;
 
 DO
@@ -391,13 +386,13 @@ ALTER ROLE web_anon SET search_path TO grest, public;
 COMMIT;
 SQL
 
-echo -e "${FG_GREEN}Deploying RPCs to DBSync ..${NC}"
+echo -e "\e[32mDeploying RPCs to DBSync ..\e[0m"
 
 for row in $(jq -r '.[] | @base64' <<< ${rpc_file_list}); do
   if [[ $(jqDecode '.type' "${row}") = 'dir' ]]; then
-    echo -e "  Downloading DBSync RPC functions from subdir $(jqDecode '.name' "${row}")\n"
+    echo -e "Downloading RPC functions from subdir $(jqDecode '.name' "${row}")"
     if ! rpc_file_list_subdir=$(curl -s -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc/$(jqDecode '.name' "${row}")?ref=${BRANCH}"); then
-      echo -e "${FG_RED}ERROR${NC}: ${rpc_file_list_subdir}" && continue
+      echo -e "  \e[31mERROR\e[0m: ${rpc_file_list_subdir}" && continue
     fi
     for row2 in $(jq -r '.[] | @base64' <<< ${rpc_file_list_subdir}); do
       deployRPC ${row2}
@@ -407,8 +402,8 @@ for row in $(jq -r '.[] | @base64' <<< ${rpc_file_list}); do
   fi
 done
 
-echo -e "${FG_GREEN}All RPC functions successfully added to DBSync!${NC}\n"
-echo -e "${FG_YELLOW}Please restart PostgREST before attempting to use the added functions${NC}"
-echo -e "  ${FG_LBLUE}sudo systemctl restart postgrest.service${NC}\n"
+echo -e "\e[32mAll RPC functions successfully added to DBSync!\e[0m\n"
+echo -e "\e[33mPlease restart PostgREST before attempting to use the added functions\e[0m"
+echo -e "  \e[94msudo systemctl restart postgrest.service\e[0m\n"
 
 pushd -0 >/dev/null || err_exit; dirs -c
