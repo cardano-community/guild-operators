@@ -17,7 +17,8 @@ UPDATE_CHECK='Y'        # Check if there is an updated version of setup-grest.sh
 ######################################
 
 err_exit() {
-  printf "%s\nExiting...\n" "$*" >&2
+  echo -e "$*" >&2
+  echo -e "Exiting...\n" >&2
   pushd -0 >/dev/null && dirs -c
   exit 1
 }
