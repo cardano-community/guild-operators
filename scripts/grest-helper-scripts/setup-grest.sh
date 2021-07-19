@@ -165,7 +165,7 @@ if [ ! -f "$CNODE_HOME"/scripts/env ]; then
 else
   pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
   curl -s -f -m ${CURL_TIMEOUT} -o grest-poll.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/grest-poll.sh
-  curl -s -f -m ${CURL_TIMEOUT} -o dbsync.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/dbsync.sh
+  curl -s -f -m ${CURL_TIMEOUT} -o dbsync.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/dbsync.sh
   curl -s -f -m ${CURL_TIMEOUT} -o checkstatus.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/checkstatus.sh
   curl -s -f -m ${CURL_TIMEOUT} -o getmetrics.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/getmetrics.sh
 fi
