@@ -19,7 +19,7 @@
                     "payload": "pool_id_bech32"
                 }
             ],
-            "uri": "rpc/get_pool_update"
+            "uri": "rpc/pool_updates"
         },
         {
             "name": "Metadata",
@@ -31,7 +31,7 @@
                     "payload": "pool_id_bech32"
                 }
             ],
-            "uri": "rpc/get_pool_metadata"
+            "uri": "rpc/pool_metadata"
         }
     ],
     "script": [

@@ -34,7 +34,7 @@
                     "payload": "epochnum"
                 }
             ],
-            "uri": "rpc/get_pool_update"
+            "uri": "rpc/pool_updates"
         },
         {
             "name": "Metadata",
@@ -46,7 +46,7 @@
                     "payload": "pool_id_bech32"
                 }
             ],
-            "uri": "rpc/get_pool_metadata"
+            "uri": "rpc/pool_metadata"
         },
         {
             "name": "Retired",
@@ -58,7 +58,7 @@
                     "payload": "pool_id_bech32"
                 }
             ],
-            "uri": "rpc/get_pool_retire"
+            "uri": "rpc/pool_retire"
         },
         {
             "name": "Relays",
@@ -70,7 +70,7 @@
                     "payload": "pool_id_bech32"
                 }
             ],
-            "uri": "rpc/get_pool_relays"
+            "uri": "rpc/pool_relays"
         },
         {
             "name": "Owners",
@@ -82,7 +82,7 @@
                     "payload": "pool_id_bech32"
                 }
             ],
-            "uri": "rpc/get_pool_owners"
+            "uri": "rpc/pool_owners"
         },
         {
             "name": "Active Stake",
@@ -94,7 +94,7 @@
                     "payload": "pool_id_bech32"
                 }
             ],
-            "uri": "rpc/get_active_stake"
+            "uri": "rpc/pool_active_stake"
         },
         {
             "name": "Delegator Count",
@@ -106,7 +106,7 @@
                     "payload": "pool_id_bech32"
                 }
             ],
-            "uri": "rpc/get_delegator_count"
+            "uri": "rpc/pool_delegator_count"
         },
         {
             "name": "Operational Certificate",
@@ -118,7 +118,7 @@
                     "payload": "pool_id_bech32"
                 }
             ],
-            "uri": "rpc/get_pool_opcert"
+            "uri": "rpc/pool_opcert"
         }
     ],
     "script": []
