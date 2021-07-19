@@ -24,7 +24,7 @@
                     "payload": "pool_id_bech32"
                 }
             ],
-            "uri": "rpc/pool_update"
+            "uri": "rpc/pool_updates"
         },
         {
             "name": "Pool Active Stake",

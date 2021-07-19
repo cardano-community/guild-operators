@@ -1,5 +1,5 @@
 {
-  "function": "pool_update(_pool_bech32, _current_epoch_no, _state)",
+  "function": "pool_updates(_pool_bech32, _current_epoch_no, _state)",
   "description": "Grab latest, active or all pool updates for specified pool",
   "parameters": [
     {
@@ -18,7 +18,7 @@
   "example": [
     {
       "type": "rest",
-      "command": "curl -d _pool_bech32=pool1pvyt2d468tlzr77cymae90hgj73aret457zfktnvgev6kmx5nk3 -d _current_epoch_no=121 -d _state=active -s http://localhost:8050/rpc/pool_update"
+      "command": "curl -d _pool_bech32=pool1pvyt2d468tlzr77cymae90hgj73aret457zfktnvgev6kmx5nk3 -d _current_epoch_no=121 -d _state=active -s http://localhost:8050/rpc/pool_updates"
     }
   ]
 }
