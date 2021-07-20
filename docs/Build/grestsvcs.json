@@ -5,7 +5,7 @@
     "title": "Cardano Queries API 1.0",
     "description": "Elastic RESTful query layer for exploring Cardano blockchain"
   },
-  "host": "cardanoqueries.io",
+  "host": "cardanoqueries.ga:8453",
   "consumes": [
     "application/json",
     "application/vnd.pgrst.object+json",

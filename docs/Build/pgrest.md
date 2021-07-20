@@ -1,32 +1,23 @@
 !!! important
 
     - An average pool operator may not require this component at all. Please verify if it is required for your use as mentioned [here](../build.md#components)
-    - Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
+    - Ensure that you have setup [DBSync](../Build/dbsync.md) and that it is in sync before you proceed..
 
-[PostgREST](https://postgrest.org/en/latest) is a web server that serves any PostgreSQL database (in our case, useful for `cardano-db-sync` and `smash`) as a RESTful Web Service. The endpoints of PostgREST in itself are essentially the table itself. You can read more about exploring the API [here](https://postgrest.org/en/latest/api.html). Understandably, it would of course rely on an existing PostgreSQL server. At the moment of writing, this is being used as an easy alternative - which will remain up-to-date since it is directly serving the underlying database as an API, as compared to `Cardano GraphQL` component. Some of the other advantages would also be that you can serve JWT authentication, or use native Postgres DB authentication against the Rest Interface as well (see [here](https://postgrest.org/en/latest/tutorials/tut1.html) for adding this to your instance), and the web server it uses can be hardened or served behind another nginx/httpd/.. reverse proxy as per your SecOps preferences.
+[PostgREST](https://postgrest.org/en/latest) is a web server that serves any PostgreSQL database (in our case, useful for `cardano-db-sync`) as a RESTful Web Service. The endpoints of PostgREST in itself are essentially the table/functions exposed via the PostgREST config file. You can read more about exploring the API [here](https://postgrest.org/en/latest/api.html). Understandably, it would of course rely on an existing PostgreSQL server. At the moment of writing, this is being used as an easy alternative - which will remain up-to-date since it is directly serving the underlying database as an API, as compared to `Cardano GraphQL` component. Some of the other advantages are also performance, elasticity, low overhead, support for JWT / native Postgres DB authentication against the Rest Interface as well (see [here](https://postgrest.org/en/latest/tutorials/tut1.html) for adding this to your instance). We merge the deployment with HAProxy configuration that serves as an easy means to harden your gateway, but you may alter the settings for proxy layer as per your SecOps preferences.
 
-Again, the focus of this guide (for now) is not to tell you how to secure your PostgREST instance, but to get you up and running quickly. You'd want to harden your instance as per instructions [here](https://postgrest.org/en/latest/admin.html?highlight=SSL) once you're happy with the usage. The guide below assumes PostgreSQL instance has already been set up (refer to [Sample Local PostgreSQL Server Deployment instructions](../Appendix/postgres.md) ) along with [cardano-db-sync](../Build/dbsync.md).
-
-### Enable permissions in Database {: id="perms"}
-
-For simplicity, the download of latest PostgREST instance is already available via executing the below:
-
-``` bash
-mkdir ~/tmp;cd ~/tmp
-wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh
-./prereqs.sh -p
-```
-
-This would download and make `postgrest` binary available in `${HOME}/.cabal/bin` which is also where your DB Sync binaries would be, assuming you've followed [this guide](../Build/dbsync.md).
+### Setup PostgREST, HAProxy and add addendum to Postgres DB {: id="setup"}
 
 To start with you'd want to ensure your current shell session has access to Postgres credentials, continuing from examples from the above mentioned [Sample Postgres deployment guide](../Appendix/postgres.md).
 
 ``` bash
 cd $CNODE_HOME/priv
 PGPASSFILE=$CNODE_HOME/priv/.pgpass
+psql cexplorer
 ```
 
-Ensure that you can connect to your Postgres DB instance using `psql cexplorer` before you proceed (quit from psql once validated using `\q`). Create your PostgREST config file using command below:
+Ensure that you can connect to your Postgres DB fine using above (quit from psql once validated using `\q`).
+
+Now, create your PostgREST config file using command below:
 
 !!! info "Reminder !!"
     Verify and update db-uri if required, the given value configures it for user running the command below (and relies on socket connection to postgres sever.
@@ -60,6 +51,29 @@ chmod 755 setup-grest.sh
 ```
 
 Follow the prompts to start-up deployed services. The default ports used will make haproxy instance available at port 8053 (you might want to enable firewall rule to open this port to services you would like to access). Make sure to change the file permissions so that it's only visible to user that will run postgrest instance using `chmod 600 $CNODE_HOME/priv/pgrest.conf`. If you want to prevent unauthenticated access to grest schema, uncomment the jwt-secret and specify a custom `secret-token`.
+
+### Enable TLS on HAProxy {: id="tls"}
+
+In order to enable SSL on your haproxy, all you need to do is edit the file `/etc/haproxy/haproxy.cfg` and update the *frontend app* section to disable normal bind and enable ssl bind. Note that the server.pem referred in example below should contain certificate chain as well as the private key.
+
+```
+#bind :8053
+bind :8053 ssl crt /etc/ssl/server.pem no-sslv3
+redirect scheme https code 301 if !{ ssl_fc }
+```
+Restart haproxy service for changes to take effect.
+
+### Performance Tuning Considerations
+
+While the defaults on your system should not cause you any trouble, note that haproxy relies on ephemeral ports available on your system to be able to redirect frontend requests to backend servers. The four important configuration settings in your `/etc/sysctl.conf` files would be:
+
+```
+net.ipv4.ip_local_port_range="1024 65534"
+net.core.somaxconn=65534
+net.ipv4.tcp_rmem=4096 16060 64060
+net.ipv4.tcp_wmem=4096 16384 262144
+```
+Again, defaults should be fine for minimal usage, you do not need to tinker with above unless you expect a very high amount of load on your frontend.
 
 ### Validation
 
