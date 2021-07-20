@@ -135,22 +135,32 @@ if [[ "${FORCE_OVERWRITE}" != 'N' ]]; then
   sudo bash -c "cat << 'EOF' > /etc/haproxy/haproxy.cfg
 global
   daemon
-  maxconn 512
+  nbthread 3
+  maxconn 256
   stats socket ipv4@127.0.0.1:8055 mode 0600 level admin
   log 127.0.0.1 local2
   insecure-fork-wanted
   external-check
 
 defaults
-  mode tcp
+  mode http
   log global
-  option tcplog
-  timeout client 5s
-  timeout server 5s
+  option httplog
+  option dontlognull
+  option http-ignore-probes
+  option dontlog-normal
+  timeout client 10s
+  timeout server 10s
   timeout connect 3s
+  timeout server-fin 2s
+  timeout http-request 5s
 
 frontend app
   bind 0.0.0.0:8053
+  #bind :8453 ssl crt /etc/ssl/server.pem no-sslv3
+  #redirect scheme https code 301 if !{ ssl_fc }
+  http-request track-sc0 src table flood_lmt_rate
+  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 100 }
   default_backend grest_core
 
 backend grest_core
@@ -158,12 +168,8 @@ backend grest_core
   option external-check
   external-check path \"/usr/bin:/bin:/tmp:/sbin:/usr/sbin\"
   external-check command ${CNODE_HOME}/scripts/grest-poll.sh
-  server local 127.0.0.1:8050 check inter 5000
-  server rdlrt 209.145.50.190:8053 check inter 5000 backup
-  server homer 95.216.188.94:8053 check inter 5000 backup
-  server ola pgrest-guild.ahlnet.nu:2163 check inter 5000 backup
-  server damjan 195.201.129.190:8053 check inter 5000 backup
-  server gufmar 185.161.193.105:6029 check inter 5000 backup
+  server local 127.0.0.1:8050 check inter 10000
+  http-response set-header X-Frame-Options: DENY
 EOF"
 fi
 
@@ -396,7 +402,6 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO web_anon;
 GRANT SELECT ON ALL TABLES IN SCHEMA grest TO web_anon;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO web_anon;
 ALTER DEFAULT PRIVILEGES IN SCHEMA grest GRANT SELECT ON TABLES TO web_anon;
-ALTER ROLE CURRENT_USER SET search_path TO grest, public;
 ALTER ROLE web_anon SET search_path TO grest, public;
 COMMIT;
 SQL
