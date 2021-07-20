@@ -163,6 +163,9 @@ frontend app
   http-request deny deny_status 429 if { sc_http_req_rate(0) gt 100 }
   default_backend grest_core
 
+backend flood_lmt_rate                                                    
+  stick-table type ip size 1m expire 10m store http_req_rate(10s)
+
 backend grest_core
   balance first
   option external-check
