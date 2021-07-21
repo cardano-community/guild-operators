@@ -1,6 +1,6 @@
 {
   "Providers": [
-    {"name":"ola","addr":"pgrest-testnet.ahlnet.nu","port":2153},
+    {"name":"ola","addr":"grest-testnet.ahlnet.nu","port":2153},
   ],
   "Consumers": []
 }
