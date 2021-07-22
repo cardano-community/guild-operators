@@ -2,7 +2,7 @@
 # shellcheck disable=SC2086
 #shellcheck source=/dev/null
 
-. "$(dirname $0)"/env
+. "$(dirname $0)"/env offline
 
 ######################################
 # User Variables - Change as desired #
