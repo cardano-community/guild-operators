@@ -226,17 +226,8 @@ elif [[ ! ${PROM_PORT} =~ ^[0-9]+$ ]]; then
 fi
 
 if ! GENESIS_JSON=$(jq -er '.ShelleyGenesisFile' "${CONFIG}" 2>/dev/null); then
-  if [[ ${OFFLINE_MODE} = "Y" ]]; then
-    if [[ -f "${CNODE_HOME}/files/genesis.json" ]]; then
-      GENESIS_JSON="${CNODE_HOME}/files/genesis.json"
-    else
-      echo "Could not find shelley genesis file in default location or 'ShelleyGenesisFile' in ${CONFIG}"
-      return 1
-    fi
-  else
-    echo "Could not get 'ShelleyGenesisFile' in ${CONFIG}"
-    return 1
-  fi
+  echo "Could not get 'ShelleyGenesisFile' in ${CONFIG}"
+  return 1
 else
   # if relative path is used, assume same parent dir as config
   [[ ! ${GENESIS_JSON} =~ ^/ ]] && GENESIS_JSON="$(dirname "${CONFIG}")/${GENESIS_JSON}"
@@ -244,17 +235,8 @@ else
 fi
 
 if ! BYRON_GENESIS_JSON=$(jq -er '.ByronGenesisFile' "${CONFIG}" 2>/dev/null); then
-  if [[ ${OFFLINE_MODE} = "Y" ]]; then
-    if [[ -f "${CNODE_HOME}/files/genesis.json" ]]; then
-      GENESIS_JSON="${CNODE_HOME}/files/genesis.json"
-    else
-      echo "Could not find byron genesis file in default location or 'ByronGenesisFile' in ${CONFIG}"
-      return 1
-    fi
-  else
-    echo "Could not get 'ByronGenesisFile' specified in ${CONFIG}"
-    return 1
-  fi
+  echo "Could not get 'ByronGenesisFile' specified in ${CONFIG}"
+  return 1
 else
   # if relative path is used, assume same parent dir as config
   [[ ! ${BYRON_GENESIS_JSON} =~ ^/ ]] && BYRON_GENESIS_JSON="$(dirname "${CONFIG}")/${BYRON_GENESIS_JSON}"
