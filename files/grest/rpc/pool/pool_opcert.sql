@@ -13,3 +13,4 @@ BEGIN
     LIMIT 1
     );
 END; $$;
+COMMENT ON FUNCTION grest.pool_opcert IS 'Get pools registered opcert and counter (from last block made)';

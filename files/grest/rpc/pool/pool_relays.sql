@@ -12,3 +12,4 @@ BEGIN
     WHERE pr.update_id = (SELECT id from public.pool_hash where view=_pool_bech32)
     ) t );
 END; $$;
+COMMENT ON FUNCTION grest.pool_relays IS 'Get registered pool relays';

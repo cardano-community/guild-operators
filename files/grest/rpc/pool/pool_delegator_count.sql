@@ -12,3 +12,4 @@ BEGIN
         (SELECT TRUE FROM public.stake_deregistration sd WHERE sd.addr_id=d.addr_id AND sd.tx_id > d.tx_id)
     );
 END; $$;
+COMMENT ON FUNCTION grest.pool_delegator_count IS 'Get live delegator count';

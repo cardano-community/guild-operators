@@ -30,3 +30,4 @@ BEGIN
     END
     ) t );
 END; $$;
+COMMENT ON FUNCTION grest.pool_updates IS 'Grab latest, active or all pool updates for specified pool';

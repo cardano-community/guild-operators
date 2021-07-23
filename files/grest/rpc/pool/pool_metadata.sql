@@ -9,3 +9,4 @@ BEGIN
     WHERE pmd.id = (SELECT id from public.pool_hash where view=_pool_bech32)
     );
 END; $$;
+COMMENT ON FUNCTION grest.pool_metadata IS 'Get pool metadata url and hash';
