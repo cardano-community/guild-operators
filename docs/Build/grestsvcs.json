@@ -17,11 +17,49 @@
     "text/csv"
   ],
   "paths": {
-        "/rpc/pool_delegator_count": {
+    "/rpc/totals": {
       "post": {
         "tags": [
-          "(rpc) pool_delegator_count"
+          "Blockchain Queries"
         ],
+        "summary": "Get the treasury, total active supply in lovelace for specified epoch, all epochs if empty",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "object",
+              "description": "Get the treasury, total active supply in lovelace for specified epoch, all epochs if empty",
+              "properties": {
+                "_epoch_no": {
+                  "format": "numeric",
+                  "type": "number"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/pool_delegator_count": {
+      "post": {
+        "tags": [
+          "Pool Queries"
+        ],
+        "summary": "Get live delegator count",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"
@@ -58,8 +96,9 @@
     "/rpc/pool_updates": {
       "post": {
         "tags": [
-          "(rpc) pool_updates"
+          "Pool Queries"
         ],
+        "summary": "Grab latest, active or all pool updates for specified pool",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"
@@ -104,8 +143,9 @@
     "/rpc/pool_retire": {
       "post": {
         "tags": [
-          "(rpc) pool_retire"
+          "Pool Queries"
         ],
+        "summary": "Check if a pool retire transaction has been sent",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"
@@ -142,8 +182,9 @@
     "/rpc/pool_relays": {
       "post": {
         "tags": [
-          "(rpc) pool_relays"
+          "Pool Queries"
         ],
+        "summary": "Get registered pool relays",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"
@@ -180,8 +221,9 @@
     "/rpc/pool_active_stake": {
       "post": {
         "tags": [
-          "(rpc) pool_active_stake"
+          "Pool Queries"
         ],
+        "summary": "Get the pools active stake in lovelace for specified epoch, current epoch if empty",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"
@@ -219,8 +261,9 @@
     "/rpc/pool_opcert": {
       "post": {
         "tags": [
-          "(rpc) pool_opcert"
+          "Pool Queries"
         ],
+        "summary": "Get pools registered opcert and counter (from last block made)",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"
@@ -257,8 +300,9 @@
     "/rpc/pool_owners": {
       "post": {
         "tags": [
-          "(rpc) pool_owners"
+          "Pool Queries"
         ],
+        "summary": "Get registered pool owners",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"
@@ -295,8 +339,9 @@
     "/rpc/pool_metadata": {
       "post": {
         "tags": [
-          "(rpc) pool_metadata"
+          "Pool Queries"
         ],
+        "summary": "Get pool metadata url and hash",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"

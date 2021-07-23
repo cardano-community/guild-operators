@@ -16,3 +16,4 @@ BEGIN
     LIMIT 1
     );
 END; $$;
+COMMENT ON FUNCTION grest.pool_retire IS 'Check if a pool retire transaction has been sent';

@@ -95,4 +95,4 @@ curl -d _pool_bech32=pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr -s
 ## [{"owner" : "stake_test1upx5p04dn3t6dvhfh27744su35vvasgaaq565jdxwlxfq5sdjwksw"}, {"owner" : "stake_test1uqak99cgtrtpean8wqwp7d9taaqkt9gkkxga05m5azcg27chnzfry"}]
 ```
 
-Refer to [API documentation](https://cardano-community.github.io/guild-operators/Build/pgrestspecs) for Swagger documentation.
+Refer to [API documentation](grestspecs.md) for Swagger documentation.

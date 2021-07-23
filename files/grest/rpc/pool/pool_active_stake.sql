@@ -21,3 +21,4 @@ BEGIN
     );
     END IF;
 END; $$;
+COMMENT ON FUNCTION grest.pool_active_stake IS 'Get the pools active stake in lovelace for specified epoch, current epoch if empty';

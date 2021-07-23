@@ -14,3 +14,4 @@ BEGIN
         ) GROUP BY sa.view
     ) t );
 END; $$;
+COMMENT ON FUNCTION grest.pool_owners IS 'Get registered pool owners';
