@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-#shellcheck disable=SC2154,SC2155,SC2034,SC2086
-#shdefellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015,SC2154
+#shellcheck disable=SC2005,SC2046,SC2154,SC2155,SC2034,SC2086
 #shellcheck source=/dev/null
 
 . "$(dirname $0)"/env offline
@@ -34,7 +33,7 @@ function get-metrics() {
   currslottip=$(getSlotTipRef)
   dbsyncProm=$(curl -s http://127.0.0.1:8080 | grep ^cardano)
   meminf=$(grep "^[MSBC][ewua][mafc]" /proc/meminfo)
-  load1m=$(awk '{ print $1*100 }' /proc/loadavg)
+  load1m=$(( $(awk '{ print $1*100 }' /proc/loadavg) / $(grep -c ^processor /proc/cpuinfo) ))
   memtotal=$(( $(echo "${meminf}" | grep MemTotal | awk '{print $2}') + $(echo "${meminf}" | grep SwapTotal | awk '{print $2}') ))
   memused=$(( memtotal - $(echo "${meminf}" | grep MemFree | awk '{print $2}') - $(echo "${meminf}" | grep SwapFree | awk '{print $2}') - $(echo "${meminf}" | grep ^Buffers | awk '{print $2}') - $(echo "${meminf}" | grep ^Cached | awk '{print $2}') ))
   cpuutil=$(awk -v a="$(awk '/cpu /{print $2+$4,$2+$4+$5}' /proc/stat; sleep 1)" '/cpu /{split(a,b," "); print 100*($2+$4-b[1])/($2+$4+$5-b[2])}'  /proc/stat)
@@ -50,6 +49,9 @@ function get-metrics() {
   export METRIC_memused="${memused}"
   export METRIC_cpuutil="${cpuutil}"
   export METRIC_load1m="$(( load1m ))"
+  export METRIC_cnodeversion="$(echo $(cardano-node --version) | awk '{print $2 "-" $9}')"
+  export METRIC_dbsyncversion="$(echo $(cardano-db-sync-extended --version) | awk '{print $2 "-" $9}')"
+  export METRIC_psqlversion="$(echo "" | psql cexplorer -c "SELECT version();" | grep PostgreSQL | awk '{print $2}')"
 
   for metric_var_name in $(env | grep ^METRIC | sort | awk -F= '{print $1}')
   do
@@ -57,7 +59,7 @@ function get-metrics() {
     # default NULL values to 0
     if [ -z "${!metric_var_name}" ]
     then
-      METRIC_VALUE="0"
+      METRIC_VALUE=""
     else
       METRIC_VALUE="${!metric_var_name}"
     fi
@@ -66,4 +68,3 @@ function get-metrics() {
 }
 
 get-metrics
-
