@@ -65,8 +65,13 @@ FROM (
             REWARD
         WHERE
             REWARD.ADDR_ID = T1.ID
-        GROUP BY
-            T1.ID) REWARDS_T ON TRUE
+            AND REWARD.EPOCH_NO < (
+                SELECT
+                    MAX(EPOCH_NO)
+                FROM
+                    REWARD)
+            GROUP BY
+                T1.ID) REWARDS_T ON TRUE
     LEFT JOIN LATERAL (
         SELECT
             COALESCE(SUM(WITHDRAWAL.AMOUNT), 0) AS WITHDRAWALS
