@@ -32,7 +32,6 @@
             "required": true,
             "schema": {
               "type": "object",
-              "description": "Get the treasury, total active supply in lovelace for specified epoch, all epochs if empty",
               "properties": {
                 "_epoch_no": {
                   "format": "numeric",
@@ -393,7 +392,6 @@
                 "_stake_address_bech32"
               ],
               "type": "object",
-              "description": "Get the full rewards history in ADA for a stake address, or certain epoch reward if specified",
               "properties": {
                 "_stake_address_bech32": {
                   "format": "text",
