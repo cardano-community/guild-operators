@@ -180,5 +180,5 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION grest.totals IS 'Get the account balance of an address';
+COMMENT ON FUNCTION grest.account_balance IS 'Get the account balance of an address';
 
