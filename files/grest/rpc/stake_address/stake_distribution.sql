@@ -67,9 +67,9 @@ FROM (
             REWARD.ADDR_ID = T1.ID
             AND REWARD.EPOCH_NO < (
                 SELECT
-                    MAX(EPOCH_NO)
+                    MAX(NO) - 1
                 FROM
-                    REWARD)
+                    EPOCH)
             GROUP BY
                 T1.ID) REWARDS_T ON TRUE
     LEFT JOIN LATERAL (
