@@ -378,7 +378,7 @@
     "/rpc/account_balance": {
       "post": {
         "tags": [
-          "Account Queries"
+          "Blockchain Queries"
         ],
         "summary": "Get the account balance of an address",
         "produces": [
