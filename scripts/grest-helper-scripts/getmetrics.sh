@@ -37,7 +37,7 @@ function get-metrics() {
   currtip=$(TZ='UTC' date "+%Y-%m-%d %H:%M:%S")
   getNodeMetrics
   currslottip=$(getSlotTipRef)
-  dbsyncProm=$(curl -s http://127.0.0.1:8080 | grep ^cardano)
+  dbsyncProm=$(curl -s http://${DBSYNC_PROM_HOST}:${DBSYNC_PROM_PORT} | grep ^cardano)
   meminf=$(grep "^[MSBC][ewua][mafc]" /proc/meminfo)
   load1m=$(( $(awk '{ print $1*100 }' /proc/loadavg) / $(grep -c ^processor /proc/cpuinfo) ))
   memtotal=$(( $(echo "${meminf}" | grep MemTotal | awk '{print $2}') + $(echo "${meminf}" | grep SwapTotal | awk '{print $2}') ))
