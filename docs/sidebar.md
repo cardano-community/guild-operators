@@ -25,8 +25,5 @@
     - Tips: docker/tips.md
   - Appendix:
     - Sample Postgres Setup: Appendix/postgres.md
-    - PGRest meetings 1 : pgrest-meetings/25Jun2021.md
-    - PGRest meetings 2 : pgrest-meetings/02Jul2021.md
-    - PGRest meetings 3 : pgrest-meetings/09Jul2021.md
-    - PGRest meetings 4 : pgrest-meetings/15Jul2021.md
+    - GRest meet summaries: grest-meets.md
   - Contributors: contributors.md
