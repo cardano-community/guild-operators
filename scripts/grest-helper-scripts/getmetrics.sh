@@ -9,8 +9,10 @@
 # Common variables set in env file   #
 ######################################
 
-RESTAPI_PORT=8050             # PostgREST port
-HAPROXY_PORT=8053             # HAProxy port
+#RESTAPI_PORT=8050             # Destination PostgREST port
+#HAPROXY_PORT=8053             # Destination HAProxy port
+#DBSYNC_PROM_HOST=127.0.0.1    # Destination DBSync Prometheus Host
+#DBSYNC_PROM_PORT=8080         # Destination DBSync Prometheus port
 
 ######################################
 # Do NOT modify code below           #
@@ -19,6 +21,11 @@ HAPROXY_PORT=8053             # HAProxy port
 . "$(dirname $0)"/env
 exec 2>/dev/null
 
+[[ -z ${RESTAPI_PORT} ]] && RESTAPI_PORT=8050
+[[ -z ${HAPROXY_PORT} ]] && HAPROXY_PORT=8053
+[[ -z ${DBSYNC_PROM_HOST} ]] && DBSYNC_PROM_HOST=127.0.0.1
+[[ -z ${DBSYNC_PROM_PORT} ]] && DBSYNC_PROM_PORT=8080
+
 function get-metrics() {
   shopt -s expand_aliases
   if [ -n "$SERVED" ]; then
@@ -26,7 +33,6 @@ function get-metrics() {
     echo "" # request body starts from this empty line
   fi
   # Replace the value for URL as appropriate
-  RESTAPI_PORT=8050
   # Stats data
   currtip=$(TZ='UTC' date "+%Y-%m-%d %H:%M:%S")
   getNodeMetrics
