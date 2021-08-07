@@ -5,15 +5,23 @@ BEGIN
     RETURN (SELECT json_agg(js) json_final FROM
       (SELECT json_build_object(
         'epoch_no', epoch_no,
-        'active_stake', (treasury+rewards+utxo+deposits+fees),
-        'treasury', treasury) js
+        'circulation', utxo,
+        'treasury', treasury,
+        'rewards', rewards,
+        'supply', (treasury+rewards+utxo+deposits+fees),
+        'reserves', reserves
+        ) js
           FROM public.ada_pots ORDER BY epoch_no DESC) t );
   ELSE
     RETURN (SELECT json_agg(js) json_final FROM
       (SELECT json_build_object(
         'epoch_no', epoch_no,
-        'active_stake', (treasury+rewards+utxo+deposits+fees),
-        'treasury', treasury) js
+        'circulation', utxo,
+        'treasury', treasury,
+        'rewards', rewards,
+        'supply', (treasury+rewards+utxo+deposits+fees),
+        'reserves', reserves
+        ) js
           FROM public.ada_pots WHERE epoch_no = _epoch_no ORDER BY epoch_no DESC) t );
   END IF;
 END; $$;
