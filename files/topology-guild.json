@@ -11,6 +11,7 @@
     {"addr": "148.72.153.168","port": 18000,"valency": 1,"name": "redo" },
     {"addr": "relay.guild.cryptobounty.org","port": 9198,"valency": 1,"name": "bnty1" },
     {"addr": "54.93.228.113","port": 4322,"valency": 1,"name": "titan" },
-    {"addr": "195.201.129.190", "port": 6000, "valency": 1, "name": "damjan"}
+    {"addr": "195.201.129.190", "port": 6000, "valency": 1, "name": "damjan"},
+    {"addr": "relay-guild.adaplus.io", "port": 6000, "valency": 1, "name": "adaplus"}
   ]
 }
