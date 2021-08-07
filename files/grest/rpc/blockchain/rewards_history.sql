@@ -9,7 +9,7 @@ BEGIN
                 json_agg(js) json_final
             FROM (
                 SELECT
-                    json_build_object('epoch_no', reward.epoch_no, 'stake_pool', pool_hash.view, 'reward_amount', ROUND((reward.amount / 1000000), 2)) js
+                    json_build_object('earned_epoch', reward.earned_epoch, 'stake_pool', pool_hash.view, 'reward_amount', reward.amount, 'reward_type', reward.type, 'spendable_epoch', reward.spendable_epoch) js
                 FROM
                     reward
                     INNER JOIN stake_address ON reward.addr_id = stake_address.id
@@ -17,22 +17,21 @@ BEGIN
                 WHERE
                     stake_address.view = _stake_address_bech32
                 ORDER BY
-                    epoch_no ASC) t);
+                    spendable_epoch DESC) t);
     ELSE
         RETURN (
             SELECT
                 json_agg(js) json_final
             FROM (
                 SELECT
-                    json_build_object('epoch_no', reward.epoch_no, 'stake_pool', pool_hash.view, 'reward_amount', ROUND((reward.amount / 1000000), 2)) js
+                    json_build_object('earned_epoch', reward.earned_epoch, 'stake_pool', pool_hash.view, 'reward_amount', reward.amount, 'reward_type', reward.type, 'spendable_epoch', reward.spendable_epoch) js
                 FROM
                     reward
                     INNER JOIN stake_address ON reward.addr_id = stake_address.id
                     INNER JOIN pool_hash ON reward.pool_id = pool_hash.id
                 WHERE
                     stake_address.view = _stake_address_bech32
-                ORDER BY
-                    epoch_no ASC) t);
+                    AND reward.spendable_epoch = _epoch_no) t);
     END IF;
 END;
 $$;
