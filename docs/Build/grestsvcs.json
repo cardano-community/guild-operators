@@ -22,7 +22,7 @@
         "tags": [
           "Blockchain Queries"
         ],
-        "summary": "Get the treasury, total active supply in lovelace for specified epoch, all epochs if empty",
+        "summary": "Get the circulating utxo, treasury, rewards, supply and reserves in lovelace for specified epoch, all epochs if empty",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"
