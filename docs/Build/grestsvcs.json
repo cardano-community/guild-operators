@@ -22,7 +22,7 @@
         "tags": [
           "Blockchain Queries"
         ],
-        "summary": "Get the treasury, total active supply in lovelace for specified epoch, all epochs if empty",
+        "summary": "Get the circulating utxo, treasury, rewards, supply and reserves in lovelace for specified epoch, all epochs if empty",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"
@@ -32,7 +32,6 @@
             "required": true,
             "schema": {
               "type": "object",
-              "description": "Get the treasury, total active supply in lovelace for specified epoch, all epochs if empty",
               "properties": {
                 "_epoch_no": {
                   "format": "numeric",
@@ -375,10 +374,49 @@
         }
       }
     },
+    "/rpc/account_balance": {
+      "post": {
+        "tags": [
+          "Blockchain Queries"
+        ],
+        "summary": "Get the account balance of an address",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": [
+                "_address"
+              ],
+              "type": "object",
+              "properties": {
+                "_address": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/rpc/rewards_history": {
       "post": {
         "tags": [
-          "Stake Address Queries"
+          "Blockchain Queries"
         ],
         "summary": "Get the full rewards history in ADA for a stake address, or certain epoch reward if specified",
         "produces": [
@@ -393,7 +431,6 @@
                 "_stake_address_bech32"
               ],
               "type": "object",
-              "description": "Get the full rewards history in ADA for a stake address, or certain epoch reward if specified",
               "properties": {
                 "_stake_address_bech32": {
                   "format": "text",
