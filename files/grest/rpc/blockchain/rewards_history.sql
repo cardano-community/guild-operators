@@ -36,5 +36,5 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION grest.rewards_history IS 'Get the full rewards history in ADA for a stake address, or certain epoch reward if specified';
+COMMENT ON FUNCTION grest.rewards_history IS 'Get the full rewards history in lovelace for a stake address, or certain epoch reward if specified';
 
