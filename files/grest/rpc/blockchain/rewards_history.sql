@@ -31,7 +31,7 @@ BEGIN
                     INNER JOIN pool_hash ON reward.pool_id = pool_hash.id
                 WHERE
                     stake_address.view = _stake_address_bech32
-                    AND reward.spendable_epoch = _epoch_no) t);
+                    AND reward.earned_epoch = _epoch_no) t);
     END IF;
 END;
 $$;
