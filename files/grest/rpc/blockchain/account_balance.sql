@@ -9,17 +9,15 @@ BEGIN
         -- Shelley stake address
         RETURN (
             SELECT
-                JSON_BUILD_OBJECT('stake_address', STAKE_ADDRESS, 'balance', TRUNC(
-                        CASE WHEN REWARDS_T.REWARDS - WITHDRAWALS_T.WITHDRAWALS < 0 THEN
-                        (COALESCE(UTXO_T.UTXO, 0) + COALESCE(REWARDS_T.REWARDS, 0) - COALESCE(WITHDRAWALS_T.WITHDRAWALS, 0) + COALESCE(RESERVES_T.RESERVES, 0) + COALESCE(TREASURY_T.TREASURY, 0) - (REWARDS_T.REWARDS - WITHDRAWALS_T.WITHDRAWALS)) / 1000000
+                JSON_BUILD_OBJECT('stake_address', STAKE_ADDRESS, 'balance', CASE WHEN REWARDS_T.REWARDS - WITHDRAWALS_T.WITHDRAWALS < 0 THEN
+                        COALESCE(UTXO_T.UTXO, 0) + COALESCE(REWARDS_T.REWARDS, 0) - COALESCE(WITHDRAWALS_T.WITHDRAWALS, 0) + COALESCE(RESERVES_T.RESERVES, 0) + COALESCE(TREASURY_T.TREASURY, 0) - (COALESCE(REWARDS_T.REWARDS, 0) - COALESCE(WITHDRAWALS_T.WITHDRAWALS, 0))
                     ELSE
-                        (COALESCE(UTXO_T.UTXO, 0) + COALESCE(REWARDS_T.REWARDS, 0) - COALESCE(WITHDRAWALS_T.WITHDRAWALS, 0) + COALESCE(RESERVES_T.RESERVES, 0) + COALESCE(TREASURY_T.TREASURY, 0)) / 1000000
-                        END, 6), 'utxo', TRUNC(COALESCE(UTXO_T.UTXO / 1000000, 0), 6), 'rewards', TRUNC(COALESCE(REWARDS_T.REWARDS, 0) / 1000000, 6), 'withdrawals', TRUNC(COALESCE(WITHDRAWALS_T.WITHDRAWALS / 1000000, 0), 6), 'rewards_available', TRUNC(
-                        CASE WHEN REWARDS_T.REWARDS - WITHDRAWALS_T.WITHDRAWALS < 0 THEN
-                            0
-                        ELSE
-                            (REWARDS_T.REWARDS - WITHDRAWALS_T.WITHDRAWALS) / 1000000
-                        END, 6), 'reserves', TRUNC(COALESCE(RESERVES_T.RESERVES / 1000000, 0), 6), 'treasury', TRUNC(COALESCE(TREASURY_T.TREASURY / 1000000, 0), 6))
+                        COALESCE(UTXO_T.UTXO, 0) + COALESCE(REWARDS_T.REWARDS, 0) - COALESCE(WITHDRAWALS_T.WITHDRAWALS, 0) + COALESCE(RESERVES_T.RESERVES, 0) + COALESCE(TREASURY_T.TREASURY, 0)
+                    END, 'utxo', COALESCE(UTXO_T.UTXO, 0), 'rewards', COALESCE(REWARDS_T.REWARDS, 0), 'withdrawals', COALESCE(WITHDRAWALS_T.WITHDRAWALS, 0), 'rewards_available', CASE WHEN COALESCE(REWARDS_T.REWARDS, 0) - COALESCE(WITHDRAWALS_T.WITHDRAWALS, 0) <= 0 THEN
+                        0
+                    ELSE
+                        REWARDS_T.REWARDS - WITHDRAWALS_T.WITHDRAWALS
+                    END, 'reserves', COALESCE(RESERVES_T.RESERVES, 0), 'treasury', COALESCE(TREASURY_T.TREASURY, 0))
             FROM (
                 SELECT
                     STAKE_ADDRESS.ID,
@@ -45,9 +43,9 @@ BEGIN
                     REWARD
                 WHERE
                     REWARD.ADDR_ID = T1.ID
-                    AND REWARD.EPOCH_NO < (
+                    AND REWARD.SPENDABLE_EPOCH <= (
                         SELECT
-                            MAX(NO) - 1
+                            MAX(NO)
                         FROM
                             EPOCH)
                     GROUP BY
@@ -90,17 +88,15 @@ BEGIN
             -- Shelley address with an associated stake key
             RETURN (
                 SELECT
-                    json_build_object('address', _address, 'stake_address', STAKE_ADDRESS, 'balance', TRUNC(
-                            CASE WHEN REWARDS_T.REWARDS - WITHDRAWALS_T.WITHDRAWALS < 0 THEN
-                            (COALESCE(UTXO_T.UTXO, 0) + COALESCE(REWARDS_T.REWARDS, 0) - COALESCE(WITHDRAWALS_T.WITHDRAWALS, 0) + COALESCE(RESERVES_T.RESERVES, 0) + COALESCE(TREASURY_T.TREASURY, 0) - (REWARDS_T.REWARDS - WITHDRAWALS_T.WITHDRAWALS)) / 1000000
+                    json_build_object('address', _address, 'stake_address', STAKE_ADDRESS, 'balance', CASE WHEN REWARDS_T.REWARDS - WITHDRAWALS_T.WITHDRAWALS < 0 THEN
+                            COALESCE(UTXO_T.UTXO, 0) + COALESCE(REWARDS_T.REWARDS, 0) - COALESCE(WITHDRAWALS_T.WITHDRAWALS, 0) + COALESCE(RESERVES_T.RESERVES, 0) + COALESCE(TREASURY_T.TREASURY, 0) - (REWARDS_T.REWARDS - WITHDRAWALS_T.WITHDRAWALS)
                         ELSE
-                            (COALESCE(UTXO_T.UTXO, 0) + COALESCE(REWARDS_T.REWARDS, 0) - COALESCE(WITHDRAWALS_T.WITHDRAWALS, 0) + COALESCE(RESERVES_T.RESERVES, 0) + COALESCE(TREASURY_T.TREASURY, 0)) / 1000000
-                            END, 6), 'utxo', TRUNC(COALESCE(UTXO_T.UTXO / 1000000, 0), 6), 'rewards', TRUNC(COALESCE(REWARDS_T.REWARDS / 1000000, 0), 6), 'withdrawals', TRUNC(COALESCE(WITHDRAWALS_T.WITHDRAWALS / 1000000, 0), 6), 'rewards_available', TRUNC(
-                            CASE WHEN REWARDS_T.REWARDS - WITHDRAWALS_T.WITHDRAWALS < 0 THEN
-                                0
-                            ELSE
-                                (REWARDS_T.REWARDS - WITHDRAWALS_T.WITHDRAWALS) / 1000000
-                            END, 6), 'reserves', TRUNC(COALESCE(RESERVES_T.RESERVES / 1000000, 0), 6), 'treasury', TRUNC(COALESCE(TREASURY_T.TREASURY / 1000000, 0), 6))
+                            COALESCE(UTXO_T.UTXO, 0) + COALESCE(REWARDS_T.REWARDS, 0) - COALESCE(WITHDRAWALS_T.WITHDRAWALS, 0) + COALESCE(RESERVES_T.RESERVES, 0) + COALESCE(TREASURY_T.TREASURY, 0)
+                        END, 'utxo', COALESCE(UTXO_T.UTXO, 0), 'rewards', COALESCE(REWARDS_T.REWARDS, 0), 'withdrawals', COALESCE(WITHDRAWALS_T.WITHDRAWALS, 0), 'rewards_available', CASE WHEN REWARDS_T.REWARDS - WITHDRAWALS_T.WITHDRAWALS <= 0 THEN
+                            0
+                        ELSE
+                            REWARDS_T.REWARDS - WITHDRAWALS_T.WITHDRAWALS
+                        END, 'reserves', COALESCE(RESERVES_T.RESERVES, 0), 'treasury', COALESCE(TREASURY_T.TREASURY, 0))
                 FROM (
                     SELECT
                         STAKE_ADDRESS.ID,
@@ -126,9 +122,9 @@ BEGIN
                         REWARD
                     WHERE
                         REWARD.ADDR_ID = T1.ID
-                        AND REWARD.EPOCH_NO < (
+                        AND REWARD.SPENDABLE_EPOCH <= (
                             SELECT
-                                MAX(NO) - 1
+                                MAX(NO)
                             FROM
                                 EPOCH)
                         GROUP BY
@@ -164,7 +160,7 @@ BEGIN
             --  Shelley address without an associated stake key or Byron address
             RETURN (
                 SELECT
-                    json_build_object('address', _address, 'balance', TRUNC(UTXO_T.UTXO / 1000000, 6))
+                    json_build_object('address', _address, 'balance', UTXO_T.UTXO)
                 FROM (
                     SELECT
                         COALESCE(SUM(VALUE), 0) AS UTXO
