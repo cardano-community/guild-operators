@@ -418,7 +418,7 @@
         "tags": [
           "Blockchain Queries"
         ],
-        "summary": "Get the full rewards history in ADA for a stake address, or certain epoch reward if specified",
+        "summary": "Get the full rewards history in lovelace for a stake address, or certain epoch reward if specified",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"
