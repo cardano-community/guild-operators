@@ -340,7 +340,7 @@
         "tags": [
           "Pool Queries"
         ],
-        "summary": "Get pool metadata url and hash",
+        "summary": "Get pool metadata url, hash, and contents",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"
