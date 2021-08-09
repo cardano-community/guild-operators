@@ -455,6 +455,49 @@
           }
         }
       }
+    },
+    "/rpc/mir_history": {
+      "post": {
+        "tags": [
+          "Blockchain Queries"
+        ],
+        "summary": "'Get the full MIR (Move Instantaneous Rewards) history in lovelace for a stake address, or certain epoch if specified'",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": [
+                "_stake_address_bech32"
+              ],
+              "type": "object",
+              "properties": {
+                "_stake_address_bech32": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "_epoch_no": {
+                  "format": "numeric",
+                  "type": "number"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   },
   "parameters": {
