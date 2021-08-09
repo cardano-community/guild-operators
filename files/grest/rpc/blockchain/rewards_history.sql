@@ -1,4 +1,4 @@
-DROP FUNCTION IF EXISTS grest.rewards_history;
+DROP FUNCTION IF EXISTS grest.rewards_history (text, numeric);
 
 CREATE FUNCTION grest.rewards_history (_stake_address text DEFAULT NULL, _epoch_no numeric DEFAULT NULL)
     RETURNS TABLE (

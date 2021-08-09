@@ -1,4 +1,6 @@
-CREATE OR REPLACE FUNCTION grest.totals (_epoch_no numeric DEFAULT NULL)
+DROP FUNCTION grest.totals (numeric);
+
+CREATE FUNCTION grest.totals (_epoch_no numeric DEFAULT NULL)
   RETURNS TABLE (epoch_no uinteger,circulation lovelace,treasury lovelace,reward lovelace,supply numeric,reserves lovelace)
   LANGUAGE PLPGSQL
   AS $$
