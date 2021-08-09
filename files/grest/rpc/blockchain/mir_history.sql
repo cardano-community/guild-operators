@@ -1,4 +1,6 @@
-CREATE OR REPLACE FUNCTION grest.mir_history (_stake_address_bech32 text DEFAULT NULL, _epoch_no numeric DEFAULT NULL)
+DROP FUNCTION IF EXISTS grest.mir_history (text, numeric);
+
+CREATE FUNCTION grest.mir_history (_stake_address_bech32 text DEFAULT NULL, _epoch_no numeric DEFAULT NULL)
     RETURNS TABLE (
         earned_epoch bigint,
         amount lovelace,
