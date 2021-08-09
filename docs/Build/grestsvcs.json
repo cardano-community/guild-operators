@@ -262,7 +262,7 @@
         "tags": [
           "Pool Queries"
         ],
-        "summary": "Get pools registered opcert and counter (from last block made)",
+        "summary": "Get pools registered operational certificate and counter (from last block made)",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"
@@ -461,7 +461,7 @@
         "tags": [
           "Blockchain Queries"
         ],
-        "summary": "'Get the full MIR (Move Instantaneous Rewards) history in lovelace for a stake address, or certain epoch if specified'",
+        "summary": "Get the full MIR (Move Instantaneous Rewards) history in lovelace for a stake address, or certain epoch if specified",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"
@@ -491,6 +491,23 @@
           {
             "$ref": "#/parameters/preferParams"
           }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/latest_block": {
+      "post": {
+        "tags": [
+          "Blockchain Queries"
+        ],
+        "summary": "Get the latest block information",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
         ],
         "responses": {
           "200": {
