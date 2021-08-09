@@ -42,5 +42,5 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION grest.rewards_history IS 'Get the full MIR history in lovelace for a stake address, or certain epoch if specified';
+COMMENT ON FUNCTION grest.rewards_history IS 'Get the full MIR (Move Instantaneous Rewards) history in lovelace for a stake address, or certain epoch if specified';
 
