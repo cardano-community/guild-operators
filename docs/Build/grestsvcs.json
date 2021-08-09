@@ -340,7 +340,7 @@
         "tags": [
           "Pool Queries"
         ],
-        "summary": "Get pool metadata url and hash",
+        "summary": "Get pool metadata url, hash, and contents",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"
@@ -418,7 +418,50 @@
         "tags": [
           "Blockchain Queries"
         ],
-        "summary": "Get the full rewards history in ADA for a stake address, or certain epoch reward if specified",
+        "summary": "Get the full rewards history in lovelace for a stake address, or certain epoch reward if specified",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": [
+                "_stake_address_bech32"
+              ],
+              "type": "object",
+              "properties": {
+                "_stake_address_bech32": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "_epoch_no": {
+                  "format": "numeric",
+                  "type": "number"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/mir_history": {
+      "post": {
+        "tags": [
+          "Blockchain Queries"
+        ],
+        "summary": "'Get the full MIR (Move Instantaneous Rewards) history in lovelace for a stake address, or certain epoch if specified'",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"

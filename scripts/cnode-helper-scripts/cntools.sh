@@ -200,33 +200,37 @@ fi
 # check if there are pools in need of KES key rotation
 clear
 kes_rotation_needed="no"
-while IFS= read -r -d '' pool; do
-  unset pool_kes_start
-  if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-    getNodeMetrics
-  else
-    [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"
-  fi
+if [[ ${CHECK_KES} = true ]]; then
 
-  if ! kesExpiration ${pool_kes_start}; then println ERROR "${FG_RED}ERROR${NC}: failure during KES calculation for ${FG_GREEN}$(basename ${pool})${NC}" && waitForInput && continue; fi
-
-  if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
-    kes_rotation_needed="yes"
-    println "\n** WARNING **\nPool ${FG_GREEN}$(basename ${pool})${NC} in need of KES key rotation"
-    if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
-      println DEBUG "${FG_RED}Keys expired!${NC} : ${FG_RED}$(timeLeft ${expiration_time_sec_diff:1})${NC} ago"
+  while IFS= read -r -d '' pool; do
+    unset pool_kes_start
+    if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+      getNodeMetrics
     else
-      println DEBUG "Remaining KES periods : ${FG_RED}${remaining_kes_periods}${NC}"
-      println DEBUG "Time left             : ${FG_RED}$(timeLeft ${expiration_time_sec_diff})${NC}"
+      [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"
     fi
-  elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
-    kes_rotation_needed="yes"
-    println DEBUG "\nPool ${FG_GREEN}$(basename ${pool})${NC} soon in need of KES key rotation"
-    println DEBUG "Remaining KES periods : ${FG_YELLOW}${remaining_kes_periods}${NC}"
-    println DEBUG "Time left             : ${FG_YELLOW}$(timeLeft ${expiration_time_sec_diff})${NC}"
-  fi
-done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-[[ ${kes_rotation_needed} = "yes" ]] && waitForInput
+  
+    if ! kesExpiration ${pool_kes_start}; then println ERROR "${FG_RED}ERROR${NC}: failure during KES calculation for ${FG_GREEN}$(basename ${pool})${NC}" && waitForInput && continue; fi
+
+    if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
+      kes_rotation_needed="yes"
+      println "\n** WARNING **\nPool ${FG_GREEN}$(basename ${pool})${NC} in need of KES key rotation"
+      if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
+        println DEBUG "${FG_RED}Keys expired!${NC} : ${FG_RED}$(timeLeft ${expiration_time_sec_diff:1})${NC} ago"
+      else
+        println DEBUG "Remaining KES periods : ${FG_RED}${remaining_kes_periods}${NC}"
+        println DEBUG "Time left             : ${FG_RED}$(timeLeft ${expiration_time_sec_diff})${NC}"
+      fi
+    elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
+      kes_rotation_needed="yes"
+      println DEBUG "\nPool ${FG_GREEN}$(basename ${pool})${NC} soon in need of KES key rotation"
+      println DEBUG "Remaining KES periods : ${FG_YELLOW}${remaining_kes_periods}${NC}"
+      println DEBUG "Time left             : ${FG_YELLOW}$(timeLeft ${expiration_time_sec_diff})${NC}"
+    fi
+  done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+  [[ ${kes_rotation_needed} = "yes" ]] && waitForInput
+  
+fi
 
 # Verify that shelley transition epoch was properly identified by env
 if [[ ${SHELLEY_TRANS_EPOCH} -lt 0 ]]; then # unknown network
