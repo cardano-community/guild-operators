@@ -1,13 +1,12 @@
-DROP FUNCTION grest.latest_block ();
+DROP FUNCTION IF EXISTS grest.blocks ();
 
-CREATE FUNCTION grest.latest_block ()
+CREATE FUNCTION grest.blocks ()
   RETURNS TABLE (
     hash text,
     epoch uinteger,
     abs_slot uinteger,
     epoch_slot uinteger,
     block_no uinteger,
-    block_size uinteger,
     block_time timestamp,
     tx_count bigint,
     vrf_key varchar,
@@ -24,7 +23,6 @@ BEGIN
     b.SLOT_NO AS ABS_SLOT,
     b.EPOCH_SLOT_NO AS EPOCH_SLOT,
     b.BLOCK_NO,
-    b.SIZE,
     b.TIME,
     b.TX_COUNT,
     b.VRF_KEY,
@@ -42,10 +40,8 @@ BEGIN
   LEFT JOIN SLOT_LEADER SL ON SL.ID = B.SLOT_LEADER_ID
   LEFT JOIN POOL_HASH PH ON PH.ID = SL.POOL_HASH_ID
 ORDER BY
-  B.ID DESC
-LIMIT 1;
+  B.ID DESC;
 END;
 $$;
 
-COMMENT ON FUNCTION grest.latest_block IS 'Get the latest block info';
-
+COMMENT ON FUNCTION grest.blocks IS 'Get detailed information about all blocks (paginated - latest first)';

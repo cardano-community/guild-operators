@@ -1,3 +1,5 @@
+DROP FUNCTION IF EXISTS grest.account_balance (text);
+
 CREATE OR REPLACE FUNCTION grest.account_balance (_address text)
     RETURNS json STABLE
     LANGUAGE PLPGSQL

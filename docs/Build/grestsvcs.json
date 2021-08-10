@@ -499,12 +499,29 @@
         }
       }
     },
-    "/rpc/latest_block": {
+    "/rpc/tip": {
       "post": {
         "tags": [
           "Blockchain Queries"
         ],
-        "summary": "Get the latest block information",
+        "summary": "Get the tip info about the latest block seen by chain",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/blocks": {
+      "post": {
+        "tags": [
+          "Blockchain Queries"
+        ],
+        "summary": "Get detailed information about all blocks (paginated - latest first)",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"
