@@ -1,4 +1,6 @@
-CREATE OR REPLACE FUNCTION grest.pool_metadata (_pool_bech32 text DEFAULT NULL)
+DROP FUNCTION IF EXISTS grest.pool_metadata(text);
+
+CREATE FUNCTION grest.pool_metadata (_pool_bech32 text DEFAULT NULL)
     RETURNS json STABLE
     LANGUAGE PLPGSQL
     AS $$
