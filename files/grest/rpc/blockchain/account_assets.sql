@@ -17,7 +17,8 @@ BEGIN
         FROM
             STAKE_ADDRESS
         WHERE
-            VIEW = _address;
+            VIEW = _address
+            LIMIT 1;
     ELSE
         -- Payment address
         SELECT
