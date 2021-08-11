@@ -1,6 +1,6 @@
-DROP FUNCTION IF EXISTS grest.txs_for_addr (text, uinteger, character varying);
+DROP FUNCTION IF EXISTS grest.addr_txs (text, uinteger, character varying);
 
-CREATE FUNCTION grest.txs_for_addr (_address text, _limit uinteger DEFAULT 1000, _orderby character varying DEFAULT 'desc' ::character varying)
+CREATE FUNCTION grest.addr_txs (_address text, _limit uinteger DEFAULT 1000, _orderby character varying DEFAULT 'desc' ::character varying)
     RETURNS TABLE (
         in_addrs jsonb,
         out_addrs jsonb,
@@ -16,7 +16,7 @@ CREATE FUNCTION grest.txs_for_addr (_address text, _limit uinteger DEFAULT 1000,
         script_data_hash text)
     LANGUAGE plpgsql
     STABLE
-    AS $function$
+    AS $$
 BEGIN
     RETURN QUERY (
         SELECT
@@ -85,5 +85,6 @@ BEGIN
         END) DESC, my_tx_id ASC LIMIT _limit)
 AND txb.block_id = b.id) x);
 END;
+$$;
 
-$$ COMMENT ON FUNCTION grest.txs_for_addr IS 'Get up to _limit transactions associated WITH a given _address';
+COMMENT ON FUNCTION grest.addr_txs IS 'Get up to _limit transactions associated WITH a given _address';
