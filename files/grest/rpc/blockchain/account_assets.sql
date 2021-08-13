@@ -18,7 +18,7 @@ BEGIN
             STAKE_ADDRESS
         WHERE
             VIEW = _address
-            LIMIT 1;
+        LIMIT 1;
     ELSE
         -- Payment address
         SELECT
@@ -56,5 +56,5 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION grest.account_balance IS 'Get the native asset balance of an account';
+COMMENT ON FUNCTION grest.account_assets IS 'Get the native asset balance of an account';
 
