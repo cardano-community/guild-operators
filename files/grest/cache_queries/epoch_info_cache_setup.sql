@@ -151,3 +151,54 @@ FROM
     INNER JOIN temp_last_block_time tlbt ON tlbt.epoch_no = e.no
     INNER JOIN temp_epoch_start_end_time teset ON teset.epoch = e.no;
 
+-- Trigger for updating current epoch data
+DROP FUNCTION IF EXISTS grest.epoch_info_update CASCADE;
+
+CREATE FUNCTION grest.epoch_info_update ()
+    RETURNS TRIGGER
+    AS $epoch_info_update$
+DECLARE
+    _current_epoch integer DEFAULT NULL;
+BEGIN
+    SELECT
+        max(epoch)
+    FROM
+        grest.epoch_info_cache INTO _current_epoch;
+    UPDATE
+        grest.epoch_info_cache
+    SET
+        i_out_sum = update_table.out_sum,
+        i_fees = update_table.fees,
+        i_tx_count = update_table.tx_count,
+        i_blk_count = update_table.blk_count,
+        i_last_block_time = update_table.time
+    FROM (
+        SELECT
+            e.out_sum,
+            e.fees,
+            e.tx_count,
+            e.blk_count,
+            b.time
+        FROM
+            epoch e
+            INNER JOIN block b ON b.block_no = (
+                SELECT
+                    max(block_no)
+                FROM
+                    block)
+            WHERE
+                e.no = _current_epoch) update_table
+WHERE
+    epoch = _current_epoch;
+    RETURN NEW;
+END;
+$epoch_info_update$
+LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS epoch_info_update_trigger ON public.block;
+
+CREATE TRIGGER epoch_info_update_trigger
+    AFTER INSERT ON public.block
+    FOR EACH ROW
+    EXECUTE PROCEDURE grest.epoch_info_update ();
+
