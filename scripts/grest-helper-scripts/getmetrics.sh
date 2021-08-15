@@ -57,7 +57,6 @@ function get-metrics() {
   export METRIC_cpuutil="${cpuutil}"
   export METRIC_load1m="$(( load1m ))"
   export METRIC_dbsize="${dbsize}"
-
   #export METRIC_cnodeversion="$(echo $(cardano-node --version) | awk '{print $2 "-" $9}')"
   #export METRIC_dbsyncversion="$(echo $(cardano-db-sync-extended --version) | awk '{print $2 "-" $9}')"
   #export METRIC_psqlversion="$(echo "" | psql cexplorer -c "SELECT version();" | grep PostgreSQL | awk '{print $2}')"
