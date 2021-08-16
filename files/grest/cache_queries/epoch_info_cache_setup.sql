@@ -1,21 +1,13 @@
 DROP TABLE IF EXISTS grest.epoch_info_cache;
 
-DROP TABLE IF EXISTS temp_active_stake;
-
-DROP TABLE IF EXISTS temp_last_block_time;
-
-DROP TABLE IF EXISTS temp_epoch_start_end_time;
-
 CREATE TABLE grest.epoch_info_cache (
     epoch uinteger PRIMARY KEY NOT NULL,
     i_out_sum word128type NOT NULL,
     i_fees lovelace NOT NULL,
     i_tx_count uinteger NOT NULL,
     i_blk_count uinteger NOT NULL,
-    i_start_time timestamp without time zone UNIQUE,
-    i_end_time timestamp without time zone UNIQUE,
-    i_first_block_time timestamp without time zone UNIQUE,
-    i_last_block_time timestamp without time zone UNIQUE,
+    i_first_block_time timestamp without time zone UNIQUE NOT NULL,
+    i_last_block_time timestamp without time zone UNIQUE NOT NULL,
     i_active_stake lovelace,
     p_min_fee_a uinteger NOT NULL,
     p_min_fee_b uinteger NOT NULL,
@@ -50,56 +42,6 @@ CREATE TABLE grest.epoch_info_cache (
     p_coins_per_utxo_word lovelace
 );
 
-CREATE TEMP TABLE temp_active_stake AS
-SELECT
-    epoch_no,
-    SUM(es.amount) AS i_active_stake
-FROM
-    epoch_stake es
-GROUP BY
-    es.epoch_no;
-
-CREATE TEMP TABLE temp_last_block_time AS SELECT DISTINCT ON (epoch_no)
-    epoch_no,
-    time
-FROM
-    block
-ORDER BY
-    epoch_no,
-    time DESC;
-
-CREATE TEMP TABLE temp_epoch_start_end_time (
-    epoch serial PRIMARY KEY,
-    start_time timestamp without time zone NOT NULL,
-    end_time timestamp without time zone NOT NULL
-);
-
-INSERT INTO temp_epoch_start_end_time
-    VALUES (0, '2017-09-23 21:44:51'::timestamp WITHOUT time zone, '2017-09-28 21:44:50'::timestamp WITHOUT time zone);
-
-DO $$
-DECLARE
-    i integer DEFAULT 1;
-    _current_epoch integer DEFAULT NULL;
-BEGIN
-    SELECT
-        max(NO)
-    FROM
-        epoch INTO _current_epoch;
-    LOOP
-        exit
-        WHEN i > _current_epoch;
-        INSERT INTO temp_epoch_start_end_time (start_time, end_time)
-        SELECT
-            max(start_time) + INTERVAL '5 DAY',
-            max(end_time) + INTERVAL '5 DAY'
-        FROM
-            temp_epoch_start_end_time;
-        i = i + 1;
-    END LOOP;
-END;
-$$;
-
 INSERT INTO grest.epoch_info_cache
 SELECT
     e.no AS epoch,
@@ -107,11 +49,9 @@ SELECT
     e.fees AS i_fees,
     e.tx_count AS i_tx_count,
     e.blk_count AS i_blk_count,
-    teset.start_time AS i_start_time,
-    teset.end_time AS i_end_time,
-    b.time AS i_first_block_time,
-    tlbt.time AS i_last_block_time,
-    tas.i_active_stake AS i_active_stake,
+    e.start_time AS i_first_block_time,
+    e.end_time AS i_last_block_time,
+    NULL AS i_active_stake,
     ep.min_fee_a AS p_min_fee_a,
     ep.min_fee_b AS p_min_fee_b,
     ep.max_block_size AS p_max_block_size,
@@ -145,11 +85,22 @@ SELECT
     ep.coins_per_utxo_word AS p_coins_per_utxo_word
 FROM
     epoch e
-    INNER JOIN epoch_param ep ON ep.epoch_no = e.no
-    INNER JOIN block b ON b.id = ep.block_id
-    INNER JOIN temp_active_stake tas ON tas.epoch_no = e.no
-    INNER JOIN temp_last_block_time tlbt ON tlbt.epoch_no = e.no
-    INNER JOIN temp_epoch_start_end_time teset ON teset.epoch = e.no;
+    INNER JOIN epoch_param ep ON ep.epoch_no = e.no;
+
+UPDATE
+    grest.epoch_info_cache
+SET
+    i_active_stake = update_table.active_stake
+FROM (
+    SELECT
+        epoch_no,
+        SUM(es.amount) AS active_stake
+    FROM
+        epoch_stake es
+    GROUP BY
+        es.epoch_no) update_table
+WHERE
+    epoch = update_table.epoch_no;
 
 -- Trigger for updating current epoch data
 DROP FUNCTION IF EXISTS grest.epoch_info_update CASCADE;
@@ -159,38 +110,61 @@ CREATE FUNCTION grest.epoch_info_update ()
     AS $epoch_info_update$
 DECLARE
     _current_epoch integer DEFAULT NULL;
+    _current_end_time timestamp without time zone DEFAULT NULL;
+    _current_end_time_cache timestamp without time zone DEFAULT NULL;
 BEGIN
     SELECT
-        max(epoch)
+        end_time
     FROM
-        grest.epoch_info_cache INTO _current_epoch;
-    UPDATE
+        epoch
+    WHERE
+        NO = (
+            SELECT
+                max(NO)
+            FROM
+                epoch) INTO _current_end_time;
+    SELECT
+        i_last_block_time
+    FROM
         grest.epoch_info_cache
-    SET
-        i_out_sum = update_table.out_sum,
-        i_fees = update_table.fees,
-        i_tx_count = update_table.tx_count,
-        i_blk_count = update_table.blk_count,
-        i_last_block_time = update_table.time
-    FROM (
+    WHERE
+        epoch = (
+            SELECT
+                max(epoch)
+            FROM
+                grest.epoch_info_cache) INTO _current_end_time_cache;
+    IF (
         SELECT
-            e.out_sum,
-            e.fees,
-            e.tx_count,
-            e.blk_count,
-            b.time
+            EXTRACT(EPOCH FROM (_current_end_time - _current_end_time_cache)) < 900) THEN
+        RETURN NULL;
+    ELSE
+        SELECT
+            max(epoch)
         FROM
-            epoch e
-            INNER JOIN block b ON b.block_no = (
-                SELECT
-                    max(block_no)
-                FROM
-                    block)
+            grest.epoch_info_cache INTO _current_epoch;
+        UPDATE
+            grest.epoch_info_cache
+        SET
+            i_out_sum = update_table.out_sum,
+            i_fees = update_table.fees,
+            i_tx_count = update_table.tx_count,
+            i_blk_count = update_table.blk_count,
+            i_last_block_time = update_table.end_time
+        FROM (
+            SELECT
+                e.out_sum,
+                e.fees,
+                e.tx_count,
+                e.blk_count,
+                e.end_time
+            FROM
+                epoch e
             WHERE
                 e.no = _current_epoch) update_table
-WHERE
-    epoch = _current_epoch;
-    RETURN NEW;
+    WHERE
+        epoch = _current_epoch;
+        RETURN NEW;
+    END IF;
 END;
 $epoch_info_update$
 LANGUAGE plpgsql;
@@ -199,6 +173,5 @@ DROP TRIGGER IF EXISTS epoch_info_update_trigger ON public.block;
 
 CREATE TRIGGER epoch_info_update_trigger
     AFTER INSERT ON public.block
-    FOR EACH ROW
     EXECUTE PROCEDURE grest.epoch_info_update ();
 
