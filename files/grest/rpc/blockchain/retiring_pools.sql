@@ -28,7 +28,8 @@ BEGIN
             FROM
                 public.pool_update
             WHERE
-                hash_id = ph.id);
+                hash_id = ph.id)
+        ORDER BY pr.retiring_epoch DESC;
 END;
 $$;
 
