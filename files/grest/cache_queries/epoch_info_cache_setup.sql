@@ -175,3 +175,91 @@ CREATE TRIGGER epoch_info_update_trigger
     AFTER INSERT ON public.block
     EXECUTE PROCEDURE grest.epoch_info_update ();
 
+-- Trigger for inserting new epoch data
+DROP FUNCTION IF EXISTS grest.new_epoch_insert CASCADE;
+
+CREATE FUNCTION grest.new_epoch_insert ()
+    RETURNS TRIGGER
+    AS $new_epoch_insert$
+BEGIN
+    INSERT INTO grest.epoch_info_cache
+    SELECT
+        e.no AS epoch,
+        e.out_sum AS i_out_sum,
+        e.fees AS i_fees,
+        e.tx_count AS i_tx_count,
+        e.blk_count AS i_blk_count,
+        e.start_time AS i_first_block_time,
+        e.end_time AS i_last_block_time,
+        NULL AS i_active_stake,
+        ep.min_fee_a AS p_min_fee_a,
+        ep.min_fee_b AS p_min_fee_b,
+        ep.max_block_size AS p_max_block_size,
+        ep.max_tx_size AS p_max_tx_size,
+        ep.max_bh_size AS p_max_bh_size,
+        ep.key_deposit AS p_key_deposit,
+        ep.pool_deposit AS p_pool_deposit,
+        ep.max_epoch AS p_max_epoch,
+        ep.optimal_pool_count AS p_optimal_pool_count,
+        ep.influence AS p_influence,
+        ep.monetary_expand_rate AS p_monetary_expand_rate,
+        ep.treasury_growth_rate AS p_treasury_growth_rate,
+        ep.decentralisation AS p_decentralisation,
+        encode(ep.entropy, 'hex') AS p_entropy,
+        ep.protocol_major AS p_protocol_major,
+        ep.protocol_minor AS p_protocol_minor,
+        ep.min_utxo_value AS p_min_utxo_value,
+        ep.min_pool_cost AS p_min_pool_cost,
+        encode(ep.nonce, 'hex') AS p_nonce,
+        ep.block_id AS p_block_id,
+        ep.cost_models AS p_cost_models,
+        ep.price_mem AS p_price_mem,
+        ep.price_step AS p_price_step,
+        ep.max_tx_ex_mem AS p_max_tx_ex_mem,
+        ep.max_tx_ex_steps AS p_max_tx_ex_steps,
+        ep.max_block_ex_mem AS p_max_block_ex_mem,
+        ep.max_block_ex_steps AS p_max_block_ex_steps,
+        ep.max_val_size AS p_max_val_size,
+        ep.collateral_percent AS p_collateral_percent,
+        ep.max_collateral_inputs AS p_max_collateral_inputs,
+        ep.coins_per_utxo_word AS p_coins_per_utxo_word
+    FROM
+        epoch e
+        INNER JOIN epoch_param ep ON ep.epoch_no = e.no
+    WHERE
+        e.no = (
+            SELECT
+                max(NO)
+            FROM
+                epoch);
+    UPDATE
+        grest.epoch_info_cache
+    SET
+        i_active_stake = update_table.active_stake
+    FROM (
+        SELECT
+            epoch_no,
+            SUM(es.amount) AS active_stake
+        FROM
+            epoch_stake es
+        WHERE
+            es.epoch_no = (
+                SELECT
+                    max(NO)
+                FROM
+                    epoch)
+            GROUP BY
+                es.epoch_no) update_table
+WHERE
+    epoch = update_table.epoch_no;
+    RETURN NEW;
+END;
+$new_epoch_insert$
+LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS new_epoch_insert_trigger ON public.epoch;
+
+CREATE TRIGGER new_epoch_insert_trigger
+    AFTER INSERT ON public.epoch
+    EXECUTE PROCEDURE grest.new_epoch_insert ();
+
