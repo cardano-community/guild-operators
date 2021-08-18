@@ -3,13 +3,13 @@ DROP FUNCTION IF EXISTS grest.epoch_info (numeric);
 CREATE FUNCTION grest.epoch_info (_epoch_no numeric DEFAULT NULL)
     RETURNS TABLE (
         epoch uinteger,
-        i_out_sum word128type,
-        i_fees lovelace,
-        i_tx_count uinteger,
-        i_blk_count uinteger,
-        i_first_block_time timestamp without time zone,
-        i_last_block_time timestamp without time zone,
-        i_active_stake lovelace)
+        out_sum word128type,
+        fees lovelace,
+        tx_count uinteger,
+        blk_count uinteger,
+        first_block_time timestamp without time zone,
+        last_block_time timestamp without time zone,
+        active_stake lovelace)
     LANGUAGE PLPGSQL
     AS $$
 BEGIN
