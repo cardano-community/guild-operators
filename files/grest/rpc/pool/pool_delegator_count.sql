@@ -1,4 +1,6 @@
-CREATE OR REPLACE FUNCTION grest.pool_delegator_count(_pool_bech32 text)
+DROP FUNCTION IF EXISTS grest.pool_delegator_count(text);
+
+CREATE FUNCTION grest.pool_delegator_count(_pool_bech32 text)
 RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$
 BEGIN
     RETURN ( SELECT json_build_object(
