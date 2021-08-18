@@ -178,6 +178,49 @@
         }
       }
     },
+    "/rpc/pool_blocks_in_epoch": {
+      "post": {
+        "tags": [
+          "(rpc) pool_blocks_in_epoch"
+        ],
+        "summary": "Return information about blocks minted by a given pool in current epoch (or _epoch_no if provided)",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": [
+                "_pool_bech32"
+              ],
+              "type": "object",
+              "properties": {
+                "_epoch_no": {
+                  "format": "uinteger",
+                  "type": "string"
+                },
+                "_pool_bech32": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/rpc/pool_relays": {
       "post": {
         "tags": [
