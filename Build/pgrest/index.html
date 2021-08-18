@@ -15,6 +15,7 @@
 <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&amp;display=fallback" rel="stylesheet"/>
 <style>:root{--md-text-font-family:"Roboto";--md-code-font-family:"Roboto Mono"}</style>
 <link href="../../overrides/custom.css" rel="stylesheet"/>
+<link href="../../overrides/swagger-ui.css" rel="stylesheet"/>
 <script>function gtag(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],gtag("js",new Date),gtag("config","G-MLM58HW7RF"),document.addEventListener("DOMContentLoaded",function(){"undefined"!=typeof location$&&location$.subscribe(function(t){gtag("config","G-MLM58HW7RF",{page_path:t.pathname})})})</script>
 <script async="" src="https://www.googletagmanager.com/gtag/js?id=G-MLM58HW7RF"></script>
 </head>
@@ -25,7 +26,7 @@
 <input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
 <label class="md-overlay" for="__drawer"></label>
 <div data-md-component="skip">
-<a class="md-skip" href="#perms">
+<a class="md-skip" href="#setup">
           Skip to content
         </a>
 </div>
@@ -182,18 +183,19 @@
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="#perms">
-    Enable permissions in Database
-  </a>
-<nav aria-label="Enable permissions in Database" class="md-nav">
-<ul class="md-nav__list">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#start-pgrest">
-    Create Config and Start PostgREST
+<a class="md-nav__link" href="#setup">
+    Setup PostgREST, HAProxy and add addendum to Postgres DB
   </a>
 </li>
-</ul>
-</nav>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#tls">
+    Enable TLS on HAProxy
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#performance-tuning-considerations">
+    Performance Tuning Considerations
+  </a>
 </li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="#validation">
@@ -283,11 +285,6 @@
         ITN Metadata Proof
       </a>
 </li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../Scripts/itnrewards/">
-        ITN Rewards
-      </a>
-</li>
 </ul>
 </nav>
 </li>
@@ -344,13 +341,8 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
-        PGRest meetings 1
-      </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
-        PGRest meetings 2
+<a class="md-nav__link" href="../../grest-meets/">
+        GRest meet summaries
       </a>
 </li>
 </ul>
@@ -376,18 +368,19 @@
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="#perms">
-    Enable permissions in Database
-  </a>
-<nav aria-label="Enable permissions in Database" class="md-nav">
-<ul class="md-nav__list">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#start-pgrest">
-    Create Config and Start PostgREST
+<a class="md-nav__link" href="#setup">
+    Setup PostgREST, HAProxy and add addendum to Postgres DB
   </a>
 </li>
-</ul>
-</nav>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#tls">
+    Enable TLS on HAProxy
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#performance-tuning-considerations">
+    Performance Tuning Considerations
+  </a>
 </li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="#validation">
@@ -409,87 +402,81 @@
 <p class="admonition-title">Important</p>
 <ul>
 <li>An average pool operator may not require this component at all. Please verify if it is required for your use as mentioned <a href="../../build/#components">here</a></li>
-<li>Ensure the <a href="../../basics/#pre-requisites">Pre-Requisites</a> are in place before you proceed.</li>
+<li>Ensure that you have setup <a href="../dbsync/">DBSync</a> and that it is in sync before you proceed. <em>IF</em> you're participating in grest services, ensure that you're using dbsync commit <code>88e26c82d3331f931b6a68d9b077d400de169f76</code></li>
 </ul>
 </div>
-<p><a href="https://postgrest.org/en/latest">PostgREST</a> is a web server that serves any PostgreSQL database (in our case, useful for <code>cardano-db-sync</code> and <code>smash</code>) as a RESTful Web Service. The endpoints of PostgREST in itself are essentially the table itself. You can read more about exploring the API <a href="https://postgrest.org/en/latest/api.html">here</a>. Understandably, it would of course rely on an existing PostgreSQL server. At the moment of writing, this is being used as an easy alternative - which will remain up-to-date since it is directly serving the underlying database as an API, as compared to <code>Cardano GraphQL</code> component. Some of the other advantages would also be that you can serve JWT authentication, or use native Postgres DB authentication against the Rest Interface as well (see <a href="https://postgrest.org/en/latest/tutorials/tut1.html">here</a> for adding this to your instance), and the web server it uses can be hardened or served behind another nginx/httpd/.. reverse proxy as per your SecOps preferences.</p>
-<p>Again, the focus of this guide (for now) is not to tell you how to secure your PostgREST instance, but to get you up and running quickly. You'd want to harden your instance as per instructions <a href="https://postgrest.org/en/latest/admin.html?highlight=SSL">here</a> once you're happy with the usage. The guide below assumes PostgreSQL instance has already been set up (refer to <a href="../../Appendix/postgres/">Sample Local PostgreSQL Server Deployment instructions</a> ) along with <a href="../dbsync/">cardano-db-sync</a>.</p>
-<h3 id="perms">Enable permissions in Database<a class="headerlink" href="#perms" title="Permanent link">⚓︎</a></h3>
-<p>For simplicity, the download of latest PostgREST instance is already available via executing the below:</p>
-<div class="highlight"><pre><span></span><code>mkdir ~/tmp<span class="p">;</span><span class="nb">cd</span> ~/tmp
-wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh
-./prereqs.sh -p
-</code></pre></div>
-<p>This would download and make <code>postgrest</code> binary available in <code>${HOME}/.cabal/bin</code> which is also where your DB Sync binaries would be, assuming you've followed <a href="../dbsync/">this guide</a>.</p>
+<p><a href="https://postgrest.org/en/latest">PostgREST</a> is a web server that serves any PostgreSQL database (in our case, useful for <code>cardano-db-sync</code>) as a RESTful Web Service. The endpoints of PostgREST in itself are essentially the table/functions exposed via the PostgREST config file. You can read more about exploring the API <a href="https://postgrest.org/en/latest/api.html">here</a>. Understandably, it would of course rely on an existing PostgreSQL server. At the moment of writing, this is being used as an easy alternative - which will remain up-to-date since it is directly serving the underlying database as an API, as compared to <code>Cardano GraphQL</code> component. Some of the other advantages are also performance, elasticity, low overhead, support for JWT / native Postgres DB authentication against the Rest Interface as well (see <a href="https://postgrest.org/en/latest/tutorials/tut1.html">here</a> for adding this to your instance). We merge the deployment with HAProxy configuration that serves as an easy means to harden your gateway, but you may alter the settings for proxy layer as per your SecOps preferences.</p>
+<h3 id="setup">Setup PostgREST, HAProxy and add addendum to Postgres DB<a class="headerlink" href="#setup" title="Permanent link">⚓︎</a></h3>
 <p>To start with you'd want to ensure your current shell session has access to Postgres credentials, continuing from examples from the above mentioned <a href="../../Appendix/postgres/">Sample Postgres deployment guide</a>.</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span> <span class="nv">$CNODE_HOME</span>/priv
 <span class="nv">PGPASSFILE</span><span class="o">=</span><span class="nv">$CNODE_HOME</span>/priv/.pgpass
+psql cexplorer
 </code></pre></div>
-<p>Now you'd want to start <code>psql cexplorer</code> to connect to your Postgres Instance, and create a basic user and give it usage/select access to the schema and tables respectively. Refer to commands below for the same:</p>
-<div class="highlight"><pre><span></span><code><span class="k">create</span> <span class="k">role</span> <span class="n">web_anon</span> <span class="n">nologin</span><span class="p">;</span>
-<span class="k">grant</span> <span class="k">usage</span> <span class="k">on</span> <span class="k">schema</span> <span class="k">public</span> <span class="k">to</span> <span class="n">web_anon</span><span class="p">;</span>
-<span class="k">GRANT</span> <span class="k">SELECT</span> <span class="k">ON</span> <span class="k">ALL</span> <span class="n">TABLES</span> <span class="k">IN</span> <span class="k">SCHEMA</span> <span class="k">public</span> <span class="k">TO</span> <span class="n">web_anon</span><span class="p">;</span>
-<span class="k">ALTER</span> <span class="k">DEFAULT</span> <span class="k">PRIVILEGES</span> <span class="k">IN</span> <span class="k">SCHEMA</span> <span class="k">public</span> <span class="k">GRANT</span> <span class="k">SELECT</span> <span class="k">ON</span> <span class="n">TABLES</span> <span class="k">TO</span> <span class="n">web_anon</span><span class="p">;</span>
-</code></pre></div>
-<p>You can now quit your psql session using <code>\q</code>.</p>
-<h4 id="start-pgrest">Create Config and Start PostgREST<a class="headerlink" href="#start-pgrest" title="Permanent link">⚓︎</a></h4>
-<p>Now that your user is created in database, you can create the postgrest config. A basic sample is below:</p>
+<p>Ensure that you can connect to your Postgres DB fine using above (quit from psql once validated using <code>\q</code>).</p>
+<p>Now, create your PostgREST config file using command below:</p>
 <div class="admonition info">
 <p class="admonition-title">Reminder !!</p>
 <p>Verify and update db-uri if required, the given value configures it for user running the command below (and relies on socket connection to postgres sever.</p>
 </div>
-<div class="highlight"><pre><span></span><code>cat <span class="s">&lt;&lt; 'EOF' &gt; $CNODE_HOME/priv/pgrest.conf</span>
+<div class="highlight"><pre><span></span><code>cat <span class="s">&lt;&lt; 'EOF' &gt; $CNODE_HOME/priv/grest.conf</span>
 <span class="s">db-uri = "postgres://${USER}@/cexplorer"</span>
-<span class="s">db-schema = "public"</span>
+<span class="s">db-schema = "grest, public"</span>
 <span class="s">db-anon-role = "web_anon"</span>
 <span class="s">server-host = "127.0.0.1"</span>
 <span class="s">server-port = 8050</span>
 <span class="s">#jwt-secret = "secret-token"</span>
 <span class="s">#db-pool = 10</span>
 <span class="s">#db-pool-timeout = 10</span>
-<span class="s">#db-extra-search-path = "public"</span>
-<span class="s">#max-rows = 1000</span>
+<span class="s">db-extra-search-path = "public"</span>
+<span class="s">max-rows = 1000</span>
 
 <span class="s">EOF</span>
 </code></pre></div>
-<p>If you'd like to connect to your PostgREST remotely (again, it is recommended you harden your instance before this is done), uncomment and replace the <code>server-host</code> parameter with "0.0.0.0"). Make sure to change the file permissions so that it's only visible to user that will run postgrest instance using <code>chmod 600 $CNODE_HOME/priv/pgrest.conf</code>. If you want to prevent unauthenticated access, uncomment the jwt-secret and specify a custom <code>secret-token</code>.</p>
-<p>You're now all set! To start the instance, you can use the below to start your <code>postgrest</code> instance.</p>
-<div class="highlight"><pre><span></span><code>postgrest <span class="nv">$CNODE_HOME</span>/priv/pgrest.conf
-<span class="c1">## Attempting to connect to the database...</span>
-<span class="c1">## Listening on port 8050</span>
-<span class="c1">## Connection successful</span>
+<p>You're all set to set up your PostgREST instance, and while doing so, also configure haproxy service, set up roles/schemas/default permissions, and create systemd services for these:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span> <span class="nv">$CNODE_HOME</span>/scripts
+<span class="c1"># To-Do: Update branch when merged to master</span>
+wget -o setup-grest.sh https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/scripts/grest-helper-scripts/setup-grest.sh
+chmod <span class="m">755</span> setup-grest.sh
+./setup-grest.sh -t cnode
+<span class="c1"># cnode is top level folder here</span>
 </code></pre></div>
+<p>Follow the prompts to start-up deployed services. The default ports used will make haproxy instance available at port 8053 (you might want to enable firewall rule to open this port to services you would like to access). Make sure to change the file permissions so that it's only visible to user that will run postgrest instance using <code>chmod 600 $CNODE_HOME/priv/pgrest.conf</code>. If you want to prevent unauthenticated access to grest schema, uncomment the jwt-secret and specify a custom <code>secret-token</code>.</p>
+<h3 id="tls">Enable TLS on HAProxy<a class="headerlink" href="#tls" title="Permanent link">⚓︎</a></h3>
+<p>In order to enable SSL on your haproxy, all you need to do is edit the file <code>/etc/haproxy/haproxy.cfg</code> and update the <em>frontend app</em> section to disable normal bind and enable ssl bind. Note that the server.pem referred in example below should contain certificate chain as well as the private key.</p>
+<p><div class="highlight"><pre><span></span><code>#bind :8053
+bind :8053 ssl crt /etc/ssl/server.pem no-sslv3
+redirect scheme https code 301 if !{ ssl_fc }
+</code></pre></div>
+Restart haproxy service for changes to take effect.</p>
+<h3 id="performance-tuning-considerations">Performance Tuning Considerations<a class="headerlink" href="#performance-tuning-considerations" title="Permanent link">⚓︎</a></h3>
+<p>While the defaults on your system should not cause you any trouble, note that haproxy relies on ephemeral ports available on your system to be able to redirect frontend requests to backend servers. The four important configuration settings in your <code>/etc/sysctl.conf</code> files would be:</p>
+<p><div class="highlight"><pre><span></span><code>net.ipv4.ip_local_port_range="1024 65534"
+net.core.somaxconn=65534
+net.ipv4.tcp_rmem=4096 16060 64060
+net.ipv4.tcp_wmem=4096 16384 262144
+</code></pre></div>
+Again, defaults should be fine for minimal usage, you do not need to tinker with above unless you expect a very high amount of load on your frontend.</p>
 <h3 id="validation">Validation<a class="headerlink" href="#validation" title="Permanent link">⚓︎</a></h3>
-<p>While you can query PostgREST a browser from a browser if listening on <code>0.0.0.0</code> , we'd stick to querying your instance via <code>curl</code> on terminal, so that we're not troubleshooting any firewall/network configuration issues. Now, the nomenclature we used should have connected you to the <code>cardano-db-sync</code> instance. Assuming it is already populated (even partially), you can try explore tables as REST endpoints.</p>
+<p>While you can query PostgREST a browser from a browser if listening on <code>0.0.0.0</code> , we'd stick to querying your instance via <code>curl</code> on terminal, so that we're not troubleshooting any firewall/network configuration issues. Now, the nomenclature we used should have connected you to the <code>cardano-db-sync</code> instance. Assuming it is already populated (even partially), you can try explore deployed functions as REST endpoints.</p>
+<div class="admonition info">
+<p class="admonition-title">Note</p>
+<p>The values used in queries below are from guild network, replace them to valid values that can be used on network that your dbsync instance if filled with</p>
+</div>
 <ol>
 <li>
-<p>To query the network your DBSync instance has connected to
-<div class="highlight"><pre><span></span><code>curl -s http://127.0.0.1:8050/meta?select<span class="o">=</span>network_name
-<span class="c1">## [{"network_name":"mainnet"}]</span>
-curl -s http://127.0.0.1:8050/meta?network_name <span class="p">|</span> jq -r <span class="s1">'.[].network_name'</span>
-<span class="c1">## mainnet</span>
-</code></pre></div>
-Note that here <code>meta</code> is the table name, while <code>network_name</code> is the column name.</p>
+<p>To query active stake for pool <code>pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr</code> in epoch <code>122</code>, we can execute the below:
+<div class="highlight"><pre><span></span><code>curl -d <span class="nv">_pool_bech32</span><span class="o">=</span>pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr -d <span class="nv">_epoch_no</span><span class="o">=</span><span class="m">122</span> -s http://localhost:8053/rpc/pool_active_stake
+<span class="c1">## {"active_stake_sum" : 19409732875}</span>
+</code></pre></div></p>
 </li>
 <li>
-<p>Let's now look at another table <code>epoch</code> and add a <code>WHERE</code> filter to query ID equals 2.
-<div class="highlight"><pre><span></span><code>curl -s http://127.0.0.1:8050/epoch?id<span class="o">=</span>eq.2 <span class="p">|</span> jq .
-<span class="c1">## [</span>
-<span class="c1">##   {</span>
-<span class="c1">##     "id": 2,</span>
-<span class="c1">##     "out_sum": 101402912214214220,</span>
-<span class="c1">##     "fees": 1033002678,</span>
-<span class="c1">##     "tx_count": 12870,</span>
-<span class="c1">##     "blk_count": 21590,</span>
-<span class="c1">##     "no": 1,</span>
-<span class="c1">##     "start_time": "2017-09-28T21:44:51",</span>
-<span class="c1">##     "end_time": "2017-10-03T21:44:31"</span>
-<span class="c1">##   }</span>
-<span class="c1">## ]</span>
+<p>To check latest owner key(s) for a given pool <code>pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr</code>, you can execute the below:
+<div class="highlight"><pre><span></span><code>curl -d <span class="nv">_pool_bech32</span><span class="o">=</span>pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr -s http://localhost:8050/rpc/pool_owners
+<span class="c1">## [{"owner" : "stake_test1upx5p04dn3t6dvhfh27744su35vvasgaaq565jdxwlxfq5sdjwksw"}, {"owner" : "stake_test1uqak99cgtrtpean8wqwp7d9taaqkt9gkkxga05m5azcg27chnzfry"}]</span>
 </code></pre></div></p>
 </li>
 </ol>
-<p>Refer to <a href="https://postgrest.org/en/latest/api.html">API documentation</a> for more details about querying (joins, functions, custom queries, stored procedures, etc).</p>
+<p>Refer to <a href="../grestspecs/">API documentation</a> for Swagger documentation.</p>
 </article>
 </div>
 </div>

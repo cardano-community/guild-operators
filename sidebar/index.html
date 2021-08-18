@@ -5,10 +5,10 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
-<link href="https://cardano-community.github.io/guild-operators/contributors/" rel="canonical"/>
+<link href="https://cardano-community.github.io/guild-operators/sidebar/" rel="canonical"/>
 <link href="../overrides/guildicon.png" rel="icon"/>
 <meta content="mkdocs-1.2.1, mkdocs-material-7.1.9" name="generator"/>
-<title>Contributors - Guild Operators</title>
+<title>Tree - Guild Operators</title>
 <link href="../assets/stylesheets/main.ca7ac06f.min.css" rel="stylesheet"/>
 <link href="../assets/stylesheets/palette.f1a3b89f.min.css" rel="stylesheet"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -26,6 +26,9 @@
 <input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
 <label class="md-overlay" for="__drawer"></label>
 <div data-md-component="skip">
+<a class="md-skip" href="#tree">
+          Skip to content
+        </a>
 </div>
 <div data-md-component="announce">
 </div>
@@ -47,7 +50,7 @@
 <div class="md-header__topic" data-md-component="header-topic">
 <span class="md-ellipsis">
             
-              Contributors
+              Tree
             
           </span>
 </div>
@@ -312,9 +315,8 @@
 </ul>
 </nav>
 </li>
-<li class="md-nav__item md-nav__item--active">
-<input class="md-nav__toggle md-toggle" data-md-toggle="toc" id="__toc" type="checkbox"/>
-<a class="md-nav__link md-nav__link--active" href="./">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../contributors/">
         Contributors
       </a>
 </li>
@@ -323,52 +325,63 @@
 </div>
 </div>
 </div>
+<div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+</nav>
+</div>
+</div>
+</div>
 <div class="md-content" data-md-component="content">
 <article class="md-content__inner md-typeset">
-<a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/contributors.md" title="Edit this page">
+<a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/sidebar.md" title="Edit this page">
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
-<h1>Contributors</h1>
-<p>Everyone is welcome to contribute to the guide, as well as the repository. Below is just a thank you to people who have been contributing consistently:</p>
-<p><a href="https://github.com/gufmar">Markus</a><br/>
-<a href="https://github.com/ilap">Pal Dorogi</a><br/>
-<a href="https://github.com/oldcryptogeek">OCG</a><br/>
-<a href="https://github.com/RedOracle">RedOracle</a><br/>
-<a href="https://github.com/papacarp">Papacarp</a><br/>
-<a href="https://github.com/bergr01">Bergr01</a><br/>
-<a href="https://github.com/Scitz0">Ola Ahlman</a><br/>
-<a href="https://github.com/SmaugPool">SmaugPool</a><br/>
-<a href="https://github.com/Crypto2099">Adam</a><br/>
-<a href="https://github.com/Straightpool">Chris</a><br/>
-<a href="https://github.com/DamjanOstrelic">Damjan</a><br/>
-<a href="https://github.com/rdlrt">Priyank</a><br/>
-<a href="https://github.com/psychomb">Psychomb</a><br/>
-<a href="https://github.com/PegasusPool">PegasusPool</a><br/>
-<a href="https://github.com/matthijs-aeon">Matthijs</a><br/>
-<a href="https://github.com/mmahut">Marek</a> </p>
-<blockquote>
-<p>To start contributing, simply hit the <a href="https://github.com/cardano-community/guild-operators">github repository</a> and raise Issue/Pull Request</p>
-</blockquote>
+<h1 id="tree">Tree<a class="headerlink" href="#tree" title="Permanent link">⚓︎</a></h1>
+<ul>
+<li>Home: index.md</li>
+<li>Basics: basics.md</li>
+<li>Build and Run:<ul>
+<li>Overview: build.md</li>
+<li>Node &amp; CLI: Build/node-cli.md</li>
+<li>DBSync: Build/dbsync.md</li>
+<li>PostgREST: Build/pgrest.md</li>
+<li>Offchain Metadata Tools: Build/offchain-metadata-tools.md</li>
+</ul>
+</li>
+<li>Scripts:<ul>
+<li>Common env: Scripts/env.md</li>
+<li>CNTools:</li>
+<li>Overview: Scripts/cntools.md</li>
+<li>Common Tasks: Scripts/cntools-common.md</li>
+<li>Changelog: Scripts/cntools-changelog.md</li>
+<li>Log Monitor: Scripts/logmonitor.md</li>
+<li>CNCLI: Scripts/cncli.md</li>
+<li>Guild LiveView: Scripts/gliveview.md</li>
+<li>Topology Updater: Scripts/topologyupdater.md</li>
+<li>ITN Metadata Proof: Scripts/itnwitness.md</li>
+</ul>
+</li>
+<li>Docker:<ul>
+<li>Overview: docker/docker.md</li>
+<li>Build: docker/build.md</li>
+<li>Run: docker/run.md</li>
+<li>Tips: docker/tips.md</li>
+</ul>
+</li>
+<li>Appendix:<ul>
+<li>Sample Postgres Setup: Appendix/postgres.md</li>
+<li>GRest meet summaries: grest-meets.md</li>
+</ul>
+</li>
+<li>Contributors: contributors.md</li>
+</ul>
 </article>
 </div>
 </div>
 </main>
 <footer class="md-footer">
-<nav aria-label="Footer" class="md-footer__inner md-grid">
-<a aria-label="Previous: GRest meet summaries" class="md-footer__link md-footer__link--prev" href="../grest-meets/" rel="prev">
-<div class="md-footer__button md-icon">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"></path></svg>
-</div>
-<div class="md-footer__title">
-<div class="md-ellipsis">
-<span class="md-footer__direction">
-                Previous
-              </span>
-              GRest meet summaries
-            </div>
-</div>
-</a>
-</nav>
 <div class="md-footer-meta md-typeset">
 <div class="md-footer-meta__inner md-grid">
 <div class="md-footer-copyright">

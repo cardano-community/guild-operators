@@ -1,0 +1,950 @@
+
+<!DOCTYPE html>
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<link href="https://cardano-community.github.io/guild-operators/grest-meets/" rel="canonical"/>
+<link href="../overrides/guildicon.png" rel="icon"/>
+<meta content="mkdocs-1.2.1, mkdocs-material-7.1.9" name="generator"/>
+<title>GRest meet summaries - Guild Operators</title>
+<link href="../assets/stylesheets/main.ca7ac06f.min.css" rel="stylesheet"/>
+<link href="../assets/stylesheets/palette.f1a3b89f.min.css" rel="stylesheet"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&amp;display=fallback" rel="stylesheet"/>
+<style>:root{--md-text-font-family:"Roboto";--md-code-font-family:"Roboto Mono"}</style>
+<link href="../overrides/custom.css" rel="stylesheet"/>
+<link href="../overrides/swagger-ui.css" rel="stylesheet"/>
+<script>function gtag(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],gtag("js",new Date),gtag("config","G-MLM58HW7RF"),document.addEventListener("DOMContentLoaded",function(){"undefined"!=typeof location$&&location$.subscribe(function(t){gtag("config","G-MLM58HW7RF",{page_path:t.pathname})})})</script>
+<script async="" src="https://www.googletagmanager.com/gtag/js?id=G-MLM58HW7RF"></script>
+</head>
+<body data-md-color-accent="green" data-md-color-primary="green" data-md-color-scheme="slate" dir="ltr">
+<script>function __prefix(e){return new URL("..",location).pathname+"."+e}function __get(e,t=localStorage){return JSON.parse(t.getItem(__prefix(e)))}</script>
+<script>var palette=__get("__palette");if(null!==palette&&"object"==typeof palette.color)for(var key in palette.color)document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+<input autocomplete="off" class="md-toggle" data-md-toggle="drawer" id="__drawer" type="checkbox"/>
+<input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
+<label class="md-overlay" for="__drawer"></label>
+<div data-md-component="skip">
+<a class="md-skip" href="#grest-meeting-summaries">
+          Skip to content
+        </a>
+</div>
+<div data-md-component="announce">
+</div>
+<header class="md-header" data-md-component="header">
+<nav aria-label="Header" class="md-header__inner md-grid">
+<a aria-label="Guild Operators" class="md-header__button md-logo" data-md-component="logo" href=".." title="Guild Operators">
+<img alt="logo" src="../overrides/guildicon.png"/>
+</a>
+<label class="md-header__button md-icon" for="__drawer">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"></path></svg>
+</label>
+<div class="md-header__title" data-md-component="header-title">
+<div class="md-header__ellipsis">
+<div class="md-header__topic">
+<span class="md-ellipsis">
+            Guild Operators
+          </span>
+</div>
+<div class="md-header__topic" data-md-component="header-topic">
+<span class="md-ellipsis">
+            
+              GRest meet summaries
+            
+          </span>
+</div>
+</div>
+</div>
+<form class="md-header__option" data-md-component="palette">
+<input aria-label="Switch to light mode" class="md-option" data-md-color-accent="green" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-primary="green" data-md-color-scheme="slate" id="__palette_1" name="__palette" type="radio"/>
+<label class="md-header__button md-icon" for="__palette_2" hidden="" title="Switch to light mode">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3 3.19.09m3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95 2.06.05m-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31z"></path></svg>
+</label>
+<input aria-label="Switch to dark mode" class="md-option" data-md-color-accent="green" data-md-color-media="(prefers-color-scheme: light)" data-md-color-primary="green" data-md-color-scheme="default" id="__palette_2" name="__palette" type="radio"/>
+<label class="md-header__button md-icon" for="__palette_1" hidden="" title="Switch to dark mode">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5c-.84 0-1.65.15-2.39.42L12 2M3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29L3.34 7m.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14L3.36 17M20.65 7l-1.77 3.79a7.023 7.023 0 0 0-2.38-4.15l4.15.36m-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29L20.64 17M12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44L12 22z"></path></svg>
+</label>
+</form>
+<label class="md-header__button md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"></path></svg>
+</label>
+<div class="md-search" data-md-component="search" role="dialog">
+<label class="md-search__overlay" for="__search"></label>
+<div class="md-search__inner" role="search">
+<form class="md-search__form" name="search">
+<input aria-label="Search" autocapitalize="off" autocomplete="off" autocorrect="off" class="md-search__input" data-md-component="search-query" data-md-state="active" name="query" placeholder="Search" required="" spellcheck="false" type="text"/>
+<label class="md-search__icon md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"></path></svg>
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"></path></svg>
+</label>
+<button aria-label="Clear" class="md-search__icon md-icon" tabindex="-1" type="reset">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg>
+</button>
+</form>
+<div class="md-search__output">
+<div class="md-search__scrollwrap" data-md-scrollfix="">
+<div class="md-search-result" data-md-component="search-result">
+<div class="md-search-result__meta">
+            Initializing search
+          </div>
+<ol class="md-search-result__list"></ol>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="md-header__source">
+<a class="md-source" data-md-component="source" href="https://github.com/cardano-community/guild-operators/" title="Go to repository">
+<div class="md-source__icon md-icon">
+<svg viewbox="0 0 448 512" xmlns="http://www.w3.org/2000/svg"><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"></path></svg>
+</div>
+<div class="md-source__repository">
+    cardano-community/guild-operators
+  </div>
+</a>
+</div>
+</nav>
+</header>
+<div class="md-container" data-md-component="container">
+<main class="md-main" data-md-component="main">
+<div class="md-main__inner md-grid">
+<div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="Navigation" class="md-nav md-nav--primary" data-md-level="0">
+<label class="md-nav__title" for="__drawer">
+<a aria-label="Guild Operators" class="md-nav__button md-logo" data-md-component="logo" href=".." title="Guild Operators">
+<img alt="logo" src="../overrides/guildicon.png"/>
+</a>
+    Guild Operators
+  </label>
+<div class="md-nav__source">
+<a class="md-source" data-md-component="source" href="https://github.com/cardano-community/guild-operators/" title="Go to repository">
+<div class="md-source__icon md-icon">
+<svg viewbox="0 0 448 512" xmlns="http://www.w3.org/2000/svg"><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"></path></svg>
+</div>
+<div class="md-source__repository">
+    cardano-community/guild-operators
+  </div>
+</a>
+</div>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="..">
+        Home
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../basics/">
+        Basics
+      </a>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" id="__nav_3" type="checkbox"/>
+<label class="md-nav__link" for="__nav_3">
+        Build and Run
+        <span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-label="Build and Run" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_3">
+<span class="md-nav__icon md-icon"></span>
+          Build and Run
+        </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../build/">
+        Overview
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../Build/node-cli/">
+        Node &amp; CLI
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../Build/dbsync/">
+        DBSync
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../Build/pgrest/">
+        PostgREST
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../Build/offchain-metadata-tools/">
+        Offchain Metadata Tools
+      </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" id="__nav_4" type="checkbox"/>
+<label class="md-nav__link" for="__nav_4">
+        Scripts
+        <span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-label="Scripts" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_4">
+<span class="md-nav__icon md-icon"></span>
+          Scripts
+        </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../Scripts/env/">
+        Common env
+      </a>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4_2" id="__nav_4_2" type="checkbox"/>
+<label class="md-nav__link" for="__nav_4_2">
+        CNTools
+        <span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-label="CNTools" class="md-nav" data-md-level="2">
+<label class="md-nav__title" for="__nav_4_2">
+<span class="md-nav__icon md-icon"></span>
+          CNTools
+        </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../Scripts/cntools/">
+        Overview
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../Scripts/cntools-common/">
+        Common Tasks
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../Scripts/cntools-changelog/">
+        Changelog
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../Scripts/logmonitor/">
+        Log Monitor
+      </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../Scripts/cncli/">
+        CNCLI
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../Scripts/gliveview/">
+        Guild LiveView
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../Scripts/topologyupdater/">
+        Topology Updater
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../Scripts/itnwitness/">
+        ITN Metadata Proof
+      </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" data-md-toggle="__nav_5" id="__nav_5" type="checkbox"/>
+<label class="md-nav__link" for="__nav_5">
+        Docker
+        <span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-label="Docker" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_5">
+<span class="md-nav__icon md-icon"></span>
+          Docker
+        </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../docker/docker/">
+        Overview
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../docker/build/">
+        Build
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../docker/run/">
+        Run
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../docker/tips/">
+        Tips
+      </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--active md-nav__item--nested">
+<input checked="" class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" id="__nav_6" type="checkbox"/>
+<label class="md-nav__link" for="__nav_6">
+        Appendix
+        <span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-label="Appendix" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_6">
+<span class="md-nav__icon md-icon"></span>
+          Appendix
+        </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../Appendix/postgres/">
+        Sample Postgres Setup
+      </a>
+</li>
+<li class="md-nav__item md-nav__item--active">
+<input class="md-nav__toggle md-toggle" data-md-toggle="toc" id="__toc" type="checkbox"/>
+<label class="md-nav__link md-nav__link--active" for="__toc">
+          GRest meet summaries
+          <span class="md-nav__icon md-icon"></span>
+</label>
+<a class="md-nav__link md-nav__link--active" href="./">
+        GRest meet summaries
+      </a>
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#participants">
+    Participants:
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#problems">
+    PROBLEMS
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#actions">
+    ACTIONS
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#problems_1">
+    PROBLEMS
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#actions_1">
+    ACTIONS
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#problems_2">
+    PROBLEMS
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#actions_2">
+    ACTIONS
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#introduction-for-new-joiner-paddy">
+    Introduction for new joiner - Paddy
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#problems_3">
+    Problems
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#action-items">
+    Action Items
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#deployment-scripts">
+    Deployment scripts
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#supported-networks">
+    Supported Networks
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#db-sync-versioning">
+    db-sync versioning
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#dns-naming">
+    DNS naming
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#monitoring-system">
+    Monitoring System
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#next-meeting">
+    Next meeting
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#deployment-scripts_1">
+    Deployment scripts
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#switch-to-mainnet">
+    Switch to Mainnet
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#supported-networks_1">
+    Supported Networks
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#monitoring-system_1">
+    Monitoring System
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#handling-ssl">
+    Handling SSL
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#next-meeting_1">
+    Next meeting
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#meeting-structure">
+    Meeting Structure
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#stand-ups">
+    Stand-ups
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#main-discussion-points">
+    Main discussion points
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#next-meeting_2">
+    Next meeting
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../contributors/">
+        Contributors
+      </a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" hidden="">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#participants">
+    Participants:
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#problems">
+    PROBLEMS
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#actions">
+    ACTIONS
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#problems_1">
+    PROBLEMS
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#actions_1">
+    ACTIONS
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#problems_2">
+    PROBLEMS
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#actions_2">
+    ACTIONS
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#introduction-for-new-joiner-paddy">
+    Introduction for new joiner - Paddy
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#problems_3">
+    Problems
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#action-items">
+    Action Items
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#deployment-scripts">
+    Deployment scripts
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#supported-networks">
+    Supported Networks
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#db-sync-versioning">
+    db-sync versioning
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#dns-naming">
+    DNS naming
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#monitoring-system">
+    Monitoring System
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#next-meeting">
+    Next meeting
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#deployment-scripts_1">
+    Deployment scripts
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#switch-to-mainnet">
+    Switch to Mainnet
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#supported-networks_1">
+    Supported Networks
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#monitoring-system_1">
+    Monitoring System
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#handling-ssl">
+    Handling SSL
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#next-meeting_1">
+    Next meeting
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#meeting-structure">
+    Meeting Structure
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#stand-ups">
+    Stand-ups
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#main-discussion-points">
+    Main discussion points
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#next-meeting_2">
+    Next meeting
+  </a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-content" data-md-component="content">
+<article class="md-content__inner md-typeset">
+<a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/grest-meets.md" title="Edit this page">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
+</a>
+<h1 id="grest-meeting-summaries">GRest Meeting summaries<a class="headerlink" href="#grest-meeting-summaries" title="Permanent link">⚓︎</a></h1>
+<p>Thank you all for joining and contributing to the project <img alt="😄" class="twemoji" src="https://twemoji.maxcdn.com/v/latest/svg/1f604.svg" title=":smile:"/></p>
+<p>Below you can find a short summary of every GRest meeting held, both for logging purposes and for those who were not able to attend.</p>
+<h3 id="participants">Participants:<a class="headerlink" href="#participants" title="Permanent link">⚓︎</a></h3>
+<table>
+<thead>
+<tr>
+<th>Participant</th>
+<th>12Aug2021</th>
+<th>29Jul2021</th>
+<th>22Jul2021</th>
+<th>15Jul2021</th>
+<th>09Jul2021</th>
+<th>02Jul2021</th>
+<th>25Jun2021</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Damjan</td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+</tr>
+<tr>
+<td>Homer</td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+</tr>
+<tr>
+<td>Markus</td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+</tr>
+<tr>
+<td>Ola</td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+</tr>
+<tr>
+<td>RdLrT</td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+</tr>
+<tr>
+<td>Red</td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+</tr>
+<tr>
+<td>Papacarp</td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+</tr>
+<tr>
+<td>Paddy</td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+</tr>
+<tr>
+<td>GimbaLabs</td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+<td><span class="twemoji"><svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg></span></td>
+</tr>
+</tbody>
+</table>
+<div class="tabbed-set" data-tabs="1:7"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio"><label for="__tabbed_1_1">12Aug2021</label><div class="tabbed-content">
+<h3 id="problems">PROBLEMS<a class="headerlink" href="#problems" title="Permanent link">⚓︎</a></h3>
+<ul>
+<li>stake distribution query needs to be completed</li>
+<li>it's hard to use docker to replicate our current setup</li>
+</ul>
+<h3 id="actions">ACTIONS<a class="headerlink" href="#actions" title="Permanent link">⚓︎</a></h3>
+<ul>
+<li>additional things to add to stake_distribution query</li>
+<li>Add logic to record and check tx based on block.id for last but 3<sup>rd</sup> block in existing query</li>
+<li>Add a control table in grest schema to record block_hash used for last update, start time, and end time. This will act as a checkpoint for polling of queries that are not live (separate backend in haproxy)</li>
+<li>
+<p>create a trigger every 2 minutes (or similar) to run stake_distribution query</p>
+</li>
+<li>
+<p>docker:</p>
+</li>
+<li>problems with performance due to nature of IOPs and throughput usage for resources being isolated and can only access each other through sockets.</li>
+<li>still useful to test whether fully dockerized (each component isolated) can keep up to chain tip</li>
+<li>consider dockerizing all resources in one container to give new joiners a simple one liner to get up and running - this still doesn't ensure optimal performance, Tuning will still be an additional task for any infrastructure to customise setup to best results achievable</li>
+</ul>
+</div>
+<input id="__tabbed_1_2" name="__tabbed_1" type="radio"><label for="__tabbed_1_2">29Jul2021</label><div class="tabbed-content">
+<h3 id="problems_1">PROBLEMS<a class="headerlink" href="#problems_1" title="Permanent link">⚓︎</a></h3>
+<ul>
+<li>Not everyone reporting to the monitoring dashboard</li>
+<li>We don't fully understand the execution time deviations of the stake distribution query</li>
+<li>catalyst rewards are hard to isolate</li>
+<li>branch 10.1.x has been deleted on the db-sync repo</li>
+<li>people have a hard time catching up with the project after being away for a while</li>
+</ul>
+<h3 id="actions_1">ACTIONS<a class="headerlink" href="#actions_1" title="Permanent link">⚓︎</a></h3>
+<ul>
+<li>missing instances start reporting to monitoring</li>
+<li>run stake_distribution query on multiple instances, report output of <code>EXPLAIN (ANALYZE, BUFFERS)</code></li>
+<li>catalyst rewards can be ignored until there is a clear path to get them: Fix underway using open PR</li>
+<li>if someone needs help getting the right db-sync commit, message Priyank for help as the branch is now deleted</li>
+<li>add project metadata (requirements) to pgrest doc header in a checklist format that folks can use to ensure their setup is up-to-date with the current project state</li>
+<li>Discussed long-term plans (will be added separately in group)</li>
+</ul>
+</div>
+<input id="__tabbed_1_3" name="__tabbed_1" type="radio"><label for="__tabbed_1_3">22Jul2021</label><div class="tabbed-content">
+<h3 id="problems_2">PROBLEMS<a class="headerlink" href="#problems_2" title="Permanent link">⚓︎</a></h3>
+<ul>
+<li>how to sync live stake between instances (or is there need for it?)</li>
+</ul>
+<h3 id="actions_2">ACTIONS<a class="headerlink" href="#actions_2" title="Permanent link">⚓︎</a></h3>
+<ol>
+<li>
+<p>Team</p>
+<ul>
+<li>catch live stake distributions in a separate table (in our <code>grest</code> schema)<ul>
+<li>these queries can run on a schedule</li>
+<li>response comes from the instance with the latest data</li>
+</ul>
+</li>
+<li>other approaches:<ul>
+<li>possibly distribute pools between instances (complex approach)</li>
+<li>run full query once and only check for new/leaving delegators (probably impossible because of existing delegator UTXO movements)</li>
+</ul>
+</li>
+<li>implement monitoring of execution times for all the queries</li>
+<li>come up with a timeline for launch (next call)</li>
+<li>stress test before launch</li>
+<li>start building queries listed on Trello board</li>
+</ul>
+</li>
+<li>
+<p>Individual</p>
+<ul>
+<li>sync db-sync instances to commit <code>84226d33eed66be8e61d50b7e1dacebdc095cee9</code> on <code>release/10.1.x</code></li>
+<li>update setups to reflect recent directory restructuring and <a href="../Build/pgrest/">updated instructions</a></li>
+</ul>
+</li>
+</ol>
+</div>
+<input id="__tabbed_1_4" name="__tabbed_1" type="radio"><label for="__tabbed_1_4">15Jul2021</label><div class="tabbed-content">
+<h3 id="introduction-for-new-joiner-paddy">Introduction for new joiner - Paddy<a class="headerlink" href="#introduction-for-new-joiner-paddy" title="Permanent link">⚓︎</a></h3>
+<ul>
+<li>from Shamrock stake pool / <a href="https://poolpeek.com/">poolpeek</a></li>
+<li>gRest project could be helpful for pool peek</li>
+<li>Paddy will probably run an individual instance</li>
+</ul>
+<h3 id="problems_3">Problems<a class="headerlink" href="#problems_3" title="Permanent link">⚓︎</a></h3>
+<ul>
+<li>there is a problem with extremely high CPU usage haproxy, tuning underway.</li>
+<li>live stake query has multiple variations, and we need to figure out what is the correct one.</li>
+</ul>
+<h3 id="action-items">Action Items<a class="headerlink" href="#action-items" title="Permanent link">⚓︎</a></h3>
+<ul>
+<li>Everyone should add monitoring to their instances</li>
+<li>restructure RPC query files (separate metadata in <code>&lt;query&gt;.json</code> and sql in <code>&lt;query&gt;.sql</code>), also remove <code>get_</code> prefix</li>
+<li>Add new queries from the list</li>
+<li>fix haproxy CPU usage (use <code>nbthreads</code> in config, tune maxconn, switch to http mode)</li>
+<li>gather multiple variations of the live stake query and ask Erik for clarification on which one is correct</li>
+<li>Start working on other queries listed on trello</li>
+</ul>
+</div>
+<input id="__tabbed_1_5" name="__tabbed_1" type="radio"><label for="__tabbed_1_5">09Jul2021</label><div class="tabbed-content">
+<h3 id="deployment-scripts">Deployment scripts<a class="headerlink" href="#deployment-scripts" title="Permanent link">⚓︎</a></h3>
+<p>Ola added automatic deployment of services to the scripts last week. We added new tasks on <a href="https://trello.com/c/euQDYUce/20-enhancements-to-setup-script">Trello ticket</a>, including flags for multiple networks (guild, testnet, mainnet), haproxy service dynamically creating hosts and doc updates. Overall, the script works well with some manual interaction still required at the moment.</p>
+<h3 id="supported-networks">Supported Networks<a class="headerlink" href="#supported-networks" title="Permanent link">⚓︎</a></h3>
+<p>Just for the record here, a 16GB (or even 8GB) instance is enough to support both testnet and guild networks.</p>
+<h3 id="db-sync-versioning">db-sync versioning<a class="headerlink" href="#db-sync-versioning" title="Permanent link">⚓︎</a></h3>
+<p>We agreed to use the <code>release/10.1.x</code> branch which is not yet released but built to include Alonzo migrations to avoid rework later. This version does require Alonzo config and hash to be in the node's <code>config.json</code>. This has to be done manually and the files are available <a href="https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/index.html">here</a>. Once fully released, all members should rebuild the released version to ensure each instance is running the same code.</p>
+<h3 id="dns-naming">DNS naming<a class="headerlink" href="#dns-naming" title="Permanent link">⚓︎</a></h3>
+<p>For the <a href="https://trello.com/c/imnlrIaz/1-create-agent-config-file-for-haproxy-come-to-an-agreement-regarding-how-to-handle-dns-and-set-it-up">DNS setup ticket</a>, we started to think about the instance names for the 2 DNS instances (orange in the graph). Submissions for names will be made in the Telegram group, and will probably make a poll once we have the entries finalised.</p>
+<h3 id="monitoring-system">Monitoring System<a class="headerlink" href="#monitoring-system" title="Permanent link">⚓︎</a></h3>
+<p>Priyank started setting up the monitoring on his instance which can then easily be switched to a separate monitoring instance. We agreed to use Prometheus / Grafana combo for data source / visualisation. We'll probably need to create some custom archiving of data to keep it long term as Prometheus stores only the last 30 days of data.</p>
+<h3 id="next-meeting">Next meeting<a class="headerlink" href="#next-meeting" title="Permanent link">⚓︎</a></h3>
+<p>We would like to make Friday @ 07:00 UTC the standard time and keep meetings at weekly frequency. A poll will still be created for next weeks, but if there are no objections / requests for switching the time around (which we have not had so far) we can go ahead with the making Friday the standard with polls no longer required and only reminders / Google invites sent every week.</p>
+</div>
+<input id="__tabbed_1_6" name="__tabbed_1" type="radio"><label for="__tabbed_1_6">02Jul2021</label><div class="tabbed-content">
+<p>After the initial stand-up updates from participants, we went through the entire Trello board, updating/deleting existing tickets and creating some new ones.</p>
+<h3 id="deployment-scripts_1">Deployment scripts<a class="headerlink" href="#deployment-scripts_1" title="Permanent link">⚓︎</a></h3>
+<p>During the last week, work has been done on deployment scripts for all services (db-sync, pgREST and haproxy) -&gt; this is now in testing with updated instructions on <a href="https://trello.com/c/1GS8VpNP/2-add-haproxy-config-to-setup">trello</a>. Everybody can put their name down on the ticket to signify when the setup is complete and note down any comments for bugs/improvements. This is the main priority at the moment as it would allow us to start transferring our setups to mainnet.</p>
+<h3 id="switch-to-mainnet">Switch to Mainnet<a class="headerlink" href="#switch-to-mainnet" title="Permanent link">⚓︎</a></h3>
+<p>Following on from that, we created a ticket for starting to set up mainnet instances -&gt; we can use 32GB RAM to start and increase later. While making sure everything works against the guild network is priority, people are free to start on this as well as we anticipate we are almost ready for the switch.</p>
+<h3 id="supported-networks_1">Supported Networks<a class="headerlink" href="#supported-networks_1" title="Permanent link">⚓︎</a></h3>
+<p>This brings me to another discussion point which is on which networks are to be supported. After some discussion, it was agreed to keep beefy servers for mainnet, and have small independent instances for testnet maintained by those interested, while guild instance is pretty lightweight and useful to keep.</p>
+<h3 id="monitoring-system_1">Monitoring System<a class="headerlink" href="#monitoring-system_1" title="Permanent link">⚓︎</a></h3>
+<p>The ticket for creating a centralised monitoring system was discussed and updated. I would say it would be good to have at least a basic version of the system in place around the time we switch to mainnet. The system could eventually serve for:
+ - analysis of instance
+ - performances and subsequent tuning
+ - endpoints usage
+ - anticipation of system requirements increases
+ - etc.</p>
+<p>I would say that this should be an important topic of the next meeting to come up with an approach on how we will structure this system so that we can start building it in time for mainnet switch.</p>
+<h3 id="handling-ssl">Handling SSL<a class="headerlink" href="#handling-ssl" title="Permanent link">⚓︎</a></h3>
+<p>Enabling SSL was agreed to not be required by each instance, but is optional and documentation should be created for how to automate the process of renewing SSL certificates for those wishing to add it to their instance. The end user facing endpoints "Instance Checker" will of course be SSL-enabled.</p>
+<h3 id="next-meeting_1">Next meeting<a class="headerlink" href="#next-meeting_1" title="Permanent link">⚓︎</a></h3>
+<p>We somewhat agreed to another meeting next week again at the same time, but some participants aren't 100% for availability. Friday at 07:00 UTC might be a good standard time we hold on to, but I will make a poll like last time so that we can get more info before confirming the meeting.</p>
+</div>
+<input id="__tabbed_1_7" name="__tabbed_1" type="radio"><label for="__tabbed_1_7">25Jun2021</label><div class="tabbed-content">
+<h3 id="meeting-structure">Meeting Structure<a class="headerlink" href="#meeting-structure" title="Permanent link">⚓︎</a></h3>
+<p>As this was the first meeting, at the start we discussed about the meeting structure. In general, we agreed to something like listed below, but this can definitely change in the future:</p>
+<p>1) 2-liner (60s) round the table stand-ups by everyone to sync up on what they were doing / are planning to do / mention struggles etc. This itself often sparks discussions.
+2) going through the Trello board tasks with the intention of discussing and possbily assigning them to individuals / smaller groups (maybe 1-2-3 people choose to work together on a single task)</p>
+<h3 id="stand-ups">Stand-ups<a class="headerlink" href="#stand-ups" title="Permanent link">⚓︎</a></h3>
+<p>We then proceeded to give a status of where we are individually in terms of what's been done, a summary below:</p>
+<ul>
+<li>Homer, Ola, Markus, Priyank and Damjan have all set up their dbsync + pgrest endpoints against guild network and added to topology.</li>
+<li>Ola laid down the groundwork for CNTools to integrate with API endpoints created so far.</li>
+<li>Markus has created the systemd scripts and will add them soon to repo</li>
+<li>Damjan is tracking live stake query that includes payment + stake address, but is awaiting fix on dbsync for pool refund (contextual reserves -&gt; account) , also need to validate reserve -&gt; MIR certs</li>
+<li>Priyank created initial haproxy settings for polls done, need to complete agent based on design finalisation</li>
+</ul>
+<h3 id="main-discussion-points">Main discussion points<a class="headerlink" href="#main-discussion-points" title="Permanent link">⚓︎</a></h3>
+<ol>
+<li>Directory structure on the repo -&gt; General agreement is to have anything related to db-sync/postgREST separated from the current cnode-helper-scripts directory. We can finalise the end locations of files a bit later, for now intent should be to simply add them all to /files/dbsync folder. <code>prereqs.sh</code> addendum can be done once artifacts are finalised (added a Trello ticket for tracking).</li>
+<li>DNS/haproxy configurations:
+  We have two options:
+  a. controlled approach for endpoints - wherein there is a layer of haproxy that will load balance and ensure tip being in sync for individual providers (individuals can provide haproxy OR pgrest instances).
+  b. completely decentralised - each client to maintain haproxy endpoint, and fails over to other node if its not up to recent tip.
+  I think that in general, it was agreed to use a hybrid approach. Details are captured in diagram <a href="https://t.me/c/1499031483/335">here</a>. DNS endpoint can be reserved post initial testing of haproxy-agent against mainnet nodes.</li>
+<li>Internal monitoring system
+  This would be important and useful and has not been mentioned before this meeting (as far as I know). Basically, a system for monitoring all of our instances together and also handling alerts. Not only for ensuring good quality of service, but also for logging and inspection of short- and long-term trends to better understand what's happening. A ticket is added to trello board</li>
+</ol>
+<h3 id="next-meeting_2">Next meeting<a class="headerlink" href="#next-meeting_2" title="Permanent link">⚓︎</a></h3>
+<p>All in all, I think we saw that there is need for these meetings as there are a lot of things to discuss and new ideas come up (like the monitoring system). We went for over an hour (~1h15min) and still didn't have enough time to go through the board, we basically only touched the DNS/haproxy part of the board. This tells me that we are in a stage where more frequent meetings are required, weekly instead of biweekly, as we are in the initial stage and it's important to build things right from the start rather than having to refactor later on. With that, the participants in general agreed to another meeting next week, but this will be confirmed in the TG chat and the times can be discussed then.</p>
+</div>
+</input></input></input></input></input></input></input></div>
+</article>
+</div>
+</div>
+</main>
+<footer class="md-footer">
+<nav aria-label="Footer" class="md-footer__inner md-grid">
+<a aria-label="Previous: Sample Postgres Setup" class="md-footer__link md-footer__link--prev" href="../Appendix/postgres/" rel="prev">
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"></path></svg>
+</div>
+<div class="md-footer__title">
+<div class="md-ellipsis">
+<span class="md-footer__direction">
+                Previous
+              </span>
+              Sample Postgres Setup
+            </div>
+</div>
+</a>
+<a aria-label="Next: Contributors" class="md-footer__link md-footer__link--next" href="../contributors/" rel="next">
+<div class="md-footer__title">
+<div class="md-ellipsis">
+<span class="md-footer__direction">
+                Next
+              </span>
+              Contributors
+            </div>
+</div>
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"></path></svg>
+</div>
+</a>
+</nav>
+<div class="md-footer-meta md-typeset">
+<div class="md-footer-meta__inner md-grid">
+<div class="md-footer-copyright">
+<div class="md-footer-copyright__highlight">
+            Copyright © 2019-2021 Guild-Operators
+          </div>
+<a href="https://cardano-community.github.io/guild-operators" rel="noopener" target="_blank">
+          Guild-Operators
+        </a>
+</div>
+<div class="md-footer-social">
+<a class="md-footer-social__link" href="https://github.com/cardano-community" rel="noopener" target="_blank" title="github.com">
+<svg viewbox="0 0 496 512" xmlns="http://www.w3.org/2000/svg"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"></path></svg>
+</a>
+</div>
+</div>
+</div>
+</footer>
+</div>
+<div class="md-dialog" data-md-component="dialog">
+<div class="md-dialog__inner md-typeset"></div>
+</div>
+<script id="__config" type="application/json">{"base": "..", "features": ["search.highlight", "search.share", "navigation.indexes"], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "search": "../assets/javascripts/workers/search.477d984a.min.js", "version": null}</script>
+<script src="../assets/javascripts/bundle.82b56eb2.min.js"></script>
+</body>
+</html>

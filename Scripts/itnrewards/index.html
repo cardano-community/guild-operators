@@ -8,13 +8,14 @@
 <link href="https://cardano-community.github.io/guild-operators/Scripts/itnrewards/" rel="canonical"/>
 <link href="../../overrides/guildicon.png" rel="icon"/>
 <meta content="mkdocs-1.2.1, mkdocs-material-7.1.9" name="generator"/>
-<title>ITN Rewards - Guild Operators</title>
+<title>Itnrewards - Guild Operators</title>
 <link href="../../assets/stylesheets/main.ca7ac06f.min.css" rel="stylesheet"/>
 <link href="../../assets/stylesheets/palette.f1a3b89f.min.css" rel="stylesheet"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&amp;display=fallback" rel="stylesheet"/>
 <style>:root{--md-text-font-family:"Roboto";--md-code-font-family:"Roboto Mono"}</style>
 <link href="../../overrides/custom.css" rel="stylesheet"/>
+<link href="../../overrides/swagger-ui.css" rel="stylesheet"/>
 <script>function gtag(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],gtag("js",new Date),gtag("config","G-MLM58HW7RF"),document.addEventListener("DOMContentLoaded",function(){"undefined"!=typeof location$&&location$.subscribe(function(t){gtag("config","G-MLM58HW7RF",{page_path:t.pathname})})})</script>
 <script async="" src="https://www.googletagmanager.com/gtag/js?id=G-MLM58HW7RF"></script>
 </head>
@@ -49,7 +50,7 @@
 <div class="md-header__topic" data-md-component="header-topic">
 <span class="md-ellipsis">
             
-              ITN Rewards
+              Itnrewards
             
           </span>
 </div>
@@ -179,8 +180,8 @@
 </ul>
 </nav>
 </li>
-<li class="md-nav__item md-nav__item--active md-nav__item--nested">
-<input checked="" class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" id="__nav_4" type="checkbox"/>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" id="__nav_4" type="checkbox"/>
 <label class="md-nav__link" for="__nav_4">
         Scripts
         <span class="md-nav__icon md-icon"></span>
@@ -251,34 +252,6 @@
         ITN Metadata Proof
       </a>
 </li>
-<li class="md-nav__item md-nav__item--active">
-<input class="md-nav__toggle md-toggle" data-md-toggle="toc" id="__toc" type="checkbox"/>
-<label class="md-nav__link md-nav__link--active" for="__toc">
-          ITN Rewards
-          <span class="md-nav__icon md-icon"></span>
-</label>
-<a class="md-nav__link md-nav__link--active" href="./">
-        ITN Rewards
-      </a>
-<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
-<label class="md-nav__title" for="__toc">
-<span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#concept">
-    Concept
-  </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#steps">
-    Steps
-  </a>
-</li>
-</ul>
-</nav>
-</li>
 </ul>
 </nav>
 </li>
@@ -335,13 +308,8 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/25Jun2021/">
-        PGRest meetings 1
-      </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../pgrest-meetings/02Jul2021/">
-        PGRest meetings 2
+<a class="md-nav__link" href="../../grest-meets/">
+        GRest meet summaries
       </a>
 </li>
 </ul>
@@ -386,7 +354,7 @@
 <a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/Scripts/itnrewards.md" title="Edit this page">
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
-<h1>ITN Rewards</h1>
+<h1>Itnrewards</h1>
 <h4 id="concept">Concept<a class="headerlink" href="#concept" title="Permanent link">⚓︎</a></h4>
 <p>To claim rewards earned during the Incentivized TestNet the private and public keys from ITN must be converted to Shelley stake keys. A script called <code>itnRewards.sh</code> has been created to guide you through the process of converting the keys and to create a CNTools compatible wallet from were the rewards can be withdrawn. </p>
 <div align="center" class="mermaid">graph TB
@@ -417,34 +385,6 @@
 </div>
 </main>
 <footer class="md-footer">
-<nav aria-label="Footer" class="md-footer__inner md-grid">
-<a aria-label="Previous: ITN Metadata Proof" class="md-footer__link md-footer__link--prev" href="../itnwitness/" rel="prev">
-<div class="md-footer__button md-icon">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"></path></svg>
-</div>
-<div class="md-footer__title">
-<div class="md-ellipsis">
-<span class="md-footer__direction">
-                Previous
-              </span>
-              ITN Metadata Proof
-            </div>
-</div>
-</a>
-<a aria-label="Next: Overview" class="md-footer__link md-footer__link--next" href="../../docker/docker/" rel="next">
-<div class="md-footer__title">
-<div class="md-ellipsis">
-<span class="md-footer__direction">
-                Next
-              </span>
-              Overview
-            </div>
-</div>
-<div class="md-footer__button md-icon">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"></path></svg>
-</div>
-</a>
-</nav>
 <div class="md-footer-meta md-typeset">
 <div class="md-footer-meta__inner md-grid">
 <div class="md-footer-copyright">
