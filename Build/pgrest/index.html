@@ -435,7 +435,7 @@ psql cexplorer
 <p>You're all set to set up your PostgREST instance, and while doing so, also configure haproxy service, set up roles/schemas/default permissions, and create systemd services for these:</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span> <span class="nv">$CNODE_HOME</span>/scripts
 <span class="c1"># To-Do: Update branch when merged to master</span>
-wget -o setup-grest.sh https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/scripts/grest-helper-scripts/setup-grest.sh
+curl -o setup-grest.sh https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/scripts/grest-helper-scripts/setup-grest.sh
 chmod <span class="m">755</span> setup-grest.sh
 ./setup-grest.sh -t cnode
 <span class="c1"># cnode is top level folder here</span>
