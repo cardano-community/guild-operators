@@ -42,6 +42,8 @@ CREATE TABLE grest.epoch_info_cache (
     p_coins_per_utxo_word lovelace
 );
 
+COMMENT ON TABLE grest.epoch_info_cache IS 'Get detailed info for epoch including protocol parameters';
+
 INSERT INTO grest.epoch_info_cache
 SELECT
     e.no AS epoch,
