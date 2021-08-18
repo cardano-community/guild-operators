@@ -29,7 +29,7 @@
         ],
         "parameters": [
           {
-            "required": true,
+            "required": false,
             "schema": {
               "type": "object",
               "properties": {
@@ -105,11 +105,11 @@
               ],
               "type": "object",
               "properties": {
-                "_state": {
+                "_pool_bech32": {
                   "format": "text",
                   "type": "string"
                 },
-                "_pool_bech32": {
+                "_state": {
                   "format": "text",
                   "type": "string"
                 },
@@ -234,7 +234,12 @@
             "in": "body",
             "name": "args"
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
       }
     },
     "/rpc/pool_active_stake": {
@@ -251,15 +256,18 @@
           {
             "required": true,
             "schema": {
+              "required": [
+                "_pool_bech32"
+              ],
               "type": "object",
               "properties": {
-                "_epoch_no": {
-                  "format": "numeric",
-                  "type": "number"
-                },
                 "_pool_bech32": {
                   "format": "text",
                   "type": "string"
+                },
+                "_epoch_no": {
+                  "format": "numeric",
+                  "type": "number"
                 }
               }
             },
@@ -595,6 +603,39 @@
         }
       }
     },
+    "/rpc/epoch_info": {
+      "post": {
+        "tags": [
+          "Blockchain Queries"
+        ],
+        "summary": "Get the epoch information, all epochs if no epoch specified",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": false,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_epoch_no": {
+                  "format": "numeric",
+                  "type": "number"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
   },
   "definitions": {
     "epoch_info_cache": {
