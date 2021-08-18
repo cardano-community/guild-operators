@@ -1,12 +1,13 @@
-!> - An average pool operator may not require cardano-db-sync at all. Please verify if it is required for your use as mentioned [here](build.md#components)
+!!! important
+    An average pool operator may not require cardano-db-sync at all. Please verify if it is required for your use as mentioned [here](../build.md#components).  
 
-> Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
->- The [Cardano DB Sync](https://github.com/input-output-hk/cardano-db-sync) relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to [Sample Local PostgreSQL Server Deployment instructions](Appendix/postgres.md) for setting up a Postgres instance. Specifically, we expect the `PGPASSFILE` environment variable is set as per the instructions in the sample guide, for `db-sync` to be able to connect.
->- The instructions are not maintained daily, but will be with major releases (expect a bit of time post new release to get those updated)
+    - Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
+    - The [Cardano DB Sync](https://github.com/input-output-hk/cardano-db-sync) relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to [Sample Local PostgreSQL Server Deployment instructions](../Appendix/postgres.md) for setting up a Postgres instance. Specifically, we expect the `PGPASSFILE` environment variable is set as per the instructions in the sample guide, for `db-sync` to be able to connect.
 
-#### Build Instructions {docsify-ignore}
 
-##### Clone the repository
+### Build Instructions
+
+#### Clone the repository
 
 Execute the below to clone the `cardano-db-sync` repository to `$HOME/git` folder on your system:
 
@@ -16,7 +17,7 @@ git clone https://github.com/input-output-hk/cardano-db-sync
 cd cardano-db-sync
 ```
 
-##### Build Cardano DB Sync
+#### Build Cardano DB Sync
 
 You can use the instructions below to build the latest release of `cardano-db-sync`.
 
@@ -33,7 +34,7 @@ $CNODE_HOME/scripts/cabal-build-all.sh
 ```
 The above would copy the binaries into `~/.cabal/bin` folder.
 
-##### Prepare DB for cardano-db-sync :
+#### Prepare DB for sync
 
 Now that binaries are available, let's create our database (when going through breaking changes, you may need to use `--recreatedb` instead of `--createdb` used for the first time. Again, we expect that `PGPASSFILE` environment variable is already set (refer to the top of this guide for sample instructions):
 
@@ -47,15 +48,15 @@ scripts/postgresql-setup.sh --createdb
 ## Verify you can see "All good!" as above
 ```
 
-##### Start cardano-db-sync-tool
+#### Start Synching
 ``` bash
 cd ~/git/cardano-db-sync
 cardano-db-sync-extended --config $CNODE_HOME/files/dbsync.json --socket-path $CNODE_HOME/sockets/node0.socket --state-dir $CNODE_HOME/guild-db/ledger-state --schema-dir schema/
 ```
 
-You can use same instructions above to repeat and execute `cardano-db-sync` as well, but [cardano-graphql](Build/graphql.md) uses `cardano-db-sync-extended`, so we'll stick to it.
+You can use same instructions above to repeat and execute `cardano-db-sync` as well, but `cardano-db-sync-extended` provides additional views/useful data ready to be consumed by query layer. Note that synching entire blockchain from scratch could take a few hours.
 
-##### Validation
+### Validation
 
 To validate, connect to your `postgres` instance and execute commands as per below:
 
@@ -71,7 +72,7 @@ You should be at the `psql` prompt, you can check the tables and verify they're 
 select * from meta;
 ```
 
-A sample output of the above two commands may look like below:
+A sample output of the above two commands may look like below (the number of tables and names may vary between versions):
 
 ```
 cexplorer=# \dt

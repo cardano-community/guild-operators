@@ -1,4 +1,4 @@
-> Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
+> Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
 
 This is an easy-to-use script to automate setting up of monitoring tools. Tasks automates the following tasks:
 - Installs Prometheus, Node Exporter and Grafana Servers for your respective Linux architecture.

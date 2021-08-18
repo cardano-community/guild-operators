@@ -1,103 +1,98 @@
-!> - An average pool operator may not require this component at all. Please verify if it is required for your use as mentioned [here](build.md#components)
+!!! important
 
-> Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
+    - An average pool operator may not require this component at all. Please verify if it is required for your use as mentioned [here](../build.md#components)
+    - Ensure that you have setup [DBSync](../Build/dbsync.md) and that it is in sync before you proceed. *IF* you're participating in grest services, ensure that you're using dbsync commit `88e26c82d3331f931b6a68d9b077d400de169f76`
 
-[PostgREST](https://postgrest.org/en/latest) is a web server that serves any PostgreSQL database (in our case, useful for `cardano-db-sync` and `smash`) as a RESTful Web Service. The endpoints of PostgREST in itself are essentially the table itself. You can read more about exploring the API [here](https://postgrest.org/en/latest/api.html). Understandably, it would of course rely on an existing PostgreSQL server. At the moment of writing, this is being used as an easy alternative - which will remain up-to-date since it is directly serving the underlying database as an API, as compared to `Cardano GraphQL` component. Some of the other advantages would also be that you can serve JWT authentication, or use native Postgres DB authentication against the Rest Interface as well (see [here](https://postgrest.org/en/latest/tutorials/tut1.html) for adding this to your instance), and the web server it uses can be hardened or served behind another nginx/httpd/.. reverse proxy as per your SecOps preferences.
+[PostgREST](https://postgrest.org/en/latest) is a web server that serves any PostgreSQL database (in our case, useful for `cardano-db-sync`) as a RESTful Web Service. The endpoints of PostgREST in itself are essentially the table/functions exposed via the PostgREST config file. You can read more about exploring the API [here](https://postgrest.org/en/latest/api.html). Understandably, it would of course rely on an existing PostgreSQL server. At the moment of writing, this is being used as an easy alternative - which will remain up-to-date since it is directly serving the underlying database as an API, as compared to `Cardano GraphQL` component. Some of the other advantages are also performance, elasticity, low overhead, support for JWT / native Postgres DB authentication against the Rest Interface as well (see [here](https://postgrest.org/en/latest/tutorials/tut1.html) for adding this to your instance). We merge the deployment with HAProxy configuration that serves as an easy means to harden your gateway, but you may alter the settings for proxy layer as per your SecOps preferences.
 
-Again, the focus of this guide (for now) is not to tell you how to secure your PostgREST instance, but to get you up and running quickly. You'd want to harden your instance as per instructions [here](https://postgrest.org/en/latest/admin.html?highlight=SSL) once you're happy with the usage. The guide below assumes PostgreSQL instance has already been set up (refer to [Sample Local PostgreSQL Server Deployment instructions](Appendix/postgres.md) ) along with [cardano-db-sync](build/dbsync.md).
+### Setup PostgREST, HAProxy and add addendum to Postgres DB {: id="setup"}
 
-#### Prepare Database {docsify-ignore}
-
-For simplicity, the download of latest PostgREST instance is already available via executing the below:
-
-``` bash
-mkdir ~/tmp;cd ~/tmp
-wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh
-./prereqs.sh -p
-```
-
-This would download and make `postgrest` binary available in `${HOME}/.cabal/bin` which is also where your DB Sync binaries would be, assuming you've followed [this guide](build/dbsync.md).
-
-To start with you'd want to ensure your current shell session has access to Postgres credentials, continuing from examples from the above mentioned [Sample Postgres deployment guide](Appendix/postgres.md).
+To start with you'd want to ensure your current shell session has access to Postgres credentials, continuing from examples from the above mentioned [Sample Postgres deployment guide](../Appendix/postgres.md).
 
 ``` bash
 cd $CNODE_HOME/priv
 PGPASSFILE=$CNODE_HOME/priv/.pgpass
+psql cexplorer
 ```
 
-Now you'd want to start `psql cexplorer` to connect to your Postgres Instance, and create a basic user and give it usage/select access to the schema and tables respectively. Refer to commands below for the same:
+Ensure that you can connect to your Postgres DB fine using above (quit from psql once validated using `\q`).
 
-``` sql
-create role web_anon nologin;
-grant usage on schema public to web_anon;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO web_anon;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO web_anon;
-```
+Now, create your PostgREST config file using command below:
 
-You can now quit your psql session using `\q`.
-
-##### Create Config and Start PostgREST
-
-Now that your user is created in database, you can create the postgrest config. A basic sample is below:
-
-!> Replace `${USER}` and `${PASSWORD}` to match the username and password you can authenticate with for `psql` (defined in `$CNODE_HOME/priv/.pgpass` file in our example).
+!!! info "Reminder !!"
+    Verify and update db-uri if required, the given value configures it for user running the command below (and relies on socket connection to postgres sever.
 
 ``` bash
-cat << 'EOF' > $CNODE_HOME/priv/pgrest.conf
-db-uri = "postgres://${USER}:${PASSWORD}@localhost/cexplorer"
-db-schema = "public"
+cat << 'EOF' > $CNODE_HOME/priv/grest.conf
+db-uri = "postgres://${USER}@/cexplorer"
+db-schema = "grest, public"
 db-anon-role = "web_anon"
 server-host = "127.0.0.1"
 server-port = 8050
 #jwt-secret = "secret-token"
 #db-pool = 10
 #db-pool-timeout = 10
-#db-extra-search-path = "public"
-#max-rows = 1000
+db-extra-search-path = "public"
+max-rows = 1000
 
 EOF
 
 ```
 
-If you'd like to connect to your PostgREST remotely (again, it is recommended you harden your instance before this is done), uncomment and replace the `server-host` parameter with "0.0.0.0"). Make sure to change the file permissions so that it's only visible to user that will run postgrest instance using `chmod 600 $CNODE_HOME/priv/pgrest.conf`. If you want to prevent unauthenticated access, uncomment the jwt-secret and specify a custom `secret-token`.
-
-You're now all set! To start the instance, you can use the below to start your `postgrest` instance.
+You're all set to set up your PostgREST instance, and while doing so, also configure haproxy service, set up roles/schemas/default permissions, and create systemd services for these:
 
 ``` bash
-postgrest $CNODE_HOME/priv/pgrest.conf
-## Attempting to connect to the database...
-## Listening on port 8050
-## Connection successful
+cd $CNODE_HOME/scripts
+# To-Do: Update branch when merged to master
+wget -o setup-grest.sh https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/scripts/grest-helper-scripts/setup-grest.sh
+chmod 755 setup-grest.sh
+./setup-grest.sh -t cnode
+# cnode is top level folder here
 ```
 
-##### Test queries
+Follow the prompts to start-up deployed services. The default ports used will make haproxy instance available at port 8053 (you might want to enable firewall rule to open this port to services you would like to access). Make sure to change the file permissions so that it's only visible to user that will run postgrest instance using `chmod 600 $CNODE_HOME/priv/pgrest.conf`. If you want to prevent unauthenticated access to grest schema, uncomment the jwt-secret and specify a custom `secret-token`.
 
-While you can query PostgREST a browser from a browser if listening on `0.0.0.0` , we'd stick to querying your instance via `curl` on terminal, so that we're not troubleshooting any firewall/network configuration issues. Now, the nomenclature we used should have connected you to the `cardano-db-sync` instance. Assuming it is already populated (even partially), you can try explore tables as REST endpoints.
+### Enable TLS on HAProxy {: id="tls"}
 
-1. To query the network your DBSync instance has connected to
+In order to enable SSL on your haproxy, all you need to do is edit the file `/etc/haproxy/haproxy.cfg` and update the *frontend app* section to disable normal bind and enable ssl bind. Note that the server.pem referred in example below should contain certificate chain as well as the private key.
+
+```
+#bind :8053
+bind :8053 ssl crt /etc/ssl/server.pem no-sslv3
+redirect scheme https code 301 if !{ ssl_fc }
+```
+Restart haproxy service for changes to take effect.
+
+### Performance Tuning Considerations
+
+While the defaults on your system should not cause you any trouble, note that haproxy relies on ephemeral ports available on your system to be able to redirect frontend requests to backend servers. The four important configuration settings in your `/etc/sysctl.conf` files would be:
+
+```
+net.ipv4.ip_local_port_range="1024 65534"
+net.core.somaxconn=65534
+net.ipv4.tcp_rmem=4096 16060 64060
+net.ipv4.tcp_wmem=4096 16384 262144
+```
+Again, defaults should be fine for minimal usage, you do not need to tinker with above unless you expect a very high amount of load on your frontend.
+
+### Validation
+
+While you can query PostgREST a browser from a browser if listening on `0.0.0.0` , we'd stick to querying your instance via `curl` on terminal, so that we're not troubleshooting any firewall/network configuration issues. Now, the nomenclature we used should have connected you to the `cardano-db-sync` instance. Assuming it is already populated (even partially), you can try explore deployed functions as REST endpoints.
+
+!!! info "Note"
+    The values used in queries below are from guild network, replace them to valid values that can be used on network that your dbsync instance if filled with
+
+
+1. To query active stake for pool `pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr` in epoch `122`, we can execute the below:
 ``` bash
-curl -s http://127.0.0.1:8050/meta?select=network_name
-## [{"network_name":"mainnet"}]
-curl -s http://127.0.0.1:8050/meta?network_name | jq -r '.[].network_name'
-## mainnet
+curl -d _pool_bech32=pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr -d _epoch_no=122 -s http://localhost:8053/rpc/pool_active_stake
+## {"active_stake_sum" : 19409732875}
 ```
-Note that here `meta` is the table name, while `network_name` is the column name.
 
-2. Let's now look at another table `epoch` and add a `WHERE` filter to query ID equals 2.
+2. To check latest owner key(s) for a given pool `pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr`, you can execute the below:
 ``` bash
-curl -s http://127.0.0.1:8050/epoch?id=eq.2 | jq .
-## [
-##   {
-##     "id": 2,
-##     "out_sum": 101402912214214220,
-##     "fees": 1033002678,
-##     "tx_count": 12870,
-##     "blk_count": 21590,
-##     "no": 1,
-##     "start_time": "2017-09-28T21:44:51",
-##     "end_time": "2017-10-03T21:44:31"
-##   }
-## ]
+curl -d _pool_bech32=pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr -s http://localhost:8050/rpc/pool_owners
+## [{"owner" : "stake_test1upx5p04dn3t6dvhfh27744su35vvasgaaq565jdxwlxfq5sdjwksw"}, {"owner" : "stake_test1uqak99cgtrtpean8wqwp7d9taaqkt9gkkxga05m5azcg27chnzfry"}]
 ```
 
-Refer to [API documentation](https://postgrest.org/en/latest/api.html) for more details about querying (joins, functions, custom queries, stored procedures, etc).
+Refer to [API documentation](grestspecs.md) for Swagger documentation.

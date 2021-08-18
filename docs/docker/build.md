@@ -10,7 +10,7 @@ Each stage derives from a specific phase of the building strategy:
 * stage2 --> at this stage the Cardano source code is downloaded and compiled on top of the stage1.
 * stage3 --> Here is where we copy over a new debian-slim image the results of the copiled software (binaries and libs) including the guild's scripts and tools.
 
-#### How to build {docsify-ignore}
+#### How to build
 
 You can chose to just start building from the stage3 (or a custom stage3 dockerfile) or build all 3 stages from scratch.
 
@@ -35,7 +35,7 @@ Pipe the chosen Dockerfile (i.e. `dockerfile_stage3`) from STDIN:
   docker build -t cardanocommunity/cardano-node:stage3 - < dockerfile_stage3 
   ```
 
-#### For Windows Users {docsify-ignore}
+#### For Windows Users
 
 With Powershell on Windows, you can run docker by typing the following command:
 
@@ -43,8 +43,8 @@ With Powershell on Windows, you can run docker by typing the following command:
 Get-Content dockerfile_stage3  | docker build -t guild-operators/cardano-node:latest -
 ```
 
-#### See also {docsify-ignore}
+#### See also
 
-[Docker Tips](docker/tips.md)
+[Docker Tips](../docker/tips.md)
 
 [Docker Official Docs](https://docs.docker.com/)

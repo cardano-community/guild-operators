@@ -1,4 +1,4 @@
-!> Ensure the [Pre-Requisites](basics.md#pre-requisites) are in place before you proceed.
+!> Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
 
 **Guild LiveView - gLiveView** is a local monitoring tool to use in addition to remote monitoring tools like Prometheus/Grafana, Zabbix or IOG's RTView. This is especially useful when moving to a systemd deployment - if you haven't done so already - as it offers an intuitive UI to monitor the node status.
 
@@ -6,10 +6,10 @@ The tool is independent from other files and can run as a standalone utility tha
 
 ##### Download
 
-If you've used [prereqs.sh](basics.md#pre-requisites), you can skip this part, as this is already set up for you. The tool relies on the common `env` configuration file.
-To get current epoch blocks, the [logMonitor.sh](Scripts/logmonitor.md) script is needed (and can be combined with [CNCLI](Scripts/cncli.md)). This is optional and **Guild LiveView** will function without it.
+If you've used [prereqs.sh](../basics.md#pre-requisites), you can skip this part, as this is already set up for you. The tool relies on the common `env` configuration file.
+To get current epoch blocks, the [logMonitor.sh](../Scripts/logmonitor.md) script is needed (and can be combined with [CNCLI](../Scripts/cncli.md)). This is optional and **Guild LiveView** will function without it.
 
-?> For those who follow guild's [folder structure](basics.md#folder-structure) and do not wish to run `prereqs.sh`, you can run the below in `$CNODE_HOME/scripts` folder
+?> For those who follow guild's [folder structure](../basics.md#folder-structure) and do not wish to run `prereqs.sh`, you can run the below in `$CNODE_HOME/scripts` folder
 
 To download the script:
 
@@ -29,29 +29,24 @@ The tool can be run in legacy mode with only standard ASCII characters for termi
 
 A sample output from both core and relay (with peer analysis):
 
-<!-- tabs:start -->
+=== "Core"
 
-#### ** Core **
+    ![Core](https://raw.githubusercontent.com/cardano-community/guild-operators/images/gliveview-core.png ':size=35%')
+  
+    ![Core-Peer-Analysis](https://raw.githubusercontent.com/cardano-community/guild-operators/images/core-peer-analysis.png ':size=35%')
 
-![Core](https://raw.githubusercontent.com/cardano-community/guild-operators/images/gliveview-core.png ':size=35%')
+=== "Relay"
 
-![Core-Peer-Analysis](https://raw.githubusercontent.com/cardano-community/guild-operators/images/core-peer-analysis.png ':size=35%')
+    ![Relay](https://raw.githubusercontent.com/cardano-community/guild-operators/images/gliveview-relay.png ':size=35%')
+  
+    ![Relay-Peer-Analysis](https://raw.githubusercontent.com/cardano-community/guild-operators/images/relay-peer-analysis.png ':size=35%')
 
-#### ** Relay **
-
-![Relay](https://raw.githubusercontent.com/cardano-community/guild-operators/images/gliveview-relay.png ':size=35%')
-
-![Relay-Peer-Analysis](https://raw.githubusercontent.com/cardano-community/guild-operators/images/relay-peer-analysis.png ':size=35%')
-
-<!-- tabs:end -->
-
-##### Description
 
 **Upper main section**
 Displays live metrics gathered from EKG. Epoch number and progress is live from the node while date calculation until epoch boundary is based on offline genesis parameters. Reference tip is also an offline calculation based on genesis values used to compare against the node tip to see how far of the tip (diff value) the node is. With current parameters a slot diff up to 40 from reference tip is considered good but it should usually stay below 30. In/Out peers show how many connections the node has established in and out.
 
 **Core section**  
-If the node is run as a core, identified by the 'forge-about-to-lead' EKG parameter, a second core section is displayed. This section contain current and remaining KES periods as well as a calculated date for the expiration. When getting close to expire date the values will change color. Blocks created by the node since node start is another metric shown in this section. If [CNCLI](Scripts/cncli.md) is activated to store blocks created in a blocklog DB, data from this blocklog is displayed. If not, blocks created values are taken from EKG metrics.
+If the node is run as a core, identified by the 'forge-about-to-lead' EKG parameter, a second core section is displayed. This section contain current and remaining KES periods as well as a calculated date for the expiration. When getting close to expire date the values will change color. Blocks created by the node since node start is another metric shown in this section. If [CNCLI](../Scripts/cncli.md) is activated to store blocks created in a blocklog DB, data from this blocklog is displayed. If not, blocks created values are taken from EKG metrics.
 
 **Peer analysis**  
 A manual peer analysis can be triggered by key press `p`. A latency test will be done on incoming and outgoing connections to the node.
