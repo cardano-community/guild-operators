@@ -36,6 +36,5 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION grest.pool_blocks_in_epoch IS 'Return information about blocks minted by a given pool in specified epoch (if _epoch_no was 
-not provided, information for current epoch is returned)';
+COMMENT ON FUNCTION grest.pool_blocks_in_epoch IS 'Return information about blocks minted by a given pool in current epoch (or _epoch_no if provided)';
 

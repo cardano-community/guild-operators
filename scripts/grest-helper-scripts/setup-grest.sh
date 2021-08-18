@@ -419,7 +419,7 @@ for row in $(jq -r '.[] | @base64' <<< ${rpc_file_list}); do
   fi
 done
 
-echo -e "\n\e[32mAll RPC functions successfully added to DBSync! For detailed query specs and examples, visit https://git.io/J8s95!\e[0m\n"
+echo -e "\n\e[32mAll RPC functions successfully added to DBSync! For detailed query specs and examples, visit https://git.io/J0Yqp!\e[0m\n"
 echo -e "\e[33mPlease restart PostgREST before attempting to use the added functions\e[0m"
 echo -e "  \e[94msudo systemctl restart postgrest.service\e[0m\n"
 
