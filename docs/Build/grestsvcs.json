@@ -577,7 +577,7 @@
       }
     },
     "/epoch_info_cache": {
-      "get": {
+      "post": {
         "tags": [
           "Blockchain Queries"
         ],
@@ -609,6 +609,39 @@
           "Blockchain Queries"
         ],
         "summary": "Get the epoch information, all epochs if no epoch specified",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": false,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_epoch_no": {
+                  "format": "numeric",
+                  "type": "number"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/epoch_params": {
+      "post": {
+        "tags": [
+          "Blockchain Queries"
+        ],
+        "summary": "Get the epoch parameters, all epochs if no epoch specified",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"
