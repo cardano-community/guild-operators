@@ -576,33 +576,6 @@
         }
       }
     },
-    "/epoch_info_cache": {
-      "post": {
-        "tags": [
-          "Blockchain Queries"
-        ],
-        "summary": "Get detailed info for epoch including protocol parameters",
-        "parameters": [
-          {
-            "$ref": "#/parameters/rowFilter.epoch_info_cache.epoch"
-          }
-        ],
-        "responses": {
-          "206": {
-            "description": "Partial Content"
-          },
-          "200": {
-            "schema": {
-              "items": {
-                "$ref": "#/definitions/epoch_info_cache"
-              },
-              "type": "array"
-            },
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/rpc/epoch_info": {
       "post": {
         "tags": [
