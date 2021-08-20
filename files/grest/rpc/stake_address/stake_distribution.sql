@@ -61,11 +61,16 @@ FROM (
             COALESCE(SUM(VALUE), 0) AS UTXO
         FROM
             TX_OUT
-            LEFT JOIN TX_IN ON TX_OUT.TX_ID = TX_IN.TX_OUT_ID
-                AND TX_OUT.INDEX::smallint = TX_IN.TX_OUT_INDEX::smallint
-        WHERE
-            TX_OUT.STAKE_ADDRESS_ID = T1.ID
-            AND TX_IN.TX_IN_ID IS NULL) UTXO_T ON TRUE
+            INNER JOIN TX ON TX_OUT.TX_ID = TX.ID
+                AND TX_OUT.STAKE_ADDRESS_ID = T1.ID
+                AND TX.BLOCK_ID < (
+                    SELECT
+                        MAX(ID)
+                    FROM
+                        BLOCK) - 5
+                INNER JOIN TX_IN ON TX_OUT.TX_ID = TX_IN.TX_OUT_ID
+                    AND TX_OUT.INDEX::smallint = TX_IN.TX_OUT_INDEX::smallint
+                    AND TX_IN.TX_IN_ID IS NULL) UTXO_T ON TRUE
     LEFT JOIN LATERAL (
         SELECT
             COALESCE(SUM(REWARD.AMOUNT), 0) AS REWARDS
