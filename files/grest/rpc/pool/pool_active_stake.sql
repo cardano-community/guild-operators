@@ -1,4 +1,6 @@
-CREATE OR REPLACE FUNCTION grest.pool_active_stake(_pool_bech32 text default null, _epoch_no numeric default null)
+DROP FUNCTION IF EXISTS grest.pool_active_stake(text, numeric);
+
+CREATE FUNCTION grest.pool_active_stake(_pool_bech32 text default null, _epoch_no numeric default null)
 RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$
 BEGIN
     IF _epoch_no IS NULL THEN
