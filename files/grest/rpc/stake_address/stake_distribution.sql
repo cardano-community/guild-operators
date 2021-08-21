@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS GREST.STAKE_DISTRIBUTION (
     STAKE_ADDRESS varchar PRIMARY KEY,
-    POOL_ID varchar,
+    POOL_ID varchar, -- Index added after data is inserted
     TOTAL_BALANCE numeric,
     UTXO numeric,
     REWARDS numeric,
@@ -11,8 +11,9 @@ CREATE TABLE IF NOT EXISTS GREST.STAKE_DISTRIBUTION (
 );
 
 CREATE TABLE IF NOT EXISTS GREST.CONTROL_TABLE (
-    control_type text PRIMARY KEY,
-    value text NOT NULL
+    key text PRIMARY KEY,
+    last_value text NOT NULL,
+    artifacts text
 );
 
 DO $$
@@ -151,6 +152,7 @@ ON CONFLICT (STAKE_ADDRESS)
     ON CONFLICT (control_type)
         DO UPDATE SET
             value = _last_accounted_block_height;
+    CREATE INDEX idx_pool_id ON grest.STAKE_DISTRIBUTION (POOL_ID);
 END;
 $$;
 
