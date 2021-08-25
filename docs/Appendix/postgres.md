@@ -16,7 +16,7 @@ if [ -z "${OS_ID##*debian*}" ]; then
   RELEASE=$(lsb_release -cs)
   echo "deb http://apt.postgresql.org/pub/repos/apt/ ${RELEASE}"-pgdg main | sudo tee  /etc/apt/sources.list.d/pgdg.list
   sudo apt-get update
-  sudo apt-get -y install postgresql-11 postgresql-server-dev-11 postgresql-contrib libghc-hdbc-postgresql-dev
+  sudo apt-get -y install postgresql-13 postgresql-server-dev-13 postgresql-contrib libghc-hdbc-postgresql-dev
   sudo systemctl restart postgresql
   sudo systemctl enable postgresql
 elif [ -z "${OS_ID##*rhel*}" ]; then
@@ -58,7 +58,7 @@ export PGPASSFILE=$CNODE_HOME/priv/.pgpass
 echo "/var/run/postgresql:5432:cexplorer:*:*" > $PGPASSFILE
 chmod 0600 $PGPASSFILE
 psql postgres
-# psql (10.6)
+# psql (13.4)
 # Type "help" for help.
 # 
 # postgres=#
