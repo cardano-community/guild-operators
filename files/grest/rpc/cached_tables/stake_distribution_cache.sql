@@ -21,15 +21,11 @@ DECLARE
     _last_accounted_block_height bigint;
 BEGIN
     SELECT
-        ID
+        MAX(BLOCK_NO) - 5
     FROM
-        BLOCK
+        PUBLIC.BLOCK
     WHERE
-        block_no IS NOT NULL
-    ORDER BY
-        BLOCK_NO DESC
-    LIMIT 1 OFFSET 5 INTO _last_accounted_block_height;
-    -- Offset starts at 0
+        block_no IS NOT NULL INTO _last_accounted_block_height;
     INSERT INTO GREST.STAKE_DISTRIBUTION
     SELECT
         STAKE_ADDRESS,
@@ -82,11 +78,11 @@ BEGIN
             TX_OUT
             INNER JOIN TX ON TX_OUT.TX_ID = TX.ID
                 AND TX_OUT.STAKE_ADDRESS_ID = T1.ID
-                AND TX.BLOCK_ID <= _last_accounted_block_height
         LEFT JOIN TX_IN ON TX_OUT.TX_ID = TX_IN.TX_OUT_ID
             AND TX_OUT.INDEX::smallint = TX_IN.TX_OUT_INDEX::smallint
     WHERE
-        TX_IN.TX_IN_ID IS NULL) UTXO_T ON TRUE
+        TX.BLOCK_ID <= _last_accounted_block_height
+        AND TX_IN.TX_IN_ID IS NULL) UTXO_T ON TRUE
     LEFT JOIN LATERAL (
         SELECT
             COALESCE(SUM(REWARD.AMOUNT), 0) AS REWARDS
@@ -152,8 +148,7 @@ ON CONFLICT (STAKE_ADDRESS)
     ON CONFLICT (control_type)
         DO UPDATE SET
             value = _last_accounted_block_height;
-    CREATE INDEX idx_pool_id ON grest.STAKE_DISTRIBUTION (POOL_ID);
+    CREATE INDEX IF NOT EXISTS idx_pool_id ON grest.STAKE_DISTRIBUTION (POOL_ID);
 END;
 $$;
 
---TODO: update trigger
