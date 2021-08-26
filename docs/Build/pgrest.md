@@ -1,7 +1,7 @@
 !!! important
 
     - An average pool operator may not require this component at all. Please verify if it is required for your use as mentioned [here](../build.md#components)
-    - Ensure that you have setup [DBSync](../Build/dbsync.md) and that it is in sync before you proceed..
+    - Ensure that you have setup [DBSync](../Build/dbsync.md) and that it is in sync before you proceed. *IF* you're participating in grest services, ensure that you're using dbsync commit `88e26c82d3331f931b6a68d9b077d400de169f76`
 
 [PostgREST](https://postgrest.org/en/latest) is a web server that serves any PostgreSQL database (in our case, useful for `cardano-db-sync`) as a RESTful Web Service. The endpoints of PostgREST in itself are essentially the table/functions exposed via the PostgREST config file. You can read more about exploring the API [here](https://postgrest.org/en/latest/api.html). Understandably, it would of course rely on an existing PostgreSQL server. At the moment of writing, this is being used as an easy alternative - which will remain up-to-date since it is directly serving the underlying database as an API, as compared to `Cardano GraphQL` component. Some of the other advantages are also performance, elasticity, low overhead, support for JWT / native Postgres DB authentication against the Rest Interface as well (see [here](https://postgrest.org/en/latest/tutorials/tut1.html) for adding this to your instance). We merge the deployment with HAProxy configuration that serves as an easy means to harden your gateway, but you may alter the settings for proxy layer as per your SecOps preferences.
 
@@ -44,7 +44,7 @@ You're all set to set up your PostgREST instance, and while doing so, also confi
 ``` bash
 cd $CNODE_HOME/scripts
 # To-Do: Update branch when merged to master
-wget -o setup-grest.sh https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/scripts/grest-helper-scripts/setup-grest.sh
+curl -o setup-grest.sh https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/scripts/grest-helper-scripts/setup-grest.sh
 chmod 755 setup-grest.sh
 ./setup-grest.sh -t cnode
 # cnode is top level folder here
@@ -95,4 +95,4 @@ curl -d _pool_bech32=pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr -s
 ## [{"owner" : "stake_test1upx5p04dn3t6dvhfh27744su35vvasgaaq565jdxwlxfq5sdjwksw"}, {"owner" : "stake_test1uqak99cgtrtpean8wqwp7d9taaqkt9gkkxga05m5azcg27chnzfry"}]
 ```
 
-Refer to [API documentation](https://cardano-community.github.io/guild-operators/Build/pgrestspecs) for Swagger documentation.
+Refer to [API documentation](grestspecs.md) for Swagger documentation.

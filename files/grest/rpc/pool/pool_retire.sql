@@ -1,4 +1,6 @@
-CREATE OR REPLACE FUNCTION grest.pool_retire(_pool_bech32 text)
+DROP FUNCTION IF EXISTS grest.pool_retire(text);
+
+CREATE FUNCTION grest.pool_retire(_pool_bech32 text)
 RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$
 DECLARE
     _pool_id bigint;
@@ -16,3 +18,4 @@ BEGIN
     LIMIT 1
     );
 END; $$;
+COMMENT ON FUNCTION grest.pool_retire IS 'Check if a pool retire transaction has been sent';

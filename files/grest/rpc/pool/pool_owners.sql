@@ -1,4 +1,6 @@
-CREATE OR REPLACE FUNCTION grest.pool_owners(_pool_bech32 text)
+DROP FUNCTION IF EXISTS grest.pool_owners(text);
+
+CREATE FUNCTION grest.pool_owners(_pool_bech32 text)
 RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$
 BEGIN
     RETURN ( SELECT json_agg(js) json_final FROM ( SELECT json_build_object(
@@ -14,3 +16,4 @@ BEGIN
         ) GROUP BY sa.view
     ) t );
 END; $$;
+COMMENT ON FUNCTION grest.pool_owners IS 'Get registered pool owners';

@@ -1,4 +1,6 @@
-CREATE OR REPLACE FUNCTION grest.pool_updates(_pool_bech32 text, _current_epoch_no numeric default 0, _state text default '' )
+DROP FUNCTION IF EXISTS grest.pool_updates(text, numeric, text);
+
+CREATE FUNCTION grest.pool_updates(_pool_bech32 text, _current_epoch_no numeric default 0, _state text default '' )
 RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$
 BEGIN
     RETURN ( SELECT json_agg(js) json_final FROM ( SELECT json_build_object(
@@ -30,3 +32,4 @@ BEGIN
     END
     ) t );
 END; $$;
+COMMENT ON FUNCTION grest.pool_updates IS 'Grab latest, active or all pool updates for specified pool';

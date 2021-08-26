@@ -9,9 +9,10 @@
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
 CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=5
+CNTOOLS_MINOR_VERSION=6
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
 CNTOOLS_PATCH_VERSION=0
+
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -32,6 +33,7 @@ if ! mkdir -p "${ASSET_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}:
 [[ -z ${ENABLE_CHATTR} ]] && ENABLE_CHATTR=true
 [[ -z ${ENABLE_DIALOG} ]] && ENABLE_DIALOG=true
 [[ ${ENABLE_ADVANCED} = "true" ]] && ADVANCED_MODE="true"
+[[ -z ${CHECK_KES} ]] && CHECK_KES=true
 
 ############################################################
 # library sourced by cntools with common taskes to perform #

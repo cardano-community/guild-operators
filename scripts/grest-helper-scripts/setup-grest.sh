@@ -163,6 +163,9 @@ frontend app
   http-request deny deny_status 429 if { sc_http_req_rate(0) gt 100 }
   default_backend grest_core
 
+backend flood_lmt_rate                                                    
+  stick-table type ip size 1m expire 10m store http_req_rate(10s)
+
 backend grest_core
   balance first
   option external-check
@@ -365,19 +368,13 @@ jqDecode() {
 
 deployRPC() {
   file_name=$(jqDecode '.name' "${1}")
-  [[ -z ${file_name} || ${file_name} != *.json ]] && return
+  [[ -z ${file_name} || ${file_name} != *.sql ]] && return
   dl_url=$(jqDecode '.download_url //empty' "${1}")
   [[ -z ${dl_url} ]] && return
-  ! rpc_desc=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url}" && return 1
-  ! rpc_sql=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url%.json}.sql 2>/dev/null) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url%.json}.sql" && return 1
-  echo -e "\nFunction:    \e[32m$(jq -r '.function' <<< ${rpc_desc})\e[0m"
-  echo -e "  Description: \e[37m$(jq -r '.description' <<< ${rpc_desc})\e[0m"
-  for param in $(jq -r '.parameters[] | @base64' <<< ${rpc_desc}); do
-    echo -e "  Parameter:   \e[94m$(jqDecode '.name' "${param}")\e[0m => \e[37m$(jqDecode '.description' "${param}")\e[0m"
-  done
-  for example in $(jq -r '.example[] | @base64' <<< ${rpc_desc}); do
-    echo -e "  Example $(jqDecode '.type' "${example}") query: \e[37m$(jqDecode '.command' "${example}")\e[0m"
-  done
+  ! rpc_desc=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null | grep 'COMMENT ON FUNCTION' | cut -d\' -f2) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url}" && return 1
+  ! rpc_sql=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url%.json}.sql" && return 1
+  echo -e "\nFunction:    \e[32m${file_name%.sql}\e[0m"
+  echo -e "  Description: \e[37m${rpc_desc}\e[0m"
   ! output=$(psql cexplorer -v "ON_ERROR_STOP=1" <<< ${rpc_sql} 2>&1) && echo -e "  \e[31mERROR\e[0m: ${output}"
 }
 
@@ -422,7 +419,7 @@ for row in $(jq -r '.[] | @base64' <<< ${rpc_file_list}); do
   fi
 done
 
-echo -e "\n\e[32mAll RPC functions successfully added to DBSync!\e[0m\n"
+echo -e "\n\e[32mAll RPC functions successfully added to DBSync! For detailed query specs and examples, visit https://git.io/J0Yqp!\e[0m\n"
 echo -e "\e[33mPlease restart PostgREST before attempting to use the added functions\e[0m"
 echo -e "  \e[94msudo systemctl restart postgrest.service\e[0m\n"
 
