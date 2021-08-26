@@ -6,6 +6,11 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.6.0] - 2021-08-27
+##### Changed
+- Add `--whole-utxo` flag when query UTxO, as required by cardano-cli 1.28, to keep behaviour same as before.
+- Baseline compatibility with 1.29
+
 ## [8.4.15] - 2021-07-15
 ##### Changed
 - Switch default to 'No' adding a message when sending funds
