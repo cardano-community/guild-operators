@@ -11,17 +11,46 @@ Below you can find a short summary of every GRest meeting held, both for logging
 
 ### Participants:
 
-| Participant | 12Aug2021        | 29Jul2021        | 22Jul2021        | 15Jul2021        | 09Jul2021        | 02Jul2021        | 25Jun2021        |
-| ----------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- |
-| Damjan      | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
-| Homer       | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
-| Markus      | :material-close: | :material-check: | :material-check: | :material-close: | :material-close: | :material-check: | :material-check: |
-| Ola         | :material-close: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
-| RdLrT       | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
-| Red         | :material-close: | :material-check: | :material-check: | :material-close: | :material-check: | :material-close: | :material-close: |
-| Papacarp    | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: |
-| Paddy       | :material-close: | :material-close: | :material-close: | :material-check: | :material-close: | :material-close: | :material-close: |
-| GimbaLabs   | :material-check: | :material-check: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: |
+| Participant | 19Aug2021        | 12Aug2021        | 29Jul2021        | 22Jul2021        | 15Jul2021        | 09Jul2021        | 02Jul2021        | 25Jun2021        |
+| ----------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- |
+| Damjan      | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
+| Homer       | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
+| Markus      | :material-check: | :material-close: | :material-check: | :material-check: | :material-close: | :material-close: | :material-check: | :material-check: |
+| Ola         | :material-check: | :material-close: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
+| RdLrT       | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
+| Red         | :material-check: | :material-close: | :material-check: | :material-check: | :material-close: | :material-check: | :material-close: | :material-close: |
+| Papacarp    | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: |
+| Paddy       | :material-close: | :material-close: | :material-close: | :material-close: | :material-check: | :material-close: | :material-close: | :material-close: |
+| GimbaLabs   | :material-close: | :material-check: | :material-check: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: |
+
+=== "19Aug2021"
+
+    ### DB replication presentation by Redoracle
+
+    - Proposition to move the grest schema and tables required by the API to smaller instances that can be scaled more easily
+    - Pros and Cons to the approach discussed, worth investigating based on performance comparisons
+
+    ### Process for upgrading our instances:
+
+    - Collaboration between trusted peers will be needed, to upgrade sequentially (3 off 6 instances, for example)
+    - Use DNS subdomain for upgraded nodes for testing
+    - Ideally upgrade processes to be done between 2nd-4th day of epoch to avoid overloading smaller subset in peak hours
+    - Enhance grest-poll to use arguments and seperate haproxy backends, allowing for test based reduction
+
+    ### Queries:
+
+    #### Stake distribution
+
+    - we need to implement triggers
+    - dealing with block rollbacks is tricky
+    - Priyank will make an example of his idea of how to deal with it that others can use/build upon
+
+    #### Tx History
+
+    - Current PR to be split into two (to include value/assets and not have to return JSON that is resource intensive to generate/parse):
+      - Addr to Tx Hash list using start and end blocks
+      - Bulk Tx Hash (limit 100) query to get as much details about tx sent as possible
+    - Consider if cache table makes sense after above change. If yes, we also need triggers that can handle rollbacks
 
 === "12Aug2021"
 

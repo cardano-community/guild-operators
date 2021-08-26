@@ -13,20 +13,20 @@ BEGIN
     IF _address LIKE 'stake%' THEN
         -- Shelley stake address
         SELECT
-            ID INTO SA_ID
+            STAKE_ADDRESS.ID INTO SA_ID
         FROM
             STAKE_ADDRESS
         WHERE
-            VIEW = _address
+            STAKE_ADDRESS.VIEW = _address
         LIMIT 1;
     ELSE
         -- Payment address
         SELECT
-            STAKE_ADDRESS_ID INTO SA_ID
+            TX_OUT.STAKE_ADDRESS_ID INTO SA_ID
         FROM
             TX_OUT
         WHERE
-            ADDRESS = _address
+            TX_OUT.ADDRESS = _address
         LIMIT 1;
     END IF;
     IF SA_ID IS NOT NULL THEN
