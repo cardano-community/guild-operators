@@ -710,6 +710,22 @@
           }
         }
       }
+    },
+    "/rpc/registered_pools": {
+      "post": {
+        "tags": [
+          "Blockchain Queries"
+        ],
+        "summary": "List of pool IDs of registered (not retired) stake pools",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
     }
   },
   "definitions": {
