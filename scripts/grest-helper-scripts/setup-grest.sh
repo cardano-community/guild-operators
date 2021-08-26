@@ -198,11 +198,12 @@ if [[ -f "${CNODE_HOME}"/files/config.json ]]; then
   BYGENFILE=$(jq -r .ByronGenesisFile "${CNODE_HOME}"/files/config.json 2>/dev/null)
   SHGENFILE=$(jq -r .ShelleyGenesisFile "${CNODE_HOME}"/files/config.json 2>/dev/null)
   ALGENFILE=$(jq -r .AlonzoGenesisFile "${CNODE_HOME}"/files/config.json 2>/dev/null)
-  [[ "${ALGENFILE}" == "" ]] || [[ "${SHGENFILE}" == "" ]] && err_exit "ERROR!! Could not find Shelley/Alonzo Genesis Files in ${CNODE_HOME}/files/config.json! Please re-run prereqs.sh with right arguments!"
+  [[ -z "${ALGENFILE}" ]] || [[ -z "${SHGENFILE}" ]] && err_exit "ERROR!! Could not find Shelley/Alonzo Genesis Files in ${CNODE_HOME}/files/config.json! Please re-run prereqs.sh with right arguments!"
   SHGENHASH=$(cardano-cli genesis hash --genesis "${SHGENFILE}" 2>/dev/null)
   ALGENHASH=$(cardano-cli genesis hash --genesis "${ALGENFILE}" 2>/dev/null)
-  if "${ALGENHASH}" != ""; then
-    jq --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} '.ShelleyGenesisHash = $SHGENHASH, .AlonzoGenesisHash = $ALGENHASH' < "${CNODE_HOME}"/files/config.json
+  if [[ -n "${ALGENHASH}" ]]; then
+    jq --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} '.ShelleyGenesisHash = $SHGENHASH | .AlonzoGenesisHash = $ALGENHASH' < "${CNODE_HOME}"/files/config.json > "${CNODE_HOME}"/files/config.json.tmp
+    mv -f "${CNODE_HOME}"/files/config.json.tmp "${CNODE_HOME}"/files/config.json
   else
     err_exit "ERROR!! Could not calculate genesis hash for ${ALGENFILE}! Please re-run prereqs.sh with right arguments"
   fi
