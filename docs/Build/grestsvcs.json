@@ -393,7 +393,7 @@
     "/rpc/account_balance": {
       "post": {
         "tags": [
-          "Blockchain Queries"
+          "Account Queries"
         ],
         "summary": "Get the account balance of an address",
         "produces": [
@@ -429,7 +429,7 @@
     "/rpc/rewards_history": {
       "post": {
         "tags": [
-          "Blockchain Queries"
+          "Account Queries"
         ],
         "summary": "Get the full rewards history in lovelace for a stake address, or certain epoch reward if specified",
         "produces": [
@@ -469,7 +469,7 @@
     "/rpc/mir_history": {
       "post": {
         "tags": [
-          "Blockchain Queries"
+          "Account Queries"
         ],
         "summary": "Get the full MIR (Move Instantaneous Rewards) history in lovelace for a stake address, or certain epoch if specified",
         "produces": [
@@ -526,7 +526,7 @@
     "/rpc/blocks": {
       "post": {
         "tags": [
-          "Blockchain Queries"
+          "Block Queries"
         ],
         "summary": "Get detailed information about all blocks (paginated - latest first)",
         "produces": [
@@ -540,10 +540,43 @@
         }
       }
     },
+    "/rpc/account_addresses": {
+      "post": {
+        "tags": [
+          "Account Queries"
+        ],
+        "summary": "Get all addresses associated with an account",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_address": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/rpc/account_assets": {
       "post": {
         "tags": [
-          "Blockchain Queries"
+          "Account Queries"
         ],
         "summary": "Get the native asset balance of an account",
         "produces": [
@@ -579,7 +612,7 @@
     "/rpc/epoch_info": {
       "post": {
         "tags": [
-          "Blockchain Queries"
+          "Epoch Queries"
         ],
         "summary": "Get the epoch information, all epochs if no epoch specified",
         "produces": [
@@ -612,7 +645,7 @@
     "/rpc/epoch_params": {
       "post": {
         "tags": [
-          "Blockchain Queries"
+          "Epoch Queries"
         ],
         "summary": "Get the epoch parameters, all epochs if no epoch specified",
         "produces": [
@@ -628,6 +661,42 @@
                 "_epoch_no": {
                   "format": "numeric",
                   "type": "number"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/address_utxos": {
+      "post": {
+        "tags": [
+          "Address Queries"
+        ],
+        "summary": "Get all UTXOs associated with an address",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": [
+                "_payment_address_bech32"
+              ],
+              "type": "object",
+              "properties": {
+                "_address": {
+                  "format": "text",
+                  "type": "string"
                 }
               }
             },

@@ -44,7 +44,7 @@ You're all set to set up your PostgREST instance, and while doing so, also confi
 ``` bash
 cd $CNODE_HOME/scripts
 # To-Do: Update branch when merged to master
-wget -o setup-grest.sh https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/scripts/grest-helper-scripts/setup-grest.sh
+curl -o setup-grest.sh https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/scripts/grest-helper-scripts/setup-grest.sh
 chmod 755 setup-grest.sh
 ./setup-grest.sh -t cnode
 # cnode is top level folder here
