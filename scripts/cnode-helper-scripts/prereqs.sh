@@ -433,12 +433,14 @@ curl -sL -f -m ${CURL_TIMEOUT} -o dbsync.json.tmp ${URL_RAW}/files/config-dbsync
 # Download node config, genesis and topology from template
 if [[ ${NETWORK} = "guild" ]]; then
   curl -s -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp ${URL_RAW}/files/byron-genesis-guild.json
-  curl -s -f -m ${CURL_TIMEOUT} -o genesis.json.tmp ${URL_RAW}/files/genesis-guild.json
+  curl -s -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp ${URL_RAW}/files/genesis-guild.json
+  curl -s -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp ${URL_RAW}/files/alonzo-genesis-guild.json
   curl -s -f -m ${CURL_TIMEOUT} -o topology.json.tmp ${URL_RAW}/files/topology-guild.json
   curl -s -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-guild.json
-elif [[ ${NETWORK} =~ ^(mainnet|testnet|guild|staging)$ ]]; then
+elif [[ ${NETWORK} =~ ^(mainnet|testnet|staging)$ ]]; then
   curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${NETWORK}-byron-genesis.json
-  curl -sL -f -m ${CURL_TIMEOUT} -o genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${NETWORK}-shelley-genesis.json
+  curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${NETWORK}-shelley-genesis.json
+  curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${NETWORK}-alonzo-genesis.json
   curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${NETWORK}-topology.json
   curl -s -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-${NETWORK}.json
 else
@@ -449,7 +451,8 @@ sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -i ./*.json.tmp
 [[ ${FORCE_OVERWRITE} = 'Y' && -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
 [[ ${FORCE_OVERWRITE} = 'Y' && -f dbsync.json ]] && cp -f dbsync.json "dbsync.json_bkp$(date +%s)"
 if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f byron-genesis.json ]]; then mv -f byron-genesis.json.tmp byron-genesis.json; else rm -f byron-genesis.json.tmp; fi
-if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f genesis.json ]]; then mv -f genesis.json.tmp genesis.json; else rm -f genesis.json.tmp; fi
+if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f shelley-genesis.json ]]; then mv -f shelley-genesis.json.tmp shelley-genesis.json; else rm -f shelley-genesis.json.tmp; fi
+if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f alonzo-genesis.json ]]; then mv -f alonzo-genesis.json.tmp alonzo-genesis.json; else rm -f alonzo-genesis.json.tmp; fi
 if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f topology.json ]]; then mv -f topology.json.tmp topology.json; else rm -f topology.json.tmp; fi
 if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f config.json ]]; then mv -f config.json.tmp config.json; else rm -f config.json.tmp; fi
 if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f dbsync.json ]]; then mv -f dbsync.json.tmp dbsync.json; else rm -f dbsync.json.tmp; fi

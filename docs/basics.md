@@ -53,17 +53,18 @@ Running without any parameters will run script in silent mode with OS Dependenci
 Running the script above will create the folder structure as per below, for your reference. You can replace the top level folder `/opt/cardano/cnode` by editing the value of `CNODE_HOME` in `~/.bashrc` and `$CNODE_HOME/files/env` files:
 
 
-    /opt/cardano/cnode          # Top-Level Folder
+    /opt/cardano/cnode            # Top-Level Folder
     ├── ...
-    ├── files                   # Config, genesis and topology files
+    ├── files                     # Config, genesis and topology files
     │   ├── ...
-    │   ├── genesis.json        # Genesis file referenced in config.json
-    │   ├── byron-genesis.json  # Byron Genesis file referenced in config.json (if using combinator network)
-    │   ├── config.json         # Config file used by cardano-node
-    │   └── topology.json       # Map of chain for cardano-node to boot from
-    ├── db                      # DB Store for cardano-node
-    ├── guild-db                # DB Store for guild-specific tools and additions (eg: cncli, cardano-db-sync's schema)
-    ├── logs                    # Logs for cardano-node
-    ├── priv                    # Folder to store your keys (permission: 600)
-    ├── scripts                 # Scripts to start and interact with cardano-node
-    └── sockets                 # Socket files created by cardano-node
+    │   ├── byron-genesis.json    # Byron Genesis file referenced in config.json
+    │   ├── shelley-genesis.json  # Genesis file referenced in config.json
+    │   ├── alonzo-genesis.json    # Alonzo Genesis file referenced in config.json
+    │   ├── config.json           # Config file used by cardano-node
+    │   └── topology.json         # Map of chain for cardano-node to boot from
+    ├── db                        # DB Store for cardano-node
+    ├── guild-db                  # DB Store for guild-specific tools and additions (eg: cncli, cardano-db-sync's schema)
+    ├── logs                      # Logs for cardano-node
+    ├── priv                      # Folder to store your keys (permission: 600)
+    ├── scripts                   # Scripts to start and interact with cardano-node
+    └── sockets                   # Socket files created by cardano-node
