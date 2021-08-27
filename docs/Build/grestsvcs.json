@@ -29,7 +29,7 @@
         ],
         "parameters": [
           {
-            "required": true,
+            "required": false,
             "schema": {
               "type": "object",
               "properties": {
@@ -41,9 +41,6 @@
             },
             "in": "body",
             "name": "args"
-          },
-          {
-            "$ref": "#/parameters/preferParams"
           }
         ],
         "responses": {
@@ -80,9 +77,6 @@
             },
             "in": "body",
             "name": "args"
-          },
-          {
-            "$ref": "#/parameters/preferParams"
           }
         ],
         "responses": {
@@ -111,11 +105,11 @@
               ],
               "type": "object",
               "properties": {
-                "_state": {
+                "_pool_bech32": {
                   "format": "text",
                   "type": "string"
                 },
-                "_pool_bech32": {
+                "_state": {
                   "format": "text",
                   "type": "string"
                 },
@@ -127,9 +121,6 @@
             },
             "in": "body",
             "name": "args"
-          },
-          {
-            "$ref": "#/parameters/preferParams"
           }
         ],
         "responses": {
@@ -166,9 +157,6 @@
             },
             "in": "body",
             "name": "args"
-          },
-          {
-            "$ref": "#/parameters/preferParams"
           }
         ],
         "responses": {
@@ -181,7 +169,7 @@
     "/rpc/pool_blocks_in_epoch": {
       "post": {
         "tags": [
-          "(rpc) pool_blocks_in_epoch"
+          "Pool Queries"
         ],
         "summary": "Return information about blocks minted by a given pool in current epoch (or _epoch_no if provided)",
         "produces": [
@@ -209,9 +197,6 @@
             },
             "in": "body",
             "name": "args"
-          },
-          {
-            "$ref": "#/parameters/preferParams"
           }
         ],
         "responses": {
@@ -248,9 +233,6 @@
             },
             "in": "body",
             "name": "args"
-          },
-          {
-            "$ref": "#/parameters/preferParams"
           }
         ],
         "responses": {
@@ -274,23 +256,23 @@
           {
             "required": true,
             "schema": {
+              "required": [
+                "_pool_bech32"
+              ],
               "type": "object",
               "properties": {
-                "_epoch_no": {
-                  "format": "numeric",
-                  "type": "number"
-                },
                 "_pool_bech32": {
                   "format": "text",
                   "type": "string"
+                },
+                "_epoch_no": {
+                  "format": "numeric",
+                  "type": "number"
                 }
               }
             },
             "in": "body",
             "name": "args"
-          },
-          {
-            "$ref": "#/parameters/preferParams"
           }
         ],
         "responses": {
@@ -327,9 +309,6 @@
             },
             "in": "body",
             "name": "args"
-          },
-          {
-            "$ref": "#/parameters/preferParams"
           }
         ],
         "responses": {
@@ -366,9 +345,6 @@
             },
             "in": "body",
             "name": "args"
-          },
-          {
-            "$ref": "#/parameters/preferParams"
           }
         ],
         "responses": {
@@ -405,9 +381,6 @@
             },
             "in": "body",
             "name": "args"
-          },
-          {
-            "$ref": "#/parameters/preferParams"
           }
         ],
         "responses": {
@@ -420,7 +393,7 @@
     "/rpc/account_balance": {
       "post": {
         "tags": [
-          "Blockchain Queries"
+          "Account Queries"
         ],
         "summary": "Get the account balance of an address",
         "produces": [
@@ -444,9 +417,6 @@
             },
             "in": "body",
             "name": "args"
-          },
-          {
-            "$ref": "#/parameters/preferParams"
           }
         ],
         "responses": {
@@ -459,7 +429,7 @@
     "/rpc/rewards_history": {
       "post": {
         "tags": [
-          "Blockchain Queries"
+          "Account Queries"
         ],
         "summary": "Get the full rewards history in lovelace for a stake address, or certain epoch reward if specified",
         "produces": [
@@ -487,9 +457,6 @@
             },
             "in": "body",
             "name": "args"
-          },
-          {
-            "$ref": "#/parameters/preferParams"
           }
         ],
         "responses": {
@@ -502,7 +469,7 @@
     "/rpc/mir_history": {
       "post": {
         "tags": [
-          "Blockchain Queries"
+          "Account Queries"
         ],
         "summary": "Get the full MIR (Move Instantaneous Rewards) history in lovelace for a stake address, or certain epoch if specified",
         "produces": [
@@ -530,9 +497,6 @@
             },
             "in": "body",
             "name": "args"
-          },
-          {
-            "$ref": "#/parameters/preferParams"
           }
         ],
         "responses": {
@@ -562,7 +526,7 @@
     "/rpc/blocks": {
       "post": {
         "tags": [
-          "Blockchain Queries"
+          "Block Queries"
         ],
         "summary": "Get detailed information about all blocks (paginated - latest first)",
         "produces": [
@@ -576,10 +540,43 @@
         }
       }
     },
+    "/rpc/account_addresses": {
+      "post": {
+        "tags": [
+          "Account Queries"
+        ],
+        "summary": "Get all addresses associated with an account",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_address": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/rpc/account_assets": {
       "post": {
         "tags": [
-          "Blockchain Queries"
+          "Account Queries"
         ],
         "summary": "Get the native asset balance of an account",
         "produces": [
@@ -603,9 +600,6 @@
             },
             "in": "body",
             "name": "args"
-          },
-          {
-            "$ref": "#/parameters/preferParams"
           }
         ],
         "responses": {
@@ -614,41 +608,319 @@
           }
         }
       }
+    },
+    "/rpc/epoch_info": {
+      "post": {
+        "tags": [
+          "Epoch Queries"
+        ],
+        "summary": "Get the epoch information, all epochs if no epoch specified",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": false,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_epoch_no": {
+                  "format": "numeric",
+                  "type": "number"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/epoch_params": {
+      "post": {
+        "tags": [
+          "Epoch Queries"
+        ],
+        "summary": "Get the epoch parameters, all epochs if no epoch specified",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": false,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_epoch_no": {
+                  "format": "numeric",
+                  "type": "number"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/address_utxos": {
+      "post": {
+        "tags": [
+          "Address Queries"
+        ],
+        "summary": "Get all UTXOs associated with an address",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": [
+                "_payment_address_bech32"
+              ],
+              "type": "object",
+              "properties": {
+                "_address": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/registered_pools": {
+      "post": {
+        "tags": [
+          "Blockchain Queries"
+        ],
+        "summary": "List of pool IDs of registered (not retired) stake pools",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+    }
+  },
+  "definitions": {
+    "epoch_info_cache": {
+      "description": "Get detailed info for epoch including protocol parameters",
+      "required": [
+        "epoch",
+        "i_out_sum",
+        "i_fees",
+        "i_tx_count",
+        "i_blk_count",
+        "i_first_block_time",
+        "i_last_block_time",
+        "p_min_fee_a",
+        "p_min_fee_b",
+        "p_max_block_size",
+        "p_max_tx_size",
+        "p_max_bh_size",
+        "p_key_deposit",
+        "p_pool_deposit",
+        "p_max_epoch",
+        "p_optimal_pool_count",
+        "p_influence",
+        "p_monetary_expand_rate",
+        "p_treasury_growth_rate",
+        "p_decentralisation",
+        "p_protocol_major",
+        "p_protocol_minor",
+        "p_min_utxo_value",
+        "p_min_pool_cost",
+        "p_block_id"
+      ],
+      "properties": {
+        "epoch": {
+          "format": "integer",
+          "type": "integer",
+          "description": "Note:\nThis is a Primary Key.<pk/>"
+        },
+        "i_out_sum": {
+          "format": "numeric",
+          "type": "number"
+        },
+        "i_fees": {
+          "format": "numeric",
+          "type": "number"
+        },
+        "i_tx_count": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "i_blk_count": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "i_first_block_time": {
+          "format": "timestamp without time zone",
+          "type": "string"
+        },
+        "i_last_block_time": {
+          "format": "timestamp without time zone",
+          "type": "string"
+        },
+        "i_active_stake": {
+          "format": "numeric",
+          "type": "number"
+        },
+        "p_min_fee_a": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "p_min_fee_b": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "p_max_block_size": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "p_max_tx_size": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "p_max_bh_size": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "p_key_deposit": {
+          "format": "numeric",
+          "type": "number"
+        },
+        "p_pool_deposit": {
+          "format": "numeric",
+          "type": "number"
+        },
+        "p_max_epoch": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "p_optimal_pool_count": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "p_influence": {
+          "format": "double precision",
+          "type": "number"
+        },
+        "p_monetary_expand_rate": {
+          "format": "double precision",
+          "type": "number"
+        },
+        "p_treasury_growth_rate": {
+          "format": "double precision",
+          "type": "number"
+        },
+        "p_decentralisation": {
+          "format": "double precision",
+          "type": "number"
+        },
+        "p_entropy": {
+          "format": "text",
+          "type": "string"
+        },
+        "p_protocol_major": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "p_protocol_minor": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "p_min_utxo_value": {
+          "format": "numeric",
+          "type": "number"
+        },
+        "p_min_pool_cost": {
+          "format": "numeric",
+          "type": "number"
+        },
+        "p_nonce": {
+          "format": "text",
+          "type": "string"
+        },
+        "p_block_id": {
+          "format": "bigint",
+          "type": "integer"
+        },
+        "p_cost_models": {
+          "format": "character varying",
+          "type": "string"
+        },
+        "p_price_mem": {
+          "format": "double precision",
+          "type": "number"
+        },
+        "p_price_step": {
+          "format": "double precision",
+          "type": "number"
+        },
+        "p_max_tx_ex_mem": {
+          "format": "numeric",
+          "type": "number"
+        },
+        "p_max_tx_ex_steps": {
+          "format": "numeric",
+          "type": "number"
+        },
+        "p_max_block_ex_mem": {
+          "format": "numeric",
+          "type": "number"
+        },
+        "p_max_block_ex_steps": {
+          "format": "numeric",
+          "type": "number"
+        },
+        "p_max_val_size": {
+          "format": "numeric",
+          "type": "number"
+        },
+        "p_collateral_percent": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "p_max_collateral_inputs": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "p_coins_per_utxo_word": {
+          "format": "numeric",
+          "type": "number"
+        }
+      },
+      "type": "object"
     }
   },
   "parameters": {
-    "preferParams": {
-      "name": "Prefer",
-      "description": "Preference",
-      "required": false,
-      "in": "header",
-      "type": "string",
-      "enum": [
-        "params=single-object"
-      ]
-    },
-    "preferReturn": {
-      "name": "Prefer",
-      "description": "Preference",
-      "required": false,
-      "in": "header",
-      "type": "string",
-      "enum": [
-        "return=representation",
-        "return=minimal",
-        "return=none"
-      ]
-    },
-    "preferCount": {
-      "name": "Prefer",
-      "description": "Preference",
-      "required": false,
-      "in": "header",
-      "type": "string",
-      "enum": [
-        "count=none"
-      ]
-    },
     "select": {
       "name": "select",
       "description": "Filtering Columns",
@@ -696,6 +968,21 @@
       "name": "limit",
       "description": "Limiting and Pagination",
       "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.epoch_info_cache": {
+      "name": "epoch_info_cache",
+      "required": false,
+      "schema": {
+        "$ref": "#/definitions/epoch_info_cache"
+      },
+      "in": "body"
+    },
+    "rowFilter.epoch_info_cache.epoch": {
+      "name": "epoch",
+      "required": false,
+      "format": "integer",
       "in": "query",
       "type": "string"
     }

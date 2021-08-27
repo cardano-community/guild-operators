@@ -194,6 +194,23 @@ curl -s -f -m ${CURL_TIMEOUT} -o dbsync.sh.tmp ${URL_RAW}/scripts/grest-helper-s
 curl -s -f -m ${CURL_TIMEOUT} -o checkstatus.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/checkstatus.sh
 curl -s -f -m ${CURL_TIMEOUT} -o getmetrics.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/getmetrics.sh
 
+if [[ -f "${CNODE_HOME}"/files/config.json ]]; then
+  BYGENFILE=$(jq -r .ByronGenesisFile "${CNODE_HOME}"/files/config.json 2>/dev/null)
+  SHGENFILE=$(jq -r .ShelleyGenesisFile "${CNODE_HOME}"/files/config.json 2>/dev/null)
+  ALGENFILE=$(jq -r .AlonzoGenesisFile "${CNODE_HOME}"/files/config.json 2>/dev/null)
+  [[ -z "${ALGENFILE}" ]] || [[ -z "${SHGENFILE}" ]] && err_exit "ERROR!! Could not find Shelley/Alonzo Genesis Files in ${CNODE_HOME}/files/config.json! Please re-run prereqs.sh with right arguments!"
+  SHGENHASH=$(cardano-cli genesis hash --genesis "${SHGENFILE}" 2>/dev/null)
+  ALGENHASH=$(cardano-cli genesis hash --genesis "${ALGENFILE}" 2>/dev/null)
+  if [[ -n "${ALGENHASH}" ]]; then
+    jq --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} '.ShelleyGenesisHash = $SHGENHASH | .AlonzoGenesisHash = $ALGENHASH' < "${CNODE_HOME}"/files/config.json > "${CNODE_HOME}"/files/config.json.tmp
+    mv -f "${CNODE_HOME}"/files/config.json.tmp "${CNODE_HOME}"/files/config.json
+  else
+    err_exit "ERROR!! Could not calculate genesis hash for ${ALGENFILE}! Please re-run prereqs.sh with right arguments"
+  fi
+else
+  err_exit "ERROR!! ${CNODE_HOME}/files/config.json not found! Please ensure you've run pre-requisites!"
+fi
+
 ### Update file retaining existing custom configs
 updateWithCustomConfig() {
   file=$1

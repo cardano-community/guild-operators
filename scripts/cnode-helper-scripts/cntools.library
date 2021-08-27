@@ -9,9 +9,10 @@
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
 CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=4
+CNTOOLS_MINOR_VERSION=6
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=17
+CNTOOLS_PATCH_VERSION=0
+
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -849,7 +850,7 @@ getBalance() {
   asset_name_maxlen=5; asset_amount_maxlen=12
   tx_in=""
   
-  if [[ -z ${1} ]] || ! utxo_raw=$(${CCLI} query utxo ${NETWORK_IDENTIFIER} --address "${1}"); then return 1; fi
+  if [[ -z ${1} ]] || ! utxo_raw=$(${CCLI} query utxo ${NETWORK_IDENTIFIER} --whole-utxo --address "${1}"); then return 1; fi
   
   [[ -z ${utxo_raw} ]] && return
   
@@ -888,7 +889,7 @@ getBalance() {
 
   # Alternative code using jq (jq has issues with large integer numbers)
   : <<'END_COMMENT'
-  if ! utxo_JSON=$(${CCLI} query utxo ${NETWORK_IDENTIFIER} --address "${1}" --out-file /dev/stdout); then return 1; fi
+  if ! utxo_JSON=$(${CCLI} query utxo --whole-utxo ${NETWORK_IDENTIFIER} --address "${1}" --out-file /dev/stdout); then return 1; fi
   
   utxo_cnt=$(jq length <<< ${utxo_JSON})
   [[ ${utxo_cnt} = 0 ]] && return
