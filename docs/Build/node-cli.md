@@ -35,11 +35,11 @@ Execute `cardano-cli` and `cardano-node` to verify output as below:
 
 ```bash
 cardano-cli version
-# cardano-cli 1.27.0 - linux-x86_64 - ghc-8.10
-# git rev 8fe46140a52810b6ca456be01d652ca08fe730bf
+# cardano-cli 1.29.0 - linux-x86_64 - ghc-8.10
+# git rev 4c59442958072657812c6c0bb8e0b4ab85ce1ba2
 cardano-node version
-# cardano-node 1.27.0 - linux-x86_64 - ghc-8.10
-# git rev 8fe46140a52810b6ca456be01d652ca08fe730bf
+# cardano-node 1.29.0 - linux-x86_64 - ghc-8.10
+# git rev 4c59442958072657812c6c0bb8e0b4ab85ce1ba2
 ```
 
 #### Update port number or pool name for relative paths
