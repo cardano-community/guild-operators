@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=6
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=0
+CNTOOLS_PATCH_VERSION=1
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -957,6 +957,8 @@ getAssetsTxOut() {
 # Return      : populates ${min_utxo_out}
 getMinUTxO() {
   [[ -z ${minUTxOValue} ]] && minUTxOValue=$(jq -r '.minUTxOValue //1000000' <<< "${PROT_PARAMS}")
+  [[ -z ${utxoCostPerWord} ]] && utxoCostPerWord=$(jq -r '.utxoCostPerWord' <<< "${PROT_PARAMS}")
+
   min_utxo_out=${minUTxOValue}
 
   # chain constants, based on: https://hydra.iohk.io/build/5949624/download/1/shelley-ma.pdf
@@ -966,7 +968,11 @@ getMinUTxO() {
   local k3=28				                # pidSize=28
   local k4=8				                # word=8 bytes
   local utxoEntrySizeWithoutVal=27 	# 6 + txOutLenNoVal(14) + txInLen(7)
-  local adaOnlyUTxOSize=$((${utxoEntrySizeWithoutVal} + ${k0}))
+  local adaOnlyUTxOSize=$(( utxoEntrySizeWithoutVal + k0 ))
+
+  # check if new parameter is available for alonzo-era, if so, overwrite the minUTXOValue
+  # remove +2 when k0 is increased
+  [[ -n ${utxoCostPerWord} && ${utxoCostPerWord} != null ]] && minUTXOValue=$(( utxoCostPerWord * (adaOnlyUTxOSize + 2) ))
   
   # split the tx-out string into the assets
   IFS='+' read -ra asset_entry <<< "${1}"
