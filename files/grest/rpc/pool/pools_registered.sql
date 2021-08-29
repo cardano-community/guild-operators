@@ -11,6 +11,7 @@ CREATE FUNCTION grest.pools_registered ()
         pledge lovelace,
         reward_addr character varying,
         owners character varying [],
+        relays jsonb [],
         meta_url character varying,
         meta_hash text,
         retiring_epoch uinteger
@@ -33,6 +34,7 @@ BEGIN
         pledge,
         reward_addr,
         owners,
+        relays,
         meta_url,
         meta_hash,
         retiring_epoch

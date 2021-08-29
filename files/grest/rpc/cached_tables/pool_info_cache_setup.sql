@@ -12,6 +12,7 @@ CREATE TABLE grest.pool_info_cache (
     pledge lovelace NOT NULL,
     reward_addr character varying,
     owners character varying [],
+    relays jsonb [],
     meta_url character varying,
     meta_hash text,
     retiring_epoch uinteger,
@@ -24,6 +25,7 @@ COMMENT ON TABLE grest.pool_info_cache IS 'A summary of all pool parameters and 
 DROP FUNCTION IF EXISTS grest.pool_info_insert CASCADE;
 
 CREATE FUNCTION grest.pool_info_insert (
+        _update_id bigint,
         _tx_id bigint,
         _hash_id bigint,
         _active_epoch_no bigint,
@@ -50,6 +52,7 @@ BEGIN
         pledge,
         reward_addr,
         owners,
+        relays,
         meta_url,
         meta_hash,
         retiring_epoch,
@@ -71,6 +74,17 @@ BEGIN
             FROM public.pool_owner AS po
             INNER JOIN public.stake_address AS sa ON sa.id = po.addr_id
             WHERE po.registered_tx_id = _tx_id
+        ),
+        ARRAY(
+            SELECT json_build_object(
+                'ipv4', pr.ipv4,
+                'ipv6', pr.ipv6,
+                'dns', pr.dns_name,
+                'srv', pr.dns_srv_name,
+                'port', pr.port
+            ) relay
+            FROM public.pool_relay AS pr
+            WHERE pr.update_id = _update_id
         ),
         pmr.url,
         encode(pmr.hash::bytea, 'hex'),
@@ -112,10 +126,12 @@ BEGIN
     SELECT COALESCE(MAX(unixtime), 0) INTO _latest_unixtime_cache FROM grest.pool_info_cache;
     SELECT EXTRACT(EPOCH FROM NOW()) INTO _current_unixtime;
     IF (_current_unixtime - _latest_unixtime_cache) > 300 THEN
+        -- Add all new entries in pool_update older than 5 blocks
         FOR rec IN (SELECT * FROM public.pool_update AS pu WHERE pu.registered_tx_id > _latest_pool_info_tx_id) LOOP
             SELECT block_id INTO _current_pool_update_block_id FROM public.tx AS t WHERE t.id = rec.registered_tx_id;
             IF _current_pool_update_block_id IS NOT NULL AND (NEW.id - _current_pool_update_block_id) > 5 THEN
                 PERFORM grest.pool_info_insert(
+                    rec.id,
                     rec.registered_tx_id,
                     rec.hash_id,
                     rec.active_epoch_no,
