@@ -3,6 +3,7 @@ DROP TABLE IF EXISTS grest.pool_info_cache;
 CREATE TABLE grest.pool_info_cache (
     id SERIAL PRIMARY KEY,
     tx_id bigint NOT NULL,
+    pool_hash_id bigint,
     pool_id_bech32 character varying NOT NULL,
     pool_id_hex text NOT NULL,
     active_epoch_no bigint NOT NULL,
@@ -42,7 +43,8 @@ CREATE FUNCTION grest.pool_info_insert (
     AS $$
 BEGIN
     INSERT INTO grest.pool_info_cache (
-        tx_id, 
+        tx_id,
+        pool_hash_id,
         pool_id_bech32, 
         pool_id_hex,
         active_epoch_no,
@@ -60,6 +62,7 @@ BEGIN
     )
     SELECT
         _tx_id,
+        _hash_id,
         ph.view,
         encode(ph.hash_raw::bytea, 'hex'),
         _active_epoch_no,
@@ -88,7 +91,7 @@ BEGIN
         ),
         pmr.url,
         encode(pmr.hash::bytea, 'hex'),
-        _retire.r_epoch,
+        r_epoch.r_epoch,
         _unixtime
     FROM public.pool_hash AS ph
     LEFT JOIN public.pool_metadata_ref AS pmr ON pmr.id = _meta_id
@@ -101,12 +104,38 @@ BEGIN
         AND pr.announced_tx_id > _tx_id
         ORDER BY pr.id
         LIMIT 1
-    ) _retire ON true
+    ) r_epoch ON true
     WHERE ph.id = _hash_id;
 END;
 $$;
 
 COMMENT ON FUNCTION grest.pool_info_insert IS 'Internal function to insert a single pool update';
+
+
+DROP FUNCTION IF EXISTS grest.pool_info_retire_update CASCADE;
+
+CREATE FUNCTION grest.pool_info_retire_update (
+        _hash_id bigint,
+        _announced_tx_id bigint,
+        _retiring_epoch uinteger,
+        _unixtime bigint
+    )
+    RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    UPDATE grest.pool_info_cache
+    SET
+        retiring_epoch = _retiring_epoch,
+        unixtime = _unixtime
+    WHERE
+        pool_hash_id = _hash_id
+        AND
+        tx_id < _announced_tx_id;
+END;
+$$;
+
+COMMENT ON FUNCTION grest.pool_info_retire_update IS 'Internal function to update pool_info_cache with new retire status';
 
 
 DROP FUNCTION IF EXISTS grest.pool_info_update CASCADE;
@@ -126,7 +155,7 @@ BEGIN
     SELECT COALESCE(MAX(unixtime), 0) INTO _latest_unixtime_cache FROM grest.pool_info_cache;
     SELECT EXTRACT(EPOCH FROM NOW()) INTO _current_unixtime;
     IF (_current_unixtime - _latest_unixtime_cache) > 300 THEN
-        -- Add all new entries in pool_update older than 5 blocks
+        -- Add all new entries in pool_update table older than 5 blocks
         FOR rec IN (SELECT * FROM public.pool_update AS pu WHERE pu.registered_tx_id > _latest_pool_info_tx_id) LOOP
             SELECT block_id INTO _current_pool_update_block_id FROM public.tx AS t WHERE t.id = rec.registered_tx_id;
             IF _current_pool_update_block_id IS NOT NULL AND (NEW.id - _current_pool_update_block_id) > 5 THEN
@@ -141,6 +170,18 @@ BEGIN
                     rec.pledge,
                     rec.reward_addr,
                     rec.meta_id,
+                    _current_unixtime
+                );
+            END IF;
+        END LOOP;
+        -- Check all new entries in pool_retire table older than 5 blocks
+        FOR rec IN (SELECT * FROM public.pool_retire AS pr WHERE pr.announced_tx_id > _latest_pool_info_tx_id) LOOP
+            SELECT block_id INTO _current_pool_update_block_id FROM public.tx AS t WHERE t.id = rec.announced_tx_id;
+            IF _current_pool_update_block_id IS NOT NULL AND (NEW.id - _current_pool_update_block_id) > 5 THEN
+                PERFORM grest.pool_info_retire_update(
+                    rec.hash_id,
+                    rec.announced_tx_id,
+                    rec.retiring_epoch,
                     _current_unixtime
                 );
             END IF;
