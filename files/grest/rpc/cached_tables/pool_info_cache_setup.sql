@@ -108,8 +108,8 @@ DECLARE
     _current_pool_update_block_id bigint DEFAULT NULL;
     rec RECORD;
 BEGIN
-    SELECT COALESCE(max(tx_id), 0) INTO _latest_pool_info_tx_id FROM grest.pool_info_cache;
-    SELECT COALESCE(max(unixtime), 0) INTO _latest_unixtime_cache FROM grest.pool_info_cache;
+    SELECT COALESCE(MAX(tx_id), 0) INTO _latest_pool_info_tx_id FROM grest.pool_info_cache;
+    SELECT COALESCE(MAX(unixtime), 0) INTO _latest_unixtime_cache FROM grest.pool_info_cache;
     SELECT EXTRACT(EPOCH FROM NOW()) INTO _current_unixtime;
     IF (_current_unixtime - _latest_unixtime_cache) > 300 THEN
         FOR rec IN (SELECT * FROM public.pool_update AS pu WHERE pu.registered_tx_id > _latest_pool_info_tx_id) LOOP
