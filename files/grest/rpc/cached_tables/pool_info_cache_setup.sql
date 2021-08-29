@@ -142,4 +142,5 @@ DROP TRIGGER IF EXISTS pool_info_update_trigger ON public.block;
 
 CREATE TRIGGER pool_info_update_trigger
     AFTER INSERT ON public.block
-    EXECUTE PROCEDURE grest.pool_info_update ();
+    FOR EACH ROW
+        EXECUTE PROCEDURE grest.pool_info_update ();
