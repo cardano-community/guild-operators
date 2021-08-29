@@ -3,7 +3,7 @@ DROP TABLE IF EXISTS grest.pool_info_cache;
 CREATE TABLE grest.pool_info_cache (
     id SERIAL PRIMARY KEY,
     tx_id bigint NOT NULL,
-    pool_hash_id bigint,
+    pool_hash_id bigint NOT NULL,
     pool_id_bech32 character varying NOT NULL,
     pool_id_hex text NOT NULL,
     active_epoch_no bigint NOT NULL,
@@ -91,7 +91,7 @@ BEGIN
         ),
         pmr.url,
         encode(pmr.hash::bytea, 'hex'),
-        r_epoch.r_epoch,
+        _retire.r_epoch,
         _unixtime
     FROM public.pool_hash AS ph
     LEFT JOIN public.pool_metadata_ref AS pmr ON pmr.id = _meta_id
@@ -104,7 +104,7 @@ BEGIN
         AND pr.announced_tx_id > _tx_id
         ORDER BY pr.id
         LIMIT 1
-    ) r_epoch ON true
+    ) _retire ON true
     WHERE ph.id = _hash_id;
 END;
 $$;
