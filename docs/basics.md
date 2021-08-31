@@ -1,6 +1,6 @@
 #### Architecture
 
-The architecture and description of various components are best described at [Adrestia Architecture](https://docs.cardano.org/projects/adrestia/en/latest/architecture.html) by CF/IOHK. We will not reinvent the wheel :smile:
+The architecture and description of various components are best described at [Adrestia Architecture](https://input-output-hk.github.io/adrestia/docs/architecture/) by CF/IOHK. We will not reinvent the wheel :smile:
 
 #### Pre-Requisites
 
