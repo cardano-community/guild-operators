@@ -55,7 +55,7 @@
         "tags": [
           "Blockchain Queries"
         ],
-        "summary": "Genesis parameters used to create the chain",
+        "summary": "Get the Genesis parameters used to create the chain",
         "produces": [
           "application/json",
           "application/vnd.pgrst.object+json"

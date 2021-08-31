@@ -225,7 +225,9 @@ read -ra SHGENESIS <<< $(jq -r '[
   .securityParam
   ] | @tsv' < "${SHGENFILE}")
 
-#PS: Given the Plutus schema is far from finalized, we expect changes as SC layer matures and PAB gets into real networks. For now, dumping compressed jq (will be inserted as shell escaped json data blob, can be changed in future iterations - many of these will already are part of pParams and may be eliminated).
+# PS: Given the Plutus schema is far from finalized, we expect changes as SC layer matures and PAB gets into real networks.
+# For now, dumping compressed jq (will be inserted as shell escaped json data blob, can be changed in future iterations - many of these will already are part of pParams and may be eliminated).
+
 ALGENESIS="$(jq -c . < ${ALGENFILE})"
 
 ### Update file retaining existing custom configs
