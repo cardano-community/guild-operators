@@ -50,6 +50,23 @@
         }
       }
     },
+    "/genesis": {
+      "post": {
+        "tags": [
+          "Blockchain Queries"
+        ],
+        "summary": "Genesis parameters used to create the chain",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/rpc/pool_delegator_count": {
       "post": {
         "tags": [
@@ -726,6 +743,7 @@
             "description": "OK"
           }
         }
+      }
     }
   },
   "definitions": {
