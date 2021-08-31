@@ -6,6 +6,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.6.3] - 2021-08-31
+#### Fixed
+- Pool retire fix
+
 ## [8.6.2] - 2021-08-30
 #### Fixed
 - Revert `--whole-utxo` flag, as it returns all address and will not accept `--address`

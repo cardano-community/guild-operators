@@ -2384,7 +2384,7 @@ function main {
                   println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
                   println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
-                select_opt "DEBUG" "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+                select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
                 case $? in
                   0) addr="${base_addr}" ;;
                   1) addr="${pay_addr}" ;;
