@@ -783,8 +783,10 @@ getEraIdentifier() {
   elif ${CCLI} query protocol-parameters --shelley-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--shelley-era"
   elif ${CCLI} query protocol-parameters --allegra-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--allegra-era"
   elif ${CCLI} query protocol-parameters --mary-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--mary-era"
+  #Alonzo era disabled for now until hw support is fully implemented
+  #elif ${CCLI} query protocol-parameters --alonzo-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--alonzo-era"
   else 
-    ERA_IDENTIFIER=""
+    ERA_IDENTIFIER="--mary-era"
     [[ ${OFFLINE_MODE} = "N" ]] && return 1
   fi
   return 0

@@ -6,6 +6,14 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.6.2] - 2021-08-30
+#### Fixed
+- Revert `--whole-utxo` flag, as it returns all address and will not accept `--address`
+
+## [8.6.1] - 2021-08-27
+##### Changed
+- Alonzo related changes for era and minimum utxo.
+
 ## [8.6.0] - 2021-08-27
 ##### Changed
 - Add `--whole-utxo` flag when query UTxO, as required by cardano-cli 1.28, to keep behaviour same as before.
