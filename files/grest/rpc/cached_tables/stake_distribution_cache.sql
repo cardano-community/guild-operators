@@ -143,11 +143,11 @@ ON CONFLICT (STAKE_ADDRESS)
         OR STAKE_DISTRIBUTION_CACHE.REWARDS_AVAILABLE IS DISTINCT FROM EXCLUDED.REWARDS_AVAILABLE
         OR STAKE_DISTRIBUTION_CACHE.RESERVES IS DISTINCT FROM EXCLUDED.RESERVES
         OR STAKE_DISTRIBUTION_CACHE.TREASURY IS DISTINCT FROM EXCLUDED.TREASURY;
-    INSERT INTO GREST.CONTROL_TABLE (control_type, value)
+    INSERT INTO GREST.CONTROL_TABLE (key, last_value)
         VALUES ('stake_distribution_lbh', _last_accounted_block_height)
-    ON CONFLICT (control_type)
+    ON CONFLICT (key)
         DO UPDATE SET
-            value = _last_accounted_block_height;
+            last_value = _last_accounted_block_height;
     CREATE INDEX IF NOT EXISTS idx_pool_id ON grest.STAKE_DISTRIBUTION_CACHE (POOL_ID);
 END;
 $$;
