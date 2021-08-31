@@ -1,4 +1,4 @@
-DROP FUNCTION IF EXISTS grest.account_list (text);
+DROP FUNCTION IF EXISTS grest.account_list ();
 
 CREATE FUNCTION grest.account_list ()
     RETURNS TABLE (
