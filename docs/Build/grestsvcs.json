@@ -407,6 +407,23 @@
         }
       }
     },
+    "/rpc/account_list": {
+      "post": {
+        "tags": [
+          "Account Queries"
+        ],
+        "summary": "Get a list of all accounts",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/rpc/account_balance": {
       "post": {
         "tags": [
