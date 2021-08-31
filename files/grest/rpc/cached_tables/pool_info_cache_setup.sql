@@ -3,6 +3,8 @@ DROP TABLE IF EXISTS grest.pool_info_cache;
 CREATE TABLE grest.pool_info_cache (
     id SERIAL PRIMARY KEY,
     tx_id bigint NOT NULL,
+    tx_hash text,
+    block_time timestamp without time zone,
     pool_hash_id bigint NOT NULL,
     pool_id_bech32 character varying NOT NULL,
     pool_id_hex text NOT NULL,
@@ -16,6 +18,7 @@ CREATE TABLE grest.pool_info_cache (
     relays jsonb [],
     meta_url character varying,
     meta_hash text,
+    pool_status text,
     retiring_epoch uinteger,
     unixtime bigint NOT NULL
 );
@@ -41,9 +44,32 @@ CREATE FUNCTION grest.pool_info_insert (
     RETURNS void
     LANGUAGE plpgsql
     AS $$
+DECLARE
+    _current_epoch_no uinteger;
+    _retiring_epoch uinteger;
+    _pool_status text;
 BEGIN
+    SELECT COALESCE(MAX(no), 0) INTO _current_epoch_no FROM public.epoch;
+
+    SELECT pr.retiring_epoch INTO _retiring_epoch
+    FROM public.pool_retire AS pr
+    WHERE pr.hash_id = _hash_id
+    AND pr.announced_tx_id > _tx_id
+    ORDER BY pr.id
+    LIMIT 1;
+
+    IF _retiring_epoch IS NULL THEN 
+        _pool_status := 'registered';
+    ELSIF _retiring_epoch > _current_epoch_no THEN
+        _pool_status := 'retiring';
+    ELSE
+        _pool_status := 'retired';
+    END IF;
+
     INSERT INTO grest.pool_info_cache (
         tx_id,
+        tx_hash,
+        block_time,
         pool_hash_id,
         pool_id_bech32, 
         pool_id_hex,
@@ -57,11 +83,14 @@ BEGIN
         relays,
         meta_url,
         meta_hash,
+        pool_status,
         retiring_epoch,
         unixtime
     )
     SELECT
         _tx_id,
+        encode(tx.hash::bytea, 'hex'), 
+        b.time,
         _hash_id,
         ph.view,
         encode(ph.hash_raw::bytea, 'hex'),
@@ -91,25 +120,40 @@ BEGIN
         ),
         pmr.url,
         encode(pmr.hash::bytea, 'hex'),
-        _retire.r_epoch,
+        _pool_status,
+        _retiring_epoch,
         _unixtime
     FROM public.pool_hash AS ph
+    INNER JOIN public.tx ON tx.id = _tx_id
+    INNER JOIN public.block AS b ON b.id = tx.block_id
     LEFT JOIN public.pool_metadata_ref AS pmr ON pmr.id = _meta_id
     LEFT JOIN public.stake_address AS sa ON sa.hash_raw = _reward_addr
-    LEFT JOIN LATERAL (
-        SELECT
-            pr.retiring_epoch AS r_epoch
-        FROM public.pool_retire AS pr
-        WHERE pr.hash_id = _hash_id
-        AND pr.announced_tx_id > _tx_id
-        ORDER BY pr.id
-        LIMIT 1
-    ) _retire ON true
     WHERE ph.id = _hash_id;
 END;
 $$;
 
 COMMENT ON FUNCTION grest.pool_info_insert IS 'Internal function to insert a single pool update';
+
+
+DROP FUNCTION IF EXISTS grest.pool_info_retire_status CASCADE;
+
+CREATE FUNCTION grest.pool_info_retire_status ()
+    RETURNS TRIGGER
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    UPDATE grest.pool_info_cache
+    SET
+        pool_status = 'retired'
+    WHERE
+        pool_status = 'retiring'
+        AND
+        retiring_epoch <= NEW.no;
+    RETURN NULL;
+END;
+$$;
+
+COMMENT ON FUNCTION grest.pool_info_retire_status IS 'Internal function to update pool_info_cache with new retire status based on epoch switch';
 
 
 DROP FUNCTION IF EXISTS grest.pool_info_retire_update CASCADE;
@@ -123,19 +167,33 @@ CREATE FUNCTION grest.pool_info_retire_update (
     RETURNS void
     LANGUAGE plpgsql
     AS $$
+DECLARE
+    _current_epoch_no uinteger;
+    _pool_status text;
 BEGIN
+    SELECT COALESCE(MAX(no), 0) INTO _current_epoch_no FROM public.epoch;
+
+    IF _retiring_epoch > _current_epoch_no THEN
+        _pool_status := 'retiring';
+    ELSE
+        _pool_status := 'retired';
+    END IF;
+
     UPDATE grest.pool_info_cache
     SET
+        pool_status = _pool_status,
         retiring_epoch = _retiring_epoch,
         unixtime = _unixtime
     WHERE
         pool_hash_id = _hash_id
         AND
-        tx_id < _announced_tx_id;
+        tx_id < _announced_tx_id
+        AND
+        tx_id = (SELECT MAX(tx_id) FROM grest.pool_info_cache);
 END;
 $$;
 
-COMMENT ON FUNCTION grest.pool_info_retire_update IS 'Internal function to update pool_info_cache with new retire status';
+COMMENT ON FUNCTION grest.pool_info_retire_update IS 'Internal function to update pool_info_cache with new retire status based on new retire entries';
 
 
 DROP FUNCTION IF EXISTS grest.pool_info_update CASCADE;
@@ -194,10 +252,18 @@ $$;
 COMMENT ON FUNCTION grest.pool_info_update IS 'Internal function to insert all new pool updates into pool_info cache table';
 
 
--- Create pool_info_update trigger
+-- Create pool_info_cache trigger based on new blocks
 DROP TRIGGER IF EXISTS pool_info_update_trigger ON public.block;
 
 CREATE TRIGGER pool_info_update_trigger
     AFTER INSERT ON public.block
     FOR EACH ROW
         EXECUTE PROCEDURE grest.pool_info_update ();
+
+-- Create pool_info_cache trigger based on new epoch for retire status update
+DROP TRIGGER IF EXISTS pool_info_retire_status_trigger ON public.epoch;
+
+CREATE TRIGGER pool_info_retire_status_trigger
+    AFTER INSERT ON public.epoch
+    FOR EACH ROW
+        EXECUTE PROCEDURE grest.pool_info_retire_status ();
