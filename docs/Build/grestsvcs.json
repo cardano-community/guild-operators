@@ -50,6 +50,23 @@
         }
       }
     },
+    "/genesis": {
+      "post": {
+        "tags": [
+          "Blockchain Queries"
+        ],
+        "summary": "Get the Genesis parameters used to create the chain",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/rpc/pool_delegator_count": {
       "post": {
         "tags": [
@@ -382,6 +399,23 @@
             "in": "body",
             "name": "args"
           }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/account_list": {
+      "post": {
+        "tags": [
+          "Account Queries"
+        ],
+        "summary": "Get a list of all accounts",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
         ],
         "responses": {
           "200": {
@@ -726,6 +760,7 @@
             "description": "OK"
           }
         }
+      }
     }
   },
   "definitions": {
