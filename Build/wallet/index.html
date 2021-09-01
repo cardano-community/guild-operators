@@ -379,7 +379,7 @@ git checkout <span class="k">$(</span>curl -s https://api.github.com/repos/input
 <p>You can run the below to connect to a <code>cardano-node</code> instance that is expected to be already running and the wallet will start syncing.
 <div class="highlight"><pre><span></span><code>cardano-wallet serve /
     --node-socket <span class="nv">$CNODE_HOME</span>/sockets/node0.socket /
-    --mainnet / <span class="c1"># if using the testnet flag you also need to specify the testnet genesis.json file</span>
+    --mainnet / <span class="c1"># if using the testnet flag you also need to specify the testnet shelley-genesis.json file</span>
     --database <span class="nv">$CNODE_HOME</span>/priv/wallet
 </code></pre></div></p>
 <h5 id="verify-the-wallet-is-handling-requests">Verify the wallet is handling requests<a class="headerlink" href="#verify-the-wallet-is-handling-requests" title="Permanent link">⚓︎</a></h5>

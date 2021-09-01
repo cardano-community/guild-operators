@@ -469,11 +469,11 @@ git checkout <span class="k">$(</span>curl -s https://api.github.com/repos/input
 <h3 id="verify">Verify<a class="headerlink" href="#verify" title="Permanent link">⚓︎</a></h3>
 <p>Execute <code>cardano-cli</code> and <code>cardano-node</code> to verify output as below:</p>
 <div class="highlight"><pre><span></span><code>cardano-cli version
-<span class="c1"># cardano-cli 1.27.0 - linux-x86_64 - ghc-8.10</span>
-<span class="c1"># git rev 8fe46140a52810b6ca456be01d652ca08fe730bf</span>
+<span class="c1"># cardano-cli 1.29.0 - linux-x86_64 - ghc-8.10</span>
+<span class="c1"># git rev 4c59442958072657812c6c0bb8e0b4ab85ce1ba2</span>
 cardano-node version
-<span class="c1"># cardano-node 1.27.0 - linux-x86_64 - ghc-8.10</span>
-<span class="c1"># git rev 8fe46140a52810b6ca456be01d652ca08fe730bf</span>
+<span class="c1"># cardano-node 1.29.0 - linux-x86_64 - ghc-8.10</span>
+<span class="c1"># git rev 4c59442958072657812c6c0bb8e0b4ab85ce1ba2</span>
 </code></pre></div>
 <h4 id="update-port-number-or-pool-name-for-relative-paths">Update port number or pool name for relative paths<a class="headerlink" href="#update-port-number-or-pool-name-for-relative-paths" title="Permanent link">⚓︎</a></h4>
 <p>Before you go ahead with starting your node, you may want to update values for <code>CNODE_PORT</code> in <code>$CNODE_HOME/scripts/env</code>. Note that it is imperative for operational relays and pools to ensure that the port mentioned is opened via firewall to the destination your node is supposed to connect from. Update your network/firewall configuration accordingly. Future executions of <code>prereqs.sh</code> will preserve and not overwrite these values.</p>

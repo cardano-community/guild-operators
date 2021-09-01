@@ -379,10 +379,13 @@
 </a>
 <h1>Basics</h1>
 <h4 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">⚓︎</a></h4>
-<p>The architecture and description of various components are best described at <a href="https://docs.cardano.org/projects/adrestia/en/latest/architecture.html">Adrestia Architecture</a> by CF/IOHK. We will not reinvent the wheel <img alt="😄" class="twemoji" src="https://twemoji.maxcdn.com/v/latest/svg/1f604.svg" title=":smile:"/></p>
+<p>The architecture for various components are already described at <a href="https://docs.cardano.org/explore-cardano/cardano-architecture/overview">docs.cardano.org</a> by CF/IOHK. We will not reinvent the wheel <img alt="😄" class="twemoji" src="https://twemoji.maxcdn.com/v/latest/svg/1f604.svg" title=":smile:"/></p>
 <h4 id="pre-requisites">Pre-Requisites<a class="headerlink" href="#pre-requisites" title="Permanent link">⚓︎</a></h4>
-<h5 id="set-up-os-packages-folder-structure-and-fetch-files-from-repo">Set up OS packages, folder structure and fetch files from repo<a class="headerlink" href="#set-up-os-packages-folder-structure-and-fetch-files-from-repo" title="Permanent link">⚓︎</a></h5>
-<p>!&gt; You're expected to run the commands below from same session, using same working directories as indicated and using a <code>non-root user with sudo access</code>. You are expected to be familiar with this as part of pre-requisite skill sets for stake pool operators.</p>
+<div class="admonition info">
+<p class="admonition-title">Reminder !!</p>
+<p>You're expected to run the commands below from same session, using same working directories as indicated and using a <code>non-root user with sudo access</code>. You are expected to be familiar with this as part of pre-requisite skill sets for stake pool operators.</p>
+</div>
+<h5 id="os-prereqs">Set up OS packages, folder structure and fetch files from repo<a class="headerlink" href="#os-prereqs" title="Permanent link">⚓︎</a></h5>
 <p>The pre-requisites for Linux systems are automated to be executed as a single script. To download the pre-requisites scripts, execute the below:</p>
 <div class="highlight"><pre><span></span><code>mkdir <span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/tmp"</span><span class="p">;</span><span class="nb">cd</span> <span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/tmp"</span>
 <span class="c1"># Install curl</span>
@@ -392,42 +395,44 @@ curl -sS -o prereqs.sh https://raw.githubusercontent.com/cardano-community/guild
 chmod <span class="m">755</span> prereqs.sh
 </code></pre></div>
 <p>Please familiarise with the syntax of <code>prereqs.sh</code> before proceeding. The usage syntax can be checked using <code>./prereqs.sh -h</code> , sample output below:</p>
-<div class="highlight"><pre><span></span><code>Usage: prereqs.sh [-f] [-s] [-i] [-l] [-c] [-w] [-p] [-b &lt;branch&gt;] [-n &lt;mainnet|testnet|guild|staging&gt;] [-t &lt;name&gt;] [-m &lt;seconds&gt;]
-Install pre-requisites for building cardano-node and using CNTools
+<div class="highlight"><pre><span></span><code>Usage: prereqs.sh <span class="o">[</span>-f<span class="o">]</span> <span class="o">[</span>-s<span class="o">]</span> <span class="o">[</span>-i<span class="o">]</span> <span class="o">[</span>-l<span class="o">]</span> <span class="o">[</span>-c<span class="o">]</span> <span class="o">[</span>-w<span class="o">]</span> <span class="o">[</span>-p<span class="o">]</span> <span class="o">[</span>-b &lt;branch&gt;<span class="o">]</span> <span class="o">[</span>-n &lt;mainnet<span class="p">|</span>testnet<span class="p">|</span>guild<span class="p">|</span>staging&gt;<span class="o">]</span> <span class="o">[</span>-t &lt;name&gt;<span class="o">]</span> <span class="o">[</span>-m &lt;seconds&gt;<span class="o">]</span>
+Install pre-requisites <span class="k">for</span> building cardano-node and using CNTools
 
 -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
       topology.json, config.json and genesis files normally saved will also be overwritten
--s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
--n    Connect to specified network instead of mainnet network (Default: connect to cardano mainnet network)
+-s    Skip installing OS level dependencies <span class="o">(</span>Default: will check and install any missing OS level prerequisites<span class="o">)</span>
+-n    Connect to specified network instead of mainnet network <span class="o">(</span>Default: connect to cardano mainnet network<span class="o">)</span>
       eg: -n testnet
--t    Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
--m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
--l    Use system libsodium instead of IOG fork (Default: use libsodium from IOG fork)
+-t    Alternate name <span class="k">for</span> top level folder, non alpha-numeric chars will be replaced with underscore <span class="o">(</span>Default: cnode<span class="o">)</span>
+-m    Maximum <span class="nb">time</span> in seconds that you allow the file download operation to take before aborting <span class="o">(</span>Default: 60s<span class="o">)</span>
+-l    Use system libsodium instead of IOG fork <span class="o">(</span>Default: use libsodium from IOG fork<span class="o">)</span>
 -c    Install/Upgrade and build CNCLI with RUST
--w    Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
+-w    Install/Upgrade Vacuumlabs cardano-hw-cli <span class="k">for</span> hardware wallet support
 -p    Install/Upgrade PostgREST binary to query postgres DB as a service
--b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
--i    Interactive mode (Default: silent mode)
+-b    Use alternate branch of scripts to download - only recommended <span class="k">for</span> testing/development <span class="o">(</span>Default: master<span class="o">)</span>
+-i    Interactive mode <span class="o">(</span>Default: silent mode<span class="o">)</span>
 </code></pre></div>
-<p>Running without any parameters will run script in silent mode with OS Dependencies, no libsodium fork, and <em>NOT</em> force overwrite of all files (only static files will be overwritten, which should not contain user modifications):</p>
+<p>Running without any parameters will run script in silent mode with OS Dependencies, install libsodium fork from IOG, and <em>NOT</em> force overwrite of all files (only static files will be overwritten, which should not contain user modifications):</p>
 <div class="highlight"><pre><span></span><code>./prereqs.sh
 . <span class="s2">"</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/.bashrc"</span>
 </code></pre></div>
 <h5 id="folder-structure">Folder structure<a class="headerlink" href="#folder-structure" title="Permanent link">⚓︎</a></h5>
 <p>Running the script above will create the folder structure as per below, for your reference. You can replace the top level folder <code>/opt/cardano/cnode</code> by editing the value of <code>CNODE_HOME</code> in <code>~/.bashrc</code> and <code>$CNODE_HOME/files/env</code> files:</p>
-<div class="highlight"><pre><span></span><code>/opt/cardano/cnode          # Top-Level Folder
+<div class="highlight"><pre><span></span><code>/opt/cardano/cnode            # Top-Level Folder
 ├── ...
-├── files                   # Config, genesis and topology files
+├── files                     # Config, genesis and topology files
 │   ├── ...
-│   ├── genesis.json        # Genesis file referenced in config.json
-│   ├── byron-genesis.json  # Byron Genesis file referenced in config.json (if using combinator network)
-│   ├── config.json         # Config file used by cardano-node
-│   └── topology.json       # Map of chain for cardano-node to boot from
-├── db                      # DB Store for cardano-node
-├── logs                    # Logs for cardano-node
-├── priv                    # Folder to store your keys (permission: 600)
-├── scripts                 # Scripts to start and interact with cardano-node
-└── sockets                 # Socket files created by cardano-node
+│   ├── byron-genesis.json    # Byron Genesis file referenced in config.json
+│   ├── shelley-genesis.json  # Genesis file referenced in config.json
+│   ├── alonzo-genesis.json    # Alonzo Genesis file referenced in config.json
+│   ├── config.json           # Config file used by cardano-node
+│   └── topology.json         # Map of chain for cardano-node to boot from
+├── db                        # DB Store for cardano-node
+├── guild-db                  # DB Store for guild-specific tools and additions (eg: cncli, cardano-db-sync's schema)
+├── logs                      # Logs for cardano-node
+├── priv                      # Folder to store your keys (permission: 600)
+├── scripts                   # Scripts to start and interact with cardano-node
+└── sockets                   # Socket files created by cardano-node
 </code></pre></div>
 </article>
 </div>

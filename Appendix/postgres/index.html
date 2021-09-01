@@ -402,7 +402,7 @@ It is recommended to customise these as per your needs for Production builds.</p
   <span class="nv">RELEASE</span><span class="o">=</span><span class="k">$(</span>lsb_release -cs<span class="k">)</span>
   <span class="nb">echo</span> <span class="s2">"deb http://apt.postgresql.org/pub/repos/apt/ </span><span class="si">${</span><span class="nv">RELEASE</span><span class="si">}</span><span class="s2">"</span>-pgdg main <span class="p">|</span> sudo tee  /etc/apt/sources.list.d/pgdg.list
   sudo apt-get update
-  sudo apt-get -y install postgresql-11 postgresql-server-dev-11 postgresql-contrib libghc-hdbc-postgresql-dev
+  sudo apt-get -y install postgresql-13 postgresql-server-dev-13 postgresql-contrib libghc-hdbc-postgresql-dev
   sudo systemctl restart postgresql
   sudo systemctl <span class="nb">enable</span> postgresql
 <span class="k">elif</span> <span class="o">[</span> -z <span class="s2">"</span><span class="si">${</span><span class="nv">OS_ID</span><span class="p">##*rhel*</span><span class="si">}</span><span class="s2">"</span> <span class="o">]</span><span class="p">;</span> <span class="k">then</span>
@@ -434,7 +434,7 @@ Type <code>exit</code> at shell to return to your user from postgres</p>
 <span class="nb">echo</span> <span class="s2">"/var/run/postgresql:5432:cexplorer:*:*"</span> &gt; <span class="nv">$PGPASSFILE</span>
 chmod <span class="m">0600</span> <span class="nv">$PGPASSFILE</span>
 psql postgres
-<span class="c1"># psql (10.6)</span>
+<span class="c1"># psql (13.4)</span>
 <span class="c1"># Type "help" for help.</span>
 <span class="c1"># </span>
 <span class="c1"># postgres=#</span>

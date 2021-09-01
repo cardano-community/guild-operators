@@ -429,10 +429,14 @@ RBAC is role-based access control. If you have multiple users accessing you envi
 </ol>
 <h3 id="security-docker-best-practices">Security Docker best practices:<a class="headerlink" href="#security-docker-best-practices" title="Permanent link">⚓︎</a></h3>
 <h4 id="the-guild-docker-images-are-not-using-all-the-following-tips-due-to-functional-purpose">The Guild Docker images are not using all the following tips due to functional purpose<a class="headerlink" href="#the-guild-docker-images-are-not-using-all-the-following-tips-due-to-functional-purpose" title="Permanent link">⚓︎</a></h4>
-<p>Guild tips:
-- <strong><code>NEVER NEVER NEVER expose Docker API publicly!!!</code></strong> (disabled by default)</p>
+<p>Guild tips:</p>
 <ul>
-<li>Keep Docker Host Up-to-date</li>
+<li>
+<p><strong><code>NEVER NEVER NEVER expose Docker API publicly!!!</code></strong> (disabled by default)</p>
+</li>
+<li>
+<p>Keep Docker Host Up-to-date</p>
+</li>
 <li>Reverse uptime: containers that are frequently shut down and replaced by new container are more difficult for hackers to attack.</li>
 <li>Use a Firewall or Expose only the ports you need to be public.</li>
 <li>Use a *<code>Reverse Proxy</code></li>
@@ -441,14 +445,16 @@ RBAC is role-based access control. If you have multiple users accessing you envi
 <li><code>Use Trusted Docker Images</code></li>
 <li><code>Use Privileged Mode Carefully</code> (This is usually done by adding --privileged you can use <code>--security-opt=no-new-privileges</code> instead)</li>
 </ul>
-<p>Some more general tips:
-- Restrict container capabilities: <code>"--cap-drop ALL"</code>
-- <a href="https://www.docker.com/blog/docker-secrets-management/">Use Docker Secrets</a>
-- Change DOCKER_OPTS to ***Respect IP Table Firewall 
-- <a href="https://docs.docker.com/config/containers/resource_constraints/">Control Docker Resource Usage</a>
-- <a href="https://docs.docker.com/docker-hub/download-rate-limit/">Rate Limit</a>: is quite common to mitigate brute force or denial of service attacks.
-- <a href="https://www.fail2ban.org/wiki/index.php/Main_Page">Fail2ban</a>: Fail2ban scans your log files and bans IP address that shows malicious intent
-- <a href="https://github.com/quay/clair">Container Vulnerability Scanner</a></p>
+<p>Some more general tips:</p>
+<ul>
+<li>Restrict container capabilities: <code>"--cap-drop ALL"</code></li>
+<li><a href="https://www.docker.com/blog/docker-secrets-management/">Use Docker Secrets</a></li>
+<li>Change DOCKER_OPTS to ***Respect IP Table Firewall </li>
+<li><a href="https://docs.docker.com/config/containers/resource_constraints/">Control Docker Resource Usage</a></li>
+<li><a href="https://docs.docker.com/docker-hub/download-rate-limit/">Rate Limit</a>: is quite common to mitigate brute force or denial of service attacks.</li>
+<li><a href="https://www.fail2ban.org/wiki/index.php/Main_Page">Fail2ban</a>: Fail2ban scans your log files and bans IP address that shows malicious intent</li>
+<li><a href="https://github.com/quay/clair">Container Vulnerability Scanner</a></li>
+</ul>
 <h4 id="notes">Notes:<a class="headerlink" href="#notes" title="Permanent link">⚓︎</a></h4>
 <ul>
 <li>*Nginx is a very good choice as load balancer and/or reverse proxy.</li>

@@ -29,7 +29,7 @@
         ],
         "parameters": [
           {
-            "required": true,
+            "required": false,
             "schema": {
               "type": "object",
               "properties": {
@@ -42,6 +42,23 @@
             "in": "body",
             "name": "args"
           }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/genesis": {
+      "post": {
+        "tags": [
+          "Blockchain Queries"
+        ],
+        "summary": "Get the Genesis parameters used to create the chain",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
         ],
         "responses": {
           "200": {
@@ -105,11 +122,11 @@
               ],
               "type": "object",
               "properties": {
-                "_state": {
+                "_pool_bech32": {
                   "format": "text",
                   "type": "string"
                 },
-                "_pool_bech32": {
+                "_state": {
                   "format": "text",
                   "type": "string"
                 },
@@ -234,7 +251,12 @@
             "in": "body",
             "name": "args"
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
       }
     },
     "/rpc/pool_active_stake": {
@@ -251,15 +273,18 @@
           {
             "required": true,
             "schema": {
+              "required": [
+                "_pool_bech32"
+              ],
               "type": "object",
               "properties": {
-                "_epoch_no": {
-                  "format": "numeric",
-                  "type": "number"
-                },
                 "_pool_bech32": {
                   "format": "text",
                   "type": "string"
+                },
+                "_epoch_no": {
+                  "format": "numeric",
+                  "type": "number"
                 }
               }
             },
@@ -382,10 +407,27 @@
         }
       }
     },
+    "/rpc/account_list": {
+      "post": {
+        "tags": [
+          "Account Queries"
+        ],
+        "summary": "Get a list of all accounts",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/rpc/account_balance": {
       "post": {
         "tags": [
-          "Blockchain Queries"
+          "Account Queries"
         ],
         "summary": "Get the account balance of an address",
         "produces": [
@@ -421,7 +463,7 @@
     "/rpc/rewards_history": {
       "post": {
         "tags": [
-          "Blockchain Queries"
+          "Account Queries"
         ],
         "summary": "Get the full rewards history in lovelace for a stake address, or certain epoch reward if specified",
         "produces": [
@@ -461,7 +503,7 @@
     "/rpc/mir_history": {
       "post": {
         "tags": [
-          "Blockchain Queries"
+          "Account Queries"
         ],
         "summary": "Get the full MIR (Move Instantaneous Rewards) history in lovelace for a stake address, or certain epoch if specified",
         "produces": [
@@ -518,7 +560,7 @@
     "/rpc/blocks": {
       "post": {
         "tags": [
-          "Blockchain Queries"
+          "Block Queries"
         ],
         "summary": "Get detailed information about all blocks (paginated - latest first)",
         "produces": [
@@ -532,10 +574,43 @@
         }
       }
     },
+    "/rpc/account_addresses": {
+      "post": {
+        "tags": [
+          "Account Queries"
+        ],
+        "summary": "Get all addresses associated with an account",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_address": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/rpc/account_assets": {
       "post": {
         "tags": [
-          "Blockchain Queries"
+          "Account Queries"
         ],
         "summary": "Get the native asset balance of an account",
         "produces": [
@@ -568,33 +643,125 @@
         }
       }
     },
-    "/epoch_info_cache": {
-      "get": {
+    "/rpc/epoch_info": {
+      "post": {
         "tags": [
-          "Blockchain Queries"
+          "Epoch Queries"
         ],
-        "summary": "Get detailed info for epoch including protocol parameters",
+        "summary": "Get the epoch information, all epochs if no epoch specified",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
         "parameters": [
           {
-            "$ref": "#/parameters/rowFilter.epoch_info_cache.epoch"
+            "required": false,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_epoch_no": {
+                  "format": "numeric",
+                  "type": "number"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
           }
         ],
         "responses": {
-          "206": {
-            "description": "Partial Content"
-          },
           "200": {
-            "schema": {
-              "items": {
-                "$ref": "#/definitions/epoch_info_cache"
-              },
-              "type": "array"
-            },
             "description": "OK"
           }
         }
       }
     },
+    "/rpc/epoch_params": {
+      "post": {
+        "tags": [
+          "Epoch Queries"
+        ],
+        "summary": "Get the epoch parameters, all epochs if no epoch specified",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": false,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_epoch_no": {
+                  "format": "numeric",
+                  "type": "number"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/address_utxos": {
+      "post": {
+        "tags": [
+          "Address Queries"
+        ],
+        "summary": "Get all UTXOs associated with an address",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": [
+                "_payment_address_bech32"
+              ],
+              "type": "object",
+              "properties": {
+                "_address": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/registered_pools": {
+      "post": {
+        "tags": [
+          "Blockchain Queries"
+        ],
+        "summary": "List of pool IDs of registered (not retired) stake pools",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
   },
   "definitions": {
     "epoch_info_cache": {
