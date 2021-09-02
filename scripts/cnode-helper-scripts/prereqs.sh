@@ -2,8 +2,6 @@
 # shellcheck disable=SC2086,SC1090
 # shellcheck source=/dev/null
 
-unset CNODE_HOME
-
 ##########################################
 # User Variables - Change as desired     #
 # command line flags override set values #
@@ -117,7 +115,7 @@ G_ID=$(id -g)
 
 dirs -c # clear dir stack
 CNODE_PATH="/opt/cardano"
-CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
+THIS_NODE_HOME=${CNODE_PATH}/${CNODE_NAME}
 CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
 [[ -z "${BRANCH}" ]] && BRANCH="master"
 
@@ -154,11 +152,11 @@ if [[ "${INTERACTIVE}" = 'Y' ]]; then
   CNODE_PATH=$(get_input "Please enter the project path" ${CNODE_PATH})
   CNODE_NAME=$(get_input "Please enter directory name" ${CNODE_NAME})
   CNODE_NAME=${CNODE_NAME//[^[:alnum:]]/_}
-  CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
+  THIS_NODE_HOME=${CNODE_PATH}/${CNODE_NAME}
   CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
 
-  if [ -d "${CNODE_HOME}" ]; then
-    err_exit "The \"${CNODE_HOME}\" directory exist, pls remove or choose an other one."
+  if [ -d "${THIS_NODE_HOME}" ]; then
+    err_exit "The \"${THIS_NODE_HOME}\" directory exist, pls remove or choose an other one."
   fi
 
   if ! get_answer "Do you want to install build dependencies for cardano node?"; then
@@ -272,7 +270,7 @@ if grep -q "${CNODE_VNAME}_HOME" "${HOME}"/.bashrc; then
   echo "Environment Variable already set up!"
 else
   echo "Setting up Environment Variable"
-  echo "export ${CNODE_VNAME}_HOME=${CNODE_HOME}" >> "${HOME}"/.bashrc
+  echo "export ${CNODE_VNAME}_HOME=${THIS_NODE_HOME}" >> "${HOME}"/.bashrc
   
   . "${HOME}/".bashrc
 fi
@@ -410,21 +408,21 @@ if [[ "${INSTALL_POSTGREST}" = "Y" ]]; then
   fi
 fi
 
-$sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/guild-db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv
-$sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
+$sudo mkdir -p "${THIS_NODE_HOME}"/files "${THIS_NODE_HOME}"/db "${THIS_NODE_HOME}"/guild-db "${THIS_NODE_HOME}"/logs "${THIS_NODE_HOME}"/scripts "${THIS_NODE_HOME}"/sockets "${THIS_NODE_HOME}"/priv
+$sudo chown -R "$U_ID":"$G_ID" "${THIS_NODE_HOME}" 2>/dev/null
 
 echo "Downloading files..."
 
-pushd "${CNODE_HOME}"/files >/dev/null || err_exit
+pushd "${THIS_NODE_HOME}"/files >/dev/null || err_exit
 
 
 if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
   echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to alpha branch\n"
   BRANCH=alpha
   URL_RAW="${REPO_RAW}/${BRANCH}"
-  echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
+  echo "${BRANCH}" > "${THIS_NODE_HOME}"/scripts/.env_branch
 else
-  echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
+  echo "${BRANCH}" > "${THIS_NODE_HOME}"/scripts/.env_branch
 fi
 
 # Download dbsync config
@@ -446,7 +444,7 @@ elif [[ ${NETWORK} =~ ^(mainnet|testnet|staging)$ ]]; then
 else
   err_exit "ERROR!! Unknown network specified! Kindly re-check the network name, valid options are: mainnet, testnet, guild & staging"
 fi
-sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -i ./*.json.tmp
+sed -e "s@/opt/cardano/cnode@${THIS_NODE_HOME}@g" -i ./*.json.tmp
 [[ ${FORCE_OVERWRITE} = 'Y' && -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
 [[ ${FORCE_OVERWRITE} = 'Y' && -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
 [[ ${FORCE_OVERWRITE} = 'Y' && -f dbsync.json ]] && cp -f dbsync.json "dbsync.json_bkp$(date +%s)"
@@ -457,7 +455,7 @@ if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f topology.json ]]; then mv -f topology.jso
 if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f config.json ]]; then mv -f config.json.tmp config.json; else rm -f config.json.tmp; fi
 if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f dbsync.json ]]; then mv -f dbsync.json.tmp dbsync.json; else rm -f dbsync.json.tmp; fi
 
-pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
+pushd "${THIS_NODE_HOME}"/scripts >/dev/null || err_exit
 curl -s -f -m ${CURL_TIMEOUT} -o env.tmp ${URL_RAW}/scripts/cnode-helper-scripts/env
 curl -s -f -m ${CURL_TIMEOUT} -o rotatePoolKeys.sh ${URL_RAW}/scripts/cnode-helper-scripts/rotatePoolKeys.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cnode.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cnode.sh
@@ -473,7 +471,7 @@ curl -s -f -m ${CURL_TIMEOUT} -o sLiveView.sh ${URL_RAW}/scripts/cnode-helper-sc
 curl -s -f -m ${CURL_TIMEOUT} -o gLiveView.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/gLiveView.sh
 curl -s -f -m ${CURL_TIMEOUT} -o deploy-as-systemd.sh ${URL_RAW}/scripts/cnode-helper-scripts/deploy-as-systemd.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cncli.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cncli.sh
-sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*.*
+sed -e "s@/opt/cardano/cnode@${THIS_NODE_HOME}@g" -e "s@THIS_NODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*.*
 
 ### Update file retaining existing custom configs
 updateWithCustomConfig() {
@@ -511,7 +509,7 @@ updateWithCustomConfig "cntools.config"
 updateWithCustomConfig "logMonitor.sh"
 updateWithCustomConfig "cncli.sh"
 
-find "${CNODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
-chmod -R 700 "${CNODE_HOME}"/priv 2>/dev/null
+find "${THIS_NODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
+chmod -R 700 "${THIS_NODE_HOME}"/priv 2>/dev/null
 
 pushd -0 >/dev/null || err_exit; dirs -c
