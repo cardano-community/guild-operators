@@ -31,27 +31,28 @@ Below you can find a short summary of every GRest meeting held, both for logging
 
     ### Queries
     - Transaction cache table:
-      - we would like to avoid handling rollbacks in that table
-      - proposed solution:
-        - use a combined tx_id, tx_index and block hash to generate md5 hash that serves as a unique key in that table 
-        - on every transaction, we have to check whether the block associated with the tx exists in the public.block table -> that's how we determine whether it's valid or not (i.e. rolled-back)
-        - this way we don't handle rollbacks, and we don't need to delete invalid (rolled-back) records
+      - We would like to avoid 'handling' rollbacks in that table, instead simply dump if multiple entries for a transaction, as it can have much higher combination and volume to process - especially post a node/postgres/dbsync restart.
+      - Solution being tested:
+        - Use an md5 hash of concatenated tx_id, tx_index and block hash to generate unique serves as primary key in that table 
+        - On RPC built off cache tables query layer, we would add a validation for block hash being in the public.block table and exclude those who are not as part of result
+        - This way we don't handle rollbacks, and also keep a record if in future we require to cross check/re-run delta
+    
     - Pool cache table:
-      - will probably be handled the same way as tx cache table
-      - end result being always to check whether the tx with the pool update is valid or not (rolled-back)
+      - Need to check if transaction cache method is useful here too
+      - Using strace we could verify the order in which tables are touched, and avoid trigger-check to run on every block.
 
     ### Problems
-    - Priyank noticed that triggers for tx update can crash db-sync on node restart
-    - infrastructure upgrades unlikely to help there as the cause of the crash is a lock on the DB caused by high load
+    - Priyank noticed that if including any foreign keys for tx cache, it can cause a spike in load resulting in crash of db-sync instance (with locks). There arent any visible advantages maintaining a constraint on cache table anyways, as it decreases performance. Thus, we'd keep the cache tables simple and not include any foreign keys.
+    - Infrastructure upgrades unlikely to help for such cases (though we may need to increase baseline specs back to initial discussion anyways, but that would be during performance testing stages).
 
     ### Actions
     - POST/GET endpoint rules:
-      - we will use GET for endpoints that take no parameters
-      - any endpoint that accepts a parameter will be POST
-    - switch cardanoqueries.ha to api.koios.rest on the API docs
-    - load balancing:
-      - at least for now, we will not have an additional load balancer on the DNS (instance checkers in diagram)
-      - instead, instances themselves will remain load balancers
+      - Use GET for endpoints that take no input parameters (PostgREST native parameters can still be applied via URL)
+      - Any endpoint that we accept consumer to provide parameter for should be POST
+    - Switch cardanoqueries.ha to api.koios.rest on the API docs
+    - Load balancing:
+      - Until we see additional instances, the 4 trusted instances serve as Monitoring layer.
+      - If/when we start having community instances, we could start splitting topologies to be geographically balanced - using github as source.
 
 === "26Aug2021"
 
