@@ -1,4 +1,5 @@
-!> Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
+!!! info "Reminder !!"
+    Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
 
 **Guild LiveView - gLiveView** is a local monitoring tool to use in addition to remote monitoring tools like Prometheus/Grafana, Zabbix or IOG's RTView. This is especially useful when moving to a systemd deployment - if you haven't done so already - as it offers an intuitive UI to monitor the node status.
 
