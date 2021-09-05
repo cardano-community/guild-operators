@@ -464,7 +464,7 @@
 -e <span class="nv">NETWORK</span><span class="o">=</span>mainnet                            <span class="c1"># Mandatory: mainnet / testnet / staging / guild-mainnet / guild</span>
 --security-opt<span class="o">=</span>no-new-privileges              <span class="c1"># Option to prevent privilege escalations</span>
 -v &lt;YourNetPath&gt;:/opt/cardano/cnode/sockets   <span class="c1"># Optional: useful to share the node socket with other containers</span>
--v &lt;YourCfgPath&gt;:/opt/cardano/cnode/priv      <span class="c1"># Optional: if used has to contain all the configuration files needed to run a node </span>
+-v &lt;YourCfgPath&gt;:/opt/cardano/cnode/priv      <span class="c1"># Optional: if used has to contain all the sensitive keys needed to run a node as core</span>
 -v &lt;YourDBbk&gt;:/opt/cardano/cnode/db           <span class="c1"># Optional: if not set a fresh DB will be downloaded from scratch</span>
 cardanocommunity/cardano-node:latest          <span class="c1"># Mandatory: image to run</span>
 </code></pre></div>
