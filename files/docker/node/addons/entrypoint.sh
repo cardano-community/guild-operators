@@ -32,7 +32,6 @@ customise () {
 find /opt/cardano/cnode/files -name "*config*.json" -print0 | xargs -0 sed -i 's/127.0.0.1/0.0.0.0/g' > /dev/null 2>&1 \
 && find /opt/cardano/cnode/files -name "*config*.json" -print0 | xargs -0 sed -i 's/\"TraceMempool\": true/\"TraceMempool\": false/g' > /dev/null 2>&1 \
 && find /opt/cardano/cnode/files -name "cntools.config" -print0 | xargs -0 sed -i 's/ENABLE_CHATTR=true/ENABLE_CHATTR=false/g' > /dev/null 2>&1 \
-&& find $CNODE_HOME/scripts/env -print0 | xargs -0 sed -i 's/node0.socket/node.socket/g' > /dev/null 2>&1 \
 && find /opt/cardano/cnode/files -name "*config*.json" -print0 | xargs -0 sed -i 's/\"hasEKG\": 12788,/\"hasEKG\": [\n    \"0.0.0.0\",\n    12788\n],/g' > /dev/null 2>&1
 }
 
