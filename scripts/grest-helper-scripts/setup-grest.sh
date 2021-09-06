@@ -199,10 +199,11 @@ if [[ -f "${CNODE_HOME}"/files/config.json ]]; then
   SHGENFILE=$(jq -r .ShelleyGenesisFile "${CNODE_HOME}"/files/config.json 2>/dev/null)
   ALGENFILE=$(jq -r .AlonzoGenesisFile "${CNODE_HOME}"/files/config.json 2>/dev/null)
   [[ -z "${ALGENFILE}" ]] || [[ -z "${SHGENFILE}" ]] && err_exit "ERROR!! Could not find Shelley/Alonzo Genesis Files in ${CNODE_HOME}/files/config.json! Please re-run prereqs.sh with right arguments!"
+  BYGENHASH=$(cardano-cli byron genesis print-genesis-hash --genesis-json "${BYGENFILE}" 2>/dev/null)
   SHGENHASH=$(cardano-cli genesis hash --genesis "${SHGENFILE}" 2>/dev/null)
   ALGENHASH=$(cardano-cli genesis hash --genesis "${ALGENFILE}" 2>/dev/null)
   if [[ -n "${ALGENHASH}" ]]; then
-    jq --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} '.ShelleyGenesisHash = $SHGENHASH | .AlonzoGenesisHash = $ALGENHASH' < "${CNODE_HOME}"/files/config.json > "${CNODE_HOME}"/files/config.json.tmp
+    jq --arg BYGENHASH ${BYGENHASH} --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} '.ByronGenesisHash = $BYGENHASH | .ShelleyGenesisHash = $SHGENHASH | .AlonzoGenesisHash = $ALGENHASH' < "${CNODE_HOME}"/files/config.json > "${CNODE_HOME}"/files/config.json.tmp
     mv -f "${CNODE_HOME}"/files/config.json.tmp "${CNODE_HOME}"/files/config.json
   else
     err_exit "ERROR!! Could not calculate genesis hash for ${ALGENFILE}! Please re-run prereqs.sh with right arguments"
@@ -210,6 +211,25 @@ if [[ -f "${CNODE_HOME}"/files/config.json ]]; then
 else
   err_exit "ERROR!! ${CNODE_HOME}/files/config.json not found! Please ensure you've run pre-requisites!"
 fi
+
+read -ra SHGENESIS <<< $(jq -r '[
+  .activeSlotsCoeff,
+  .updateQuorum,
+  .networkId,
+  .maxLovelaceSupply,
+  .networkMagic,
+  .epochLength,
+  .systemStart,
+  .slotsPerKESPeriod,
+  .slotLength,
+  .maxKESEvolutions,
+  .securityParam
+  ] | @tsv' < "${SHGENFILE}")
+
+# PS: Given the Plutus schema is far from finalized, we expect changes as SC layer matures and PAB gets into real networks.
+# For now, dumping compressed jq (will be inserted as shell escaped json data blob, can be changed in future iterations - many of these will already are part of pParams and may be eliminated).
+
+ALGENESIS="$(jq -c . < ${ALGENFILE})"
 
 ### Update file retaining existing custom configs
 updateWithCustomConfig() {
@@ -403,9 +423,9 @@ BEGIN;
 DO
 $$
 BEGIN
-	CREATE ROLE web_anon nologin;
-	EXCEPTION WHEN DUPLICATE_OBJECT THEN
-		RAISE NOTICE 'web_anon exists, skipping...';
+  CREATE ROLE web_anon nologin;
+  EXCEPTION WHEN DUPLICATE_OBJECT THEN
+    RAISE NOTICE 'web_anon exists, skipping...';
 END
 $$;
 
@@ -419,6 +439,35 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA grest GRANT SELECT ON TABLES TO web_anon;
 ALTER ROLE web_anon SET search_path TO grest, public;
 COMMIT;
 SQL
+
+
+# Data Types are intentionally kept varchar for single ID row to avoid future edge cases
+
+echo -e "\e[32mAdding initial genesis table..\e[0m"
+psql cexplorer >/dev/null << 'SQL'
+BEGIN;
+
+DROP TABLE IF EXISTS grest.genesis;
+CREATE TABLE grest.genesis (
+  NETWORKMAGIC varchar,
+  NETWORKID varchar,
+  ACTIVESLOTCOEFF varchar,
+  UPDATEQUORUM varchar,
+  MAXLOVELACESUPPLY varchar,
+  EPOCHLENGTH varchar,
+  SYSTEMSTART varchar,
+  SLOTSPERKESPERIOD varchar,
+  SLOTLENGTH varchar,
+  MAXKESREVOLUTIONS varchar,
+  SECURITYPARAM varchar,
+  ALONZOGENESIS varchar
+);
+
+COMMIT;
+SQL
+
+psql cexplorer -c "INSERT INTO grest.genesis VALUES ( '${SHGENESIS[4]}', '${SHGENESIS[2]}', '${SHGENESIS[0]}', '${SHGENESIS[1]}', '${SHGENESIS[3]}', '${SHGENESIS[5]}', '${SHGENESIS[6]}', '${SHGENESIS[7]}', '${SHGENESIS[8]}', '${SHGENESIS[9]}', '${SHGENESIS[10]}', '${ALGENESIS}' );"
+
 
 echo -e "\e[32mDeploying RPCs to DBSync ..\e[0m"
 

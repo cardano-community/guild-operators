@@ -11,17 +11,72 @@ Below you can find a short summary of every GRest meeting held, both for logging
 
 ### Participants:
 
-| Participant | 19Aug2021        | 12Aug2021        | 29Jul2021        | 22Jul2021        | 15Jul2021        | 09Jul2021        | 02Jul2021        | 25Jun2021        |
-| ----------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- |
-| Damjan      | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
-| Homer       | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
-| Markus      | :material-check: | :material-close: | :material-check: | :material-check: | :material-close: | :material-close: | :material-check: | :material-check: |
-| Ola         | :material-check: | :material-close: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
-| RdLrT       | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
-| Red         | :material-check: | :material-close: | :material-check: | :material-check: | :material-close: | :material-check: | :material-close: | :material-close: |
-| Papacarp    | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: |
-| Paddy       | :material-close: | :material-close: | :material-close: | :material-close: | :material-check: | :material-close: | :material-close: | :material-close: |
-| GimbaLabs   | :material-close: | :material-check: | :material-check: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: |
+| Participant | 02Sep2021        | 26Aug2021        | 19Aug2021        | 12Aug2021        | 29Jul2021        | 22Jul2021        | 15Jul2021        | 09Jul2021        | 02Jul2021        | 25Jun2021        |
+| ----------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- |
+| Damjan      | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
+| Homer       | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
+| Markus      | :material-check: | :material-check: | :material-check: | :material-close: | :material-check: | :material-check: | :material-close: | :material-close: | :material-check: | :material-check: |
+| Ola         | :material-check: | :material-check: | :material-check: | :material-close: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
+| RdLrT       | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
+| Red         | :material-check: | :material-close: | :material-check: | :material-close: | :material-check: | :material-check: | :material-close: | :material-check: | :material-close: | :material-close: |
+| Papacarp    | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: |
+| Paddy       | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-check: | :material-close: | :material-close: | :material-close: |
+| GimbaLabs   | :material-close: | :material-check: | :material-close: | :material-check: | :material-check: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: |
+
+=== "02Sep2021"
+
+    ### Updates
+    - making good progress on the website (koios.rest) - great job Markus!
+    - query tickets are now well structured and put into sections (Account, Pool, Transactions...) on the Trello board - nice work Priyank/Ola!
+
+    ### Queries
+    - Transaction cache table:
+      - We would like to avoid 'handling' rollbacks in that table, instead simply dump if multiple entries for a transaction, as it can have much higher combination and volume to process - especially post a node/postgres/dbsync restart.
+      - Solution being tested:
+        - Use an md5 hash of concatenated tx_id, tx_index and block hash to generate unique serves as primary key in that table 
+        - On RPC built off cache tables query layer, we would add a validation for block hash being in the public.block table and exclude those who are not as part of result
+        - This way we don't handle rollbacks, and also keep a record if in future we require to cross check/re-run delta
+    
+    - Pool cache table:
+      - Need to check if transaction cache method is useful here too
+      - Using strace we could verify the order in which tables are touched, and avoid trigger-check to run on every block.
+
+    ### Problems
+    - Priyank noticed that if including any foreign keys for tx cache, it can cause a spike in load resulting in crash of db-sync instance (with locks). There arent any visible advantages maintaining a constraint on cache table anyways, as it decreases performance. Thus, we'd keep the cache tables simple and not include any foreign keys.
+    - Infrastructure upgrades unlikely to help for such cases (though we may need to increase baseline specs back to initial discussion anyways, but that would be during performance testing stages).
+
+    ### Actions
+    - POST/GET endpoint rules:
+      - Use GET for endpoints that take no input parameters (PostgREST native parameters can still be applied via URL)
+      - Any endpoint that we accept consumer to provide parameter for should be POST
+    - Switch cardanoqueries.ha to api.koios.rest on the API docs
+    - Load balancing:
+      - Until we see additional instances, the 4 trusted instances serve as Monitoring layer.
+      - If/when we start having community instances, we could start splitting topologies to be geographically balanced - using github as source.
+
+=== "26Aug2021"
+
+    ### Queries
+
+    - stake distribution:
+      - we will run the full query on regular intervals, ready for review for first iteration, will see about delta post tx cache query
+
+    - transaction history:
+      - transaction history query needs to be switched to populate a cached table instead
+      - need to think about how to approach inputs/outputs in the cached table (1 row per transaction with json objects for inputs/outputs or multiple rows for tx hash)
+
+    - address_txs:
+      - this endpoint should bring back list of txs, and have provision to use after and before block hash - lightweight against public schema
+
+    - pool cache table:
+      - cached table to aggregate info from all the pool tables together (pool_metadata, pool_hash, pool_update...)
+      - the cached data should include the full history of all pools as well as the current state (latest pool update)
+      - will then be used for (most likely) all pool related endpoints without the need for joins
+
+    ### Transaction submission feature
+      - a post endpoint separate from gREST ones (different port), proxy'd over haproxy using same health check script appended for node
+      - will receive signed transactions in 2 formats (file and cbor) and use cardano-submit-api or CLI to submit them to the blockchain respectively
+      - use cases are mostly light wallets, and third-party wallets or CNTools could implement such light features with it (no need for cardano-node with CNTools)
 
 === "19Aug2021"
 

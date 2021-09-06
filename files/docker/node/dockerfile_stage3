@@ -1,21 +1,31 @@
 FROM debian:stable-slim
 
+LABEL desc="Guild Cardano Node"
 ARG DEBIAN_FRONTEND=noninteractive
+
+USER root
+WORKDIR /
+
+ENV \
+    ENV=/etc/profile \
+    LC_ALL=en_US.UTF-8 \
+    LANG=en_US.UTF-8 \
+    LANGUAGE=en_US.UTF-8 \
+    CNODE_HOME=/opt/cardano/cnode \
+    PATH=/nix/var/nix/profiles/per-user/guild/profile/bin:/nix/var/nix/profiles/per-user/guild/profile/sbin:/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.cabal/bin \
+    GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
+    NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    NIX_PATH=/nix/var/nix/profiles/per-user/guild/channels
 
 # COPY NODE BINS AND DEPS 
 COPY --from=cardanocommunity/cardano-node:stage2 /root/.cabal/bin/* /usr/local/bin/
-COPY --from=cardanocommunity/cardano-node:stage2 /lib/x86_64-linux-gnu/lib* /lib/x86_64-linux-gnu/
-COPY --from=cardanocommunity/cardano-node:stage2 /lib64/ld-linux-x86-64* /lib64/
-COPY --from=cardanocommunity/cardano-node:stage2 /usr/lib/x86_64-linux-gnu/libgmp.* /usr/lib/x86_64-linux-gnu/
-COPY --from=cardanocommunity/cardano-node:stage2 /usr/lib/x86_64-linux-gnu/liblz4.* /usr/lib/x86_64-linux-gnu/
-COPY --from=cardanocommunity/cardano-node:stage2 /usr/lib/x86_64-linux-gnu/libsodium.* /usr/lib/x86_64-linux-gnu/
 COPY --from=cardanocommunity/cardano-node:stage2 /opt/ /opt/
 
 RUN chmod a+x /usr/local/bin/* && ls /opt/ \
     && mkdir -p $CNODE_HOME/priv/files 
     
 # Install locales package
-RUN  apt-get update && apt-get install --no-install-recommends -y locales
+RUN  apt-get update && apt-get install --no-install-recommends -y locales apt-utils
 
 #  en_US.UTF-8 for inclusion in generation
 RUN sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen \
@@ -23,18 +33,6 @@ RUN sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen \
     && echo "export LC_ALL=en_US.UTF-8" >> ~/.bashrc \
     && echo "export LANG=en_US.UTF-8" >> ~/.bashrc \
     && echo "export LANGUAGE=en_US.UTF-8" >> ~/.bashrc
-
-ENV \
-    ENV=/etc/profile \
-    LC_ALL=en_US.UTF-8 \
-    LANG=en_US.UTF-8 \
-    LANGUAGE=en_US.UTF-8 \
-    USER=guild \
-    CNODE_HOME=/opt/cardano/cnode \
-    PATH=/home/guild/.local/bin:/nix/var/nix/profiles/per-user/guild/profile/bin:/nix/var/nix/profiles/per-user/guild/profile/sbin:/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.cabal/bin \
-    GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
-    NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
-    NIX_PATH=/nix/var/nix/profiles/per-user/guild/channels
 
 # PREREQ 
 RUN apt-get update && apt-get install -y libcap2-bin ncurses-bin iproute2 curl wget apt-utils xz-utils netbase sudo coreutils dnsutils net-tools procps tcptraceroute bc usbip kmod \

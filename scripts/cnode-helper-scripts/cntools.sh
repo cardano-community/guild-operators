@@ -1974,6 +1974,7 @@ function main {
                           println ERROR "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
                           waitForInput && continue 2
                         fi
+                        println DEBUG "# Wallet Registration Transaction"
                         if ! registerStakeWallet ${wallet_name}; then waitForInput && continue 2; fi
                       fi
                     done
@@ -2013,6 +2014,7 @@ function main {
                         println ERROR "${FG_RED}ERROR${NC}: no funds available in base address for reward wallet ${FG_GREEN}${reward_wallet}${NC}, needed to pay for registration fee"
                         waitForInput && continue
                       fi
+                      println DEBUG "# Wallet Registration Transaction"
                       if ! registerStakeWallet ${reward_wallet}; then waitForInput && continue; fi
                     fi
                     ;;
@@ -2056,6 +2058,7 @@ function main {
                     println ERROR "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
                     waitForInput && continue
                   fi
+                  println DEBUG "# Wallet Registration Transaction"
                   if ! registerStakeWallet ${wallet_name}; then waitForInput && continue; fi
                 fi
                 owner_wallets+=( "${wallet_name}" )
@@ -2132,6 +2135,7 @@ function main {
                         println ERROR "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${reward_wallet}${NC}, needed to pay for registration fee"
                         waitForInput && continue
                       fi
+                      println DEBUG "# Wallet Registration Transaction"
                       if ! registerStakeWallet ${reward_wallet}; then
                         waitForInput && continue
                       fi
@@ -2214,9 +2218,11 @@ function main {
               fi
 
               if [[ ${SUBCOMMAND} = "register" ]]; then
+                println DEBUG "# Pool Registration Transaction"
                 registerPool
                 rc=$?
               else
+                println DEBUG "# Pool Update Transaction"
                 modifyPool
                 rc=$?
               fi
@@ -2378,7 +2384,7 @@ function main {
                   println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
                   println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
-                select_opt "DEBUG" "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+                select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
                 case $? in
                   0) addr="${base_addr}" ;;
                   1) addr="${pay_addr}" ;;

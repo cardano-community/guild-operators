@@ -783,16 +783,18 @@ getEraIdentifier() {
   elif ${CCLI} query protocol-parameters --shelley-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--shelley-era"
   elif ${CCLI} query protocol-parameters --allegra-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--allegra-era"
   elif ${CCLI} query protocol-parameters --mary-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--mary-era"
+  #Alonzo era disabled for now until hw support is fully implemented
+  #elif ${CCLI} query protocol-parameters --alonzo-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--alonzo-era"
   else 
-    ERA_IDENTIFIER=""
+    ERA_IDENTIFIER="--mary-era"
     [[ ${OFFLINE_MODE} = "N" ]] && return 1
   fi
   return 0
 }
 
 node_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
-if ! versionCheck "1.28.0" "${node_version}"; then
-  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.27.0 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
+if ! versionCheck "1.29.0" "${node_version}"; then
+  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.29.0 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
   return 1
 fi
 

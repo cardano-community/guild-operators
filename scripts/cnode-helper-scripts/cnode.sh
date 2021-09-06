@@ -9,11 +9,16 @@
 # Common variables set in env file   #
 ######################################
 
-#CPU_CORES=2            # Number of CPU cores cardano-node process has access to (please don't set higher than physical core count, 2-4 recommended)
+#CPU_CORES=2              # Number of CPU cores cardano-node process has access to (please don't set higher than physical core count, 2-4 recommended)
+#CNODE_LISTEN_IP4=0.0.0.0 # IP to use for listening (only applicable to Node Connection Port) for IPv4
+#CNODE_LISTEN_IP6=::      # IP to use for listening (only applicable to Node Connection Port) for IPv6
 
 ######################################
 # Do NOT modify code below           #
 ######################################
+
+[[ -z ${CNODE_LISTEN_IP4} ]] && CNODE_LISTEN_IP4=0.0.0.0
+[[ -z ${CNODE_LISTEN_IP6} ]] && CNODE_LISTEN_IP6=::
 
 if [[ -S "${CARDANO_NODE_SOCKET_PATH}" ]]; then
   if pgrep -f "[c]ardano-node.*.${CARDANO_NODE_SOCKET_PATH}"; then
@@ -32,8 +37,8 @@ fi
 [[ $(find "${LOG_DIR}"/*.json 2>/dev/null | wc -l) -gt 0 ]] && mv "${LOG_DIR}"/*.json "${LOG_DIR}"/archive/
 
 host_addr=()
-[[ ${IP_VERSION} = "4" || ${IP_VERSION} = "mix" ]] && host_addr+=("--host-addr" "0.0.0.0")
-[[ ${IP_VERSION} = "6" || ${IP_VERSION} = "mix" ]] && host_addr+=("--host-ipv6-addr" "::")
+[[ ${IP_VERSION} = "4" || ${IP_VERSION} = "mix" ]] && host_addr+=("--host-addr" "${CNODE_LISTEN_IP4}")
+[[ ${IP_VERSION} = "6" || ${IP_VERSION} = "mix" ]] && host_addr+=("--host-ipv6-addr" "${CNODE_LISTEN_IP6}")
 
 if [[ -f "${POOL_DIR}/${POOL_OPCERT_FILENAME}" && -f "${POOL_DIR}/${POOL_VRF_SK_FILENAME}" && -f "${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}" ]]; then
   cardano-node "${CPU_RUNTIME[@]}" run \
