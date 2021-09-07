@@ -16,12 +16,13 @@ CREATE TABLE IF NOT EXISTS GREST.CONTROL_TABLE (
     artifacts text
 );
 
+DROP PROCEDURE IF EXISTS GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
+
 DROP FUNCTION IF EXISTS GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
 
-CREATE FUNCTION GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ()
-    RETURNS VOID
-    LANGUAGE PLPGSQL
-    AS $$
+CREATE PROCEDURE GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ()
+LANGUAGE PLPGSQL
+AS $$
 DECLARE
     -- Last block height to control future re-runs of the query
     _last_accounted_block_height bigint;
@@ -159,8 +160,7 @@ END;
 $$;
 
 -- Run the first time update
-SELECT
-    GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
+CALL GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
 
 CREATE INDEX IF NOT EXISTS idx_pool_id ON GREST.STAKE_DISTRIBUTION_CACHE (POOL_ID);
 
@@ -186,12 +186,11 @@ BEGIN
         PUBLIC.BLOCK
     WHERE
         BLOCK_NO IS NOT NULL INTO _current_block_height;
-    -- Do nothing until there is a 90 blocks difference in height
-    IF (_current_block_height - _last_update_block_height < 90) THEN
+    -- Do nothing until there is a 90 blocks difference in height (95 in check because lbh considered is 5 blocks behind tip)
+    IF (_current_block_height - _last_update_block_height) < 95 THEN
         RETURN NULL;
     ELSE
-        SELECT
-            GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
+        CALL GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
         RETURN NEW;
     END IF;
 END;
