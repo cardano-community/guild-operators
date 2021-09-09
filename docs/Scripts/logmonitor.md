@@ -1,4 +1,5 @@
-!> Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
+!!! info "Reminder !!"
+    Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
 
 `logMonitor.sh` is a general purpose JSON log monitoring script for traces created by `cardano-node`. Currently, it looks for traces related to leader slots and block creation but other uses could be added in the future. 
 

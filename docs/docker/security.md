@@ -41,6 +41,7 @@ RBAC is role-based access control. If you have multiple users accessing you envi
 #### The Guild Docker images are not using all the following tips due to functional purpose
 
 Guild tips:
+
 - **`NEVER NEVER NEVER expose Docker API publicly!!!`** (disabled by default)
 
 - Keep Docker Host Up-to-date
@@ -53,6 +54,7 @@ Guild tips:
 - `Use Privileged Mode Carefully` (This is usually done by adding --privileged you can use `--security-opt=no-new-privileges` instead)
 
 Some more general tips:
+
 - Restrict container capabilities: `"--cap-drop ALL"`
 - [Use Docker Secrets](https://www.docker.com/blog/docker-secrets-management/)
 - Change DOCKER_OPTS to ***Respect IP Table Firewall 
@@ -62,6 +64,7 @@ Some more general tips:
 - [Container Vulnerability Scanner](https://github.com/quay/clair)
 
 #### Notes:
+
 - *Nginx is a very good choice as load balancer and/or reverse proxy.
 - **By default the socket is owned by root user and docker group.
 - *** On Ubuntu/Debian based systems, edit /etc/default/docker and add the following line: ```DOCKER_OPTS= "--iptables=false"```
