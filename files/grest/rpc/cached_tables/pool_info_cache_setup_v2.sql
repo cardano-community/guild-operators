@@ -245,31 +245,20 @@ BEGIN
 
         UPDATE grest.pool_info_cache
         SET
-            relays = ARRAY(
-                        SELECT json_build_object(
-                            'ipv4', pr.ipv4,
-                            'ipv6', pr.ipv6,
-                            'dns', pr.dns_name,
-                            'srv', pr.dns_srv_name,
-                            'port', pr.port
-                        ) relay
-                        FROM public.pool_relay AS pr
-                        WHERE pr.update_id = NEW.update_id
-                    )
+            relays = relays || jsonb_build_object (
+                                    'ipv4', NEW.ipv4,
+                                    'ipv6', NEW.ipv6,
+                                    'dns', NEW.dns_name,
+                                    'srv', NEW.dns_srv_name,
+                                    'port', NEW.port
+                                )
         WHERE
             id = _latest_pool_update_id;
 
     ELSIF (TG_TABLE_NAME = 'pool_owner') THEN
         UPDATE grest.pool_info_cache
         SET
-            owners = ARRAY(
-                        SELECT 
-                            sa.view
-                        FROM public.pool_owner AS po
-                        INNER JOIN public.stake_address AS sa ON sa.id = po.addr_id
-                        INNER JOIN grest.pool_info_cache AS pic ON pic.tx_id = po.registered_tx_id AND pic.pool_hash_id = po.pool_hash_id
-                        WHERE po.registered_tx_id = NEW.registered_tx_id
-                    )
+            owners = owners || (SELECT sa.view FROM public.stake_address AS sa WHERE sa.id = NEW.addr_id)
         WHERE
             pool_hash_id = NEW.pool_hash_id
             AND
