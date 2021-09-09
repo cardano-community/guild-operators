@@ -1,57 +1,31 @@
-DROP FUNCTION IF EXISTS grest.pool_metadata(text);
+DROP FUNCTION IF EXISTS grest.pool_metadata ();
 
-CREATE FUNCTION grest.pool_metadata (_pool_bech32 text DEFAULT NULL)
-    RETURNS json STABLE
-    LANGUAGE PLPGSQL
+CREATE FUNCTION grest.pool_metadata ()
+    RETURNS TABLE (
+        pool_id_bech32 character varying,
+        meta_url character varying,
+        meta_hash text,
+        meta_json jsonb 
+    )
+    LANGUAGE plpgsql
     AS $$
+    #variable_conflict use_column
 BEGIN
-    IF _pool_bech32 IS NULL THEN
-        RETURN (
-            SELECT
-                json_agg(js) json_final
-            FROM ( 
-                SELECT DISTINCT ON (ph.id)
-                    json_build_object(
-                        'pool_id', ph.view, 
-                        'meta_url', pmr.url, 
-                        'meta_hash', encode(pmr.hash::bytea, 'hex'),
-                        'metadata', to_json(pod.metadata)
-                    ) js
-                FROM
-                    public.pool_metadata_ref AS pmr
-                    INNER JOIN pool_hash AS ph ON ph.id = pmr.pool_id
-                    INNER JOIN pool_offline_data AS pod ON ph.id = pod.pool_id
-                ORDER BY
-                    ph.id,
-                    pmr.registered_tx_id DESC
-            ) t
-        );
-    ELSE
-        RETURN (
-            SELECT
-                json_build_object(
-                    'pool_id', ph.view, 
-                    'meta_url', pmr.url, 
-                    'meta_hash', encode(pmr.hash::bytea, 'hex'), 
-                    'metadata', to_json(pod.metadata)
-                ) js
-            FROM
-                public.pool_metadata_ref AS pmr
-                INNER JOIN pool_hash AS ph ON ph.id = pmr.pool_id
-                INNER JOIN pool_offline_data AS pod ON ph.id = pod.pool_id
-            WHERE
-                pmr.pool_id = (
-                    SELECT id
-                    FROM public.pool_hash
-                    WHERE VIEW = _pool_bech32
-                )
-            ORDER BY
-                pmr.registered_tx_id DESC
-            LIMIT 1
-        );
-    END IF;
+    RETURN QUERY
+    SELECT
+        DISTINCT ON (pic.pool_id_bech32) pool_id_bech32,
+        pic.meta_url,
+        pic.meta_hash,
+        pod.json
+    FROM
+        grest.pool_info_cache AS pic
+    LEFT JOIN
+        public.pool_offline_data AS pod ON pod.pmr_id = pic.meta_id
+    WHERE
+        pic.pool_status != 'retired'
+    ORDER BY
+        pic.pool_id_bech32, pic.tx_id DESC;
 END;
 $$;
 
-COMMENT ON FUNCTION grest.pool_metadata IS 'Get pool metadata url, hash, and contents, all pools if pool_id empty';
-
+COMMENT ON FUNCTION grest.pool_metadata IS 'Metadata(on & off-chain) for all currently registered/retiring (not retired) pools';

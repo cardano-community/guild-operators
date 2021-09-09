@@ -16,6 +16,7 @@ CREATE TABLE grest.pool_info_cache (
     reward_addr character varying,
     owners character varying [],
     relays jsonb [],
+    meta_id bigint,
     meta_url character varying,
     meta_hash text,
     pool_status text,
@@ -79,6 +80,7 @@ BEGIN
         reward_addr,
         owners,
         relays,
+        meta_id,
         meta_url,
         meta_hash,
         pool_status,
@@ -115,6 +117,7 @@ BEGIN
             FROM public.pool_relay AS pr
             WHERE pr.update_id = _update_id
         ),
+        _meta_id,
         pmr.url,
         encode(pmr.hash::bytea, 'hex'),
         _pool_status,
