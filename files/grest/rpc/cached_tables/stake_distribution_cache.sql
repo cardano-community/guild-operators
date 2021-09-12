@@ -187,12 +187,10 @@ BEGIN
     WHERE
         BLOCK_NO IS NOT NULL INTO _current_block_height;
     -- Do nothing until there is a 90 blocks difference in height (95 in check because lbh considered is 5 blocks behind tip)
-    IF (_current_block_height - _last_update_block_height) < 95 THEN
-        RETURN NULL;
-    ELSE
+    IF (_current_block_height - _last_update_block_height) >= 95 THEN
         CALL GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
-        RETURN NEW;
     END IF;
+    RETURN NULL;
 END;
 $UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK$
 LANGUAGE plpgsql;
