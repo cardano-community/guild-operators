@@ -574,6 +574,42 @@
         }
       }
     },
+    "/rpc/block_info": {
+      "post": {
+        "tags": [
+          "Block Queries"
+        ],
+        "summary": "Get detailed information about a specific block",
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": [
+                "_block_hash"
+              ],
+              "type": "object",
+              "properties": {
+                "_block_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/rpc/account_addresses": {
       "post": {
         "tags": [
