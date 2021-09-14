@@ -16,8 +16,15 @@ CREATE TABLE IF NOT EXISTS GREST.CONTROL_TABLE (
     artifacts text
 );
 
-DO $$
+DROP PROCEDURE IF EXISTS GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
+
+DROP FUNCTION IF EXISTS GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
+
+CREATE PROCEDURE GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ()
+LANGUAGE PLPGSQL
+AS $$
 DECLARE
+    -- Last block height to control future re-runs of the query
     _last_accounted_block_height bigint;
 BEGIN
     SELECT
@@ -143,12 +150,55 @@ ON CONFLICT (STAKE_ADDRESS)
         OR STAKE_DISTRIBUTION_CACHE.REWARDS_AVAILABLE IS DISTINCT FROM EXCLUDED.REWARDS_AVAILABLE
         OR STAKE_DISTRIBUTION_CACHE.RESERVES IS DISTINCT FROM EXCLUDED.RESERVES
         OR STAKE_DISTRIBUTION_CACHE.TREASURY IS DISTINCT FROM EXCLUDED.TREASURY;
+    -- Store last block height in the control table
     INSERT INTO GREST.CONTROL_TABLE (key, last_value)
         VALUES ('stake_distribution_lbh', _last_accounted_block_height)
     ON CONFLICT (key)
         DO UPDATE SET
             last_value = _last_accounted_block_height;
-    CREATE INDEX IF NOT EXISTS idx_pool_id ON grest.STAKE_DISTRIBUTION_CACHE (POOL_ID);
 END;
 $$;
+
+-- Run the first time update
+CALL GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
+
+CREATE INDEX IF NOT EXISTS idx_pool_id ON GREST.STAKE_DISTRIBUTION_CACHE (POOL_ID);
+
+-- Create trigger for re-running the query every 90 blocks (30 mins theoretical time)
+DROP FUNCTION IF EXISTS GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK CASCADE;
+
+CREATE FUNCTION GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK ()
+    RETURNS TRIGGER
+    AS $UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK$
+DECLARE
+    _last_update_block_height integer DEFAULT NULL;
+    _current_block_height integer DEFAULT NULL;
+BEGIN
+    SELECT
+        last_value
+    FROM
+        GREST.control_table
+    WHERE
+        key = 'stake_distribution_lbh' INTO _last_update_block_height;
+    SELECT
+        MAX(block_no)
+    FROM
+        PUBLIC.BLOCK
+    WHERE
+        BLOCK_NO IS NOT NULL INTO _current_block_height;
+    -- Do nothing until there is a 90 blocks difference in height (95 in check because lbh considered is 5 blocks behind tip)
+    IF (_current_block_height - _last_update_block_height) >= 95 THEN
+        CALL GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
+    END IF;
+    RETURN NULL;
+END;
+$UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK$
+LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS update_stake_distribution_cache_trigger ON public.block;
+
+CREATE TRIGGER update_stake_distribution_cache_trigger
+    AFTER INSERT ON public.block
+    FOR EACH STATEMENT
+    EXECUTE PROCEDURE GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK ();
 
