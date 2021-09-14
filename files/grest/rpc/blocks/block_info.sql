@@ -48,7 +48,7 @@ BEGIN
     LEFT JOIN SLOT_LEADER SL ON SL.ID = B.SLOT_LEADER_ID
     LEFT JOIN POOL_HASH PH ON PH.ID = SL.POOL_HASH_ID
 WHERE
-    ENCODE(B.HASH::bytea, 'hex') = _block_hash;
+    DECODE(_block_hash, 'hex') = B.HASH;
 END;
 $$;
 
