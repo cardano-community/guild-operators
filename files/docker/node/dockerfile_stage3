@@ -75,12 +75,12 @@ RUN /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -i python3 systemd 
     && sudo rm /nix/var/nix/profiles/per-user/guild/profile/bin/nix-*
 
 # ENTRY SCRIPT
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/banner.txt /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/guild-topology.sh /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/block_watcher.sh /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/healthcheck.sh /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/scripts/cnode-helper-scripts/prereqs.sh /opt/cardano/cnode/scripts/
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/addons/entrypoint.sh ./
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/docker/node/addons/banner.txt /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/docker/node/addons/guild-topology.sh /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/docker/node/addons/block_watcher.sh /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/docker/node/addons/healthcheck.sh /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh /opt/cardano/cnode/scripts/
+ADD https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/docker/node/addons/entrypoint.sh ./
 
 RUN sudo chown -R guild:guild $CNODE_HOME/* \
     && sudo chown -R guild:guild /home/guild/.* \
