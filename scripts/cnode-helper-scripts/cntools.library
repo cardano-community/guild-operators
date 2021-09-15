@@ -956,13 +956,10 @@ getAssetsTxOut() {
 #               based on calculations from https://github.com/input-output-hk/cardano-ledger-specs/blob/master/doc/explanations/min-utxo.rst
 # Return      : populates ${min_utxo_out}
 getMinUTxO() {
-  [[ -z ${minUTxOValue} ]] && minUTxOValue=$(jq -r '.minUTxOValue //1000000' <<< "${PROT_PARAMS}")
   [[ -z ${utxoCostPerWord} ]] && utxoCostPerWord=$(jq -r '.utxoCostPerWord' <<< "${PROT_PARAMS}")
 
-  min_utxo_out=${minUTxOValue}
-
   # chain constants, based on: https://hydra.iohk.io/build/5949624/download/1/shelley-ma.pdf
-  local k0=0				                # coinSize=0 in mary-era, 2 in alonzo-era
+  local k0=2				                # coinSize=0 in mary-era, 2 in alonzo-era
   local k1=6
   local k2=12				                # assetSize=12
   local k3=28				                # pidSize=28
@@ -970,9 +967,10 @@ getMinUTxO() {
   local utxoEntrySizeWithoutVal=27 	# 6 + txOutLenNoVal(14) + txInLen(7)
   local adaOnlyUTxOSize=$(( utxoEntrySizeWithoutVal + k0 ))
 
-  # check if new parameter is available for alonzo-era, if so, overwrite the minUTXOValue
-  # remove +2 when k0 is increased
-  [[ -n ${utxoCostPerWord} && ${utxoCostPerWord} != null ]] && minUTXOValue=$(( utxoCostPerWord * (adaOnlyUTxOSize + 2) ))
+  # New calculation for alonzo-era, static minUTxOValue replaced with utxoCostPerWord calculation
+  minUTxOValue=$(( utxoCostPerWord * adaOnlyUTxOSize ))
+  
+  min_utxo_out=${minUTxOValue}
   
   # split the tx-out string into the assets
   IFS='+' read -ra asset_entry <<< "${1}"
