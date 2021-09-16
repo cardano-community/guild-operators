@@ -11,7 +11,6 @@ services:
       - POSTGRES_HOST_AUTH_METHOD=trust
     ports:
       - 8059:8059
-      - 5432:5432
     secrets:
       - postgres_password
       - postgres_user
@@ -34,6 +33,7 @@ services:
     image: cardanocommunity/cardano-node:latest
     environment:
       - NETWORK=${NETWORK:-mainnet}
+      - SOCKET=/opt/cardano/cnode/sockets/node.socket
       - EKG=Y 
     volumes:
       - node-db:/opt/cardano/cnode/db

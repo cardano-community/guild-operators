@@ -175,6 +175,7 @@ DROP TRIGGER IF EXISTS epoch_info_update_trigger ON public.block;
 
 CREATE TRIGGER epoch_info_update_trigger
     AFTER INSERT ON public.block
+    FOR EACH STATEMENT
     EXECUTE PROCEDURE grest.epoch_info_update ();
 
 -- Trigger for inserting new epoch data
@@ -263,5 +264,6 @@ DROP TRIGGER IF EXISTS new_epoch_insert_trigger ON public.epoch;
 
 CREATE TRIGGER new_epoch_insert_trigger
     AFTER INSERT ON public.epoch
+    FOR EACH ROW
     EXECUTE PROCEDURE grest.new_epoch_insert ();
 

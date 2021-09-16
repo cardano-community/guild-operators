@@ -6,6 +6,14 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.6.5] - 2021-09-15
+#### Fixed
+- Minimum utxo output calculation post Alonzo
+
+## [8.6.4] - 2021-09-14
+#### Fixed
+- Pool rotation date calculation fix (display only)
+
 ## [8.6.3] - 2021-08-31
 #### Fixed
 - Pool retire fix

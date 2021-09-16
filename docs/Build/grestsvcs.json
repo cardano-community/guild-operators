@@ -19,14 +19,9 @@
   "paths": {
     "/rpc/totals": {
       "post": {
-        "tags": [
-          "Blockchain Queries"
-        ],
+        "tags": ["Blockchain Queries"],
         "summary": "Get the circulating utxo, treasury, rewards, supply and reserves in lovelace for specified epoch, all epochs if empty",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": false,
@@ -52,14 +47,9 @@
     },
     "/genesis": {
       "post": {
-        "tags": [
-          "Blockchain Queries"
-        ],
+        "tags": ["Blockchain Queries"],
         "summary": "Get the Genesis parameters used to create the chain",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "responses": {
           "200": {
             "description": "OK"
@@ -69,21 +59,14 @@
     },
     "/rpc/pool_delegator_count": {
       "post": {
-        "tags": [
-          "Pool Queries"
-        ],
+        "tags": ["Pool Queries"],
         "summary": "Get live delegator count",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": true,
             "schema": {
-              "required": [
-                "_pool_bech32"
-              ],
+              "required": ["_pool_bech32"],
               "type": "object",
               "properties": {
                 "_pool_bech32": {
@@ -105,21 +88,14 @@
     },
     "/rpc/pool_updates": {
       "post": {
-        "tags": [
-          "Pool Queries"
-        ],
+        "tags": ["Pool Queries"],
         "summary": "Grab latest, active or all pool updates for specified pool",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": true,
             "schema": {
-              "required": [
-                "_pool_bech32"
-              ],
+              "required": ["_pool_bech32"],
               "type": "object",
               "properties": {
                 "_pool_bech32": {
@@ -149,21 +125,14 @@
     },
     "/rpc/pool_retire": {
       "post": {
-        "tags": [
-          "Pool Queries"
-        ],
+        "tags": ["Pool Queries"],
         "summary": "Check if a pool retire transaction has been sent",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": true,
             "schema": {
-              "required": [
-                "_pool_bech32"
-              ],
+              "required": ["_pool_bech32"],
               "type": "object",
               "properties": {
                 "_pool_bech32": {
@@ -185,21 +154,14 @@
     },
     "/rpc/pool_blocks_in_epoch": {
       "post": {
-        "tags": [
-          "Pool Queries"
-        ],
+        "tags": ["Pool Queries"],
         "summary": "Return information about blocks minted by a given pool in current epoch (or _epoch_no if provided)",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": true,
             "schema": {
-              "required": [
-                "_pool_bech32"
-              ],
+              "required": ["_pool_bech32"],
               "type": "object",
               "properties": {
                 "_epoch_no": {
@@ -225,21 +187,14 @@
     },
     "/rpc/pool_relays": {
       "post": {
-        "tags": [
-          "Pool Queries"
-        ],
+        "tags": ["Pool Queries"],
         "summary": "Get registered pool relays",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": true,
             "schema": {
-              "required": [
-                "_pool_bech32"
-              ],
+              "required": ["_pool_bech32"],
               "type": "object",
               "properties": {
                 "_pool_bech32": {
@@ -261,21 +216,14 @@
     },
     "/rpc/pool_active_stake": {
       "post": {
-        "tags": [
-          "Pool Queries"
-        ],
+        "tags": ["Pool Queries"],
         "summary": "Get the pools active stake in lovelace for specified epoch, current epoch if empty",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": true,
             "schema": {
-              "required": [
-                "_pool_bech32"
-              ],
+              "required": ["_pool_bech32"],
               "type": "object",
               "properties": {
                 "_pool_bech32": {
@@ -301,21 +249,14 @@
     },
     "/rpc/pool_opcert": {
       "post": {
-        "tags": [
-          "Pool Queries"
-        ],
+        "tags": ["Pool Queries"],
         "summary": "Get pools registered operational certificate and counter (from last block made)",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": true,
             "schema": {
-              "required": [
-                "_pool_bech32"
-              ],
+              "required": ["_pool_bech32"],
               "type": "object",
               "properties": {
                 "_pool_bech32": {
@@ -337,21 +278,14 @@
     },
     "/rpc/pool_owners": {
       "post": {
-        "tags": [
-          "Pool Queries"
-        ],
+        "tags": ["Pool Queries"],
         "summary": "Get registered pool owners",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": true,
             "schema": {
-              "required": [
-                "_pool_bech32"
-              ],
+              "required": ["_pool_bech32"],
               "type": "object",
               "properties": {
                 "_pool_bech32": {
@@ -373,21 +307,14 @@
     },
     "/rpc/pool_metadata": {
       "post": {
-        "tags": [
-          "Pool Queries"
-        ],
+        "tags": ["Pool Queries"],
         "summary": "Get pool metadata url, hash, and contents",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": true,
             "schema": {
-              "required": [
-                "_pool_bech32"
-              ],
+              "required": ["_pool_bech32"],
               "type": "object",
               "properties": {
                 "_pool_bech32": {
@@ -409,14 +336,9 @@
     },
     "/rpc/account_list": {
       "post": {
-        "tags": [
-          "Account Queries"
-        ],
+        "tags": ["Account Queries"],
         "summary": "Get a list of all accounts",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "responses": {
           "200": {
             "description": "OK"
@@ -426,21 +348,14 @@
     },
     "/rpc/account_balance": {
       "post": {
-        "tags": [
-          "Account Queries"
-        ],
+        "tags": ["Account Queries"],
         "summary": "Get the account balance of an address",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": true,
             "schema": {
-              "required": [
-                "_address"
-              ],
+              "required": ["_address"],
               "type": "object",
               "properties": {
                 "_address": {
@@ -462,21 +377,14 @@
     },
     "/rpc/rewards_history": {
       "post": {
-        "tags": [
-          "Account Queries"
-        ],
+        "tags": ["Account Queries"],
         "summary": "Get the full rewards history in lovelace for a stake address, or certain epoch reward if specified",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": true,
             "schema": {
-              "required": [
-                "_stake_address_bech32"
-              ],
+              "required": ["_stake_address_bech32"],
               "type": "object",
               "properties": {
                 "_stake_address_bech32": {
@@ -502,21 +410,14 @@
     },
     "/rpc/mir_history": {
       "post": {
-        "tags": [
-          "Account Queries"
-        ],
+        "tags": ["Account Queries"],
         "summary": "Get the full MIR (Move Instantaneous Rewards) history in lovelace for a stake address, or certain epoch if specified",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": true,
             "schema": {
-              "required": [
-                "_stake_address_bech32"
-              ],
+              "required": ["_stake_address_bech32"],
               "type": "object",
               "properties": {
                 "_stake_address_bech32": {
@@ -542,14 +443,9 @@
     },
     "/rpc/tip": {
       "post": {
-        "tags": [
-          "Blockchain Queries"
-        ],
+        "tags": ["Blockchain Queries"],
         "summary": "Get the tip info about the latest block seen by chain",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "responses": {
           "200": {
             "description": "OK"
@@ -559,13 +455,66 @@
     },
     "/rpc/blocks": {
       "post": {
-        "tags": [
-          "Block Queries"
-        ],
+        "tags": ["Block Queries"],
         "summary": "Get detailed information about all blocks (paginated - latest first)",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/block_info": {
+      "post": {
+        "tags": ["Block Queries"],
+        "summary": "Get detailed information about a specific block",
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": ["_block_hash"],
+              "type": "object",
+              "properties": {
+                "_block_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/block_txs": {
+      "post": {
+        "tags": ["Block Queries"],
+        "summary": "Get all transactions contained in a block",
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": ["_block_hash"],
+              "type": "object",
+              "properties": {
+                "_block_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
         ],
         "responses": {
           "200": {
@@ -576,14 +525,9 @@
     },
     "/rpc/account_addresses": {
       "post": {
-        "tags": [
-          "Account Queries"
-        ],
+        "tags": ["Account Queries"],
         "summary": "Get all addresses associated with an account",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": true,
@@ -609,21 +553,14 @@
     },
     "/rpc/account_assets": {
       "post": {
-        "tags": [
-          "Account Queries"
-        ],
+        "tags": ["Account Queries"],
         "summary": "Get the native asset balance of an account",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": true,
             "schema": {
-              "required": [
-                "_address_bech32"
-              ],
+              "required": ["_address_bech32"],
               "type": "object",
               "properties": {
                 "_address_bech32": {
@@ -645,14 +582,9 @@
     },
     "/rpc/epoch_info": {
       "post": {
-        "tags": [
-          "Epoch Queries"
-        ],
+        "tags": ["Epoch Queries"],
         "summary": "Get the epoch information, all epochs if no epoch specified",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": false,
@@ -678,14 +610,9 @@
     },
     "/rpc/epoch_params": {
       "post": {
-        "tags": [
-          "Epoch Queries"
-        ],
+        "tags": ["Epoch Queries"],
         "summary": "Get the epoch parameters, all epochs if no epoch specified",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": false,
@@ -711,21 +638,14 @@
     },
     "/rpc/address_utxos": {
       "post": {
-        "tags": [
-          "Address Queries"
-        ],
+        "tags": ["Address Queries"],
         "summary": "Get all UTXOs associated with an address",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
             "required": true,
             "schema": {
-              "required": [
-                "_payment_address_bech32"
-              ],
+              "required": ["_payment_address_bech32"],
               "type": "object",
               "properties": {
                 "_address": {
@@ -747,14 +667,9 @@
     },
     "/rpc/registered_pools": {
       "post": {
-        "tags": [
-          "Blockchain Queries"
-        ],
+        "tags": ["Blockchain Queries"],
         "summary": "List of pool IDs of registered (not retired) stake pools",
-        "produces": [
-          "application/json",
-          "application/vnd.pgrst.object+json"
-        ],
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "responses": {
           "200": {
             "description": "OK"
