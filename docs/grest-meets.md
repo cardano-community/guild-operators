@@ -23,6 +23,32 @@ Below you can find a short summary of every GRest meeting held, both for logging
 | Paddy       | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-check: | :material-close: | :material-close: | :material-close: |
 | GimbaLabs   | :material-close: | :material-check: | :material-close: | :material-check: | :material-check: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: |
 
+| Participant | 16Sep2021        |
+| ----------- | ---------------- |
+| Damjan      | :material-check: |
+| Homer       | :material-check: |
+| Markus      | :material-close: |
+| Ola         | :material-check: |
+| RdLrT       | :material-check: |
+| Red         | :material-close: |
+| Papacarp    | :material-close: |
+| Paddy       | :material-close: |
+| GimbaLabs   | :material-close: |
+
+=== "16Sep2021"
+
+    ### Scheduling running update queries
+    - Postgres triggers are synchronous so they slow down db-sync
+    - Decided to explore crontab for query scheduling instead
+
+    ### Refactor of queries
+    - Discussed how to structure RPC endpoints and what each should include
+    - Details have been captured in the Trello board
+
+    ### postgres tuning
+    - Discussed possible tunings to the postgres config
+    - Probably reducing WAL usage
+
 === "02Sep2021"
 
     ### Updates
