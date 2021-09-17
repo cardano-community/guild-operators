@@ -23,7 +23,7 @@ COPY --from=cardanocommunity/cardano-node:stage2 /opt/ /opt/
 
 RUN chmod a+x /usr/local/bin/* && ls /opt/ \
     && mkdir -p $CNODE_HOME/priv/files 
-    
+
 # Install locales package
 RUN  apt-get update && apt-get install --no-install-recommends -y locales apt-utils
 
@@ -40,14 +40,14 @@ RUN apt-get update && apt-get install -y libcap2 libselinux1 libc6 libsodium-dev
     && sudo apt-get -y purge && sudo apt-get -y clean && sudo apt-get -y autoremove && sudo rm -rf /var/lib/apt/lists/* # && sudo rm -rf /usr/bin/apt*
 
 RUN cd /usr/bin \
-&& sudo wget http://www.vdberg.org/~richard/tcpping \
-&& sudo chmod 755 tcpping
+    && sudo wget http://www.vdberg.org/~richard/tcpping \
+    && sudo chmod 755 tcpping
 
 # SETUP Guild USER
 RUN adduser --disabled-password --gecos '' guild \
-&& echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers \
-&& adduser guild sudo \
-&& chown -R guild:guild /home/guild/.*
+    && echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers \
+    && adduser guild sudo \
+    && chown -R guild:guild /home/guild/.*
 
 USER guild
 WORKDIR /home/guild
@@ -85,7 +85,9 @@ ADD https://raw.githubusercontent.com/cardano-community/guild-operators/master/f
 RUN sudo chown -R guild:guild $CNODE_HOME/* \
     && sudo chown -R guild:guild /home/guild/.* \
     && sudo chmod a+x /home/guild/.scripts/*.sh /opt/cardano/cnode/scripts/*.sh /home/guild/entrypoint.sh 
-    
+
 HEALTHCHECK --start-period=5m --interval=5m --timeout=100s CMD /home/guild/.scripts/healthcheck.sh
+
+EXPOSE 6000
 
 ENTRYPOINT ["./entrypoint.sh"]
