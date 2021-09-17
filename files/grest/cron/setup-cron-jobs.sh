@@ -9,6 +9,7 @@ err_exit() {
 
 CRON_DIR="/etc/cron.d"
 USER="$(whoami)"
+CURL_TIMEOUT=60
 
 [[ -z ${CNODE_NAME} ]] && CNODE_NAME='cnode'
 CNODE_PATH="/opt/cardano"
@@ -28,22 +29,25 @@ REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
 URL_RAW="${REPO_RAW}/${BRANCH}"
 
 CRON_SCRIPTS_DIR="${CNODE_HOME}/scripts/cron-scripts"
-if [ ! -d CRON_SCRIPTS_DIR ]; then
-    mkdir CRON_SCRIPTS_DIR
+if [ ! -d "$CRON_SCRIPTS_DIR" ]; then
+    mkdir "$CRON_SCRIPTS_DIR"
 fi
 
 echo "Setting up stake distribution update job to run every 30 minutes..."
-
-if curl -s -f -m ${CURL_TIMEOUT} -o ${CRON_SCRIPTS_DIR}/stake-distribution-update.sh ${URL_RAW}/files/grest/cron/jobs/stake-distribution-update.sh; then
+SDU_JOB_URL="${URL_RAW}/files/grest/cron/jobs/stake-distribution-update.sh"
+if curl -s -f -m ${CURL_TIMEOUT} -o ${CRON_SCRIPTS_DIR}/stake-distribution-update.sh ${SDU_JOB_URL}; then
     echo "Downloaded ${CRON_SCRIPTS_DIR}/stake-distribution-update.sh"
+    chmod +x ${CRON_SCRIPTS_DIR}/stake-distribution-update.sh
 else
-    err_exit "ERROR!! Could not download ${haproxy_url}"
+    err_exit "ERROR!! Could not download ${SDU_JOB_URL}"
 fi
 
 STAKE_DISTRIBUTION_UPDATE_JOB="${CRON_DIR}/stake_distribution_update"
 
 if [ -f "$STAKE_DISTRIBUTION_UPDATE_JOB" ]; then
-    rm "$STAKE_DISTRIBUTION_UPDATE_JOB"
+    sudo rm "$STAKE_DISTRIBUTION_UPDATE_JOB"
 fi
 
-echo "*/30 * * * * ${USER} /bin/sh ${CRON_SCRIPTS_DIR}/stake-distribution-update.sh"
+SDU_CRON_JOB="*/30 * * * * ${USER} /bin/sh ${CRON_SCRIPTS_DIR}/stake-distribution-update.sh"
+sudo touch "$STAKE_DISTRIBUTION_UPDATE_JOB"
+sudo echo "${SDU_CRON_JOB}" >"$STAKE_DISTRIBUTION_UPDATE_JOB"
