@@ -26,13 +26,21 @@ AS $$
 DECLARE
   -- Last block height to control future re-runs of the query
   _last_accounted_block_height bigint;
+  _last_accounted_block_id bigint;
 BEGIN
   SELECT
-    MAX(BLOCK_NO) - 5
+    INTO _last_accounted_block_height,
+    _last_accounted_block_id block_no,
+    id
   FROM
     PUBLIC.BLOCK
   WHERE
-    block_no IS NOT NULL INTO _last_accounted_block_height;
+    block_no IS NOT NULL
+    AND block_no = (
+      SELECT
+        MAX(BLOCK_NO) - 5
+      FROM
+        PUBLIC.BLOCK);
   INSERT INTO GREST.STAKE_DISTRIBUTION_CACHE
   SELECT
     STAKE_ADDRESS,
@@ -88,8 +96,10 @@ BEGIN
     LEFT JOIN TX_IN ON TX_OUT.TX_ID = TX_IN.TX_OUT_ID
       AND TX_OUT.INDEX::smallint = TX_IN.TX_OUT_INDEX::smallint
   WHERE
-    TX.BLOCK_ID <= _last_accounted_block_height
-    AND TX_IN.TX_IN_ID IS NULL) UTXO_T ON TRUE
+    TX.BLOCK_ID <= _last_accounted_block_id
+    AND TX_IN.TX_IN_ID IS NULL
+  GROUP BY
+    T1.ID) UTXO_T ON TRUE
   LEFT JOIN LATERAL (
     SELECT
       COALESCE(SUM(REWARD.AMOUNT), 0) AS REWARDS
