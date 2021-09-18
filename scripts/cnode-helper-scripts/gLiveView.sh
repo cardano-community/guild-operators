@@ -912,6 +912,13 @@ while true; do
       printf "${VL} KES expiration date"
       tput cup ${line} $((second_col-2))
       printf ": ${style_values_1}%-$((width-second_col))s${NC}${VL}\n" "${kes_expiration}" && ((line++))
+      missed_slots=`curl -s localhost:12798/metrics | grep cardano_node_metrics_slotsMissedNum_int | cut -f 2 -d ' '`
+      if [[ ${missed_slots} -eq "" ]]; then
+          missed_slots="0"
+      fi
+      printf "${VL} Missed slots"
+      tput cup ${line} $((second_col-2))
+      printf ": ${style_values_1}%-$((width-second_col))s${NC}${VL}\n" "${missed_slots}" && ((line++))
       
       echo "${m2divider}" && ((line++))
       
