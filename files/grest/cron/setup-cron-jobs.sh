@@ -49,5 +49,4 @@ if [ -f "$STAKE_DISTRIBUTION_UPDATE_JOB" ]; then
 fi
 
 SDU_CRON_JOB="*/30 * * * * ${USER} /bin/sh ${CRON_SCRIPTS_DIR}/stake-distribution-update.sh"
-sudo touch "$STAKE_DISTRIBUTION_UPDATE_JOB"
-sudo echo "${SDU_CRON_JOB}" >"$STAKE_DISTRIBUTION_UPDATE_JOB"
+sudo bash -c "{ echo '${SDU_CRON_JOB}'; } > ${STAKE_DISTRIBUTION_UPDATE_JOB}"
