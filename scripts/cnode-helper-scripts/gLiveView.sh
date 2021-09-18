@@ -54,7 +54,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.20.10
+GLV_VERSION=v1.21.0
 
 PARENT="$(dirname $0)"
 
@@ -812,8 +812,13 @@ while true; do
     echo "${blank_line}" && ((line++))
     printf "${VL} ${style_values_2}Core section${NC}" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL} If the node is run as a block producer, a second section is" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
-    printf "${VL} displayed that contain KES key and block stats. When close" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
-    printf "${VL} to the expire date the values will change color." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} displayed that contain KES key and slot/block stats. When" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} close to the expire date the values will change color." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    echo "${blank_line}" && ((line++))
+    printf "${VL} A leadership check is performed for each slot. Slots can be" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} missed if the node is busy and can't keep up (e.g., due to GC" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} pauses). A high number of missed slots needs further study." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} Only available for Prometheus (EKG will display N/A)." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     echo "${blank_line}" && ((line++))
     printf "${VL} If CNCLI is activated to calculate and store node blocks," && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL} data from this blocklog DB is displayed, which includes a" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
@@ -912,16 +917,14 @@ while true; do
       printf "${VL} KES expiration date"
       tput cup ${line} $((second_col-2))
       printf ": ${style_values_1}%-$((width-second_col))s${NC}${VL}\n" "${kes_expiration}" && ((line++))
-      missed_slots=`curl -s localhost:12798/metrics | grep cardano_node_metrics_slotsMissedNum_int | cut -f 2 -d ' '`
-      if [[ ${missed_slots} -eq "" ]]; then
-          missed_slots="0"
-      fi
-      printf "${VL} Missed slots"
-      tput cup ${line} $((second_col-2))
-      printf ": ${style_values_1}%-$((width-second_col))s${NC}${VL}\n" "${missed_slots}" && ((line++))
-      
+
       echo "${m2divider}" && ((line++))
-      
+
+      printf "${VL}${STANDOUT} SLOTS ${NC} %$((width-28))s ${FG_GREEN}%-7s${NC} | ${FG_RED}%-7s${NC} ${VL}\n" "" "Checked" "Missed" && ((line++))
+      printf "${VL} %s %$((width-38))s %-7s | %-7s ${VL}\n" "Since node start" "" "${about_to_lead}" "${missed_slots}" && ((line++))
+
+      echo "${m2divider}" && ((line++))
+
       if [[ -f "${BLOCKLOG_DB}" ]]; then
         invalid_cnt=0; missed_cnt=0; ghosted_cnt=0; stolen_cnt=0; confirmed_cnt=0; adopted_cnt=0; leader_cnt=0
         for status_type in $(sqlite3 "${BLOCKLOG_DB}" "SELECT status, COUNT(status) FROM blocklog WHERE epoch=${epochnum} GROUP BY status;" 2>/dev/null); do
@@ -978,7 +981,7 @@ while true; do
         fi
       else
         printf "${VL}${STANDOUT} BLOCKS ${NC} %$((width-38))s %-6s | ${FG_GREEN}%-7s${NC} | ${FG_RED}%-7s${NC} ${VL}\n" "" "Leader" "Adopted" "Invalid" && ((line++))
-        printf "${VL}%s %$((width-60))s %-6s | %-7s | %-7s ${VL}\n" "Since node start (EKG metrics)" "" "${isleader}" "${adopted}" "${didntadopt}" && ((line++))
+        printf "${VL} %s %$((width-47))s %-6s | %-7s | %-7s ${VL}\n" "Since node start" "" "${isleader}" "${adopted}" "${didntadopt}" && ((line++))
       fi
     fi
   fi
