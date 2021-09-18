@@ -39,7 +39,7 @@ BEGIN
     EPOCH_STAKE
     INNER JOIN POOL_HASH ON POOL_HASH.ID = EPOCH_STAKE.POOL_ID
   WHERE
-    epoch_stake.epoch_no = 291
+    epoch_stake.epoch_no = _current_epoch
   GROUP BY
     POOL_HASH.VIEW,
     EPOCH_STAKE.EPOCH_NO
