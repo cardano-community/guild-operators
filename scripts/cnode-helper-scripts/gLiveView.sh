@@ -817,7 +817,7 @@ while true; do
     echo "${blank_line}" && ((line++))
     printf "${VL} A leadership check is performed for each slot. Slots can be" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL} missed if the node is busy and can't keep up (e.g., due to GC" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
-    printf "${VL} pauses). A high number of missed slots needs further study." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} pauses). A large number of missed slots needs further study." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL} Only available for Prometheus (EKG will display N/A)." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     echo "${blank_line}" && ((line++))
     printf "${VL} If CNCLI is activated to calculate and store node blocks," && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
