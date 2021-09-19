@@ -1,17 +1,25 @@
-DROP FUNCTION IF EXISTS grest.pool_relays(text);
+DROP FUNCTION IF EXISTS grest.pool_relays ();
 
-CREATE FUNCTION grest.pool_relays(_pool_bech32 text)
-RETURNS JSON STABLE LANGUAGE PLPGSQL AS $$
+CREATE FUNCTION grest.pool_relays ()
+    RETURNS TABLE (
+        pool_id_bech32 character varying,
+        relays jsonb []
+    )
+    LANGUAGE plpgsql
+    AS $$
+    #variable_conflict use_column
 BEGIN
-    RETURN ( SELECT json_agg(js) json_final FROM ( SELECT json_build_object(
-        'ipv4', pr.ipv4,
-        'ipv6', pr.ipv6,
-        'dns', pr.dns_name,
-        'srv', pr.dns_srv_name,
-        'port', pr.port
-    ) js
-    FROM public.pool_relay AS pr
-    WHERE pr.update_id = (SELECT id from public.pool_hash where view=_pool_bech32)
-    ) t );
-END; $$;
-COMMENT ON FUNCTION grest.pool_relays IS 'Get registered pool relays';
+    RETURN QUERY
+    SELECT
+        DISTINCT ON (pool_id_bech32) pool_id_bech32,
+        relays
+    FROM
+        grest.pool_info_cache
+    WHERE
+        pool_status != 'retired'
+    ORDER BY
+        pool_id_bech32, tx_id DESC;
+END;
+$$;
+
+COMMENT ON FUNCTION grest.pool_relays IS 'A list of registered relays for all currently registered/retiring (not retired) pools';
