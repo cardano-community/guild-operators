@@ -346,10 +346,10 @@
         }
       }
     },
-    "/rpc/account_balance": {
+    "/rpc/account_info": {
       "post": {
         "tags": ["Account Queries"],
-        "summary": "Get the account balance of an address",
+        "summary": "Get the account info of an address",
         "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
