@@ -96,7 +96,7 @@ fi
 
 [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
 
-# 
+#
 telegramSend() {
   if [[ -z "${TG_BOT_TOKEN}" ]] || [[ -z "${TG_CHAT_ID}" ]]; then
     echo "Warn: to use the telegramSend function you must first set the bot and chat id in the env file"
@@ -535,7 +535,7 @@ fractionToPCT() {
 isValidIPv4() {
   local ip=$1
   [[ -z ${ip} ]] && return 1
-  if [[ ${ip} =~ ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ || ${ip} =~ ^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$ ]]; then 
+  if [[ ${ip} =~ ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ || ${ip} =~ ^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$ ]]; then
     return 0
   fi
   return 1
@@ -639,7 +639,8 @@ getNodeMetrics() {
     .cardano.node.metrics.Forge.adopted.int.val //0,
     .cardano.node.metrics.Forge["didnt-adopt"].int.val //0,
     .cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0,
-    .cardano.node.metrics.nodeStartTime.int.val //0
+    .cardano.node.metrics.nodeStartTime.int.val //0,
+    .cardano.node.metrics.slotsMissedNum.int.val //0
     ] | @tsv' <<< "${node_metrics}")
     read -ra node_metrics_arr <<< ${node_metrics_tsv}
     blocknum=${node_metrics_arr[0]}; epochnum=${node_metrics_arr[1]}; slot_in_epoch=${node_metrics_arr[2]}; slotnum=${node_metrics_arr[3]}
@@ -648,7 +649,7 @@ getNodeMetrics() {
     kesperiod=${node_metrics_arr[8]}; remaining_kes_periods=${node_metrics_arr[9]}
     isleader=${node_metrics_arr[10]}; adopted=${node_metrics_arr[11]}; didntadopt=${node_metrics_arr[12]}; about_to_lead=${node_metrics_arr[13]}
     nodeStartTime=${node_metrics_arr[14]};uptimes=$(( $(date +%s) - node_metrics_arr[14] ))
-    missed_slots="N/A"
+    missed_slots=${node_metrics_arr[15]}
   else
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
     [[ ${node_metrics} =~ cardano_node_metrics_nodeStartTime_int[[:space:]]([^[:space:]]*) ]] && { nodeStartTime=${BASH_REMATCH[1]} && uptimes=$(( $(date +%s) - BASH_REMATCH[1] )); } || uptimes=0
@@ -787,7 +788,7 @@ getEraIdentifier() {
   elif ${CCLI} query protocol-parameters --mary-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--mary-era"
   #Alonzo era disabled for now until hw support is fully implemented
   #elif ${CCLI} query protocol-parameters --alonzo-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--alonzo-era"
-  else 
+  else
     ERA_IDENTIFIER="--mary-era"
     [[ ${OFFLINE_MODE} = "N" ]] && return 1
   fi
