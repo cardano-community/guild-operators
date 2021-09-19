@@ -23,6 +23,68 @@ err_exit() {
   exit 1
 }
 
+is_empty() {
+  local var=$1
+
+  [[ -z $var ]]
+}
+
+is_file() {
+  local file=$1
+
+  [[ -f $file ]]
+}
+
+is_dir() {
+  local dir=$1
+
+  [[ -d $dir ]]
+}
+
+update_check() {
+  [[ -z ${UPDATE_CHECK} ]] && UPDATE_CHECK='Y'
+  if [[ "${UPDATE_CHECK}" = 'Y' ]] && curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/setup-grest.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/setup-grest.sh 2>/dev/null; then
+    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/setup-grest.sh)
+    TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/setup-grest.sh.tmp)
+    if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
+      cp "${PARENT}"/setup-grest.sh "${PARENT}/setup-grest.sh_bkp$(date +%s)"
+      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/setup-grest.sh)
+      printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" >"${PARENT}"/setup-grest.sh.tmp
+      {
+        mv -f "${PARENT}"/setup-grest.sh.tmp "${PARENT}"/setup-grest.sh &&
+          chmod 755 "${PARENT}"/setup-grest.sh &&
+          echo -e "\nUpdate applied successfully, please run setup-grest again!\n" &&
+          exit 0
+      } || {
+        err_exit "Update failed!\n\nPlease manually download latest version of setup-grest.sh script from GitHub"
+      }
+    fi
+  fi
+  rm -f "${PARENT}"/setup-grest.sh.tmp
+}
+
+get_env_branch() {
+  ! is_empty "${BRANCH}" && return
+  is_file "${CNODE_HOME}/scripts/.env_branch" &&
+    BRANCH=$(cat "${CNODE_HOME}"/scripts/.env_branch) || BRANCH=master
+}
+
+check_env_branch() {
+  if ! curl -s -f -m "${CURL_TIMEOUT}" "https://api.github.com/repos/cardano-community/guild-operators/branches" |
+    jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null; then
+    echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to alpha branch\n"
+    BRANCH=alpha
+    echo "${BRANCH}" >"${CNODE_HOME}"/scripts/.env_branch
+  else
+    echo "${BRANCH}" >"${CNODE_HOME}"/scripts/.env_branch
+  fi
+}
+
+setup_repo_url() {
+  REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
+  URL_RAW="${REPO_RAW}/${BRANCH}"
+}
+
 jqDecode() {
   base64 --decode <<<$2 | jq -r "$1"
 }
@@ -66,24 +128,43 @@ updateWithCustomConfig() {
   chmod 755 ${file}
 }
 
-get_cron_jobs_setup_script() {
-  local setup_script_name="setup-cron-jobs.sh"
-  local setup_script_url="${URL_RAW}/files/grest/cron/$setup_script_name"
-  if curl -s -f -m "${CURL_TIMEOUT}" -o "$CNODE_HOME/scripts/$setup_script_name" "$setup_script_url"; then
-    chmod +x "$CNODE_HOME/scripts/$setup_script_name"
-  else
-    err_exit "ERROR!! Could not download $setup_script_url"
+setup_cron_scripts_dir() {
+  if ! is_dir "${CRON_SCRIPTS_DIR}"; then
+    mkdir "${CRON_SCRIPTS_DIR}"
   fi
 }
 
-execute_cron_jobs_setup_script() {
-  local setup_script_name="setup-cron-jobs.sh"
-  . "$CNODE_HOME/scripts/$setup_script_name"
+get_cron_job_executable() {
+  local job=$1
+  local job_url="${URL_RAW}/files/grest/cron/jobs/${job}.sh"
+  if curl -s -f -m "${CURL_TIMEOUT}" -o "${CRON_SCRIPTS_DIR}/${job}.sh" "${job_url}"; then
+    echo "Downloaded ${CRON_SCRIPTS_DIR}/${job}.sh"
+    chmod +x "${CRON_SCRIPTS_DIR}/${job}.sh"
+  else
+    err_exit "ERROR!! Could not download ${job_url}"
+  fi
+}
+
+clean_up_existing_cron_job() {
+  local job=$1
+  if is_file "$CRON_DIR/${job}"; then
+    sudo rm "$CRON_DIR/${job}"
+  fi
+}
+
+install_cron_job() {
+  local job=$1
+  local cron_pattern=$2
+  local cron_job_path="${CRON_DIR}/${job}"
+  local cron_job_entry="${cron_pattern} ${USER} /bin/sh ${CRON_SCRIPTS_DIR}/${job}.sh >> ${LOG_DIR}/${job}.log"
+  sudo bash -c "{ echo '${cron_job_entry}'; } > ${cron_job_path}"
 }
 
 setup_cron_jobs() {
-  get_cron_jobs_setup_script
-  execute_cron_jobs_setup_script
+  setup_cron_scripts_dir
+  get_cron_job_executable "stake-distribution-update"
+  clean_up_existing_cron_job "stake-distribution-update"
+  install_cron_job "stake-distribution-update" "*/30 * * * *"
 }
 
 usage() {
@@ -117,41 +198,18 @@ dirs -c # clear dir stack
 CNODE_PATH="/opt/cardano"
 CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
 CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
+CRON_SCRIPTS_DIR="${CNODE_HOME}/scripts/cron-scripts"
+LOG_DIR="${CNODE_HOME}/logs"
+CRON_DIR="/etc/cron.d"
 
-[[ -f "${CNODE_HOME}"/scripts/.env_branch ]] && BRANCH=$(cat "${CNODE_HOME}"/scripts/.env_branch) || BRANCH=master
+get_env_branch
+check_env_branch
+setup_repo_url
 
-if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null; then
-  echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to alpha branch\n"
-  BRANCH=alpha
-  echo "${BRANCH}" >"${CNODE_HOME}"/scripts/.env_branch
-else
-  echo "${BRANCH}" >"${CNODE_HOME}"/scripts/.env_branch
-fi
-
-REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
-URL_RAW="${REPO_RAW}/${BRANCH}"
 PARENT="$(dirname $0)"
-[[ -z ${UPDATE_CHECK} ]] && UPDATE_CHECK='Y'
-[[ ! -d "${HOME}"/.cabal/bin ]] && mkdir -p "${HOME}"/.cabal/bin
+update_check
 
-if [[ "${UPDATE_CHECK}" = 'Y' ]] && curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/setup-grest.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/setup-grest.sh 2>/dev/null; then
-  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/setup-grest.sh)
-  TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/setup-grest.sh.tmp)
-  if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-    cp "${PARENT}"/setup-grest.sh "${PARENT}/setup-grest.sh_bkp$(date +%s)"
-    STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/setup-grest.sh)
-    printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" >"${PARENT}"/setup-grest.sh.tmp
-    {
-      mv -f "${PARENT}"/setup-grest.sh.tmp "${PARENT}"/setup-grest.sh &&
-        chmod 755 "${PARENT}"/setup-grest.sh &&
-        echo -e "\nUpdate applied successfully, please run setup-grest again!\n" &&
-        exit 0
-    } || {
-      err_exit "Update failed!\n\nPlease manually download latest version of setup-grest.sh script from GitHub"
-    }
-  fi
-fi
-rm -f "${PARENT}"/setup-grest.sh.tmp
+[[ ! -d "${HOME}"/.cabal/bin ]] && mkdir -p "${HOME}"/.cabal/bin
 
 mkdir -p ~/tmp
 
