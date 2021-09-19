@@ -917,10 +917,10 @@ while true; do
       tput cup ${line} $((second_col-2))
       printf ": ${style_values_1}%-$((width-second_col))s${NC}${VL}\n" "${kes_expiration}" && ((line++))
 
-      echo "${m2divider}" && ((line++))
-
-      printf "${VL}${STANDOUT} SLOTS ${NC} %$((width-28))s ${FG_GREEN}%-7s${NC} | ${FG_RED}%-7s${NC} ${VL}\n" "" "Checked" "Missed" && ((line++))
-      printf "${VL} %s %$((width-38))s %-7s | %-7s ${VL}\n" "Since node start" "" "${about_to_lead}" "${missed_slots}" && ((line++))
+      printf -v missed_slots_pct "%.4f%%" $(bc -l <<<"(${missed_slots}/(${about_to_lead}+${missed_slots}))*100")
+      printf "${VL} Missed slot leader checks"
+      tput cup ${line} $((second_col-2))
+      printf ": ${style_values_1}%-$((width-second_col))s${NC}${VL}\n" "${missed_slots} (${missed_slots_pct})" && ((line++))
 
       echo "${m2divider}" && ((line++))
 

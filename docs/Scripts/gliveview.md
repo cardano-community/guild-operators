@@ -48,9 +48,9 @@ Displays live metrics gathered from EKG. Epoch number and progress is live from 
 
 **Core section**
 If the node is run as a core, identified by the 'forge-about-to-lead' EKG parameter, a second core section is displayed. This section contain current and remaining KES periods as well as a calculated date for the expiration. When getting close to expire date the values will change color. A leadership check is performed for each slot. If
-the node is busy and can't keep up (e.g. paused in the garbage collector), it will start skipping leadership checks, which will lead to missing slots. The SLOTS
-sub-section shows how many slots were checked or missed since node start. A high number of missed slots needs further investigation, because only checked slots for
-each leadership is confirmed are eligible to produce blocks.
+the node is busy and can't keep up (e.g. paused in the garbage collector), it will start skipping leadership checks, which will lead to missing slots. Missed leadership
+checks will be displayed both as absolute value and percentage of total since node start. A high number of missed slots needs further investigation, because only
+checked slots are eligible to produce blocks.
 
 Blocks created by the node since node start is another metric shown in the BLOCKS sub-section. If [CNCLI](../Scripts/cncli.md) is activated to store blocks created
 in a blocklog DB, data from this blocklog is displayed. If not, blocks created values are taken from EKG or Prometheus metrics.
