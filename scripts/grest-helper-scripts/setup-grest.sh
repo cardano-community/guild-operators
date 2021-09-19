@@ -23,6 +23,69 @@ err_exit() {
   exit 1
 }
 
+jqDecode() {
+  base64 --decode <<< $2 | jq -r "$1"
+}
+
+deployRPC() {
+  file_name=$(jqDecode '.name' "${1}")
+  [[ -z ${file_name} || ${file_name} != *.sql ]] && return
+  dl_url=$(jqDecode '.download_url //empty' "${1}")
+  [[ -z ${dl_url} ]] && return
+  ! rpc_desc=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null | grep 'COMMENT ON FUNCTION' | cut -d\' -f2) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url}" && return 1
+  ! rpc_sql=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url%.json}.sql" && return 1
+  echo -e "\nFunction:    \e[32m${file_name%.sql}\e[0m"
+  echo -e "  Description: \e[37m${rpc_desc}\e[0m"
+  ! output=$(psql cexplorer -v "ON_ERROR_STOP=1" <<< ${rpc_sql} 2>&1) && echo -e "  \e[31mERROR\e[0m: ${output}"
+}
+
+### Update file retaining existing custom configs
+updateWithCustomConfig() {
+  file=$1
+  if [[ ! -f ${file}.tmp ]]; then
+    echo "ERROR!! Failed to download '${file}' from GitHub"
+    return
+  fi
+  if [[ -f ${file} && ${FORCE_OVERWRITE} = 'N' ]]; then
+    if grep '^# Do NOT modify' ${file} >/dev/null 2>&1; then
+      TEMPL_CMD=$(awk '/^# Do NOT modify/,0' ${file}.tmp)
+      if [[ -z ${TEMPL_CMD} ]]; then
+        echo "ERROR!! Script downloaded from GitHub corrupt, ignoring update for '${file}'"
+        rm -f ${file}.tmp
+        return
+      fi
+      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' ${file})
+      printf '%s\n%s\n' "${STATIC_CMD}" "${TEMPL_CMD}" > ${file}.tmp
+    else
+      rm -f ${file}.tmp
+      return
+    fi
+  fi
+  [[ -f ${file} ]] && cp -f ${file} "${file}_bkp$(date +%s)"
+  mv -f ${file}.tmp ${file}
+  chmod 755 ${file}
+}
+
+get_cron_jobs_setup_script() {
+  local setup_script_name="setup-cron-jobs.sh"
+  local setup_script_url="${URL_RAW}/files/grest/cron/$setup_script_name"
+  if curl -s -f -m "${CURL_TIMEOUT}" -o "$CNODE_HOME/scripts/$setup_script_name" "$setup_script_url"; then
+        chmod +x "$CNODE_HOME/scripts/$setup_script_name"
+    else
+        err_exit "ERROR!! Could not download $setup_script_url"
+    fi
+}
+
+execute_cron_jobs_setup_script() {
+  local setup_script_name="setup-cron-jobs.sh"
+  . "$CNODE_HOME/scripts/$setup_script_name"
+}
+
+setup_cron_jobs() {
+  get_cron_jobs_setup_script
+  execute_cron_jobs_setup_script
+}
+
 usage() {
   cat <<EOF >&2
 
@@ -231,33 +294,6 @@ read -ra SHGENESIS <<< $(jq -r '[
 
 ALGENESIS="$(jq -c . < ${ALGENFILE})"
 
-### Update file retaining existing custom configs
-updateWithCustomConfig() {
-  file=$1
-  if [[ ! -f ${file}.tmp ]]; then
-    echo "ERROR!! Failed to download '${file}' from GitHub"
-    return
-  fi
-  if [[ -f ${file} && ${FORCE_OVERWRITE} = 'N' ]]; then
-    if grep '^# Do NOT modify' ${file} >/dev/null 2>&1; then
-      TEMPL_CMD=$(awk '/^# Do NOT modify/,0' ${file}.tmp)
-      if [[ -z ${TEMPL_CMD} ]]; then
-        echo "ERROR!! Script downloaded from GitHub corrupt, ignoring update for '${file}'"
-        rm -f ${file}.tmp
-        return
-      fi
-      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' ${file})
-      printf '%s\n%s\n' "${STATIC_CMD}" "${TEMPL_CMD}" > ${file}.tmp
-    else
-      rm -f ${file}.tmp
-      return
-    fi
-  fi
-  [[ -f ${file} ]] && cp -f ${file} "${file}_bkp$(date +%s)"
-  mv -f ${file}.tmp ${file}
-  chmod 755 ${file}
-}
-
 [[ ${FORCE_OVERWRITE} = 'Y' ]] && echo "Forced full upgrade!! Please re-apply customisations to scripts as required!"
 
 updateWithCustomConfig "grest-poll.sh"
@@ -399,22 +435,6 @@ if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/
   err_exit "\e[31mERROR\e[0m: ${rpc_file_list}"
 fi
 
-jqDecode() {
-  base64 --decode <<< $2 | jq -r "$1"
-}
-
-deployRPC() {
-  file_name=$(jqDecode '.name' "${1}")
-  [[ -z ${file_name} || ${file_name} != *.sql ]] && return
-  dl_url=$(jqDecode '.download_url //empty' "${1}")
-  [[ -z ${dl_url} ]] && return
-  ! rpc_desc=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null | grep 'COMMENT ON FUNCTION' | cut -d\' -f2) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url}" && return 1
-  ! rpc_sql=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url%.json}.sql" && return 1
-  echo -e "\nFunction:    \e[32m${file_name%.sql}\e[0m"
-  echo -e "  Description: \e[37m${rpc_desc}\e[0m"
-  ! output=$(psql cexplorer -v "ON_ERROR_STOP=1" <<< ${rpc_sql} 2>&1) && echo -e "  \e[31mERROR\e[0m: ${output}"
-}
-
 # add grest schema if missing and grant usage for web_anon
 echo -e "\e[32mAdd grest schema if missing and grant usage for web_anon\e[0m"
 psql cexplorer >/dev/null << 'SQL'
@@ -488,5 +508,7 @@ done
 echo -e "\n\e[32mAll RPC functions successfully added to DBSync! For detailed query specs and examples, visit https://git.io/J0Yqp!\e[0m\n"
 echo -e "\e[33mPlease restart PostgREST before attempting to use the added functions\e[0m"
 echo -e "  \e[94msudo systemctl restart postgrest.service\e[0m\n"
+
+setup_cron_jobs
 
 pushd -0 >/dev/null || err_exit; dirs -c
