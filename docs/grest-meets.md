@@ -11,17 +11,31 @@ Below you can find a short summary of every GRest meeting held, both for logging
 
 ### Participants:
 
-| Participant | 02Sep2021        | 26Aug2021        | 19Aug2021        | 12Aug2021        | 29Jul2021        | 22Jul2021        | 15Jul2021        | 09Jul2021        | 02Jul2021        | 25Jun2021        |
-| ----------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- |
-| Damjan      | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
-| Homer       | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
-| Markus      | :material-check: | :material-check: | :material-check: | :material-close: | :material-check: | :material-check: | :material-close: | :material-close: | :material-check: | :material-check: |
-| Ola         | :material-check: | :material-check: | :material-check: | :material-close: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
-| RdLrT       | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
-| Red         | :material-check: | :material-close: | :material-check: | :material-close: | :material-check: | :material-check: | :material-close: | :material-check: | :material-close: | :material-close: |
-| Papacarp    | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: |
-| Paddy       | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-check: | :material-close: | :material-close: | :material-close: |
-| GimbaLabs   | :material-close: | :material-check: | :material-close: | :material-check: | :material-check: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: |
+| Participant | 16Sep2021        | 02Sep2021        | 26Aug2021        | 19Aug2021        | 12Aug2021        | 29Jul2021        | 22Jul2021        | 15Jul2021        | 09Jul2021        | 02Jul2021        | 25Jun2021        |
+| ----------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- |
+| Damjan      | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
+| Homer       | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
+| Markus      | :material-close: | :material-check: | :material-check: | :material-check: | :material-close: | :material-check: | :material-check: | :material-close: | :material-close: | :material-check: | :material-check: |
+| Ola         | :material-check: | :material-check: | :material-check: | :material-check: | :material-close: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
+| RdLrT       | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
+| Red         | :material-close: | :material-check: | :material-close: | :material-check: | :material-close: | :material-check: | :material-check: | :material-close: | :material-check: | :material-close: | :material-close: |
+| Papacarp    | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: |
+| Paddy       | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-check: | :material-close: | :material-close: | :material-close: |
+| GimbaLabs   | :material-close: | :material-close: | :material-check: | :material-close: | :material-check: | :material-check: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: |
+
+=== "16Sep2021"
+
+    ### Scheduling running update queries
+    - Postgres triggers are synchronous so they slow down db-sync
+    - Decided to explore crontab for query scheduling instead
+
+    ### Refactor of queries
+    - Discussed how to structure RPC endpoints and what each should include
+    - Details have been captured in the Trello board
+
+    ### postgres tuning
+    - Discussed possible tunings to the postgres config
+    - Probably reducing WAL usage
 
 === "02Sep2021"
 
@@ -33,10 +47,10 @@ Below you can find a short summary of every GRest meeting held, both for logging
     - Transaction cache table:
       - We would like to avoid 'handling' rollbacks in that table, instead simply dump if multiple entries for a transaction, as it can have much higher combination and volume to process - especially post a node/postgres/dbsync restart.
       - Solution being tested:
-        - Use an md5 hash of concatenated tx_id, tx_index and block hash to generate unique serves as primary key in that table 
+        - Use an md5 hash of concatenated tx_id, tx_index and block hash to generate unique serves as primary key in that table
         - On RPC built off cache tables query layer, we would add a validation for block hash being in the public.block table and exclude those who are not as part of result
         - This way we don't handle rollbacks, and also keep a record if in future we require to cross check/re-run delta
-    
+
     - Pool cache table:
       - Need to check if transaction cache method is useful here too
       - Using strace we could verify the order in which tables are touched, and avoid trigger-check to run on every block.
