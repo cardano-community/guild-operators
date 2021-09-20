@@ -1,11 +1,9 @@
-DROP FUNCTION IF EXISTS grest.pool_metadata ();
+DROP FUNCTION IF EXISTS grest.pool_list ();
 
-CREATE FUNCTION grest.pool_metadata ()
+CREATE FUNCTION grest.pool_list ()
     RETURNS TABLE (
         pool_id_bech32 character varying,
-        meta_url character varying,
-        meta_hash text,
-        meta_json jsonb 
+        ticker character varying
     )
     LANGUAGE plpgsql
     AS $$
@@ -14,9 +12,7 @@ BEGIN
     RETURN QUERY
     SELECT
         DISTINCT ON (pic.pool_id_bech32) pool_id_bech32,
-        pic.meta_url,
-        pic.meta_hash,
-        pod.json
+        pod.ticker_name
     FROM
         grest.pool_info_cache AS pic
     LEFT JOIN
@@ -28,4 +24,4 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION grest.pool_metadata IS 'Metadata(on & off-chain) for all currently registered/retiring (not retired) pools';
+COMMENT ON FUNCTION grest.pool_list IS 'A list of all currently registered/retiring (not retired) pools';

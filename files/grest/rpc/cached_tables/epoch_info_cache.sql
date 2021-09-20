@@ -137,9 +137,7 @@ BEGIN
                 grest.epoch_info_cache) INTO _current_end_time_cache;
     IF (
         SELECT
-            EXTRACT(EPOCH FROM (_current_end_time - _current_end_time_cache)) < 900) THEN
-        RETURN NULL;
-    ELSE
+            EXTRACT(EPOCH FROM (_current_end_time - _current_end_time_cache)) >= 900) THEN
         SELECT
             max(epoch)
         FROM
@@ -165,8 +163,8 @@ BEGIN
                 e.no = _current_epoch) update_table
     WHERE
         epoch = _current_epoch;
-        RETURN NEW;
     END IF;
+    RETURN NULL;
 END;
 $epoch_info_update$
 LANGUAGE plpgsql;
@@ -175,6 +173,7 @@ DROP TRIGGER IF EXISTS epoch_info_update_trigger ON public.block;
 
 CREATE TRIGGER epoch_info_update_trigger
     AFTER INSERT ON public.block
+    FOR EACH STATEMENT
     EXECUTE PROCEDURE grest.epoch_info_update ();
 
 -- Trigger for inserting new epoch data
@@ -183,7 +182,36 @@ DROP FUNCTION IF EXISTS grest.new_epoch_insert CASCADE;
 CREATE FUNCTION grest.new_epoch_insert ()
     RETURNS TRIGGER
     AS $new_epoch_insert$
+DECLARE
+    _previous_epoch integer DEFAULT NULL;
 BEGIN
+    -- First, we have to make sure that the previous epoch has been updated one last time
+    SELECT
+        max(epoch)
+    FROM
+        grest.epoch_info_cache INTO _previous_epoch;
+    UPDATE
+        grest.epoch_info_cache
+    SET
+        i_out_sum = update_table.out_sum,
+        i_fees = update_table.fees,
+        i_tx_count = update_table.tx_count,
+        i_blk_count = update_table.blk_count,
+        i_last_block_time = update_table.end_time
+    FROM (
+        SELECT
+            e.out_sum,
+            e.fees,
+            e.tx_count,
+            e.blk_count,
+            e.end_time
+        FROM
+            epoch e
+        WHERE
+            e.no = _previous_epoch) update_table
+WHERE
+    epoch = _previous_epoch;
+    -- Then, insert the new epoch data
     INSERT INTO grest.epoch_info_cache
     SELECT
         e.no AS epoch,
@@ -254,7 +282,7 @@ BEGIN
                 es.epoch_no) update_table
 WHERE
     epoch = update_table.epoch_no;
-    RETURN NEW;
+    RETURN NULL;
 END;
 $new_epoch_insert$
 LANGUAGE plpgsql;
@@ -263,5 +291,6 @@ DROP TRIGGER IF EXISTS new_epoch_insert_trigger ON public.epoch;
 
 CREATE TRIGGER new_epoch_insert_trigger
     AFTER INSERT ON public.epoch
+    FOR EACH ROW
     EXECUTE PROCEDURE grest.new_epoch_insert ();
 
