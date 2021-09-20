@@ -54,7 +54,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.20.10
+GLV_VERSION=v1.21.0
 
 PARENT="$(dirname $0)"
 
@@ -65,10 +65,10 @@ usage() {
   cat <<-EOF
 		Usage: $(basename "$0") [-l] [-p] [-b <branch name>]
 		Guild LiveView - An alternative cardano-node LiveView
-		
+
 		-l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
 		-p    Disable default CNCLI ping and revert to ss/tcptraceroute if available, else use regular ICMP ping.
-		-b    Use alternate branch to check for updates - only for testing/development (Default: Master)  
+		-b    Use alternate branch to check for updates - only for testing/development (Default: Master)
 		EOF
   exit 1
 }
@@ -334,14 +334,14 @@ checkPeers() {
     fi
   fi
   [[ -z ${peers} ]] && return
-  
+
   peersSorted=$(printf '%s\n' "${peers[@]}" | sort)
   peerCNT=$(wc -w <<< "${peers}")
-  
+
   print_start=$(( width - (${#peerCNT}*2) - 2 ))
   tput cup ${line} ${print_start}
   printf "${style_values_1}%${#peerCNT}s${NC}/${style_values_2}%s${NC}" "0" "${peerCNT}"
-  
+
   # Ping every node in the list
   index=0
   lastpeerIP=""
@@ -355,13 +355,13 @@ checkPeers() {
       peerPORT=$(cut -d: -f2 <<< "${peer}")
     fi
     [[ -z ${peerIP} || -z ${peerPORT} ]] && tput cup ${line} ${print_start} && printf "${style_values_1}%${#peerCNT}s${NC}" "$((++index))" && continue
-    
+
     if [[ ${ENABLE_IP_GEOLOCATION} = "Y" && "${peerIP}" != "${lastpeerIP}" ]] && ! isPrivateIP "${peerIP}"; then
       if [[ ! -v "geoIP[${peerIP}]" && $((++geoIPqueryCNT)) -le 100 ]]; then # not previously checked and less than 100 queries
         geoIPquery=$(jq --arg addr "${peerIP}" '. += [{"query": $addr, "fields": "city,countryCode,query"}]' <<< ${geoIPquery})
       fi
     fi
-    
+
     if [[ "${peerIP}" = "${lastpeerIP}" ]]; then
       [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT)) # skip RTT check and reuse old ${peerRTT} number if reachable
     elif [[ ${direction} = "out" ]]; then
@@ -402,15 +402,15 @@ checkPeers() {
     elif [[ ${peerRTT} -lt 99999 ]]; then ((peerCNT4++))
     else ((peerCNT0++)); fi
     rttResults+=( "${peerRTT}:${peerIP}:${peerPORT}" )
-    
+
     tput cup ${line} ${print_start}
     printf "${style_values_1}%${#peerCNT}s${NC}" "$((++index))"
   done
   tput cup ${line} ${print_start}
   printf "${style_values_2}%${#peerCNT}s${NC}" "${index}"
-  
+
   [[ ${#rttResults[@]} ]] && rttResultsSorted=$(printf '%s\n' "${rttResults[@]}" | sort -n)
-  
+
   peerCNTreachable=$((peerCNT-peerCNT0))
   if [[ ${peerCNTreachable} -gt 0 ]]; then
     peerRTTAVG=$((peerRTTSUM / peerCNTreachable))
@@ -423,7 +423,7 @@ checkPeers() {
     peerPCT4=$(echo "scale=4;(${peerCNT4}/${peerCNTreachable})*100" | bc -l)
     peerPCT4items=$(printf %.0f "$(echo "scale=4;${peerPCT4}*${granularity_small}/100" | bc -l)")
   fi
-  
+
   if [[ ${geoIPquery} != "[]" ]]; then
     geoIPdata="$(curl -s -f http://ip-api.com/batch --data "${geoIPquery}")"
     if [[ -n "${geoIPdata}" ]] || jq -e . <<< "${geoIPdata}" &>/dev/null; then # successfully grabbed
@@ -500,7 +500,7 @@ while true; do
     tlines=$(tput lines) # update terminal lines
     tcols=$(tput cols)   # update terminal columns
   done
-  
+
   line=0; tput cup 0 0 # reset position
 
   # Gather some data
@@ -511,7 +511,7 @@ while true; do
     clear && tput cup 1 1
     printf "${style_status_3}Connection to node lost, retrying (${fail_count}/${RETRIES})!${NC}"
     waitForInput && continue
-  elif [[ ${fail_count} -ne 0 ]]; then # was failed but now ok, re-check 
+  elif [[ ${fail_count} -ne 0 ]]; then # was failed but now ok, re-check
     CNODE_PID=$(pgrep -fn "[c]ardano-node*.*--port ${CNODE_PORT}")
     version=$("$(command -v cardano-node)" version)
     node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
@@ -519,12 +519,12 @@ while true; do
     cncli_port=$(ss -tnp state established "( dport = :${CNODE_PORT} )" 2>/dev/null | grep cncli | awk '{print $3}' | cut -d: -f2)
     fail_count=0
   fi
-  
+
   if [[ -z "${PROT_PARAMS}" ]]; then
     PROT_PARAMS="$(${CCLI} query protocol-parameters ${NETWORK_IDENTIFIER} 2>/dev/null)"
     if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralization <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
   fi
-  
+
   if [[ ${show_peers} = "false" ]]; then
     if [[ ${use_lsof} = 'Y' ]]; then
       peers_in=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
@@ -569,7 +569,7 @@ while true; do
   printf "${UHL}"
   printf "%0.s${HL}" $(seq $(( ${#title} + 2 )))
   printf "${LVL}\n" && ((line++))
-  
+
   if [[ ${check_peers} = "true" ]]; then
     tput ed
     printf "${VL} ${style_info}%-$((width-3))s${NC} ${VL}\n" "Outgoing peer analysis started... please wait!"
@@ -583,7 +583,7 @@ while true; do
     peerNbr_start_out=1
     tput cup ${line} 0
     printf "${VL} ${style_info}%-46s${NC}" "Outgoing peer analysis done!" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
-      
+
     echo "${m2divider}" && ((line++))
 
     printf "${VL} ${style_info}%-$((width-3))s${NC} ${VL}\n" "Incoming peer analysis started... please wait!"
@@ -597,7 +597,7 @@ while true; do
     peerNbr_start_in=1
     tput cup ${line} 0
     printf "${VL} ${style_info}%-46s${NC}" "Incoming peer analysis done!" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
-    
+
     printf -v peer_analysis_date '%(%Y-%m-%d %H:%M:%S)T\n' -1
     sleep 1
     [[ ${#geoIP[@]} -gt 0 ]] && declare -p geoIP > "$0.geodb"
@@ -624,7 +624,7 @@ while true; do
     printf "${VL} peer port is unknown. It's not uncommon to see many" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL} undetermined peers for incoming connections as it's a good" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL} security practice to disable ICMP in firewall." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
-  elif [[ ${show_peers} = "true" ]]; then    
+  elif [[ ${show_peers} = "true" ]]; then
     printf "${VL}${STANDOUT} OUT ${NC}  RTT : Peers / Percent" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
 
     printf "${VL}    0-50ms : ${style_values_1}%5s${NC} / ${style_values_1}%.f${NC}%% ${style_status_1}" "${peerCNT1_out}" "${peerPCT1_out}"
@@ -654,9 +654,9 @@ while true; do
       [[ $i -lt ${peerPCT4items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
     done
     printf "${NC}${VL}\n" && ((line++))
-    
+
     echo "${m3divider}" && ((line++))
-    
+
     printf "${VL} Total / Undetermined : ${style_values_1}%s${NC} / " "${peerCNT_out}"
     [[ ${peerCNT0_out} -eq 0 ]] && printf "${style_values_1}0${NC}" || printf "${style_values_4}%s${NC}" "${peerCNT0_out}"
     tput cup ${line} $((second_col-1))
@@ -670,10 +670,10 @@ while true; do
 
     if [[ -n ${rttResultsSorted_out} ]]; then
       echo "${m3divider}" && ((line++))
-      
+
       printf "${VL}${style_info}   #  %21s  RTT    Geolocation${NC}\n" "REMOTE PEER"
       header_line=$((line++))
-      
+
       peerNbr_out=0
       peerLocationWidth=$((width-38))
       for peer in ${rttResultsSorted_out}; do
@@ -701,7 +701,7 @@ while true; do
         ((line++))
         [[ ${peerNbr_out} -eq $((peerNbr_start_out+PEER_LIST_CNT-1)) ]] && break
       done
-      
+
       [[ ${peerNbr_start_out} -gt 1 ]] && nav_str="< " || nav_str=""
       nav_str+="[${peerNbr_start_out}-${peerNbr_out}]"
       [[ ${peerCNT_out} -gt ${peerNbr_out} ]] && nav_str+=" >"
@@ -709,9 +709,9 @@ while true; do
       [[ ${selected_direction} = "out" ]] && printf "${style_values_3} %s ${NC} ${VL}\n" "${nav_str}" || printf "  %s ${VL}\n" "${nav_str}"
       tput cup ${line} 0
     fi
-    
+
     echo "${mdivider}" && ((line++))
-    
+
     printf "${VL}${STANDOUT} In ${NC}   RTT : Peers / Percent"
     tput cup ${line} ${width}
     printf "${VL}\n" && ((line++))
@@ -743,9 +743,9 @@ while true; do
       [[ $i -lt ${peerPCT4items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
     done
     printf "${NC}${VL}\n" && ((line++))
-    
+
     echo "${m3divider}" && ((line++))
-    
+
     printf "${VL} Total / Undetermined : ${style_values_1}%s${NC} / " "${peerCNT_in}"
     [[ ${peerCNT0_in} -eq 0 ]] && printf "${style_values_1}0${NC}" || printf "${style_values_4}%s${NC}" "${peerCNT0_in}"
     tput cup ${line} $((second_col-1))
@@ -756,13 +756,13 @@ while true; do
     else printf "Average RTT : ${style_status_3}---${NC} ms"; fi
     tput cup ${line} ${width}
     printf "${VL}\n" && ((line++))
-    
+
     if [[ -n ${rttResultsSorted_in} ]]; then
       echo "${m3divider}" && ((line++))
-      
+
       printf "${VL}${style_info}   #  %21s  RTT    Geolocation${NC}\n" "REMOTE PEER"
       header_line=$((line++))
-      
+
       peerNbr_in=0
       peerLocationWidth=$((width-38))
       for peer in ${rttResultsSorted_in}; do
@@ -790,7 +790,7 @@ while true; do
         ((line++))
         [[ ${peerNbr_in} -eq $((peerNbr_start_in+PEER_LIST_CNT-1)) ]] && break
       done
-      
+
       [[ ${peerNbr_start_in} -gt 1 ]] && nav_str="< " || nav_str=""
       nav_str+="[${peerNbr_start_in}-${peerNbr_in}]"
       [[ ${peerCNT_in} -gt ${peerNbr_in} ]] && nav_str+=" >"
@@ -812,8 +812,12 @@ while true; do
     echo "${blank_line}" && ((line++))
     printf "${VL} ${style_values_2}Core section${NC}" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL} If the node is run as a block producer, a second section is" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
-    printf "${VL} displayed that contain KES key and block stats. When close" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
-    printf "${VL} to the expire date the values will change color." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} displayed that contain KES key and slot/block stats. When" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} close to the expire date the values will change color." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    echo "${blank_line}" && ((line++))
+    printf "${VL} A leadership check is performed for each slot. Slots can be" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} missed if the node is busy and can't keep up (e.g., due to GC" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} pauses). A large number of missed slots needs further study." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     echo "${blank_line}" && ((line++))
     printf "${VL} If CNCLI is activated to calculate and store node blocks," && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL} data from this blocklog DB is displayed, which includes a" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
@@ -858,9 +862,9 @@ while true; do
       done
     fi
     printf "${VL} ${style_values_1}${epoch_bar}${NC} ${VL}\n"; ((line++))
-    
+
     printf "${VL}"; tput cup $((line++)) ${width}; printf "${VL}\n" # empty line
-    
+
     tip_ref=$(getSlotTipRef)
     tip_diff=$(( tip_ref - slotnum ))
     sec_col_value_size=$((width-second_col-13))
@@ -885,19 +889,19 @@ while true; do
       printf "Status     : ${style_info}%-${sec_col_value_size}s${NC}${VL}\n" "syncing ($(printf "%2.1f" "${sync_progress}")%)"
     fi
     ((line++))
-    
+
     echo "${m2divider}" && ((line++))
-    
+
     printf "${VL} Processed TX     : ${style_values_1}%s${NC}" "${tx_processed}"
     tput cup ${line} $((second_col))
     printf "%-$((width-second_col))s${NC}${VL}\n" "        Out / In" && ((line++))
     printf "${VL} Mempool TX/Bytes : ${style_values_1}%s${NC} / ${style_values_1}%s${NC}%$((second_col-24-${#mempool_tx}-${#mempool_bytes}))s" "${mempool_tx}" "${mempool_bytes}"
     printf "Peers : ${style_values_1}%3s${NC}   ${style_values_1}%-5s${NC}%$((width-second_col-19))s${VL}\n" "${peers_out}" "${peers_in}" && ((line++))
-    
+
     ## Core section ##
     if [[ ${nodemode} = "Core" ]]; then
       echo "${mdivider}" && ((line++))
-      
+
       printf "${VL} KES current/remaining"
       tput cup ${line} $((second_col-2))
       printf ": ${style_values_1}%s${NC} / " "${kesperiod}"
@@ -912,9 +916,13 @@ while true; do
       printf "${VL} KES expiration date"
       tput cup ${line} $((second_col-2))
       printf ": ${style_values_1}%-$((width-second_col))s${NC}${VL}\n" "${kes_expiration}" && ((line++))
-      
+      printf -v missed_slots_pct "%.4f%%" "$(bc -l <<<"(${missed_slots}/(${about_to_lead}+${missed_slots}))*100")"
+      printf "${VL} Missed slot leader checks"
+      tput cup ${line} $((second_col-2))
+      printf ": ${style_values_1}%-$((width-second_col))s${NC}${VL}\n" "${missed_slots} (${missed_slots_pct})" && ((line++))
+
       echo "${m2divider}" && ((line++))
-      
+
       if [[ -f "${BLOCKLOG_DB}" ]]; then
         invalid_cnt=0; missed_cnt=0; ghosted_cnt=0; stolen_cnt=0; confirmed_cnt=0; adopted_cnt=0; leader_cnt=0
         for status_type in $(sqlite3 "${BLOCKLOG_DB}" "SELECT status, COUNT(status) FROM blocklog WHERE epoch=${epochnum} GROUP BY status;" 2>/dev/null); do
@@ -944,13 +952,13 @@ while true; do
         [[ ${leader_cnt} -eq 0 ]] && leader_fmt="${NC}" || leader_fmt="${style_values_1}"
 
         printf "${VL}${STANDOUT} BLOCKS ${NC}  Leader  | Ideal  | Luck    | Adopted | Confirmed%$((width-59))s${VL}\n" "" && ((line++))
-        printf "${VL}%10s${leader_fmt}%-10s%-9s%-10s${adopted_fmt}%-10s${confirmed_fmt}%-9s${NC}%$((width-59))s${VL}\n" "" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "" && ((line++))   
-        
+        printf "${VL}%10s${leader_fmt}%-10s%-9s%-10s${adopted_fmt}%-10s${confirmed_fmt}%-9s${NC}%$((width-59))s${VL}\n" "" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "" && ((line++))
+
         if [[ ${invalid_cnt} -ne 0 || ${missed_cnt} -ne 0 || ${ghosted_cnt} -ne 0 || ${stolen_cnt} -ne 0 ]]; then
           printf "${VL}%10sInvalid | Missed | Ghosted | Stolen%$((width-46))s${VL}\n" "" && ((line++))
           printf "${VL}%10s${invalid_fmt}%-10s${missed_fmt}%-9s${ghosted_fmt}%-10s${stolen_fmt}%-6s${NC}%$((width-46))s${VL}\n" "" "${invalid_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "" && ((line++))
         fi
-        
+
         if [[ -n ${leader_next} ]]; then
           leader_time_left=$((  $(date -u -d ${leader_next} +%s) - $(printf '%(%s)T\n' -1) ))
           if [[ ${leader_time_left} -gt 0 ]]; then
@@ -971,13 +979,13 @@ while true; do
         fi
       else
         printf "${VL}${STANDOUT} BLOCKS ${NC} %$((width-38))s %-6s | ${FG_GREEN}%-7s${NC} | ${FG_RED}%-7s${NC} ${VL}\n" "" "Leader" "Adopted" "Invalid" && ((line++))
-        printf "${VL}%s %$((width-60))s %-6s | %-7s | %-7s ${VL}\n" "Since node start (EKG metrics)" "" "${isleader}" "${adopted}" "${didntadopt}" && ((line++))
+        printf "${VL} %s %$((width-47))s %-6s | %-7s | %-7s ${VL}\n" "Since node start" "" "${isleader}" "${adopted}" "${didntadopt}" && ((line++))
       fi
     fi
   fi
-  
+
   [[ ${check_peers} = "true" ]] && check_peers=false && show_peers=true && clear && continue
-  
+
   echo "${bdivider}" && ((line++))
   printf " TG Announcement/Support channel: ${style_info}t.me/guild_operators_official${NC}\n\n" && line=$((line+2))
   if [[ ${show_peers} = "true" && ${show_peers_info} = "true" ]]; then
