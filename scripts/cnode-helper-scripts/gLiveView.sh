@@ -54,7 +54,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.21.0
+GLV_VERSION=v1.21.1
 
 PARENT="$(dirname $0)"
 
@@ -245,7 +245,8 @@ fi
 # Description : wait for user keypress to quit, else do nothing if timeout expire
 waitForInput() {
   ESC=$(printf "\033")
-  if ! read -rsn1 -t ${REFRESH_RATE} key1; then return; fi
+  if [[ $1 = "homeInfo" || $1 = "peersInfo" ]]; then read -rsn1 key1
+  elif ! read -rsn1 -t ${REFRESH_RATE} key1; then return; fi
   [[ ${key1} = "${ESC}" ]] && read -rsn2 -t 0.3 key2 # read 2 more chars
   [[ ${key1} = "q" ]] && myExit 0 "Guild LiveView stopped!"
   [[ ${key1} = "${ESC}" && ${key2} = "" ]] && myExit 0 "Guild LiveView stopped!"
@@ -253,9 +254,9 @@ waitForInput() {
     [[ ${key1} = "p" ]] && check_peers="true" && clear && return
     [[ ${key1} = "i" ]] && show_home_info="true" && clear && return
   elif [[ $1 = "homeInfo" ]]; then
-    [[ ${key1} = "h" ]] && show_home_info="false" && clear && return
+    [[ ${key1} = "h" ]] && show_home_info="false" && line=0 && clear && return
   elif [[ $1 = "peersInfo" ]]; then
-    [[ ${key1} = "b" ]] && show_peers_info="false" && clear && return
+    [[ ${key1} = "b" ]] && show_peers_info="false" && line=0 && clear && return
   elif [[ $1 = "peers" ]]; then
     [[ ${key1} = "h" ]] && show_peers="false" && clear && return
     [[ ${key1} = "i" ]] && show_peers_info="true" && clear && return
