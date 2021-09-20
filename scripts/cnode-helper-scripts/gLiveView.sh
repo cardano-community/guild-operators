@@ -916,8 +916,7 @@ while true; do
       printf "${VL} KES expiration date"
       tput cup ${line} $((second_col-2))
       printf ": ${style_values_1}%-$((width-second_col))s${NC}${VL}\n" "${kes_expiration}" && ((line++))
-
-      printf -v missed_slots_pct "%.4f%%" $(bc -l <<<"(${missed_slots}/(${about_to_lead}+${missed_slots}))*100")
+      printf -v missed_slots_pct "%.4f%%" "$(bc -l <<<"(${missed_slots}/(${about_to_lead}+${missed_slots}))*100")"
       printf "${VL} Missed slot leader checks"
       tput cup ${line} $((second_col-2))
       printf ": ${style_values_1}%-$((width-second_col))s${NC}${VL}\n" "${missed_slots} (${missed_slots_pct})" && ((line++))
