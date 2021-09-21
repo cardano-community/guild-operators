@@ -408,6 +408,35 @@
         }
       }
     },
+    "/rpc/account_updates": {
+      "post": {
+        "tags": ["Account Queries"],
+        "summary": "Get the account updates (registration, deregistration, delegation and withdrawals)",
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": ["_stake_address_bech32"],
+              "type": "object",
+              "properties": {
+                "_stake_address_bech32": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/rpc/tip": {
       "post": {
         "tags": ["Blockchain Queries"],
