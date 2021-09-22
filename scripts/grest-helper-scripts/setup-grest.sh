@@ -9,8 +9,8 @@ unset CNODE_HOME
 # command line flags override set values #
 ##########################################
 
-CURL_TIMEOUT=60         # Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
-UPDATE_CHECK='Y'        # Check if there is an updated version of setup-grest.sh script to download
+CURL_TIMEOUT=60  # Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
+UPDATE_CHECK='Y' # Check if there is an updated version of setup-grest.sh script to download
 
 ######################################
 # Do NOT modify code below           #
@@ -21,6 +21,150 @@ err_exit() {
   echo -e "Exiting...\n" >&2
   pushd -0 >/dev/null && dirs -c
   exit 1
+}
+
+is_empty() {
+  local var=$1
+
+  [[ -z $var ]]
+}
+
+is_file() {
+  local file=$1
+
+  [[ -f $file ]]
+}
+
+is_dir() {
+  local dir=$1
+
+  [[ -d $dir ]]
+}
+
+update_check() {
+  [[ -z ${UPDATE_CHECK} ]] && UPDATE_CHECK='Y'
+  if [[ "${UPDATE_CHECK}" = 'Y' ]] && curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/setup-grest.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/setup-grest.sh 2>/dev/null; then
+    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/setup-grest.sh)
+    TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/setup-grest.sh.tmp)
+    if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
+      cp "${PARENT}"/setup-grest.sh "${PARENT}/setup-grest.sh_bkp$(date +%s)"
+      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/setup-grest.sh)
+      printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" >"${PARENT}"/setup-grest.sh.tmp
+      {
+        mv -f "${PARENT}"/setup-grest.sh.tmp "${PARENT}"/setup-grest.sh &&
+          chmod 755 "${PARENT}"/setup-grest.sh &&
+          echo -e "\nUpdate applied successfully, please run setup-grest again!\n" &&
+          exit 0
+      } || {
+        err_exit "Update failed!\n\nPlease manually download latest version of setup-grest.sh script from GitHub"
+      }
+    fi
+  fi
+  rm -f "${PARENT}"/setup-grest.sh.tmp
+}
+
+get_env_branch() {
+  ! is_empty "${BRANCH}" && return
+  is_file "${CNODE_HOME}/scripts/.env_branch" &&
+    BRANCH=$(cat "${CNODE_HOME}"/scripts/.env_branch) || BRANCH=master
+}
+
+check_env_branch() {
+  if ! curl -s -f -m "${CURL_TIMEOUT}" "https://api.github.com/repos/cardano-community/guild-operators/branches" |
+    jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null; then
+    echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to alpha branch\n"
+    BRANCH=alpha
+    echo "${BRANCH}" >"${CNODE_HOME}"/scripts/.env_branch
+  else
+    echo "${BRANCH}" >"${CNODE_HOME}"/scripts/.env_branch
+  fi
+}
+
+setup_repo_url() {
+  REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
+  URL_RAW="${REPO_RAW}/${BRANCH}"
+}
+
+jqDecode() {
+  base64 --decode <<<$2 | jq -r "$1"
+}
+
+deployRPC() {
+  file_name=$(jqDecode '.name' "${1}")
+  [[ -z ${file_name} || ${file_name} != *.sql ]] && return
+  dl_url=$(jqDecode '.download_url //empty' "${1}")
+  [[ -z ${dl_url} ]] && return
+  ! rpc_desc=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null | grep 'COMMENT ON FUNCTION' | cut -d\' -f2) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url}" && return 1
+  ! rpc_sql=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url%.json}.sql" && return 1
+  echo -e "\nFunction:    \e[32m${file_name%.sql}\e[0m"
+  echo -e "  Description: \e[37m${rpc_desc}\e[0m"
+  ! output=$(psql cexplorer -v "ON_ERROR_STOP=1" <<<${rpc_sql} 2>&1) && echo -e "  \e[31mERROR\e[0m: ${output}"
+}
+
+### Update file retaining existing custom configs
+updateWithCustomConfig() {
+  file=$1
+  if [[ ! -f ${file}.tmp ]]; then
+    echo "ERROR!! Failed to download '${file}' from GitHub"
+    return
+  fi
+  if [[ -f ${file} && ${FORCE_OVERWRITE} = 'N' ]]; then
+    if grep '^# Do NOT modify' ${file} >/dev/null 2>&1; then
+      TEMPL_CMD=$(awk '/^# Do NOT modify/,0' ${file}.tmp)
+      if [[ -z ${TEMPL_CMD} ]]; then
+        echo "ERROR!! Script downloaded from GitHub corrupt, ignoring update for '${file}'"
+        rm -f ${file}.tmp
+        return
+      fi
+      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' ${file})
+      printf '%s\n%s\n' "${STATIC_CMD}" "${TEMPL_CMD}" >${file}.tmp
+    else
+      rm -f ${file}.tmp
+      return
+    fi
+  fi
+  [[ -f ${file} ]] && cp -f ${file} "${file}_bkp$(date +%s)"
+  mv -f ${file}.tmp ${file}
+  chmod 755 ${file}
+}
+
+setup_cron_scripts_dir() {
+  if ! is_dir "${CRON_SCRIPTS_DIR}"; then
+    mkdir "${CRON_SCRIPTS_DIR}"
+  fi
+}
+
+get_cron_job_executable() {
+  local job=$1
+  local job_url="${URL_RAW}/files/grest/cron/jobs/${job}.sh"
+  if curl -s -f -m "${CURL_TIMEOUT}" -o "${CRON_SCRIPTS_DIR}/${job}.sh" "${job_url}"; then
+    echo "Downloaded ${CRON_SCRIPTS_DIR}/${job}.sh"
+    chmod +x "${CRON_SCRIPTS_DIR}/${job}.sh"
+  else
+    err_exit "ERROR!! Could not download ${job_url}"
+  fi
+}
+
+clean_up_existing_cron_job() {
+  local job=$1
+  if is_file "$CRON_DIR/${job}"; then
+    sudo rm "$CRON_DIR/${job}"
+  fi
+}
+
+install_cron_job() {
+  local job=$1
+  local cron_pattern=$2
+  local cron_job_path="${CRON_DIR}/${job}"
+  local cron_job_entry="${cron_pattern} ${USER} /bin/sh ${CRON_SCRIPTS_DIR}/${job}.sh >> ${LOG_DIR}/${job}.log"
+  sudo bash -c "{ echo '${cron_job_entry}'; } > ${cron_job_path}"
+}
+
+setup_cron_jobs() {
+  setup_cron_scripts_dir
+  get_cron_job_executable "stake-distribution-update"
+  clean_up_existing_cron_job "stake-distribution-update"
+  install_cron_job "stake-distribution-update" "*/30 * * * *"
 }
 
 usage() {
@@ -40,13 +184,13 @@ EOF
 
 while getopts :ft:b: opt; do
   case ${opt} in
-    f ) FORCE_OVERWRITE='Y' ;;
-    t ) CNODE_NAME=${OPTARG//[^[:alnum:]]/_} ;;
-    b ) BRANCH=${OPTARG} ;;
-    \? ) usage ;;
-    esac
+  f) FORCE_OVERWRITE='Y' ;;
+  t) CNODE_NAME=${OPTARG//[^[:alnum:]]/_} ;;
+  b) BRANCH=${OPTARG} ;;
+  \?) usage ;;
+  esac
 done
-shift $((OPTIND -1))
+shift $((OPTIND - 1))
 
 dirs -c # clear dir stack
 [[ -z ${FORCE_OVERWRITE} ]] && FORCE_OVERWRITE='N'
@@ -54,41 +198,18 @@ dirs -c # clear dir stack
 CNODE_PATH="/opt/cardano"
 CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
 CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
+CRON_SCRIPTS_DIR="${CNODE_HOME}/scripts/cron-scripts"
+LOG_DIR="${CNODE_HOME}/logs"
+CRON_DIR="/etc/cron.d"
 
-[[ -f "${CNODE_HOME}"/scripts/.env_branch ]] && BRANCH=$(cat "${CNODE_HOME}"/scripts/.env_branch) || BRANCH=master
+get_env_branch
+check_env_branch
+setup_repo_url
 
-if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
-  echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to alpha branch\n"
-  BRANCH=alpha
-  echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
-else
-  echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
-fi
-
-REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
-URL_RAW="${REPO_RAW}/${BRANCH}"
 PARENT="$(dirname $0)"
-[[ -z ${UPDATE_CHECK} ]] && UPDATE_CHECK='Y'
-[[ ! -d "${HOME}"/.cabal/bin ]] && mkdir -p "${HOME}"/.cabal/bin
+update_check
 
-if [[ "${UPDATE_CHECK}" = 'Y' ]] && curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/setup-grest.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/setup-grest.sh 2>/dev/null; then
-  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/setup-grest.sh)
-  TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/setup-grest.sh.tmp)
-  if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-    cp "${PARENT}"/setup-grest.sh "${PARENT}/setup-grest.sh_bkp$(date +%s)"
-    STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/setup-grest.sh)
-    printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/setup-grest.sh.tmp
-    {
-      mv -f "${PARENT}"/setup-grest.sh.tmp "${PARENT}"/setup-grest.sh && \
-      chmod 755 "${PARENT}"/setup-grest.sh && \
-      echo -e "\nUpdate applied successfully, please run setup-grest again!\n" && \
-      exit 0;
-    } || {
-      err_exit "Update failed!\n\nPlease manually download latest version of setup-grest.sh script from GitHub"
-    }
-  fi
-fi
-rm -f "${PARENT}"/setup-grest.sh.tmp
+[[ ! -d "${HOME}"/.cabal/bin ]] && mkdir -p "${HOME}"/.cabal/bin
 
 mkdir -p ~/tmp
 
@@ -113,7 +234,7 @@ if [ ! -f /usr/local/sbin/haproxy ]; then
   if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
     tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
     if command -v apt-get >/dev/null; then
-     sudo apt-get -y install libpcre3-dev || err_exit "ERROR!! 'sudo apt-get -y install libpcre3-dev' failed!"
+      sudo apt-get -y install libpcre3-dev || err_exit "ERROR!! 'sudo apt-get -y install libpcre3-dev' failed!"
     fi
     if command -v yum >/dev/null; then
       sudo yum -y install pcre-devel || err_exit "ERROR!! 'sudo yum -y install prce-devel' failed!"
@@ -179,7 +300,7 @@ fi
 if ! command -v socat >/dev/null; then
   echo -e "Installing socat .."
   if command -v apt-get >/dev/null; then
-     sudo apt-get -y install socat >/dev/null || err_exit "ERROR!! 'sudo apt-get -y install socat' failed!"
+    sudo apt-get -y install socat >/dev/null || err_exit "ERROR!! 'sudo apt-get -y install socat' failed!"
   elif command -v yum >/dev/null; then
     sudo yum -y install socat >/dev/null || err_exit "ERROR!! 'sudo yum -y install socat' failed!"
   else
@@ -203,7 +324,7 @@ if [[ -f "${CNODE_HOME}"/files/config.json ]]; then
   SHGENHASH=$(cardano-cli genesis hash --genesis "${SHGENFILE}" 2>/dev/null)
   ALGENHASH=$(cardano-cli genesis hash --genesis "${ALGENFILE}" 2>/dev/null)
   if [[ -n "${ALGENHASH}" ]]; then
-    jq --arg BYGENHASH ${BYGENHASH} --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} '.ByronGenesisHash = $BYGENHASH | .ShelleyGenesisHash = $SHGENHASH | .AlonzoGenesisHash = $ALGENHASH' < "${CNODE_HOME}"/files/config.json > "${CNODE_HOME}"/files/config.json.tmp
+    jq --arg BYGENHASH ${BYGENHASH} --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} '.ByronGenesisHash = $BYGENHASH | .ShelleyGenesisHash = $SHGENHASH | .AlonzoGenesisHash = $ALGENHASH' <"${CNODE_HOME}"/files/config.json >"${CNODE_HOME}"/files/config.json.tmp
     mv -f "${CNODE_HOME}"/files/config.json.tmp "${CNODE_HOME}"/files/config.json
   else
     err_exit "ERROR!! Could not calculate genesis hash for ${ALGENFILE}! Please re-run prereqs.sh with right arguments"
@@ -212,7 +333,7 @@ else
   err_exit "ERROR!! ${CNODE_HOME}/files/config.json not found! Please ensure you've run pre-requisites!"
 fi
 
-read -ra SHGENESIS <<< $(jq -r '[
+read -ra SHGENESIS <<<$(jq -r '[
   .activeSlotsCoeff,
   .updateQuorum,
   .networkId,
@@ -224,39 +345,12 @@ read -ra SHGENESIS <<< $(jq -r '[
   .slotLength,
   .maxKESEvolutions,
   .securityParam
-  ] | @tsv' < "${SHGENFILE}")
+  ] | @tsv' <"${SHGENFILE}")
 
 # PS: Given the Plutus schema is far from finalized, we expect changes as SC layer matures and PAB gets into real networks.
 # For now, dumping compressed jq (will be inserted as shell escaped json data blob, can be changed in future iterations - many of these will already are part of pParams and may be eliminated).
 
-ALGENESIS="$(jq -c . < ${ALGENFILE})"
-
-### Update file retaining existing custom configs
-updateWithCustomConfig() {
-  file=$1
-  if [[ ! -f ${file}.tmp ]]; then
-    echo "ERROR!! Failed to download '${file}' from GitHub"
-    return
-  fi
-  if [[ -f ${file} && ${FORCE_OVERWRITE} = 'N' ]]; then
-    if grep '^# Do NOT modify' ${file} >/dev/null 2>&1; then
-      TEMPL_CMD=$(awk '/^# Do NOT modify/,0' ${file}.tmp)
-      if [[ -z ${TEMPL_CMD} ]]; then
-        echo "ERROR!! Script downloaded from GitHub corrupt, ignoring update for '${file}'"
-        rm -f ${file}.tmp
-        return
-      fi
-      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' ${file})
-      printf '%s\n%s\n' "${STATIC_CMD}" "${TEMPL_CMD}" > ${file}.tmp
-    else
-      rm -f ${file}.tmp
-      return
-    fi
-  fi
-  [[ -f ${file} ]] && cp -f ${file} "${file}_bkp$(date +%s)"
-  mv -f ${file}.tmp ${file}
-  chmod 755 ${file}
-}
+ALGENESIS="$(jq -c . <${ALGENFILE})"
 
 [[ ${FORCE_OVERWRITE} = 'Y' ]] && echo "Forced full upgrade!! Please re-apply customisations to scripts as required!"
 
@@ -378,7 +472,7 @@ if ! command -v cardano-db-sync-extended >/dev/null; then
     "  https://cardano-community.github.io/guild-operators/#/Build/dbsync\n"
 fi
 
-if ! command -v psql &>/dev/null; then 
+if ! command -v psql &>/dev/null; then
   err_exit "\n\e[31mERROR\e[0m: We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:\n" \
     "  https://cardano-community.github.io/guild-operators/Appendix/postgres\n"
 fi
@@ -399,25 +493,9 @@ if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/
   err_exit "\e[31mERROR\e[0m: ${rpc_file_list}"
 fi
 
-jqDecode() {
-  base64 --decode <<< $2 | jq -r "$1"
-}
-
-deployRPC() {
-  file_name=$(jqDecode '.name' "${1}")
-  [[ -z ${file_name} || ${file_name} != *.sql ]] && return
-  dl_url=$(jqDecode '.download_url //empty' "${1}")
-  [[ -z ${dl_url} ]] && return
-  ! rpc_desc=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null | grep 'COMMENT ON FUNCTION' | cut -d\' -f2) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url}" && return 1
-  ! rpc_sql=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url%.json}.sql" && return 1
-  echo -e "\nFunction:    \e[32m${file_name%.sql}\e[0m"
-  echo -e "  Description: \e[37m${rpc_desc}\e[0m"
-  ! output=$(psql cexplorer -v "ON_ERROR_STOP=1" <<< ${rpc_sql} 2>&1) && echo -e "  \e[31mERROR\e[0m: ${output}"
-}
-
 # add grest schema if missing and grant usage for web_anon
 echo -e "\e[32mAdd grest schema if missing and grant usage for web_anon\e[0m"
-psql cexplorer >/dev/null << 'SQL'
+psql cexplorer >/dev/null <<'SQL'
 BEGIN;
 
 DO
@@ -440,11 +518,10 @@ ALTER ROLE web_anon SET search_path TO grest, public;
 COMMIT;
 SQL
 
-
 # Data Types are intentionally kept varchar for single ID row to avoid future edge cases
 
 echo -e "\e[32mAdding initial genesis table..\e[0m"
-psql cexplorer >/dev/null << 'SQL'
+psql cexplorer >/dev/null <<'SQL'
 BEGIN;
 
 DROP TABLE IF EXISTS grest.genesis;
@@ -468,16 +545,15 @@ SQL
 
 psql cexplorer -c "INSERT INTO grest.genesis VALUES ( '${SHGENESIS[4]}', '${SHGENESIS[2]}', '${SHGENESIS[0]}', '${SHGENESIS[1]}', '${SHGENESIS[3]}', '${SHGENESIS[5]}', '${SHGENESIS[6]}', '${SHGENESIS[7]}', '${SHGENESIS[8]}', '${SHGENESIS[9]}', '${SHGENESIS[10]}', '${ALGENESIS}' );"
 
-
 echo -e "\e[32mDeploying RPCs to DBSync ..\e[0m"
 
-for row in $(jq -r '.[] | @base64' <<< ${rpc_file_list}); do
+for row in $(jq -r '.[] | @base64' <<<${rpc_file_list}); do
   if [[ $(jqDecode '.type' "${row}") = 'dir' ]]; then
     echo -e "\nDownloading RPC functions from subdir $(jqDecode '.name' "${row}")"
     if ! rpc_file_list_subdir=$(curl -s -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc/$(jqDecode '.name' "${row}")?ref=${BRANCH}"); then
       echo -e "  \e[31mERROR\e[0m: ${rpc_file_list_subdir}" && continue
     fi
-    for row2 in $(jq -r '.[] | @base64' <<< ${rpc_file_list_subdir}); do
+    for row2 in $(jq -r '.[] | @base64' <<<${rpc_file_list_subdir}); do
       deployRPC ${row2}
     done
   else
@@ -489,4 +565,7 @@ echo -e "\n\e[32mAll RPC functions successfully added to DBSync! For detailed qu
 echo -e "\e[33mPlease restart PostgREST before attempting to use the added functions\e[0m"
 echo -e "  \e[94msudo systemctl restart postgrest.service\e[0m\n"
 
-pushd -0 >/dev/null || err_exit; dirs -c
+setup_cron_jobs
+
+pushd -0 >/dev/null || err_exit
+dirs -c

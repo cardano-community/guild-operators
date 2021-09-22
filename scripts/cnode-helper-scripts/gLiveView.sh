@@ -54,7 +54,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.21.0
+GLV_VERSION=v1.21.2
 
 PARENT="$(dirname $0)"
 
@@ -245,7 +245,8 @@ fi
 # Description : wait for user keypress to quit, else do nothing if timeout expire
 waitForInput() {
   ESC=$(printf "\033")
-  if ! read -rsn1 -t ${REFRESH_RATE} key1; then return; fi
+  if [[ $1 = "homeInfo" || $1 = "peersInfo" ]]; then read -rsn1 key1
+  elif ! read -rsn1 -t ${REFRESH_RATE} key1; then return; fi
   [[ ${key1} = "${ESC}" ]] && read -rsn2 -t 0.3 key2 # read 2 more chars
   [[ ${key1} = "q" ]] && myExit 0 "Guild LiveView stopped!"
   [[ ${key1} = "${ESC}" && ${key2} = "" ]] && myExit 0 "Guild LiveView stopped!"
@@ -253,9 +254,9 @@ waitForInput() {
     [[ ${key1} = "p" ]] && check_peers="true" && clear && return
     [[ ${key1} = "i" ]] && show_home_info="true" && clear && return
   elif [[ $1 = "homeInfo" ]]; then
-    [[ ${key1} = "h" ]] && show_home_info="false" && clear && return
+    [[ ${key1} = "h" ]] && show_home_info="false" && line=0 && clear && return
   elif [[ $1 = "peersInfo" ]]; then
-    [[ ${key1} = "b" ]] && show_peers_info="false" && clear && return
+    [[ ${key1} = "b" ]] && show_peers_info="false" && line=0 && clear && return
   elif [[ $1 = "peers" ]]; then
     [[ ${key1} = "h" ]] && show_peers="false" && clear && return
     [[ ${key1} = "i" ]] && show_peers_info="true" && clear && return
@@ -897,9 +898,10 @@ while true; do
     tput cup ${line} $((second_col))
     printf "%-$((width-second_col))s${NC}${VL}\n" "      Out/In       Live/Heap" && ((line++))
     printf "${VL} Mempool TX/Bytes : ${style_values_1}%s${NC} / ${style_values_1}%s${NC}%$((second_col-24-${#mempool_tx}-${#mempool_bytes}))s" "${mempool_tx}" "${mempool_bytes}"
+
     printf -v mem_live_gb "%.1fG" "$(bc -l <<<"(${mem_live}/1073741824)")"
     printf -v mem_heap_gb "%.1fG" "$(bc -l <<<"(${mem_heap}/1073741824)")"
-    printf "Peers: ${style_values_1}%2s${NC} ${style_values_1}%2s${NC}  Mem: ${style_values_1}%4s %4s${NC} %$((width-second_col-29))s${VL}\n" "${peers_out}" "${peers_in}" "${mem_live_gb}" "${mem_heap_gb}" && ((line++))
+    printf "Peers: ${style_values_1}%2s${NC} ${style_values_1}%2s${NC}  Mem: ${style_values_1}%4s %4s${NC} %$((width-second_col-29))s${VL}\n" "${peers_out}" "${peers_in}"
 
     ## Core section ##
     if [[ ${nodemode} = "Core" ]]; then

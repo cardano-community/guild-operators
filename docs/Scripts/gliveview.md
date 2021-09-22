@@ -44,14 +44,14 @@ A sample output from both core and relay (with peer analysis):
 
 ###### Upper main section
 
-Displays live metrics gathered from EKG. Epoch number and progress is live from the node while date calculation until epoch boundary is based on offline genesis parameters. Reference tip is also an offline calculation based on genesis values used to compare against the node tip to see how far of the tip (diff value) the node is. With current parameters a slot diff up to 40 from reference tip is considered good but it should usually stay below 30. In/Out peers show how many connections the node has established in and out.
+Displays live metrics gathered from EKG. Epoch number and progress is live from the node while date calculation until epoch boundary is based on offline genesis parameters. Reference tip is also an offline calculation based on genesis values used to compare against the node tip to see how far of the tip (diff value) the node is. With current parameters a slot diff up to 40 from reference tip is considered good but it should usually stay below 30. In/Out peers show how many connections the node has established in and out. Live/Heap shows how much memory is used for live/heap data. A large difference between them (or the heap approaching the physical memory limit) means the node is struggling with the garbage collector and/or may begin swapping.
 
 ###### Core section
 
 If the node is run as a core, identified by the 'forge-about-to-lead' EKG parameter, a second core section is displayed. This section contain current and remaining KES periods as well as a calculated date for the expiration. When getting close to expire date the values will change color. Also, in the section you will find if the node has missed slots for attempting leadership checks (as absolute value and percentage since node startup).
 
 !!! info "Reminder"
-    Note that while ideally this counter should be close to zero, you would often see a higher value for the counter if the node is busy (e.g. paused for garbage collection or at busy for reward calculations). If you'd like - but simply consider tuning activities. A high percentage of missed slots needs further investigation (assistance for troubleshooting can be seeked [here](https://t.me/CardanoStakePoolWorkgroup) ), as in extremely remote cases - it can overlap with a slot that your node could be a leader for.
+    Note that while this counter should ideally be close to zero, you would often see a higher value if the node is busy (e.g. paused for garbage collection or busy with reward calculations). A consistently high percentage of missed slots would need further investigation (assistance for troubleshooting can be seeked [here](https://t.me/CardanoStakePoolWorkgroup) ), as in extremely remote cases - it can overlap with a slot that your node could be a leader for.
 
 Blocks created by the node since node start is another metric shown in the BLOCKS sub-section. If [CNCLI](../Scripts/cncli.md) is activated to store blocks created
 in a blocklog DB, data from this blocklog is displayed. If not, blocks created values are taken from EKG or Prometheus metrics.
