@@ -809,6 +809,7 @@ while true; do
     printf "${VL} tip(diff value) the node is. This interval is dynamic and" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL} based on different genesis parameters. In/Out peers show how" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL} many connections the node have established in and out." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
+    printf "${VL} Live/Heap shows the memory utilization of live/heap data." && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     echo "${blank_line}" && ((line++))
     printf "${VL} ${style_values_2}Core section${NC}" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
     printf "${VL} If the node is run as a block producer, a second section is" && tput cup ${line} ${width} && printf "${VL}\n" && ((line++))
@@ -894,9 +895,11 @@ while true; do
 
     printf "${VL} Processed TX     : ${style_values_1}%s${NC}" "${tx_processed}"
     tput cup ${line} $((second_col))
-    printf "%-$((width-second_col))s${NC}${VL}\n" "        Out / In" && ((line++))
+    printf "%-$((width-second_col))s${NC}${VL}\n" "      Out/In       Live/Heap" && ((line++))
     printf "${VL} Mempool TX/Bytes : ${style_values_1}%s${NC} / ${style_values_1}%s${NC}%$((second_col-24-${#mempool_tx}-${#mempool_bytes}))s" "${mempool_tx}" "${mempool_bytes}"
-    printf "Peers : ${style_values_1}%3s${NC}   ${style_values_1}%-5s${NC}%$((width-second_col-19))s${VL}\n" "${peers_out}" "${peers_in}" && ((line++))
+    printf -v mem_live_gb "%.1fG" "$(bc -l <<<"(${mem_live}/1073741824)")"
+    printf -v mem_heap_gb "%.1fG" "$(bc -l <<<"(${mem_heap}/1073741824)")"
+    printf "Peers: ${style_values_1}%2s${NC} ${style_values_1}%2s${NC}  Mem: ${style_values_1}%4s %4s${NC} %$((width-second_col-29))s${VL}\n" "${peers_out}" "${peers_in}" "${mem_live_gb}" "${mem_heap_gb}" && ((line++))
 
     ## Core section ##
     if [[ ${nodemode} = "Core" ]]; then
