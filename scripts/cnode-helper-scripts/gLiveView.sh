@@ -901,7 +901,7 @@ while true; do
 
     printf -v mem_live_gb "%.1fG" "$(bc -l <<<"(${mem_live}/1073741824)")"
     printf -v mem_heap_gb "%.1fG" "$(bc -l <<<"(${mem_heap}/1073741824)")"
-    printf "Peers: ${style_values_1}%2s${NC} ${style_values_1}%2s${NC}  Mem: ${style_values_1}%4s %4s${NC} %$((width-second_col-29))s${VL}\n" "${peers_out}" "${peers_in}"
+    printf "Peers: ${style_values_1}%2s %2s${NC}  Mem: ${style_values_1}%4s %4s${NC} %$((width-second_col-29))s${VL}\n" "${peers_out}" "${peers_in}" "${mem_live_gb}" "${mem_heap_gb}" && ((line++))
 
     ## Core section ##
     if [[ ${nodemode} = "Core" ]]; then
