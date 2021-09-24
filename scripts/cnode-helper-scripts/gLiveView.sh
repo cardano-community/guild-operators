@@ -27,7 +27,7 @@ setTheme() {
     style_values_1=${FG_LBLUE}            # color of most live values
     style_values_2=${FG_GREEN}            # color of node name
     style_values_3=${STANDOUT}            # color of selected outgoing/incoming paging
-    style_values_4=${FG_LGRAY}               # color of informational text
+    style_values_4=${FG_LGRAY}            # color of informational text
     style_info=${FG_YELLOW}               # info messages
     style_status_1=${FG_GREEN}            # :)
     style_status_2=${FG_YELLOW}           # :|
@@ -39,7 +39,7 @@ setTheme() {
     style_values_1=${FG_BLUE}             # color of most live values
     style_values_2=${FG_GREEN}            # color of node name
     style_values_3=${STANDOUT}            # color of selected outgoing/incoming paging
-    style_values_4=${FG_LGRAY}               # color of informational text
+    style_values_4=${FG_LGRAY}            # color of informational text
     style_info=${FG_YELLOW}               # info messages
     style_status_1=${FG_GREEN}            # :)
     style_status_2=${FG_YELLOW}           # :|
@@ -180,8 +180,9 @@ declare -gA geoIP=()
 
 # Style
 width=67
-second_col=$((width/3 + 12))
-third_col=$((second_col + 16))
+two_col_second=$((width/2 + 3))
+three_col_second=$((width/3 + 1))
+three_col_third=$(((width/3)*2 + 3))
 NC=$(tput sgr0 && printf "${style_base}") # override default NC in env
 
 setTheme # call function to set theme colors
@@ -507,6 +508,7 @@ while true; do
 
   # Gather some data
   getNodeMetrics
+  mem_rss=$(ps -q ${CNODE_PID} -o rss=) || mem_rss="0"
   [[ ${fail_count} -eq ${RETRIES} ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}"
   if [[ ${nodeStartTime} -le 0 ]]; then
     ((fail_count++))
@@ -661,7 +663,7 @@ while true; do
 
     printf "${VL} Total / Undetermined : ${style_values_1}%s${NC} / " "${peerCNT_out}"
     [[ ${peerCNT0_out} -eq 0 ]] && printf "${style_values_1}0${NC}" || printf "${style_values_4}%s${NC}" "${peerCNT0_out}"
-    tput cup ${line} $((second_col-1))
+    tput cup ${line} $((two_col_second-1))
     if [[ ${peerRTTAVG_out} -ge 200 ]]; then printf "Average RTT : ${style_status_4}%s${NC} ms" "${peerRTTAVG_out}"
     elif [[ ${peerRTTAVG_out} -ge 100 ]]; then printf "Average RTT : ${style_status_3}%s${NC} ms" "${peerRTTAVG_out}"
     elif [[ ${peerRTTAVG_out} -ge 50  ]]; then printf "Average RTT : ${style_status_2}%s${NC} ms" "${peerRTTAVG_out}"
@@ -750,7 +752,7 @@ while true; do
 
     printf "${VL} Total / Undetermined : ${style_values_1}%s${NC} / " "${peerCNT_in}"
     [[ ${peerCNT0_in} -eq 0 ]] && printf "${style_values_1}0${NC}" || printf "${style_values_4}%s${NC}" "${peerCNT0_in}"
-    tput cup ${line} $((second_col-1))
+    tput cup ${line} $((two_col_second-1))
     if [[ ${peerRTTAVG_in} -ge 200 ]]; then printf "Average RTT : ${style_status_4}%s${NC} ms" "${peerRTTAVG_in}"
     elif [[ ${peerRTTAVG_in} -ge 100 ]]; then printf "Average RTT : ${style_status_3}%s${NC} ms" "${peerRTTAVG_in}"
     elif [[ ${peerRTTAVG_in} -ge 50  ]]; then printf "Average RTT : ${style_status_2}%s${NC} ms" "${peerRTTAVG_in}"
@@ -870,47 +872,52 @@ while true; do
 
     tip_ref=$(getSlotTipRef)
     tip_diff=$(( tip_ref - slotnum ))
-    sec_col_value_size=$((width-second_col-13))
+    sec_col_value_size=$((three_col_third-three_col_second-13))
+    third_col_value_size=$((width-three_col_third-13))
     printf "${VL} Block   : ${style_values_1}%s${NC}" "${blocknum}"
-    tput cup ${line} ${second_col}
-    printf "Tip (ref)  : ${style_values_1}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_ref}" && ((line++))
-    printf "${VL} Slot    : ${style_values_1}%-$((second_col-12))s${NC}" "${slot_in_epoch}"
-    tput cup ${line} ${second_col}
-    printf "Tip (node) : ${style_values_1}%-${sec_col_value_size}s${NC}${VL}\n" "${slotnum}" && ((line++))
+    tput cup ${line} ${three_col_second}
+    printf "Tip (ref)  : ${style_values_1}%-${sec_col_value_size}s${NC}" "${tip_ref}"
+    printf -v mem_rss_gb "%.1fG" "$(bc -l <<<"(${mem_rss}/1048576)")"
+    printf "Mem (RSS)  : ${style_values_1}%-${third_col_value_size}s${NC}${VL}\n" "${mem_rss_gb}" && ((line++))
+    printf "${VL} Slot    : ${style_values_1}%-$((three_col_second-12))s${NC}" "${slot_in_epoch}"
+    tput cup ${line} ${three_col_second}
+    printf "Tip (node) : ${style_values_1}%-${sec_col_value_size}s${NC}" "${slotnum}"
+    printf -v mem_live_gb "%.1fG" "$(bc -l <<<"(${mem_live}/1073741824)")"
+    printf "Mem (Live) : ${style_values_1}%-${third_col_value_size}s${NC}${VL}\n" "${mem_live_gb}" && ((line++))
     printf "${VL} Density : ${style_values_1}%s${NC}" "${density}"
-    tput cup ${line} ${second_col}
+    tput cup ${line} ${three_col_second}
     if [[ ${slotnum} -eq 0 ]]; then
-      printf "Status     : ${style_info}%-${sec_col_value_size}s${NC}${VL}\n" "starting..."
+      printf "Status     : ${style_info}%-${sec_col_value_size}s${NC}" "starting..."
     elif [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
-      printf "Status     : ${style_info}%-${sec_col_value_size}s${NC}${VL}\n" "syncing..."
+      printf "Status     : ${style_info}%-${sec_col_value_size}s${NC}" "syncing..."
     elif [[ ${tip_diff} -le $(slotInterval) ]]; then
-      printf "Tip (diff) : ${style_status_1}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_diff} :)"
+      printf "Tip (diff) : ${style_status_1}%-${sec_col_value_size}s${NC}" "${tip_diff} :)"
     elif [[ ${tip_diff} -le $(( $(slotInterval) * 4 )) ]]; then
-      printf "Tip (diff) : ${style_status_2}%-${sec_col_value_size}s${NC}${VL}\n" "${tip_diff} :|"
+      printf "Tip (diff) : ${style_status_2}%-${sec_col_value_size}s${NC}" "${tip_diff} :|"
     else
       sync_progress=$(echo "(${slotnum}/${tip_ref})*100" | bc -l)
-      printf "Status     : ${style_info}%-${sec_col_value_size}s${NC}${VL}\n" "syncing ($(printf "%2.1f" "${sync_progress}")%)"
+      printf "Status     : ${style_info}%-${sec_col_value_size}s${NC}" "syncing ($(printf "%2.1f" "${sync_progress}")%)"
     fi
+    printf -v mem_heap_gb "%.1fG" "$(bc -l <<<"(${mem_heap}/1073741824)")"
+    printf "Mem (Heap) : ${style_values_1}%-${third_col_value_size}s${NC}${VL}\n" "${mem_heap_gb}"
     ((line++))
 
     echo "${m2divider}" && ((line++))
 
-    printf "${VL} Processed TX     : ${style_values_1}%s${NC}" "${tx_processed}" && tput cup ${line} ${second_col}
-    printf "%-$((width-second_col))s" "       Out  In" && tput cup ${line} ${third_col}
-    printf "%-$((width-third_col))s${NC}${VL}\n" "      Live  Heap" && ((line++))
-    printf "${VL} Mempool TX/Bytes : ${style_values_1}%s${NC} / ${style_values_1}%s${NC}%$((second_col-24-${#mempool_tx}-${#mempool_bytes}))s" "${mempool_tx}" "${mempool_bytes}"
-    printf -v mem_live_gb "%.1fG" "$(bc -l <<<"(${mem_live}/1073741824)")"
-    printf -v mem_heap_gb "%.1fG" "$(bc -l <<<"(${mem_heap}/1073741824)")"
-    printf "Peers: ${style_values_1}%3s %3s${NC}" "${peers_out}" "${peers_in}" && tput cup ${line} ${third_col}
-    printf "Mem: ${style_values_1}%5s %5s${NC}" "${mem_live_gb}" "${mem_heap_gb}" && tput cup ${line} ${width}
-    printf "${VL}\n" && ((line++))
+    printf "${VL} Total TX   : ${style_values_1}%s${NC}%-$((three_col_second-${#tx_processed}-15))s" "${tx_processed}"
+    printf "Peers In   : ${style_values_1}%s${NC}%-$((three_col_third-three_col_second-${#peers_in}-13))s" "${peers_in}"
+    printf "GC Minor   : ${style_values_1}%s${NC}%-$((width-three_col_third-${#gc_minor}-14))s ${VL}\n" "${gc_minor}" && ((line++))
+
+    printf "${VL} Mempool TX : ${style_values_1}%s${NC}%-$((three_col_second-${#mempool_tx}-15))s" "${mempool_tx}"
+    printf "Peers Out  : ${style_values_1}%s${NC}%-$((three_col_third-three_col_second-${#peers_out}-13))s" "${peers_out}"
+    printf "GC Major   : ${style_values_1}%s${NC}%-$((width-three_col_third-${#gc_major}-14))s ${VL}\n" "${gc_major}" && ((line++))
 
     ## Core section ##
     if [[ ${nodemode} = "Core" ]]; then
       echo "${mdivider}" && ((line++))
 
       printf "${VL} KES current/remaining"
-      tput cup ${line} $((second_col-2))
+      tput cup ${line} $((two_col_second-2))
       printf ": ${style_values_1}%s${NC} / " "${kesperiod}"
       if [[ ${remaining_kes_periods} -le 0 ]]; then
         printf "${style_status_4}%s${NC}" "${remaining_kes_periods}"
@@ -919,14 +926,14 @@ while true; do
       else
         printf "${style_values_1}%s${NC}" "${remaining_kes_periods}"
       fi
-      printf "%$((width-second_col-3-${#kesperiod}-${#remaining_kes_periods}))s${VL}\n" && ((line++))
+      printf "%$((width-two_col_second-3-${#kesperiod}-${#remaining_kes_periods}))s${VL}\n" && ((line++))
       printf "${VL} KES expiration date"
-      tput cup ${line} $((second_col-2))
-      printf ": ${style_values_1}%-$((width-second_col))s${NC}${VL}\n" "${kes_expiration}" && ((line++))
+      tput cup ${line} $((two_col_second-2))
+      printf ": ${style_values_1}%-$((width-two_col_second))s${NC}${VL}\n" "${kes_expiration}" && ((line++))
       printf -v missed_slots_pct "%.4f%%" "$(bc -l <<<"(${missed_slots}/(${about_to_lead}+${missed_slots}))*100")"
       printf "${VL} Missed slot leader checks"
-      tput cup ${line} $((second_col-2))
-      printf ": ${style_values_1}%-$((width-second_col))s${NC}${VL}\n" "${missed_slots} (${missed_slots_pct})" && ((line++))
+      tput cup ${line} $((two_col_second-2))
+      printf ": ${style_values_1}%-$((width-two_col_second))s${NC}${VL}\n" "${missed_slots} (${missed_slots_pct})" && ((line++))
 
       echo "${m2divider}" && ((line++))
 
@@ -973,7 +980,7 @@ while true; do
             leader_time_left_fmt="$(timeLeft ${leader_time_left})"
             leader_progress=$(echo "(1-(${leader_time_left}/${leader_bar_span}))*100" | bc -l)
             leader_items=$(( ($(printf %.0f "${leader_progress}") * granularity_small) / 100 ))
-            printf "${VL} ${style_values_1}%$((second_col-17))s${NC} until leader " "${leader_time_left_fmt}"
+            printf "${VL} ${style_values_1}%$((two_col_second-17))s${NC} until leader " "${leader_time_left_fmt}"
             tput cup ${line} ${bar_col_small}
             if [[ -z ${leader_bar} || ${leader_items} -ne ${leader_items_last} ]]; then
               leader_bar=""; leader_items_last=${leader_items}
