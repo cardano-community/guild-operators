@@ -898,7 +898,7 @@ while true; do
     printf "${VL} Processed TX     : ${style_values_1}%s${NC}" "${tx_processed}" && tput cup ${line} ${second_col}
     printf "%-$((width-second_col))s" "       Out  In" && tput cup ${line} ${third_col}
     printf "%-$((width-third_col))s${NC}${VL}\n" "      Live  Heap" && ((line++))
-    printf "${VL} Mempool TX/Bytes : ${style_values_1}%s${NC} / ${style_values_1}%s${NC}" "${mempool_tx}" "${mempool_bytes}" && tput cup ${line} ${second_col}
+    printf "${VL} Mempool TX/Bytes : ${style_values_1}%s${NC} / ${style_values_1}%s${NC}%$((second_col-24-${#mempool_tx}-${#mempool_bytes}))s" "${mempool_tx}" "${mempool_bytes}"
     printf -v mem_live_gb "%.1fG" "$(bc -l <<<"(${mem_live}/1073741824)")"
     printf -v mem_heap_gb "%.1fG" "$(bc -l <<<"(${mem_heap}/1073741824)")"
     printf "Peers: ${style_values_1}%3s %3s${NC}" "${peers_out}" "${peers_in}" && tput cup ${line} ${third_col}
