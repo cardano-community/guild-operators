@@ -644,7 +644,7 @@ getNodeMetrics() {
     .cardano.node.metrics.RTS.gcLiveBytes.int.val //0,
     .cardano.node.metrics.RTS.gcHeapBytes.int.val //0,
     .cardano.node.metrics.RTS.gcMinorNum.int.val //0,
-    .cardano.node.metrics.RTS.gcMajorNum.int.val
+    .cardano.node.metrics.RTS.gcMajorNum.int.val //0
     ] | @tsv' <<< "${node_metrics}")
     read -ra node_metrics_arr <<< ${node_metrics_tsv}
     blocknum=${node_metrics_arr[0]}; epochnum=${node_metrics_arr[1]}; slot_in_epoch=${node_metrics_arr[2]}; slotnum=${node_metrics_arr[3]}
