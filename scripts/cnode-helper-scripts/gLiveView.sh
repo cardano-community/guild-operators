@@ -179,8 +179,9 @@ declare -gA geoIP=()
 [[ -z ${PEER_LIST_CNT} ]] && PEER_LIST_CNT=6
 
 # Style
-width=63
-second_col=$((width/2 + 3))
+width=67
+second_col=$((width/3 + 12))
+third_col=$((second_col + 16))
 NC=$(tput sgr0 && printf "${style_base}") # override default NC in env
 
 setTheme # call function to set theme colors
@@ -894,14 +895,15 @@ while true; do
 
     echo "${m2divider}" && ((line++))
 
-    printf "${VL} Processed TX     : ${style_values_1}%s${NC}" "${tx_processed}"
-    tput cup ${line} $((second_col))
-    printf "%-$((width-second_col))s${NC}${VL}\n" "      Out/In       Live/Heap" && ((line++))
-    printf "${VL} Mempool TX/Bytes : ${style_values_1}%s${NC} / ${style_values_1}%s${NC}%$((second_col-24-${#mempool_tx}-${#mempool_bytes}))s" "${mempool_tx}" "${mempool_bytes}"
-
+    printf "${VL} Processed TX     : ${style_values_1}%s${NC}" "${tx_processed}" && tput cup ${line} ${second_col}
+    printf "%-$((width-second_col))s" "       Out  In" && tput cup ${line} ${third_col}
+    printf "%-$((width-third_col))s${NC}${VL}\n" "      Live  Heap" && ((line++))
+    printf "${VL} Mempool TX/Bytes : ${style_values_1}%s${NC} / ${style_values_1}%s${NC}" "${mempool_tx}" "${mempool_bytes}" && tput cup ${line} ${second_col}
     printf -v mem_live_gb "%.1fG" "$(bc -l <<<"(${mem_live}/1073741824)")"
     printf -v mem_heap_gb "%.1fG" "$(bc -l <<<"(${mem_heap}/1073741824)")"
-    printf "Peers: ${style_values_1}%2s %2s${NC}  Mem: ${style_values_1}%4s %4s${NC} %$((width-second_col-29))s${VL}\n" "${peers_out}" "${peers_in}" "${mem_live_gb}" "${mem_heap_gb}" && ((line++))
+    printf "Peers: ${style_values_1}%3s %3s${NC}" "${peers_out}" "${peers_in}" && tput cup ${line} ${third_col}
+    printf "Mem: ${style_values_1}%5s %5s${NC}" "${mem_live_gb}" "${mem_heap_gb}" && tput cup ${line} ${width}
+    printf "${VL}\n" && ((line++))
 
     ## Core section ##
     if [[ ${nodemode} = "Core" ]]; then
