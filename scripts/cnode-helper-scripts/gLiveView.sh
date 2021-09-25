@@ -954,7 +954,7 @@ while true; do
     printf "Tip (ref)  : ${style_values_1}%-${col_2_value_width}s${NC}" "${tip_ref}"
     mvThreeThird
     printf -v mem_rss_gb "%.1f" "$(bc -l <<<"(${mem_rss}/1048576)")"
-    printf "Mem (RSS)  : ${style_values_1}%s${NC} %-$((col_3_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
+    printf "Mem (RSS)  : ${style_values_1}%s${NC}%-$((col_3_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
     closeRow
     
     # row 2
@@ -963,7 +963,7 @@ while true; do
     printf "Tip (node) : ${style_values_1}%-${col_2_value_width}s${NC}" "${slotnum}"
     mvThreeThird
     printf -v mem_live_gb "%.1f" "$(bc -l <<<"(${mem_live}/1073741824)")"
-    printf "Mem (Live) : ${style_values_1}%s${NC} %-$((col_3_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"
+    printf "Mem (Live) : ${style_values_1}%s${NC}%-$((col_3_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"
     closeRow
     
     # row 3
@@ -983,7 +983,7 @@ while true; do
     fi
     mvThreeThird
     printf -v mem_heap_gb "%.1f" "$(bc -l <<<"(${mem_heap}/1073741824)")"
-    printf "Mem (Heap) : ${style_values_1}%s${NC} %-$((col_3_value_width - ${#mem_heap_gb}))s" "${mem_heap_gb}" "G"
+    printf "Mem (Heap) : ${style_values_1}%s${NC}%-$((col_3_value_width - ${#mem_heap_gb}))s" "${mem_heap_gb}" "G"
     closeRow
 
     # row 4
@@ -995,8 +995,8 @@ while true; do
     closeRow
 
     # row 5
-    printf -v pending_tx_kb "%.1fK" "$(bc -l <<<"(${mem_heap}/1024)")"
-    printf "${VL} Pending Tx : ${style_values_1}%-${col_1_value_width}s${NC} / ${style_values_1}%-$((col_1_value_width - ${#mempool_tx} - 3))s${NC}" "${mempool_tx}" "${pending_tx_kb}"
+    mempool_tx_bytes=$((mempool_bytes/1024))
+    printf "${VL} Pending Tx : ${style_values_1}%s${NC}/${style_values_1}%s${NC}%-$((col_1_value_width - ${#mempool_tx} - ${#mempool_tx_bytes} - 3))s" "${mempool_tx}" "${mempool_tx_bytes}" "K"
     mvThreeSecond
     printf "Peers Out  : ${style_values_1}%-${col_2_value_width}s${NC}" "${peers_out}"
     mvThreeThird
