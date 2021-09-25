@@ -44,7 +44,7 @@ A sample output from both core and relay (with peer analysis):
 
 ###### Upper main section
 
-Displays live metrics gathered from EKG. Epoch number and progress is live from the node while date calculation until epoch boundary is based on offline genesis parameters. Reference tip is also an offline calculation based on genesis values used to compare against the node tip to see how far of the tip (diff value) the node is. With current parameters a slot diff up to 40 from reference tip is considered good but it should usually stay below 30. In/Out peers show how many connections the node has established in and out.
+Displays live metrics gathered from EKG. Epoch number and progress is live from the node while date calculation until epoch boundary is based on offline genesis parameters. Reference tip is also an offline calculation based on genesis values used to compare against the node tip to see how far of the tip (diff value) the node is. With current parameters a slot diff up to 40 from reference tip is considered good but it should usually stay below 30. In/Out peers show how many connections the node has established in and out. Live/Heap shows how much memory is used for live/heap data. A large difference between them (or the heap approaching the physical memory limit) means the node is struggling with the garbage collector and/or may begin swapping.
 
 ###### Core section
 
