@@ -1058,21 +1058,19 @@ while true; do
         IFS='|' read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${epochnum};" 2>/dev/null)"
         if [[ ${#epoch_stats[@]} -eq 0 ]]; then epoch_stats=("-" "-"); else epoch_stats[1]="${epoch_stats[1]}%"; fi
 
-        [[ ${invalid_cnt} -eq 0 ]] && invalid_fmt="${NC}" || invalid_fmt="${style_status_3}"
-        [[ ${missed_cnt} -eq 0 ]] && missed_fmt="${NC}" || missed_fmt="${style_status_3}"
-        [[ ${ghosted_cnt} -eq 0 ]] && ghosted_fmt="${NC}" || ghosted_fmt="${style_status_3}"
-        [[ ${stolen_cnt} -eq 0 ]] && stolen_fmt="${NC}" || stolen_fmt="${style_status_3}"
-        [[ ${adopted_cnt} -eq 0 ]] && adopted_fmt="${NC}" || adopted_fmt="${style_values_1}"
-        if [[ ${confirmed_cnt} -eq 0 ]]; then confirmed_fmt="${NC}"; else [[ ${confirmed_cnt} -eq ${adopted_cnt} ]] && confirmed_fmt="${style_status_1}" || confirmed_fmt="${style_status_2}"; fi
-        [[ ${leader_cnt} -eq 0 ]] && leader_fmt="${NC}" || leader_fmt="${style_values_1}"
+        [[ ${invalid_cnt} -eq 0 ]] && invalid_fmt="${style_values_1}" || invalid_fmt="${style_status_3}"
+        [[ ${missed_cnt} -eq 0 ]] && missed_fmt="${style_values_1}" || missed_fmt="${style_status_3}"
+        [[ ${ghosted_cnt} -eq 0 ]] && ghosted_fmt="${style_values_1}" || ghosted_fmt="${style_status_3}"
+        [[ ${stolen_cnt} -eq 0 ]] && stolen_fmt="${style_values_1}" || stolen_fmt="${style_status_3}"
+        [[ ${confirmed_cnt} -ne ${adopted_cnt} ]] && confirmed_fmt="${style_status_2}" || confirmed_fmt="${style_values_2}"
 
         printf "${VL}${STANDOUT} BLOCKS ${NC}"
         
         # row 1
         mvBlockFirst
-        printf "Leader : ${leader_fmt}%-${col_block_1_1_value_width}s${NC}" "${leader_cnt}"
+        printf "Leader : ${style_values_1}%-${col_block_1_1_value_width}s${NC}" "${leader_cnt}"
         mvBlockSecond
-        printf "Adopted   : ${adopted_fmt}%-${col_block_1_2_value_width}s${NC}" "${adopted_cnt}"
+        printf "Adopted   : ${style_values_1}%-${col_block_1_2_value_width}s${NC}" "${adopted_cnt}"
         mvBlockThird
         printf "Missed  : ${missed_fmt}%-${col_block_1_3_value_width}s${NC}" "${missed_cnt}"
         closeRow
@@ -1080,7 +1078,7 @@ while true; do
         # row 2
         printf "${VL}"
         mvBlockFirst
-        printf "Ideal  : ${leader_fmt}%-${col_block_1_1_value_width}s${NC}" "${epoch_stats[0]}"
+        printf "Ideal  : ${style_values_1}%-${col_block_1_1_value_width}s${NC}" "${epoch_stats[0]}"
         mvBlockSecond
         printf "Confirmed : ${confirmed_fmt}%-${col_block_1_2_value_width}s${NC}" "${confirmed_cnt}"
         mvBlockThird
@@ -1090,7 +1088,7 @@ while true; do
         # row 3
         printf "${VL}"
         mvBlockFirst
-        printf "Luck   : ${leader_fmt}%-${col_block_1_1_value_width}s${NC}" "${epoch_stats[1]}"
+        printf "Luck   : ${style_values_1}%-${col_block_1_1_value_width}s${NC}" "${epoch_stats[1]}"
         mvBlockSecond
         printf "Invalid   : ${invalid_fmt}%-${col_block_1_2_value_width}s${NC}" "${invalid_cnt}"
         mvBlockThird
@@ -1117,13 +1115,16 @@ while true; do
         fi
       else
         printf "${VL}${STANDOUT} BLOCKS ${NC}"
+
+        [[ ${isleader} -ne ${adopted} ]] && adopted_fmt="${style_status_2}" || adopted_fmt="${style_values_2}"
+        [[ ${didntadopt} -eq 0 ]] && invalid_fmt="${style_values_1}" || invalid_fmt="${style_status_3}"
         
         mvBlockFirst
-        printf "Leader : ${leader_fmt}%-${col_block_2_1_value_width}s${NC}" "${isleader}"
+        printf "Leader : ${style_values_1}%-${col_block_2_1_value_width}s${NC}" "${isleader}"
         mvBlockSecond
         printf "Adopted : ${adopted_fmt}%-${col_block_2_2_value_width}s${NC}" "${adopted}"
         mvBlockThird
-        printf "Invalid : ${missed_fmt}%-${col_block_2_3_value_width}s${NC}" "${didntadopt}"
+        printf "Invalid : ${invalid_fmt}%-${col_block_2_3_value_width}s${NC}" "${didntadopt}"
         closeRow
       fi
     fi
