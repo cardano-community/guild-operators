@@ -183,17 +183,30 @@ declare -gA geoIP=()
 #######################################################
 width=71
 
+# two column view
 two_col_width=$(( (width-3)/2 ))
 two_col_second=$(( two_col_width + 2 ))
 
-three_col_width=$(( (width-5)/3 ))
-three_col_second=$(( three_col_width + 3 ))
-three_col_third=$(( three_col_width*2 + 4 ))
+# three column main view
+col_main_width=$(( (width-5)/3 ))
+col_main_2_start=$(( col_main_width + 3 ))
+col_main_3_start=$(( col_main_width*2 + 4 ))
+col_main_1_value_width=$(( col_main_width - 12 ))       # minus max width of Block|Slot|Density|Total Tx|Pending Tx + " : "
+col_main_2_value_width=$(( col_main_width - 12 ))       # minus max width of Tip (ref)|Tip (node)|Tip (diff)|Peers In|Peers Out + " : "
+col_main_3_value_width=$(( col_main_width - 12 ))       # minus max width of Mem (RSS)|Mem (Live)|Mem (Heap)|GC Minor|GC Major + " : "
 
-three_col_block_width=$(( (width-14)/3 ))
-three_col_block_first=11
-three_col_block_second=$(( three_col_block_width + 12 ))
-three_col_block_third=$(( three_col_block_width*2 + 13 ))
+# three column block view (sort of same as above but not using the full width)
+# two different column value width due to cncli metrics vs node metrics
+col_block_width=$(( (width-14)/3 ))
+col_block_1_start=11
+col_block_2_start=$(( col_block_width + 12 ))
+col_block_3_start=$(( col_block_width*2 + 13 ))
+col_block_1_1_value_width=$(( col_block_width - 9 ))    # minus max width of Leader|Ideal|Luck + " : "
+col_block_1_2_value_width=$(( col_block_width - 12 ))   # minus max width of Adopted|Confirmed|Invalid + " : "
+col_block_1_3_value_width=$(( col_block_width - 10 ))   # minus max width of Missed|Ghosted|Stolen + " : "
+col_block_2_1_value_width=$(( col_block_width - 9 ))    # minus width of "Leader : "
+col_block_2_2_value_width=$(( col_block_width - 10 ))   # minus width of "Adopted : "
+col_block_2_3_value_width=$(( col_block_width - 10 ))   # minus width of "Invalid : "
 
 NC=$(tput sgr0 && printf "${style_base}") # override default NC in env
 
@@ -341,30 +354,30 @@ mvPos () {
 mvTwoSecond () {
   printf "\033[72D\033[${two_col_second}C"
 }
-# Command    : mvThreeSecond
-# Description: move curser to three column view, second column start
-mvThreeSecond () {
-  printf "\033[72D\033[${three_col_second}C"
+# Command    : mvMainSecond
+# Description: move curser to main section three column view, second column start
+mvMainSecond () {
+  printf "\033[72D\033[${col_main_2_start}C"
 }
-# Command    : mvThreeSecond
-# Description: move curser to three column view, third column start
-mvThreeThird () {
-  printf "\033[72D\033[${three_col_third}C"
+# Command    : mvMainThird
+# Description: move curser to main section three column view, third column start
+mvMainThird () {
+  printf "\033[72D\033[${col_main_3_start}C"
 }
-# Command    : mvThreeFirstBlock
-# Description: move curser to three column block view, first column start
-mvThreeFirstBlock () {
-  printf "\033[72D\033[${three_col_block_first}C"
+# Command    : mvBlockFirst
+# Description: move curser to block section three column view, first column start
+mvBlockFirst () {
+  printf "\033[72D\033[${col_block_1_start}C"
 }
-# Command    : mvThreeSecondBlock
-# Description: move curser to three column block view, second column start
-mvThreeSecondBlock () {
-  printf "\033[72D\033[${three_col_block_second}C"
+# Command    : mvBlockSecond
+# Description: move curser to block section three column view, second column start
+mvBlockSecond () {
+  printf "\033[72D\033[${col_block_2_start}C"
 }
-# Command    : mvThreeSecondBlock
-# Description: move curser to three column block view, third column start
-mvThreeThirdBlock () {
-  printf "\033[72D\033[${three_col_block_third}C"
+# Command    : mvBlockThird
+# Description: move curser to block section three column view, third column start
+mvBlockThird () {
+  printf "\033[72D\033[${col_block_3_start}C"
 }
 # Command    : mvEnd
 # Description: move curser to last column
@@ -943,64 +956,59 @@ while true; do
     tip_ref=$(getSlotTipRef)
     tip_diff=$(( tip_ref - slotnum ))
     
-    # three column value width
-    col_1_value_width=$(( three_col_width - 12 ))
-    col_2_value_width=$(( three_col_width - 12 ))
-    col_3_value_width=$(( three_col_width - 12 ))
-    
     # row 1 - three col view
-    printf "${VL} Block      : ${style_values_1}%-${col_1_value_width}s${NC}" "${blocknum}"
-    mvThreeSecond
-    printf "Tip (ref)  : ${style_values_1}%-${col_2_value_width}s${NC}" "${tip_ref}"
-    mvThreeThird
+    printf "${VL} Block      : ${style_values_1}%-${col_main_1_value_width}s${NC}" "${blocknum}"
+    mvMainSecond
+    printf "Tip (ref)  : ${style_values_1}%-${col_main_2_value_width}s${NC}" "${tip_ref}"
+    mvMainThird
     printf -v mem_rss_gb "%.1f" "$(bc -l <<<"(${mem_rss}/1048576)")"
-    printf "Mem (RSS)  : ${style_values_1}%s${NC}%-$((col_3_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
+    printf "Mem (RSS)  : ${style_values_1}%s${NC}%-$((col_main_3_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
     closeRow
     
     # row 2
-    printf "${VL} Slot       : ${style_values_1}%-${col_1_value_width}s${NC}" "${slot_in_epoch}"
-    mvThreeSecond
-    printf "Tip (node) : ${style_values_1}%-${col_2_value_width}s${NC}" "${slotnum}"
-    mvThreeThird
+    printf "${VL} Slot       : ${style_values_1}%-${col_main_1_value_width}s${NC}" "${slot_in_epoch}"
+    mvMainSecond
+    printf "Tip (node) : ${style_values_1}%-${col_main_2_value_width}s${NC}" "${slotnum}"
+    mvMainThird
     printf -v mem_live_gb "%.1f" "$(bc -l <<<"(${mem_live}/1073741824)")"
-    printf "Mem (Live) : ${style_values_1}%s${NC}%-$((col_3_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"
+    printf "Mem (Live) : ${style_values_1}%s${NC}%-$((col_main_3_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"
     closeRow
     
     # row 3
-    printf "${VL} Density    : ${style_values_1}%-${col_1_value_width}s${NC}" "${density}"
-    mvThreeSecond
+    printf "${VL} Density    : ${style_values_1}%-${col_main_1_value_width}s${NC}" "${density}"
+    mvMainSecond
     if [[ ${slotnum} -eq 0 ]]; then
-      printf "Status     : ${style_info}%-${col_2_value_width}s${NC}" "starting"
+      printf "Status     : ${style_info}%-${col_main_2_value_width}s${NC}" "starting"
     elif [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
-      printf "Status     : ${style_info}%-${col_2_value_width}s${NC}" "syncing"
+      printf "Status     : ${style_info}%-${col_main_2_value_width}s${NC}" "syncing"
     elif [[ ${tip_diff} -le $(slotInterval) ]]; then
-      printf "Tip (diff) : ${style_status_1}%-${col_2_value_width}s${NC}" "${tip_diff} :)"
+      printf "Tip (diff) : ${style_status_1}%-${col_main_2_value_width}s${NC}" "${tip_diff} :)"
     elif [[ ${tip_diff} -le $(( $(slotInterval) * 4 )) ]]; then
-      printf "Tip (diff) : ${style_status_2}%-${col_2_value_width}s${NC}" "${tip_diff} :|"
+      printf "Tip (diff) : ${style_status_2}%-${col_main_2_value_width}s${NC}" "${tip_diff} :|"
     else
       sync_progress=$(echo "(${slotnum}/${tip_ref})*100" | bc -l)
-      printf "Status     : ${style_info}%-${col_2_value_width}s${NC}" "sync $(printf "%2.1f" "${sync_progress}")%"
+      printf "Status     : ${style_info}%-${col_main_2_value_width}s${NC}" "sync $(printf "%2.1f" "${sync_progress}")%"
     fi
-    mvThreeThird
+    mvMainThird
     printf -v mem_heap_gb "%.1f" "$(bc -l <<<"(${mem_heap}/1073741824)")"
-    printf "Mem (Heap) : ${style_values_1}%s${NC}%-$((col_3_value_width - ${#mem_heap_gb}))s" "${mem_heap_gb}" "G"
+    printf "Mem (Heap) : ${style_values_1}%s${NC}%-$((col_main_3_value_width - ${#mem_heap_gb}))s" "${mem_heap_gb}" "G"
     closeRow
 
     # row 4
-    printf "${VL} Total Tx   : ${style_values_1}%-${col_1_value_width}s${NC}" "${tx_processed}"
-    mvThreeSecond
-    printf "Peers In   : ${style_values_1}%-${col_2_value_width}s${NC}" "${peers_in}"
-    mvThreeThird
-    printf "GC Minor   : ${style_values_1}%-${col_3_value_width}s${NC}" "${gc_minor}"
+    printf "${VL} Total Tx   : ${style_values_1}%-${col_main_1_value_width}s${NC}" "${tx_processed}"
+    mvMainSecond
+    printf "Peers In   : ${style_values_1}%-${col_main_2_value_width}s${NC}" "${peers_in}"
+    mvMainThird
+    printf "GC Minor   : ${style_values_1}%-${col_main_3_value_width}s${NC}" "${gc_minor}"
     closeRow
 
     # row 5
     mempool_tx_bytes=$((mempool_bytes/1024))
-    printf "${VL} Pending Tx : ${style_values_1}%s${NC}/${style_values_1}%s${NC}%-$((col_1_value_width - ${#mempool_tx} - ${#mempool_tx_bytes} - 3))s" "${mempool_tx}" "${mempool_tx_bytes}" "K"
-    mvThreeSecond
-    printf "Peers Out  : ${style_values_1}%-${col_2_value_width}s${NC}" "${peers_out}"
-    mvThreeThird
-    printf "GC Major   : ${style_values_1}%-${col_3_value_width}s${NC}" "${gc_major}"
+    printf "${VL} Pending Tx : ${style_values_1}%s${NC}/${style_values_1}%s${NC}%-$((col_main_1_value_width - ${#mempool_tx} - ${#mempool_tx_bytes} - 3))s" "${mempool_tx}" "${mempool_tx_bytes}" "K"
+    mvMainSecond
+    printf "Peers Out  : ${style_values_1}%-${col_main_2_value_width}s${NC}" "${peers_out}"
+    mvMainThird
+    printf "GC Major   : ${style_values_1}%-${col_main_3_value_width}s${NC}" "${gc_major}"
     closeRow
 
     ## Core section ##
@@ -1060,38 +1068,33 @@ while true; do
 
         printf "${VL}${STANDOUT} BLOCKS ${NC}"
         
-        # three column value width
-        col_2_value_width=$(( three_col_block_width - 9 ))
-        col_3_value_width=$(( three_col_block_width - 12 ))
-        col_4_value_width=$(( three_col_block_width - 10 ))
-        
         # row 1
-        mvThreeFirstBlock
-        printf "Leader : ${leader_fmt}%-${col_2_value_width}s${NC}" "${leader_cnt}"
-        mvThreeSecondBlock
-        printf "Adopted   : ${adopted_fmt}%-${col_3_value_width}s${NC}" "${adopted_cnt}"
-        mvThreeThirdBlock
-        printf "Missed  : ${missed_fmt}%-${col_4_value_width}s${NC}" "${missed_cnt}"
+        mvBlockFirst
+        printf "Leader : ${leader_fmt}%-${col_block_1_1_value_width}s${NC}" "${leader_cnt}"
+        mvBlockSecond
+        printf "Adopted   : ${adopted_fmt}%-${col_block_1_2_value_width}s${NC}" "${adopted_cnt}"
+        mvBlockThird
+        printf "Missed  : ${missed_fmt}%-${col_block_1_3_value_width}s${NC}" "${missed_cnt}"
         closeRow
         
         # row 2
         printf "${VL}"
-        mvThreeFirstBlock
-        printf "Ideal  : ${leader_fmt}%-${col_2_value_width}s${NC}" "${epoch_stats[0]}"
-        mvThreeSecondBlock
-        printf "Confirmed : ${confirmed_fmt}%-${col_3_value_width}s${NC}" "${confirmed_cnt}"
-        mvThreeThirdBlock
-        printf "Ghosted : ${ghosted_fmt}%-${col_4_value_width}s${NC}" "${ghosted_cnt}"
+        mvBlockFirst
+        printf "Ideal  : ${leader_fmt}%-${col_block_1_1_value_width}s${NC}" "${epoch_stats[0]}"
+        mvBlockSecond
+        printf "Confirmed : ${confirmed_fmt}%-${col_block_1_2_value_width}s${NC}" "${confirmed_cnt}"
+        mvBlockThird
+        printf "Ghosted : ${ghosted_fmt}%-${col_block_1_3_value_width}s${NC}" "${ghosted_cnt}"
         closeRow
         
         # row 3
         printf "${VL}"
-        mvThreeFirstBlock
-        printf "Luck   : ${leader_fmt}%-${col_2_value_width}s${NC}" "${epoch_stats[1]}"
-        mvThreeSecondBlock
-        printf "Invalid   : ${invalid_fmt}%-${col_3_value_width}s${NC}" "${invalid_cnt}"
-        mvThreeThirdBlock
-        printf "Stolen  : ${stolen_fmt}%-${col_4_value_width}s${NC}" "${stolen_cnt}"
+        mvBlockFirst
+        printf "Luck   : ${leader_fmt}%-${col_block_1_1_value_width}s${NC}" "${epoch_stats[1]}"
+        mvBlockSecond
+        printf "Invalid   : ${invalid_fmt}%-${col_block_1_2_value_width}s${NC}" "${invalid_cnt}"
+        mvBlockThird
+        printf "Stolen  : ${stolen_fmt}%-${col_block_1_3_value_width}s${NC}" "${stolen_cnt}"
         closeRow
 
         if [[ -n ${leader_next} ]]; then
@@ -1115,17 +1118,12 @@ while true; do
       else
         printf "${VL}${STANDOUT} BLOCKS ${NC}"
         
-        # three column value width
-        col_2_value_width=$(( three_col_block_width - 9 ))
-        col_3_value_width=$(( three_col_block_width - 10 ))
-        col_4_value_width=$(( three_col_block_width - 10 ))
-        
-        mvThreeFirstBlock
-        printf "Leader : ${leader_fmt}%-${col_2_value_width}s${NC}" "${isleader}"
-        mvThreeSecondBlock
-        printf "Adopted : ${adopted_fmt}%-${col_3_value_width}s${NC}" "${adopted}"
-        mvThreeThirdBlock
-        printf "Invalid : ${missed_fmt}%-${col_4_value_width}s${NC}" "${didntadopt}"
+        mvBlockFirst
+        printf "Leader : ${leader_fmt}%-${col_block_2_1_value_width}s${NC}" "${isleader}"
+        mvBlockSecond
+        printf "Adopted : ${adopted_fmt}%-${col_block_2_2_value_width}s${NC}" "${adopted}"
+        mvBlockThird
+        printf "Invalid : ${missed_fmt}%-${col_block_2_3_value_width}s${NC}" "${didntadopt}"
         closeRow
         
         printf "${VL}${STANDOUT} BLOCKS ${NC} %$((width-38))s %-6s | ${FG_GREEN}%-7s${NC} | ${FG_RED}%-7s" "" "Leader" "Adopted" "Invalid" && closeRow
