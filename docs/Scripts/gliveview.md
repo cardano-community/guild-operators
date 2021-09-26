@@ -27,19 +27,19 @@ For most setups, it's enough to set `CNODE_PORT` in the `env` file. The rest of 
 
 The tool can be run in legacy mode with only standard ASCII characters for terminals with trouble displaying the box-drawing characters. Run `./gLiveView.sh -h` to show available command-line parameters or permanently set it directly in script.
 
-A sample output from both core and relay (with peer analysis):
+A sample output from both core and relay together with peer analysis:
 
 === "Core"
 
-    ![Core](https://raw.githubusercontent.com/cardano-community/guild-operators/images/gliveview-core.png ':size=35%')
-
-    ![Core-Peer-Analysis](https://raw.githubusercontent.com/cardano-community/guild-operators/images/core-peer-analysis.png ':size=35%')
+    ![Core](https://raw.githubusercontent.com/cardano-community/guild-operators/images/glv-core.png ':size=35%')
 
 === "Relay"
 
-    ![Relay](https://raw.githubusercontent.com/cardano-community/guild-operators/images/gliveview-relay.png ':size=35%')
+    ![Relay](https://raw.githubusercontent.com/cardano-community/guild-operators/images/glv-relay.png ':size=35%')
 
-    ![Relay-Peer-Analysis](https://raw.githubusercontent.com/cardano-community/guild-operators/images/relay-peer-analysis.png ':size=35%')
+=== "Peer Analysis"
+
+    ![Peer-Analysis](https://raw.githubusercontent.com/cardano-community/guild-operators/images/glv-peers.png ':size=35%')
 
 
 ###### Upper main section
