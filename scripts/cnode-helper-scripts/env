@@ -640,7 +640,11 @@ getNodeMetrics() {
     .cardano.node.metrics.Forge["didnt-adopt"].int.val //0,
     .cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0,
     .cardano.node.metrics.nodeStartTime.int.val //0,
-    .cardano.node.metrics.slotsMissedNum.int.val //0
+    .cardano.node.metrics.slotsMissedNum.int.val //0,
+    .cardano.node.metrics.RTS.gcLiveBytes.int.val //0,
+    .cardano.node.metrics.RTS.gcHeapBytes.int.val //0,
+    .cardano.node.metrics.RTS.gcMinorNum.int.val //0,
+    .cardano.node.metrics.RTS.gcMajorNum.int.val //0
     ] | @tsv' <<< "${node_metrics}")
     read -ra node_metrics_arr <<< ${node_metrics_tsv}
     blocknum=${node_metrics_arr[0]}; epochnum=${node_metrics_arr[1]}; slot_in_epoch=${node_metrics_arr[2]}; slotnum=${node_metrics_arr[3]}
@@ -650,6 +654,8 @@ getNodeMetrics() {
     isleader=${node_metrics_arr[10]}; adopted=${node_metrics_arr[11]}; didntadopt=${node_metrics_arr[12]}; about_to_lead=${node_metrics_arr[13]}
     nodeStartTime=${node_metrics_arr[14]};uptimes=$(( $(date +%s) - node_metrics_arr[14] ))
     missed_slots=${node_metrics_arr[15]}
+    mem_live=${node_metrics_arr[16]}; mem_heap=${node_metrics_arr[17]}
+    gc_minor=${node_metrics_arr[18]}; gc_major=${node_metrics_arr[19]}
   else
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
     [[ ${node_metrics} =~ cardano_node_metrics_nodeStartTime_int[[:space:]]([^[:space:]]*) ]] && { nodeStartTime=${BASH_REMATCH[1]} && uptimes=$(( $(date +%s) - BASH_REMATCH[1] )); } || uptimes=0
@@ -668,6 +674,10 @@ getNodeMetrics() {
     [[ ${node_metrics} =~ cardano_node_metrics_Forge_didnt_adopt_int[[:space:]]([^[:space:]]*) ]] && didntadopt=${BASH_REMATCH[1]} || didntadopt=0
     [[ ${node_metrics} =~ cardano_node_metrics_Forge_forge_about_to_lead_int[[:space:]]([^[:space:]]*) ]] && about_to_lead=${BASH_REMATCH[1]} || about_to_lead=0
     [[ ${node_metrics} =~ cardano_node_metrics_slotsMissedNum_int[[:space:]]([^[:space:]]*) ]] && missed_slots=${BASH_REMATCH[1]} || missed_slots=0
+    [[ ${node_metrics} =~ cardano_node_metrics_RTS_gcLiveBytes_int[[:space:]]([^[:space:]]*) ]] && mem_live=${BASH_REMATCH[1]} || mem_live=0
+    [[ ${node_metrics} =~ cardano_node_metrics_RTS_gcHeapBytes_int[[:space:]]([^[:space:]]*) ]] && mem_heap=${BASH_REMATCH[1]} || mem_heap=0
+    [[ ${node_metrics} =~ cardano_node_metrics_RTS_gcMinorNum_int[[:space:]]([^[:space:]]*) ]] && gc_minor=${BASH_REMATCH[1]} || gc_minor=0
+    [[ ${node_metrics} =~ cardano_node_metrics_RTS_gcMajorNum_int[[:space:]]([^[:space:]]*) ]] && gc_major=${BASH_REMATCH[1]} || gc_major=0
   fi
 }
 
