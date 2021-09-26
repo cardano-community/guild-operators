@@ -1125,10 +1125,6 @@ while true; do
         mvBlockThird
         printf "Invalid : ${missed_fmt}%-${col_block_2_3_value_width}s${NC}" "${didntadopt}"
         closeRow
-        
-        printf "${VL}${STANDOUT} BLOCKS ${NC} %$((width-38))s %-6s | ${FG_GREEN}%-7s${NC} | ${FG_RED}%-7s" "" "Leader" "Adopted" "Invalid" && closeRow
-        printf "${blank_line}\n" && ((line++))
-        printf "${VL} %s" "Metrics since node start" && closeRow
       fi
     fi
   fi
