@@ -54,7 +54,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.22.1
+GLV_VERSION=v1.22.2
 
 PARENT="$(dirname $0)"
 
@@ -939,7 +939,7 @@ while true; do
     fi
     epoch_progress_1dec=$(printf "%2.1f" "${epoch_progress}")
     epoch_time_left=$(timeLeft "$(timeUntilNextEpoch)")
-    printf "${VL} Epoch ${style_values_1}%s${NC} [${style_values_1}%s%%${NC}], ${style_values_1}%s${NC} remaining" "${epochnum}" "${epoch_progress_1dec}" "${epoch_time_left}"
+    printf "${VL} Epoch ${style_values_1}%s${NC} [${style_values_1}%s%%${NC}], ${style_values_1}%s${NC} %-12s" "${epochnum}" "${epoch_progress_1dec}" "${epoch_time_left}" "remaining"
     closeRow
     
     epoch_items=$(( $(printf %.0f "${epoch_progress}") * granularity / 100 ))
