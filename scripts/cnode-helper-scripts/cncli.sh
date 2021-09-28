@@ -522,12 +522,6 @@ cncliMigrateBlocklog() {
 cncliPTsendtip() {
   [[ ${NWMAGIC} -ne 764824073 ]] && echo "PoolTool sendtip only available on MainNet, exiting!" && exit 1
   [[ -z ${POOL_ID} || -z ${POOL_TICKER} || -z ${PT_API_KEY} ]] && echo "'POOL_ID' and/or 'POOL_TICKER' and/or 'PT_API_KEY' not set in $(basename "$0"), exiting!" && exit 1
-  
-  # Generate a temporary pooltool config
-  if ! cnode_path=$(command -v cardano-node 2>/dev/null); then
-    echo "ERROR: cardano-node not in PATH, please manually set CCLI in env file"
-    exit 1
-  fi
   pt_config="${TMP_DIR}/$(basename ${CNODE_HOME})-pooltool.json"
   bash -c "cat <<-'EOF' > ${pt_config}
 		{
@@ -542,7 +536,7 @@ cncliPTsendtip() {
 		  ]
 		}
 		EOF"
-  ${CNCLI} sendtip --config "${pt_config}" --cardano-node "${cnode_path}"
+  ${CNCLI} sendtip --config "${pt_config}" --cardano-node "${CNODEBIN}"
 }
 
 #################################

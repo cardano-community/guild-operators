@@ -6,8 +6,9 @@
 # Leave as is if unsure              #
 ######################################
 
-#CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of path to cardano-cli executable
-#CNCLI="${HOME}/.cargo/bin/cncli"                       # Override automatic detection of path to cncli executable (https://github.com/AndrewWestberg/cncli)
+#CNODEBIN="${HOME}/.cabal/bin/cardano-node"             # Override automatic detection of cardano-node executable
+#CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of cardano-cli executable
+#CNCLI="${HOME}/.cargo/bin/cncli"                       # Override automatic detection of executable (https://github.com/AndrewWestberg/cncli)
 #CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
 CNODE_PORT=6000                                         # Set node port
 #CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path
@@ -109,16 +110,25 @@ telegramSend() {
 [[ -z "${CCLI}" ]] && CCLI=$(command -v cardano-cli)
 if [[ -z "${CCLI}" ]]; then
   if [[ -f "${HOME}/.cabal/bin/cardano-cli" ]]; then
-    # Assumption being made that cardano-cli and cardano-node are both present, if not - prereqs and build instructions were not followed
     export PATH="${HOME}/.cabal/bin":$PATH
     CCLI=$(command -v cardano-cli)
   else
     echo "You do not have a cardano-cli binary available in \$PATH."
     return 1
   fi
-else
-  CCLI_PARENT="$(dirname ${CCLI})"
-  export PATH="${CCLI_PARENT}":$PATH
+fi
+
+[[ -z "${CNODEBIN}" ]] && CNODEBIN=$(command -v cardano-node)
+if [[ -z "${CNODEBIN}" ]]; then
+  if [[ -f "$(dirname ${CCLI})"/cardano-node ]]; then
+    CNODEBIN="$(dirname ${CCLI})"/cardano-node
+  elif [[ -f "${HOME}/.cabal/bin/cardano-node" ]]; then
+    export PATH="${HOME}/.cabal/bin":$PATH
+    CNODEBIN=$(command -v cardano-node)
+  else
+    echo "You do not have a cardano-node binary available in \$PATH."
+    return 1
+  fi
 fi
 
 if [[ -z "${CNCLI}" ]]; then
@@ -130,7 +140,7 @@ fi
 [[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
 
 if [[ -z "${SOCKET}" ]]; then
-  if [[ "$(ps -ef | grep "[c]ardano-node.*.port ${CNODE_PORT}")" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
+  if [[ "$(ps -ef | grep "$(basename ${CNODEBIN}).*.port ${CNODE_PORT} | grep -v grep")" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
     export CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
   elif [[ ${OFFLINE_MODE} = "Y" ]]; then
     export CARDANO_NODE_SOCKET_PATH="${CNODE_HOME}/sockets/node0.socket"
@@ -144,7 +154,7 @@ fi
 export SOCKET="${CARDANO_NODE_SOCKET_PATH}" # For compatibility with those who havn't yet upgraded cnode.sh
 
 if [[ -z "${CONFIG}" ]]; then
-  if [[ "$(ps -ef | grep "[c]ardano-node.*.port ${CNODE_PORT}")" =~ --config[[:space:]]([^[:space:]]+) ]]; then
+  if [[ "$(ps -ef | grep "$(basename ${CNODEBIN}).*.port ${CNODE_PORT} | grep -v grep")" =~ --config[[:space:]]([^[:space:]]+) ]]; then
     CONFIG=${BASH_REMATCH[1]}
   elif [[ -f "${CNODE_HOME}/files/config.json" ]]; then
     CONFIG="${CNODE_HOME}/files/config.json"
@@ -250,7 +260,7 @@ BLOCKLOG_DB="${BLOCKLOG_DIR}/blocklog.db"
 [[ -z "${IP_VERSION}" ]] && IP_VERSION=4
 IP_VERSION=$(tr '[:upper:]' '[:lower:]' <<< "${IP_VERSION}")
 [[ -z ${USE_EKG} ]] && USE_EKG='Y'
-CNODE_PID=$(pgrep -fn "[c]ardano-node.*.--port ${CNODE_PORT}")
+CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.--port ${CNODE_PORT}")
 
 if [[ -n "${CNODE_PID}" ]]; then
   if [[ "${USE_EKG}" == "N" ]]; then

@@ -54,7 +54,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.22.2
+GLV_VERSION=v1.22.3
 
 PARENT="$(dirname $0)"
 
@@ -550,7 +550,7 @@ if [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
   printf "\n After successful node boot or when sync to shelley era has been reached, calculations will be correct\n"
   waitToProceed && clrScreen
 fi
-version=$("$(command -v cardano-node)" version)
+version=$("${CNODEBIN}" version)
 node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
 node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
 cncli_port=$(ss -tnp state established "( dport = :${CNODE_PORT} )" 2>/dev/null | grep cncli | awk '{print $3}' | cut -d: -f2)
@@ -607,7 +607,7 @@ while true; do
     printf "${style_status_3}Connection to node lost, retrying (${fail_count}/${RETRIES})!${NC}"
     waitForInput && continue
   elif [[ ${fail_count} -ne 0 ]]; then # was failed but now ok, re-check
-    CNODE_PID=$(pgrep -fn "[c]ardano-node*.*--port ${CNODE_PORT}")
+    CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.port ${CNODE_PORT}")
     version=$("$(command -v cardano-node)" version)
     node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
     node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
