@@ -21,7 +21,7 @@
 [[ -z ${CNODE_LISTEN_IP6} ]] && CNODE_LISTEN_IP6=::
 
 if [[ -S "${CARDANO_NODE_SOCKET_PATH}" ]]; then
-  if pgrep -f "[c]ardano-node.*.${CARDANO_NODE_SOCKET_PATH}"; then
+  if pgrep -f "$(basename ${CNODEBIN}).*.${CARDANO_NODE_SOCKET_PATH}"; then
      echo "ERROR: A Cardano node is already running, please terminate this node before starting a new one with this script."
      exit 1
   else
@@ -41,7 +41,7 @@ host_addr=()
 [[ ${IP_VERSION} = "6" || ${IP_VERSION} = "mix" ]] && host_addr+=("--host-ipv6-addr" "${CNODE_LISTEN_IP6}")
 
 if [[ -f "${POOL_DIR}/${POOL_OPCERT_FILENAME}" && -f "${POOL_DIR}/${POOL_VRF_SK_FILENAME}" && -f "${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}" ]]; then
-  cardano-node "${CPU_RUNTIME[@]}" run \
+  "${CNODEBIN}" "${CPU_RUNTIME[@]}" run \
     --topology "${TOPOLOGY}" \
     --config "${CONFIG}" \
     --database-path "${DB_DIR}" \
@@ -52,7 +52,7 @@ if [[ -f "${POOL_DIR}/${POOL_OPCERT_FILENAME}" && -f "${POOL_DIR}/${POOL_VRF_SK_
     --port ${CNODE_PORT} \
     "${host_addr[@]}"
 else
-  cardano-node "${CPU_RUNTIME[@]}" run \
+  "${CNODEBIN}" "${CPU_RUNTIME[@]}" run \
     --topology "${TOPOLOGY}" \
     --config "${CONFIG}" \
     --database-path "${DB_DIR}" \
