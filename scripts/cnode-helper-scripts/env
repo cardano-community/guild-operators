@@ -107,17 +107,6 @@ telegramSend() {
   fi
 }
 
-[[ -z "${CNODEBIN}" ]] && CNODEBIN=$(command -v cardano-node)
-if [[ -z "${CNODEBIN}" ]]; then
-  if [[ -f "${HOME}/.cabal/bin/cardano-node" ]]; then
-    export PATH="${HOME}/.cabal/bin":$PATH
-    CNODEBIN=$(command -v cardano-node)
-  else
-    echo "You do not have a cardano-node binary available in \$PATH."
-    return 1
-  fi
-fi
-
 [[ -z "${CCLI}" ]] && CCLI=$(command -v cardano-cli)
 if [[ -z "${CCLI}" ]]; then
   if [[ -f "${HOME}/.cabal/bin/cardano-cli" ]]; then
@@ -125,6 +114,19 @@ if [[ -z "${CCLI}" ]]; then
     CCLI=$(command -v cardano-cli)
   else
     echo "You do not have a cardano-cli binary available in \$PATH."
+    return 1
+  fi
+fi
+
+[[ -z "${CNODEBIN}" ]] && CNODEBIN=$(command -v cardano-node)
+if [[ -z "${CNODEBIN}" ]]; then
+  if [[ -f "$(dirname ${CCLI})"/cardano-node ]]; then
+    CNODEBIN="$(dirname ${CCLI})"/cardano-node
+  elif [[ -f "${HOME}/.cabal/bin/cardano-node" ]]; then
+    export PATH="${HOME}/.cabal/bin":$PATH
+    CNODEBIN=$(command -v cardano-node)
+  else
+    echo "You do not have a cardano-node binary available in \$PATH."
     return 1
   fi
 fi
