@@ -14,7 +14,9 @@ RETRIES=3                                 # How many attempts to connect to runn
 PEER_LIST_CNT=6                           # Number of peers to show on each in/out page in peer analysis view
 THEME="dark"                              # dark  = suited for terminals with a dark background
                                           # light = suited for terminals with a bright background
-ENABLE_IP_GEOLOCATION="Y"                 # Enable IP geolocation on outgoing and incoming connections using ip-api.com
+#ENABLE_IP_GEOLOCATION="Y"                # Enable IP geolocation on outgoing and incoming connections using ip-api.com (default: Y)
+#LATENCY_TOOLS="cncli|ss|tcptraceroute|ping" # Preferred latency check tool order, valid entries: cncli|ss|tcptraceroute|ping (must be separated by |)
+#CNCLI_CONNECT_ONLY=false                 # By default cncli measure full connect handshake duration. If set to false, only connect is measured similar to other tools
 
 #####################################
 # Themes                            #
@@ -67,16 +69,14 @@ usage() {
 		Guild LiveView - An alternative cardano-node LiveView
 
 		-l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
-		-p    Disable default CNCLI ping and revert to ss/tcptraceroute if available, else use regular ICMP ping.
 		-b    Use alternate branch to check for updates - only for testing/development (Default: Master)
 		EOF
   exit 1
 }
 
-while getopts :lpb: opt; do
+while getopts :lb: opt; do
   case ${opt} in
     l ) LEGACY_MODE="true" ;;
-    p ) DISABLE_CNCLI="true" ;;
     b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
   esac
@@ -177,6 +177,10 @@ declare -gA geoIP=()
 [[ -f "$0.geodb" ]] && . -- "$0.geodb"
 
 [[ -z ${PEER_LIST_CNT} ]] && PEER_LIST_CNT=6
+
+[[ -z ${LATENCY_TOOLS} ]] && LATENCY_TOOLS="cncli|ss|tcptraceroute|ping"
+
+[[ -z ${CNCLI_CONNECT_ONLY} ]] && CNCLI_CONNECT_ONLY=false
 
 #######################################################
 # Style / UI                                          #
@@ -400,6 +404,42 @@ clrScreen () {
   printf "\033[2J"
 }
 
+# Description: latency helper functions
+latencyCNCLI () {
+  if [[ -n ${CNCLI} && -f ${CNCLI} ]]; then
+    checkPEER=$(${CNCLI} ping --host "${peerIP}" --port "${peerPORT}" --network-magic "${NWMAGIC}")
+    if [[ $(jq -r .status <<< "${checkPEER}") = "ok" ]]; then
+      [[ ${CNCLI_CONNECT_ONLY} = true ]] && peerRTT=$(jq -r .connectDurationMs <<< "${checkPEER}") || peerRTT=$(jq -r .durationMs <<< "${checkPEER}")
+    else # cncli ping failed
+      peerRTT=99999
+    fi
+  fi
+}
+latencySS () {
+  if command -v ss >/dev/null; then
+    if [[ $(ss -ni "dst ${peerIP}:${peerPORT}" | tail -1) =~ rtt:([0-9]+) ]]; then
+      peerRTT=${BASH_REMATCH[1]}
+    else
+      peerRTT=99999
+    fi
+  fi
+}
+latencyTCPTRACEROUTE () {
+  if command -v tcptraceroute >/dev/null; then
+    checkPEER=$(tcptraceroute -n -S -f 255 -m 255 -q 1 -w 1 "${peerIP}" "${peerPORT}" 2>&1 | tail -n 1)
+    if [[ ${checkPEER} = *'[open]'* ]]; then
+      peerRTT=$(echo "${checkPEER}" | awk '{print $4}' | cut -d. -f1)
+    else # Nope, no response
+      peerRTT=99999
+    fi
+  fi
+}
+latencyPING () {
+  if checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Ping OK, show RTT
+    peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
+  fi
+}
+
 # Command    : checkPeers [direction: in|out]
 # Description: Check outgoing peers
 #              Inspired by ping script from Martin @ ATADA pool
@@ -439,7 +479,9 @@ checkPeers() {
   # Ping every node in the list
   index=0
   lastpeerIP=""
+
   for peer in ${peersSorted}; do
+
     if [[ ${peer} = "["* ]]; then # IPv6
       IFS=']' read -ra ipv6_peer <<< "${peer:1}"
       peerIP=${ipv6_peer[0]}
@@ -448,6 +490,7 @@ checkPeers() {
       peerIP=$(cut -d: -f1 <<< "${peer}")
       peerPORT=$(cut -d: -f2 <<< "${peer}")
     fi
+
     [[ -z ${peerIP} || -z ${peerPORT} ]] && mvPos ${line} ${print_start} && printf "${style_values_1}%${#peerCNT}s${NC}" "$((++index))" && continue
 
     if [[ ${ENABLE_IP_GEOLOCATION} = "Y" && "${peerIP}" != "${lastpeerIP}" ]] && ! isPrivateIP "${peerIP}"; then
@@ -459,25 +502,21 @@ checkPeers() {
     if [[ "${peerIP}" = "${lastpeerIP}" ]]; then
       [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT)) # skip RTT check and reuse old ${peerRTT} number if reachable
     elif [[ ${direction} = "out" ]]; then
-      if [[ -n ${CNCLI} && -f ${CNCLI} && ${DISABLE_CNCLI} != "true" ]]; then
-        checkPEER=$(${CNCLI} ping --host "${peerIP}" --port "${peerPORT}" --network-magic "${NWMAGIC}")
-        if [[ $(jq -r .status <<< "${checkPEER}") = "ok" ]]; then
-          peerRTT=$(jq -r .durationMs <<< "${checkPEER}")
-        else # cncli ping failed
-          peerRTT=99999
-        fi
-      elif command -v ss >/dev/null; then
-        [[ $(ss -ni "dst ${peerIP}:${peerPORT}" | tail -1) =~ rtt:([0-9]+) ]] && peerRTT=${BASH_REMATCH[1]} || peerRTT=99999
-      elif command -v tcptraceroute >/dev/null; then
-        checkPEER=$(tcptraceroute -n -S -f 255 -m 255 -q 1 -w 1 "${peerIP}" "${peerPORT}" 2>&1 | tail -n 1)
-        if [[ ${checkPEER} = *'[open]'* ]]; then
-          peerRTT=$(echo "${checkPEER}" | awk '{print $4}' | cut -d. -f1)
-        else # Nope, no response
-          peerRTT=99999
-        fi
-      elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Ping OK, show RTT
-        peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
-      else # cncli, ss & tcptraceroute missing and ping failed
+      unset peerRTT
+      for tool in ${LATENCY_TOOLS//|/ }; do
+        case ${tool} in
+          cncli) 
+            latencyCNCLI ;;
+          ss)    
+            latencySS ;;
+          tcptraceroute) 
+            latencyTCPTRACEROUTE ;;
+          ping)
+            latencyPING ;;
+        esac
+        [[ -n ${peerRTT} && ${peerRTT} != 99999 ]] && break
+      done
+      if [[ -z ${peerRTT} ]]; then # cncli, ss & tcptraceroute and ping failed
         peerRTT=99999
       fi
       ! isNumber ${peerRTT} && peerRTT=99999 || peerRTTSUM=$((peerRTTSUM + peerRTT))
