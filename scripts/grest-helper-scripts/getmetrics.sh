@@ -46,7 +46,7 @@ function get-metrics() {
   # in Bytes
   pubschsize=$(psql -d cexplorer -c "SELECT sum(pg_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'public'" | awk 'FNR == 3 {print $1 $2}')
   grestschsize=$(psql -d cexplorer -c "SELECT sum(pg_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'grest'" | awk 'FNR == 3 {print $1 $2}')
-  dbsize=$(expr $pubschsize + $grestschsize)
+  dbsize=$(( pubschsize + grestschsize ))
 
   # Metrics
   [[ -n "${dbsyncProm}" ]] && export METRIC_dbsynctipref=$(( currslottip - $(printf %f "$(echo "${dbsyncProm}" | grep cardano_db_sync_db_slot_height | awk '{print $2}')" |cut -d. -f1) ))

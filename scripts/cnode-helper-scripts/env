@@ -121,6 +121,7 @@ fi
 [[ -z "${CNODEBIN}" ]] && CNODEBIN=$(command -v cardano-node)
 if [[ -z "${CNODEBIN}" ]]; then
   if [[ -f "$(dirname ${CCLI})"/cardano-node ]]; then
+    CCLIPARENT="$(dirname ${CCLI})" && export PATH="$${CCLIPARENT}":$PATH
     CNODEBIN="$(dirname ${CCLI})"/cardano-node
   elif [[ -f "${HOME}/.cabal/bin/cardano-node" ]]; then
     export PATH="${HOME}/.cabal/bin":$PATH
