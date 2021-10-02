@@ -392,13 +392,15 @@ checkUpdate() {
       printf "${FG_RED}ERROR${NC}: '${1}' update failed! Please use prereqs.sh to force an update or manually download the file from GitHub"
       return 2
     fi
-    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}")
-    TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}".tmp)
-    if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-      if [[ $2 = Y ]] || { [[ -t 1 ]] && getAnswer "\nThe static content from ${FG_YELLOW}${1}${NC} does not match with guild-operators repository, do you want to download the updated file?"; }; then
+    OLD_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/${1}")
+    OLD_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}")
+    GIT_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/${1}".tmp)
+    GIT_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}".tmp)
+    NEW_STATIC=$(checkUserVariables "${OLD_STATIC}" "${GIT_STATIC}")
+    if [[ "$(echo ${OLD_STATIC} | sha256sum)" != "$(echo ${NEW_STATIC} | sha256sum)" || "$(echo ${OLD_TEMPL} | sha256sum)" != "$(echo ${GIT_TEMPL} | sha256sum)" ]]; then
+      if [[ $2 = Y ]] || { [[ -t 1 ]] && getAnswer "\nThe content from ${FG_YELLOW}${1}${NC} does not match with guild-operators repository, do you want to download the updated file?"; }; then
         cp "${PARENT}/${1}" "${PARENT}/${1}_bkp$(date +%s)"
-        STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/${1}")
-        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}/${1}".tmp
+        printf '%s\n%s\n' "${NEW_STATIC}" "${GIT_TEMPL}" > "${PARENT}/${1}".tmp
         mv "${PARENT}/${1}".tmp "${PARENT}/${1}"
         [[ ! "${1}" == "env" ]] && chmod +x "${1}"
         echo -e "\n${FG_YELLOW}${1}${NC} update successfully applied!"
@@ -409,6 +411,26 @@ checkUpdate() {
   fi
   rm -f "${PARENT}/${1}".tmp
   return 0
+}
+
+# Description : Check that old script User Variables section contain all current settings from GitHub.
+#             : Prints final result to stdout
+#             : $1 = Old/Current script User Variables
+#             : $2 = User Variables section from GitHub
+checkUserVariables() {
+  tmp_head=$(head -n -2 <<< "$1")
+  tmp_tail=$(tail -n -2 <<< "$1")
+  while IFS= read -r line; do
+    if [[ ${line} =~ ^\#?([[:alnum:]_]+\=) ]]; then
+      unset hasVariable
+      regex="^\#?${BASH_REMATCH[1]}"
+      while IFS= read -r line2; do
+        [[ ${line2} =~ ${regex} ]] && hasVariable=true && break
+      done <<< "${tmp_head}"
+      [[ -z ${hasVariable} ]] && tmp_head=$(printf '%s\n%s\n' "${tmp_head}" "${line}")
+    fi
+  done <<< "$2"
+  printf '%s\n%s\n' "${tmp_head}" "${tmp_tail}"
 }
 
 # Description : Check if command is available
