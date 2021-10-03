@@ -661,6 +661,35 @@
         }
       }
     },
+    "/rpc/address_info": {
+      "post": {
+        "tags": ["Address Queries"],
+        "summary": "Get payment address info - balance and associated stake address (if any)",
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": ["_payment_address_bech32"],
+              "type": "object",
+              "properties": {
+                "_address": {
+                  "format": "text",
+                  "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/rpc/registered_pools": {
       "post": {
         "tags": ["Blockchain Queries"],
