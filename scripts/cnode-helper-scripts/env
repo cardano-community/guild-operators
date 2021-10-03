@@ -421,9 +421,9 @@ checkUserVariables() {
   tmp_head=$(head -n -2 <<< "$1")
   tmp_tail=$(tail -n -2 <<< "$1")
   while IFS= read -r line; do
-    if [[ ${line} =~ ^\#?([[:alnum:]_]+\=) ]]; then
+    if [[ ${line} =~ ^\#*[[:space:]]*([[:alnum:]_]+\=) ]]; then
       unset hasVariable
-      regex="^\#?${BASH_REMATCH[1]}"
+      regex="^\#*[[:space:]]*${BASH_REMATCH[1]}"
       while IFS= read -r line2; do
         [[ ${line2} =~ ${regex} ]] && hasVariable=true && break
       done <<< "${tmp_head}"
