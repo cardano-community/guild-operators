@@ -632,10 +632,10 @@
         }
       }
     },
-    "/rpc/address_utxos": {
+    "/rpc/address_info": {
       "post": {
         "tags": ["Address Queries"],
-        "summary": "Get all UTXOs associated with an address",
+        "summary": "Get payment address info - balance, associated stake address (if any) and UTXO set",
         "produces": ["application/json", "application/vnd.pgrst.object+json"],
         "parameters": [
           {
