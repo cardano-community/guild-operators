@@ -1,6 +1,53 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC1090,SC2086,SC2154,SC2034,SC2012,SC2140,SC2028
 
+. "$(dirname $0)"/env offline
+
+# legacy config (deprecated and removed in future major version update)
+if [[ -f "$(dirname $0)"/cntools.config ]]; then
+  ! . "$(dirname $0)"/cntools.config && exit 1
+  clear && waitToProceed "${FG_RED}cntools.config deprecated and will be removed in future major version!${NC}\n"\
+    "Uncomment and set any customization in User Variables section of cntools.sh instead."\
+    "Once done, delete cntools.config file to get rid of this message.\n"\
+    "press any key to proceed .."
+fi
+
+######################################
+# User Variables - Change as desired #
+# Common variables set in env file   #
+######################################
+
+#TIMEOUT_NO_OF_SLOTS=600 # used when waiting for a new block to be created
+
+# log cntools activities (comment or set empty to disable)
+# LOG_DIR set in env file
+#CNTOOLS_LOG="${LOG_DIR}/cntools-history.log"
+
+# kes rotation warning (in seconds)
+# if disabled KES check will be skipped on startup
+#CHECK_KES=false
+#KES_ALERT_PERIOD=172800 # default 2 days
+#KES_WARNING_PERIOD=604800 # default 7 days
+
+# limit for extended wallet selection menu filtering (balance check and delegation status)
+# if more wallets exist than limit set these checks will be disabled to improve performance
+#WALLET_SELECTION_FILTER_LIMIT=10
+
+# enable or disable chattr used to protect keys from being overwritten [true|false] (not supported on all systems)
+# if disabled standard read-only permission is set instead
+#ENABLE_CHATTR=true
+
+# enable or disable dialog used to help in file/dir selection by providing a gui to see available files and folders. [true|false] (not supported on all systems)
+# if disabled standard tty input is used
+#ENABLE_DIALOG=true
+
+# enable advanced/developer features like metadata transactions, multi-asset management etc. [true|false] (not needed for SPO usage)
+#ENABLE_ADVANCED=false
+
+######################################
+# Do NOT modify code below           #
+######################################
+
 ########## Global tasks ###########################################
 
 # General exit handler
@@ -94,9 +141,6 @@ case $rc in # ignore exit code 0 and 2, any other exits script
   2) clear ;; # ignore
   *) myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
 esac
-
-# get cntools config parameters
-! . "${PARENT}"/cntools.config && myExit 1
 
 # get helper functions from library file
 ! . "${PARENT}"/cntools.library && myExit 1
