@@ -670,10 +670,10 @@
           {
             "required": true,
             "schema": {
-              "required": ["_payment_address_arr"],
+              "required": ["_payment_addresses"],
               "type": "object",
               "properties": {
-                "_payment_address_arr": {
+                "_payment_addresses": {
                   "type": "array",
                   "items": { "type": "string" },
                   "minItems": 1
