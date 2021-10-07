@@ -17,7 +17,7 @@ BEGIN
   SELECT
     DECODE(_asset_policy, 'hex') INTO _asset_policy_decoded;
   SELECT
-    DECODE(_asset_name, 'hex') INTO _asset_name_decoded;
+    DECODE(_asset_name::text,'escape') INTO _asset_name_decoded;
   RETURN QUERY
   SELECT
     TXO.ADDRESS,
