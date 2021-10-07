@@ -268,6 +268,22 @@ paths:
           $ref: '#/components/responses/NotFound'
       summary: Account Assets
       description: Get the native asset balance of an account
+  /rpc/asset_address_list:
+    get:
+      tags:
+        - Asset
+      parameters:
+        - $ref: '#/components/parameters/_asset_policy'
+        - $ref: '#/components/parameters/_asset_name'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      summary: Assets Address List
+      description: Get a list of all addresses for a given asset
   /rpc/pool_list:
     get:
       tags:
@@ -481,6 +497,26 @@ components:
       schema:
         type: string
         example: stake1u8yxtugdv63wxafy9d00nuz6hjyyp4qnggvc9a3vxh8yl0ckml2uz
+      in: query
+      required: true
+      allowEmptyValue: false
+    _asset_policy:
+      deprecated: false
+      name: _asset_policy
+      description: Asset Policy ID (hex)
+      schema:
+        type: string
+        example: d3501d9531fcc25e3ca4b6429318c2cc374dbdbcf5e99c1c1e5da1ff
+      in: query
+      required: true
+      allowEmptyValue: false
+    _asset_name:
+      deprecated: false
+      name: _asset_name
+      description: Asset Name in plain text
+      schema:
+        type: string
+        example: DONTSPAM
       in: query
       required: true
       allowEmptyValue: false
@@ -702,6 +738,9 @@ tags:
     x-tag-expanded: false
   - name: Account
     description: Query details about specific stake account addresses
+    x-tag-expanded: false
+  - name: Asset
+    description: Query Asset related informations
     x-tag-expanded: false
   - name: Pool
     description: Query information about specific pools
