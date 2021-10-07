@@ -206,8 +206,9 @@ BEGIN
     BLOCK_NO IS NOT NULL INTO _current_block_height;
   SELECT
     (_current_block_height - _last_update_block_height) INTO _last_update_block_diff;
-  -- Do nothing until there is a 90 blocks difference in height (95 in check because lbh considered is 5 blocks behind tip)
-  IF _last_update_block_diff >= 95 THEN
+  -- Do nothing until there is a 180 blocks difference in height - 60 minutes theoretical time
+  -- 185 in check because lbh considered is 5 blocks behind tip
+  IF _last_update_block_diff >= 185 THEN
     RAISE NOTICE 'Last stake distribution update was % blocks ago, re-running...', _last_update_block_diff;
     CALL GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
   END IF;
