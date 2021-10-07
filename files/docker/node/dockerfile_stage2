@@ -9,7 +9,7 @@ ENV \
 
 RUN git clone https://github.com/input-output-hk/cardano-node.git \
   && export BOOTSTRAP_HASKELL_NO_UPGRADE=1 \
-  && wget https://raw.githubusercontent.com/stakelovelace/cardano-htn/master/release-versions/cardano-node-latest.txt \
+  && wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/docker/node/release-versions/cardano-node-latest.txt \
   && CNVERSION=$(cat cardano-node-latest.txt) \
   && cd cardano-node \
   && git fetch --tags --all && git checkout tags/$CNVERSION \
