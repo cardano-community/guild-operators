@@ -34,6 +34,7 @@ if ! mkdir -p "${ASSET_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}:
 [[ -z ${ENABLE_DIALOG} ]] && ENABLE_DIALOG=true
 [[ ${ENABLE_ADVANCED} = "true" ]] && ADVANCED_MODE="true"
 [[ -z ${CHECK_KES} ]] && CHECK_KES=true
+[[ -z ${CNTOOLS_LOG} ]] && CNTOOLS_LOG="${LOG_DIR}/cntools-history.log"
 
 ############################################################
 # library sourced by cntools with common taskes to perform #
