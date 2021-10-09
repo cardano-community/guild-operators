@@ -124,14 +124,6 @@ fi
 
 archiveLog # archive current log and cleanup log archive folder
 
-exec 6>&1 # Link file descriptor #6 with normal stdout.
-exec 7>&2 # Link file descriptor #7 with normal stderr.
-[[ -n ${CNTOOLS_LOG} ]] && exec > >( tee >( while read -r line; do logln "INFO" "${line}"; done ) )
-[[ -n ${CNTOOLS_LOG} ]] && exec 2> >( tee >( while read -r line; do logln "ERROR" "${line}"; done ) >&2 )
-[[ -n ${CNTOOLS_LOG} ]] && exec 3> >( tee >( while read -r line; do logln "DEBUG" "${line}"; done ) >&6 )
-exec 8>&1 # Link file descriptor #8 with custom stdout.
-exec 9>&2 # Link file descriptor #9 with custom stderr.
-
 # check for required command line tools
 if ! cmdAvailable "curl" || \
    ! cmdAvailable "jq" || \
@@ -151,8 +143,7 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     println OFF "Checking for script updates..."
     # Check availability of checkUpdate function
     if [[ ! $(command -v checkUpdate) ]]; then
-      println OFF "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
-      myExit 1
+      myExit 1 "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
     fi
     # check for env update
     ! checkUpdate env && myExit 1
@@ -163,7 +154,7 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       2) clear ;;
     esac
     
-    checkUpdate cntools.library
+    checkUpdate cntools.library N Y
     case $? in
       1) checkUpdate cntools.sh Y
          case $? in
@@ -179,7 +170,6 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       if ! cmp -s "${TMP_DIR}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"; then
         # Latest changes not shown, show whats new and copy changelog
         clear 
-        exec >&6 # normal stdout
         sleep 0.1
         if [[ ! -f "${PARENT}/cntools-changelog.md" ]]; then 
           # special case for first installation or 5.0.0 upgrade, print release notes until previous major version
@@ -189,7 +179,6 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
           [[ $(cat "${PARENT}/cntools-changelog.md") =~ \[([[:digit:]])\.([[:digit:]])\.([[:digit:]])\] ]]
           cat <(println OFF "~ CNTools - What's New ~\n") <(awk "1;/\[${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}\.${BASH_REMATCH[3]}\]/{exit}" "${TMP_DIR}"/cntools-changelog.md | head -n -2 | tail -n +7) <(echo -e "\n [Press 'q' to quit and proceed to CNTools main menu]\n") | less -X
         fi
-        exec >&8 # custom stdout
         cp "${TMP_DIR}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"
       fi
     else
@@ -212,6 +201,14 @@ fi
 if ! versionCheck "4.4.0" "${BASH_REMATCH[1]}"; then
   myExit 1 "BASH does not meet the minimum required version of ${FG_LBLUE}4.4.0${NC}, found ${FG_LBLUE}${BASH_REMATCH[1]}${NC}\n\nPlease upgrade to a newer Linux distribution or compile latest BASH following official docs.\n\nINSTALL:  https://www.gnu.org/software/bash/manual/html_node/Installing-Bash.html\nDOWNLOAD: http://git.savannah.gnu.org/cgit/bash.git/ (latest stable TAG)"
 fi
+
+exec 6>&1 # Link file descriptor #6 with normal stdout.
+exec 7>&2 # Link file descriptor #7 with normal stderr.
+[[ -n ${CNTOOLS_LOG} ]] && exec > >( tee >( while read -r line; do logln "INFO" "${line}"; done ) )
+[[ -n ${CNTOOLS_LOG} ]] && exec 2> >( tee >( while read -r line; do logln "ERROR" "${line}"; done ) >&2 )
+[[ -n ${CNTOOLS_LOG} ]] && exec 3> >( tee >( while read -r line; do logln "DEBUG" "${line}"; done ) >&6 )
+exec 8>&1 # Link file descriptor #8 with custom stdout.
+exec 9>&2 # Link file descriptor #9 with custom stderr.
 
 # check if there are pools in need of KES key rotation
 clear

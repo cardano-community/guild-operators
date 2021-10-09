@@ -364,6 +364,7 @@ getAnswerAny() {
 # Description : Query user for any question
 #             : $1 = name of script to update
 #             : $2 = [Y|N] ignore question and auto update
+#             : $3 = [Y|N] do a complete file comparision
 # return code : 0 = no update
 #             : 1 = update applied
 #             : 2 = update failed
@@ -397,7 +398,7 @@ checkUpdate() {
     GIT_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/${1}".tmp)
     GIT_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}".tmp)
     NEW_STATIC=$(checkUserVariables "${OLD_STATIC}" "${GIT_STATIC}")
-    if [[ ($1 = cntools.library && "$(sha256sum "${PARENT}/${1}" | cut -d' ' -f1)" != "$(sha256sum "${PARENT}/${1}.tmp" | cut -d' ' -f1)") || "$(echo ${OLD_STATIC} | sha256sum)" != "$(echo ${NEW_STATIC} | sha256sum)" || "$(echo ${OLD_TEMPL} | sha256sum)" != "$(echo ${GIT_TEMPL} | sha256sum)" ]]; then
+    if [[ ($3 = Y && "$(sha256sum "${PARENT}/${1}" | cut -d' ' -f1)" != "$(sha256sum "${PARENT}/${1}.tmp" | cut -d' ' -f1)") || "$(echo ${OLD_STATIC} | sha256sum)" != "$(echo ${NEW_STATIC} | sha256sum)" || "$(echo ${OLD_TEMPL} | sha256sum)" != "$(echo ${GIT_TEMPL} | sha256sum)" ]]; then
       if [[ $1 = cntools.library || $1 = gLiveView.sh ]]; then
         if [[ $1 = cntools.library ]]; then
           CUR_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${PARENT}/${1}" |sed -e "s#.*=##")
@@ -420,8 +421,8 @@ checkUpdate() {
       else
         update_msg="\nThe content from ${FG_YELLOW}${1}${NC} does not match with guild-operators repository, do you want to download the updated file?"
       fi
-      if [[ $2 = Y ]] || { ([[ -t 1 || $1 =~ ^cntools ]]) && getAnswer "${update_msg}"; }; then
-        if grep -q "# Do NOT modify" "${PARENT}/${1}"; then
+      if [[ $2 = Y ]] || { [[ -t 1 ]] && getAnswer "${update_msg}"; }; then
+        if [[ $3 != Y ]] && grep -q "# Do NOT modify" "${PARENT}/${1}"; then
           printf '%s\n%s\n' "${NEW_STATIC}" "${GIT_TEMPL}" > "${PARENT}/${1}".tmp
         fi
         cp "${PARENT}/${1}" "${PARENT}/${1}_bkp$(date +%s)"
