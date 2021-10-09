@@ -25,7 +25,6 @@ if ! mkdir -p "${WALLET_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}
 if ! mkdir -p "${POOL_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}: Failed to create pool directory: ${POOL_FOLDER}"; fi
 if ! mkdir -p "${ASSET_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}: Failed to create asset directory: ${POOL_ASSET}"; fi
 [[ -z ${TIMEOUT_NO_OF_SLOTS} ]] && TIMEOUT_NO_OF_SLOTS=600
-[[ ${SHELLEY_TRANS_FILENAME} =~ ^${CNODE_HOME}/db/ ]] && mkdir -p "${CNODE_HOME}/guild-db" && SHELLEY_TRANS_FILENAME="${CNODE_HOME}/guild-db/shelley_trans_epoch"
 [[ -z ${WALLET_SELECTION_FILTER_LIMIT} ]] && WALLET_SELECTION_FILTER_LIMIT=10
 [[ -z ${KES_ALERT_PERIOD} ]] && KES_ALERT_PERIOD=172800 # default 2 days
 [[ -z ${KES_WARNING_PERIOD} ]] && KES_WARNING_PERIOD=604800 # default 7 days

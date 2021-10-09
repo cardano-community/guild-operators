@@ -140,7 +140,7 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   clear
   if [[ "${UPDATE_CHECK}" == "Y" ]]; then 
 
-    println OFF "Checking for script updates..."
+    echo "Checking for script updates..."
     # Check availability of checkUpdate function
     if [[ ! $(command -v checkUpdate) ]]; then
       myExit 1 "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
@@ -173,17 +173,17 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
         sleep 0.1
         if [[ ! -f "${PARENT}/cntools-changelog.md" ]]; then 
           # special case for first installation or 5.0.0 upgrade, print release notes until previous major version
-          println OFF "~ CNTools - What's New ~\n\n" "$(sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_DIR}"/cntools-changelog.md | head -n -2)" | less -X
+          echo -e "~ CNTools - What's New ~\n\n" "$(sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_DIR}"/cntools-changelog.md | head -n -2)" | less -X
         else
           # print release notes from current until previously installed version
           [[ $(cat "${PARENT}/cntools-changelog.md") =~ \[([[:digit:]])\.([[:digit:]])\.([[:digit:]])\] ]]
-          cat <(println OFF "~ CNTools - What's New ~\n") <(awk "1;/\[${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}\.${BASH_REMATCH[3]}\]/{exit}" "${TMP_DIR}"/cntools-changelog.md | head -n -2 | tail -n +7) <(echo -e "\n [Press 'q' to quit and proceed to CNTools main menu]\n") | less -X
+          cat <(echo -e "~ CNTools - What's New ~\n") <(awk "1;/\[${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}\.${BASH_REMATCH[3]}\]/{exit}" "${TMP_DIR}"/cntools-changelog.md | head -n -2 | tail -n +7) <(echo -e "\n [Press 'q' to quit and proceed to CNTools main menu]\n") | less -X
         fi
         cp "${TMP_DIR}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"
       fi
     else
-      println ERROR "\n${FG_RED}ERROR${NC}: failed to download changelog from GitHub!"
-      waitForInput
+      echo -e "\n${FG_RED}ERROR${NC}: failed to download changelog from GitHub!"
+      waitToProceed
     fi
   fi
 
