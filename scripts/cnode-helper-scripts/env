@@ -402,7 +402,7 @@ checkUpdate() {
         cp "${PARENT}/${1}" "${PARENT}/${1}_bkp$(date +%s)"
         printf '%s\n%s\n' "${NEW_STATIC}" "${GIT_TEMPL}" > "${PARENT}/${1}".tmp
         mv "${PARENT}/${1}".tmp "${PARENT}/${1}"
-        [[ ! "${1}" == "env" ]] && chmod +x "${1}"
+        [[ ! "${1}" == "env" ]] && chmod +x "${PARENT}/${1}"
         echo -e "\n${FG_YELLOW}${1}${NC} update successfully applied!"
         [[ -t 1 ]] && waitToProceed && clear
         return 1

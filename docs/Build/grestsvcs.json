@@ -644,9 +644,39 @@
               "required": ["_payment_address_bech32"],
               "type": "object",
               "properties": {
-                "_address": {
+                "_payment_address_bech32": {
                   "format": "text",
                   "type": "string"
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rpc/address_txs": {
+      "post": {
+        "tags": ["Address Queries"],
+        "summary": "Get the transaction hash list of a payment address array, optionally filtering after specified block height (inclusive)",
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": ["_payment_addresses"],
+              "type": "object",
+              "properties": {
+                "_payment_addresses": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "minItems": 1
                 }
               }
             },
