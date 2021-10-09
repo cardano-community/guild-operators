@@ -177,7 +177,7 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     case $? in
       1) checkUpdate cntools.sh Y
          case $? in
-           1) myExit 0 "\n\nPlease start CNTools again!";;
+           1) myExit 0 "Please start CNTools again!";;
            2) exit 1 ;;
          esac
          ;;
