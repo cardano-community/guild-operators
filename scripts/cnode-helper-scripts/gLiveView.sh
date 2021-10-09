@@ -123,7 +123,8 @@ if [[ "${UPDATE_CHECK}" == "Y" ]]; then
     myExit 1
   fi
   # check for env update
-  ! checkUpdate env && myExit 1
+  checkUpdate env
+  [[ $? = 2 ]] && myExit 1
   # source common env variables in case it was updated
   . "${PARENT}"/env
   case $? in

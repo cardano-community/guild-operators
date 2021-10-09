@@ -365,6 +365,7 @@ getAnswerAny() {
 #             : $1 = name of script to update
 #             : $2 = [Y|N] ignore question and auto update
 #             : $3 = [Y|N] do a complete file comparision
+#             : $4 = [Y|N] wait to acknowledge update
 # return code : 0 = no update
 #             : 1 = update applied
 #             : 2 = update failed
@@ -391,7 +392,7 @@ checkUpdate() {
       [[ ${vname} != cnode ]] && sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}/${1}".tmp
     else
       printf "${FG_RED}ERROR${NC}: '${1}' update failed! Please use prereqs.sh to force an update or manually download the file from GitHub"
-      return 2
+      waitToProceed && return 2
     fi
     OLD_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/${1}")
     OLD_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}")
@@ -429,7 +430,7 @@ checkUpdate() {
         mv "${PARENT}/${1}".tmp "${PARENT}/${1}"
         [[ ! "${1}" == "env" ]] && chmod +x "${PARENT}/${1}"
         echo -e "\n${FG_YELLOW}${1}${NC} update successfully applied!"
-        [[ -t 1 ]] && waitToProceed && clear
+        [[ -t 1 && $4 != N ]] && waitToProceed && clear
         return 1
       fi
     fi
