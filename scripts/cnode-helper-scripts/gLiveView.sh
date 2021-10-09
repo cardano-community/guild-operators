@@ -131,29 +131,11 @@ if [[ "${UPDATE_CHECK}" == "Y" ]]; then
     2) clear ;;
   esac
 
-  if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/gLiveView.sh.tmp ${URL}/gLiveView.sh 2>/dev/null && [[ -f "${PARENT}"/gLiveView.sh.tmp ]]; then
-    GIT_VERSION=$(grep -r ^GLV_VERSION= "${PARENT}"/gLiveView.sh.tmp | cut -d'=' -f2)
-    : "${GIT_VERSION:=v0.0.0}"
-    if ! versionCheck "${GIT_VERSION}" "${GLV_VERSION}"; then
-      echo -e "\nA new version of Guild LiveView is available"
-      echo "Installed Version : ${GLV_VERSION}"
-      echo "Available Version : ${GIT_VERSION}"
-      if getAnswer "\nDo you want to upgrade to the latest version of Guild LiveView?"; then
-        TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/gLiveView.sh.tmp)
-        STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/gLiveView.sh)
-        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > "${PARENT}"/gLiveView.sh.tmp
-        mv -f "${PARENT}"/gLiveView.sh "${PARENT}/gLiveView.sh_bkp$(printf '%(%s)T\n' -1)" && \
-        mv -f "${PARENT}"/gLiveView.sh.tmp "${PARENT}"/gLiveView.sh && \
-        chmod 750 "${PARENT}"/gLiveView.sh && \
-        myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!" || \
-        myExit 1 "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
-      fi
-    fi
-  else
-    echo -e "\nFailed to download gLiveView.sh from GitHub, unable to perform version check!"
-    waitToProceed && clear
-  fi
-  rm -f "${PARENT}"/gLiveView.sh.tmp
+  checkUpdate gLiveView.sh
+  case $? in
+    1) myExit 0 "Please start Guild LiveView again!" ;;
+    2) exit 1 ;;
+  esac
 else
   # source common env variables in offline mode
   . "${PARENT}"/env offline

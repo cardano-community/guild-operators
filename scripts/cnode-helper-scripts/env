@@ -398,9 +398,32 @@ checkUpdate() {
     GIT_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}".tmp)
     NEW_STATIC=$(checkUserVariables "${OLD_STATIC}" "${GIT_STATIC}")
     if [[ "$(echo ${OLD_STATIC} | sha256sum)" != "$(echo ${NEW_STATIC} | sha256sum)" || "$(echo ${OLD_TEMPL} | sha256sum)" != "$(echo ${GIT_TEMPL} | sha256sum)" ]]; then
-      if [[ $2 = Y ]] || { [[ -t 1 ]] && getAnswer "\nThe content from ${FG_YELLOW}${1}${NC} does not match with guild-operators repository, do you want to download the updated file?"; }; then
+      update_msg="\nThe content from ${FG_YELLOW}${1}${NC} does not match with guild-operators repository, do you want to download the updated file?"
+      if [[ $1 = cntools.library || $1 = gLiveView.sh ]]; then
+        if [[ $1 = cntools.library ]]; then
+          CUR_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${PARENT}/${1}" |sed -e "s#.*=##")
+          CUR_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${PARENT}/${1}" |sed -e "s#.*=##")
+          CUR_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${PARENT}/${1}" |sed -e "s#.*=##")
+          CUR_VERSION="${CUR_MAJOR_VERSION}.${CUR_MINOR_VERSION}.${CUR_PATCH_VERSION}"
+          GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${PARENT}/${1}".tmp |sed -e "s#.*=##")
+          GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${PARENT}/${1}".tmp |sed -e "s#.*=##")
+          GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${PARENT}/${1}".tmp |sed -e "s#.*=##")
+          GIT_VERSION="${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}"
+          update_msg="\nA new version of CNTools is available"
+        else
+          CUR_VERSION=$(grep -r ^GLV_VERSION= "${PARENT}/${1}".tmp | cut -d'=' -f2)
+          GIT_VERSION=$(grep -r ^GLV_VERSION= "${PARENT}/${1}".tmp | cut -d'=' -f2)
+          update_msg="\nA new version of Guild LiveView is available"
+        fi
+        update_msg="${update_msg}\n\nInstalled Version : ${FG_LGRAY}${CUR_VERSION}${NC}"
+        update_msg="${update_msg}\nAvailable Version : ${FG_GREEN}${GIT_VERSION}${NC}"
+        update_msg="${update_msg}\n\nDo you want to upgrade to the latest version?"
+      fi
+      if [[ $2 = Y ]] || { [[ -t 1 ]] && getAnswer "${update_msg}"; }; then
+        if grep -q "# Do NOT modify"; then
+          printf '%s\n%s\n' "${NEW_STATIC}" "${GIT_TEMPL}" > "${PARENT}/${1}".tmp
+        fi
         cp "${PARENT}/${1}" "${PARENT}/${1}_bkp$(date +%s)"
-        printf '%s\n%s\n' "${NEW_STATIC}" "${GIT_TEMPL}" > "${PARENT}/${1}".tmp
         mv "${PARENT}/${1}".tmp "${PARENT}/${1}"
         [[ ! "${1}" == "env" ]] && chmod +x "${PARENT}/${1}"
         echo -e "\n${FG_YELLOW}${1}${NC} update successfully applied!"

@@ -64,7 +64,7 @@ fi
 
 . "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
 
-if [[ "${UPDATE_CHECK}" == "Y" ]] && [[ "${BATCH_AUTO_UPDATE}" == "N" ]]; then
+if [[ "${UPDATE_CHECK}" == "Y" ]]; then
   echo "Checking for script updates..."
   # Check availability of checkUpdate function
   if [[ ! $(command -v checkUpdate) ]]; then
