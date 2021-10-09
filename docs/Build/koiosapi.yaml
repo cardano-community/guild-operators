@@ -2,11 +2,69 @@ openapi: 3.0.2
 info:
   title: Koios API
   version: 0.1.0
-  description: Elastic RESTful query layer for exploring Cardano blockchain
+  description: |
+    # Overview
+    Koios is best described as a Decentralized and Elastic RESTful query layer for exploring data on Cardano blockchain to consume within applications/wallets/explorers/etc.
+    
+    > Note: While we've done sufficient ground work - we're currently only keeping an exploratory hosting - with health checks and protection still under development. Feel free to give it a go, but just remember it is not yet ready for production consumption, our estimates at the moment are Dec 2021 for a complete release.
+
+    ## Problems solved by Koios
+    - As the size of blockchain grows rapidly, we're looking at increasingly expensive resources and maintainance costs (financially as well as time-wise)
+    to maintain a scalable solution that will automatically failover and have health checks, ensure most synched versions are returned. With Koios, anyone is
+    free to either add their backend instance to the cluster, or use the query layer without running a node or dbsync instance themselves. There will be a
+    health-check for each endpoint to ensure that connections do not go to a dud backend resulting in information that's stale.
+    - Moreover, folks who do put in tremendous amount of efforts to go through discovery phrase - are often ending up with local solutions, that may not be
+    consistent across the board (eg: Live Stake queries across existing explorers). Since all the queries used by/for Koios layer is on github, anyone can contribute
+    or leverage the query knowledgebase, and help each other out while doing so. An additional endpoint added will only be load balanced between the servers that
+    pass the healthcheck for the endpoint.
+    - It is almost impossible to fetch some of the live data (for example, Live stake against a pool) due to the cost of computation and amount of data on chain. For 
+    such queries, many folks are already using different cache methods, or capturing ledger information from node. Wouldn't it be nice to have these crunced data that were
+    take quite a few minutes to run be shared and available to be able to pick a relatively recent execution across the nodes? This will be available out of the box as part
+    of Koios API.
+    - There is also a worry when going through updates about feasability/breaking changes/etc that can become a bottleneck for providers. Since participants for Koios
+    automatically receive failover support, they can reduce impact of any subset of clusters going through update process.
+    - The lightweight query layers around at the moment are unfortunately closed source, centralised - and create a single point of failure. With Koios our aim is to
+    give enough flexibility to all the participants to select their own backend, or pick from any of the available ones instead.
+    - Bad human errors causing an outage? The bandwidth for Koios becomes better with more participation, but just in case there isnt enough participation - we will be
+    ensuring that atleast 4 trusted instances across the globe of Koios will be around for the initial year, allowing for enough time for adoption to build up gradually.
+    - Flexibility to participate at different levels. A consumer of these services can participate
+
+    ## Is there a price attached to using services?
+    For most of the queries, there are no charges. But there are DDoS protection and strict timeout rules that may prevent heavy consumers from using this remotely (for which, there should be
+    an interaction to ensure the usage is proportional to sizing and traffic expected).
+    
+    ## Who are the folks behind Koios?
+    It will be increasing list of community builders. But for initial think-tank and efforts, the work done is primarily by [guild-operators](https://cardano-community.github.io/guild-operators)
+    who are well recognised team of members behind tools like CNTools, gLiveView, topology Updater, etc. We also run a parallel a short (30-min) epoch blockchain, viz, guild used by many
+    for experiments.
+
+    ## I am only interested in collaborating on queries, where can I find the code and how to collaborate?
+    All the Postgres codebase against dbsync instance is available on guild-operator's github repo [here](https://github.com/cardano-community/guild-operators/tree/alpha/files/grest/rpc). Feel free to raise an issue/PR to discuss anything related to those queries.
+
+    ## How does Koios work?
+    Koios architecture is described briefly below:
+    
+    ![High-Level architecture overview](/koios-design.png)
+
+    We will go bottom to top (from builder's eyes to run through the above briefly:
+
+    - *Instance(s)* : These are essentially [PostgREST](https://postgrest.org/en/latest/) instances service attached to Postgres DB populated using [cardano-db-sync](https://cardano-community.github.io/guild-operators/Build/dbsync/).
+      instance. Every consumer who is providing their own instance will be expected to serve atleast a PostgREST instance, as this is what allows us to string instances together after health-checks. If using guild-operator setup instructions, these will be provisioned for you by setup scripts.
+    - *Health-Check Services* : These are lightweight [HAProxy](http://www.haproxy.org) instances that will be gatekeepers for individual endpoints, doing health-checks , sample data verification, etc. A builder _may_ opt-in to run this monitoring service, and add their instance to github repository. Again, setting up HAProxy will be part of setup scripts on
+      guild-operator's repo for those interested.
+    - *DNS Routing* : These will be the entry points from trusted instances that will route to health check proxy services. We will be using atleast two DNS ourselves to
+      not have single point of failure, but that does not limit users to elect any of the other server endpoints instead, since the API works right from the PostgREST layer itself.
+
+    ## I have not used 'XYZ' before. Is there an easy start guide?
+    Yes, there is an easy-to-setup script (early stages, will be refined for correctness) and instructions [here](https://cardano-community.github.io/guild-operators/Build/pgrest/). Should you need any assistance, feel free to hop in to the [discussion group](https://t.me/joinchat/zE4Lce_QUepiY2U1).
+
+    ## Too much reading, I want to discuss in person
+    We serve bi-weekly calls that any builder or consumer is free to join - or you can drop in to the [telegram group](https://t.me/joinchat/zE4Lce_QUepiY2U1) and start a discussion from there.
+    
   x-logo:
-    url: ''
+    url: 'https://api.koios.rest/koios.png'
 servers:
-  - url: https://cardanoqueries.ga:8453
+  - url: https://api.koios.rest:8453
   - url: http://194.233.71.104:8053
   - url: http://65.21.183.97:8053
   - url: http://185.161.193.32:8053
