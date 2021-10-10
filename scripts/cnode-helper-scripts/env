@@ -412,10 +412,10 @@ checkUpdate() {
           GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${PARENT}/${1}".tmp |sed -e "s#.*=##")
           GIT_VERSION="${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}"
         else
-          CUR_VERSION=$(grep -r ^GLV_VERSION= "${PARENT}/${1}".tmp | cut -d'=' -f2)
+          CUR_VERSION=$(grep -r ^GLV_VERSION= "${PARENT}/${1}" | cut -d'=' -f2)
           GIT_VERSION=$(grep -r ^GLV_VERSION= "${PARENT}/${1}".tmp | cut -d'=' -f2)
         fi
-        if ! versionCheck ${CUR_VERSION} ${GIT_VERSION}; then
+        if ! versionCheck ${GIT_VERSION} ${CUR_VERSION}; then
           [[ $1 = cntools.library ]] && script_name="CNTools" || script_name="Guild LiveView"
           update_msg="A new version of ${script_name} is available."
           update_msg="${update_msg}\n\nInstalled Version : ${FG_LGRAY}${CUR_VERSION}${NC}"

@@ -74,7 +74,11 @@ if [[ "${UPDATE_CHECK}" == "Y" ]]; then
   # check for env update
   checkUpdate env ${BATCH_AUTO_UPDATE}
   [[ $? = 2 ]] && exit 1
-  ! checkUpdate topologyUpdater.sh ${BATCH_AUTO_UPDATE} && exit 1
+  checkUpdate topologyUpdater.sh ${BATCH_AUTO_UPDATE}
+  case $? in
+    1) $0 "$@"; exit 0 ;;
+    2) exit 1 ;;
+  esac
   # source common env variables in case it was updated
   . "${PARENT}"/env offline &>/dev/null
   case $? in

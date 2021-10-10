@@ -148,7 +148,11 @@ cncliInit() {
     # check for env update
     checkUpdate env ${BATCH_AUTO_UPDATE}
     [[ $? = 2 ]] && exit 1
-    ! checkUpdate cncli.sh ${BATCH_AUTO_UPDATE} && exit 1
+    checkUpdate cncli.sh ${BATCH_AUTO_UPDATE}
+    case $? in
+      1) $0 "$@"; exit 0 ;;
+      2) exit 1 ;;
+    esac
   fi
   # source common env variables in case it was updated
   until . "${PARENT}"/env; do

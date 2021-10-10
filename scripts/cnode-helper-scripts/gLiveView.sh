@@ -134,7 +134,7 @@ if [[ "${UPDATE_CHECK}" == "Y" ]]; then
 
   checkUpdate gLiveView.sh
   case $? in
-    1) myExit 0 "Please start Guild LiveView again!" ;;
+    1) $0 "$@"; myExit 0 ;;
     2) exit 1 ;;
   esac
 else
