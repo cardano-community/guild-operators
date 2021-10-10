@@ -15,10 +15,8 @@ CREATE FUNCTION grest.tx_info (_tx_hashes text[])
     inputs json,
     outputs json,
     invalid_before word64type,
-    invalid_after word64type --,
-    -- TODO: certificate_type,
-    -- TODO: certificate_info
-)
+    invalid_after word64type,
+    certificates json)
   LANGUAGE PLPGSQL
   AS $$
 BEGIN
@@ -37,9 +35,8 @@ BEGIN
     INPUTS_T.inputs,
     OUTPUTS_T.outputs,
     T1.invalid_before,
-    T1.invalid_after --,
-    -- TODO: certificate_type,
-    -- TODO: certificate_info
+    T1.invalid_after,
+    CERTIFICATES_T.certificates
   FROM (
     SELECT
       tx.id,
@@ -82,7 +79,82 @@ BEGIN
     WHERE
       tx_in_id = T1.id
     GROUP BY
-      tx_id) INPUTS_T ON TRUE;
+      tx_id) INPUTS_T ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT
+      JSON_AGG(JSON_BUILD_OBJECT('certificate_type', CERTIFICATES_SUB_T.certificate_type, 'certificate_info', CERTIFICATES_SUB_T.certificate_info)) as certificates
+    FROM (
+      SELECT
+        'stake_registration' as certificate_type,
+        'todo' as certificate_info
+      FROM
+        public.stake_registration
+      WHERE
+        tx_id = T1.id
+      UNION ALL
+      SELECT
+        'stake_deregistration' as certificate_type,
+        'todo' as certificate_info
+      FROM
+        public.stake_deregistration
+      WHERE
+        tx_id = T1.id
+      UNION ALL
+      SELECT
+        'delegation' as certificate_type,
+        'todo' as certificate_info
+      FROM
+        public.delegation
+      WHERE
+        tx_id = T1.id
+      UNION ALL
+      SELECT
+        'treasury_MIR' as certificate_type,
+        'todo' as certificate_info
+      FROM
+        public.treasury
+      WHERE
+        tx_id = T1.id
+      UNION ALL
+      SELECT
+        'reserve_MIR' as certificate_type,
+        'todo' as certificate_info
+      FROM
+        public.reserve
+      WHERE
+        tx_id = T1.id
+      UNION ALL
+      SELECT
+        'pot_transfer' as certificate_type,
+        'todo' as certificate_info
+      FROM
+        public.pot_transfer
+      WHERE
+        tx_id = T1.id
+      UNION ALL
+      SELECT
+        'param_proposal' as certificate_type,
+        'todo' as certificate_info
+      FROM
+        public.param_proposal
+      WHERE
+        registered_tx_id = T1.id
+      UNION ALL
+      SELECT
+        'pool_retire' as certificate_type,
+        'todo' as certificate_info
+      FROM
+        public.pool_retire
+      WHERE
+        announced_tx_id = T1.id
+      UNION ALL
+      SELECT
+        'pool_update' as certificate_type,
+        'todo' as certificate_info
+      FROM
+        public.pool_update
+      WHERE
+        registered_tx_id = T1.id) CERTIFICATES_SUB_T) CERTIFICATES_T ON TRUE;
 END;
 $$;
 
