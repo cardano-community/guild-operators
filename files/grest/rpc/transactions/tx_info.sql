@@ -2,6 +2,7 @@ DROP FUNCTION IF EXISTS grest.tx_info (text[]);
 
 CREATE FUNCTION grest.tx_info (_tx_hashes text[])
   RETURNS TABLE (
+    id bigint,
     tx_hash text,
     block_hash text,
     block_height uinteger,
@@ -22,6 +23,7 @@ CREATE FUNCTION grest.tx_info (_tx_hashes text[])
 BEGIN
   RETURN QUERY
   SELECT
+    T1.id,
     T1.tx_hash,
     T1.block_hash,
     T1.block_height,
@@ -63,98 +65,125 @@ BEGIN
           UNNEST(_tx_hashes) AS hashes)) T1
   LEFT JOIN LATERAL (
     SELECT
-      JSON_AGG(JSON_BUILD_OBJECT('index', index, 'address', address, 'value', value)) as outputs
-      FROM
-        tx_out
-      WHERE
-        tx_id = T1.id
-      GROUP BY
-        tx_id) OUTPUTS_T ON TRUE
+      JSON_AGG(JSON_BUILD_OBJECT('index', tx_out.index, 'address', tx_out.address, 'value', tx_out.value)) as outputs
+    FROM
+      tx_out
+    WHERE
+      tx_id = T1.id
+    GROUP BY
+      tx_id) OUTPUTS_T ON TRUE
   LEFT JOIN LATERAL (
     SELECT
       JSON_AGG(JSON_BUILD_OBJECT('index', tx_out.index, 'address', tx_out.address, 'value', tx_out.value)) as inputs
     FROM
-      tx_in
-      INNER JOIN tx_out ON tx_out.id = tx_in.tx_out_id
+      tx_out
+      INNER JOIN tx_in ON tx_out.tx_id = tx_in.tx_out_id
+      INNER JOIN tx ON tx.id = tx_in.tx_in_id
+        AND tx_in.tx_out_index = tx_out.index
     WHERE
       tx_in_id = T1.id
     GROUP BY
-      tx_id) INPUTS_T ON TRUE
+      tx_in_id) INPUTS_T ON TRUE
   LEFT JOIN LATERAL (
     SELECT
-      JSON_AGG(JSON_BUILD_OBJECT('certificate_type', CERTIFICATES_SUB_T.certificate_type, 'certificate_info', CERTIFICATES_SUB_T.certificate_info)) as certificates
+      COALESCE(
+        --
+        JSON_AGG(
+          --
+          JSON_BUILD_OBJECT(
+            --
+            'type', CERTIFICATES_SUB_T.type, 'info', CERTIFICATES_SUB_T.info))
+        --
+        FILTER (WHERE CERTIFICATES_SUB_T.info IS NOT NULL), '[]') as certificates
     FROM (
       SELECT
-        'stake_registration' as certificate_type,
-        'todo' as certificate_info
+        'stake_registration' as type,
+        JSON_BUILD_OBJECT('stake_address', stake_address.view) as info
       FROM
         public.stake_registration
+        INNER JOIN public.stake_address ON stake_address.id = stake_registration.addr_id
       WHERE
         tx_id = T1.id
       UNION ALL
       SELECT
-        'stake_deregistration' as certificate_type,
-        'todo' as certificate_info
+        'stake_deregistration' as type,
+        JSON_BUILD_OBJECT('stake_address', stake_address.view) as info
       FROM
         public.stake_deregistration
+        INNER JOIN public.stake_address ON stake_address.id = stake_deregistration.addr_id
       WHERE
         tx_id = T1.id
       UNION ALL
       SELECT
-        'delegation' as certificate_type,
-        'todo' as certificate_info
+        'delegation' as type,
+        JSON_BUILD_OBJECT('stake_address', stake_address.view, 'pool', pool_hash.view) as info
       FROM
         public.delegation
+        INNER JOIN public.stake_address ON stake_address.id = delegation.addr_id
+        INNER JOIN public.pool_hash ON pool_hash.id = delegation.pool_hash_id
       WHERE
         tx_id = T1.id
       UNION ALL
       SELECT
-        'treasury_MIR' as certificate_type,
-        'todo' as certificate_info
+        'treasury_MIR' as type,
+        JSON_OBJECT_AGG(stake_address.view, treasury.amount) as info
       FROM
         public.treasury
+        INNER JOIN public.stake_address ON stake_address.id = treasury.addr_id
       WHERE
-        tx_id = T1.id
+        treasury.tx_id = T1.id
       UNION ALL
       SELECT
-        'reserve_MIR' as certificate_type,
-        'todo' as certificate_info
+        'reserve_MIR' as type,
+        JSON_OBJECT_AGG(stake_address.view, reserve.amount) as info
       FROM
         public.reserve
+        INNER JOIN public.stake_address ON stake_address.id = reserve.addr_id
       WHERE
-        tx_id = T1.id
+        reserve.tx_id = T1.id
       UNION ALL
       SELECT
-        'pot_transfer' as certificate_type,
-        'todo' as certificate_info
+        'pot_transfer' as type,
+        JSON_OBJECT_AGG('todo', '') as info
       FROM
         public.pot_transfer
       WHERE
         tx_id = T1.id
       UNION ALL
       SELECT
-        'param_proposal' as certificate_type,
-        'todo' as certificate_info
+        'param_proposal' as type,
+        JSON_OBJECT_AGG('todo', '') as info
       FROM
         public.param_proposal
       WHERE
         registered_tx_id = T1.id
       UNION ALL
       SELECT
-        'pool_retire' as certificate_type,
-        'todo' as certificate_info
+        'pool_retire' as type,
+        JSON_BUILD_OBJECT('pool', pool_hash.view, 'retiring epoch', pool_retire.retiring_epoch) as info
       FROM
         public.pool_retire
+        INNER JOIN public.pool_hash ON pool_hash.id = pool_retire.hash_id
       WHERE
         announced_tx_id = T1.id
       UNION ALL
       SELECT
-        'pool_update' as certificate_type,
-        'todo' as certificate_info
+        'pool_update' as type,
+        JSON_BUILD_OBJECT('pool', pool_hash.view, 'pledge', pool_update.pledge,
+          --
+          'reward_address', ENCODE(pool_update.reward_addr, 'hex'),
+          --
+          'margin', pool_update.margin, 'cost', pool_update.fixed_cost,
+          --
+          'metadata_url', pool_metadata_ref.url, 'metadata_hash',
+          --
+          ENCODE(pool_metadata_ref.hash, 'hex')) as info
       FROM
         public.pool_update
+        INNER JOIN public.pool_hash ON pool_hash.id = pool_update.hash_id
+        INNER JOIN public.pool_metadata_ref ON pool_metadata_ref.id = pool_update.meta_id
       WHERE
-        registered_tx_id = T1.id) CERTIFICATES_SUB_T) CERTIFICATES_T ON TRUE;
+        pool_update.registered_tx_id = T1.id) CERTIFICATES_SUB_T) CERTIFICATES_T ON TRUE;
 END;
 $$;
 
