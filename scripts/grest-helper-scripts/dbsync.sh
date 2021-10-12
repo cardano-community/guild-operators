@@ -38,7 +38,6 @@ set_defaults() {
   [[ -z "${DBSYNC_STATE_DIR}" ]] && DBSYNC_STATE_DIR="${CNODE_HOME}/guild-db/ledger-state"
   [[ -z "${DBSYNC_SCHEMA_DIR}" ]] && DBSYNC_SCHEMA_DIR="${CNODE_HOME}/guild-db/schema"
   [[ -z "${DBSYNC_CONFIG}" ]] && DBSYNC_CONFIG="${CNODE_HOME}/files/dbsync.json"
-  [[ -z "${SYSTEMD_PGNAME}" ]] && SYSTEMD_PGNAME="postgresql"
 }
 
 check_defaults() {
@@ -82,11 +81,11 @@ check_defaults
 
 if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
   echo "Deploying systemd service.."
-  bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_NAME}-dbsync.service
+  sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_NAME}-dbsync.service
 	[Unit]
 	Description=Cardano DB Sync
 	After=${CNODE_NAME}.service postgresql.service
-	Requires=${SYSTEMD_PGNAME}.service
+	Requires=postgresql.service
 	
 	[Service]
 	Type=simple
@@ -105,7 +104,7 @@ if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
 	
 	[Install]
 	WantedBy=multi-user.target
-	EOF"
+	EOF" && echo "${CNODE_NAME}-dbsync.service deployed successfully!!" && systemctl daemon-reload && systemctl enable ${CNODE_NAME}-dbsync.service && exit 0
 fi
 
 export PGPASSFILE
