@@ -6,6 +6,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.7.0] - 2021-10-05
+#### Changed
+- CNTools configuration moved from cntools.config to cntools.sh
+
 ## [8.6.6] - 2021-09-26
 #### Fixed
 - Pool rotation date calculation fix, 8.6.4 didn't properly fix it

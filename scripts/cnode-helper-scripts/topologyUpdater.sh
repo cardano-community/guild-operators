@@ -30,19 +30,22 @@ usage() {
 
 		-f    Disable fetch of a fresh topology file
 		-p    Disable node alive push to Topology Updater API
+    -u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Use alternate branch to check for updates - only for testing/development (Default: master)
 		
 		EOF
   exit 1
 }
 
-TU_FETCH='Y'
-TU_PUSH='Y'
+TU_FETCH=Y
+TU_PUSH=Y
+SKIP_UPDATE=N
 
-while getopts :fpb: opt; do
+while getopts :fpub: opt; do
   case ${opt} in
-    f ) TU_FETCH='N' ;;
-    p ) TU_PUSH='N' ;;
+    f ) TU_FETCH=N ;;
+    p ) TU_PUSH=N ;;
+    u ) SKIP_UPDATE=Y ;;
     b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
   esac
@@ -64,16 +67,30 @@ fi
 
 . "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
 
-if [[ "${UPDATE_CHECK}" == "Y" ]] && [[ "${BATCH_AUTO_UPDATE}" == "N" ]]; then
+if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
   echo "Checking for script updates..."
+
   # Check availability of checkUpdate function
   if [[ ! $(command -v checkUpdate) ]]; then
     echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
     exit 1
   fi
+
   # check for env update
-  ! checkUpdate env ${BATCH_AUTO_UPDATE} && exit 1
-  ! checkUpdate topologyUpdater.sh ${BATCH_AUTO_UPDATE} && exit 1
+  ENV_UPDATED=${BATCH_AUTO_UPDATE}
+  checkUpdate env N N N
+  case $? in
+    1) ENV_UPDATED=Y ;;
+    2) exit 1 ;;
+  esac
+
+  # check for topologyUpdater update
+  checkUpdate topologyUpdater.sh ${ENV_UPDATED}
+  case $? in
+    1) $0 "$@" "-u"; exit 0 ;; # re-launch script with same args skipping update check
+    2) exit 1 ;;
+  esac
+
   # source common env variables in case it was updated
   . "${PARENT}"/env offline &>/dev/null
   case $? in
