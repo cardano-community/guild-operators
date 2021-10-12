@@ -141,13 +141,20 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   if [[ "${UPDATE_CHECK}" == "Y" ]]; then 
 
     echo "Checking for script updates..."
+
     # Check availability of checkUpdate function
     if [[ ! $(command -v checkUpdate) ]]; then
       myExit 1 "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
     fi
+
     # check for env update
-    checkUpdate env
-    [[ $? = 2 ]] && myExit 1
+    ENV_UPDATED=N
+    checkUpdate env N N N
+    case $? in
+      1) ENV_UPDATED=Y ;;
+      2) myExit 1 ;;
+    esac
+
     # source common env variables in case it was updated
     . "${PARENT}"/env
     case $? in
@@ -155,7 +162,8 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       2) clear ;;
     esac
     
-    checkUpdate cntools.library N Y N
+    # check for cntools update
+    checkUpdate cntools.library "${ENV_UPDATED}" Y N
     case $? in
       1) checkUpdate cntools.sh Y
          case $? in

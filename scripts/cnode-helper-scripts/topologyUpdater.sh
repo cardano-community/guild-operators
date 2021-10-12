@@ -66,19 +66,28 @@ fi
 
 if [[ "${UPDATE_CHECK}" == "Y" ]]; then
   echo "Checking for script updates..."
+
   # Check availability of checkUpdate function
   if [[ ! $(command -v checkUpdate) ]]; then
     echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
     exit 1
   fi
+
   # check for env update
-  checkUpdate env ${BATCH_AUTO_UPDATE}
-  [[ $? = 2 ]] && exit 1
-  checkUpdate topologyUpdater.sh ${BATCH_AUTO_UPDATE}
+  ENV_UPDATED=${BATCH_AUTO_UPDATE}
+  checkUpdate env N N N
+  case $? in
+    1) ENV_UPDATED=Y ;;
+    2) exit 1 ;;
+  esac
+
+  # check for topologyUpdater update
+  checkUpdate topologyUpdater.sh ${ENV_UPDATED}
   case $? in
     1) $0 "$@"; exit 0 ;;
     2) exit 1 ;;
   esac
+
   # source common env variables in case it was updated
   . "${PARENT}"/env offline &>/dev/null
   case $? in
