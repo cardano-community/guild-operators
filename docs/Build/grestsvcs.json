@@ -732,6 +732,18 @@
           "description": "OK"
         }
       }
+    },
+    "/rpc/tx_metalabels": {
+      "post": {
+        "tags": ["Transaction Queries"],
+        "summary": "Get a list of all transaction metalabels",
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   },
   "definitions": {
