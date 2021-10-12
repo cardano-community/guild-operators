@@ -732,7 +732,36 @@
           "description": "OK"
         }
       }
-    }
+    },
+    "/rpc/tx_metadata": {
+      "post": {
+        "tags": ["Transaction Queries"],
+        "summary": "Get transaction metadata",
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": ["_tx_hashes"],
+              "type": "object",
+              "properties": {
+                "_tx_hashes": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "minItems": 1
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
   },
   "definitions": {
     "epoch_info_cache": {
