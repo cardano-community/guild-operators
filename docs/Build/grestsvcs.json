@@ -704,7 +704,7 @@
       }
     }
   },
-  "/rpc/address_txs": {
+  "/rpc/tx_info": {
     "post": {
       "tags": ["Transaction Queries"],
       "summary": "Get information about transactions",
@@ -732,7 +732,36 @@
           "description": "OK"
         }
       }
-    }
+    },
+    "/rpc/tx_utxos": {
+      "post": {
+        "tags": ["Transaction Queries"],
+        "summary": "Get UTXO set (inputs/outputs) of transactions.",
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": ["_tx_hashes"],
+              "type": "object",
+              "properties": {
+                "_tx_hashes": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "minItems": 1
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
   },
   "definitions": {
     "epoch_info_cache": {
