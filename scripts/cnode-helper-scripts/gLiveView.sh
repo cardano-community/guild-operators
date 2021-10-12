@@ -56,7 +56,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.22.4
+GLV_VERSION=v1.23.0
 
 PARENT="$(dirname $0)"
 
@@ -122,9 +122,15 @@ if [[ "${UPDATE_CHECK}" == "Y" ]]; then
     echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
     myExit 1
   fi
+
   # check for env update
-  checkUpdate env
-  [[ $? = 2 ]] && myExit 1
+  ENV_UPDATED=N
+  checkUpdate env N N N
+  case $? in
+    1) ENV_UPDATED=Y ;;
+    2) myExit 1 ;;
+  esac
+
   # source common env variables in case it was updated
   . "${PARENT}"/env
   case $? in
@@ -132,7 +138,8 @@ if [[ "${UPDATE_CHECK}" == "Y" ]]; then
     2) clear ;;
   esac
 
-  checkUpdate gLiveView.sh
+  # check for gLV update
+  checkUpdate gLiveView.sh "${ENV_UPDATED}"
   case $? in
     1) $0 "$@"; myExit 0 ;;
     2) exit 1 ;;
