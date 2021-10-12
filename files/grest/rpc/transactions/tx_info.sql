@@ -38,7 +38,7 @@ BEGIN
     OUTPUTS_T.outputs,
     T1.invalid_before,
     T1.invalid_after,
-    CERTIFICATES_T.certificates
+    JSON_STRIP_NULLS (CERTIFICATES_T.certificates)
   FROM (
     SELECT
       tx.id,
@@ -92,11 +92,16 @@ BEGIN
           --
           JSON_BUILD_OBJECT(
             --
-            'type', CERTIFICATES_SUB_T.type, 'info', CERTIFICATES_SUB_T.info))
+            'index', CERTIFICATES_SUB_T.index,
+            --
+            'type', CERTIFICATES_SUB_T.type,
+            --
+            'info', CERTIFICATES_SUB_T.info))
         --
         FILTER (WHERE CERTIFICATES_SUB_T.info IS NOT NULL), '[]') as certificates
     FROM (
       SELECT
+        stake_registration.cert_index as index,
         'stake_registration' as type,
         JSON_BUILD_OBJECT('stake_address', stake_address.view) as info
       FROM
@@ -106,6 +111,7 @@ BEGIN
         tx_id = T1.id
       UNION ALL
       SELECT
+        stake_deregistration.cert_index as index,
         'stake_deregistration' as type,
         JSON_BUILD_OBJECT('stake_address', stake_address.view) as info
       FROM
@@ -115,6 +121,7 @@ BEGIN
         tx_id = T1.id
       UNION ALL
       SELECT
+        delegation.cert_index as index,
         'delegation' as type,
         JSON_BUILD_OBJECT('stake_address', stake_address.view, 'pool', pool_hash.view) as info
       FROM
@@ -125,8 +132,9 @@ BEGIN
         tx_id = T1.id
       UNION ALL
       SELECT
+        NULL as index, -- Cert index in info for each MIR below
         'treasury_MIR' as type,
-        JSON_OBJECT_AGG(stake_address.view, treasury.amount) as info
+        JSON_BUILD_OBJECT(stake_address.view, treasury.amount, 'tx_index', treasury.cert_index) as info
       FROM
         public.treasury
         INNER JOIN public.stake_address ON stake_address.id = treasury.addr_id
@@ -134,8 +142,9 @@ BEGIN
         treasury.tx_id = T1.id
       UNION ALL
       SELECT
+        NULL as index,
         'reserve_MIR' as type,
-        JSON_OBJECT_AGG(stake_address.view, reserve.amount) as info
+        JSON_BUILD_OBJECT(stake_address.view, reserve.amount, 'tx_index', reserve.cert_index) as info
       FROM
         public.reserve
         INNER JOIN public.stake_address ON stake_address.id = reserve.addr_id
@@ -143,6 +152,7 @@ BEGIN
         reserve.tx_id = T1.id
       UNION ALL
       SELECT
+        NULL as index,
         'pot_transfer' as type,
         JSON_OBJECT_AGG('todo', '') as info
       FROM
@@ -152,6 +162,7 @@ BEGIN
       UNION ALL
       -- SELECT DISTINCT below because there are multiple entries for each signing key of a given transaction
       SELECT DISTINCT ON (REGISTERED_TX_ID)
+        NULL as index, -- No info provided
         'param_proposal' as type,
         JSON_STRIP_NULLS (JSON_BUILD_OBJECT('min_fee_a', param_proposal.min_fee_a,
             --
@@ -216,6 +227,7 @@ BEGIN
         registered_tx_id = T1.id
       UNION ALL
       SELECT
+        pool_retire.cert_index as index,
         'pool_retire' as type,
         JSON_BUILD_OBJECT('pool', pool_hash.view, 'retiring epoch', pool_retire.retiring_epoch) as info
       FROM
@@ -225,6 +237,7 @@ BEGIN
         announced_tx_id = T1.id
       UNION ALL
       SELECT
+        pool_update.cert_index as index,
         'pool_update' as type,
         JSON_BUILD_OBJECT('pool', pool_hash.view, 'pledge', pool_update.pledge,
           --
