@@ -417,8 +417,8 @@ checkUpdate() {
         fi
         if ! versionCheck ${GIT_VERSION} ${CUR_VERSION}; then
           [[ $1 = cntools.library ]] && script_name="CNTools" || script_name="Guild LiveView"
-          update_msg="A new version of ${script_name} is available."
-          update_msg="${update_msg}\n\nInstalled Version : ${FG_LGRAY}${CUR_VERSION}${NC}"
+          update_msg="\nA new version of ${script_name} is available."
+          update_msg="${update_msg}\nInstalled Version : ${FG_LGRAY}${CUR_VERSION}${NC}"
           update_msg="${update_msg}\nAvailable Version : ${FG_GREEN}${GIT_VERSION}${NC}"
           echo -e "${update_msg}"
           update_msg="\nDo you want to download the latest version?"

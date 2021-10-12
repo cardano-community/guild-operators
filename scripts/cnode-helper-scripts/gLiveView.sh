@@ -74,9 +74,12 @@ usage() {
   exit 1
 }
 
-while getopts :lb: opt; do
+SKIP_UPDATE=N
+
+while getopts :lub: opt; do
   case ${opt} in
     l ) LEGACY_MODE="true" ;;
+    u ) SKIP_UPDATE=Y ;;
     b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
   esac
@@ -115,7 +118,7 @@ fi
 
 . "${PARENT}"/env &>/dev/null # ignore any errors, re-sourced later
 
-if [[ "${UPDATE_CHECK}" == "Y" ]]; then
+if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
   echo "Checking for script updates..."
   # Check availability of checkUpdate function
   if [[ ! $(command -v checkUpdate) ]]; then
@@ -141,7 +144,7 @@ if [[ "${UPDATE_CHECK}" == "Y" ]]; then
   # check for gLV update
   checkUpdate gLiveView.sh "${ENV_UPDATED}"
   case $? in
-    1) $0 "$@"; myExit 0 ;;
+    1) $0 "$@" "-u"; myExit 0 ;; # re-launch script with same args skipping update check
     2) exit 1 ;;
   esac
 else

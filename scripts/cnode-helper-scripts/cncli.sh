@@ -52,6 +52,9 @@ usage() {
   exit 1
 }
 
+SKIP_UPDATE=N
+[[ $1 = "-u" ]] && SKIP_UPDATE=Y && shift
+
 if [[ $# -eq 1 ]]; then
   subcommand=$1
   subarg=""
@@ -138,7 +141,7 @@ cncliInit() {
   
   . "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
   
-  if [[ "${UPDATE_CHECK}" == "Y" ]]; then
+  if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
 
     echo "Checking for script updates..."
 
@@ -159,11 +162,11 @@ cncliInit() {
     # check for cncli.sh update
     checkUpdate cncli.sh ${ENV_UPDATED}
     case $? in
-      1) $0 "$@"; exit 0 ;;
+      1) $0 "-u" "$@"; exit 0 ;; # re-launch script with same args skipping update check
       2) exit 1 ;;
     esac
   fi
-  
+
   # source common env variables in case it was updated
   until . "${PARENT}"/env; do
     echo "sleeping for 10s and testing again..."

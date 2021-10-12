@@ -36,13 +36,15 @@ usage() {
   exit 1
 }
 
-TU_FETCH='Y'
-TU_PUSH='Y'
+TU_FETCH=Y
+TU_PUSH=Y
+SKIP_UPDATE=N
 
-while getopts :fpb: opt; do
+while getopts :fpub: opt; do
   case ${opt} in
-    f ) TU_FETCH='N' ;;
-    p ) TU_PUSH='N' ;;
+    f ) TU_FETCH=N ;;
+    p ) TU_PUSH=N ;;
+    u ) SKIP_UPDATE=Y ;;
     b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
   esac
@@ -64,7 +66,7 @@ fi
 
 . "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
 
-if [[ "${UPDATE_CHECK}" == "Y" ]]; then
+if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
   echo "Checking for script updates..."
 
   # Check availability of checkUpdate function
@@ -84,7 +86,7 @@ if [[ "${UPDATE_CHECK}" == "Y" ]]; then
   # check for topologyUpdater update
   checkUpdate topologyUpdater.sh ${ENV_UPDATED}
   case $? in
-    1) $0 "$@"; exit 0 ;;
+    1) $0 "$@" "-u"; exit 0 ;; # re-launch script with same args skipping update check
     2) exit 1 ;;
   esac
 

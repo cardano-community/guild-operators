@@ -88,13 +88,15 @@ usage() {
 
 CNTOOLS_MODE="CONNECTED"
 ADVANCED_MODE="false"
+SKIP_UPDATE=N
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat "${PARENT}"/.env_branch)" || BRANCH="master"
 
-while getopts :oab: opt; do
+while getopts :oaub: opt; do
   case ${opt} in
     o ) CNTOOLS_MODE="OFFLINE" ;;
     a ) ADVANCED_MODE="true" ;;
+    u ) SKIP_UPDATE=Y ;;
     b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
     \? ) myExit 1 "$(usage)" ;;
     esac
@@ -138,7 +140,7 @@ fi
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   # check to see if there are any updates available
   clear
-  if [[ "${UPDATE_CHECK}" == "Y" ]]; then 
+  if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then 
 
     echo "Checking for script updates..."
 
@@ -167,7 +169,7 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     case $? in
       1) checkUpdate cntools.sh Y
          case $? in
-           1) $0 "$@"; myExit 0 ;;
+           1) $0 "$@" "-u"; myExit 0 ;; # re-launch script with same args skipping update check
            2) exit 1 ;;
          esac
          ;;
