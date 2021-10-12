@@ -30,6 +30,7 @@ usage() {
 
 		-f    Disable fetch of a fresh topology file
 		-p    Disable node alive push to Topology Updater API
+    -u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Use alternate branch to check for updates - only for testing/development (Default: master)
 		
 		EOF

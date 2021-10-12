@@ -69,6 +69,7 @@ usage() {
 		Guild LiveView - An alternative cardano-node LiveView
 
 		-l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
+    -u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Use alternate branch to check for updates - only for testing/development (Default: Master)
 		EOF
   exit 1
