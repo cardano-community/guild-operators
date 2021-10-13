@@ -63,8 +63,6 @@ In order to verify that you can run dbsync, before making a start - you'd want t
 
 ``` bash
 cd $CNODE_HOME/scripts
-curl -s -o dbsync.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/grest-helper-scripts/dbsync.sh
-chmod 755 dbsync.sh
 export PGPASSFILE=$CNODE_HOME/priv/.pgpass
 ./dbsync.sh
 ```
