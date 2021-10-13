@@ -334,7 +334,7 @@
         }
       }
     },
-    "/rpc/account_list": {
+    "/account_list": {
       "post": {
         "tags": ["Account Queries"],
         "summary": "Get a list of all accounts",
@@ -449,7 +449,7 @@
         }
       }
     },
-    "/rpc/blocks": {
+    "/blocks": {
       "post": {
         "tags": ["Block Queries"],
         "summary": "Get detailed information about all blocks (paginated - latest first)",
@@ -702,34 +702,34 @@
           }
         }
       }
-    }
-  },
-  "/rpc/tx_info": {
-    "post": {
-      "tags": ["Transaction Queries"],
-      "summary": "Get information about transactions",
-      "produces": ["application/json", "application/vnd.pgrst.object+json"],
-      "parameters": [
-        {
-          "required": true,
-          "schema": {
-            "required": ["_tx_hashes"],
-            "type": "object",
-            "properties": {
-              "_tx_hashes": {
-                "type": "array",
-                "items": { "type": "string" },
-                "minItems": 1
+    },
+    "/rpc/tx_info": {
+      "post": {
+        "tags": ["Transaction Queries"],
+        "summary": "Get information about transactions",
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": ["_tx_hashes"],
+              "type": "object",
+              "properties": {
+                "_tx_hashes": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "minItems": 1
+                }
               }
-            }
-          },
-          "in": "body",
-          "name": "args"
-        }
-      ],
-      "responses": {
-        "200": {
-          "description": "OK"
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
         }
       }
     },
@@ -762,6 +762,19 @@
           }
         }
       }
+    },
+    "/tx_metalabels": {
+      "post": {
+        "tags": ["Transaction Queries"],
+        "summary": "Get a list of all transaction metalabels",
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
+      },
+      "responses": {
+        "200": {
+          "description": "OK"
+        }
+      }
+    }
   },
   "definitions": {
     "epoch_info_cache": {
