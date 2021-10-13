@@ -334,7 +334,7 @@
         }
       }
     },
-    "/rpc/account_list": {
+    "/account_list": {
       "post": {
         "tags": ["Account Queries"],
         "summary": "Get a list of all accounts",
@@ -449,7 +449,7 @@
         }
       }
     },
-    "/rpc/blocks": {
+    "/blocks": {
       "post": {
         "tags": ["Block Queries"],
         "summary": "Get detailed information about all blocks (paginated - latest first)",

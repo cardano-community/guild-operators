@@ -11,7 +11,7 @@ jobs:
           token: ${{ secrets.REPO_SCOPED_TOKEN }}
       - name: Fetch node release version
         run: |
-          curl -sL https://github.com/input-output-hk/cardano-node/releases/latest | grep "tag" | head -1 | sed -n -e 's/^.*tag\///p' | cut -d "\"" -f 1 > files/docker/node/release-versions/cardano-node-latest.txt
+          curl -sL https://api.github.com/repos/input-output-hk/cardano-node/releases/latest | grep tag_name | awk '{print $2}' | cut -d\" -f 2 > files/docker/node/release-versions/cardano-node-latest.txt
       - name: Assigns release version
         run: |
           VERSION=$(cat ./files/docker/node/release-versions/cardano-node-latest.txt)
