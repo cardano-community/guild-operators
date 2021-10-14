@@ -56,7 +56,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.23.0
+GLV_VERSION=v1.23.1
 
 PARENT="$(dirname $0)"
 
@@ -1078,27 +1078,27 @@ while true; do
         [[ ${confirmed_cnt} -ne ${adopted_cnt} ]] && confirmed_fmt="${style_status_2}" || confirmed_fmt="${style_values_2}"
         
         # row 1
-        printf "${VL} Leader     : ${style_values_1}%-${col_block_1_1_value_width}s${NC}" "${leader_cnt}"
+        printf "${VL} Leader     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${leader_cnt}"
         mvThreeSecond
-        printf "Adopted    : ${style_values_1}%-${col_block_1_2_value_width}s${NC}" "${adopted_cnt}"
+        printf "Adopted    : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${adopted_cnt}"
         mvThreeThird
-        printf "Missed     : ${missed_fmt}%-${col_block_1_3_value_width}s${NC}" "${missed_cnt}"
+        printf "Missed     : ${missed_fmt}%-${three_col_3_value_width}s${NC}" "${missed_cnt}"
         closeRow
         
         # row 2
-        printf "${VL} Ideal      : ${style_values_1}%-${col_block_1_1_value_width}s${NC}" "${epoch_stats[0]}"
+        printf "${VL} Ideal      : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[0]}"
         mvThreeSecond
-        printf "Confirmed  : ${confirmed_fmt}%-${col_block_1_2_value_width}s${NC}" "${confirmed_cnt}"
+        printf "Confirmed  : ${confirmed_fmt}%-${three_col_2_value_width}s${NC}" "${confirmed_cnt}"
         mvThreeThird
-        printf "Ghosted    : ${ghosted_fmt}%-${col_block_1_3_value_width}s${NC}" "${ghosted_cnt}"
+        printf "Ghosted    : ${ghosted_fmt}%-${three_col_3_value_width}s${NC}" "${ghosted_cnt}"
         closeRow
         
         # row 3
-        printf "${VL} Luck       : ${style_values_1}%-${col_block_1_1_value_width}s${NC}" "${epoch_stats[1]}"
+        printf "${VL} Luck       : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[1]}"
         mvThreeSecond
-        printf "Invalid    : ${invalid_fmt}%-${col_block_1_2_value_width}s${NC}" "${invalid_cnt}"
+        printf "Invalid    : ${invalid_fmt}%-${three_col_2_value_width}s${NC}" "${invalid_cnt}"
         mvThreeThird
-        printf "Stolen     : ${stolen_fmt}%-${col_block_1_3_value_width}s${NC}" "${stolen_cnt}"
+        printf "Stolen     : ${stolen_fmt}%-${three_col_3_value_width}s${NC}" "${stolen_cnt}"
         closeRow
 
         if [[ -n ${leader_next} ]]; then
@@ -1123,11 +1123,11 @@ while true; do
         [[ ${isleader} -ne ${adopted} ]] && adopted_fmt="${style_status_2}" || adopted_fmt="${style_values_2}"
         [[ ${didntadopt} -eq 0 ]] && invalid_fmt="${style_values_1}" || invalid_fmt="${style_status_3}"
         
-        printf "${VL} Leader : ${style_values_1}%-${col_block_2_1_value_width}s${NC}" "${isleader}"
+        printf "${VL} Leader : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${isleader}"
         mvThreeSecond
-        printf "Adopted : ${adopted_fmt}%-${col_block_2_2_value_width}s${NC}" "${adopted}"
+        printf "Adopted : ${adopted_fmt}%-${three_col_2_value_width}s${NC}" "${adopted}"
         mvThreeThird
-        printf "Invalid : ${invalid_fmt}%-${col_block_2_3_value_width}s${NC}" "${didntadopt}"
+        printf "Invalid : ${invalid_fmt}%-${three_col_3_value_width}s${NC}" "${didntadopt}"
         closeRow
       fi
     fi
