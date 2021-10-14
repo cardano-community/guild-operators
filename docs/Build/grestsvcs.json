@@ -702,49 +702,108 @@
           }
         }
       }
-    }
-  },
-  "/rpc/address_txs": {
-    "post": {
-      "tags": ["Transaction Queries"],
-      "summary": "Get information about transactions",
-      "produces": ["application/json", "application/vnd.pgrst.object+json"],
-      "parameters": [
-        {
-          "required": true,
-          "schema": {
-            "required": ["_tx_hashes"],
-            "type": "object",
-            "properties": {
-              "_tx_hashes": {
-                "type": "array",
-                "items": { "type": "string" },
-                "minItems": 1
-              }
-            }
-          },
-          "in": "body",
-          "name": "args"
-        }
-      ],
-      "responses": {
-        "200": {
-          "description": "OK"
-        }
-      }
     },
-    "/rpc/tx_metalabels": {
+    "/rpc/tx_info": {
       "post": {
         "tags": ["Transaction Queries"],
-        "summary": "Get a list of all transaction metalabels",
+        "summary": "Get information about transactions",
         "produces": ["application/json", "application/vnd.pgrst.object+json"],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": ["_tx_hashes"],
+              "type": "object",
+              "properties": {
+                "_tx_hashes": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "minItems": 1
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK"
           }
         }
       }
-    }
+    },
+    "/rpc/tx_utxos": {
+      "post": {
+        "tags": ["Transaction Queries"],
+        "summary": "Get UTXO set (inputs/outputs) of transactions.",
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": ["_tx_hashes"],
+              "type": "object",
+              "properties": {
+                "_tx_hashes": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "minItems": 1
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/tx_metalabels": {
+      "post": {
+        "tags": ["Transaction Queries"],
+        "summary": "Get a list of all transaction metalabels",
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
+      },
+      "responses": {
+        "200": {
+          "description": "OK"
+        }
+      }
+    },
+    "/rpc/tx_metadata": {
+      "post": {
+        "tags": ["Transaction Queries"],
+        "summary": "Get transaction metadata",
+        "produces": ["application/json", "application/vnd.pgrst.object+json"],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "required": ["_tx_hashes"],
+              "type": "object",
+              "properties": {
+                "_tx_hashes": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "minItems": 1
+                }
+              }
+            },
+            "in": "body",
+            "name": "args"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
   },
   "definitions": {
     "epoch_info_cache": {

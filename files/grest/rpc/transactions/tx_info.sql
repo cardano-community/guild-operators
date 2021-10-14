@@ -2,7 +2,6 @@ DROP FUNCTION IF EXISTS grest.tx_info (text[]);
 
 CREATE FUNCTION grest.tx_info (_tx_hashes text[])
   RETURNS TABLE (
-    id bigint,
     tx_hash text,
     block_hash text,
     block_height uinteger,
@@ -23,7 +22,6 @@ CREATE FUNCTION grest.tx_info (_tx_hashes text[])
 BEGIN
   RETURN QUERY
   SELECT
-    T1.id,
     T1.tx_hash,
     T1.block_hash,
     T1.block_height,

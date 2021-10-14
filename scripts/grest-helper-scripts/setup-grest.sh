@@ -40,7 +40,7 @@
   }
   update_check() {
     # Todo: Test this thoroughly
-    # Check if env file is missing in current folder (no update checks as will mostly run as daemon), source env if present, note that env functions will not be present until env is sourced successfully
+    # Check if env file is missing in current folder, note that some env functions may not be present until env is sourced successfully
     [[ ! -f "./env" ]] && echo -e "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
     . "${PARENT}"/env offline # Just to source checkUpdate, will be re-sourced later
     # Update check
@@ -58,10 +58,6 @@
       esac
       # check for setup-grest update
       checkUpdate setup-grest.sh ${ENV_UPDATED}
-      case $? in
-        1) $0 "$@" "-u"; exit 0 ;; # re-launch script with same args skipping update check
-        2) exit 1 ;;
-      esac
     fi
     . "${PARENT}"/env offline &>/dev/null
     case $? in
@@ -124,8 +120,8 @@
   }
   parse_args() {
     if [[ -z "${I_ARGS}" ]]; then
-      ! command -v postgrest && INSTALL_POSTGREST="Y"
-      ! command -v haproxy && INSTALL_HAPROXY="Y"
+      ! command -v postgrest >/dev/null && INSTALL_POSTGREST="Y"
+      ! command -v haproxy >/dev/null && INSTALL_HAPROXY="Y"
       [[ "${FORCE_OVERWRITE}" == "Y" ]] && OVERWRITE_CONFIG="Y" && OVERWRITE_SYSTEMD="Y"
     else
       [[ "${I_ARGS}" =~ "p" ]] && INSTALL_POSTGREST="Y"
@@ -313,7 +309,7 @@
   }
   deploy_systemd() {
     echo -e "\e[32m~~ PostgREST Service ~~\e[0m"
-    [[ command -v postgrest ]] && sudo bash -c "cat <<-EOF > /etc/systemd/system/postgrest.service
+    command -v postgrest >/dev/null && sudo bash -c "cat <<-EOF > /etc/systemd/system/postgrest.service
 			[Unit]
 			Description=REST Overlay for Postgres database
 			After=postgresql.service
@@ -334,7 +330,7 @@
 			WantedBy=multi-user.target
 			EOF"
     echo -e "\e[32m~~ HAProxy Service ~~\e[0m"
-    [[ command -v haproxy ]] && sudo bash -c "cat <<-EOF > /etc/systemd/system/haproxy.service
+    command -v haproxy >/dev/null && sudo bash -c "cat <<-EOF > /etc/systemd/system/haproxy.service
 			[Unit]
 			Description=HAProxy Load Balancer
 			After=network.target
