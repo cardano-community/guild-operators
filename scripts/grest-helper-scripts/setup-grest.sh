@@ -122,10 +122,12 @@
     if [[ -z "${I_ARGS}" ]]; then
       ! command -v postgrest >/dev/null && INSTALL_POSTGREST="Y"
       ! command -v haproxy >/dev/null && INSTALL_HAPROXY="Y"
+      [[ ! -f "${CNODE_HOME}"/scripts/grest-exporter.sh ]] && INSTALL_MONITORING_AGENTS="Y"
       [[ "${FORCE_OVERWRITE}" == "Y" ]] && OVERWRITE_CONFIG="Y" && OVERWRITE_SYSTEMD="Y"
     else
       [[ "${I_ARGS}" =~ "p" ]] && INSTALL_POSTGREST="Y"
       [[ "${I_ARGS}" =~ "r" ]] && INSTALL_HAPROXY="Y"
+      [[ "${I_ARGS}" =~ "m" ]] && INSTALL_MONITORING_AGENTS="Y"
       [[ "${I_ARGS}" =~ "c" ]] || [[ "${FORCE_OVERWRITE}" == "Y" ]] && OVERWRITE_CONFIG="Y"
       [[ "${I_ARGS}" =~ "d" ]] || [[ "${FORCE_OVERWRITE}" == "Y" ]] && OVERWRITE_SYSTEMD="Y"
     fi
@@ -136,7 +138,7 @@
     # sudo mkdir -p "${CNODE_HOME}"/scripts "${CNODE_HOME}"/files "${CNODE_HOME}"/priv
     # sudo chown -R ${USER} "${CNODE_HOME}"/scripts "${CNODE_HOME}"/files "${CNODE_HOME}"/priv
     dirs -c # clear dir stack
-    mkdir ~/tmp
+    mkdir -p ~/tmp
   }
   populate_genesis_table() {
     genfiles=$(jq -r '[ .ByronGenesisFile, .ShelleyGenesisFile, .AlonzoGenesisFile] | @tsv' "${CONFIG}")
@@ -180,36 +182,34 @@
     psql "${PGDATABASE}" -c "INSERT INTO grest.genesis VALUES ( '${SHGENESIS[4]}', '${SHGENESIS[2]}', '${SHGENESIS[0]}', '${SHGENESIS[1]}', '${SHGENESIS[3]}', '${SHGENESIS[5]}', '${SHGENESIS[6]}', '${SHGENESIS[7]}', '${SHGENESIS[8]}', '${SHGENESIS[9]}', '${SHGENESIS[10]}', '${ALGENESIS}' );"
   }
   deploy_postgrest() {
-    echo "Installing PostgREST.."
+    echo "[Re]Installing PostgREST.."
     pushd ~/tmp >/dev/null || err_exit
     pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-x64-static.tar.xz')"
     if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest.tar.xz "${pgrest_asset_url}"; then
       tar xf postgrest.tar.xz &>/dev/null && rm -f postgrest.tar.xz
       [[ -f postgrest ]] || err_exit "PostgREST archive downloaded but binary not found after attempting to extract package!!"
-      mv ./postgrest ~/.cabal/bin/
+      mv -f ./postgrest ~/.cabal/bin/
     else
       err_exit "Could not download ${pgrest_asset_url}"
     fi
-    echo "PostgREST Installed successfully!"
   }
   deploy_haproxy() {
-    echo "HAProxy not built on this system, (re)building for consistency of build parameters and versions.."
+    echo "[Re]Installing HAProxy.."
     pushd ~/tmp >/dev/null || err_exit
     haproxy_url="http://www.haproxy.org/download/2.4/src/haproxy-2.4.1.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
       if command -v apt-get >/dev/null; then
-        sudo apt-get -y install libpcre3-dev || err_exit "ERROR!! 'sudo apt-get -y install libpcre3-dev' failed!"
+        sudo apt-get -y install libpcre3-dev >/dev/null || err_exit "ERROR!! 'sudo apt-get -y install libpcre3-dev' failed!"
       fi
       if command -v yum >/dev/null; then
-        sudo yum -y install pcre-devel || err_exit "ERROR!! 'sudo yum -y install prce-devel' failed!"
+        sudo yum -y install pcre-devel >/dev/null || err_exit "ERROR!! 'sudo yum -y install prce-devel' failed!"
       fi
-      mv haproxy-2.4.1 haproxy
-      cd haproxy || return
+      cd haproxy-2.4.1 || return
       make clean >/dev/null
       make -j $(nproc) TARGET=linux-glibc USE_ZLIB=1 USE_LIBCRYPT=1 USE_OPENSSL=1 USE_PCRE=1 USE_SYSTEMD=1 >/dev/null
       sudo make install >/dev/null
-      sudo cp /usr/local/sbin/haproxy /usr/sbin/
+      sudo cp -f /usr/local/sbin/haproxy /usr/sbin/
     else
       err_exit "ERROR!! Could not download ${haproxy_url}"
     fi
@@ -233,7 +233,7 @@
     pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
     curl -s -f -m ${CURL_TIMEOUT} -o getmetrics.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/getmetrics.sh
     checkUpdate "getmetrics.sh"
-    echo -e "\e[32m~~ GRest Exporter Service ~~\e[0m"
+    echo -e "[Re]Installing Monitoring Agent.."
     e=!
     sudo bash -c "cat <<-EOF > ${CNODE_HOME}/scripts/grest-exporter.sh
 			#${e}/usr/bin/env bash
@@ -244,6 +244,7 @@
   }
   deploy_configs() {
     # Create PostgREST config template
+    echo "[Re]Deploying Configs.."
     [[ -f "${CNODE_HOME}"/priv/grest.conf ]] && cp "${CNODE_HOME}"/priv/grest.conf "${CNODE_HOME}"/priv/grest.conf.bkp_$(date +%s)
     cat <<-EOF > "${CNODE_HOME}"/priv/grest.conf
 			db-uri = "postgres://${USER}@/${PGDATABASE}"
@@ -257,7 +258,6 @@
 			#db-extra-search-path = "public"
 			max-rows = 100
 			EOF
-    echo "PostgREST config [re-]created successfully at ${CNODE_HOME}/priv/grest.conf ! Please ensure to update any site-specific information!"
     # Create HAProxy config template
     [[ -f "${HAPROXY_CFG}" ]] && cp "${HAPROXY_CFG}" "${HAPROXY_CFG}".bkp_$(date +%s)
     bash -c "cat <<-EOF > ${HAPROXY_CFG}
@@ -305,10 +305,11 @@
 			  server local 127.0.0.1:8050 check inter 10000
 			  http-response set-header X-Frame-Options: DENY
 			EOF"
-    echo "HAProxy config file [re-]created successfully at ${HAPROXY_CFG} ! Please ensure to add your peers back and update config as necessary (eg: add TLS configs)!"
+    echo "  Done!! Please ensure to set any custom settings/peers/TLS configs/etc back and update configs as necessary!"
   }
   deploy_systemd() {
-    echo -e "\e[32m~~ PostgREST Service ~~\e[0m"
+    echo "[Re]Deploying Services.."
+    echo -e "  PostgREST Service"
     command -v postgrest >/dev/null && sudo bash -c "cat <<-EOF > /etc/systemd/system/postgrest.service
 			[Unit]
 			Description=REST Overlay for Postgres database
@@ -329,17 +330,17 @@
 			[Install]
 			WantedBy=multi-user.target
 			EOF"
-    echo -e "\e[32m~~ HAProxy Service ~~\e[0m"
+    echo -e "  HAProxy Service"
     command -v haproxy >/dev/null && sudo bash -c "cat <<-EOF > /etc/systemd/system/haproxy.service
 			[Unit]
 			Description=HAProxy Load Balancer
 			After=network.target
 			
 			[Service]
-			Environment=\"CONFIG=${HAPROXY_CFG}\" \"PIDFILE=/run/haproxy.pid\"
-			ExecStartPre=/usr/sbin/haproxy -f \$CONFIG -c -q
-			ExecStart=/usr/sbin/haproxy -Ws -f \$CONFIG -p \$PIDFILE
-			ExecReload=/usr/sbin/haproxy -f \$CONFIG -c -q
+			Environment=\"CONFIG=${HAPROXY_CFG}\" \"PIDFILE=${CNODE_HOME}/logs/haproxy.pid\"
+			ExecStartPre=/usr/sbin/haproxy -f ${HAPROXY_CFG} -c -q
+			ExecStart=/usr/sbin/haproxy -Ws -f ${HAPROXY_CFG} -p ${CNODE_HOME}/logs/haproxy.pid
+			ExecReload=/usr/sbin/haproxy -f ${HAPROXY_CFG} -c -q
 			SuccessExitStatus=143
 			KillMode=mixed
 			Type=notify
@@ -347,6 +348,7 @@
 			[Install]
 			WantedBy=multi-user.target
 			EOF"
+    echo -e "  GRest Exporter Service"
     [[ -f "${CNODE_HOME}"/scripts/grest-exporter.sh ]] && sudo bash -c "cat <<-EOF > /etc/systemd/system/grest_exporter.service
 			[Unit]
 			Description=Guild Rest Services Metrics Exporter
@@ -370,12 +372,11 @@
 			[Install]
 			WantedBy=multi-user.target
 			EOF"
-    sudo systemctl daemon-reload
-    sudo systemctl enable postgrest.service
-    sudo systemctl enable haproxy.service
-    sudo systemctl enable grest_exporter.service
+    sudo systemctl daemon-reload && sudo systemctl enable postgrest.service haproxy.service grest_exporter.service >/dev/null 2>&1
+    echo "  Done!! Please ensure to [re]start services!"
   }
   deploy_query_updates() {
+    # Todo : Check updates and add view folder
     if ! command -v psql &>/dev/null; then
       err_exit "\n\e[31mERROR\e[0m: We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:\n ${DOCS_URL}/Appendix/postgres\n"
     fi
@@ -436,6 +437,7 @@
   }
 
 ######## Execution ########
+  PARENT=$(pwd)
   # Parse command line options
   while getopts :fi:uqb: opt; do
     case ${opt} in
