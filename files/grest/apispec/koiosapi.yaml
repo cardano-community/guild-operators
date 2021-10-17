@@ -65,9 +65,7 @@ info:
     url: 'https://api.koios.rest/koios.png'
 servers:
   - url: https://api.koios.rest:8453
-  - url: http://194.233.71.104:8053
-  - url: http://65.21.183.97:8053
-  - url: http://185.161.193.32:8053
+  - url: https://guild.koios.rest:8453
 paths:
   /rpc/tip:
     get:
@@ -204,6 +202,77 @@ paths:
           $ref: '#/components/responses/NotFound'
       summary: Block Transactions
       description: Get a list of all transactions included in a provided block
+  /rpc/tx_info:
+    post:
+      tags:
+        - Transactions
+      requestBody:
+        $ref: '#/components/requestBodies/tx_ids'
+      responses:
+        '200':
+          description: Array of detailed information about transaction(s)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/tx_info'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      summary: Transaction Information
+      description:  Get detailed information about transaction(s)
+  /rpc/tx_utxos:
+    post:
+      tags:
+        - Transactions
+      requestBody:
+        $ref: '#/components/requestBodies/tx_ids'
+      responses:
+        '200':
+          description: Array of inputs and outputs for given transaction(s)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/tx_utxos'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      summary: Transaction UTxOs
+      description:  Get UTxO set (inputs/outputs) of transactions.
+  /rpc/tx_metadata:
+    post:
+      tags:
+        - Transactions
+      requestBody:
+        $ref: '#/components/requestBodies/tx_ids'
+      responses:
+        '200':
+          description: Array of metadata information present in each of the transactions queried
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/tx_metadata'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      summary: Transaction Metadata
+      description:  Get metadata information (if any) for given transaction(s)
+  /tx_metalabels:
+    get:
+      tags:
+        - Transactions
+      parameters:
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      summary: Transaction Metadata Labels
+      description: Get a list of all transaction metalabels
   /rpc/address_info:
     get:
       tags:
@@ -622,6 +691,24 @@ components:
                 - addr1qyp9kz50sh9c53hpmk3l4ewj9ur794t2hdqpngsjn3wkc5sztv9glpwt3frwrhdrltjaytc8ut2k4w6qrx3p98zad3fq07xe9g
                 - addr1qyfldpcvte8nkfpyv0jdc8e026cz5qedx7tajvupdu2724tlj8sypsq6p90hl40ya97xamkm9fwsppus2ru8zf6j8g9sm578cu
               _after_block_height: 6238675
+    tx_ids:
+      content:
+        application/json:
+          schema:
+            required:
+              - _tx_hashes
+            type: object
+            properties:
+              _tx_hashes:
+                format: text
+                type: array
+                items:
+                  type: string
+                description: Array of Cardano Transaction hashes
+            example:
+              _tx_hashes:
+                - f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
+                - 0b8ba3bed976fa4913f19adc9f6dd9063138db5b4dd29cecde369456b5155e94
   securitySchemes: {}
   schemas: 
     tip:
@@ -768,6 +855,162 @@ components:
             type: integer
             description: Rewards accumulated as of given epoch (in lovelaces)
             example: 23395112387185880
+    tx_info:
+      type: array
+      items:
+        properties:
+          id:
+            type: integer
+            description: Transaction ID on particular DB Instance
+            example: 17977025
+          tx_hash:
+            type: string
+            description: Hash of Transaction for which details are being shown
+            example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
+          block_hash:
+            type: string
+            description: Hash of Block in which transaction was included
+            example: 90062dfc314c7dc3430922a48f79032a63032206fdca2dfd144cf0930d4aa426
+          block_height:
+            type: integer
+            description: Block number on chain where transaction was included
+            example: 6354154
+          epoch:
+            type: integer
+            description: Epoch number
+            example: 295
+          epoch_slot:
+            type: integer
+            description: Slot number within epoch
+            example: 248243
+          absolute_slot:
+            type: integer
+            description: Overall slot number (slots from genesis block of chain)
+            example: 42325043
+          tx_timestamp:
+            type: string
+            description: Timestamp where block containing transaction was created
+            example: "2021-10-10T18:42:14"
+          tx_block_index:
+            type: integer
+            description: Index of transaction within block
+            example: 6
+          fee:
+            type: integer
+            description: Total Transaction fee (in lovelaces)
+            example: 176677
+          deposit:
+            type: integer
+            description: Total Deposits included in transaction (for example, if it is registering a pool/key)
+            example: 0
+          inputs:
+            type: array
+            description: An array with details about inputs used in a transaction
+            items:
+              properties:
+                address:
+                  type: string
+                  description: Cardano address (bech32 encoded) for transaction's input UTxO
+                  example: addr1qxkfe8s6m8qt5436lec3f0320hrmpppwqgs2gah4360krvyssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqdc3cxp
+                index:
+                  type: integer
+                  description: Index of input UTxO on the mentioned address used for input
+                  example: 0
+                value:
+                  type: integer
+                  description: Balance included on the selected input transaction
+                  example: 158005617
+          outputs:
+            type: array
+            description: An array with details about outputs from the transaction
+            items:
+              properties:
+                address:
+                  type: string
+                  description: Cardano address (bech32 encoded) where funds were sent
+                  example: addr1q80rc8zj06yzdwwdyqc03rm4l3zv6n89rxuaak0t099n09yssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqad9mkw
+                index:
+                  type: integer
+                  description: Index of output UTxO
+                  example: 0
+                value:
+                  type: integer
+                  description: Total sum on the output address
+                  example: 157832856
+          invalid_before:
+            type: integer
+            description: Slot before which transaction cannot be validated (if supplied, else null)
+          invalid_after:
+            type: integer
+            description: Slot after which transaction cannot be validated
+            example: 42332172
+          certificates:
+            type: array
+            description: Certificates present with-in a transaction (if any)
+            items:
+              properties:
+                type:
+                  type: string
+                  description: Type of certificate (could be delegation, stake_registration, stake_deregistraion, pool_update, pool_retire, param_proposal, reserve_MIR, treasury_MIR)
+                  example: delegation
+                info:
+                  type: string
+                  description: A JSON array containing information from the certificate
+                  example: {"stake_address": "stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj","pool": "pool1k53pf4wzn263c08e3wr3gttndfecm9f4uzekgctcx947vt7fh2p"}
+    tx_utxos:
+      type: array
+      items:
+        properties:
+          tx_hash:
+            type: string
+            description: Hash of Transaction for which details are being shown
+            example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
+          inputs:
+            type: array
+            description: An array with details about inputs used in a transaction
+            items:
+              properties:
+                address:
+                  type: string
+                  description: Cardano address (bech32 encoded) for transaction's input UTxO
+                  example: addr1qxkfe8s6m8qt5436lec3f0320hrmpppwqgs2gah4360krvyssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqdc3cxp
+                index:
+                  type: integer
+                  description: Index of input UTxO on the mentioned address used for input
+                  example: 0
+                value:
+                  type: integer
+                  description: Balance included on the selected input transaction
+                  example: 158005617
+          outputs:
+            type: array
+            description: An array with details about outputs from the transaction
+            items:
+              properties:
+                address:
+                  type: string
+                  description: Cardano address (bech32 encoded) where funds were sent
+                  example: addr1q80rc8zj06yzdwwdyqc03rm4l3zv6n89rxuaak0t099n09yssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqad9mkw
+                index:
+                  type: integer
+                  description: Index of output UTxO
+                  example: 0
+                value:
+                  type: integer
+                  description: Total sum on the output address
+                  example: 157832856
+    tx_metadata:
+      type: array
+      items:
+        properties:
+          tx_hash:
+            type: string
+            description: Hash of Transaction for which details are being shown
+            example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
+          metadata:
+            type: string
+            description: A JSON array containing details about metadata within transaction
+            example: {"721": {"version": 1,"copyright": "...","publisher": ["p...o"],"4bf184e01e0f163296ab253edd60774e2d34367d0e7b6cbc689b567d": {}}}
   headers: {}
   responses:
     OK:
