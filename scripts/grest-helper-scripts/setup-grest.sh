@@ -73,32 +73,27 @@
     [[ -z ${file_name} || ${file_name} != *.sql ]] && return
     dl_url=$(jqDecode '.download_url //empty' "${1}")
     [[ -z ${dl_url} ]] && return
-    ! rpc_desc=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null | grep 'COMMENT ON FUNCTION' | cut -d\' -f2) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url}" && return 1
     ! rpc_sql=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url%.json}.sql" && return 1
-    echo -e "\nFunction:    \e[32m${file_name%.sql}\e[0m"
-    echo -e "  Description: \e[37m${rpc_desc}\e[0m"
-    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<${rpc_sql} 2>&1) && echo -e "  \e[31mERROR\e[0m: ${output}"
+    echo -e "      Deploying Function :   \e[32m${file_name%.sql}\e[0m"
+    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<${rpc_sql} 2>&1) && echo -e "        \e[31mERROR\e[0m: ${output}"
   }
   get_cron_job_executable() {
     local job=$1
     local job_url="${URL_RAW}/files/grest/cron/jobs/${job}.sh"
     if curl -s -f -m "${CURL_TIMEOUT}" -o "${CRON_SCRIPTS_DIR}/${job}.sh" "${job_url}"; then
-      echo "Downloaded ${CRON_SCRIPTS_DIR}/${job}.sh"
+      echo "      Downloaded \e[32m${CRON_SCRIPTS_DIR}/${job}.sh\e[0m"
       chmod +x "${CRON_SCRIPTS_DIR}/${job}.sh"
     else
       err_exit "ERROR!! Could not download ${job_url}"
-    fi
-  }
-  clean_up_existing_cron_job() {
-    local job=$1
-    if is_file "$CRON_DIR/${job}"; then
-      sudo rm "$CRON_DIR/${job}"
     fi
   }
   install_cron_job() {
     local job=$1
     local cron_pattern=$2
     local cron_job_path="${CRON_DIR}/${job}"
+    if is_file "$CRON_DIR/${job}"; then
+      sudo rm "$CRON_DIR/${job}"
+    fi
     local cron_job_entry="${cron_pattern} ${USER} /bin/sh ${CRON_SCRIPTS_DIR}/${job}.sh >> ${LOG_DIR}/${job}.log"
     sudo bash -c "{ echo '${cron_job_entry}'; } > ${cron_job_path}"
   }
@@ -107,7 +102,6 @@
       mkdir "${CRON_SCRIPTS_DIR}"
     fi
     get_cron_job_executable "stake-distribution-update"
-    clean_up_existing_cron_job "stake-distribution-update"
     install_cron_job "stake-distribution-update" "*/30 * * * *"
   }
   setup_defaults() {
@@ -124,6 +118,7 @@
       ! command -v haproxy >/dev/null && INSTALL_HAPROXY="Y"
       [[ ! -f "${CNODE_HOME}"/scripts/grest-exporter.sh ]] && INSTALL_MONITORING_AGENTS="Y"
       [[ "${FORCE_OVERWRITE}" == "Y" ]] && OVERWRITE_CONFIG="Y" && OVERWRITE_SYSTEMD="Y"
+      [[ ! -f "${CNODE_HOME}"/files/haproxy.cfg ]] && FORCE_OVERWRITE="Y" # absence of haproxy.cfg at mentioned path would mean setup is not updated, or has not been run - hence, overwrite all
     else
       [[ "${I_ARGS}" =~ "p" ]] && INSTALL_POSTGREST="Y"
       [[ "${I_ARGS}" =~ "r" ]] && INSTALL_HAPROXY="Y"
@@ -141,7 +136,7 @@
     mkdir -p ~/tmp
   }
   populate_genesis_table() {
-    genfiles=$(jq -r '[ .ByronGenesisFile, .ShelleyGenesisFile, .AlonzoGenesisFile] | @tsv' "${CONFIG}")
+    read -ra genfiles <<<$(jq -r '[ .ByronGenesisFile, .ShelleyGenesisFile, .AlonzoGenesisFile] | @tsv' "${CONFIG}")
     read -ra SHGENESIS <<<$(jq -r '[
       .activeSlotsCoeff,
       .updateQuorum,
@@ -159,8 +154,9 @@
     # For now, compressed jq will be inserted as shell escaped json data blob
     ALGENESIS="$(jq -c . <${genfiles[2]})"
     # Data Types are intentionally kept varchar for single ID row to avoid future edge cases
-    echo -e "\e[32mAdding initial genesis table..\e[0m"
-    psql "${PGDATABASE}" >/dev/null <<-SQL
+    echo -e "  Adding initial genesis table.."
+    psql "${PGDATABASE}" <<-SQL >/dev/null
+			SET client_min_messages TO WARNING;
 			BEGIN;
 			DROP TABLE IF EXISTS grest.genesis;
 			CREATE TABLE grest.genesis (
@@ -179,7 +175,7 @@
 			);
 			COMMIT;
 			SQL
-    psql "${PGDATABASE}" -c "INSERT INTO grest.genesis VALUES ( '${SHGENESIS[4]}', '${SHGENESIS[2]}', '${SHGENESIS[0]}', '${SHGENESIS[1]}', '${SHGENESIS[3]}', '${SHGENESIS[5]}', '${SHGENESIS[6]}', '${SHGENESIS[7]}', '${SHGENESIS[8]}', '${SHGENESIS[9]}', '${SHGENESIS[10]}', '${ALGENESIS}' );"
+    psql "${PGDATABASE}" -c "INSERT INTO grest.genesis VALUES ( '${SHGENESIS[4]}', '${SHGENESIS[2]}', '${SHGENESIS[0]}', '${SHGENESIS[1]}', '${SHGENESIS[3]}', '${SHGENESIS[5]}', '${SHGENESIS[6]}', '${SHGENESIS[7]}', '${SHGENESIS[8]}', '${SHGENESIS[9]}', '${SHGENESIS[10]}', '${ALGENESIS}' );" > /dev/null
   }
   deploy_postgrest() {
     echo "[Re]Installing PostgREST.."
@@ -377,33 +373,36 @@
   }
   deploy_query_updates() {
     # Todo : Check updates and add view folder
+    echo "[Re]Deploying Postgres RPCs/views/schedule.."
     if ! command -v psql &>/dev/null; then
       err_exit "\n\e[31mERROR\e[0m: We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:\n ${DOCS_URL}/Appendix/postgres\n"
     fi
     if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" ]]; then
       err_exit "\n\e[31mERROR\e[0m: PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}\n ${DOCS_URL}/Build/dbsync\n"
     fi
-    if ! dbsync_network=$(psql -qtAX -d "${PGDATABASE}" -c "select network_name from meta;" 2>&1); then
-      err_exit "\n\e[31mERROR\e[0m: querying Cardano DBSync PostgreSQL DB, please re-run script after DBSync has started/finished its syncronization.\n ${DOCS_URL}/Build/dbsync\n"
+    #if ! dbsync_network=$(psql -qtAX -d "${PGDATABASE}" -c "select network_name from meta;" 2>&1); then
+    if [[ "$(psql -qtAX -d ${PGDATABASE} -c "SELECT protocol_major FROM public.param_proposal WHERE protocol_major >= 4 ORDER BY protocol_major DESC LIMIT 1" 2>/dev/null)" == "" ]]; then
+      err_exit "\n\e[31mERROR\e[0m: Please wait for Cardano DBSync to populate PostgreSQL DB atleast until Mary fork, and then re-run this setup script.n"
     fi
-    echo -e "Successfully connected to \e[94m${dbsync_network}\e[0m Cardano DBSync PostgreSQL DB!"
-    echo -e "Downloading DBSync RPC functions from Guild Operators GitHub store .."
+    echo -e "  Downloading DBSync RPC functions from Guild Operators GitHub store .."
     if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc?ref=${BRANCH} 2>&1); then
       err_exit "\e[31mERROR\e[0m: ${rpc_file_list}"
     fi
     # add grest schema if missing and grant usage for web_anon
-    echo -e "\e[32mAdd grest schema if missing and grant usage for web_anon\e[0m"
-    psql "${PGDATABASE}" >/dev/null <<-SQL
+    echo -e "  Add grest schema if missing and grant usage for web_anon"
+    psql "${PGDATABASE}" <<-EOF >/dev/null
+			SET client_min_messages TO WARNING;
+			
 			BEGIN;
 			
 			DO
-			$$
+			\$\$
 			BEGIN
 			  CREATE ROLE web_anon nologin;
 			  EXCEPTION WHEN DUPLICATE_OBJECT THEN
 			    RAISE NOTICE 'web_anon exists, skipping...';
 			END
-			$$;
+			\$\$;
 			
 			CREATE SCHEMA IF NOT EXISTS grest;
 			GRANT USAGE ON SCHEMA public TO web_anon;
@@ -414,14 +413,14 @@
 			ALTER DEFAULT PRIVILEGES IN SCHEMA grest GRANT SELECT ON TABLES TO web_anon;
 			ALTER ROLE web_anon SET search_path TO grest, public;
 			COMMIT;
-			SQL
+			EOF
     populate_genesis_table
-    echo -e "\e[32mDeploying RPCs to DBSync ..\e[0m"
+    echo -e "  [Re]Deploying GRest objects to DBSync.."
     for row in $(jq -r '.[] | @base64' <<<${rpc_file_list}); do
       if [[ $(jqDecode '.type' "${row}") = 'dir' ]]; then
-        echo -e "\nDownloading RPC functions from subdir $(jqDecode '.name' "${row}")"
+        echo -e "\n    Downloading pSQL executions from subdir $(jqDecode '.name' "${row}")"
         if ! rpc_file_list_subdir=$(curl -s -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc/$(jqDecode '.name' "${row}")?ref=${BRANCH}"); then
-          echo -e "  \e[31mERROR\e[0m: ${rpc_file_list_subdir}" && continue
+          echo -e "      \e[31mERROR\e[0m: ${rpc_file_list_subdir}" && continue
         fi
         for row2 in $(jq -r '.[] | @base64' <<<${rpc_file_list_subdir}); do
           deployRPC ${row2}
@@ -431,8 +430,8 @@
       fi
     done
     setup_cron_jobs
-    echo -e "\n\e[32mAll RPC functions successfully added to DBSync! For detailed query specs and examples, visit https://api.koios.rest !\e[0m\n"
-    echo -e "\e[33mPlease restart PostgREST before attempting to use the added functions\e[0m"
+    echo -e "\n  All RPC functions successfully added to DBSync! For detailed query specs and examples, visit https://api.koios.rest !\n"
+    echo -e "Please restart PostgREST before attempting to use the added functions"
     echo -e "  \e[94msudo systemctl restart postgrest.service\e[0m\n"
   }
 
