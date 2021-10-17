@@ -21,7 +21,7 @@ if [[ $# -ne 4 ]]; then
   usage
 fi
 
-dbtip=$(curl -fL -H "Accept: text/plain" -H "Accept-Profile: public" "http://${3}:${4}/epoch?select=end_time::text&order=id.desc.nullslast&limit=1" 2>/dev/null)
+dbtip=$(curl -fL -H "Accept: text/plain" "http://${3}:${4}/rpc/tip?select=block_time::text" 2>/dev/null)
 currtip=$(TZ='UTC' date "+%Y-%m-%d %H:%M:%S")
 if [[ -n "${dbtip}" ]] ; then
   [[ $(( $(date -d "${currtip}" +%s) - $(date -d "${dbtip}" +%s) )) -lt 120 ]] && exit 0 || exit 2
