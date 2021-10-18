@@ -859,6 +859,140 @@ components:
             type: integer
             description: Rewards accumulated as of given epoch (in lovelaces)
             example: 23395112387185880
+    epoch_params:
+      type: array
+      items:
+        properties:
+          min_fee_a:
+            type: integer
+            description: The 'a' parameter to calculate the minimum transaction fee
+            example: 44
+          min_fee_b:
+            type: integer
+            description: The 'b' parameter to calculate the minimum transaction fee
+            example: 155381
+          max_block_size:
+            type: integer
+            description: The maximum block size (in bytes)
+            example: 65536
+          max_tx_size:
+            type: integer
+            description: The maximum transaction size (in bytes)
+            example: 16384
+          max_bh_size:
+            type: integer
+            description: The maximum block header size (in bytes)
+            example: 1100
+          key_deposit:
+            type: integer
+            description: The amount (in lovelace) required for a deposit to register a stake address
+            example: 2000000
+          pool_deposit:
+            type: integer
+            description: The amount (in lovelace) required for a deposit to register a stake pool
+            example: 500000000
+          max_epoch:
+            type: integer
+            description: The maximum number of epochs in the future that a pool retirement is allowed to be scheduled for
+            example: 18
+          optimal_pool_count:
+            type: integer
+            description: The optimal number of stake pools
+            example: 500
+          influence:
+            type: number
+            format: double
+            description: The pledge influence on pool rewards
+            example: 0.3
+          monetary_expand_rate:
+            type: number
+            format: double
+            description: The monetary expansion rate
+            example: 0.003
+          treasury_growth_rate:
+            type: number
+            format: double
+            description: The treasury growth rate
+            example: 0.2
+          decentralisation:
+            type: number
+            format: double
+            description: The decentralisation parameter (1 fully centralised, 0 fully decentralised)
+            example: 0.1
+          entropy:
+            type: string
+            description: The hash of 32-byte string of extra random-ness added into the protocol's entropy pool
+            example: d982e06fd33e7440b43cefad529b7ecafbaa255e38178ad4189a37e4ce9bf1fa
+          protocol_major:
+            type: integer
+            description: The protocol major version
+            example: 5
+          protocol_minor:
+            type: integer
+            description: The protocol minor version
+            example: 0
+          min_utxo_value:
+            type: integer
+            description: The minimum value of a UTxO entry
+            example: 34482
+          min_pool_cost:
+            type: integer
+            description: The minimum pool cost
+            example: 340000000
+          nonce:
+            type: string
+            description: The nonce value for this epoch
+            example: 01304ddf5613166be96fce27be110747f2c8fcb38776618ee79225ccb59b81e2
+          block_hash:
+            type: string
+            description: The hash of the first block where these parameters are valid
+            example: f9dc2a2fc3a2db09a71af007a740261de585afc9e3022b8e30535592ff4dd9e5
+          cost_models:
+            type: string
+            description: The per language cost models
+            example: null
+          price_mem:
+            type: number
+            format: double
+            description: The per word cost of script memory usage
+            example: 0.0577
+          price_step:
+            type: number
+            format: double
+            description: The cost of script execution step usage
+            example: 7.21e-05
+          max_tx_ex_mem:
+            type: number
+            description: The maximum number of execution memory allowed to be used in a single transaction
+            example: 10000000
+          max_tx_ex_steps:
+            type: number
+            description: The maximum number of execution steps allowed to be used in a single transaction
+            example: 10000000000
+          max_block_ex_mem:
+            type: number
+            description: The maximum number of execution memory allowed to be used in a single block
+            example: 50000000
+          max_block_ex_steps:
+            type: number
+            description: The maximum number of execution steps allowed to be used in a single block
+            example: 40000000000
+          max_val_size:
+            type: number
+            description: The maximum Val size
+            example: 5000
+          collateral_percent:
+            type: integer
+            description: The percentage of the tx fee which must be provided as collateral when including non-native scripts
+            example: 150
+          max_collateral_inputs:
+            type: integer
+            description: The maximum number of collateral inputs allowed in a transaction
+            example: 3
+          coins_per_utxo_word:
+            type: integer
+            description: The cost per UTxO word
+            example: 34482
     tx_info:
       type: array
       items:
