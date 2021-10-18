@@ -149,7 +149,7 @@ paths:
         - $ref: "#/components/parameters/_epoch_no"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          $ref: "#/components/schemas/epoch_params"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
