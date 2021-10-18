@@ -5,7 +5,7 @@ info:
   description: |
     # Overview
     Koios is best described as a Decentralized and Elastic RESTful query layer for exploring data on Cardano blockchain to consume within applications/wallets/explorers/etc.
-    
+
     > Note: While we've done sufficient ground work - we're currently only keeping an exploratory hosting - with health checks and protection still under development. Feel free to give it a go, but just remember it is not yet ready for production consumption, our estimates at the moment are Dec 2021 for a complete release.
 
     ## Problems solved by Koios
@@ -32,7 +32,7 @@ info:
     ## Is there a price attached to using services?
     For most of the queries, there are no charges. But there are DDoS protection and strict timeout rules that may prevent heavy consumers from using this remotely (for which, there should be
     an interaction to ensure the usage is proportional to sizing and traffic expected).
-    
+
     ## Who are the folks behind Koios?
     It will be increasing list of community builders. But for initial think-tank and efforts, the work done is primarily by [guild-operators](https://cardano-community.github.io/guild-operators)
     who are well recognised team of members behind tools like CNTools, gLiveView, topology Updater, etc. We also run a parallel a short (30-min) epoch blockchain, viz, guild used by many
@@ -43,7 +43,7 @@ info:
 
     ## How does Koios work?
     Koios architecture is described briefly below:
-    
+
     ![High-Level architecture overview](/koios-design.png)
 
     We will go bottom to top (from builder's eyes to run through the above briefly:
@@ -60,9 +60,9 @@ info:
 
     ## Too much reading, I want to discuss in person
     We serve bi-weekly calls that any builder or consumer is free to join - or you can drop in to the [telegram group](https://t.me/joinchat/zE4Lce_QUepiY2U1) and start a discussion from there.
-    
+
   x-logo:
-    url: 'https://api.koios.rest/koios.png'
+    url: "https://api.koios.rest/koios.png"
 servers:
   - url: https://api.koios.rest:8453
   - url: https://guild.koios.rest:8453
@@ -72,16 +72,16 @@ paths:
       tags:
         - Network
       responses:
-        '200':
+        "200":
           description: Array of block summary (limit+paginated)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/tip'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/tip"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Query Chain Tip
       description: Get the tip info about the latest block seen by chain
   /genesis:
@@ -89,16 +89,16 @@ paths:
       tags:
         - Network
       responses:
-        '200':
+        "200":
           description: Array of genesis parameters used to start each era on chain
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/genesis'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/genesis"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Get Genesis info
       description: Get the Genesis parameters used to start specific era on chain
   /rpc/totals:
@@ -106,18 +106,18 @@ paths:
       tags:
         - Network
       parameters:
-        - $ref: '#/components/parameters/_epoch_no'
+        - $ref: "#/components/parameters/_epoch_no"
       responses:
-        '200':
+        "200":
           description: Array of supply/reserves/utxo/fees/treasury stats
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/totals'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/totals"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Get historical tokenomic stats
       description: >-
         Get the circulating utxo, treasury, rewards, supply and reserves in
@@ -127,18 +127,18 @@ paths:
       tags:
         - Epoch
       parameters:
-        - $ref: '#/components/parameters/_epoch_no'
+        - $ref: "#/components/parameters/_epoch_no"
       responses:
-        '200':
+        "200":
           description: Array of detailed summary for each epoch
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/epoch_info'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/epoch_info"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Epoch Information
       description: Get the epoch information, all epochs if no epoch specified
   /rpc/epoch_params:
@@ -146,14 +146,14 @@ paths:
       tags:
         - Epoch
       parameters:
-        - $ref: '#/components/parameters/_epoch_no'
+        - $ref: "#/components/parameters/_epoch_no"
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Epoch's Protocol Parameters
       description: >-
         Get the protocol parameters for specific epoch, returns information
@@ -164,12 +164,12 @@ paths:
         - Block
       parameters:
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Block List
       description: Get summarised details about all blocks (paginated - latest first)
   /rpc/block_info:
@@ -177,14 +177,14 @@ paths:
       tags:
         - Block
       parameters:
-        - $ref: '#/components/parameters/_block_hash'
+        - $ref: "#/components/parameters/_block_hash"
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Block Information
       description: Get detailed information about a specific block
   /rpc/block_txs:
@@ -192,14 +192,14 @@ paths:
       tags:
         - Block
       parameters:
-        - $ref: '#/components/parameters/_block_hash'
+        - $ref: "#/components/parameters/_block_hash"
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Block Transactions
       description: Get a list of all transactions included in a provided block
   /rpc/tx_info:
@@ -207,70 +207,70 @@ paths:
       tags:
         - Transactions
       requestBody:
-        $ref: '#/components/requestBodies/tx_ids'
+        $ref: "#/components/requestBodies/tx_ids"
       responses:
-        '200':
+        "200":
           description: Array of detailed information about transaction(s)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/tx_info'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/tx_info"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Transaction Information
-      description:  Get detailed information about transaction(s)
+      description: Get detailed information about transaction(s)
   /rpc/tx_utxos:
     post:
       tags:
         - Transactions
       requestBody:
-        $ref: '#/components/requestBodies/tx_ids'
+        $ref: "#/components/requestBodies/tx_ids"
       responses:
-        '200':
+        "200":
           description: Array of inputs and outputs for given transaction(s)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/tx_utxos'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/tx_utxos"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Transaction UTxOs
-      description:  Get UTxO set (inputs/outputs) of transactions.
+      description: Get UTxO set (inputs/outputs) of transactions.
   /rpc/tx_metadata:
     post:
       tags:
         - Transactions
       requestBody:
-        $ref: '#/components/requestBodies/tx_ids'
+        $ref: "#/components/requestBodies/tx_ids"
       responses:
-        '200':
+        "200":
           description: Array of metadata information present in each of the transactions queried
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/tx_metadata'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/tx_metadata"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Transaction Metadata
-      description:  Get metadata information (if any) for given transaction(s)
+      description: Get metadata information (if any) for given transaction(s)
   /tx_metalabels:
     get:
       tags:
         - Transactions
       parameters:
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Transaction Metadata Labels
       description: Get a list of all transaction metalabels
   /rpc/address_info:
@@ -278,56 +278,56 @@ paths:
       tags:
         - Address
       parameters:
-        - $ref: '#/components/parameters/_payment_address'
+        - $ref: "#/components/parameters/_payment_address"
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Address Information
-      description:  Get payment address info - balance, associated stake address (if any) and UTXO set
+      description: Get payment address info - balance, associated stake address (if any) and UTXO set
   /rpc/address_txs:
     post:
       tags:
         - Address
       requestBody:
-        $ref: '#/components/requestBodies/address_txs'
+        $ref: "#/components/requestBodies/address_txs"
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Address Transactions
-      description:  Get the transaction hash list of input payment address array, optionally filtering after specified block height (inclusive)
+      description: Get the transaction hash list of input payment address array, optionally filtering after specified block height (inclusive)
   /account_list:
     get:
       tags:
         - Account
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Get a list of all accounts
   /rpc/account_info:
     get:
       tags:
         - Account
       parameters:
-        - $ref: '#/components/parameters/_any_address'
+        - $ref: "#/components/parameters/_any_address"
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Account Information
       description: Get the account info of any (payment or staking) address
   /rpc/account_rewards:
@@ -335,15 +335,15 @@ paths:
       tags:
         - Account
       parameters:
-        - $ref: '#/components/parameters/_stake_address'
-        - $ref: '#/components/parameters/_earned_epoch_no'
+        - $ref: "#/components/parameters/_stake_address"
+        - $ref: "#/components/parameters/_earned_epoch_no"
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Account Rewards
       description: >-
         Get the full rewards history (including MIR) for a stake address, or
@@ -353,14 +353,14 @@ paths:
       tags:
         - Account
       parameters:
-        - $ref: '#/components/parameters/_stake_address'
+        - $ref: "#/components/parameters/_stake_address"
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Account Updates (History)
       description: >-
         Get the account updates (registration, deregistration, delegation and
@@ -370,14 +370,14 @@ paths:
       tags:
         - Account
       parameters:
-        - $ref: '#/components/parameters/_any_address'
+        - $ref: "#/components/parameters/_any_address"
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Account Addresses
       description: Get all addresses associated with an account
   /rpc/account_assets:
@@ -385,14 +385,14 @@ paths:
       tags:
         - Account
       parameters:
-        - $ref: '#/components/parameters/_any_address'
+        - $ref: "#/components/parameters/_any_address"
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Account Assets
       description: Get the native asset balance of an account
   /rpc/asset_address_list:
@@ -400,15 +400,15 @@ paths:
       tags:
         - Asset
       parameters:
-        - $ref: '#/components/parameters/_asset_policy'
-        - $ref: '#/components/parameters/_asset_name'
+        - $ref: "#/components/parameters/_asset_policy"
+        - $ref: "#/components/parameters/_asset_name"
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Assets Address List
       description: Get a list of all addresses for a given asset
   /rpc/pool_list:
@@ -416,12 +416,12 @@ paths:
       tags:
         - Pool
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Pool List
       description: A list of all currently registered/retiring (not retired) pools
   /rpc/pool_info:
@@ -429,14 +429,14 @@ paths:
       tags:
         - Pool
       parameters:
-        - $ref: '#/components/parameters/_pool_bech32'
+        - $ref: "#/components/parameters/_pool_bech32"
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Pool Information
       description: Current pool status and details for specified pool id
   /rpc/pool_delegators:
@@ -444,14 +444,14 @@ paths:
       tags:
         - Pool
       parameters:
-        - $ref: '#/components/parameters/_pool_bech32'
+        - $ref: "#/components/parameters/_pool_bech32"
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Pool Delegators List
       description: Return information about current delegators by a given pool
   /rpc/pool_blocks:
@@ -459,15 +459,15 @@ paths:
       tags:
         - Pool
       parameters:
-        - $ref: '#/components/parameters/_pool_bech32'
-        - $ref: '#/components/parameters/_epoch_no'
+        - $ref: "#/components/parameters/_pool_bech32"
+        - $ref: "#/components/parameters/_epoch_no"
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Pool Blocks
       description: >-
         Return information about blocks minted by a given pool in current epoch
@@ -477,15 +477,15 @@ paths:
       tags:
         - Pool
       parameters:
-        - $ref: '#/components/parameters/_pool_bech32_optional'
+        - $ref: "#/components/parameters/_pool_bech32_optional"
           required: false
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Pool Updates (History)
       description: Return all pool updates for all pools or only updates for specific pool if specified
   /rpc/pool_relays:
@@ -493,12 +493,12 @@ paths:
       tags:
         - Pool
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Pool Relays
       description: A list of registered relays for all currently registered/retiring (not retired) pools
   /rpc/pool_metadata:
@@ -506,12 +506,12 @@ paths:
       tags:
         - Pool
       responses:
-        '200':
-          $ref: '#/components/responses/OK'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
       summary: Pool Metadata
       description: Metadata(on & off-chain) for all currently registered/retiring (not retired) pools
 components:
@@ -663,7 +663,7 @@ components:
       description: Pool ID in bech32 format (optional)
       schema:
         type: string
-        example: 
+        example:
       in: query
       required: false
       allowEmptyValue: true
@@ -710,7 +710,7 @@ components:
                 - f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
                 - 0b8ba3bed976fa4913f19adc9f6dd9063138db5b4dd29cecde369456b5155e94
   securitySchemes: {}
-  schemas: 
+  schemas:
     tip:
       type: array
       items:
@@ -738,7 +738,7 @@ components:
           block_time:
             type: string
             description: Timestamp for when the block was created
-            example: '2021-10-06T23:41:44'
+            example: "2021-10-06T23:41:44"
     genesis:
       type: array
       items:
@@ -765,12 +765,12 @@ components:
             description: Maximum smallest units (lovelaces) supply for the blockchain
           systemstart:
             type: string
-            example: '2017-09-23T21:44:51Z'
+            example: "2017-09-23T21:44:51Z"
             description: Timestamp for first block (genesis) on chain
           activeslotcoeff:
             type: string
             example: 0.05
-            description: 'Active Slot Co-Efficient (f) - determines the _probability_ of number of slots in epoch that are expected to have blocks (so mainnet, this would be: 432000 * 0.05 = 21600 estimated blocks)'
+            description: "Active Slot Co-Efficient (f) - determines the _probability_ of number of slots in epoch that are expected to have blocks (so mainnet, this would be: 432000 * 0.05 = 21600 estimated blocks)"
           slotsperkesperiod:
             type: string
             example: 129600
@@ -846,11 +846,11 @@ components:
           first_block_time:
             type: string
             description: Timestamp for first block created in epoch
-            example: '2021-10-02T21:50:11'
+            example: "2021-10-02T21:50:11"
           last_block_time:
             type: string
             description: Timestamp for last block created in epoch
-            example: '2021-10-02T21:50:11'
+            example: "2021-10-02T21:50:11"
           active_stake:
             type: integer
             description: Rewards accumulated as of given epoch (in lovelaces)
@@ -956,7 +956,11 @@ components:
                 info:
                   type: string
                   description: A JSON array containing information from the certificate
-                  example: {"stake_address": "stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj","pool": "pool1k53pf4wzn263c08e3wr3gttndfecm9f4uzekgctcx947vt7fh2p"}
+                  example:
+                    {
+                      "stake_address": "stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj",
+                      "pool": "pool1k53pf4wzn263c08e3wr3gttndfecm9f4uzekgctcx947vt7fh2p",
+                    }
     tx_utxos:
       type: array
       items:
@@ -1010,7 +1014,17 @@ components:
           metadata:
             type: string
             description: A JSON array containing details about metadata within transaction
-            example: {"721": {"version": 1,"copyright": "...","publisher": ["p...o"],"4bf184e01e0f163296ab253edd60774e2d34367d0e7b6cbc689b567d": {}}}
+            example:
+              {
+                "721":
+                  {
+                    "version": 1,
+                    "copyright": "...",
+                    "publisher": ["p...o"],
+                    "4bf184e01e0f163296ab253edd60774e2d34367d0e7b6cbc689b567d":
+                      {},
+                  },
+              }
   headers: {}
   responses:
     OK:
