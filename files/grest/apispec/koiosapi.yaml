@@ -266,7 +266,11 @@ paths:
       parameters:
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of known metadata labels
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/tx_metalabels"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1025,6 +1029,14 @@ components:
                       {},
                   },
               }
+    tx_metalabels:
+      type: array
+      items:
+        properties:
+          metalabel:
+            type: number
+            description: A distinct known metalabel
+            example: 721
   headers: {}
   responses:
     OK:
