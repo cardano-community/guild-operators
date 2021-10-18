@@ -149,7 +149,11 @@ paths:
         - $ref: "#/components/parameters/_epoch_no"
       responses:
         "200":
-          $ref: "#/components/schemas/epoch_params"
+          description: Array of protocol parameters for each epoch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/epoch_params"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
