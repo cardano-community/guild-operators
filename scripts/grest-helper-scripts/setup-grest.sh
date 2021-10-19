@@ -10,7 +10,9 @@
 #CRON_SCRIPTS_DIR="${CNODE_HOME}/scripts/cron-scripts"   # Folder to hold cron job scripts
 #CRON_DIR="/etc/cron.d"                                  # Cron job deployment folders
 #PGDATABASE="cexplorer"                                  # Name of Postgres database used for deployment
-#HAPROXY_CFG="${CNODE_HOME}/files/haproxy.cfg"                  # Location of HAProxy config file
+#HAPROXY_CFG="${CNODE_HOME}/files/haproxy.cfg"           # Location of HAProxy config file
+#DBSYNC_PROM_HOST=127.0.0.1    # Destination DBSync Prometheus Host
+#DBSYNC_PROM_PORT=8080         # Destination DBSync Prometheus port
 
 ######################################
 # Do NOT modify code below           #
@@ -38,6 +40,7 @@
 		EOF
     exit 1
   }
+  
   update_check() {
     # Check if env file is missing in current folder, note that some env functions may not be present until env is sourced successfully
     [[ ! -f "./env" ]] && echo -e "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
@@ -64,9 +67,11 @@
       2) clear ;;
     esac
   }
+
   jqDecode() {
     base64 --decode <<<$2 | jq -r "$1"
   }
+
   deployRPC() {
     file_name=$(jqDecode '.name' "${1}")
     [[ -z ${file_name} || ${file_name} != *.sql ]] && return
@@ -76,6 +81,7 @@
     echo -e "      Deploying Function :   \e[32m${file_name%.sql}\e[0m"
     ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<${rpc_sql} 2>&1) && echo -e "        \e[31mERROR\e[0m: ${output}"
   }
+
   get_cron_job_executable() {
     local job=$1
     local job_url="${URL_RAW}/files/grest/cron/jobs/${job}.sh"
@@ -83,9 +89,10 @@
       echo -e "      Downloaded \e[32m${CRON_SCRIPTS_DIR}/${job}.sh\e[0m"
       chmod +x "${CRON_SCRIPTS_DIR}/${job}.sh"
     else
-      err_exit "ERROR!! Could not download ${job_url}"
+      err_exit "Could not download ${job_url}"
     fi
   }
+
   install_cron_job() {
     local job=$1
     local cron_pattern=$2
@@ -96,6 +103,7 @@
     local cron_job_entry="${cron_pattern} ${USER} /bin/sh ${CRON_SCRIPTS_DIR}/${job}.sh >> ${LOG_DIR}/${job}.log"
     sudo bash -c "{ echo '${cron_job_entry}'; } > ${cron_job_path}"
   }
+
   setup_cron_jobs() {
     if ! is_dir "${CRON_SCRIPTS_DIR}"; then
       mkdir "${CRON_SCRIPTS_DIR}"
@@ -103,6 +111,7 @@
     get_cron_job_executable "stake-distribution-update"
     install_cron_job "stake-distribution-update" "*/30 * * * *"
   }
+  
   setup_defaults() {
     [[ -z "${CRON_SCRIPTS_DIR}" ]] && CRON_SCRIPTS_DIR="${CNODE_HOME}/scripts/cron-scripts"
     [[ -z "${CRON_DIR}" ]] && CRON_DIR="/etc/cron.d"
@@ -111,6 +120,7 @@
     DOCS_URL="https://cardano-community.github.io/guild-operators"
     [[ -z "${PGPASSFILE}" ]] && export PGPASSFILE="${CNODE_HOME}"/priv/.pgpass
   }
+
   parse_args() {
     if [[ -z "${I_ARGS}" ]]; then
       ! command -v postgrest >/dev/null && INSTALL_POSTGREST="Y"
@@ -126,6 +136,7 @@
       [[ "${I_ARGS}" =~ "d" ]] || [[ "${FORCE_OVERWRITE}" == "Y" ]] && OVERWRITE_SYSTEMD="Y"
     fi
   }
+
   common_init() {
     # TODO: Placeholder for future, if we split things to smaller components - we'd want to add those sections here
     # For example, haproxy or PostgREST only setups on fresh machines may not have the corresponding dirs
@@ -134,6 +145,7 @@
     dirs -c # clear dir stack
     mkdir -p ~/tmp
   }
+
   populate_genesis_table() {
     read -ra genfiles <<<$(jq -r '[ .ByronGenesisFile, .ShelleyGenesisFile, .AlonzoGenesisFile] | @tsv' "${CONFIG}")
     read -ra SHGENESIS <<<$(jq -r '[
@@ -176,18 +188,20 @@
 			SQL
     psql "${PGDATABASE}" -c "INSERT INTO grest.genesis VALUES ( '${SHGENESIS[4]}', '${SHGENESIS[2]}', '${SHGENESIS[0]}', '${SHGENESIS[1]}', '${SHGENESIS[3]}', '${SHGENESIS[5]}', '${SHGENESIS[6]}', '${SHGENESIS[7]}', '${SHGENESIS[8]}', '${SHGENESIS[9]}', '${SHGENESIS[10]}', '${ALGENESIS}' );" > /dev/null
   }
+
   deploy_postgrest() {
     echo "[Re]Installing PostgREST.."
     pushd ~/tmp >/dev/null || err_exit
     pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-x64-static.tar.xz')"
     if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest.tar.xz "${pgrest_asset_url}"; then
       tar xf postgrest.tar.xz &>/dev/null && rm -f postgrest.tar.xz
-      [[ -f postgrest ]] || err_exit "PostgREST archive downloaded but binary not found after attempting to extract package!!"
+      [[ -f postgrest ]] || err_exit "PostgREST archive downloaded but binary not found after attempting to extract package!"
       mv -f ./postgrest ~/.cabal/bin/
     else
       err_exit "Could not download ${pgrest_asset_url}"
     fi
   }
+
   deploy_haproxy() {
     echo "[Re]Installing HAProxy.."
     pushd ~/tmp >/dev/null || err_exit
@@ -195,10 +209,10 @@
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
       if command -v apt-get >/dev/null; then
-        sudo apt-get -y install libpcre3-dev >/dev/null || err_exit "ERROR!! 'sudo apt-get -y install libpcre3-dev' failed!"
+        sudo apt-get -y install libpcre3-dev >/dev/null || err_exit "'sudo apt-get -y install libpcre3-dev' failed!"
       fi
       if command -v yum >/dev/null; then
-        sudo yum -y install pcre-devel >/dev/null || err_exit "ERROR!! 'sudo yum -y install prce-devel' failed!"
+        sudo yum -y install pcre-devel >/dev/null || err_exit "'sudo yum -y install prce-devel' failed!"
       fi
       cd haproxy-2.4.1 || return
       make clean >/dev/null
@@ -206,23 +220,24 @@
       sudo make install >/dev/null
       sudo cp -f /usr/local/sbin/haproxy /usr/sbin/
     else
-      err_exit "ERROR!! Could not download ${haproxy_url}"
+      err_exit "Could not download ${haproxy_url}"
     fi
     curl -s -f -m ${CURL_TIMEOUT} -o "${CNODE_HOME}"/scripts/grest-poll.sh.tmp "${URL_RAW}"/scripts/grest-helper-scripts/grest-poll.sh
     curl -s -f -m ${CURL_TIMEOUT} -o checkstatus.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/checkstatus.sh
     checkUpdate "${CNODE_HOME}/scripts/grest-poll.sh"
     checkUpdate "checkstatus.sh"
   }
+
   deploy_monitoring_agents() {
     # Install socat to allow creating getmetrics script to listen on port
     if ! command -v socat >/dev/null; then
       echo -e "Installing socat .."
       if command -v apt-get >/dev/null; then
-        sudo apt-get -y install socat >/dev/null || err_exit "ERROR!! 'sudo apt-get -y install socat' failed!"
+        sudo apt-get -y install socat >/dev/null || err_exit "'sudo apt-get -y install socat' failed!"
       elif command -v yum >/dev/null; then
-        sudo yum -y install socat >/dev/null || err_exit "ERROR!! 'sudo yum -y install socat' failed!"
+        sudo yum -y install socat >/dev/null || err_exit "'sudo yum -y install socat' failed!"
       else
-        err_exit "ERROR!! 'socat' not found in \$PATH, needed to for node exporter monitoring!"
+        err_exit "'socat' not found in \$PATH, needed to for node exporter monitoring!"
       fi
     fi
     pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
@@ -237,6 +252,7 @@
     sudo chown $USER:$USER "${CNODE_HOME}"/scripts/grest-exporter.sh
     chmod 755 "${CNODE_HOME}"/scripts/grest-exporter.sh
   }
+
   deploy_configs() {
     # Create PostgREST config template
     echo "[Re]Deploying Configs.."
@@ -302,6 +318,7 @@
 			EOF"
     echo "  Done!! Please ensure to set any custom settings/peers/TLS configs/etc back and update configs as necessary!"
   }
+
   deploy_systemd() {
     echo "[Re]Deploying Services.."
     echo -e "  PostgREST Service"
@@ -370,24 +387,38 @@
     sudo systemctl daemon-reload && sudo systemctl enable postgrest.service haproxy.service grest_exporter.service >/dev/null 2>&1
     echo "  Done!! Please ensure to all [re]start services above!"
   }
+
+  get_db_sync_tip_diff() {
+    [[ -z ${DBSYNC_PROM_HOST} ]] && DBSYNC_PROM_HOST=127.0.0.1
+    [[ -z ${DBSYNC_PROM_PORT} ]] && DBSYNC_PROM_PORT=8080
+    local currslottip
+    local db_sync_tip
+    currslottip=$(getSlotTipRef)
+    db_sync_tip=$(printf %f "$(curl -s http://${DBSYNC_PROM_HOST}:${DBSYNC_PROM_PORT} | grep ^cardano | grep cardano_db_sync_db_slot_height | awk '{print $2}')" | cut -d. -f1)
+    if [[ "${db_sync_tip}" -eq 0 ]]; then
+      err_exit "Failed to calculate get current db-sync tip, please check whether db-sync is running."
+    fi
+    db_sync_tip_diff=$(( currslottip - db_sync_tip ))
+  }
+
   deploy_query_updates() {
     echo "[Re]Deploying Postgres RPCs/views/schedule.."
     if ! command -v psql &>/dev/null; then
-      err_exit "\n\e[31mERROR\e[0m: We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:\n ${DOCS_URL}/Appendix/postgres\n"
+      err_exit "We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:\n ${DOCS_URL}/Appendix/postgres"
     fi
     if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" ]]; then
-      err_exit "\n\e[31mERROR\e[0m: PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}\n ${DOCS_URL}/Build/dbsync\n"
+      err_exit "PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}\n ${DOCS_URL}/Build/dbsync"
     fi
-    #if ! dbsync_network=$(psql -qtAX -d "${PGDATABASE}" -c "select network_name from meta;" 2>&1); then
-    if [[ "$(psql -qtAX -d ${PGDATABASE} -c "SELECT protocol_major FROM public.param_proposal WHERE protocol_major >= 4 ORDER BY protocol_major DESC LIMIT 1" 2>/dev/null)" == "" ]]; then
-      err_exit "\n\e[31mERROR\e[0m: Please wait for Cardano DBSync to populate PostgreSQL DB atleast until Mary fork, and then re-run this setup script.n"
+    get_db_sync_tip_diff
+    if [[ "${db_sync_tip_diff}" -gt 180 ]]; then
+      err_exit "Cardano DBSync is not up to tip - please wait for it to sync, and then re-run this setup script with the -q flag."
     fi
-    echo -e "  Downloading DBSync RPC functions from Guild Operators GitHub store .."
+    echo -e "  Downloading DBSync RPC functions from Guild Operators GitHub store..."
     if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc?ref=${BRANCH} 2>&1); then
-      err_exit "\e[31mERROR\e[0m: ${rpc_file_list}"
+      err_exit "${rpc_file_list}"
     fi
     # add grest schema if missing and grant usage for web_anon
-    echo -e "  Add grest schema if missing and grant usage for web_anon"
+    echo -e "  Adding grest schema if missing and granting usage for web_anon..."
     psql "${PGDATABASE}" <<-EOF >/dev/null
 			SET client_min_messages TO WARNING;
 			
@@ -428,7 +459,7 @@
       fi
     done
     setup_cron_jobs
-    echo -e "\n  All RPC functions successfully added to DBSync! For detailed query specs and examples, visit https://api.koios.rest !\n"
+    echo -e "\n  All RPC functions successfully added to DBSync! For detailed query specs and examples, visit https://api.koios.rest!\n"
     echo -e "Please restart PostgREST before attempting to use the added functions"
     echo -e "  \e[94msudo systemctl restart postgrest.service\e[0m\n"
   }
