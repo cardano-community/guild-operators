@@ -345,7 +345,7 @@ if [[ "${INSTALL_VCHC}" = "Y" ]]; then
   if curl -sL -f -m ${CURL_TIMEOUT} -o cardano-hw-cli_linux-x64.tar.gz ${vchc_asset_url}; then
     tar zxf cardano-hw-cli_linux-x64.tar.gz &>/dev/null
     rm -f cardano-hw-cli_linux-x64.tar.gz
-    [[ -f cardano-hw-cli/cardano-hw-cli ]] || err_exit "ERROR!! cardano-hw-cli downloaded but binary not found after extracting package!"
+    [[ -f cardano-hw-cli/cardano-hw-cli ]] || err_exit "cardano-hw-cli downloaded but binary not found after extracting package!"
     vchc_git_version="$(cardano-hw-cli/cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
     if ! versionCheck "${vchc_git_version}" "${vchc_version}"; then
       [[ ${vchc_version} = "0.0.0" ]] && echo "  latest version: ${vchc_git_version}" || echo "  installed version: ${vchc_version}  |  latest version: ${vchc_git_version}"
@@ -378,7 +378,7 @@ if [[ "${INSTALL_VCHC}" = "Y" ]]; then
       echo "  cardano-hw-cli already latest version [${vchc_version}], skipping!"
     fi
   else
-    err_exit "ERROR!! Download of latest release of cardano-hw-cli from GitHub failed! Please retry or manually install"
+    err_exit "Download of latest release of cardano-hw-cli from GitHub failed! Please retry or manually install it."
   fi
 fi
 
@@ -392,7 +392,7 @@ if [[ "${INSTALL_POSTGREST}" = "Y" ]]; then
   if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest-linux-x64.tar.xz ${pgrest_asset_url}; then
     tar xf postgrest-linux-x64.tar.xz &>/dev/null
     rm -f postgrest-linux-x64.tar.xz
-    [[ -f postgrest ]] || err_exit "ERROR!! postgrest archive downloaded but binary not found after attempting to extract package!"
+    [[ -f postgrest ]] || err_exit "postgrest archive downloaded but binary not found after attempting to extract package!"
     pgrest_git_version="$(./postgrest -h 2>/dev/null | grep 'PostgREST ' | awk '{print $2}')"
     if ! versionCheck "${pgrest_git_version}" "${pgrest_version}"; then
       [[ ${pgrest_version} = "0.0.0" ]] && echo "  latest version: ${pgrest_git_version}" || echo "  installed version: ${pgrest_version}  |  latest version: ${pgrest_git_version}"
@@ -405,7 +405,7 @@ if [[ "${INSTALL_POSTGREST}" = "Y" ]]; then
       echo "  postgrest already latest version [${pgrest_version}], skipping!"
     fi
   else
-    err_exit "ERROR!! Download of latest release of postgrest from GitHub failed! Please retry or manually install"
+    err_exit "Download of latest release of postgrest from GitHub failed! Please retry or manually install it."
   fi
 fi
 
@@ -443,7 +443,7 @@ elif [[ ${NETWORK} =~ ^(mainnet|testnet|staging)$ ]]; then
   curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${NETWORK}-topology.json
   curl -s -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-${NETWORK}.json
 else
-  err_exit "ERROR!! Unknown network specified! Kindly re-check the network name, valid options are: mainnet, testnet, guild & staging"
+  err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, testnet, guild & staging."
 fi
 sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -i ./*.json.tmp
 [[ ${FORCE_OVERWRITE} = 'Y' && -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"

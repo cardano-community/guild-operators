@@ -59,7 +59,7 @@ check_defaults() {
 
 check_config_sanity() {
   genfiles=$(jq -r '[ .ByronGenesisFile, .ShelleyGenesisFile, .AlonzoGenesisFile] | @tsv' "${CONFIG}")
-  [[ -z "${genfiles[1]}" ]] || [[ -z "${genfiles[2]}" ]] && err_exit "ERROR!! Could not find Shelley/Alonzo Genesis Files in ${CONFIG}! Please re-run prereqs.sh with right arguments!" && exit 1
+  [[ -z "${genfiles[1]}" ]] || [[ -z "${genfiles[2]}" ]] && err_exit "Could not find Shelley/Alonzo Genesis Files in ${CONFIG}! Please re-run prereqs.sh with right arguments!" && exit 1
   BYGENHASH=$(cardano-cli byron genesis print-genesis-hash --genesis-json "${genfiles[0]}" 2>/dev/null)
   BYGENHASHCFG=$(jq '.ByronGenesisHash' <"${CONFIG}" 2>/dev/null)
   SHGENHASH=$(cardano-cli genesis hash --genesis "${genfiles[1]}" 2>/dev/null)
