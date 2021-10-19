@@ -1,9 +1,11 @@
 !!! important
 
     - An average pool operator may not require this component at all. Please verify if it is required for your use as mentioned [here](../build.md#components)
-    - Ensure that you have setup [DBSync](../Build/dbsync.md) and that it is in sync before you proceed. *IF* you're participating in grest services, ensure that you're using dbsync commit `88e26c82d3331f931b6a68d9b077d400de169f76`
+    - Ensure that you have setup [DBSync](../Build/dbsync.md) and that it is in sync atleast to Mary fork before you proceed. *IF* you're participating in Koios services, ensure that you're using [latest dbsync release](https://github.com/input-output-hk/cardano-db-sync/releases/latest)
 
-[PostgREST](https://postgrest.org/en/latest) is a web server that serves any PostgreSQL database (in our case, useful for `cardano-db-sync`) as a RESTful Web Service. The endpoints of PostgREST in itself are essentially the table/functions exposed via the PostgREST config file. You can read more about exploring the API [here](https://postgrest.org/en/latest/api.html). Understandably, it would of course rely on an existing PostgreSQL server. At the moment of writing, this is being used as an easy alternative - which will remain up-to-date since it is directly serving the underlying database as an API, as compared to `Cardano GraphQL` component. Some of the other advantages are also performance, elasticity, low overhead, support for JWT / native Postgres DB authentication against the Rest Interface as well (see [here](https://postgrest.org/en/latest/tutorials/tut1.html) for adding this to your instance). We merge the deployment with HAProxy configuration that serves as an easy means to harden your gateway, but you may alter the settings for proxy layer as per your SecOps preferences.
+[PostgREST](https://postgrest.org/en/latest) is a web server that serves any PostgreSQL database (in our case, useful for `cardano-db-sync`) as a RESTful Web Service. The endpoints of PostgREST in itself are essentially the table/functions exposed via the PostgREST config file. You can read more about exploring the API [here](https://postgrest.org/en/latest/api.html). Understandably, it would of course rely on an existing PostgreSQL server. It is an easy alternative - which will remain up-to-date since it is directly serving the underlying database as an API, as compared to `Cardano GraphQL` component. Some of the other advantages are also performance, elasticity, low overhead, support for JWT / native Postgres DB authentication against the Rest Interface as well.
+
+As part of setup process below (which is also used for setting up [Koios](https://www.koios.rest) instances), we install an instance of PostgREST alongwith [HAProxy](http://cbonte.github.io/haproxy-dconv/2.4/configuration.html) configuration that serves as an easy to gateway proxy that automatically provides failover/basic DDoS protection, but you may alter the settings for proxy layer as per your SecOps preferences.
 
 ### Setup PostgREST, HAProxy and add addendum to Postgres DB {: id="setup"}
 
@@ -17,49 +19,66 @@ psql cexplorer
 
 Ensure that you can connect to your Postgres DB fine using above (quit from psql once validated using `\q`).
 
-Now, create your PostgREST config file using command below:
-
-!!! info "Reminder !!"
-    Verify and update db-uri if required, the given value configures it for user running the command below (and relies on socket connection to postgres sever.
+Now, below will allow you to download setup script that automates installation of PostgREST, HAProxy as well as brings in latest queries/functions provided via Koios to your instances.
 
 ``` bash
-cat << 'EOF' > $CNODE_HOME/priv/grest.conf
-db-uri = "postgres://${USER}@/cexplorer"
-db-schema = "grest, public"
-db-anon-role = "web_anon"
-server-host = "127.0.0.1"
-server-port = 8050
-#jwt-secret = "secret-token"
-#db-pool = 10
-#db-pool-timeout = 10
-db-extra-search-path = "public"
-max-rows = 1000
-
-EOF
-
+cd "${CNODE_HOME}"/scripts
+curl -o setup-grest.sh https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/scripts/grest-helper-scripts/setup-grest.sh && chmod 750 setup-grest.sh
 ```
 
-You're all set to set up your PostgREST instance, and while doing so, also configure haproxy service, set up roles/schemas/default permissions, and create systemd services for these:
+Familiarise with the usage options for the setup script , the syntax can be viewed as below:
 
 ``` bash
-cd $CNODE_HOME/scripts
-# To-Do: Update branch when merged to master
-curl -o setup-grest.sh https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/scripts/grest-helper-scripts/setup-grest.sh
-chmod 755 setup-grest.sh
-./setup-grest.sh -t cnode
-# cnode is top level folder here
+./setup-grest.sh -h
+#
+# Usage: setup-grest.sh [-f] [-i [p][r][m][c][d]] [-u] [-b <branch>]
+# 
+# Install and setup haproxy, PostgREST, polling services and create systemd services for haproxy, postgREST and dbsync
+# 
+# -f    Force overwrite of all files including normally saved user config sections
+# -i    Set-up Components individually. If this option is not specified, components will only be installed if found missing (eg: -i prcd)
+#     p    Install/Update PostgREST binaries by downloading latest release from github.
+#     r    (Re-)Install Reverse Proxy Monitoring Layer (haproxy) binaries and config
+#     m    Install/Update Monitoring agent scripts
+#     c    Overwrite haproxy, postgREST configs
+#     d    Overwrite systemd definitions
+# -u    Skip update check for setup script itself
+# -q    Run all DB Queries to update on postgres (includes creating grest schema, and re-creating views/genesis table/functions/triggers and setting up cron jobs)
+# -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
+#
 ```
 
-Follow the prompts to start-up deployed services. The default ports used will make haproxy instance available at port 8053 (you might want to enable firewall rule to open this port to services you would like to access). Make sure to change the file permissions so that it's only visible to user that will run postgrest instance using `chmod 600 $CNODE_HOME/priv/pgrest.conf`. If you want to prevent unauthenticated access to grest schema, uncomment the jwt-secret and specify a custom `secret-token`.
+To run the setup with typical options, you may want to use:
+```
+./setup-grest.sh -f -q
+```
+
+Similarly - if instead, you'd like to re-install all components as well as force overwrite all configs and queries, you may run:
+```
+./setup-grest.sh -f -i prmcd -q
+```
+
+Please ensure to follow the on-screen instructions, if any (for example restarting deployed services, or updating configs to enable TLS or add peers to your HAProxy instances).
+
+Note that the setup will create a PostgREST config as `${CNODE_HOME}/priv/grest.conf`. Please check and ensure that the parameters are as expected.
+
+The default ports used will make haproxy instance available at port 8053 (you might want to enable firewall rule to open this port to services you would like to access). Make sure to change the file permissions so that it's only visible to user that will run postgrest instance using `chmod 600 ${CNODE_HOME}/priv/pgrest.conf`. If you want to prevent unauthenticated access to grest schema, uncomment the jwt-secret and specify a custom `secret-token`.
 
 ### Enable TLS on HAProxy {: id="tls"}
 
-In order to enable SSL on your haproxy, all you need to do is edit the file `/etc/haproxy/haproxy.cfg` and update the *frontend app* section to disable normal bind and enable ssl bind. Note that the server.pem referred in example below should contain certificate chain as well as the private key.
+In order to enable SSL on your haproxy, all you need to do is edit the file `${CNODE_HOME}/files/haproxy.cfg` and update the *frontend app* section to disable normal bind and enable ssl bind. Note that the server.pem referred in example below should contain certificate chain as well as the private key.
 
 ```
-#bind :8053
-bind :8053 ssl crt /etc/ssl/server.pem no-sslv3
-redirect scheme https code 301 if !{ ssl_fc }
+frontend app
+  bind 0.0.0.0:8053
+  http-request replace-value Host (.*):8053 :8453
+  redirect scheme https code 301 if !{ ssl_fc }
+  
+frontend app-secured
+  bind :8453 ssl crt /etc/ssl/server.pem no-sslv3
+  http-request track-sc0 src table flood_lmt_rate
+  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 100 }
+  default_backend grest_core
 ```
 Restart haproxy service for changes to take effect.
 
@@ -77,11 +96,12 @@ Again, defaults should be fine for minimal usage, you do not need to tinker with
 
 ### Validation
 
-While you can query PostgREST a browser from a browser if listening on `0.0.0.0` , we'd stick to querying your instance via `curl` on terminal, so that we're not troubleshooting any firewall/network configuration issues. Now, the nomenclature we used should have connected you to the `cardano-db-sync` instance. Assuming it is already populated (even partially), you can try explore deployed functions as REST endpoints.
+With the setup, you also have a `checkstatus.sh` script, which will query the Postgres DB instance via haproxy (coming through postgREST), and only show an instance up if the latest block in your DB instance is within 180 seconds.
 
 !!! info "Note"
-    The values used in queries below are from guild network, replace them to valid values that can be used on network that your dbsync instance if filled with
+    While currently the HAProxy config only checks for tip, there will be test cases added for validating each endpoint in future.
 
+If you were using `guild` network, you could do a couple of very basic sanity checks as per below:
 
 1. To query active stake for pool `pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr` in epoch `122`, we can execute the below:
 ``` bash
@@ -95,4 +115,4 @@ curl -d _pool_bech32=pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr -s
 ## [{"owner" : "stake_test1upx5p04dn3t6dvhfh27744su35vvasgaaq565jdxwlxfq5sdjwksw"}, {"owner" : "stake_test1uqak99cgtrtpean8wqwp7d9taaqkt9gkkxga05m5azcg27chnzfry"}]
 ```
 
-Refer to [API documentation](https://api.koios.rest) for OpenAPI3 documentation.
+You may want to explore what all endpoints come out of the box, and test them out, to do so - refer to [API documentation](https://api.koios.rest) for OpenAPI3 documentation. Each endpoint has a pre-filled example on mainnet, and will allow you to do some basic queries against one of the trusted instances and grab the `curl` commands to start testing yourself against the instances.

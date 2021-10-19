@@ -88,6 +88,7 @@ OFFLINE_MODE='N'
 
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master
 
+URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
 export LC_ALL=C.UTF-8
 
 # special mapping of coreutils gdate to date for MacOS
@@ -97,7 +98,6 @@ fi
 
 [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
 
-#
 telegramSend() {
   if [[ -z "${TG_BOT_TOKEN}" ]] || [[ -z "${TG_CHAT_ID}" ]]; then
     echo "Warn: to use the telegramSend function you must first set the bot and chat id in the env file"
@@ -139,6 +139,8 @@ fi
 [[ -f /usr/local/lib/libsodium.so ]] && export LD_LIBRARY_PATH=/usr/local/lib:"${LD_LIBRARY_PATH}" && PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:"${PKG_CONFIG_PATH}"
 
 [[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
+
+CNODE_NAME="$(basename ${CNODE_HOME})"
 
 if [[ -z "${SOCKET}" ]]; then
   if [[ "$(ps -ef | grep "$(basename ${CNODEBIN}).*.port ${CNODE_PORT}" | grep -v grep)" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
@@ -338,6 +340,29 @@ STANDOUT='\e[7m'
 BOLD='\e[1m'
 NC='\e[0m'
 
+# Description : Exit with error message
+#             : $1 = Error message we'd like to display before exiting (function will pre-fix 'ERROR: ' to the argument)
+err_exit() {
+  printf "${FG_RED}ERROR${NC}: $1" >&2
+  echo -e "Exiting...\n" >&2
+  pushd -0 >/dev/null && dirs -c
+  exit 1
+}
+
+# Description : Check if provided file exists
+#             : $1 = File (with path) to check
+is_file() {
+  local file=$1
+  [[ -f $file ]]
+}
+
+# Description : Check if provided directory exists
+#             : $1 = Directory (with path) to check
+is_dir() {
+  local dir=$1
+  [[ -d $dir ]]
+}
+
 # Description : Query user for yes or no answer
 getAnswer() {
   getAnswerAny answer "$* (yes/no)"
@@ -361,7 +386,7 @@ getAnswerAny() {
   printf "${NC}"
 }
 
-# Description : Query user for any question
+# Description : Check and apply delta updates using different combinations to retain custom config
 #             : $1 = name of script to update
 #             : $2 = [Y|N] ignore question and auto update
 #             : $3 = [Y|N] do a complete file comparision
@@ -375,15 +400,13 @@ checkUpdate() {
   if [[ ${OFFLINE_MODE} = N && ${BRANCH} != master && ${BRANCH} != alpha ]]; then
     if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
       echo -e "WARN!! The folder was configured against ${BRANCH} branch - which does not exist anymore, falling back to alpha branch"
+      # alpha because if someone was testing something against a custom branch, it would likely be merged to alpha first. Production systems should not be using custom branch anyways
       BRANCH=alpha
       echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
     fi
   fi
-
-  URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
   URL="${URL_RAW}/scripts/cnode-helper-scripts"
   URL_DOCS="${URL_RAW}/docs/Scripts"
-
   if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}/${1}".tmp "${URL}/${1}" 2>/dev/null; then
     # get vname from env file
     if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
