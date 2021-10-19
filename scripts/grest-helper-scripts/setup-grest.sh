@@ -26,11 +26,11 @@
 		
 		-f    Force overwrite of all files including normally saved user config sections 
 		-i    Set-up Components individually. If this option is not specified, components will only be installed if found missing (eg: -i prcd)
-				p    Install/Update PostgREST binaries by downloading latest release from github.
-				r    (Re-)Install Reverse Proxy Monitoring Layer (haproxy) binaries and config
-				m    Install/Update Monitoring agent scripts
-				c    Overwrite haproxy, postgREST configs
-				d    Overwrite systemd definitions
+		    p    Install/Update PostgREST binaries by downloading latest release from github.
+		    r    (Re-)Install Reverse Proxy Monitoring Layer (haproxy) binaries and config
+		    m    Install/Update Monitoring agent scripts
+		    c    Overwrite haproxy, postgREST configs
+		    d    Overwrite systemd definitions
 		-u    Skip update check for setup script itself
 		-q    Run all DB Queries to update on postgres (includes creating grest schema, and re-creating views/genesis table/functions/triggers and setting up cron jobs)
 		-b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
@@ -81,7 +81,7 @@
     local job=$1
     local job_url="${URL_RAW}/files/grest/cron/jobs/${job}.sh"
     if curl -s -f -m "${CURL_TIMEOUT}" -o "${CRON_SCRIPTS_DIR}/${job}.sh" "${job_url}"; then
-      echo "      Downloaded \e[32m${CRON_SCRIPTS_DIR}/${job}.sh\e[0m"
+      echo -e "      Downloaded \e[32m${CRON_SCRIPTS_DIR}/${job}.sh\e[0m"
       chmod +x "${CRON_SCRIPTS_DIR}/${job}.sh"
     else
       err_exit "ERROR!! Could not download ${job_url}"
@@ -369,7 +369,7 @@
 			WantedBy=multi-user.target
 			EOF"
     sudo systemctl daemon-reload && sudo systemctl enable postgrest.service haproxy.service grest_exporter.service >/dev/null 2>&1
-    echo "  Done!! Please ensure to [re]start services!"
+    echo "  Done!! Please ensure to all [re]start services above!"
   }
   deploy_query_updates() {
     # Todo : Check updates and add view folder

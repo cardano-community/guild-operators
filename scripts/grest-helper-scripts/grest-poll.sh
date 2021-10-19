@@ -24,7 +24,8 @@ fi
 dbtip=$(curl -fL -H "Accept: text/plain" "http://${3}:${4}/rpc/tip?select=block_time::text" 2>/dev/null)
 currtip=$(TZ='UTC' date "+%Y-%m-%d %H:%M:%S")
 if [[ -n "${dbtip}" ]] ; then
-  [[ $(( $(date -d "${currtip}" +%s) - $(date -d "${dbtip}" +%s) )) -lt 120 ]] && exit 0 || exit 2
+  [[ $(( $(date -d "${currtip}" +%s) - $(date -d "${dbtip}" +%s) )) -lt 180 ]] && exit 0 || echo "ERROR: Tip too far, eliminating from availability" && exit 2
 else
+  echo "ERROR: Failed polling for ${3}:${4}, could not query tip"
   exit 1
 fi
