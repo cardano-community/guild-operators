@@ -39,7 +39,6 @@
     exit 1
   }
   update_check() {
-    # Todo: Test this thoroughly
     # Check if env file is missing in current folder, note that some env functions may not be present until env is sourced successfully
     [[ ! -f "./env" ]] && echo -e "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
     . "${PARENT}"/env offline # Just to source checkUpdate, will be re-sourced later
@@ -372,7 +371,6 @@
     echo "  Done!! Please ensure to all [re]start services above!"
   }
   deploy_query_updates() {
-    # Todo : Check updates and add view folder
     echo "[Re]Deploying Postgres RPCs/views/schedule.."
     if ! command -v psql &>/dev/null; then
       err_exit "\n\e[31mERROR\e[0m: We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:\n ${DOCS_URL}/Appendix/postgres\n"

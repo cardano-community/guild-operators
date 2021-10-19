@@ -124,7 +124,7 @@ if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
 	
 	[Install]
 	WantedBy=multi-user.target
-	EOF" && echo "${CNODE_NAME}-dbsync.service deployed successfully!!" && systemctl daemon-reload && systemctl enable ${CNODE_NAME}-dbsync.service && exit 0
+	EOF" && echo "${CNODE_NAME}-dbsync.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_NAME}-dbsync.service && exit 0
 fi
 
 export PGPASSFILE

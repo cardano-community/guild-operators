@@ -5,7 +5,7 @@
 
 [PostgREST](https://postgrest.org/en/latest) is a web server that serves any PostgreSQL database (in our case, useful for `cardano-db-sync`) as a RESTful Web Service. The endpoints of PostgREST in itself are essentially the table/functions exposed via the PostgREST config file. You can read more about exploring the API [here](https://postgrest.org/en/latest/api.html). Understandably, it would of course rely on an existing PostgreSQL server. It is an easy alternative - which will remain up-to-date since it is directly serving the underlying database as an API, as compared to `Cardano GraphQL` component. Some of the other advantages are also performance, elasticity, low overhead, support for JWT / native Postgres DB authentication against the Rest Interface as well.
 
-As part of setup process below (which is also used for setting up [Koios](https://www.koios.rest) instances), we install an instance of PostgREST alongwith [HAProxy]() configuration that serves as an easy to gateway proxy that automatically provides failover/basic DDoS protection, but you may alter the settings for proxy layer as per your SecOps preferences.
+As part of setup process below (which is also used for setting up [Koios](https://www.koios.rest) instances), we install an instance of PostgREST alongwith [HAProxy](http://cbonte.github.io/haproxy-dconv/2.4/configuration.html) configuration that serves as an easy to gateway proxy that automatically provides failover/basic DDoS protection, but you may alter the settings for proxy layer as per your SecOps preferences.
 
 ### Setup PostgREST, HAProxy and add addendum to Postgres DB {: id="setup"}
 
