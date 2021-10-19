@@ -11,8 +11,8 @@
 #CRON_DIR="/etc/cron.d"                                  # Cron job deployment folders
 #PGDATABASE="cexplorer"                                  # Name of Postgres database used for deployment
 #HAPROXY_CFG="${CNODE_HOME}/files/haproxy.cfg"           # Location of HAProxy config file
-#DBSYNC_PROM_HOST=127.0.0.1    # Destination DBSync Prometheus Host
-#DBSYNC_PROM_PORT=8080         # Destination DBSync Prometheus port
+#DBSYNC_PROM_HOST=127.0.0.1                              # Destination DBSync Prometheus Host
+#DBSYNC_PROM_PORT=8080                                   # Destination DBSync Prometheus port
 
 ######################################
 # Do NOT modify code below           #
