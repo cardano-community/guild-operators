@@ -465,7 +465,6 @@ curl -s -f -m ${CURL_TIMEOUT} -o rotatePoolKeys.sh ${URL_RAW}/scripts/cnode-help
 curl -s -f -m ${CURL_TIMEOUT} -o cnode.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cnode.sh
 curl -s -f -m ${CURL_TIMEOUT} -o dbsync.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/dbsync.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cntools.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntools.sh
-curl -s -f -m ${CURL_TIMEOUT} -o cntools.config.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cntools.config
 curl -s -f -m ${CURL_TIMEOUT} -o cntools.library ${URL_RAW}/scripts/cnode-helper-scripts/cntools.library
 curl -s -f -m ${CURL_TIMEOUT} -o logMonitor.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/logMonitor.sh
 curl -s -f -m ${CURL_TIMEOUT} -o setup_mon.sh ${URL_RAW}/scripts/cnode-helper-scripts/setup_mon.sh
@@ -512,7 +511,6 @@ updateWithCustomConfig "cnode.sh"
 updateWithCustomConfig "dbsync.sh"
 updateWithCustomConfig "gLiveView.sh"
 updateWithCustomConfig "topologyUpdater.sh"
-updateWithCustomConfig "cntools.config"
 updateWithCustomConfig "logMonitor.sh"
 updateWithCustomConfig "cncli.sh"
 
