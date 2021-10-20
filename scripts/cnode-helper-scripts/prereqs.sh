@@ -48,7 +48,7 @@ get_answer() {
 # Description : Exit with error message
 #             : $1 = Error message we'd like to display before exiting (function will pre-fix 'ERROR: ' to the argument)
 err_exit() {
-  printf "${FG_RED}ERROR${NC}: ${1}\n" >&2
+  printf "\e[31mERROR\e[0m: ${1}\n" >&2
   echo -e "Exiting...\n" >&2
   pushd -0 >/dev/null && dirs -c
   exit 1
