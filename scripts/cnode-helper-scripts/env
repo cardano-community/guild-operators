@@ -409,15 +409,22 @@ checkUpdate() {
   [[ -n $5 ]] && URL="${URL_RAW}/scripts/$5" || URL="${URL_RAW}/scripts/cnode-helper-scripts"
   URL_DOCS="${URL_RAW}/docs/Scripts"
   if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}/${1}".tmp "${URL}/${1}" 2>/dev/null; then
+  
     # get vname from env file
-    if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
-      vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
+    vname=${CNODE_NAME//_HOME}
+    vname_uc=$(tr '[:lower:]' '[:upper:]' <<< ${vname})
+    if [[ -n ${vname} ]]; then
       # replace default CNODE with custom name if needed
-      [[ ${vname} != cnode ]] && sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}/${1}".tmp
+      [[ ${vname} != cnode ]] && sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${vname_uc}_HOME@g" -i "${PARENT}/${1}".tmp
     else
       printf "${FG_RED}ERROR${NC}: '${1}' update failed! Please use prereqs.sh to force an update or manually download the file from GitHub"
-      waitToProceed && return 2
+      [[ $4 != N ]] && waitToProceed
+      return 2
     fi
+
+    # make sure script exist, else just rename
+    [[ ! -f "${PARENT}/${1}" ]] && mv -f "${PARENT}/${1}".tmp "${PARENT}/${1}" && return 0
+
     OLD_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/${1}")
     OLD_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}")
     GIT_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/${1}".tmp)
