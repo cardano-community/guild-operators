@@ -41,8 +41,8 @@
   
   update_check() {
     # Check if env file is missing in current folder, note that some env functions may not be present until env is sourced successfully
-    [[ ! -f "./env" ]] && echo -e "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
-    . "${PARENT}"/env offline # Just to source checkUpdate, will be re-sourced later
+    [[ ! -f ./env ]] && echo -e "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
+    . ./env offline # Just to source checkUpdate, will be re-sourced later
     # Update check
     if [[ ${SKIP_UPDATE} != Y ]]; then
       echo "Checking for script updates..."
@@ -220,10 +220,9 @@
     else
       err_exit "Could not download ${haproxy_url}"
     fi
-    curl -s -f -m ${CURL_TIMEOUT} -o "${CNODE_HOME}"/scripts/grest-poll.sh.tmp "${URL_RAW}"/scripts/grest-helper-scripts/grest-poll.sh
-    curl -s -f -m ${CURL_TIMEOUT} -o checkstatus.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/checkstatus.sh
-    checkUpdate "${CNODE_HOME}/scripts/grest-poll.sh"
-    checkUpdate "checkstatus.sh"
+    pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
+    checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
+    checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
   }
 
   deploy_monitoring_agents() {
@@ -239,8 +238,7 @@
       fi
     fi
     pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
-    curl -s -f -m ${CURL_TIMEOUT} -o getmetrics.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/getmetrics.sh
-    checkUpdate "getmetrics.sh"
+    checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
     echo -e "[Re]Installing Monitoring Agent.."
     e=!
     sudo bash -c "cat <<-EOF > ${CNODE_HOME}/scripts/grest-exporter.sh
@@ -450,7 +448,6 @@
   }
 
 ######## Execution ########
-  PARENT=$(pwd)
   # Parse command line options
   while getopts :fi:uqb: opt; do
     case ${opt} in
@@ -458,7 +455,7 @@
     i) I_ARGS="${OPTARG}" ;;
     u) SKIP_UPDATE='Y' ;;
     q) DB_QRY_UPDATES='Y' ;;
-    b) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
+    b) echo "${OPTARG}" > ./.env_branch ;;
     \?) usage ;;
     esac
   done
