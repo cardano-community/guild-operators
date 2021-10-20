@@ -49,7 +49,6 @@ get_answer() {
 #             : $1 = Error message we'd like to display before exiting (function will pre-fix 'ERROR: ' to the argument)
 err_exit() {
   printf "\e[31mERROR\e[0m: ${1}\n" >&2
-  echo -e "Exiting...\n" >&2
   pushd -0 >/dev/null && dirs -c
   exit 1
 }
@@ -72,7 +71,6 @@ Install pre-requisites for building cardano node and using CNTools
 -l    Use system libsodium instead of IOG fork (Default: use libsodium from IOG fork)
 -c    Install/Upgrade and build CNCLI with RUST
 -w    Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
--p    Install/Upgrade PostgREST binary to query postgres DB as a service
 -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 -i    Interactive mode (Default: silent mode)
 
@@ -89,7 +87,6 @@ while getopts :in:sflcwpt:m:b: opt; do
     l ) LIBSODIUM_FORK='N' ;;
     c ) INSTALL_CNCLI='Y' ;;
     w ) INSTALL_VCHC='Y' ;;
-    p ) INSTALL_POSTGREST='Y' ;;
     t ) CNODE_NAME=${OPTARG//[^[:alnum:]]/_} ;;
     m ) CURL_TIMEOUT=${OPTARG} ;;
     b ) BRANCH=${OPTARG} ;;
@@ -382,33 +379,6 @@ if [[ "${INSTALL_VCHC}" = "Y" ]]; then
     fi
   else
     err_exit "Download of latest release of cardano-hw-cli from GitHub failed! Please retry or manually install it."
-  fi
-fi
-
-if [[ "${INSTALL_POSTGREST}" = "Y" ]]; then
-  echo "Installing PostgREST"
-  if command -v postgrest >/dev/null; then pgrest_version="$(postgrest -h 2>/dev/null | grep 'PostgREST ' | awk '{print $2}')"; else pgrest_version="0.0.0"; fi
-  echo "  downloading PostgREST archive..."
-  pushd /tmp >/dev/null || err_exit
-  rm -rf postgrest-v*
-  pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-x64-static.tar.xz')"
-  if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest-linux-x64.tar.xz ${pgrest_asset_url}; then
-    tar xf postgrest-linux-x64.tar.xz &>/dev/null
-    rm -f postgrest-linux-x64.tar.xz
-    [[ -f postgrest ]] || err_exit "postgrest archive downloaded but binary not found after attempting to extract package!"
-    pgrest_git_version="$(./postgrest -h 2>/dev/null | grep 'PostgREST ' | awk '{print $2}')"
-    if ! versionCheck "${pgrest_git_version}" "${pgrest_version}"; then
-      [[ ${pgrest_version} = "0.0.0" ]] && echo "  latest version: ${pgrest_git_version}" || echo "  installed version: ${pgrest_version}  |  latest version: ${pgrest_git_version}"
-      [[ ! -d "${HOME}"/.cabal/bin ]] && mkdir -p "${HOME}"/.cabal/bin
-      pushd "${HOME}"/.cabal/bin >/dev/null || err_exit
-      mv -f /tmp/postgrest .
-      echo "  postgrest ${vchc_git_version} installed!"
-    else
-      rm -rf postgrest #cleanup in /tmp
-      echo "  postgrest already latest version [${pgrest_version}], skipping!"
-    fi
-  else
-    err_exit "Download of latest release of postgrest from GitHub failed! Please retry or manually install it."
   fi
 fi
 
