@@ -439,7 +439,7 @@
     i) I_ARGS="${OPTARG}" ;;
     u) SKIP_UPDATE='Y' ;;
     q) DB_QRY_UPDATES='Y' ;;
-    b) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
+    b) echo "${OPTARG}" > ./.env_branch ;;
     \?) usage ;;
     esac
   done
