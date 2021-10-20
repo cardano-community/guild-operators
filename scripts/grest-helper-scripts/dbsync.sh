@@ -58,7 +58,7 @@ check_defaults() {
 }
 
 check_config_sanity() {
-  genfiles=$(jq -r '[ .ByronGenesisFile, .ShelleyGenesisFile, .AlonzoGenesisFile] | @tsv' "${CONFIG}")
+  read -ra genfiles <<<$(jq -r '[ .ByronGenesisFile, .ShelleyGenesisFile, .AlonzoGenesisFile] | @tsv' "${CONFIG}")
   [[ -z "${genfiles[1]}" ]] || [[ -z "${genfiles[2]}" ]] && err_exit "ERROR!! Could not find Shelley/Alonzo Genesis Files in ${CONFIG}! Please re-run prereqs.sh with right arguments!" && exit 1
   BYGENHASH=$(cardano-cli byron genesis print-genesis-hash --genesis-json "${genfiles[0]}" 2>/dev/null)
   BYGENHASHCFG=$(jq '.ByronGenesisHash' <"${CONFIG}" 2>/dev/null)
@@ -128,8 +128,8 @@ if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
 fi
 
 export PGPASSFILE
-cardano-db-sync-extended \
-  --config ${DBSYNC_CONFIG} \
+"${DBSYNCBIN}" \
+  --config "${DBSYNC_CONFIG}" \
   --socket-path "${CARDANO_NODE_SOCKET_PATH}" \
-  --schema-dir ${DBSYNC_SCHEMA_DIR} \
-  --state-dir ${DBSYNC_STATE_DIR}
+  --schema-dir "${DBSYNC_SCHEMA_DIR}" \
+  --state-dir "${DBSYNC_STATE_DIR}"
