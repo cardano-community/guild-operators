@@ -208,7 +208,7 @@
     else
       err_exit "ERROR!! Could not download ${haproxy_url}"
     fi
-    pushd -0 >/dev/null
+    pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
     checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
     checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
   }
