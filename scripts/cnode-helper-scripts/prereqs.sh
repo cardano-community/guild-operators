@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2086,SC1090
+# shellcheck disable=SC2086,SC1090,SC2059
 # shellcheck source=/dev/null
 
 unset CNODE_HOME
