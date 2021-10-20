@@ -391,6 +391,7 @@ getAnswerAny() {
 #             : $2 = [Y|N] ignore question and auto update
 #             : $3 = [Y|N] do a complete file comparision
 #             : $4 = [Y|N] wait to acknowledge update
+#             : $5 = optional alternative scripts folder instead of default 'cnode-helper-scripts'
 # return code : 0 = no update
 #             : 1 = update applied
 #             : 2 = update failed
@@ -405,7 +406,7 @@ checkUpdate() {
       echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
     fi
   fi
-  URL="${URL_RAW}/scripts/cnode-helper-scripts"
+  [[ -n $5 ]] && URL="${URL_RAW}/scripts/$5" || URL="${URL_RAW}/scripts/cnode-helper-scripts"
   URL_DOCS="${URL_RAW}/docs/Scripts"
   if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}/${1}".tmp "${URL}/${1}" 2>/dev/null; then
     # get vname from env file

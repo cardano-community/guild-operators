@@ -208,10 +208,8 @@
     else
       err_exit "ERROR!! Could not download ${haproxy_url}"
     fi
-    curl -s -f -m ${CURL_TIMEOUT} -o "${CNODE_HOME}"/scripts/grest-poll.sh.tmp "${URL_RAW}"/scripts/grest-helper-scripts/grest-poll.sh
-    curl -s -f -m ${CURL_TIMEOUT} -o checkstatus.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/checkstatus.sh
-    checkUpdate "${CNODE_HOME}/scripts/grest-poll.sh"
-    checkUpdate "checkstatus.sh"
+    checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
+    checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
   }
   deploy_monitoring_agents() {
     # Install socat to allow creating getmetrics script to listen on port
@@ -226,8 +224,7 @@
       fi
     fi
     pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
-    curl -s -f -m ${CURL_TIMEOUT} -o getmetrics.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/getmetrics.sh
-    checkUpdate "getmetrics.sh"
+    checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
     echo -e "[Re]Installing Monitoring Agent.."
     e=!
     sudo bash -c "cat <<-EOF > ${CNODE_HOME}/scripts/grest-exporter.sh
