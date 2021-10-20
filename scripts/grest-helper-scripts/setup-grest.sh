@@ -208,6 +208,7 @@
     else
       err_exit "ERROR!! Could not download ${haproxy_url}"
     fi
+    pushd -0 >/dev/null
     checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
     checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
   }
