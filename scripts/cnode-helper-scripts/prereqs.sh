@@ -405,7 +405,7 @@ if [[ "${INSTALL_POSTGREST}" = "Y" ]]; then
       echo "  postgrest already latest version [${pgrest_version}], skipping!"
     fi
   else
-    err_exit "ERROR!! Download of latest release of postgrest from GitHub failed! Please retry or manually install"
+    err_exit "ERROR!! Download of latest release of postgREST from GitHub failed! Please retry or manually install"
   fi
 fi
 
@@ -460,13 +460,13 @@ pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
 curl -s -f -m ${CURL_TIMEOUT} -o env.tmp ${URL_RAW}/scripts/cnode-helper-scripts/env
 curl -s -f -m ${CURL_TIMEOUT} -o rotatePoolKeys.sh ${URL_RAW}/scripts/cnode-helper-scripts/rotatePoolKeys.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cnode.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cnode.sh
-curl -s -f -m ${CURL_TIMEOUT} -o dbsync.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/dbsync.sh
+curl -s -f -m ${CURL_TIMEOUT} -o dbsync.sh.tmp ${URL_RAW}/scripts/koios-helper-scripts/dbsync.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cntools.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntools.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cntools.config.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cntools.config
 curl -s -f -m ${CURL_TIMEOUT} -o cntools.library ${URL_RAW}/scripts/cnode-helper-scripts/cntools.library
 curl -s -f -m ${CURL_TIMEOUT} -o logMonitor.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/logMonitor.sh
 curl -s -f -m ${CURL_TIMEOUT} -o setup_mon.sh ${URL_RAW}/scripts/cnode-helper-scripts/setup_mon.sh
-curl -s -f -m ${CURL_TIMEOUT} -o setup-grest.sh ${URL_RAW}/scripts/grest-helper-scripts/setup-grest.sh
+curl -s -f -m ${CURL_TIMEOUT} -o setup-koios.sh ${URL_RAW}/scripts/koios-helper-scripts/setup-koios.sh
 curl -s -f -m ${CURL_TIMEOUT} -o topologyUpdater.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/topologyUpdater.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cabal-build-all.sh ${URL_RAW}/scripts/cnode-helper-scripts/cabal-build-all.sh
 curl -s -f -m ${CURL_TIMEOUT} -o system-info.sh ${URL_RAW}/scripts/cnode-helper-scripts/system-info.sh

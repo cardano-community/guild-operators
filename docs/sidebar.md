@@ -25,5 +25,5 @@
     - Tips: docker/tips.md
   - Appendix:
     - Sample Postgres Setup: Appendix/postgres.md
-    - GRest meet summaries: grest-meets.md
+    - Koios meet summaries: koios-meets.md
   - Contributors: contributors.md

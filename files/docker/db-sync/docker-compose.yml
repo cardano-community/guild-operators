@@ -18,7 +18,7 @@ services:
     volumes:
       - postgres_db:/var/lib/postgresql/data
       - ./guildsetup/scripts/getmetricsDS.sh:/getmetricsDS.sh
-      - ./guildsetup/scripts/grest-api.sh:/grest-api.sh
+      - ./guildsetup/scripts/koios-api.sh:/koios-api.sh
       - ./guildsetup/cfg/postgresql.conf:/etc/postgresql.conf
       - ./guildsetup/init-queries:/docker-entrypoint-initdb.d/
       - ./guildsetup/scripts/docker-entrypoint.sh:/docker-entrypoint.sh
@@ -90,7 +90,7 @@ services:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - PGRST_DB_URI=postgres://guild:HelloWorld54321@postgres/cexplorer
-      - PGRST_DB_SCHEMA="grest,public"
+      - PGRST_DB_SCHEMA="koios,public"
       - PGRST_DB_ANON_ROLE="web_anon"
       - PGRST_DB-EXTRA-SEARCH-PATH="public"
       - PGRST_MAX-ROWS=1000

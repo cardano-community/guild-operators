@@ -5,7 +5,7 @@
 
 [PostgREST](https://postgrest.org/en/latest) is a web server that serves any PostgreSQL database (in our case, useful for `cardano-db-sync`) as a RESTful Web Service. The endpoints of PostgREST in itself are essentially the table/functions exposed via the PostgREST config file. You can read more about exploring the API [here](https://postgrest.org/en/latest/api.html). Understandably, it would of course rely on an existing PostgreSQL server. It is an easy alternative - which will remain up-to-date since it is directly serving the underlying database as an API, as compared to `Cardano GraphQL` component. Some of the other advantages are also performance, elasticity, low overhead, support for JWT / native Postgres DB authentication against the Rest Interface as well.
 
-As part of setup process below (which is also used for setting up [Koios](https://www.koios.rest) instances), we install an instance of PostgREST alongwith [HAProxy](http://cbonte.github.io/haproxy-dconv/2.4/configuration.html) configuration that serves as an easy to gateway proxy that automatically provides failover/basic DDoS protection, but you may alter the settings for proxy layer as per your SecOps preferences.
+As part of setup process below (which is also used for setting up [Koios](https://www.koios.rest) instances), we install an instance of PostgREST along with [HAProxy](http://cbonte.github.io/haproxy-dconv/2.4/configuration.html) configuration that serves as an easy to gateway proxy that automatically provides failover/basic DDoS protection, but you may alter the settings for proxy layer as per your SecOps preferences.
 
 ### Setup PostgREST, HAProxy and add addendum to Postgres DB {: id="setup"}
 
@@ -23,15 +23,15 @@ Now, below will allow you to download setup script that automates installation o
 
 ``` bash
 cd "${CNODE_HOME}"/scripts
-curl -o setup-grest.sh https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/scripts/grest-helper-scripts/setup-grest.sh && chmod 750 setup-grest.sh
+curl -o setup-koios.sh https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/scripts/koios-helper-scripts/setup-koios.sh && chmod 750 setup-koios.sh
 ```
 
 Familiarise with the usage options for the setup script , the syntax can be viewed as below:
 
 ``` bash
-./setup-grest.sh -h
+./setup-koios.sh -h
 #
-# Usage: setup-grest.sh [-f] [-i [p][r][m][c][d]] [-u] [-b <branch>]
+# Usage: setup-koios.sh [-f] [-i [p][r][m][c][d]] [-u] [-b <branch>]
 # 
 # Install and setup haproxy, PostgREST, polling services and create systemd services for haproxy, postgREST and dbsync
 # 
@@ -43,26 +43,26 @@ Familiarise with the usage options for the setup script , the syntax can be view
 #     c    Overwrite haproxy, postgREST configs
 #     d    Overwrite systemd definitions
 # -u    Skip update check for setup script itself
-# -q    Run all DB Queries to update on postgres (includes creating grest schema, and re-creating views/genesis table/functions/triggers and setting up cron jobs)
+# -q    Run all DB Queries to update on postgres (includes creating koios schema, and re-creating views/genesis table/functions/triggers and setting up cron jobs)
 # -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 #
 ```
 
 To run the setup with typical options, you may want to use:
 ```
-./setup-grest.sh -f -q
+./setup-koios.sh -f -q
 ```
 
 Similarly - if instead, you'd like to re-install all components as well as force overwrite all configs and queries, you may run:
 ```
-./setup-grest.sh -f -i prmcd -q
+./setup-koios.sh -f -i prmcd -q
 ```
 
 Please ensure to follow the on-screen instructions, if any (for example restarting deployed services, or updating configs to enable TLS or add peers to your HAProxy instances).
 
-Note that the setup will create a PostgREST config as `${CNODE_HOME}/priv/grest.conf`. Please check and ensure that the parameters are as expected.
+Note that the setup will create a PostgREST config as `${CNODE_HOME}/priv/pgrest.conf`. Please check and ensure that the parameters are as expected.
 
-The default ports used will make haproxy instance available at port 8053 (you might want to enable firewall rule to open this port to services you would like to access). Make sure to change the file permissions so that it's only visible to user that will run postgrest instance using `chmod 600 ${CNODE_HOME}/priv/pgrest.conf`. If you want to prevent unauthenticated access to grest schema, uncomment the jwt-secret and specify a custom `secret-token`.
+The default ports used will make haproxy instance available at port 8053 (you might want to enable firewall rule to open this port to services you would like to access). Make sure to change the file permissions so that it's only visible to user that will run postgREST instance using `chmod 600 ${CNODE_HOME}/priv/pgrest.conf`. If you want to prevent unauthenticated access to koios schema, uncomment the jwt-secret and specify a custom `secret-token`.
 
 ### Enable TLS on HAProxy {: id="tls"}
 
@@ -78,7 +78,7 @@ frontend app-secured
   bind :8453 ssl crt /etc/ssl/server.pem no-sslv3
   http-request track-sc0 src table flood_lmt_rate
   http-request deny deny_status 429 if { sc_http_req_rate(0) gt 100 }
-  default_backend grest_core
+  default_backend koios_core
 ```
 Restart haproxy service for changes to take effect.
 
