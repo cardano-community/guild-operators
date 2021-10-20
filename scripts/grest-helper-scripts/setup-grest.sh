@@ -11,8 +11,6 @@
 #CRON_DIR="/etc/cron.d"                                  # Cron job deployment folders
 #PGDATABASE="cexplorer"                                  # Name of Postgres database used for deployment
 #HAPROXY_CFG="${CNODE_HOME}/files/haproxy.cfg"           # Location of HAProxy config file
-#DBSYNC_PROM_HOST=127.0.0.1                              # Destination DBSync Prometheus Host
-#DBSYNC_PROM_PORT=8080                                   # Destination DBSync Prometheus port
 
 ######################################
 # Do NOT modify code below           #
@@ -388,19 +386,6 @@
     echo "  Done!! Please ensure to all [re]start services above!"
   }
 
-  get_db_sync_tip_diff() {
-    [[ -z ${DBSYNC_PROM_HOST} ]] && DBSYNC_PROM_HOST=127.0.0.1
-    [[ -z ${DBSYNC_PROM_PORT} ]] && DBSYNC_PROM_PORT=8080
-    local currslottip
-    local db_sync_tip
-    currslottip=$(getSlotTipRef)
-    db_sync_tip=$(printf %f "$(curl -s http://${DBSYNC_PROM_HOST}:${DBSYNC_PROM_PORT} | grep ^cardano | grep cardano_db_sync_db_slot_height | awk '{print $2}')" | cut -d. -f1)
-    if [[ "${db_sync_tip}" -eq 0 ]]; then
-      err_exit "Failed to calculate get current db-sync tip, please check whether db-sync is running."
-    fi
-    db_sync_tip_diff=$(( currslottip - db_sync_tip ))
-  }
-
   deploy_query_updates() {
     echo "[Re]Deploying Postgres RPCs/views/schedule.."
     if ! command -v psql &>/dev/null; then
@@ -409,9 +394,9 @@
     if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" ]]; then
       err_exit "PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}\n ${DOCS_URL}/Build/dbsync"
     fi
-    get_db_sync_tip_diff
-    if [[ "${db_sync_tip_diff}" -gt 180 ]]; then
-      err_exit "Cardano DBSync is not up to tip - please wait for it to sync, and then re-run this setup script with the -q flag."
+    #if ! dbsync_network=$(psql -qtAX -d "${PGDATABASE}" -c "select network_name from meta;" 2>&1); then
+    if [[ "$(psql -qtAX -d ${PGDATABASE} -c "SELECT protocol_major FROM public.param_proposal WHERE protocol_major >= 4 ORDER BY protocol_major DESC LIMIT 1" 2>/dev/null)" == "" ]]; then
+      err_exit "Please wait for Cardano DBSync to populate PostgreSQL DB at least until Mary fork, and then re-run this setup script with the -q flag."
     fi
     echo -e "  Downloading DBSync RPC functions from Guild Operators GitHub store..."
     if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc?ref=${BRANCH} 2>&1); then
