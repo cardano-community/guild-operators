@@ -40,8 +40,8 @@
   }
   update_check() {
     # Check if env file is missing in current folder, note that some env functions may not be present until env is sourced successfully
-    [[ ! -f "$(dirname $0)"/env ]] && echo -e "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
-    . "$(dirname $0)"/env offline # Just to source checkUpdate, will be re-sourced later
+    [[ ! -f ./env ]] && echo -e "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
+    . ./env offline # Just to source checkUpdate, will be re-sourced later
     # Update check
     if [[ ${SKIP_UPDATE} != Y ]]; then
       echo "Checking for script updates..."
