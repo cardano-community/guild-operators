@@ -69,7 +69,7 @@ RUN sudo curl -sL https://nixos.org/nix/install | sh \
     && echo "export PATH=/nix/var/nix/profiles/per-user/guild/profile/bin:/nix/var/nix/profiles/per-user/guild/profile/sbin:/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.cabal/bin"  >> ~/.bashrc
 
 # INSTALL DEPS  
-RUN /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -i python3 systemd libsodium tmux jq ncurses libtool autoconf git wget gnupg tcptraceroute util-linux less openssl \
+RUN /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -i python3 systemd libsodium tmux jq ncurses libtool autoconf git wget gnupg tcptraceroute util-linux less openssl nano \
     && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-channel --update \
     && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-env -u --always \
     && /nix/var/nix/profiles/per-user/guild/profile/bin/nix-collect-garbage -d \
