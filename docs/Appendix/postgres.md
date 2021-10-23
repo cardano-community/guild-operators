@@ -23,7 +23,7 @@ elif [ -z "${OS_ID##*rhel*}" ]; then
   #CentOS/RHEL/Fedora
   sudo yum install -y postgresql-server postgresql-server-devel postgresql-contrib postgresql-devel libpq-devel
   sudo postgresql-setup initdb
-  sudo systemctl start postgresql
+  sudo systemctl restart postgresql
   sudo systemctl enable postgresql
 else
   echo "We have no automated procedures for this ${DISTRO} system"
@@ -63,3 +63,29 @@ psql postgres
 # 
 # postgres=#
 ```
+
+#### Tuning your instance
+
+Before you start populating your DB instance using dbsync data, now might be a good time to put some thought on to baseline configuration of your postgres instance by editing `/etc/postgresql/13/main/postgresql.conf`.
+Typically, you might find a lot of common standard practices parameters available in tuning guides. For our consideration, it would be nice to start with some baselines - for which we will use inputs from example [here](https://pgtune.leopard.in.ua/#/).
+You might want to fill in some sample information as per below to fill in the form:
+
+| Option         | Value |
+|----------------|-------|
+| DB Version     | 13    |
+| OS Type        | Linux |
+| DB Type        | Online Transaction Processing System|
+| Total RAM      | 32 (or as per your server) |
+| Number of CPUs | 8 (or as per your server)  |
+| Number of Connections | 200 |
+| Data Storage   | HDD Storage |
+
+In addition to above, due to the nature of usage by dbsync (restart of instance does a rollback to start of epoch), and data retention on blockchain - we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your `/etc/postgresql/13/main/postgresql.conf`:
+
+| Parameter          | Value   |
+|--------------------|---------|
+| wal_level          | minimal |
+| max_wal_senders    | 0       |
+| synchronous_commit | off     |
+
+Once your changes are done, ensure to restart postgres service using `sudo systemctl restart postgresql`.

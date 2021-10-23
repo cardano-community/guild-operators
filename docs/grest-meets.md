@@ -96,7 +96,7 @@ Below you can find a short summary of every GRest meeting held, both for logging
 
     ### DB replication presentation by Redoracle
 
-    - Proposition to move the grest schema and tables required by the API to smaller instances that can be scaled more easily
+    - Proposition to move the gRest schema and tables required by the API to smaller instances that can be scaled more easily
     - Pros and Cons to the approach discussed, worth investigating based on performance comparisons
 
     ### Process for upgrading our instances:
@@ -156,7 +156,7 @@ Below you can find a short summary of every GRest meeting held, both for logging
       - run stake_distribution query on multiple instances, report output of `EXPLAIN (ANALYZE, BUFFERS)`
       - catalyst rewards can be ignored until there is a clear path to get them: Fix underway using open PR
       - if someone needs help getting the right db-sync commit, message Priyank for help as the branch is now deleted
-      - add project metadata (requirements) to pgrest doc header in a checklist format that folks can use to ensure their setup is up-to-date with the current project state
+      - add project metadata (requirements) to grest doc header in a checklist format that folks can use to ensure their setup is up-to-date with the current project state
       - Discussed long-term plans (will be added separately in group)
 
 === "22Jul2021"
@@ -183,7 +183,7 @@ Below you can find a short summary of every GRest meeting held, both for logging
     2. Individual
 
         - sync db-sync instances to commit `84226d33eed66be8e61d50b7e1dacebdc095cee9` on `release/10.1.x`
-        - update setups to reflect recent directory restructuring and [updated instructions](https://rdlrt.ga/guild2/Build/pgrest/)
+        - update setups to reflect recent directory restructuring and [updated instructions](https://rdlrt.ga/guild2/Build/grest/)
 
 === "15Jul2021"
 
@@ -239,7 +239,7 @@ Below you can find a short summary of every GRest meeting held, both for logging
 
     ### Deployment scripts
 
-    During the last week, work has been done on deployment scripts for all services (db-sync, pgREST and haproxy) -> this is now in testing with updated instructions on [trello](https://trello.com/c/1GS8VpNP/2-add-haproxy-config-to-setup). Everybody can put their name down on the ticket to signify when the setup is complete and note down any comments for bugs/improvements. This is the main priority at the moment as it would allow us to start transferring our setups to mainnet.
+    During the last week, work has been done on deployment scripts for all services (db-sync, gRest and haproxy) -> this is now in testing with updated instructions on [trello](https://trello.com/c/1GS8VpNP/2-add-haproxy-config-to-setup). Everybody can put their name down on the ticket to signify when the setup is complete and note down any comments for bugs/improvements. This is the main priority at the moment as it would allow us to start transferring our setups to mainnet.
 
     ### Switch to Mainnet
 
@@ -278,7 +278,7 @@ Below you can find a short summary of every GRest meeting held, both for logging
     ### Stand-ups
     We then proceeded to give a status of where we are individually in terms of what's been done, a summary below:
 
-    - Homer, Ola, Markus, Priyank and Damjan have all set up their dbsync + pgrest endpoints against guild network and added to topology.
+    - Homer, Ola, Markus, Priyank and Damjan have all set up their dbsync + gRest endpoints against guild network and added to topology.
     - Ola laid down the groundwork for CNTools to integrate with API endpoints created so far.
     - Markus has created the systemd scripts and will add them soon to repo
     - Damjan is tracking live stake query that includes payment + stake address, but is awaiting fix on dbsync for pool refund (contextual reserves -> account) , also need to validate reserve -> MIR certs
@@ -289,7 +289,7 @@ Below you can find a short summary of every GRest meeting held, both for logging
     1. Directory structure on the repo -> General agreement is to have anything related to db-sync/postgREST separated from the current cnode-helper-scripts directory. We can finalise the end locations of files a bit later, for now intent should be to simply add them all to /files/dbsync folder. `prereqs.sh` addendum can be done once artifacts are finalised (added a Trello ticket for tracking).
     2. DNS/haproxy configurations:
       We have two options:
-      a. controlled approach for endpoints - wherein there is a layer of haproxy that will load balance and ensure tip being in sync for individual providers (individuals can provide haproxy OR pgrest instances).
+      a. controlled approach for endpoints - wherein there is a layer of haproxy that will load balance and ensure tip being in sync for individual providers (individuals can provide haproxy OR gRest instances).
       b. completely decentralised - each client to maintain haproxy endpoint, and fails over to other node if its not up to recent tip.
       I think that in general, it was agreed to use a hybrid approach. Details are captured in diagram [here](https://t.me/c/1499031483/335). DNS endpoint can be reserved post initial testing of haproxy-agent against mainnet nodes.
     3. Internal monitoring system
