@@ -15,7 +15,6 @@
 <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&amp;display=fallback" rel="stylesheet"/>
 <style>:root{--md-text-font-family:"Roboto";--md-code-font-family:"Roboto Mono"}</style>
 <link href="../overrides/custom.css" rel="stylesheet"/>
-<link href="../overrides/swagger-ui.css" rel="stylesheet"/>
 <script>function gtag(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],gtag("js",new Date),gtag("config","G-MLM58HW7RF"),document.addEventListener("DOMContentLoaded",function(){"undefined"!=typeof location$&&location$.subscribe(function(t){gtag("config","G-MLM58HW7RF",{page_path:t.pathname})})})</script>
 <script async="" src="https://www.googletagmanager.com/gtag/js?id=G-MLM58HW7RF"></script>
 </head>
@@ -186,8 +185,8 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../Build/pgrest/">
-        PostgREST
+<a class="md-nav__link" href="../Build/grest/">
+        gRest
       </a>
 </li>
 <li class="md-nav__item">
@@ -378,32 +377,33 @@
   D(Create Custom Assets?)
   E(Monitor node <br/> using Terminal UI)
   O(Node)
-  P(PostgREST)
+  F(Manage Pool/Wallet Keys<br/>and tx signing<br/>offline)
+  P(gRest/Koios)
   Q(DBSync)
   R(Wallet)
   S(CNTools)
-  T(Rest)
   U(GraphQL)
   V(OfflineMetadataTools)
   X(gLiveView)
 
-O --x E --x X
+F --x S
 O --x C --x S
 O --x D
 D --x S
 D --x V
+O --x E --x X
 O --x B
-B --x P --x Q
-B --x T --x Q
 B --x U --x Q
+B --x P --x Q
 O --x A --x R
 </div>
 <div class="admonition warning">
-<p>We strongly prefer use of PostgREST over Rest/GraphQL components due to performance, security, simplicity, control and most importantly - consistency benefits. Please refer to <a href="https://docs.cardano.org">official documentations</a> if you're interested in <code>GraphQL</code> or <code>Cardano-Rest</code> components instead.</p>
+<p class="admonition-title">Important</p>
+<p>We strongly prefer use of gRest over GraphQL components due to performance, security, simplicity, control and most importantly - consistency benefits. Please refer to <a href="https://docs.cardano.org">official documentations</a> if you're interested in <code>GraphQL</code> or <code>Cardano-Rest</code> components instead.</p>
 </div>
 <div class="admonition info">
 <p class="admonition-title">Note</p>
-<p><strong>The instructions are intentionally limited to stack/cabal</strong> to avoid wait times/availability of nix/docker files on a rapidly developing codebase - this also helps us prevent managing multiple versions of instructions.</p>
+<p>The instructions are intentionally limited to stack/cabal** to avoid wait times/availability of nix/docker files on a rapidly developing codebase - this also helps us prevent managing multiple versions of instructions.</p>
 </div>
 </article>
 </div>

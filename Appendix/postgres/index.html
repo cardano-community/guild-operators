@@ -15,7 +15,6 @@
 <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&amp;display=fallback" rel="stylesheet"/>
 <style>:root{--md-text-font-family:"Roboto";--md-code-font-family:"Roboto Mono"}</style>
 <link href="../../overrides/custom.css" rel="stylesheet"/>
-<link href="../../overrides/swagger-ui.css" rel="stylesheet"/>
 <script>function gtag(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],gtag("js",new Date),gtag("config","G-MLM58HW7RF"),document.addEventListener("DOMContentLoaded",function(){"undefined"!=typeof location$&&location$.subscribe(function(t){gtag("config","G-MLM58HW7RF",{page_path:t.pathname})})})</script>
 <script async="" src="https://www.googletagmanager.com/gtag/js?id=G-MLM58HW7RF"></script>
 </head>
@@ -168,8 +167,8 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../../Build/pgrest/">
-        PostgREST
+<a class="md-nav__link" href="../../Build/grest/">
+        gRest
       </a>
 </li>
 <li class="md-nav__item">
@@ -332,6 +331,11 @@
     Verify Login to postgres instance
   </a>
 </li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#tuning-your-instance">
+    Tuning your instance
+  </a>
+</li>
 </ul>
 </nav>
 </li>
@@ -377,6 +381,11 @@
     Verify Login to postgres instance
   </a>
 </li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#tuning-your-instance">
+    Tuning your instance
+  </a>
+</li>
 </ul>
 </nav>
 </div>
@@ -409,7 +418,7 @@ It is recommended to customise these as per your needs for Production builds.</p
   <span class="c1">#CentOS/RHEL/Fedora</span>
   sudo yum install -y postgresql-server postgresql-server-devel postgresql-contrib postgresql-devel libpq-devel
   sudo postgresql-setup initdb
-  sudo systemctl start postgresql
+  sudo systemctl restart postgresql
   sudo systemctl <span class="nb">enable</span> postgresql
 <span class="k">else</span>
   <span class="nb">echo</span> <span class="s2">"We have no automated procedures for this </span><span class="si">${</span><span class="nv">DISTRO</span><span class="si">}</span><span class="s2"> system"</span>
@@ -439,6 +448,72 @@ psql postgres
 <span class="c1"># </span>
 <span class="c1"># postgres=#</span>
 </code></pre></div>
+<h4 id="tuning-your-instance">Tuning your instance<a class="headerlink" href="#tuning-your-instance" title="Permanent link">⚓︎</a></h4>
+<p>Before you start populating your DB instance using dbsync data, now might be a good time to put some thought on to baseline configuration of your postgres instance by editing <code>/etc/postgresql/13/main/postgresql.conf</code>.
+Typically, you might find a lot of common standard practices parameters available in tuning guides. For our consideration, it would be nice to start with some baselines - for which we will use inputs from example <a href="https://pgtune.leopard.in.ua/#/">here</a>.
+You might want to fill in some sample information as per below to fill in the form:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DB Version</td>
+<td>13</td>
+</tr>
+<tr>
+<td>OS Type</td>
+<td>Linux</td>
+</tr>
+<tr>
+<td>DB Type</td>
+<td>Online Transaction Processing System</td>
+</tr>
+<tr>
+<td>Total RAM</td>
+<td>32 (or as per your server)</td>
+</tr>
+<tr>
+<td>Number of CPUs</td>
+<td>8 (or as per your server)</td>
+</tr>
+<tr>
+<td>Number of Connections</td>
+<td>200</td>
+</tr>
+<tr>
+<td>Data Storage</td>
+<td>HDD Storage</td>
+</tr>
+</tbody>
+</table>
+<p>In addition to above, due to the nature of usage by dbsync (restart of instance does a rollback to start of epoch), and data retention on blockchain - we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your <code>/etc/postgresql/13/main/postgresql.conf</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>wal_level</td>
+<td>minimal</td>
+</tr>
+<tr>
+<td>max_wal_senders</td>
+<td>0</td>
+</tr>
+<tr>
+<td>synchronous_commit</td>
+<td>off</td>
+</tr>
+</tbody>
+</table>
+<p>Once your changes are done, ensure to restart postgres service using <code>sudo systemctl restart postgresql</code>.</p>
 </article>
 </div>
 </div>

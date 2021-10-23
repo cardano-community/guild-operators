@@ -5,17 +5,16 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
-<link href="https://cardano-community.github.io/guild-operators/Build/rest/" rel="canonical"/>
+<link href="https://cardano-community.github.io/guild-operators/Build/grest/" rel="canonical"/>
 <link href="../../overrides/guildicon.png" rel="icon"/>
 <meta content="mkdocs-1.2.1, mkdocs-material-7.1.9" name="generator"/>
-<title>Rest - Guild Operators</title>
+<title>gRest - Guild Operators</title>
 <link href="../../assets/stylesheets/main.ca7ac06f.min.css" rel="stylesheet"/>
 <link href="../../assets/stylesheets/palette.f1a3b89f.min.css" rel="stylesheet"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&amp;display=fallback" rel="stylesheet"/>
 <style>:root{--md-text-font-family:"Roboto";--md-code-font-family:"Roboto Mono"}</style>
 <link href="../../overrides/custom.css" rel="stylesheet"/>
-<link href="../../overrides/swagger-ui.css" rel="stylesheet"/>
 <script>function gtag(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],gtag("js",new Date),gtag("config","G-MLM58HW7RF"),document.addEventListener("DOMContentLoaded",function(){"undefined"!=typeof location$&&location$.subscribe(function(t){gtag("config","G-MLM58HW7RF",{page_path:t.pathname})})})</script>
 <script async="" src="https://www.googletagmanager.com/gtag/js?id=G-MLM58HW7RF"></script>
 </head>
@@ -26,6 +25,9 @@
 <input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
 <label class="md-overlay" for="__drawer"></label>
 <div data-md-component="skip">
+<a class="md-skip" href="#what-is-grest">
+          Skip to content
+        </a>
 </div>
 <div data-md-component="announce">
 </div>
@@ -47,7 +49,7 @@
 <div class="md-header__topic" data-md-component="header-topic">
 <span class="md-ellipsis">
             
-              Rest
+              gRest
             
           </span>
 </div>
@@ -137,8 +139,8 @@
         Basics
       </a>
 </li>
-<li class="md-nav__item md-nav__item--nested">
-<input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" id="__nav_3" type="checkbox"/>
+<li class="md-nav__item md-nav__item--active md-nav__item--nested">
+<input checked="" class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" id="__nav_3" type="checkbox"/>
 <label class="md-nav__link" for="__nav_3">
         Build and Run
         <span class="md-nav__icon md-icon"></span>
@@ -164,10 +166,53 @@
         DBSync
       </a>
 </li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../pgrest/">
-        PostgREST
+<li class="md-nav__item md-nav__item--active">
+<input class="md-nav__toggle md-toggle" data-md-toggle="toc" id="__toc" type="checkbox"/>
+<label class="md-nav__link md-nav__link--active" for="__toc">
+          gRest
+          <span class="md-nav__icon md-icon"></span>
+</label>
+<a class="md-nav__link md-nav__link--active" href="./">
+        gRest
       </a>
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#what-is-grest">
+    What is gRest
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#components">
+    Components
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#setup">
+    Setup gRest services
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#tls">
+    Enable TLS on HAProxy
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#performance-tuning-considerations">
+    Performance Tuning Considerations
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#validation">
+    Validation
+  </a>
+</li>
+</ul>
+</nav>
 </li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="../offchain-metadata-tools/">
@@ -322,50 +367,195 @@
 </div>
 </div>
 </div>
+<div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#what-is-grest">
+    What is gRest
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#components">
+    Components
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#setup">
+    Setup gRest services
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#tls">
+    Enable TLS on HAProxy
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#performance-tuning-considerations">
+    Performance Tuning Considerations
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#validation">
+    Validation
+  </a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
 <div class="md-content" data-md-component="content">
 <article class="md-content__inner md-typeset">
-<a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/Build/rest.md" title="Edit this page">
+<a class="md-content__button md-icon" href="https://github.com/cardano-community/guild-operators/edit/master/docs/Build/grest.md" title="Edit this page">
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
-<h1>Rest</h1>
-<p>!&gt; - An average pool operator may not require cardano-rest at all. Please verify if it is required for your use as mentioned <a href="../../build/#components">here</a></p>
-<blockquote>
-<p>Ensure the <a href="../../basics/#pre-requisites">Pre-Requisites</a> are in place before you proceed.</p>
-</blockquote>
-<h5 id="build-instructions">Build Instructions<a class="headerlink" href="#build-instructions" title="Permanent link">⚓︎</a></h5>
-<h5 id="clone-the-repository">Clone the repository<a class="headerlink" href="#clone-the-repository" title="Permanent link">⚓︎</a></h5>
-<p>Execute the below to clone the cardano-rest repository to $HOME/git folder on your system:</p>
-<div class="highlight"><pre><span></span><code><span class="nb">cd</span> ~/git
-git clone https://github.com/input-output-hk/cardano-rest
-<span class="nb">cd</span> cardano-rest
+<h1>gRest</h1>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<ul>
+<li>An average pool operator may not require this component at all. Please verify if it is required for your use as mentioned <a href="../../build/#components">here</a></li>
+<li>Ensure that you have setup <a href="../dbsync/">DBSync</a> and that it is in sync atleast to Mary fork before you proceed. <em>IF</em> you're participating in Koios services, ensure that you're using <a href="https://github.com/input-output-hk/cardano-db-sync/releases/latest">latest dbsync release</a></li>
+</ul>
+</div>
+<h3 id="what-is-grest">What is gRest<a class="headerlink" href="#what-is-grest" title="Permanent link">⚓︎</a></h3>
+<p>gRest is an open source implementation of a <code>query layer built over dbsync using PostgREST and HAProxy</code>. The package is built as part of <a href="https://www.koios.rest">Koios</a> team's efforts to unite community individual stream of work together and give back a more aligned structure to query dbsync and adopt standardisation to queries utilising open-source tooling as well as collaboration. In addition to these, there are also accessibility features to deploy rules for failover, do healthchecks, set up priorities, have ability to prevent DDoS attacks, provide timeouts, report tips for analysis over a longer period, etc - which can prove to be really useful when performing any analysis for instances.</p>
+<h3 id="components">Components<a class="headerlink" href="#components" title="Permanent link">⚓︎</a></h3>
+<ol>
+<li>
+<p><a href="https://postgrest.org/en/latest">PostgREST</a>:<br/>
+    An RPC JSON interface for any PostgreSQL database (in our case, database served via <code>cardano-db-sync</code>) to provide a RESTful Web Service. The endpoints of PostgREST in itself are essentially the table/functions defined in elected schema via grest config file. You can read more about advanced query syntax using PostgREST API <a href="https://postgrest.org/en/latest/api.html">here</a>, but we will provide a simpler view using examples towards the end of the page. It is an easy alternative - with almost no overhead as it directly serves the underlying database as an API, as compared to <code>Cardano GraphQL</code> component (which may often have lags). Some of the other advantages of PostgREST over graphql based projects are also performance, being stateless, 0 overhead, support for JWT / native Postgres DB authentication against the Rest Interface as well.</p>
+</li>
+<li>
+<p><a href="http://cbonte.github.io/haproxy-dconv/2.4/configuration.html">HAProxy</a>:<br/>
+    An easy gateway proxy that automatically provides failover/basic DDoS protection, specify rules management for load balancing, setup multiple frontend/backends, provide easy means to have TLS enabled for public facing instances, etc. You may alter the settings for proxy layer as per your SecOps preferences. This component is optional (eg: if you prefer to expose your PostgREST server itself, you can do so using similar steps below).</p>
+</li>
+</ol>
+<h3 id="setup">Setup gRest services<a class="headerlink" href="#setup" title="Permanent link">⚓︎</a></h3>
+<p>To start with you'd want to ensure your current shell session has access to Postgres credentials, continuing from examples from the above mentioned <a href="../../Appendix/postgres/">Sample Postgres deployment guide</a>.</p>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span> <span class="nv">$CNODE_HOME</span>/priv
+<span class="nv">PGPASSFILE</span><span class="o">=</span><span class="nv">$CNODE_HOME</span>/priv/.pgpass
+psql cexplorer
 </code></pre></div>
-<h5 id="build-cardano-rest">Build Cardano Rest<a class="headerlink" href="#build-cardano-rest" title="Permanent link">⚓︎</a></h5>
-<p>You can use the instructions below to build the cardano-rest, same steps can be executed in future to update the binaries (replacing appropriate tag) as well.</p>
-<p><div class="highlight"><pre><span></span><code>git fetch --tags --all
-git pull
-<span class="c1"># Replace master with appropriate tag if you'd like to avoid compiling against master</span>
-git checkout master
-<span class="nv">$CNODE_HOME</span>/scripts/cabal-build-all.sh
+<p>Ensure that you can connect to your Postgres DB fine using above (quit from psql once validated using <code>\q</code>). As part of <code>prereqs.sh</code> execution, you'd find setup-grest.sh file made available in <code>${CNODE_HOME}/scripts</code> folder, which will help you automate installation of PostgREST, HAProxy as well as brings in latest queries/functions provided via Koios to your instances.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>As of now, gRest services are in alpha stage - while can be utilised, please remember there may be breaking changes and every collaborator is expected to work with the team to keep their instances up-to-date using alpha branch.</p>
+</div>
+<p>Familiarise with the usage options for the setup script , the syntax can be viewed as below:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span> <span class="s2">"</span><span class="si">${</span><span class="nv">CNODE_HOME</span><span class="si">}</span><span class="s2">"</span>/scripts
+./setup-grest.sh -h
+<span class="c1">#</span>
+<span class="c1"># Usage: setup-grest.sh [-f] [-i [p][r][m][c][d]] [-u] [-b &lt;branch&gt;]</span>
+<span class="c1"># </span>
+<span class="c1"># Install and setup haproxy, PostgREST, polling services and create systemd services for haproxy, postgREST and dbsync</span>
+<span class="c1"># </span>
+<span class="c1"># -f    Force overwrite of all files including normally saved user config sections</span>
+<span class="c1"># -i    Set-up Components individually. If this option is not specified, components will only be installed if found missing (eg: -i prcd)</span>
+<span class="c1">#     p    Install/Update PostgREST binaries by downloading latest release from github.</span>
+<span class="c1">#     r    (Re-)Install Reverse Proxy Monitoring Layer (haproxy) binaries and config</span>
+<span class="c1">#     m    Install/Update Monitoring agent scripts</span>
+<span class="c1">#     c    Overwrite haproxy, postgREST configs</span>
+<span class="c1">#     d    Overwrite systemd definitions</span>
+<span class="c1"># -u    Skip update check for setup script itself</span>
+<span class="c1"># -q    Run all DB Queries to update on postgres (includes creating grest schema, and re-creating views/genesis table/functions/triggers and setting up cron jobs)</span>
+<span class="c1"># -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)</span>
+<span class="c1">#</span>
 </code></pre></div>
-The above would copy the binaries into <code>~/.cabal/bin</code> folder.</p>
-<h5 id="start-the-rest-server">Start the REST server<a class="headerlink" href="#start-the-rest-server" title="Permanent link">⚓︎</a></h5>
-<p>Execute the below to start the Cardano Explorer API Server:</p>
-<div class="highlight"><pre><span></span><code><span class="nb">export</span> <span class="nv">PGPASSFILE</span><span class="o">=</span><span class="nv">$CNODE_HOME</span>/priv/.pgpass
-cardano-explorer-api
-<span class="c1"># Running full server on http://localhost:8100/</span>
+<p>To run the setup with typical options, you may want to use:
+<div class="highlight"><pre><span></span><code>./setup-grest.sh -f -q
+</code></pre></div></p>
+<p>Similarly - if instead, you'd like to re-install all components as well as force overwrite all configs and queries, you may run:
+<div class="highlight"><pre><span></span><code>./setup-grest.sh -f -i prmcd -q
+</code></pre></div></p>
+<p>Another example could be to preserve your config, but only update queries using an alternate branch (eg: <code>alpha</code>). To do so, you may run:
+<div class="highlight"><pre><span></span><code>./setup-grest.sh -q -b alpha
+</code></pre></div></p>
+<p>Please ensure to follow the on-screen instructions, if any (for example restarting deployed services, or updating configs to specify correct target postgres URLs/enable TLS/add peers etc in <code>${CNODE_HOME}/priv/grest.conf</code> and <code>${CNODE_HOME}/files/haproxy.cfg</code>).</p>
+<p>The default ports used will make haproxy instance available at port 8053 or 8453 if TLS is enabled (you might want to enable firewall rule to open this port to services you would like to access). If you want to prevent unauthenticated access to grest schema, uncomment the jwt-secret and specify a custom <code>secret-token</code>.</p>
+<h3 id="tls">Enable TLS on HAProxy<a class="headerlink" href="#tls" title="Permanent link">⚓︎</a></h3>
+<p>In order to enable SSL on your haproxy, all you need to do is edit the file <code>${CNODE_HOME}/files/haproxy.cfg</code> and update the <em>frontend app</em> section to disable normal bind and enable ssl bind. Note that the server.pem referred in example below should contain certificate chain as well as the private key. If you're not familiar with how to configure TLS OR would not like to buy one, you can find tips on how to create a TLS certificate  for free via LetsEncrypt using tutorials <a href="https://letsencrypt.org/getting-started/">here</a>. Once you do have a TLS Certificate generated, you need to chain the private key and full chain cert together in a file - <code>/etc/ssl/server.pem</code> in example below:</p>
+<p><div class="highlight"><pre><span></span><code>frontend app
+  bind 0.0.0.0:8053
+  http-request replace-value Host (.*):8053 :8453
+  redirect scheme https code 301 if !{ ssl_fc }
+
+frontend app-secured
+  bind :8453 ssl crt /etc/ssl/server.pem no-sslv3
+  http-request track-sc0 src table flood_lmt_rate
+  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 100 }
+  default_backend grest_core
 </code></pre></div>
-<h5 id="verify-the-rest-server-is-functioning">Verify the REST server is functioning<a class="headerlink" href="#verify-the-rest-server-is-functioning" title="Permanent link">⚓︎</a></h5>
-<p>Verify that you can query the API Server using instruction below:</p>
-<div class="highlight"><pre><span></span><code>curl http://localhost:8100/api/blocks/pages
+Restart haproxy service for changes to take effect.</p>
+<h3 id="performance-tuning-considerations">Performance Tuning Considerations<a class="headerlink" href="#performance-tuning-considerations" title="Permanent link">⚓︎</a></h3>
+<p>While the defaults on your system should not cause you any trouble, note that haproxy relies on ephemeral ports available on your system to be able to redirect frontend requests to backend servers. The four important configuration settings in your <code>/etc/sysctl.conf</code> files would be:</p>
+<p><div class="highlight"><pre><span></span><code>net.ipv4.ip_local_port_range="1024 65534"
+net.core.somaxconn=65534
+net.ipv4.tcp_rmem=4096 16060 64060
+net.ipv4.tcp_wmem=4096 16384 262144
 </code></pre></div>
-<p>Expected output should be similar to the following:</p>
-<div class="highlight"><pre><span></span><code><span class="p">{</span><span class="nt">"Right"</span><span class="p">:[</span><span class="mi">261</span><span class="p">,[{</span><span class="nt">"cbeEpoch"</span><span class="p">:</span><span class="mi">4</span><span class="p">,</span><span class="nt">"cbeSlot"</span><span class="p">:</span><span class="mi">9345</span><span class="p">,</span><span class="nt">"cbeBlkHeight"</span><span class="p">:</span><span class="mi">2605</span><span class="p">,</span><span class="nt">"cbeBlkHash"</span><span class="p">:</span><span class="s2">"9026612cfa53b7f8a84ff62c4e897830db9ab6ce24b19e0059f4b4db7a14c0f9"</span><span class="p">,</span><span class="nt">"cbeTimeIssued"</span><span class="p">:</span><span class="mi">1587974365</span><span class="p">,</span><span class="nt">"cbeTxNum"</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span><span class="nt">"cbeTotalSent"</span><span class="p">:{</span><span class="nt">"getCoin"</span><span class="p">:</span><span class="s2">"0"</span><span class="p">},</span><span class="nt">"cbeSize"</span><span class="p">:</span><span class="mi">631</span><span class="p">,</span><span class="nt">"cbeBlockLead"</span><span class="p">:</span><span class="s2">"464835a0904109be93d7996b9b4acc486f6c8f75a595b2c4392f9521"</span><span class="p">,</span><span class="nt">"cbeBlockLead"</span><span class="p">:</span><span class="s2">"a18aa0130f67053ed1cb346813054e160687a8ee7602a549f8ae165b"</span><span class="p">,</span><span class="nt">"cbeFees"</span><span class="p">:{</span><span class="nt">"getCoin"</span><span class="p">:</span><span class="s2">"0"</span><span class="p">}}]]}</span>
-</code></pre></div>
+Again, defaults should be fine for minimal usage, you do not need to tinker with above unless you expect a very high amount of load on your frontend. We intentionally do not set these for you as system tuning activities should be done very carefully, understanding what you're modifying and their impacts - these would be part of your SysOps + SecOps practices.</p>
+<h3 id="validation">Validation<a class="headerlink" href="#validation" title="Permanent link">⚓︎</a></h3>
+<p>With the setup, you also have a <code>checkstatus.sh</code> script, which will query the Postgres DB instance via haproxy (coming through postgREST), and only show an instance up if the latest block in your DB instance is within 180 seconds.</p>
+<div class="admonition warning">
+<p class="admonition-title">Important</p>
+<p>While currently the HAProxy config only checks for tip, there will be test cases added for validating each endpoint in future. If you'd like to participate in joining to the elastic cluster via Koios, please raise a PR request by editing topology files in <a href="https://github.com/cardano-community/guild-operators/tree/alpha/files/grest">this folder</a> to do so!!</p>
+</div>
+<p>If you were using <code>guild</code> network, you could do a couple of very basic sanity checks as per below:</p>
+<ol>
+<li>
+<p>To query active stake for pool <code>pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr</code> in epoch <code>122</code>, we can execute the below:
+<div class="highlight"><pre><span></span><code>curl -d <span class="nv">_pool_bech32</span><span class="o">=</span>pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr -d <span class="nv">_epoch_no</span><span class="o">=</span><span class="m">122</span> -s http://localhost:8053/rpc/pool_active_stake
+<span class="c1">## {"active_stake_sum" : 19409732875}</span>
+</code></pre></div></p>
+</li>
+<li>
+<p>To check latest owner key(s) for a given pool <code>pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr</code>, you can execute the below:
+<div class="highlight"><pre><span></span><code>curl -d <span class="nv">_pool_bech32</span><span class="o">=</span>pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr -s http://localhost:8050/rpc/pool_owners
+<span class="c1">## [{"owner" : "stake_test1upx5p04dn3t6dvhfh27744su35vvasgaaq565jdxwlxfq5sdjwksw"}, {"owner" : "stake_test1uqak99cgtrtpean8wqwp7d9taaqkt9gkkxga05m5azcg27chnzfry"}]</span>
+</code></pre></div></p>
+</li>
+</ol>
+<p>You may want to explore what all endpoints come out of the box, and test them out, to do so - refer to <a href="https://api.koios.rest">API documentation</a> for OpenAPI3 documentation. Each endpoint has a pre-filled example for mainnet and connects by default to primary Koios endpoint, allowing you to test endpoints and if needed - grab the <code>curl</code> commands to start testing yourself against your local or remote instances.</p>
 </article>
 </div>
 </div>
 </main>
 <footer class="md-footer">
+<nav aria-label="Footer" class="md-footer__inner md-grid">
+<a aria-label="Previous: DBSync" class="md-footer__link md-footer__link--prev" href="../dbsync/" rel="prev">
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"></path></svg>
+</div>
+<div class="md-footer__title">
+<div class="md-ellipsis">
+<span class="md-footer__direction">
+                Previous
+              </span>
+              DBSync
+            </div>
+</div>
+</a>
+<a aria-label="Next: Offchain Metadata Tools" class="md-footer__link md-footer__link--next" href="../offchain-metadata-tools/" rel="next">
+<div class="md-footer__title">
+<div class="md-ellipsis">
+<span class="md-footer__direction">
+                Next
+              </span>
+              Offchain Metadata Tools
+            </div>
+</div>
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"></path></svg>
+</div>
+</a>
+</nav>
 <div class="md-footer-meta md-typeset">
 <div class="md-footer-meta__inner md-grid">
 <div class="md-footer-copyright">
