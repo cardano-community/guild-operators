@@ -66,7 +66,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [8.4.9] - 2021-06-15
 ##### Changed
-- Handle Various updates to pgrest queries [disabled] to make them independent of instances.
+- Handle Various updates to grest queries [disabled] to make them independent of instances.
 Note: Version incremented thrice on PR branch itself
 
 ## [8.4.6] - 2021-06-04
