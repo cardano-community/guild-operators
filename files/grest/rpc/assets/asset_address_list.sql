@@ -1,3 +1,4 @@
+-- Index creation should be moved to a more general place in the setup
 CREATE INDEX IF NOT EXISTS _asset_policy_idx ON PUBLIC.MA_TX_OUT ( policy);
 
 CREATE INDEX IF NOT EXISTS _asset_identifier_idx ON PUBLIC.MA_TX_OUT ( policy, name);
@@ -17,7 +18,7 @@ BEGIN
   SELECT
     DECODE(_asset_policy, 'hex') INTO _asset_policy_decoded;
   SELECT
-    DECODE(_asset_name::text,'escape') INTO _asset_name_decoded;
+    DECODE(_asset_name::text, 'escape') INTO _asset_name_decoded;
   RETURN QUERY
   SELECT
     TXO.ADDRESS,
