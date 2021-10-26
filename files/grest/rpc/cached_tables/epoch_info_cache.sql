@@ -222,7 +222,6 @@ WHERE
     e.blk_count AS i_blk_count,
     e.start_time AS i_first_block_time,
     e.end_time AS i_last_block_time,
-    NULL AS i_active_stake,
     ep.min_fee_a AS p_min_fee_a,
     ep.min_fee_b AS p_min_fee_b,
     ep.max_block_size AS p_max_block_size,

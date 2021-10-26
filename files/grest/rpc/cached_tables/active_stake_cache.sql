@@ -1,11 +1,14 @@
-CREATE TABLE IF NOT EXISTS GREST.ACTIVE_STAKE_CACHE (
+--------------------------------------------------------------------------------
+-- Pool active stake cache setup
+--------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS GREST.POOL_ACTIVE_STAKE_CACHE (
   POOL_ID varchar NOT NULL,
   EPOCH_NO bigint NOT NULL,
   AMOUNT LOVELACE NOT NULL,
   PRIMARY KEY (POOL_ID, EPOCH_NO)
 );
 
-INSERT INTO GREST.ACTIVE_STAKE_CACHE
+INSERT INTO GREST.POOL_ACTIVE_STAKE_CACHE
 SELECT
   POOL_HASH.VIEW,
   EPOCH_STAKE.EPOCH_NO,
@@ -21,12 +24,12 @@ ON CONFLICT (POOL_ID,
   DO UPDATE SET
     AMOUNT = EXCLUDED.AMOUNT;
 
--- Trigger for inserting new epoch active stake data
-DROP FUNCTION IF EXISTS GREST.ACTIVE_STAKE_EPOCH_UPDATE CASCADE;
+-- Trigger for inserting new pool active stake values on epoch transition
+DROP FUNCTION IF EXISTS GREST.POOL_ACTIVE_STAKE_EPOCH_UPDATE CASCADE;
 
-CREATE FUNCTION GREST.ACTIVE_STAKE_EPOCH_UPDATE ()
+CREATE FUNCTION GREST.POOL_ACTIVE_STAKE_EPOCH_UPDATE ()
   RETURNS TRIGGER
-  AS $active_stake_epoch_update$
+  AS $pool_active_stake_epoch_update$
 DECLARE
   _pool_id_bech32 varchar;
 BEGIN
@@ -39,7 +42,7 @@ BEGIN
   -- Insert or update cache table
   << insert_update >> LOOP
     UPDATE
-      grest.ACTIVE_STAKE_CACHE
+      grest.POOL_ACTIVE_STAKE_CACHE
     SET
       amount = amount + NEW.amount
     WHERE
@@ -48,25 +51,86 @@ BEGIN
     EXIT insert_update
     WHEN found;
     BEGIN
-      INSERT INTO grest.ACTIVE_STAKE_CACHE (pool_id, epoch_no, amount)
+      INSERT INTO grest.POOL_ACTIVE_STAKE_CACHE (pool_id, epoch_no, amount)
         VALUES (_pool_id_bech32, NEW.epoch_no, NEW.amount);
       EXIT insert_update;
     EXCEPTION
       WHEN UNIQUE_VIOLATION THEN
-        RAISE NOTICE 'Unique violation for : % %', _pool_id_bech32, NEW.epoch_no;
+        RAISE NOTICE 'Unique violation for pool: %, epoch: %', _pool_id_bech32, NEW.epoch_no;
     END;
   END LOOP
     insert_update;
     RETURN NULL;
 END;
 
-$active_stake_epoch_update$
+$pool_active_stake_epoch_update$
 LANGUAGE PLPGSQL;
 
-DROP TRIGGER IF EXISTS ACTIVE_STAKE_EPOCH_UPDATE_TRIGGER ON PUBLIC.EPOCH_STAKE;
+DROP TRIGGER IF EXISTS POOL_ACTIVE_STAKE_EPOCH_UPDATE_TRIGGER ON PUBLIC.EPOCH_STAKE;
 
-CREATE TRIGGER ACTIVE_STAKE_EPOCH_UPDATE_TRIGGER
+CREATE TRIGGER POOL_ACTIVE_STAKE_EPOCH_UPDATE_TRIGGER
   AFTER INSERT ON PUBLIC.EPOCH_STAKE
   FOR EACH ROW
-  EXECUTE FUNCTION GREST.ACTIVE_STAKE_EPOCH_UPDATE ();
+  EXECUTE FUNCTION GREST.POOL_ACTIVE_STAKE_EPOCH_UPDATE ();
+
+--------------------------------------------------------------------------------
+-- Epoch total active stake cache setup
+--------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS GREST.EPOCH_ACTIVE_STAKE_CACHE (
+  EPOCH_NO bigint NOT NULL,
+  AMOUNT LOVELACE NOT NULL,
+  PRIMARY KEY (EPOCH_NO)
+);
+
+INSERT INTO GREST.EPOCH_ACTIVE_STAKE_CACHE
+SELECT
+  EPOCH_STAKE.EPOCH_NO,
+  SUM(EPOCH_STAKE.AMOUNT) AS AMOUNT
+FROM
+  EPOCH_STAKE
+GROUP BY
+  EPOCH_STAKE.EPOCH_NO
+ON CONFLICT (EPOCH_NO)
+  DO UPDATE SET
+    AMOUNT = EXCLUDED.AMOUNT;
+
+-- Trigger for inserting new epoch active stake totals on epoch transition
+DROP FUNCTION IF EXISTS GREST.EPOCH_ACTIVE_STAKE_EPOCH_UPDATE CASCADE;
+
+CREATE FUNCTION GREST.EPOCH_ACTIVE_STAKE_EPOCH_UPDATE ()
+  RETURNS TRIGGER
+  AS $epoch_active_stake_epoch_update$
+BEGIN
+  -- Insert or update cache table
+  << insert_update >> LOOP
+    UPDATE
+      grest.EPOCH_ACTIVE_STAKE_CACHE
+    SET
+      amount = amount + NEW.amount
+    WHERE
+      epoch_no = NEW.epoch_no;
+    EXIT insert_update
+    WHEN found;
+    BEGIN
+      INSERT INTO grest.EPOCH_ACTIVE_STAKE_CACHE (epoch_no, amount)
+        VALUES (NEW.epoch_no, NEW.amount);
+      EXIT insert_update;
+    EXCEPTION
+      WHEN UNIQUE_VIOLATION THEN
+        RAISE NOTICE 'Unique violation for epoch: %', NEW.epoch_no;
+    END;
+  END LOOP
+    insert_update;
+    RETURN NULL;
+END;
+
+$epoch_active_stake_epoch_update$
+LANGUAGE PLPGSQL;
+
+DROP TRIGGER IF EXISTS EPOCH_ACTIVE_STAKE_EPOCH_UPDATE_TRIGGER ON PUBLIC.EPOCH_STAKE;
+
+CREATE TRIGGER EPOCH_ACTIVE_STAKE_EPOCH_UPDATE_TRIGGER
+  AFTER INSERT ON PUBLIC.EPOCH_STAKE
+  FOR EACH ROW
+  EXECUTE FUNCTION GREST.EPOCH_ACTIVE_STAKE_EPOCH_UPDATE ();
 
