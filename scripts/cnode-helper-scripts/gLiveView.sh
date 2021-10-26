@@ -56,7 +56,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.22.4
+GLV_VERSION=v1.23.1
 
 PARENT="$(dirname $0)"
 
@@ -69,14 +69,18 @@ usage() {
 		Guild LiveView - An alternative cardano-node LiveView
 
 		-l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
+    -u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Use alternate branch to check for updates - only for testing/development (Default: Master)
 		EOF
   exit 1
 }
 
-while getopts :lb: opt; do
+SKIP_UPDATE=N
+
+while getopts :lub: opt; do
   case ${opt} in
     l ) LEGACY_MODE="true" ;;
+    u ) SKIP_UPDATE=Y ;;
     b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
   esac
@@ -115,15 +119,22 @@ fi
 
 . "${PARENT}"/env &>/dev/null # ignore any errors, re-sourced later
 
-if [[ "${UPDATE_CHECK}" == "Y" ]]; then
+if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
   echo "Checking for script updates..."
   # Check availability of checkUpdate function
   if [[ ! $(command -v checkUpdate) ]]; then
     echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
     myExit 1
   fi
+
   # check for env update
-  ! checkUpdate env && myExit 1
+  ENV_UPDATED=N
+  checkUpdate env N N N
+  case $? in
+    1) ENV_UPDATED=Y ;;
+    2) myExit 1 ;;
+  esac
+
   # source common env variables in case it was updated
   . "${PARENT}"/env
   case $? in
@@ -131,29 +142,12 @@ if [[ "${UPDATE_CHECK}" == "Y" ]]; then
     2) clear ;;
   esac
 
-  if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/gLiveView.sh.tmp ${URL}/gLiveView.sh 2>/dev/null && [[ -f "${PARENT}"/gLiveView.sh.tmp ]]; then
-    GIT_VERSION=$(grep -r ^GLV_VERSION= "${PARENT}"/gLiveView.sh.tmp | cut -d'=' -f2)
-    : "${GIT_VERSION:=v0.0.0}"
-    if ! versionCheck "${GIT_VERSION}" "${GLV_VERSION}"; then
-      echo -e "\nA new version of Guild LiveView is available"
-      echo "Installed Version : ${GLV_VERSION}"
-      echo "Available Version : ${GIT_VERSION}"
-      if getAnswer "\nDo you want to upgrade to the latest version of Guild LiveView?"; then
-        TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/gLiveView.sh.tmp)
-        STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/gLiveView.sh)
-        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > "${PARENT}"/gLiveView.sh.tmp
-        mv -f "${PARENT}"/gLiveView.sh "${PARENT}/gLiveView.sh_bkp$(printf '%(%s)T\n' -1)" && \
-        mv -f "${PARENT}"/gLiveView.sh.tmp "${PARENT}"/gLiveView.sh && \
-        chmod 750 "${PARENT}"/gLiveView.sh && \
-        myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!" || \
-        myExit 1 "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
-      fi
-    fi
-  else
-    echo -e "\nFailed to download gLiveView.sh from GitHub, unable to perform version check!"
-    waitToProceed && clear
-  fi
-  rm -f "${PARENT}"/gLiveView.sh.tmp
+  # check for gLV update
+  checkUpdate gLiveView.sh "${ENV_UPDATED}"
+  case $? in
+    1) $0 "$@" "-u"; myExit 0 ;; # re-launch script with same args skipping update check
+    2) exit 1 ;;
+  esac
 else
   # source common env variables in offline mode
   . "${PARENT}"/env offline
@@ -1084,27 +1078,27 @@ while true; do
         [[ ${confirmed_cnt} -ne ${adopted_cnt} ]] && confirmed_fmt="${style_status_2}" || confirmed_fmt="${style_values_2}"
         
         # row 1
-        printf "${VL} Leader     : ${style_values_1}%-${col_block_1_1_value_width}s${NC}" "${leader_cnt}"
+        printf "${VL} Leader     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${leader_cnt}"
         mvThreeSecond
-        printf "Adopted    : ${style_values_1}%-${col_block_1_2_value_width}s${NC}" "${adopted_cnt}"
+        printf "Adopted    : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${adopted_cnt}"
         mvThreeThird
-        printf "Missed     : ${missed_fmt}%-${col_block_1_3_value_width}s${NC}" "${missed_cnt}"
+        printf "Missed     : ${missed_fmt}%-${three_col_3_value_width}s${NC}" "${missed_cnt}"
         closeRow
         
         # row 2
-        printf "${VL} Ideal      : ${style_values_1}%-${col_block_1_1_value_width}s${NC}" "${epoch_stats[0]}"
+        printf "${VL} Ideal      : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[0]}"
         mvThreeSecond
-        printf "Confirmed  : ${confirmed_fmt}%-${col_block_1_2_value_width}s${NC}" "${confirmed_cnt}"
+        printf "Confirmed  : ${confirmed_fmt}%-${three_col_2_value_width}s${NC}" "${confirmed_cnt}"
         mvThreeThird
-        printf "Ghosted    : ${ghosted_fmt}%-${col_block_1_3_value_width}s${NC}" "${ghosted_cnt}"
+        printf "Ghosted    : ${ghosted_fmt}%-${three_col_3_value_width}s${NC}" "${ghosted_cnt}"
         closeRow
         
         # row 3
-        printf "${VL} Luck       : ${style_values_1}%-${col_block_1_1_value_width}s${NC}" "${epoch_stats[1]}"
+        printf "${VL} Luck       : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[1]}"
         mvThreeSecond
-        printf "Invalid    : ${invalid_fmt}%-${col_block_1_2_value_width}s${NC}" "${invalid_cnt}"
+        printf "Invalid    : ${invalid_fmt}%-${three_col_2_value_width}s${NC}" "${invalid_cnt}"
         mvThreeThird
-        printf "Stolen     : ${stolen_fmt}%-${col_block_1_3_value_width}s${NC}" "${stolen_cnt}"
+        printf "Stolen     : ${stolen_fmt}%-${three_col_3_value_width}s${NC}" "${stolen_cnt}"
         closeRow
 
         if [[ -n ${leader_next} ]]; then
@@ -1129,11 +1123,11 @@ while true; do
         [[ ${isleader} -ne ${adopted} ]] && adopted_fmt="${style_status_2}" || adopted_fmt="${style_values_2}"
         [[ ${didntadopt} -eq 0 ]] && invalid_fmt="${style_values_1}" || invalid_fmt="${style_status_3}"
         
-        printf "${VL} Leader : ${style_values_1}%-${col_block_2_1_value_width}s${NC}" "${isleader}"
+        printf "${VL} Leader : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${isleader}"
         mvThreeSecond
-        printf "Adopted : ${adopted_fmt}%-${col_block_2_2_value_width}s${NC}" "${adopted}"
+        printf "Adopted : ${adopted_fmt}%-${three_col_2_value_width}s${NC}" "${adopted}"
         mvThreeThird
-        printf "Invalid : ${invalid_fmt}%-${col_block_2_3_value_width}s${NC}" "${didntadopt}"
+        printf "Invalid : ${invalid_fmt}%-${three_col_3_value_width}s${NC}" "${didntadopt}"
         closeRow
       fi
     fi

@@ -12,30 +12,30 @@ graph TB
   D(Create Custom Assets?)
   E(Monitor node <br/> using Terminal UI)
   O(Node)
-  P(PostgREST)
+  F(Manage Pool/Wallet Keys<br/>and tx signing<br/>offline)
+  P(gRest/Koios)
   Q(DBSync)
   R(Wallet)
   S(CNTools)
-  T(Rest)
   U(GraphQL)
   V(OfflineMetadataTools)
   X(gLiveView)
 
-O --x E --x X
+F --x S
 O --x C --x S
 O --x D
 D --x S
 D --x V
+O --x E --x X
 O --x B
-B --x P --x Q
-B --x T --x Q
 B --x U --x Q
+B --x P --x Q
 O --x A --x R
 ```
 
-!!! warning ""
-    We strongly prefer use of PostgREST over Rest/GraphQL components due to performance, security, simplicity, control and most importantly - consistency benefits. Please refer to [official documentations](https://docs.cardano.org) if you're interested in `GraphQL` or `Cardano-Rest` components instead.
+!!! warning "Important"
+    We strongly prefer use of gRest over GraphQL components due to performance, security, simplicity, control and most importantly - consistency benefits. Please refer to [official documentations](https://docs.cardano.org) if you're interested in `GraphQL` or `Cardano-Rest` components instead.
 
 !!! info "Note"
-    **The instructions are intentionally limited to stack/cabal** to avoid wait times/availability of nix/docker files on a rapidly developing codebase - this also helps us prevent managing multiple versions of instructions.
+    The instructions are intentionally limited to stack/cabal** to avoid wait times/availability of nix/docker files on a rapidly developing codebase - this also helps us prevent managing multiple versions of instructions.
 

@@ -8,6 +8,7 @@ CREATE TABLE grest.epoch_info_cache (
   i_blk_count uinteger NOT NULL,
   i_first_block_time timestamp without time zone UNIQUE NOT NULL,
   i_last_block_time timestamp without time zone UNIQUE NOT NULL,
+  i_active_stake lovelace,
   p_min_fee_a uinteger NOT NULL,
   p_min_fee_b uinteger NOT NULL,
   p_max_block_size uinteger NOT NULL,
@@ -27,7 +28,7 @@ CREATE TABLE grest.epoch_info_cache (
   p_min_utxo_value lovelace NOT NULL,
   p_min_pool_cost lovelace NOT NULL,
   p_nonce text,
-  p_block_id bigint NOT NULL,
+  p_block_hash text NOT NULL,
   p_cost_models character varying,
   p_price_mem double precision,
   p_price_step double precision,
@@ -52,6 +53,7 @@ SELECT
   e.blk_count AS i_blk_count,
   e.start_time AS i_first_block_time,
   e.end_time AS i_last_block_time,
+  NULL AS i_active_stake,
   ep.min_fee_a AS p_min_fee_a,
   ep.min_fee_b AS p_min_fee_b,
   ep.max_block_size AS p_max_block_size,
@@ -71,7 +73,7 @@ SELECT
   ep.min_utxo_value AS p_min_utxo_value,
   ep.min_pool_cost AS p_min_pool_cost,
   ENCODE(ep.nonce, 'hex') AS p_nonce,
-  ep.block_id AS p_block_id,
+  ENCODE(b.hash, 'hex') AS p_block_hash,
   ep.cost_models AS p_cost_models,
   ep.price_mem AS p_price_mem,
   ep.price_step AS p_price_step,
@@ -85,7 +87,23 @@ SELECT
   ep.coins_per_utxo_word AS p_coins_per_utxo_word
 FROM
   epoch e
-  INNER JOIN epoch_param ep ON ep.epoch_no = e.no;
+  INNER JOIN epoch_param ep ON ep.epoch_no = e.no
+  INNER JOIN block b ON b.id = ep.block_id;
+
+UPDATE
+  grest.epoch_info_cache
+SET
+  i_active_stake = update_table.active_stake
+FROM (
+  SELECT
+    epoch_no,
+    SUM(es.amount) AS active_stake
+  FROM
+    epoch_stake es
+  GROUP BY
+    es.epoch_no) update_table
+WHERE
+  epoch = update_table.epoch_no;
 
 -- Trigger for updating current epoch data
 DROP FUNCTION IF EXISTS grest.epoch_info_update CASCADE;
@@ -223,7 +241,7 @@ WHERE
     ep.min_utxo_value AS p_min_utxo_value,
     ep.min_pool_cost AS p_min_pool_cost,
     ENCODE(ep.nonce, 'hex') AS p_nonce,
-    ep.block_id AS p_block_id,
+    ENCODE(b.hash, 'hex') AS p_block_hash,
     ep.cost_models AS p_cost_models,
     ep.price_mem AS p_price_mem,
     ep.price_step AS p_price_step,
@@ -238,12 +256,33 @@ WHERE
   FROM
     epoch e
     INNER JOIN epoch_param ep ON ep.epoch_no = e.no
+    INNER JOIN block b ON b.id = ep.block_id
   WHERE
     e.no = (
       SELECT
         MAX(NO)
       FROM
         epoch);
+  UPDATE
+    grest.epoch_info_cache
+  SET
+    i_active_stake = update_table.active_stake
+  FROM (
+    SELECT
+      epoch_no,
+      SUM(es.amount) AS active_stake
+    FROM
+      epoch_stake es
+    WHERE
+      es.epoch_no = (
+        SELECT
+          MAX(NO)
+        FROM
+          epoch)
+      GROUP BY
+        es.epoch_no) update_table
+WHERE
+  epoch = update_table.epoch_no;
   RETURN NULL;
 END;
 $new_epoch_insert$
