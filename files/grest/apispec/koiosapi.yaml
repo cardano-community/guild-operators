@@ -166,7 +166,6 @@ paths:
     get:
       tags:
         - Block
-      parameters:
       responses:
         "200":
           $ref: "#/components/responses/OK"
@@ -267,7 +266,6 @@ paths:
     get:
       tags:
         - Transactions
-      parameters:
       responses:
         "200":
           description: Array of known metadata labels
