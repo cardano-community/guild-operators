@@ -1,6 +1,5 @@
 DROP FUNCTION IF EXISTS grest.asset_summary (text, text);
 
--- Search by policy id? explore options
 CREATE FUNCTION grest.asset_summary (_asset_policy text, _asset_name text)
   RETURNS TABLE (
     policy_id text,
