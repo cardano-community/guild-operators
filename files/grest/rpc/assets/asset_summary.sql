@@ -47,7 +47,7 @@ asset_utxos AS (
     _asset_name,
     supply_t.total_supply,
     tx_t.total_transactions,
-    wallets_t.total_wallets,
+    registered_wallets_t.registered_wallets + unregistered_wallets_t.unregistered_wallets,
     creation_t.creation_time
   FROM (
     SELECT
@@ -56,7 +56,7 @@ asset_utxos AS (
       asset_utxos) supply_t
   LEFT JOIN (
     SELECT
-      COUNT(*) as total_transactions
+      COUNT(DISTINCT (asset_txs.tx_id)) as total_transactions
     FROM
       asset_txs
       -- Excluding minting transactions
@@ -65,10 +65,18 @@ asset_utxos AS (
       MTM.ID is null) tx_t ON TRUE
   LEFT JOIN (
     SELECT
-      COUNT(DISTINCT (sa.id)) as total_wallets
+      COUNT(DISTINCT (sa.id)) as registered_wallets
     from
       asset_utxos
-      INNER JOIN STAKE_ADDRESS SA ON SA.id = asset_utxos.STAKE_ADDRESS_ID) wallets_t ON TRUE
+      INNER JOIN STAKE_ADDRESS SA ON SA.id = asset_utxos.STAKE_ADDRESS_ID) registered_wallets_t ON TRUE
+  LEFT JOIN (
+    SELECT
+      COUNT(DISTINCT (asset_utxos.address)) as unregistered_wallets
+    from
+      asset_utxos
+      LEFT JOIN STAKE_ADDRESS SA ON SA.id = asset_utxos.STAKE_ADDRESS_ID
+    WHERE
+      SA.ID IS NULL) unregistered_wallets_t ON TRUE
   LEFT JOIN (
     SELECT
       b.time as creation_time
