@@ -9,9 +9,10 @@
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
 CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=4
+CNTOOLS_MINOR_VERSION=7
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=17
+CNTOOLS_PATCH_VERSION=0
+
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
@@ -24,7 +25,6 @@ if ! mkdir -p "${WALLET_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}
 if ! mkdir -p "${POOL_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}: Failed to create pool directory: ${POOL_FOLDER}"; fi
 if ! mkdir -p "${ASSET_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}: Failed to create asset directory: ${POOL_ASSET}"; fi
 [[ -z ${TIMEOUT_NO_OF_SLOTS} ]] && TIMEOUT_NO_OF_SLOTS=600
-[[ ${SHELLEY_TRANS_FILENAME} =~ ^${CNODE_HOME}/db/ ]] && mkdir -p "${CNODE_HOME}/guild-db" && SHELLEY_TRANS_FILENAME="${CNODE_HOME}/guild-db/shelley_trans_epoch"
 [[ -z ${WALLET_SELECTION_FILTER_LIMIT} ]] && WALLET_SELECTION_FILTER_LIMIT=10
 [[ -z ${KES_ALERT_PERIOD} ]] && KES_ALERT_PERIOD=172800 # default 2 days
 [[ -z ${KES_WARNING_PERIOD} ]] && KES_WARNING_PERIOD=604800 # default 7 days
@@ -33,6 +33,7 @@ if ! mkdir -p "${ASSET_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}:
 [[ -z ${ENABLE_DIALOG} ]] && ENABLE_DIALOG=true
 [[ ${ENABLE_ADVANCED} = "true" ]] && ADVANCED_MODE="true"
 [[ -z ${CHECK_KES} ]] && CHECK_KES=true
+[[ -z ${CNTOOLS_LOG} ]] && CNTOOLS_LOG="${LOG_DIR}/cntools-history.log"
 
 ############################################################
 # library sourced by cntools with common taskes to perform #
@@ -129,17 +130,15 @@ protectionPreRequisites() {
   ! cmdAvailable "gpg" && return 1
 
   if ! cmdAvailable "chattr" &>/dev/null; then
-    [[ ${ENABLE_CHATTR} = true ]] && println ERROR "chattr command not available but enabled in config, please install or disable in cntools.config and re-run CNTools" && return 1
+    [[ ${ENABLE_CHATTR} = true ]] && echo -e "chattr command not available but enabled in config, please install or disable in cntools.config and re-run CNTools" && return 1
   elif [[ ${ENABLE_CHATTR} = true ]]; then # chattr available and enabled, make sure sudo access to chattr is enabled
     touch "${TMP_DIR}"/test
-    println DEBUG "Testing chattr access permission, enter user password if requested..."
+    echo -e "Testing chattr access permission, enter user password if requested..."
     if ! sudo chattr -i "${TMP_DIR}"/test; then
       rm -f "${TMP_DIR}"/test
-      echo
-      println ERROR "${FG_YELLOW}WARN${NC}: Elevated privileges needed for chattr command used to write protect wallet and pool keys"
-      println ERROR "Add required sudo permissions or run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
-      echo
-      println ERROR "echo \"$(whoami) ALL=NOPASSWD: $(command -v chattr)\" | sudo tee /etc/sudoers.d/cntools"
+      echo -e "\n${FG_YELLOW}WARN${NC}: Elevated privileges needed for chattr command used to write protect wallet and pool keys"
+      echo -e "Add required sudo permissions or run the following command to add passwordless sudo access to chattr command for '$(whoami)' user"
+      echo -e "echo \"$(whoami) ALL=NOPASSWD: $(command -v chattr)\" | sudo tee /etc/sudoers.d/cntools"
       return 1
     fi
     rm -f "${TMP_DIR}"/test
@@ -955,17 +954,21 @@ getAssetsTxOut() {
 #               based on calculations from https://github.com/input-output-hk/cardano-ledger-specs/blob/master/doc/explanations/min-utxo.rst
 # Return      : populates ${min_utxo_out}
 getMinUTxO() {
-  [[ -z ${minUTxOValue} ]] && minUTxOValue=$(jq -r '.minUTxOValue //1000000' <<< "${PROT_PARAMS}")
-  min_utxo_out=${minUTxOValue}
+  [[ -z ${utxoCostPerWord} ]] && utxoCostPerWord=$(jq -r '.utxoCostPerWord' <<< "${PROT_PARAMS}")
 
   # chain constants, based on: https://hydra.iohk.io/build/5949624/download/1/shelley-ma.pdf
-  local k0=0				                # coinSize=0 in mary-era, 2 in alonzo-era
+  local k0=2				                # coinSize=0 in mary-era, 2 in alonzo-era
   local k1=6
   local k2=12				                # assetSize=12
   local k3=28				                # pidSize=28
   local k4=8				                # word=8 bytes
   local utxoEntrySizeWithoutVal=27 	# 6 + txOutLenNoVal(14) + txInLen(7)
-  local adaOnlyUTxOSize=$((${utxoEntrySizeWithoutVal} + ${k0}))
+  local adaOnlyUTxOSize=$(( utxoEntrySizeWithoutVal + k0 ))
+
+  # New calculation for alonzo-era, static minUTxOValue replaced with utxoCostPerWord calculation
+  minUTxOValue=$(( utxoCostPerWord * adaOnlyUTxOSize ))
+  
+  min_utxo_out=${minUTxOValue}
   
   # split the tx-out string into the assets
   IFS='+' read -ra asset_entry <<< "${1}"
@@ -2012,7 +2015,8 @@ rotatePoolKeys() {
   ! ${CCLI} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}" && return 1
   chmod 700 ${POOL_FOLDER}/${pool_name}/*
 
-  kesExpiration "${current_kes_period}"
+  unset remaining_kes_periods
+  kesExpiration ${current_kes_period}
 }
 
 # Command     : sendMetadata

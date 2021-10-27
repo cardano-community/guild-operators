@@ -11,17 +11,115 @@ Below you can find a short summary of every GRest meeting held, both for logging
 
 ### Participants:
 
-| Participant | 12Aug2021        | 29Jul2021        | 22Jul2021        | 15Jul2021        | 09Jul2021        | 02Jul2021        | 25Jun2021        |
-| ----------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- |
-| Damjan      | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
-| Homer       | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
-| Markus      | :material-close: | :material-check: | :material-check: | :material-close: | :material-close: | :material-check: | :material-check: |
-| Ola         | :material-close: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
-| RdLrT       | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
-| Red         | :material-close: | :material-check: | :material-check: | :material-close: | :material-check: | :material-close: | :material-close: |
-| Papacarp    | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: |
-| Paddy       | :material-close: | :material-close: | :material-close: | :material-check: | :material-close: | :material-close: | :material-close: |
-| GimbaLabs   | :material-check: | :material-check: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: |
+| Participant | 16Sep2021        | 02Sep2021        | 26Aug2021        | 19Aug2021        | 12Aug2021        | 29Jul2021        | 22Jul2021        | 15Jul2021        | 09Jul2021        | 02Jul2021        | 25Jun2021        |
+| ----------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- |
+| Damjan      | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
+| Homer       | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
+| Markus      | :material-close: | :material-check: | :material-check: | :material-check: | :material-close: | :material-check: | :material-check: | :material-close: | :material-close: | :material-check: | :material-check: |
+| Ola         | :material-check: | :material-check: | :material-check: | :material-check: | :material-close: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
+| RdLrT       | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: | :material-check: |
+| Red         | :material-close: | :material-check: | :material-close: | :material-check: | :material-close: | :material-check: | :material-check: | :material-close: | :material-check: | :material-close: | :material-close: |
+| Papacarp    | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: |
+| Paddy       | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: | :material-check: | :material-close: | :material-close: | :material-close: |
+| GimbaLabs   | :material-close: | :material-close: | :material-check: | :material-close: | :material-check: | :material-check: | :material-close: | :material-close: | :material-close: | :material-close: | :material-close: |
+
+=== "16Sep2021"
+
+    ### Scheduling running update queries
+    - Postgres triggers are synchronous so they slow down db-sync
+    - Decided to explore crontab for query scheduling instead
+
+    ### Refactor of queries
+    - Discussed how to structure RPC endpoints and what each should include
+    - Details have been captured in the Trello board
+
+    ### postgres tuning
+    - Discussed possible tunings to the postgres config
+    - Probably reducing WAL usage
+
+=== "02Sep2021"
+
+    ### Updates
+    - making good progress on the website (koios.rest) - great job Markus!
+    - query tickets are now well structured and put into sections (Account, Pool, Transactions...) on the Trello board - nice work Priyank/Ola!
+
+    ### Queries
+    - Transaction cache table:
+      - We would like to avoid 'handling' rollbacks in that table, instead simply dump if multiple entries for a transaction, as it can have much higher combination and volume to process - especially post a node/postgres/dbsync restart.
+      - Solution being tested:
+        - Use an md5 hash of concatenated tx_id, tx_index and block hash to generate unique serves as primary key in that table
+        - On RPC built off cache tables query layer, we would add a validation for block hash being in the public.block table and exclude those who are not as part of result
+        - This way we don't handle rollbacks, and also keep a record if in future we require to cross check/re-run delta
+
+    - Pool cache table:
+      - Need to check if transaction cache method is useful here too
+      - Using strace we could verify the order in which tables are touched, and avoid trigger-check to run on every block.
+
+    ### Problems
+    - Priyank noticed that if including any foreign keys for tx cache, it can cause a spike in load resulting in crash of db-sync instance (with locks). There arent any visible advantages maintaining a constraint on cache table anyways, as it decreases performance. Thus, we'd keep the cache tables simple and not include any foreign keys.
+    - Infrastructure upgrades unlikely to help for such cases (though we may need to increase baseline specs back to initial discussion anyways, but that would be during performance testing stages).
+
+    ### Actions
+    - POST/GET endpoint rules:
+      - Use GET for endpoints that take no input parameters (PostgREST native parameters can still be applied via URL)
+      - Any endpoint that we accept consumer to provide parameter for should be POST
+    - Switch cardanoqueries.ha to api.koios.rest on the API docs
+    - Load balancing:
+      - Until we see additional instances, the 4 trusted instances serve as Monitoring layer.
+      - If/when we start having community instances, we could start splitting topologies to be geographically balanced - using github as source.
+
+=== "26Aug2021"
+
+    ### Queries
+
+    - stake distribution:
+      - we will run the full query on regular intervals, ready for review for first iteration, will see about delta post tx cache query
+
+    - transaction history:
+      - transaction history query needs to be switched to populate a cached table instead
+      - need to think about how to approach inputs/outputs in the cached table (1 row per transaction with json objects for inputs/outputs or multiple rows for tx hash)
+
+    - address_txs:
+      - this endpoint should bring back list of txs, and have provision to use after and before block hash - lightweight against public schema
+
+    - pool cache table:
+      - cached table to aggregate info from all the pool tables together (pool_metadata, pool_hash, pool_update...)
+      - the cached data should include the full history of all pools as well as the current state (latest pool update)
+      - will then be used for (most likely) all pool related endpoints without the need for joins
+
+    ### Transaction submission feature
+      - a post endpoint separate from gREST ones (different port), proxy'd over haproxy using same health check script appended for node
+      - will receive signed transactions in 2 formats (file and cbor) and use cardano-submit-api or CLI to submit them to the blockchain respectively
+      - use cases are mostly light wallets, and third-party wallets or CNTools could implement such light features with it (no need for cardano-node with CNTools)
+
+=== "19Aug2021"
+
+    ### DB replication presentation by Redoracle
+
+    - Proposition to move the gRest schema and tables required by the API to smaller instances that can be scaled more easily
+    - Pros and Cons to the approach discussed, worth investigating based on performance comparisons
+
+    ### Process for upgrading our instances:
+
+    - Collaboration between trusted peers will be needed, to upgrade sequentially (3 off 6 instances, for example)
+    - Use DNS subdomain for upgraded nodes for testing
+    - Ideally upgrade processes to be done between 2nd-4th day of epoch to avoid overloading smaller subset in peak hours
+    - Enhance grest-poll to use arguments and seperate haproxy backends, allowing for test based reduction
+
+    ### Queries:
+
+    #### Stake distribution
+
+    - we need to implement triggers
+    - dealing with block rollbacks is tricky
+    - Priyank will make an example of his idea of how to deal with it that others can use/build upon
+
+    #### Tx History
+
+    - Current PR to be split into two (to include value/assets and not have to return JSON that is resource intensive to generate/parse):
+      - Addr to Tx Hash list using start and end blocks
+      - Bulk Tx Hash (limit 100) query to get as much details about tx sent as possible
+    - Consider if cache table makes sense after above change. If yes, we also need triggers that can handle rollbacks
 
 === "12Aug2021"
 
@@ -58,7 +156,7 @@ Below you can find a short summary of every GRest meeting held, both for logging
       - run stake_distribution query on multiple instances, report output of `EXPLAIN (ANALYZE, BUFFERS)`
       - catalyst rewards can be ignored until there is a clear path to get them: Fix underway using open PR
       - if someone needs help getting the right db-sync commit, message Priyank for help as the branch is now deleted
-      - add project metadata (requirements) to pgrest doc header in a checklist format that folks can use to ensure their setup is up-to-date with the current project state
+      - add project metadata (requirements) to grest doc header in a checklist format that folks can use to ensure their setup is up-to-date with the current project state
       - Discussed long-term plans (will be added separately in group)
 
 === "22Jul2021"
@@ -85,7 +183,7 @@ Below you can find a short summary of every GRest meeting held, both for logging
     2. Individual
 
         - sync db-sync instances to commit `84226d33eed66be8e61d50b7e1dacebdc095cee9` on `release/10.1.x`
-        - update setups to reflect recent directory restructuring and [updated instructions](https://rdlrt.ga/guild2/Build/pgrest/)
+        - update setups to reflect recent directory restructuring and [updated instructions](https://rdlrt.ga/guild2/Build/grest/)
 
 === "15Jul2021"
 
@@ -141,7 +239,7 @@ Below you can find a short summary of every GRest meeting held, both for logging
 
     ### Deployment scripts
 
-    During the last week, work has been done on deployment scripts for all services (db-sync, pgREST and haproxy) -> this is now in testing with updated instructions on [trello](https://trello.com/c/1GS8VpNP/2-add-haproxy-config-to-setup). Everybody can put their name down on the ticket to signify when the setup is complete and note down any comments for bugs/improvements. This is the main priority at the moment as it would allow us to start transferring our setups to mainnet.
+    During the last week, work has been done on deployment scripts for all services (db-sync, gRest and haproxy) -> this is now in testing with updated instructions on [trello](https://trello.com/c/1GS8VpNP/2-add-haproxy-config-to-setup). Everybody can put their name down on the ticket to signify when the setup is complete and note down any comments for bugs/improvements. This is the main priority at the moment as it would allow us to start transferring our setups to mainnet.
 
     ### Switch to Mainnet
 
@@ -180,7 +278,7 @@ Below you can find a short summary of every GRest meeting held, both for logging
     ### Stand-ups
     We then proceeded to give a status of where we are individually in terms of what's been done, a summary below:
 
-    - Homer, Ola, Markus, Priyank and Damjan have all set up their dbsync + pgrest endpoints against guild network and added to topology.
+    - Homer, Ola, Markus, Priyank and Damjan have all set up their dbsync + gRest endpoints against guild network and added to topology.
     - Ola laid down the groundwork for CNTools to integrate with API endpoints created so far.
     - Markus has created the systemd scripts and will add them soon to repo
     - Damjan is tracking live stake query that includes payment + stake address, but is awaiting fix on dbsync for pool refund (contextual reserves -> account) , also need to validate reserve -> MIR certs
@@ -191,7 +289,7 @@ Below you can find a short summary of every GRest meeting held, both for logging
     1. Directory structure on the repo -> General agreement is to have anything related to db-sync/postgREST separated from the current cnode-helper-scripts directory. We can finalise the end locations of files a bit later, for now intent should be to simply add them all to /files/dbsync folder. `prereqs.sh` addendum can be done once artifacts are finalised (added a Trello ticket for tracking).
     2. DNS/haproxy configurations:
       We have two options:
-      a. controlled approach for endpoints - wherein there is a layer of haproxy that will load balance and ensure tip being in sync for individual providers (individuals can provide haproxy OR pgrest instances).
+      a. controlled approach for endpoints - wherein there is a layer of haproxy that will load balance and ensure tip being in sync for individual providers (individuals can provide haproxy OR gRest instances).
       b. completely decentralised - each client to maintain haproxy endpoint, and fails over to other node if its not up to recent tip.
       I think that in general, it was agreed to use a hybrid approach. Details are captured in diagram [here](https://t.me/c/1499031483/335). DNS endpoint can be reserved post initial testing of haproxy-agent against mainnet nodes.
     3. Internal monitoring system

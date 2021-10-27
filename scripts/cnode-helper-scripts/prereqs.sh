@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2086,SC1090
+# shellcheck disable=SC2086,SC1090,SC2059
 # shellcheck source=/dev/null
 
 unset CNODE_HOME
@@ -45,8 +45,10 @@ get_answer() {
   done
 }
 
+# Description : Exit with error message
+#             : $1 = Error message we'd like to display before exiting (function will pre-fix 'ERROR: ' to the argument)
 err_exit() {
-  printf "%s\nExiting...\n" "$*" >&2
+  printf "\e[31mERROR\e[0m: ${1}\n" >&2
   pushd -0 >/dev/null && dirs -c
   exit 1
 }
@@ -69,7 +71,6 @@ Install pre-requisites for building cardano node and using CNTools
 -l    Use system libsodium instead of IOG fork (Default: use libsodium from IOG fork)
 -c    Install/Upgrade and build CNCLI with RUST
 -w    Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
--p    Install/Upgrade PostgREST binary to query postgres DB as a service
 -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 -i    Interactive mode (Default: silent mode)
 
@@ -86,7 +87,6 @@ while getopts :in:sflcwpt:m:b: opt; do
     l ) LIBSODIUM_FORK='N' ;;
     c ) INSTALL_CNCLI='Y' ;;
     w ) INSTALL_VCHC='Y' ;;
-    p ) INSTALL_POSTGREST='Y' ;;
     t ) CNODE_NAME=${OPTARG//[^[:alnum:]]/_} ;;
     m ) CURL_TIMEOUT=${OPTARG} ;;
     b ) BRANCH=${OPTARG} ;;
@@ -180,7 +180,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo apt-get -y install curl > /dev/null
     $sudo apt-get -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute dialog sqlite automake sqlite3 bsdmainutils libusb-1.0-0-dev libudev-dev"
+    pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute dialog automake sqlite3 bsdmainutils libusb-1.0-0-dev libudev-dev"
     $sudo apt-get -y install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
@@ -244,7 +244,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     unset BOOTSTRAP_HASKELL_NONINTERACTIVE
     curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sed -e 's#read.*#answer=Y;next_answer=P;hls_answer=N#' | bash
   fi
-  . "${HOME}"/.bashrc
+  [ -f "${HOME}/.ghcup/env" ] && source "${HOME}/.ghcup/env"
   if ! ghc --version 2>/dev/null | grep -q ${BOOTSTRAP_HASKELL_GHC_VERSION}; then
     echo "Installing GHC v${BOOTSTRAP_HASKELL_GHC_VERSION} .."
     ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}
@@ -274,7 +274,6 @@ else
   echo "Setting up Environment Variable"
   echo "export ${CNODE_VNAME}_HOME=${CNODE_HOME}" >> "${HOME}"/.bashrc
   
-  . "${HOME}/".bashrc
 fi
 
 mkdir -p "${HOME}"/git > /dev/null 2>&1 # To hold git repositories that will be used for building binaries
@@ -346,7 +345,7 @@ if [[ "${INSTALL_VCHC}" = "Y" ]]; then
   if curl -sL -f -m ${CURL_TIMEOUT} -o cardano-hw-cli_linux-x64.tar.gz ${vchc_asset_url}; then
     tar zxf cardano-hw-cli_linux-x64.tar.gz &>/dev/null
     rm -f cardano-hw-cli_linux-x64.tar.gz
-    [[ -f cardano-hw-cli/cardano-hw-cli ]] || err_exit "ERROR!! cardano-hw-cli downloaded but binary not found after extracting package!"
+    [[ -f cardano-hw-cli/cardano-hw-cli ]] || err_exit "cardano-hw-cli downloaded but binary not found after extracting package!"
     vchc_git_version="$(cardano-hw-cli/cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
     if ! versionCheck "${vchc_git_version}" "${vchc_version}"; then
       [[ ${vchc_version} = "0.0.0" ]] && echo "  latest version: ${vchc_git_version}" || echo "  installed version: ${vchc_version}  |  latest version: ${vchc_git_version}"
@@ -379,34 +378,7 @@ if [[ "${INSTALL_VCHC}" = "Y" ]]; then
       echo "  cardano-hw-cli already latest version [${vchc_version}], skipping!"
     fi
   else
-    err_exit "ERROR!! Download of latest release of cardano-hw-cli from GitHub failed! Please retry or manually install"
-  fi
-fi
-
-if [[ "${INSTALL_POSTGREST}" = "Y" ]]; then
-  echo "Installing PostgREST"
-  if command -v postgrest >/dev/null; then pgrest_version="$(postgrest -h 2>/dev/null | grep 'PostgREST ' | awk '{print $2}')"; else pgrest_version="0.0.0"; fi
-  echo "  downloading PostgREST archive..."
-  pushd /tmp >/dev/null || err_exit
-  rm -rf postgrest-v*
-  pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-x64-static.tar.xz')"
-  if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest-linux-x64.tar.xz ${pgrest_asset_url}; then
-    tar xf postgrest-linux-x64.tar.xz &>/dev/null
-    rm -f postgrest-linux-x64.tar.xz
-    [[ -f postgrest ]] || err_exit "ERROR!! postgrest archive downloaded but binary not found after attempting to extract package!"
-    pgrest_git_version="$(./postgrest -h 2>/dev/null | grep 'PostgREST ' | awk '{print $2}')"
-    if ! versionCheck "${pgrest_git_version}" "${pgrest_version}"; then
-      [[ ${pgrest_version} = "0.0.0" ]] && echo "  latest version: ${pgrest_git_version}" || echo "  installed version: ${pgrest_version}  |  latest version: ${pgrest_git_version}"
-      [[ ! -d "${HOME}"/.cabal/bin ]] && mkdir -p "${HOME}"/.cabal/bin
-      pushd "${HOME}"/.cabal/bin >/dev/null || err_exit
-      mv -f /tmp/postgrest .
-      echo "  postgrest ${vchc_git_version} installed!"
-    else
-      rm -rf postgrest #cleanup in /tmp
-      echo "  postgrest already latest version [${pgrest_version}], skipping!"
-    fi
-  else
-    err_exit "ERROR!! Download of latest release of postgrest from GitHub failed! Please retry or manually install"
+    err_exit "Download of latest release of cardano-hw-cli from GitHub failed! Please retry or manually install it."
   fi
 fi
 
@@ -433,23 +405,26 @@ curl -sL -f -m ${CURL_TIMEOUT} -o dbsync.json.tmp ${URL_RAW}/files/config-dbsync
 # Download node config, genesis and topology from template
 if [[ ${NETWORK} = "guild" ]]; then
   curl -s -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp ${URL_RAW}/files/byron-genesis-guild.json
-  curl -s -f -m ${CURL_TIMEOUT} -o genesis.json.tmp ${URL_RAW}/files/genesis-guild.json
+  curl -s -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp ${URL_RAW}/files/genesis-guild.json
+  curl -s -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp ${URL_RAW}/files/alonzo-genesis-guild.json
   curl -s -f -m ${CURL_TIMEOUT} -o topology.json.tmp ${URL_RAW}/files/topology-guild.json
   curl -s -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-guild.json
-elif [[ ${NETWORK} =~ ^(mainnet|testnet|guild|staging)$ ]]; then
+elif [[ ${NETWORK} =~ ^(mainnet|testnet|staging)$ ]]; then
   curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${NETWORK}-byron-genesis.json
-  curl -sL -f -m ${CURL_TIMEOUT} -o genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${NETWORK}-shelley-genesis.json
+  curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${NETWORK}-shelley-genesis.json
+  curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${NETWORK}-alonzo-genesis.json
   curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${NETWORK}-topology.json
   curl -s -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-${NETWORK}.json
 else
-  err_exit "ERROR!! Unknown network specified! Kindly re-check the network name, valid options are: mainnet, testnet, guild & staging"
+  err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, testnet, guild & staging."
 fi
 sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -i ./*.json.tmp
 [[ ${FORCE_OVERWRITE} = 'Y' && -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
 [[ ${FORCE_OVERWRITE} = 'Y' && -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
 [[ ${FORCE_OVERWRITE} = 'Y' && -f dbsync.json ]] && cp -f dbsync.json "dbsync.json_bkp$(date +%s)"
 if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f byron-genesis.json ]]; then mv -f byron-genesis.json.tmp byron-genesis.json; else rm -f byron-genesis.json.tmp; fi
-if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f genesis.json ]]; then mv -f genesis.json.tmp genesis.json; else rm -f genesis.json.tmp; fi
+if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f shelley-genesis.json ]]; then mv -f shelley-genesis.json.tmp shelley-genesis.json; else rm -f shelley-genesis.json.tmp; fi
+if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f alonzo-genesis.json ]]; then mv -f alonzo-genesis.json.tmp alonzo-genesis.json; else rm -f alonzo-genesis.json.tmp; fi
 if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f topology.json ]]; then mv -f topology.json.tmp topology.json; else rm -f topology.json.tmp; fi
 if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f config.json ]]; then mv -f config.json.tmp config.json; else rm -f config.json.tmp; fi
 if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f dbsync.json ]]; then mv -f dbsync.json.tmp dbsync.json; else rm -f dbsync.json.tmp; fi
@@ -458,11 +433,12 @@ pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
 curl -s -f -m ${CURL_TIMEOUT} -o env.tmp ${URL_RAW}/scripts/cnode-helper-scripts/env
 curl -s -f -m ${CURL_TIMEOUT} -o rotatePoolKeys.sh ${URL_RAW}/scripts/cnode-helper-scripts/rotatePoolKeys.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cnode.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cnode.sh
+curl -s -f -m ${CURL_TIMEOUT} -o dbsync.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/dbsync.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cntools.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntools.sh
-curl -s -f -m ${CURL_TIMEOUT} -o cntools.config.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cntools.config
 curl -s -f -m ${CURL_TIMEOUT} -o cntools.library ${URL_RAW}/scripts/cnode-helper-scripts/cntools.library
 curl -s -f -m ${CURL_TIMEOUT} -o logMonitor.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/logMonitor.sh
 curl -s -f -m ${CURL_TIMEOUT} -o setup_mon.sh ${URL_RAW}/scripts/cnode-helper-scripts/setup_mon.sh
+curl -s -f -m ${CURL_TIMEOUT} -o setup-grest.sh ${URL_RAW}/scripts/grest-helper-scripts/setup-grest.sh
 curl -s -f -m ${CURL_TIMEOUT} -o topologyUpdater.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/topologyUpdater.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cabal-build-all.sh ${URL_RAW}/scripts/cnode-helper-scripts/cabal-build-all.sh
 curl -s -f -m ${CURL_TIMEOUT} -o system-info.sh ${URL_RAW}/scripts/cnode-helper-scripts/system-info.sh
@@ -498,17 +474,17 @@ updateWithCustomConfig() {
   mv -f ${file}.tmp ${file}
 }
 
-[[ ${FORCE_OVERWRITE} = 'Y' ]] && echo "Forced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/gLiveView.sh and scripts/topologyUpdater.sh (alongwith files/topology.json, files/config.json, files/dbsync.json) as required/"
+[[ ${FORCE_OVERWRITE} = 'Y' ]] && echo "Forced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/dbsync.sh, scripts/gLiveView.sh and scripts/topologyUpdater.sh (alongwith files/topology.json, files/config.json, files/dbsync.json) as required/"
 
 updateWithCustomConfig "env"
 updateWithCustomConfig "cnode.sh"
+updateWithCustomConfig "dbsync.sh"
 updateWithCustomConfig "gLiveView.sh"
 updateWithCustomConfig "topologyUpdater.sh"
-updateWithCustomConfig "cntools.config"
 updateWithCustomConfig "logMonitor.sh"
 updateWithCustomConfig "cncli.sh"
 
-chmod -R 755 "${CNODE_HOME}" 2>/dev/null
+find "${CNODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
 chmod -R 700 "${CNODE_HOME}"/priv 2>/dev/null
 
 pushd -0 >/dev/null || err_exit; dirs -c

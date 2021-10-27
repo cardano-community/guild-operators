@@ -40,7 +40,7 @@ You can run the below to connect to a `cardano-node` instance that is expected t
 ```bash
 cardano-wallet serve /
     --node-socket $CNODE_HOME/sockets/node0.socket /
-    --mainnet / # if using the testnet flag you also need to specify the testnet genesis.json file
+    --mainnet / # if using the testnet flag you also need to specify the testnet shelley-genesis.json file
     --database $CNODE_HOME/priv/wallet
 ```
 

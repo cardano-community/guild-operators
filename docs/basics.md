@@ -23,7 +23,7 @@ chmod 755 prereqs.sh
 Please familiarise with the syntax of `prereqs.sh` before proceeding. The usage syntax can be checked using `./prereqs.sh -h` , sample output below:
 
 ``` bash
-Usage: prereqs.sh [-f] [-s] [-i] [-l] [-c] [-w] [-p] [-b <branch>] [-n <mainnet|testnet|guild|staging>] [-t <name>] [-m <seconds>]
+Usage: prereqs.sh [-f] [-s] [-i] [-l] [-c] [-w] [-b <branch>] [-n <mainnet|testnet|guild|staging>] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano-node and using CNTools
 
 -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
@@ -36,7 +36,6 @@ Install pre-requisites for building cardano-node and using CNTools
 -l    Use system libsodium instead of IOG fork (Default: use libsodium from IOG fork)
 -c    Install/Upgrade and build CNCLI with RUST
 -w    Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
--p    Install/Upgrade PostgREST binary to query postgres DB as a service
 -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 -i    Interactive mode (Default: silent mode)
 ```
@@ -53,17 +52,18 @@ Running without any parameters will run script in silent mode with OS Dependenci
 Running the script above will create the folder structure as per below, for your reference. You can replace the top level folder `/opt/cardano/cnode` by editing the value of `CNODE_HOME` in `~/.bashrc` and `$CNODE_HOME/files/env` files:
 
 
-    /opt/cardano/cnode          # Top-Level Folder
+    /opt/cardano/cnode            # Top-Level Folder
     ├── ...
-    ├── files                   # Config, genesis and topology files
+    ├── files                     # Config, genesis and topology files
     │   ├── ...
-    │   ├── genesis.json        # Genesis file referenced in config.json
-    │   ├── byron-genesis.json  # Byron Genesis file referenced in config.json (if using combinator network)
-    │   ├── config.json         # Config file used by cardano-node
-    │   └── topology.json       # Map of chain for cardano-node to boot from
-    ├── db                      # DB Store for cardano-node
-    ├── guild-db                # DB Store for guild-specific tools and additions (eg: cncli, cardano-db-sync's schema)
-    ├── logs                    # Logs for cardano-node
-    ├── priv                    # Folder to store your keys (permission: 600)
-    ├── scripts                 # Scripts to start and interact with cardano-node
-    └── sockets                 # Socket files created by cardano-node
+    │   ├── byron-genesis.json    # Byron Genesis file referenced in config.json
+    │   ├── shelley-genesis.json  # Genesis file referenced in config.json
+    │   ├── alonzo-genesis.json    # Alonzo Genesis file referenced in config.json
+    │   ├── config.json           # Config file used by cardano-node
+    │   └── topology.json         # Map of chain for cardano-node to boot from
+    ├── db                        # DB Store for cardano-node
+    ├── guild-db                  # DB Store for guild-specific tools and additions (eg: cncli, cardano-db-sync's schema)
+    ├── logs                      # Logs for cardano-node
+    ├── priv                      # Folder to store your keys (permission: 600)
+    ├── scripts                   # Scripts to start and interact with cardano-node
+    └── sockets                   # Socket files created by cardano-node

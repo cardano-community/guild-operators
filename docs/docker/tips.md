@@ -39,7 +39,7 @@ docker run -itd
 -e NETWORK=mainnet                            # Mandatory: mainnet / testnet / staging / guild-mainnet / guild
 --security-opt=no-new-privileges              # Option to prevent privilege escalations
 -v <YourNetPath>:/opt/cardano/cnode/sockets   # Optional: useful to share the node socket with other containers
--v <YourCfgPath>:/opt/cardano/cnode/priv      # Optional: if used has to contain all the configuration files needed to run a node 
+-v <YourCfgPath>:/opt/cardano/cnode/priv      # Optional: if used has to contain all the sensitive keys needed to run a node as core
 -v <YourDBbk>:/opt/cardano/cnode/db           # Optional: if not set a fresh DB will be downloaded from scratch
 cardanocommunity/cardano-node:latest          # Mandatory: image to run
 ```

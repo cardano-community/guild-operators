@@ -6,6 +6,39 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.7.0] - 2021-10-05
+#### Changed
+- CNTools configuration moved from cntools.config to cntools.sh
+
+## [8.6.6] - 2021-09-26
+#### Fixed
+- Pool rotation date calculation fix, 8.6.4 didn't properly fix it
+
+## [8.6.5] - 2021-09-15
+#### Fixed
+- Minimum utxo output calculation post Alonzo
+
+## [8.6.4] - 2021-09-14
+#### Fixed
+- Pool rotation date calculation fix (display only)
+
+## [8.6.3] - 2021-08-31
+#### Fixed
+- Pool retire fix
+
+## [8.6.2] - 2021-08-30
+#### Fixed
+- Revert `--whole-utxo` flag, as it returns all address and will not accept `--address`
+
+## [8.6.1] - 2021-08-27
+##### Changed
+- Alonzo related changes for era and minimum utxo.
+
+## [8.6.0] - 2021-08-27
+##### Changed
+- Add `--whole-utxo` flag when query UTxO, as required by cardano-cli 1.28, to keep behaviour same as before.
+- Baseline compatibility with 1.29
+
 ## [8.4.15] - 2021-07-15
 ##### Changed
 - Switch default to 'No' adding a message when sending funds
@@ -33,7 +66,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [8.4.9] - 2021-06-15
 ##### Changed
-- Handle Various updates to pgrest queries [disabled] to make them independent of instances.
+- Handle Various updates to grest queries [disabled] to make them independent of instances.
 Note: Version incremented thrice on PR branch itself
 
 ## [8.4.6] - 2021-06-04

@@ -1,0 +1,21 @@
+{
+  "Producers": [
+    {"addr": "node-dus.poolunder.com",         "port": 6900, "valency": 1, "pool": "UNDR",   "location": "EU/DE/Dusseldorf" },
+    {"addr": "node-fsn.poolunder.com",         "port": 6900, "valency": 1, "pool": "UNDR",   "location": "EU/DE/Falkenstein" },
+    {"addr": "node-bhs.poolunder.com",         "port": 6900, "valency": 1, "pool": "UNDR",   "location": "NA/CA/Montreal" },
+    {"addr": "node-sin.poolunder.com",         "port": 6900, "valency": 1, "pool": "UNDR",   "location": "AS/SG/Singapore" },
+    {"addr": "node-syd.poolunder.com",         "port": 6900, "valency": 1, "pool": "UNDR",   "location": "OC/AU/Sydney" },
+    {"addr": "88.99.83.86",                    "port": 4091, "valency": 1, "pool": "RDLRT",  "location": "EU/DE/Falkenstein" },
+    {"addr": "209.145.50.190",                 "port": 6001, "valency": 1, "pool": "RDLRT",  "location": "NA/US/StLouis" },
+    {"addr": "148.72.153.168",                "port": 16000, "valency": 1, "pool": "AAA",    "location": "US/StLouis" },
+    {"addr": "78.47.99.41",                    "port": 6000, "valency": 1, "pool": "AAA",    "location": "EU/DE/Nuremberg" },
+    {"addr": "relay1-pub.ahlnet.nu",           "port": 2111, "valency": 1, "pool": "AHL",    "location": "EU/SE/Malmo" },
+    {"addr": "relay2-pub.ahlnet.nu",           "port": 2111, "valency": 1, "pool": "AHL",    "location": "EU/SE/Malmo" },
+    {"addr": "relay1.clio.one",                "port": 6010, "valency": 1, "pool": "CLIO",   "location": "EU/IT/Milan" },
+    {"addr": "relay2.clio.one",                "port": 6010, "valency": 1, "pool": "CLIO",   "location": "EU/IT/Bozlano" },
+    {"addr": "relay3.clio.one",                "port": 6010, "valency": 1, "pool": "CLIO",   "location": "EU/IT/Bozlano" },
+    {"addr": "164.90.197.139",                 "port": 6000, "valency": 1, "name": "EDEN",   "location": "EU/NL/Amsterdam" },
+    {"addr": "128.199.187.2",                  "port": 6000, "valency": 1, "name": "EDEN",   "location": "AS/SG/Singapore" },
+    {"addr": "198.199.70.70",                  "port": 6000, "valency": 1, "name": "EDEN",   "location": "NA/US/NorthBergen" }
+  ]
+}
