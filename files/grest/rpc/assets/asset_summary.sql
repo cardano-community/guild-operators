@@ -22,25 +22,24 @@ BEGIN
   --
   RETURN QUERY
   --
-  WITH asset_tx_ids AS (
+  WITH asset_txs AS (
     SELECT
-      TX.ID
+      TXO.*,
+      MTX.quantity
     FROM
       MA_TX_OUT MTX
       INNER JOIN TX_OUT TXO ON TXO.ID = MTX.TX_OUT_ID
-      INNER JOIN TX ON TXO.TX_ID = TX.ID
     WHERE
       MTX.policy = _asset_policy_decoded
       AND MTX.name = _asset_name_decoded
 ),
-asset_utxo_ids AS (
+asset_utxos AS (
   SELECT
-    asset_tx_ids.ID
+    asset_txs.*
   FROM
-    asset_tx_ids
-    INNER JOIN TX_OUT TXO ON TXO.TX_ID = asset_tx_ids.id
-    LEFT JOIN TX_IN ON TXO.TX_ID = TX_IN.TX_OUT_ID
-      AND TXO.INDEX::smallint = TX_IN.TX_OUT_INDEX::smallint
+    asset_txs
+    LEFT JOIN TX_IN ON asset_txs.TX_ID = TX_IN.TX_OUT_ID
+      AND asset_txs.INDEX::smallint = TX_IN.TX_OUT_INDEX::smallint
   WHERE
     TX_IN.TX_IN_ID IS NULL)
   --
@@ -53,47 +52,37 @@ asset_utxo_ids AS (
     creation_t.creation_time
   FROM (
     SELECT
-      SUM(COALESCE(MTX.quantity, 0)) as total_supply
+      SUM(COALESCE(asset_utxos.quantity, 0)) as total_supply
     FROM
-      MA_TX_OUT MTX
-      INNER JOIN TX_OUT TXO ON TXO.ID = MTX.TX_OUT_ID
-      INNER JOIN asset_tx_ids ON asset_tx_ids.id = TXO.TX_ID
-      LEFT JOIN TX_IN ON TXO.TX_ID = TX_IN.TX_OUT_ID
-        AND TXO.INDEX::smallint = TX_IN.TX_OUT_INDEX::smallint
-    WHERE
-      TXO.TX_ID = asset_tx_ids.id
-      AND TX_IN.TX_IN_ID IS NULL) supply_t
+      asset_utxos) supply_t
   LEFT JOIN (
     SELECT
       COUNT(*) as total_transactions
-    from
-      asset_tx_ids
-      LEFT JOIN MA_TX_MINT MTM ON MTM.TX_ID = asset_tx_ids.id
+    FROM
+      asset_txs
+      -- Excluding minting transactions
+      LEFT JOIN MA_TX_MINT MTM ON MTM.TX_ID = asset_txs.id
     WHERE
       MTM.ID is null) tx_t ON TRUE
   LEFT JOIN (
     SELECT
       COUNT(DISTINCT (sa.id)) as total_wallets
     from
-      asset_utxo_ids
-      INNER JOIN TX_OUT TXO ON TXO.ID = asset_utxo_ids.id
-      INNER JOIN STAKE_ADDRESS SA ON SA.id = TXO.STAKE_ADDRESS_ID) wallets_t ON TRUE
+      asset_utxos
+      INNER JOIN STAKE_ADDRESS SA ON SA.id = asset_utxos.STAKE_ADDRESS_ID) wallets_t ON TRUE
   LEFT JOIN (
     SELECT
       b.time as creation_time
     FROM
-      MA_TX_MINT MTM
+      asset_txs
+      INNER JOIN MA_TX_MINT MTM ON MTM.TX_ID = asset_txs.TX_ID
       INNER JOIN TX ON TX.ID = MTM.TX_ID
       INNER JOIN BLOCK B ON B.id = TX.block_id
-    WHERE
-      MTM.policy = _asset_policy_decoded
-      AND MTM.name = _asset_name_decoded
     ORDER BY
       TX.ID ASC
     LIMIT 1) creation_t ON TRUE;
 END;
 $$;
 
-COMMENT ON FUNCTION grest.asset_summary IS 'Get the summary of an asset
- (total transactions exclude minting/total wallets includes only wallets with some balance)';
+COMMENT ON FUNCTION grest.asset_summary IS 'Get the summary of an asset (total transactions exclude minting/total wallets include only wallets with asset balance)';
 
