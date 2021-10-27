@@ -1,8 +1,3 @@
--- Index creation should be moved to a more general place in the setup
-CREATE INDEX IF NOT EXISTS _asset_policy_idx ON PUBLIC.MA_TX_OUT ( policy);
-
-CREATE INDEX IF NOT EXISTS _asset_identifier_idx ON PUBLIC.MA_TX_OUT ( policy, name);
-
 DROP FUNCTION IF EXISTS grest.asset_address_list (text, text);
 
 CREATE FUNCTION grest.asset_address_list (_asset_policy text, _asset_name text)

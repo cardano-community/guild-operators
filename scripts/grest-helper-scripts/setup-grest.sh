@@ -424,6 +424,10 @@
 			ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO web_anon;
 			ALTER DEFAULT PRIVILEGES IN SCHEMA grest GRANT SELECT ON TABLES TO web_anon;
 			ALTER ROLE web_anon SET search_path TO grest, public;
+
+      CREATE INDEX IF NOT EXISTS _asset_policy_idx ON PUBLIC.MA_TX_OUT (policy);
+      CREATE INDEX IF NOT EXISTS _asset_identifier_idx ON PUBLIC.MA_TX_OUT (policy, name);
+      
 			COMMIT;
 			EOF
     populate_genesis_table
