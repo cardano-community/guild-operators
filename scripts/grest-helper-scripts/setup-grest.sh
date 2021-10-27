@@ -410,9 +410,9 @@
 			DO
 			\$\$
 			BEGIN
-			  CREATE ROLE web_anon nologin;
-			  EXCEPTION WHEN DUPLICATE_OBJECT THEN
-			    RAISE NOTICE 'web_anon exists, skipping...';
+				CREATE ROLE web_anon nologin;
+				EXCEPTION WHEN DUPLICATE_OBJECT THEN
+					RAISE NOTICE 'web_anon exists, skipping...';
 			END
 			\$\$;
 			
@@ -425,9 +425,9 @@
 			ALTER DEFAULT PRIVILEGES IN SCHEMA grest GRANT SELECT ON TABLES TO web_anon;
 			ALTER ROLE web_anon SET search_path TO grest, public;
 
-      CREATE INDEX IF NOT EXISTS _asset_policy_idx ON PUBLIC.MA_TX_OUT (policy);
-      CREATE INDEX IF NOT EXISTS _asset_identifier_idx ON PUBLIC.MA_TX_OUT (policy, name);
-      
+			CREATE INDEX IF NOT EXISTS _asset_policy_idx ON PUBLIC.MA_TX_OUT (policy);
+			CREATE INDEX IF NOT EXISTS _asset_identifier_idx ON PUBLIC.MA_TX_OUT (policy, name);
+			
 			COMMIT;
 			EOF
     populate_genesis_table
