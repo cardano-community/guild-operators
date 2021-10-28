@@ -19,7 +19,6 @@ CREATE TABLE grest.pool_history_cache (
 COMMENT ON TABLE grest.pool_history_cache IS 'A history of pool performance including blocks, delegators, active stake, fees and rewards';
 
 
-
 DROP FUNCTION IF EXISTS grest.pool_history_cache_update CASCADE;
 
 create function grest.pool_history_cache_update (_epoch_no_to_insert_from bigint)
@@ -67,10 +66,10 @@ insert into grest.pool_history_cache
 		(select max(pup2.id) from pool_hash ph, pool_update pup2 where pup2.hash_id = ph.id and ph.view = act.pool_id and pup2.active_epoch_no  <= act.epoch_no)) pool_fee_variable,
 		(select fixed_cost from pool_update where id = 
 		(select max(pup2.id) from pool_update pup2, pool_hash ph where ph.view = act.pool_id and pup2.hash_id = ph.id and pup2.active_epoch_no  <= act.epoch_no)) pool_fee_fixed,
-		(amount / (select i_active_stake from grest.epoch_info_cache epInfo where epInfo.epoch = act.epoch_no)) * 100 active_stake_pct,
+		(amount / (select amount from grest.EPOCH_ACTIVE_STAKE_CACHE ep_active_stake where ep_active_stake.epoch_no = act.epoch_no)) * 100 active_stake_pct,
 		round((amount / (select supply / (select p_optimal_pool_count from grest.epoch_info_cache where epoch = act.epoch_no) from grest.totals(act.epoch_no)) * 100), 2) saturation_pct
 		
-		from grest.active_stake_cache act
+		from grest.pool_active_stake_cache act
 		where epoch_no >= _epoch_no_to_insert_from
 		-- TODO: revisit later: currently ignore latest epoch as active stake might not be populated for it yet
 		and epoch_no < (select max(e."no") from epoch e)
