@@ -8,7 +8,6 @@ CREATE TABLE grest.epoch_info_cache (
   i_blk_count uinteger NOT NULL,
   i_first_block_time timestamp without time zone UNIQUE NOT NULL,
   i_last_block_time timestamp without time zone UNIQUE NOT NULL,
-  i_active_stake lovelace,
   p_min_fee_a uinteger NOT NULL,
   p_min_fee_b uinteger NOT NULL,
   p_max_block_size uinteger NOT NULL,
@@ -53,7 +52,6 @@ SELECT
   e.blk_count AS i_blk_count,
   e.start_time AS i_first_block_time,
   e.end_time AS i_last_block_time,
-  NULL AS i_active_stake,
   ep.min_fee_a AS p_min_fee_a,
   ep.min_fee_b AS p_min_fee_b,
   ep.max_block_size AS p_max_block_size,
@@ -90,23 +88,10 @@ FROM
   INNER JOIN epoch_param ep ON ep.epoch_no = e.no
   INNER JOIN block b ON b.id = ep.block_id;
 
-UPDATE
-  grest.epoch_info_cache
-SET
-  i_active_stake = update_table.active_stake
-FROM (
-  SELECT
-    epoch_no,
-    SUM(es.amount) AS active_stake
-  FROM
-    epoch_stake es
-  GROUP BY
-    es.epoch_no) update_table
-WHERE
-  epoch = update_table.epoch_no;
-
 -- Trigger for updating current epoch data
-DROP FUNCTION IF EXISTS grest.epoch_info_update CASCADE;
+DROP TRIGGER IF EXISTS epoch_info_update_trigger ON public.block;
+
+DROP FUNCTION IF EXISTS grest.epoch_info_update;
 
 CREATE FUNCTION grest.epoch_info_update ()
   RETURNS TRIGGER
@@ -170,7 +155,6 @@ END;
 $epoch_info_update$
 LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS epoch_info_update_trigger ON public.block;
 
 CREATE TRIGGER epoch_info_update_trigger
   AFTER INSERT ON public.block
@@ -178,6 +162,8 @@ CREATE TRIGGER epoch_info_update_trigger
   EXECUTE PROCEDURE grest.epoch_info_update ();
 
 -- Trigger for inserting new epoch data
+DROP TRIGGER IF EXISTS new_epoch_insert_trigger ON public.epoch;
+
 DROP FUNCTION IF EXISTS grest.new_epoch_insert CASCADE;
 
 CREATE FUNCTION grest.new_epoch_insert ()
@@ -263,32 +249,10 @@ WHERE
         MAX(NO)
       FROM
         epoch);
-  UPDATE
-    grest.epoch_info_cache
-  SET
-    i_active_stake = update_table.active_stake
-  FROM (
-    SELECT
-      epoch_no,
-      SUM(es.amount) AS active_stake
-    FROM
-      epoch_stake es
-    WHERE
-      es.epoch_no = (
-        SELECT
-          MAX(NO)
-        FROM
-          epoch)
-      GROUP BY
-        es.epoch_no) update_table
-WHERE
-  epoch = update_table.epoch_no;
   RETURN NULL;
 END;
 $new_epoch_insert$
 LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS new_epoch_insert_trigger ON public.epoch;
 
 CREATE TRIGGER new_epoch_insert_trigger
   AFTER INSERT ON public.epoch
