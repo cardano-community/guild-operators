@@ -1,7 +1,3 @@
-CREATE INDEX IF NOT EXISTS _asset_policy_idx ON PUBLIC.MA_TX_OUT ( policy);
-
-CREATE INDEX IF NOT EXISTS _asset_identifier_idx ON PUBLIC.MA_TX_OUT ( policy, name);
-
 DROP FUNCTION IF EXISTS grest.asset_address_list (text, text);
 
 CREATE FUNCTION grest.asset_address_list (_asset_policy text, _asset_name text)
@@ -17,7 +13,7 @@ BEGIN
   SELECT
     DECODE(_asset_policy, 'hex') INTO _asset_policy_decoded;
   SELECT
-    DECODE(_asset_name::text,'escape') INTO _asset_name_decoded;
+    DECODE(_asset_name::text, 'escape') INTO _asset_name_decoded;
   RETURN QUERY
   SELECT
     TXO.ADDRESS,
