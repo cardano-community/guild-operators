@@ -15,20 +15,42 @@ CREATE TABLE grest.pool_history_cache (
 	epoch_ros numeric NULL
 );
 
-
 COMMENT ON TABLE grest.pool_history_cache IS 'A history of pool performance including blocks, delegators, active stake, fees and rewards';
-
 
 
 DROP FUNCTION IF EXISTS grest.pool_history_cache_update CASCADE;
 
-create function grest.pool_history_cache_update (_epoch_no_to_insert_from bigint)
+
+create function grest.pool_history_cache_update (_epoch_no_to_insert_from bigint default NULL)
 returns void
 language plpgsql
 as $$
-begin
 
--- TODO: add some validation of the parameter vs existing table contents perhaps?
+declare
+	_curr_epoch bigint;
+	_latest_epoch_no_in_cache bigint;
+
+begin
+	
+	if _epoch_no_to_insert_from is null then
+		select coalesce(max(epoch_no), 0) into _latest_epoch_no_in_cache from grest.pool_history_cache;
+	
+		-- special handling of the case where cron job might be invoked while setup-grest is still running
+		-- we want the setup-grest to finish populating the table before we check for any needed updates
+		if _latest_epoch_no_in_cache = 0 then
+			return;
+		end if;
+	
+		select max(no) into _curr_epoch from epoch;
+		-- no-op if we already have data up until second most recent epoch
+		if _latest_epoch_no_in_cache >= (_curr_epoch - 1) then
+			return;
+		end if;
+	
+		-- if current epoch is at least 2 ahead of latest in cache, repopulate from latest in cache until current-1
+		_epoch_no_to_insert_from := _latest_epoch_no_in_cache;
+	end if;
+	
 	
 -- purge the data for the given epoch range, in theory should do nothing if invoked only at start of new epoch
 delete from grest.pool_history_cache where epoch_no >= _epoch_no_to_insert_from;
@@ -67,7 +89,7 @@ insert into grest.pool_history_cache
 		(select max(pup2.id) from pool_hash ph, pool_update pup2 where pup2.hash_id = ph.id and ph.view = act.pool_id and pup2.active_epoch_no  <= act.epoch_no)) pool_fee_variable,
 		(select fixed_cost from pool_update where id = 
 		(select max(pup2.id) from pool_update pup2, pool_hash ph where ph.view = act.pool_id and pup2.hash_id = ph.id and pup2.active_epoch_no  <= act.epoch_no)) pool_fee_fixed,
-		(amount / (select i_active_stake from grest.epoch_info_cache epInfo where epInfo.epoch = act.epoch_no)) * 100 active_stake_pct,
+		(amount / (select amount from grest.EPOCH_ACTIVE_STAKE_CACHE epochActiveStakeCache where epochActiveStakeCache.epoch_no = act.epoch_no)) * 100 active_stake_pct,
 		round((amount / (select supply / (select p_optimal_pool_count from grest.epoch_info_cache where epoch = act.epoch_no) from grest.totals(act.epoch_no)) * 100), 2) saturation_pct
 		
 		from grest.active_stake_cache act
@@ -97,16 +119,32 @@ insert into grest.pool_history_cache
 	-- for debugging: l.leadertotal,
 	case coalesce(b.block_cnt,0)
 		when 0 then 0
-		else (actf.pool_fee_fixed + (((coalesce (m.memtotal, 0) + coalesce(l.leadertotal,0)) - actf.pool_fee_fixed) * actf.pool_fee_variable)) 
+		else 
+			-- special case for when reward information is not available yet
+			case coalesce(l.leadertotal,0) + coalesce (m.memtotal, 0)
+				when 0 then null
+				else round(actf.pool_fee_fixed + (((coalesce (m.memtotal, 0) + coalesce(l.leadertotal,0)) - actf.pool_fee_fixed) * actf.pool_fee_variable))
+			end
 	end pool_fees,
 	case coalesce(b.block_cnt,0)
 		when 0 then 0
-		else (coalesce(m.memtotal,0) + (coalesce(l.leadertotal,0) - (actf.pool_fee_fixed + (((coalesce(m.memtotal,0) + coalesce(l.leadertotal, 0)) - actf.pool_fee_fixed) * actf.pool_fee_variable)))) 
+		else
+			-- special case for when reward information is not available yet
+			case coalesce(l.leadertotal,0) + coalesce (m.memtotal, 0)
+				when 0 then null
+				else round(coalesce(m.memtotal,0) + (coalesce(l.leadertotal,0) - (actf.pool_fee_fixed + (((coalesce(m.memtotal,0) + coalesce(l.leadertotal, 0)) - 
+					actf.pool_fee_fixed) * actf.pool_fee_variable))))
+			end
 	end deleg_rewards,
 	case coalesce(b.block_cnt,0)
 		when 0 then 0
-		else round((((pow((( ((coalesce(m.memtotal,0) + (coalesce(l.leadertotal,0) - (actf.pool_fee_fixed + (((coalesce(m.memtotal,0) + coalesce(l.leadertotal,0)) - actf.pool_fee_fixed) * actf.pool_fee_variable)))))  
-		/ (actf.active_stake)) + 1), 73) - 1)) * 100)::numeric, 2)
+		else
+			-- special case for when reward information is not available yet
+			case coalesce(l.leadertotal,0) + coalesce (m.memtotal, 0)
+				when 0 then null
+				else round((((pow((( ((coalesce(m.memtotal,0) + (coalesce(l.leadertotal,0) - (actf.pool_fee_fixed + (((coalesce(m.memtotal,0) + coalesce(l.leadertotal,0)) - actf.pool_fee_fixed) * actf.pool_fee_variable)))))  
+					/ (actf.active_stake)) + 1), 73) - 1)) * 100)::numeric, 2)
+			end
 	end epoch_ros
 		
 	from pool_hash ph 
@@ -126,8 +164,10 @@ end;
 $$;
 
 
-COMMENT ON FUNCTION grest.pool_history_cache_update IS 'Internal function to update pool history for data from specified epoch until current-epoch-minus-one (can be tweaked to current epoch if we decide to do so)';
+COMMENT ON FUNCTION grest.pool_history_cache_update IS 'Internal function to update pool history for data from specified epoch until 
+current-epoch-minus-one. Invoke with non-empty param for initial population, with empty for subsequent updates'
 
 -- initial population of the history table, will take longer as the number of Cardano epochs grows
+-- if we decide to remove the below and let cron-based invocation to populate it then need to adjust the update function logic and remove special case for empty table handling
 select * from grest.pool_history_cache_update(0);
 
