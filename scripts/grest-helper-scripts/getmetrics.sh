@@ -38,10 +38,10 @@ function get-metrics() {
   getNodeMetrics
   currslottip=$(getSlotTipRef)
   dbsyncProm=$(curl -s http://${DBSYNC_PROM_HOST}:${DBSYNC_PROM_PORT} | grep ^cardano)
-  meminf=$(grep "^[MSBC][ewua][mafc]" /proc/meminfo)
   load1m=$(( $(awk '{ print $1*100 }' /proc/loadavg) / $(grep -c ^processor /proc/cpuinfo) ))
+  meminf=$(grep "^[MSBC][ewuah][:mafc]" /proc/meminfo)
   memtotal=$(( $(echo "${meminf}" | grep MemTotal | awk '{print $2}') + $(echo "${meminf}" | grep SwapTotal | awk '{print $2}') ))
-  memused=$(( memtotal - $(echo "${meminf}" | grep MemFree | awk '{print $2}') - $(echo "${meminf}" | grep SwapFree | awk '{print $2}') - $(echo "${meminf}" | grep ^Buffers | awk '{print $2}') - $(echo "${meminf}" | grep ^Cached | awk '{print $2}') ))
+  memused=$(( memtotal + $(echo "${meminf}" | grep Shmem: | awk '{print $2}') - $(echo "${meminf}" | grep MemFree | awk '{print $2}') - $(echo "${meminf}" | grep SwapFree | awk '{print $2}') - $(echo "${meminf}" | grep ^Buffers | awk '{print $2}') - $(echo "${meminf}" | grep ^Cached | awk '{print $2}') ))
   cpuutil=$(awk -v a="$(awk '/cpu /{print $2+$4,$2+$4+$5}' /proc/stat; sleep 1)" '/cpu /{split(a,b," "); print 100*($2+$4-b[1])/($2+$4+$5-b[2])}'  /proc/stat)
   # in Bytes
   pubschsize=$(psql -d cexplorer -c "SELECT sum(pg_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'public'" | awk 'FNR == 3 {print $1 $2}')

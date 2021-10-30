@@ -166,7 +166,6 @@ paths:
     get:
       tags:
         - Block
-      parameters:
       responses:
         "200":
           $ref: "#/components/responses/OK"
@@ -267,7 +266,6 @@ paths:
     get:
       tags:
         - Transactions
-      parameters:
       responses:
         "200":
           description: Array of known metadata labels
@@ -419,6 +417,22 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Assets Address List
       description: Get a list of all addresses for a given asset
+  /rpc/asset_info:
+    get:
+      tags:
+        - Asset
+      parameters:
+        - $ref: "#/components/parameters/_asset_policy"
+        - $ref: "#/components/parameters/_asset_name_hex"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Asset Summary
+      description: Get summary data for an asset (minting transactions not included in total count, total wallets include only wallets with asset balance)
   /rpc/pool_list:
     get:
       tags:
