@@ -1,9 +1,11 @@
 DROP FUNCTION IF EXISTS grest.asset_summary (text, text);
 
-CREATE FUNCTION grest.asset_summary (_asset_policy text, _asset_name text)
+CREATE FUNCTION grest.asset_summary (_asset_policy text, _asset_name_hex text)
   RETURNS TABLE (
-    policy_id text,
-    asset_name text,
+    policy_id_hex text,
+    asset_name_hex text,
+    asset_name_escaped text,
+    asset_metadata jsonb,
     total_supply numeric,
     total_transactions bigint,
     total_wallets bigint,
@@ -17,11 +19,11 @@ BEGIN
   SELECT
     DECODE(_asset_policy, 'hex') INTO _asset_policy_decoded;
   SELECT
-    DECODE(_asset_name::text, 'escape') INTO _asset_name_decoded;
+    DECODE(_asset_name_hex, 'hex') INTO _asset_name_decoded;
   --
-  RETURN QUERY
+  RETURN QUERY WITH
   --
-  WITH asset_txs AS (
+  asset_txs AS (
     SELECT
       TXO.*,
       MTX.quantity
@@ -43,8 +45,10 @@ asset_utxos AS (
     TX_IN.TX_IN_ID IS NULL)
   --
   SELECT
-    _asset_policy,
-    _asset_name,
+    _asset_policy as asset_policy,
+    _asset_name_hex as asset_name_hex,
+    ENCODE(_asset_name_decoded, 'escape') as asset_name_escaped,
+    creation_t.asset_metadata,
     supply_t.total_supply,
     tx_t.total_transactions,
     registered_wallets_t.registered_wallets + unregistered_wallets_t.unregistered_wallets,
@@ -79,12 +83,14 @@ asset_utxos AS (
       SA.ID IS NULL) unregistered_wallets_t ON TRUE
   LEFT JOIN (
     SELECT
+      JSONB_BUILD_OBJECT(TXM.key, TXM.json) as asset_metadata,
       b.time as creation_time
     FROM
       asset_txs
       INNER JOIN MA_TX_MINT MTM ON MTM.TX_ID = asset_txs.TX_ID
       INNER JOIN TX ON TX.ID = MTM.TX_ID
       INNER JOIN BLOCK B ON B.id = TX.block_id
+      INNER JOIN TX_METADATA TXM ON TX.ID = TXM.TX_ID
     ORDER BY
       TX.ID ASC
     LIMIT 1) creation_t ON TRUE;
