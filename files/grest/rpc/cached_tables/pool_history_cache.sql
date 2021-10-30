@@ -92,7 +92,7 @@ insert into grest.pool_history_cache
 		(amount / (select amount from grest.EPOCH_ACTIVE_STAKE_CACHE epochActiveStakeCache where epochActiveStakeCache.epoch_no = act.epoch_no)) * 100 active_stake_pct,
 		round((amount / (select supply / (select p_optimal_pool_count from grest.epoch_info_cache where epoch = act.epoch_no) from grest.totals(act.epoch_no)) * 100), 2) saturation_pct
 		
-		from grest.active_stake_cache act
+		from grest.pool_active_stake_cache act
 		where epoch_no >= _epoch_no_to_insert_from
 		-- TODO: revisit later: currently ignore latest epoch as active stake might not be populated for it yet
 		and epoch_no < (select max(e."no") from epoch e)
