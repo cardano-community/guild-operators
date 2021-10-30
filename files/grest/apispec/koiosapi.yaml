@@ -417,13 +417,13 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Assets Address List
       description: Get a list of all addresses for a given asset
-  /rpc/asset_summary:
+  /rpc/asset_info:
     get:
       tags:
         - Asset
       parameters:
         - $ref: "#/components/parameters/_asset_policy"
-        - $ref: "#/components/parameters/_asset_name"
+        - $ref: "#/components/parameters/_asset_name_hex"
       responses:
         "200":
           $ref: "#/components/responses/OK"
