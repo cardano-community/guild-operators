@@ -1,7 +1,7 @@
 drop table if exists grest.pool_history_cache;
 
 CREATE TABLE grest.pool_history_cache (
-  pool_id varchar NULL,
+  pool_id varchar PRIMARY KEY,
   epoch_no int8 NULL,
   active_stake lovelace NULL,
   active_stake_pct numeric NULL,
