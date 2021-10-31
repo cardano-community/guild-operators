@@ -1,7 +1,7 @@
 drop table if exists grest.pool_history_cache;
 
 CREATE TABLE grest.pool_history_cache (
-  pool_id varchar PRIMARY KEY,
+  pool_id varchar,
   epoch_no int8 NULL,
   active_stake lovelace NULL,
   active_stake_pct numeric NULL,
@@ -13,6 +13,7 @@ CREATE TABLE grest.pool_history_cache (
   pool_fees float8 NULL,
   deleg_rewards float8 NULL,
   epoch_ros numeric NULL
+  PRIMARY KEY (pool_id, epoch_no)
 );
 
 COMMENT ON TABLE grest.pool_history_cache IS 'A history of pool performance including blocks, delegators, active stake, fees and rewards';
