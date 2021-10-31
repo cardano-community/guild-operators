@@ -12,7 +12,7 @@ CREATE TABLE grest.pool_history_cache (
   pool_fee_fixed lovelace NULL,
   pool_fees float8 NULL,
   deleg_rewards float8 NULL,
-  epoch_ros numeric NULL
+  epoch_ros numeric NULL,
   PRIMARY KEY (pool_id, epoch_no)
 );
 
@@ -231,6 +231,7 @@ $$;
 
 COMMENT ON FUNCTION grest.pool_history_cache_update IS 'Internal function to update pool history for data from specified epoch until 
 current-epoch-minus-one. Invoke with non-empty param for initial population, with empty for subsequent updates';
+
 -- initial population of the history table, will take longer as the number of Cardano epochs grows
 -- if we decide to remove the below and let cron-based invocation to populate it then need to adjust the update function logic and remove special case for empty table handling
 select
