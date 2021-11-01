@@ -18,6 +18,8 @@ CREATE TABLE grest.pool_history_cache (
 
 COMMENT ON TABLE grest.pool_history_cache IS 'A history of pool performance including blocks, delegators, active stake, fees and rewards';
 
+delete from grest.control_table where key = 'pool_history_cache_last_updated';
+
 DROP FUNCTION IF EXISTS grest.pool_history_cache_update CASCADE;
 
 create function grest.pool_history_cache_update (_epoch_no_to_insert_from bigint default NULL)
@@ -52,6 +54,7 @@ begin
   -- purge the data for the given epoch range, in theory should do nothing if invoked only at start of new epoch
   delete from grest.pool_history_cache
   where epoch_no >= _epoch_no_to_insert_from;
+  
   insert into grest.pool_history_cache ( with blockcounts as (
       select
         sl.pool_hash_id,
@@ -131,7 +134,7 @@ begin
                           and pup2.active_epoch_no <= act.epoch_no)) pool_fee_fixed,
                     (amount / (
                         select
-                          amount
+                          NULLIF(amount, 0)
                         from
                           grest.EPOCH_ACTIVE_STAKE_CACHE epochActiveStakeCache
                         where
@@ -212,7 +215,7 @@ begin
                             when 0 then
                               null
                             else
-                              ROUND((((POW(((((COALESCE(m.memtotal, 0) + (COALESCE(l.leadertotal, 0) - (actf.pool_fee_fixed + (((COALESCE(m.memtotal, 0) + COALESCE(l.leadertotal, 0)) - actf.pool_fee_fixed) * actf.pool_fee_variable))))) / (actf.active_stake)) + 1), 73) - 1)) * 100)::numeric, 2)
+                              ROUND((((POW(((((COALESCE(m.memtotal, 0) + (COALESCE(l.leadertotal, 0) - (actf.pool_fee_fixed + (((COALESCE(m.memtotal, 0) + COALESCE(l.leadertotal, 0)) - actf.pool_fee_fixed) * actf.pool_fee_variable))))) / (NULLIF(actf.active_stake,0))) + 1), 73) - 1)) * 100)::numeric, 2)
                             end
                           end epoch_ros
                         from
@@ -226,6 +229,8 @@ begin
                         and actf.epoch_no = m.earned_epoch
                     left join delegators del on ph.id = del.pool_id
                       and actf.epoch_no = del.epoch_no);
+           
+           insert into grest.control_table values('pool_history_cache_last_updated', now() at time zone 'utc', null);
 end;
 $$;
 
