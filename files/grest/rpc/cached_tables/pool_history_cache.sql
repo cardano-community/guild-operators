@@ -230,7 +230,11 @@ begin
                     left join delegators del on ph.id = del.pool_id
                       and actf.epoch_no = del.epoch_no);
            
-           insert into grest.control_table values('pool_history_cache_last_updated', now() at time zone 'utc', null);
+           INSERT INTO GREST.CONTROL_TABLE (key, last_value)
+              values('pool_history_cache_last_updated', now() at time zone 'utc')
+           ON CONFLICT (key)
+           DO UPDATE SET
+              last_value = now() at time zone 'utc';
 end;
 $$;
 
