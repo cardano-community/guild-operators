@@ -125,7 +125,7 @@
       ! command -v haproxy >/dev/null && INSTALL_HAPROXY="Y"
       [[ ! -f "${CNODE_HOME}"/scripts/grest-exporter.sh ]] && INSTALL_MONITORING_AGENTS="Y"
       [[ "${FORCE_OVERWRITE}" == "Y" ]] && OVERWRITE_CONFIG="Y" && OVERWRITE_SYSTEMD="Y"
-      [[ ! -f "${CNODE_HOME}"/files/haproxy.cfg ]] && FORCE_OVERWRITE="Y" # absence of haproxy.cfg at mentioned path would mean setup is not updated, or has not been run - hence, overwrite all
+      [[ ! -f "${HAPROXY_CFG}" ]] && FORCE_OVERWRITE="Y" # absence of haproxy.cfg at mentioned path would mean setup is not updated, or has not been run - hence, overwrite all
     else
       [[ "${I_ARGS}" =~ "p" ]] && INSTALL_POSTGREST="Y"
       [[ "${I_ARGS}" =~ "r" ]] && INSTALL_HAPROXY="Y"
@@ -410,9 +410,9 @@
 			DO
 			\$\$
 			BEGIN
-			  CREATE ROLE web_anon nologin;
-			  EXCEPTION WHEN DUPLICATE_OBJECT THEN
-			    RAISE NOTICE 'web_anon exists, skipping...';
+				CREATE ROLE web_anon nologin;
+				EXCEPTION WHEN DUPLICATE_OBJECT THEN
+					RAISE NOTICE 'web_anon exists, skipping...';
 			END
 			\$\$;
 			
@@ -424,6 +424,10 @@
 			ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO web_anon;
 			ALTER DEFAULT PRIVILEGES IN SCHEMA grest GRANT SELECT ON TABLES TO web_anon;
 			ALTER ROLE web_anon SET search_path TO grest, public;
+
+			CREATE INDEX IF NOT EXISTS _asset_policy_idx ON PUBLIC.MA_TX_OUT (policy);
+			CREATE INDEX IF NOT EXISTS _asset_identifier_idx ON PUBLIC.MA_TX_OUT (policy, name);
+			
 			COMMIT;
 			EOF
     populate_genesis_table

@@ -181,7 +181,7 @@ ON CONFLICT (STAKE_ADDRESS)
 END;
 $$;
 
-DROP FUNCTION IF EXISTS GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK CASCADE;
+DROP FUNCTION IF EXISTS GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK;
 
 CREATE FUNCTION GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK ()
   RETURNS VOID
@@ -191,7 +191,21 @@ DECLARE
   _last_update_block_height integer DEFAULT NULL;
   _current_block_height integer DEFAULT NULL;
   _last_update_block_diff integer DEFAULT NULL;
+  StartTime timestamptz;
+  EndTime timestamptz;
+  -- In minutes
+  Delta numeric;
 BEGIN
+  IF (
+    SELECT
+      COUNT(pid) > 1
+    FROM
+      pg_stat_activity
+    WHERE
+      query != '<IDLE>' AND query ILIKE 'SELECT GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK();') THEN
+    RAISE EXCEPTION 'Previous query still running but should have completed! Exiting...';
+  END IF;
+  -- QUERY START --
   SELECT
     last_value
   FROM
@@ -207,11 +221,19 @@ BEGIN
   SELECT
     (_current_block_height - _last_update_block_height) INTO _last_update_block_diff;
   -- Do nothing until there is a 180 blocks difference in height - 60 minutes theoretical time
-  -- 185 in check because lbh considered is 5 blocks behind tip
-  IF _last_update_block_diff >= 185 THEN
-    RAISE NOTICE 'Last stake distribution update was % blocks ago, re-running...', _last_update_block_diff;
+  -- 185 in check because last block height considered is 5 blocks behind tip
+  Raise NOTICE 'Last stake distribution update was % blocks ago...', _last_update_block_diff;
+  IF (_last_update_block_diff >= 185
+    -- Special case for db-sync restart rollback to epoch start
+    OR _last_update_block_diff < 0) THEN
+    RAISE NOTICE 'Re-running...';
     CALL GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
+    -- Time recording
+    EndTime := CLOCK_TIMESTAMP();
+    Delta := 1000 * (EXTRACT(epoch from EndTime) - EXTRACT(epoch from StartTime)) / 60000;
+    RAISE NOTICE 'Job completed in % minutes', Delta;
   END IF;
+  RAISE NOTICE 'Minimum block height difference(180) for update not reached, skipping...';
   RETURN;
 END;
 $$;
