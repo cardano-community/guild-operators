@@ -8,24 +8,24 @@ CREATE TABLE grest.epoch_info_cache (
   i_blk_count uinteger NOT NULL,
   i_first_block_time timestamp without time zone UNIQUE NOT NULL,
   i_last_block_time timestamp without time zone UNIQUE NOT NULL,
-  p_min_fee_a uinteger NOT NULL,
-  p_min_fee_b uinteger NOT NULL,
-  p_max_block_size uinteger NOT NULL,
-  p_max_tx_size uinteger NOT NULL,
-  p_max_bh_size uinteger NOT NULL,
-  p_key_deposit lovelace NOT NULL,
-  p_pool_deposit lovelace NOT NULL,
-  p_max_epoch uinteger NOT NULL,
-  p_optimal_pool_count uinteger NOT NULL,
-  p_influence double precision NOT NULL,
-  p_monetary_expand_rate double precision NOT NULL,
-  p_treasury_growth_rate double precision NOT NULL,
-  p_decentralisation double precision NOT NULL,
+  p_min_fee_a uinteger NULL,
+  p_min_fee_b uinteger NULL,
+  p_max_block_size uinteger NULL,
+  p_max_tx_size uinteger NULL,
+  p_max_bh_size uinteger NULL,
+  p_key_deposit lovelace NULL,
+  p_pool_deposit lovelace NULL,
+  p_max_epoch uinteger NULL,
+  p_optimal_pool_count uinteger NULL,
+  p_influence double precision NULL,
+  p_monetary_expand_rate double precision NULL,
+  p_treasury_growth_rate double precision NULL,
+  p_decentralisation double precision NULL,
   p_entropy text,
-  p_protocol_major uinteger NOT NULL,
-  p_protocol_minor uinteger NOT NULL,
-  p_min_utxo_value lovelace NOT NULL,
-  p_min_pool_cost lovelace NOT NULL,
+  p_protocol_major uinteger NULL,
+  p_protocol_minor uinteger NULL,
+  p_min_utxo_value lovelace NULL,
+  p_min_pool_cost lovelace NULL,
   p_nonce text,
   p_block_hash text NOT NULL,
   p_cost_models character varying,
@@ -43,8 +43,7 @@ CREATE TABLE grest.epoch_info_cache (
 
 COMMENT ON TABLE grest.epoch_info_cache IS 'Get detailed info for epoch including protocol parameters';
 
-INSERT INTO grest.epoch_info_cache
-SELECT
+INSERT INTO grest.epoch_info_cache SELECT DISTINCT ON (b.time)
   e.no AS epoch,
   e.out_sum AS i_out_sum,
   e.fees AS i_fees,
@@ -85,8 +84,12 @@ SELECT
   ep.coins_per_utxo_word AS p_coins_per_utxo_word
 FROM
   epoch e
-  INNER JOIN epoch_param ep ON ep.epoch_no = e.no
-  INNER JOIN block b ON b.id = ep.block_id;
+  LEFT JOIN epoch_param ep ON ep.epoch_no = e.no
+  INNER JOIN block b ON b.time = e.start_time
+ORDER BY
+  b.time ASC,
+  b.id ASC,
+  e.no ASC;
 
 -- Trigger for updating current epoch data
 DROP TRIGGER IF EXISTS epoch_info_update_trigger ON public.block;
@@ -154,7 +157,6 @@ BEGIN
 END;
 $epoch_info_update$
 LANGUAGE plpgsql;
-
 
 CREATE TRIGGER epoch_info_update_trigger
   AFTER INSERT ON public.block
