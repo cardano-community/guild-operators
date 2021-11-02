@@ -108,6 +108,9 @@
     fi
     get_cron_job_executable "stake-distribution-update"
     install_cron_job "stake-distribution-update" "*/30 * * * *"
+    
+    get_cron_job_executable "pool-history-cache-update"
+    install_cron_job "pool-history-cache-update" "*/10 * * * *"
   }
   
   setup_defaults() {
@@ -125,7 +128,7 @@
       ! command -v haproxy >/dev/null && INSTALL_HAPROXY="Y"
       [[ ! -f "${CNODE_HOME}"/scripts/grest-exporter.sh ]] && INSTALL_MONITORING_AGENTS="Y"
       [[ "${FORCE_OVERWRITE}" == "Y" ]] && OVERWRITE_CONFIG="Y" && OVERWRITE_SYSTEMD="Y"
-      [[ ! -f "${CNODE_HOME}"/files/haproxy.cfg ]] && FORCE_OVERWRITE="Y" # absence of haproxy.cfg at mentioned path would mean setup is not updated, or has not been run - hence, overwrite all
+      [[ ! -f "${HAPROXY_CFG}" ]] && FORCE_OVERWRITE="Y" # absence of haproxy.cfg at mentioned path would mean setup is not updated, or has not been run - hence, overwrite all
     else
       [[ "${I_ARGS}" =~ "p" ]] && INSTALL_POSTGREST="Y"
       [[ "${I_ARGS}" =~ "r" ]] && INSTALL_HAPROXY="Y"
