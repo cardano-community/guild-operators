@@ -36,7 +36,7 @@ begin
     FROM
       pg_stat_activity
     WHERE
-      query != '<IDLE>' AND query ILIKE 'SELECT GREST.pool_history_cache_update%') THEN
+      query != '<IDLE>' AND query ILIKE '%GREST.pool_history_cache_update%') THEN
     RAISE EXCEPTION 'Previous pool_history_cache_update query still running but should have completed! Exiting...';
   END IF;
 
