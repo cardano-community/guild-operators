@@ -18,8 +18,6 @@ CREATE TABLE grest.pool_history_cache (
 
 COMMENT ON TABLE grest.pool_history_cache IS 'A history of pool performance including blocks, delegators, active stake, fees and rewards';
 
-delete from grest.control_table where key = 'pool_history_cache_last_updated';
-
 DROP FUNCTION IF EXISTS grest.pool_history_cache_update CASCADE;
 
 create function grest.pool_history_cache_update (_epoch_no_to_insert_from bigint default NULL)
