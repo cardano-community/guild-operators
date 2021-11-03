@@ -108,6 +108,9 @@
     fi
     get_cron_job_executable "stake-distribution-update"
     install_cron_job "stake-distribution-update" "*/30 * * * *"
+    
+    get_cron_job_executable "pool-history-cache-update"
+    install_cron_job "pool-history-cache-update" "*/10 * * * *"
   }
   
   setup_defaults() {
