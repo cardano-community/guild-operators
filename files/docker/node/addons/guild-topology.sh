@@ -43,4 +43,5 @@ cat <<EOF > $CNODE_HOME/files/guildnet-topology.json
 ] }
 EOF
 
-rm  /tmp/fastest_guild.list && rm /tmp/guild_list*
+# rm  /tmp/fastest_guild.list && 
+rm /tmp/guild_list*
