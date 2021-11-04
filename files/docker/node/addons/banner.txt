@@ -13,7 +13,7 @@ MENU
 Availbles tools:
 - cntools
 - gLiveView
-- cncli
+- cncli and cncli.sh
   
    
    

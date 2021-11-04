@@ -2090,7 +2090,7 @@ function main {
                 println DEBUG "Owner #1 : ${FG_GREEN}${wallet_name}${NC} added!"
               fi
 
-              getBaseAddress ${wallet_name}
+              getBaseAddress ${owner_wallets[0]}
               getBalance ${base_addr}
               if [[ ${assets[lovelace]} -eq 0 ]]; then
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available in owner wallet ${FG_GREEN}${owner_wallets[0]}${NC}"
