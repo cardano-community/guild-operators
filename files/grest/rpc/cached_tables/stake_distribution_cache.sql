@@ -202,12 +202,12 @@ BEGIN
     FROM
       pg_stat_activity
     WHERE
-      query != '<IDLE>' AND query ILIKE 'SELECT GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK();') THEN
+      state = 'active' AND query ILIKE '%GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK();') THEN
     RAISE EXCEPTION 'Previous query still running but should have completed! Exiting...';
   END IF;
   -- QUERY START --
   SELECT
-    last_value
+    COALESCE(last_value, 0)
   FROM
     GREST.control_table
   WHERE
