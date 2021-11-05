@@ -188,9 +188,9 @@ CREATE FUNCTION GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK ()
   LANGUAGE PLPGSQL
   AS $$
 DECLARE
-  _last_update_block_height integer DEFAULT NULL;
-  _current_block_height integer DEFAULT NULL;
-  _last_update_block_diff integer DEFAULT NULL;
+  _last_update_block_height bigint DEFAULT NULL;
+  _current_block_height bigint DEFAULT NULL;
+  _last_update_block_diff bigint DEFAULT NULL;
   StartTime timestamptz;
   EndTime timestamptz;
   -- In minutes
@@ -202,16 +202,18 @@ BEGIN
     FROM
       pg_stat_activity
     WHERE
-      query != '<IDLE>' AND query ILIKE 'SELECT GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK();') THEN
+      state = 'active' AND query ILIKE '%GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK(%') THEN
     RAISE EXCEPTION 'Previous query still running but should have completed! Exiting...';
   END IF;
   -- QUERY START --
-  SELECT
-    last_value
-  FROM
-    GREST.control_table
-  WHERE
-    key = 'stake_distribution_lbh' INTO _last_update_block_height;
+  SELECT COALESCE(
+    (SELECT
+      last_value::bigint
+    FROM
+      GREST.control_table
+    WHERE
+      key = 'stake_distribution_lbh')
+  , 0) INTO _last_update_block_height;
   SELECT
     MAX(block_no)
   FROM
@@ -238,9 +240,6 @@ BEGIN
 END;
 $$;
 
--- Run the first time update if needed
-SELECT
-  GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK ();
-
 CREATE INDEX IF NOT EXISTS idx_pool_id ON GREST.STAKE_DISTRIBUTION_CACHE (POOL_ID);
 
+-- Populated by first crontab execution
