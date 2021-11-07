@@ -10,9 +10,10 @@ WORKDIR /
 
 RUN set -x && apt update \
   && mkdir -p /root/.cabal/bin && mkdir -p /root/.ghcup/bin \
-  && apt install -y  apt-utils wget gnupg apt-utils git\
+  && apt install -y  apt-utils wget gnupg apt-utils git udev \
   && wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh \
   && export SUDO='N' \
   && export UPDATE_CHECK='N' \
   && export BOOTSTRAP_HASKELL_NO_UPGRADE=1 \
-  && chmod +x ./prereqs.sh &&  ./prereqs.sh 
+  && chmod +x ./prereqs.sh &&  ./prereqs.sh -w -c \
+  && apt-get -y purge && apt-get -y clean && apt-get -y autoremove  && rm -rf /var/lib/apt/lists/*

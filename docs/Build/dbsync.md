@@ -45,16 +45,38 @@ scripts/postgresql-setup.sh --createdb
 # Password:
 # Password:
 # All good!
-## Verify you can see "All good!" as above
 ```
 
-#### Start Synching
+Verify you can see "All good!" as above!
+
+#### Create Symlink to schema folder
+
+DBSync instance requires the schema files from the git repository to be present and available to the dbsync instance. You can either clone the `~/git/cardano-db-sync/schema` folder OR create a symlink to the folder and make it available to the startup command we will be using. We will use the latter in sample below:
+
 ``` bash
-cd ~/git/cardano-db-sync
-cardano-db-sync-extended --config $CNODE_HOME/files/dbsync.json --socket-path $CNODE_HOME/sockets/node0.socket --state-dir $CNODE_HOME/guild-db/ledger-state --schema-dir schema/
+ln -s ~/git/cardano-db-sync/schema $CNODE_HOME/guild-db/schema
 ```
 
-You can use same instructions above to repeat and execute `cardano-db-sync` as well, but `cardano-db-sync-extended` provides additional views/useful data ready to be consumed by query layer. Note that synching entire blockchain from scratch could take a few hours.
+#### Test running dbsync manually at terminal
+
+In order to verify that you can run dbsync, before making a start - you'd want to ensure that you can run it interactively once. To do so, try the commands below:
+
+``` bash
+cd $CNODE_HOME/scripts
+export PGPASSFILE=$CNODE_HOME/priv/.pgpass
+./dbsync.sh
+```
+
+You can monitor logs if needed via parallel session using `tail -10f $CNODE_HOME/logs/dbsync.json`. If there are no error, you would want to press Ctrl-C to stop the dbsync.sh execution and deploy it as a systemd service. To do so, use the commands below (the creation of file is done using `sudo` permissions, but you can always deploy it manually):
+
+``` bash
+cd $CNODE_HOME/scripts
+./dbsync.sh -d
+# Deploying systemd service..
+# cnode-dbsync.service deployed successfully!!
+```
+
+Now to start dbsync instance, you can run `sudo systemctl start cnode-dbsync`
 
 ### Validation
 
