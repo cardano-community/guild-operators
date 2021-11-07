@@ -1,7 +1,7 @@
 {
   "Providers": [
     {"name":"rdlrt","addr":"209.145.50.190","port":8053},
-    {"name":"ola","addr":"koios-guild.ahlnet.nu","port":2165},
+    {"name":"ola","addr":"koios-guild.ahlnet.nu","port":2163},
     {"name":"damjan","addr":"195.201.129.190","port":8053},
     {"name":"homer","addr":"95.216.188.94","port":8053},
     {"name":"gufmar","addr":"185.161.193.105","port":6029}
