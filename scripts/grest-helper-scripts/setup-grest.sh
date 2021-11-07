@@ -295,7 +295,8 @@
 			
 			frontend app
 			  bind 0.0.0.0:8053
-			  #http-request replace-value Host (.*):8053 :8453
+			  #Replace servername.koios.rest below
+			  #http-request replace-value Host (.*):8053 servername.koios.rest:8453
 			  redirect scheme https code 301 if !{ ssl_fc }
 			  #
 			  #frontend app-secured
