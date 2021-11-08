@@ -74,6 +74,34 @@ check_config_sanity() {
   fi
 }
 
+deploy_systemd() {
+  echo "Deploying ${CNODE_NAME}-dbsync as systemd service.."
+  sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_NAME}-dbsync.service
+	[Unit]
+	Description=Cardano DB Sync
+	After=${CNODE_NAME}.service ${SYSTEMD_PGNAME}.service
+	Requires=${SYSTEMD_PGNAME}.service
+	
+	[Service]
+	Type=simple
+	Restart=always
+	RestartSec=5
+	User=${USER}
+	LimitNOFILE=1048576
+	WorkingDirectory=${CNODE_HOME}/scripts
+	ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/dbsync.sh\"
+	KillSignal=SIGINT
+	StandardOutput=syslog
+	StandardError=syslog
+	SyslogIdentifier=${CNODE_NAME}-dbsync
+	TimeoutStopSec=5
+	KillMode=mixed
+	
+	[Install]
+	WantedBy=multi-user.target
+	EOF" && echo "${CNODE_NAME}-dbsync.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_NAME}-dbsync.service
+}
+
 ###################
 # Execution       #
 ###################
@@ -98,33 +126,10 @@ esac
 set_defaults
 check_defaults
 check_config_sanity
-
+#Deploy systemd if -d argument was specified
 if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
-  echo "Deploying systemd service.."
-  sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_NAME}-dbsync.service
-	[Unit]
-	Description=Cardano DB Sync
-	After=${CNODE_NAME}.service ${SYSTEMD_PGNAME}.service
-	Requires=${SYSTEMD_PGNAME}.service
-	
-	[Service]
-	Type=simple
-	Restart=always
-	RestartSec=5
-	User=${USER}
-	LimitNOFILE=1048576
-	WorkingDirectory=${CNODE_HOME}/scripts
-	ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/dbsync.sh\"
-	KillSignal=SIGINT
-	StandardOutput=syslog
-	StandardError=syslog
-	SyslogIdentifier=${CNODE_NAME}-dbsync
-	TimeoutStopSec=5
-	KillMode=mixed
-	
-	[Install]
-	WantedBy=multi-user.target
-	EOF" && echo "${CNODE_NAME}-dbsync.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_NAME}-dbsync.service && exit 0
+  deploy_systemd && exit 0
+  exit 2
 fi
 
 export PGPASSFILE
