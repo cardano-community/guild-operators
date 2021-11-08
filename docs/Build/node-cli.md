@@ -82,7 +82,9 @@ The preferred way to run the node is through a service manager like systemd. Thi
 Execute the below command to deploy your node as a systemd service (from the respective scripts folder):
 ```bash
 cd $CNODE_HOME/scripts
-./deploy-as-systemd.sh
+./cnode.sh -d
+# Deploying cnode.service as systemd service..
+# cnode.service deployed successfully!!
 ```
 
 **2. Start the node**  
