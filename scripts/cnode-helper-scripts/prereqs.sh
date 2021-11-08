@@ -102,7 +102,6 @@ shift $((OPTIND -1))
 [[ -z ${LIBSODIUM_FORK} ]] && LIBSODIUM_FORK='Y'
 [[ -z ${INSTALL_CNCLI} ]] && INSTALL_CNCLI='N'
 [[ -z ${INSTALL_VCHC} ]] && INSTALL_VCHC='N'
-[[ -z ${INSTALL_POSTGREST} ]] && INSTALL_POSTGREST='N'
 [[ -z ${CNODE_NAME} ]] && CNODE_NAME='cnode'
 [[ -z ${INTERACTIVE} ]] && INTERACTIVE='N'
 [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=60
