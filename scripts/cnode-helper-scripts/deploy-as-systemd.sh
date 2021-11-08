@@ -18,7 +18,7 @@ echo "launches the main cnode.sh script to start cardano-node"
 echo
 ./cnode.sh -d
 
-if grep "^PGPASSFILE=" "${CNODE_HOME}/scripts/dbsync.sh" > /dev/null || [[ -f "${CNODE_HOME}/priv/.pgpass" ]]; then
+if grep -q "^PGPASSFILE=" "${CNODE_HOME}/scripts/dbsync.sh" 2> /dev/null || [[ -f "${CNODE_HOME}/priv/.pgpass" ]]; then
   echo -e "\e[32m~~ Cardano DB Sync ~~\e[0m"
   echo "launches the dbsync.sh script to start cardano-db-sync"
   echo
