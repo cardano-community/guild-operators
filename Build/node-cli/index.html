@@ -502,7 +502,9 @@ You can uncomment this and set to the desired number, but be wary not to go abov
 <p><strong>1. Deploy as a systemd service</strong><br/>
 Execute the below command to deploy your node as a systemd service (from the respective scripts folder):
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span> <span class="nv">$CNODE_HOME</span>/scripts
-./deploy-as-systemd.sh
+./cnode.sh -d
+<span class="c1"># Deploying cnode.service as systemd service..</span>
+<span class="c1"># cnode.service deployed successfully!!</span>
 </code></pre></div></p>
 <p><strong>2. Start the node</strong><br/>
 Run below commands to enable automatic start of service on startup and start it.

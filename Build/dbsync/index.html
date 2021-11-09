@@ -486,7 +486,7 @@ scripts/postgresql-setup.sh --createdb
 <p>You can monitor logs if needed via parallel session using <code>tail -10f $CNODE_HOME/logs/dbsync.json</code>. If there are no error, you would want to press Ctrl-C to stop the dbsync.sh execution and deploy it as a systemd service. To do so, use the commands below (the creation of file is done using <code>sudo</code> permissions, but you can always deploy it manually):</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span> <span class="nv">$CNODE_HOME</span>/scripts
 ./dbsync.sh -d
-<span class="c1"># Deploying systemd service..</span>
+<span class="c1"># Deploying cnode-dbsync.service as systemd service..</span>
 <span class="c1"># cnode-dbsync.service deployed successfully!!</span>
 </code></pre></div>
 <p>Now to start dbsync instance, you can run <code>sudo systemctl start cnode-dbsync</code></p>
