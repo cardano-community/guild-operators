@@ -57,8 +57,7 @@
         1) ENV_UPDATED=Y ;;
         2) exit 1 ;;
       esac
-      # check for setup-grest update
-      checkUpdate setup-grest.sh ${ENV_UPDATED}  Y Y 'grest-helper-scripts'
+      checkUpdate setup-grest.sh ${ENV_UPDATED} Y Y 'grest-helper-scripts'
     fi
     . "${PARENT}"/env offline &>/dev/null
     case $? in
@@ -148,8 +147,10 @@
     mkdir -p ~/tmp
   }
 
+  # Description : (Re)create genesis table.
+  #             : SQL sourced from grest-helper-scrips/db-scripts/genesis_table.sql.
   create_genesis_table() {
-    local genesis_table_sql_url="${URL_RAW}/scripts/grest-helper-scripts/psql/genesis_table.sql"
+    local genesis_table_sql_url="${DB_SCRIPTS_URL}/genesis_table.sql"
 
     if ! genesis_table_sql=$(curl -s -f -m "${CURL_TIMEOUT}" "${genesis_table_sql_url}" 2>&1); then
       err_exit "Failed to genesis table SQL from ${genesis_table_sql_url}"
@@ -158,6 +159,9 @@
     ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<${genesis_table_sql} 2>&1) && echo -e "        \e[31mERROR\e[0m: ${output}"
   }
 
+  # Description : Populate genesis table with given values.
+  #             : Note: Given the Plutus schema is far from finalized, we expect changes as SC layer matures and PAB gets into real networks.
+  #             :       For now, a compressed jq will be inserted as a shell escaped json data blob.
   populate_genesis_table() {
     local alonzo_genesis=$1
     shift
@@ -186,10 +190,8 @@
       .maxKESEvolutions,
       .securityParam
       ] | @tsv' <"${genfiles[1]}")
-    # PS: Given the Plutus schema is far from finalized, we expect changes as SC layer matures and PAB gets into real networks.
-    # For now, compressed jq will be inserted as shell escaped json data blob
     ALGENESIS="$(jq -c . <${genfiles[2]})"
-    # Data Types are intentionally kept varchar for single ID row to avoid future edge cases
+
     create_genesis_table
     populate_genesis_table "${ALGENESIS}" "${SHGENESIS[@]}"
   }
@@ -393,9 +395,9 @@
   }
   
   # Description : Setup grest schema and web_anon user.
-  #             : SQL sourced from grest-helper-scrips/psql/basics.sql.
+  #             : SQL sourced from grest-helper-scrips/db-scripts/basics.sql.
   setup_db_basics() {
-    local basics_sql_url="${URL_RAW}/scripts/grest-helper-scripts/psql/basics.sql"
+    local basics_sql_url="${DB_SCRIPTS_URL}/basics.sql"
     
     if ! basics_sql=$(curl -s -f -m "${CURL_TIMEOUT}" "${basics_sql_url}" 2>&1); then
       err_exit "Failed to get basic db setup SQL from ${basics_sql_url}"
@@ -420,9 +422,9 @@
   }
 
   # Description : Check sync until Mary hard-fork.
-  #             : SQL sourced from grest-helper-scrips/psql/reset_grest.sql.
+  #             : SQL sourced from grest-helper-scrips/db-scripts/reset_grest.sql.
   reset_grest_schema() {
-    local reset_sql_url="${URL_RAW}/scripts/grest-helper-scripts/psql/reset_grest.sql"
+    local reset_sql_url="${DB_SCRIPTS_URL}/reset_grest.sql"
     
     if ! reset_sql=$(curl -s -f -m "${CURL_TIMEOUT}" "${reset_sql_url}" 2>&1); then
       err_exit "Failed to get reset grest SQL from ${reset_sql_url}."
