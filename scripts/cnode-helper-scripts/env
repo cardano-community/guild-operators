@@ -89,6 +89,7 @@ OFFLINE_MODE='N'
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master
 
 URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
+DB_SCRIPTS_URL="${URL_RAW}/scripts/grest-helper-scripts/db-scripts"
 export LC_ALL=C.UTF-8
 
 # special mapping of coreutils gdate to date for MacOS
