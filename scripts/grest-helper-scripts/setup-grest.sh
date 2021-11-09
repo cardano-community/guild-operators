@@ -454,6 +454,7 @@
   }
 
   deploy_query_updates() {
+    setup_db_basics
     echo "[Re]Deploying Postgres RPCs/views/schedule..."
     [[ $(check_db_status) == 1 ]] && 
       err_exit "Please wait for Cardano DBSync to populate PostgreSQL DB at least until Mary fork, and then re-run this setup script with the -q flag."
@@ -501,7 +502,6 @@
   common_init
   setup_defaults
   parse_args
-  setup_db_basics
   [[ "${INSTALL_POSTGREST}" == "Y" ]] && deploy_postgrest
   [[ "${INSTALL_HAPROXY}" == "Y" ]] && deploy_haproxy
   [[ "${INSTALL_MONITORING_AGENTS}" == "Y" ]] && deploy_monitoring_agents
