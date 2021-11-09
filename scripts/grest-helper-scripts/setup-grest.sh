@@ -457,8 +457,8 @@
   }
 
   reset_grest() {
-    recreate_grest_schema
     remove_all_cron_jobs
+    recreate_grest_schema
   }
 
   deploy_query_updates() {
