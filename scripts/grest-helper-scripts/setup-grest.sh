@@ -464,8 +464,10 @@
   deploy_query_updates() {
     setup_db_basics
     echo "[Re]Deploying Postgres RPCs/views/schedule..."
-    [[ $(check_db_status) == 1 ]] && 
+    check_db_status
+    if [[ $? -eq 1 ]]; then
       err_exit "Please wait for Cardano DBSync to populate PostgreSQL DB at least until Mary fork, and then re-run this setup script with the -q flag."
+    fi
 
     echo -e "  Downloading DBSync RPC functions from Guild Operators GitHub store..."
     if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc?ref=${BRANCH} 2>&1); then
