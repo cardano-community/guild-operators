@@ -123,7 +123,7 @@
 
   # Description : Remove all grest-related cron entries.
   remove_all_cron_jobs() {
-    echo "Remove all installed cron jobs..."
+    echo "Removing all installed cron jobs..."
     remove_cron_job "stake-distribution-update"
     remove_cron_job "pool-history-cache-update"
   }
