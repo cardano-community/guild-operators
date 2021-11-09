@@ -6,9 +6,8 @@ FROM
 WHERE
   trigger_schema = 'public';
 
-
 -- Recreate grest schema
-DROP SCHEMA IF EXISTS grest;
+DROP SCHEMA IF EXISTS grest CASCADE;
 
 CREATE SCHEMA grest;
 
