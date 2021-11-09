@@ -123,7 +123,7 @@
 
   # Description : Remove all grest-related cron entries.
   remove_all_cron_jobs() {
-    echo "Removing all installed cron jobs..."
+    echo "        Removing all installed cron jobs..."
     remove_cron_job "stake-distribution-update"
     remove_cron_job "pool-history-cache-update"
   }
@@ -418,7 +418,7 @@
       err_exit "Failed to get basic db setup SQL from ${basics_sql_url}"
     fi
     echo -e "        Adding grest schema if missing and granting usage for web_anon..."
-    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<${basics_sql} 2>&1) && err_exit "${output}"
+    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -q <<<${basics_sql} 2>&1) && err_exit "${output}"
   }
 
   # Description : Check sync until Mary hard-fork.

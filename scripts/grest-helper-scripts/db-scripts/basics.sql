@@ -3,10 +3,6 @@
 -- 1) grest schema that will hold all RPC functions/views and cached tables
 -- 2) web_anon user setup
 --------------------------------------------------------------------------------
-SET client_min_messages TO WARNING;
-
-BEGIN;
-
 DO $$
 BEGIN
   CREATE ROLE web_anon nologin;
@@ -35,6 +31,12 @@ SELECT
   ON TABLES TO web_anon;
 
 ALTER ROLE web_anon SET search_path TO grest, public;
+
+CREATE TABLE IF NOT EXISTS GREST.CONTROL_TABLE (
+  key text PRIMARY KEY,
+  last_value text NOT NULL,
+  artifacts text
+);
 
 -- Most likely deprecated after 12.0.0
 CREATE INDEX IF NOT EXISTS _asset_policy_idx ON PUBLIC.MA_TX_OUT ( policy);
