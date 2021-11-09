@@ -53,11 +53,18 @@
         exit 1
       fi
       echo "Checking env updates..."
-      [[ $(checkUpdate env N N N) == 2 ]] && exit 1
+      checkUpdate env N N N
+      if [[ $? -eq 2 ]]; then
+        exit 1
+      fi
 
       echo "Checking setup-grest.sh updates..."
-      [[ $(checkUpdate setup-grest.sh N N Y 'grest-helper-scripts') == 1 ]] &&
-        echo -e "\nPlease re-run setup-grest.sh!" && exit 0
+      checkUpdate setup-grest.sh N N Y 'grest-helper-scripts'
+      if [[ $? -eq 1 ]]; then
+        echo -e "\nPlease re-run setup-grest.sh!"
+        exit 0
+      fi
+        
     fi
     . "${PARENT}"/env offline &>/dev/null
     case $? in
