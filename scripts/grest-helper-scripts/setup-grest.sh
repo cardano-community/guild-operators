@@ -32,6 +32,7 @@
 		    c    Overwrite haproxy, postgREST configs
 		    d    Overwrite systemd definitions
 		-u    Skip update check for setup script itself
+    -r    Reset grest schema - remove all deployed RPC functions and cached tables (still not triggers)
 		-q    Run all DB Queries to update on postgres (includes creating grest schema, and re-creating views/genesis table/functions/triggers and setting up cron jobs)
 		-b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 		
@@ -147,7 +148,30 @@
     mkdir -p ~/tmp
   }
 
+  create_genesis_table() {
+    local genesis_table_sql_url="${URL_RAW}/scripts/grest-helper-scripts/psql/genesis_table.sql"
+
+    if ! genesis_table_sql=$(curl -s -f -m "${CURL_TIMEOUT}" "${genesis_table_sql_url}" 2>&1); then
+      err_exit "Failed to genesis table SQL from ${genesis_table_sql_url}"
+    fi
+    echo -e "        (Re)creating initial genesis table..."
+    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<${genesis_table_sql} 2>&1) && echo -e "        \e[31mERROR\e[0m: ${output}"
+  }
+
   populate_genesis_table() {
+    local alonzo_genesis=$1
+    shift
+    local shelley_genesis=("$@")
+  
+    psql "${PGDATABASE}" -c "INSERT INTO grest.genesis VALUES (
+      '${shelley_genesis[4]}', '${shelley_genesis[2]}', '${shelley_genesis[0]}',
+      '${shelley_genesis[1]}', '${shelley_genesis[3]}', '${shelley_genesis[5]}',
+      '${shelley_genesis[6]}', '${shelley_genesis[7]}', '${shelley_genesis[8]}',
+      '${shelley_genesis[9]}', '${shelley_genesis[10]}', '${alonzo_genesis}'
+    );" > /dev/null
+  }
+
+  deploy_genesis_table() {
     read -ra genfiles <<<$(jq -r '[ .ByronGenesisFile, .ShelleyGenesisFile, .AlonzoGenesisFile] | @tsv' "${CONFIG}")
     read -ra SHGENESIS <<<$(jq -r '[
       .activeSlotsCoeff,
@@ -166,28 +190,8 @@
     # For now, compressed jq will be inserted as shell escaped json data blob
     ALGENESIS="$(jq -c . <${genfiles[2]})"
     # Data Types are intentionally kept varchar for single ID row to avoid future edge cases
-    echo -e "  Adding initial genesis table.."
-    psql "${PGDATABASE}" <<-SQL >/dev/null
-			SET client_min_messages TO WARNING;
-			BEGIN;
-			DROP TABLE IF EXISTS grest.genesis;
-			CREATE TABLE grest.genesis (
-			  NETWORKMAGIC varchar,
-			  NETWORKID varchar,
-			  ACTIVESLOTCOEFF varchar,
-			  UPDATEQUORUM varchar,
-			  MAXLOVELACESUPPLY varchar,
-			  EPOCHLENGTH varchar,
-			  SYSTEMSTART varchar,
-			  SLOTSPERKESPERIOD varchar,
-			  SLOTLENGTH varchar,
-			  MAXKESREVOLUTIONS varchar,
-			  SECURITYPARAM varchar,
-			  ALONZOGENESIS varchar
-			);
-			COMMIT;
-			SQL
-    psql "${PGDATABASE}" -c "INSERT INTO grest.genesis VALUES ( '${SHGENESIS[4]}', '${SHGENESIS[2]}', '${SHGENESIS[0]}', '${SHGENESIS[1]}', '${SHGENESIS[3]}', '${SHGENESIS[5]}', '${SHGENESIS[6]}', '${SHGENESIS[7]}', '${SHGENESIS[8]}', '${SHGENESIS[9]}', '${SHGENESIS[10]}', '${ALGENESIS}' );" > /dev/null
+    create_genesis_table
+    populate_genesis_table "${ALGENESIS}" "${SHGENESIS[@]}"
   }
 
   deploy_postgrest() {
@@ -387,55 +391,57 @@
     sudo systemctl daemon-reload && sudo systemctl enable postgrest.service haproxy.service grest_exporter.service >/dev/null 2>&1
     echo "  Done!! Please ensure to all [re]start services above!"
   }
+  
+  # Description : Setup grest schema and web_anon user.
+  #             : SQL sourced from grest-helper-scrips/psql/basics.sql.
+  setup_db_basics() {
+    local basics_sql_url="${URL_RAW}/scripts/grest-helper-scripts/psql/basics.sql"
+    
+    if ! basics_sql=$(curl -s -f -m "${CURL_TIMEOUT}" "${basics_sql_url}" 2>&1); then
+      err_exit "Failed to get basic db setup SQL from ${basics_sql_url}"
+    fi
+    echo -e "        Adding grest schema if missing and granting usage for web_anon..."
+    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<${basics_sql} 2>&1) && err_exit "${output}"
+  }
 
-  deploy_query_updates() {
-    echo "[Re]Deploying Postgres RPCs/views/schedule.."
+  # Description : Check sync until Mary hard-fork.
+  check_db_status() {
     if ! command -v psql &>/dev/null; then
       err_exit "We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:\n ${DOCS_URL}/Appendix/postgres"
     fi
     if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" ]]; then
       err_exit "PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}\n ${DOCS_URL}/Build/dbsync"
     fi
-    #if ! dbsync_network=$(psql -qtAX -d "${PGDATABASE}" -c "select network_name from meta;" 2>&1); then
     if [[ "$(psql -qtAX -d ${PGDATABASE} -c "SELECT protocol_major FROM public.param_proposal WHERE protocol_major >= 4 ORDER BY protocol_major DESC LIMIT 1" 2>/dev/null)" == "" ]]; then
+      return 1
+    fi
+
+    return 0
+  }
+
+  # Description : Check sync until Mary hard-fork.
+  #             : SQL sourced from grest-helper-scrips/psql/reset_grest.sql.
+  reset_grest_schema() {
+    local reset_sql_url="${URL_RAW}/scripts/grest-helper-scripts/psql/reset_grest.sql"
+    
+    if ! reset_sql=$(curl -s -f -m "${CURL_TIMEOUT}" "${reset_sql_url}" 2>&1); then
+      err_exit "Failed to get reset grest SQL from ${reset_sql_url}."
+    fi
+    echo -e "        Resetting grest schema..."
+    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<${reset_sql} 2>&1) && err_exit "${output}"
+  }
+
+  deploy_query_updates() {
+    echo "[Re]Deploying Postgres RPCs/views/schedule..."
+    if check_db_status; then
       err_exit "Please wait for Cardano DBSync to populate PostgreSQL DB at least until Mary fork, and then re-run this setup script with the -q flag."
     fi
     echo -e "  Downloading DBSync RPC functions from Guild Operators GitHub store..."
     if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc?ref=${BRANCH} 2>&1); then
       err_exit "${rpc_file_list}"
     fi
-    # add grest schema if missing and grant usage for web_anon
-    echo -e "  Adding grest schema if missing and granting usage for web_anon..."
-    psql "${PGDATABASE}" <<-EOF >/dev/null
-			SET client_min_messages TO WARNING;
-			
-			BEGIN;
-			
-			DO
-			\$\$
-			BEGIN
-				CREATE ROLE web_anon nologin;
-				EXCEPTION WHEN DUPLICATE_OBJECT THEN
-					RAISE NOTICE 'web_anon exists, skipping...';
-			END
-			\$\$;
-			
-			CREATE SCHEMA IF NOT EXISTS grest;
-			GRANT USAGE ON SCHEMA public TO web_anon;
-			GRANT USAGE ON SCHEMA grest TO web_anon;
-			GRANT SELECT ON ALL TABLES IN SCHEMA public TO web_anon;
-			GRANT SELECT ON ALL TABLES IN SCHEMA grest TO web_anon;
-			ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO web_anon;
-			ALTER DEFAULT PRIVILEGES IN SCHEMA grest GRANT SELECT ON TABLES TO web_anon;
-			ALTER ROLE web_anon SET search_path TO grest, public;
-
-			CREATE INDEX IF NOT EXISTS _asset_policy_idx ON PUBLIC.MA_TX_OUT (policy);
-			CREATE INDEX IF NOT EXISTS _asset_identifier_idx ON PUBLIC.MA_TX_OUT (policy, name);
-			
-			COMMIT;
-			EOF
-    populate_genesis_table
-    echo -e "  [Re]Deploying GRest objects to DBSync.."
+    echo -e "  [Re]Deploying GRest objects to DBSync..."
+    deploy_genesis_table
     for row in $(jq -r '.[] | @base64' <<<${rpc_file_list}); do
       if [[ $(jqDecode '.type' "${row}") = 'dir' ]]; then
         echo -e "\n    Downloading pSQL executions from subdir $(jqDecode '.name' "${row}")"
@@ -457,11 +463,12 @@
 
 ######## Execution ########
   # Parse command line options
-  while getopts :fi:uqb: opt; do
+  while getopts :fi:urqb: opt; do
     case ${opt} in
     f) FORCE_OVERWRITE='Y' ;;
     i) I_ARGS="${OPTARG}" ;;
     u) SKIP_UPDATE='Y' ;;
+    r) RESET_GREST_SCHEMA='Y' ;;
     q) DB_QRY_UPDATES='Y' ;;
     b) echo "${OPTARG}" > ./.env_branch ;;
     \?) usage ;;
@@ -472,11 +479,13 @@
   common_init
   setup_defaults
   parse_args
+  setup_db_basics
   [[ "${INSTALL_POSTGREST}" == "Y" ]] && deploy_postgrest
   [[ "${INSTALL_HAPROXY}" == "Y" ]] && deploy_haproxy
   [[ "${INSTALL_MONITORING_AGENTS}" == "Y" ]] && deploy_monitoring_agents
   [[ "${OVERWRITE_CONFIG}" == "Y" ]] && deploy_configs
   [[ "${OVERWRITE_SYSTEMD}" == "Y" ]] && deploy_systemd
+  [[ "${RESET_GREST_SCHEMA}" == "Y" ]] && reset_grest_schema
   [[ "${DB_QRY_UPDATES}" == "Y" ]] && deploy_query_updates
   pushd -0 >/dev/null || err_exit
   dirs -c
