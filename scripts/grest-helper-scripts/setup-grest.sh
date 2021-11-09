@@ -52,8 +52,10 @@
         echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
         exit 1
       fi
+      echo "Checking env updates..."
       [[ $(checkUpdate env N N N) == 2 ]] && exit 1
 
+      echo "Checking setup-grest.sh updates..."
       checkUpdate setup-grest.sh N N Y 'grest-helper-scripts'
     fi
     . "${PARENT}"/env offline &>/dev/null
