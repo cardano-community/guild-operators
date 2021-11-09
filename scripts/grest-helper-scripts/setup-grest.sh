@@ -436,16 +436,21 @@
     return 0
   }
 
-  # Description : Check sync until Mary hard-fork.
+  # Description : Drop all triggers and recreate grest schema.
   #             : SQL sourced from grest-helper-scrips/db-scripts/reset_grest.sql.
-  reset_grest_schema() {
+  recreate_grest_schema() {
     local reset_sql_url="${DB_SCRIPTS_URL}/reset_grest.sql"
     
     if ! reset_sql=$(curl -s -f -m "${CURL_TIMEOUT}" "${reset_sql_url}" 2>&1); then
       err_exit "Failed to get reset grest SQL from ${reset_sql_url}."
     fi
     echo -e "        Resetting grest schema..."
-    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<${reset_sql} 2>&1) && err_exit "${output}"
+    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -q <<<${reset_sql} 2>&1) && err_exit "${output}"
+  }
+
+  reset_grest() {
+    recreate_grest_schema
+    remove_all_cron_jobs
   }
 
   deploy_query_updates() {
@@ -485,7 +490,7 @@
     f) FORCE_OVERWRITE='Y' ;;
     i) I_ARGS="${OPTARG}" ;;
     u) SKIP_UPDATE='Y' ;;
-    r) RESET_GREST_SCHEMA='Y' ;;
+    r) RESET_GREST='Y' ;;
     q) DB_QRY_UPDATES='Y' ;;
     b) echo "${OPTARG}" > ./.env_branch ;;
     \?) usage ;;
@@ -502,7 +507,7 @@
   [[ "${INSTALL_MONITORING_AGENTS}" == "Y" ]] && deploy_monitoring_agents
   [[ "${OVERWRITE_CONFIG}" == "Y" ]] && deploy_configs
   [[ "${OVERWRITE_SYSTEMD}" == "Y" ]] && deploy_systemd
-  [[ "${RESET_GREST_SCHEMA}" == "Y" ]] && reset_grest_schema && remove_all_cron_jobs
+  [[ "${RESET_GREST}" == "Y" ]] && reset_grest
   [[ "${DB_QRY_UPDATES}" == "Y" ]] && deploy_query_updates
   pushd -0 >/dev/null || err_exit
   dirs -c
