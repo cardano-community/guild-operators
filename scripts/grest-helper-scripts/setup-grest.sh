@@ -32,7 +32,7 @@
 		    c    Overwrite haproxy, postgREST configs
 		    d    Overwrite systemd definitions
 		-u    Skip update check for setup script itself
-		-r    Reset grest schema - drop all triggers, and remove all deployed RPC functions and cached tables
+		-r    Reset grest schema - drop all cron jobs and triggers, and remove all deployed RPC functions and cached tables
 		-q    Run all DB Queries to update on postgres (includes creating grest schema, and re-creating views/genesis table/functions/triggers and setting up cron jobs)
 		-b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 		
