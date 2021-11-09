@@ -32,7 +32,7 @@
 		    c    Overwrite haproxy, postgREST configs
 		    d    Overwrite systemd definitions
 		-u    Skip update check for setup script itself
-    -r    Reset grest schema - remove all deployed RPC functions and cached tables (still not triggers)
+		-r    Reset grest schema - remove all deployed RPC functions and cached tables (still not triggers)
 		-q    Run all DB Queries to update on postgres (includes creating grest schema, and re-creating views/genesis table/functions/triggers and setting up cron jobs)
 		-b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 		
@@ -58,7 +58,7 @@
         2) exit 1 ;;
       esac
       # check for setup-grest update
-      checkUpdate setup-grest.sh ${ENV_UPDATED}
+      checkUpdate setup-grest.sh ${ENV_UPDATED}  Y Y 'grest-helper-scripts'
     fi
     . "${PARENT}"/env offline &>/dev/null
     case $? in
