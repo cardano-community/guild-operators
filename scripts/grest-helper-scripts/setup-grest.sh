@@ -94,8 +94,8 @@
     local job=$1
     local cron_pattern=$2
     local cron_job_path="${CRON_DIR}/${job}"
-    if is_file "$CRON_DIR/${job}"; then
-      sudo rm "$CRON_DIR/${job}"
+    if is_file "${cron_job_path}"; then
+      sudo rm "${cron_job_path}"
     fi
     local cron_job_entry="${cron_pattern} ${USER} /bin/sh ${CRON_SCRIPTS_DIR}/${job}.sh >> ${LOG_DIR}/${job}.log"
     sudo bash -c "{ echo '${cron_job_entry}'; } > ${cron_job_path}"
@@ -111,7 +111,22 @@
     get_cron_job_executable "pool-history-cache-update"
     install_cron_job "pool-history-cache-update" "*/10 * * * *"
   }
-  
+
+  # Description : Remove a given grest cron entry.
+  remove_cron_job() {
+    local job=$1
+    local cron_job_path="${CRON_DIR}/${job}"
+    if is_file "${cron_job_path}"; then
+      sudo rm "${cron_job_path}"
+    fi
+  }
+
+  # Description : Remove all grest-related cron entries.
+  remove_all_cron_jobs() {
+    remove_cron_job "stake-distribution-update"
+    remove_cron_job "pool-history-cache-update"
+  }
+
   setup_defaults() {
     [[ -z "${CRON_SCRIPTS_DIR}" ]] && CRON_SCRIPTS_DIR="${CNODE_HOME}/scripts/cron-scripts"
     [[ -z "${CRON_DIR}" ]] && CRON_DIR="/etc/cron.d"
@@ -486,7 +501,7 @@
   [[ "${INSTALL_MONITORING_AGENTS}" == "Y" ]] && deploy_monitoring_agents
   [[ "${OVERWRITE_CONFIG}" == "Y" ]] && deploy_configs
   [[ "${OVERWRITE_SYSTEMD}" == "Y" ]] && deploy_systemd
-  [[ "${RESET_GREST_SCHEMA}" == "Y" ]] && reset_grest_schema
+  [[ "${RESET_GREST_SCHEMA}" == "Y" ]] && reset_grest_schema && remove_all_cron_jobs
   [[ "${DB_QRY_UPDATES}" == "Y" ]] && deploy_query_updates
   pushd -0 >/dev/null || err_exit
   dirs -c
