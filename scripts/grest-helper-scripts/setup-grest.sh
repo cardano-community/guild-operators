@@ -171,7 +171,7 @@
       err_exit "Failed to genesis table SQL from ${genesis_table_sql_url}"
     fi
     echo -e "        (Re)creating initial genesis table..."
-    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<${genesis_table_sql} 2>&1) && echo -e "        \e[31mERROR\e[0m: ${output}"
+    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -q <<<${genesis_table_sql} 2>&1) && echo -e "        \e[31mERROR\e[0m: ${output}"
   }
 
   # Description : Populate genesis table with given values.
