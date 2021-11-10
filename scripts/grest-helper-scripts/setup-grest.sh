@@ -44,28 +44,36 @@
     # Check if env file is missing in current folder, note that some env functions may not be present until env is sourced successfully
     [[ ! -f ./env ]] && echo -e "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
     . ./env offline # Just to source checkUpdate, will be re-sourced later
+    
     # Update check
     if [[ ${SKIP_UPDATE} != Y ]]; then
+
       echo "Checking for script updates..."
+
       # Check availability of checkUpdate function
       if [[ ! $(command -v checkUpdate) ]]; then
         echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
         exit 1
       fi
-      echo "Checking env updates..."
-      checkUpdate env N N N
-      if [[ $? -eq 2 ]]; then
-        exit 1
-      fi
 
-      echo "Checking setup-grest.sh updates..."
-      checkUpdate setup-grest.sh N N Y 'grest-helper-scripts'
-      if [[ $? -eq 1 ]]; then
-        echo -e "\nPlease re-run setup-grest.sh!"
-        exit 0
-      fi
-        
+      # check for env update
+      ENV_UPDATED=N
+      checkUpdate env N N N
+      case $? in
+        1) ENV_UPDATED=Y ;;
+        2) exit 1 ;;
+      esac
+
+      # check for setup-grest update
+      checkUpdate setup-grest.sh ${ENV_UPDATED} N N grest-helper-scripts
+      case $? in
+        1) $0 "$@" "-u"; exit 0 ;; # re-launch script with same args skipping update check
+        2) exit 1 ;;
+      esac
+
+      echo
     fi
+
     . "${PARENT}"/env offline &>/dev/null
     case $? in
       1) echo -e "ERROR: Failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" && exit 1;;
@@ -89,10 +97,12 @@
 
   get_cron_job_executable() {
     local job=$1
+    local job_path="${CRON_SCRIPTS_DIR}/${job}.sh"
     local job_url="${URL_RAW}/files/grest/cron/jobs/${job}.sh"
-    if curl -s -f -m "${CURL_TIMEOUT}" -o "${CRON_SCRIPTS_DIR}/${job}.sh" "${job_url}"; then
-      echo -e "      Downloaded \e[32m${CRON_SCRIPTS_DIR}/${job}.sh\e[0m"
-      chmod +x "${CRON_SCRIPTS_DIR}/${job}.sh"
+    is_file "${job_path}" && rm "${job_path}"
+    if curl -s -f -m "${CURL_TIMEOUT}" -o "${job_path}" "${job_url}"; then
+      echo -e "      Downloaded \e[32m${job_path}\e[0m"
+      chmod +x "${job_path}"
     else
       err_exit "Could not download ${job_url}"
     fi
@@ -101,32 +111,53 @@
   install_cron_job() {
     local job=$1
     local cron_pattern=$2
-    local cron_job_path="${CRON_DIR}/${job}"
-    if is_file "${cron_job_path}"; then
-      sudo rm "${cron_job_path}"
-    fi
-    local cron_job_entry="${cron_pattern} ${USER} /bin/sh ${CRON_SCRIPTS_DIR}/${job}.sh >> ${LOG_DIR}/${job}.log"
+    local cron_job_path="${CRON_DIR}/${CNODE_VNAME}-${job}"
+    local cron_scripts_path="${CRON_SCRIPTS_DIR}/${job}.sh"
+    local cron_log_path="${LOG_DIR}/${job}.log"
+    local cron_job_entry="${cron_pattern} ${USER} /bin/sh ${cron_scripts_path} >> ${cron_log_path}"
+    remove_cron_job "${job}"
     sudo bash -c "{ echo '${cron_job_entry}'; } > ${cron_job_path}"
   }
 
+  set_cron_variables() {
+    local job=$1
+    [[ ${CNODE_VNAME} = cnode && ${PGDATABASE} = cexplorer ]] && return
+    sed -e "s@DB_NAME=.*@DB_NAME=${PGDATABASE}@" -i "${CRON_SCRIPTS_DIR}/${CNODE_VNAME}-${job}.sh"
+  }
+
+  set_cron_asset_registry_testnet() {
+    sed -e "s@CNODE_VNAME=.*@CNODE_VNAME=${CNODE_VNAME}@" \
+        -e "s@TR_URL=.*@TR_URL=https://github.com/input-output-hk/metadata-registry-testnet@" \
+        -e "s@TR_SUBDIR=.*@TR_SUBDIR=registry@" \
+        -i "${CRON_SCRIPTS_DIR}/asset-registry-update.sh"
+  }
+
   setup_cron_jobs() {
-    if ! is_dir "${CRON_SCRIPTS_DIR}"; then
-      mkdir "${CRON_SCRIPTS_DIR}"
-    fi
+    ! is_dir "${CRON_SCRIPTS_DIR}" && mkdir -p "${CRON_SCRIPTS_DIR}"
+
     get_cron_job_executable "stake-distribution-update"
+    set_cron_variables "stake-distribution-update"
     install_cron_job "stake-distribution-update" "*/30 * * * *"
     
     get_cron_job_executable "pool-history-cache-update"
+    set_cron_variables "pool-history-cache-update"
     install_cron_job "pool-history-cache-update" "*/10 * * * *"
+
+    if [[ ${NWMAGIC} -eq 764824073 || ${NWMAGIC} -eq 1097911063 ]]; then
+      get_cron_job_executable "asset-registry-update"
+      set_cron_variables "asset-registry-update"
+      [[ ${NWMAGIC} -eq 1097911063 ]] && set_cron_asset_registry_testnet
+      install_cron_job "asset-registry-update" "*/10 * * * *"
+    fi
   }
 
   # Description : Remove a given grest cron entry.
   remove_cron_job() {
     local job=$1
-    local cron_job_path="${CRON_DIR}/${job}"
-    if is_file "${cron_job_path}"; then
-      sudo rm "${cron_job_path}"
-    fi
+    local cron_job_path_legacy="${CRON_DIR}/${job}" # legacy name w/o vname part, can be removed in future
+    local cron_job_path="${CRON_DIR}/${CNODE_VNAME}-${job}"
+    is_file "${cron_job_path_legacy}" && sudo rm "${cron_job_path_legacy}"
+    is_file "${cron_job_path}" && sudo rm "${cron_job_path}"
   }
 
   # Description : Remove all grest-related cron entries.
@@ -134,6 +165,7 @@
     echo "        Removing all installed cron jobs..."
     remove_cron_job "stake-distribution-update"
     remove_cron_job "pool-history-cache-update"
+    remove_cron_job "asset-registry-update"
   }
 
   setup_defaults() {
