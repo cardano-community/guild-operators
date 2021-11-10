@@ -161,7 +161,7 @@
 
   # Description : Remove all grest-related cron entries.
   remove_all_cron_jobs() {
-    echo "        Removing all installed cron jobs..."
+    echo "Removing all installed cron jobs..."
     remove_cron_job "stake-distribution-update"
     remove_cron_job "pool-history-cache-update"
     remove_cron_job "asset-registry-update"
@@ -483,7 +483,7 @@
     if ! reset_sql=$(curl -s -f -m "${CURL_TIMEOUT}" "${reset_sql_url}" 2>&1); then
       err_exit "Failed to get reset grest SQL from ${reset_sql_url}."
     fi
-    echo -e "        Resetting grest schema..."
+    echo -e "Resetting grest schema..."
     ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -q <<<${reset_sql} 2>&1) && err_exit "${output}"
   }
 
