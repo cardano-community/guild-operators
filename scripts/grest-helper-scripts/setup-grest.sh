@@ -122,7 +122,7 @@
   set_cron_variables() {
     local job=$1
     [[ ${CNODE_VNAME} = cnode && ${PGDATABASE} = cexplorer ]] && return
-    sed -e "s@DB_NAME=.*@DB_NAME=${PGDATABASE}@" -i "${CRON_SCRIPTS_DIR}/${CNODE_VNAME}-${job}.sh"
+    sed -e "s@DB_NAME=.*@DB_NAME=${PGDATABASE}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
   }
 
   set_cron_asset_registry_testnet() {
@@ -539,8 +539,7 @@
     \?) usage ;;
     esac
   done
-  shift $((OPTIND - 1))
-  update_check
+  update_check "$@"
   common_init
   setup_defaults
   parse_args
