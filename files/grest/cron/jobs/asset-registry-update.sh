@@ -6,7 +6,7 @@ TR_SUBDIR=mappings
 TR_DIR=${HOME}/git
 TR_NAME=${CNODE_VNAME}-token-registry
 
-echo "$(date +%F_%H:%M:%S) Running asset registry update..."
+echo "$(date +%F_%H:%M:%S) - START - Asset Registry Update"
 
 if [[ ! -d "${TR_DIR}/${TR_NAME}" ]]; then
   [[ -z ${HOME} ]] && echo "HOME variable not set, aborting..." && exit 1
@@ -46,4 +46,4 @@ while IFS= read -r -d '' assetfile; do
   done <<< ${asset_data_csv}
 done < <(find "${TR_DIR}/${TR_NAME}/${TR_SUBDIR}" -mindepth 1 -maxdepth 1 -type f -print0)
 
-
+echo "$(date +%F_%H:%M:%S) - END - Asset Registry Update"

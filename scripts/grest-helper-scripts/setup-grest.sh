@@ -114,7 +114,7 @@
     local cron_job_path="${CRON_DIR}/${CNODE_VNAME}-${job}"
     local cron_scripts_path="${CRON_SCRIPTS_DIR}/${job}.sh"
     local cron_log_path="${LOG_DIR}/${job}.log"
-    local cron_job_entry="${cron_pattern} ${USER} /bin/sh ${cron_scripts_path} >> ${cron_log_path}"
+    local cron_job_entry="${cron_pattern} ${USER} /bin/bash ${cron_scripts_path} >> ${cron_log_path}"
     remove_cron_job "${job}"
     sudo bash -c "{ echo '${cron_job_entry}'; } > ${cron_job_path}"
   }
