@@ -6,6 +6,7 @@ CREATE FUNCTION grest.asset_info (_asset_policy text, _asset_name_hex text)
     asset_name_hex text,
     asset_name_escaped text,
     minting_tx_metadata jsonb,
+    token_registry_metadata jsonb,
     total_supply numeric,
     total_transactions bigint,
     total_wallets bigint,
@@ -49,6 +50,7 @@ asset_utxos AS (
     _asset_name_hex as asset_name_hex,
     ENCODE(_asset_name_decoded, 'escape') as asset_name_escaped,
     creation_t.minting_tx_metadata,
+    token_registry.metadata,
     supply_t.total_supply,
     tx_t.total_transactions,
     registered_wallets_t.registered_wallets + unregistered_wallets_t.unregistered_wallets,
@@ -94,6 +96,23 @@ asset_utxos AS (
     ORDER BY
       TX.ID ASC
     LIMIT 1) creation_t ON TRUE;
+  LEFT JOIN (
+    SELECT
+      JSONB_BUILD_OBJECT(
+        'name', ARC.name,
+        'description', ARC.description,
+        'ticker', ARC.ticker,
+        'url', ARC.url,
+        'logo', ARC.logo,
+        'decimals', ARC.decimals,
+      ) as metadata
+    FROM
+      grest.asset_registry_cache ARC
+    WHERE
+      ARC.asset_policy = _asset_policy_decoded
+      AND 
+      ARC.asset_name = _asset_name_decoded
+    LIMIT 1) token_registry ON TRUE;
 END;
 $$;
 

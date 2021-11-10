@@ -67,7 +67,7 @@
       # check for setup-grest update
       checkUpdate setup-grest.sh ${ENV_UPDATED} N N grest-helper-scripts
       case $? in
-        1) $0 "$@" "-u"; exit 0 ;; # re-launch script with same args skipping update check
+        1) echo; $0 "$@" "-u"; exit 0 ;; # re-launch script with same args skipping update check
         2) exit 1 ;;
       esac
 
@@ -121,8 +121,7 @@
 
   set_cron_variables() {
     local job=$1
-    [[ ${CNODE_VNAME} = cnode && ${PGDATABASE} = cexplorer ]] && return
-    sed -e "s@DB_NAME=.*@DB_NAME=${PGDATABASE}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
+    [[ ${PGDATABASE} != cexplorer ]] && sed -e "s@DB_NAME=.*@DB_NAME=${PGDATABASE}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
   }
 
   set_cron_asset_registry_testnet() {
@@ -210,7 +209,7 @@
     if ! genesis_table_sql=$(curl -s -f -m "${CURL_TIMEOUT}" "${genesis_table_sql_url}" 2>&1); then
       err_exit "Failed to genesis table SQL from ${genesis_table_sql_url}"
     fi
-    echo -e "        (Re)creating initial genesis table..."
+    echo -e "    \n(Re)creating initial genesis table..."
     ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -q <<<${genesis_table_sql} 2>&1) && echo -e "        \e[31mERROR\e[0m: ${output}"
   }
 
@@ -457,7 +456,7 @@
     if ! basics_sql=$(curl -s -f -m "${CURL_TIMEOUT}" "${basics_sql_url}" 2>&1); then
       err_exit "Failed to get basic db setup SQL from ${basics_sql_url}"
     fi
-    echo -e "        Adding grest schema if missing and granting usage for web_anon..."
+    echo -e "Adding grest schema if missing and granting usage for web_anon..."
     ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -q <<<${basics_sql} 2>&1) && err_exit "${output}"
   }
 
