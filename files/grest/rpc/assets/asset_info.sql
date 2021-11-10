@@ -109,9 +109,9 @@ asset_utxos AS (
     FROM
       grest.asset_registry_cache ARC
     WHERE
-      ARC.asset_policy = _asset_policy_decoded
+      ARC.asset_policy = _asset_policy
       AND 
-      ARC.asset_name = _asset_name_decoded
+      ARC.asset_name = _asset_name_hex
     LIMIT 1) token_registry ON TRUE;
 END;
 $$;
