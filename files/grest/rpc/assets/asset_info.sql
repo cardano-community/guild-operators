@@ -95,7 +95,7 @@ asset_utxos AS (
       LEFT JOIN TX_METADATA TXM ON TX.ID = TXM.TX_ID
     ORDER BY
       TX.ID ASC
-    LIMIT 1) creation_t ON TRUE;
+    LIMIT 1) creation_t ON TRUE
   LEFT JOIN (
     SELECT
       JSONB_BUILD_OBJECT(
@@ -104,7 +104,7 @@ asset_utxos AS (
         'ticker', ARC.ticker,
         'url', ARC.url,
         'logo', ARC.logo,
-        'decimals', ARC.decimals,
+        'decimals', ARC.decimals
       ) as metadata
     FROM
       grest.asset_registry_cache ARC
