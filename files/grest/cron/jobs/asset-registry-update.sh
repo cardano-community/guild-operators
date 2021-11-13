@@ -38,11 +38,11 @@ while IFS= read -r -d '' assetfile; do
     # validate data, silently skip entry for required fields or set null for optional
     [[ -z ${name} || ${#name} -gt 50 ]] && continue
     [[ -z ${description} || ${#description} -gt 500 ]] && continue
-    [[ -z ${ticker} || ${#ticker} -lt 3 || ${#ticker} -gt 5 ]] && ticker=NULL || ticker="'${ticker}'"
-    [[ -z ${url} || ! ${url//\"} =~ ^https?:// || ${#url} -gt 250 ]] && url=NULL || url="'${url}'"
-    [[ -z ${logo} ]] && logo=NULL || logo="'${logo}'"
+    [[ -z ${ticker} || ${#ticker} -lt 3 || ${#ticker} -gt 5 ]] && ticker=NULL || ticker="\$\$${ticker}\$\$"
+    [[ -z ${url} || ! ${url//\"} =~ ^https?:// || ${#url} -gt 250 ]] && url=NULL || url="\$\$${url}\$\$"
+    [[ -z ${logo} ]] && logo=NULL || logo="\$\$${logo}\$\$"
     [[ ! ${decimals} =~ ^[0-9]+$ ]] && decimals=0
-    psql ${DB_NAME} -qbt -c "SELECT grest.asset_registry_cache_update('${asset_policy}', '${asset_name}', '${name}', '${description}', ${ticker}, ${url}, ${logo}, ${decimals});" >/dev/null
+    psql ${DB_NAME} -qbt -c "SELECT grest.asset_registry_cache_update(\$\$${asset_policy}\$\$, \$\$${asset_name}\$\$, \$\$${name}\$\$, \$\$${description}\$\$, ${ticker}, ${url}, ${logo}, ${decimals});" >/dev/null
   done <<< ${asset_data_csv}
 done < <(find "${TR_DIR}/${TR_NAME}/${TR_SUBDIR}" -mindepth 1 -maxdepth 1 -type f -print0)
 
