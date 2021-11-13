@@ -1,8 +1,15 @@
 --------------------------------------------------------------------------------
 -- Entry point for Koios node DB setup:
 -- 1) grest schema that will hold all RPC functions/views and cached tables
--- 2) web_anon user setup
+-- 2) web_anon user
+-- 3) grest.control_table
+-- 4) grest.genesis
+-- 5) optional db indexes on important public tables
 --------------------------------------------------------------------------------
+-- GREST SCHEMA --
+CREATE SCHEMA IF NOT EXISTS grest;
+
+-- WEB_ANON USER --
 DO $$
 BEGIN
   CREATE ROLE web_anon nologin;
@@ -11,8 +18,6 @@ EXCEPTION
     RAISE NOTICE 'web_anon exists, skipping...';
 END
 $$;
-
-CREATE SCHEMA IF NOT EXISTS grest;
 
 GRANT USAGE ON SCHEMA public TO web_anon;
 
@@ -32,10 +37,30 @@ SELECT
 
 ALTER ROLE web_anon SET search_path TO grest, public;
 
+-- CONTROL TABLE --
 CREATE TABLE IF NOT EXISTS GREST.CONTROL_TABLE (
   key text PRIMARY KEY,
   last_value text NOT NULL,
   artifacts text
+);
+
+-- GENESIS TABLE --
+DROP TABLE IF EXISTS grest.genesis;
+
+-- Data Types are intentionally kept varchar for single ID row to avoid future edge cases
+CREATE TABLE grest.genesis (
+  NETWORKMAGIC varchar,
+  NETWORKID varchar,
+  ACTIVESLOTCOEFF varchar,
+  UPDATEQUORUM varchar,
+  MAXLOVELACESUPPLY varchar,
+  EPOCHLENGTH varchar,
+  SYSTEMSTART varchar,
+  SLOTSPERKESPERIOD varchar,
+  SLOTLENGTH varchar,
+  MAXKESREVOLUTIONS varchar,
+  SECURITYPARAM varchar,
+  ALONZOGENESIS varchar
 );
 
 -- Most likely deprecated after 12.0.0
