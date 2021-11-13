@@ -330,6 +330,11 @@
 			EOF
     # Create HAProxy config template
     [[ -f "${HAPROXY_CFG}" ]] && cp "${HAPROXY_CFG}" "${HAPROXY_CFG}".bkp_$(date +%s)
+    case ${NWMAGIC} in
+      1097911063) KOIOS_SRV="testnet.koios.rest" ;;
+      764824073)  KOIOS_SRV="api.koios.rest" ;;
+      *) KOIOS_SRV="guild.koios.rest" ;;
+    esac
     bash -c "cat <<-EOF > ${HAPROXY_CFG}
 			global
 			  daemon
@@ -357,7 +362,7 @@
 			  bind 0.0.0.0:8053
 			  #Replace servername.koios.rest below
 			  #http-request replace-value Host (.*):8053 servername.koios.rest:8453
-			  redirect scheme https code 301 if !{ ssl_fc }
+			  #redirect scheme https code 301 if !{ ssl_fc }
 			  #
 			  #frontend app-secured
 			  #bind :8453 ssl crt /etc/ssl/server.pem no-sslv3
@@ -373,7 +378,8 @@
 			  option external-check
 			  external-check path \"/usr/bin:/bin:/tmp:/sbin:/usr/sbin\"
 			  external-check command ${CNODE_HOME}/scripts/grest-poll.sh
-			  server local 127.0.0.1:8050 check inter 10000
+			  server local 127.0.0.1:8050 check inter 20000
+			  server koios ${KOIOS_SRV}:8453 check inter 60000 backup
 			  http-response set-header X-Frame-Options: DENY
 			EOF"
     echo "  Done!! Please ensure to set any custom settings/peers/TLS configs/etc back and update configs as necessary!"
