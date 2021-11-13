@@ -163,7 +163,8 @@
   kill_running_cron_jobs() {
     # Currently just killing any cron entry other than the first one
     # There is probably a better (more precise) way of doing this
-    kill -9 $(pgrep cron | awk 'FNR > 1 {print $1}')
+    echo "Stopping currently running cron jobs..."
+    sudo kill -9 $(pgrep cron | awk 'FNR > 1 {print $1}')
   }
 
   # Description : Remove all grest-related cron entries.
