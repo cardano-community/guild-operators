@@ -159,6 +159,12 @@
     is_file "${cron_job_path_legacy}" && sudo rm "${cron_job_path_legacy}"
     is_file "${cron_job_path}" && sudo rm "${cron_job_path}"
   }
+  # Description : Stop running grest-related cron jobs.
+  kill_running_cron_jobs() {
+    # Currently just killing any cron entry other than the first one
+    # There is probably a better (more precise) way of doing this
+    kill -9 $(pgrep cron | awk 'FNR > 1 {print $1}')
+  }
 
   # Description : Remove all grest-related cron entries.
   remove_all_grest_cron_jobs() {
@@ -166,6 +172,7 @@
     remove_cron_job "stake-distribution-update"
     remove_cron_job "pool-history-cache-update"
     remove_cron_job "asset-registry-update"
+    kill_running_cron_jobs
   }
 
   # Description : Set default env values if not user-specified.
