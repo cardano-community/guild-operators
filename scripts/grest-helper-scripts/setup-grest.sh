@@ -64,7 +64,6 @@
         2) exit 1 ;;
       esac
 
-      # check for setup-grest update
       checkUpdate setup-grest.sh ${ENV_UPDATED} N N grest-helper-scripts
       case $? in
         1) echo; $0 "$@" "-u"; exit 0 ;; # re-launch script with same args skipping update check
@@ -124,13 +123,15 @@
     [[ ${PGDATABASE} != cexplorer ]] && sed -e "s@DB_NAME=.*@DB_NAME=${PGDATABASE}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
   }
 
-  set_cron_asset_registry_testnet() {
+  # Description : Alters the asset-registry-update.sh script to point to the testnet registry.
+  set_cron_asset_registry_testnet_variables() {
     sed -e "s@CNODE_VNAME=.*@CNODE_VNAME=${CNODE_VNAME}@" \
         -e "s@TR_URL=.*@TR_URL=https://github.com/input-output-hk/metadata-registry-testnet@" \
         -e "s@TR_SUBDIR=.*@TR_SUBDIR=registry@" \
         -i "${CRON_SCRIPTS_DIR}/asset-registry-update.sh"
   }
 
+  # Description : Setup grest-related cron jobs.
   setup_cron_jobs() {
     ! is_dir "${CRON_SCRIPTS_DIR}" && mkdir -p "${CRON_SCRIPTS_DIR}"
 
@@ -142,10 +143,13 @@
     set_cron_variables "pool-history-cache-update"
     install_cron_job "pool-history-cache-update" "*/10 * * * *"
 
+    # Only testnet and mainnet asset registries supported
+    # Possible future addition for the Guild network once there is a guild registry
     if [[ ${NWMAGIC} -eq 764824073 || ${NWMAGIC} -eq 1097911063 ]]; then
       get_cron_job_executable "asset-registry-update"
       set_cron_variables "asset-registry-update"
-      [[ ${NWMAGIC} -eq 1097911063 ]] && set_cron_asset_registry_testnet
+      # Point the update script to testnet regisry repo structure (default: mainnet)
+      [[ ${NWMAGIC} -eq 1097911063 ]] && set_cron_asset_registry_testnet_variables
       install_cron_job "asset-registry-update" "*/10 * * * *"
     fi
   }
@@ -160,19 +164,21 @@
   }
 
   # Description : Remove all grest-related cron entries.
-  remove_all_cron_jobs() {
+  remove_all_grest_cron_jobs() {
     echo "Removing all installed cron jobs..."
     remove_cron_job "stake-distribution-update"
     remove_cron_job "pool-history-cache-update"
     remove_cron_job "asset-registry-update"
   }
 
-  setup_defaults() {
+  # Description : Set default env values if not user-specified.
+  set_environment_variables() {
     [[ -z "${CRON_SCRIPTS_DIR}" ]] && CRON_SCRIPTS_DIR="${CNODE_HOME}/scripts/cron-scripts"
     [[ -z "${CRON_DIR}" ]] && CRON_DIR="/etc/cron.d"
     [[ -z "${PGDATABASE}" ]] && PGDATABASE="cexplorer"
     [[ -z "${HAPROXY_CFG}" ]] && HAPROXY_CFG="${CNODE_HOME}/files/haproxy.cfg"
     DOCS_URL="https://cardano-community.github.io/guild-operators"
+    API_DOCS_URL="https://api.koios.rest"
     [[ -z "${PGPASSFILE}" ]] && export PGPASSFILE="${CNODE_HOME}"/priv/.pgpass
   }
 
@@ -201,22 +207,8 @@
     mkdir -p ~/tmp
   }
 
-  # Description : (Re)create genesis table.
-  #             : SQL sourced from grest-helper-scrips/db-scripts/genesis_table.sql.
-  create_genesis_table() {
-    local genesis_table_sql_url="${DB_SCRIPTS_URL}/genesis_table.sql"
-
-    if ! genesis_table_sql=$(curl -s -f -m "${CURL_TIMEOUT}" "${genesis_table_sql_url}" 2>&1); then
-      err_exit "Failed to genesis table SQL from ${genesis_table_sql_url}"
-    fi
-    echo -e "    \n(Re)creating initial genesis table..."
-    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -q <<<${genesis_table_sql} 2>&1) && echo -e "        \e[31mERROR\e[0m: ${output}"
-  }
-
   # Description : Populate genesis table with given values.
-  #             : Note: Given the Plutus schema is far from finalized, we expect changes as SC layer matures and PAB gets into real networks.
-  #             :       For now, a compressed jq will be inserted as a shell escaped json data blob.
-  populate_genesis_table() {
+  insert_genesis_table_data() {
     local alonzo_genesis=$1
     shift
     local shelley_genesis=("$@")
@@ -229,7 +221,10 @@
     );" > /dev/null
   }
 
-  deploy_genesis_table() {
+  # Description : Read genesis values from node config files and populate grest.genesis table.
+  #             : Note: Given the Plutus schema is far from finalized, we expect changes as SC layer matures and PAB gets into real networks.
+  #             :       For now, a compressed jq will be inserted as a shell escaped json data blob.
+  populate_genesis_table() {
     read -ra genfiles <<<$(jq -r '[ .ByronGenesisFile, .ShelleyGenesisFile, .AlonzoGenesisFile] | @tsv' "${CONFIG}")
     read -ra SHGENESIS <<<$(jq -r '[
       .activeSlotsCoeff,
@@ -246,8 +241,7 @@
       ] | @tsv' <"${genfiles[1]}")
     ALGENESIS="$(jq -c . <${genfiles[2]})"
 
-    create_genesis_table
-    populate_genesis_table "${ALGENESIS}" "${SHGENESIS[@]}"
+    insert_genesis_table_data "${ALGENESIS}" "${SHGENESIS[@]}"
   }
 
   deploy_postgrest() {
@@ -454,7 +448,7 @@
     echo "  Done!! Please ensure to all [re]start services above!"
   }
   
-  # Description : Setup grest schema and web_anon user.
+  # Description : Setup grest schema, web_anon user, and genesis and control tables.
   #             : SQL sourced from grest-helper-scrips/db-scripts/basics.sql.
   setup_db_basics() {
     local basics_sql_url="${DB_SCRIPTS_URL}/basics.sql"
@@ -493,14 +487,23 @@
     ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -q <<<${reset_sql} 2>&1) && err_exit "${output}"
   }
 
+  # Description : Fully reset the grest node from the database POV.
   reset_grest() {
-    remove_all_cron_jobs
+    remove_all_grest_cron_jobs
     recreate_grest_schema
   }
 
+  # Description : Deployment list (will only proceed if sync status check passes):
+  #             : 1) grest DB basics - schema, web_anon user, basic grest-specific tables
+  #             : 2) RPC endpoints - with SQL sourced from files/grest/rpc/**.sql
+  #             : 3) Cached tables setup - with SQL sourced from files/grest/rpc/cached_tables/*.sql
+  #             :    This includes table structure setup and caching existing data (for most tables).
+  #                  Some heavy cache tables are intentionally populated post-setup (point 4) to avoid long setup runtimes. 
+  #             : 4) Cron jobs - deploy cron entries to /etc/cron.d/ from files/grest/cron/jobs/*.sh
+  #             :    Used for updating cached tables data.
   deploy_query_updates() {
     setup_db_basics
-    echo "[Re]Deploying Postgres RPCs/views/schedule..."
+    echo "(Re)Deploying Postgres RPCs/views/schedule..."
     check_db_status
     if [[ $? -eq 1 ]]; then
       err_exit "Please wait for Cardano DBSync to populate PostgreSQL DB at least until Mary fork, and then re-run this setup script with the -q flag."
@@ -510,8 +513,8 @@
     if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc?ref=${BRANCH} 2>&1); then
       err_exit "${rpc_file_list}"
     fi
-    echo -e "  [Re]Deploying GRest objects to DBSync..."
-    deploy_genesis_table
+    echo -e "  (Re)Deploying GRest objects to DBSync..."
+    populate_genesis_table
     for row in $(jq -r '.[] | @base64' <<<${rpc_file_list}); do
       if [[ $(jqDecode '.type' "${row}") = 'dir' ]]; then
         echo -e "\n    Downloading pSQL executions from subdir $(jqDecode '.name' "${row}")"
@@ -526,7 +529,7 @@
       fi
     done
     setup_cron_jobs
-    echo -e "\n  All RPC functions successfully added to DBSync! For detailed query specs and examples, visit https://api.koios.rest!\n"
+    echo -e "\n  All RPC functions successfully added to DBSync! For detailed query specs and examples, visit ${API_DOCS_URL}!\n"
     echo -e "Please restart PostgREST before attempting to use the added functions"
     echo -e "  \e[94msudo systemctl restart postgrest.service\e[0m\n"
   }
@@ -546,7 +549,7 @@
   done
   update_check "$@"
   common_init
-  setup_defaults
+  set_environment_variables
   parse_args
   [[ "${INSTALL_POSTGREST}" == "Y" ]] && deploy_postgrest
   [[ "${INSTALL_HAPROXY}" == "Y" ]] && deploy_haproxy
