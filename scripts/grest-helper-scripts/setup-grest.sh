@@ -56,7 +56,6 @@
         exit 1
       fi
 
-      # check for env update
       ENV_UPDATED=N
       checkUpdate env N N N
       case $? in
@@ -69,8 +68,6 @@
         1) echo; $0 "$@" "-u"; exit 0 ;; # re-launch script with same args skipping update check
         2) exit 1 ;;
       esac
-
-      echo
     fi
 
     . "${PARENT}"/env offline &>/dev/null
