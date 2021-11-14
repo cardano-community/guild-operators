@@ -179,13 +179,13 @@
 
   # Description : Kill a running cron script (does not stop psql executions).
   kill_cron_script_processes() {
-    sudo pkill -9 -f asset-registry-update.sh 1> /dev/null
+    sudo pkill -9 -f asset-registry-update.sh
   }
 
   # Description : Stop running grest-related cron jobs.
   kill_running_cron_jobs() {
     echo "Stopping currently running cron jobs..."
-    kill_cron_script_processes
+    kill_cron_script_processes &>/dev/null
     kill_cron_psql_processes
   }
 
