@@ -2,7 +2,7 @@
 
 ###################### Customisations - START ##################################
 apt-get update 2>/dev/null
-apt-get install socat curl gawk jq 2>/dev/null
+apt-get install -y socat curl gawk jq 2>/dev/null
 socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;SERVED=true bash /getmetricsDS.sh" &
 ###################### Customisations - END  ###################################
 
