@@ -167,7 +167,7 @@
     output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -qt \
       -c "select grest.get_query_pids_partial_match('${update_function}');" |
         awk 'BEGIN {ORS = " "} {print $1}' | xargs echo -n)
-    [[ -n "${output}" ]] && ${output} | xargs sudo kill -SIGTERM 1> /dev/null
+    [[ -n "${output}" ]] && echo ${output} | xargs sudo kill -SIGTERM > /dev/null
   }
 
   # Description : Kill cron-related psql update functions.
