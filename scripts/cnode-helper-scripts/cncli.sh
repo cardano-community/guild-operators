@@ -35,6 +35,8 @@ usage() {
 		Usage: $(basename "$0") [operation <sub arg>]
 		Script to run CNCLI, best launched through systemd deployed by 'deploy-as-systemd.sh'
 		
+    -u          Skip script update check overriding UPDATE_CHECK value in env (must be first argument to script)
+
 		sync        Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB (deployed as service)
 		leaderlog   One-time leader schedule calculation for current epoch, then continously monitors and calculates schedule for coming epochs, 1.5 days before epoch boundary on MainNet (deployed as service)
 		  force     Manually force leaderlog calculation and overwrite even if already done, exits after leaderlog is calculated
@@ -51,6 +53,9 @@ usage() {
 		EOF
   exit 1
 }
+
+SKIP_UPDATE=N
+[[ $1 = "-u" ]] && SKIP_UPDATE=Y && shift
 
 if [[ $# -eq 1 ]]; then
   subcommand=$1
@@ -138,17 +143,32 @@ cncliInit() {
   
   . "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
   
-  if [[ "${UPDATE_CHECK}" == "Y" ]]; then
+  if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
+
     echo "Checking for script updates..."
+
     # Check availability of checkUpdate function
     if [[ ! $(command -v checkUpdate) ]]; then
       echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
       exit 1
     fi
+
     # check for env update
-    ! checkUpdate env ${BATCH_AUTO_UPDATE} && exit 1
-    ! checkUpdate cncli.sh ${BATCH_AUTO_UPDATE} && exit 1
+    ENV_UPDATED=${BATCH_AUTO_UPDATE}
+    checkUpdate env N N N
+    case $? in
+      1) ENV_UPDATED=Y ;;
+      2) exit 1 ;;
+    esac
+
+    # check for cncli.sh update
+    checkUpdate cncli.sh ${ENV_UPDATED}
+    case $? in
+      1) $0 "-u" "$@"; exit 0 ;; # re-launch script with same args skipping update check
+      2) exit 1 ;;
+    esac
   fi
+
   # source common env variables in case it was updated
   until . "${PARENT}"/env; do
     echo "sleeping for 10s and testing again..."
@@ -522,12 +542,6 @@ cncliMigrateBlocklog() {
 cncliPTsendtip() {
   [[ ${NWMAGIC} -ne 764824073 ]] && echo "PoolTool sendtip only available on MainNet, exiting!" && exit 1
   [[ -z ${POOL_ID} || -z ${POOL_TICKER} || -z ${PT_API_KEY} ]] && echo "'POOL_ID' and/or 'POOL_TICKER' and/or 'PT_API_KEY' not set in $(basename "$0"), exiting!" && exit 1
-  
-  # Generate a temporary pooltool config
-  if ! cnode_path=$(command -v cardano-node 2>/dev/null); then
-    echo "ERROR: cardano-node not in PATH, please manually set CCLI in env file"
-    exit 1
-  fi
   pt_config="${TMP_DIR}/$(basename ${CNODE_HOME})-pooltool.json"
   bash -c "cat <<-'EOF' > ${pt_config}
 		{
@@ -542,7 +556,7 @@ cncliPTsendtip() {
 		  ]
 		}
 		EOF"
-  ${CNCLI} sendtip --config "${pt_config}" --cardano-node "${cnode_path}"
+  ${CNCLI} sendtip --config "${pt_config}" --cardano-node "${CNODEBIN}"
 }
 
 #################################

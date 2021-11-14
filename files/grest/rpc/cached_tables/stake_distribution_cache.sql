@@ -29,8 +29,7 @@ DECLARE
   _last_accounted_block_id bigint;
 BEGIN
   SELECT
-    INTO _last_accounted_block_height,
-    _last_accounted_block_id block_no,
+    block_no,
     id
   FROM
     PUBLIC.BLOCK
@@ -40,7 +39,8 @@ BEGIN
       SELECT
         MAX(BLOCK_NO) - 5
       FROM
-        PUBLIC.BLOCK);
+        PUBLIC.BLOCK) INTO _last_accounted_block_height,
+  _last_accounted_block_id;
   INSERT INTO GREST.STAKE_DISTRIBUTION_CACHE
   SELECT
     STAKE_ADDRESS,
@@ -60,15 +60,18 @@ BEGIN
     END AS REWARDS_AVAILABLE,
     COALESCE(RESERVES_T.RESERVES, 0) AS RESERVES,
     COALESCE(TREASURY_T.TREASURY, 0) AS TREASURY
-  FROM (
-    SELECT
+  FROM ( SELECT DISTINCT ON (STAKE_ADDRESS.ID)
       STAKE_ADDRESS.ID,
       STAKE_ADDRESS.VIEW AS STAKE_ADDRESS,
-      POOL_HASH.VIEW AS POOL_ID
+      POOL_HASH.VIEW AS POOL_ID,
+      BLOCK.EPOCH_NO AS LATEST_WITHDRAWAL_EPOCH
     FROM
       STAKE_ADDRESS
       INNER JOIN DELEGATION ON DELEGATION.ADDR_ID = STAKE_ADDRESS.ID
       INNER JOIN POOL_HASH ON POOL_HASH.ID = DELEGATION.POOL_HASH_ID
+      LEFT JOIN WITHDRAWAL ON WITHDRAWAL.ADDR_ID = STAKE_ADDRESS.ID
+      LEFT JOIN TX ON TX.ID = WITHDRAWAL.TX_ID
+      LEFT JOIN BLOCK ON BLOCK.ID = TX.BLOCK_ID
     WHERE
       NOT EXISTS (
         SELECT
@@ -85,7 +88,10 @@ BEGIN
             STAKE_DEREGISTRATION
           WHERE
             STAKE_DEREGISTRATION.ADDR_ID = DELEGATION.ADDR_ID
-            AND STAKE_DEREGISTRATION.TX_ID > DELEGATION.TX_ID)) T1
+            AND STAKE_DEREGISTRATION.TX_ID > DELEGATION.TX_ID)
+        ORDER BY
+          STAKE_ADDRESS.ID,
+          BLOCK.EPOCH_NO DESC) T1
   LEFT JOIN LATERAL (
     SELECT
       COALESCE(SUM(TX_OUT.VALUE), 0) AS UTXO
@@ -128,8 +134,11 @@ BEGIN
       COALESCE(SUM(RESERVE.AMOUNT), 0) AS RESERVES
     FROM
       RESERVE
+      INNER JOIN TX ON TX.ID = RESERVE.TX_ID
+      INNER JOIN BLOCK ON BLOCK.ID = TX.BLOCK_ID
     WHERE
       RESERVE.ADDR_ID = T1.ID
+      AND BLOCK.EPOCH_NO >= T1.LATEST_WITHDRAWAL_EPOCH
     GROUP BY
       T1.ID) RESERVES_T ON TRUE
   LEFT JOIN LATERAL (
@@ -137,8 +146,11 @@ BEGIN
       COALESCE(SUM(TREASURY.AMOUNT), 0) AS TREASURY
     FROM
       TREASURY
+      INNER JOIN TX ON TX.ID = TREASURY.TX_ID
+      INNER JOIN BLOCK ON BLOCK.ID = TX.BLOCK_ID
     WHERE
       TREASURY.ADDR_ID = T1.ID
+      AND BLOCK.EPOCH_NO >= T1.LATEST_WITHDRAWAL_EPOCH
     GROUP BY
       T1.ID) TREASURY_T ON TRUE
 ON CONFLICT (STAKE_ADDRESS)
@@ -169,38 +181,65 @@ ON CONFLICT (STAKE_ADDRESS)
 END;
 $$;
 
--- Run the first time update
-CALL GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
-
-CREATE INDEX IF NOT EXISTS idx_pool_id ON GREST.STAKE_DISTRIBUTION_CACHE (POOL_ID);
-
-DROP FUNCTION IF EXISTS GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK CASCADE;
+DROP FUNCTION IF EXISTS GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK;
 
 CREATE FUNCTION GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK ()
   RETURNS VOID
   LANGUAGE PLPGSQL
   AS $$
 DECLARE
-  _last_update_block_height integer DEFAULT NULL;
-  _current_block_height integer DEFAULT NULL;
+  _last_update_block_height bigint DEFAULT NULL;
+  _current_block_height bigint DEFAULT NULL;
+  _last_update_block_diff bigint DEFAULT NULL;
+  StartTime timestamptz;
+  EndTime timestamptz;
+  -- In minutes
+  Delta numeric;
 BEGIN
-  SELECT
-    last_value
-  FROM
-    GREST.control_table
-  WHERE
-    key = 'stake_distribution_lbh' INTO _last_update_block_height;
+  IF (
+    SELECT
+      COUNT(pid) > 1
+    FROM
+      pg_stat_activity
+    WHERE
+      state = 'active' AND query ILIKE '%GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK(%') THEN
+    RAISE EXCEPTION 'Previous query still running but should have completed! Exiting...';
+  END IF;
+  -- QUERY START --
+  SELECT COALESCE(
+    (SELECT
+      last_value::bigint
+    FROM
+      GREST.control_table
+    WHERE
+      key = 'stake_distribution_lbh')
+  , 0) INTO _last_update_block_height;
   SELECT
     MAX(block_no)
   FROM
     PUBLIC.BLOCK
   WHERE
     BLOCK_NO IS NOT NULL INTO _current_block_height;
-  -- Do nothing until there is a 90 blocks difference in height (95 in check because lbh considered is 5 blocks behind tip)
-  IF (_current_block_height - _last_update_block_height) >= 95 THEN
+  SELECT
+    (_current_block_height - _last_update_block_height) INTO _last_update_block_diff;
+  -- Do nothing until there is a 180 blocks difference in height - 60 minutes theoretical time
+  -- 185 in check because last block height considered is 5 blocks behind tip
+  Raise NOTICE 'Last stake distribution update was % blocks ago...', _last_update_block_diff;
+  IF (_last_update_block_diff >= 185
+    -- Special case for db-sync restart rollback to epoch start
+    OR _last_update_block_diff < 0) THEN
+    RAISE NOTICE 'Re-running...';
     CALL GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
+    -- Time recording
+    EndTime := CLOCK_TIMESTAMP();
+    Delta := 1000 * (EXTRACT(epoch from EndTime) - EXTRACT(epoch from StartTime)) / 60000;
+    RAISE NOTICE 'Job completed in % minutes', Delta;
   END IF;
+  RAISE NOTICE 'Minimum block height difference(180) for update not reached, skipping...';
   RETURN;
 END;
 $$;
 
+CREATE INDEX IF NOT EXISTS idx_pool_id ON GREST.STAKE_DISTRIBUTION_CACHE (POOL_ID);
+
+-- Populated by first crontab execution

@@ -14,7 +14,9 @@ RETRIES=3                                 # How many attempts to connect to runn
 PEER_LIST_CNT=6                           # Number of peers to show on each in/out page in peer analysis view
 THEME="dark"                              # dark  = suited for terminals with a dark background
                                           # light = suited for terminals with a bright background
-ENABLE_IP_GEOLOCATION="Y"                 # Enable IP geolocation on outgoing and incoming connections using ip-api.com
+#ENABLE_IP_GEOLOCATION="Y"                # Enable IP geolocation on outgoing and incoming connections using ip-api.com (default: Y)
+#LATENCY_TOOLS="cncli|ss|tcptraceroute|ping" # Preferred latency check tool order, valid entries: cncli|ss|tcptraceroute|ping (must be separated by |)
+#CNCLI_CONNECT_ONLY=false                 # By default cncli measure full connect handshake duration. If set to false, only connect is measured similar to other tools
 
 #####################################
 # Themes                            #
@@ -54,7 +56,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.22.2
+GLV_VERSION=v1.23.1
 
 PARENT="$(dirname $0)"
 
@@ -67,16 +69,18 @@ usage() {
 		Guild LiveView - An alternative cardano-node LiveView
 
 		-l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
-		-p    Disable default CNCLI ping and revert to ss/tcptraceroute if available, else use regular ICMP ping.
+    -u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Use alternate branch to check for updates - only for testing/development (Default: Master)
 		EOF
   exit 1
 }
 
-while getopts :lpb: opt; do
+SKIP_UPDATE=N
+
+while getopts :lub: opt; do
   case ${opt} in
     l ) LEGACY_MODE="true" ;;
-    p ) DISABLE_CNCLI="true" ;;
+    u ) SKIP_UPDATE=Y ;;
     b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
   esac
@@ -115,15 +119,22 @@ fi
 
 . "${PARENT}"/env &>/dev/null # ignore any errors, re-sourced later
 
-if [[ "${UPDATE_CHECK}" == "Y" ]]; then
+if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
   echo "Checking for script updates..."
   # Check availability of checkUpdate function
   if [[ ! $(command -v checkUpdate) ]]; then
     echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
     myExit 1
   fi
+
   # check for env update
-  ! checkUpdate env && myExit 1
+  ENV_UPDATED=N
+  checkUpdate env N N N
+  case $? in
+    1) ENV_UPDATED=Y ;;
+    2) myExit 1 ;;
+  esac
+
   # source common env variables in case it was updated
   . "${PARENT}"/env
   case $? in
@@ -131,29 +142,12 @@ if [[ "${UPDATE_CHECK}" == "Y" ]]; then
     2) clear ;;
   esac
 
-  if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/gLiveView.sh.tmp ${URL}/gLiveView.sh 2>/dev/null && [[ -f "${PARENT}"/gLiveView.sh.tmp ]]; then
-    GIT_VERSION=$(grep -r ^GLV_VERSION= "${PARENT}"/gLiveView.sh.tmp | cut -d'=' -f2)
-    : "${GIT_VERSION:=v0.0.0}"
-    if ! versionCheck "${GIT_VERSION}" "${GLV_VERSION}"; then
-      echo -e "\nA new version of Guild LiveView is available"
-      echo "Installed Version : ${GLV_VERSION}"
-      echo "Available Version : ${GIT_VERSION}"
-      if getAnswer "\nDo you want to upgrade to the latest version of Guild LiveView?"; then
-        TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/gLiveView.sh.tmp)
-        STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/gLiveView.sh)
-        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > "${PARENT}"/gLiveView.sh.tmp
-        mv -f "${PARENT}"/gLiveView.sh "${PARENT}/gLiveView.sh_bkp$(printf '%(%s)T\n' -1)" && \
-        mv -f "${PARENT}"/gLiveView.sh.tmp "${PARENT}"/gLiveView.sh && \
-        chmod 750 "${PARENT}"/gLiveView.sh && \
-        myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!" || \
-        myExit 1 "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
-      fi
-    fi
-  else
-    echo -e "\nFailed to download gLiveView.sh from GitHub, unable to perform version check!"
-    waitToProceed && clear
-  fi
-  rm -f "${PARENT}"/gLiveView.sh.tmp
+  # check for gLV update
+  checkUpdate gLiveView.sh "${ENV_UPDATED}"
+  case $? in
+    1) $0 "$@" "-u"; myExit 0 ;; # re-launch script with same args skipping update check
+    2) exit 1 ;;
+  esac
 else
   # source common env variables in offline mode
   . "${PARENT}"/env offline
@@ -178,6 +172,10 @@ declare -gA geoIP=()
 
 [[ -z ${PEER_LIST_CNT} ]] && PEER_LIST_CNT=6
 
+[[ -z ${LATENCY_TOOLS} ]] && LATENCY_TOOLS="cncli|ss|tcptraceroute|ping"
+
+[[ -z ${CNCLI_CONNECT_ONLY} ]] && CNCLI_CONNECT_ONLY=false
+
 #######################################################
 # Style / UI                                          #
 #######################################################
@@ -187,26 +185,15 @@ width=71
 two_col_width=$(( (width-3)/2 ))
 two_col_second=$(( two_col_width + 2 ))
 
-# three column main view
-col_main_width=$(( (width-5)/3 ))
-col_main_2_start=$(( col_main_width + 3 ))
-col_main_3_start=$(( col_main_width*2 + 4 ))
-col_main_1_value_width=$(( col_main_width - 12 ))       # minus max width of Block|Slot|Density|Total Tx|Pending Tx + " : "
-col_main_2_value_width=$(( col_main_width - 12 ))       # minus max width of Tip (ref)|Tip (node)|Tip (diff)|Peers In|Peers Out + " : "
-col_main_3_value_width=$(( col_main_width - 12 ))       # minus max width of Mem (RSS)|Mem (Live)|Mem (Heap)|GC Minor|GC Major + " : "
-
-# three column block view (sort of same as above but not using the full width)
-# two different column value width due to cncli metrics vs node metrics
-col_block_width=$(( (width-14)/3 ))
-col_block_1_start=11
-col_block_2_start=$(( col_block_width + 12 ))
-col_block_3_start=$(( col_block_width*2 + 13 ))
-col_block_1_1_value_width=$(( col_block_width - 9 ))    # minus max width of Leader|Ideal|Luck + " : "
-col_block_1_2_value_width=$(( col_block_width - 12 ))   # minus max width of Adopted|Confirmed|Invalid + " : "
-col_block_1_3_value_width=$(( col_block_width - 10 ))   # minus max width of Missed|Ghosted|Stolen + " : "
-col_block_2_1_value_width=$(( col_block_width - 9 ))    # minus width of "Leader : "
-col_block_2_2_value_width=$(( col_block_width - 10 ))   # minus width of "Adopted : "
-col_block_2_3_value_width=$(( col_block_width - 10 ))   # minus width of "Invalid : "
+# three column view
+three_col_width=$(( (width-5)/3 ))
+three_col_2_start=$(( three_col_width + 3 ))
+three_col_3_start=$(( three_col_width*2 + 4 ))
+# main section
+three_col_1_value_width=$(( three_col_width - 12 ))   # minus max width of Block|Slot|Density|Total Tx|Pending Tx + " : "
+three_col_2_value_width=$(( three_col_width - 12 ))   # minus max width of Tip (ref)|Tip (node)|Tip (diff)|Peers In|Peers Out + " : "
+three_col_3_value_width=$(( three_col_width - 12 ))    # minus max width of Mem (RSS)|Mem (Live)|Mem (Heap)|GC Minor|GC Major + " : "
+# block section use same width as main section now
 
 NC=$(tput sgr0 && printf "${style_base}") # override default NC in env
 
@@ -244,6 +231,8 @@ if [[ ${LEGACY_MODE} = "true" ]]; then
   m2divider=$(printf "${NC}|" && printf "%0.s-" $(seq $((width-1))) && printf "|")
   m3divider=$(printf "${NC}|" && printf "%0.s- " $(seq $((width/2))) && printf "|")
   bdivider=$(printf "${NC}|" && printf "%0.s=" $(seq $((width-1))) && printf "|")
+  coredivider=$(printf "${NC}|= ${style_info}CORE${NC} " && printf "%0.s=" $(seq $((width-8))) && printf "|")
+  blockdivider=$(printf "${NC}|- ${style_info}BLOCKS${NC} " && printf "%0.s-" $(seq $((width-10))) && printf "|")
   blank_line=$(printf "${NC}|%$((width-1))s|" "")
 else
   VL=$(printf "${NC}\\u2502")
@@ -261,6 +250,8 @@ else
   m2divider=$(printf "${NC}\\u2502" && printf "%0.s-" $(seq $((width-1))) && printf "\\u2502")
   m3divider=$(printf "${NC}\\u2502" && printf "%0.s- " $(seq $((width/2))) && printf "\\u2502")
   bdivider=$(printf "${NC}\\u2514" && printf "%0.s\\u2500" $(seq $((width-1))) && printf "\\u2518")
+  coredivider=$(printf "${NC}\\u251C\\u2500 ${style_info}CORE${NC} " && printf "%0.s\\u2500" $(seq $((width-8))) && printf "\\u2524")
+  blockdivider=$(printf "${NC}\\u2502- ${style_info}BLOCKS${NC} " && printf "%0.s-" $(seq $((width-10))) && printf "\\u2502")
   blank_line=$(printf "${NC}\\u2502%$((width-1))s\\u2502" "")
 fi
 
@@ -354,30 +345,15 @@ mvPos () {
 mvTwoSecond () {
   printf "\033[72D\033[${two_col_second}C"
 }
-# Command    : mvMainSecond
-# Description: move curser to main section three column view, second column start
-mvMainSecond () {
-  printf "\033[72D\033[${col_main_2_start}C"
+# Command    : mvThreeSecond
+# Description: move curser to three column view, second column start
+mvThreeSecond () {
+  printf "\033[72D\033[${three_col_2_start}C"
 }
-# Command    : mvMainThird
-# Description: move curser to main section three column view, third column start
-mvMainThird () {
-  printf "\033[72D\033[${col_main_3_start}C"
-}
-# Command    : mvBlockFirst
-# Description: move curser to block section three column view, first column start
-mvBlockFirst () {
-  printf "\033[72D\033[${col_block_1_start}C"
-}
-# Command    : mvBlockSecond
-# Description: move curser to block section three column view, second column start
-mvBlockSecond () {
-  printf "\033[72D\033[${col_block_2_start}C"
-}
-# Command    : mvBlockThird
-# Description: move curser to block section three column view, third column start
-mvBlockThird () {
-  printf "\033[72D\033[${col_block_3_start}C"
+# Command    : mvThreeThird
+# Description: move curser to three column view, third column start
+mvThreeThird () {
+  printf "\033[72D\033[${three_col_3_start}C"
 }
 # Command    : mvEnd
 # Description: move curser to last column
@@ -398,6 +374,42 @@ clrLine () {
 # Description: clear the screen, move to (0,0)
 clrScreen () {
   printf "\033[2J"
+}
+
+# Description: latency helper functions
+latencyCNCLI () {
+  if [[ -n ${CNCLI} && -f ${CNCLI} ]]; then
+    checkPEER=$(${CNCLI} ping --host "${peerIP}" --port "${peerPORT}" --network-magic "${NWMAGIC}")
+    if [[ $(jq -r .status <<< "${checkPEER}") = "ok" ]]; then
+      [[ ${CNCLI_CONNECT_ONLY} = true ]] && peerRTT=$(jq -r .connectDurationMs <<< "${checkPEER}") || peerRTT=$(jq -r .durationMs <<< "${checkPEER}")
+    else # cncli ping failed
+      peerRTT=99999
+    fi
+  fi
+}
+latencySS () {
+  if command -v ss >/dev/null; then
+    if [[ $(ss -ni "dst ${peerIP}:${peerPORT}" | tail -1) =~ rtt:([0-9]+) ]]; then
+      peerRTT=${BASH_REMATCH[1]}
+    else
+      peerRTT=99999
+    fi
+  fi
+}
+latencyTCPTRACEROUTE () {
+  if command -v tcptraceroute >/dev/null; then
+    checkPEER=$(tcptraceroute -n -S -f 255 -m 255 -q 1 -w 1 "${peerIP}" "${peerPORT}" 2>&1 | tail -n 1)
+    if [[ ${checkPEER} = *'[open]'* ]]; then
+      peerRTT=$(echo "${checkPEER}" | awk '{print $4}' | cut -d. -f1)
+    else # Nope, no response
+      peerRTT=99999
+    fi
+  fi
+}
+latencyPING () {
+  if checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Ping OK, show RTT
+    peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
+  fi
 }
 
 # Command    : checkPeers [direction: in|out]
@@ -439,7 +451,9 @@ checkPeers() {
   # Ping every node in the list
   index=0
   lastpeerIP=""
+
   for peer in ${peersSorted}; do
+
     if [[ ${peer} = "["* ]]; then # IPv6
       IFS=']' read -ra ipv6_peer <<< "${peer:1}"
       peerIP=${ipv6_peer[0]}
@@ -448,6 +462,7 @@ checkPeers() {
       peerIP=$(cut -d: -f1 <<< "${peer}")
       peerPORT=$(cut -d: -f2 <<< "${peer}")
     fi
+
     [[ -z ${peerIP} || -z ${peerPORT} ]] && mvPos ${line} ${print_start} && printf "${style_values_1}%${#peerCNT}s${NC}" "$((++index))" && continue
 
     if [[ ${ENABLE_IP_GEOLOCATION} = "Y" && "${peerIP}" != "${lastpeerIP}" ]] && ! isPrivateIP "${peerIP}"; then
@@ -459,25 +474,21 @@ checkPeers() {
     if [[ "${peerIP}" = "${lastpeerIP}" ]]; then
       [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT)) # skip RTT check and reuse old ${peerRTT} number if reachable
     elif [[ ${direction} = "out" ]]; then
-      if [[ -n ${CNCLI} && -f ${CNCLI} && ${DISABLE_CNCLI} != "true" ]]; then
-        checkPEER=$(${CNCLI} ping --host "${peerIP}" --port "${peerPORT}" --network-magic "${NWMAGIC}")
-        if [[ $(jq -r .status <<< "${checkPEER}") = "ok" ]]; then
-          peerRTT=$(jq -r .durationMs <<< "${checkPEER}")
-        else # cncli ping failed
-          peerRTT=99999
-        fi
-      elif command -v ss >/dev/null; then
-        [[ $(ss -ni "dst ${peerIP}:${peerPORT}" | tail -1) =~ rtt:([0-9]+) ]] && peerRTT=${BASH_REMATCH[1]} || peerRTT=99999
-      elif command -v tcptraceroute >/dev/null; then
-        checkPEER=$(tcptraceroute -n -S -f 255 -m 255 -q 1 -w 1 "${peerIP}" "${peerPORT}" 2>&1 | tail -n 1)
-        if [[ ${checkPEER} = *'[open]'* ]]; then
-          peerRTT=$(echo "${checkPEER}" | awk '{print $4}' | cut -d. -f1)
-        else # Nope, no response
-          peerRTT=99999
-        fi
-      elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Ping OK, show RTT
-        peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
-      else # cncli, ss & tcptraceroute missing and ping failed
+      unset peerRTT
+      for tool in ${LATENCY_TOOLS//|/ }; do
+        case ${tool} in
+          cncli) 
+            latencyCNCLI ;;
+          ss)    
+            latencySS ;;
+          tcptraceroute) 
+            latencyTCPTRACEROUTE ;;
+          ping)
+            latencyPING ;;
+        esac
+        [[ -n ${peerRTT} && ${peerRTT} != 99999 ]] && break
+      done
+      if [[ -z ${peerRTT} ]]; then # cncli, ss & tcptraceroute and ping failed
         peerRTT=99999
       fi
       ! isNumber ${peerRTT} && peerRTT=99999 || peerRTTSUM=$((peerRTTSUM + peerRTT))
@@ -550,7 +561,7 @@ if [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
   printf "\n After successful node boot or when sync to shelley era has been reached, calculations will be correct\n"
   waitToProceed && clrScreen
 fi
-version=$("$(command -v cardano-node)" version)
+version=$("${CNODEBIN}" version)
 node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
 node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
 cncli_port=$(ss -tnp state established "( dport = :${CNODE_PORT} )" 2>/dev/null | grep cncli | awk '{print $3}' | cut -d: -f2)
@@ -595,6 +606,8 @@ while true; do
     tcols=$(tput cols)   # update terminal columns
   done
 
+  [[ ${oldLine} != ${line} ]] && oldLine=$line && clrScreen # redraw everything, total height changed
+
   line=1; mvPos 1 1 # reset position
 
   # Gather some data
@@ -607,7 +620,7 @@ while true; do
     printf "${style_status_3}Connection to node lost, retrying (${fail_count}/${RETRIES})!${NC}"
     waitForInput && continue
   elif [[ ${fail_count} -ne 0 ]]; then # was failed but now ok, re-check
-    CNODE_PID=$(pgrep -fn "[c]ardano-node*.*--port ${CNODE_PORT}")
+    CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.port ${CNODE_PORT}")
     version=$("$(command -v cardano-node)" version)
     node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
     node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
@@ -957,63 +970,63 @@ while true; do
     tip_diff=$(( tip_ref - slotnum ))
     
     # row 1 - three col view
-    printf "${VL} Block      : ${style_values_1}%-${col_main_1_value_width}s${NC}" "${blocknum}"
-    mvMainSecond
-    printf "Tip (ref)  : ${style_values_1}%-${col_main_2_value_width}s${NC}" "${tip_ref}"
-    mvMainThird
+    printf "${VL} Block      : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${blocknum}"
+    mvThreeSecond
+    printf "Tip (ref)  : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${tip_ref}"
+    mvThreeThird
     printf -v mem_rss_gb "%.1f" "$(bc -l <<<"(${mem_rss}/1048576)")"
-    printf "Mem (RSS)  : ${style_values_1}%s${NC}%-$((col_main_3_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
+    printf "Mem (RSS)  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
     closeRow
     
     # row 2
-    printf "${VL} Slot       : ${style_values_1}%-${col_main_1_value_width}s${NC}" "${slot_in_epoch}"
-    mvMainSecond
-    printf "Tip (node) : ${style_values_1}%-${col_main_2_value_width}s${NC}" "${slotnum}"
-    mvMainThird
+    printf "${VL} Slot       : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${slot_in_epoch}"
+    mvThreeSecond
+    printf "Tip (node) : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${slotnum}"
+    mvThreeThird
     printf -v mem_live_gb "%.1f" "$(bc -l <<<"(${mem_live}/1073741824)")"
-    printf "Mem (Live) : ${style_values_1}%s${NC}%-$((col_main_3_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"
+    printf "Mem (Live) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"
     closeRow
     
     # row 3
-    printf "${VL} Density    : ${style_values_1}%-${col_main_1_value_width}s${NC}" "${density}"
-    mvMainSecond
+    printf "${VL} Density    : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${density}"
+    mvThreeSecond
     if [[ ${slotnum} -eq 0 ]]; then
-      printf "Status     : ${style_info}%-${col_main_2_value_width}s${NC}" "starting"
+      printf "Status     : ${style_info}%-${three_col_2_value_width}s${NC}" "starting"
     elif [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
-      printf "Status     : ${style_info}%-${col_main_2_value_width}s${NC}" "syncing"
+      printf "Status     : ${style_info}%-${three_col_2_value_width}s${NC}" "syncing"
     elif [[ ${tip_diff} -le $(slotInterval) ]]; then
-      printf "Tip (diff) : ${style_status_1}%-${col_main_2_value_width}s${NC}" "${tip_diff} :)"
+      printf "Tip (diff) : ${style_status_1}%-${three_col_2_value_width}s${NC}" "${tip_diff} :)"
     elif [[ ${tip_diff} -le $(( $(slotInterval) * 4 )) ]]; then
-      printf "Tip (diff) : ${style_status_2}%-${col_main_2_value_width}s${NC}" "${tip_diff} :|"
+      printf "Tip (diff) : ${style_status_2}%-${three_col_2_value_width}s${NC}" "${tip_diff} :|"
     else
       sync_progress=$(echo "(${slotnum}/${tip_ref})*100" | bc -l)
-      printf "Status     : ${style_info}%-${col_main_2_value_width}s${NC}" "sync $(printf "%2.1f" "${sync_progress}")%"
+      printf "Status     : ${style_info}%-${three_col_2_value_width}s${NC}" "sync $(printf "%2.1f" "${sync_progress}")%"
     fi
-    mvMainThird
+    mvThreeThird
     printf -v mem_heap_gb "%.1f" "$(bc -l <<<"(${mem_heap}/1073741824)")"
-    printf "Mem (Heap) : ${style_values_1}%s${NC}%-$((col_main_3_value_width - ${#mem_heap_gb}))s" "${mem_heap_gb}" "G"
+    printf "Mem (Heap) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_heap_gb}))s" "${mem_heap_gb}" "G"
     closeRow
 
     # row 4
-    printf "${VL} Total Tx   : ${style_values_1}%-${col_main_1_value_width}s${NC}" "${tx_processed}"
-    mvMainSecond
-    printf "Peers In   : ${style_values_1}%-${col_main_2_value_width}s${NC}" "${peers_in}"
-    mvMainThird
-    printf "GC Minor   : ${style_values_1}%-${col_main_3_value_width}s${NC}" "${gc_minor}"
+    printf "${VL} Total Tx   : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${tx_processed}"
+    mvThreeSecond
+    printf "Peers In   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_in}"
+    mvThreeThird
+    printf "GC Minor   : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${gc_minor}"
     closeRow
 
     # row 5
     mempool_tx_bytes=$((mempool_bytes/1024))
-    printf "${VL} Pending Tx : ${style_values_1}%s${NC}/${style_values_1}%s${NC}%-$((col_main_1_value_width - ${#mempool_tx} - ${#mempool_tx_bytes} - 3))s" "${mempool_tx}" "${mempool_tx_bytes}" "K"
-    mvMainSecond
-    printf "Peers Out  : ${style_values_1}%-${col_main_2_value_width}s${NC}" "${peers_out}"
-    mvMainThird
-    printf "GC Major   : ${style_values_1}%-${col_main_3_value_width}s${NC}" "${gc_major}"
+    printf "${VL} Pending Tx : ${style_values_1}%s${NC}/${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#mempool_tx} - ${#mempool_tx_bytes} - 3))s" "${mempool_tx}" "${mempool_tx_bytes}" "K"
+    mvThreeSecond
+    printf "Peers Out  : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_out}"
+    mvThreeThird
+    printf "GC Major   : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${gc_major}"
     closeRow
 
     ## Core section ##
     if [[ ${nodemode} = "Core" ]]; then
-      echo "${mdivider}" && ((line++))
+      echo "${coredivider}" && ((line++))
 
       printf "${VL} KES current/remaining"
       mvTwoSecond 
@@ -1036,7 +1049,7 @@ while true; do
       printf -v missed_slots_pct "%.4f" "$(bc -l <<<"(${missed_slots}/(${about_to_lead}+${missed_slots}))*100")"
       printf ": ${style_values_1}%s${NC} (${style_values_1}%s${NC} %%)" "${missed_slots}" "${missed_slots_pct}" && closeRow
 
-      printf "${m2divider}\n" && ((line++))
+      printf "${blockdivider}\n" && ((line++))
 
       if [[ -f "${BLOCKLOG_DB}" ]]; then
         invalid_cnt=0; missed_cnt=0; ghosted_cnt=0; stolen_cnt=0; confirmed_cnt=0; adopted_cnt=0; leader_cnt=0
@@ -1063,36 +1076,29 @@ while true; do
         [[ ${ghosted_cnt} -eq 0 ]] && ghosted_fmt="${style_values_1}" || ghosted_fmt="${style_status_3}"
         [[ ${stolen_cnt} -eq 0 ]] && stolen_fmt="${style_values_1}" || stolen_fmt="${style_status_3}"
         [[ ${confirmed_cnt} -ne ${adopted_cnt} ]] && confirmed_fmt="${style_status_2}" || confirmed_fmt="${style_values_2}"
-
-        printf "${VL}${STANDOUT} BLOCKS ${NC}"
         
         # row 1
-        mvBlockFirst
-        printf "Leader : ${style_values_1}%-${col_block_1_1_value_width}s${NC}" "${leader_cnt}"
-        mvBlockSecond
-        printf "Adopted   : ${style_values_1}%-${col_block_1_2_value_width}s${NC}" "${adopted_cnt}"
-        mvBlockThird
-        printf "Missed  : ${missed_fmt}%-${col_block_1_3_value_width}s${NC}" "${missed_cnt}"
+        printf "${VL} Leader     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${leader_cnt}"
+        mvThreeSecond
+        printf "Adopted    : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${adopted_cnt}"
+        mvThreeThird
+        printf "Missed     : ${missed_fmt}%-${three_col_3_value_width}s${NC}" "${missed_cnt}"
         closeRow
         
         # row 2
-        printf "${VL}"
-        mvBlockFirst
-        printf "Ideal  : ${style_values_1}%-${col_block_1_1_value_width}s${NC}" "${epoch_stats[0]}"
-        mvBlockSecond
-        printf "Confirmed : ${confirmed_fmt}%-${col_block_1_2_value_width}s${NC}" "${confirmed_cnt}"
-        mvBlockThird
-        printf "Ghosted : ${ghosted_fmt}%-${col_block_1_3_value_width}s${NC}" "${ghosted_cnt}"
+        printf "${VL} Ideal      : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[0]}"
+        mvThreeSecond
+        printf "Confirmed  : ${confirmed_fmt}%-${three_col_2_value_width}s${NC}" "${confirmed_cnt}"
+        mvThreeThird
+        printf "Ghosted    : ${ghosted_fmt}%-${three_col_3_value_width}s${NC}" "${ghosted_cnt}"
         closeRow
         
         # row 3
-        printf "${VL}"
-        mvBlockFirst
-        printf "Luck   : ${style_values_1}%-${col_block_1_1_value_width}s${NC}" "${epoch_stats[1]}"
-        mvBlockSecond
-        printf "Invalid   : ${invalid_fmt}%-${col_block_1_2_value_width}s${NC}" "${invalid_cnt}"
-        mvBlockThird
-        printf "Stolen  : ${stolen_fmt}%-${col_block_1_3_value_width}s${NC}" "${stolen_cnt}"
+        printf "${VL} Luck       : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[1]}"
+        mvThreeSecond
+        printf "Invalid    : ${invalid_fmt}%-${three_col_2_value_width}s${NC}" "${invalid_cnt}"
+        mvThreeThird
+        printf "Stolen     : ${stolen_fmt}%-${three_col_3_value_width}s${NC}" "${stolen_cnt}"
         closeRow
 
         if [[ -n ${leader_next} ]]; then
@@ -1114,17 +1120,14 @@ while true; do
           fi
         fi
       else
-        printf "${VL}${STANDOUT} BLOCKS ${NC}"
-
         [[ ${isleader} -ne ${adopted} ]] && adopted_fmt="${style_status_2}" || adopted_fmt="${style_values_2}"
         [[ ${didntadopt} -eq 0 ]] && invalid_fmt="${style_values_1}" || invalid_fmt="${style_status_3}"
         
-        mvBlockFirst
-        printf "Leader : ${style_values_1}%-${col_block_2_1_value_width}s${NC}" "${isleader}"
-        mvBlockSecond
-        printf "Adopted : ${adopted_fmt}%-${col_block_2_2_value_width}s${NC}" "${adopted}"
-        mvBlockThird
-        printf "Invalid : ${invalid_fmt}%-${col_block_2_3_value_width}s${NC}" "${didntadopt}"
+        printf "${VL} Leader : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${isleader}"
+        mvThreeSecond
+        printf "Adopted : ${adopted_fmt}%-${three_col_2_value_width}s${NC}" "${adopted}"
+        mvThreeThird
+        printf "Invalid : ${invalid_fmt}%-${three_col_3_value_width}s${NC}" "${didntadopt}"
         closeRow
       fi
     fi
@@ -1134,6 +1137,9 @@ while true; do
 
   echo "${bdivider}" && ((line++))
   printf " TG Announcement/Support channel: ${style_info}t.me/guild_operators_official${NC}\n\n" && line=$((line+2))
+
+  [[ -z ${oldLine} ]] && oldLine=$line
+  
   if [[ ${show_peers} = "true" && ${show_peers_info} = "true" ]]; then
     printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[b] Back to Peer Analysis${NC}"
     clrLine

@@ -17,4 +17,5 @@ jobs:
     - name: SH Lint Check
       uses: azohra/shell-linter@latest
       with:
-        path: "scripts/cnode-helper-scripts"
+        path: "scripts/cnode-helper-scripts,scripts/grest-helper-scripts"
+        severity: "error"

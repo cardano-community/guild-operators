@@ -23,7 +23,7 @@ chmod 755 prereqs.sh
 Please familiarise with the syntax of `prereqs.sh` before proceeding. The usage syntax can be checked using `./prereqs.sh -h` , sample output below:
 
 ``` bash
-Usage: prereqs.sh [-f] [-s] [-i] [-l] [-c] [-w] [-p] [-b <branch>] [-n <mainnet|testnet|guild|staging>] [-t <name>] [-m <seconds>]
+Usage: prereqs.sh [-f] [-s] [-i] [-l] [-c] [-w] [-b <branch>] [-n <mainnet|testnet|guild|staging>] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano-node and using CNTools
 
 -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
@@ -36,7 +36,6 @@ Install pre-requisites for building cardano-node and using CNTools
 -l    Use system libsodium instead of IOG fork (Default: use libsodium from IOG fork)
 -c    Install/Upgrade and build CNCLI with RUST
 -w    Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
--p    Install/Upgrade PostgREST binary to query postgres DB as a service
 -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 -i    Interactive mode (Default: silent mode)
 ```

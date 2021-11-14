@@ -1,6 +1,53 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC1090,SC2086,SC2154,SC2034,SC2012,SC2140,SC2028
 
+. "$(dirname $0)"/env offline
+
+# legacy config (deprecated and removed in future major version update)
+if [[ -f "$(dirname $0)"/cntools.config ]]; then
+  ! . "$(dirname $0)"/cntools.config && exit 1
+  clear && waitToProceed "${FG_RED}cntools.config deprecated and will be removed in future major version!${NC}\n"\
+    "Uncomment and set any customization in User Variables section of cntools.sh instead."\
+    "Once done, delete cntools.config file to get rid of this message.\n"\
+    "press any key to proceed .."
+fi
+
+######################################
+# User Variables - Change as desired #
+# Common variables set in env file   #
+######################################
+
+#TIMEOUT_NO_OF_SLOTS=600 # used when waiting for a new block to be created
+
+# log cntools activities (comment or set empty to disable)
+# LOG_DIR set in env file
+#CNTOOLS_LOG="${LOG_DIR}/cntools-history.log"
+
+# kes rotation warning (in seconds)
+# if disabled KES check will be skipped on startup
+#CHECK_KES=false
+#KES_ALERT_PERIOD=172800 # default 2 days
+#KES_WARNING_PERIOD=604800 # default 7 days
+
+# limit for extended wallet selection menu filtering (balance check and delegation status)
+# if more wallets exist than limit set these checks will be disabled to improve performance
+#WALLET_SELECTION_FILTER_LIMIT=10
+
+# enable or disable chattr used to protect keys from being overwritten [true|false] (not supported on all systems)
+# if disabled standard read-only permission is set instead
+#ENABLE_CHATTR=true
+
+# enable or disable dialog used to help in file/dir selection by providing a gui to see available files and folders. [true|false] (not supported on all systems)
+# if disabled standard tty input is used
+#ENABLE_DIALOG=true
+
+# enable advanced/developer features like metadata transactions, multi-asset management etc. [true|false] (not needed for SPO usage)
+#ENABLE_ADVANCED=false
+
+######################################
+# Do NOT modify code below           #
+######################################
+
 ########## Global tasks ###########################################
 
 # General exit handler
@@ -34,6 +81,7 @@ usage() {
 		
 		-o    Activate offline mode - run CNTools in offline mode without node access, a limited set of functions available
 		-a    Enable advanced/developer features like metadata transactions, multi-asset management etc (not needed for SPO usage)
+    -u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Run CNTools and look for updates on alternate branch instead of master of guild repository (only for testing/development purposes)
 		
 		EOF
@@ -41,13 +89,15 @@ usage() {
 
 CNTOOLS_MODE="CONNECTED"
 ADVANCED_MODE="false"
+SKIP_UPDATE=N
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat "${PARENT}"/.env_branch)" || BRANCH="master"
 
-while getopts :oab: opt; do
+while getopts :oaub: opt; do
   case ${opt} in
     o ) CNTOOLS_MODE="OFFLINE" ;;
     a ) ADVANCED_MODE="true" ;;
+    u ) SKIP_UPDATE=Y ;;
     b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
     \? ) myExit 1 "$(usage)" ;;
     esac
@@ -72,44 +122,10 @@ else
   . "${PARENT}"/env &>/dev/null
 fi
 
-if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-  if [[ "${UPDATE_CHECK}" == "Y" ]]; then
-    echo "Checking for script updates..."
-    # Check availability of checkUpdate function
-    if [[ ! $(command -v checkUpdate) ]]; then
-      echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
-      myExit 1
-    fi
-    # check for env update
-    ! checkUpdate env && myExit 1
-  fi
-  . "${PARENT}"/env
-  rc=$?
-else
-  . "${PARENT}"/env offline
-  rc=$?
-fi
-case $rc in # ignore exit code 0 and 2, any other exits script
-  0) : ;; # ok
-  2) clear ;; # ignore
-  *) myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
-esac
-
-# get cntools config parameters
-! . "${PARENT}"/cntools.config && myExit 1
-
 # get helper functions from library file
 ! . "${PARENT}"/cntools.library && myExit 1
 
 archiveLog # archive current log and cleanup log archive folder
-
-exec 6>&1 # Link file descriptor #6 with normal stdout.
-exec 7>&2 # Link file descriptor #7 with normal stderr.
-[[ -n ${CNTOOLS_LOG} ]] && exec > >( tee >( while read -r line; do logln "INFO" "${line}"; done ) )
-[[ -n ${CNTOOLS_LOG} ]] && exec 2> >( tee >( while read -r line; do logln "ERROR" "${line}"; done ) >&2 )
-[[ -n ${CNTOOLS_LOG} ]] && exec 3> >( tee >( while read -r line; do logln "DEBUG" "${line}"; done ) >&6 )
-exec 8>&1 # Link file descriptor #8 with custom stdout.
-exec 9>&2 # Link file descriptor #9 with custom stderr.
 
 # check for required command line tools
 if ! cmdAvailable "curl" || \
@@ -125,60 +141,61 @@ fi
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   # check to see if there are any updates available
   clear
-  if [[ "${UPDATE_CHECK}" == "Y" ]]; then 
-    println DEBUG "CNTools version check...\n"
-    if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/cntools.library.tmp "${URL}/cntools.library" && [[ -f "${PARENT}"/cntools.library.tmp ]]; then
-      GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${PARENT}"/cntools.library.tmp |sed -e "s#.*=##")
-      GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${PARENT}"/cntools.library.tmp |sed -e "s#.*=##")
-      GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${PARENT}"/cntools.library.tmp |sed -e "s#.*=##")
-      GIT_VERSION="${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}"
-      if ! versionCheck "${GIT_VERSION}" "${CNTOOLS_VERSION}"; then
-        println DEBUG "A new version of CNTools is available"
-        echo
-        println DEBUG "Installed Version : ${FG_LGRAY}${CNTOOLS_VERSION}${NC}"
-        println DEBUG "Available Version : ${FG_GREEN}${GIT_VERSION}${NC}"
-        if getAnswer "\nDo you want to upgrade to the latest version of CNTools?"; then
-          if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/cntools.sh.tmp "${URL}/cntools.sh" && \
-          mv -f "${PARENT}"/cntools.sh "${PARENT}/cntools.sh_bkp$(printf '%(%s)T\n' -1)" && \
-          mv -f "${PARENT}"/cntools.library "${PARENT}/cntools.library_bkp$(printf '%(%s)T\n' -1)" && \
-          mv -f "${PARENT}"/cntools.sh.tmp "${PARENT}"/cntools.sh && \
-          mv -f "${PARENT}"/cntools.library.tmp "${PARENT}"/cntools.library && \
-          chmod 750 "${PARENT}"/cntools.sh; then
-            myExit 0 "Update applied successfully!\n\nPlease start CNTools again!"
-          else
-            myExit 1 "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually update CNTools"
-          fi
-          waitForInput
-        fi
-      else
-        # check if CNTools was recently updated, if so show whats new
-        if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
-          if ! cmp -s "${TMP_DIR}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"; then
-            # Latest changes not shown, show whats new and copy changelog
-            clear 
-            exec >&6 # normal stdout
-            sleep 0.1
-            if [[ ! -f "${PARENT}/cntools-changelog.md" ]]; then 
-              # special case for first installation or 5.0.0 upgrade, print release notes until previous major version
-              println OFF "~ CNTools - What's New ~\n\n" "$(sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_DIR}"/cntools-changelog.md | head -n -2)" | less -X
-            else
-              # print release notes from current until previously installed version
-              [[ $(cat "${PARENT}/cntools-changelog.md") =~ \[([[:digit:]])\.([[:digit:]])\.([[:digit:]])\] ]]
-              cat <(println OFF "~ CNTools - What's New ~\n") <(awk "1;/\[${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}\.${BASH_REMATCH[3]}\]/{exit}" "${TMP_DIR}"/cntools-changelog.md | head -n -2 | tail -n +7) <(echo -e "\n [Press 'q' to quit and proceed to CNTools main menu]\n") | less -X
-            fi
-            exec >&8 # custom stdout
-            cp "${TMP_DIR}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"
-          fi
+  if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then 
+
+    echo "Checking for script updates..."
+
+    # Check availability of checkUpdate function
+    if [[ ! $(command -v checkUpdate) ]]; then
+      myExit 1 "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
+    fi
+
+    # check for env update
+    ENV_UPDATED=N
+    checkUpdate env N N N
+    case $? in
+      1) ENV_UPDATED=Y ;;
+      2) myExit 1 ;;
+    esac
+
+    # source common env variables in case it was updated
+    . "${PARENT}"/env
+    case $? in
+      1) myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
+      2) clear ;;
+    esac
+    
+    # check for cntools update
+    checkUpdate cntools.library "${ENV_UPDATED}" Y N
+    case $? in
+      1) checkUpdate cntools.sh Y
+         case $? in
+           1) $0 "$@" "-u"; myExit 0 ;; # re-launch script with same args skipping update check
+           2) exit 1 ;;
+         esac
+         ;;
+      2) exit 1 ;;
+    esac
+    
+    # check if CNTools was recently updated, if so show whats new
+    if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
+      if ! cmp -s "${TMP_DIR}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"; then
+        # Latest changes not shown, show whats new and copy changelog
+        clear 
+        sleep 0.1
+        if [[ ! -f "${PARENT}/cntools-changelog.md" ]]; then 
+          # special case for first installation or 5.0.0 upgrade, print release notes until previous major version
+          echo -e "~ CNTools - What's New ~\n\n" "$(sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_DIR}"/cntools-changelog.md | head -n -2)" | less -X
         else
-          println ERROR "\n${FG_RED}ERROR${NC}: failed to download changelog from GitHub!"
-          waitForInput
+          # print release notes from current until previously installed version
+          [[ $(cat "${PARENT}/cntools-changelog.md") =~ \[([[:digit:]])\.([[:digit:]])\.([[:digit:]])\] ]]
+          cat <(echo -e "~ CNTools - What's New ~\n") <(awk "1;/\[${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}\.${BASH_REMATCH[3]}\]/{exit}" "${TMP_DIR}"/cntools-changelog.md | head -n -2 | tail -n +7) <(echo -e "\n [Press 'q' to quit and proceed to CNTools main menu]\n") | less -X
         fi
+        cp "${TMP_DIR}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"
       fi
-      rm -f "${PARENT}"/cntools.sh.tmp
-      rm -f "${PARENT}"/cntools.library.tmp
     else
-      println ERROR "\n${FG_RED}ERROR${NC}: failed to download cntools.library from GitHub, unable to perform version check!"
-      waitForInput
+      echo -e "\n${FG_RED}ERROR${NC}: failed to download changelog from GitHub!"
+      waitToProceed
     fi
   fi
 
@@ -196,6 +213,14 @@ fi
 if ! versionCheck "4.4.0" "${BASH_REMATCH[1]}"; then
   myExit 1 "BASH does not meet the minimum required version of ${FG_LBLUE}4.4.0${NC}, found ${FG_LBLUE}${BASH_REMATCH[1]}${NC}\n\nPlease upgrade to a newer Linux distribution or compile latest BASH following official docs.\n\nINSTALL:  https://www.gnu.org/software/bash/manual/html_node/Installing-Bash.html\nDOWNLOAD: http://git.savannah.gnu.org/cgit/bash.git/ (latest stable TAG)"
 fi
+
+exec 6>&1 # Link file descriptor #6 with normal stdout.
+exec 7>&2 # Link file descriptor #7 with normal stderr.
+[[ -n ${CNTOOLS_LOG} ]] && exec > >( tee >( while read -r line; do logln "INFO" "${line}"; done ) )
+[[ -n ${CNTOOLS_LOG} ]] && exec 2> >( tee >( while read -r line; do logln "ERROR" "${line}"; done ) >&2 )
+[[ -n ${CNTOOLS_LOG} ]] && exec 3> >( tee >( while read -r line; do logln "DEBUG" "${line}"; done ) >&6 )
+exec 8>&1 # Link file descriptor #8 with custom stdout.
+exec 9>&2 # Link file descriptor #9 with custom stderr.
 
 # check if there are pools in need of KES key rotation
 clear
@@ -1981,15 +2006,7 @@ function main {
 
                     getWalletType ${reward_wallet}
                     case $? in
-                      0) hw_reward_is_mu='N'
-                          for wallet_name in "${owner_wallets[@]}"; do # HW reward wallet, make sure its also a multi-owner to the pool
-                            [[ "${wallet_name}" = "${reward_wallet}" ]] && hw_reward_is_mu='Y' && break
-                          done
-                          if [[ ${hw_reward_is_mu} = 'N' ]]; then # main owner, must be a CLI wallet
-                            println ERROR "${FG_RED}ERROR${NC}: reward wallet detected as hardware wallet but NOT a multi-owner to the pool!"
-                            println ERROR "If hardware wallet is to be used for rewards, it MUST also be a multi-owner to the pool"
-                            waitForInput "Unable to reuse old configuration, please set new owner(s) & reward wallet" && owner_wallets=() && reward_wallet="" && reuse_wallets='N'
-                          else hw_reward_wallet='Y'; fi ;;
+                      0) hw_reward_wallet='Y' ;;
                       2) if [[ ${op_mode} = "online" && ${SUBCOMMAND} = "register" && ${hw_owner_wallets} = 'N' ]]; then
                             println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted for reward wallet ${FG_GREEN}${reward_wallet}${NC}, please decrypt before use!"
                             waitForInput && continue
@@ -2065,7 +2082,7 @@ function main {
                 println DEBUG "Owner #1 : ${FG_GREEN}${wallet_name}${NC} added!"
               fi
 
-              getBaseAddress ${wallet_name}
+              getBaseAddress ${owner_wallets[0]}
               getBalance ${base_addr}
               if [[ ${assets[lovelace]} -eq 0 ]]; then
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available in owner wallet ${FG_GREEN}${owner_wallets[0]}${NC}"

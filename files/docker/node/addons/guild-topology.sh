@@ -6,28 +6,28 @@ curl -s -k -o /tmp/guild_topology2.json "https://api.clio.one/htopology/v1/fetch
 
 cat /tmp/guild_topology2.json | awk '{print $3,$5}' | tail -n +2 | sed s/"\","//g  | sed s/"\""//g | sed s/","//g | grep -v [a-z] >  /tmp/guild_list1              
 
-IFS=$'\n'; for i in $(cat /tmp/guild_list1 ); do tcpping -x 1 $i | grep ms | awk '{print $9,$7}' >> /tmp/guild_list2 ; done
-cat /tmp/guild_list2 | sort -n | grep -v "ms" | head -n 8 | cut -d "(" -f 2 | cut -d ")" -f 1   > /tmp/fastest_guild.list
- 
-IFS=$'\n'; for i in $(cat /tmp/fastest_guild.list); do  cat /tmp/guild_list1 | grep "$i" >> /tmp/guild_list3; done
+# TCPPING metrics disabled
+#IFS=$'\n'; for i in $(cat /tmp/guild_list1 ); do tcpping -x 1 $i | grep ms | awk '{print $9,$7}' >> /tmp/guild_list2 ; done
+#cat /tmp/guild_list2 | sort -n | grep -v "ms" | head -n 8 | cut -d "(" -f 2 | cut -d ")" -f 1   > /tmp/fastest_guild.list
+#IFS=$'\n'; for i in $(cat /tmp/fastest_guild.list); do  cat /tmp/guild_list1 | grep "$i" >> /tmp/guild_list3; done
 
 
-GUILD1=$(sed -n 1p /tmp/guild_list3 | awk '{print $1}')
-GUILD1PORT=$(sed -n 1p /tmp/guild_list3 | awk '{print $2}')
-GUILD2=$(sed -n 2p /tmp/guild_list3 | awk '{print $1}')
-GUILD2PORT=$(sed -n 2p /tmp/guild_list3 | awk '{print $2}')
-GUILD3=$(sed -n 3p /tmp/guild_list3 | awk '{print $1}')
-GUILD3PORT=$(sed -n 3p /tmp/guild_list3 | awk '{print $2}')
-GUILD4=$(sed -n 4p /tmp/guild_list3 | awk '{print $1}')
-GUILD4PORT=$(sed -n 4p /tmp/guild_list3 | awk '{print $2}')
-GUILD5=$(sed -n 5p /tmp/guild_list3 | awk '{print $1}')
-GUILD5PORT=$(sed -n 5p /tmp/guild_list3 | awk '{print $2}')
-GUILD6=$(sed -n 6p /tmp/guild_list3 | awk '{print $1}')
-GUILD6PORT=$(sed -n 6p /tmp/guild_list3 | awk '{print $2}')
-GUILD7=$(sed -n 7p /tmp/guild_list3 | awk '{print $1}')
-GUILD7PORT=$(sed -n 7p /tmp/guild_list3 | awk '{print $2}')
-GUILD8=$(sed -n 8p /tmp/guild_list3 | awk '{print $1}')
-GUILD8PORT=$(sed -n 8p /tmp/guild_list3 | awk '{print $2}')
+GUILD1=$(sed -n 1p /tmp/guild_list1 | awk '{print $1}')
+GUILD1PORT=$(sed -n 1p /tmp/guild_list1 | awk '{print $2}')
+GUILD2=$(sed -n 2p /tmp/guild_list1 | awk '{print $1}')
+GUILD2PORT=$(sed -n 2p /tmp/guild_list1 | awk '{print $2}')
+GUILD3=$(sed -n 3p /tmp/guild_list1 | awk '{print $1}')
+GUILD3PORT=$(sed -n 3p /tmp/guild_list1 | awk '{print $2}')
+GUILD4=$(sed -n 4p /tmp/guild_list1 | awk '{print $1}')
+GUILD4PORT=$(sed -n 4p /tmp/guild_list1 | awk '{print $2}')
+GUILD5=$(sed -n 5p /tmp/guild_list1 | awk '{print $1}')
+GUILD5PORT=$(sed -n 5p /tmp/guild_list1 | awk '{print $2}')
+GUILD6=$(sed -n 6p /tmp/guild_list1 | awk '{print $1}')
+GUILD6PORT=$(sed -n 6p /tmp/guild_list1 | awk '{print $2}')
+GUILD7=$(sed -n 7p /tmp/guild_list1 | awk '{print $1}')
+GUILD7PORT=$(sed -n 7p /tmp/guild_list1 | awk '{print $2}')
+GUILD8=$(sed -n 8p /tmp/guild_list1 | awk '{print $1}')
+GUILD8PORT=$(sed -n 8p /tmp/guild_list1 | awk '{print $2}')
 
 cat <<EOF > $CNODE_HOME/files/guildnet-topology.json
 { "resultcode": "201", "networkMagic": "764824073", "ipType":4, "Producers": [
@@ -43,4 +43,5 @@ cat <<EOF > $CNODE_HOME/files/guildnet-topology.json
 ] }
 EOF
 
-rm  /tmp/fastest_guild.list && rm /tmp/guild_list*
+# rm  /tmp/fastest_guild.list && 
+rm /tmp/guild_list*

@@ -16,33 +16,14 @@ fi
 echo -e "\e[32m~~ Cardano Node ~~\e[0m"
 echo "launches the main cnode.sh script to start cardano-node"
 echo
-echo "automatically deployed!"
-sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}.service
-[Unit]
-Description=Cardano Node
-Wants=network-online.target
-After=network-online.target
+./cnode.sh -d
 
-[Service]
-Type=simple
-Restart=always
-RestartSec=5
-User=$USER
-LimitNOFILE=1048576
-WorkingDirectory=${CNODE_HOME}/scripts
-ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cnode.sh\"
-ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep [c]ardano-node.*.${CNODE_HOME}/ | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
-KillSignal=SIGINT
-SuccessExitStatus=143
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=${vname}
-TimeoutStopSec=5
-KillMode=mixed
-
-[Install]
-WantedBy=multi-user.target
-EOF"
+if grep -q "^PGPASSFILE=" "${CNODE_HOME}/scripts/dbsync.sh" 2> /dev/null || [[ -f "${CNODE_HOME}/priv/.pgpass" ]]; then
+  echo -e "\e[32m~~ Cardano DB Sync ~~\e[0m"
+  echo "launches the dbsync.sh script to start cardano-db-sync"
+  echo
+  ./dbsync.sh -d
+fi
 
 echo
 echo -e "\e[32m~~ Topology Updater ~~\e[0m"
