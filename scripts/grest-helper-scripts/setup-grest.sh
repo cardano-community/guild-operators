@@ -164,10 +164,11 @@
   #             : $1 = partial name of the cron-related update function in postgres.
   kill_cron_psql_process() {
     local update_function=$1
-    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -qt \
-      -c "select grest.get_query_pids_partial_match('${update_function}');" 2>&1 |
-        xargs sudo kill -9 ) &&
-          err_exit "${output}"
+    
+    psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -qt \
+      -c "select grest.get_query_pids_partial_match('${update_function}');" |
+        awk 'BEGIN {ORS = " "} {print $1}' | xargs echo -n |
+        xargs sudo kill -SIGTERM 1> /dev/null
   }
 
   # Description : Kill cron-related psql update functions.
@@ -179,7 +180,7 @@
 
   # Description : Kill a running cron script (does not stop psql executions).
   kill_cron_script_processes() {
-    sudo pkill -9 -f asset-registry-update.sh
+    sudo pkill -9 -f asset-registry-update.sh 1> /dev/null
   }
 
   # Description : Stop running grest-related cron jobs.
