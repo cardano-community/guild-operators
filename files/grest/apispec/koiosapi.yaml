@@ -407,7 +407,7 @@ paths:
         - Asset
       parameters:
         - $ref: "#/components/parameters/_asset_policy"
-        - $ref: "#/components/parameters/_asset_name"
+        - $ref: "#/components/parameters/_asset_name_text"
       responses:
         "200":
           $ref: "#/components/responses/OK"
@@ -433,6 +433,21 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Asset Summary
       description: Get summary data for an asset (minting transactions not included in total count, total wallets include only wallets with asset balance)
+  /rpc/address_assets:
+    get:
+      tags:
+        - Address
+      parameters:
+        - $ref: "#/components/parameters/_payment_address"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Address Assets
+      description: Get the list of all the assets (policy, name and quantity) for a given address
   /rpc/pool_list:
     get:
       tags:
@@ -659,13 +674,23 @@ components:
       in: query
       required: true
       allowEmptyValue: false
-    _asset_name:
+    _asset_name_text:
       deprecated: false
-      name: _asset_name
+      name: _asset_name_text
       description: Asset Name in plain text
       schema:
         type: string
         example: DONTSPAM
+      in: query
+      required: true
+      allowEmptyValue: false
+    _asset_name_hex:
+      deprecated: false
+      name: _asset_name_hex
+      description: Asset Name in hexadecimal format
+      schema:
+        type: string
+        example: 444f4e545350414d
       in: query
       required: true
       allowEmptyValue: false
