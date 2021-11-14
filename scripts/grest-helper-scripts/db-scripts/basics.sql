@@ -79,7 +79,8 @@ BEGIN
   FROM
     pg_stat_activity
   WHERE
-    query ILIKE '%' || _query || '%';
+    query ILIKE '%' || _query || '%'
+    AND query NOT ILIKE '%grest.get_query_pids_partial_match%';
 END;
 $$;
 
