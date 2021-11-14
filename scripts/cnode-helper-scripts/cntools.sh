@@ -2006,15 +2006,7 @@ function main {
 
                     getWalletType ${reward_wallet}
                     case $? in
-                      0) hw_reward_is_mu='N'
-                          for wallet_name in "${owner_wallets[@]}"; do # HW reward wallet, make sure its also a multi-owner to the pool
-                            [[ "${wallet_name}" = "${reward_wallet}" ]] && hw_reward_is_mu='Y' && break
-                          done
-                          if [[ ${hw_reward_is_mu} = 'N' ]]; then # main owner, must be a CLI wallet
-                            println ERROR "${FG_RED}ERROR${NC}: reward wallet detected as hardware wallet but NOT a multi-owner to the pool!"
-                            println ERROR "If hardware wallet is to be used for rewards, it MUST also be a multi-owner to the pool"
-                            waitForInput "Unable to reuse old configuration, please set new owner(s) & reward wallet" && owner_wallets=() && reward_wallet="" && reuse_wallets='N'
-                          else hw_reward_wallet='Y'; fi ;;
+                      0) hw_reward_wallet='Y' ;;
                       2) if [[ ${op_mode} = "online" && ${SUBCOMMAND} = "register" && ${hw_owner_wallets} = 'N' ]]; then
                             println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted for reward wallet ${FG_GREEN}${reward_wallet}${NC}, please decrypt before use!"
                             waitForInput && continue
@@ -2090,7 +2082,7 @@ function main {
                 println DEBUG "Owner #1 : ${FG_GREEN}${wallet_name}${NC} added!"
               fi
 
-              getBaseAddress ${wallet_name}
+              getBaseAddress ${owner_wallets[0]}
               getBalance ${base_addr}
               if [[ ${assets[lovelace]} -eq 0 ]]; then
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available in owner wallet ${FG_GREEN}${owner_wallets[0]}${NC}"

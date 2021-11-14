@@ -74,12 +74,19 @@ The default ports used will make haproxy instance available at port 8053 or 8453
 
 ### Enable TLS on HAProxy {: id="tls"}
 
-In order to enable SSL on your haproxy, all you need to do is edit the file `${CNODE_HOME}/files/haproxy.cfg` and update the *frontend app* section to disable normal bind and enable ssl bind. Note that the server.pem referred in example below should contain certificate chain as well as the private key. If you're not familiar with how to configure TLS OR would not like to buy one, you can find tips on how to create a TLS certificate  for free via LetsEncrypt using tutorials [here](https://letsencrypt.org/getting-started/). Once you do have a TLS Certificate generated, you need to chain the private key and full chain cert together in a file - `/etc/ssl/server.pem` in example below:
+In order to enable SSL on your haproxy, all you need to do is edit the file `${CNODE_HOME}/files/haproxy.cfg` and update the *frontend app* section to disable normal bind and enable ssl bind.
+
+!!! info ""
+
+    - server.pem referred below should be a chain containing server TLS certificate, signing certificates (intermediate/root) and private key.
+    - Make sure to replace the hostname to the CNAME/SAN used to create your TLS certificate.
+
+If you're not familiar with how to configure TLS OR would not like to buy one, you can find tips on how to create a TLS certificate for free via LetsEncrypt using tutorials [here](https://letsencrypt.org/getting-started/). Once you do have a TLS Certificate generated, you need to chain the private key and full chain cert together in a file - `/etc/ssl/server.pem` in example below:
 
 ```
 frontend app
   bind 0.0.0.0:8053
-  http-request replace-value Host (.*):8053 :8453
+  http-request replace-value Host (.*):8053 servername.koios.rest:8453
   redirect scheme https code 301 if !{ ssl_fc }
   
 frontend app-secured

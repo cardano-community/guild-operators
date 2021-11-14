@@ -433,6 +433,21 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Asset Summary
       description: Get summary data for an asset (minting transactions not included in total count, total wallets include only wallets with asset balance)
+  /rpc/address_assets:
+    get:
+      tags:
+        - Asset
+      parameters:
+        - $ref: "#/components/parameters/_payment_address"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Address Assets
+      description: Get the list of all the assets (policy, name and quantity) for a given address
   /rpc/pool_list:
     get:
       tags:

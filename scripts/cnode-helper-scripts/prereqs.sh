@@ -78,7 +78,7 @@ EOF
   exit 1
 }
 
-while getopts :in:sflcwpt:m:b: opt; do
+while getopts :in:sflcwt:m:b: opt; do
   case ${opt} in
     i ) INTERACTIVE='Y' ;;
     n ) NETWORK=${OPTARG} ;;
@@ -102,7 +102,6 @@ shift $((OPTIND -1))
 [[ -z ${LIBSODIUM_FORK} ]] && LIBSODIUM_FORK='Y'
 [[ -z ${INSTALL_CNCLI} ]] && INSTALL_CNCLI='N'
 [[ -z ${INSTALL_VCHC} ]] && INSTALL_VCHC='N'
-[[ -z ${INSTALL_POSTGREST} ]] && INSTALL_POSTGREST='N'
 [[ -z ${CNODE_NAME} ]] && CNODE_NAME='cnode'
 [[ -z ${INTERACTIVE} ]] && INTERACTIVE='N'
 [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=60
@@ -433,7 +432,7 @@ pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
 curl -s -f -m ${CURL_TIMEOUT} -o env.tmp ${URL_RAW}/scripts/cnode-helper-scripts/env
 curl -s -f -m ${CURL_TIMEOUT} -o rotatePoolKeys.sh ${URL_RAW}/scripts/cnode-helper-scripts/rotatePoolKeys.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cnode.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cnode.sh
-curl -s -f -m ${CURL_TIMEOUT} -o dbsync.sh.tmp ${URL_RAW}/scripts/grest-helper-scripts/dbsync.sh
+curl -s -f -m ${CURL_TIMEOUT} -o dbsync.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/dbsync.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cntools.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntools.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cntools.library ${URL_RAW}/scripts/cnode-helper-scripts/cntools.library
 curl -s -f -m ${CURL_TIMEOUT} -o logMonitor.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/logMonitor.sh

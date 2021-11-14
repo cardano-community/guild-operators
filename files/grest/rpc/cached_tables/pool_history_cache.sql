@@ -18,9 +18,6 @@ CREATE TABLE grest.pool_history_cache (
 
 COMMENT ON TABLE grest.pool_history_cache IS 'A history of pool performance including blocks, delegators, active stake, fees and rewards';
 
-delete from grest.control_table
-where key = 'pool_history_cache_last_updated';
-
 DROP FUNCTION IF EXISTS grest.pool_history_cache_update CASCADE;
 
 create function grest.pool_history_cache_update (_epoch_no_to_insert_from bigint default NULL)
@@ -31,6 +28,16 @@ declare
   _curr_epoch bigint;
   _latest_epoch_no_in_cache bigint;
 begin
+   IF (
+    SELECT
+      COUNT(pid) > 1
+    FROM
+      pg_stat_activity
+    WHERE
+      state = 'active' AND query ILIKE '%GREST.pool_history_cache_update%') THEN
+    RAISE EXCEPTION 'Previous pool_history_cache_update query still running but should have completed! Exiting...';
+  END IF;
+
   if _epoch_no_to_insert_from is null then
     select
       COALESCE(MAX(epoch_no), 0) into _latest_epoch_no_in_cache
@@ -215,7 +222,9 @@ begin
                             when 0 then
                               null
                             else
-                              ROUND((((POW(((((COALESCE(m.memtotal, 0) + (COALESCE(l.leadertotal, 0) - (actf.pool_fee_fixed + (((COALESCE(m.memtotal, 0) + COALESCE(l.leadertotal, 0)) - actf.pool_fee_fixed) * actf.pool_fee_variable))))) / (NULLIF (actf.active_stake, 0))) + 1), 73) - 1)) * 100)::numeric, 2)
+                              -- using LEAST as a way to prevent overflow, in case of dodgy database data (e.g. giant rewards / tiny active stake)
+                              ROUND((((POW(( LEAST(( ((COALESCE(m.memtotal, 0) + (COALESCE(l.leadertotal, 0) - (actf.pool_fee_fixed + (((COALESCE(m.memtotal, 0) + 
+								              COALESCE(l.leadertotal, 0)) - actf.pool_fee_fixed) * actf.pool_fee_variable))))) / (NULLIF(actf.active_stake,0)) ), 1000) + 1), 73) - 1)) * 100)::numeric, 2)
                             end
                           end epoch_ros
                         from
@@ -229,11 +238,12 @@ begin
                         and actf.epoch_no = m.earned_epoch
                     left join delegators del on ph.id = del.pool_id
                       and actf.epoch_no = del.epoch_no);
-  INSERT INTO GREST.CONTROL_TABLE (key, last_value)
-    values ('pool_history_cache_last_updated', NOW() at time zone 'utc')
-  ON CONFLICT (key)
-    DO UPDATE SET
-      last_value = NOW() at time zone 'utc';
+           
+           INSERT INTO GREST.CONTROL_TABLE (key, last_value)
+              values('pool_history_cache_last_updated', now() at time zone 'utc')
+           ON CONFLICT (key)
+           DO UPDATE SET
+              last_value = now() at time zone 'utc';
 end;
 $$;
 
@@ -242,8 +252,5 @@ current-epoch-minus-one. Invoke with non-empty param for initial population, wit
 
 -- initial population of the history table, will take longer as the number of Cardano epochs grows
 -- if we decide to remove the below and let cron-based invocation to populate it then need to adjust the update function logic and remove special case for empty table handling
-select
-  *
-from
-  grest.pool_history_cache_update (0);
+select * from grest.pool_history_cache_update (0);
 

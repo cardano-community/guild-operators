@@ -72,7 +72,7 @@ You can monitor logs if needed via parallel session using `tail -10f $CNODE_HOME
 ``` bash
 cd $CNODE_HOME/scripts
 ./dbsync.sh -d
-# Deploying systemd service..
+# Deploying cnode-dbsync.service as systemd service..
 # cnode-dbsync.service deployed successfully!!
 ```
 
