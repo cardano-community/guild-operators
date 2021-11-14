@@ -529,7 +529,6 @@
   #             : 4) Cron jobs - deploy cron entries to /etc/cron.d/ from files/grest/cron/jobs/*.sh
   #             :    Used for updating cached tables data.
   deploy_query_updates() {
-    setup_db_basics
     echo "(Re)Deploying Postgres RPCs/views/schedule..."
     check_db_status
     if [[ $? -eq 1 ]]; then
@@ -583,7 +582,7 @@
   [[ "${INSTALL_MONITORING_AGENTS}" == "Y" ]] && deploy_monitoring_agents
   [[ "${OVERWRITE_CONFIG}" == "Y" ]] && deploy_configs
   [[ "${OVERWRITE_SYSTEMD}" == "Y" ]] && deploy_systemd
-  [[ "${RESET_GREST}" == "Y" ]] && reset_grest
-  [[ "${DB_QRY_UPDATES}" == "Y" ]] && deploy_query_updates
+  [[ "${RESET_GREST}" == "Y" ]] && setup_db_basics && reset_grest
+  [[ "${DB_QRY_UPDATES}" == "Y" ]] && setup_db_basics && deploy_query_updates
   pushd -0 >/dev/null || err_exit
   dirs -c
