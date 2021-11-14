@@ -407,7 +407,7 @@ paths:
         - Asset
       parameters:
         - $ref: "#/components/parameters/_asset_policy"
-        - $ref: "#/components/parameters/_asset_name"
+        - $ref: "#/components/parameters/_asset_name_text"
       responses:
         "200":
           $ref: "#/components/responses/OK"
@@ -674,13 +674,23 @@ components:
       in: query
       required: true
       allowEmptyValue: false
-    _asset_name:
+    _asset_name_text:
       deprecated: false
-      name: _asset_name
+      name: _asset_name_text
       description: Asset Name in plain text
       schema:
         type: string
         example: DONTSPAM
+      in: query
+      required: true
+      allowEmptyValue: false
+    _asset_name_hex:
+      deprecated: false
+      name: _asset_name_hex
+      description: Asset Name in hexadecimal format
+      schema:
+        type: string
+        example: 444f4e545350414d
       in: query
       required: true
       allowEmptyValue: false
