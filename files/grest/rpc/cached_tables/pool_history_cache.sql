@@ -62,7 +62,6 @@ begin
   -- purge the data for the given epoch range, in theory should do nothing if invoked only at start of new epoch
   delete from grest.pool_history_cache
   where epoch_no >= _epoch_no_to_insert_from;
-  
   insert into grest.pool_history_cache ( with blockcounts as (
       select
         sl.pool_hash_id,
@@ -142,7 +141,7 @@ begin
                           and pup2.active_epoch_no <= act.epoch_no)) pool_fee_fixed,
                     (amount / (
                         select
-                          NULLIF(amount, 0)
+                          NULLIF (amount, 0)
                         from
                           grest.EPOCH_ACTIVE_STAKE_CACHE epochActiveStakeCache
                         where
