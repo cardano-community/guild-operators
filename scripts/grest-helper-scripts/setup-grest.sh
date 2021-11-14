@@ -164,11 +164,10 @@
   #             : $1 = partial name of the cron-related update function in postgres.
   kill_cron_psql_process() {
     local update_function=$1
-    
-    psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -qt \
+    output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -qt \
       -c "select grest.get_query_pids_partial_match('${update_function}');" |
-        awk 'BEGIN {ORS = " "} {print $1}' | xargs echo -n |
-        xargs sudo kill -SIGTERM 1> /dev/null
+        awk 'BEGIN {ORS = " "} {print $1}' | xargs echo -n)
+    [[ -n "${output}" ]] && ${output} | xargs sudo kill -SIGTERM 1> /dev/null
   }
 
   # Description : Kill cron-related psql update functions.
