@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 
-apk update 2>/dev/null
-apk add socat curl gawk jq 2>/dev/null
+###################### Customisations - START ##################################
+apt-get update 2>/dev/null
+apt-get install socat curl gawk jq 2>/dev/null
 socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;SERVED=true bash /getmetricsDS.sh" &
+###################### Customisations - END  ###################################
 
+
+###################### Official entrypoint ##########################################
 set -Eeo pipefail
 # TODO swap to -Eeuo pipefail above (after handling all potentially-unset variables)
 

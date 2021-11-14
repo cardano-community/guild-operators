@@ -2,7 +2,7 @@ version: "3.5"
 
 services:
   postgres:
-    image: postgres:11.5-alpine
+    image: postgres:13.5-bullseye
     environment:
       - POSTGRES_LOGGING=true
       - POSTGRES_DB_FILE=/run/secrets/postgres_db
@@ -34,7 +34,7 @@ services:
     environment:
       - NETWORK=${NETWORK:-mainnet}
       - SOCKET=/opt/cardano/cnode/sockets/node.socket
-      - EKG=Y 
+      - EKG=Y
     volumes:
       - node-db:/opt/cardano/cnode/db
       - node-ipc:/opt/cardano/cnode/sockets
@@ -46,7 +46,7 @@ services:
         max-file: "10"
 
   cardano-db-sync:
-    image: inputoutput/cardano-db-sync:alonzo-purple-1.0
+    image: inputoutput/cardano-db-sync:11.0.4
     environment:
       - NETWORK=${NETWORK:-mainnet}
       - POSTGRES_HOST=postgres
@@ -67,7 +67,7 @@ services:
       options:
         max-size: "200k"
         max-file: "10"
-    
+
   haproxy:
     image: haproxy:alpine
     environment:
@@ -90,9 +90,9 @@ services:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - PGRST_DB_URI=postgres://guild:HelloWorld54321@postgres/cexplorer
-      - PGRST_DB_SCHEMA="grest,public"
-      - PGRST_DB_ANON_ROLE="web_anon"
-      - PGRST_DB-EXTRA-SEARCH-PATH="public"
+      - PGRST_DB_SCHEMA=grest
+      - PGRST_DB_ANON_ROLE=web_anon
+      - PGRST_DB-EXTRA-SEARCH-PATH=public
       - PGRST_MAX-ROWS=1000
       - PGRST_SERVER_HOST=0.0.0.0
       - PGRST_SERVER_PORT=8050
