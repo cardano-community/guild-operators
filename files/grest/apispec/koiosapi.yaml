@@ -436,7 +436,7 @@ paths:
   /rpc/address_assets:
     get:
       tags:
-        - Asset
+        - Address
       parameters:
         - $ref: "#/components/parameters/_payment_address"
       responses:
