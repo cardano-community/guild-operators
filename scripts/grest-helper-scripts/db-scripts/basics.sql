@@ -4,7 +4,8 @@
 -- 2) web_anon user
 -- 3) grest.control_table
 -- 4) grest.genesis
--- 5) optional db indexes on important public tables
+-- 5) helper functions
+-- 6) optional db indexes on important public tables
 --------------------------------------------------------------------------------
 -- GREST SCHEMA --
 CREATE SCHEMA IF NOT EXISTS grest;
@@ -63,6 +64,48 @@ CREATE TABLE grest.genesis (
   ALONZOGENESIS varchar
 );
 
+-- HELPER FUNCTIONS --
+DROP FUNCTION IF EXISTS grest.get_query_pids_partial_match (_query text);
+
+CREATE FUNCTION grest.get_query_pids_partial_match (_query text)
+  RETURNS TABLE (
+    pid integer)
+  LANGUAGE plpgsql
+  AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    pg_stat_activity.pid
+  FROM
+    pg_stat_activity
+  WHERE
+    query ILIKE '%' || _query || '%';
+END;
+$$;
+
+-- Not really fully tested nor working yet, but in case we'll need something like this for the future.
+/* DROP PROCEDURE IF EXISTS grest.kill_queries_partial_match (_query text);
+
+CREATE PROCEDURE grest.kill_queries_partial_match (_query text)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+ _pids integer[];
+BEGIN
+ _pids := ARRAY (
+ SELECT
+ grest.get_query_pids_partial_match (_query));
+ FOR i IN 1..ARRAY_UPPER(_pids, 1)
+ LOOP
+ RAISE NOTICE 'Cancelling PID: %', _pids[i];
+ PERFORM
+ PG_CANCEL_BACKEND(_pids[i]);
+ END LOOP;
+END;
+$$; */
+--
+--
+-- DATABASE INDEXES --
 -- Most likely deprecated after 12.0.0
 CREATE INDEX IF NOT EXISTS _asset_policy_idx ON PUBLIC.MA_TX_OUT ( policy);
 

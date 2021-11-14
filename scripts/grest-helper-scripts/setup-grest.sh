@@ -159,12 +159,34 @@
     is_file "${cron_job_path_legacy}" && sudo rm "${cron_job_path_legacy}"
     is_file "${cron_job_path}" && sudo rm "${cron_job_path}"
   }
+
+  # Description : Find and kill psql processes based on partial function name.
+  #             : $1 = partial name of the cron-related update function in postgres.
+  kill_cron_psql_process() {
+    local update_function=$1
+    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -qt \
+      -c "select grest.get_query_pids_partial_match('${update_function}');" 2>&1 |
+        xargs sudo kill -9 ) &&
+          err_exit "${output}"
+  }
+
+  # Description : Kill cron-related psql update functions.
+  kill_cron_psql_processes() {
+    kill_cron_psql_process 'stake_distribution_cache_update'
+    kill_cron_psql_process 'pool_history_cache_update'
+    kill_cron_psql_process 'asset_registry_cache_update'
+  }
+
+  # Description : Kill a running cron script (does not stop psql executions).
+  kill_cron_script_processes() {
+    sudo pkill -9 -f asset-registry-update.sh
+  }
+
   # Description : Stop running grest-related cron jobs.
   kill_running_cron_jobs() {
-    # Currently just killing any cron entry other than the first one
-    # There is probably a better (more precise) way of doing this
     echo "Stopping currently running cron jobs..."
-    sudo kill -9 $(pgrep cron | awk 'FNR > 1 {print $1}')
+    kill_cron_script_processes
+    kill_cron_psql_processes
   }
 
   # Description : Remove all grest-related cron entries.
