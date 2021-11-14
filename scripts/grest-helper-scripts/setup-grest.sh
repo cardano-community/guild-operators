@@ -485,6 +485,7 @@
     fi
     echo -e "Adding grest schema if missing and granting usage for web_anon..."
     ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -q <<<${basics_sql} 2>&1) && err_exit "${output}"
+    return 0
   }
 
   # Description : Check sync until Mary hard-fork.
@@ -525,7 +526,7 @@
   #             : 2) RPC endpoints - with SQL sourced from files/grest/rpc/**.sql
   #             : 3) Cached tables setup - with SQL sourced from files/grest/rpc/cached_tables/*.sql
   #             :    This includes table structure setup and caching existing data (for most tables).
-  #                  Some heavy cache tables are intentionally populated post-setup (point 4) to avoid long setup runtimes. 
+  #             :    Some heavy cache tables are intentionally populated post-setup (point 4) to avoid long setup runtimes. 
   #             : 4) Cron jobs - deploy cron entries to /etc/cron.d/ from files/grest/cron/jobs/*.sh
   #             :    Used for updating cached tables data.
   deploy_query_updates() {
