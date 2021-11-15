@@ -89,6 +89,7 @@ OFFLINE_MODE='N'
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master
 
 URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
+DB_SCRIPTS_URL="${URL_RAW}/scripts/grest-helper-scripts/db-scripts"
 export LC_ALL=C.UTF-8
 
 # special mapping of coreutils gdate to date for MacOS
@@ -141,6 +142,8 @@ fi
 [[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
 
 CNODE_NAME="$(basename ${CNODE_HOME})"
+CNODE_VNAME=$(tr '[:upper:]' '[:lower:]' <<< ${CNODE_NAME//_HOME/})
+CNODE_VNAME_UPPERCASE=$(tr '[:lower:]' '[:upper:]' <<< ${CNODE_VNAME})
 
 [[ -z "${CNODE_PORT}" ]] && CNODE_PORT=6000
 if [[ -z "${SOCKET}" ]]; then
@@ -411,17 +414,8 @@ checkUpdate() {
   URL_DOCS="${URL_RAW}/docs/Scripts"
   if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}/${1}".tmp "${URL}/${1}" 2>/dev/null; then
 
-    # get vname from env file
-    vname=${CNODE_NAME//_HOME}
-    vname_uc=$(tr '[:lower:]' '[:upper:]' <<< ${vname})
-    if [[ -n ${vname} ]]; then
-      # replace default CNODE with custom name if needed
-      [[ ${vname} != cnode ]] && sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${vname_uc}_HOME@g" -i "${PARENT}/${1}".tmp
-    else
-      printf "${FG_RED}ERROR${NC}: '${1}' update failed! Please use prereqs.sh to force an update or manually download the file from GitHub"
-      [[ $4 != N ]] && waitToProceed
-      return 2
-    fi
+    # replace default CNODE with custom name if needed
+    [[ ${CNODE_VNAME} != cnode ]] && sed -e "s@/opt/cardano/[c]node@/opt/cardano/${CNODE_VNAME}@g" -e "s@[C]NODE_HOME@${CNODE_VNAME_UPPERCASE}_HOME@g" -i "${PARENT}/${1}".tmp
 
     # make sure script exist, else just rename
     [[ ! -f "${PARENT}/${1}" ]] && mv -f "${PARENT}/${1}".tmp "${PARENT}/${1}" && chmod +x "${PARENT}/${1}" && return 0
