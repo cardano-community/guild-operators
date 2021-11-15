@@ -10,12 +10,6 @@ CREATE TABLE IF NOT EXISTS GREST.STAKE_DISTRIBUTION_CACHE (
   TREASURY numeric
 );
 
-CREATE TABLE IF NOT EXISTS GREST.CONTROL_TABLE (
-  key text PRIMARY KEY,
-  last_value text NOT NULL,
-  artifacts text
-);
-
 DROP PROCEDURE IF EXISTS GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
 
 DROP FUNCTION IF EXISTS GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
@@ -181,9 +175,9 @@ ON CONFLICT (STAKE_ADDRESS)
 END;
 $$;
 
-DROP FUNCTION IF EXISTS GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK;
+DROP FUNCTION IF EXISTS GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK;
 
-CREATE FUNCTION GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK ()
+CREATE FUNCTION GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK ()
   RETURNS VOID
   LANGUAGE PLPGSQL
   AS $$
@@ -202,18 +196,16 @@ BEGIN
     FROM
       pg_stat_activity
     WHERE
-      state = 'active' AND query ILIKE '%GREST.UPDATE_STAKE_DISTRIBUTION_CACHE_CHECK(%') THEN
+      state = 'active' AND query ILIKE '%GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK(%') THEN
     RAISE EXCEPTION 'Previous query still running but should have completed! Exiting...';
   END IF;
   -- QUERY START --
-  SELECT COALESCE(
-    (SELECT
-      last_value::bigint
-    FROM
-      GREST.control_table
-    WHERE
-      key = 'stake_distribution_lbh')
-  , 0) INTO _last_update_block_height;
+  SELECT
+    COALESCE((
+      SELECT
+        last_value::bigint FROM GREST.control_table
+      WHERE
+        key = 'stake_distribution_lbh'), 0) INTO _last_update_block_height;
   SELECT
     MAX(block_no)
   FROM
