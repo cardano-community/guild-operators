@@ -17,6 +17,8 @@ fi
 pushd "${TR_DIR}/${TR_NAME}" >/dev/null || exit 1
 git pull >/dev/null || exit 1
 
+asset_cnt=0
+
 while IFS= read -r -d '' assetfile; do
   if ! asset_data_csv=$(jq -er '[
       .subject,
@@ -43,7 +45,8 @@ while IFS= read -r -d '' assetfile; do
     [[ -z ${logo} ]] && logo=NULL || logo="\$\$${logo}\$\$"
     [[ ! ${decimals} =~ ^[0-9]+$ ]] && decimals=0
     psql ${DB_NAME} -qbt -c "SELECT grest.asset_registry_cache_update(\$\$${asset_policy}\$\$, \$\$${asset_name}\$\$, \$\$${name}\$\$, \$\$${description}\$\$, ${ticker}, ${url}, ${logo}, ${decimals});" >/dev/null
+    ((asset_cnt++))
   done <<< ${asset_data_csv}
-done < <(find "${TR_DIR}/${TR_NAME}/${TR_SUBDIR}" -mindepth 1 -maxdepth 1 -type f -print0)
+done < <(find "${TR_DIR}/${TR_NAME}/${TR_SUBDIR}" -mindepth 1 -maxdepth 1 -type f -name "*.json" -mmin -15 -print0)
 
-echo "$(date +%F_%H:%M:%S) - END - Asset Registry Update"
+echo "$(date +%F_%H:%M:%S) - END - Asset Registry Update, ${asset_cnt} assets added/updated."
