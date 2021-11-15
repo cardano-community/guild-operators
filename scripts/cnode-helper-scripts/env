@@ -737,7 +737,11 @@ getNodeMetrics() {
     .cardano.node.metrics.RTS.gcLiveBytes.int.val //0,
     .cardano.node.metrics.RTS.gcHeapBytes.int.val //0,
     .cardano.node.metrics.RTS.gcMinorNum.int.val //0,
-    .cardano.node.metrics.RTS.gcMajorNum.int.val //0
+    .cardano.node.metrics.RTS.gcMajorNum.int.val //0,
+    .cardano.node.metrics.blockfetchclient.blockdelay.s.val //0,
+    .cardano.node.metrics.blockfetchclient.lateblocks.val //0,
+    .cardano.node.metrics.blockfetchclient.blockdelay.cdfThree.val //0,
+    .cardano.node.metrics.forks.int.val //0
     ] | @tsv' <<< "${node_metrics}")
     read -ra node_metrics_arr <<< ${node_metrics_tsv}
     blocknum=${node_metrics_arr[0]}; epochnum=${node_metrics_arr[1]}; slot_in_epoch=${node_metrics_arr[2]}; slotnum=${node_metrics_arr[3]}
@@ -749,6 +753,8 @@ getNodeMetrics() {
     missed_slots=${node_metrics_arr[15]}
     mem_live=${node_metrics_arr[16]}; mem_heap=${node_metrics_arr[17]}
     gc_minor=${node_metrics_arr[18]}; gc_major=${node_metrics_arr[19]}
+    block_delay=${node_metrics_arr[20]}; blocks_late=${node_metrics_arr[21]}; blocks_w3s=${node_metrics_arr[22]}
+    forks=${node_metrics_arr[23]}
   else
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
     [[ ${node_metrics} =~ cardano_node_metrics_nodeStartTime_int[[:space:]]([^[:space:]]*) ]] && { nodeStartTime=${BASH_REMATCH[1]} && uptimes=$(( $(date +%s) - BASH_REMATCH[1] )); } || uptimes=0
@@ -771,6 +777,10 @@ getNodeMetrics() {
     [[ ${node_metrics} =~ cardano_node_metrics_RTS_gcHeapBytes_int[[:space:]]([^[:space:]]*) ]] && mem_heap=${BASH_REMATCH[1]} || mem_heap=0
     [[ ${node_metrics} =~ cardano_node_metrics_RTS_gcMinorNum_int[[:space:]]([^[:space:]]*) ]] && gc_minor=${BASH_REMATCH[1]} || gc_minor=0
     [[ ${node_metrics} =~ cardano_node_metrics_RTS_gcMajorNum_int[[:space:]]([^[:space:]]*) ]] && gc_major=${BASH_REMATCH[1]} || gc_major=0
+    [[ ${node_metrics} =~ cardano_node_metrics_blockfetchclient_blockdelay_s[[:space:]]([^[:space:]]*) ]] && block_delay=${BASH_REMATCH[1]} || block_delay=0
+    [[ ${node_metrics} =~ cardano_node_metrics_blockfetchclient_lateblocks[[:space:]]([^[:space:]]*) ]] && blocks_late=${BASH_REMATCH[1]} || blocks_late=0
+    [[ ${node_metrics} =~ cardano_node_metrics_forks_int[[:space:]]([^[:space:]]*) ]] && forks=${BASH_REMATCH[1]} || forks=0
+    [[ ${node_metrics} =~ cardano_node_metrics_blockfetchclient_blockdelay_cdfThree[[:space:]]([^[:space:]]*) ]] && blocks_w3s=${BASH_REMATCH[1]} || blocks_w3s=0
   fi
 }
 
