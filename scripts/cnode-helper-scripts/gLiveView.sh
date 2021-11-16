@@ -913,6 +913,7 @@ while true; do
     printf "${VL} direction since node start (and discarded blocks by doing so)." && closeRow
     printf "${VL} In/Out peers shows how many peers the node pushes to/pulls from." && closeRow
     printf "${VL} RSS/Live/Heap shows the memory utilization of RSS/live/heap data." && closeRow
+    printf "${VL} Block propagation metrics are discussed in the documentation." && closeRow
     printf "${blank_line}\n" && ((line++))
     printf "${VL} ${style_values_2}Core section${NC}" && closeRow
     printf "${VL} If the node is run as a block producer, a second section is" && closeRow
