@@ -119,6 +119,8 @@
   set_cron_variables() {
     local job=$1
     [[ ${PGDATABASE} != cexplorer ]] && sed -e "s@DB_NAME=.*@DB_NAME=${PGDATABASE}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
+    # update last modified date of all json files to trigger cron job to process all
+    [[ -d "${HOME}/git/${CNODE_VNAME}-token-registry" ]] && find "${HOME}/git/${CNODE_VNAME}-token-registry" -mindepth 2 -maxdepth 2 -type f -name "*.json" -exec touch {} +
   }
 
   # Description : Alters the asset-registry-update.sh script to point to the testnet registry.
