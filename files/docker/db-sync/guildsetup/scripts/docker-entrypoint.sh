@@ -4,7 +4,8 @@
 apt-get update 2>/dev/null
 apt-get install -y socat curl gawk jq sudo 2>/dev/null
 
-
+# Sets the postgres user password unlocking sudo privileges
+# Should be improved to use env variables or similar
 echo -e "postgres\npostgres" |  passwd postgres
 
 

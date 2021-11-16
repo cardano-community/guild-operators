@@ -544,7 +544,7 @@
       err_exit "${rpc_file_list}"
     fi
     echo -e "  (Re)Deploying GRest objects to DBSync..."
-    populate_genesis_table
+    [[ ${DOCKER_RUN} != 'Y' ]] && populate_genesis_table
     for row in $(jq -r '.[] | @base64' <<<${rpc_file_list}); do
       if [[ $(jqDecode '.type' "${row}") = 'dir' ]]; then
         echo -e "\n    Downloading pSQL executions from subdir $(jqDecode '.name' "${row}")"
@@ -558,7 +558,7 @@
         deployRPC ${row}
       fi
     done
-    setup_cron_jobs
+    [[ ${DOCKER_RUN} != 'Y' ]] && setup_cron_jobs
     echo -e "\n  All RPC functions successfully added to DBSync! For detailed query specs and examples, visit ${API_DOCS_URL}!\n"
     echo -e "Please restart PostgREST before attempting to use the added functions"
     echo -e "  \e[94msudo systemctl restart postgrest.service\e[0m\n"
