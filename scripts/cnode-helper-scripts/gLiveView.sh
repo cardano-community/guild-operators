@@ -1029,9 +1029,9 @@ while true; do
     echo "${propdivider}" && ((line++))
     # row 6
     printf -v block_delay_rounded "%.2f" ${block_delay}
-    printf "${VL} Last Delay : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#block_delay}))s" "${block_delay_rounded}" "s"
+    printf "${VL} Last Delay : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
     mvThreeSecond
-    printf "Served     : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${blocks_served}"
+    printf "Served     : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${blocks_served}"
     mvThreeThird
     printf "Late (>5s) : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${blocks_late}"
     closeRow
@@ -1044,7 +1044,7 @@ while true; do
     printf "Within 3s  : ${style_values_1}%s${NC}%-$((three_col_2_value_width - ${#blocks_w3s_pct}))s" "${blocks_w3s_pct}" "%"
     mvThreeThird
     printf -v blocks_w5s_pct "%.2f" "$(bc -l <<<"(${blocks_w5s}*100)")"
-    printf "Within 5s  : ${style_values_1}%s${NC}%-$((three_col_2_value_width - ${#blocks_w5s_pct}))s" "${blocks_w5s_pct}" "%"
+    printf "Within 5s  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#blocks_w5s_pct}))s" "${blocks_w5s_pct}" "%"
     closeRow
 
     ## Core section ##
