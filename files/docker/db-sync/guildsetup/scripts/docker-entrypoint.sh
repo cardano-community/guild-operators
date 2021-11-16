@@ -2,7 +2,12 @@
 
 ###################### Customisations - START ##################################
 apt-get update 2>/dev/null
-apt-get install -y socat curl gawk jq 2>/dev/null
+apt-get install -y socat curl gawk jq sudo 2>/dev/null
+
+
+echo -e "postgres\npostgres" |  passwd postgres
+
+
 socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;SERVED=true bash /getmetricsDS.sh" &
 ###################### Customisations - END  ###################################
 
