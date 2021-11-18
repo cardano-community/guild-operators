@@ -279,6 +279,23 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Transaction Metadata Labels
       description: Get a list of all transaction metalabels
+  /tx_status:
+    get:
+      tags:
+        - Transactions
+      responses:
+        "200":
+          description: Array of transaction confirmation counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/tx_status"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Transaction Status (Block Confirmations)
+      description: Get the number of block confirmations for a given transaction hash list
   /rpc/address_info:
     get:
       tags:
@@ -454,7 +471,11 @@ paths:
         - Pool
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of pool IDs and tickers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/pool_list"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -866,6 +887,18 @@ components:
             type: integer
             description: Total Reserves yet to be unlocked on chain
             example: 11771504387608670
+    pool_list:
+      type: array
+      items:
+        properties:
+          pool_id_bech32:
+            type: string
+            description: Bech32 representation of pool ID
+            example: pool1z5uqdk7dzdxaae5633fqfcu2eqzy3a3rgtuvy087fdld7yws0xt
+          ticker:
+            type: string
+            description: Pool ticker
+            example: JAZZ
     epoch_info:
       type: array
       items:
@@ -1190,7 +1223,7 @@ components:
         properties:
           tx_hash:
             type: string
-            description: Hash of Transaction for which details are being shown
+            description: Hash of the transaction for which details are being shown
             example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
           metadata:
             type: string
@@ -1206,6 +1239,18 @@ components:
                       {},
                   },
               }
+    tx_status:
+      type: array
+      items:
+        properties:
+          tx_hash:
+            type: string
+            description: Hash of the transaction for which details are being shown
+            example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
+          num_confirmations:
+            type: integer
+            description: Number of block confirmations
+            example: 17
     tx_metalabels:
       type: array
       items:
