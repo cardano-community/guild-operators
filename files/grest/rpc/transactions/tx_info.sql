@@ -10,10 +10,14 @@ CREATE FUNCTION grest.tx_info (_tx_hashes text[])
     absolute_slot uinteger,
     tx_timestamp timestamp without time zone,
     tx_block_index uinteger,
+    tx_size uinteger,
+    total_output lovelace,
     fee lovelace,
     deposit bigint,
     inputs json,
     outputs json,
+    withdrawals json,
+    assets_minted json,
     invalid_before word64type,
     invalid_after word64type,
     certificates json)
@@ -30,10 +34,14 @@ BEGIN
     T1.absolute_slot,
     T1.tx_timestamp,
     T1.tx_block_index,
+    T1.tx_size,
+    T1.total_output,
     T1.fee,
     T1.deposit,
     INPUTS_T.inputs,
     OUTPUTS_T.outputs,
+    WITHDRAWALS_T.withdrawals,
+    MINTED_T.assets_minted,
     T1.invalid_before,
     T1.invalid_after,
     JSON_STRIP_NULLS (CERTIFICATES_T.certificates)
@@ -48,6 +56,8 @@ BEGIN
       b.slot_no as absolute_slot,
       b.time as tx_timestamp,
       tx.block_index as tx_block_index,
+      tx.size as tx_size,
+      tx.out_sum as total_output,
       tx.fee,
       tx.deposit,
       tx.invalid_before,
@@ -63,25 +73,93 @@ BEGIN
           UNNEST(_tx_hashes) AS hashes)) T1
   LEFT JOIN LATERAL (
     SELECT
-      JSON_AGG(JSON_BUILD_OBJECT('index', tx_out.index, 'address', tx_out.address, 'value', tx_out.value)) as outputs
+      JSON_AGG(JSON_BUILD_OBJECT(
+        'payment_addr', json_build_object(
+          'bech32', tx_out.address,
+          'cred', ENCODE(tx_out.payment_cred, 'hex')
+          ),
+        'stake_addr', CASE WHEN SA.view IS NULL THEN NULL ELSE JSON_BUILD_OBJECT(
+          'bech32', SA.view
+          ) END,
+        'tx_hash', T1.tx_hash,
+        'tx_index', tx_out.index, 
+        'address', tx_out.address, 
+        'value', tx_out.value,
+        'token_list', COALESCE((SELECT JSON_AGG(JSON_BUILD_OBJECT(
+          'policy_id', ENCODE(MTX.policy, 'hex'),
+          'asset_name', ENCODE(MTX.name, 'hex'),
+          'quantity', MTX.quantity
+          ))
+          FROM 
+            ma_tx_out MTX
+          WHERE 
+            MTX.tx_out_id = tx_out.id), JSON_BUILD_ARRAY())
+        )) AS outputs
     FROM
       tx_out
+      LEFT JOIN stake_address SA ON tx_out.stake_address_id = SA.id
     WHERE
       tx_id = T1.id
     GROUP BY
       tx_id) OUTPUTS_T ON TRUE
   LEFT JOIN LATERAL (
     SELECT
-      JSON_AGG(JSON_BUILD_OBJECT('index', tx_out.index, 'address', tx_out.address, 'value', tx_out.value)) as inputs
+      JSON_AGG(JSON_BUILD_OBJECT(
+        'payment_addr', json_build_object(
+          'bech32', tx_out.address,
+          'cred', ENCODE(tx_out.payment_cred, 'hex')
+          ),
+        'stake_addr', CASE WHEN SA.view IS NULL THEN NULL ELSE JSON_BUILD_OBJECT(
+          'bech32', SA.view
+          ) END,
+        'tx_hash', ENCODE(tx.hash, 'hex'),
+        'tx_index', tx_out.index, 
+        'address', tx_out.address, 
+        'value', tx_out.value,
+        'token_list', COALESCE((SELECT JSON_AGG(JSON_BUILD_OBJECT(
+          'policy_id', ENCODE(MTX.policy, 'hex'),
+          'asset_name', ENCODE(MTX.name, 'hex'),
+          'quantity', MTX.quantity
+          ))
+          FROM 
+            ma_tx_out MTX
+          WHERE 
+            MTX.tx_out_id = tx_out.id), JSON_BUILD_ARRAY())
+        )) AS inputs
     FROM
       tx_out
       INNER JOIN tx_in ON tx_out.tx_id = tx_in.tx_out_id
       INNER JOIN tx ON tx.id = tx_in.tx_in_id
         AND tx_in.tx_out_index = tx_out.index
+      LEFT JOIN stake_address SA ON tx_out.stake_address_id = SA.id
     WHERE
       tx_in_id = T1.id
     GROUP BY
       tx_in_id) INPUTS_T ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT
+      JSON_AGG(JSON_BUILD_OBJECT(
+        'amount', W.amount,
+        'stake_addr', CASE WHEN SA.view IS NULL THEN NULL ELSE JSON_BUILD_OBJECT(
+          'bech32', SA.view
+          ) END
+        )) AS withdrawals
+    FROM
+      withdrawal W
+      INNER JOIN stake_address SA ON W.addr_id = SA.id
+    WHERE
+      W.tx_id = T1.id) WITHDRAWALS_T ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT
+      JSON_AGG(JSON_BUILD_OBJECT(
+        'policy_id', ENCODE(MTX.policy, 'hex'),
+        'asset_name', ENCODE(MTX.name, 'hex'),
+        'quantity', MTX.quantity
+        )) AS assets_minted
+    FROM
+      ma_tx_mint MTX
+    WHERE
+      MTX.tx_id = T1.id) MINTED_T ON TRUE
   LEFT JOIN LATERAL (
     SELECT
       COALESCE(
