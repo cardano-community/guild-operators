@@ -1142,12 +1142,9 @@ components:
                       description: Payment credential
                       example: ac9c9e1ad9c0ba563afe7114be2a7dc7b0842e0220a476f58e9f61b0
                 stake_addr:
-                  type: object
-                  properties:
-                    bech32:
-                      type: string
-                      description: A Cardano staking address (reward account, bech32 encoded) for transaction's input UTxO
-                      example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
+                  type: string
+                  description: A Cardano staking address (reward account, bech32 encoded) for transaction's input UTxO
+                  example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
                 tx_hash:
                   type: string
                   description: Hash of Transaction for input UTxO
@@ -1195,12 +1192,9 @@ components:
                       description: Payment credential
                       example: de3c1c527e8826b9cd2030f88f75fc44cd4ce519b9ded9eb794b3794
                 stake_addr:
-                  type: object
-                  properties:
-                    bech32:
-                      type: string
-                      description: A Cardano staking address (reward account, bech32 encoded) for transaction's output UTxO
-                      example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
+                  type: string
+                  description: A Cardano staking address (reward account, bech32 encoded) for transaction's output UTxO
+                  example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
                 tx_hash:
                   type: string
                   description: Hash of this transaction

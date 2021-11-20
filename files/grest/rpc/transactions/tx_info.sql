@@ -78,9 +78,7 @@ BEGIN
           'bech32', tx_out.address,
           'cred', ENCODE(tx_out.payment_cred, 'hex')
           ),
-        'stake_addr', CASE WHEN SA.view IS NULL THEN NULL ELSE JSON_BUILD_OBJECT(
-          'bech32', SA.view
-          ) END,
+        'stake_addr', SA.view,
         'tx_hash', T1.tx_hash,
         'tx_index', tx_out.index,
         'value', tx_out.value,
@@ -108,9 +106,7 @@ BEGIN
           'bech32', tx_out.address,
           'cred', ENCODE(tx_out.payment_cred, 'hex')
           ),
-        'stake_addr', CASE WHEN SA.view IS NULL THEN NULL ELSE JSON_BUILD_OBJECT(
-          'bech32', SA.view
-          ) END,
+        'stake_addr', SA.view,
         'tx_hash', ENCODE(tx.hash, 'hex'),
         'tx_index', tx_out.index,
         'value', tx_out.value,
@@ -133,7 +129,7 @@ BEGIN
     WHERE
       tx_in.tx_in_id = T1.id
     GROUP BY
-      tx_out_id) INPUTS_T ON TRUE
+      tx_in_id) INPUTS_T ON TRUE
   LEFT JOIN LATERAL (
     SELECT
       JSON_AGG(JSON_BUILD_OBJECT(
