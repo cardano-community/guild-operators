@@ -1074,11 +1074,8 @@ components:
     tx_info:
       type: array
       items:
+        type: object
         properties:
-          id:
-            type: integer
-            description: Transaction ID on particular DB Instance
-            example: 17977025
           tx_hash:
             type: string
             description: Hash of Transaction for which details are being shown
@@ -1131,21 +1128,26 @@ components:
             type: array
             description: An array with details about inputs used in a transaction
             items:
+              type: object
               properties:
                 payment_addr:
-                  bech32:
-                    type: string
-                    description: A Cardano payment/base address (bech32 encoded) for transaction's input UTxO
-                    example: addr1qxkfe8s6m8qt5436lec3f0320hrmpppwqgs2gah4360krvyssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqdc3cxp
-                  cred:
-                    type: string
-                    description: Payment credential
-                    example: ac9c9e1ad9c0ba563afe7114be2a7dc7b0842e0220a476f58e9f61b0
+                  type: object
+                  properties:
+                    bech32:
+                      type: string
+                      description: A Cardano payment/base address (bech32 encoded) for transaction's input UTxO
+                      example: addr1qxkfe8s6m8qt5436lec3f0320hrmpppwqgs2gah4360krvyssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqdc3cxp
+                    cred:
+                      type: string
+                      description: Payment credential
+                      example: ac9c9e1ad9c0ba563afe7114be2a7dc7b0842e0220a476f58e9f61b0
                 stake_addr:
-                  bech32:
-                    type: string
-                    description: A Cardano staking address (reward account, bech32 encoded) for transaction's input UTxO
-                    example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
+                  type: object
+                  properties:
+                    bech32:
+                      type: string
+                      description: A Cardano staking address (reward account, bech32 encoded) for transaction's input UTxO
+                      example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
                 tx_hash:
                   type: string
                   description: Hash of Transaction for input UTxO
@@ -1179,21 +1181,26 @@ components:
             type: array
             description: An array with details about outputs from the transaction
             items:
+              type: object
               properties:
                 payment_addr:
-                  bech32:
-                    type: string
-                    description: A Cardano payment/base address (bech32 encoded) where funds were sent or change to be returned
-                    example: addr1q80rc8zj06yzdwwdyqc03rm4l3zv6n89rxuaak0t099n09yssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqad9mkw
-                  cred:
-                    type: string
-                    description: Payment credential
-                    example: de3c1c527e8826b9cd2030f88f75fc44cd4ce519b9ded9eb794b3794
+                  type: object
+                  properties:
+                    bech32:
+                      type: string
+                      description: A Cardano payment/base address (bech32 encoded) where funds were sent or change to be returned
+                      example: addr1q80rc8zj06yzdwwdyqc03rm4l3zv6n89rxuaak0t099n09yssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqad9mkw
+                    cred:
+                      type: string
+                      description: Payment credential
+                      example: de3c1c527e8826b9cd2030f88f75fc44cd4ce519b9ded9eb794b3794
                 stake_addr:
-                  bech32:
-                    type: string
-                    description: A Cardano staking address (reward account, bech32 encoded) for transaction's output UTxO
-                    example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
+                  type: object
+                  properties:
+                    bech32:
+                      type: string
+                      description: A Cardano staking address (reward account, bech32 encoded) for transaction's output UTxO
+                      example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
                 tx_hash:
                   type: string
                   description: Hash of this transaction
@@ -1227,16 +1234,19 @@ components:
             type: array
             description: Array of withdrawals with-in a transaction (if any)
             items:
+              type: object
               properties:
                 amount:
                   type: integer
                   description: Withdrawal amount (in lovelaces)
                   example: 9845162
                 stake_addr:
-                  bech32:
-                    type: string
-                    description: A Cardano staking address (reward account, bech32 encoded)
-                    example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
+                  type: object
+                  properties:
+                    bech32:
+                      type: string
+                      description: A Cardano staking address (reward account, bech32 encoded)
+                      example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
           assets_minted:
             type: array
             description: Array of minted assets with-in a transaction (if any)
