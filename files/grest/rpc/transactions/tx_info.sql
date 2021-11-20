@@ -125,15 +125,15 @@ BEGIN
             MTX.tx_out_id = tx_out.id), JSON_BUILD_ARRAY())
         )) AS inputs
     FROM
-      tx_out
-      INNER JOIN tx_in ON tx_out.tx_id = tx_in.tx_out_id
-      INNER JOIN tx ON tx.id = tx_in.tx_in_id
-        AND tx_in.tx_out_index = tx_out.index
+      tx_in
+      INNER JOIN tx ON tx.id = tx_in.tx_out_id
+      INNER JOIN tx_out ON tx_out.tx_id = tx_in.tx_out_id
+        AND tx_out.index = tx_in.tx_out_index
       LEFT JOIN stake_address SA ON tx_out.stake_address_id = SA.id
     WHERE
-      tx_in_id = T1.id
+      tx_in.tx_in_id = T1.id
     GROUP BY
-      tx_in_id) INPUTS_T ON TRUE
+      tx_out_id) INPUTS_T ON TRUE
   LEFT JOIN LATERAL (
     SELECT
       JSON_AGG(JSON_BUILD_OBJECT(
