@@ -97,7 +97,7 @@
     local job_url="${URL_RAW}/files/grest/cron/jobs/${job}.sh"
     is_file "${job_path}" && rm "${job_path}"
     if curl -s -f -m "${CURL_TIMEOUT}" -o "${job_path}" "${job_url}"; then
-      echo -e "      Downloaded \e[32m${job_path}\e[0m"
+      echo -e "    Downloaded \e[32m${job_path}\e[0m"
       chmod +x "${job_path}"
     else
       err_exit "Could not download ${job_url}"
@@ -118,6 +118,8 @@
   set_cron_variables() {
     local job=$1
     [[ ${PGDATABASE} != cexplorer ]] && sed -e "s@DB_NAME=.*@DB_NAME=${PGDATABASE}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
+    # update last modified date of all json files to trigger cron job to process all
+    [[ -d "${HOME}/git/${CNODE_VNAME}-token-registry" ]] && find "${HOME}/git/${CNODE_VNAME}-token-registry" -mindepth 2 -maxdepth 2 -type f -name "*.json" -exec touch {} +
   }
 
   # Description : Alters the asset-registry-update.sh script to point to the testnet registry.
@@ -132,6 +134,7 @@
   setup_cron_jobs() {
     ! is_dir "${CRON_SCRIPTS_DIR}" && mkdir -p "${CRON_SCRIPTS_DIR}"
 
+    echo ""
     get_cron_job_executable "stake-distribution-update"
     set_cron_variables "stake-distribution-update"
     install_cron_job "stake-distribution-update" "*/30 * * * *"
