@@ -82,10 +82,9 @@ BEGIN
           'bech32', SA.view
           ) END,
         'tx_hash', T1.tx_hash,
-        'tx_index', tx_out.index, 
-        'address', tx_out.address, 
+        'tx_index', tx_out.index,
         'value', tx_out.value,
-        'token_list', COALESCE((SELECT JSON_AGG(JSON_BUILD_OBJECT(
+        'asset_list', COALESCE((SELECT JSON_AGG(JSON_BUILD_OBJECT(
           'policy_id', ENCODE(MTX.policy, 'hex'),
           'asset_name', ENCODE(MTX.name, 'hex'),
           'quantity', MTX.quantity
@@ -113,10 +112,9 @@ BEGIN
           'bech32', SA.view
           ) END,
         'tx_hash', ENCODE(tx.hash, 'hex'),
-        'tx_index', tx_out.index, 
-        'address', tx_out.address, 
+        'tx_index', tx_out.index,
         'value', tx_out.value,
-        'token_list', COALESCE((SELECT JSON_AGG(JSON_BUILD_OBJECT(
+        'asset_list', COALESCE((SELECT JSON_AGG(JSON_BUILD_OBJECT(
           'policy_id', ENCODE(MTX.policy, 'hex'),
           'asset_name', ENCODE(MTX.name, 'hex'),
           'quantity', MTX.quantity
