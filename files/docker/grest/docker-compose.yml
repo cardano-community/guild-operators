@@ -23,7 +23,7 @@ services:
       - ./init-queries:/docker-entrypoint-initdb.d/
       - ./docker-entrypoint.sh:/docker-entrypoint.sh
     entrypoint: /docker-entrypoint.sh
-    command: postgres
+    command: "postgres -c config_file=/usr/local/etc/postgres/postgres.conf"
     restart: on-failure
     logging:
       driver: "json-file"
