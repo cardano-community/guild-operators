@@ -53,6 +53,8 @@ services:
       - NETWORK=${NETWORK:-mainnet}
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
+      - RESTORE_SNAPSHOT=https://update-cardano-mainnet.iohk.io/cardano-db-sync/11/db-sync-snapshot-schema-11-block-6510444-x86_64.tgz
+      - RESTORE_RECREATE_DB=N
     depends_on:
       - cardano-node
       - postgres
@@ -81,7 +83,7 @@ services:
       - postgres
       - postgrest
     volumes:
-      - ./grest/cfg/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+      - ./configs/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
     ports:
       - 8053:8053
     restart: on-failure
