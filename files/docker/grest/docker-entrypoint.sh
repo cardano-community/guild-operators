@@ -8,7 +8,7 @@ apt-get install -y socat curl gawk jq sudo 2>/dev/null
 # Should be improved to use env variables or similar
 echo -e "postgres\npostgres" | passwd postgres
 
-socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;SERVED=true bash /getmetricsDS.sh" &
+socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;SERVED=true bash /getmetrics.sh" &
 ###################### Customisations - END  ###################################
 
 ###################### Official entrypoint ##########################################
