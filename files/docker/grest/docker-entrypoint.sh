@@ -6,17 +6,14 @@ apt-get install -y socat curl gawk jq sudo 2>/dev/null
 
 # Sets the postgres user password unlocking sudo privileges
 # Should be improved to use env variables or similar
-echo -e "postgres\npostgres" |  passwd postgres
-
+echo -e "postgres\npostgres" | passwd postgres
 
 socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;SERVED=true bash /getmetricsDS.sh" &
 ###################### Customisations - END  ###################################
 
-
 ###################### Official entrypoint ##########################################
 set -Eeo pipefail
 # TODO swap to -Eeuo pipefail above (after handling all potentially-unset variables)
-
 
 #pkg=Y
 #if [[ "$pkg" == "Y" ]]; then
@@ -39,7 +36,7 @@ file_env() {
 	if [ "${!var:-}" ]; then
 		val="${!var}"
 	elif [ "${!fileVar:-}" ]; then
-		val="$(< "${!fileVar}")"
+		val="$(<"${!fileVar}")"
 	fi
 	export "$var"="$val"
 	unset "$fileVar"
@@ -48,14 +45,15 @@ file_env() {
 # check to see if this file is being run or sourced from another script
 _is_sourced() {
 	# https://unix.stackexchange.com/a/215279
-	[ "${#FUNCNAME[@]}" -ge 2 ] \
-		&& [ "${FUNCNAME[0]}" = '_is_sourced' ] \
-		&& [ "${FUNCNAME[1]}" = 'source' ]
+	[ "${#FUNCNAME[@]}" -ge 2 ] &&
+		[ "${FUNCNAME[0]}" = '_is_sourced' ] &&
+		[ "${FUNCNAME[1]}" = 'source' ]
 }
 
 # used to create initial postgres directories and if run as root, ensure ownership to the "postgres" user
 docker_create_db_directories() {
-	local user; user="$(id -u)"
+	local user
+	user="$(id -u)"
 
 	mkdir -p "$PGDATA"
 	# ignore failure since there are cases where we can't chmod (and PostgreSQL might fail later anyhow - it's picky about permissions of this directory)
@@ -88,8 +86,9 @@ docker_create_db_directories() {
 docker_init_database_dir() {
 	# "initdb" is particular about the current user existing in "/etc/passwd", so we use "nss_wrapper" to fake that if necessary
 	# see https://github.com/docker-library/postgres/pull/253, https://github.com/docker-library/postgres/issues/359, https://cwrap.org/nss_wrapper.html
-	local uid; uid="$(id -u)"
-	if ! getent passwd "$uid" &> /dev/null; then
+	local uid
+	uid="$(id -u)"
+	if ! getent passwd "$uid" &>/dev/null; then
 		# see if we can find a suitable "libnss_wrapper.so" (https://salsa.debian.org/sssd-team/nss-wrapper/-/commit/b9925a653a54e24d09d9b498a2d913729f7abb15)
 		local wrapper
 		for wrapper in {/usr,}/lib{/*,}/libnss_wrapper.so; do
@@ -97,9 +96,10 @@ docker_init_database_dir() {
 				NSS_WRAPPER_PASSWD="$(mktemp)"
 				NSS_WRAPPER_GROUP="$(mktemp)"
 				export LD_PRELOAD="$wrapper" NSS_WRAPPER_PASSWD NSS_WRAPPER_GROUP
-				local gid; gid="$(id -g)"
-				echo "postgres:x:$uid:$gid:PostgreSQL:$PGDATA:/bin/false" > "$NSS_WRAPPER_PASSWD"
-				echo "postgres:x:$gid:" > "$NSS_WRAPPER_GROUP"
+				local gid
+				gid="$(id -g)"
+				echo "postgres:x:$uid:$gid:PostgreSQL:$PGDATA:/bin/false" >"$NSS_WRAPPER_PASSWD"
+				echo "postgres:x:$gid:" >"$NSS_WRAPPER_GROUP"
 				break
 			fi
 		done
@@ -169,27 +169,39 @@ docker_verify_minimum_env() {
 # process initializer files, based on file extensions and permissions
 docker_process_init_files() {
 	# psql here for backwards compatibility "${psql[@]}"
-	psql=( docker_process_sql )
+	psql=(docker_process_sql)
 
 	echo
 	local f
 	for f; do
 		case "$f" in
-			*.sh)
-				# https://github.com/docker-library/postgres/issues/450#issuecomment-393167936
-				# https://github.com/docker-library/postgres/pull/452
-				if [ -x "$f" ]; then
-					echo "$0: running $f"
-					"$f"
-				else
-					echo "$0: sourcing $f"
-					. "$f"
-				fi
-				;;
-			*.sql)    echo "$0: running $f"; docker_process_sql -f "$f"; echo ;;
-			*.sql.gz) echo "$0: running $f"; gunzip -c "$f" | docker_process_sql; echo ;;
-			*.sql.xz) echo "$0: running $f"; xzcat "$f" | docker_process_sql; echo ;;
-			*)        echo "$0: ignoring $f" ;;
+		*.sh)
+			# https://github.com/docker-library/postgres/issues/450#issuecomment-393167936
+			# https://github.com/docker-library/postgres/pull/452
+			if [ -x "$f" ]; then
+				echo "$0: running $f"
+				"$f"
+			else
+				echo "$0: sourcing $f"
+				. "$f"
+			fi
+			;;
+		*.sql)
+			echo "$0: running $f"
+			docker_process_sql -f "$f"
+			echo
+			;;
+		*.sql.gz)
+			echo "$0: running $f"
+			gunzip -c "$f" | docker_process_sql
+			echo
+			;;
+		*.sql.xz)
+			echo "$0: running $f"
+			xzcat "$f" | docker_process_sql
+			echo
+			;;
+		*) echo "$0: ignoring $f" ;;
 		esac
 		echo
 	done
@@ -201,9 +213,9 @@ docker_process_init_files() {
 #    ie: docker_process_sql -f my-file.sql
 #    ie: docker_process_sql <my-file.sql
 docker_process_sql() {
-	local query_runner=( psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --no-password --no-psqlrc )
+	local query_runner=(psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --no-password --no-psqlrc)
 	if [ -n "$POSTGRES_DB" ]; then
-		query_runner+=( --dbname "$POSTGRES_DB" )
+		query_runner+=(--dbname "$POSTGRES_DB")
 	fi
 
 	PGHOST= PGHOSTADDR= "${query_runner[@]}" "$@"
@@ -266,7 +278,7 @@ pg_setup_hba_conf() {
 			echo '# see https://www.postgresql.org/docs/12/auth-trust.html'
 		fi
 		echo "host all all all $POSTGRES_HOST_AUTH_METHOD"
-	} >> "$PGDATA/pg_hba.conf"
+	} >>"$PGDATA/pg_hba.conf"
 }
 
 # start socket-only postgresql server for setting up or running scripts
@@ -281,7 +293,7 @@ docker_temp_server_start() {
 	set -- "$@" -c listen_addresses='' -p "${PGPORT:-5432}"
 
 	PGUSER="${PGUSER:-$POSTGRES_USER}" \
-	pg_ctl -D "$PGDATA" \
+		pg_ctl -D "$PGDATA" \
 		-o "$(printf '%q ' "$@")" \
 		-w start
 }
@@ -289,7 +301,7 @@ docker_temp_server_start() {
 # stop postgresql server after done setting up user and running scripts
 docker_temp_server_stop() {
 	PGUSER="${PGUSER:-postgres}" \
-	pg_ctl -D "$PGDATA" -m fast -w stop
+		pg_ctl -D "$PGDATA" -m fast -w stop
 }
 
 # check arguments for an option that would cause postgres to stop
@@ -298,12 +310,12 @@ _pg_want_help() {
 	local arg
 	for arg; do
 		case "$arg" in
-			# postgres --help | grep 'then exit'
-			# leaving out -C on purpose since it always fails and is unhelpful:
-			# postgres: could not access the server configuration file "/var/lib/postgresql/data/postgresql.conf": No such file or directory
-			-'?'|--help|--describe-config|-V|--version)
-				return 0
-				;;
+		# postgres --help | grep 'then exit'
+		# leaving out -C on purpose since it always fails and is unhelpful:
+		# postgres: could not access the server configuration file "/var/lib/postgresql/data/postgresql.conf": No such file or directory
+		-'?' | --help | --describe-config | -V | --version)
+			return 0
+			;;
 		esac
 	done
 	return 1
@@ -329,7 +341,7 @@ _main() {
 			docker_verify_minimum_env
 
 			# check dir permissions to reduce likelihood of half-initialized database
-			ls /docker-entrypoint-initdb.d/ > /dev/null
+			ls /docker-entrypoint-initdb.d/ >/dev/null
 
 			docker_init_database_dir
 			pg_setup_hba_conf "$@"

@@ -1,0 +1,102 @@
+[
+  {
+    "tx_hash": "df148387b4c1c7e829de368c0de84bbed690696616c33adea466143a0c46652b",
+    "block_hash": "e5a7ea5d49cf6b628b0e6aff1cb44de519bc148e0c3d6e374a7a59b7ae1deb15",
+    "block_height": 6524950,
+    "epoch": 303,
+    "epoch_slot": 301750,
+    "absolute_slot": 45834550,
+    "tx_timestamp": "2021-11-20T09:34:01",
+    "tx_block_index": 12,
+    "tx_size": 439,
+    "total_output": 70280781,
+    "fee": 200699,
+    "deposit": 0,
+    "inputs": [
+      {
+        "payment_addr": {
+          "bech32": "addr1qx73yp23p6k66ljlsem3nchrypm2dx8a3qssjjasj2mmshr7w8pekw33wjnyr6g7hdd9j94paj5vuar3svdnwke55wlsvshe8x",
+          "cred": "bd1205510eadad7e5f867719e2e32076a698fd8821094bb092b7b85c"
+        },
+        "stake_addr": {
+          "bech32": "stake1u9l8rsum8gchffjpay0tkkjez6s7e2xww3ccxxehtv6280cyzcw9j"
+        },
+        "tx_hash": "8bbec6e643338eee2948bc3db095f8cf364b9cebba7a1c64986efc40d2b5188a",
+        "tx_index": 0,
+        "value": 69000000,
+        "asset_list": []
+      },
+      {
+        "payment_addr": {
+          "bech32": "addr1qx73yp23p6k66ljlsem3nchrypm2dx8a3qssjjasj2mmshr7w8pekw33wjnyr6g7hdd9j94paj5vuar3svdnwke55wlsvshe8x",
+          "cred": "bd1205510eadad7e5f867719e2e32076a698fd8821094bb092b7b85c"
+        },
+        "stake_addr": {
+          "bech32": "stake1u9l8rsum8gchffjpay0tkkjez6s7e2xww3ccxxehtv6280cyzcw9j"
+        },
+        "tx_hash": "f0a5adf425dca98e344f0ece357e9b06dd94738457bf6286f78e9b67aa4c3248",
+        "tx_index": 0,
+        "value": 1481480,
+        "asset_list": [
+          {
+            "policy_id": "89fa6dc66a24799ccaee43a3a16930bb045a8152fdf2a2642034774f",
+            "asset_name": "506c616e657450616c7a36373235",
+            "quantity": 1
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "payment_addr": {
+          "bech32": "addr1qyhdk40ytlquv5cxaxh4z39wezzfna0mg3clt2ylwywskkvm4klwxmyvfs8q73lq35et8eqfuxppvl8sptx02tqy900q699sft",
+          "cred": "2edb55e45fc1c65306e9af5144aec88499f5fb4471f5a89f711d0b59"
+        },
+        "stake_addr": {
+          "bech32": "stake1uxd6m0hrdjxycrs0glsg6v4nusy7rqsk0ncq4n849szzhhsgr45w4"
+        },
+        "tx_hash": "df148387b4c1c7e829de368c0de84bbed690696616c33adea466143a0c46652b",
+        "tx_index": 0,
+        "value": 67275000,
+        "asset_list": []
+      },
+      {
+        "payment_addr": {
+          "bech32": "addr1qyeu65ejp3ajg3mcdv8n4n04vwgv4clhyd5x0v6gmx97r5c8p9mtpv2jpae3x0p2w97ar4lc4lp6snrs2n8ydra76fvqkygm36",
+          "cred": "33cd53320c7b2447786b0f3acdf56390cae3f7236867b348d98be1d3"
+        },
+        "stake_addr": {
+          "bech32": "stake1uyrsja4sk9fq7ucn8s48zlw36lu2lsagf3c9fnjx37ldykqkxwh9k"
+        },
+        "tx_hash": "df148387b4c1c7e829de368c0de84bbed690696616c33adea466143a0c46652b",
+        "tx_index": 1,
+        "value": 1481480,
+        "asset_list": [
+          {
+            "policy_id": "89fa6dc66a24799ccaee43a3a16930bb045a8152fdf2a2642034774f",
+            "asset_name": "506c616e657450616c7a36373235",
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "payment_addr": {
+          "bech32": "addr1qxq47au29wss4g8acjk0zsmwwq0h34hhzump6stye9wuldm7nm0t6ad3jz9hy5v3smye0nvcumtzu43k7r36ag0w29qqdafvvk",
+          "cred": "815f778a2ba10aa0fdc4acf1436e701f78d6f717361d4164c95dcfb7"
+        },
+        "stake_addr": {
+          "bech32": "stake1u9lfah4awkcepzmj2xgcdjvhekvwd43w2cm0pcaw58h9zsqpsuj5a"
+        },
+        "tx_hash": "df148387b4c1c7e829de368c0de84bbed690696616c33adea466143a0c46652b",
+        "tx_index": 2,
+        "value": 1524301,
+        "asset_list": []
+      }
+    ],
+    "withdrawals": null,
+    "assets_minted": null,
+    "invalid_before": null,
+    "invalid_after": 53034540,
+    "certificates": []
+  }
+]

@@ -5,7 +5,7 @@ services:
     image: postgres:13.5-bullseye
     environment:
       - POSTGRES_LOGGING=true
-      - POSTGRES_DB_FILE=/run/secrets/postgres_db
+      - POSTGRES_DB_FILE=$/run/secrets/postgres_db
       - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
       - POSTGRES_USER_FILE=/run/secrets/postgres_user
       - POSTGRES_HOST_AUTH_METHOD=trust
@@ -17,13 +17,11 @@ services:
       - postgres_db
     volumes:
       - postgres_db:/var/lib/postgresql/data
-      - ./guildsetup/scripts/getmetricsDS.sh:/getmetricsDS.sh
-      # For now, creating a separate docker ENV
-      - ./guildsetup/cfg/env:/env
-      - ../../../scripts/grest-helper-scripts/setup-grest.sh:/setup-grest.sh
-      - ./guildsetup/cfg/postgresql.conf:/etc/postgresql.conf
-      - ./guildsetup/init-queries:/docker-entrypoint-initdb.d/
-      - ./guildsetup/scripts/docker-entrypoint.sh:/docker-entrypoint.sh
+      - ./scripts/docker-getmetrics.sh:/getmetrics.sh
+      - ./scripts/docker-setup-grest.sh:/setup-grest.sh
+      - "./configs/postgres/postgres.conf:/usr/local/etc/postgres/postgres.conf"
+      - ./init-queries:/docker-entrypoint-initdb.d/
+      - ./docker-entrypoint.sh:/docker-entrypoint.sh
     entrypoint: /docker-entrypoint.sh
     command: postgres
     restart: on-failure
@@ -83,7 +81,7 @@ services:
       - postgres
       - postgrest
     volumes:
-      - ./guildsetup/cfg/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+      - ./grest/cfg/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
     ports:
       - 8053:8053
     restart: on-failure
@@ -103,6 +101,19 @@ services:
     depends_on:
       - postgres
     restart: on-failure
+
+  # Optional web browser for DB
+  # https://github.com/sosedoff/pgweb
+  #pgweb:
+  #  image: sosedoff/pgweb
+  #  ports:
+  #    - "8081:8081"
+  #  links:
+  #    - postgres:postgres
+  #  environment:
+  #    - DATABASE_URL=postgres://app_user:secret@postgres:5432/app_db?sslmode=disable
+  #  depends_on:
+  #    - postgres
 
 secrets:
   postgres_db:

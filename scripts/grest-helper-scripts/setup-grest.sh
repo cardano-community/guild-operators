@@ -25,7 +25,6 @@
 		Install and setup haproxy, PostgREST, polling services and create systemd services for haproxy, postgREST and dbsync
 		
 		-f    Force overwrite of all files including normally saved user config sections
-    -d    Docker flag - skip checks/installations not required by Docker and deploy the query updates
 		-i    Set-up Components individually. If this option is not specified, components will only be installed if found missing (eg: -i prcd)
 		    p    Install/Update PostgREST binaries by downloading latest release from github.
 		    r    (Re-)Install Reverse Proxy Monitoring Layer (haproxy) binaries and config
@@ -496,7 +495,7 @@
     if ! command -v psql &>/dev/null; then
       err_exit "We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:\n ${DOCS_URL}/Appendix/postgres"
     fi
-    if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" && "${DOCKER_RUN}" != "Y" ]]; then
+    if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" ]]; then
       err_exit "PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}\n ${DOCS_URL}/Build/dbsync"
     fi
     if [[ "$(psql -qtAX -d ${PGDATABASE} -c "SELECT protocol_major FROM public.param_proposal WHERE protocol_major >= 4 ORDER BY protocol_major DESC LIMIT 1" 2>/dev/null)" == "" ]]; then
@@ -544,7 +543,7 @@
       err_exit "${rpc_file_list}"
     fi
     echo -e "  (Re)Deploying GRest objects to DBSync..."
-    [[ ${DOCKER_RUN} != 'Y' ]] && populate_genesis_table
+    populate_genesis_table
     for row in $(jq -r '.[] | @base64' <<<${rpc_file_list}); do
       if [[ $(jqDecode '.type' "${row}") = 'dir' ]]; then
         echo -e "\n    Downloading pSQL executions from subdir $(jqDecode '.name' "${row}")"
@@ -558,20 +557,18 @@
         deployRPC ${row}
       fi
     done
-    [[ ${DOCKER_RUN} != 'Y' ]] && setup_cron_jobs
+    setup_cron_jobs
     echo -e "\n  All RPC functions successfully added to DBSync! For detailed query specs and examples, visit ${API_DOCS_URL}!\n"
     echo -e "Please restart PostgREST before attempting to use the added functions"
     echo -e "  \e[94msudo systemctl restart postgrest.service\e[0m\n"
-    return 0
   }
 
 ######## Execution ########
   # Parse command line options
-  while getopts :fi:durqb: opt; do
+  while getopts :fi:urqb: opt; do
     case ${opt} in
     f) FORCE_OVERWRITE='Y' ;;
     i) I_ARGS="${OPTARG}" ;;
-    d) DOCKER_RUN='Y' ;;
     u) SKIP_UPDATE='Y' ;;
     r) RESET_GREST='Y' ;;
     q) DB_QRY_UPDATES='Y' ;;
@@ -582,7 +579,6 @@
   update_check "$@"
   common_init
   set_environment_variables
-  [[ "${DOCKER_RUN}" == "Y" ]] && setup_db_basics && deploy_query_updates && exit 0
   parse_args
   [[ "${INSTALL_POSTGREST}" == "Y" ]] && deploy_postgrest
   [[ "${INSTALL_HAPROXY}" == "Y" ]] && deploy_haproxy
