@@ -8,17 +8,13 @@ apt-get install -y socat curl gawk jq sudo 2>/dev/null
 # Should be improved to use env variables or similar
 echo -e "postgres\npostgres" | passwd postgres
 
-socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;SERVED=true bash /getmetrics.sh" &
+/bin/su -s /bin/bash -c "socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:\"echo HTTP/1.1 200 OK;SERVED=true bash /getmetrics.sh\"" postgres &
+
 ###################### Customisations - END  ###################################
 
 ###################### Official entrypoint ##########################################
 set -Eeo pipefail
 # TODO swap to -Eeuo pipefail above (after handling all potentially-unset variables)
-
-#pkg=Y
-#if [[ "$pkg" == "Y" ]]; then
-#socat -d tcp-listen:8059,reuseaddr,fork,SYSTEM:echo HTTP/1.1 200 OK;SERVED=true, bash -e /getmetricsDB.sh &
-#fi
 
 # usage: file_env VAR [DEFAULT]
 #    ie: file_env 'XYZ_DB_PASSWORD' 'example'

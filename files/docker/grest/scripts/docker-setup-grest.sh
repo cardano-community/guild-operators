@@ -19,8 +19,10 @@ usage() {
 # Description : Set default env variables.
 set_environment_variables() {
   CURL_TIMEOUT=60
+  [[ -z "${BRANCH}" ]] && BRANCH=alpha
   REPO_URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
-  SCRIPT_URL="${REPO_URL_RAW}/files/docker/db-sync/grest/scripts/setup-grest.sh"
+  GREST_DOCKER_SCRIPTS_URL="${REPO_URL_RAW}/files/docker/grest/scripts"
+  GREST_DB_SCRIPTS_URL="${REPO_URL_RAW}/scripts/grest-helper-scripts/db-scripts"
   DOCS_URL="https://cardano-community.github.io/guild-operators"
   API_DOCS_URL="https://api.koios.rest"
   CRON_SCRIPTS_DIR="${CNODE_HOME}/scripts/cron-scripts"
@@ -56,15 +58,17 @@ checkUpdate() {
     fi
   fi
 
-  if curl -s -f -m "${CURL_TIMEOUT}" -o "${PARENT}/${1}".tmp "${URL}/${1}" 2>/dev/null; then
+  # Get the script
+  if curl -s -f -m "${CURL_TIMEOUT}" -o "${PARENT}/${1}".tmp "${GREST_DOCKER_SCRIPTS_URL}/${1}" 2>/dev/null; then
 
-    # Make sure the script exist, else just rename
+    # Make sure the script exist locally, else just rename
     [[ ! -f "${PARENT}/${1}" ]] && mv -f "${PARENT}/${1}".tmp "${PARENT}/${1}" && chmod +x "${PARENT}/${1}" && return 0
 
+    # Full file comparison
     if [[ ("$(sha256sum "${PARENT}/${1}" | cut -d' ' -f1)" != "$(sha256sum "${PARENT}/${1}.tmp" | cut -d' ' -f1)") ]]; then
       cp "${PARENT}/${1}" "${PARENT}/${1}_bkp$(date +%s)"
       mv "${PARENT}/${1}".tmp "${PARENT}/${1}"
-      [[ ! "${1}" == "env" ]] && chmod +x "${PARENT}/${1}"
+      chmod +x "${PARENT}/${1}"
       echo -e "\n${1} update successfully applied! Old script backed up in this directory."
       return 1
     fi
@@ -91,7 +95,7 @@ update_check() {
 # Description : Setup grest schema, web_anon user, and genesis and control tables.
 #             : SQL sourced from grest-helper-scrips/db-scripts/basics.sql.
 setup_db_basics() {
-  local basics_sql_url="${DB_SCRIPTS_URL}/basics.sql"
+  local basics_sql_url="${GREST_DB_SCRIPTS_URL}/basics.sql"
 
   if ! basics_sql=$(curl -s -f -m "${CURL_TIMEOUT}" "${basics_sql_url}" 2>&1); then
     err_exit "Failed to get basic db setup SQL from ${basics_sql_url}"
@@ -151,9 +155,7 @@ check_db_status() {
   if ! command -v psql &>/dev/null; then
     err_exit "We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:\n ${DOCS_URL}/Appendix/postgres"
   fi
-  if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" && "${DOCKER_RUN}" != "Y" ]]; then
-    err_exit "PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}\n ${DOCS_URL}/Build/dbsync"
-  fi
+  
   if [[ "$(psql -qtAX -d ${PGDATABASE} -c "SELECT protocol_major FROM public.param_proposal WHERE protocol_major >= 4 ORDER BY protocol_major DESC LIMIT 1" 2>/dev/null)" == "" ]]; then
     return 1
   fi
@@ -177,7 +179,7 @@ deployRPC() {
 get_cron_job_executable() {
   local job=$1
   local job_path="${CRON_SCRIPTS_DIR}/${job}.sh"
-  local job_url="${URL_RAW}/files/grest/cron/jobs/${job}.sh"
+  local job_url="${REPO_URL_RAW}/files/grest/cron/jobs/${job}.sh"
   is_file "${job_path}" && rm "${job_path}"
   if curl -s -f -m "${CURL_TIMEOUT}" -o "${job_path}" "${job_url}"; then
     echo -e "      Downloaded \e[32m${job_path}\e[0m"

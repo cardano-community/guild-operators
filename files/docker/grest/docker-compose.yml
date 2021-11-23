@@ -5,7 +5,7 @@ services:
     image: postgres:13.5-bullseye
     environment:
       - POSTGRES_LOGGING=true
-      - POSTGRES_DB_FILE=$/run/secrets/postgres_db
+      - POSTGRES_DB_FILE=/run/secrets/postgres_db
       - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
       - POSTGRES_USER_FILE=/run/secrets/postgres_user
       - POSTGRES_HOST_AUTH_METHOD=trust
@@ -19,11 +19,11 @@ services:
       - postgres_db:/var/lib/postgresql/data
       - ./scripts/docker-getmetrics.sh:/getmetrics.sh
       - ./scripts/docker-setup-grest.sh:/setup-grest.sh
-      - "./configs/postgres/postgres.conf:/usr/local/etc/postgres/postgres.conf"
-      - ./init-queries:/docker-entrypoint-initdb.d/
+      - ./config/postgres/postgres.conf:/etc/postgres/postgres.conf
+      - ./docker-entrypoint-initdb:/docker-entrypoint-initdb.d/
       - ./docker-entrypoint.sh:/docker-entrypoint.sh
     entrypoint: /docker-entrypoint.sh
-    command: "postgres -c config_file=/usr/local/etc/postgres/postgres.conf"
+    command: postgres
     restart: on-failure
     logging:
       driver: "json-file"
@@ -53,8 +53,11 @@ services:
       - NETWORK=${NETWORK:-mainnet}
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
-      - RESTORE_SNAPSHOT=https://update-cardano-mainnet.iohk.io/cardano-db-sync/11/db-sync-snapshot-schema-11-block-6510444-x86_64.tgz
-      - RESTORE_RECREATE_DB=N
+      # Restore db from snapshot - left optional for now as still needs testing
+      #- RESTORE_SNAPSHOT=${RESTORE_SNAPSHOT:-https://update-cardano-mainnet.iohk.io/cardano-db-sync/11/db-sync-snapshot-schema-11-block-6510444-x86_64.tgz}
+      #- RESTORE_RECREATE_DB=N
+    ports:
+      - 8059:8059
     depends_on:
       - cardano-node
       - postgres
@@ -83,7 +86,7 @@ services:
       - postgres
       - postgrest
     volumes:
-      - ./configs/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+      - ./config/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
     ports:
       - 8053:8053
     restart: on-failure
