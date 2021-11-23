@@ -308,8 +308,6 @@
       err_exit "Could not download ${haproxy_url}"
     fi
     pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
-    checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
-    checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
   }
 
   deploy_monitoring_agents() {
@@ -350,7 +348,7 @@
 			#db-pool = 10
 			#db-pool-timeout = 10
 			#db-extra-search-path = "public"
-			max-rows = 100
+			max-rows = 1000
 			EOF
     # Create HAProxy config template
     [[ -f "${HAPROXY_CFG}" ]] && cp "${HAPROXY_CFG}" "${HAPROXY_CFG}".bkp_$(date +%s)
@@ -364,17 +362,20 @@
 			  daemon
 			  nbthread 3
 			  maxconn 256
+			  ulimit-n 65536
 			  stats socket ipv4@127.0.0.1:8055 mode 0600 level admin
-			  log 127.0.0.1 local2
+			  cpu-map 1/all 1-2
+			  log 127.0.0.1 local2 info
 			  insecure-fork-wanted
 			  external-check
 			
 			defaults
 			  mode http
 			  log global
-			  option httplog
 			  option dontlognull
 			  option http-ignore-probes
+			  option forwardfor
+			  log-format \"%ci:%cp a:%f/%b/%s t:%Tq/%Tt %{+Q}r %ST b:%B C:%ac,%fc,%bc,%sc Q:%sq/%bq\"
 			  option dontlog-normal
 			  timeout client 10s
 			  timeout server 10s
@@ -384,29 +385,38 @@
 			
 			frontend app
 			  bind 0.0.0.0:8053
-			  #Replace servername.koios.rest below
+			  http-request set-log-level silent
+			  ## Replace servername.koios.rest below
 			  #http-request replace-value Host (.*):8053 servername.koios.rest:8453
 			  #redirect scheme https code 301 if !{ ssl_fc }
 			  #
 			  #frontend app-secured
 			  #bind :8453 ssl crt /etc/ssl/server.pem no-sslv3
 			  http-request track-sc0 src table flood_lmt_rate
-			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 100 }
+			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 50 }
 			  default_backend grest_core
 			
-			backend flood_lmt_rate                                                    
+			backend flood_lmt_rate
 			  stick-table type ip size 1m expire 10m store http_req_rate(10s)
 			
 			backend grest_core
 			  balance first
 			  option external-check
+			  acl chktip path -m beg /rpc/tip
+			  http-request set-log-level silent if chktip
 			  external-check path \"/usr/bin:/bin:/tmp:/sbin:/usr/sbin\"
 			  external-check command ${CNODE_HOME}/scripts/grest-poll.sh
 			  server local 127.0.0.1:8050 check inter 20000
 			  server koios ${KOIOS_SRV}:8453 check inter 60000 backup
 			  http-response set-header X-Frame-Options: DENY
+			
+			backend unauthorized
+			  # Used by monitoring instances only
+			  http-request deny deny_status 401
 			EOF"
     echo "  Done!! Please ensure to set any custom settings/peers/TLS configs/etc back and update configs as necessary!"
+    checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
+    checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
   }
 
   deploy_systemd() {
