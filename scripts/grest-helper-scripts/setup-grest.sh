@@ -56,14 +56,10 @@
         exit 1
       fi
 
-      ENV_UPDATED=N
       checkUpdate env N N N
-      case $? in
-        1) ENV_UPDATED=Y ;;
-        2) exit 1 ;;
-      esac
+      [[ $? -eq 2 ]] && exit 1
 
-      checkUpdate setup-grest.sh ${ENV_UPDATED} N N grest-helper-scripts
+      checkUpdate setup-grest.sh Y N N grest-helper-scripts
       case $? in
         1) echo; $0 "$@" "-u"; exit 0 ;; # re-launch script with same args skipping update check
         2) exit 1 ;;
