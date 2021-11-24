@@ -322,9 +322,9 @@ BEGIN
           SELECT
             T.tx_id,
             JSON_BUILD_OBJECT(
+              'index', T.cert_index,
               'type', 'treasury_MIR',
               'info', JSON_BUILD_OBJECT(
-                'tx_index', T.cert_index,
                 'stake_address', SA.view, 
                 'amount', T.amount
               )
@@ -340,9 +340,9 @@ BEGIN
           SELECT
             R.tx_id,
             JSON_BUILD_OBJECT(
+              'index', R.cert_index,
               'type', 'reserve_MIR',
               'info', JSON_BUILD_OBJECT(
-                'tx_index', R.cert_index,
                 'stake_address', SA.view, 
                 'amount', R.amount
               )
@@ -358,13 +358,14 @@ BEGIN
           SELECT
             PT.tx_id,
             JSON_BUILD_OBJECT(
+              'index', PT.cert_index,
               'type', 'pot_transfer',
               'info', JSON_BUILD_OBJECT(
-                'tx_index', PT.cert_index,
-                'todo', '' -- TODO, update with correct fields??
+                'treasury', PT.treasury,
+                'reserves', PT.reserves
               )
             ) AS data
-          FROM 
+          FROM
             public.pot_transfer PT
           WHERE
             PT.tx_id = ANY (_tx_id_list)
@@ -375,7 +376,8 @@ BEGIN
             -- SELECT DISTINCT below because there are multiple entries for each signing key of a given transaction
             DISTINCT ON (PP.registered_tx_id) PP.registered_tx_id AS tx_id,
             JSON_BUILD_OBJECT(
-              'type', 'pot_transfer',
+              'index', null, -- cert_index not stored in param_proposal table
+              'type', 'param_proposal',
               'info', JSON_STRIP_NULLS(JSON_BUILD_OBJECT(
                 'min_fee_a', PP.min_fee_a,
                 'min_fee_b', PP.min_fee_b,
