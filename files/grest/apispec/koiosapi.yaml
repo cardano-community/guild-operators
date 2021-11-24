@@ -1124,6 +1124,13 @@ components:
             type: integer
             description: Total Deposits included in transaction (for example, if it is registering a pool/key)
             example: 0
+          invalid_before:
+            type: integer
+            description: Slot before which transaction cannot be validated (if supplied, else null)
+          invalid_after:
+            type: integer
+            description: Slot after which transaction cannot be validated
+            example: 42332172
           inputs:
             type: array
             description: An array with details about inputs used in a transaction
@@ -1258,13 +1265,29 @@ components:
                   type: integer
                   description: Sum of minted assets (negative on burn)
                   example: 1
-          invalid_before:
-            type: integer
-            description: Slot before which transaction cannot be validated (if supplied, else null)
-          invalid_after:
-            type: integer
-            description: Slot after which transaction cannot be validated
-            example: 42332172
+          metadata:
+            type: array
+            description: Metadata present with-in a transaction (if any)
+            items:
+              properties:
+                key:
+                  type: integer
+                  description: Metadata key (index)
+                  example: 0
+                json:
+                  type: string
+                  description: A JSON containing details about metadata within transaction
+                  example:
+                    {
+                      "721":
+                        {
+                          "version": 1,
+                          "copyright": "...",
+                          "publisher": ["p...o"],
+                          "4bf184e01e0f163296ab253edd60774e2d34367d0e7b6cbc689b567d":
+                            {},
+                        },
+                    }
           certificates:
             type: array
             description: Certificates present with-in a transaction (if any)

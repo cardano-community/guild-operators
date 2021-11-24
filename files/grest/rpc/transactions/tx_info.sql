@@ -14,318 +14,494 @@ CREATE FUNCTION grest.tx_info (_tx_hashes text[])
     total_output lovelace,
     fee lovelace,
     deposit bigint,
+    invalid_before word64type,
+    invalid_after word64type,
     inputs json,
     outputs json,
     withdrawals json,
     assets_minted json,
-    invalid_before word64type,
-    invalid_after word64type,
-    certificates json)
+    metadata json,
+    certificates json
+  )
   LANGUAGE PLPGSQL
   AS $$
+DECLARE
+  _tx_hashes_bytea  bytea[];
+  _tx_id_list_out   bigint[];
+  _tx_id_list_in    bigint[];
+  _tx_id_list       bigint[];
+  _tx_id_in_list    bigint[];
 BEGIN
-  RETURN QUERY
-  SELECT
-    T1.tx_hash,
-    T1.block_hash,
-    T1.block_height,
-    T1.epoch,
-    T1.epoch_slot,
-    T1.absolute_slot,
-    T1.tx_timestamp,
-    T1.tx_block_index,
-    T1.tx_size,
-    T1.total_output,
-    T1.fee,
-    T1.deposit,
-    INPUTS_T.inputs,
-    OUTPUTS_T.outputs,
-    WITHDRAWALS_T.withdrawals,
-    MINTED_T.assets_minted,
-    T1.invalid_before,
-    T1.invalid_after,
-    JSON_STRIP_NULLS (CERTIFICATES_T.certificates)
+  -- convert input _tx_hashes array into bytea array
+  SELECT INTO _tx_hashes_bytea ARRAY_AGG(hashes_bytea)
   FROM (
     SELECT
-      tx.id,
-      ENCODE(tx.hash, 'hex') as tx_hash,
-      ENCODE(b.hash, 'hex') as block_hash,
-      b.block_no as block_height,
-      b.epoch_no as epoch,
-      b.epoch_slot_no as epoch_slot,
-      b.slot_no as absolute_slot,
-      b.time as tx_timestamp,
-      tx.block_index as tx_block_index,
-      tx.size as tx_size,
-      tx.out_sum as total_output,
-      tx.fee,
-      tx.deposit,
-      tx.invalid_before,
-      tx.invalid_hereafter as invalid_after
+      DECODE(hashes_hex, 'hex') AS hashes_bytea
     FROM
-      public.tx
-      INNER JOIN public.block b ON b.id = tx.block_id
-    WHERE
-      tx.hash::bytea = ANY (
-        SELECT
-          DECODE(hashes, 'hex')
-        FROM
-          UNNEST(_tx_hashes) AS hashes)) T1
-  LEFT JOIN LATERAL (
+      UNNEST(_tx_hashes) AS hashes_hex
+  ) AS tmp_tx_hashes_list;
+
+  -- all tx_out t_ids
+  SELECT INTO _tx_id_list_out ARRAY_AGG(tx_id)
+  FROM (
     SELECT
-      JSON_AGG(JSON_BUILD_OBJECT(
-        'payment_addr', json_build_object(
-          'bech32', tx_out.address,
-          'cred', ENCODE(tx_out.payment_cred, 'hex')
-          ),
-        'stake_addr', SA.view,
-        'tx_hash', T1.tx_hash,
-        'tx_index', tx_out.index,
-        'value', tx_out.value,
-        'asset_list', COALESCE((SELECT JSON_AGG(JSON_BUILD_OBJECT(
-          'policy_id', ENCODE(MTX.policy, 'hex'),
-          'asset_name', ENCODE(MTX.name, 'hex'),
-          'quantity', MTX.quantity
-          ))
-          FROM 
-            ma_tx_out MTX
-          WHERE 
-            MTX.tx_out_id = tx_out.id), JSON_BUILD_ARRAY())
-        )) AS outputs
-    FROM
+      DISTINCT ON (tx_id) tx_id
+    FROM 
       tx_out
-      LEFT JOIN stake_address SA ON tx_out.stake_address_id = SA.id
-    WHERE
-      tx_id = T1.id
-    GROUP BY
-      tx_id) OUTPUTS_T ON TRUE
-  LEFT JOIN LATERAL (
+      INNER JOIN tx ON tx.id = tx_id
+    WHERE tx.hash = ANY (_tx_hashes_bytea)
+  ) AS tmp_tx_id_list;
+
+  -- all tx_in t_ids
+  SELECT INTO _tx_id_list_in ARRAY_AGG(tx_id)
+  FROM (
     SELECT
-      JSON_AGG(JSON_BUILD_OBJECT(
-        'payment_addr', json_build_object(
-          'bech32', tx_out.address,
-          'cred', ENCODE(tx_out.payment_cred, 'hex')
-          ),
-        'stake_addr', SA.view,
-        'tx_hash', ENCODE(tx.hash, 'hex'),
-        'tx_index', tx_out.index,
-        'value', tx_out.value,
-        'asset_list', COALESCE((SELECT JSON_AGG(JSON_BUILD_OBJECT(
-          'policy_id', ENCODE(MTX.policy, 'hex'),
-          'asset_name', ENCODE(MTX.name, 'hex'),
-          'quantity', MTX.quantity
-          ))
-          FROM 
-            ma_tx_out MTX
-          WHERE 
-            MTX.tx_out_id = tx_out.id), JSON_BUILD_ARRAY())
-        )) AS inputs
-    FROM
-      tx_in
-      INNER JOIN tx ON tx.id = tx_in.tx_out_id
-      INNER JOIN tx_out ON tx_out.tx_id = tx_in.tx_out_id
+      DISTINCT ON (tx_in_id) tx_in_id AS tx_id
+    FROM 
+      tx_out
+      LEFT JOIN tx_in ON tx_out.tx_id = tx_in.tx_out_id
         AND tx_out.index = tx_in.tx_out_index
-      LEFT JOIN stake_address SA ON tx_out.stake_address_id = SA.id
-    WHERE
-      tx_in.tx_in_id = T1.id
-    GROUP BY
-      tx_in_id) INPUTS_T ON TRUE
-  LEFT JOIN LATERAL (
+      LEFT JOIN tx ON tx.id = tx_out.tx_id
+    WHERE 
+      tx_in.tx_in_id IS NOT NULL
+      AND tx.hash = ANY (_tx_hashes_bytea)
+  ) AS tmp_tx_id_list;
+
+  -- combined tx_ids
+  SELECT INTO _tx_id_list ARRAY_AGG(tx_id)
+  FROM (
     SELECT
-      JSON_AGG(JSON_BUILD_OBJECT(
-        'amount', W.amount,
-        'stake_addr', CASE WHEN SA.view IS NULL THEN NULL ELSE JSON_BUILD_OBJECT(
-          'bech32', SA.view
-          ) END
-        )) AS withdrawals
+      DISTINCT UNNEST(_tx_id_list_out || _tx_id_list_in) AS tx_id
+  ) AS tmp_tx_id_list;
+
+  -- all tx_out ids off all the inputs of all combined tx
+  SELECT INTO _tx_id_in_list ARRAY_AGG(tx_id)
+  FROM (
+    SELECT
+      DISTINCT ON (tx_out_id) tx_out_id AS tx_id
+    FROM 
+      tx_in
+    WHERE 
+      tx_in_id = ANY (_tx_id_list)
+  ) AS tmp_tx_id_list;
+
+  RETURN QUERY (
+    WITH
+      -- limit by last known block, also join with block only once
+      _all_tx AS (
+        SELECT
+          tx.id,
+          tx.hash as tx_hash,
+          b.hash as block_hash,
+          b.block_no AS block_height,
+          b.epoch_no AS epoch,
+          b.epoch_slot_no AS epoch_slot,
+          b.slot_no AS absolute_slot,
+          b.time AS tx_timestamp,
+          tx.block_index AS tx_block_index,
+          tx.size AS tx_size,
+          tx.out_sum AS total_output,
+          tx.fee,
+          tx.deposit,
+          tx.invalid_before,
+          tx.invalid_hereafter AS invalid_after
+        FROM
+          tx
+          INNER JOIN block b ON tx.block_id = b.id
+        WHERE tx.id = ANY (_tx_id_list)
+      ),
+
+      _all_outputs AS (
+        SELECT
+          tx_id,
+          JSON_AGG(t_outputs) AS list
+        FROM (
+          SELECT 
+            tx_out.tx_id,
+            JSON_BUILD_OBJECT(
+              'payment_addr', JSON_BUILD_OBJECT(
+                'bech32', tx_out.address,
+                'cred', ENCODE(tx_out.payment_cred, 'hex')
+              ),
+              'stake_addr', SA.view,
+              'tx_hash', _all_tx.tx_hash,
+              'tx_index', tx_out.index,
+              'value', tx_out.value,
+              'asset_list', COALESCE((
+                SELECT
+                  JSON_AGG(JSON_BUILD_OBJECT(
+                    'policy_id', ENCODE(MTX.policy, 'hex'),
+                    'asset_name', ENCODE(MTX.name, 'hex'),
+                    'quantity', MTX.quantity
+                  ))
+                FROM 
+                  ma_tx_out MTX
+                WHERE 
+                  MTX.tx_out_id = tx_out.id
+              ), JSON_BUILD_ARRAY())
+            ) AS t_outputs
+          FROM
+            tx_out
+            INNER JOIN _all_tx ON tx_out.tx_id = _all_tx.id
+            LEFT JOIN stake_address SA on tx_out.stake_address_id = SA.id
+          WHERE 
+            tx_out.tx_id = ANY (_tx_id_list)
+        ) AS tmp
+
+        GROUP BY tx_id
+        ORDER BY tx_id
+      ),
+
+      _all_inputs AS (
+        SELECT
+          tx_id,
+          JSON_AGG(t_inputs) AS list
+        FROM (
+          SELECT 
+            tx_in.tx_in_id AS tx_id,
+            JSON_BUILD_OBJECT(
+              'payment_addr', JSON_BUILD_OBJECT(
+                'bech32', tx_out.address,
+                'cred', ENCODE(tx_out.payment_cred, 'hex')
+              ),
+              'stake_addr', SA.view,
+              'tx_hash', tx.hash,
+              'tx_index', tx_out.index,
+              'value', tx_out.value,
+              'asset_list', COALESCE((
+                SELECT 
+                  JSON_AGG(JSON_BUILD_OBJECT(
+                    'policy_id', ENCODE(MTX.policy, 'hex'),
+                    'asset_name', ENCODE(MTX.name, 'hex'),
+                    'quantity', MTX.quantity
+                  ))
+                FROM 
+                  ma_tx_out MTX
+                WHERE 
+                  MTX.tx_out_id = tx_out.id
+              ), JSON_BUILD_ARRAY())
+            ) AS t_inputs
+          FROM
+            tx_out
+            INNER JOIN tx on tx_out.tx_id = tx.id
+            INNER JOIN tx_in on tx_in.tx_out_id = tx_out.tx_id
+              AND tx_in.tx_out_index = tx_out.index
+            LEFT JOIN stake_address SA on tx_out.stake_address_id = SA.id
+          WHERE 
+            tx_out.tx_id = ANY (_tx_id_in_list)
+        ) AS tmp
+
+        GROUP BY tx_id
+        ORDER BY tx_id
+      ),
+
+      _all_withdrawals AS (
+        SELECT
+          tx_id,
+          JSON_AGG(data) AS list
+        FROM (
+          SELECT
+            W.tx_id,
+            JSON_BUILD_OBJECT(
+              'amount', W.amount,
+              'stake_addr', SA.view
+            ) AS data
+          FROM 
+            withdrawal W
+            INNER JOIN stake_address SA ON W.addr_id = SA.id
+          WHERE
+            W.tx_id = ANY (_tx_id_list)
+        ) AS tmp
+
+        GROUP BY tx_id
+        ORDER BY tx_id
+      ),
+
+      _all_mints AS (
+        SELECT
+          tx_id,
+          JSON_AGG(data) AS list
+        FROM (
+          SELECT
+            MTM.tx_id,
+            JSON_BUILD_OBJECT(
+              'policy_id', ENCODE(MTM.policy, 'hex'),
+              'asset_name', ENCODE(MTM.name, 'hex'),
+              'quantity', MTM.quantity
+            ) AS data
+          FROM 
+            ma_tx_mint MTM
+          WHERE
+            MTM.tx_id = ANY (_tx_id_list)
+        ) AS tmp
+
+        GROUP BY tx_id
+        ORDER BY tx_id
+      ),
+
+      _all_metadata AS (
+        SELECT
+          tx_id,
+          JSON_AGG(data) AS list
+        FROM (
+          SELECT
+            TM.tx_id,
+            JSON_BUILD_OBJECT(
+              'key', TM.key,
+              'json', TM.json
+            ) AS data
+          FROM 
+            tx_metadata TM
+          WHERE
+            TM.tx_id = ANY (_tx_id_list)
+        ) AS tmp
+
+        GROUP BY tx_id
+        ORDER BY tx_id
+      ),
+
+      _all_certs AS (
+        SELECT
+          tx_id,
+          JSON_AGG(data) AS list
+        FROM (
+          SELECT
+            SR.tx_id,
+            JSON_BUILD_OBJECT(
+              'index', SR.cert_index,
+              'type', 'stake_registration',
+              'info', JSON_BUILD_OBJECT(
+                'stake_address', SA.view
+              )
+            ) AS data
+          FROM 
+            public.stake_registration SR
+            INNER JOIN public.stake_address SA ON SA.id = SR.addr_id
+          WHERE
+            SR.tx_id = ANY (_tx_id_list)
+          --
+          UNION ALL
+          --
+          SELECT
+            SD.tx_id,
+            JSON_BUILD_OBJECT(
+              'index', SD.cert_index,
+              'type', 'stake_deregistration',
+              'info', JSON_BUILD_OBJECT(
+                'stake_address', SA.view
+              )
+            ) AS data
+          FROM 
+            public.stake_deregistration SD
+            INNER JOIN public.stake_address SA ON SA.id = SD.addr_id
+          WHERE
+            SD.tx_id = ANY (_tx_id_list)
+          --
+          UNION ALL
+          --
+          SELECT
+            D.tx_id,
+            JSON_BUILD_OBJECT(
+              'index', D.cert_index,
+              'type', 'delegation',
+              'info', JSON_BUILD_OBJECT(
+                'stake_address', SA.view, 
+                'pool_id_bech32', PH.view,
+                'pool_id_hex', ENCODE(PH.hash_raw, 'hex')
+              )
+            ) AS data
+          FROM 
+            public.delegation D
+            INNER JOIN public.stake_address SA ON SA.id = D.addr_id
+            INNER JOIN public.pool_hash PH ON PH.id = D.pool_hash_id
+          WHERE
+            D.tx_id = ANY (_tx_id_list)
+          --
+          UNION ALL
+          --
+          SELECT
+            T.tx_id,
+            JSON_BUILD_OBJECT(
+              'index', NULL, -- Cert index in info for each MIR below
+              'type', 'treasury_MIR',
+              'info', JSON_BUILD_OBJECT(
+                'tx_index', T.cert_index,
+                'stake_address', SA.view, 
+                'amount', T.amount
+              )
+            ) AS data
+          FROM 
+            public.treasury T
+            INNER JOIN public.stake_address SA ON SA.id = T.addr_id
+          WHERE
+            T.tx_id = ANY (_tx_id_list)
+          --
+          UNION ALL
+          --
+          SELECT
+            R.tx_id,
+            JSON_BUILD_OBJECT(
+              'index', NULL,
+              'type', 'reserve_MIR',
+              'info', JSON_BUILD_OBJECT(
+                'tx_index', R.cert_index,
+                'stake_address', SA.view, 
+                'amount', R.amount
+              )
+            ) AS data
+          FROM 
+            public.reserve R
+            INNER JOIN public.stake_address SA ON SA.id = R.addr_id
+          WHERE
+            R.tx_id = ANY (_tx_id_list)
+          --
+          UNION ALL
+          --
+          SELECT
+            PT.tx_id,
+            JSON_BUILD_OBJECT(
+              'index', NULL,
+              'type', 'pot_transfer',
+              'info', JSON_BUILD_OBJECT(
+                'tx_index', PT.cert_index,
+                'todo', '' -- TODO, update with correct fields??
+              )
+            ) AS data
+          FROM 
+            public.pot_transfer PT
+          WHERE
+            PT.tx_id = ANY (_tx_id_list)
+          --
+          UNION ALL
+          --
+          SELECT
+            -- SELECT DISTINCT below because there are multiple entries for each signing key of a given transaction
+            DISTINCT ON (PP.registered_tx_id) PP.registered_tx_id AS tx_id,
+            JSON_BUILD_OBJECT(
+              'index', NULL, -- No info provided
+              'type', 'pot_transfer',
+              'info', JSON_STRIP_NULLS(JSON_BUILD_OBJECT(
+                'min_fee_a', PP.min_fee_a,
+                'min_fee_b', PP.min_fee_b,
+                'max_block_size', PP.max_block_size,
+                'max_tx_size', PP.max_tx_size,
+                'max_bh_size', PP.max_bh_size,
+                'key_deposit', PP.key_deposit,
+                'pool_deposit', PP.pool_deposit,
+                'max_epoch', PP.max_epoch,
+                'optimal_pool_count', PP.optimal_pool_count,
+                'influence', PP.influence,
+                'monetary_expand_rate', PP.monetary_expand_rate,
+                'treasury_growth_rate', PP.treasury_growth_rate,
+                'decentralisation', PP.decentralisation,
+                'entropy', PP.entropy,
+                'protocol_major', PP.protocol_major,
+                'protocol_minor', PP.protocol_minor,
+                'min_utxo_value', PP.min_utxo_value,
+                'min_pool_cost', PP.min_pool_cost,
+                'cost_models', PP.cost_models,
+                'price_mem', PP.price_mem,
+                'price_step', PP.price_step,
+                'max_tx_ex_mem', PP.max_tx_ex_mem,
+                'max_tx_ex_steps', PP.max_tx_ex_steps,
+                'max_block_ex_mem', PP.max_block_ex_mem,
+                'max_block_ex_steps', PP.max_block_ex_steps,
+                'max_val_size', PP.max_val_size,
+                'collateral_percent', PP.collateral_percent,
+                'max_collateral_inputs', PP.max_collateral_inputs,
+                'coins_per_utxo_word', PP.coins_per_utxo_word
+              ))
+            ) AS data
+          FROM 
+            public.param_proposal PP
+          WHERE
+            PP.registered_tx_id = ANY (_tx_id_list)
+          --
+          UNION ALL
+          --
+          SELECT
+            PR.announced_tx_id AS tx_id,
+            JSON_BUILD_OBJECT(
+              'index', PR.cert_index,
+              'type', 'pool_retire',
+              'info', JSON_BUILD_OBJECT(
+                'pool_id_bech32', PH.view,
+                'pool_id_hex', ENCODE(PH.hash_raw, 'hex'),
+                'retiring epoch', PR.retiring_epoch
+              )
+            ) AS data
+          FROM 
+            public.pool_retire PR
+            INNER JOIN public.pool_hash PH ON PH.id = PR.hash_id
+          WHERE
+            PR.announced_tx_id = ANY (_tx_id_list)
+          --
+          UNION ALL
+          --
+          SELECT
+            PIC.tx_id,
+            JSON_BUILD_OBJECT(
+              'index', PU.cert_index,
+              'type', 'pool_update',
+              'info', JSON_BUILD_OBJECT(
+                'pool_id_bech32', PIC.pool_id_bech32,
+                'pool_id_hex', PIC.pool_id_hex,
+                'active_epoch_no', PIC.active_epoch_no,
+                'vrf_key_hash', PIC.vrf_key_hash,
+                'margin', PIC.margin,
+                'fixed_cost', PIC.fixed_cost,
+                'pledge', PIC.pledge,
+                'reward_addr', PIC.reward_addr,
+                'owners', PIC.owners,
+                'relays', PIC.relays,
+                'meta_url', PIC.meta_url,
+                'meta_hash', PIC.meta_hash
+              )
+            ) AS data
+          FROM 
+            grest.pool_info_cache PIC
+            INNER JOIN public.pool_update PU ON PU.registered_tx_id = PIC.tx_id
+          WHERE
+            PIC.tx_id = ANY (_tx_id_list)
+        ) AS tmp
+
+        GROUP BY tx_id
+        ORDER BY tx_id
+      )
+
+    SELECT
+      ENCODE(ATX.tx_hash, 'hex'),
+      ENCODE(ATX.block_hash, 'hex'),
+      ATX.block_height,
+      ATX.epoch,
+      ATX.epoch_slot,
+      ATX.absolute_slot,
+      ATX.tx_timestamp,
+      ATX.tx_block_index,
+      ATX.tx_size,
+      ATX.total_output,
+      ATX.fee,
+      ATX.deposit,
+      ATX.invalid_before,
+      ATX.invalid_after,
+      COALESCE(AI.list, JSON_BUILD_ARRAY()),
+      COALESCE(AO.list, JSON_BUILD_ARRAY()),
+      COALESCE(AW.list, JSON_BUILD_ARRAY()),
+      COALESCE(AMI.list, JSON_BUILD_ARRAY()),
+      COALESCE(AME.list, JSON_BUILD_ARRAY()),
+      COALESCE(AC.list, JSON_BUILD_ARRAY())
     FROM
-      withdrawal W
-      INNER JOIN stake_address SA ON W.addr_id = SA.id
-    WHERE
-      W.tx_id = T1.id) WITHDRAWALS_T ON TRUE
-  LEFT JOIN LATERAL (
-    SELECT
-      JSON_AGG(JSON_BUILD_OBJECT(
-        'policy_id', ENCODE(MTX.policy, 'hex'),
-        'asset_name', ENCODE(MTX.name, 'hex'),
-        'quantity', MTX.quantity
-        )) AS assets_minted
-    FROM
-      ma_tx_mint MTX
-    WHERE
-      MTX.tx_id = T1.id) MINTED_T ON TRUE
-  LEFT JOIN LATERAL (
-    SELECT
-      COALESCE(
-        --
-        JSON_AGG(
-          --
-          JSON_BUILD_OBJECT(
-            --
-            'index', CERTIFICATES_SUB_T.index,
-            --
-            'type', CERTIFICATES_SUB_T.type,
-            --
-            'info', CERTIFICATES_SUB_T.info))
-        --
-        FILTER (WHERE CERTIFICATES_SUB_T.info IS NOT NULL), '[]') as certificates
-    FROM (
-      SELECT
-        stake_registration.cert_index as index,
-        'stake_registration' as type,
-        JSON_BUILD_OBJECT('stake_address', stake_address.view) as info
-      FROM
-        public.stake_registration
-        INNER JOIN public.stake_address ON stake_address.id = stake_registration.addr_id
-      WHERE
-        tx_id = T1.id
-      UNION ALL
-      SELECT
-        stake_deregistration.cert_index as index,
-        'stake_deregistration' as type,
-        JSON_BUILD_OBJECT('stake_address', stake_address.view) as info
-      FROM
-        public.stake_deregistration
-        INNER JOIN public.stake_address ON stake_address.id = stake_deregistration.addr_id
-      WHERE
-        tx_id = T1.id
-      UNION ALL
-      SELECT
-        delegation.cert_index as index,
-        'delegation' as type,
-        JSON_BUILD_OBJECT('stake_address', stake_address.view, 'pool', pool_hash.view) as info
-      FROM
-        public.delegation
-        INNER JOIN public.stake_address ON stake_address.id = delegation.addr_id
-        INNER JOIN public.pool_hash ON pool_hash.id = delegation.pool_hash_id
-      WHERE
-        tx_id = T1.id
-      UNION ALL
-      SELECT
-        NULL as index, -- Cert index in info for each MIR below
-        'treasury_MIR' as type,
-        JSON_BUILD_OBJECT(stake_address.view, treasury.amount, 'tx_index', treasury.cert_index) as info
-      FROM
-        public.treasury
-        INNER JOIN public.stake_address ON stake_address.id = treasury.addr_id
-      WHERE
-        treasury.tx_id = T1.id
-      UNION ALL
-      SELECT
-        NULL as index,
-        'reserve_MIR' as type,
-        JSON_BUILD_OBJECT(stake_address.view, reserve.amount, 'tx_index', reserve.cert_index) as info
-      FROM
-        public.reserve
-        INNER JOIN public.stake_address ON stake_address.id = reserve.addr_id
-      WHERE
-        reserve.tx_id = T1.id
-      UNION ALL
-      SELECT
-        NULL as index,
-        'pot_transfer' as type,
-        JSON_OBJECT_AGG('todo', '') as info
-      FROM
-        public.pot_transfer
-      WHERE
-        tx_id = T1.id
-      UNION ALL
-      -- SELECT DISTINCT below because there are multiple entries for each signing key of a given transaction
-      SELECT DISTINCT ON (REGISTERED_TX_ID)
-        NULL as index, -- No info provided
-        'param_proposal' as type,
-        JSON_STRIP_NULLS (JSON_BUILD_OBJECT('min_fee_a', param_proposal.min_fee_a,
-            --
-            'min_fee_b', param_proposal.min_fee_b,
-            --
-            'max_block_size', param_proposal.max_block_size,
-            --
-            'max_tx_size', param_proposal.max_tx_size,
-            --
-            'max_bh_size', param_proposal.max_bh_size,
-            --
-            'key_deposit', param_proposal.key_deposit,
-            --
-            'pool_deposit', param_proposal.pool_deposit,
-            --
-            'max_epoch', param_proposal.max_epoch,
-            --
-            'optimal_pool_count', param_proposal.optimal_pool_count,
-            --
-            'influence', param_proposal.influence,
-            --
-            'monetary_expand_rate', param_proposal.monetary_expand_rate,
-            --
-            'treasury_growth_rate', param_proposal.treasury_growth_rate,
-            --
-            'decentralisation', param_proposal.decentralisation,
-            --
-            'entropy', param_proposal.entropy,
-            --
-            'protocol_major', param_proposal.protocol_major,
-            --
-            'protocol_minor', param_proposal.protocol_minor,
-            --
-            'min_utxo_value', param_proposal.min_utxo_value,
-            --
-            'min_pool_cost', param_proposal.min_pool_cost,
-            --
-            'cost_models', param_proposal.cost_models,
-            --
-            'price_mem', param_proposal.price_mem,
-            --
-            'price_step', param_proposal.price_step,
-            --
-            'max_tx_ex_mem', param_proposal.max_tx_ex_mem,
-            --
-            'max_tx_ex_steps', param_proposal.max_tx_ex_steps,
-            --
-            'max_block_ex_mem', param_proposal.max_block_ex_mem,
-            --
-            'max_block_ex_steps', param_proposal.max_block_ex_steps,
-            --
-            'max_val_size', param_proposal.max_val_size,
-            --
-            'collateral_percent', param_proposal.collateral_percent,
-            --
-            'max_collateral_inputs', param_proposal.max_collateral_inputs,
-            --
-            'coins_per_utxo_word', param_proposal.coins_per_utxo_word)) as info
-      FROM
-        public.param_proposal
-      WHERE
-        registered_tx_id = T1.id
-      UNION ALL
-      SELECT
-        pool_retire.cert_index as index,
-        'pool_retire' as type,
-        JSON_BUILD_OBJECT('pool', pool_hash.view, 'retiring epoch', pool_retire.retiring_epoch) as info
-      FROM
-        public.pool_retire
-        INNER JOIN public.pool_hash ON pool_hash.id = pool_retire.hash_id
-      WHERE
-        announced_tx_id = T1.id
-      UNION ALL
-      SELECT
-        pool_update.cert_index as index,
-        'pool_update' as type,
-        JSON_BUILD_OBJECT('pool', pool_hash.view, 'pledge', pool_update.pledge,
-          --
-          'reward_address', ENCODE(pool_update.reward_addr, 'hex'),
-          --
-          'margin', pool_update.margin, 'cost', pool_update.fixed_cost,
-          --
-          'metadata_url', pool_metadata_ref.url, 'metadata_hash',
-          --
-          ENCODE(pool_metadata_ref.hash, 'hex')) as info
-      FROM
-        public.pool_update
-        INNER JOIN public.pool_hash ON pool_hash.id = pool_update.hash_id
-        INNER JOIN public.pool_metadata_ref ON pool_metadata_ref.id = pool_update.meta_id
-      WHERE
-        pool_update.registered_tx_id = T1.id) CERTIFICATES_SUB_T) CERTIFICATES_T ON TRUE;
+      _all_tx ATX
+      LEFT JOIN _all_inputs AI ON AI.tx_id = ATX.id
+      LEFT JOIN _all_outputs AO ON AO.tx_id = ATX.id
+      LEFT JOIN _all_withdrawals AW ON AW.tx_id = ATX.id
+      LEFT JOIN _all_mints AMI ON AMI.tx_id = ATX.id
+      LEFT JOIN _all_metadata AME ON AME.tx_id = ATX.id
+      LEFT JOIN _all_certs AC ON AC.tx_id = ATX.id
+    WHERE ATX.tx_hash = ANY (_tx_hashes_bytea)
+);
+
 END;
 $$;
 
 COMMENT ON FUNCTION grest.tx_info IS 'Get information about transactions.';
-
