@@ -124,7 +124,7 @@ BEGIN
                 'cred', ENCODE(tx_out.payment_cred, 'hex')
               ),
               'stake_addr', SA.view,
-              'tx_hash', _all_tx.tx_hash,
+              'tx_hash', replace(_all_tx.tx_hash::text, '\x', ''),
               'tx_index', tx_out.index,
               'value', tx_out.value,
               'asset_list', COALESCE((
@@ -165,7 +165,7 @@ BEGIN
                 'cred', ENCODE(tx_out.payment_cred, 'hex')
               ),
               'stake_addr', SA.view,
-              'tx_hash', tx.hash,
+              'tx_hash', replace(tx.hash::text, '\x', ''),
               'tx_index', tx_out.index,
               'value', tx_out.value,
               'asset_list', COALESCE((
@@ -322,7 +322,6 @@ BEGIN
           SELECT
             T.tx_id,
             JSON_BUILD_OBJECT(
-              'index', NULL, -- Cert index in info for each MIR below
               'type', 'treasury_MIR',
               'info', JSON_BUILD_OBJECT(
                 'tx_index', T.cert_index,
@@ -341,7 +340,6 @@ BEGIN
           SELECT
             R.tx_id,
             JSON_BUILD_OBJECT(
-              'index', NULL,
               'type', 'reserve_MIR',
               'info', JSON_BUILD_OBJECT(
                 'tx_index', R.cert_index,
@@ -360,7 +358,6 @@ BEGIN
           SELECT
             PT.tx_id,
             JSON_BUILD_OBJECT(
-              'index', NULL,
               'type', 'pot_transfer',
               'info', JSON_BUILD_OBJECT(
                 'tx_index', PT.cert_index,
@@ -378,7 +375,6 @@ BEGIN
             -- SELECT DISTINCT below because there are multiple entries for each signing key of a given transaction
             DISTINCT ON (PP.registered_tx_id) PP.registered_tx_id AS tx_id,
             JSON_BUILD_OBJECT(
-              'index', NULL, -- No info provided
               'type', 'pot_transfer',
               'info', JSON_STRIP_NULLS(JSON_BUILD_OBJECT(
                 'min_fee_a', PP.min_fee_a,
