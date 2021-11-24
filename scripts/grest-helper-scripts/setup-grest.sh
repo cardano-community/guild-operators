@@ -286,7 +286,7 @@
   deploy_haproxy() {
     echo "[Re]Installing HAProxy.."
     pushd ~/tmp >/dev/null || err_exit
-    haproxy_url="http://www.haproxy.org/download/2.4/src/haproxy-2.4.1.tar.gz"
+    haproxy_url="http://www.haproxy.org/download/2.5/src/haproxy-2.5.0.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
       if command -v apt-get >/dev/null; then
@@ -295,10 +295,10 @@
       if command -v yum >/dev/null; then
         sudo yum -y install pcre-devel >/dev/null || err_exit "'sudo yum -y install prce-devel' failed!"
       fi
-      cd haproxy-2.4.1 || return
+      cd haproxy-2.5.0 || return
       make clean >/dev/null
-      make -j $(nproc) TARGET=linux-glibc USE_ZLIB=1 USE_LIBCRYPT=1 USE_OPENSSL=1 USE_PCRE=1 USE_SYSTEMD=1 >/dev/null
-      sudo make install >/dev/null
+      make -j $(nproc) TARGET=linux-glibc USE_ZLIB=1 USE_LIBCRYPT=1 USE_OPENSSL=1 USE_PCRE=1 USE_SYSTEMD=1 USE_PROMEX=1 >/dev/null
+      sudo make install-bin >/dev/null
       sudo cp -f /usr/local/sbin/haproxy /usr/sbin/
     else
       err_exit "Could not download ${haproxy_url}"
@@ -356,7 +356,7 @@
     bash -c "cat <<-EOF > ${HAPROXY_CFG}
 			global
 			  daemon
-			  nbthread 3
+			  nbthread 2
 			  maxconn 256
 			  ulimit-n 65536
 			  stats socket ipv4@127.0.0.1:8055 mode 0600 level admin
@@ -370,11 +370,12 @@
 			  log global
 			  option dontlognull
 			  option http-ignore-probes
+			  option http-server-close
 			  option forwardfor
 			  log-format \"%ci:%cp a:%f/%b/%s t:%Tq/%Tt %{+Q}r %ST b:%B C:%ac,%fc,%bc,%sc Q:%sq/%bq\"
 			  option dontlog-normal
-			  timeout client 10s
-			  timeout server 10s
+			  timeout client 30s
+			  timeout server 30s
 			  timeout connect 3s
 			  timeout server-fin 2s
 			  timeout http-request 5s
@@ -388,6 +389,7 @@
 			  #
 			  #frontend app-secured
 			  #bind :8453 ssl crt /etc/ssl/server.pem no-sslv3
+			  http-request use-service prometheus-exporter if { path /metrics }
 			  http-request track-sc0 src table flood_lmt_rate
 			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 50 }
 			  default_backend grest_core
@@ -400,15 +402,25 @@
 			  option external-check
 			  acl chktip path -m beg /rpc/tip
 			  http-request set-log-level silent if chktip
+			  http-request cache-use grestcache
 			  external-check path \"/usr/bin:/bin:/tmp:/sbin:/usr/sbin\"
 			  external-check command ${CNODE_HOME}/scripts/grest-poll.sh
 			  server local 127.0.0.1:8050 check inter 20000
-			  server koios ${KOIOS_SRV}:8453 check inter 60000 backup
+			  server koios-ssl ${KOIOS_SRV}:8453 check inter 60000 backup ssl verify none
+			  ## Ensure to end server name with 'ssl' if enabled
+			  http-response cache-store grestcache
 			  http-response set-header X-Frame-Options: DENY
 			
 			backend unauthorized
-			  # Used by monitoring instances only
+			  ## Used by monitoring instances only
 			  http-request deny deny_status 401
+			
+			cache grestcache
+			  total-max-size 1024
+			  max-object-size 51200
+			  process-vary on
+			  max-secondary-entries 500
+			  max-age 300
 			EOF"
     echo "  Done!! Please ensure to set any custom settings/peers/TLS configs/etc back and update configs as necessary!"
     checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
