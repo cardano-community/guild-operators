@@ -121,17 +121,17 @@ BEGIN
             JSON_BUILD_OBJECT(
               'payment_addr', JSON_BUILD_OBJECT(
                 'bech32', tx_out.address,
-                'cred', ENCODE(tx_out.payment_cred, 'hex')
+                'cred', REPLACE(tx_out.payment_cred::text, '\x', '')
               ),
               'stake_addr', SA.view,
-              'tx_hash', replace(_all_tx.tx_hash::text, '\x', ''),
+              'tx_hash', REPLACE(_all_tx.tx_hash::text, '\x', ''),
               'tx_index', tx_out.index,
               'value', tx_out.value,
               'asset_list', COALESCE((
                 SELECT
                   JSON_AGG(JSON_BUILD_OBJECT(
-                    'policy_id', ENCODE(MTX.policy, 'hex'),
-                    'asset_name', ENCODE(MTX.name, 'hex'),
+                    'policy_id', REPLACE(MTX.policy::text, '\x', ''),
+                    'asset_name', REPLACE(MTX.name::text, '\x', ''),
                     'quantity', MTX.quantity
                   ))
                 FROM 
@@ -162,7 +162,7 @@ BEGIN
             JSON_BUILD_OBJECT(
               'payment_addr', JSON_BUILD_OBJECT(
                 'bech32', tx_out.address,
-                'cred', ENCODE(tx_out.payment_cred, 'hex')
+                'cred', REPLACE(tx_out.payment_cred::text, '\x', '')
               ),
               'stake_addr', SA.view,
               'tx_hash', replace(tx.hash::text, '\x', ''),
@@ -171,8 +171,8 @@ BEGIN
               'asset_list', COALESCE((
                 SELECT 
                   JSON_AGG(JSON_BUILD_OBJECT(
-                    'policy_id', ENCODE(MTX.policy, 'hex'),
-                    'asset_name', ENCODE(MTX.name, 'hex'),
+                    'policy_id', REPLACE(MTX.policy::text, '\x', ''),
+                    'asset_name', REPLACE(MTX.name::text, '\x', ''),
                     'quantity', MTX.quantity
                   ))
                 FROM 
@@ -225,8 +225,8 @@ BEGIN
           SELECT
             MTM.tx_id,
             JSON_BUILD_OBJECT(
-              'policy_id', ENCODE(MTM.policy, 'hex'),
-              'asset_name', ENCODE(MTM.name, 'hex'),
+              'policy_id', REPLACE(MTM.policy::text, '\x', ''),
+              'asset_name', REPLACE(MTM.name::text, '\x', ''),
               'quantity', MTM.quantity
             ) AS data
           FROM 
@@ -307,7 +307,7 @@ BEGIN
               'info', JSON_BUILD_OBJECT(
                 'stake_address', SA.view, 
                 'pool_id_bech32', PH.view,
-                'pool_id_hex', ENCODE(PH.hash_raw, 'hex')
+                'pool_id_hex', REPLACE(PH.hash_raw::text, '\x', '')
               )
             ) AS data
           FROM 
@@ -424,7 +424,7 @@ BEGIN
               'type', 'pool_retire',
               'info', JSON_BUILD_OBJECT(
                 'pool_id_bech32', PH.view,
-                'pool_id_hex', ENCODE(PH.hash_raw, 'hex'),
+                'pool_id_hex', REPLACE(PH.hash_raw::text, '\x', ''),
                 'retiring epoch', PR.retiring_epoch
               )
             ) AS data
@@ -468,8 +468,8 @@ BEGIN
       )
 
     SELECT
-      ENCODE(ATX.tx_hash, 'hex'),
-      ENCODE(ATX.block_hash, 'hex'),
+      REPLACE(ATX.tx_hash::text, '\x', ''),
+      REPLACE(ATX.block_hash::text, '\x', ''),
       ATX.block_height,
       ATX.epoch,
       ATX.epoch_slot,
