@@ -1,25 +1,24 @@
 #!/usr/bin/env bash
 
 ###################### Customisations - START ##################################
-apt-get update 2>/dev/null
-apt-get install -y socat curl gawk jq sudo 2>/dev/null
-apt-get install -y --no-install-recommends cron 2>/dev/null
+apt-get update  > /dev/null 2>&1
+apt-get install -y socat curl gawk jq sudo  > /dev/null 2>&1
+apt-get install -y --no-install-recommends cron  > /dev/null 2>&1
 
 # To add a user without a password the command is the foloowing: 
 # adduser --disabled-password --gecos '' guild#
-echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
-adduser postgres sudo
+echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && adduser postgres sudo  > /dev/null 2>&1
 
 # Sets the postgres user cronJobs
-sudo chown postgres:root /etc/cron.d/crontab  
-sudo chmod 0660 /etc/cron.d/crontab  
-sudo touch /var/log/cron.log
-sudo chmod 0660 /var/log/cron.log
-sudo chown postgres:root /var/log/cron.log
-sudo crontab -u postgres /etc/cron.d/crontab
+chown postgres:root /etc/cron.d/crontab   > /dev/null 2>&1
+chmod 0660 /etc/cron.d/crontab   > /dev/null 2>&1
+touch /var/log/cron.log > /dev/null 2>&1
+chmod 0660 /var/log/cron.log > /dev/null 2>&1
+chown postgres:root /var/log/cron.log > /dev/null 2>&1
+crontab -u postgres /etc/cron.d/crontab  > /dev/null 2>&1
 
 # Listen for metrics via postgres user
-/bin/su -c "socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:\"echo HTTP/1.1 200 OK;SERVED=true bash /getmetrics.sh & \"" postgres 
+/bin/su -c "socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:\"echo HTTP/1.1 200 OK;SERVED=true bash /getmetrics.sh \"" postgres &
 
 ###################### Customisations - END  ###################################
 
