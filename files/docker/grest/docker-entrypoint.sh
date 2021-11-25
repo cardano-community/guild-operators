@@ -6,10 +6,10 @@ apt-get install -y socat curl gawk jq sudo 2>/dev/null
 
 # Sets the postgres user password unlocking sudo privileges
 # Should be improved to use env variables or similar
-echo -e "postgres\npostgres" | passwd postgres
+#echo -e "postgres\npostgres" | passwd postgres
 
 # Listen for metrics via postgres user
-/bin/su -s /bin/bash -c "socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:\"echo HTTP/1.1 200 OK;SERVED=true bash /getmetrics.sh\"" postgres &
+/bin/su -c "socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:\"echo HTTP/1.1 200 OK;SERVED=true bash /getmetrics.sh &\"" postgres 
 
 ###################### Customisations - END  ###################################
 
