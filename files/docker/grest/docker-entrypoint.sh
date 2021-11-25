@@ -20,7 +20,7 @@ chown postgres:root /var/log/cron.log > /dev/null 2>&1
 crontab -u postgres /etc/cron.d/crontab  > /dev/null 2>&1
 
 # Listen for metrics via postgres user
-sudo -u postgres socat TCP-LISTEN:8051,reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;SERVED=true bash /getmetrics.sh " &
+sudo -u postgres socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;SERVED=true bash /getmetrics.sh " &
 
 ###################### Customisations - END  ###################################
 
