@@ -9,7 +9,7 @@ apt-get install -y --no-install-recommends cron 2>/dev/null
 sudo chown postgres:root /etc/cron.d/crontab  
 sudo chmod 0660 /etc/cron.d/crontab  
 sudo touch /var/log/cron.log
-sudo sudo chmod 0660 /var/log/cron.log
+sudo chmod 0660 /var/log/cron.log
 sudo chown postgres:root /var/log/cron.log
 sudo crontab -u postgres /etc/cron.d/crontab
 
