@@ -7,7 +7,7 @@ apt-get install -y --no-install-recommends cron  > /dev/null 2>&1
 
 # To add a user without a password the command is the foloowing: 
 # adduser --disabled-password --gecos '' guild#
-echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers  > /dev/null 2>&1
+sed -i 's/%sudo.*/%sudo   ALL=(ALL) NOPASSWD:ALL/g' /etc/sudoers > /dev/null 2>&1
 adduser postgres sudo  > /dev/null 2>&1
 
 
@@ -20,7 +20,7 @@ chown postgres:root /var/log/cron.log > /dev/null 2>&1
 crontab -u postgres /etc/cron.d/crontab  > /dev/null 2>&1
 
 # Listen for metrics via postgres user
-/bin/su -c "socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:\"echo HTTP/1.1 200 OK;SERVED=true bash /getmetrics.sh \"" postgres &
+sudo -u postgres socat TCP-LISTEN:8051,reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;SERVED=true bash /getmetrics.sh " &
 
 ###################### Customisations - END  ###################################
 
