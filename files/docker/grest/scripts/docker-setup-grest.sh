@@ -252,7 +252,7 @@ done
 update_check "$@"
 set_environment_variables
 setup_db_basics
-[[ "${RESET_GREST}" == "Y" ]] && reset_grest
+[[ "${RESET_GREST}" == "Y" ]] && reset_grest # Where is reset_grest defined?
 [[ "${DB_QRY_UPDATES}" == "Y" ]] && deploy_query_updates
 pushd -0 >/dev/null || err_exit
 dirs -c
