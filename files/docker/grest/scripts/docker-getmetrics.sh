@@ -8,8 +8,8 @@
 
 #RESTAPI_PORT=8050                 # Destination PostgREST port
 #HAPROXY_PORT=8053                 # Destination HAProxy port
-DBSYNC_PROM_HOST=cardano-db-sync   # Destination DBSync Prometheus Host
-DBSYNC_PROM_PORT=8080              # Destination DBSync Prometheus port
+#DBSYNC_PROM_HOST=cardano-db-sync   # Destination DBSync Prometheus Host
+#DBSYNC_PROM_PORT=8080              # Destination DBSync Prometheus port
 EKG_HOST=cardano-node
 EKG_PORT=12788
 
