@@ -19,6 +19,7 @@ services:
       - postgres_db:/var/lib/postgresql/data
       - ./scripts/docker-getmetrics.sh:/getmetrics.sh
       - ./scripts/docker-setup-grest.sh:/setup-grest.sh
+      - ./config/postgres/postgresql.conf:/etc/postgresql.conf
       - ./docker-entrypoint-initdb:/docker-entrypoint-initdb.d/
       - ./docker-entrypoint.sh:/docker-entrypoint.sh
     entrypoint: /docker-entrypoint.sh
