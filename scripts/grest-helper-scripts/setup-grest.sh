@@ -273,7 +273,7 @@
   deploy_postgrest() {
     echo "[Re]Installing PostgREST.."
     pushd ~/tmp >/dev/null || err_exit
-    pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-x64-static.tar.xz')"
+    pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-static-x64.tar.xz')"
     if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest.tar.xz "${pgrest_asset_url}"; then
       tar xf postgrest.tar.xz &>/dev/null && rm -f postgrest.tar.xz
       [[ -f postgrest ]] || err_exit "PostgREST archive downloaded but binary not found after attempting to extract package!"
@@ -509,7 +509,7 @@
     return 0
   }
 
-  # Description : Check sync until Mary hard-fork.
+  # Description : Check sync until Alonzo hard-fork.
   check_db_status() {
     if ! command -v psql &>/dev/null; then
       err_exit "We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:\n ${DOCS_URL}/Appendix/postgres"
@@ -517,7 +517,7 @@
     if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" ]]; then
       err_exit "PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}\n ${DOCS_URL}/Build/dbsync"
     fi
-    if [[ "$(psql -qtAX -d ${PGDATABASE} -c "SELECT protocol_major FROM public.param_proposal WHERE protocol_major >= 4 ORDER BY protocol_major DESC LIMIT 1" 2>/dev/null)" == "" ]]; then
+    if [[ "$(psql -qtAX -d ${PGDATABASE} -c "SELECT protocol_major FROM public.param_proposal WHERE protocol_major > 4 ORDER BY protocol_major DESC LIMIT 1" 2>/dev/null)" == "" ]]; then
       return 1
     fi
 
@@ -554,7 +554,7 @@
     echo "(Re)Deploying Postgres RPCs/views/schedule..."
     check_db_status
     if [[ $? -eq 1 ]]; then
-      err_exit "Please wait for Cardano DBSync to populate PostgreSQL DB at least until Mary fork, and then re-run this setup script with the -q flag."
+      err_exit "Please wait for Cardano DBSync to populate PostgreSQL DB at least until Alonzo fork, and then re-run this setup script with the -q flag."
     fi
 
     echo -e "  Downloading DBSync RPC functions from Guild Operators GitHub store..."
