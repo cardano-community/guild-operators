@@ -56,14 +56,10 @@
         exit 1
       fi
 
-      ENV_UPDATED=N
       checkUpdate env N N N
-      case $? in
-        1) ENV_UPDATED=Y ;;
-        2) exit 1 ;;
-      esac
+      [[ $? -eq 2 ]] && exit 1
 
-      checkUpdate setup-grest.sh ${ENV_UPDATED} N N grest-helper-scripts
+      checkUpdate setup-grest.sh Y N N grest-helper-scripts
       case $? in
         1) echo; $0 "$@" "-u"; exit 0 ;; # re-launch script with same args skipping update check
         2) exit 1 ;;
@@ -277,7 +273,7 @@
   deploy_postgrest() {
     echo "[Re]Installing PostgREST.."
     pushd ~/tmp >/dev/null || err_exit
-    pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-x64-static.tar.xz')"
+    pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-static-x64.tar.xz')"
     if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest.tar.xz "${pgrest_asset_url}"; then
       tar xf postgrest.tar.xz &>/dev/null && rm -f postgrest.tar.xz
       [[ -f postgrest ]] || err_exit "PostgREST archive downloaded but binary not found after attempting to extract package!"
@@ -290,7 +286,7 @@
   deploy_haproxy() {
     echo "[Re]Installing HAProxy.."
     pushd ~/tmp >/dev/null || err_exit
-    haproxy_url="http://www.haproxy.org/download/2.4/src/haproxy-2.4.1.tar.gz"
+    haproxy_url="http://www.haproxy.org/download/2.5/src/haproxy-2.5.0.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
       if command -v apt-get >/dev/null; then
@@ -299,17 +295,15 @@
       if command -v yum >/dev/null; then
         sudo yum -y install pcre-devel >/dev/null || err_exit "'sudo yum -y install prce-devel' failed!"
       fi
-      cd haproxy-2.4.1 || return
+      cd haproxy-2.5.0 || return
       make clean >/dev/null
-      make -j $(nproc) TARGET=linux-glibc USE_ZLIB=1 USE_LIBCRYPT=1 USE_OPENSSL=1 USE_PCRE=1 USE_SYSTEMD=1 >/dev/null
-      sudo make install >/dev/null
+      make -j $(nproc) TARGET=linux-glibc USE_ZLIB=1 USE_LIBCRYPT=1 USE_OPENSSL=1 USE_PCRE=1 USE_SYSTEMD=1 USE_PROMEX=1 >/dev/null
+      sudo make install-bin >/dev/null
       sudo cp -f /usr/local/sbin/haproxy /usr/sbin/
     else
       err_exit "Could not download ${haproxy_url}"
     fi
     pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
-    checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
-    checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
   }
 
   deploy_monitoring_agents() {
@@ -350,7 +344,7 @@
 			#db-pool = 10
 			#db-pool-timeout = 10
 			#db-extra-search-path = "public"
-			max-rows = 100
+			max-rows = 1000
 			EOF
     # Create HAProxy config template
     [[ -f "${HAPROXY_CFG}" ]] && cp "${HAPROXY_CFG}" "${HAPROXY_CFG}".bkp_$(date +%s)
@@ -362,51 +356,75 @@
     bash -c "cat <<-EOF > ${HAPROXY_CFG}
 			global
 			  daemon
-			  nbthread 3
+			  nbthread 2
 			  maxconn 256
+			  ulimit-n 65536
 			  stats socket ipv4@127.0.0.1:8055 mode 0600 level admin
-			  log 127.0.0.1 local2
+			  cpu-map 1/all 1-2
+			  log 127.0.0.1 local2 info
 			  insecure-fork-wanted
 			  external-check
 			
 			defaults
 			  mode http
 			  log global
-			  option httplog
 			  option dontlognull
 			  option http-ignore-probes
+			  option http-server-close
+			  option forwardfor
+			  log-format \"%ci:%cp a:%f/%b/%s t:%Tq/%Tt %{+Q}r %ST b:%B C:%ac,%fc,%bc,%sc Q:%sq/%bq\"
 			  option dontlog-normal
-			  timeout client 10s
-			  timeout server 10s
+			  timeout client 30s
+			  timeout server 30s
 			  timeout connect 3s
 			  timeout server-fin 2s
 			  timeout http-request 5s
 			
 			frontend app
 			  bind 0.0.0.0:8053
-			  #Replace servername.koios.rest below
+			  http-request set-log-level silent
+			  ## Replace servername.koios.rest below
 			  #http-request replace-value Host (.*):8053 servername.koios.rest:8453
 			  #redirect scheme https code 301 if !{ ssl_fc }
 			  #
 			  #frontend app-secured
 			  #bind :8453 ssl crt /etc/ssl/server.pem no-sslv3
+			  http-request use-service prometheus-exporter if { path /metrics }
 			  http-request track-sc0 src table flood_lmt_rate
-			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 100 }
+			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 50 }
 			  default_backend grest_core
 			
-			backend flood_lmt_rate                                                    
+			backend flood_lmt_rate
 			  stick-table type ip size 1m expire 10m store http_req_rate(10s)
 			
 			backend grest_core
 			  balance first
 			  option external-check
+			  acl chktip path -m beg /rpc/tip
+			  http-request set-log-level silent if chktip
+			  http-request cache-use grestcache
 			  external-check path \"/usr/bin:/bin:/tmp:/sbin:/usr/sbin\"
 			  external-check command ${CNODE_HOME}/scripts/grest-poll.sh
 			  server local 127.0.0.1:8050 check inter 20000
-			  server koios ${KOIOS_SRV}:8453 check inter 60000 backup
+			  server koios-ssl ${KOIOS_SRV}:8453 check inter 60000 backup ssl verify none
+			  ## Ensure to end server name with 'ssl' if enabled
+			  http-response cache-store grestcache
 			  http-response set-header X-Frame-Options: DENY
+			
+			backend unauthorized
+			  ## Used by monitoring instances only
+			  http-request deny deny_status 401
+			
+			cache grestcache
+			  total-max-size 1024
+			  max-object-size 51200
+			  process-vary on
+			  max-secondary-entries 500
+			  max-age 300
 			EOF"
     echo "  Done!! Please ensure to set any custom settings/peers/TLS configs/etc back and update configs as necessary!"
+    checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
+    checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
   }
 
   deploy_systemd() {
@@ -491,7 +509,7 @@
     return 0
   }
 
-  # Description : Check sync until Mary hard-fork.
+  # Description : Check sync until Alonzo hard-fork.
   check_db_status() {
     if ! command -v psql &>/dev/null; then
       err_exit "We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:\n ${DOCS_URL}/Appendix/postgres"
@@ -499,7 +517,7 @@
     if [[ -z ${PGPASSFILE} || ! -f "${PGPASSFILE}" ]]; then
       err_exit "PGPASSFILE env variable not set or pointing to a non-existing file: ${PGPASSFILE}\n ${DOCS_URL}/Build/dbsync"
     fi
-    if [[ "$(psql -qtAX -d ${PGDATABASE} -c "SELECT protocol_major FROM public.param_proposal WHERE protocol_major >= 4 ORDER BY protocol_major DESC LIMIT 1" 2>/dev/null)" == "" ]]; then
+    if [[ "$(psql -qtAX -d ${PGDATABASE} -c "SELECT protocol_major FROM public.param_proposal WHERE protocol_major > 4 ORDER BY protocol_major DESC LIMIT 1" 2>/dev/null)" == "" ]]; then
       return 1
     fi
 
@@ -536,7 +554,7 @@
     echo "(Re)Deploying Postgres RPCs/views/schedule..."
     check_db_status
     if [[ $? -eq 1 ]]; then
-      err_exit "Please wait for Cardano DBSync to populate PostgreSQL DB at least until Mary fork, and then re-run this setup script with the -q flag."
+      err_exit "Please wait for Cardano DBSync to populate PostgreSQL DB at least until Alonzo fork, and then re-run this setup script with the -q flag."
     fi
 
     echo -e "  Downloading DBSync RPC functions from Guild Operators GitHub store..."
