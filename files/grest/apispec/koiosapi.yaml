@@ -1074,11 +1074,8 @@ components:
     tx_info:
       type: array
       items:
+        type: object
         properties:
-          id:
-            type: integer
-            description: Transaction ID on particular DB Instance
-            example: 17977025
           tx_hash:
             type: string
             description: Hash of Transaction for which details are being shown
@@ -1111,48 +1108,22 @@ components:
             type: integer
             description: Index of transaction within block
             example: 6
+          tx_size:
+            type: integer
+            description: Size in bytes of transaction
+            example: 391
+          total_output:
+            type: integer
+            description: Total sum of all transaction outputs (in lovelaces)
+            example: 157832856
           fee:
             type: integer
             description: Total Transaction fee (in lovelaces)
-            example: 176677
+            example: 172761
           deposit:
             type: integer
             description: Total Deposits included in transaction (for example, if it is registering a pool/key)
             example: 0
-          inputs:
-            type: array
-            description: An array with details about inputs used in a transaction
-            items:
-              properties:
-                address:
-                  type: string
-                  description: Cardano address (bech32 encoded) for transaction's input UTxO
-                  example: addr1qxkfe8s6m8qt5436lec3f0320hrmpppwqgs2gah4360krvyssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqdc3cxp
-                index:
-                  type: integer
-                  description: Index of input UTxO on the mentioned address used for input
-                  example: 0
-                value:
-                  type: integer
-                  description: Balance included on the selected input transaction
-                  example: 158005617
-          outputs:
-            type: array
-            description: An array with details about outputs from the transaction
-            items:
-              properties:
-                address:
-                  type: string
-                  description: Cardano address (bech32 encoded) where funds were sent
-                  example: addr1q80rc8zj06yzdwwdyqc03rm4l3zv6n89rxuaak0t099n09yssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqad9mkw
-                index:
-                  type: integer
-                  description: Index of output UTxO
-                  example: 0
-                value:
-                  type: integer
-                  description: Total sum on the output address
-                  example: 157832856
           invalid_before:
             type: integer
             description: Slot before which transaction cannot be validated (if supplied, else null)
@@ -1160,11 +1131,172 @@ components:
             type: integer
             description: Slot after which transaction cannot be validated
             example: 42332172
+          inputs:
+            type: array
+            description: An array with details about inputs used in a transaction
+            items:
+              type: object
+              properties:
+                payment_addr:
+                  type: object
+                  properties:
+                    bech32:
+                      type: string
+                      description: A Cardano payment/base address (bech32 encoded) for transaction's input UTxO
+                      example: addr1qxkfe8s6m8qt5436lec3f0320hrmpppwqgs2gah4360krvyssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqdc3cxp
+                    cred:
+                      type: string
+                      description: Payment credential
+                      example: ac9c9e1ad9c0ba563afe7114be2a7dc7b0842e0220a476f58e9f61b0
+                stake_addr:
+                  type: string
+                  description: A Cardano staking address (reward account, bech32 encoded) for transaction's input UTxO
+                  example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
+                tx_hash:
+                  type: string
+                  description: Hash of Transaction for input UTxO
+                  example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
+                tx_index:
+                  type: integer
+                  description: Index of input UTxO on the mentioned address used for input
+                  example: 0
+                value:
+                  type: integer
+                  description: Balance on the selected input transaction
+                  example: 158005617
+                asset_list:
+                  type: array
+                  description: An array of assets contained on input UTxO
+                  items:
+                    properties:
+                      policy_id:
+                        type: string
+                        description: Asset Policy ID (hex)
+                        example: 6cf6b5cf0fefbe9e69d640d8be84912bb2c9e132671954548790bcfb
+                      asset_name:
+                        type: string
+                        description: Asset Name (hex)
+                        example: 6d65736d6572697a65723038353436
+                      quantity:
+                        type: integer
+                        description: Asset balance on the selected input transaction
+                        example: 1
+          outputs:
+            type: array
+            description: An array with details about outputs from the transaction
+            items:
+              type: object
+              properties:
+                payment_addr:
+                  type: object
+                  properties:
+                    bech32:
+                      type: string
+                      description: A Cardano payment/base address (bech32 encoded) where funds were sent or change to be returned
+                      example: addr1q80rc8zj06yzdwwdyqc03rm4l3zv6n89rxuaak0t099n09yssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqad9mkw
+                    cred:
+                      type: string
+                      description: Payment credential
+                      example: de3c1c527e8826b9cd2030f88f75fc44cd4ce519b9ded9eb794b3794
+                stake_addr:
+                  type: string
+                  description: A Cardano staking address (reward account, bech32 encoded) for transaction's output UTxO
+                  example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
+                tx_hash:
+                  type: string
+                  description: Hash of this transaction
+                  example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
+                tx_index:
+                  type: integer
+                  description: Index of output UTxO
+                  example: 0
+                value:
+                  type: integer
+                  description: Total sum on the output address
+                  example: 157832856
+                asset_list:
+                  type: array
+                  description: An array of assets to be included in output UTxO
+                  items:
+                    properties:
+                      policy_id:
+                        type: string
+                        description: Asset Policy ID (hex)
+                        example: 6cf6b5cf0fefbe9e69d640d8be84912bb2c9e132671954548790bcfb
+                      asset_name:
+                        type: string
+                        description: Asset Name (hex)
+                        example: 6d65736d6572697a65723038353436
+                      quantity:
+                        type: integer
+                        description: Sum of assets for output UTxO
+                        example: 1
+          withdrawals:
+            type: array
+            description: Array of withdrawals with-in a transaction (if any)
+            items:
+              type: object
+              properties:
+                amount:
+                  type: integer
+                  description: Withdrawal amount (in lovelaces)
+                  example: 9845162
+                stake_addr:
+                  type: object
+                  properties:
+                    bech32:
+                      type: string
+                      description: A Cardano staking address (reward account, bech32 encoded)
+                      example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
+          assets_minted:
+            type: array
+            description: Array of minted assets with-in a transaction (if any)
+            items:
+              properties:
+                policy_id:
+                  type: string
+                  description: Asset Policy ID (hex)
+                  example: 6cf6b5cf0fefbe9e69d640d8be84912bb2c9e132671954548790bcfb
+                asset_name:
+                  type: string
+                  description: Asset Name (hex)
+                  example: 6d65736d6572697a65723036363333
+                quantity:
+                  type: integer
+                  description: Sum of minted assets (negative on burn)
+                  example: 1
+          metadata:
+            type: array
+            description: Metadata present with-in a transaction (if any)
+            items:
+              properties:
+                key:
+                  type: integer
+                  description: Metadata key (index)
+                  example: 0
+                json:
+                  type: string
+                  description: A JSON containing details about metadata within transaction
+                  example:
+                    {
+                      "721":
+                        {
+                          "version": 1,
+                          "copyright": "...",
+                          "publisher": ["p...o"],
+                          "4bf184e01e0f163296ab253edd60774e2d34367d0e7b6cbc689b567d":
+                            {},
+                        },
+                    }
           certificates:
             type: array
             description: Certificates present with-in a transaction (if any)
             items:
               properties:
+                index:
+                  type: integer
+                  description: Certificate index
+                  example: 0
                 type:
                   type: string
                   description: Type of certificate (could be delegation, stake_registration, stake_deregistraion, pool_update, pool_retire, param_proposal, reserve_MIR, treasury_MIR)
