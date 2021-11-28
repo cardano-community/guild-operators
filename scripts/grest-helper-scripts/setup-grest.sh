@@ -349,9 +349,9 @@
     # Create HAProxy config template
     [[ -f "${HAPROXY_CFG}" ]] && cp "${HAPROXY_CFG}" "${HAPROXY_CFG}".bkp_$(date +%s)
     case ${NWMAGIC} in
-      1097911063) KOIOS_SRV="testnet.koios.rest" ;;
-      764824073)  KOIOS_SRV="api.koios.rest" ;;
-      *) KOIOS_SRV="guild.koios.rest" ;;
+      1097911063) KOIOS_SRV="testnet.koios.rest:8453" ;;
+      764824073)  KOIOS_SRV="api.koios.rest:8453" ;;
+      *) KOIOS_SRV="guild.koios.rest:8453" ;;
     esac
     bash -c "cat <<-EOF > ${HAPROXY_CFG}
 			global
@@ -406,7 +406,7 @@
 			  external-check path \"/usr/bin:/bin:/tmp:/sbin:/usr/sbin\"
 			  external-check command ${CNODE_HOME}/scripts/grest-poll.sh
 			  server local 127.0.0.1:8050 check inter 20000
-			  server koios-ssl ${KOIOS_SRV}:8453 check inter 60000 backup ssl verify none
+			  server koios-ssl ${KOIOS_SRV} backup ssl verify none
 			  ## Ensure to end server name with 'ssl' if enabled
 			  http-response cache-store grestcache
 			  http-response set-header X-Frame-Options: DENY
