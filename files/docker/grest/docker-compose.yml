@@ -5,16 +5,11 @@ services:
     image: postgres:13.5-bullseye
     environment:
       - POSTGRES_LOGGING=true
-      - POSTGRES_DB_FILE=/run/secrets/postgres_db
-      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
-      - POSTGRES_USER_FILE=/run/secrets/postgres_user
-      - POSTGRES_HOST_AUTH_METHOD=trust
+      - POSTGRES_DB="${POSTGRES_DB}"
+      - POSTGRES_PASSWORD="${POSTGRES_PASSWORD}"
+      - POSTGRES_USER="${POSTGRES_USER}"
     ports:
       - 8059:8059
-    secrets:
-      - postgres_password
-      - postgres_user
-      - postgres_db
     volumes:
       - postgres_db:/var/lib/postgresql/data
       - ./scripts/docker-getmetrics.sh:/getmetrics.sh
@@ -54,16 +49,15 @@ services:
       - NETWORK=${NETWORK:-mainnet}
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
+      - "${POSTGRES_PASSWORD}"
+      - "${POSTGRES_USER}"
+      - "${POSTGRES_DB}"
       # Attention this has a very different apprroach in docker -Restore db from snapshot - left optional for now as still needs testing
       #- RESTORE_SNAPSHOT=${RESTORE_SNAPSHOT:-https://update-cardano-mainnet.iohk.io/cardano-db-sync/11/db-sync-snapshot-schema-11-block-6510444-x86_64.tgz}
       #- RESTORE_RECREATE_DB=N
     depends_on:
       - cardano-node
       - postgres
-    secrets:
-      - postgres_password
-      - postgres_user
-      - postgres_db
     volumes:
       - db-sync-data:/var/lib/cdbsync
       - node-ipc:/node-ipc
@@ -95,7 +89,7 @@ services:
     environment:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
-      - PGRST_DB_URI=postgres://guild:HelloWorld54321@postgres/cexplorer
+      - PGRST_DB_URI=postgres://"${POSTGRES_USER}":"${POSTGRES_PASSWORD}"@postgres/cexplorer
       - PGRST_DB_SCHEMA=grest
       - PGRST_DB_ANON_ROLE=web_anon
       - PGRST_DB-EXTRA-SEARCH-PATH=public
