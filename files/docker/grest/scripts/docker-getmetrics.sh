@@ -6,10 +6,15 @@
 # Common variables set in env file   #
 ######################################
 
-#RESTAPI_PORT=8050                 # Destination PostgREST port
-#HAPROXY_PORT=8053                 # Destination HAProxy port
+#BYRON_EPOCH_LENGTH=2160            # 2160 for mainnet | other networks to-do
+#BYRON_GENESIS_START_SEC=1506203091 # 1506203091 for mainnet | other networks to-do
+#SHELLEY_TRANS_EPOCH=208            # 208 for mainnet | other networks to-do
+
+#RESTAPI_PORT=8050                  # Destination PostgREST port
+#HAPROXY_PORT=8053                  # Destination HAProxy port
 #DBSYNC_PROM_HOST=cardano-db-sync   # Destination DBSync Prometheus Host
 #DBSYNC_PROM_PORT=8080              # Destination DBSync Prometheus port
+
 EKG_HOST=cardano-node
 EKG_PORT=12788
 
@@ -52,6 +57,25 @@ exec 2>/dev/null
 [[ -z ${HAPROXY_PORT} ]] && HAPROXY_PORT=8053
 [[ -z ${DBSYNC_PROM_HOST} ]] && DBSYNC_PROM_HOST=127.0.0.1
 [[ -z ${DBSYNC_PROM_PORT} ]] && DBSYNC_PROM_PORT=8080
+[[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=208
+[[ -z ${BYRON_EPOCH_LENGTH} ]] && BYRON_EPOCH_LENGTH=2160
+[[ -z ${BYRON_GENESIS_START_SEC} ]] && BYRON_GENESIS_START_SEC=1506203091
+
+
+
+# Description : Get calculated slot number tip
+getSlotTipRef() {
+  current_time_sec=$(printf '%(%s)T\n' -1)
+  [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && echo 0 && return
+  byron_slots=$(( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH ))
+  byron_end_time=$(( BYRON_GENESIS_START_SEC + ((SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH) / 1000) ))
+  if [[ ${current_time_sec} -lt ${byron_end_time} ]]; then # In Byron phase
+    echo $(( ((current_time_sec - BYRON_GENESIS_START_SEC)*1000) / BYRON_SLOT_LENGTH ))
+  else # In Shelley phase
+    echo $(( byron_slots + (( current_time_sec - byron_end_time ) / SLOT_LENGTH ) ))
+  fi
+}
+
 
 function get-metrics() {
   shopt -s expand_aliases
