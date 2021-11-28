@@ -101,7 +101,7 @@ setup_db_basics() {
     err_exit "Failed to get basic db setup SQL from ${basics_sql_url}"
   fi
   echo -e "Adding grest schema if missing and granting usage for web_anon..."
-  ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -q <<<"${basics_sql}" 2>&1) && err_exit "${output}"
+  ! output=$(psql -U guild -d "${PGDATABASE}" -v "ON_ERROR_STOP=1" -q <<<"${basics_sql}" 2>&1) && err_exit "${output}"
   return 0
 }
 
@@ -156,7 +156,7 @@ check_db_status() {
     err_exit "We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:\n ${DOCS_URL}/Appendix/postgres"
   fi
   
-  if [[ "$(psql -qtAX -d ${PGDATABASE} -c "SELECT protocol_major FROM public.param_proposal WHERE protocol_major >= 4 ORDER BY protocol_major DESC LIMIT 1" 2>/dev/null)" == "" ]]; then
+  if [[ "$(psql -qtAX -U guild -d ${PGDATABASE} -c "SELECT protocol_major FROM public.param_proposal WHERE protocol_major >= 4 ORDER BY protocol_major DESC LIMIT 1" 2>/dev/null)" == "" ]]; then
     return 1
   fi
 
@@ -170,7 +170,7 @@ deployRPC() {
   [[ -z ${dl_url} ]] && return
   ! rpc_sql=$(curl -s -f -m "${CURL_TIMEOUT}" "${dl_url}" 2>/dev/null) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url%.json}.sql" && return 1
   echo -e "      Deploying Function :   \e[32m${file_name%.sql}\e[0m"
-  ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<"${rpc_sql}" 2>&1) && echo -e "        \e[31mERROR\e[0m: ${output}"
+  ! output=$(psql -U guild -d "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<"${rpc_sql}" 2>&1) && echo -e "        \e[31mERROR\e[0m: ${output}"
 }
 
 ########################Cron########################

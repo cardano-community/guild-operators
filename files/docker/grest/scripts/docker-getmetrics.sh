@@ -15,8 +15,8 @@
 #DBSYNC_PROM_HOST=cardano-db-sync   # Destination DBSync Prometheus Host
 #DBSYNC_PROM_PORT=8080              # Destination DBSync Prometheus port
 
-EKG_HOST=cardano-node
-EKG_PORT=12788
+PROM_HOST=cardano-node
+PROM_PORT=12798
 
 ######################################
 # Do NOT modify code below           #
@@ -24,30 +24,34 @@ EKG_PORT=12788
 
 # Description : Query cardano-node for current metrics
 getNodeMetrics() {
-    node_metrics=$(curl -s -m 2 -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
-    node_metrics_tsv=$(jq -r '[
-    .cardano.node.metrics.blockNum.int.val //0,
-    .cardano.node.metrics.epoch.int.val //0,
-    .cardano.node.metrics.slotInEpoch.int.val //0,
-    .cardano.node.metrics.slotNum.int.val //0,
-    .cardano.node.metrics.density.real.val //"-",
-    .cardano.node.metrics.txsProcessedNum.int.val //0,
-    .cardano.node.metrics.txsInMempool.int.val //0,
-    .cardano.node.metrics.mempoolBytes.int.val //0,
-    .cardano.node.metrics.currentKESPeriod.int.val //0,
-    .cardano.node.metrics.remainingKESPeriods.int.val //0,
-    .cardano.node.metrics.Forge["node-is-leader"].int.val //0,
-    .cardano.node.metrics.Forge.adopted.int.val //0,
-    .cardano.node.metrics.Forge["didnt-adopt"].int.val //0,
-    .cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0,
-    .cardano.node.metrics.nodeStartTime.int.val //0
-    ] | @tsv' <<< "${node_metrics}")
-    read -ra node_metrics_arr <<< ${node_metrics_tsv}
-    blocknum=${node_metrics_arr[0]}; epochnum=${node_metrics_arr[1]}; slot_in_epoch=${node_metrics_arr[2]}; slotnum=${node_metrics_arr[3]}
-    [[ ${node_metrics_arr[4]} != '-' ]] && density=$(bc <<< "scale=3;$(printf '%3.5f' "${node_metrics_arr[4]}")*100/1") || density=0.0
-    tx_processed=${node_metrics_arr[5]}; mempool_tx=${node_metrics_arr[6]}; mempool_bytes=${node_metrics_arr[7]}
-    kesperiod=${node_metrics_arr[8]}; remaining_kes_periods=${node_metrics_arr[9]}
-    isleader=${node_metrics_arr[10]}; adopted=${node_metrics_arr[11]}; didntadopt=${node_metrics_arr[12]}; about_to_lead=${node_metrics_arr[13]}
+    node_metrics=$(curl -s "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
+    [[ ${node_metrics} =~ cardano_node_metrics_nodeStartTime_int[[:space:]]([^[:space:]]*) ]] && { nodeStartTime=${BASH_REMATCH[1]} && uptimes=$(( $(date +%s) - BASH_REMATCH[1] )); } || uptimes=0
+    [[ ${node_metrics} =~ cardano_node_metrics_blockNum_int[[:space:]]([^[:space:]]*) ]] && blocknum=${BASH_REMATCH[1]} || blocknum=0
+    [[ ${node_metrics} =~ cardano_node_metrics_epoch_int[[:space:]]([^[:space:]]*) ]] && epochnum=${BASH_REMATCH[1]} || epochnum=0
+    [[ ${node_metrics} =~ cardano_node_metrics_slotInEpoch_int[[:space:]]([^[:space:]]*) ]] && slot_in_epoch=${BASH_REMATCH[1]} || slot_in_epoch=0
+    [[ ${node_metrics} =~ cardano_node_metrics_slotNum_int[[:space:]]([^[:space:]]*) ]] && slotnum=${BASH_REMATCH[1]} || slotnum=0
+    [[ ${node_metrics} =~ cardano_node_metrics_density_real[[:space:]]([^[:space:]]*) ]] && density=$(bc <<< "scale=3;$(printf '%3.5f' "${BASH_REMATCH[1]}")*100/1") || density=0.0
+    [[ ${node_metrics} =~ cardano_node_metrics_txsProcessedNum_int[[:space:]]([^[:space:]]*) ]] && tx_processed=${BASH_REMATCH[1]} || tx_processed=0
+    [[ ${node_metrics} =~ cardano_node_metrics_txsInMempool_int[[:space:]]([^[:space:]]*) ]] && mempool_tx=${BASH_REMATCH[1]} || mempool_tx=0
+    [[ ${node_metrics} =~ cardano_node_metrics_mempoolBytes_int[[:space:]]([^[:space:]]*) ]] && mempool_bytes=${BASH_REMATCH[1]} || mempool_bytes=0
+    [[ ${node_metrics} =~ cardano_node_metrics_currentKESPeriod_int[[:space:]]([^[:space:]]*) ]] && kesperiod=${BASH_REMATCH[1]} || kesperiod=0
+    [[ ${node_metrics} =~ cardano_node_metrics_remainingKESPeriods_int[[:space:]]([^[:space:]]*) ]] && remaining_kes_periods=${BASH_REMATCH[1]} || remaining_kes_periods=0
+    [[ ${node_metrics} =~ cardano_node_metrics_Forge_node_is_leader_int[[:space:]]([^[:space:]]*) ]] && isleader=${BASH_REMATCH[1]} || isleader=0
+    [[ ${node_metrics} =~ cardano_node_metrics_Forge_adopted_int[[:space:]]([^[:space:]]*) ]] && adopted=${BASH_REMATCH[1]} || adopted=0
+    [[ ${node_metrics} =~ cardano_node_metrics_Forge_didnt_adopt_int[[:space:]]([^[:space:]]*) ]] && didntadopt=${BASH_REMATCH[1]} || didntadopt=0
+    [[ ${node_metrics} =~ cardano_node_metrics_Forge_forge_about_to_lead_int[[:space:]]([^[:space:]]*) ]] && about_to_lead=${BASH_REMATCH[1]} || about_to_lead=0
+    [[ ${node_metrics} =~ cardano_node_metrics_slotsMissedNum_int[[:space:]]([^[:space:]]*) ]] && missed_slots=${BASH_REMATCH[1]} || missed_slots=0
+    [[ ${node_metrics} =~ cardano_node_metrics_RTS_gcLiveBytes_int[[:space:]]([^[:space:]]*) ]] && mem_live=${BASH_REMATCH[1]} || mem_live=0
+    [[ ${node_metrics} =~ cardano_node_metrics_RTS_gcHeapBytes_int[[:space:]]([^[:space:]]*) ]] && mem_heap=${BASH_REMATCH[1]} || mem_heap=0
+    [[ ${node_metrics} =~ cardano_node_metrics_RTS_gcMinorNum_int[[:space:]]([^[:space:]]*) ]] && gc_minor=${BASH_REMATCH[1]} || gc_minor=0
+    [[ ${node_metrics} =~ cardano_node_metrics_RTS_gcMajorNum_int[[:space:]]([^[:space:]]*) ]] && gc_major=${BASH_REMATCH[1]} || gc_major=0
+    [[ ${node_metrics} =~ cardano_node_metrics_forks_int[[:space:]]([^[:space:]]*) ]] && forks=${BASH_REMATCH[1]} || forks=0
+    [[ ${node_metrics} =~ cardano_node_metrics_blockfetchclient_blockdelay_s[[:space:]]([^[:space:]]*) ]] && block_delay=${BASH_REMATCH[1]} || block_delay=0
+    [[ ${node_metrics} =~ cardano_node_metrics_served_block_count_int[[:space:]]([^[:space:]]*) ]] && blocks_served=${BASH_REMATCH[1]} || block_served=0
+    [[ ${node_metrics} =~ cardano_node_metrics_blockfetchclient_lateblocks[[:space:]]([^[:space:]]*) ]] && blocks_late=${BASH_REMATCH[1]} || blocks_late=0
+    [[ ${node_metrics} =~ cardano_node_metrics_blockfetchclient_blockdelay_cdfOne[[:space:]]([^[:space:]]*) ]] && printf -v blocks_w1s "%.6f" ${BASH_REMATCH[1]} || blocks_w1s=0
+    [[ ${node_metrics} =~ cardano_node_metrics_blockfetchclient_blockdelay_cdfThree[[:space:]]([^[:space:]]*) ]] && printf -v blocks_w3s "%.6f" ${BASH_REMATCH[1]} || blocks_w3s=0
+    [[ ${node_metrics} =~ cardano_node_metrics_blockfetchclient_blockdelay_cdfFive[[:space:]]([^[:space:]]*) ]] && printf -v blocks_w5s "%.6f" ${BASH_REMATCH[1]} || blocks_w5s=0
     nodeStartTime=${node_metrics_arr[14]};uptimes=$(( $(date +%s) - node_metrics_arr[14] ))
 }
 
@@ -96,8 +100,8 @@ function get-metrics() {
   memused=$(( memtotal + $(echo "${meminf}" | grep Shmem: | awk '{print $2}') - $(echo "${meminf}" | grep MemFree | awk '{print $2}') - $(echo "${meminf}" | grep SwapFree | awk '{print $2}') - $(echo "${meminf}" | grep ^Buffers | awk '{print $2}') - $(echo "${meminf}" | grep ^Cached | awk '{print $2}') ))
   cpuutil=$(awk -v a="$(awk '/cpu /{print $2+$4,$2+$4+$5}' /proc/stat; sleep 1)" '/cpu /{split(a,b," "); print 100*($2+$4-b[1])/($2+$4+$5-b[2])}'  /proc/stat)
   # in Bytes
-  pubschsize=$(psql -d cexplorer -c "SELECT sum(pg_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'public'" | awk 'FNR == 3 {print $1 $2}')
-  grestschsize=$(psql -d cexplorer -c "SELECT sum(pg_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'grest'" | awk 'FNR == 3 {print $1 $2}')
+  pubschsize=$(psql -d cexplorer -U guild -c "SELECT sum(pg_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'public'" | awk 'FNR == 3 {print $1 $2}')
+  grestschsize=$(psql -d cexplorer -U guild -c "SELECT sum(pg_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'grest'" | awk 'FNR == 3 {print $1 $2}')
   dbsize=$(( pubschsize + grestschsize ))
 
   # Metrics
@@ -116,7 +120,7 @@ function get-metrics() {
   export METRIC_dbsize="${dbsize}"
   #export METRIC_cnodeversion="$(echo $(cardano-node --version) | awk '{print $2 "-" $9}')"
   #export METRIC_dbsyncversion="$(echo $(cardano-db-sync-extended --version) | awk '{print $2 "-" $9}')"
-  #export METRIC_psqlversion="$(echo "" | psql cexplorer -c "SELECT version();" | grep PostgreSQL | awk '{print $2}')"
+  #export METRIC_psqlversion="$(echo "" | psql -U guild -d cexplorer -c "SELECT version();" | grep PostgreSQL | awk '{print $2}')"
   
   for metric_var_name in $(env | grep ^METRIC | sort | awk -F= '{print $1}')
   do
