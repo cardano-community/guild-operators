@@ -10,6 +10,7 @@
 #BYRON_SLOT_LENGTH=20000            # 20000 for mainnet | other networks to-do
 #BYRON_GENESIS_START_SEC=1506203091 # 1506203091 for mainnet | other networks to-do
 #SHELLEY_TRANS_EPOCH=208            # 208 for mainnet | other networks to-do
+#SHELLEY_SLOT_LENGTH=1              # 1 for mainnet | other networks to-do
 
 #RESTAPI_PORT=8050                  # Destination PostgREST port
 #HAPROXY_PORT=8053                  # Destination HAProxy port
@@ -60,9 +61,8 @@ exec 2>/dev/null
 
 [[ -z ${RESTAPI_PORT} ]] && RESTAPI_PORT=8050
 [[ -z ${HAPROXY_PORT} ]] && HAPROXY_PORT=8053
-[[ -z ${DBSYNC_PROM_HOST} ]] && DBSYNC_PROM_HOST=127.0.0.1
-[[ -z ${DBSYNC_PROM_PORT} ]] && DBSYNC_PROM_PORT=8080
 [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=208
+[[ -z ${SHELLEY_SLOT_LENGTH} ]] && SHELLEY_SLOT_LENGTH=1
 [[ -z ${BYRON_EPOCH_LENGTH} ]] && BYRON_EPOCH_LENGTH=2160
 [[ -z ${BYRON_GENESIS_START_SEC} ]] && BYRON_GENESIS_START_SEC=1506203091
 [[ -z ${BYRON_SLOT_LENGTH} ]] && BYRON_SLOT_LENGTH=20000
@@ -75,10 +75,11 @@ getSlotTipRef() {
   [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && echo 0 && return
   byron_slots=$(( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH ))
   byron_end_time=$(( BYRON_GENESIS_START_SEC + ((SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH) / 1000) ))
+  echo "BYRON SLOTS: ${byron_slots}, BYRON END TIME: ${byron_end_time}, current_time_sec: ${current_time_sec}"
   if [[ ${current_time_sec} -lt ${byron_end_time} ]]; then # In Byron phase
     echo $(( ((current_time_sec - BYRON_GENESIS_START_SEC)*1000) / BYRON_SLOT_LENGTH ))
   else # In Shelley phase
-    echo $(( byron_slots + (( current_time_sec - byron_end_time ) / SLOT_LENGTH ) ))
+    echo $(( byron_slots + (( current_time_sec - byron_end_time ) / SHELLEY_SLOT_LENGTH ) ))
   fi
 }
 
@@ -95,7 +96,6 @@ function get-metrics() {
   currtip=$(TZ='UTC' date "+%Y-%m-%d %H:%M:%S")
   getNodeMetrics
   currslottip=$(getSlotTipRef)
-  dbsyncProm=$(curl -s http://${DBSYNC_PROM_HOST}:${DBSYNC_PROM_PORT} | grep ^cardano)
   load1m=$(( $(awk '{ print $1*100 }' /proc/loadavg) / $(grep -c ^processor /proc/cpuinfo) ))
   meminf=$(grep "^[MSBC][ewuah][:mafc]" /proc/meminfo)
   memtotal=$(( $(echo "${meminf}" | grep MemTotal | awk '{print $2}') + $(echo "${meminf}" | grep SwapTotal | awk '{print $2}') ))
