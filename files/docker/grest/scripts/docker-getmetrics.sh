@@ -7,6 +7,7 @@
 ######################################
 
 #BYRON_EPOCH_LENGTH=2160            # 2160 for mainnet | other networks to-do
+#BYRON_SLOT_LENGTH=20000            # 20000 for mainnet | other networks to-do
 #BYRON_GENESIS_START_SEC=1506203091 # 1506203091 for mainnet | other networks to-do
 #SHELLEY_TRANS_EPOCH=208            # 208 for mainnet | other networks to-do
 
@@ -64,6 +65,7 @@ exec 2>/dev/null
 [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=208
 [[ -z ${BYRON_EPOCH_LENGTH} ]] && BYRON_EPOCH_LENGTH=2160
 [[ -z ${BYRON_GENESIS_START_SEC} ]] && BYRON_GENESIS_START_SEC=1506203091
+[[ -z ${BYRON_SLOT_LENGTH} ]] && BYRON_SLOT_LENGTH=20000
 
 
 
