@@ -2,6 +2,10 @@
 
 The architecture for various components are already described at [docs.cardano.org](https://docs.cardano.org/explore-cardano/cardano-architecture/overview) by CF/IOHK. We will not reinvent the wheel :smile:
 
+#### Manual software pre-requirements
+
+Highly accurate system time is critical for operating a stake pool and therefore considered mandatory. Please install and configure chrony.
+
 #### Pre-Requisites
 
 !!! info "Reminder !!"
