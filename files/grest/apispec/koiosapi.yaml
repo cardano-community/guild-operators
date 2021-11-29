@@ -303,7 +303,7 @@ paths:
       tags:
         - Address
       parameters:
-        - $ref: "#/components/parameters/_payment_address"
+        - $ref: "#/components/parameters/_address"
       responses:
         "200":
           $ref: "#/components/responses/OK"
@@ -312,7 +312,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
       summary: Address Information
-      description: Get payment address info - balance, associated stake address (if any) and UTXO set
+      description: Get address info - balance, associated stake address (if any) and UTXO set
   /rpc/address_txs:
     post:
       tags:
@@ -327,7 +327,22 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
       summary: Address Transactions
-      description: Get the transaction hash list of input payment address array, optionally filtering after specified block height (inclusive)
+      description: Get the transaction hash list of input address array, optionally filtering after specified block height (inclusive)
+  /rpc/credential_txs:
+    post:
+      tags:
+        - Address
+      requestBody:
+        $ref: "#/components/requestBodies/credential_txs"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Transactions from payment credentials
+      description: Get the transaction hash list of input payment credential array, optionally filtering after specified block height (inclusive)
   /account_list:
     get:
       tags:
@@ -457,7 +472,7 @@ paths:
       tags:
         - Address
       parameters:
-        - $ref: "#/components/parameters/_payment_address"
+        - $ref: "#/components/parameters/_address"
       responses:
         "200":
           $ref: "#/components/responses/OK"
@@ -667,9 +682,9 @@ components:
       in: query
       required: true
       allowEmptyValue: false
-    _payment_address:
+    _address:
       deprecated: false
-      name: _payment_address
+      name: _address
       description: Cardano payment address in bech32 format
       schema:
         type: string
@@ -743,10 +758,10 @@ components:
         application/json:
           schema:
             required:
-              - _payment_addresses
+              - _addresses
             type: object
             properties:
-              _payment_addresses:
+              _addresses:
                 format: text
                 type: array
                 items:
@@ -757,9 +772,32 @@ components:
                 type: integer
                 description: Only fetch information after specific block height
             example:
-              _payment_addresses:
+              _addresses:
                 - addr1qyp9kz50sh9c53hpmk3l4ewj9ur794t2hdqpngsjn3wkc5sztv9glpwt3frwrhdrltjaytc8ut2k4w6qrx3p98zad3fq07xe9g
                 - addr1qyfldpcvte8nkfpyv0jdc8e026cz5qedx7tajvupdu2724tlj8sypsq6p90hl40ya97xamkm9fwsppus2ru8zf6j8g9sm578cu
+              _after_block_height: 6238675
+    credential_txs:
+      content:
+        application/json:
+          schema:
+            required:
+              - _payment_credentials
+            type: object
+            properties:
+              _payment_credentials:
+                format: text
+                type: array
+                items:
+                  type: string
+                description: Array of Cardano payment credential(s) in hex format
+              _after_block_height:
+                format: integer
+                type: integer
+                description: Only fetch information after specific block height
+            example:
+              _payment_credentials:
+                - 025b0a8f85cb8a46e1dda3fae5d22f07e2d56abb4019a2129c5d6c52
+                - 13f6870c5e4f3b242463e4dc1f2f56b02a032d3797d933816f15e555
               _after_block_height: 6238675
     tx_ids:
       content:
@@ -1321,29 +1359,78 @@ components:
             type: array
             description: An array with details about inputs used in a transaction
             items:
+              type: object
               properties:
-                address:
+                payment_addr:
+                  type: object
+                  properties:
+                    bech32:
+                      type: string
+                      description: A Cardano payment/base address (bech32 encoded) for transaction's input UTxO
+                      example: addr1qxkfe8s6m8qt5436lec3f0320hrmpppwqgs2gah4360krvyssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqdc3cxp
+                    cred:
+                      type: string
+                      description: Payment credential
+                      example: ac9c9e1ad9c0ba563afe7114be2a7dc7b0842e0220a476f58e9f61b0
+                stake_addr:
                   type: string
-                  description: Cardano address (bech32 encoded) for transaction's input UTxO
-                  example: addr1qxkfe8s6m8qt5436lec3f0320hrmpppwqgs2gah4360krvyssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqdc3cxp
-                index:
+                  description: A Cardano staking address (reward account, bech32 encoded) for transaction's input UTxO
+                  example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
+                tx_hash:
+                  type: string
+                  description: Hash of Transaction for input UTxO
+                  example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
+                tx_index:
                   type: integer
                   description: Index of input UTxO on the mentioned address used for input
                   example: 0
                 value:
                   type: integer
-                  description: Balance included on the selected input transaction
+                  description: Balance on the selected input transaction
                   example: 158005617
+                asset_list:
+                  type: array
+                  description: An array of assets contained on input UTxO
+                  items:
+                    properties:
+                      policy_id:
+                        type: string
+                        description: Asset Policy ID (hex)
+                        example: 6cf6b5cf0fefbe9e69d640d8be84912bb2c9e132671954548790bcfb
+                      asset_name:
+                        type: string
+                        description: Asset Name (hex)
+                        example: 6d65736d6572697a65723038353436
+                      quantity:
+                        type: integer
+                        description: Asset balance on the selected input transaction
+                        example: 1
           outputs:
             type: array
             description: An array with details about outputs from the transaction
             items:
+              type: object
               properties:
-                address:
+                payment_addr:
+                  type: object
+                  properties:
+                    bech32:
+                      type: string
+                      description: A Cardano payment/base address (bech32 encoded) where funds were sent or change to be returned
+                      example: addr1q80rc8zj06yzdwwdyqc03rm4l3zv6n89rxuaak0t099n09yssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqad9mkw
+                    cred:
+                      type: string
+                      description: Payment credential
+                      example: de3c1c527e8826b9cd2030f88f75fc44cd4ce519b9ded9eb794b3794
+                stake_addr:
                   type: string
-                  description: Cardano address (bech32 encoded) where funds were sent
-                  example: addr1q80rc8zj06yzdwwdyqc03rm4l3zv6n89rxuaak0t099n09yssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqad9mkw
-                index:
+                  description: A Cardano staking address (reward account, bech32 encoded) for transaction's output UTxO
+                  example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
+                tx_hash:
+                  type: string
+                  description: Hash of this transaction
+                  example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
+                tx_index:
                   type: integer
                   description: Index of output UTxO
                   example: 0
@@ -1351,6 +1438,23 @@ components:
                   type: integer
                   description: Total sum on the output address
                   example: 157832856
+                asset_list:
+                  type: array
+                  description: An array of assets to be included in output UTxO
+                  items:
+                    properties:
+                      policy_id:
+                        type: string
+                        description: Asset Policy ID (hex)
+                        example: 6cf6b5cf0fefbe9e69d640d8be84912bb2c9e132671954548790bcfb
+                      asset_name:
+                        type: string
+                        description: Asset Name (hex)
+                        example: 6d65736d6572697a65723038353436
+                      quantity:
+                        type: integer
+                        description: Sum of assets for output UTxO
+                        example: 1
     tx_metadata:
       type: array
       items:

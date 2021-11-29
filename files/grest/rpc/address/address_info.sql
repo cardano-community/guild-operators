@@ -1,6 +1,6 @@
 DROP FUNCTION IF EXISTS grest.address_info (text);
 
-CREATE FUNCTION grest.address_info (_payment_address text DEFAULT NULL)
+CREATE FUNCTION grest.address_info (_address text DEFAULT NULL)
   RETURNS TABLE (
     balance numeric,
     stake_address text,
@@ -16,7 +16,7 @@ BEGIN
   FROM
     tx_out
   WHERE
-    address = _payment_address
+    address = _address
   LIMIT 1 INTO _stake_address_id;
   IF _stake_address_id IS NOT NULL THEN
     SELECT
@@ -38,9 +38,9 @@ BEGIN
       AND tx_in.tx_out_index = tx_out.index
   WHERE
     tx_in.id IS NULL
-    AND tx_out.address = _payment_address;
+    AND tx_out.address = _address;
 END;
 $$;
 
-COMMENT ON FUNCTION grest.address_info IS 'Get payment address info - balance, associated stake address (if any) and UTXO set';
+COMMENT ON FUNCTION grest.address_info IS 'Get address info - balance, associated stake address (if any) and UTXO set';
 
