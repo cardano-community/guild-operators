@@ -83,13 +83,11 @@ BEGIN
   ) block_data ON TRUE
   LEFT JOIN LATERAL(
     SELECT
-      SUM (es.amount)::lovelace AS as_sum
+      amount::lovelace AS as_sum
     FROM 
-      public.epoch_stake AS es
+      grest.pool_active_stake_cache AS easc
     WHERE 
-      es.epoch_no = _epoch_no
-      AND 
-      es.pool_id = pic.pool_hash_id
+      easc.pool_id = pic.pool_id_bech32
   ) active_stake ON TRUE
   LEFT JOIN LATERAL(
     SELECT
