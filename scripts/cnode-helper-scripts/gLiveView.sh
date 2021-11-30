@@ -56,7 +56,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.22.4
+GLV_VERSION=v1.24.0
 
 PARENT="$(dirname $0)"
 
@@ -69,14 +69,18 @@ usage() {
 		Guild LiveView - An alternative cardano-node LiveView
 
 		-l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
+    -u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Use alternate branch to check for updates - only for testing/development (Default: Master)
 		EOF
   exit 1
 }
 
-while getopts :lb: opt; do
+SKIP_UPDATE=N
+
+while getopts :lub: opt; do
   case ${opt} in
     l ) LEGACY_MODE="true" ;;
+    u ) SKIP_UPDATE=Y ;;
     b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
     \? ) usage ;;
   esac
@@ -115,15 +119,22 @@ fi
 
 . "${PARENT}"/env &>/dev/null # ignore any errors, re-sourced later
 
-if [[ "${UPDATE_CHECK}" == "Y" ]]; then
+if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
   echo "Checking for script updates..."
   # Check availability of checkUpdate function
   if [[ ! $(command -v checkUpdate) ]]; then
     echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
     myExit 1
   fi
+
   # check for env update
-  ! checkUpdate env && myExit 1
+  ENV_UPDATED=N
+  checkUpdate env N N N
+  case $? in
+    1) ENV_UPDATED=Y ;;
+    2) myExit 1 ;;
+  esac
+
   # source common env variables in case it was updated
   . "${PARENT}"/env
   case $? in
@@ -131,29 +142,12 @@ if [[ "${UPDATE_CHECK}" == "Y" ]]; then
     2) clear ;;
   esac
 
-  if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/gLiveView.sh.tmp ${URL}/gLiveView.sh 2>/dev/null && [[ -f "${PARENT}"/gLiveView.sh.tmp ]]; then
-    GIT_VERSION=$(grep -r ^GLV_VERSION= "${PARENT}"/gLiveView.sh.tmp | cut -d'=' -f2)
-    : "${GIT_VERSION:=v0.0.0}"
-    if ! versionCheck "${GIT_VERSION}" "${GLV_VERSION}"; then
-      echo -e "\nA new version of Guild LiveView is available"
-      echo "Installed Version : ${GLV_VERSION}"
-      echo "Available Version : ${GIT_VERSION}"
-      if getAnswer "\nDo you want to upgrade to the latest version of Guild LiveView?"; then
-        TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/gLiveView.sh.tmp)
-        STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/gLiveView.sh)
-        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL_CMD" > "${PARENT}"/gLiveView.sh.tmp
-        mv -f "${PARENT}"/gLiveView.sh "${PARENT}/gLiveView.sh_bkp$(printf '%(%s)T\n' -1)" && \
-        mv -f "${PARENT}"/gLiveView.sh.tmp "${PARENT}"/gLiveView.sh && \
-        chmod 750 "${PARENT}"/gLiveView.sh && \
-        myExit 0 "Update applied successfully!\n\nPlease start Guild LiveView again!" || \
-        myExit 1 "${FG_RED}Update failed!${NC}\n\nPlease use prereqs.sh or manually download to update gLiveView"
-      fi
-    fi
-  else
-    echo -e "\nFailed to download gLiveView.sh from GitHub, unable to perform version check!"
-    waitToProceed && clear
-  fi
-  rm -f "${PARENT}"/gLiveView.sh.tmp
+  # check for gLV update
+  checkUpdate gLiveView.sh "${ENV_UPDATED}"
+  case $? in
+    1) $0 "$@" "-u"; myExit 0 ;; # re-launch script with same args skipping update check
+    2) exit 1 ;;
+  esac
 else
   # source common env variables in offline mode
   . "${PARENT}"/env offline
@@ -238,7 +232,8 @@ if [[ ${LEGACY_MODE} = "true" ]]; then
   m3divider=$(printf "${NC}|" && printf "%0.s- " $(seq $((width/2))) && printf "|")
   bdivider=$(printf "${NC}|" && printf "%0.s=" $(seq $((width-1))) && printf "|")
   coredivider=$(printf "${NC}|= ${style_info}CORE${NC} " && printf "%0.s=" $(seq $((width-8))) && printf "|")
-  blockdivider=$(printf "${NC}|- ${style_info}BLOCKS${NC} " && printf "%0.s-" $(seq $((width-10))) && printf "|")
+  propdivider=$(printf "${NC}|- ${style_info}BLOCK PROPAGATION${NC} " && printf "%0.s-" $(seq $((width-21))) && printf "|")
+  blockdivider=$(printf "${NC}|- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "|")
   blank_line=$(printf "${NC}|%$((width-1))s|" "")
 else
   VL=$(printf "${NC}\\u2502")
@@ -257,7 +252,8 @@ else
   m3divider=$(printf "${NC}\\u2502" && printf "%0.s- " $(seq $((width/2))) && printf "\\u2502")
   bdivider=$(printf "${NC}\\u2514" && printf "%0.s\\u2500" $(seq $((width-1))) && printf "\\u2518")
   coredivider=$(printf "${NC}\\u251C\\u2500 ${style_info}CORE${NC} " && printf "%0.s\\u2500" $(seq $((width-8))) && printf "\\u2524")
-  blockdivider=$(printf "${NC}\\u2502- ${style_info}BLOCKS${NC} " && printf "%0.s-" $(seq $((width-10))) && printf "\\u2502")
+  propdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PROPAGATION${NC} " && printf "%0.s-" $(seq $((width-21))) && printf "\\u2502")
+  blockdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "\\u2502")
   blank_line=$(printf "${NC}\\u2502%$((width-1))s\\u2502" "")
 fi
 
@@ -483,11 +479,11 @@ checkPeers() {
       unset peerRTT
       for tool in ${LATENCY_TOOLS//|/ }; do
         case ${tool} in
-          cncli) 
+          cncli)
             latencyCNCLI ;;
-          ss)    
+          ss)
             latencySS ;;
-          tcptraceroute) 
+          tcptraceroute)
             latencyTCPTRACEROUTE ;;
           ping)
             latencyPING ;;
@@ -912,12 +908,12 @@ while true; do
     printf "${VL} ${style_values_2}Upper Main Section${NC}" && closeRow
     printf "${VL} Epoch number & progress is live from node while calculation of date" && closeRow
     printf "${VL} until epoch boundary is based on genesis parameters. Reference tip" && closeRow
-    printf "${VL} is also a calculation based on genesis values used to compare" && closeRow
-    printf "${VL} against the node tip to see how far of the tip(diff value) the node" && closeRow
-    printf "${VL} is. This interval is dynamic and based on different genesis" && closeRow
-    printf "${VL} parameters. In/Out peers show how many connections the node have" && closeRow
-    printf "${VL} established in and out. Live/Heap shows the memory utilization of" && closeRow
-    printf "${VL} live/heap data." && closeRow
+    printf "${VL} and difference show how far behind the last block is from real time." && closeRow
+    printf "${VL} Forks is how many times the blockchain branched off in a different" && closeRow
+    printf "${VL} direction since node start (and discarded blocks by doing so)." && closeRow
+    printf "${VL} In/Out peers shows how many peers the node pushes to/pulls from." && closeRow
+    printf "${VL} RSS/Live/Heap shows the memory utilization of RSS/live/heap data." && closeRow
+    printf "${VL} Block propagation metrics are discussed in the documentation." && closeRow
     printf "${blank_line}\n" && ((line++))
     printf "${VL} ${style_values_2}Core section${NC}" && closeRow
     printf "${VL} If the node is run as a block producer, a second section is" && closeRow
@@ -960,7 +956,7 @@ while true; do
     epoch_time_left=$(timeLeft "$(timeUntilNextEpoch)")
     printf "${VL} Epoch ${style_values_1}%s${NC} [${style_values_1}%s%%${NC}], ${style_values_1}%s${NC} %-12s" "${epochnum}" "${epoch_progress_1dec}" "${epoch_time_left}" "remaining"
     closeRow
-    
+
     epoch_items=$(( $(printf %.0f "${epoch_progress}") * granularity / 100 ))
     if [[ -z ${epoch_bar} || ${epoch_items} -ne ${epoch_items_last} ]]; then
       epoch_bar=""; epoch_items_last=${epoch_items}
@@ -974,7 +970,7 @@ while true; do
 
     tip_ref=$(getSlotTipRef)
     tip_diff=$(( tip_ref - slotnum ))
-    
+
     # row 1 - three col view
     printf "${VL} Block      : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${blocknum}"
     mvThreeSecond
@@ -983,18 +979,9 @@ while true; do
     printf -v mem_rss_gb "%.1f" "$(bc -l <<<"(${mem_rss}/1048576)")"
     printf "Mem (RSS)  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
     closeRow
-    
+
     # row 2
     printf "${VL} Slot       : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${slot_in_epoch}"
-    mvThreeSecond
-    printf "Tip (node) : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${slotnum}"
-    mvThreeThird
-    printf -v mem_live_gb "%.1f" "$(bc -l <<<"(${mem_live}/1073741824)")"
-    printf "Mem (Live) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"
-    closeRow
-    
-    # row 3
-    printf "${VL} Density    : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${density}"
     mvThreeSecond
     if [[ ${slotnum} -eq 0 ]]; then
       printf "Status     : ${style_info}%-${three_col_2_value_width}s${NC}" "starting"
@@ -1008,6 +995,15 @@ while true; do
       sync_progress=$(echo "(${slotnum}/${tip_ref})*100" | bc -l)
       printf "Status     : ${style_info}%-${three_col_2_value_width}s${NC}" "sync $(printf "%2.1f" "${sync_progress}")%"
     fi
+    mvThreeThird
+    printf -v mem_live_gb "%.1f" "$(bc -l <<<"(${mem_live}/1073741824)")"
+    printf "Mem (Live) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"
+    closeRow
+
+    # row 3
+    printf "${VL} Density    : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${density}"
+    mvThreeSecond
+    printf "Forks      : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${forks}"
     mvThreeThird
     printf -v mem_heap_gb "%.1f" "$(bc -l <<<"(${mem_heap}/1073741824)")"
     printf "Mem (Heap) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_heap_gb}))s" "${mem_heap_gb}" "G"
@@ -1030,12 +1026,33 @@ while true; do
     printf "GC Major   : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${gc_major}"
     closeRow
 
+    echo "${propdivider}" && ((line++))
+    # row 6
+    printf -v block_delay_rounded "%.2f" ${block_delay}
+    printf "${VL} Last Delay : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
+    mvThreeSecond
+    printf "Served     : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${blocks_served}"
+    mvThreeThird
+    printf "Late (>5s) : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${blocks_late}"
+    closeRow
+
+    # row 7
+    printf -v blocks_w1s_pct "%.2f" "$(bc -l <<<"(${blocks_w1s}*100)")"
+    printf "${VL} Within 1s  : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#blocks_w1s_pct}))s" "${blocks_w1s_pct}" "%"
+    mvThreeSecond
+    printf -v blocks_w3s_pct "%.2f" "$(bc -l <<<"(${blocks_w3s}*100)")"
+    printf "Within 3s  : ${style_values_1}%s${NC}%-$((three_col_2_value_width - ${#blocks_w3s_pct}))s" "${blocks_w3s_pct}" "%"
+    mvThreeThird
+    printf -v blocks_w5s_pct "%.2f" "$(bc -l <<<"(${blocks_w5s}*100)")"
+    printf "Within 5s  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#blocks_w5s_pct}))s" "${blocks_w5s_pct}" "%"
+    closeRow
+
     ## Core section ##
     if [[ ${nodemode} = "Core" ]]; then
       echo "${coredivider}" && ((line++))
 
       printf "${VL} KES current/remaining"
-      mvTwoSecond 
+      mvTwoSecond
       printf ": ${style_values_1}%s${NC} / " "${kesperiod}"
       if [[ ${remaining_kes_periods} -le 0 ]]; then
         printf "${style_status_4}%s${NC}" "${remaining_kes_periods}"
@@ -1045,11 +1062,11 @@ while true; do
         printf "${style_values_1}%s${NC}" "${remaining_kes_periods}"
       fi
       closeRow
-      
+
       printf "${VL} KES expiration date"
       mvTwoSecond
       printf ": ${style_values_1}%-${two_col_width}s${NC}" "${kes_expiration}" && closeRow
-      
+
       printf "${VL} Missed slot leader checks"
       mvTwoSecond
       printf -v missed_slots_pct "%.4f" "$(bc -l <<<"(${missed_slots}/(${about_to_lead}+${missed_slots}))*100")"
@@ -1082,29 +1099,29 @@ while true; do
         [[ ${ghosted_cnt} -eq 0 ]] && ghosted_fmt="${style_values_1}" || ghosted_fmt="${style_status_3}"
         [[ ${stolen_cnt} -eq 0 ]] && stolen_fmt="${style_values_1}" || stolen_fmt="${style_status_3}"
         [[ ${confirmed_cnt} -ne ${adopted_cnt} ]] && confirmed_fmt="${style_status_2}" || confirmed_fmt="${style_values_2}"
-        
+
         # row 1
-        printf "${VL} Leader     : ${style_values_1}%-${col_block_1_1_value_width}s${NC}" "${leader_cnt}"
+        printf "${VL} Leader     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${leader_cnt}"
         mvThreeSecond
-        printf "Adopted    : ${style_values_1}%-${col_block_1_2_value_width}s${NC}" "${adopted_cnt}"
+        printf "Adopted    : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${adopted_cnt}"
         mvThreeThird
-        printf "Missed     : ${missed_fmt}%-${col_block_1_3_value_width}s${NC}" "${missed_cnt}"
+        printf "Missed     : ${missed_fmt}%-${three_col_3_value_width}s${NC}" "${missed_cnt}"
         closeRow
-        
+
         # row 2
-        printf "${VL} Ideal      : ${style_values_1}%-${col_block_1_1_value_width}s${NC}" "${epoch_stats[0]}"
+        printf "${VL} Ideal      : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[0]}"
         mvThreeSecond
-        printf "Confirmed  : ${confirmed_fmt}%-${col_block_1_2_value_width}s${NC}" "${confirmed_cnt}"
+        printf "Confirmed  : ${confirmed_fmt}%-${three_col_2_value_width}s${NC}" "${confirmed_cnt}"
         mvThreeThird
-        printf "Ghosted    : ${ghosted_fmt}%-${col_block_1_3_value_width}s${NC}" "${ghosted_cnt}"
+        printf "Ghosted    : ${ghosted_fmt}%-${three_col_3_value_width}s${NC}" "${ghosted_cnt}"
         closeRow
-        
+
         # row 3
-        printf "${VL} Luck       : ${style_values_1}%-${col_block_1_1_value_width}s${NC}" "${epoch_stats[1]}"
+        printf "${VL} Luck       : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[1]}"
         mvThreeSecond
-        printf "Invalid    : ${invalid_fmt}%-${col_block_1_2_value_width}s${NC}" "${invalid_cnt}"
+        printf "Invalid    : ${invalid_fmt}%-${three_col_2_value_width}s${NC}" "${invalid_cnt}"
         mvThreeThird
-        printf "Stolen     : ${stolen_fmt}%-${col_block_1_3_value_width}s${NC}" "${stolen_cnt}"
+        printf "Stolen     : ${stolen_fmt}%-${three_col_3_value_width}s${NC}" "${stolen_cnt}"
         closeRow
 
         if [[ -n ${leader_next} ]]; then
@@ -1128,12 +1145,12 @@ while true; do
       else
         [[ ${isleader} -ne ${adopted} ]] && adopted_fmt="${style_status_2}" || adopted_fmt="${style_values_2}"
         [[ ${didntadopt} -eq 0 ]] && invalid_fmt="${style_values_1}" || invalid_fmt="${style_status_3}"
-        
-        printf "${VL} Leader : ${style_values_1}%-${col_block_2_1_value_width}s${NC}" "${isleader}"
+
+        printf "${VL} Leader : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${isleader}"
         mvThreeSecond
-        printf "Adopted : ${adopted_fmt}%-${col_block_2_2_value_width}s${NC}" "${adopted}"
+        printf "Adopted : ${adopted_fmt}%-${three_col_2_value_width}s${NC}" "${adopted}"
         mvThreeThird
-        printf "Invalid : ${invalid_fmt}%-${col_block_2_3_value_width}s${NC}" "${didntadopt}"
+        printf "Invalid : ${invalid_fmt}%-${three_col_3_value_width}s${NC}" "${didntadopt}"
         closeRow
       fi
     fi
@@ -1145,7 +1162,7 @@ while true; do
   printf " TG Announcement/Support channel: ${style_info}t.me/guild_operators_official${NC}\n\n" && line=$((line+2))
 
   [[ -z ${oldLine} ]] && oldLine=$line
-  
+
   if [[ ${show_peers} = "true" && ${show_peers_info} = "true" ]]; then
     printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[b] Back to Peer Analysis${NC}"
     clrLine

@@ -10,7 +10,7 @@
 #CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of cardano-cli executable
 #CNCLI="${HOME}/.cargo/bin/cncli"                       # Override automatic detection of executable (https://github.com/AndrewWestberg/cncli)
 #CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
-CNODE_PORT=6000                                         # Set node port
+#CNODE_PORT=6000                                        # Set node port
 #CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path
 #SOCKET="${CNODE_HOME}/sockets/node0.socket"            # Override automatic detection of path to socket
 #TOPOLOGY="${CNODE_HOME}/files/topology.json"           # Override default topology.json path
@@ -88,6 +88,8 @@ OFFLINE_MODE='N'
 
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master
 
+URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
+DB_SCRIPTS_URL="${URL_RAW}/scripts/grest-helper-scripts/db-scripts"
 export LC_ALL=C.UTF-8
 
 # special mapping of coreutils gdate to date for MacOS
@@ -97,7 +99,6 @@ fi
 
 [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
 
-#
 telegramSend() {
   if [[ -z "${TG_BOT_TOKEN}" ]] || [[ -z "${TG_CHAT_ID}" ]]; then
     echo "Warn: to use the telegramSend function you must first set the bot and chat id in the env file"
@@ -140,6 +141,11 @@ fi
 
 [[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
 
+CNODE_NAME="$(basename ${CNODE_HOME})"
+CNODE_VNAME=$(tr '[:upper:]' '[:lower:]' <<< ${CNODE_NAME//_HOME/})
+CNODE_VNAME_UPPERCASE=$(tr '[:lower:]' '[:upper:]' <<< ${CNODE_VNAME})
+
+[[ -z "${CNODE_PORT}" ]] && CNODE_PORT=6000
 if [[ -z "${SOCKET}" ]]; then
   if [[ "$(ps -ef | grep "$(basename ${CNODEBIN}).*.port ${CNODE_PORT}" | grep -v grep)" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
     export CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
@@ -338,6 +344,29 @@ STANDOUT='\e[7m'
 BOLD='\e[1m'
 NC='\e[0m'
 
+# Description : Exit with error message
+#             : $1 = Error message we'd like to display before exiting (function will pre-fix 'ERROR: ' to the argument)
+err_exit() {
+  printf "${FG_RED}ERROR${NC}: ${1}\n" >&2
+  echo -e "Exiting...\n" >&2
+  pushd -0 >/dev/null && dirs -c
+  exit 1
+}
+
+# Description : Check if provided file exists
+#             : $1 = File (with path) to check
+is_file() {
+  local file=$1
+  [[ -f $file ]]
+}
+
+# Description : Check if provided directory exists
+#             : $1 = Directory (with path) to check
+is_dir() {
+  local dir=$1
+  [[ -d $dir ]]
+}
+
 # Description : Query user for yes or no answer
 getAnswer() {
   getAnswerAny answer "$* (yes/no)"
@@ -361,9 +390,12 @@ getAnswerAny() {
   printf "${NC}"
 }
 
-# Description : Query user for any question
+# Description : Check and apply delta updates using different combinations to retain custom config
 #             : $1 = name of script to update
 #             : $2 = [Y|N] ignore question and auto update
+#             : $3 = [Y|N] do a complete file comparision
+#             : $4 = [Y|N] wait to acknowledge update
+#             : $5 = optional alternative scripts folder instead of default 'cnode-helper-scripts'
 # return code : 0 = no update
 #             : 1 = update applied
 #             : 2 = update failed
@@ -373,42 +405,86 @@ checkUpdate() {
   if [[ ${OFFLINE_MODE} = N && ${BRANCH} != master && ${BRANCH} != alpha ]]; then
     if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
       echo -e "WARN!! The folder was configured against ${BRANCH} branch - which does not exist anymore, falling back to alpha branch"
+      # alpha because if someone was testing something against a custom branch, it would likely be merged to alpha first. Production systems should not be using custom branch anyways
       BRANCH=alpha
       echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
     fi
   fi
-
-  URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
-  URL="${URL_RAW}/scripts/cnode-helper-scripts"
+  [[ -n $5 ]] && URL="${URL_RAW}/scripts/$5" || URL="${URL_RAW}/scripts/cnode-helper-scripts"
   URL_DOCS="${URL_RAW}/docs/Scripts"
-
   if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}/${1}".tmp "${URL}/${1}" 2>/dev/null; then
-    # get vname from env file
-    if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
-      vname=$(tr '[:upper:]' '[:lower:]' <<< ${BASH_REMATCH[1]})
-      # replace default CNODE with custom name if needed
-      [[ ${vname} != cnode ]] && sed -e "s@/opt/cardano/[c]node@/opt/cardano/${vname}@g" -e "s@[C]NODE_HOME@${BASH_REMATCH[1]}_HOME@g" -i "${PARENT}/${1}".tmp
-    else
-      printf "${FG_RED}ERROR${NC}: '${1}' update failed! Please use prereqs.sh to force an update or manually download the file from GitHub"
-      return 2
-    fi
-    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}")
-    TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}".tmp)
-    if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-      if [[ $2 = Y ]] || { [[ -t 1 ]] && getAnswer "\nThe static content from ${FG_YELLOW}${1}${NC} does not match with guild-operators repository, do you want to download the updated file?"; }; then
+
+    # replace default CNODE with custom name if needed
+    [[ ${CNODE_VNAME} != cnode ]] && sed -e "s@/opt/cardano/[c]node@/opt/cardano/${CNODE_VNAME}@g" -e "s@[C]NODE_HOME@${CNODE_VNAME_UPPERCASE}_HOME@g" -i "${PARENT}/${1}".tmp
+
+    # make sure script exist, else just rename
+    [[ ! -f "${PARENT}/${1}" ]] && mv -f "${PARENT}/${1}".tmp "${PARENT}/${1}" && chmod +x "${PARENT}/${1}" && return 0
+
+    OLD_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/${1}")
+    OLD_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}")
+    GIT_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/${1}".tmp)
+    GIT_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}".tmp)
+    NEW_STATIC=$(checkUserVariables "${OLD_STATIC}" "${GIT_STATIC}")
+    if [[ ($3 = Y && "$(sha256sum "${PARENT}/${1}" | cut -d' ' -f1)" != "$(sha256sum "${PARENT}/${1}.tmp" | cut -d' ' -f1)") || "$(echo ${OLD_STATIC} | sha256sum)" != "$(echo ${NEW_STATIC} | sha256sum)" || "$(echo ${OLD_TEMPL} | sha256sum)" != "$(echo ${GIT_TEMPL} | sha256sum)" ]]; then
+      update_msg="\nScript update(s) detected, do you want to download the latest version?"
+      if [[ $1 = cntools.library || $1 = gLiveView.sh ]]; then
+        if [[ $1 = cntools.library ]]; then
+          CUR_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${PARENT}/${1}" |sed -e "s#.*=##")
+          CUR_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${PARENT}/${1}" |sed -e "s#.*=##")
+          CUR_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${PARENT}/${1}" |sed -e "s#.*=##")
+          CUR_VERSION="${CUR_MAJOR_VERSION}.${CUR_MINOR_VERSION}.${CUR_PATCH_VERSION}"
+          GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${PARENT}/${1}".tmp |sed -e "s#.*=##")
+          GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${PARENT}/${1}".tmp |sed -e "s#.*=##")
+          GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${PARENT}/${1}".tmp |sed -e "s#.*=##")
+          GIT_VERSION="${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}"
+        else
+          CUR_VERSION=$(grep -r ^GLV_VERSION= "${PARENT}/${1}" | cut -d'=' -f2)
+          GIT_VERSION=$(grep -r ^GLV_VERSION= "${PARENT}/${1}".tmp | cut -d'=' -f2)
+        fi
+        if ! versionCheck ${GIT_VERSION} ${CUR_VERSION}; then
+          [[ $1 = cntools.library ]] && script_name="CNTools" || script_name="Guild LiveView"
+          update_msg="\nA new version of ${script_name} is available."
+          update_msg="${update_msg}\nInstalled Version : ${FG_LGRAY}${CUR_VERSION}${NC}"
+          update_msg="${update_msg}\nAvailable Version : ${FG_GREEN}${GIT_VERSION}${NC}"
+          echo -e "${update_msg}"
+          update_msg="\nDo you want to download the latest version?"
+        fi
+      fi
+      if [[ $2 = Y ]] || { [[ -t 1 ]] && getAnswer "${update_msg}"; }; then
+        if [[ $3 != Y ]] && grep -q "# Do NOT modify" "${PARENT}/${1}"; then
+          printf '%s\n%s\n' "${NEW_STATIC}" "${GIT_TEMPL}" > "${PARENT}/${1}".tmp
+        fi
         cp "${PARENT}/${1}" "${PARENT}/${1}_bkp$(date +%s)"
-        STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/${1}")
-        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}/${1}".tmp
         mv "${PARENT}/${1}".tmp "${PARENT}/${1}"
-        [[ ! "${1}" == "env" ]] && chmod +x "${1}"
+        [[ ! "${1}" == "env" ]] && chmod +x "${PARENT}/${1}"
         echo -e "\n${FG_YELLOW}${1}${NC} update successfully applied!"
-        [[ -t 1 ]] && waitToProceed && clear
+        [[ -t 1 && $4 != N ]] && waitToProceed && clear
         return 1
       fi
     fi
   fi
   rm -f "${PARENT}/${1}".tmp
   return 0
+}
+
+# Description : Check that old script User Variables section contain all current settings from GitHub.
+#             : Prints final result to stdout
+#             : $1 = Old/Current script User Variables
+#             : $2 = User Variables section from GitHub
+checkUserVariables() {
+  tmp_head=$(head -n -2 <<< "$1")
+  tmp_tail=$(tail -n -2 <<< "$1")
+  while IFS= read -r line; do
+    if [[ ${line} =~ ^\#*[[:space:]]*([[:alnum:]_]+\=) ]]; then
+      unset hasVariable
+      regex="^\#*[[:space:]]*${BASH_REMATCH[1]}"
+      while IFS= read -r line2; do
+        [[ ${line2} =~ ${regex} ]] && hasVariable=true && break
+      done <<< "${tmp_head}"
+      [[ -z ${hasVariable} ]] && tmp_head=$(printf '%s\n%s\n' "${tmp_head}" "${line}")
+    fi
+  done <<< "$2"
+  printf '%s\n%s\n' "${tmp_head}" "${tmp_tail}"
 }
 
 # Description : Check if command is available
@@ -655,7 +731,14 @@ getNodeMetrics() {
     .cardano.node.metrics.RTS.gcLiveBytes.int.val //0,
     .cardano.node.metrics.RTS.gcHeapBytes.int.val //0,
     .cardano.node.metrics.RTS.gcMinorNum.int.val //0,
-    .cardano.node.metrics.RTS.gcMajorNum.int.val //0
+    .cardano.node.metrics.RTS.gcMajorNum.int.val //0,
+    .cardano.node.metrics.forks.int.val //0,
+    .cardano.node.metrics.blockfetchclient.blockdelay.s.val //0,
+    .cardano.node.metrics.served.block.count.int.val //0,
+    .cardano.node.metrics.blockfetchclient.lateblocks.val //0,
+    .cardano.node.metrics.blockfetchclient.blockdelay.cdfOne.val //0,
+    .cardano.node.metrics.blockfetchclient.blockdelay.cdfThree.val //0,
+    .cardano.node.metrics.blockfetchclient.blockdelay.cdfFive.val //0
     ] | @tsv' <<< "${node_metrics}")
     read -ra node_metrics_arr <<< ${node_metrics_tsv}
     blocknum=${node_metrics_arr[0]}; epochnum=${node_metrics_arr[1]}; slot_in_epoch=${node_metrics_arr[2]}; slotnum=${node_metrics_arr[3]}
@@ -667,6 +750,11 @@ getNodeMetrics() {
     missed_slots=${node_metrics_arr[15]}
     mem_live=${node_metrics_arr[16]}; mem_heap=${node_metrics_arr[17]}
     gc_minor=${node_metrics_arr[18]}; gc_major=${node_metrics_arr[19]}
+    forks=${node_metrics_arr[20]}
+    block_delay=${node_metrics_arr[21]}; blocks_served=${node_metrics_arr[22]}; blocks_late=${node_metrics_arr[23]};
+    printf -v blocks_w1s "%.6f" "${node_metrics_arr[24]}"
+    printf -v blocks_w3s "%.6f" "${node_metrics_arr[25]}"
+    printf -v blocks_w5s "%.6f" "${node_metrics_arr[26]}"
   else
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
     [[ ${node_metrics} =~ cardano_node_metrics_nodeStartTime_int[[:space:]]([^[:space:]]*) ]] && { nodeStartTime=${BASH_REMATCH[1]} && uptimes=$(( $(date +%s) - BASH_REMATCH[1] )); } || uptimes=0
@@ -689,6 +777,13 @@ getNodeMetrics() {
     [[ ${node_metrics} =~ cardano_node_metrics_RTS_gcHeapBytes_int[[:space:]]([^[:space:]]*) ]] && mem_heap=${BASH_REMATCH[1]} || mem_heap=0
     [[ ${node_metrics} =~ cardano_node_metrics_RTS_gcMinorNum_int[[:space:]]([^[:space:]]*) ]] && gc_minor=${BASH_REMATCH[1]} || gc_minor=0
     [[ ${node_metrics} =~ cardano_node_metrics_RTS_gcMajorNum_int[[:space:]]([^[:space:]]*) ]] && gc_major=${BASH_REMATCH[1]} || gc_major=0
+    [[ ${node_metrics} =~ cardano_node_metrics_forks_int[[:space:]]([^[:space:]]*) ]] && forks=${BASH_REMATCH[1]} || forks=0
+    [[ ${node_metrics} =~ cardano_node_metrics_blockfetchclient_blockdelay_s[[:space:]]([^[:space:]]*) ]] && block_delay=${BASH_REMATCH[1]} || block_delay=0
+    [[ ${node_metrics} =~ cardano_node_metrics_served_block_count_int[[:space:]]([^[:space:]]*) ]] && blocks_served=${BASH_REMATCH[1]} || block_served=0
+    [[ ${node_metrics} =~ cardano_node_metrics_blockfetchclient_lateblocks[[:space:]]([^[:space:]]*) ]] && blocks_late=${BASH_REMATCH[1]} || blocks_late=0
+    [[ ${node_metrics} =~ cardano_node_metrics_blockfetchclient_blockdelay_cdfOne[[:space:]]([^[:space:]]*) ]] && printf -v blocks_w1s "%.6f" ${BASH_REMATCH[1]} || blocks_w1s=0
+    [[ ${node_metrics} =~ cardano_node_metrics_blockfetchclient_blockdelay_cdfThree[[:space:]]([^[:space:]]*) ]] && printf -v blocks_w3s "%.6f" ${BASH_REMATCH[1]} || blocks_w3s=0
+    [[ ${node_metrics} =~ cardano_node_metrics_blockfetchclient_blockdelay_cdfFive[[:space:]]([^[:space:]]*) ]] && printf -v blocks_w5s "%.6f" ${BASH_REMATCH[1]} || blocks_w5s=0
   fi
 }
 
@@ -817,8 +912,8 @@ getEraIdentifier() {
 }
 
 node_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
-if ! versionCheck "1.30.1" "${node_version}"; then
-  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.30.1 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
+if ! versionCheck "1.31.0" "${node_version}"; then
+  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.31.0 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
   return 1
 fi
 

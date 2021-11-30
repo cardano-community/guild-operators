@@ -5,7 +5,7 @@
     - Overview: build.md
     - Node & CLI: Build/node-cli.md
     - DBSync: Build/dbsync.md
-    - PostgREST: Build/pgrest.md
+    - gREST: Build/grest.md
     - Offchain Metadata Tools: Build/offchain-metadata-tools.md
   - Scripts:
     - Common env: Scripts/env.md
