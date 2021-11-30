@@ -88,6 +88,8 @@ BEGIN
       grest.pool_active_stake_cache AS easc
     WHERE 
       easc.pool_id = pic.pool_id_bech32
+      AND
+      easc.epoch_no = _epoch_no
   ) active_stake ON TRUE
   LEFT JOIN LATERAL(
     SELECT
