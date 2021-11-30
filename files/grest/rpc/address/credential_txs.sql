@@ -29,7 +29,7 @@ BEGIN
   IF _after_block_height IS NOT NULL THEN
     RETURN QUERY
     SELECT
-      ENCODE(tx.hash, 'hex') as tx_hash
+      DISTINCT ON (tx.hash) ENCODE(tx.hash, 'hex') as tx_hash
     FROM
       public.tx_out
       INNER JOIN public.tx ON tx_out.tx_id = tx.id
@@ -40,7 +40,7 @@ BEGIN
   ELSE
     RETURN QUERY
     SELECT
-      ENCODE(tx.hash, 'hex') as tx_hash
+      DISTINCT ON (tx.hash) ENCODE(tx.hash, 'hex') as tx_hash
     FROM
       public.tx_out
       INNER JOIN public.tx ON tx_out.tx_id = tx.id
