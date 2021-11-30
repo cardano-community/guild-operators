@@ -14,9 +14,8 @@ The tool consist of three files.
 
 - `cntools.sh` - the main script to launch cntools.
 - `cntools.library` - internal script with helper functions.
-- `cntools.config` - configuration file to modify certain behaviours, paths and name schema used.
 
-In addition to the above files, there is also a dependency on the common [`env`](../Scripts/env.md) file. CNTools connects to your node through the configuration in the `env` file located in the same directory as the script. Customize `env` and `cntools.config` files to your needs.
+In addition to the above files, there is also a dependency on the common [`env`](../Scripts/env.md) file. CNTools connects to your node through the configuration in the `env` file located in the same directory as the script. Customize `env` and `cntools.sh` files to your needs.
 
 Additionally, CNTools can integrate and enable optional functionalities based on external components:
 
