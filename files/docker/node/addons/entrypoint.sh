@@ -41,25 +41,30 @@ export UPDATE_CHECK='N'
 if [[ "$NETWORK" == "mainnet" ]]; then
   $CNODE_HOME/scripts/prereqs.sh -n mainnet -t cnode -s -f > /dev/null 2>&1 \
   && customise \
-  && exec $CNODE_HOME/scripts/cnode.sh
+  && cd $CNODE_HOME/scripts \
+  && exec ./cnode.sh
 elif [[ "$NETWORK" == "testnet" ]]; then
   $CNODE_HOME/scripts/prereqs.sh -n testnet -t cnode -s -f > /dev/null 2>&1 \
   && customise \
-  && exec $CNODE_HOME/scripts/cnode.sh
+  && cd $CNODE_HOME/scripts \
+  && exec ./cnode.sh
 elif [[ "$NETWORK" == "staging" ]]; then
   $CNODE_HOME/scripts/prereqs.sh -n staging -t cnode -s -f > /dev/null 2>&1 \
   && customise \
-  && exec $CNODE_HOME/scripts/cnode.sh
+  && cd $CNODE_HOME/scripts \
+  && exec ./cnode.sh
 elif [[ "$NETWORK" == "guild-mainnet" ]]; then
   $CNODE_HOME/scripts/prereqs.sh -n mainnet -t cnode -s -f > /dev/null 2>&1 \
   && bash /home/guild/.scripts/guild-topology.sh > /dev/null 2>&1 \
   && export TOPOLOGY="${CNODE_HOME}/files/guildnet-topology.json" \
   && customise \
-  && exec $CNODE_HOME/scripts/cnode.sh
+  && cd $CNODE_HOME/scripts \
+  && exec ./cnode.sh
 elif [[ "$NETWORK" == "guild" ]]; then
   $CNODE_HOME/scripts/prereqs.sh -n guild -t cnode -s -f > /dev/null 2>&1 \
   && customise \
-  && exec $CNODE_HOME/scripts/cnode.sh
+  && cd $CNODE_HOME/scripts \
+  && exec ./cnode.sh
 else
   echo "Please set a NETWORK environment variable to one of: mainnet / testnet / staging / guild-mainnet / guild"
   echo "mount a '$CNODE_HOME/priv/files' volume containing: mainnet-config.json, mainnet-shelley-genesis.json, mainnet-byron-genesis.json, and mainnet-topology.json "
