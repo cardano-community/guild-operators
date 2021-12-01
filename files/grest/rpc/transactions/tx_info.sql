@@ -26,12 +26,10 @@ CREATE FUNCTION grest.tx_info (_tx_hashes text[])
   LANGUAGE PLPGSQL
   AS $$
 DECLARE
-  _tx_hashes_bytea  bytea[];
-  _tx_id_list_out   bigint[];
-  _tx_id_list_in    bigint[];
-  _tx_id_list       bigint[];
-  _tx_id_in_list    bigint[];
+  _tx_hashes_bytea    bytea[];
+  _tx_id_list         bigint[];
 BEGIN
+
   -- convert input _tx_hashes array into bytea array
   SELECT INTO _tx_hashes_bytea ARRAY_AGG(hashes_bytea)
   FROM (
@@ -39,54 +37,21 @@ BEGIN
       DECODE(hashes_hex, 'hex') AS hashes_bytea
     FROM
       UNNEST(_tx_hashes) AS hashes_hex
-  ) AS tmp_tx_hashes_list;
+  ) AS tmp;
 
-  -- all tx_out t_ids
-  SELECT INTO _tx_id_list_out ARRAY_AGG(tx_id)
+  -- all tx ids
+  SELECT INTO _tx_id_list ARRAY_AGG(id)
   FROM (
     SELECT
-      DISTINCT ON (tx_id) tx_id
+      id
     FROM 
-      tx_out
-      INNER JOIN tx ON tx.id = tx_id
+      tx
     WHERE tx.hash = ANY (_tx_hashes_bytea)
-  ) AS tmp_tx_id_list;
-
-  -- all tx_in t_ids
-  SELECT INTO _tx_id_list_in ARRAY_AGG(tx_id)
-  FROM (
-    SELECT
-      DISTINCT ON (tx_in_id) tx_in_id AS tx_id
-    FROM 
-      tx_out
-      LEFT JOIN tx_in ON tx_out.tx_id = tx_in.tx_out_id
-        AND tx_out.index = tx_in.tx_out_index
-      LEFT JOIN tx ON tx.id = tx_out.tx_id
-    WHERE 
-      tx_in.tx_in_id IS NOT NULL
-      AND tx.hash = ANY (_tx_hashes_bytea)
-  ) AS tmp_tx_id_list;
-
-  -- combined tx_ids
-  SELECT INTO _tx_id_list ARRAY_AGG(tx_id)
-  FROM (
-    SELECT
-      DISTINCT UNNEST(_tx_id_list_out || _tx_id_list_in) AS tx_id
-  ) AS tmp_tx_id_list;
-
-  -- all tx_out ids off all the inputs of all combined tx
-  SELECT INTO _tx_id_in_list ARRAY_AGG(tx_id)
-  FROM (
-    SELECT
-      DISTINCT ON (tx_out_id) tx_out_id AS tx_id
-    FROM 
-      tx_in
-    WHERE 
-      tx_in_id = ANY (_tx_id_list)
-  ) AS tmp_tx_id_list;
+  ) AS tmp;
 
   RETURN QUERY (
     WITH
+
       -- limit by last known block, also join with block only once
       _all_tx AS (
         SELECT
@@ -121,17 +86,17 @@ BEGIN
             JSON_BUILD_OBJECT(
               'payment_addr', JSON_BUILD_OBJECT(
                 'bech32', tx_out.address,
-                'cred', REPLACE(tx_out.payment_cred::text, '\x', '')
+                'cred', ENCODE(tx_out.payment_cred, 'hex')
               ),
               'stake_addr', SA.view,
-              'tx_hash', REPLACE(_all_tx.tx_hash::text, '\x', ''),
+              'tx_hash', ENCODE(_all_tx.tx_hash, 'hex'),
               'tx_index', tx_out.index,
               'value', tx_out.value,
               'asset_list', COALESCE((
                 SELECT
                   JSON_AGG(JSON_BUILD_OBJECT(
-                    'policy_id', REPLACE(MTX.policy::text, '\x', ''),
-                    'asset_name', REPLACE(MTX.name::text, '\x', ''),
+                    'policy_id', ENCODE(MTX.policy, 'hex'),
+                    'asset_name', ENCODE(MTX.name, 'hex'),
                     'quantity', MTX.quantity
                   ))
                 FROM 
@@ -162,17 +127,17 @@ BEGIN
             JSON_BUILD_OBJECT(
               'payment_addr', JSON_BUILD_OBJECT(
                 'bech32', tx_out.address,
-                'cred', REPLACE(tx_out.payment_cred::text, '\x', '')
+                'cred', ENCODE(tx_out.payment_cred, 'hex')
               ),
               'stake_addr', SA.view,
-              'tx_hash', replace(tx.hash::text, '\x', ''),
+              'tx_hash', ENCODE(tx.hash, 'hex'),
               'tx_index', tx_out.index,
               'value', tx_out.value,
               'asset_list', COALESCE((
                 SELECT 
                   JSON_AGG(JSON_BUILD_OBJECT(
-                    'policy_id', REPLACE(MTX.policy::text, '\x', ''),
-                    'asset_name', REPLACE(MTX.name::text, '\x', ''),
+                    'policy_id', ENCODE(MTX.policy, 'hex'),
+                    'asset_name', ENCODE(MTX.name, 'hex'),
                     'quantity', MTX.quantity
                   ))
                 FROM 
@@ -182,17 +147,16 @@ BEGIN
               ), JSON_BUILD_ARRAY())
             ) AS t_inputs
           FROM
-            tx_out
+            tx_in
+            INNER JOIN tx_out ON tx_out.tx_id = tx_in.tx_out_id
+              AND tx_out.index = tx_in.tx_out_index
             INNER JOIN tx on tx_out.tx_id = tx.id
-            INNER JOIN tx_in on tx_in.tx_out_id = tx_out.tx_id
-              AND tx_in.tx_out_index = tx_out.index
             LEFT JOIN stake_address SA on tx_out.stake_address_id = SA.id
           WHERE 
-            tx_out.tx_id = ANY (_tx_id_in_list)
+            tx_in.tx_in_id = ANY (_tx_id_list)
         ) AS tmp
 
         GROUP BY tx_id
-        ORDER BY tx_id
       ),
 
       _all_withdrawals AS (
@@ -214,7 +178,6 @@ BEGIN
         ) AS tmp
 
         GROUP BY tx_id
-        ORDER BY tx_id
       ),
 
       _all_mints AS (
@@ -225,8 +188,8 @@ BEGIN
           SELECT
             MTM.tx_id,
             JSON_BUILD_OBJECT(
-              'policy_id', REPLACE(MTM.policy::text, '\x', ''),
-              'asset_name', REPLACE(MTM.name::text, '\x', ''),
+              'policy_id', ENCODE(MTM.policy, 'hex'),
+              'asset_name', ENCODE(MTM.name, 'hex'),
               'quantity', MTM.quantity
             ) AS data
           FROM 
@@ -236,7 +199,6 @@ BEGIN
         ) AS tmp
 
         GROUP BY tx_id
-        ORDER BY tx_id
       ),
 
       _all_metadata AS (
@@ -257,7 +219,6 @@ BEGIN
         ) AS tmp
 
         GROUP BY tx_id
-        ORDER BY tx_id
       ),
 
       _all_certs AS (
@@ -307,7 +268,7 @@ BEGIN
               'info', JSON_BUILD_OBJECT(
                 'stake_address', SA.view, 
                 'pool_id_bech32', PH.view,
-                'pool_id_hex', REPLACE(PH.hash_raw::text, '\x', '')
+                'pool_id_hex', ENCODE(PH.hash_raw, 'hex')
               )
             ) AS data
           FROM 
@@ -424,7 +385,7 @@ BEGIN
               'type', 'pool_retire',
               'info', JSON_BUILD_OBJECT(
                 'pool_id_bech32', PH.view,
-                'pool_id_hex', REPLACE(PH.hash_raw::text, '\x', ''),
+                'pool_id_hex', ENCODE(PH.hash_raw, 'hex'),
                 'retiring epoch', PR.retiring_epoch
               )
             ) AS data
@@ -468,8 +429,8 @@ BEGIN
       )
 
     SELECT
-      REPLACE(ATX.tx_hash::text, '\x', ''),
-      REPLACE(ATX.block_hash::text, '\x', ''),
+      ENCODE(ATX.tx_hash, 'hex'),
+      ENCODE(ATX.block_hash, 'hex'),
       ATX.block_height,
       ATX.epoch,
       ATX.epoch_slot,
