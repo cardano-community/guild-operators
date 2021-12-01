@@ -90,7 +90,7 @@ services:
     environment:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
-      - PGRST_DB_URI=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/cexplorer
+      - PGRST_DB_URI=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/${POSTGRES_DB}
       - PGRST_DB_SCHEMA=grest
       - PGRST_DB_ANON_ROLE=web_anon
       - PGRST_DB-EXTRA-SEARCH-PATH=public

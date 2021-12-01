@@ -27,7 +27,6 @@ set_environment_variables() {
   API_DOCS_URL="https://api.koios.rest"
   CRON_SCRIPTS_DIR="${CNODE_HOME}/scripts/cron-scripts"
   CRON_DIR="/etc/cron.d"
-  PGDATABASE="cexplorer"
   [[ -z "${PGPASSFILE}" ]] && export PGPASSFILE="${CNODE_HOME}"/priv/.pgpass
 }
 
@@ -101,7 +100,7 @@ setup_db_basics() {
     err_exit "Failed to get basic db setup SQL from ${basics_sql_url}"
   fi
   echo -e "Adding grest schema if missing and granting usage for web_anon..."
-  ! output=$(psql -U postgres -d "${PGDATABASE}" -v "ON_ERROR_STOP=1" -q <<<"${basics_sql}" 2>&1) && err_exit "${output}"
+  ! output=$(psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -v "ON_ERROR_STOP=1" -q <<<"${basics_sql}" 2>&1) && err_exit "${output}"
   return 0
 }
 
@@ -156,7 +155,7 @@ check_db_status() {
     err_exit "We could not find 'psql' binary in \$PATH , please ensure you've followed the instructions below:\n ${DOCS_URL}/Appendix/postgres"
   fi
   
-  if [[ "$(psql -qtAX -U postgres -d ${PGDATABASE} -c "SELECT protocol_major FROM public.param_proposal WHERE protocol_major >= 4 ORDER BY protocol_major DESC LIMIT 1" 2>/dev/null)" == "" ]]; then
+  if [[ "$(psql -qtAX -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "SELECT protocol_major FROM public.param_proposal WHERE protocol_major >= 4 ORDER BY protocol_major DESC LIMIT 1" 2>/dev/null)" == "" ]]; then
     return 1
   fi
 
@@ -170,7 +169,7 @@ deployRPC() {
   [[ -z ${dl_url} ]] && return
   ! rpc_sql=$(curl -s -f -m "${CURL_TIMEOUT}" "${dl_url}" 2>/dev/null) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url%.json}.sql" && return 1
   echo -e "      Deploying Function :   \e[32m${file_name%.sql}\e[0m"
-  ! output=$(psql -U postgres -d "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<"${rpc_sql}" 2>&1) && echo -e "        \e[31mERROR\e[0m: ${output}"
+  ! output=$(psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -v "ON_ERROR_STOP=1" <<<"${rpc_sql}" 2>&1) && echo -e "        \e[31mERROR\e[0m: ${output}"
 }
 
 ########################Cron########################
@@ -202,7 +201,7 @@ install_cron_job() {
 
 set_cron_variables() {
   local job=$1
-  [[ ${PGDATABASE} != cexplorer ]] && sed -e "s@DB_NAME=.*@DB_NAME=${PGDATABASE}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
+  [[ ${POSTGRES_DB} != cexplorer ]] && sed -e "s@DB_NAME=.*@DB_NAME=${POSTGRES_DB}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
   # update last modified date of all json files to trigger cron job to process all
   [[ -d "${HOME}/git/${CNODE_VNAME}-token-registry" ]] && find "${HOME}/git/${CNODE_VNAME}-token-registry" -mindepth 2 -maxdepth 2 -type f -name "*.json" -exec touch {} +
 }
