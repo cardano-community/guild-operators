@@ -19,7 +19,7 @@ chown "${POSTGRES_USER}":root /var/log/cron.log >/dev/null 2>&1
 crontab -u "${POSTGRES_USER}" /etc/cron.d/crontab >/dev/null 2>&1
 
 # Listen for metrics via ${POSTGRES_USER} user
-sudo -u "${POSTGRES_USER}" socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;SERVED=true bash /getmetrics.sh " &
+su "${POSTGRES_USER}" -c 'socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;SERVED=true bash /getmetrics.sh "' &
 
 ###################### Customisations - END  ###################################
 
