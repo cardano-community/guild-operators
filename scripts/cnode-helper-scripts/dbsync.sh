@@ -75,11 +75,11 @@ check_config_sanity() {
 }
 
 deploy_systemd() {
-  echo "Deploying ${CNODE_NAME}-dbsync as systemd service.."
-  sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_NAME}-dbsync.service
+  echo "Deploying ${CNODE_VNAME}-dbsync as systemd service.."
+  sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-dbsync.service
 	[Unit]
 	Description=Cardano DB Sync
-	After=${CNODE_NAME}.service ${SYSTEMD_PGNAME}.service
+	After=${CNODE_VNAME}.service ${SYSTEMD_PGNAME}.service
 	Requires=${SYSTEMD_PGNAME}.service
 	
 	[Service]
@@ -93,13 +93,13 @@ deploy_systemd() {
 	KillSignal=SIGINT
 	StandardOutput=syslog
 	StandardError=syslog
-	SyslogIdentifier=${CNODE_NAME}-dbsync
+	SyslogIdentifier=${CNODE_VNAME}-dbsync
 	TimeoutStopSec=5
 	KillMode=mixed
 	
 	[Install]
 	WantedBy=multi-user.target
-	EOF" && echo "${CNODE_NAME}-dbsync.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_NAME}-dbsync.service
+	EOF" && echo "${CNODE_VNAME}-dbsync.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}-dbsync.service
 }
 
 ###################
