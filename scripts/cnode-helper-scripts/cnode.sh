@@ -59,8 +59,8 @@ pre_startup_sanity() {
 }
 
 deploy_systemd() {
-  echo "Deploying ${CNODE_NAME} as systemd service.."
-  sudo bash -c "cat <<-'EOF' > /etc/systemd/system/${CNODE_NAME}.service
+  echo "Deploying ${CNODE_VNAME} as systemd service.."
+  sudo bash -c "cat <<-'EOF' > /etc/systemd/system/${CNODE_VNAME}.service
 	[Unit]
 	Description=Cardano Node
 	Wants=network-online.target
@@ -79,13 +79,13 @@ deploy_systemd() {
 	SuccessExitStatus=143
 	StandardOutput=syslog
 	StandardError=syslog
-	SyslogIdentifier=${CNODE_NAME}
+	SyslogIdentifier=${CNODE_VNAME}
 	TimeoutStopSec=5
 	KillMode=mixed
 	
 	[Install]
 	WantedBy=multi-user.target
-	EOF" && echo "${CNODE_NAME}.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_NAME}.service
+	EOF" && echo "${CNODE_VNAME}.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}.service
 }
 
 ###################
