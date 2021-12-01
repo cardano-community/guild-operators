@@ -100,8 +100,8 @@ function get-metrics() {
   memused=$(( memtotal + $(echo "${meminf}" | grep Shmem: | awk '{print $2}') - $(echo "${meminf}" | grep MemFree | awk '{print $2}') - $(echo "${meminf}" | grep SwapFree | awk '{print $2}') - $(echo "${meminf}" | grep ^Buffers | awk '{print $2}') - $(echo "${meminf}" | grep ^Cached | awk '{print $2}') ))
   cpuutil=$(awk -v a="$(awk '/cpu /{print $2+$4,$2+$4+$5}' /proc/stat; sleep 1)" '/cpu /{split(a,b," "); print 100*($2+$4-b[1])/($2+$4+$5-b[2])}'  /proc/stat)
   # in Bytes
-  pubschsize=$(psql -d cexplorer -U postgres -c "SELECT sum(pg_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'public'" | awk 'FNR == 3 {print $1 $2}')
-  grestschsize=$(psql -d cexplorer -U postgres -c "SELECT sum(pg_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'grest'" | awk 'FNR == 3 {print $1 $2}')
+  pubschsize=$(psql -d "${POSTGRES_DB}" -U "${POSTGRES_USER}" -c "SELECT sum(pg_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'public'" | awk 'FNR == 3 {print $1 $2}')
+  grestschsize=$(psql -d "${POSTGRES_DB}" -U "${POSTGRES_USER}" -c "SELECT sum(pg_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'grest'" | awk 'FNR == 3 {print $1 $2}')
   dbsize=$(( pubschsize + grestschsize ))
 
   # Metrics
@@ -120,7 +120,7 @@ function get-metrics() {
   export METRIC_dbsize="${dbsize}"
   #export METRIC_cnodeversion="$(echo $(cardano-node --version) | awk '{print $2 "-" $9}')"
   #export METRIC_dbsyncversion="$(echo $(cardano-db-sync-extended --version) | awk '{print $2 "-" $9}')"
-  #export METRIC_psqlversion="$(echo "" | psql -U postgres -d cexplorer -c "SELECT version();" | grep PostgreSQL | awk '{print $2}')"
+  #export METRIC_psqlversion="$(echo "" | psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "SELECT version();" | grep PostgreSQL | awk '{print $2}')"
 
   for metric_var_name in $(env | grep ^METRIC | sort | awk -F= '{print $1}')
   do
