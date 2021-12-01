@@ -10,7 +10,7 @@ This is done to prevent users from running setups with default passwords availab
 First, replace the `YOUR_USER/YOUR_PASSWORD` in `config/secrets/postgres_user` and ``config/secrets/postgres_password` files.
 
 Then, create the `.env` file following the `.env.example`.
-Make sure the `POSTGRES_USER` and `POSTGRES_PASSWORD` match the ones you set in the `secrets` directory.
+Make sure the `POSTGRES_USER`, and `POSTGRES_PASSWORD`, `POSTGRES_DB` match the ones that are set in the `secrets` directory.
 
 # RUNNING
 
