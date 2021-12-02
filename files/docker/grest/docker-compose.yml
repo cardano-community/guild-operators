@@ -6,6 +6,7 @@ services:
     env_file: ./.env 
     ports:
       - 8059:8059
+      - 55000:5432
     volumes:
       - postgres_db:/var/lib/postgresql/data
       - ./scripts/docker-getmetrics.sh:/getmetrics.sh
