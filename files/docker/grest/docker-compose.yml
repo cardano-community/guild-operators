@@ -1,25 +1,16 @@
 version: "3.5"
 
-services:
+services: 
   postgres:
     image: postgres:13.5-bullseye
-    environment:
-      - POSTGRES_LOGGING=true
-      - POSTGRES_DB_FILE=/run/secrets/postgres_db
-      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
-      - POSTGRES_USER_FILE=/run/secrets/postgres_user
-      - POSTGRES_HOST_AUTH_METHOD=trust
+    env_file: ./.env 
     ports:
       - 8059:8059
-    secrets:
-      - postgres_password
-      - postgres_user
-      - postgres_db
     volumes:
       - postgres_db:/var/lib/postgresql/data
       - ./scripts/docker-getmetrics.sh:/getmetrics.sh
       - ./scripts/docker-setup-grest.sh:/setup-grest.sh
-      - ./config/postgres/postgresql.conf:/etc/postgresql.conf
+      - ./config/postgres/postgresql.conf:/etc/postgresql/postgresql.conf
       - ./config/postgres/crontab:/etc/cron.d/crontab
       - ./docker-entrypoint-initdb:/docker-entrypoint-initdb.d/
       - ./docker-entrypoint.sh:/docker-entrypoint.sh
@@ -34,6 +25,7 @@ services:
 
   cardano-node:
     image: cardanocommunity/cardano-node:latest
+    env_file: ./.env 
     environment:
       - NETWORK=${NETWORK:-mainnet}
       - SOCKET=/opt/cardano/cnode/sockets/node.socket
@@ -50,20 +42,15 @@ services:
 
   cardano-db-sync:
     image: inputoutput/cardano-db-sync:11.0.4
+    env_file: ./.env 
     environment:
       - NETWORK=${NETWORK:-mainnet}
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
       # Attention this has a very different apprroach in docker -Restore db from snapshot - left optional for now as still needs testing
       #- RESTORE_SNAPSHOT=${RESTORE_SNAPSHOT:-https://update-cardano-mainnet.iohk.io/cardano-db-sync/11/db-sync-snapshot-schema-11-block-6510444-x86_64.tgz}
       #- RESTORE_RECREATE_DB=N
     depends_on:
       - cardano-node
       - postgres
-    secrets:
-      - postgres_password
-      - postgres_user
-      - postgres_db
     volumes:
       - db-sync-data:/var/lib/cdbsync
       - node-ipc:/node-ipc
@@ -76,9 +63,7 @@ services:
 
   haproxy:
     image: haproxy:alpine
-    environment:
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
+    env_file: ./.env 
     depends_on:
       - cardano-node
       - cardano-db-sync
@@ -89,44 +74,12 @@ services:
     ports:
       - 8053:8053
     restart: on-failure
-
   postgrest:
     image: postgrest/postgrest
-    environment:
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - PGRST_DB_URI=postgres://guild:HelloWorld54321@postgres/cexplorer
-      - PGRST_DB_SCHEMA=grest
-      - PGRST_DB_ANON_ROLE=web_anon
-      - PGRST_DB-EXTRA-SEARCH-PATH=public
-      - PGRST_MAX-ROWS=1000
-      - PGRST_SERVER_HOST=0.0.0.0
-      - PGRST_SERVER_PORT=8050
+    env_file: ./.env 
     depends_on:
       - postgres
     restart: on-failure
-
-  # Optional web browser for DB
-  # https://github.com/sosedoff/pgweb
-  #pgweb:
-  #  image: sosedoff/pgweb
-  #  ports:
-  #    - "8081:8081"
-  #  links:
-  #    - postgres:postgres
-  #  environment:
-  #    - DATABASE_URL=postgres://app_user:secret@postgres:5432/app_db?sslmode=disable
-  #  depends_on:
-  #    - postgres
-
-secrets:
-  postgres_db:
-    file: ./config/secrets/postgres_db
-  postgres_password:
-    file: ./config/secrets/postgres_password
-  postgres_user:
-    file: ./config/secrets/postgres_user
-
 volumes:
   node-db:
   postgres_db:

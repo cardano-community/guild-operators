@@ -3,3 +3,4 @@ book
 *.bkp
 .DS_Store
 files/docker/smash/
+.env
