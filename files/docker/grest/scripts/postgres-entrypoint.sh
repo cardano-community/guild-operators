@@ -1,25 +1,28 @@
 #!/usr/bin/env bash
 
 ###################### Customisations - START ##################################
-apt-get update >/dev/null 2>&1
-apt-get install -y socat curl gawk jq sudo >/dev/null 2>&1
-apt-get install -y --no-install-recommends cron >/dev/null 2>&1
+apt-get update  > /dev/null 2>&1
+apt-get install -y socat curl gawk jq sudo postgresql-13-pglogical > /dev/null 2>&1
+apt-get install -y --no-install-recommends cron  > /dev/null 2>&1
+curl https://access.2ndquadrant.com/api/repository/dl/default/release/deb | bash
 
 # To add a user without a password the command is the following:
 # adduser --disabled-password --gecos '' guild#
-sed -i 's/%sudo.*/%sudo   ALL=(ALL) NOPASSWD:ALL/g' /etc/sudoers >/dev/null 2>&1
-adduser "${POSTGRES_USER}" sudo >/dev/null 2>&1
+sed -i 's/%sudo.*/%sudo   ALL=(ALL) NOPASSWD:ALL/g' /etc/sudoers > /dev/null 2>&1
+adduser postgres sudo  > /dev/null 2>&1
 
-# Sets the ${POSTGRES_USER} user cronJobs
-chown "${POSTGRES_USER}":root /etc/cron.d/crontab >/dev/null 2>&1
-chmod 0660 /etc/cron.d/crontab >/dev/null 2>&1
-touch /var/log/cron.log >/dev/null 2>&1
-chmod 0660 /var/log/cron.log >/dev/null 2>&1
-chown "${POSTGRES_USER}":root /var/log/cron.log >/dev/null 2>&1
-crontab -u "${POSTGRES_USER}" /etc/cron.d/crontab >/dev/null 2>&1
 
-# Listen for metrics via ${POSTGRES_USER} user
-su "${POSTGRES_USER}" -c 'socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;SERVED=true bash /getmetrics.sh "' &
+# Sets the postgres user cronJobs
+chown postgres:root /etc/cron.d/crontab   > /dev/null 2>&1
+chmod 0660 /etc/cron.d/crontab   > /dev/null 2>&1
+touch /var/log/cron.log > /dev/null 2>&1
+chmod 0660 /var/log/cron.log > /dev/null 2>&1
+chown postgres:root /var/log/cron.log > /dev/null 2>&1
+crontab -u postgres /etc/cron.d/crontab  > /dev/null 2>&1
+sudo -u postgres crontab &
+
+# Listen for metrics via postgres user
+sudo -u postgres socat TCP-LISTEN:8059,reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;SERVED=true bash /getmetrics.sh " &
 
 ###################### Customisations - END  ###################################
 
