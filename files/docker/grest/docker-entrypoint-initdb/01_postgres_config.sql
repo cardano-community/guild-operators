@@ -1,9 +1,9 @@
 ALTER SYSTEM
 SET checkpoint_timeout = '5min';
 ALTER SYSTEM
-SET max_wal_size = 2;
+SET max_wal_size = '2GB';
 ALTER SYSTEM
-SET min_wal_size = 300;
+SET min_wal_size = '300MB';
 ALTER SYSTEM shared_preload_libraries = 'pglogical';
 ALTER SYSTEM
 SET wal_level = 'logical';
