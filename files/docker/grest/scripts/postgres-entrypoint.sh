@@ -3,7 +3,7 @@
 ###################### Customisations - START ##################################
 apt-get update  > /dev/null 2>&1
 apt-get install -y socat curl gawk jq sudo postgresql-13-pglogical > /dev/null 2>&1
-sapt-get install -y --no-install-recommends cron  > /dev/null 2>&1
+apt-get install -y --no-install-recommends cron  > /dev/null 2>&1
 sudo curl https://access.2ndquadrant.com/api/repository/dl/default/release/deb | bash
 
 # To add a user without a password the command is the foloowing: 
