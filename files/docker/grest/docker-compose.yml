@@ -72,16 +72,9 @@ services:
     restart: on-failure
   postgrest:
     image: postgrest/postgrest
+    env_file: ./.env
     environment:
-      - POSTGRES_HOST=${POSTGRES_HOST}
-      - POSTGRES_PORT=5432
       - PGRST_DB_URI=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/${POSTGRES_DB}
-      - PGRST_DB_SCHEMA=grest
-      - PGRST_DB_ANON_ROLE=web_anon
-      - PGRST_DB-EXTRA-SEARCH-PATH=public
-      - PGRST_MAX-ROWS=1000
-      - PGRST_SERVER_HOST=0.0.0.0
-      - PGRST_SERVER_PORT=8050
     depends_on:
       - postgres
     restart: on-failure
