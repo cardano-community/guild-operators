@@ -30,10 +30,11 @@ BEGIN
       MTX.quantity
     FROM
       MA_TX_OUT MTX
+      INNER JOIN MULTI_ASSET MA ON MA.id = MTX.ident
       INNER JOIN TX_OUT TXO ON TXO.ID = MTX.TX_OUT_ID
     WHERE
-      MTX.policy = _asset_policy_decoded
-      AND MTX.name = _asset_name_decoded
+      MA.policy = _asset_policy_decoded
+      AND MA.name = _asset_name_decoded
 ),
 asset_utxos AS (
   SELECT
