@@ -1,11 +1,10 @@
 ALTER SYSTEM
-SET checkpoint_timeout = 5min;
+SET checkpoint_timeout = '5min';
 ALTER SYSTEM
 SET max_wal_size = 2;
 ALTER SYSTEM
 SET min_wal_size = 300;
-ALTER SYSTEM
-shared_preload_libraries = 'pglogical';
+ALTER SYSTEM shared_preload_libraries = 'pglogical';
 ALTER SYSTEM
 SET wal_level = 'logical';
 ALTER SYSTEM
@@ -16,6 +15,6 @@ ALTER SYSTEM
 SET max_replication_slots = 10;
 CREATE EXTENSION pglogical;
 SELECT pglogical.create_node(
-    node_name := 'provider1',
-    dsn := 'host=providerhost port=5432 dbname=cexplorer'
-);
+        node_name := 'provider1',
+        dsn := 'host=providerhost port=5432 dbname=cexplorer'
+    );
