@@ -11,11 +11,11 @@ services:
       - postgres_db:/var/lib/postgresql/data
       - ./scripts/docker-getmetrics.sh:/getmetrics.sh
       - ./scripts/docker-setup-grest.sh:/setup-grest.sh
+      - ./scripts/postgres-entrypoint.sh:/entrypoint.sh
       - ./config/postgres/postgresql.conf:/etc/postgresql/postgresql.conf
       - ./config/postgres/crontab:/etc/cron.d/crontab
       - ./docker-entrypoint-initdb:/docker-entrypoint-initdb.d/
-      - ./docker-entrypoint.sh:/docker-entrypoint.sh
-    entrypoint: /docker-entrypoint.sh
+    entrypoint: /entrypoint.sh
     command: postgres
     restart: on-failure
     logging:
@@ -29,8 +29,6 @@ services:
     env_file: ./.env 
     environment:
       - NETWORK=${NETWORK:-mainnet}
-      - SOCKET=/opt/cardano/cnode/sockets/node.socket
-      - EKG=Y
     volumes:
       - node-db:/opt/cardano/cnode/db
       - node-ipc:/opt/cardano/cnode/sockets
@@ -46,9 +44,6 @@ services:
     env_file: ./.env 
     environment:
       - NETWORK=${NETWORK:-mainnet}
-      # Attention this has a very different apprroach in docker -Restore db from snapshot - left optional for now as still needs testing
-      #- RESTORE_SNAPSHOT=${RESTORE_SNAPSHOT:-https://update-cardano-mainnet.iohk.io/cardano-db-sync/11/db-sync-snapshot-schema-11-block-6510444-x86_64.tgz}
-      #- RESTORE_RECREATE_DB=N
     depends_on:
       - cardano-node
       - postgres
