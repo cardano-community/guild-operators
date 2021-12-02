@@ -107,8 +107,4 @@ $$; */
 --
 --
 -- DATABASE INDEXES --
--- Most likely deprecated after 12.0.0
-CREATE INDEX IF NOT EXISTS _asset_policy_idx ON PUBLIC.MA_TX_OUT ( policy);
-
-CREATE INDEX IF NOT EXISTS _asset_identifier_idx ON PUBLIC.MA_TX_OUT ( policy, name);
 
