@@ -394,9 +394,6 @@
 			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 50 }
 			  default_backend grest_core
 			
-			backend flood_lmt_rate
-			  stick-table type ip size 1m expire 10m store http_req_rate(10s)
-			
 			backend grest_core
 			  balance first
 			  option external-check
@@ -407,9 +404,13 @@
 			  external-check command ${CNODE_HOME}/scripts/grest-poll.sh
 			  server local 127.0.0.1:8050 check inter 20000
 			  server koios-ssl ${KOIOS_SRV} backup ssl verify none
-			  ## Ensure to end server name with 'ssl' if enabled
+			  ## When adding a peer, ensure to end server name with 'ssl' if enabled as in example below:
+			  ## server name-ssl server.name:443 check inter 60000 ssl verify none
 			  http-response cache-store grestcache
 			  http-response set-header X-Frame-Options: DENY
+			
+			backend flood_lmt_rate
+			  stick-table type ip size 1m expire 10m store http_req_rate(10s)
 			
 			backend unauthorized
 			  ## Used by monitoring instances only
@@ -430,7 +431,7 @@
   deploy_systemd() {
     echo "[Re]Deploying Services.."
     echo -e "  PostgREST Service"
-    command -v postgrest >/dev/null && sudo bash -c "cat <<-EOF > /etc/systemd/system/postgrest.service
+    command -v postgrest >/dev/null && sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-postgrest.service
 			[Unit]
 			Description=REST Overlay for Postgres database
 			After=postgresql.service
@@ -451,7 +452,7 @@
 			WantedBy=multi-user.target
 			EOF"
     echo -e "  HAProxy Service"
-    command -v haproxy >/dev/null && sudo bash -c "cat <<-EOF > /etc/systemd/system/haproxy.service
+    command -v haproxy >/dev/null && sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-haproxy.service
 			[Unit]
 			Description=HAProxy Load Balancer
 			After=network.target
@@ -469,7 +470,7 @@
 			WantedBy=multi-user.target
 			EOF"
     echo -e "  GRest Exporter Service"
-    [[ -f "${CNODE_HOME}"/scripts/grest-exporter.sh ]] && sudo bash -c "cat <<-EOF > /etc/systemd/system/grest_exporter.service
+    [[ -f "${CNODE_HOME}"/scripts/grest-exporter.sh ]] && sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-grest_exporter.service
 			[Unit]
 			Description=Guild Rest Services Metrics Exporter
 			After=network.target
@@ -492,7 +493,7 @@
 			[Install]
 			WantedBy=multi-user.target
 			EOF"
-    sudo systemctl daemon-reload && sudo systemctl enable postgrest.service haproxy.service grest_exporter.service >/dev/null 2>&1
+    sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}-postgrest.service ${CNODE_VNAME}-haproxy.service ${CNODE_VNAME}-grest_exporter.service >/dev/null 2>&1
     echo "  Done!! Please ensure to all [re]start services above!"
   }
   

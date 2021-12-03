@@ -2,6 +2,16 @@
 
 The architecture for various components are already described at [docs.cardano.org](https://docs.cardano.org/explore-cardano/cardano-architecture/overview) by CF/IOHK. We will not reinvent the wheel :smile:
 
+#### Manual Software Pre-Requirements
+
+
+While we do not intend to hand out step-by-step instructions, the tools are often misused as a shortcut to avoid ensuring base skillsets mentioned on home page. Some of the common gotchas that we often find SPOs to miss out on:
+
+    - It is imperative that pools operate with highly accurate system time, in order to propogate blocks to network in a timely manner and avoid penalties to own (or at times other competing) blocks. Please refer to sample guidance [here ](https://ubuntu.com/server/docs/network-ntp) for details - the precise steps may depend on your OS.
+    - Ensure your Firewall rules at Network as well as OS level are updated according to the usage of your system, you'd want to whitelist the rules that you really need to open to world (eg: You might need node, SSH, and potentially secured webserver/proxy ports to be open, depending on components you run).
+    - Update your SSH Configuration to prevent password-based logon.
+    - Ensure that you use offline workflow, you should never require to have your offline keys on online nodes. The tools provide you backup/restore functionality to only pass online keys to online nodes.
+
 #### Pre-Requisites
 
 !!! info "Reminder !!"
