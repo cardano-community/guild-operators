@@ -27,7 +27,7 @@
 #        - [ ] Query a sample from cache table (based on inputs from control table)
 #        - [ ] We may not want to perform extensive dbsync data scan itself, except if bug/troublesome data on dbsync (eg: stake not being populated ~10 hours into epoch)
 #  - [ ] If required and entire polling takes more than 3 seconds, Randomise some of the checks between the elected endpoints
-#  - [ ] Add -d flag for debug mode - to run all tests without quitting
+#  - [x] Add `-d` flag for debug mode - to run all tests without quitting
 #
 
 #TIP_DIFF=600                                                  # Maximum tolerance in seconds for tip to be apart before marking instance as not available to serve requests
@@ -50,9 +50,13 @@ function set_defaults() {
   URLRPC="${URL}/${APIPATH}"
 }
 
+function optexit() {
+  [[ "${DEBUG_MODE}" != "1" ]] && exit 1
+}
+
 function usage() {
   echo -e "\nUsage: $(basename "$0") <haproxy IP> <haproxy port> <server IP> <server port> [-d]\n"
-  echo -e "Polling script used by haproxy to query server IP at server Port, and perform health checks. Use -d to run all health checks each time.\n\n"
+  echo -e "Polling script used by haproxy to query server IP at server Port, and perform health checks. Use "-d" parameter to run all health checks.\n\n"
   exit 1
 }
 
@@ -69,7 +73,7 @@ function chk_tip() {
   if [[ -z "${dbtip}" ]] || [[ $(( $(date -d "${currtip}" +%s) - $(date -d "${dbtip}" +%s) )) -gt ${TIP_DIFF} ]] ; then
     echo "ERROR: ${URLRPC}/tip endpoint did not provide a timestamp that's within ${TIP_DIFF} seconds"
     echo "       Tip: ${currtip}, DB Tip: ${dbtip}, Difference: $(( $(date -d "${currtip}" +%s) - $(date -d "${dbtip}" +%s) ))"
-    exit 1
+    optexit
   else
     epoch=${tip[0]}
     abs_slot=${tip[1]}
@@ -93,7 +97,7 @@ function chk_rpcs() {
   if [[ "${instance_rpc_cksum}" != "${monitor_rpc_cksum}" ]]; then
     echo "ERROR: The specs returned by ${URL} do not seem to match ${API_COMPARE} for endpoints mentioned at:"
     echo "  ${API_STRUCT_DEFINITION}"
-    exit 1
+    optexit
   fi
 }
 
@@ -102,11 +106,11 @@ function chk_cache_status() {
   last_poolhist_update=$(curl -skL "${URL}/control_table?key=eq.pool_history_cache_last_updated" | jq -r .[0].last_value 2>/dev/null)
   if [[ "${last_stakedist_block}" == "" ]] || [[ $(( block_no - last_stakedist_block )) -gt 1000 ]]; then
     echo "ERROR: Stake Distribution cache too far from tip !!"
-    exit 1
+    optexit
   fi
   if [[ $(( $(TZ='UTC' date +%s) - $(date -d "${last_poolhist_update}" +%s) )) -gt 1000 ]]; then
     echo "ERROR: Pool History cache too far from tip !!"
-    exit 1
+    optexit
   fi
   # TODO: Ensure other cache tables have entry in control table , potentially with last update time
 }
@@ -115,7 +119,7 @@ function chk_limit() {
   limit=$(curl -skL "${URL}"/blocks -I | grep -i 'content-range' | sed -e 's#.*.-##' -e 's#/.*.##' 2>/dev/null)
   if [[ "${limit}" != "999" ]]; then
     echo "ERROR: The PostgREST config for uses a custom limit that does not match monitoring instances"
-    exit 1
+    optexit
   fi
 }
 
@@ -125,7 +129,7 @@ function chk_endpt_get() {
   getrslt=$(curl -skL "${urlendpt}" -H "Range: 0-1" 2>/dev/null)
   if [[ -z "${getrslt}" ]] || [[ "${getrslt}" == "[]" ]]; then
     echo "ERROR: Could not fetch from endpoint ${urlendpt} !!"
-    exit 1
+    optexit
   fi
 }
 
@@ -141,6 +145,9 @@ function chk_endpt_post() {
 
 if [[ $# -lt 4 ]]; then
   usage
+elif [[ "$5" == "-d" ]]; then
+  export DEBUG_MODE=1
+  echo "Debug Mode enabled!"
 fi
 
 set_defaults "$3" "$4"
