@@ -3,8 +3,7 @@ DROP FUNCTION IF EXISTS grest.pool_delegators (text, uinteger);
 CREATE FUNCTION grest.pool_delegators (_pool_bech32 text, _epoch_no uinteger DEFAULT NULL)
   RETURNS TABLE (
     stake_address character varying,
-    amount lovelace,
-    epoch_no uinteger
+    amount lovelace
   )
   LANGUAGE plpgsql
   AS $$
@@ -18,8 +17,7 @@ BEGIN
     RETURN QUERY
       SELECT
         stake_address,
-        total_balance::lovelace,
-        (SELECT MAX(no) FROM public.epoch)::uinteger
+        total_balance::lovelace
       FROM
         grest.stake_distribution_cache AS sdc
       WHERE
@@ -30,8 +28,7 @@ BEGIN
     RETURN QUERY
       SELECT
         SA.view,
-        ES.amount,
-        _epoch_no
+        ES.amount
       FROM
         public.epoch_stake ES
         INNER JOIN public.stake_address SA ON ES.addr_id = SA.id
