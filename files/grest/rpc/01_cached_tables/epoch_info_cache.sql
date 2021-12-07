@@ -231,7 +231,7 @@ WHERE
     ep.min_pool_cost AS p_min_pool_cost,
     ENCODE(ep.nonce, 'hex') AS p_nonce,
     ENCODE(b.hash, 'hex') AS p_block_hash,
-    ep.cost_models AS p_cost_models,
+    cm.costs AS p_cost_models,
     ep.price_mem AS p_price_mem,
     ep.price_step AS p_price_step,
     ep.max_tx_ex_mem AS p_max_tx_ex_mem,
@@ -245,6 +245,7 @@ WHERE
   FROM
     epoch e
     INNER JOIN epoch_param ep ON ep.epoch_no = e.no
+    LEFT JOIN cost_model cm ON cm.id = ep.cost_model_id
     INNER JOIN block b ON b.id = ep.block_id
   WHERE
     e.no = (
