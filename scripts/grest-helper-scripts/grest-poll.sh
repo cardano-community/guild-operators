@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#shellcheck disable=SC2034
+#shellcheck disable=SC2034,SC1090
 
 ######################################
 # User Variables - Change as desired #
@@ -20,14 +20,14 @@
 #        For previous iteration, if instance is DOWN but one of the peer is UP, haproxy would continue to mark instance as available making 2 additional hops within haproxy loop
 #        The behaviour is logged on monitoring instance - so can be easily caught if abused, but more often than not would be done unintentionally
 #  - [x] Ensure the postgREST limit returned is 1000
-#  - [ ] Add updateCheck for grest-poll itself, checked hourly (or at first run post haproxy restart)
+#  - [x] Add updateCheck for grest-poll itself, checked hourly (or at first run post haproxy restart)
 #  - [ ] Add interval to download spec URL and API_COMPARE
 #  - [ ] Elect few endpoints that will indirectly test data
 #        - [x] Control Table (TODO: Version addition to Control Table)
 #        - [ ] Query a sample from cache table (based on inputs from control table)
 #        - [ ] We may not want to perform extensive dbsync data scan itself, except if bug/troublesome data on dbsync (eg: stake not being populated ~10 hours into epoch)
 #  - [ ] If required and entire polling takes more than 3 seconds, Randomise some of the checks between the elected endpoints
-#  - [x] Add `-d` flag for debug mode - to run all tests without quitting
+#  - [x] Add '-d' flag for debug mode - to run all tests without quitting
 #
 
 #TIP_DIFF=600                                                  # Maximum tolerance in seconds for tip to be apart before marking instance as not available to serve requests
@@ -50,13 +50,38 @@ function set_defaults() {
   URLRPC="${URL}/${APIPATH}"
 }
 
+function chk_upd() {
+  # Check if the update was polled within past hour
+  curr_hour=$(date +%H)
+  if [[ ! -f ./.last_grest_poll ]]; then
+    echo "${curr_hour}" > .last_grest_poll
+  else
+    last_hour=$(cat .last_grest_poll)
+    [[ "${curr_hour}" == "${last_hour}" ]] && SKIP_UPDATE=Y || echo "${curr_hour}" > .last_grest_poll
+  fi
+  if [[ ! -f "${PARENT}"/env ]]; then
+    echo -e "\nCommon env file missing: ${PARENT}/env"
+    echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"
+    exit 1
+  fi
+
+  . "${PARENT}"/env offline &>/dev/null
+  ( [[ "${UPDATE_CHECK}" != "Y" ]] || [[ "${SKIP_UPDATE}" == "Y" ]] ) && return 0
+  if [[ ! $(command -v checkUpdate) ]]; then
+    echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
+    exit 1
+  fi
+  #! checkUpdate env Y N N && exit 1
+  ( ! checkUpdate grest-poll.sh Y N N grest-helper-scripts ) && echo "ERROR: checkUpdate Failed" && exit 1
+}
+
 function optexit() {
   [[ "${DEBUG_MODE}" != "1" ]] && exit 1
 }
 
 function usage() {
   echo -e "\nUsage: $(basename "$0") <haproxy IP> <haproxy port> <server IP> <server port> [-d]\n"
-  echo -e "Polling script used by haproxy to query server IP at server Port, and perform health checks. Use "-d" parameter to run all health checks.\n\n"
+  echo -e "Polling script used by haproxy to query server IP at server Port, and perform health checks. Use '-d' parameter to run all health checks.\n\n"
   exit 1
 }
 
@@ -71,8 +96,7 @@ function chk_tip() {
   currtip=$(TZ='UTC' date "+%Y-%m-%d %H:%M:%S")
   dbtip=${tip[4]}
   if [[ -z "${dbtip}" ]] || [[ $(( $(date -d "${currtip}" +%s) - $(date -d "${dbtip}" +%s) )) -gt ${TIP_DIFF} ]] ; then
-    echo "ERROR: ${URLRPC}/tip endpoint did not provide a timestamp that's within ${TIP_DIFF} seconds"
-    echo "       Tip: ${currtip}, DB Tip: ${dbtip}, Difference: $(( $(date -d "${currtip}" +%s) - $(date -d "${dbtip}" +%s) ))"
+    echo "ERROR: ${URLRPC}/tip endpoint did not provide a timestamp that's within ${TIP_DIFF} seconds - Tip: ${currtip}, DB Tip: ${dbtip}, Difference: $(( $(date -d "${currtip}" +%s) - $(date -d "${dbtip}" +%s) ))"
     optexit
   else
     epoch=${tip[0]}
@@ -95,8 +119,7 @@ function chk_rpcs() {
   instance_rpc_cksum="$(chk_rpc_struct "${URL}" | sort | shasum -a 256)"
   monitor_rpc_cksum="$(chk_rpc_struct "${API_COMPARE}" | sort | shasum -a 256)"
   if [[ "${instance_rpc_cksum}" != "${monitor_rpc_cksum}" ]]; then
-    echo "ERROR: The specs returned by ${URL} do not seem to match ${API_COMPARE} for endpoints mentioned at:"
-    echo "  ${API_STRUCT_DEFINITION}"
+    echo "ERROR: The specs returned by ${URL} do not seem to match ${API_COMPARE} for endpoints mentioned at: ${API_STRUCT_DEFINITION}"
     optexit
   fi
 }
@@ -149,8 +172,11 @@ elif [[ "$5" == "-d" ]]; then
   export DEBUG_MODE=1
   echo "Debug Mode enabled!"
 fi
+PARENT="$(dirname "${0}")"
 
 set_defaults "$3" "$4"
+chk_upd
+
 chk_tip
 chk_rpcs
 chk_cache_status
