@@ -520,6 +520,7 @@ paths:
         - Pool
       parameters:
         - $ref: "#/components/parameters/_pool_bech32"
+        - $ref: "#/components/parameters/_epoch_no"
       responses:
         "200":
           $ref: "#/components/responses/OK"
@@ -528,7 +529,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
       summary: Pool Delegators List
-      description: Return information about current delegators by a given pool
+      description: Return information about delegators by a given pool and optional epoch (current if omitted)
   /rpc/pool_blocks:
     get:
       tags:
