@@ -63,12 +63,13 @@ BEGIN
               'asset_list', COALESCE((
                 SELECT
                   JSON_AGG(JSON_BUILD_OBJECT(
-                    'policy_id', ENCODE(MTX.policy, 'hex'),
-                    'asset_name', ENCODE(MTX.name, 'hex'),
+                    'policy_id', ENCODE(MA.policy, 'hex'),
+                    'asset_name', ENCODE(MA.name, 'hex'),
                     'quantity', MTX.quantity
                   ))
                 FROM 
                   ma_tx_out MTX
+                  INNER JOIN MULTI_ASSET MA ON MA.id = MTX.ident
                 WHERE 
                   MTX.tx_out_id = tx_out.id
               ), JSON_BUILD_ARRAY())
@@ -104,12 +105,13 @@ BEGIN
               'asset_list', COALESCE((
                 SELECT 
                   JSON_AGG(JSON_BUILD_OBJECT(
-                    'policy_id', ENCODE(MTX.policy, 'hex'),
-                    'asset_name', ENCODE(MTX.name, 'hex'),
+                    'policy_id', ENCODE(MA.policy, 'hex'),
+                    'asset_name', ENCODE(MA.name, 'hex'),
                     'quantity', MTX.quantity
                   ))
                 FROM 
                   ma_tx_out MTX
+                  INNER JOIN MULTI_ASSET MA ON MA.id = MTX.ident
                 WHERE 
                   MTX.tx_out_id = tx_out.id
               ), JSON_BUILD_ARRAY())

@@ -32,11 +32,12 @@ BEGIN
     IF SA_ID IS NOT NULL THEN
         RETURN QUERY
         SELECT
-            ENCODE(MTX.POLICY::bytea, 'hex') AS asset_policy,
-            ENCODE(MTX.NAME::bytea, 'escape') AS asset_name,
+            ENCODE(MA.POLICY::bytea, 'hex') AS asset_policy,
+            ENCODE(MA.NAME::bytea, 'escape') AS asset_name,
             sum(MTX.QUANTITY)
         FROM
             MA_TX_OUT MTX
+            INNER JOIN MULTI_ASSET MA ON MA.ID = MTX.ident
             INNER JOIN TX_OUT TXO ON TXO.ID = MTX.TX_OUT_ID
                 AND TXO.STAKE_ADDRESS_ID = SA_ID
         WHERE
@@ -50,8 +51,8 @@ BEGIN
                 WHERE
                     TXO.ID = TX_OUT.ID)
         GROUP BY
-            MTX.POLICY,
-            MTX.NAME;
+            MA.POLICY,
+            MA.NAME;
     END IF;
 END;
 $$;
