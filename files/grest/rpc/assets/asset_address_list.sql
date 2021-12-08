@@ -20,12 +20,13 @@ BEGIN
     SUM(MTX.QUANTITY)
   FROM
     MA_TX_OUT MTX
+    INNER JOIN MULTI_ASSET MA ON MA.id = MTX.ident
     INNER JOIN TX_OUT TXO ON TXO.ID = MTX.TX_OUT_ID
     LEFT JOIN TX_IN ON TXO.TX_ID = TX_IN.TX_OUT_ID
       AND TXO.INDEX::smallint = TX_IN.TX_OUT_INDEX::smallint
   WHERE
-    MTX.policy = _asset_policy_decoded
-    AND MTX.name = _asset_name_decoded
+    MA.policy = _asset_policy_decoded
+    AND MA.name = _asset_name_decoded
     AND TX_IN.TX_IN_ID IS NULL
   GROUP BY
     TXO.ADDRESS;

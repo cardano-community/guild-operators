@@ -95,12 +95,13 @@ BEGIN
               'asset_list', COALESCE((
                 SELECT
                   JSON_AGG(JSON_BUILD_OBJECT(
-                    'policy_id', ENCODE(MTX.policy, 'hex'),
-                    'asset_name', ENCODE(MTX.name, 'hex'),
+                    'policy_id', ENCODE(MA.policy, 'hex'),
+                    'asset_name', ENCODE(MA.name, 'hex'),
                     'quantity', MTX.quantity
                   ))
                 FROM 
                   ma_tx_out MTX
+                  INNER JOIN MULTI_ASSET MA ON MA.id = MTX.ident
                 WHERE 
                   MTX.tx_out_id = tx_out.id
               ), JSON_BUILD_ARRAY())
@@ -136,12 +137,13 @@ BEGIN
               'asset_list', COALESCE((
                 SELECT 
                   JSON_AGG(JSON_BUILD_OBJECT(
-                    'policy_id', ENCODE(MTX.policy, 'hex'),
-                    'asset_name', ENCODE(MTX.name, 'hex'),
+                    'policy_id', ENCODE(MA.policy, 'hex'),
+                    'asset_name', ENCODE(MA.name, 'hex'),
                     'quantity', MTX.quantity
                   ))
                 FROM 
                   ma_tx_out MTX
+                  INNER JOIN MULTI_ASSET MA ON MA.id = MTX.ident
                 WHERE 
                   MTX.tx_out_id = tx_out.id
               ), JSON_BUILD_ARRAY())
@@ -188,12 +190,14 @@ BEGIN
           SELECT
             MTM.tx_id,
             JSON_BUILD_OBJECT(
-              'policy_id', ENCODE(MTM.policy, 'hex'),
-              'asset_name', ENCODE(MTM.name, 'hex'),
+              'policy_id', ENCODE(MA.policy, 'hex'),
+              'asset_name', ENCODE(MA.name, 'hex'),
               'quantity', MTM.quantity
             ) AS data
           FROM 
             ma_tx_mint MTM
+            INNER JOIN MULTI_ASSET MA ON MA.id = MTM.ident
+
           WHERE
             MTM.tx_id = ANY (_tx_id_list)
         ) AS tmp
