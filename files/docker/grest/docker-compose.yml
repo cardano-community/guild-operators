@@ -12,7 +12,6 @@ services:
       - ./scripts/docker-getmetrics.sh:/getmetrics.sh
       - ./scripts/docker-setup-grest.sh:/setup-grest.sh
       - ./scripts/postgres-entrypoint.sh:/entrypoint.sh
-      - ./config/postgres/postgresql.conf:/etc/postgresql/postgresql.conf
       - ./config/postgres/crontab:/etc/cron.d/crontab
       - ./docker-entrypoint-initdb:/docker-entrypoint-initdb.d/
     entrypoint: /entrypoint.sh
