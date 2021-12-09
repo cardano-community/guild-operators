@@ -9,6 +9,7 @@
 # Common variables set in env file   #
 ######################################
 
+#RESTAPI_HOST=127.0.0.1        # Destination PostgREST host
 #RESTAPI_PORT=8050             # Destination PostgREST port
 #HAPROXY_PORT=8053             # Destination HAProxy port
 #DBSYNC_PROM_HOST=127.0.0.1    # Destination DBSync Prometheus Host
@@ -21,6 +22,7 @@
 . "$(dirname $0)"/env
 exec 2>/dev/null
 
+[[ -z ${RESTAPI_HOST} ]] && RESTAPI_HOST=127.0.0.1
 [[ -z ${RESTAPI_PORT} ]] && RESTAPI_PORT=8050
 [[ -z ${HAPROXY_PORT} ]] && HAPROXY_PORT=8053
 [[ -z ${DBSYNC_PROM_HOST} ]] && DBSYNC_PROM_HOST=127.0.0.1
@@ -37,9 +39,9 @@ function get-metrics() {
   currtip=$(TZ='UTC' date "+%Y-%m-%d %H:%M:%S")
   getNodeMetrics
   currslottip=$(getSlotTipRef)
-  dbsyncProm=$(curl -s http://${DBSYNC_PROM_HOST}:${DBSYNC_PROM_PORT} | grep ^cardano)
+  tip=$(curl -s http://${RESTAPI_HOST}:${RESTAPI_PORT}/rpc/tip)
+  meminf=$(grep "^[MSBC][ewua][mafc]" /proc/meminfo)
   load1m=$(( $(awk '{ print $1*100 }' /proc/loadavg) / $(grep -c ^processor /proc/cpuinfo) ))
-  meminf=$(grep "^[MSBC][ewuah][:mafc]" /proc/meminfo)
   memtotal=$(( $(echo "${meminf}" | grep MemTotal | awk '{print $2}') + $(echo "${meminf}" | grep SwapTotal | awk '{print $2}') ))
   memused=$(( memtotal + $(echo "${meminf}" | grep Shmem: | awk '{print $2}') - $(echo "${meminf}" | grep MemFree | awk '{print $2}') - $(echo "${meminf}" | grep SwapFree | awk '{print $2}') - $(echo "${meminf}" | grep ^Buffers | awk '{print $2}') - $(echo "${meminf}" | grep ^Cached | awk '{print $2}') ))
   cpuutil=$(awk -v a="$(awk '/cpu /{print $2+$4,$2+$4+$5}' /proc/stat; sleep 1)" '/cpu /{split(a,b," "); print 100*($2+$4-b[1])/($2+$4+$5-b[2])}'  /proc/stat)
@@ -49,12 +51,12 @@ function get-metrics() {
   dbsize=$(( pubschsize + grestschsize ))
 
   # Metrics
-  [[ -n "${dbsyncProm}" ]] && export METRIC_dbsynctipref=$(( currslottip - $(printf %f "$(echo "${dbsyncProm}" | grep cardano_db_sync_db_slot_height | awk '{print $2}')" |cut -d. -f1) ))
+  export METRIC_dbsynctipref=$(( currslottip - $( echo "${tip}" | jq .[0].abs_slot) ))
   export METRIC_nodetipref=$(( currslottip - slotnum ))
   export METRIC_uptime="${uptimes}"
-  export METRIC_dbsyncBlockHeight=$(echo "${dbsyncProm}" | grep cardano_db_sync_db_block_height | awk '{print $2}' | cut -d. -f1)
+  export METRIC_dbsyncBlockHeight=$(curl -s http://${RESTAPI_HOST}:${RESTAPI_PORT}/rpc/tip | jq .[0].block_no)
   export METRIC_nodeBlockHeight=${blocknum}
-  export METRIC_dbsyncQueueLength=$(echo "${dbsyncProm}" | grep cardano_db_sync_db_queue_length | awk '{print $2}' | cut -d. -f1)
+  export METRIC_dbsyncQueueLength=$(( METRIC_nodeBlockHeight - METRIC_dbsyncBlockHeight ))
   export METRIC_memtotal="${memtotal}"
   export METRIC_memused="${memused}"
   export METRIC_cpuutil="${cpuutil}"

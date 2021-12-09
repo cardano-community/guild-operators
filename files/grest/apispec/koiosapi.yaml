@@ -56,7 +56,7 @@ info:
       not have single point of failure, but that does not limit users to elect any of the other server endpoints instead, since the API works right from the PostgREST layer itself.
 
     ## I have not used 'XYZ' before. Is there an easy start guide?
-    Yes, there is an easy-to-setup script (early stages, will be refined for correctness) and instructions [here](https://cardano-community.github.io/guild-operators/Build/pgrest/). Should you need any assistance, feel free to hop in to the [discussion group](https://t.me/joinchat/zE4Lce_QUepiY2U1).
+    Yes, there is an easy-to-setup script (early stages, will be refined for correctness) and instructions [here](https://cardano-community.github.io/guild-operators/Build/grest/). Should you need any assistance, feel free to hop in to the [discussion group](https://t.me/joinchat/zE4Lce_QUepiY2U1).
 
     ## Too much reading, I want to discuss in person
     We serve bi-weekly calls that any builder or consumer is free to join - or you can drop in to the [telegram group](https://t.me/joinchat/zE4Lce_QUepiY2U1) and start a discussion from there.
@@ -64,8 +64,8 @@ info:
   x-logo:
     url: "https://api.koios.rest/koios.png"
 servers:
-  - url: https://api.koios.rest:8453
-  - url: https://guild.koios.rest:8453
+  - url: https://api.koios.rest/api/v0
+  - url: https://guild.koios.rest/api/v0
 paths:
   /rpc/tip:
     get:

@@ -77,282 +77,6 @@
 # Do NOT modify code below           #
 ######################################
 
-[[ ${0} != '-bash' ]] && PARENT=$(dirname $0) || PARENT="$(pwd)" # If sourcing at terminal, $0 would be "-bash" , which is invalid. Thus, fallback to present working directory
-
-versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=minimal_needed_version, $2=current_node_version
-
-OFFLINE_MODE='N'
-[[ $1 = "offline" ]] && OFFLINE_MODE='Y'
-[[ $(basename $0 2>/dev/null) = "cnode.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
-[[ $(basename $0 2>/dev/null) = "topologyUpdater.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
-
-[[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master
-
-URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
-DB_SCRIPTS_URL="${URL_RAW}/scripts/grest-helper-scripts/db-scripts"
-export LC_ALL=C.UTF-8
-
-# special mapping of coreutils gdate to date for MacOS
-if [[ $(uname) == Darwin ]]; then
-   date () { gdate "$@"; }
-fi
-
-[[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
-
-telegramSend() {
-  if [[ -z "${TG_BOT_TOKEN}" ]] || [[ -z "${TG_CHAT_ID}" ]]; then
-    echo "Warn: to use the telegramSend function you must first set the bot and chat id in the env file"
-  else
-    TG_URL="https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage?parse_mode=Markdown"
-    TGAUE=$(curl -s -X POST $TG_URL -d chat_id=${TG_CHAT_ID} -d text="${HOSTNAME} $1");
-  fi
-}
-
-[[ -z "${CCLI}" ]] && CCLI=$(command -v cardano-cli)
-if [[ -z "${CCLI}" ]]; then
-  if [[ -f "${HOME}/.cabal/bin/cardano-cli" ]]; then
-    export PATH="${HOME}/.cabal/bin":$PATH
-    CCLI=$(command -v cardano-cli)
-  else
-    echo "You do not have a cardano-cli binary available in \$PATH."
-    return 1
-  fi
-fi
-
-[[ -z "${CNODEBIN}" ]] && CNODEBIN=$(command -v cardano-node)
-if [[ -z "${CNODEBIN}" ]]; then
-  if [[ -f "$(dirname ${CCLI})"/cardano-node ]]; then
-    CCLIPARENT="$(dirname ${CCLI})" && export PATH="${CCLIPARENT}":$PATH
-    CNODEBIN="$(dirname ${CCLI})"/cardano-node
-  elif [[ -f "${HOME}/.cabal/bin/cardano-node" ]]; then
-    export PATH="${HOME}/.cabal/bin":$PATH
-    CNODEBIN=$(command -v cardano-node)
-  else
-    echo "You do not have a cardano-node binary available in \$PATH."
-    return 1
-  fi
-fi
-
-if [[ -z "${CNCLI}" ]]; then
-  CNCLI=$(command -v cncli) || CNCLI="${HOME}/.cargo/bin/cncli"
-fi
-
-[[ -f /usr/local/lib/libsodium.so ]] && export LD_LIBRARY_PATH=/usr/local/lib:"${LD_LIBRARY_PATH}" && PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:"${PKG_CONFIG_PATH}"
-
-[[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
-
-CNODE_NAME="$(basename ${CNODE_HOME})"
-CNODE_VNAME=$(tr '[:upper:]' '[:lower:]' <<< ${CNODE_NAME//_HOME/})
-CNODE_VNAME_UPPERCASE=$(tr '[:lower:]' '[:upper:]' <<< ${CNODE_VNAME})
-
-[[ -z "${CNODE_PORT}" ]] && CNODE_PORT=6000
-if [[ -z "${SOCKET}" ]]; then
-  if [[ "$(ps -ef | grep "$(basename ${CNODEBIN}).*.port ${CNODE_PORT}" | grep -v grep)" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
-    export CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
-  elif [[ ${OFFLINE_MODE} = "Y" ]]; then
-    export CARDANO_NODE_SOCKET_PATH="${CNODE_HOME}/sockets/node0.socket"
-  else
-    echo "Node socket not set in env file and automatic detection failed! [source: $(basename $0 2>/dev/null)]"
-    return 1
-  fi
-else
-  export CARDANO_NODE_SOCKET_PATH="${SOCKET}"
-fi
-export SOCKET="${CARDANO_NODE_SOCKET_PATH}" # For compatibility with those who havn't yet upgraded cnode.sh
-
-if [[ -z "${CONFIG}" ]]; then
-  if [[ "$(ps -ef | grep "$(basename ${CNODEBIN}).*.port ${CNODE_PORT}" | grep -v grep)" =~ --config[[:space:]]([^[:space:]]+) ]]; then
-    CONFIG=${BASH_REMATCH[1]}
-  elif [[ -f "${CNODE_HOME}/files/config.json" ]]; then
-    CONFIG="${CNODE_HOME}/files/config.json"
-  else
-    echo "Node config not set in env file and automatic detection failed!"
-    return 1
-  fi
-fi
-
-if command -v "ss" &>/dev/null; then
-  use_lsof='N'
-elif command -v "lsof" &>/dev/null; then
-  use_lsof='Y'
-else
-  echo -e "'ss' and fallback 'lsof' commands are missing, please install using latest prereqs.sh script or with your packet manager of choice.\nhttps://command-not-found.com/ss can be used to check package name to install.\n"
-  return 1
-fi
-
-if ! command -v "jq" &>/dev/null; then
-  echo -e "'jq' command is missing, please install using latest prereqs.sh script of with your packet manager of choice.\nhttps://command-not-found.com/ss can be used to check package name to install.\n"
-  return 1
-fi
-
-if ! jq -r . "${CONFIG}" >/dev/null 2>&1; then
-  echo "Could not parse ${CONFIG} file in JSON format, please double-check the syntax of your config, or simply download it from guild-operators repository!"
-  return 1
-elif [[ "$(jq -r .TraceChainDb ${CONFIG})" != "true" ]]; then
-  echo "The ${CONFIG} file suggests that you have set TraceChainDb parameter to false. Please change it to true, as it is required to extract statistics from node."
-  return 1
-fi
-
-[[ -z ${EKG_TIMEOUT} ]] && EKG_TIMEOUT=3
-[[ -z ${EKG_HOST} ]] && EKG_HOST=127.0.0.1
-if [[ ${EKG_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-  IFS='.' read -ra EKG_OCTETS <<< ${EKG_HOST}
-  if ! [[ ${EKG_OCTETS[0]} -le 255 && ${EKG_OCTETS[1]} -le 255 && ${EKG_OCTETS[2]} -le 255 && ${EKG_OCTETS[3]} -le 255 ]]; then
-    echo "Not a valid IP range set for EKG host, please check env file for value of EKG_HOST (currently it is ${EKG_HOST} )!"
-    return 1
-  fi
-else
-  echo "Not a valid IP format set for EKG host, please check env file!"
-  return 1
-fi
-
-if [[ -z ${EKG_PORT} ]]; then
-  if ! EKG_PORT=$(jq -er '.hasEKG | if .|type=="array" then .[1] else . end' "${CONFIG}" 2>/dev/null); then
-    if [[ ${OFFLINE_MODE} = "N" ]]; then
-      echo "Could not get 'hasEKG' port in ${CONFIG}"
-      return 1
-    fi
-  fi
-elif [[ ! ${EKG_PORT} =~ ^[0-9]+$ ]]; then
-  echo "Please set a valid EKG port number in env file! Current value is ${EKG_PORT} !"
-  return 1
-fi
-
-if [[ -z ${PROM_HOST} ]]; then PROM_HOST=$(jq -er '.hasPrometheus[0]' "${CONFIG}" 2>/dev/null) || PROM_HOST=127.0.0.1; fi
-
-if [[ ${PROM_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-  IFS='.' read -ra PROM_OCTETS <<< ${PROM_HOST}
-  if ! [[ ${PROM_OCTETS[0]} -le 255 && ${PROM_OCTETS[1]} -le 255 && ${PROM_OCTETS[2]} -le 255 && ${PROM_OCTETS[3]} -le 255 ]]; then
-    echo "Not a valid IP range set for Prometheus host, please check env file for value of PROM_HOST (currently it is set to ${PROM_HOST} )!"
-    return 1
-  fi
-else
-  echo "Not a valid IP format set for Prometheus host, please check env file!"
-  return 1
-fi
-if [[ -z ${PROM_PORT} ]]; then
-  if ! PROM_PORT=$(jq -er '.hasPrometheus[1]' "${CONFIG}" 2>/dev/null); then
-    if [[ ${OFFLINE_MODE} = "N" ]]; then
-      echo "Could not get 'hasPrometheus' port in ${CONFIG}"
-      return 1
-    fi
-  fi
-elif [[ ! ${PROM_PORT} =~ ^[0-9]+$ ]]; then
-  echo "Please set a valid Prometheus port number in env file! Current value is ${PROM_PORT} !"
-  return 1
-fi
-
-if ! GENESIS_JSON=$(jq -er '.ShelleyGenesisFile' "${CONFIG}" 2>/dev/null); then
-  echo "Could not get 'ShelleyGenesisFile' in ${CONFIG}"
-  return 1
-else
-  # if relative path is used, assume same parent dir as config
-  [[ ! ${GENESIS_JSON} =~ ^/ ]] && GENESIS_JSON="$(dirname "${CONFIG}")/${GENESIS_JSON}"
-  [[ ! -f "${GENESIS_JSON}" ]] && echo "Shelley genesis file not found: ${GENESIS_JSON}" && return 1
-fi
-
-if ! BYRON_GENESIS_JSON=$(jq -er '.ByronGenesisFile' "${CONFIG}" 2>/dev/null); then
-  echo "Could not get 'ByronGenesisFile' specified in ${CONFIG}"
-  return 1
-else
-  # if relative path is used, assume same parent dir as config
-  [[ ! ${BYRON_GENESIS_JSON} =~ ^/ ]] && BYRON_GENESIS_JSON="$(dirname "${CONFIG}")/${BYRON_GENESIS_JSON}"
-  [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
-fi
-
-[[ -z ${BLOCKLOG_DIR} ]] && BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"
-BLOCKLOG_DB="${BLOCKLOG_DIR}/blocklog.db"
-[[ -z ${BLOCKLOG_TZ} ]] && BLOCKLOG_TZ="UTC"
-[[ -z ${CNODE_PORT} ]] && CNODE_PORT=6000
-[[ -z "${IP_VERSION}" ]] && IP_VERSION=4
-IP_VERSION=$(tr '[:upper:]' '[:lower:]' <<< "${IP_VERSION}")
-[[ -z ${USE_EKG} ]] && USE_EKG='Y'
-CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.--port ${CNODE_PORT}")
-
-if [[ -n "${CNODE_PID}" ]]; then
-  if [[ "${USE_EKG}" == "N" ]]; then
-    if { [[ "${use_lsof}" != 'Y' && -z "$(ss -lnpt | grep "pid=${CNODE_PID}," | awk -v port=":${PROM_PORT}" '$4 ~ port {print $4}')" ]]; } || { [[ "${use_lsof}" == 'Y' && -z "$(lsof -Pnl -i4 +M | grep LISTEN | awk -v pid="${CNODE_PID}" -v port=":${PROM_PORT}" '$2 == pid && $9 ~ port {print $9}')" ]]; }; then
-      echo "ERROR: You specified ${PROM_PORT} as your Prometheus port, but it looks like the cardano-node (PID: ${CNODE_PID} ) is not listening on this port. Please update the config or kill the conflicting process first."
-      return 1
-    fi
-  else
-    if { [[ "${use_lsof}" != 'Y' && -z "$(ss -lnpt | grep "pid=${CNODE_PID}," | awk -v port=":${EKG_PORT}" '$4 ~ port {print $4}')" ]]; } || { [[ "${use_lsof}" == 'Y' && -z "$(lsof -Pnl -i4 +M | grep LISTEN | awk -v pid="${CNODE_PID}" -v port=":${EKG_PORT}" '$2 == pid && $9 ~ port {print $9}')" ]]; }; then
-      echo "ERROR: You specified ${EKG_PORT} as your EKG port, but it looks like the cardano-node (PID: ${CNODE_PID} ) is not listening on this port. Please update the config or kill the conflicting process first."
-      return 1
-    fi
-  fi
-fi
-
-[[ -z ${UPDATE_CHECK} ]] && UPDATE_CHECK="Y"
-[[ -z ${TOPOLOGY} ]] && TOPOLOGY="${CNODE_HOME}/files/topology.json"
-[[ -n ${CNODE_TOPOLOGY} ]] && TOPOLOGY="${CNODE_TOPOLOGY}" # compatibility with older topologyUpdater
-[[ -z ${LOG_DIR} ]] && LOG_DIR="${CNODE_HOME}/logs"
-[[ -n ${CNODE_LOG_DIR} ]] && LOG_DIR="${CNODE_LOG_DIR}" # compatibility with older topologyUpdater
-[[ -z ${DB_DIR} ]] && DB_DIR="${CNODE_HOME}/db"
-[[ -z ${TMP_DIR} ]] && TMP_DIR="/tmp/$(basename "${CNODE_HOME}")"
-if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then echo "ERROR: Failed to create directory for temporary files, please set TMP_DIR to a valid folder in 'env', current folder: ${TMP_DIR}" && exit 1; fi
-[[ -z ${TIMEOUT_LEDGER_STATE} ]] && TIMEOUT_LEDGER_STATE=300
-[[ -n ${PGREST_API} && $(curl -Isf -m 5 ${PGREST_API} | head -1) != *"200 OK"* ]] && unset PGREST_API
-[[ -z ${DBSYNC_QUERY_FOLDER} ]] && DBSYNC_QUERY_FOLDER="${CNODE_HOME}/files/dbsync/queries"
-[[ -z ${WALLET_FOLDER} ]] && WALLET_FOLDER="${CNODE_HOME}/priv/wallet"
-[[ -z ${POOL_FOLDER} ]] && POOL_FOLDER="${CNODE_HOME}/priv/pool"
-[[ -z ${POOL_NAME} ]] && POOL_NAME="CHANGE_ME"
-[[ -z ${POOL_DIR} ]] && POOL_DIR="${POOL_FOLDER}/${POOL_NAME}"
-[[ -z ${WALLET_PAY_VK_FILENAME} ]] && WALLET_PAY_VK_FILENAME="payment.vkey"
-[[ -z ${WALLET_PAY_SK_FILENAME} ]] && WALLET_PAY_SK_FILENAME="payment.skey"
-[[ -z ${WALLET_HW_PAY_SK_FILENAME} ]] && WALLET_HW_PAY_SK_FILENAME="payment.hwsfile"
-[[ -z ${WALLET_PAY_ADDR_FILENAME} ]] && WALLET_PAY_ADDR_FILENAME="payment.addr"
-[[ -z ${WALLET_BASE_ADDR_FILENAME} ]] && WALLET_BASE_ADDR_FILENAME="base.addr"
-[[ -z ${WALLET_STAKE_VK_FILENAME} ]] && WALLET_STAKE_VK_FILENAME="stake.vkey"
-[[ -z ${WALLET_STAKE_SK_FILENAME} ]] && WALLET_STAKE_SK_FILENAME="stake.skey"
-[[ -z ${WALLET_HW_STAKE_SK_FILENAME} ]] && WALLET_HW_STAKE_SK_FILENAME="stake.hwsfile"
-[[ -z ${WALLET_STAKE_ADDR_FILENAME} ]] && WALLET_STAKE_ADDR_FILENAME="reward.addr"
-[[ -z ${WALLET_STAKE_CERT_FILENAME} ]] && WALLET_STAKE_CERT_FILENAME="stake.cert"
-[[ -z ${WALLET_STAKE_DEREG_FILENAME} ]] && WALLET_STAKE_DEREG_FILENAME="stake.dereg"
-[[ -z ${WALLET_DELEGCERT_FILENAME} ]] && WALLET_DELEGCERT_FILENAME="delegation.cert"
-[[ -z ${POOL_ID_FILENAME} ]] && POOL_ID_FILENAME="pool.id"
-[[ -z ${POOL_HOTKEY_VK_FILENAME} ]] && POOL_HOTKEY_VK_FILENAME="hot.vkey"
-[[ -z ${POOL_HOTKEY_SK_FILENAME} ]] && POOL_HOTKEY_SK_FILENAME="hot.skey"
-[[ -z ${POOL_COLDKEY_VK_FILENAME} ]] && POOL_COLDKEY_VK_FILENAME="cold.vkey"
-[[ -z ${POOL_COLDKEY_SK_FILENAME} ]] && POOL_COLDKEY_SK_FILENAME="cold.skey"
-[[ -z ${POOL_OPCERT_COUNTER_FILENAME} ]] && POOL_OPCERT_COUNTER_FILENAME="cold.counter"
-[[ -z ${POOL_OPCERT_FILENAME} ]] && POOL_OPCERT_FILENAME="op.cert"
-[[ -z ${POOL_VRF_VK_FILENAME} ]] && POOL_VRF_VK_FILENAME="vrf.vkey"
-[[ -z ${POOL_VRF_SK_FILENAME} ]] && POOL_VRF_SK_FILENAME="vrf.skey"
-[[ -z ${POOL_CONFIG_FILENAME} ]] && POOL_CONFIG_FILENAME="pool.config"
-[[ -z ${POOL_REGCERT_FILENAME} ]] && POOL_REGCERT_FILENAME="pool.cert"
-[[ -z ${POOL_CURRENT_KES_START} ]] && POOL_CURRENT_KES_START="kes.start"
-[[ -z ${POOL_DEREGCERT_FILENAME} ]] && POOL_DEREGCERT_FILENAME="pool.dereg"
-[[ -z ${ASSET_FOLDER} ]] && ASSET_FOLDER="${CNODE_HOME}/priv/asset"
-[[ -z ${ASSET_POLICY_VK_FILENAME} ]] && ASSET_POLICY_VK_FILENAME="policy.vkey"
-[[ -z ${ASSET_POLICY_SK_FILENAME} ]] && ASSET_POLICY_SK_FILENAME="policy.skey"
-[[ -z ${ASSET_POLICY_SCRIPT_FILENAME} ]] && ASSET_POLICY_SCRIPT_FILENAME="policy.script"
-[[ -z ${ASSET_POLICY_ID_FILENAME} ]] && ASSET_POLICY_ID_FILENAME="policy.id"
-
-FG_BLACK='\e[30m'
-FG_RED='\e[31m'
-FG_GREEN='\e[32m'
-FG_YELLOW='\e[33m'
-FG_BLUE='\e[34m'
-FG_MAGENTA='\e[35m'
-FG_CYAN='\e[36m'
-FG_LGRAY='\e[37m'
-FG_DGRAY='\e[90m'
-FG_LBLUE='\e[94m'
-FG_WHITE='\e[97m'
-STANDOUT='\e[7m'
-BOLD='\e[1m'
-NC='\e[0m'
-
-# Description : Exit with error message
-#             : $1 = Error message we'd like to display before exiting (function will pre-fix 'ERROR: ' to the argument)
-err_exit() {
-  printf "${FG_RED}ERROR${NC}: ${1}\n" >&2
-  echo -e "Exiting...\n" >&2
-  pushd -0 >/dev/null && dirs -c
-  exit 1
-}
-
 # Description : Check if provided file exists
 #             : $1 = File (with path) to check
 is_file() {
@@ -365,6 +89,23 @@ is_file() {
 is_dir() {
   local dir=$1
   [[ -d $dir ]]
+}
+
+# Description : Check higher of two versions
+#             : $1=minimal_needed_version
+#             : $2=current_node_version
+versionCheck()
+{
+  printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V
+}
+
+# Description : Exit with error message
+#             : $1 = Error message we'd like to display before exiting (function will pre-fix 'ERROR: ' to the argument)
+err_exit() {
+  printf "${FG_RED}ERROR${NC}: ${1}\n" >&2
+  echo -e "Exiting...\n" >&2
+  pushd -0 >/dev/null && dirs -c
+  exit 1
 }
 
 # Description : Query user for yes or no answer
@@ -910,6 +651,271 @@ getEraIdentifier() {
   fi
   return 0
 }
+
+[[ ${0} != '-bash' ]] && PARENT=$(dirname $0) || PARENT="$(pwd)" # If sourcing at terminal, $0 would be "-bash" , which is invalid. Thus, fallback to present working directory
+
+OFFLINE_MODE='N'
+[[ $1 = "offline" ]] && OFFLINE_MODE='Y'
+[[ $(basename $0 2>/dev/null) = "cnode.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
+[[ $(basename $0 2>/dev/null) = "topologyUpdater.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
+
+[[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master
+
+URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
+DB_SCRIPTS_URL="${URL_RAW}/scripts/grest-helper-scripts/db-scripts"
+export LC_ALL=C.UTF-8
+
+# special mapping of coreutils gdate to date for MacOS
+if [[ $(uname) == Darwin ]]; then
+   date () { gdate "$@"; }
+fi
+
+[[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
+
+telegramSend() {
+  if [[ -z "${TG_BOT_TOKEN}" ]] || [[ -z "${TG_CHAT_ID}" ]]; then
+    echo "Warn: to use the telegramSend function you must first set the bot and chat id in the env file"
+  else
+    TG_URL="https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage?parse_mode=Markdown"
+    TGAUE=$(curl -s -X POST $TG_URL -d chat_id=${TG_CHAT_ID} -d text="${HOSTNAME} $1");
+  fi
+}
+
+[[ -z "${CCLI}" ]] && CCLI=$(command -v cardano-cli)
+if [[ -z "${CCLI}" ]]; then
+  if [[ -f "${HOME}/.cabal/bin/cardano-cli" ]]; then
+    export PATH="${HOME}/.cabal/bin":$PATH
+    CCLI=$(command -v cardano-cli)
+  else
+    echo "You do not have a cardano-cli binary available in \$PATH."
+    return 1
+  fi
+fi
+
+[[ -z "${CNODEBIN}" ]] && CNODEBIN=$(command -v cardano-node)
+if [[ -z "${CNODEBIN}" ]]; then
+  if [[ -f "$(dirname ${CCLI})"/cardano-node ]]; then
+    CCLIPARENT="$(dirname ${CCLI})" && export PATH="${CCLIPARENT}":$PATH
+    CNODEBIN="$(dirname ${CCLI})"/cardano-node
+  elif [[ -f "${HOME}/.cabal/bin/cardano-node" ]]; then
+    export PATH="${HOME}/.cabal/bin":$PATH
+    CNODEBIN=$(command -v cardano-node)
+  elif [[ ${OFFLINE_MODE} = "Y" ]]; then
+    echo "You do not have a cardano-node binary available in \$PATH."
+    return 1
+  fi
+fi
+
+if [[ -z "${CNCLI}" ]]; then
+  CNCLI=$(command -v cncli) || CNCLI="${HOME}/.cargo/bin/cncli"
+fi
+
+[[ -f /usr/local/lib/libsodium.so ]] && export LD_LIBRARY_PATH=/usr/local/lib:"${LD_LIBRARY_PATH}" && PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:"${PKG_CONFIG_PATH}"
+
+[[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
+
+CNODE_NAME="$(basename ${CNODE_HOME})"
+CNODE_VNAME=$(tr '[:upper:]' '[:lower:]' <<< ${CNODE_NAME//_HOME/})
+CNODE_VNAME_UPPERCASE=$(tr '[:lower:]' '[:upper:]' <<< ${CNODE_VNAME})
+
+[[ -z "${CNODE_PORT}" ]] && CNODE_PORT=6000
+if [[ -z "${SOCKET}" ]]; then
+  if [[ "$(ps -ef | grep "$(basename ${CNODEBIN}).*.port ${CNODE_PORT}" | grep -v grep)" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
+    export CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
+  elif [[ ${OFFLINE_MODE} = "Y" ]]; then
+    export CARDANO_NODE_SOCKET_PATH="${CNODE_HOME}/sockets/node0.socket"
+  else
+    echo "Node socket not set in env file and automatic detection failed! [source: $(basename $0 2>/dev/null)]"
+    return 1
+  fi
+else
+  export CARDANO_NODE_SOCKET_PATH="${SOCKET}"
+fi
+export SOCKET="${CARDANO_NODE_SOCKET_PATH}" # For compatibility with those who havn't yet upgraded cnode.sh
+
+if [[ -z "${CONFIG}" ]]; then
+  if [[ "$(ps -ef | grep "$(basename ${CNODEBIN}).*.port ${CNODE_PORT}" | grep -v grep)" =~ --config[[:space:]]([^[:space:]]+) ]]; then
+    CONFIG=${BASH_REMATCH[1]}
+  elif [[ -f "${CNODE_HOME}/files/config.json" ]]; then
+    CONFIG="${CNODE_HOME}/files/config.json"
+  else
+    echo "Node config not set in env file and automatic detection failed!"
+    return 1
+  fi
+fi
+
+if command -v "ss" &>/dev/null; then
+  use_lsof='N'
+elif command -v "lsof" &>/dev/null; then
+  use_lsof='Y'
+else
+  echo -e "'ss' and fallback 'lsof' commands are missing, please install using latest prereqs.sh script or with your packet manager of choice.\nhttps://command-not-found.com/ss can be used to check package name to install.\n"
+  return 1
+fi
+
+if ! command -v "jq" &>/dev/null; then
+  echo -e "'jq' command is missing, please install using latest prereqs.sh script of with your packet manager of choice.\nhttps://command-not-found.com/ss can be used to check package name to install.\n"
+  return 1
+fi
+
+if ! jq -r . "${CONFIG}" >/dev/null 2>&1; then
+  echo "Could not parse ${CONFIG} file in JSON format, please double-check the syntax of your config, or simply download it from guild-operators repository!"
+  return 1
+elif [[ "$(jq -r .TraceChainDb ${CONFIG})" != "true" ]]; then
+  echo "The ${CONFIG} file suggests that you have set TraceChainDb parameter to false. Please change it to true, as it is required to extract statistics from node."
+  return 1
+fi
+
+[[ -z ${EKG_TIMEOUT} ]] && EKG_TIMEOUT=3
+[[ -z ${EKG_HOST} ]] && EKG_HOST=127.0.0.1
+if [[ ${EKG_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+  IFS='.' read -ra EKG_OCTETS <<< ${EKG_HOST}
+  if ! [[ ${EKG_OCTETS[0]} -le 255 && ${EKG_OCTETS[1]} -le 255 && ${EKG_OCTETS[2]} -le 255 && ${EKG_OCTETS[3]} -le 255 ]]; then
+    echo "Not a valid IP range set for EKG host, please check env file for value of EKG_HOST (currently it is ${EKG_HOST} )!"
+    return 1
+  fi
+else
+  echo "Not a valid IP format set for EKG host, please check env file!"
+  return 1
+fi
+
+if [[ -z ${EKG_PORT} ]]; then
+  if ! EKG_PORT=$(jq -er '.hasEKG | if .|type=="array" then .[1] else . end' "${CONFIG}" 2>/dev/null); then
+    if [[ ${OFFLINE_MODE} = "N" ]]; then
+      echo "Could not get 'hasEKG' port in ${CONFIG}"
+      return 1
+    fi
+  fi
+elif [[ ! ${EKG_PORT} =~ ^[0-9]+$ ]]; then
+  echo "Please set a valid EKG port number in env file! Current value is ${EKG_PORT} !"
+  return 1
+fi
+
+if [[ -z ${PROM_HOST} ]]; then PROM_HOST=$(jq -er '.hasPrometheus[0]' "${CONFIG}" 2>/dev/null) || PROM_HOST=127.0.0.1; fi
+
+if [[ ${PROM_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+  IFS='.' read -ra PROM_OCTETS <<< ${PROM_HOST}
+  if ! [[ ${PROM_OCTETS[0]} -le 255 && ${PROM_OCTETS[1]} -le 255 && ${PROM_OCTETS[2]} -le 255 && ${PROM_OCTETS[3]} -le 255 ]]; then
+    echo "Not a valid IP range set for Prometheus host, please check env file for value of PROM_HOST (currently it is set to ${PROM_HOST} )!"
+    return 1
+  fi
+else
+  echo "Not a valid IP format set for Prometheus host, please check env file!"
+  return 1
+fi
+if [[ -z ${PROM_PORT} ]]; then
+  if ! PROM_PORT=$(jq -er '.hasPrometheus[1]' "${CONFIG}" 2>/dev/null); then
+    if [[ ${OFFLINE_MODE} = "N" ]]; then
+      echo "Could not get 'hasPrometheus' port in ${CONFIG}"
+      return 1
+    fi
+  fi
+elif [[ ! ${PROM_PORT} =~ ^[0-9]+$ ]]; then
+  echo "Please set a valid Prometheus port number in env file! Current value is ${PROM_PORT} !"
+  return 1
+fi
+
+if ! GENESIS_JSON=$(jq -er '.ShelleyGenesisFile' "${CONFIG}" 2>/dev/null); then
+  echo "Could not get 'ShelleyGenesisFile' in ${CONFIG}"
+  return 1
+else
+  # if relative path is used, assume same parent dir as config
+  [[ ! ${GENESIS_JSON} =~ ^/ ]] && GENESIS_JSON="$(dirname "${CONFIG}")/${GENESIS_JSON}"
+  [[ ! -f "${GENESIS_JSON}" ]] && echo "Shelley genesis file not found: ${GENESIS_JSON}" && return 1
+fi
+
+if ! BYRON_GENESIS_JSON=$(jq -er '.ByronGenesisFile' "${CONFIG}" 2>/dev/null); then
+  echo "Could not get 'ByronGenesisFile' specified in ${CONFIG}"
+  return 1
+else
+  # if relative path is used, assume same parent dir as config
+  [[ ! ${BYRON_GENESIS_JSON} =~ ^/ ]] && BYRON_GENESIS_JSON="$(dirname "${CONFIG}")/${BYRON_GENESIS_JSON}"
+  [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
+fi
+
+[[ -z ${BLOCKLOG_DIR} ]] && BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"
+BLOCKLOG_DB="${BLOCKLOG_DIR}/blocklog.db"
+[[ -z ${BLOCKLOG_TZ} ]] && BLOCKLOG_TZ="UTC"
+[[ -z ${CNODE_PORT} ]] && CNODE_PORT=6000
+[[ -z "${IP_VERSION}" ]] && IP_VERSION=4
+IP_VERSION=$(tr '[:upper:]' '[:lower:]' <<< "${IP_VERSION}")
+[[ -z ${USE_EKG} ]] && USE_EKG='Y'
+CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.--port ${CNODE_PORT}")
+
+if [[ -n "${CNODE_PID}" ]]; then
+  if [[ "${USE_EKG}" == "N" ]]; then
+    if { [[ "${use_lsof}" != 'Y' && -z "$(ss -lnpt | grep "pid=${CNODE_PID}," | awk -v port=":${PROM_PORT}" '$4 ~ port {print $4}')" ]]; } || { [[ "${use_lsof}" == 'Y' && -z "$(lsof -Pnl -i4 +M | grep LISTEN | awk -v pid="${CNODE_PID}" -v port=":${PROM_PORT}" '$2 == pid && $9 ~ port {print $9}')" ]]; }; then
+      echo "ERROR: You specified ${PROM_PORT} as your Prometheus port, but it looks like the cardano-node (PID: ${CNODE_PID} ) is not listening on this port. Please update the config or kill the conflicting process first."
+      return 1
+    fi
+  else
+    if { [[ "${use_lsof}" != 'Y' && -z "$(ss -lnpt | grep "pid=${CNODE_PID}," | awk -v port=":${EKG_PORT}" '$4 ~ port {print $4}')" ]]; } || { [[ "${use_lsof}" == 'Y' && -z "$(lsof -Pnl -i4 +M | grep LISTEN | awk -v pid="${CNODE_PID}" -v port=":${EKG_PORT}" '$2 == pid && $9 ~ port {print $9}')" ]]; }; then
+      echo "ERROR: You specified ${EKG_PORT} as your EKG port, but it looks like the cardano-node (PID: ${CNODE_PID} ) is not listening on this port. Please update the config or kill the conflicting process first."
+      return 1
+    fi
+  fi
+fi
+
+[[ -z ${UPDATE_CHECK} ]] && UPDATE_CHECK="Y"
+[[ -z ${TOPOLOGY} ]] && TOPOLOGY="${CNODE_HOME}/files/topology.json"
+[[ -n ${CNODE_TOPOLOGY} ]] && TOPOLOGY="${CNODE_TOPOLOGY}" # compatibility with older topologyUpdater
+[[ -z ${LOG_DIR} ]] && LOG_DIR="${CNODE_HOME}/logs"
+[[ -n ${CNODE_LOG_DIR} ]] && LOG_DIR="${CNODE_LOG_DIR}" # compatibility with older topologyUpdater
+[[ -z ${DB_DIR} ]] && DB_DIR="${CNODE_HOME}/db"
+[[ -z ${TMP_DIR} ]] && TMP_DIR="/tmp/$(basename "${CNODE_HOME}")"
+if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then echo "ERROR: Failed to create directory for temporary files, please set TMP_DIR to a valid folder in 'env', current folder: ${TMP_DIR}" && exit 1; fi
+[[ -z ${TIMEOUT_LEDGER_STATE} ]] && TIMEOUT_LEDGER_STATE=300
+[[ -n ${PGREST_API} && $(curl -Isf -m 5 ${PGREST_API} | head -1) != *"200 OK"* ]] && unset PGREST_API
+[[ -z ${DBSYNC_QUERY_FOLDER} ]] && DBSYNC_QUERY_FOLDER="${CNODE_HOME}/files/dbsync/queries"
+[[ -z ${WALLET_FOLDER} ]] && WALLET_FOLDER="${CNODE_HOME}/priv/wallet"
+[[ -z ${POOL_FOLDER} ]] && POOL_FOLDER="${CNODE_HOME}/priv/pool"
+[[ -z ${POOL_NAME} ]] && POOL_NAME="CHANGE_ME"
+[[ -z ${POOL_DIR} ]] && POOL_DIR="${POOL_FOLDER}/${POOL_NAME}"
+[[ -z ${WALLET_PAY_VK_FILENAME} ]] && WALLET_PAY_VK_FILENAME="payment.vkey"
+[[ -z ${WALLET_PAY_SK_FILENAME} ]] && WALLET_PAY_SK_FILENAME="payment.skey"
+[[ -z ${WALLET_HW_PAY_SK_FILENAME} ]] && WALLET_HW_PAY_SK_FILENAME="payment.hwsfile"
+[[ -z ${WALLET_PAY_ADDR_FILENAME} ]] && WALLET_PAY_ADDR_FILENAME="payment.addr"
+[[ -z ${WALLET_BASE_ADDR_FILENAME} ]] && WALLET_BASE_ADDR_FILENAME="base.addr"
+[[ -z ${WALLET_STAKE_VK_FILENAME} ]] && WALLET_STAKE_VK_FILENAME="stake.vkey"
+[[ -z ${WALLET_STAKE_SK_FILENAME} ]] && WALLET_STAKE_SK_FILENAME="stake.skey"
+[[ -z ${WALLET_HW_STAKE_SK_FILENAME} ]] && WALLET_HW_STAKE_SK_FILENAME="stake.hwsfile"
+[[ -z ${WALLET_STAKE_ADDR_FILENAME} ]] && WALLET_STAKE_ADDR_FILENAME="reward.addr"
+[[ -z ${WALLET_STAKE_CERT_FILENAME} ]] && WALLET_STAKE_CERT_FILENAME="stake.cert"
+[[ -z ${WALLET_STAKE_DEREG_FILENAME} ]] && WALLET_STAKE_DEREG_FILENAME="stake.dereg"
+[[ -z ${WALLET_DELEGCERT_FILENAME} ]] && WALLET_DELEGCERT_FILENAME="delegation.cert"
+[[ -z ${POOL_ID_FILENAME} ]] && POOL_ID_FILENAME="pool.id"
+[[ -z ${POOL_HOTKEY_VK_FILENAME} ]] && POOL_HOTKEY_VK_FILENAME="hot.vkey"
+[[ -z ${POOL_HOTKEY_SK_FILENAME} ]] && POOL_HOTKEY_SK_FILENAME="hot.skey"
+[[ -z ${POOL_COLDKEY_VK_FILENAME} ]] && POOL_COLDKEY_VK_FILENAME="cold.vkey"
+[[ -z ${POOL_COLDKEY_SK_FILENAME} ]] && POOL_COLDKEY_SK_FILENAME="cold.skey"
+[[ -z ${POOL_OPCERT_COUNTER_FILENAME} ]] && POOL_OPCERT_COUNTER_FILENAME="cold.counter"
+[[ -z ${POOL_OPCERT_FILENAME} ]] && POOL_OPCERT_FILENAME="op.cert"
+[[ -z ${POOL_VRF_VK_FILENAME} ]] && POOL_VRF_VK_FILENAME="vrf.vkey"
+[[ -z ${POOL_VRF_SK_FILENAME} ]] && POOL_VRF_SK_FILENAME="vrf.skey"
+[[ -z ${POOL_CONFIG_FILENAME} ]] && POOL_CONFIG_FILENAME="pool.config"
+[[ -z ${POOL_REGCERT_FILENAME} ]] && POOL_REGCERT_FILENAME="pool.cert"
+[[ -z ${POOL_CURRENT_KES_START} ]] && POOL_CURRENT_KES_START="kes.start"
+[[ -z ${POOL_DEREGCERT_FILENAME} ]] && POOL_DEREGCERT_FILENAME="pool.dereg"
+[[ -z ${ASSET_FOLDER} ]] && ASSET_FOLDER="${CNODE_HOME}/priv/asset"
+[[ -z ${ASSET_POLICY_VK_FILENAME} ]] && ASSET_POLICY_VK_FILENAME="policy.vkey"
+[[ -z ${ASSET_POLICY_SK_FILENAME} ]] && ASSET_POLICY_SK_FILENAME="policy.skey"
+[[ -z ${ASSET_POLICY_SCRIPT_FILENAME} ]] && ASSET_POLICY_SCRIPT_FILENAME="policy.script"
+[[ -z ${ASSET_POLICY_ID_FILENAME} ]] && ASSET_POLICY_ID_FILENAME="policy.id"
+
+FG_BLACK='\e[30m'
+FG_RED='\e[31m'
+FG_GREEN='\e[32m'
+FG_YELLOW='\e[33m'
+FG_BLUE='\e[34m'
+FG_MAGENTA='\e[35m'
+FG_CYAN='\e[36m'
+FG_LGRAY='\e[37m'
+FG_DGRAY='\e[90m'
+FG_LBLUE='\e[94m'
+FG_WHITE='\e[97m'
+STANDOUT='\e[7m'
+BOLD='\e[1m'
+NC='\e[0m'
 
 node_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
 if ! versionCheck "1.31.0" "${node_version}"; then
