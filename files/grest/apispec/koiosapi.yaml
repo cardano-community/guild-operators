@@ -441,7 +441,7 @@ paths:
         - Asset
       parameters:
         - $ref: "#/components/parameters/_asset_policy"
-        - $ref: "#/components/parameters/_asset_name_text"
+        - $ref: "#/components/parameters/_asset_name"
       responses:
         "200":
           $ref: "#/components/responses/OK"
@@ -457,7 +457,7 @@ paths:
         - Asset
       parameters:
         - $ref: "#/components/parameters/_asset_policy"
-        - $ref: "#/components/parameters/_asset_name_hex"
+        - $ref: "#/components/parameters/_asset_name"
       responses:
         "200":
           $ref: "#/components/responses/OK"
@@ -466,7 +466,23 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
       summary: Asset Summary
-      description: Get summary data for an asset (minting transactions not included in total count, total wallets include only wallets with asset balance)
+      description: Get the information of an asset incl first minting & token registry metadata
+  /rpc/asset_txs:
+    get:
+      tags:
+        - Asset
+      parameters:
+        - $ref: "#/components/parameters/_asset_policy"
+        - $ref: "#/components/parameters/_asset_name"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Asset Summary
+      description: Get the summary of an asset (total transactions exclude minting/total wallets include only wallets with asset balance)
   /rpc/address_assets:
     get:
       tags:
@@ -713,19 +729,9 @@ components:
       in: query
       required: true
       allowEmptyValue: false
-    _asset_name_text:
+    _asset_name:
       deprecated: false
       name: _asset_name
-      description: Asset Name in plain text
-      schema:
-        type: string
-        example: DONTSPAM
-      in: query
-      required: true
-      allowEmptyValue: false
-    _asset_name_hex:
-      deprecated: false
-      name: _asset_name_hex
       description: Asset Name in hexadecimal format
       schema:
         type: string
