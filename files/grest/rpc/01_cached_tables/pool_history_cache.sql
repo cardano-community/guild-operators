@@ -38,6 +38,11 @@ begin
     RAISE EXCEPTION 'Previous pool_history_cache_update query still running but should have completed! Exiting...';
   END IF;
 
+  INSERT INTO GREST.CONTROL_TABLE (key, last_value)
+      values('pool_history_cache_last_updated', now() at time zone 'utc')
+    ON CONFLICT (key)
+      DO UPDATE SET last_value = now() at time zone 'utc';
+
   if _epoch_no_to_insert_from is null then
     select
       COALESCE(MAX(epoch_no), 0) into _latest_epoch_no_in_cache
@@ -238,12 +243,6 @@ begin
                         and actf.epoch_no = m.earned_epoch
                     left join delegators del on ph.id = del.pool_id
                       and actf.epoch_no = del.epoch_no);
-           
-           INSERT INTO GREST.CONTROL_TABLE (key, last_value)
-              values('pool_history_cache_last_updated', now() at time zone 'utc')
-           ON CONFLICT (key)
-           DO UPDATE SET
-              last_value = now() at time zone 'utc';
 end;
 $$;
 
