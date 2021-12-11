@@ -11,13 +11,13 @@ CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=7
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=2
+CNTOOLS_PATCH_VERSION=3
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
 ############################################################
 # Default config values                                    #
-# overriden by values set in cntools.config                #
+# overriden by values set in cntools.sh                    #
 ############################################################
 TMP_DIR="${TMP_DIR}/cntools"
 if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}: Failed to create directory for temporary files: ${TMP_DIR}"; fi
@@ -130,7 +130,7 @@ protectionPreRequisites() {
   ! cmdAvailable "gpg" && return 1
 
   if ! cmdAvailable "chattr" &>/dev/null; then
-    [[ ${ENABLE_CHATTR} = true ]] && echo -e "chattr command not available but enabled in config, please install or disable in cntools.config and re-run CNTools" && return 1
+    [[ ${ENABLE_CHATTR} = true ]] && echo -e "chattr command not available but enabled in config, please install or disable in cntools.sh and re-run CNTools" && return 1
   elif [[ ${ENABLE_CHATTR} = true ]]; then # chattr available and enabled, make sure sudo access to chattr is enabled
     touch "${TMP_DIR}"/test
     echo -e "Testing chattr access permission, enter user password if requested..."

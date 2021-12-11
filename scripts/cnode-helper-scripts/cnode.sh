@@ -59,8 +59,8 @@ pre_startup_sanity() {
 }
 
 deploy_systemd() {
-  echo "Deploying ${CNODE_NAME} as systemd service.."
-  sudo bash -c "cat <<-'EOF' > /etc/systemd/system/${CNODE_NAME}.service
+  echo "Deploying ${CNODE_VNAME} as systemd service.."
+  sudo bash -c "cat <<-'EOF' > /etc/systemd/system/${CNODE_VNAME}.service
 	[Unit]
 	Description=Cardano Node
 	Wants=network-online.target
@@ -79,13 +79,13 @@ deploy_systemd() {
 	SuccessExitStatus=143
 	StandardOutput=syslog
 	StandardError=syslog
-	SyslogIdentifier=${CNODE_NAME}
+	SyslogIdentifier=${CNODE_VNAME}
 	TimeoutStopSec=5
 	KillMode=mixed
 	
 	[Install]
 	WantedBy=multi-user.target
-	EOF" && echo "${CNODE_NAME}.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_NAME}.service
+	EOF" && echo "${CNODE_VNAME}.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}.service
 }
 
 ###################
@@ -101,8 +101,8 @@ while getopts :d opt; do
 done
 
 # Check if env file is missing in current folder (no update checks as will mostly run as daemon), source env if present
-[[ ! -f "./env" ]] && echo -e "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
-. ./env
+[[ ! -f "$(dirname $0)"/env ]] && echo -e "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
+. "$(dirname $0)"/env offline
 case $? in
   1) echo -e "ERROR: Failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" && exit 1;;
   2) clear ;;
