@@ -232,7 +232,7 @@ if [[ ${LEGACY_MODE} = "true" ]]; then
   m3divider=$(printf "${NC}|" && printf "%0.s- " $(seq $((width/2))) && printf "|")
   bdivider=$(printf "${NC}|" && printf "%0.s=" $(seq $((width-1))) && printf "|")
   coredivider=$(printf "${NC}|= ${style_info}CORE${NC} " && printf "%0.s=" $(seq $((width-8))) && printf "|")
-  conndivider=$(printf "${NC}|- ${style_info}P2P CONNECTIONS${NC} " && printf "%0.s-" $(seq $((width-19))) && printf "|")
+  conndivider=$(printf "${NC}|- ${style_info}CONNECTIONS${NC} " && printf "%0.s-" $(seq $((width-15))) && printf "|")
   propdivider=$(printf "${NC}|- ${style_info}BLOCK PROPAGATION${NC} " && printf "%0.s-" $(seq $((width-21))) && printf "|")
   resourcesdivider=$(printf "${NC}|- ${style_info}NODE RESOURCE USAGE${NC} " && printf "%0.s-" $(seq $((width-23))) && printf "|")
   blockdivider=$(printf "${NC}|- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "|")
@@ -254,7 +254,7 @@ else
   m3divider=$(printf "${NC}\\u2502" && printf "%0.s- " $(seq $((width/2))) && printf "\\u2502")
   bdivider=$(printf "${NC}\\u2514" && printf "%0.s\\u2500" $(seq $((width-1))) && printf "\\u2518")
   coredivider=$(printf "${NC}\\u251C\\u2500 ${style_info}CORE${NC} " && printf "%0.s\\u2500" $(seq $((width-8))) && printf "\\u2524")
-  conndivider=$(printf "${NC}\\u2502- ${style_info}P2P CONNECTIONS${NC} " && printf "%0.s-" $(seq $((width-19))) && printf "\\u2502")
+  conndivider=$(printf "${NC}\\u2502- ${style_info}CONNECTIONS${NC} " && printf "%0.s-" $(seq $((width-15))) && printf "\\u2502")
   propdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PROPAGATION${NC} " && printf "%0.s-" $(seq $((width-21))) && printf "\\u2502")
   resourcesdivider=$(printf "${NC}\\u2502- ${style_info}NODE RESOURCE USAGE${NC} " && printf "%0.s-" $(seq $((width-23))) && printf "\\u2502")
   blockdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "\\u2502")
@@ -542,7 +542,7 @@ checkPeers() {
 #####################################
 check_peers="false"
 show_peers="false"
-selected_direction="out"
+p2p_enabled=$(jq -r '.EnableP2P //false' ${CONFIG} 2>/dev/null)
 getNodeMetrics
 curr_epoch=${epochnum}
 getShelleyTransitionEpoch
@@ -627,6 +627,17 @@ while true; do
   fi
 
   if [[ ${show_peers} = "false" ]]; then
+
+    if [[ ${p2p_enabled} != true ]]; then
+      if [[ ${use_lsof} = 'Y' ]]; then
+        peers_in=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
+        peers_out=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
+      else
+        peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | grep -v ":${cncli_port} " | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
+        peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})" '$3 !~ port {print}' | wc -l)
+      fi
+    fi
+
     read -ra proc_data <<<"$(ps -q ${CNODE_PID} -o pcpu= -o rss=)"
     if [[ ${#proc_data[@]} -eq 2 ]]; then
       proc_cpu=${proc_data[0]}
@@ -889,33 +900,47 @@ while true; do
 
     echo "${conndivider}" && ((line++))
 
-    # row 4
-    printf "${VL} Cold Peers : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_cold}"
-    mvThreeSecond
-    printf "Incoming   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_incoming}"
-    mvThreeThird
-    printf "Uni-Dir    : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_uni_dir}"
-    closeRow
+    if [[ ${p2p_enabled} = true ]]; then
 
-    # row 5
-    printf "${VL} Warm Peers : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_warm}"
-    mvThreeSecond
-    printf "Outgoing   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_outgoing}"
-    mvThreeThird
-    printf "Bi-Dir     : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_bi_dir}"
-    closeRow
+      # row 1
+      printf "${VL} P2P        : ${style_status_1}%-${three_col_2_value_width}s${NC}" "enabled"
+      mvThreeSecond
+      printf "Cold Peers : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_cold}"
+      mvThreeThird
+      printf "Uni-Dir    : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_uni_dir}"
+      closeRow
 
-    # row 6
-    printf "${VL} Hot Peers  : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_hot}"
-    # mvThreeSecond
-    # empty
-    mvThreeThird
-    printf "Duplex     : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_duplex}"
-    closeRow
+      # row 2
+      printf "${VL} Incoming   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_incoming}"
+      mvThreeSecond
+      printf "Warm Peers : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_warm}"
+      mvThreeThird
+      printf "Bi-Dir     : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_bi_dir}"
+      closeRow
+
+      # row 3
+      printf "${VL} Outgoing   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_outgoing}"
+      mvThreeSecond
+      printf "Hot Peers  : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_hot}"
+      mvThreeThird
+      printf "Duplex     : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_duplex}"
+      closeRow
+
+    else
+
+      # row 1
+      printf "${VL} P2P        : ${style_status_2}%-${three_col_2_value_width}s${NC}" "disabled"
+      mvThreeSecond
+      printf "Incoming   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_in}"
+      mvThreeThird
+      printf "${VL} Outgoing   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_out}"
+      closeRow
+
+    fi
 
     echo "${propdivider}" && ((line++))
 
-    # row 7
+    # row 1
     printf -v block_delay_rounded "%.2f" ${block_delay}
     printf "${VL} Last Delay : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
     mvThreeSecond
@@ -924,7 +949,7 @@ while true; do
     printf "Late (>5s) : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${blocks_late}"
     closeRow
 
-    # row 8
+    # row 2
     printf -v blocks_w1s_pct "%.2f" "$(bc -l <<<"(${blocks_w1s}*100)")"
     printf "${VL} Within 1s  : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#blocks_w1s_pct}))s" "${blocks_w1s_pct}" "%"
     mvThreeSecond
@@ -937,7 +962,7 @@ while true; do
 
     echo "${resourcesdivider}" && ((line++))
 
-    # row 9
+    # row 1
     printf "${VL} CPU node   : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#proc_cpu}))s" "${proc_cpu}" "%"
     mvThreeSecond
     printf -v mem_live_gb "%.1f" "$(bc -l <<<"(${mem_live}/1073741824)")"
@@ -946,7 +971,7 @@ while true; do
     printf "GC Minor   : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${gc_minor}"
     closeRow
 
-    # row 10
+    # row 2
     printf -v mem_rss_gb "%.1f" "$(bc -l <<<"(${mem_rss}/1048576)")"
     printf "${VL} Mem (RSS)  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
     mvThreeSecond
