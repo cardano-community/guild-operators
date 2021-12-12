@@ -933,7 +933,7 @@ while true; do
       mvThreeSecond
       printf "Incoming   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_in}"
       mvThreeThird
-      printf "${VL} Outgoing   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_out}"
+      printf "Outgoing   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_out}"
       closeRow
 
     fi
