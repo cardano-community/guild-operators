@@ -56,7 +56,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.24.0
+GLV_VERSION=v1.25.0
 
 PARENT="$(dirname $0)"
 
@@ -232,7 +232,9 @@ if [[ ${LEGACY_MODE} = "true" ]]; then
   m3divider=$(printf "${NC}|" && printf "%0.s- " $(seq $((width/2))) && printf "|")
   bdivider=$(printf "${NC}|" && printf "%0.s=" $(seq $((width-1))) && printf "|")
   coredivider=$(printf "${NC}|= ${style_info}CORE${NC} " && printf "%0.s=" $(seq $((width-8))) && printf "|")
+  conndivider=$(printf "${NC}|- ${style_info}CONNECTIONS${NC} " && printf "%0.s-" $(seq $((width-15))) && printf "|")
   propdivider=$(printf "${NC}|- ${style_info}BLOCK PROPAGATION${NC} " && printf "%0.s-" $(seq $((width-21))) && printf "|")
+  systemdivider=$(printf "${NC}|- ${style_info}SYSTEM${NC} " && printf "%0.s-" $(seq $((width-10))) && printf "|")
   blockdivider=$(printf "${NC}|- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "|")
   blank_line=$(printf "${NC}|%$((width-1))s|" "")
 else
@@ -252,7 +254,9 @@ else
   m3divider=$(printf "${NC}\\u2502" && printf "%0.s- " $(seq $((width/2))) && printf "\\u2502")
   bdivider=$(printf "${NC}\\u2514" && printf "%0.s\\u2500" $(seq $((width-1))) && printf "\\u2518")
   coredivider=$(printf "${NC}\\u251C\\u2500 ${style_info}CORE${NC} " && printf "%0.s\\u2500" $(seq $((width-8))) && printf "\\u2524")
+  conndivider=$(printf "${NC}\\u2502- ${style_info}CONNECTIONS${NC} " && printf "%0.s-" $(seq $((width-15))) && printf "\\u2502")
   propdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PROPAGATION${NC} " && printf "%0.s-" $(seq $((width-21))) && printf "\\u2502")
+  systemdivider=$(printf "${NC}\\u2502- ${style_info}SYSTEM${NC} " && printf "%0.s-" $(seq $((width-10))) && printf "\\u2502")
   blockdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "\\u2502")
   blank_line=$(printf "${NC}\\u2502%$((width-1))s\\u2502" "")
 fi
@@ -614,7 +618,6 @@ while true; do
 
   # Gather some data
   getNodeMetrics
-  mem_rss=$(ps -q ${CNODE_PID} -o rss=) || mem_rss="0"
   [[ ${fail_count} -eq ${RETRIES} ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}"
   if [[ ${nodeStartTime} -le 0 ]]; then
     ((fail_count++))
@@ -636,12 +639,20 @@ while true; do
   fi
 
   if [[ ${show_peers} = "false" ]]; then
-    if [[ ${use_lsof} = 'Y' ]]; then
-      peers_in=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
-      peers_out=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
+    #if [[ ${use_lsof} = 'Y' ]]; then
+    #  peers_in=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
+    #  peers_out=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
+    #else
+    #  peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | grep -v ":${cncli_port} " | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
+    #  peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})" '$3 !~ port {print}' | wc -l)
+    #fi
+    read -ra proc_data <<<"$(ps -q ${CNODE_PID} -o pcpu= -o rss=)"
+    if [[ ${#proc_data[@]} -eq 2 ]]; then
+      proc_cpu=${proc_data[0]}
+      mem_rss=${proc_data[1]}
     else
-      peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | grep -v ":${cncli_port} " | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
-      peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})" '$3 !~ port {print}' | wc -l)
+      proc_cpu="0.0"
+      mem_rss=0
     fi
     if [[ ${about_to_lead} -gt 0 ]]; then
       [[ ${nodemode} != "Core" ]] && clrScreen && nodemode="Core"
@@ -976,12 +987,11 @@ while true; do
     mvThreeSecond
     printf "Tip (ref)  : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${tip_ref}"
     mvThreeThird
-    printf -v mem_rss_gb "%.1f" "$(bc -l <<<"(${mem_rss}/1048576)")"
-    printf "Mem (RSS)  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
+    printf "Forks      : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${forks}"
     closeRow
 
     # row 2
-    printf "${VL} Slot       : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${slot_in_epoch}"
+    printf "${VL} Slot       : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${slotnum}"
     mvThreeSecond
     if [[ ${slotnum} -eq 0 ]]; then
       printf "Status     : ${style_info}%-${three_col_2_value_width}s${NC}" "starting"
@@ -989,45 +999,54 @@ while true; do
       printf "Status     : ${style_info}%-${three_col_2_value_width}s${NC}" "syncing"
     elif [[ ${tip_diff} -le $(slotInterval) ]]; then
       printf "Tip (diff) : ${style_status_1}%-${three_col_2_value_width}s${NC}" "${tip_diff} :)"
-    elif [[ ${tip_diff} -le $(( $(slotInterval) * 4 )) ]]; then
+    elif [[ ${tip_diff} -le 600 ]]; then
       printf "Tip (diff) : ${style_status_2}%-${three_col_2_value_width}s${NC}" "${tip_diff} :|"
     else
       sync_progress=$(echo "(${slotnum}/${tip_ref})*100" | bc -l)
-      printf "Status     : ${style_info}%-${three_col_2_value_width}s${NC}" "sync $(printf "%2.1f" "${sync_progress}")%"
+      printf "Syncing    : ${style_info}%-${three_col_2_value_width}s${NC}" "$(printf "%2.1f" "${sync_progress}")%"
     fi
     mvThreeThird
-    printf -v mem_live_gb "%.1f" "$(bc -l <<<"(${mem_live}/1073741824)")"
-    printf "Mem (Live) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"
+    printf "Total Tx   : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${tx_processed}"
     closeRow
 
     # row 3
-    printf "${VL} Density    : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${density}"
+    printf "${VL} Epoch Slot : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${slot_in_epoch}"
     mvThreeSecond
-    printf "Forks      : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${forks}"
+    printf "Density    : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${density}"
     mvThreeThird
-    printf -v mem_heap_gb "%.1f" "$(bc -l <<<"(${mem_heap}/1073741824)")"
-    printf "Mem (Heap) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_heap_gb}))s" "${mem_heap_gb}" "G"
+    mempool_tx_bytes=$((mempool_bytes/1024))
+    printf "Pending Tx : ${style_values_1}%s${NC}/${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#mempool_tx} - ${#mempool_tx_bytes} - 3))s" "${mempool_tx}" "${mempool_tx_bytes}" "K"
     closeRow
 
+    echo "${conndivider}" && ((line++))
+
     # row 4
-    printf "${VL} Total Tx   : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${tx_processed}"
+    printf "${VL} Cold Peers : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_cold}"
     mvThreeSecond
-    printf "Peers In   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_in}"
+    printf "Incoming   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_incoming}"
     mvThreeThird
-    printf "GC Minor   : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${gc_minor}"
+    printf "Uni-Dir    : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_uni_dir}"
     closeRow
 
     # row 5
-    mempool_tx_bytes=$((mempool_bytes/1024))
-    printf "${VL} Pending Tx : ${style_values_1}%s${NC}/${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#mempool_tx} - ${#mempool_tx_bytes} - 3))s" "${mempool_tx}" "${mempool_tx_bytes}" "K"
+    printf "${VL} Warm Peers : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_warm}"
     mvThreeSecond
-    printf "Peers Out  : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_out}"
+    printf "Outgoing   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_outgoing}"
     mvThreeThird
-    printf "GC Major   : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${gc_major}"
+    printf "Bi-Dir     : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_bi_dir}"
+    closeRow
+
+    # row 6
+    printf "${VL} Hot Peers  : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_hot}"
+    # mvThreeSecond
+    # empty
+    mvThreeThird
+    printf "Duplex     : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_duplex}"
     closeRow
 
     echo "${propdivider}" && ((line++))
-    # row 6
+
+    # row 7
     printf -v block_delay_rounded "%.2f" ${block_delay}
     printf "${VL} Last Delay : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
     mvThreeSecond
@@ -1036,7 +1055,7 @@ while true; do
     printf "Late (>5s) : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${blocks_late}"
     closeRow
 
-    # row 7
+    # row 8
     printf -v blocks_w1s_pct "%.2f" "$(bc -l <<<"(${blocks_w1s}*100)")"
     printf "${VL} Within 1s  : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#blocks_w1s_pct}))s" "${blocks_w1s_pct}" "%"
     mvThreeSecond
@@ -1045,6 +1064,27 @@ while true; do
     mvThreeThird
     printf -v blocks_w5s_pct "%.2f" "$(bc -l <<<"(${blocks_w5s}*100)")"
     printf "Within 5s  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#blocks_w5s_pct}))s" "${blocks_w5s_pct}" "%"
+    closeRow
+
+    echo "${systemdivider}" && ((line++))
+
+    # row 9
+    printf "${VL} CPU node   : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#proc_cpu}))s" "${proc_cpu}" "%"
+    mvThreeSecond
+    printf -v mem_live_gb "%.1f" "$(bc -l <<<"(${mem_live}/1073741824)")"
+    printf "Mem (Live) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"
+    mvThreeThird
+    printf "GC Minor   : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${gc_minor}"
+    closeRow
+
+    # row 10
+    printf -v mem_rss_gb "%.1f" "$(bc -l <<<"(${mem_rss}/1048576)")"
+    printf "${VL} Mem (RSS)  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
+    mvThreeSecond
+    printf -v mem_heap_gb "%.1f" "$(bc -l <<<"(${mem_heap}/1073741824)")"
+    printf "Mem (Heap) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_heap_gb}))s" "${mem_heap_gb}" "G"
+    mvThreeThird
+    printf "GC Major   : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${gc_major}"
     closeRow
 
     ## Core section ##

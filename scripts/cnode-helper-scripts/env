@@ -479,7 +479,15 @@ getNodeMetrics() {
     .cardano.node.metrics.blockfetchclient.lateblocks.val //0,
     .cardano.node.metrics.blockfetchclient.blockdelay.cdfOne.val //0,
     .cardano.node.metrics.blockfetchclient.blockdelay.cdfThree.val //0,
-    .cardano.node.metrics.blockfetchclient.blockdelay.cdfFive.val //0
+    .cardano.node.metrics.blockfetchclient.blockdelay.cdfFive.val //0,
+    .cardano.node.metrics.peerSelection.cold.val //0,
+    .cardano.node.metrics.peerSelection.warm.val //0,
+    .cardano.node.metrics.peerSelection.hot.val //0,
+    .cardano.node.metrics.connectionManager.incomingConns.val //0,
+    .cardano.node.metrics.connectionManager.outgoingConns.val //0,
+    .cardano.node.metrics.connectionManager.unidirectionalConns.val //0,
+    .cardano.node.metrics.connectionManager.duplexConns.val //0,
+    .cardano.node.metrics.connectionManager.prunableConns.val //0
     ] | @tsv' <<< "${node_metrics}")
     read -ra node_metrics_arr <<< ${node_metrics_tsv}
     blocknum=${node_metrics_arr[0]}; epochnum=${node_metrics_arr[1]}; slot_in_epoch=${node_metrics_arr[2]}; slotnum=${node_metrics_arr[3]}
@@ -496,6 +504,9 @@ getNodeMetrics() {
     printf -v blocks_w1s "%.6f" "${node_metrics_arr[24]}"
     printf -v blocks_w3s "%.6f" "${node_metrics_arr[25]}"
     printf -v blocks_w5s "%.6f" "${node_metrics_arr[26]}"
+    peers_cold=${node_metrics_arr[27]}; peers_warm=${node_metrics_arr[28]}; peers_hot=${node_metrics_arr[29]}
+    conn_incoming=${node_metrics_arr[30]}; conn_outgoing=${node_metrics_arr[31]}
+    conn_uni_dir=${node_metrics_arr[32]}; conn_bi_dir=${node_metrics_arr[33]}; conn_duplex=${node_metrics_arr[34]}
   else
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
     [[ ${node_metrics} =~ cardano_node_metrics_nodeStartTime_int[[:space:]]([^[:space:]]*) ]] && { nodeStartTime=${BASH_REMATCH[1]} && uptimes=$(( $(date +%s) - BASH_REMATCH[1] )); } || uptimes=0
@@ -525,6 +536,14 @@ getNodeMetrics() {
     [[ ${node_metrics} =~ cardano_node_metrics_blockfetchclient_blockdelay_cdfOne[[:space:]]([^[:space:]]*) ]] && printf -v blocks_w1s "%.6f" ${BASH_REMATCH[1]} || blocks_w1s=0
     [[ ${node_metrics} =~ cardano_node_metrics_blockfetchclient_blockdelay_cdfThree[[:space:]]([^[:space:]]*) ]] && printf -v blocks_w3s "%.6f" ${BASH_REMATCH[1]} || blocks_w3s=0
     [[ ${node_metrics} =~ cardano_node_metrics_blockfetchclient_blockdelay_cdfFive[[:space:]]([^[:space:]]*) ]] && printf -v blocks_w5s "%.6f" ${BASH_REMATCH[1]} || blocks_w5s=0
+    [[ ${node_metrics} =~ cardano_node_metrics_peerSelection_cold[[:space:]]([^[:space:]]*) ]] && peers_cold=${BASH_REMATCH[1]} || peers_cold=0
+    [[ ${node_metrics} =~ cardano_node_metrics_peerSelection_warm[[:space:]]([^[:space:]]*) ]] && peers_warm=${BASH_REMATCH[1]} || peers_warm=0
+    [[ ${node_metrics} =~ cardano_node_metrics_peerSelection_hot[[:space:]]([^[:space:]]*) ]] && peers_hot=${BASH_REMATCH[1]} || peers_hot=0
+    [[ ${node_metrics} =~ cardano_node_metrics_connectionManager_incomingConns[[:space:]]([^[:space:]]*) ]] && conn_incoming=${BASH_REMATCH[1]} || conn_incoming=0
+    [[ ${node_metrics} =~ cardano_node_metrics_connectionManager_outgoingConns[[:space:]]([^[:space:]]*) ]] && conn_outgoing=${BASH_REMATCH[1]} || conn_outgoing=0
+    [[ ${node_metrics} =~ cardano_node_metrics_connectionManager_unidirectionalConns[[:space:]]([^[:space:]]*) ]] && conn_uni_dir=${BASH_REMATCH[1]} || conn_uni_dir=0
+    [[ ${node_metrics} =~ cardano_node_metrics_connectionManager_duplexConns[[:space:]]([^[:space:]]*) ]] && conn_bi_dir=${BASH_REMATCH[1]} || conn_bi_dir=0
+    [[ ${node_metrics} =~ cardano_node_metrics_connectionManager_prunableConns[[:space:]]([^[:space:]]*) ]] && conn_duplex=${BASH_REMATCH[1]} || conn_duplex=0
   fi
 }
 
