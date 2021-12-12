@@ -232,7 +232,7 @@ if [[ ${LEGACY_MODE} = "true" ]]; then
   m3divider=$(printf "${NC}|" && printf "%0.s- " $(seq $((width/2))) && printf "|")
   bdivider=$(printf "${NC}|" && printf "%0.s=" $(seq $((width-1))) && printf "|")
   coredivider=$(printf "${NC}|= ${style_info}CORE${NC} " && printf "%0.s=" $(seq $((width-8))) && printf "|")
-  conndivider=$(printf "${NC}|- ${style_info}CONNECTIONS${NC} " && printf "%0.s-" $(seq $((width-15))) && printf "|")
+  conndivider=$(printf "${NC}|- ${style_info}P2P CONNECTIONS${NC} " && printf "%0.s-" $(seq $((width-19))) && printf "|")
   propdivider=$(printf "${NC}|- ${style_info}BLOCK PROPAGATION${NC} " && printf "%0.s-" $(seq $((width-21))) && printf "|")
   resourcesdivider=$(printf "${NC}|- ${style_info}NODE RESOURCE USAGE${NC} " && printf "%0.s-" $(seq $((width-23))) && printf "|")
   blockdivider=$(printf "${NC}|- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "|")
@@ -254,7 +254,7 @@ else
   m3divider=$(printf "${NC}\\u2502" && printf "%0.s- " $(seq $((width/2))) && printf "\\u2502")
   bdivider=$(printf "${NC}\\u2514" && printf "%0.s\\u2500" $(seq $((width-1))) && printf "\\u2518")
   coredivider=$(printf "${NC}\\u251C\\u2500 ${style_info}CORE${NC} " && printf "%0.s\\u2500" $(seq $((width-8))) && printf "\\u2524")
-  conndivider=$(printf "${NC}\\u2502- ${style_info}CONNECTIONS${NC} " && printf "%0.s-" $(seq $((width-15))) && printf "\\u2502")
+  conndivider=$(printf "${NC}\\u2502- ${style_info}P2P CONNECTIONS${NC} " && printf "%0.s-" $(seq $((width-19))) && printf "\\u2502")
   propdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PROPAGATION${NC} " && printf "%0.s-" $(seq $((width-21))) && printf "\\u2502")
   resourcesdivider=$(printf "${NC}\\u2502- ${style_info}NODE RESOURCE USAGE${NC} " && printf "%0.s-" $(seq $((width-23))) && printf "\\u2502")
   blockdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "\\u2502")
@@ -686,11 +686,11 @@ while true; do
   elif [[ ${show_peers} = "true" && ${show_peers_info} = "true" ]]; then
     printf "${VL}${STANDOUT} INFO ${NC} One-shot peer analysis last run at ${style_values_1}%s" "${peer_analysis_date}" && closeRow
     printf "${blank_line}\n" && ((line++))
-    printf "${VL} Runs a latency test on incoming/outgoing connections to the node." && closeRow
+    printf "${VL} Runs a latency test on connections to the node." && closeRow
     printf "${VL} Once the analysis is finished, RTTs(Round Trip Time) for each peer" && closeRow
     printf "${VL} is display and grouped in ranges of 0-50, 50-100, 100-200, 200<." && closeRow
     printf "${blank_line}\n" && ((line++))
-    printf "${VL} Outgoing connections ping type order(peers in own topology):" && closeRow
+    printf "${VL} Connections ping type order(unless overridden in settings):" && closeRow
     printf "${VL} 1. ${style_values_2}cncli${NC} - If available, this gives the most accurate measure as" && closeRow
     printf "${VL}    it checks the entire handshake process against the remote peer." && closeRow
     printf "${VL} 2. ${style_values_2}ss${NC} - Sends a TCP SYN package to ping the remote peer on" && closeRow
@@ -698,11 +698,6 @@ while true; do
     printf "${VL} 3. ${style_values_2}tcptraceroute${NC} - Same as ss" && closeRow
     printf "${VL} 4. ${style_values_2}ping${NC} - fallback method using ICMP ping against IP." && closeRow
     printf "${VL}    Only work if the FW of remote peer accepts ICMP traffic." && closeRow
-    printf "${blank_line}\n" && ((line++))
-    printf "${VL} For incoming connections, only ICMP ping is used as remote peer port" && closeRow
-    printf "${VL} is unknown. It's not uncommon to see many undetermined peers for" && closeRow
-    printf "${VL} incoming connections as it's a good security practice to disable" && closeRow
-    printf "${VL} ICMP in firewall." && closeRow
   elif [[ ${show_peers} = "true" ]]; then
     printf "${VL}       RTT : Peers / Percent" && closeRow
 
@@ -796,9 +791,9 @@ while true; do
     printf "${VL} and difference show how far behind the last block is from real time." && closeRow
     printf "${VL} Forks is how many times the blockchain branched off in a different" && closeRow
     printf "${VL} direction since node start (and discarded blocks by doing so)." && closeRow
-    printf "${VL} In/Out peers shows how many peers the node pushes to/pulls from." && closeRow
-    printf "${VL} RSS/Live/Heap shows the memory utilization of RSS/live/heap data." && closeRow
+    printf "${VL} P2P Connections shows how many peers the node pushes to/pulls from." && closeRow
     printf "${VL} Block propagation metrics are discussed in the documentation." && closeRow
+    printf "${VL} RSS/Live/Heap shows the memory utilization of RSS/live/heap data." && closeRow
     printf "${blank_line}\n" && ((line++))
     printf "${VL} ${style_values_2}Core section${NC}" && closeRow
     printf "${VL} If the node is run as a block producer, a second section is" && closeRow
