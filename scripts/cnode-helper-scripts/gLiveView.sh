@@ -460,7 +460,7 @@ checkPeers() {
       peerPORT=$(cut -d: -f2 <<< "${peer}")
     fi
 
-    if [[ -z ${peerIP} || -z ${peerPORT} || ((${peerIP} = 127.0.0.1 || ${peerIP} = ${ext_ip_resolve}) && ${CNODE_PORT} = ${CNODE_PORT}) ]]; then
+    if [[ -z ${peerIP} || -z ${peerPORT} || ${peerIP} = 127.0.0.1 || (${peerIP} = ${ext_ip_resolve} && ${peerPORT} = ${CNODE_PORT}) ]]; then
       mvPos ${line} ${print_start} && printf "${style_values_1}%${#peerCNT}s${NC}" "$((++index))" && continue
     fi
 
