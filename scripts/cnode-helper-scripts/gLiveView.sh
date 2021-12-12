@@ -427,6 +427,8 @@ checkPeers() {
   geoIPquery="[]"; geoIPqueryCNT=0
   direction=$1
 
+  command -v dig >/dev/null && ext_ip_resolve=$(dig @resolver1.opendns.com ANY myip.opendns.com +short) || ext_ip_resolve=""
+
   if [[ ${use_lsof} = 'Y' ]]; then
     peers=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}')
   else
@@ -458,7 +460,9 @@ checkPeers() {
       peerPORT=$(cut -d: -f2 <<< "${peer}")
     fi
 
-    [[ -z ${peerIP} || -z ${peerPORT} ]] && mvPos ${line} ${print_start} && printf "${style_values_1}%${#peerCNT}s${NC}" "$((++index))" && continue
+    if [[ -z ${peerIP} || -z ${peerPORT} || ((${peerIP} = 127.0.0.1 || ${peerIP} = ${ext_ip_resolve}) && ${CNODE_PORT} = ${CNODE_PORT}) ]]; then
+      mvPos ${line} ${print_start} && printf "${style_values_1}%${#peerCNT}s${NC}" "$((++index))" && continue
+    fi
 
     if [[ ${ENABLE_IP_GEOLOCATION} = "Y" && "${peerIP}" != "${lastpeerIP}" ]] && ! isPrivateIP "${peerIP}"; then
       if [[ ! -v "geoIP[${peerIP}]" && $((++geoIPqueryCNT)) -le 100 ]]; then # not previously checked and less than 100 queries
@@ -673,6 +677,7 @@ while true; do
     printf "${VL} ${style_info}%-$((width-3))s${NC} ${VL}\n" "Peer analysis started... please wait!"
     echo "${bdivider}"
     checkPeers
+    peerNbr_start=1
     mvPos ${line} 1
     printf "${VL} ${style_info}%-46s${NC}" "Peer analysis done!" && closeRow
     printf -v peer_analysis_date '%(%Y-%m-%d %H:%M:%S)T' -1
@@ -748,7 +753,6 @@ while true; do
       header_line=$((line++))
 
       peerNbr=0
-      peerNbr_start=1
       peerLocationWidth=$((width-38))
       for peer in ${rttResultsSorted}; do
         ((peerNbr++))
