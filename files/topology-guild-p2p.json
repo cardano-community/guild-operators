@@ -1,0 +1,38 @@
+{
+  "LocalRoots": {
+    "groups": [
+      {
+        "localRoots": {
+          "accessPoints": [
+            {"address": "127.0.0.1"                 ,"port": 7000, "valency": 1,"name": "local"}
+          ],
+          "advertise": false
+        },
+        "valency": 1
+      }
+    ]
+  },
+  "PublicRoots": [
+    {
+      "publicRoots": {
+        "accessPoints": [
+          {"address": "209.145.50.190"            ,"port": 7001, "valency": 1,"name": "rdlrt"},
+          {"address": "95.216.188.94"             ,"port": 7000, "valency": 1,"name": "homer"},
+          {"address": "relay1-test.ahlnet.nu"     ,"port": 2103, "valency": 1,"name": "ahl-1"},
+          {"address": "guild-relay.bluecheesestakehouse.com","port": 7000,"valency": 1,"name": "westberg"},
+          {"address": "relay-1.stakepool.at","port": 54326,"valency": 1,"name": "atada"},
+          {"address": "185.161.193.105","port": 6011,"valency": 1,"name": "clio-1"},
+          {"address": "148.72.153.168","port": 18000,"valency": 1,"name": "redo" },
+          {"address": "relay.guild.cryptobounty.org","port": 9198,"valency": 1,"name": "bnty1" },
+          {"address": "54.93.228.113","port": 4322,"valency": 1,"name": "titan" },
+          {"address": "195.201.129.190", "port": 6000, "valency": 1, "name": "damjan"},
+          {"address": "relay-guild.adaplus.io", "port": 6000, "valency": 1, "name": "adaplus"},
+          {"address": "relays-guild.poolunder.com", "port": 8900, "valency": 1, "name": "TUNDR"}
+        ],
+        "advertise": false
+      }
+    }
+  ],
+  "useLedgerAfterSlot": 0
+}
+

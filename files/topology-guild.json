@@ -2,7 +2,7 @@
   "Producers": [
     {"addr": "127.0.0.1"                 ,"port": 7000, "valency": 1},
     {"addr": "95.216.188.94"             ,"port": 7000, "valency": 1,"name": "homer"},
-    {"addr": "209.145.50.190"            ,"port": 7000, "valency": 1,"name": "rdlrt"},
+    {"addr": "209.145.50.190"            ,"port": 7001, "valency": 1,"name": "rdlrt"},
     {"addr": "relay1-test.ahlnet.nu"     ,"port": 2103, "valency": 1,"name": "ahl-1"},
     {"addr": "guild-relay.bluecheesestakehouse.com","port": 7000,"valency": 1,"name": "westberg"},
     {"addr": "relay-1.stakepool.at","port": 54326,"valency": 1,"name": "atada"},
