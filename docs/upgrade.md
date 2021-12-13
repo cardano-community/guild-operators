@@ -37,7 +37,7 @@ Below is a list of files that you will typically customise against each script. 
 |:-------------------------------------------------------------------|:------------:|:--------------:|:------------------:|:--------:|:-------------:|:-----------:|
 |env                                                                 |:heavy_check_mark:|:heavy_check_mark:|:heavy_check_mark:|:heavy_check_mark:|:x:|:x:          |
 |Script/File itself                                                  |:eyes:        |:x:             |:heavy_check_mark:  |:heavy_check_mark:    |:heavy_check_mark:|:heavy_check_mark:|
-|Others                                                              |:x:           |*cntools.config*|:x:                 |:x:       |:x:            |:x:          |
+|Others                                                              |:x:           |:x:             |:x:                 |:x:       |:x:            |:x:          |
 
 :heavy_check_mark: - It is likely that you'd want to visit/update customisations.  
 :eyes: - Usually users don't need to touch, but it is supported for scenarios when they're applying non-standard customisations.  

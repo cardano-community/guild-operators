@@ -75,11 +75,11 @@ check_config_sanity() {
 }
 
 deploy_systemd() {
-  echo "Deploying ${CNODE_NAME}-dbsync as systemd service.."
-  sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_NAME}-dbsync.service
+  echo "Deploying ${CNODE_VNAME}-dbsync as systemd service.."
+  sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-dbsync.service
 	[Unit]
 	Description=Cardano DB Sync
-	After=${CNODE_NAME}.service ${SYSTEMD_PGNAME}.service
+	After=${CNODE_VNAME}.service ${SYSTEMD_PGNAME}.service
 	Requires=${SYSTEMD_PGNAME}.service
 	
 	[Service]
@@ -93,13 +93,13 @@ deploy_systemd() {
 	KillSignal=SIGINT
 	StandardOutput=syslog
 	StandardError=syslog
-	SyslogIdentifier=${CNODE_NAME}-dbsync
+	SyslogIdentifier=${CNODE_VNAME}-dbsync
 	TimeoutStopSec=5
 	KillMode=mixed
 	
 	[Install]
 	WantedBy=multi-user.target
-	EOF" && echo "${CNODE_NAME}-dbsync.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_NAME}-dbsync.service
+	EOF" && echo "${CNODE_VNAME}-dbsync.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}-dbsync.service
 }
 
 ###################
@@ -115,8 +115,8 @@ while getopts :d opt; do
 done
 
 # Check if env file is missing in current folder (no update checks as will mostly run as daemon), source env if present
-[[ ! -f "./env" ]] && echo -e "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
-. ./env
+[[ ! -f "$(dirname $0)"/env ]] && echo -e "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
+. "$(dirname $0)"/env
 case $? in
   1) echo -e "ERROR: Failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" && exit 1;;
   2) clear ;;
