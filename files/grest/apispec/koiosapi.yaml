@@ -722,7 +722,7 @@ components:
     _asset_policy:
       deprecated: false
       name: _asset_policy
-      description: Asset Policy ID (hex)
+      description: Asset Policy ID in hexadecimal format (hex)
       schema:
         type: string
         example: d3501d9531fcc25e3ca4b6429318c2cc374dbdbcf5e99c1c1e5da1ff
@@ -732,7 +732,7 @@ components:
     _asset_name:
       deprecated: false
       name: _asset_name
-      description: Asset Name in hexadecimal format
+      description: Asset Name in hexadecimal format (hex)
       schema:
         type: string
         example: 444f4e545350414d
