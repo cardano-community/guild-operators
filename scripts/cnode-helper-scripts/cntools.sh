@@ -4509,7 +4509,7 @@ function main {
                     fi
                     println DEBUG "# Enter metadata (optional fields can be left empty)"
                     getAnswerAnyCust meta_name "Name        [${FG_RED}required${NC}] (Max. 50 chars) "
-                    [[ -z ${meta_name} || ${#meta_name} -gt 50 ]] && println ERROR "\${FG_RED}ERROR${NC}: Metadata name is a required field and limited to 50 chars in length!" && waitForInput && continue
+                    [[ -z ${meta_name} || ${#meta_name} -gt 50 ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata name is a required field and limited to 50 chars in length!" && waitForInput && continue
                     getAnswerAnyCust meta_desc "Description [${FG_RED}required${NC}] (Max. 500 chars)"
                     [[ -z ${meta_desc} || ${#meta_desc} -gt 500 ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata description is a required field and limited to 500 chars in length!" && waitForInput && continue
                     getAnswerAnyCust meta_ticker "Ticker      [${FG_YELLOW}optional${NC}] (3-5 chars)     "
