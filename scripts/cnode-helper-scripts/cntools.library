@@ -9,9 +9,9 @@
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
 CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=7
+CNTOOLS_MINOR_VERSION=8
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=3
+CNTOOLS_PATCH_VERSION=0
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -882,6 +882,7 @@ getBalance() {
       done
     fi
   done <<< "${utxo_raw}"
+  [[ ${asset_name_maxlen} -ne 5 ]] && asset_name_maxlen=$(( asset_name_maxlen / 2 ))
   local lovelace_fmt="$(formatLovelace ${assets["lovelace"]})"
   [[ ${#lovelace_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#lovelace_fmt}
 
@@ -939,8 +940,8 @@ END_COMMENT
 getAssetsTxOut() {
   assets_tx_out=""
   if [[ $# -eq 2 ]]; then
-    old_value=assets["$1"]
-    assets["$1"]=$(( old_value + $2 ))
+    old_value=assets[$1]
+    assets[$1]=$(( old_value + $2 ))
   fi
   for idx in "${!assets[@]}"; do
     [[ ${idx} = "lovelace" ]] && continue
@@ -2132,7 +2133,7 @@ mintAsset() {
     println LOG "Current slot is ${tip_ref}, setting ttl to ${ttl} based on policy expiration"
   fi
   
-  [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".${asset_name}"
+  [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".$(asciiToHex "${asset_name}")"
   getAssetsTxOut "${policy_id}${asset_name_out}" "${asset_amount}"
   
   dummy_build_args=(
@@ -2197,7 +2198,7 @@ mintAsset() {
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"policy-name\": \"${policy_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"policy-id\": \"${policy_id}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"asset-name\": \"${asset_name}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"asset-name\": \"$(asciiToHex "${asset_name}") (${asset_name})\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"asset-amount\": \"${asset_amount}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"asset-minted\": \"${asset_minted}\" }" <<< ${offlineJSON}); then return 1; fi
     if [[ -n ${metafile_param} ]]; then
@@ -2302,8 +2303,8 @@ burnAsset() {
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"policy-name\": \"${policy_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"policy-id\": \"${policy_id}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"asset-name\": \"${asset_name}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"asset-amount\": \"${asset_amount}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"asset-name\": \"${asset_name} ($(hexToAscii ${asset_name}))\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"asset-amount\": \"${assets_to_burn}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"asset-minted\": \"${asset_minted}\" }" <<< ${offlineJSON}); then return 1; fi
     if [[ -n ${metafile_param} ]]; then
       if ! offlineJSON=$(jq ". += { metadata: $(jq -c . "${metafile}") }" <<< ${offlineJSON}); then return 1; fi

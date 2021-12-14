@@ -856,7 +856,7 @@ function main {
                     [[ ${asset} = "lovelace" ]] && continue
                     IFS='.' read -ra asset_arr <<< "${asset}"
                     [[ ${#asset_arr[@]} -eq 1 ]] && asset_name="" || asset_name="${asset_arr[1]}"
-                    tsubject="${asset_arr[0]}$(asciiToHex "${asset_name}")"
+                    tsubject="${asset_arr[0]}${asset_name}"
                     if tdata=$(curl -sL -f -m ${CURL_TIMEOUT} ${token_meta_server}${tsubject}); then
                       token_data[${asset}]="${tdata}"
                       if tticker=$(jq -er .ticker.value <<< "${tdata}" 2>/dev/null); then token_name[${asset}]="${tticker}"
@@ -881,9 +881,9 @@ function main {
                         if [[ -n ${token_name[${utxo_arr[1]}.${asset_name}]} ]]; then
                           tname="${token_name[${utxo_arr[1]}.${asset_name}]}"
                         else
-                          tname="${asset_name}"
+                          tname="$(hexToAscii ${asset_name})"
                         fi
-                        ! assets_id_bech32=$(getAssetIDBech32 ${utxo_arr[1]} ${asset_name}) && continue 3
+                        ! assets_id_bech32=$(getAssetIDBech32 ${utxo_arr[1]} ${tname}) && continue 3
                         println DEBUG "$(printf "${FG_DGRAY}%22s${NC}${FG_LGRAY}%44s${NC} ${FG_DGRAY}|${NC} ${FG_MAGENTA}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "Asset Fingerprint: " "${assets_id_bech32}" "${tname}" "$(formatAsset ${utxos["${utxo}"]})")"
                       fi
                     done
@@ -901,7 +901,7 @@ function main {
                       if [[ -n ${token_name[${asset_arr[0]}.${asset_name}]} ]]; then
                         tname="${token_name[${asset_arr[0]}.${asset_name}]}"
                       else
-                        tname="${asset_name}"
+                        tname="$(hexToAscii ${asset_name})"
                       fi
                       ! assets_id_bech32=$(getAssetIDBech32 ${asset_arr[0]} ${asset_name}) && continue 2
                       println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_MAGENTA}%-${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LGRAY}%s${NC}\n" "$(formatAsset ${assets["${asset}"]})" "${tname}" "${assets_id_bech32}")"
@@ -932,7 +932,7 @@ function main {
                         println DEBUG "  $(printf "%18s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Logo" "Extracted to: ${TMP_DIR}/${assets_id_bech32}.png")"
                       fi
                     else
-                      println DEBUG "$(printf "%20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}$([[ -n ${asset_name} ]] && echo ".")${FG_MAGENTA}%s${NC}" "PolicyID.AssetName" "${asset_arr[0]}" "${asset_name}")"
+                      println DEBUG "$(printf "%20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}$([[ -n ${asset_name} ]] && echo ".")${FG_LGRAY}%s${NC}$([[ -n ${asset_name} ]] && echo " (")${FG_MAGENTA}%s${NC}$([[ -n ${asset_name} ]] && echo ")")" "PolicyID.AssetName" "${asset_arr[0]}" "${asset_name}" "$(hexToAscii ${asset_name})")"
                       println DEBUG "$(printf "${FG_DGRAY}%22s${NC} ${FG_YELLOW}%s${NC}" ":" "No metadata registered in Cardano token register for this asset")"
                     fi
                     ((i++))
@@ -1319,26 +1319,28 @@ function main {
                   1) declare -A assets_on_addr=()
                     for asset in "${!assets[@]}"; do
                       [[ ${asset} = "lovelace" ]] && continue
-                      assets_on_addr[${asset}]=0 # only interested in the key
+                      IFS='.' read -ra asset_arr <<< "${asset}"
+                      assets_on_addr["${asset} ($(hexToAscii ${asset_arr[1]}))"]=0 # only interested in the key
                     done
                     while true; do
                       select_opt "${!assets_on_addr[@]}" "[Esc] Cancel"
                       selection=$?
                       [[ ${selected_value} = "[Esc] Cancel" ]] && continue 2
-                      println DEBUG "Available to send: ${FG_LBLUE}$(formatAsset ${assets[${selected_value}]})${NC}"
+                      IFS=' ' read -ra selection_arr <<< "${selected_value}"
+                      println DEBUG "Available to send: ${FG_LBLUE}$(formatAsset ${assets[${selection_arr[0]}]})${NC}"
                       getAnswerAnyCust asset_amount "Amount (commas allowed as thousand separator)"
                       asset_amount="${asset_amount//,}"
-                      [[ ${asset_amount} = "all" ]] && asset_amount=${assets[${selected_value}]}
+                      [[ ${asset_amount} = "all" ]] && asset_amount=${assets[${selection_arr[0]}]}
                       if ! isNumber ${asset_amount}; then println ERROR "${FG_RED}ERROR${NC}: invalid number, non digit characters found!" && continue; fi
-                      if [[ ${asset_amount} -gt ${assets[${selected_value}]} ]]; then
+                      if [[ ${asset_amount} -gt ${assets[${selection_arr[0]}]} ]]; then
                         println ERROR "${FG_RED}ERROR${NC}: you cant send more assets than available on address!" && continue
-                      elif [[ ${asset_amount} -eq ${assets[${selected_value}]} ]]; then
-                        unset assets_left[${selected_value}]
+                      elif [[ ${asset_amount} -eq ${assets[${selection_arr[0]}]} ]]; then
+                        unset assets_left[${selection_arr[0]}]
                       else
-                        assets_left[${selected_value}]=$(( assets_left[${selected_value}] - asset_amount ))
+                        assets_left[${selection_arr[0]}]=$(( assets_left[${selection_arr[0]}] - asset_amount ))
                       fi
-                      assets_to_send[${selected_value}]=${asset_amount}
-                      unset assets_on_addr[${selected_value}]
+                      assets_to_send[${selection_arr[0]}]=${asset_amount}
+                      unset assets_on_addr["${selected_value}"]
                       [[ $((++asset_cnt)) -eq ${#assets[@]} ]] && break
                       println DEBUG "Add more assets?"
                       select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
@@ -4057,8 +4059,9 @@ function main {
                       if [[ $(find "${policy}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | wc -c) -gt 0 ]]; then
                         while IFS= read -r -d '' asset; do
                           asset_filename=$(basename ${asset})
-                          [[ -z ${asset_filename%.*} ]] && asset_name="." || asset_name="${asset_filename%.*}"
-                          println "Asset         : Name: ${FG_MAGENTA}${asset_name}${NC} - Minted: ${FG_LBLUE}$(formatAsset "$(jq -r .minted "${asset}")")${NC}"
+                          [[ -z ${asset_filename%.*} ]] && asset_name="" || asset_name="${asset_filename%.*}"
+                          [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
+                          println "Asset         : Name: ${FG_MAGENTA}${asset_name}${NC} (${FG_LGRAY}(${asset_name_hex}${NC}) - Minted: ${FG_LBLUE}$(formatAsset "$(jq -r .minted "${asset}")")${NC}"
                         done < <(find "${policy}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | sort -z)
                       else
                         println "Asset         : ${FG_LGRAY}No assets minted for this policy!${NC}"
@@ -4249,7 +4252,6 @@ function main {
                       fi
                       getWalletType ${wallet_name}
                       case $? in
-                        0) println ERROR "${FG_RED}ERROR${NC}: hardware wallets not supported currently!" && waitForInput && continue ;;
                         2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
                         3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
                       esac
@@ -4257,10 +4259,6 @@ function main {
                       if ! selectWallet "balance"; then # ${wallet_name} populated by selectWallet function
                         [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
                       fi
-                      getWalletType ${wallet_name}
-                      case $? in
-                        0) println ERROR "${FG_RED}ERROR${NC}: hardware wallets not supported currently!" && waitForInput && continue ;;
-                      esac
                     fi
                     echo
                     getBaseAddress ${wallet_name}
@@ -4302,7 +4300,7 @@ function main {
                       waitForInput && continue
                     fi
                     if [[ ! -f "${asset_file}" ]]; then echo "{}" > ${asset_file}; fi
-                    assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"${asset_name}\", policyID: \"${policy_id}\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"mint ${asset_amount}\"}" < ${asset_file})
+                    assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"${asset_name}\", policyID: \"${policy_id}\", assetName: \"$(asciiToHex "${asset_name}")\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"mint ${asset_amount}\"}" < ${asset_file})
                     echo -e "${assetJSON}" > ${asset_file}
                     echo
                     if ! verifyTx ${addr}; then waitForInput && continue; fi
@@ -4311,7 +4309,8 @@ function main {
                     println "Policy Name    : ${FG_GREEN}${policy_name}${NC}"
                     println "Policy ID      : ${FG_LGRAY}${policy_id}${NC}"
                     [[ -z ${asset_name} ]] && asset_name="."
-                    println "Asset Name     : ${FG_MAGENTA}${asset_name}${NC}"
+                    [[ ${asset_name} = '.' ]] && asset_name_hex="" || asset_name_hex=" ($(asciiToHex "${asset_name}"))"
+                    println "Asset Name     : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY}${asset_name_hex}${NC}"
                     println "Minted         : ${FG_LBLUE}$(formatAsset ${asset_amount})${NC}"
                     println "In Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)"
                     waitForInput && continue
@@ -4356,14 +4355,16 @@ function main {
                     declare -gA base_assets=(); for idx in "${!assets[@]}"; do base_assets[${idx}]=${assets[${idx}]}; done
                     for asset in "${!base_assets[@]}"; do
                       [[ ${asset} = "lovelace" ]] && continue
-                      assets_on_wallet+=( "${asset} (base addr)" )
+                      IFS='.' read -ra asset_arr <<< "${asset}"
+                      assets_on_wallet+=( "${asset} ($(hexToAscii ${asset_arr[1]})) [base addr]" )
                     done
                     getPayAddress ${wallet_name}
                     getBalance ${pay_addr}
                     declare -gA pay_assets=(); for idx in "${!assets[@]}"; do pay_assets[${idx}]=${assets[${idx}]}; done
                     for asset in "${!assets[@]}"; do
                       [[ ${asset} = "lovelace" ]] && continue
-                      assets_on_wallet+=( "${asset} (enterprise addr)" )
+                      IFS='.' read -ra asset_arr <<< "${asset}"
+                      assets_on_wallet+=( "${asset} ($(hexToAscii ${asset_arr[1]})) [enterprise addr]" )
                     done
                     echo
                     [[ ${#assets_on_wallet[@]} -eq 0 ]] && println ERROR "${FG_RED}ERROR${NC}: Wallet doesn't contain any assets!" && waitForInput && continue
@@ -4374,7 +4375,7 @@ function main {
                     IFS=' ' read -ra selection_arr <<< "${assets_on_wallet[${selection}]}"
                     asset="${selection_arr[0]}"
                     IFS='.' read -ra asset_arr <<< "${selection_arr[0]}"
-                    if [[ ${selection_arr[1]} = *"base" ]]; then 
+                    if [[ ${selection_arr[2]} = *"base" ]]; then 
                       addr=${base_addr}
                       wallet_source="base"
                       asset_amount=${base_assets[${asset}]}
@@ -4433,7 +4434,7 @@ function main {
                     fi
                     # TODO: Update asset file
                     if [[ ! -f "${asset_file}" ]]; then echo "{}" > ${asset_file}; fi
-                    assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"${asset_name}\", policyID: \"${policy_id}\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"burn ${assets_to_burn}\"}" < ${asset_file})
+                    assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"$(hexToAscii "${asset_name}")\", policyID: \"${policy_id}\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"burn ${assets_to_burn}\"}" < ${asset_file})
                     echo -e "${assetJSON}" > ${asset_file}
                     echo
                     if ! verifyTx ${addr}; then waitForInput && continue; fi
@@ -4441,8 +4442,9 @@ function main {
                     println "Assets successfully burned!"
                     println "Policy Name         : ${FG_GREEN}${policy_name}${NC}"
                     println "Policy ID           : ${FG_LGRAY}${policy_id}${NC}"
-                    [[ -z ${asset_name} ]] && asset_name="."
-                    println "Asset Name          : ${asset_name}"
+                    [[ -z ${asset_name} ]] && asset_name="." || asset_name="$(hexToAscii "${asset_name}")"
+                    [[ ${asset_name} = '.' ]] && asset_name_hex="" || asset_name_hex=" ($(asciiToHex "${asset_name}"))"
+                    println "Asset Name          : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY}${asset_name_hex}${NC}"
                     println "Burned              : ${FG_LBLUE}$(formatAsset ${assets_to_burn})${NC}"
                     println "Left in Address     : ${FG_LBLUE}$(formatAsset $(( asset_amount - assets_to_burn )))${NC}"
                     println "Left in Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)"

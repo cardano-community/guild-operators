@@ -277,6 +277,18 @@ asciiToHex() {
   done
 }
 
+# Description : Convert a hex string to normal 1 byte ASCII string (alnum chars)
+#             : $1 = hex string to convert
+hexToAscii() {
+  local hexstr=$1
+  local hexcnt=${#hexstr}
+  [[ -z ${hexstr} ]] && return
+  (( hexcnt % 2 != 0 )) && return
+  for ((i=0;i<${#hexstr};i=i+2)); do
+    printf "\x${hexstr:$i:2}"
+  done
+}
+
 # Description : Helper function to validate that input is a number
 #             : $1 = number
 isNumber() {
