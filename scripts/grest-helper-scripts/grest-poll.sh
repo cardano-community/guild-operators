@@ -116,8 +116,8 @@ function chk_rpc_struct() {
 }
 
 function chk_rpcs() {
-  instance_rpc_cksum="$(chk_rpc_struct "${URL}" | sort | shasum -a 256)"
-  monitor_rpc_cksum="$(chk_rpc_struct "${API_COMPARE}" | sort | shasum -a 256)"
+  instance_rpc_cksum="$(chk_rpc_struct "${URL}" | sort | grep -v -e description\"\$ -e summary\"\$ | tee .dltarget | shasum -a 256)"
+  monitor_rpc_cksum="$(chk_rpc_struct "${API_COMPARE}" | sort | grep -v -e description\"\$ -e summary\"\$ | tee .dlsource | shasum -a 256)"
   if [[ "${instance_rpc_cksum}" != "${monitor_rpc_cksum}" ]]; then
     echo "ERROR: The specs returned by ${URL} do not seem to match ${API_COMPARE} for endpoints mentioned at: ${API_STRUCT_DEFINITION}"
     optexit
@@ -131,7 +131,7 @@ function chk_cache_status() {
     echo "ERROR: Stake Distribution cache too far from tip !!"
     optexit
   fi
-  if [[ $(( $(TZ='UTC' date +%s) - $(date -d "${last_poolhist_update}" +%s) )) -gt 1000 ]]; then
+  if [[ $(( $(TZ='UTC' date +%s) - $(date -d "${last_poolhist_update}" -u +%s) )) -gt 1000 ]]; then
     echo "ERROR: Pool History cache too far from tip !!"
     optexit
   fi
