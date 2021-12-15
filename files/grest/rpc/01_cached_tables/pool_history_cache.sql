@@ -34,9 +34,11 @@ begin
     FROM
       pg_stat_activity
     WHERE
-      state = 'active' AND query ILIKE '%GREST.pool_history_cache_update%') THEN
-    RAISE EXCEPTION 'Previous pool_history_cache_update query still running but should have completed! Exiting...';
-  END IF;
+      state = 'active' AND query ILIKE '%GREST.pool_history_cache_update%'
+      AND datname = (SELECT current_database())
+    ) THEN
+        RAISE EXCEPTION 'Previous pool_history_cache_update query still running but should have completed! Exiting...';
+    END IF;
 
   INSERT INTO GREST.CONTROL_TABLE (key, last_value)
       values('pool_history_cache_last_updated', now() at time zone 'utc')

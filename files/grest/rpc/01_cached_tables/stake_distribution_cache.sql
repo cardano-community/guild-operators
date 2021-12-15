@@ -260,15 +260,14 @@ CREATE FUNCTION GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK () RETURNS VOID LANG
 DECLARE _last_update_block_height bigint DEFAULT NULL;
 _current_block_height bigint DEFAULT NULL;
 _last_update_block_diff bigint DEFAULT NULL;
-StartTime timestamptz;
-EndTime timestamptz;
--- In minutes
-Delta numeric;
 BEGIN IF (
   SELECT COUNT(pid) > 1
   FROM pg_stat_activity
   WHERE state = 'active'
     AND query ILIKE '%GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK(%'
+    AND datname = (
+      SELECT current_database()
+    )
 ) THEN RAISE EXCEPTION 'Previous query still running but should have completed! Exiting...';
 END IF;
 -- QUERY START --
@@ -295,19 +294,6 @@ IF (
   OR _last_update_block_diff < 0
 ) THEN RAISE NOTICE 'Re-running...';
 CALL GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
--- Time recording
-EndTime := CLOCK_TIMESTAMP();
-Delta := 1000 * (
-  EXTRACT(
-    epoch
-    from EndTime
-  ) - EXTRACT(
-    epoch
-    from StartTime
-  )
-) / 60000;
-RAISE NOTICE 'Job completed in % minutes',
-Delta;
 END IF;
 RAISE NOTICE 'Minimum block height difference(180) for update not reached, skipping...';
 RETURN;
