@@ -116,8 +116,8 @@ function chk_rpc_struct() {
 }
 
 function chk_rpcs() {
-  instance_rpc_cksum="$(chk_rpc_struct "${URL}" | sort | shasum -a 256)"
-  monitor_rpc_cksum="$(chk_rpc_struct "${API_COMPARE}" | sort | shasum -a 256)"
+  instance_rpc_cksum="$(chk_rpc_struct "${URL}" | sort | grep -v -e description\"\$ -e summary\"\$ | tee .dltarget | shasum -a 256)"
+  monitor_rpc_cksum="$(chk_rpc_struct "${API_COMPARE}" | sort | grep -v -e description\"\$ -e summary\"\$ | tee .dlsource | shasum -a 256)"
   if [[ "${instance_rpc_cksum}" != "${monitor_rpc_cksum}" ]]; then
     echo "ERROR: The specs returned by ${URL} do not seem to match ${API_COMPARE} for endpoints mentioned at: ${API_STRUCT_DEFINITION}"
     optexit
