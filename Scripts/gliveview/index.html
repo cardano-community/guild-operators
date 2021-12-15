@@ -361,35 +361,43 @@ chmod <span class="m">755</span> gLiveView.sh
 </div>
 </input></input></input></div>
 <h6 id="upper-main-section">Upper main section<a class="headerlink" href="#upper-main-section" title="Permanent link">⚓︎</a></h6>
-<p>Displays live metrics from cardano-node gathered through the nodes EKG/Prometheus(env setting) endpoint.
-- <strong>Epoch Progress</strong> - Epoch number and progress is live from the node while date calculation until epoch boundary is based on offline genesis parameters.
-- <strong>Block</strong> - The nodes current block height since genesis start.
-- <strong>Slot</strong> - The nodes current slot height since current epoch start.
-- <strong>Density</strong> - With the current chain parameters(MainNet), a block is created roughly every 20 seconds(<code>activeSlotsCoeff</code>). A slot on MainNet happens every 1 second(<code>slotLength</code>), thus the max chain density can be calculated as <code>slotLength/activeSlotsCoeff = 5%</code>. Normally, the value should fluctuate around this value.
-- <strong>Total Tx</strong> - The total number of transactions processed since node start.
-- <strong>Pending Tx</strong> - The number of transactions and the bytes(total, in kb) currently in mempool to be included in upcoming blocks.
-- <strong>Tip (ref)</strong> - Reference tip is an offline calculation based on genesis values for current slot height since genesis start.
-- <strong>Tip (diff) / Status</strong> - Will either show node status as <code>starting|sync xx.x%</code> or if close to reference tip, the tip difference <code>Tip (ref) - Tip (node)</code> to see how far of the tip (diff value) the node is. With current parameters a slot diff up to 40 from reference tip is considered good but it should usually stay below 30. It's perfectly normal to see big differences in slots between blocks. It's the built in randomness at play. To see if a node is really healthy and staying on tip you would need to compare the tip between multiple nodes.
-- <strong>Forks</strong> - The number of forks since node start. Each fork means the blockchain evolved in a different direction, thereby discarding blocks. A high number of forks means there is a higher chance of orphaned blocks.
-- <strong>Peers In / Out</strong> - Shows how many connections the node has established in and out. See <a href="#peer-analysis">Peer analysis</a> section for how to get more details of incoming and outgoing connections.
-- <strong>Mem (RSS)</strong> - RSS is the Resident Set Size and shows how much memory is allocated to cardano-node and that is in RAM. It does not include memory that is swapped out. It does include memory from shared libraries as long as the pages from those libraries are actually in memory. It does include all stack and heap memory.
-- <strong>Mem (Live) / (Heap)</strong> - GC (Garbage Collector) values that show how much memory is used for live/heap data. A large difference between them (or the heap approaching the physical memory limit) means the node is struggling with the garbage collector and/or may begin swapping.
-- <strong>GC Minor / Major</strong> - Collecting garbage from "Young space" is called a Minor GC. Major (Full) GC is done more rarily and is a more expensive operation. Explaining garbage collection is a topic outside the scope of this documentation and google is your friend for this.
-- <strong>Block propagation</strong> - Last delay measures the duration between when the last block was scheduled to be produced and when the node learned about it. Late blocks are blocks whose delay is larger than 5s. If the node is not synching, the number of late blocks needs to stay low. Within ⅓/5s estimates the chance of observing a delay of ⅓/5s (based on the delays observed for previous blocks). A healthy node needs to stay above 95% of blocks within 3s. Finally, served blocks counts how many blocks were fetched by "in" peers. If this does not increase for a long time, it means the "in" peers are learning about new blocks from somewhere else (and therefore this node is not contributing towards accelerating the propagation). Overall, these metrics are helpful in tweaking the topology and/or performance of the network links.</p>
+<p>Displays live metrics from cardano-node gathered through the nodes EKG/Prometheus(env setting) endpoint.</p>
+<ul>
+<li><strong>Epoch Progress</strong> - Epoch number and progress is live from the node while date calculation until epoch boundary is based on offline genesis parameters.  </li>
+<li><strong>Block</strong> - The nodes current block height since genesis start.  </li>
+<li><strong>Slot</strong> - The nodes current slot height since current epoch start.  </li>
+<li><strong>Density</strong> - With the current chain parameters(MainNet), a block is created roughly every 20 seconds(<code>activeSlotsCoeff</code>). A slot on MainNet happens every 1 second(<code>slotLength</code>), thus the max chain density can be calculated as <code>slotLength/activeSlotsCoeff = 5%</code>. Normally, the value should fluctuate around this value.  </li>
+<li><strong>Total Tx</strong> - The total number of transactions processed since node start.  </li>
+<li><strong>Pending Tx</strong> - The number of transactions and the bytes(total, in kb) currently in mempool to be included in upcoming blocks.  </li>
+<li><strong>Tip (ref)</strong> - Reference tip is an offline calculation based on genesis values for current slot height since genesis start.  </li>
+<li><strong>Tip (diff) / Status</strong> - Will either show node status as <code>starting|sync xx.x%</code> or if close to reference tip, the tip difference <code>Tip (ref) - Tip (node)</code> to see how far of the tip (diff value) the node is. With current parameters a slot diff up to 40 from reference tip is considered good but it should usually stay below 30. It's perfectly normal to see big differences in slots between blocks. It's the built in randomness at play. To see if a node is really healthy and staying on tip you would need to compare the tip between multiple nodes.  </li>
+<li><strong>Forks</strong> - The number of forks since node start. Each fork means the blockchain evolved in a different direction, thereby discarding blocks. A high number of forks means there is a higher chance of orphaned blocks.  </li>
+<li><strong>Peers In / Out</strong> - Shows how many connections the node has established in and out. See <a href="#peer-analysis">Peer analysis</a> section for how to get more details of incoming and outgoing connections.  </li>
+<li><strong>Mem (RSS)</strong> - RSS is the Resident Set Size and shows how much memory is allocated to cardano-node and that is in RAM. It does not include memory that is swapped out. It does include memory from shared libraries as long as the pages from those libraries are actually in memory. It does include all stack and heap memory.  </li>
+<li><strong>Mem (Live) / (Heap)</strong> - GC (Garbage Collector) values that show how much memory is used for live/heap data. A large difference between them (or the heap approaching the physical memory limit) means the node is struggling with the garbage collector and/or may begin swapping.  </li>
+<li><strong>GC Minor / Major</strong> - Collecting garbage from "Young space" is called a Minor GC. Major (Full) GC is done more rarily and is a more expensive operation. Explaining garbage collection is a topic outside the scope of this documentation and google is your friend for this.  </li>
+<li><strong>Block propagation</strong> - Last delay measures the duration between when the last block was scheduled to be produced and when the node learned about it. Late blocks are blocks whose delay is larger than 5s. If the node is not synching, the number of late blocks needs to stay low. Within ⅓/5s estimates the chance of observing a delay of ⅓/5s (based on the delays observed for previous blocks). A healthy node needs to stay above 95% of blocks within 3s. Finally, served blocks counts how many blocks were fetched by "in" peers. If this does not increase for a long time, it means the "in" peers are learning about new blocks from somewhere else (and therefore this node is not contributing towards accelerating the propagation). Overall, these metrics are helpful in tweaking the topology and/or performance of the network links.  </li>
+</ul>
 <h6 id="core-section">Core section<a class="headerlink" href="#core-section" title="Permanent link">⚓︎</a></h6>
-<p>If the node is run as a core, identified by the 'forge-about-to-lead' parameter, a second core section is displayed.
-- <strong>KES period / expiration</strong> - This section contain the current and remaining KES periods as well as a calculated date for the expiration. When getting close to expire date the values will change color.
-- <strong>Missed slot checks</strong> - A value that show if the node have missed slots for attempting leadership checks (as absolute value and percentage since node startup).
-  !!! info "Missed Slot Leadership Check"
-      Note that while this counter should ideally be close to zero, you would often see a higher value if the node is busy (e.g. paused for garbage collection or busy with reward calculations). A consistently high percentage of missed slots would need further investigation (assistance for troubleshooting can be seeked <a href="https://t.me/CardanoStakePoolWorkgroup">here</a> ), as in extremely remote cases - it can overlap with a slot that your node could be a leader for.
-- <strong>Blocks</strong> - If <a href="../cncli/">CNCLI</a> is activated to store blocks created in a blocklog DB, data from this blocklog is displayed. See linked CNCLI documentation for details regarding the different block metrics. If CNCLI is not deployed, block metrics displayed are taken from node metrics and show blocks created by the node since node start.</p>
+<p>If the node is run as a core, identified by the 'forge-about-to-lead' parameter, a second core section is displayed.</p>
+<ul>
+<li><strong>KES period / expiration</strong> - This section contain the current and remaining KES periods as well as a calculated date for the expiration. When getting close to expire date the values will change color.  </li>
+<li>
+<p><strong>Missed slot checks</strong> - A value that show if the node have missed slots for attempting leadership checks (as absolute value and percentage since node startup).<br/>
+  !!! info "Missed Slot Leadership Check"  </p>
+<p>Note that while this counter should ideally be close to zero, you would often see a higher value if the node is busy (e.g. paused for garbage collection or busy with reward calculations). A consistently high percentage of missed slots would need further investigation (assistance for troubleshooting can be seeked <a href="https://t.me/CardanoStakePoolWorkgroup">here</a> ), as in extremely remote cases - it can overlap with a slot that your node could be a leader for.</p>
+</li>
+<li>
+<p><strong>Blocks</strong> - If <a href="../cncli/">CNCLI</a> is activated to store blocks created in a blocklog DB, data from this blocklog is displayed. See linked CNCLI documentation for details regarding the different block metrics. If CNCLI is not deployed, block metrics displayed are taken from node metrics and show blocks created by the node since node start.</p>
+</li>
+</ul>
 <h6 id="peer-analysis">Peer analysis<a class="headerlink" href="#peer-analysis" title="Permanent link">⚓︎</a></h6>
 <p>A manual peer analysis can be triggered by key press <code>p</code>. A latency test will be done on incoming and outgoing connections to the node.</p>
-<p>Outgoing connections(peers in topology file), ping type used is done in this order:
-1. cncli - If available, this gives the most accurate measure as it checks the entire handshake process against the remote peer.
-2. ss - Sends a TCP SYN package to ping the remote peer on the <code>cardano-node</code> port. Should give ~100% success rate.
-2. tcptraceroute - Same as ss.
-3. ping - fallback method using ICMP ping against IP. Will only work if firewall of remote peer accept ICMP traffic.</p>
+<p>Outgoing connections(peers in topology file), ping type used is done in this order:<br/>
+1. cncli - If available, this gives the most accurate measure as it checks the entire handshake process against the remote peer.<br/>
+2. ss - Sends a TCP SYN package to ping the remote peer on the <code>cardano-node</code> port. Should give ~100% success rate.<br/>
+2. tcptraceroute - Same as ss.<br/>
+3. ping - fallback method using ICMP ping against IP. Will only work if firewall of remote peer accept ICMP traffic.  </p>
 <p>For incoming connections, only ICMP ping is used as remote peer port is unknown. It's not uncommon to see many undetermined peers for incoming connections as it's a good security practice to disable ICMP in firewall.</p>
 <p>Once the analysis is finished, it will display the RTTs (return-trip times) for the peers and group them in ranges 0-50, 50-100, 100-200, 200&lt;. The analysis is <strong>NOT</strong> live. Press <code>[h] Home</code> to go back to default view or <code>[i] Info</code> to show in-script help text. <code>Up</code> and <code>Down</code> arrow keys is used to select incoming or outgoing detailed list of IPs and their RTT value. <code>Left (&lt;)</code> and <code>Right (&gt;)</code> arrow keys can be used to navigate the pages in the selected list.</p>
 <h5 id="troubleshootingcustomisations">Troubleshooting/Customisations<a class="headerlink" href="#troubleshootingcustomisations" title="Permanent link">⚓︎</a></h5>
