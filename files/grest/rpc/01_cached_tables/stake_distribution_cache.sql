@@ -265,6 +265,9 @@ BEGIN IF (
   FROM pg_stat_activity
   WHERE state = 'active'
     AND query ILIKE '%GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK(%'
+    AND datname = (
+      SELECT current_database()
+    )
 ) THEN RAISE EXCEPTION 'Previous query still running but should have completed! Exiting...';
 END IF;
 -- QUERY START --
