@@ -131,7 +131,7 @@ function chk_cache_status() {
     echo "ERROR: Stake Distribution cache too far from tip !!"
     optexit
   fi
-  if [[ $(( $(TZ='UTC' date +%s) - $(date -d "${last_poolhist_update}" +%s) )) -gt 1000 ]]; then
+  if [[ $(( $(TZ='UTC' date +%s) - $(date -d "${last_poolhist_update}" -u +%s) )) -gt 1000 ]]; then
     echo "ERROR: Pool History cache too far from tip !!"
     optexit
   fi
