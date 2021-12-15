@@ -277,6 +277,18 @@ asciiToHex() {
   done
 }
 
+# Description : Convert a hex string to normal 1 byte ASCII string (alnum chars)
+#             : $1 = hex string to convert
+hexToAscii() {
+  local hexstr=$1
+  local hexcnt=${#hexstr}
+  [[ -z ${hexstr} ]] && return
+  (( hexcnt % 2 != 0 )) && return
+  for ((i=0;i<${#hexstr};i=i+2)); do
+    printf "\x${hexstr:$i:2}"
+  done
+}
+
 # Description : Helper function to validate that input is a number
 #             : $1 = number
 isNumber() {
@@ -937,8 +949,8 @@ BOLD='\e[1m'
 NC='\e[0m'
 
 node_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
-if ! versionCheck "1.31.0" "${node_version}"; then
-  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.31.0 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
+if ! versionCheck "1.32.1" "${node_version}"; then
+  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.32.1 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
   return 1
 fi
 
