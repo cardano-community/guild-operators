@@ -465,7 +465,7 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-      summary: Asset Summary
+      summary: Asset Information
       description: Get the information of an asset incl first minting & token registry metadata
   /rpc/asset_txs:
     get:
