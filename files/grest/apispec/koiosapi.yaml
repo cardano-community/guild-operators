@@ -606,6 +606,42 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Pool Metadata
       description: Metadata(on & off-chain) for all currently registered/retiring (not retired) pools
+  /rpc/script_list:
+    get:
+      tags:
+        - Script
+      responses:
+        "200":
+          description: List of script and creation tx hash pairs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/script_list"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Script List
+      description: List of all existing script hashes along with their creation transaction hashes
+  /rpc/script_redeemers:
+    get:
+      tags:
+        - Script
+      parameters:
+        - $ref: "#/components/parameters/_script_hash"
+      responses:
+        "200":
+          description: List of all redeemers for a given script hash
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/script_redeemers"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Script Redeemers
+      description: List of all redeemers for a given script hash
 components:
   parameters:
     select:
@@ -759,6 +795,16 @@ components:
       in: query
       required: false
       allowEmptyValue: true
+    _script_hash:
+      deprecated: false
+      name: _script_hash
+      description: Script hash in hexadecimal format (hex)
+      schema:
+        type: string
+        example: d8480dc869b94b80e81ec91b0abe307279311fe0e7001a9488f61ff8
+      in: query
+      required: true
+      allowEmptyValue: false
   requestBodies:
     address_txs:
       content:
@@ -1504,6 +1550,64 @@ components:
             type: number
             description: A distinct known metalabel
             example: 721
+    script_list:
+      type: array
+      items:
+        properties:
+          script_hash:
+            type: string
+            description: Hash of a script
+            example: d8480dc869b94b80e81ec91b0abe307279311fe0e7001a9488f61ff8
+          creation_tx_hash:
+            type: string
+            description: Hash of the script creation transaction
+            example: fda6c7697009237975ffc30f36666addf4c6e2a2c6f90411a24431b700baaab1
+    script_redeemers:
+      type: array
+      items:
+        type: object
+        properties:
+          script_hash:
+            type: string
+            description: Hash of Transaction for which details are being shown
+            example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
+          redeemers:
+            type: array
+            items:
+              type: object
+              properties:
+                tx_hash:
+                  type: string
+                  description: Hash of Transaction containing the redeemer
+                  example: fda6c7697009237975ffc30f36666addf4c6e2a2c6f90411a24431b700baaab1
+                tx_index:
+                  type: integer
+                  description: The index of the redeemer pointer in the transaction
+                  example: 0
+                unit_mem:
+                  type: integer
+                  description: The budget in Memory to run a script
+                  example: 520448
+                unit_steps:
+                  type: integer
+                  description: The budget in Cpu steps to run a script
+                  example: 211535239
+                fee:
+                  type: integer
+                  description: The budget in fees to run a script - the fees depend on the ExUnits and the current prices
+                  example: 45282
+                purpose:
+                  type: string
+                  description: What kind pf validation this redeemer is used for, it can be one of 'spend', 'mint', 'cert', 'reward'
+                  example: spend
+                datum_hash:
+                  type: string
+                  description: The Hash of the Plutus Data
+                  example: 5a595ce795815e81d22a1a522cf3987d546dc5bb016de61b002edd63a5413ec4
+                datum_value:
+                  type: object
+                  description: The actual data in json format
+                  example: { "bytes": "3c33" }
   headers: {}
   responses:
     OK:
@@ -1538,5 +1642,8 @@ tags:
     x-tag-expanded: false
   - name: Pool
     description: Query information about specific pools
+    x-tag-expanded: false
+  - name: Script
+    description: Query information about specific scripts (Smart Contracts)
     x-tag-expanded: false
 security: []
