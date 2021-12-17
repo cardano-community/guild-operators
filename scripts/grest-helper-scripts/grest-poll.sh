@@ -21,7 +21,12 @@
 #        The behaviour is logged on monitoring instance - so can be easily caught if abused, but more often than not would be done unintentionally
 #  - [x] Ensure the postgREST limit returned is 1000
 #  - [x] Add updateCheck for grest-poll itself, checked hourly (or at first run post haproxy restart)
-#  - [ ] Add interval to download spec URL and API_COMPARE
+#  - [x] Add interval to download spec URL and API_COMPARE
+#  - [x] Update koios API specs to remove rpc references, this automatically also means grest-poll.sh shouldnt use RPC for comparisons (in check structure and shasum match)
+#    - [x] Remove rpc ref from koiosapi.yaml, possibly use comment to identify #RPC
+#    - [x] Update OpenSpec comparison (currently filters RPC for paths, that should use a seperate identifier)
+#    - [x] Update API_STRUCT_DEFINITION, as it uses /rpc to create grestrpcs file
+#    - [x] Verify haproxy.conf side changes
 #  - [ ] Elect few endpoints that will indirectly test data
 #        - [x] Control Table (TODO: Version addition to Control Table)
 #        - [ ] Query a sample from cache table (based on inputs from control table)
@@ -35,6 +40,7 @@
 #API_COMPARE="http://127.0.0.1:8050"                           # Source to be used for comparing RPC endpoint structure against. This variable only impacts failover "locally".
                                                                # Any changes here does not impact your nodes availability remotely, preventing loop of connections within proxies
 #API_STRUCT_DEFINITION="https://api.koios.rest/koiosapi.yaml"  # The Doc URL that is to be considered as source of truth - only to be changed if not working with alpha branch
+#LOCAL_SPEC="$(dirname $0)/../files/koiosapi.yaml"             # Local copy of downloaded specs (downloaded hourly from API_STRUCT_DEFINITION) file
 
 ######################################
 # Do NOT modify code below           #
@@ -45,6 +51,7 @@ function set_defaults() {
   [[ -z "${APIPATH}" ]] && APIPATH=rpc
   [[ -z "${API_COMPARE}" ]] && API_COMPARE="http://127.0.0.1:8050"
   [[ -z "${API_STRUCT_DEFINITION}" ]] && API_STRUCT_DEFINITION="https://api.koios.rest/koiosapi.yaml"
+  [[ -z "${LOCAL_SPEC}" ]] && LOCAL_SPEC="${PARENT}/../files/koiosapi.yaml"
   [[ "${HAPROXY_SERVER_NAME}" == *ssl ]] && SCHEME="https" || SCHEME="http"
   URL="${SCHEME}://${1}:${2}"
   URLRPC="${URL}/${APIPATH}"
@@ -55,6 +62,7 @@ function chk_upd() {
   curr_hour=$(date +%H)
   if [[ ! -f ./.last_grest_poll ]]; then
     echo "${curr_hour}" > .last_grest_poll
+    curl -sfkL "${API_STRUCT_DEFINITION}" -o "${LOCAL_SPEC}" 2>/dev/null
   else
     last_hour=$(cat .last_grest_poll)
     [[ "${curr_hour}" == "${last_hour}" ]] && SKIP_UPDATE=Y || echo "${curr_hour}" > .last_grest_poll
@@ -66,13 +74,15 @@ function chk_upd() {
   fi
 
   . "${PARENT}"/env offline &>/dev/null
-  ( [[ "${UPDATE_CHECK}" != "Y" ]] || [[ "${SKIP_UPDATE}" == "Y" ]] ) && return 0
+  { [[ "${UPDATE_CHECK}" != "Y" ]] || [[ "${SKIP_UPDATE}" == "Y" ]] ; } && return 0
   if [[ ! $(command -v checkUpdate) ]]; then
     echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
     exit 1
   fi
   #! checkUpdate env Y N N && exit 1
   ( ! checkUpdate grest-poll.sh Y N N grest-helper-scripts ) && echo "ERROR: checkUpdate Failed" && exit 1
+  curl -sfkL "${API_STRUCT_DEFINITION}" -o "${LOCAL_SPEC}" 2>/dev/null || return 0
+  grep " #RPC" "${LOCAL_SPEC}" | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${PARENT}/../grestrpcs"
 }
 
 function optexit() {
@@ -108,7 +118,7 @@ function chk_tip() {
 
 function chk_rpc_struct() {
   srvr_spec="$(curl -skL "${1}" | jq 'leaf_paths | join(".")' 2>/dev/null)"
-  api_endpts="$(curl -skL "${API_STRUCT_DEFINITION}" | grep ^\ \ / | sed -e 's#  /#/#g' -e 's#:##' | sort)"
+  api_endpts="$(grep ^\ \ / "${LOCAL_SPEC}" | sed -e 's#  /#/#g' -e 's#:##' | sort)"
   for endpt in ${api_endpts}
   do
     echo "${srvr_spec}" | grep -e "paths.*.${endpt}\\."
@@ -127,11 +137,11 @@ function chk_rpcs() {
 function chk_cache_status() {
   last_stakedist_block=$(curl -skL "${URL}/control_table?key=eq.stake_distribution_lbh" | jq -r .[0].last_value 2>/dev/null)
   last_poolhist_update=$(curl -skL "${URL}/control_table?key=eq.pool_history_cache_last_updated" | jq -r .[0].last_value 2>/dev/null)
-  if [[ "${last_stakedist_block}" == "" ]] || [[ $(( block_no - last_stakedist_block )) -gt 1000 ]]; then
+  if [[ "${last_stakedist_block}" == "" ]] || [[ "${last_stakedist_block}" == "[]" ]] || [[ $(( block_no - last_stakedist_block )) -gt 1000 ]]; then
     echo "ERROR: Stake Distribution cache too far from tip !!"
     optexit
   fi
-  if [[ $(( $(TZ='UTC' date +%s) - $(date -d "${last_poolhist_update}" -u +%s) )) -gt 1000 ]]; then
+  if [[ "${last_poolhist_update}" == "" ]] || [[ "${last_poolhist_update}" == "[]" ]] || [[ $(( $(TZ='UTC' date +%s) - $(date -d "${last_poolhist_update}" -u +%s) )) -gt 1000 ]]; then
     echo "ERROR: Pool History cache too far from tip !!"
     optexit
   fi

@@ -359,7 +359,7 @@
 			  nbthread 2
 			  maxconn 256
 			  ulimit-n 65536
-			  stats socket ipv4@127.0.0.1:8055 mode 0600 level admin
+			  stats socket \"\$GRESTTOP\"/sockets/haproxy.socket mode 0600 level admin user ${USER}
 			  cpu-map 1/all 1-2
 			  log 127.0.0.1 local2 info
 			  insecure-fork-wanted
@@ -398,10 +398,13 @@
 			  balance first
 			  option external-check
 			  acl chktip path -m beg /rpc/tip
-			  http-request set-log-level silent if chktip
+			  acl grestrpcs path_beg -f \"\$GRESTTOP\"/files/grestrpcs
+			  http-request set-path \"%[path,regsub(^/api/v0/,/)]\" if ! grestrpcs
+			  http-request set-path \"%[path,regsub(^/,/rpc/)]\" if grestrpcs
 			  http-request cache-use grestcache
+			  http-request set-log-level silent if chktip
 			  external-check path \"/usr/bin:/bin:/tmp:/sbin:/usr/sbin\"
-			  external-check command ${CNODE_HOME}/scripts/grest-poll.sh
+			  external-check command \"\$GRESTTOP\"/scripts/grest-poll.sh
 			  server local 127.0.0.1:8050 check inter 20000
 			  server koios-ssl ${KOIOS_SRV} backup ssl verify none
 			  ## When adding a peer, ensure to end server name with 'ssl' if enabled as in example below:
@@ -458,10 +461,10 @@
 			After=network.target
 			
 			[Service]
-			Environment=\"CONFIG=${HAPROXY_CFG}\" \"PIDFILE=${CNODE_HOME}/logs/haproxy.pid\"
-			ExecStartPre=/usr/sbin/haproxy -f ${HAPROXY_CFG} -c -q
-			ExecStart=/usr/sbin/haproxy -Ws -f ${HAPROXY_CFG} -p ${CNODE_HOME}/logs/haproxy.pid
-			ExecReload=/usr/sbin/haproxy -f ${HAPROXY_CFG} -c -q
+			Environment=\"GRESTTOP=${CNODE_HOME}\" \"CONFIG=${HAPROXY_CFG}\" \"PIDFILE=${CNODE_HOME}/logs/haproxy.pid\"
+			ExecStartPre=/usr/sbin/haproxy -f \$CONFIG -c -q
+			ExecStart=/usr/sbin/haproxy -Ws -f \$CONFIG -p \$PIDFILE
+			ExecReload=/usr/sbin/haproxy -f \$CONFIG -c -q
 			SuccessExitStatus=143
 			KillMode=mixed
 			Type=notify
@@ -580,7 +583,7 @@
     setup_cron_jobs
     echo -e "\n  All RPC functions successfully added to DBSync! For detailed query specs and examples, visit ${API_DOCS_URL}!\n"
     echo -e "Please restart PostgREST before attempting to use the added functions"
-    echo -e "  \e[94msudo systemctl restart postgrest.service\e[0m\n"
+    echo -e "  \e[94msudo systemctl restart ${CNODE_VNAME}-postgrest.service\e[0m\n"
   }
 
 ######## Execution ########
