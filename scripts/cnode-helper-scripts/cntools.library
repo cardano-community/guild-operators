@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=8
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=0
+CNTOOLS_PATCH_VERSION=1
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -34,6 +34,7 @@ if ! mkdir -p "${ASSET_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}:
 [[ ${ENABLE_ADVANCED} = "true" ]] && ADVANCED_MODE="true"
 [[ -z ${CHECK_KES} ]] && CHECK_KES=true
 [[ -z ${CNTOOLS_LOG} ]] && CNTOOLS_LOG="${LOG_DIR}/cntools-history.log"
+getEraIdentifier
 
 ############################################################
 # library sourced by cntools with common taskes to perform #
