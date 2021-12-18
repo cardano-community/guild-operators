@@ -19,9 +19,8 @@ BEGIN
   SELECT DECODE(_asset_name, 'hex') INTO _asset_name_decoded;
   SELECT id INTO _asset_id FROM multi_asset MA WHERE MA.policy = _asset_policy_decoded AND MA.name = _asset_name_decoded;
 
-  -- create a temp table to hold all unspent utxo's that currently have this asset
-  DROP TABLE IF EXISTS _asset_utxos;
-  CREATE TEMP TABLE _asset_utxos AS 
+RETURN QUERY
+  with _asset_utxos as (
     SELECT
       TXO.tx_id AS tx_id,
       TXO.id AS tx_out_id,
@@ -35,9 +34,8 @@ BEGIN
     WHERE
       MTO.ident = _asset_id
       AND
-      TXI.tx_out_id IS NULL;
+      TXI.tx_out_id IS NULL)
 
-  RETURN QUERY
   SELECT
     _asset_policy,
     _asset_name,
@@ -74,4 +72,3 @@ END;
 $$;
 
 COMMENT ON FUNCTION grest.asset_info IS 'Get the summary of an asset (total transactions exclude minting/total wallets include only wallets with asset balance)';
-
