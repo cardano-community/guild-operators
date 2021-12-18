@@ -2199,7 +2199,7 @@ function main {
                   echo "${current_kes_period}" > ${pool_saved_kes_start}
                   println ACTION "${CCLI} node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
                   ${CCLI} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}"
-                else
+                elif [[ ! -f ${pool_hotkey_vk_file} || ! -f ${pool_hotkey_sk_file} || ! -f ${pool_opcert_file} ]]; then
                   println DEBUG "\n${FG_YELLOW}Pool operational certificate not generated in hybrid mode,"
                   println DEBUG "please use 'Pool >> Rotate' in offline mode to generate new hot keys, op cert and KES start period and transfer to online node!${NC}"
                   println DEBUG "Files generated when running 'Pool >> Rotate' to be transferred:"
