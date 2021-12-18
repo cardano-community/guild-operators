@@ -67,7 +67,7 @@ servers:
   - url: https://api.koios.rest/api/v0
   - url: https://guild.koios.rest/api/v0
 paths:
-  /rpc/tip:
+  /tip: #RPC
     get:
       tags:
         - Network
@@ -101,7 +101,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Get Genesis info
       description: Get the Genesis parameters used to start specific era on chain
-  /rpc/totals:
+  /totals: #RPC
     get:
       tags:
         - Network
@@ -122,7 +122,7 @@ paths:
       description: >-
         Get the circulating utxo, treasury, rewards, supply and reserves in
         lovelace for specified epoch, all epochs if empty
-  /rpc/epoch_info:
+  /epoch_info: #RPC
     get:
       tags:
         - Epoch
@@ -141,7 +141,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Epoch Information
       description: Get the epoch information, all epochs if no epoch specified
-  /rpc/epoch_params:
+  /epoch_params: #RPC
     get:
       tags:
         - Epoch
@@ -175,7 +175,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Block List
       description: Get summarised details about all blocks (paginated - latest first)
-  /rpc/block_info:
+  /block_info: #RPC
     get:
       tags:
         - Block
@@ -190,7 +190,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Block Information
       description: Get detailed information about a specific block
-  /rpc/block_txs:
+  /block_txs: #RPC
     get:
       tags:
         - Block
@@ -205,7 +205,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Block Transactions
       description: Get a list of all transactions included in a provided block
-  /rpc/tx_info:
+  /tx_info: #RPC
     post:
       tags:
         - Transactions
@@ -224,7 +224,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Transaction Information
       description: Get detailed information about transaction(s)
-  /rpc/tx_utxos:
+  /tx_utxos: #RPC
     post:
       tags:
         - Transactions
@@ -243,7 +243,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Transaction UTxOs
       description: Get UTxO set (inputs/outputs) of transactions.
-  /rpc/tx_metadata:
+  /tx_metadata: #RPC
     post:
       tags:
         - Transactions
@@ -298,7 +298,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Transaction Status (Block Confirmations)
       description: Get the number of block confirmations for a given transaction hash list
-  /rpc/address_info:
+  /address_info: #RPC
     get:
       tags:
         - Address
@@ -313,7 +313,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Address Information
       description: Get address info - balance, associated stake address (if any) and UTXO set
-  /rpc/address_txs:
+  /address_txs: #RPC
     post:
       tags:
         - Address
@@ -328,7 +328,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Address Transactions
       description: Get the transaction hash list of input address array, optionally filtering after specified block height (inclusive)
-  /rpc/credential_txs:
+  /credential_txs: #RPC
     post:
       tags:
         - Address
@@ -355,7 +355,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
       summary: Get a list of all accounts
-  /rpc/account_info:
+  /account_info: #RPC
     get:
       tags:
         - Account
@@ -370,7 +370,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Account Information
       description: Get the account info of any (payment or staking) address
-  /rpc/account_rewards:
+  /account_rewards: #RPC
     get:
       tags:
         - Account
@@ -388,7 +388,7 @@ paths:
       description: >-
         Get the full rewards history (including MIR) for a stake address, or
         certain epoch if specified
-  /rpc/account_updates:
+  /account_updates: #RPC
     get:
       tags:
         - Account
@@ -405,7 +405,7 @@ paths:
       description: >-
         Get the account updates (registration, deregistration, delegation and
         withdrawals)
-  /rpc/account_addresses:
+  /account_addresses: #RPC
     get:
       tags:
         - Account
@@ -420,7 +420,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Account Addresses
       description: Get all addresses associated with an account
-  /rpc/account_assets:
+  /account_assets: #RPC
     get:
       tags:
         - Account
@@ -435,7 +435,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Account Assets
       description: Get the native asset balance of an account
-  /rpc/asset_address_list:
+  /asset_address_list: #RPC
     get:
       tags:
         - Asset
@@ -451,7 +451,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Assets Address List
       description: Get a list of all addresses for a given asset
-  /rpc/asset_info:
+  /asset_info: #RPC
     get:
       tags:
         - Asset
@@ -467,7 +467,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Asset Information
       description: Get the information of an asset incl first minting & token registry metadata
-  /rpc/asset_txs:
+  /asset_txs: #RPC
     get:
       tags:
         - Asset
@@ -483,7 +483,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Asset Summary
       description: Get the summary of an asset (total transactions exclude minting/total wallets include only wallets with asset balance)
-  /rpc/address_assets:
+  /address_assets: #RPC
     get:
       tags:
         - Address
@@ -498,7 +498,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Address Assets
       description: Get the list of all the assets (policy, name and quantity) for a given address
-  /rpc/pool_list:
+  /pool_list: #RPC
     get:
       tags:
         - Pool
@@ -515,7 +515,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Pool List
       description: A list of all currently registered/retiring (not retired) pools
-  /rpc/pool_info:
+  /pool_info: #RPC
     get:
       tags:
         - Pool
@@ -530,7 +530,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Pool Information
       description: Current pool status and details for specified pool id
-  /rpc/pool_delegators:
+  /pool_delegators: #RPC
     get:
       tags:
         - Pool
@@ -546,7 +546,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Pool Delegators List
       description: Return information about delegators by a given pool and optional epoch (current if omitted)
-  /rpc/pool_blocks:
+  /pool_blocks: #RPC
     get:
       tags:
         - Pool
@@ -564,7 +564,7 @@ paths:
       description: >-
         Return information about blocks minted by a given pool in current epoch
         (or _epoch_no if provided)
-  /rpc/pool_updates:
+  /pool_updates: #RPC
     get:
       tags:
         - Pool
@@ -580,7 +580,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Pool Updates (History)
       description: Return all pool updates for all pools or only updates for specific pool if specified
-  /rpc/pool_relays:
+  /pool_relays: #RPC
     get:
       tags:
         - Pool
@@ -593,7 +593,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Pool Relays
       description: A list of registered relays for all currently registered/retiring (not retired) pools
-  /rpc/pool_metadata:
+  /pool_metadata: #RPC
     get:
       tags:
         - Pool
@@ -606,7 +606,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Pool Metadata
       description: Metadata(on & off-chain) for all currently registered/retiring (not retired) pools
-  /rpc/script_list:
+  /script_list: #RPC
     get:
       tags:
         - Script
@@ -623,7 +623,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Script List
       description: List of all existing script hashes along with their creation transaction hashes
-  /rpc/script_redeemers:
+  /script_redeemers: #RPC
     get:
       tags:
         - Script
