@@ -320,6 +320,7 @@
     fi
     pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
     checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
+    sed -e "s@cexplorer@${PGDATABASE}@g" -i "${CNODE_HOME}"/scripts/getmetrics.sh
     echo -e "[Re]Installing Monitoring Agent.."
     e=!
     sudo bash -c "cat <<-EOF > ${CNODE_HOME}/scripts/grest-exporter.sh
