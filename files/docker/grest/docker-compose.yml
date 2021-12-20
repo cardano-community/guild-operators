@@ -10,6 +10,7 @@ services:
     volumes:
       - postgres_db:/var/lib/postgresql/data
       - ./scripts/docker-getmetrics.sh:/getmetrics.sh
+      - ./.bashrc:/var/lib/postgresql/.bashrc
       - ./scripts/docker-setup-grest.sh:/setup-grest.sh
       - ./scripts/postgres-entrypoint.sh:/entrypoint.sh
       - ./config/postgres/crontab:/etc/cron.d/crontab
@@ -39,7 +40,8 @@ services:
         max-file: "10"
 
   cardano-db-sync:
-    image: inputoutput/cardano-db-sync:11.0.4
+    image: inputoutput/cardano-db-sync:12.0.0
+
     env_file: ./.env
     environment:
       - NETWORK=${NETWORK:-mainnet}
