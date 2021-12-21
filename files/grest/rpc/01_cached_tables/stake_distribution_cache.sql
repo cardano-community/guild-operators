@@ -89,7 +89,7 @@ CREATE TEMP TABLE account_total_utxo AS (
     INNER JOIN TX ON TX.ID = TX_OUT.TX_ID
     LEFT JOIN TX_IN ON TX_OUT.TX_ID = TX_IN.TX_OUT_ID
     AND TX_OUT.INDEX::smallint = TX_IN.TX_OUT_INDEX::smallint
-  WHERE TX.BLOCK_ID <= 6668337
+  WHERE TX.BLOCK_ID <= _last_accounted_block_id
     AND TX_IN.TX_IN_ID IS NULL
   GROUP BY accounts_with_delegated_pools.stake_address_id,
     accounts_with_delegated_pools.stake_address
@@ -294,8 +294,8 @@ IF (
   OR _last_update_block_diff < 0
 ) THEN RAISE NOTICE 'Re-running...';
 CALL GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
+ELSE RAISE NOTICE 'Minimum block height difference(180) for update not reached, skipping...';
 END IF;
-RAISE NOTICE 'Minimum block height difference(180) for update not reached, skipping...';
 RETURN;
 END;
 $$;
