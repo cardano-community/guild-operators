@@ -10,7 +10,6 @@ services:
     volumes:
       - postgres_db:/var/lib/postgresql/data
       - ./scripts/docker-getmetrics.sh:/getmetrics.sh
-      - ./.bashrc:/var/lib/postgresql/.bashrc
       - ./scripts/docker-setup-grest.sh:/setup-grest.sh
       - ./scripts/postgres-entrypoint.sh:/entrypoint.sh
       - ./config/postgres/crontab:/etc/cron.d/crontab
@@ -45,7 +44,7 @@ services:
     env_file: ./.env
     environment:
       - NETWORK=${NETWORK:-mainnet}
-      - RESTORE_SNAPSHOT=${RESTORE_SNAPSHOT:-https://update-cardano-mainnet.iohk.io/cardano-db-sync/11/db-sync-snapshot-schema-11-block-6510444-x86_64.tgz}
+      - RESTORE_SNAPSHOT=${RESTORE_SNAPSHOT:-https://update-cardano-mainnet.iohk.io/cardano-db-sync/12/db-sync-snapshot-schema-12-block-6647999-x86_64.tgz}
       - RESTORE_RECREATE_DB=N
     depends_on:
       - cardano-node
@@ -73,6 +72,7 @@ services:
     ports:
       - 8053:8053
     restart: on-failure
+
   postgrest:
     image: postgrest/postgrest
     env_file: ./.env
