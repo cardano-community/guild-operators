@@ -14,7 +14,3 @@ ALTER SYSTEM
 SET max_worker_processes = 10;
 ALTER SYSTEM
 SET max_replication_slots = 10;
-SELECT pglogical.create_node(
-        node_name := 'provider1',
-        dsn := 'host=providerhost port=5432 dbname=cexplorer'
-    );
