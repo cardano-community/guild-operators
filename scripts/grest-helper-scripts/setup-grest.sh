@@ -360,7 +360,7 @@
 			  nbthread 2
 			  maxconn 256
 			  ulimit-n 65536
-			  stats socket \"\$GRESTTOP\"/sockets/haproxy.socket mode 0600 level admin user ${USER}
+			  stats socket \"\\\$GRESTTOP\"/sockets/haproxy.socket mode 0600 level admin user ${USER}
 			  cpu-map 1/all 1-2
 			  log 127.0.0.1 local2 info
 			  insecure-fork-wanted
@@ -399,13 +399,13 @@
 			  balance first
 			  option external-check
 			  acl chktip path -m beg /rpc/tip
-			  acl grestrpcs path_beg -f \"\$GRESTTOP\"/files/grestrpcs
+			  acl grestrpcs path_beg -f \"\\\$GRESTTOP\"/files/grestrpcs
 			  http-request set-path \"%[path,regsub(^/api/v0/,/)]\" if ! grestrpcs
 			  http-request set-path \"%[path,regsub(^/,/rpc/)]\" if grestrpcs
 			  http-request cache-use grestcache
 			  http-request set-log-level silent if chktip
 			  external-check path \"/usr/bin:/bin:/tmp:/sbin:/usr/sbin\"
-			  external-check command \"\$GRESTTOP\"/scripts/grest-poll.sh
+			  external-check command \"\\\$GRESTTOP\"/scripts/grest-poll.sh
 			  server local 127.0.0.1:8050 check inter 20000
 			  server koios-ssl ${KOIOS_SRV} backup ssl verify none
 			  ## When adding a peer, ensure to end server name with 'ssl' if enabled as in example below:
