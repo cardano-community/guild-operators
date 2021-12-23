@@ -463,9 +463,9 @@
 			
 			[Service]
 			Environment=\"GRESTTOP=${CNODE_HOME}\" \"CONFIG=${HAPROXY_CFG}\" \"PIDFILE=${CNODE_HOME}/logs/haproxy.pid\"
-			ExecStartPre=/usr/sbin/haproxy -f \$CONFIG -c -q
-			ExecStart=/usr/sbin/haproxy -Ws -f \$CONFIG -p \$PIDFILE
-			ExecReload=/usr/sbin/haproxy -f \$CONFIG -c -q
+			ExecStartPre=/usr/sbin/haproxy -f \"\\\$CONFIG\" -c -q
+			ExecStart=/usr/sbin/haproxy -Ws -f \"\\\$CONFIG\" -p \"\\\$PIDFILE\"
+			ExecReload=/usr/sbin/haproxy -f \"\\\$CONFIG\" -c -q
 			SuccessExitStatus=143
 			KillMode=mixed
 			Type=notify
