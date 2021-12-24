@@ -354,6 +354,14 @@
       764824073)  KOIOS_SRV="api.koios.rest:8453" ;;
       *) KOIOS_SRV="guild.koios.rest:8453" ;;
     esac
+
+    # Create skeleton whitelist URL file if one does not already exist using most common option
+    if [[ ! -f "${CNODE_HOME}"/files/grestrpcs ]]; then
+      # Not network dependent, as the URL patterns followed will default to monitoring instance from koios - it will anyways be overwritten as per user preference based on variables in grest-poll.sh
+      curl -sfkL "https://api.koios.rest/koiosapi.yaml" -o .koiosapispec 2>/dev/null || return 0
+      grep " #RPC" .koiosapispec | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${CNODE_HOME}"/files/grestrpcs
+    fi
+
     bash -c "cat <<-EOF > ${HAPROXY_CFG}
 			global
 			  daemon
@@ -463,9 +471,9 @@
 			
 			[Service]
 			Environment=\"GRESTTOP=${CNODE_HOME}\" \"CONFIG=${HAPROXY_CFG}\" \"PIDFILE=${CNODE_HOME}/logs/haproxy.pid\"
-			ExecStartPre=/usr/sbin/haproxy -f \$CONFIG -c -q
-			ExecStart=/usr/sbin/haproxy -Ws -f \$CONFIG -p \$PIDFILE
-			ExecReload=/usr/sbin/haproxy -f \$CONFIG -c -q
+			ExecStartPre=/usr/sbin/haproxy -f \"\\\$CONFIG\" -c -q
+			ExecStart=/usr/sbin/haproxy -Ws -f \"\\\$CONFIG\" -p \"\\\$PIDFILE\"
+			ExecReload=/usr/sbin/haproxy -f \"\\\$CONFIG\" -c -q
 			SuccessExitStatus=143
 			KillMode=mixed
 			Type=notify
