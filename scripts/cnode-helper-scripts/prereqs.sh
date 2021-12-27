@@ -202,7 +202,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     elif [[ "${DISTRO}" =~ Fedora ]]; then
       pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config srm"
     fi
-    ! grep -q ^epel <<< "$(yum repolist)" && sudo yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"$(grep ^VERSION_ID /etc/os-release | cut -d\" -f2)".noarch.rpm > /dev/null
+    ! grep -q ^epel <<< "$(yum repolist)" && $sudo yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"$(grep ^VERSION_ID /etc/os-release | cut -d\" -f2)".noarch.rpm > /dev/null
     $sudo yum -y --allowerasing install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
