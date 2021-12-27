@@ -198,9 +198,9 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     if [[ "${VERSION_ID}" == "7" ]]; then
       pkg_list="${pkg_list} libusb pkconfig srm"
     elif [[ "${VERSION_ID}" == "8" ]]; then
-      pkg_list="${pkg_list} libusbx ncurses-compat-libs pkconf-pkg-config"
+      pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config"
     elif [[ "${DISTRO}" =~ Fedora ]]; then
-      pkg_list="${pkg_list} libusbx ncurses-compat-libs pkconf-pkg-config srm"
+      pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config srm"
     fi
     ! grep -q ^epel <<< "$(yum repolist)" && sudo yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"$(grep ^VERSION_ID /etc/os-release | cut -d\" -f2)".noarch.rpm > /dev/null
     $sudo yum -y --allowerasing install ${pkg_list} > /dev/null;rc=$?
