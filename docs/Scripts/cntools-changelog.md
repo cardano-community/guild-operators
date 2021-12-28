@@ -6,6 +6,14 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.8.2] - 2021-12-28
+#### Fixed
+- Transform txBody using canonical order before signing/witnessing in case of HW wallet.
+- Bump minimum HW wallet versions:
+  - Ledger >= 3.0.0
+  - Trezor >= 2.4.3
+  - cardano-hw-cli >= 1.9.0
+
 ## [8.8.1] - 2021-12-18
 #### Fixed
 - Fallback to Mary era in build commands to keep ledger compatibility
