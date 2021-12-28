@@ -6,6 +6,14 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.8.1] - 2021-12-18
+#### Fixed
+- Fallback to Mary era in build commands to keep ledger compatibility
+
+## [8.8.0] - 2021-12-15
+#### Fixed
+- Asset handling after cardano-node 1.32.1 version bump. ascii -> hex change in cardano-cli.
+
 ## [8.7.3] - 2021-11-30
 #### Fixed
 - Remove stale cntools.config comments

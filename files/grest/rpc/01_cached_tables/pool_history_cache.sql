@@ -34,18 +34,25 @@ begin
     FROM
       pg_stat_activity
     WHERE
-      state = 'active' AND query ILIKE '%GREST.pool_history_cache_update%') THEN
-    RAISE EXCEPTION 'Previous pool_history_cache_update query still running but should have completed! Exiting...';
-  END IF;
+      state = 'active' AND query ILIKE '%GREST.pool_history_cache_update%'
+      AND datname = (SELECT current_database())
+    ) THEN
+        RAISE EXCEPTION 'Previous pool_history_cache_update query still running but should have completed! Exiting...';
+    END IF;
+
+  INSERT INTO GREST.CONTROL_TABLE (key, last_value)
+      values('pool_history_cache_last_updated', now() at time zone 'utc')
+    ON CONFLICT (key)
+      DO UPDATE SET last_value = now() at time zone 'utc';
 
   if _epoch_no_to_insert_from is null then
     select
       COALESCE(MAX(epoch_no), 0) into _latest_epoch_no_in_cache
     from
       grest.pool_history_cache;
-    -- special handling of the case where cron job might be invoked while setup-grest is still running
-    -- we want the setup-grest to finish populating the table before we check for any needed updates
     if _latest_epoch_no_in_cache = 0 then
+      RAISE NOTICE 'Pool history cache table is empty, starting initial population...';
+      PERFORM grest.pool_history_cache_update (0);
       return;
     end if;
     select
@@ -238,19 +245,8 @@ begin
                         and actf.epoch_no = m.earned_epoch
                     left join delegators del on ph.id = del.pool_id
                       and actf.epoch_no = del.epoch_no);
-           
-           INSERT INTO GREST.CONTROL_TABLE (key, last_value)
-              values('pool_history_cache_last_updated', now() at time zone 'utc')
-           ON CONFLICT (key)
-           DO UPDATE SET
-              last_value = now() at time zone 'utc';
 end;
 $$;
 
 COMMENT ON FUNCTION grest.pool_history_cache_update IS 'Internal function to update pool history for data from specified epoch until 
 current-epoch-minus-one. Invoke with non-empty param for initial population, with empty for subsequent updates';
-
--- initial population of the history table, will take longer as the number of Cardano epochs grows
--- if we decide to remove the below and let cron-based invocation to populate it then need to adjust the update function logic and remove special case for empty table handling
-select * from grest.pool_history_cache_update (0);
-

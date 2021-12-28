@@ -320,6 +320,7 @@
     fi
     pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
     checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
+    sed -e "s@cexplorer@${PGDATABASE}@g" -i "${CNODE_HOME}"/scripts/getmetrics.sh
     echo -e "[Re]Installing Monitoring Agent.."
     e=!
     sudo bash -c "cat <<-EOF > ${CNODE_HOME}/scripts/grest-exporter.sh
@@ -349,17 +350,25 @@
     # Create HAProxy config template
     [[ -f "${HAPROXY_CFG}" ]] && cp "${HAPROXY_CFG}" "${HAPROXY_CFG}".bkp_$(date +%s)
     case ${NWMAGIC} in
-      1097911063) KOIOS_SRV="testnet.koios.rest" ;;
-      764824073)  KOIOS_SRV="api.koios.rest" ;;
-      *) KOIOS_SRV="guild.koios.rest" ;;
+      1097911063) KOIOS_SRV="testnet.koios.rest:8453" ;;
+      764824073)  KOIOS_SRV="api.koios.rest:8453" ;;
+      *) KOIOS_SRV="guild.koios.rest:8453" ;;
     esac
+
+    # Create skeleton whitelist URL file if one does not already exist using most common option
+    if [[ ! -f "${CNODE_HOME}"/files/grestrpcs ]]; then
+      # Not network dependent, as the URL patterns followed will default to monitoring instance from koios - it will anyways be overwritten as per user preference based on variables in grest-poll.sh
+      curl -sfkL "https://api.koios.rest/koiosapi.yaml" -o .koiosapispec 2>/dev/null || return 0
+      grep " #RPC" .koiosapispec | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${CNODE_HOME}"/files/grestrpcs
+    fi
+
     bash -c "cat <<-EOF > ${HAPROXY_CFG}
 			global
 			  daemon
 			  nbthread 2
 			  maxconn 256
 			  ulimit-n 65536
-			  stats socket ipv4@127.0.0.1:8055 mode 0600 level admin
+			  stats socket \"\\\$GRESTTOP\"/sockets/haproxy.socket mode 0600 level admin user ${USER}
 			  cpu-map 1/all 1-2
 			  log 127.0.0.1 local2 info
 			  insecure-fork-wanted
@@ -394,22 +403,26 @@
 			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 50 }
 			  default_backend grest_core
 			
-			backend flood_lmt_rate
-			  stick-table type ip size 1m expire 10m store http_req_rate(10s)
-			
 			backend grest_core
 			  balance first
 			  option external-check
 			  acl chktip path -m beg /rpc/tip
-			  http-request set-log-level silent if chktip
+			  acl grestrpcs path_beg -f \"\\\$GRESTTOP\"/files/grestrpcs
+			  http-request set-path \"%[path,regsub(^/api/v0/,/)]\" if ! grestrpcs
+			  http-request set-path \"%[path,regsub(^/,/rpc/)]\" if grestrpcs
 			  http-request cache-use grestcache
+			  http-request set-log-level silent if chktip
 			  external-check path \"/usr/bin:/bin:/tmp:/sbin:/usr/sbin\"
-			  external-check command ${CNODE_HOME}/scripts/grest-poll.sh
+			  external-check command \"\\\$GRESTTOP\"/scripts/grest-poll.sh
 			  server local 127.0.0.1:8050 check inter 20000
-			  server koios-ssl ${KOIOS_SRV}:8453 check inter 60000 backup ssl verify none
-			  ## Ensure to end server name with 'ssl' if enabled
+			  server koios-ssl ${KOIOS_SRV} backup ssl verify none
+			  ## When adding a peer, ensure to end server name with 'ssl' if enabled as in example below:
+			  ## server name-ssl server.name:443 check inter 60000 ssl verify none
 			  http-response cache-store grestcache
 			  http-response set-header X-Frame-Options: DENY
+			
+			backend flood_lmt_rate
+			  stick-table type ip size 1m expire 10m store http_req_rate(10s)
 			
 			backend unauthorized
 			  ## Used by monitoring instances only
@@ -457,10 +470,10 @@
 			After=network.target
 			
 			[Service]
-			Environment=\"CONFIG=${HAPROXY_CFG}\" \"PIDFILE=${CNODE_HOME}/logs/haproxy.pid\"
-			ExecStartPre=/usr/sbin/haproxy -f ${HAPROXY_CFG} -c -q
-			ExecStart=/usr/sbin/haproxy -Ws -f ${HAPROXY_CFG} -p ${CNODE_HOME}/logs/haproxy.pid
-			ExecReload=/usr/sbin/haproxy -f ${HAPROXY_CFG} -c -q
+			Environment=\"GRESTTOP=${CNODE_HOME}\" \"CONFIG=${HAPROXY_CFG}\" \"PIDFILE=${CNODE_HOME}/logs/haproxy.pid\"
+			ExecStartPre=/usr/sbin/haproxy -f \"\\\$CONFIG\" -c -q
+			ExecStart=/usr/sbin/haproxy -Ws -f \"\\\$CONFIG\" -p \"\\\$PIDFILE\"
+			ExecReload=/usr/sbin/haproxy -f \"\\\$CONFIG\" -c -q
 			SuccessExitStatus=143
 			KillMode=mixed
 			Type=notify
@@ -579,7 +592,7 @@
     setup_cron_jobs
     echo -e "\n  All RPC functions successfully added to DBSync! For detailed query specs and examples, visit ${API_DOCS_URL}!\n"
     echo -e "Please restart PostgREST before attempting to use the added functions"
-    echo -e "  \e[94msudo systemctl restart postgrest.service\e[0m\n"
+    echo -e "  \e[94msudo systemctl restart ${CNODE_VNAME}-postgrest.service\e[0m\n"
   }
 
 ######## Execution ########

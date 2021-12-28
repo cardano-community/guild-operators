@@ -56,7 +56,7 @@ info:
       not have single point of failure, but that does not limit users to elect any of the other server endpoints instead, since the API works right from the PostgREST layer itself.
 
     ## I have not used 'XYZ' before. Is there an easy start guide?
-    Yes, there is an easy-to-setup script (early stages, will be refined for correctness) and instructions [here](https://cardano-community.github.io/guild-operators/Build/pgrest/). Should you need any assistance, feel free to hop in to the [discussion group](https://t.me/joinchat/zE4Lce_QUepiY2U1).
+    Yes, there is an easy-to-setup script (early stages, will be refined for correctness) and instructions [here](https://cardano-community.github.io/guild-operators/Build/grest/). Should you need any assistance, feel free to hop in to the [discussion group](https://t.me/joinchat/zE4Lce_QUepiY2U1).
 
     ## Too much reading, I want to discuss in person
     We serve bi-weekly calls that any builder or consumer is free to join - or you can drop in to the [telegram group](https://t.me/joinchat/zE4Lce_QUepiY2U1) and start a discussion from there.
@@ -64,10 +64,10 @@ info:
   x-logo:
     url: "https://api.koios.rest/koios.png"
 servers:
-  - url: https://api.koios.rest:8453
-  - url: https://guild.koios.rest:8453
+  - url: https://api.koios.rest/api/v0
+  - url: https://guild.koios.rest/api/v0
 paths:
-  /rpc/tip:
+  /tip: #RPC
     get:
       tags:
         - Network
@@ -101,7 +101,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Get Genesis info
       description: Get the Genesis parameters used to start specific era on chain
-  /rpc/totals:
+  /totals: #RPC
     get:
       tags:
         - Network
@@ -122,7 +122,7 @@ paths:
       description: >-
         Get the circulating utxo, treasury, rewards, supply and reserves in
         lovelace for specified epoch, all epochs if empty
-  /rpc/epoch_info:
+  /epoch_info: #RPC
     get:
       tags:
         - Epoch
@@ -141,7 +141,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Epoch Information
       description: Get the epoch information, all epochs if no epoch specified
-  /rpc/epoch_params:
+  /epoch_params: #RPC
     get:
       tags:
         - Epoch
@@ -175,7 +175,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Block List
       description: Get summarised details about all blocks (paginated - latest first)
-  /rpc/block_info:
+  /block_info: #RPC
     get:
       tags:
         - Block
@@ -190,7 +190,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Block Information
       description: Get detailed information about a specific block
-  /rpc/block_txs:
+  /block_txs: #RPC
     get:
       tags:
         - Block
@@ -205,7 +205,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Block Transactions
       description: Get a list of all transactions included in a provided block
-  /rpc/tx_info:
+  /tx_info: #RPC
     post:
       tags:
         - Transactions
@@ -224,7 +224,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Transaction Information
       description: Get detailed information about transaction(s)
-  /rpc/tx_utxos:
+  /tx_utxos: #RPC
     post:
       tags:
         - Transactions
@@ -243,7 +243,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Transaction UTxOs
       description: Get UTxO set (inputs/outputs) of transactions.
-  /rpc/tx_metadata:
+  /tx_metadata: #RPC
     post:
       tags:
         - Transactions
@@ -298,7 +298,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Transaction Status (Block Confirmations)
       description: Get the number of block confirmations for a given transaction hash list
-  /rpc/address_info:
+  /address_info: #RPC
     get:
       tags:
         - Address
@@ -313,7 +313,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Address Information
       description: Get address info - balance, associated stake address (if any) and UTXO set
-  /rpc/address_txs:
+  /address_txs: #RPC
     post:
       tags:
         - Address
@@ -328,7 +328,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Address Transactions
       description: Get the transaction hash list of input address array, optionally filtering after specified block height (inclusive)
-  /rpc/credential_txs:
+  /credential_txs: #RPC
     post:
       tags:
         - Address
@@ -355,7 +355,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
       summary: Get a list of all accounts
-  /rpc/account_info:
+  /account_info: #RPC
     get:
       tags:
         - Account
@@ -370,7 +370,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Account Information
       description: Get the account info of any (payment or staking) address
-  /rpc/account_rewards:
+  /account_rewards: #RPC
     get:
       tags:
         - Account
@@ -388,7 +388,7 @@ paths:
       description: >-
         Get the full rewards history (including MIR) for a stake address, or
         certain epoch if specified
-  /rpc/account_updates:
+  /account_updates: #RPC
     get:
       tags:
         - Account
@@ -405,7 +405,7 @@ paths:
       description: >-
         Get the account updates (registration, deregistration, delegation and
         withdrawals)
-  /rpc/account_addresses:
+  /account_addresses: #RPC
     get:
       tags:
         - Account
@@ -420,7 +420,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Account Addresses
       description: Get all addresses associated with an account
-  /rpc/account_assets:
+  /account_assets: #RPC
     get:
       tags:
         - Account
@@ -435,13 +435,13 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Account Assets
       description: Get the native asset balance of an account
-  /rpc/asset_address_list:
+  /asset_address_list: #RPC
     get:
       tags:
         - Asset
       parameters:
         - $ref: "#/components/parameters/_asset_policy"
-        - $ref: "#/components/parameters/_asset_name_text"
+        - $ref: "#/components/parameters/_asset_name"
       responses:
         "200":
           $ref: "#/components/responses/OK"
@@ -451,13 +451,29 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Assets Address List
       description: Get a list of all addresses for a given asset
-  /rpc/asset_info:
+  /asset_info: #RPC
     get:
       tags:
         - Asset
       parameters:
         - $ref: "#/components/parameters/_asset_policy"
-        - $ref: "#/components/parameters/_asset_name_hex"
+        - $ref: "#/components/parameters/_asset_name"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Asset Information
+      description: Get the information of an asset incl first minting & token registry metadata
+  /asset_txs: #RPC
+    get:
+      tags:
+        - Asset
+      parameters:
+        - $ref: "#/components/parameters/_asset_policy"
+        - $ref: "#/components/parameters/_asset_name"
       responses:
         "200":
           $ref: "#/components/responses/OK"
@@ -466,8 +482,8 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
       summary: Asset Summary
-      description: Get summary data for an asset (minting transactions not included in total count, total wallets include only wallets with asset balance)
-  /rpc/address_assets:
+      description: Get the summary of an asset (total transactions exclude minting/total wallets include only wallets with asset balance)
+  /address_assets: #RPC
     get:
       tags:
         - Address
@@ -482,7 +498,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Address Assets
       description: Get the list of all the assets (policy, name and quantity) for a given address
-  /rpc/pool_list:
+  /pool_list: #RPC
     get:
       tags:
         - Pool
@@ -499,7 +515,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Pool List
       description: A list of all currently registered/retiring (not retired) pools
-  /rpc/pool_info:
+  /pool_info: #RPC
     get:
       tags:
         - Pool
@@ -514,7 +530,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Pool Information
       description: Current pool status and details for specified pool id
-  /rpc/pool_delegators:
+  /pool_delegators: #RPC
     get:
       tags:
         - Pool
@@ -530,7 +546,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Pool Delegators List
       description: Return information about delegators by a given pool and optional epoch (current if omitted)
-  /rpc/pool_blocks:
+  /pool_blocks: #RPC
     get:
       tags:
         - Pool
@@ -548,7 +564,7 @@ paths:
       description: >-
         Return information about blocks minted by a given pool in current epoch
         (or _epoch_no if provided)
-  /rpc/pool_updates:
+  /pool_updates: #RPC
     get:
       tags:
         - Pool
@@ -564,7 +580,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Pool Updates (History)
       description: Return all pool updates for all pools or only updates for specific pool if specified
-  /rpc/pool_relays:
+  /pool_relays: #RPC
     get:
       tags:
         - Pool
@@ -577,7 +593,7 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Pool Relays
       description: A list of registered relays for all currently registered/retiring (not retired) pools
-  /rpc/pool_metadata:
+  /pool_metadata: #RPC
     get:
       tags:
         - Pool
@@ -590,6 +606,42 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Pool Metadata
       description: Metadata(on & off-chain) for all currently registered/retiring (not retired) pools
+  /script_list: #RPC
+    get:
+      tags:
+        - Script
+      responses:
+        "200":
+          description: List of script and creation tx hash pairs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/script_list"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Script List
+      description: List of all existing script hashes along with their creation transaction hashes
+  /script_redeemers: #RPC
+    get:
+      tags:
+        - Script
+      parameters:
+        - $ref: "#/components/parameters/_script_hash"
+      responses:
+        "200":
+          description: List of all redeemers for a given script hash
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/script_redeemers"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Script Redeemers
+      description: List of all redeemers for a given script hash
 components:
   parameters:
     select:
@@ -706,27 +758,17 @@ components:
     _asset_policy:
       deprecated: false
       name: _asset_policy
-      description: Asset Policy ID (hex)
+      description: Asset Policy ID in hexadecimal format (hex)
       schema:
         type: string
         example: d3501d9531fcc25e3ca4b6429318c2cc374dbdbcf5e99c1c1e5da1ff
       in: query
       required: true
       allowEmptyValue: false
-    _asset_name_text:
+    _asset_name:
       deprecated: false
       name: _asset_name
-      description: Asset Name in plain text
-      schema:
-        type: string
-        example: DONTSPAM
-      in: query
-      required: true
-      allowEmptyValue: false
-    _asset_name_hex:
-      deprecated: false
-      name: _asset_name_hex
-      description: Asset Name in hexadecimal format
+      description: Asset Name in hexadecimal format (hex)
       schema:
         type: string
         example: 444f4e545350414d
@@ -753,6 +795,16 @@ components:
       in: query
       required: false
       allowEmptyValue: true
+    _script_hash:
+      deprecated: false
+      name: _script_hash
+      description: Script hash in hexadecimal format (hex)
+      schema:
+        type: string
+        example: d8480dc869b94b80e81ec91b0abe307279311fe0e7001a9488f61ff8
+      in: query
+      required: true
+      allowEmptyValue: false
   requestBodies:
     address_txs:
       content:
@@ -1498,6 +1550,64 @@ components:
             type: number
             description: A distinct known metalabel
             example: 721
+    script_list:
+      type: array
+      items:
+        properties:
+          script_hash:
+            type: string
+            description: Hash of a script
+            example: d8480dc869b94b80e81ec91b0abe307279311fe0e7001a9488f61ff8
+          creation_tx_hash:
+            type: string
+            description: Hash of the script creation transaction
+            example: fda6c7697009237975ffc30f36666addf4c6e2a2c6f90411a24431b700baaab1
+    script_redeemers:
+      type: array
+      items:
+        type: object
+        properties:
+          script_hash:
+            type: string
+            description: Hash of Transaction for which details are being shown
+            example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
+          redeemers:
+            type: array
+            items:
+              type: object
+              properties:
+                tx_hash:
+                  type: string
+                  description: Hash of Transaction containing the redeemer
+                  example: fda6c7697009237975ffc30f36666addf4c6e2a2c6f90411a24431b700baaab1
+                tx_index:
+                  type: integer
+                  description: The index of the redeemer pointer in the transaction
+                  example: 0
+                unit_mem:
+                  type: integer
+                  description: The budget in Memory to run a script
+                  example: 520448
+                unit_steps:
+                  type: integer
+                  description: The budget in Cpu steps to run a script
+                  example: 211535239
+                fee:
+                  type: integer
+                  description: The budget in fees to run a script - the fees depend on the ExUnits and the current prices
+                  example: 45282
+                purpose:
+                  type: string
+                  description: What kind pf validation this redeemer is used for, it can be one of 'spend', 'mint', 'cert', 'reward'
+                  example: spend
+                datum_hash:
+                  type: string
+                  description: The Hash of the Plutus Data
+                  example: 5a595ce795815e81d22a1a522cf3987d546dc5bb016de61b002edd63a5413ec4
+                datum_value:
+                  type: object
+                  description: The actual data in json format
+                  example: { "bytes": "3c33" }
   headers: {}
   responses:
     OK:
@@ -1532,5 +1642,8 @@ tags:
     x-tag-expanded: false
   - name: Pool
     description: Query information about specific pools
+    x-tag-expanded: false
+  - name: Script
+    description: Query information about specific scripts (Smart Contracts)
     x-tag-expanded: false
 security: []

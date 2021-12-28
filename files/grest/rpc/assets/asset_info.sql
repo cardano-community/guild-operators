@@ -85,5 +85,5 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION grest.asset_info IS 'Get the information of an asset incl first minting & token registry metadata ';
+COMMENT ON FUNCTION grest.asset_info IS 'Get the information of an asset incl first minting & token registry metadata';
 

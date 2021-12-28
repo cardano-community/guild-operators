@@ -11,7 +11,7 @@ NODE_NAME="Cardano Node"                  # Change your node's name prefix here,
 REFRESH_RATE=2                            # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
 LEGACY_MODE=false                         # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
 RETRIES=3                                 # How many attempts to connect to running Cardano node before erroring out and quitting
-PEER_LIST_CNT=6                           # Number of peers to show on each in/out page in peer analysis view
+PEER_LIST_CNT=10                          # Number of peers to show on each in/out page in peer analysis view
 THEME="dark"                              # dark  = suited for terminals with a dark background
                                           # light = suited for terminals with a bright background
 #ENABLE_IP_GEOLOCATION="Y"                # Enable IP geolocation on outgoing and incoming connections using ip-api.com (default: Y)
@@ -56,7 +56,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.24.0
+GLV_VERSION=v1.25.0
 
 PARENT="$(dirname $0)"
 
@@ -170,7 +170,7 @@ fi
 declare -gA geoIP=()
 [[ -f "$0.geodb" ]] && . -- "$0.geodb"
 
-[[ -z ${PEER_LIST_CNT} ]] && PEER_LIST_CNT=6
+[[ -z ${PEER_LIST_CNT} ]] && PEER_LIST_CNT=10
 
 [[ -z ${LATENCY_TOOLS} ]] && LATENCY_TOOLS="cncli|ss|tcptraceroute|ping"
 
@@ -232,7 +232,9 @@ if [[ ${LEGACY_MODE} = "true" ]]; then
   m3divider=$(printf "${NC}|" && printf "%0.s- " $(seq $((width/2))) && printf "|")
   bdivider=$(printf "${NC}|" && printf "%0.s=" $(seq $((width-1))) && printf "|")
   coredivider=$(printf "${NC}|= ${style_info}CORE${NC} " && printf "%0.s=" $(seq $((width-8))) && printf "|")
+  conndivider=$(printf "${NC}|- ${style_info}CONNECTIONS${NC} " && printf "%0.s-" $(seq $((width-15))) && printf "|")
   propdivider=$(printf "${NC}|- ${style_info}BLOCK PROPAGATION${NC} " && printf "%0.s-" $(seq $((width-21))) && printf "|")
+  resourcesdivider=$(printf "${NC}|- ${style_info}NODE RESOURCE USAGE${NC} " && printf "%0.s-" $(seq $((width-23))) && printf "|")
   blockdivider=$(printf "${NC}|- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "|")
   blank_line=$(printf "${NC}|%$((width-1))s|" "")
 else
@@ -252,7 +254,9 @@ else
   m3divider=$(printf "${NC}\\u2502" && printf "%0.s- " $(seq $((width/2))) && printf "\\u2502")
   bdivider=$(printf "${NC}\\u2514" && printf "%0.s\\u2500" $(seq $((width-1))) && printf "\\u2518")
   coredivider=$(printf "${NC}\\u251C\\u2500 ${style_info}CORE${NC} " && printf "%0.s\\u2500" $(seq $((width-8))) && printf "\\u2524")
+  conndivider=$(printf "${NC}\\u2502- ${style_info}CONNECTIONS${NC} " && printf "%0.s-" $(seq $((width-15))) && printf "\\u2502")
   propdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PROPAGATION${NC} " && printf "%0.s-" $(seq $((width-21))) && printf "\\u2502")
+  resourcesdivider=$(printf "${NC}\\u2502- ${style_info}NODE RESOURCE USAGE${NC} " && printf "%0.s-" $(seq $((width-23))) && printf "\\u2502")
   blockdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "\\u2502")
   blank_line=$(printf "${NC}\\u2502%$((width-1))s\\u2502" "")
 fi
@@ -280,15 +284,11 @@ waitForInput() {
   elif [[ $1 = "peers" ]]; then
     [[ ${key1} = "h" ]] && show_peers="false" && clrScreen && return
     [[ ${key1} = "i" ]] && show_peers_info="true" && clrScreen && return
-    [[ ${key2} = "[A" ]] && selected_direction="out" && return # Up arrow
-    [[ ${key2} = "[B" ]] && selected_direction="in" && return # Down arrow
     if [[ ${key2} = "[C" && ${show_peers} = "true" ]]; then # Right arrow
-      [[ ${selected_direction} = "out" && ${peerCNT_out} -gt ${peerNbr_out} ]] && peerNbr_start_out=$((peerNbr_start_out+PEER_LIST_CNT)) && clrScreen && return
-      [[ ${selected_direction} = "in" && ${peerCNT_in} -gt ${peerNbr_in} ]] && peerNbr_start_in=$((peerNbr_start_in+PEER_LIST_CNT)) && clrScreen && return
+      [[ ${peerCNT} -gt ${peerNbr} ]] && peerNbr_start=$((peerNbr_start+PEER_LIST_CNT)) && clrScreen && return
     fi
     if [[ ${key2} = "[D" && ${show_peers} = "true" ]]; then # Left arrow
-      [[ ${selected_direction} = "out" && ${peerNbr_start_out} -gt ${PEER_LIST_CNT} ]] && peerNbr_start_out=$((peerNbr_start_out-PEER_LIST_CNT)) && clrScreen && return
-      [[ ${selected_direction} = "in" && ${peerNbr_start_in} -gt ${PEER_LIST_CNT} ]] && peerNbr_start_in=$((peerNbr_start_in-PEER_LIST_CNT)) && clrScreen && return
+      [[ ${peerNbr_start} -gt ${PEER_LIST_CNT} ]] && peerNbr_start=$((peerNbr_start-PEER_LIST_CNT)) && clrScreen && return
     fi
   fi
 }
@@ -414,8 +414,8 @@ latencyPING () {
   fi
 }
 
-# Command    : checkPeers [direction: in|out]
-# Description: Check outgoing peers
+# Command    : checkPeers
+# Description: Check peer connections
 #              Inspired by ping script from Martin @ ATADA pool
 checkPeers() {
   # initialize variables
@@ -427,20 +427,15 @@ checkPeers() {
   geoIPquery="[]"; geoIPqueryCNT=0
   direction=$1
 
-  if [[ ${direction} = "out" ]]; then
-    if [[ ${use_lsof} = 'Y' ]]; then
-      peers=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}')
-    else
-      peers=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})" '$3 !~ port {print $4}')
-    fi
+  command -v dig >/dev/null && ext_ip_resolve=$(dig @resolver1.opendns.com ANY myip.opendns.com +short) || ext_ip_resolve=""
+
+  if [[ ${use_lsof} = 'Y' ]]; then
+    peers=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}')
   else
-    if [[ ${use_lsof} = 'Y' ]]; then
-      peers=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}')
-    else
-      cncli_port=$(ss -tnp state established "( dport = :${CNODE_PORT} )" 2>/dev/null | grep cncli | awk '{print $3}' | cut -d: -f2)
-      peers=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | grep -v ":${cncli_port} " | awk -v port=":${CNODE_PORT}" '$3 ~ port {print $4}')
-    fi
+    cncli_port=$(ss -tnp state established "( dport = :${CNODE_PORT} )" 2>/dev/null | grep cncli | awk '{print $3}' | cut -d: -f2)
+    peers=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | grep -v ":${cncli_port} " | awk -v port=":${CNODE_PORT}" '$3 ~ port {print $4}')
   fi
+
   [[ -z ${peers} ]] && return
 
   peersSorted=$(printf '%s\n' "${peers[@]}" | sort)
@@ -465,7 +460,9 @@ checkPeers() {
       peerPORT=$(cut -d: -f2 <<< "${peer}")
     fi
 
-    [[ -z ${peerIP} || -z ${peerPORT} ]] && mvPos ${line} ${print_start} && printf "${style_values_1}%${#peerCNT}s${NC}" "$((++index))" && continue
+    if [[ -z ${peerIP} || -z ${peerPORT} || ${peerIP} = 127.0.0.1 || (${peerIP} = ${ext_ip_resolve} && ${peerPORT} = ${CNODE_PORT}) ]]; then
+      mvPos ${line} ${print_start} && printf "${style_values_1}%${#peerCNT}s${NC}" "$((++index))" && continue
+    fi
 
     if [[ ${ENABLE_IP_GEOLOCATION} = "Y" && "${peerIP}" != "${lastpeerIP}" ]] && ! isPrivateIP "${peerIP}"; then
       if [[ ! -v "geoIP[${peerIP}]" && $((++geoIPqueryCNT)) -le 100 ]]; then # not previously checked and less than 100 queries
@@ -475,7 +472,7 @@ checkPeers() {
 
     if [[ "${peerIP}" = "${lastpeerIP}" ]]; then
       [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT)) # skip RTT check and reuse old ${peerRTT} number if reachable
-    elif [[ ${direction} = "out" ]]; then
+    else
       unset peerRTT
       for tool in ${LATENCY_TOOLS//|/ }; do
         case ${tool} in
@@ -494,16 +491,11 @@ checkPeers() {
         peerRTT=99999
       fi
       ! isNumber ${peerRTT} && peerRTT=99999 || peerRTTSUM=$((peerRTTSUM + peerRTT))
-    elif checkPEER=$(ping -c 2 -i 0.3 -w 1 "${peerIP}" 2>&1); then # Incoming connection, ping OK, show RTT.
-      peerRTT=$(echo "${checkPEER}" | tail -n 1 | cut -d/ -f5 | cut -d. -f1)
-      ! isNumber ${peerRTT} && peerRTT=99999 || peerRTTSUM=$((peerRTTSUM + peerRTT))
-    else # Incoming connection, ping failed, set as undetermined
-      peerRTT=99999
     fi
     lastpeerIP=${peerIP}
 
     # Update counters
-    if [[ ${peerRTT} -lt 50    ]]; then ((peerCNT1++))
+      if [[ ${peerRTT} -lt 50    ]]; then ((peerCNT1++))
     elif [[ ${peerRTT} -lt 100   ]]; then ((peerCNT2++))
     elif [[ ${peerRTT} -lt 200   ]]; then ((peerCNT3++))
     elif [[ ${peerRTT} -lt 99999 ]]; then ((peerCNT4++))
@@ -550,7 +542,7 @@ checkPeers() {
 #####################################
 check_peers="false"
 show_peers="false"
-selected_direction="out"
+p2p_enabled=$(jq -r '.EnableP2P //false' ${CONFIG} 2>/dev/null)
 getNodeMetrics
 curr_epoch=${epochnum}
 getShelleyTransitionEpoch
@@ -614,7 +606,6 @@ while true; do
 
   # Gather some data
   getNodeMetrics
-  mem_rss=$(ps -q ${CNODE_PID} -o rss=) || mem_rss="0"
   [[ ${fail_count} -eq ${RETRIES} ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}"
   if [[ ${nodeStartTime} -le 0 ]]; then
     ((fail_count++))
@@ -636,12 +627,24 @@ while true; do
   fi
 
   if [[ ${show_peers} = "false" ]]; then
-    if [[ ${use_lsof} = 'Y' ]]; then
-      peers_in=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
-      peers_out=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
+
+    if [[ ${p2p_enabled} != true ]]; then
+      if [[ ${use_lsof} = 'Y' ]]; then
+        peers_in=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
+        peers_out=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
+      else
+        peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | grep -v ":${cncli_port} " | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
+        peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})" '$3 !~ port {print}' | wc -l)
+      fi
+    fi
+
+    read -ra proc_data <<<"$(ps -q ${CNODE_PID} -o pcpu= -o rss=)"
+    if [[ ${#proc_data[@]} -eq 2 ]]; then
+      proc_cpu=${proc_data[0]}
+      mem_rss=${proc_data[1]}
     else
-      peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | grep -v ":${cncli_port} " | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
-      peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})" '$3 !~ port {print}' | wc -l)
+      proc_cpu="0.0"
+      mem_rss=0
     fi
     if [[ ${about_to_lead} -gt 0 ]]; then
       [[ ${nodemode} != "Core" ]] && clrScreen && nodemode="Core"
@@ -682,43 +685,23 @@ while true; do
 
   if [[ ${check_peers} = "true" ]]; then
     clrLine
-    printf "${VL} ${style_info}%-$((width-3))s${NC} ${VL}\n" "Outgoing peer analysis started... please wait!"
+    printf "${VL} ${style_info}%-$((width-3))s${NC} ${VL}\n" "Peer analysis started... please wait!"
     echo "${bdivider}"
-    checkPeers out
-    # Save values
-    peerCNT_out=${peerCNT}; peerCNT0_out=${peerCNT0}; peerCNT1_out=${peerCNT1}; peerCNT2_out=${peerCNT2}; peerCNT3_out=${peerCNT3}; peerCNT4_out=${peerCNT4}
-    peerPCT1_out=${peerPCT1}; peerPCT2_out=${peerPCT2}; peerPCT3_out=${peerPCT3}; peerPCT4_out=${peerPCT4}
-    peerPCT1items_out=${peerPCT1items}; peerPCT2items_out=${peerPCT2items}; peerPCT3items_out=${peerPCT3items}; peerPCT4items_out=${peerPCT4items}
-    peerRTTAVG_out=${peerRTTAVG}; rttResultsSorted_out=${rttResultsSorted}
-    peerNbr_start_out=1
+    checkPeers
+    peerNbr_start=1
     mvPos ${line} 1
-    printf "${VL} ${style_info}%-46s${NC}" "Outgoing peer analysis done!" && closeRow
-
-    echo "${m2divider}" && ((line++))
-
-    printf "${VL} ${style_info}%-$((width-3))s${NC} ${VL}\n" "Incoming peer analysis started... please wait!"
-    echo "${bdivider}"
-    checkPeers in
-    # Save values
-    peerCNT_in=${peerCNT}; peerCNT0_in=${peerCNT0}; peerCNT1_in=${peerCNT1}; peerCNT2_in=${peerCNT2}; peerCNT3_in=${peerCNT3}; peerCNT4_in=${peerCNT4}
-    peerPCT1_in=${peerPCT1}; peerPCT2_in=${peerPCT2}; peerPCT3_in=${peerPCT3}; peerPCT4_in=${peerPCT4}
-    peerPCT1items_in=${peerPCT1items}; peerPCT2items_in=${peerPCT2items}; peerPCT3items_in=${peerPCT3items}; peerPCT4items_in=${peerPCT4items}
-    peerRTTAVG_in=${peerRTTAVG}; rttResultsSorted_in=${rttResultsSorted}
-    peerNbr_start_in=1
-    mvPos ${line} 1
-    printf "${VL} ${style_info}%-46s${NC}" "Incoming peer analysis done!" && closeRow
-
+    printf "${VL} ${style_info}%-46s${NC}" "Peer analysis done!" && closeRow
     printf -v peer_analysis_date '%(%Y-%m-%d %H:%M:%S)T' -1
     sleep 1
     [[ ${#geoIP[@]} -gt 0 ]] && declare -p geoIP > "$0.geodb"
   elif [[ ${show_peers} = "true" && ${show_peers_info} = "true" ]]; then
     printf "${VL}${STANDOUT} INFO ${NC} One-shot peer analysis last run at ${style_values_1}%s" "${peer_analysis_date}" && closeRow
     printf "${blank_line}\n" && ((line++))
-    printf "${VL} Runs a latency test on incoming/outgoing connections to the node." && closeRow
+    printf "${VL} Runs a latency test on connections to the node." && closeRow
     printf "${VL} Once the analysis is finished, RTTs(Round Trip Time) for each peer" && closeRow
     printf "${VL} is display and grouped in ranges of 0-50, 50-100, 100-200, 200<." && closeRow
     printf "${blank_line}\n" && ((line++))
-    printf "${VL} Outgoing connections ping type order(peers in own topology):" && closeRow
+    printf "${VL} Connections ping type order(unless overridden in settings):" && closeRow
     printf "${VL} 1. ${style_values_2}cncli${NC} - If available, this gives the most accurate measure as" && closeRow
     printf "${VL}    it checks the entire handshake process against the remote peer." && closeRow
     printf "${VL} 2. ${style_values_2}ss${NC} - Sends a TCP SYN package to ping the remote peer on" && closeRow
@@ -726,65 +709,60 @@ while true; do
     printf "${VL} 3. ${style_values_2}tcptraceroute${NC} - Same as ss" && closeRow
     printf "${VL} 4. ${style_values_2}ping${NC} - fallback method using ICMP ping against IP." && closeRow
     printf "${VL}    Only work if the FW of remote peer accepts ICMP traffic." && closeRow
-    printf "${blank_line}\n" && ((line++))
-    printf "${VL} For incoming connections, only ICMP ping is used as remote peer port" && closeRow
-    printf "${VL} is unknown. It's not uncommon to see many undetermined peers for" && closeRow
-    printf "${VL} incoming connections as it's a good security practice to disable" && closeRow
-    printf "${VL} ICMP in firewall." && closeRow
   elif [[ ${show_peers} = "true" ]]; then
-    printf "${VL}${STANDOUT} OUT ${NC}  RTT : Peers / Percent" && closeRow
+    printf "${VL}       RTT : Peers / Percent" && closeRow
 
-    printf "${VL}    0-50ms : ${style_values_1}%5s${NC}   ${style_values_1}%.f${NC}%% ${style_status_1}" "${peerCNT1_out}" "${peerPCT1_out}"
+    printf "${VL}    0-50ms : ${style_values_1}%5s${NC}   ${style_values_1}%.f${NC}%% ${style_status_1}" "${peerCNT1}" "${peerPCT1}"
     mvPos ${line} ${bar_col_small}
     for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT1items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
+      [[ $i -lt ${peerPCT1items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
     done
     closeRow
 
-    printf "${VL}  50-100ms : ${style_values_1}%5s${NC}   ${style_values_1}%.f${NC}%% ${style_status_2}" "${peerCNT2_out}" "${peerPCT2_out}"
+    printf "${VL}  50-100ms : ${style_values_1}%5s${NC}   ${style_values_1}%.f${NC}%% ${style_status_2}" "${peerCNT2}" "${peerPCT2}"
     mvPos ${line} ${bar_col_small}
     for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT2items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
+      [[ $i -lt ${peerPCT2items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
     done
     closeRow
 
-    printf "${VL} 100-200ms : ${style_values_1}%5s${NC}   ${style_values_1}%.f${NC}%% ${style_status_3}" "${peerCNT3_out}" "${peerPCT3_out}"
+    printf "${VL} 100-200ms : ${style_values_1}%5s${NC}   ${style_values_1}%.f${NC}%% ${style_status_3}" "${peerCNT3}" "${peerPCT3}"
     mvPos ${line} ${bar_col_small}
     for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT3items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
+      [[ $i -lt ${peerPCT3items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
     done
     closeRow
 
-    printf "${VL}   200ms < : ${style_values_1}%5s${NC}   ${style_values_1}%.f${NC}%% ${style_status_4}" "${peerCNT4_out}" "${peerPCT4_out}"
+    printf "${VL}   200ms < : ${style_values_1}%5s${NC}   ${style_values_1}%.f${NC}%% ${style_status_4}" "${peerCNT4}" "${peerPCT4}"
     mvPos ${line} ${bar_col_small}
     for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT4items_out} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
+      [[ $i -lt ${peerPCT4items} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
     done
     closeRow
 
     echo "${m3divider}" && ((line++))
 
-    printf "${VL} Total / Undetermined : ${style_values_1}%s${NC} / " "${peerCNT_out}"
-    [[ ${peerCNT0_out} -eq 0 ]] && printf "${style_values_1}0${NC}" || printf "${style_values_4}%s${NC}" "${peerCNT0_out}"
+    printf "${VL} Total / Undetermined : ${style_values_1}%s${NC} / " "${peerCNT}"
+    [[ ${peerCNT0} -eq 0 ]] && printf "${style_values_1}0${NC}" || printf "${style_values_4}%s${NC}" "${peerCNT0}"
     mvPos ${line} $((two_col_second + 1))
-    if [[ ${peerRTTAVG_out} -ge 200 ]]; then printf "Average RTT : ${style_status_4}%s${NC} ms" "${peerRTTAVG_out}"
-    elif [[ ${peerRTTAVG_out} -ge 100 ]]; then printf "Average RTT : ${style_status_3}%s${NC} ms" "${peerRTTAVG_out}"
-    elif [[ ${peerRTTAVG_out} -ge 50  ]]; then printf "Average RTT : ${style_status_2}%s${NC} ms" "${peerRTTAVG_out}"
-    elif [[ ${peerRTTAVG_out} -ge 0   ]]; then printf "Average RTT : ${style_status_1}%s${NC} ms" "${peerRTTAVG_out}"
+    if [[ ${peerRTTAVG} -ge 200 ]]; then printf "Average RTT : ${style_status_4}%s${NC} ms" "${peerRTTAVG}"
+    elif [[ ${peerRTTAVG} -ge 100 ]]; then printf "Average RTT : ${style_status_3}%s${NC} ms" "${peerRTTAVG}"
+    elif [[ ${peerRTTAVG} -ge 50  ]]; then printf "Average RTT : ${style_status_2}%s${NC} ms" "${peerRTTAVG}"
+    elif [[ ${peerRTTAVG} -ge 0   ]]; then printf "Average RTT : ${style_status_1}%s${NC} ms" "${peerRTTAVG}"
     else printf "Average RTT : ${style_status_3}---${NC} ms"; fi
     closeRow
 
-    if [[ -n ${rttResultsSorted_out} ]]; then
+    if [[ -n ${rttResultsSorted} ]]; then
       echo "${m3divider}" && ((line++))
 
       printf "${VL}${style_info}   #  %21s  RTT    Geolocation${NC}\n" "REMOTE PEER"
       header_line=$((line++))
 
-      peerNbr_out=0
+      peerNbr=0
       peerLocationWidth=$((width-38))
-      for peer in ${rttResultsSorted_out}; do
-        ((peerNbr_out++))
-        [[ ${peerNbr_out} -lt ${peerNbr_start_out} ]] && continue
+      for peer in ${rttResultsSorted}; do
+        ((peerNbr++))
+        [[ ${peerNbr} -lt ${peerNbr_start} ]] && continue
         peerRTT=$(echo ${peer} | cut -d: -f1)
         peerIP=$(echo ${peer} | cut -d: -f2)
         peerPORT=$(echo ${peer} | cut -d: -f3)
@@ -799,107 +777,20 @@ while true; do
         else
           peerLocationFmt="Unknown location"
         fi
-          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_1}%-5s${NC}  ${style_values_4}%s" "${peerNbr_out}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_2}%-5s${NC}  ${style_values_4}%s" "${peerNbr_out}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_3}%-5s${NC}  ${style_values_4}%s" "${peerNbr_out}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_4}%-5s${NC}  ${style_values_4}%s" "${peerNbr_out}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        else printf "${VL} %3s  %15s:%-5s  %-5s  ${style_values_4}%s" "${peerNbr_out}" "${peerIP}" "${peerPORT}" "---" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"; fi
+          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_1}%-5s${NC}  ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_2}%-5s${NC}  ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_3}%-5s${NC}  ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_4}%-5s${NC}  ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        else printf "${VL} %3s  %15s:%-5s  %-5s  ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "---" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"; fi
         closeRow
-        [[ ${peerNbr_out} -eq $((peerNbr_start_out+PEER_LIST_CNT-1)) ]] && break
+        [[ ${peerNbr} -eq $((peerNbr_start+PEER_LIST_CNT-1)) ]] && break
       done
 
-      [[ ${peerNbr_start_out} -gt 1 ]] && nav_str="< " || nav_str=""
-      nav_str+="[${peerNbr_start_out}-${peerNbr_out}]"
-      [[ ${peerCNT_out} -gt ${peerNbr_out} ]] && nav_str+=" >"
+      [[ ${peerNbr_start} -gt 1 ]] && nav_str="< " || nav_str=""
+      nav_str+="[${peerNbr_start}-${peerNbr}]"
+      [[ ${peerCNT} -gt ${peerNbr} ]] && nav_str+=" >"
       mvPos ${header_line} $((width-${#nav_str}-2))
-      [[ ${selected_direction} = "out" ]] && printf "${style_values_3} %s ${NC} ${VL}\n" "${nav_str}" || printf "  %s ${VL}\n" "${nav_str}"
-      mvPos ${line} 1
-    fi
-
-    echo "${mdivider}" && ((line++))
-
-    printf "${VL}${STANDOUT} In ${NC}   RTT : Peers / Percent"
-    closeRow
-
-    printf "${VL}    0-50ms : ${style_values_1}%5s${NC}   ${style_values_1}%.f${NC}%% ${style_status_1}" "${peerCNT1_in}" "${peerPCT1_in}"
-    mvPos ${line} ${bar_col_small}
-    for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT1items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-    done
-    closeRow
-
-    printf "${VL}  50-100ms : ${style_values_1}%5s${NC}   ${style_values_1}%.f${NC}%% ${style_status_2}" "${peerCNT2_in}" "${peerPCT2_in}"
-    mvPos ${line} ${bar_col_small}
-    for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT2items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-    done
-    closeRow
-
-    printf "${VL} 100-200ms : ${style_values_1}%5s${NC}   ${style_values_1}%.f${NC}%% ${style_status_3}" "${peerCNT3_in}" "${peerPCT3_in}"
-    mvPos ${line} ${bar_col_small}
-    for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT3items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-    done
-    closeRow
-
-    printf "${VL}   200ms < : ${style_values_1}%5s${NC}   ${style_values_1}%.f${NC}%% ${style_status_4}" "${peerCNT4_in}" "${peerPCT4_in}"
-    mvPos ${line} ${bar_col_small}
-    for i in $(seq 0 $((granularity_small-1))); do
-      [[ $i -lt ${peerPCT4items_in} ]] && printf "${char_marked}" || printf "${NC}${char_unmarked}"
-    done
-    closeRow
-
-    echo "${m3divider}" && ((line++))
-
-    printf "${VL} Total / Undetermined : ${style_values_1}%s${NC} / " "${peerCNT_in}"
-    [[ ${peerCNT0_in} -eq 0 ]] && printf "${style_values_1}0${NC}" || printf "${style_values_4}%s${NC}" "${peerCNT0_in}"
-    mvPos ${line} $((two_col_second + 1))
-    if [[ ${peerRTTAVG_in} -ge 200 ]]; then printf "Average RTT : ${style_status_4}%s${NC} ms" "${peerRTTAVG_in}"
-    elif [[ ${peerRTTAVG_in} -ge 100 ]]; then printf "Average RTT : ${style_status_3}%s${NC} ms" "${peerRTTAVG_in}"
-    elif [[ ${peerRTTAVG_in} -ge 50  ]]; then printf "Average RTT : ${style_status_2}%s${NC} ms" "${peerRTTAVG_in}"
-    elif [[ ${peerRTTAVG_in} -ge 0   ]]; then printf "Average RTT : ${style_status_1}%s${NC} ms" "${peerRTTAVG_in}"
-    else printf "Average RTT : ${style_status_3}---${NC} ms"; fi
-    closeRow
-
-    if [[ -n ${rttResultsSorted_in} ]]; then
-      echo "${m3divider}" && ((line++))
-
-      printf "${VL}${style_info}   #  %21s  RTT    Geolocation${NC}\n" "REMOTE PEER"
-      header_line=$((line++))
-
-      peerNbr_in=0
-      peerLocationWidth=$((width-38))
-      for peer in ${rttResultsSorted_in}; do
-        ((peerNbr_in++))
-        [[ ${peerNbr_in} -lt ${peerNbr_start_in} ]] && continue
-        peerRTT=$(echo ${peer} | cut -d: -f1)
-        peerIP=$(echo ${peer} | cut -d: -f2)
-        peerPORT=$(echo ${peer} | cut -d: -f3)
-        IFS=',' read -ra peerLocation <<< "${geoIP[${peerIP}]}"
-        if isPrivateIP ${peerIP}; then
-          peerLocationFmt="(Private IP)"
-        elif [[ ${#peerLocation[@]} -eq 2 ]]; then
-          peerLocationCity="${peerLocation[0]}"
-          peerLocationCC="${peerLocation[1]}"
-          [[ ${#peerLocationCity} -gt $((peerLocationWidth-4)) ]] && peerLocationCity="${peerLocationCity:0:$((peerLocationWidth-6))}.."
-          peerLocationFmt="${peerLocationCity},${peerLocationCC}"
-        else
-          peerLocationFmt="Unknown location"
-        fi
-          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_1}%-5s${NC}  ${style_values_4}%s" "${peerNbr_in}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_2}%-5s${NC}  ${style_values_4}%s" "${peerNbr_in}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_3}%-5s${NC}  ${style_values_4}%s" "${peerNbr_in}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_4}%-5s${NC}  ${style_values_4}%s" "${peerNbr_in}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        else printf "${VL} %3s  %15s:%-5s  %-5s  ${style_values_4}%s" "${peerNbr_in}" "${peerIP}" "${peerPORT}" "---" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"; fi
-        closeRow
-        [[ ${peerNbr_in} -eq $((peerNbr_start_in+PEER_LIST_CNT-1)) ]] && break
-      done
-
-      [[ ${peerNbr_start_in} -gt 1 ]] && nav_str="< " || nav_str=""
-      nav_str+="[${peerNbr_start_in}-${peerNbr_in}]"
-      [[ ${peerCNT_in} -gt ${peerNbr_in} ]] && nav_str+=" >"
-      mvPos ${header_line} $((width-${#nav_str}-2))
-      [[ ${selected_direction} = "in" ]] && printf "${style_values_3} %s ${NC} ${VL}\n" "${nav_str}" || printf "  %s ${VL}\n" "${nav_str}"
+      printf "${style_values_3} %s ${NC} ${VL}\n" "${nav_str}" || printf "  %s ${VL}\n" "${nav_str}"
       mvPos ${line} 1
     fi
   elif [[ ${show_home_info} = "true" ]]; then
@@ -911,9 +802,9 @@ while true; do
     printf "${VL} and difference show how far behind the last block is from real time." && closeRow
     printf "${VL} Forks is how many times the blockchain branched off in a different" && closeRow
     printf "${VL} direction since node start (and discarded blocks by doing so)." && closeRow
-    printf "${VL} In/Out peers shows how many peers the node pushes to/pulls from." && closeRow
-    printf "${VL} RSS/Live/Heap shows the memory utilization of RSS/live/heap data." && closeRow
+    printf "${VL} P2P Connections shows how many peers the node pushes to/pulls from." && closeRow
     printf "${VL} Block propagation metrics are discussed in the documentation." && closeRow
+    printf "${VL} RSS/Live/Heap shows the memory utilization of RSS/live/heap data." && closeRow
     printf "${blank_line}\n" && ((line++))
     printf "${VL} ${style_values_2}Core section${NC}" && closeRow
     printf "${VL} If the node is run as a block producer, a second section is" && closeRow
@@ -976,12 +867,11 @@ while true; do
     mvThreeSecond
     printf "Tip (ref)  : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${tip_ref}"
     mvThreeThird
-    printf -v mem_rss_gb "%.1f" "$(bc -l <<<"(${mem_rss}/1048576)")"
-    printf "Mem (RSS)  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
+    printf "Forks      : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${forks}"
     closeRow
 
     # row 2
-    printf "${VL} Slot       : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${slot_in_epoch}"
+    printf "${VL} Slot       : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${slotnum}"
     mvThreeSecond
     if [[ ${slotnum} -eq 0 ]]; then
       printf "Status     : ${style_info}%-${three_col_2_value_width}s${NC}" "starting"
@@ -989,45 +879,68 @@ while true; do
       printf "Status     : ${style_info}%-${three_col_2_value_width}s${NC}" "syncing"
     elif [[ ${tip_diff} -le $(slotInterval) ]]; then
       printf "Tip (diff) : ${style_status_1}%-${three_col_2_value_width}s${NC}" "${tip_diff} :)"
-    elif [[ ${tip_diff} -le $(( $(slotInterval) * 4 )) ]]; then
+    elif [[ ${tip_diff} -le 600 ]]; then
       printf "Tip (diff) : ${style_status_2}%-${three_col_2_value_width}s${NC}" "${tip_diff} :|"
     else
       sync_progress=$(echo "(${slotnum}/${tip_ref})*100" | bc -l)
-      printf "Status     : ${style_info}%-${three_col_2_value_width}s${NC}" "sync $(printf "%2.1f" "${sync_progress}")%"
+      printf "Syncing    : ${style_info}%-${three_col_2_value_width}s${NC}" "$(printf "%2.1f" "${sync_progress}")%"
     fi
     mvThreeThird
-    printf -v mem_live_gb "%.1f" "$(bc -l <<<"(${mem_live}/1073741824)")"
-    printf "Mem (Live) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"
+    printf "Total Tx   : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${tx_processed}"
     closeRow
 
     # row 3
-    printf "${VL} Density    : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${density}"
+    printf "${VL} Slot epoch : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${slot_in_epoch}"
     mvThreeSecond
-    printf "Forks      : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${forks}"
+    printf "Density    : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${density}"
     mvThreeThird
-    printf -v mem_heap_gb "%.1f" "$(bc -l <<<"(${mem_heap}/1073741824)")"
-    printf "Mem (Heap) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_heap_gb}))s" "${mem_heap_gb}" "G"
-    closeRow
-
-    # row 4
-    printf "${VL} Total Tx   : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${tx_processed}"
-    mvThreeSecond
-    printf "Peers In   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_in}"
-    mvThreeThird
-    printf "GC Minor   : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${gc_minor}"
-    closeRow
-
-    # row 5
     mempool_tx_bytes=$((mempool_bytes/1024))
-    printf "${VL} Pending Tx : ${style_values_1}%s${NC}/${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#mempool_tx} - ${#mempool_tx_bytes} - 3))s" "${mempool_tx}" "${mempool_tx_bytes}" "K"
-    mvThreeSecond
-    printf "Peers Out  : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_out}"
-    mvThreeThird
-    printf "GC Major   : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${gc_major}"
+    printf "Pending Tx : ${style_values_1}%s${NC}/${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#mempool_tx} - ${#mempool_tx_bytes} - 3))s" "${mempool_tx}" "${mempool_tx_bytes}" "K"
     closeRow
+
+    echo "${conndivider}" && ((line++))
+
+    if [[ ${p2p_enabled} = true ]]; then
+
+      # row 1
+      printf "${VL} P2P        : ${style_status_1}%-${three_col_2_value_width}s${NC}" "enabled"
+      mvThreeSecond
+      printf "Cold Peers : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_cold}"
+      mvThreeThird
+      printf "Uni-Dir    : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_uni_dir}"
+      closeRow
+
+      # row 2
+      printf "${VL} Incoming   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_incoming}"
+      mvThreeSecond
+      printf "Warm Peers : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_warm}"
+      mvThreeThird
+      printf "Bi-Dir     : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_bi_dir}"
+      closeRow
+
+      # row 3
+      printf "${VL} Outgoing   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_outgoing}"
+      mvThreeSecond
+      printf "Hot Peers  : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_hot}"
+      mvThreeThird
+      printf "Duplex     : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_duplex}"
+      closeRow
+
+    else
+
+      # row 1
+      printf "${VL} P2P        : ${style_status_2}%-${three_col_2_value_width}s${NC}" "disabled"
+      mvThreeSecond
+      printf "Incoming   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_in}"
+      mvThreeThird
+      printf "Outgoing   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_out}"
+      closeRow
+
+    fi
 
     echo "${propdivider}" && ((line++))
-    # row 6
+
+    # row 1
     printf -v block_delay_rounded "%.2f" ${block_delay}
     printf "${VL} Last Delay : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
     mvThreeSecond
@@ -1036,7 +949,7 @@ while true; do
     printf "Late (>5s) : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${blocks_late}"
     closeRow
 
-    # row 7
+    # row 2
     printf -v blocks_w1s_pct "%.2f" "$(bc -l <<<"(${blocks_w1s}*100)")"
     printf "${VL} Within 1s  : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#blocks_w1s_pct}))s" "${blocks_w1s_pct}" "%"
     mvThreeSecond
@@ -1045,6 +958,27 @@ while true; do
     mvThreeThird
     printf -v blocks_w5s_pct "%.2f" "$(bc -l <<<"(${blocks_w5s}*100)")"
     printf "Within 5s  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#blocks_w5s_pct}))s" "${blocks_w5s_pct}" "%"
+    closeRow
+
+    echo "${resourcesdivider}" && ((line++))
+
+    # row 1
+    printf "${VL} CPU node   : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#proc_cpu}))s" "${proc_cpu}" "%"
+    mvThreeSecond
+    printf -v mem_live_gb "%.1f" "$(bc -l <<<"(${mem_live}/1073741824)")"
+    printf "Mem (Live) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"
+    mvThreeThird
+    printf "GC Minor   : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${gc_minor}"
+    closeRow
+
+    # row 2
+    printf -v mem_rss_gb "%.1f" "$(bc -l <<<"(${mem_rss}/1048576)")"
+    printf "${VL} Mem (RSS)  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
+    mvThreeSecond
+    printf -v mem_heap_gb "%.1f" "$(bc -l <<<"(${mem_heap}/1073741824)")"
+    printf "Mem (Heap) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_heap_gb}))s" "${mem_heap_gb}" "G"
+    mvThreeThird
+    printf "GC Major   : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${gc_major}"
     closeRow
 
     ## Core section ##
@@ -1168,7 +1102,7 @@ while true; do
     clrLine
     waitForInput "peersInfo"
   elif [[ ${show_peers} = "true" ]]; then
-    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[h] Home${NC} | ${style_info}[i] Info${NC} | Up/Down    : Select List\n%38s%s" "" "Left/Right : Navigate List"
+    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[h] Home${NC} | ${style_info}[i] Info${NC} | Left/Right : Navigate List"
     clrLine
     waitForInput "peers"
   elif [[ ${show_home_info} = "true" ]]; then

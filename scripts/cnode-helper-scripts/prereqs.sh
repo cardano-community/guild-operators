@@ -194,13 +194,15 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo yum -y install curl > /dev/null
     $sudo yum -y update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="python3 coreutils pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git jq gnupg libtool autoconf srm iproute bc tcptraceroute dialog sqlite util-linux xz"
+    pkg_list="python3 coreutils libffi-devel gmp-devel openssl-devel ncurses-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git jq gnupg2 libtool autoconf iproute bc traceroute dialog sqlite util-linux xz"
     if [[ "${VERSION_ID}" == "7" ]]; then
-      pkg_list="${pkg_list} libusb"
-    elif [[ "${VERSION_ID}" == "8" ]] || [[ "${DISTRO}" =~ Fedora ]]; then
-      pkg_list="${pkg_list} libusbx"
+      pkg_list="${pkg_list} libusb pkconfig srm"
+    elif [[ "${VERSION_ID}" == "8" ]]; then
+      pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config"
+    elif [[ "${DISTRO}" =~ Fedora ]]; then
+      pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config srm"
     fi
-    ! grep -q ^epel <<< "$(yum repolist)" && sudo yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"$(grep ^VERSION_ID /etc/os-release | cut -d\" -f2)".noarch.rpm > /dev/null
+    ! grep -q ^epel <<< "$(yum repolist)" && $sudo yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"$(grep ^VERSION_ID /etc/os-release | cut -d\" -f2)".noarch.rpm > /dev/null
     $sudo yum -y --allowerasing install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
