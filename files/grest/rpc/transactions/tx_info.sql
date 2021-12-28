@@ -362,7 +362,7 @@ BEGIN
                 'protocol_minor', PP.protocol_minor,
                 'min_utxo_value', PP.min_utxo_value,
                 'min_pool_cost', PP.min_pool_cost,
-                'cost_models', PP.cost_models,
+                'cost_model_id', PP.cost_model_id,
                 'price_mem', PP.price_mem,
                 'price_step', PP.price_step,
                 'max_tx_ex_mem', PP.max_tx_ex_mem,
