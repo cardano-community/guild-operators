@@ -1,16 +1,14 @@
 ALTER SYSTEM
-SET checkpoint_timeout = '5min';
+SET checkpoint_timeout = '15min';
 ALTER SYSTEM
-SET max_segment_size = '1GB';
+SET synchronous_commit = 'off';
 ALTER SYSTEM
-SET max_wal_size = '2GB';
+SET wal_writer_delay = '800ms';
 ALTER SYSTEM
-SET min_wal_size = '300MB';
+SET max_segment_size = '64MB';
 ALTER SYSTEM
-SET wal_level = 'logical';
+SET max_wal_size = '14GB';
 ALTER SYSTEM
-SET max_wal_senders = 1;
+SET min_wal_size = '600MB';
 ALTER SYSTEM
-SET max_worker_processes = 10;
-ALTER SYSTEM
-SET max_replication_slots = 10;
+SET wal_level = 'minimal';

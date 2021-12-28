@@ -40,12 +40,9 @@ services:
 
   cardano-db-sync:
     image: inputoutput/cardano-db-sync:12.0.0
-
     env_file: ./.env
     environment:
       - NETWORK=${NETWORK:-mainnet}
-      - RESTORE_SNAPSHOT=${RESTORE_SNAPSHOT:-https://update-cardano-mainnet.iohk.io/cardano-db-sync/12/db-sync-snapshot-schema-12-block-6647999-x86_64.tgz}
-      - RESTORE_RECREATE_DB=N
     depends_on:
       - cardano-node
       - postgres
