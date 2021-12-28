@@ -2354,8 +2354,8 @@ witnessTx() {
       println ERROR "\n${FG_RED}ERROR${NC}: file not found: ${skey}"
       return 1
     elif [[ $(jq -r '.description' "${skey}") = *"Hardware"* ]]; then # HW signing key
-      if ! transformRawTx "${tx_raw}"; then return 1; fi
       if ! unlockHWDevice "witness the transaction"; then return 1; fi
+      if ! transformRawTx "${tx_raw}"; then return 1; fi
       tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
       witness_command=(
         cardano-hw-cli transaction witness
@@ -2442,8 +2442,8 @@ signTx() {
       fi
     done
     if [[ ${hw_wallet} = 'Y' ]]; then
-      if ! transformRawTx "${tx_raw}"; then return 1; fi
       if ! unlockHWDevice "sign the transaction"; then return 1; fi
+      if ! transformRawTx "${tx_raw}"; then return 1; fi
       sign_command=(
         cardano-hw-cli transaction sign
         --tx-body-file "${tx_raw}"
