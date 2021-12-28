@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=8
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=8
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=2
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -2355,6 +2355,7 @@ witnessTx() {
       return 1
     elif [[ $(jq -r '.description' "${skey}") = *"Hardware"* ]]; then # HW signing key
       if ! unlockHWDevice "witness the transaction"; then return 1; fi
+      if ! transformRawTx "${tx_raw}"; then return 1; fi
       tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
       witness_command=(
         cardano-hw-cli transaction witness
@@ -2442,6 +2443,7 @@ signTx() {
     done
     if [[ ${hw_wallet} = 'Y' ]]; then
       if ! unlockHWDevice "sign the transaction"; then return 1; fi
+      if ! transformRawTx "${tx_raw}"; then return 1; fi
       sign_command=(
         cardano-hw-cli transaction sign
         --tx-body-file "${tx_raw}"
@@ -2483,6 +2485,18 @@ submitTx() {
   "${submit_command[@]}"
 }
 
+# Command     : transformRawTx [raw tx file]
+# Description : Transform raw tx to be in canonical order for HW wallets 
+# Parameters  : raw tx file  >  path to raw tx to correct
+transformRawTx() {
+  tx_raw="$1"
+  tx_raw_tmp="$(mktemp "${TMP_DIR}/tx.raw_XXXXXXXXXX")"
+  println ACTION "cardano-hw-cli transaction transform-raw --tx-body-file ${tx_raw} --out-file ${tx_raw_tmp}"
+  if ! cardano-hw-cli transaction transform-raw --tx-body-file "${tx_raw}" --out-file "${tx_raw_tmp}" >/dev/null; then return 1; fi
+  println ACTION "mv ${tx_raw_tmp} ${tx_raw}"
+  if ! mv "${tx_raw_tmp}" "${tx_raw}" >/dev/null; then return 1; fi
+}
+
 # Command     : unlockHWDevice [action]
 # Description : Directions to unlock and open HW device
 # Parameters  : action  >  message for action to be taken
@@ -2499,16 +2513,13 @@ unlockHWDevice() {
     println ERROR "Make sure device is seen by OS using tools like lsusb etc and is working correctly"
     waitForInput && return 1
   elif [[ ${device_app_vendor} = Ledger ]]; then
-    if ! versionCheck "2.3.2" "${device_app_version}"; then
-      println ERROR "${FG_RED}ERROR${NC}: Cardano app version installed on Ledger is ${FG_LGRAY}v${device_app_version}${NC}, minimum required app version is ${FG_GREEN}v2.3.2${NC} !!"
+    if ! versionCheck "3.0.0" "${device_app_version}"; then
+      println ERROR "${FG_RED}ERROR${NC}: Cardano app version installed on Ledger is ${FG_LGRAY}v${device_app_version}${NC}, minimum required app version is ${FG_GREEN}v3.0.0${NC} !!"
       return 1
     fi
   elif [[ ${device_app_vendor} = Trezor ]]; then
-    if ! versionCheck "2.3.6" "${device_app_version}"; then
-      println ERROR "${FG_RED}ERROR${NC}: Trezor firmware installed on device is ${FG_LGRAY}v${device_app_version}${NC}, minimum required version is ${FG_GREEN}v2.3.6${NC} !!"
-      return 1
-    elif versionCheck "1.4.0" "${HWCLI_version}" && ! versionCheck "2.3.7" "${device_app_version}"; then
-      println ERROR "${FG_RED}ERROR${NC}: Trezor fw ${FG_LGRAY}v${device_app_version}${NC} not compatible with cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC}, please upgrade Trezor fw version (if available) or downgrade cardano-hw-cli to ${FG_LGRAY}v1.2.0${NC} !!"
+    if ! versionCheck "2.4.3" "${device_app_version}"; then
+      println ERROR "${FG_RED}ERROR${NC}: Trezor firmware installed on device is ${FG_LGRAY}v${device_app_version}${NC}, minimum required version is ${FG_GREEN}v2.4.3${NC} !!"
       return 1
     fi
   else
@@ -2522,8 +2533,8 @@ HWCLIversionCheck() {
   println ACTION "cardano-hw-cli version"
   HWCLI_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
   println LOG "cardano-hw-cli version: ${HWCLI_version}"
-  if ! versionCheck "1.2.0" "${HWCLI_version}"; then
-    println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.1.3${NC} !!"
+  if ! versionCheck "1.9.0" "${HWCLI_version}"; then
+    println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.9.0${NC} !!"
     println ERROR "Please run ${FG_LGRAY}prereqs.sh -w${NC} to upgrade to the latest version."
     return 1
   fi
