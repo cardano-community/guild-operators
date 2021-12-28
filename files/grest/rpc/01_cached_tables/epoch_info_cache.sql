@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS grest.epoch_info_cache (
-  epoch uinteger PRIMARY KEY NOT NULL,
+  epoch_no uinteger PRIMARY KEY NOT NULL,
   i_out_sum word128type NOT NULL,
   i_fees lovelace NOT NULL,
   i_tx_count uinteger NOT NULL,
@@ -114,7 +114,7 @@ BEGIN
 
   INSERT INTO grest.epoch_info_cache
     SELECT DISTINCT ON (b.time)
-      e.no AS epoch,
+      e.no AS epoch_no,
       e.out_sum AS i_out_sum,
       e.fees AS i_fees,
       e.tx_count AS i_tx_count,
@@ -195,6 +195,6 @@ BEGIN
       e.no = _epoch_no_to_update
   ) update_table
   WHERE
-    epoch = _epoch_no_to_update;
+    epoch_no = _epoch_no_to_update;
 END;
 $$;

@@ -2,7 +2,7 @@ DROP FUNCTION IF EXISTS grest.epoch_info (numeric);
 
 CREATE FUNCTION grest.epoch_info (_epoch_no numeric DEFAULT NULL)
   RETURNS TABLE (
-    epoch uinteger,
+    epoch_no uinteger,
     out_sum word128type,
     fees lovelace,
     tx_count uinteger,
@@ -16,7 +16,7 @@ BEGIN
   IF _epoch_no IS NULL THEN
     RETURN QUERY
     SELECT
-      ei.epoch,
+      ei.epoch_no,
       ei.i_out_sum AS tx_output_sum,
       ei.i_fees AS tx_fees_sum,
       ei.i_tx_count AS tx_count,
@@ -32,7 +32,7 @@ BEGIN
   ELSE
     RETURN QUERY
     SELECT
-      ei.epoch,
+      ei.epoch_no,
       ei.i_out_sum AS tx_output_sum,
       ei.i_fees AS tx_fees_sum,
       ei.i_tx_count AS tx_count,
