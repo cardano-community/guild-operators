@@ -23,7 +23,7 @@ RUN git clone https://github.com/input-output-hk/cardano-node &&\
 
 WORKDIR /cardano-node
 
-RUN curl -o cardano-node-latest.txt https://raw.githubusercontent.com/chaincrucial/guild-ops-containers/master/containers/guild-ops-base/cardano-node-latest.txt &&\
+RUN curl -o cardano-node-latest.txt https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/docker/node/release-versions/cardano-node-latest.txt &&\
     CNODE_VERSION=$(cat cardano-node-latest.txt) &&\
     echo "Checking out Cardano node: ${CNODE_VERSION}" &&\
     git fetch --tags --all &&\
