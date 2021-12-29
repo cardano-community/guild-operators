@@ -1,0 +1,19 @@
+name: Pre-merge CentOS8 Cabal Build
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - scripts/cnode-helper-scripts/cabal-build-all.sh
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: container login
+      run: |
+        docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} -p ${{ secrets.DOCKER_HUB_PASSWORD }}
+    - name: Testing prereqs.sh and cabal-build-all.sh
+      run: |
+        docker build . --file files/tests/pre-merge/centos8-cabal.containerfile --compress --tag chaincrucial/pre-merge:centos8_cabal
