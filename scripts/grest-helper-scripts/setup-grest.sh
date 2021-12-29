@@ -139,6 +139,10 @@
     set_cron_variables "pool-history-cache-update"
     install_cron_job "pool-history-cache-update" "*/10 * * * *"
 
+    get_cron_job_executable "epoch-info-cache-update"
+    set_cron_variables "epoch-info-cache-update"
+    install_cron_job "epoch-info-cache-update" "*/15 * * * *"
+
     # Only testnet and mainnet asset registries supported
     # Possible future addition for the Guild network once there is a guild registry
     if [[ ${NWMAGIC} -eq 764824073 || ${NWMAGIC} -eq 1097911063 ]]; then

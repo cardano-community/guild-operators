@@ -2,6 +2,7 @@ DROP FUNCTION IF EXISTS grest.epoch_params (numeric);
 
 CREATE FUNCTION grest.epoch_params (_epoch_no numeric DEFAULT NULL)
   RETURNS TABLE (
+    epoch_no uinteger,
     min_fee_a uinteger,
     min_fee_b uinteger,
     max_block_size uinteger,
@@ -39,6 +40,7 @@ BEGIN
   IF _epoch_no IS NULL THEN
     RETURN QUERY
     SELECT
+      ei.epoch_no,
       ei.p_min_fee_a AS min_fee_a,
       ei.p_min_fee_b AS min_fee_b,
       ei.p_max_block_size AS max_block_size,
@@ -77,6 +79,7 @@ BEGIN
   ELSE
     RETURN QUERY
     SELECT
+      ei.epoch_no,
       ei.p_min_fee_a AS min_fee_a,
       ei.p_min_fee_b AS min_fee_b,
       ei.p_max_block_size AS max_block_size,
