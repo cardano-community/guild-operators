@@ -41,6 +41,11 @@ CREATE TABLE IF NOT EXISTS grest.epoch_info_cache (
 
 COMMENT ON TABLE grest.epoch_info_cache IS 'Get detailed info for epoch including protocol parameters';
 
+-- Dropping triggers, here just for making updates easier by automatically removing stale triggers.
+-- Should be removed after updates are done:
+DROP TRIGGER IF EXISTS epoch_info_update_trigger ON public.block;
+DROP TRIGGER IF EXISTS new_epoch_insert_trigger ON public.epoch;
+
 
 DROP FUNCTION IF EXISTS grest.EPOCH_INFO_CACHE_UPDATE CASCADE;
 
