@@ -16,4 +16,4 @@ jobs:
         docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} -p ${{ secrets.DOCKER_HUB_PASSWORD }}
     - name: Testing prereqs.sh -l and cabal-build-all.sh -l
       run: |
-        docker build . --file files/tests/pre-merge/centos8-cabal_-l.containerfile --compress --tag chaincrucial/pre-merge:centos8_cabal
+        docker build . --file files/tests/pre-merge/centos8-cabal_-l.containerfile --compress --tag chaincrucial/pre-merge:centos8_cabal_-l
