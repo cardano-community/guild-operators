@@ -24,7 +24,7 @@
 		
 		Install and setup haproxy, PostgREST, polling services and create systemd services for haproxy, postgREST and dbsync
 		
-		-f    Force overwrite of all files including normally saved user config sections 
+		-f    Force overwrite of all files including normally saved user config sections
 		-i    Set-up Components individually. If this option is not specified, components will only be installed if found missing (eg: -i prcd)
 		    p    Install/Update PostgREST binaries by downloading latest release from github.
 		    r    (Re-)Install Reverse Proxy Monitoring Layer (haproxy) binaries and config
