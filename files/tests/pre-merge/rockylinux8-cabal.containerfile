@@ -1,4 +1,4 @@
-FROM rockylinux/rockylinux:8
+FROM ghcr.io/cardano-community/pre-merge:rockylinux8_prereqs
 
 ARG CNODE_HOME=/opt/cardano/cnode
 
@@ -7,18 +7,7 @@ ENV \
   USER=root \
   PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:$PATH
 
-WORKDIR /
-
-RUN dnf -y install epel-release-8 git-2.27.0 && dnf clean all &&\
-    mkdir -pv /root/.cabal/bin /root/.ghcup/bin &&\
-    curl -sS -o prereqs.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh &&\
-    chmod 755 prereqs.sh &&\
-    export SUDO='N' &&\
-    export UPDATE_CHECK='N' &&\
-    ./prereqs.sh
-
-RUN dnf -y --allowerasing install python3 coreutils pkgconf-pkg-config libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd systemd-devel zlib-devel make gcc-c++ git gnupg libtool autoconf srm iproute bc traceroute diffutils && dnf clean all &&\
-    git clone https://github.com/input-output-hk/cardano-node &&\
+RUN git clone https://github.com/input-output-hk/cardano-node &&\
     pwd ; ls -l
 
 WORKDIR /cardano-node

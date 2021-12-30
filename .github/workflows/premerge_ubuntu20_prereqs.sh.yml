@@ -1,19 +1,46 @@
-name: Pre-merge Ubuntu20 Prerequisites
+name: Pre-merge Ubuntu20 Prerequisites Tests
 
 on:
   workflow_dispatch:
   pull_request:
     paths:
       - scripts/cnode-helper-scripts/prereqs.sh
+      - scripts/cnode-helper-scripts/cabal-build-all.sh
 
 jobs:
-  test:
+  login:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+  test-prereqs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - name: container login
-      run: |
-        docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} -p ${{ secrets.DOCKER_HUB_PASSWORD }}
     - name: Testing prereqs.sh
       run: |
-        docker build . --file files/tests/pre-merge/ubuntu20_prereqs.sh.containerfile --compress --tag chaincrucial/pre-merge:ubuntu20_prereqs
+        docker build . --file files/tests/pre-merge/ubuntu20_prereqs.sh.containerfile --compress --build-arg BRANCH=${{ GITHUB_REF_NAME }} --tag ghcr.io/cardano-community/pre-merge:ubuntu20_prereqs
+    - name: Push pre-merge:ubuntu20_prereqs
+      run: |
+        docker push ghcr.io/cardano-community/pre-merge:ubuntu20_prereqs
+  test-prereqs-with-system-libsodium:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Testing prereqs.sh -l
+      run: |
+        docker build . --file files/tests/pre-merge/ubuntu20_prereqs.sh_-l.containerfile --compress --build-arg BRANCH=${{ GITHUB_REF_NAME }} --tag ghcr.io/cardano-community/pre-merge:ubuntu20_prereqs_-l
+    - name: Push pre-merge:ubuntu20_prereqs_-l
+      run: |
+        docker push ghcr.io/cardano-community/pre-merge:ubuntu20_prereqs_-l
+  trigger-cabal:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Trigger the cabal build tests
+      run: |
+        curl -XPOST -u "${{ secrets.REPO_SCOPED_USER}}:${{secrets.REPO_SCOPED_TOKEN }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" https://api.github.com/repos/cardano-community/guild-operators/actions/workflows/premerge_ubuntu20_cabal-build-all.sh.yml/dispatches --data '{"ref": "master"}'
