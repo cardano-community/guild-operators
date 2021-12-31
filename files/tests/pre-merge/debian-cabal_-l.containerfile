@@ -13,13 +13,13 @@ RUN git clone https://github.com/input-output-hk/cardano-node &&\
 
 WORKDIR /cardano-node
 
-RUN curl --silent --show-error --insecure --output cardano-node-latest.txt https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/docker/node/release-versions/cardano-node-latest.txt &&\
+RUN curl --silent --show-error --insecure --output cardano-node-latest.txt https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/release-versions/cardano-node-latest.txt &&\
     CNODE_VERSION=$(cat cardano-node-latest.txt) &&\
     echo "Checking out Cardano node: ${CNODE_VERSION}" &&\
     git fetch --tags --all &&\
     git checkout tags/"${CNODE_VERSION}" &&\
     git status &&\
-    curl -o cabal.project.local https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/cabal.project.local &&\
+    curl -o cabal.project.local https://raw.githubusercontent.com/cardano-community/guild-operators/"${BRANCH}"/files/cabal.project.local &&\
     /opt/cardano/cnode/scripts/cabal-build-all.sh -l &&\
     cabal install cardano-ping &&\
     /root/.cabal/bin/cardano-cli version ; /root/.cabal/bin/cardano-node version

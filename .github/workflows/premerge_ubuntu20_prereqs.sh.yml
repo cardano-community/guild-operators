@@ -6,6 +6,7 @@ on:
     paths:
       - scripts/cnode-helper-scripts/prereqs.sh
       - scripts/cnode-helper-scripts/cabal-build-all.sh
+      - files/cabal.project.local
 
 jobs:
   login:
@@ -43,4 +44,4 @@ jobs:
     - uses: actions/checkout@v2
     - name: Trigger the cabal build tests
       run: |
-        curl -XPOST -u "${{ secrets.REPO_SCOPED_USER}}:${{secrets.REPO_SCOPED_TOKEN }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" https://api.github.com/repos/cardano-community/guild-operators/actions/workflows/premerge_ubuntu20_cabal-build-all.sh.yml/dispatches --data '{"ref": "master"}'
+        curl -XPOST -u "${{ secrets.REPO_SCOPED_USER}}:${{secrets.REPO_SCOPED_TOKEN }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" https://api.github.com/repos/cardano-community/guild-operators/actions/workflows/premerge_ubuntu20_cabal-build-all.sh.yml/dispatches --data '{"ref": "alpha"}'
