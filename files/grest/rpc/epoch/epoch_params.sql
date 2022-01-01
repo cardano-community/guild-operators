@@ -75,7 +75,7 @@ BEGIN
     FROM
       grest.epoch_info_cache ei
     ORDER BY
-      ei.epoch DESC;
+      ei.epoch_no DESC;
   ELSE
     RETURN QUERY
     SELECT
