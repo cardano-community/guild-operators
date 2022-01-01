@@ -114,7 +114,7 @@ BEGIN
     FROM
       grest.epoch_info_cache ei
     WHERE
-      ei.epoch = _epoch_no;
+      ei.epoch_no = _epoch_no;
   END IF;
 END;
 $$;

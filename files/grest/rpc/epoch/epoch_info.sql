@@ -26,9 +26,9 @@ BEGIN
       eas.amount AS active_stake
     FROM
       grest.epoch_info_cache ei
-      INNER JOIN grest.EPOCH_ACTIVE_STAKE_CACHE eas ON eas.epoch_no = ei.epoch
+      INNER JOIN grest.EPOCH_ACTIVE_STAKE_CACHE eas ON eas.epoch_no = ei.epoch_no
     ORDER BY
-      ei.epoch DESC;
+      ei.epoch_no DESC;
   ELSE
     RETURN QUERY
     SELECT
@@ -42,9 +42,9 @@ BEGIN
       eas.amount AS active_stake
     FROM
       grest.epoch_info_cache ei
-      INNER JOIN grest.EPOCH_ACTIVE_STAKE_CACHE eas ON eas.epoch_no = ei.epoch
+      INNER JOIN grest.EPOCH_ACTIVE_STAKE_CACHE eas ON eas.epoch_no = ei.epoch_no
     WHERE
-      ei.epoch = _epoch_no;
+      ei.epoch_no = _epoch_no;
   END IF;
 END;
 $$;
