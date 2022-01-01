@@ -8,6 +8,9 @@
 [[ "$1" == "-l" ]] && USE_SYSTEM_LIBSODIUM="package cardano-crypto-praos
   flags: -external-libsodium-vrf"
 
+echo "Deleting build config artifact to remove cached version, this prevents invalid Git Rev"
+find dist-newstyle/build/x86_64-linux/ghc-8.10.?/cardano-config-* >/dev/null 2>&1 && rm -rf "dist-newstyle/build/x86_64-linux/ghc-8.*/cardano-config-*"
+
 if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" ]]; then
   echo "Overwriting cabal.project.local to include cardano-addresses and bech32 (previous file, if any, will be saved as cabal.project.local.swp).."
   [[ -f cabal.project.local ]] && mv cabal.project.local cabal.project.local.swp

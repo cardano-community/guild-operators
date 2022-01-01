@@ -159,8 +159,9 @@ function chk_limit() {
 function chk_endpt_get() {
   local endpt=${1}
   [[ "${2}" != "rpc" ]] && urlendpt="${URL}/${endpt}" || urlendpt="${URLRPC}/${endpt}"
-  getrslt=$(curl -skL "${urlendpt}" -H "Range: 0-1" 2>/dev/null)
+  getrslt=$(curl -sfkL "${urlendpt}" -H "Range: 0-1" 2>/dev/null)
   if [[ -z "${getrslt}" ]] || [[ "${getrslt}" == "[]" ]]; then
+    [[ "${DEBUG_MODE}" == "1" ]] && echo "Response received for ${urlendpt} : $(curl -skL "${urlendpt}" -H "Range: 0-1" -I)"
     echo "ERROR: Could not fetch from endpoint ${urlendpt} !!"
     optexit
   fi
@@ -196,4 +197,5 @@ chk_endpt_get "tx_metalabels" view
 chk_endpt_get "account_list" view
 chk_endpt_get "totals?_epoch_no=${epoch}" rpc
 chk_endpt_get "epoch_params?_epoch_no=${epoch}" rpc
+chk_endpt_get "epoch_info?_epoch_no=${epoch}" rpc
 chk_endpt_get "pool_list" rpc

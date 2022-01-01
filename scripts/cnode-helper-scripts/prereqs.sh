@@ -237,7 +237,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     err_exit
   fi
   export BOOTSTRAP_HASKELL_NO_UPGRADE=1
-  export BOOTSTRAP_HASKELL_GHC_VERSION=8.10.4
+  export BOOTSTRAP_HASKELL_GHC_VERSION=8.10.7
   export BOOTSTRAP_HASKELL_CABAL_VERSION=3.4.0.0
   if ! command -v ghc &>/dev/null; then
     echo "Install ghcup (The Haskell Toolchain installer) .."
