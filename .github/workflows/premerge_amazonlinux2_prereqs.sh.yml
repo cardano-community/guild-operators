@@ -23,7 +23,7 @@ jobs:
     - uses: actions/checkout@v2
     - name: Testing prereqs.sh
       run: |
-        docker build . --file files/tests/pre-merge/amazonlinux2_prereqs.sh.containerfile --compress --build-arg BRANCH=${{ GITHUB_REF_NAME }} --tag ghcr.io/cardano-community/pre-merge:amazonlinux2_prereqs
+        docker build . --file files/tests/pre-merge/amazonlinux2_prereqs.sh.containerfile --compress --build-arg BRANCH=${{ env.GITHUB_REF_NAME }} --tag ghcr.io/cardano-community/pre-merge:amazonlinux2_prereqs
     - name: Push pre-merge:amazonlinux2_prereqs
       run: |
         docker push ghcr.io/cardano-community/pre-merge:amazonlinux2_prereqs
@@ -33,7 +33,7 @@ jobs:
     - uses: actions/checkout@v2
     - name: Testing prereqs.sh -l
       run: |
-        docker build . --file files/tests/pre-merge/amazonlinux2_prereqs.sh_-l.containerfile --compress --build-arg BRANCH=${{ GITHUB_REF_NAME }} --tag ghcr.io/cardano-community/pre-merge:amazonlinux2_prereqs_-l
+        docker build . --file files/tests/pre-merge/amazonlinux2_prereqs.sh_-l.containerfile --compress --build-arg BRANCH=${{ env.GITHUB_REF_NAME }} --tag ghcr.io/cardano-community/pre-merge:amazonlinux2_prereqs_-l
     - name: Push pre-merge:amazonlinux2_prereqs_-l
       run: |
         docker push ghcr.io/cardano-community/pre-merge:amazonlinux2_prereqs_-l

@@ -19,11 +19,11 @@ jobs:
     - uses: actions/checkout@v2
     - name: Testing cabal-build-all.sh
       run: |
-        docker build . --file files/tests/pre-merge/rockylinux8-cabal.containerfile --compress --tag ghcr.io/cardano-community/pre-merge:rockylinux8_cabal
+        docker build . --file files/tests/pre-merge/rockylinux8-cabal.containerfile --compress --build-arg BRANCH=${{ env.GITHUB_REF_NAME }} --tag ghcr.io/cardano-community/pre-merge:rockylinux8_cabal
   test-cabal-build-all-with-system-libsodium:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
     - name: Testing cabal-build-all.sh -l
       run: |
-        docker build . --file files/tests/pre-merge/rockylinux8-cabal_-l.containerfile --compress --tag ghcr.io/cardano-community/pre-merge:rockylinux8_cabal_-l
+        docker build . --file files/tests/pre-merge/rockylinux8-cabal_-l.containerfile --compress --build-arg BRANCH=${{ env.GITHUB_REF_NAME }} --tag ghcr.io/cardano-community/pre-merge:rockylinux8_cabal_-l
