@@ -159,7 +159,7 @@ begin
                               select
                                 p_optimal_pool_count from grest.epoch_info_cache
                               where
-                                epoch = act.epoch_no)
+                                epoch_no = act.epoch_no)
                               from grest.totals (act.epoch_no)) * 100), 2) saturation_pct
                     from
                       grest.pool_active_stake_cache act
