@@ -996,7 +996,7 @@ components:
       type: array
       items:
         properties:
-          epoch:
+          epoch_no:
             type: integer
             description: Epoch number
             example: 294
@@ -1032,6 +1032,10 @@ components:
       type: array
       items:
         properties:
+          epoch_no:
+            type: integer
+            description: Epoch number
+            example: 294
           min_fee_a:
             type: integer
             description: The 'a' parameter to calculate the minimum transaction fee
