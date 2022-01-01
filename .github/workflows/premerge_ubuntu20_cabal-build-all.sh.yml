@@ -17,13 +17,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - name: Extract branch from PR
+      shell: bash
+      run: echo "##[set-output name=branch;]${GITHUB_HEAD_REF}"
+      id: pr_branch
+    - name: Examine GITHUB_REF
+      run: |
+        echo "pr_branch ${{ steps.pr_branch.outputs.branch }}"
     - name: Testing cabal-build-all.sh
       run: |
-        docker build . --file files/tests/pre-merge/ubuntu20-cabal.containerfile --compress --build-arg BRANCH=${{ env.GITHUB_REF_NAME }} --tag ghcr.io/cardano-community/pre-merge:ubuntu20_cabal
+        docker build . --file files/tests/pre-merge/ubuntu20-cabal.containerfile --compress --build-arg BRANCH=${{ steps.pr_branch.outputs.branch }}  --tag ghcr.io/cardano-community/pre-merge:ubuntu20_cabal
   test-cabal-build-all-with-system-libsodium:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - name: Extract branch from PR
+      shell: bash
+      run: echo "##[set-output name=branch;]${GITHUB_HEAD_REF}"
+      id: pr_branch
+    - name: Examine GITHUB_REF
+      run: |
+        echo "pr_branch ${{ steps.pr_branch.outputs.branch }}"
     - name: Testing cabal-build-all.sh -l
       run: |
-        docker build . --file files/tests/pre-merge/ubuntu20-cabal_-l.containerfile --compress --build-arg BRANCH=${{ env.GITHUB_REF_NAME }} --tag ghcr.io/cardano-community/pre-merge:ubuntu20_cabal_-l
+        docker build . --file files/tests/pre-merge/ubuntu20-cabal_-l.containerfile --compress --build-arg BRANCH=${{ steps.pr_branch.outputs.branch }}  --tag ghcr.io/cardano-community/pre-merge:ubuntu20_cabal_-l
