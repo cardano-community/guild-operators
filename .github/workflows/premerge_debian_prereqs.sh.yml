@@ -9,7 +9,7 @@ on:
       - files/cabal.project.local
 
 jobs:
-  login:
+  test-prereqs:
     runs-on: ubuntu-latest
     steps:
     - name: Login to GitHub Container Registry
@@ -18,9 +18,6 @@ jobs:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-  test-prereqs:
-    runs-on: ubuntu-latest
-    steps:
     - uses: actions/checkout@v2
     - name: Extract branch from PR
       shell: bash
@@ -31,13 +28,19 @@ jobs:
         echo "pr_branch ${{ steps.pr_branch.outputs.branch }}"
     - name: Testing prereqs.sh
       run: |
-        docker build . --file files/tests/pre-merge/debian_prereqs.sh.containerfile --compress --build-arg BRANCH=${{ steps.pr_branch.outputs.branch }}  --tag ghcr.io/cardano-community/pre-merge:debian_prereqs
+        docker build . --file files/tests/pre-merge/debian_prereqs.sh.containerfile --compress --build-arg BRANCH=${{ steps.pr_branch.outputs.branch }} --tag ghcr.io/cardano-community/pre-merge:debian_prereqs
     - name: Push pre-merge:debian_prereqs
       run: |
         docker push ghcr.io/cardano-community/pre-merge:debian_prereqs
   test-prereqs-with-system-libsodium:
     runs-on: ubuntu-latest
     steps:
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     - uses: actions/checkout@v2
     - name: Extract branch from PR
       shell: bash
@@ -48,14 +51,10 @@ jobs:
         echo "pr_branch ${{ steps.pr_branch.outputs.branch }}"
     - name: Testing prereqs.sh -l
       run: |
-        docker build . --file files/tests/pre-merge/debian_prereqs.sh_-l.containerfile --compress --build-arg BRANCH=${{ steps.pr_branch.outputs.branch }}  --tag ghcr.io/cardano-community/pre-merge:debian_prereqs_-l
+        docker build . --file files/tests/pre-merge/debian_prereqs.sh_-l.containerfile --compress --build-arg BRANCH=${{ steps.pr_branch.outputs.branch }} --tag ghcr.io/cardano-community/pre-merge:debian_prereqs_-l
     - name: Push pre-merge:debian_prereqs_-l
       run: |
         docker push ghcr.io/cardano-community/pre-merge:debian_prereqs_-l
-  trigger-cabal:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
     - name: Trigger the cabal build tests
       run: |
         curl -XPOST -u "${{ secrets.REPO_SCOPED_USER}}:${{secrets.REPO_SCOPED_TOKEN }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" https://api.github.com/repos/cardano-community/guild-operators/actions/workflows/premerge_debian_cabal-build-all.sh.yml/dispatches --data '{"ref": "alpha"}'
