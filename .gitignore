@@ -3,3 +3,5 @@ book
 *.bkp
 .DS_Store
 files/docker/smash/
+.env
+files/docker/grest/config/postgres/crontab

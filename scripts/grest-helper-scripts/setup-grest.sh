@@ -24,7 +24,7 @@
 		
 		Install and setup haproxy, PostgREST, polling services and create systemd services for haproxy, postgREST and dbsync
 		
-		-f    Force overwrite of all files including normally saved user config sections 
+		-f    Force overwrite of all files including normally saved user config sections
 		-i    Set-up Components individually. If this option is not specified, components will only be installed if found missing (eg: -i prcd)
 		    p    Install/Update PostgREST binaries by downloading latest release from github.
 		    r    (Re-)Install Reverse Proxy Monitoring Layer (haproxy) binaries and config
@@ -138,6 +138,10 @@
     get_cron_job_executable "pool-history-cache-update"
     set_cron_variables "pool-history-cache-update"
     install_cron_job "pool-history-cache-update" "*/10 * * * *"
+
+    get_cron_job_executable "epoch-info-cache-update"
+    set_cron_variables "epoch-info-cache-update"
+    install_cron_job "epoch-info-cache-update" "*/15 * * * *"
 
     # Only testnet and mainnet asset registries supported
     # Possible future addition for the Guild network once there is a guild registry

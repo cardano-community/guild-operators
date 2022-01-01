@@ -1,0 +1,85 @@
+version: "3.5"
+
+services:
+  postgres:
+    image: postgres:13.5-bullseye
+    env_file: ./.env
+    ports:
+      - 8059:8059
+      - 55000:5432
+    volumes:
+      - postgres_db:/var/lib/postgresql/data
+      - ./scripts/docker-getmetrics.sh:/getmetrics.sh
+      - ./scripts/docker-setup-grest.sh:/setup-grest.sh
+      - ./scripts/postgres-entrypoint.sh:/entrypoint.sh
+      - ./config/postgres/crontab:/etc/cron.d/crontab
+      - ./docker-entrypoint-initdb:/docker-entrypoint-initdb.d/
+    entrypoint: /entrypoint.sh
+    command: postgres
+    restart: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+
+  cardano-node:
+    image: cardanocommunity/cardano-node:latest
+    env_file: ./.env
+    environment:
+      - NETWORK=${NETWORK:-mainnet}
+    volumes:
+      - node-db:/opt/cardano/cnode/db
+      - node-ipc:/opt/cardano/cnode/sockets
+    restart: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+
+  cardano-db-sync:
+    image: inputoutput/cardano-db-sync:12.0.0
+    env_file: ./.env
+    environment:
+      - NETWORK=${NETWORK:-mainnet}
+    depends_on:
+      - cardano-node
+      - postgres
+    volumes:
+      - db-sync-data:/var/lib/cdbsync
+      - node-ipc:/node-ipc
+    restart: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+
+  haproxy:
+    image: haproxy:alpine
+    env_file: ./.env
+    depends_on:
+      - cardano-node
+      - cardano-db-sync
+      - postgres
+      - postgrest
+    volumes:
+      - ./config/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+    ports:
+      - 8053:8053
+    restart: on-failure
+
+  postgrest:
+    image: postgrest/postgrest
+    env_file: ./.env
+    environment:
+      - PGRST_DB_URI=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/${POSTGRES_DB}
+    depends_on:
+      - postgres
+    restart: on-failure
+volumes:
+  node-db:
+  postgres_db:
+  db-sync-data:
+  node-ipc:

@@ -2,7 +2,7 @@ DROP FUNCTION IF EXISTS grest.epoch_info (numeric);
 
 CREATE FUNCTION grest.epoch_info (_epoch_no numeric DEFAULT NULL)
   RETURNS TABLE (
-    epoch uinteger,
+    epoch_no uinteger,
     out_sum word128type,
     fees lovelace,
     tx_count uinteger,
@@ -16,7 +16,7 @@ BEGIN
   IF _epoch_no IS NULL THEN
     RETURN QUERY
     SELECT
-      ei.epoch,
+      ei.epoch_no,
       ei.i_out_sum AS tx_output_sum,
       ei.i_fees AS tx_fees_sum,
       ei.i_tx_count AS tx_count,
@@ -26,13 +26,13 @@ BEGIN
       eas.amount AS active_stake
     FROM
       grest.epoch_info_cache ei
-      INNER JOIN grest.EPOCH_ACTIVE_STAKE_CACHE eas ON eas.epoch_no = ei.epoch
+      INNER JOIN grest.EPOCH_ACTIVE_STAKE_CACHE eas ON eas.epoch_no = ei.epoch_no
     ORDER BY
-      ei.epoch DESC;
+      ei.epoch_no DESC;
   ELSE
     RETURN QUERY
     SELECT
-      ei.epoch,
+      ei.epoch_no,
       ei.i_out_sum AS tx_output_sum,
       ei.i_fees AS tx_fees_sum,
       ei.i_tx_count AS tx_count,
@@ -42,9 +42,9 @@ BEGIN
       eas.amount AS active_stake
     FROM
       grest.epoch_info_cache ei
-      INNER JOIN grest.EPOCH_ACTIVE_STAKE_CACHE eas ON eas.epoch_no = ei.epoch
+      INNER JOIN grest.EPOCH_ACTIVE_STAKE_CACHE eas ON eas.epoch_no = ei.epoch_no
     WHERE
-      ei.epoch = _epoch_no;
+      ei.epoch_no = _epoch_no;
   END IF;
 END;
 $$;
