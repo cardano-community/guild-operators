@@ -404,7 +404,7 @@
 			  #bind :8453 ssl crt /etc/ssl/server.pem no-sslv3
 			  http-request use-service prometheus-exporter if { path /metrics }
 			  http-request track-sc0 src table flood_lmt_rate
-			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 50 }
+			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 250 }
 			  default_backend grest_core
 			
 			backend grest_core
