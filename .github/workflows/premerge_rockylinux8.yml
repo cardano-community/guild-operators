@@ -1,4 +1,4 @@
-name: Pre-merge RockyLinux8 Prerequisites Tests
+name: Pre-merge RockyLinux8
 
 on:
   workflow_dispatch:

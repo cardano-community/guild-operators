@@ -1,4 +1,4 @@
-name: Pre-merge AmazonLinux2 Prerequisites
+name: Pre-merge AmazonLinux2
 
 on:
   workflow_dispatch:

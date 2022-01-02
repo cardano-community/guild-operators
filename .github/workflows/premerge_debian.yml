@@ -1,4 +1,4 @@
-name: Pre-merge Debian Prerequisites Tests
+name: Pre-merge Debian
 
 on:
   workflow_dispatch:
