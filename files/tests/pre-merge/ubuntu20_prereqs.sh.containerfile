@@ -1,4 +1,5 @@
 FROM ubuntu:20.04
+ARG COMMIT
 ARG BRANCH
 ARG CNODE_HOME=/opt/cardano/cnode
 

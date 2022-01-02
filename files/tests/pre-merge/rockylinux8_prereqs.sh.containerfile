@@ -1,4 +1,5 @@
 FROM rockylinux/rockylinux:8
+ARG COMMIT
 ARG BRANCH
 ARG CNODE_HOME=/opt/cardano/cnode
 

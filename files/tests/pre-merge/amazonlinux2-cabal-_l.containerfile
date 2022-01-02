@@ -1,4 +1,5 @@
-FROM ghcr.io/cardano-community/pre-merge:amazonlinux2_prereqs_-l
+ARG COMMIT
+FROM ghcr.io/cardano-community/pre-merge:amazonlinux2_prereqs_-l_${COMMIT}
 ARG BRANCH
 ARG CNODE_HOME=/opt/cardano/cnode
 

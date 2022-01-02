@@ -26,10 +26,12 @@ jobs:
     - name: Testing prereqs.sh
       run: |
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
-        docker build . --file files/tests/pre-merge/rockylinux8_prereqs.sh.containerfile --compress --build-arg BRANCH --tag ghcr.io/cardano-community/pre-merge:rockylinux8_prereqs
-    - name: Push pre-merge:rockylinux8_prereqs
+        export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
+        docker build . --file files/tests/pre-merge/rockylinux8_prereqs.sh.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-rockylinux8:prereqs_${COMMIT}
+    - name: Push pre-merge-rockylinux8:prereqs_${COMMIT}
       run: |
-        docker push ghcr.io/cardano-community/pre-merge:rockylinux8_prereqs
+        export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
+        docker push ghcr.io/cardano-community/pre-merge-rockylinux8:prereqs_${COMMIT}
 
   prerequisites-with-system-libsodium:
     runs-on: ubuntu-latest
@@ -48,10 +50,12 @@ jobs:
     - name: Testing prereqs.sh -l
       run: |
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
-        docker build . --file files/tests/pre-merge/rockylinux8_prereqs.sh_-l.containerfile --compress --build-arg BRANCH --tag ghcr.io/cardano-community/pre-merge:rockylinux8_prereqs_-l
-    - name: Push pre-merge:rockylinux8_prereqs_-l
+        export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
+        docker build . --file files/tests/pre-merge/rockylinux8_prereqs.sh_-l.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-rockylinux8:prereqs_-l_${COMMIT}
+    - name: Push pre-merge-rockylinux8:prereqs_-l_${COMMIT}
       run: |
-        docker push ghcr.io/cardano-community/pre-merge:rockylinux8_prereqs_-l
+        export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
+        docker push ghcr.io/cardano-community/pre-merge-rockylinux8:prereqs_-l_${COMMIT}
 
   build:
     needs: prerequisites
@@ -71,7 +75,8 @@ jobs:
     - name: Testing cabal-build-all.sh
       run: |
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
-        docker build . --file files/tests/pre-merge/rockylinux8-cabal.containerfile --compress --build-arg BRANCH --tag ghcr.io/cardano-community/pre-merge:rockylinux8_cabal
+        export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
+        docker build . --file files/tests/pre-merge/rockylinux8-cabal.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-rockylinux8:cabal_${COMMIT}
 
   build-with-system-libsodium:
     needs: prerequisites-with-system-libsodium
@@ -91,4 +96,5 @@ jobs:
     - name: Testing cabal-build-all.sh -l
       run: |
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
-        docker build . --file files/tests/pre-merge/rockylinux8-cabal_-l.containerfile --compress --build-arg BRANCH --tag ghcr.io/cardano-community/pre-merge:rockylinux8_cabal_-l
+        export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
+        docker build . --file files/tests/pre-merge/rockylinux8-cabal_-l.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-rockylinux8:cabal_-l_${COMMIT}

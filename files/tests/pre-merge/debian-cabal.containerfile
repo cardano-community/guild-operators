@@ -1,4 +1,5 @@
-FROM ghcr.io/cardano-community/pre-merge:debian_prereqs
+ARG COMMIT
+FROM ghcr.io/cardano-community/pre-merge:debian_prereqs_${COMMIT}
 ARG BRANCH
 ARG CNODE_HOME=/opt/cardano/cnode
 

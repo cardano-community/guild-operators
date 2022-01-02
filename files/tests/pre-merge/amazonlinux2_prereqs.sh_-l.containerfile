@@ -1,4 +1,5 @@
 FROM amazonlinux:2
+ARG COMMIT
 ARG BRANCH
 ARG CNODE_HOME=/opt/cardano/cnode
 
