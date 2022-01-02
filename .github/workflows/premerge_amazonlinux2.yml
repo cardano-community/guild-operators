@@ -9,7 +9,7 @@ on:
       - files/cabal.project.local
 
 jobs:
-  test-prereqs:
+  prerequisites:
     runs-on: ubuntu-latest
     steps:
     - name: Login to GitHub Container Registry
@@ -30,7 +30,28 @@ jobs:
     - name: Push pre-merge:amazonlinux2_prereqs
       run: |
         docker push ghcr.io/cardano-community/pre-merge:amazonlinux2_prereqs
-  test-prereqs-with-system-libsodium:
+
+  build:
+    needs: prerequisites
+    runs-on: ubuntu-latest
+    steps:
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - uses: actions/checkout@v2
+    - name: Extract branch from PR
+      shell: bash
+      run: echo "##[set-output name=branch;]${GITHUB_HEAD_REF}"
+      id: pr_branch
+    - name: Testing cabal-build-all.sh
+      run: |
+        export BRANCH=${{ steps.pr_branch.outputs.branch }}
+        docker build . --file files/tests/pre-merge/amazonlinux2-cabal.containerfile --compress --build-arg BRANCH --tag ghcr.io/cardano-community/pre-merge:amazonlinux2_cabal
+
+  prerequisites-with-system-libsodium:
     runs-on: ubuntu-latest
     steps:
     - name: Login to GitHub Container Registry
@@ -51,6 +72,23 @@ jobs:
     - name: Push pre-merge:amazonlinux2_prereqs_-l
       run: |
         docker push ghcr.io/cardano-community/pre-merge:amazonlinux2_prereqs_-l
-    - name: Trigger the cabal build tests
+
+  build-all-with-system-libsodium:
+    needs: prerequisites-with-system-libsodium
+    runs-on: ubuntu-latest
+    steps:
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - uses: actions/checkout@v2
+    - name: Extract branch from PR
+      shell: bash
+      run: echo "##[set-output name=branch;]${GITHUB_HEAD_REF}"
+      id: pr_branch
+    - name: Testing cabal-build-all.sh -l
       run: |
-        curl -XPOST -u "${{ secrets.REPO_SCOPED_USER}}:${{secrets.REPO_SCOPED_TOKEN }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" https://api.github.com/repos/cardano-community/guild-operators/actions/workflows/premerge_amazonlinux2_cabal-build-all.sh.yml/dispatches --data '{"ref": "alpha"}'
+        export BRANCH=${{ steps.pr_branch.outputs.branch }}
+        docker build . --file files/tests/pre-merge/amazonlinux2-cabal_-l.containerfile --compress --build-arg BRANCH --tag ghcr.io/cardano-community/pre-merge:amazonlinux2_cabal_-l
