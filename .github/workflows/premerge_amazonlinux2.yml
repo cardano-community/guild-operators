@@ -73,7 +73,7 @@ jobs:
       run: |
         docker push ghcr.io/cardano-community/pre-merge:amazonlinux2_prereqs_-l
 
-  build-all-with-system-libsodium:
+  build-with-system-libsodium:
     needs: prerequisites-with-system-libsodium
     runs-on: ubuntu-latest
     steps:
