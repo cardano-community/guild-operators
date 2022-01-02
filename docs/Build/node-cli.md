@@ -31,15 +31,15 @@ The above would copy the binaries built into `~/.cabal/bin` folder.
 
 ### Verify
 
-Execute `cardano-cli` and `cardano-node` to verify output as below:
+Execute `cardano-cli` and `cardano-node` to verify output as below (the exact version and git rev should depend on your checkout tag on github repository):
 
 ```bash
 cardano-cli version
-# cardano-cli 1.30.1 - linux-x86_64 - ghc-8.10
-# git rev 0fb43f4e3da8b225f4f86557aed90a183981a64f
+# cardano-cli 1.32.1 - linux-x86_64 - ghc-8.10
+# git rev 4f65fb9a27aa7e3a1873ab4211e412af780a3648
 cardano-node version
-# cardano-node 1.30.1 - linux-x86_64 - ghc-8.10
-# git rev 0fb43f4e3da8b225f4f86557aed90a183981a64f
+# cardano-node 1.32.1 - linux-x86_64 - ghc-8.10
+# git rev 4f65fb9a27aa7e3a1873ab4211e412af780a3648
 ```
 
 #### Update port number or pool name for relative paths
