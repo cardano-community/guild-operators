@@ -2,162 +2,162 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://cardano-community.github.io/guild-operators/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/basics/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/build/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/contributors/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/grest-meets/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/sidebar/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/upgrade/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Appendix/RecoverByronWallet/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Appendix/monitoring/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Appendix/postgres/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Build/dbsync/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Build/graphql/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Build/grest/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Build/node-cli/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Build/offchain-metadata-tools/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Build/wallet/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Scripts/cncli/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Scripts/cntools-changelog/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Scripts/cntools-common/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Scripts/cntools/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Scripts/env/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Scripts/gliveview/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Scripts/itnrewards/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Scripts/itnwitness/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Scripts/logmonitor/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Scripts/sendalerts/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/Scripts/topologyupdater/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/docker/build/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/docker/docker/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/docker/run/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/docker/security/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://cardano-community.github.io/guild-operators/docker/tips/</loc>
-         <lastmod>2021-12-29</lastmod>
+         <lastmod>2022-01-03</lastmod>
          <changefreq>daily</changefreq>
     </url>
 </urlset>
