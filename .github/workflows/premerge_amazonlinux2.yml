@@ -52,6 +52,7 @@ jobs:
       run: |
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
+        echo "Working from PR Branch ${BRANCH} on Commit ${COMMIT}"
         docker build . --file files/tests/pre-merge/amazonlinux2-cabal.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-debian:cabal_${COMMIT}
 
   prerequisites-with-system-libsodium:
@@ -97,4 +98,5 @@ jobs:
       run: |
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
+        echo "Working from PR Branch ${BRANCH} on Commit ${COMMIT}"
         docker build . --file files/tests/pre-merge/amazonlinux2-cabal_-l.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-debian:cabal_-l_${COMMIT}
