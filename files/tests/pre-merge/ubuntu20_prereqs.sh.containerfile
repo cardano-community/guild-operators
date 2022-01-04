@@ -7,7 +7,9 @@ ENV \
   DEBIAN_FRONTEND=noninteractive \
   LANG=C.UTF-8 \
   USER=root \
-  PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:$PATH
+  PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:$PATH \
+  BRANCH=$BRANCH \
+  COMMIT=$COMMIT
 
 WORKDIR /
 
