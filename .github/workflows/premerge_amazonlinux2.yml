@@ -1,0 +1,100 @@
+name: Pre-merge AmazonLinux2
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - scripts/cnode-helper-scripts/prereqs.sh
+      - scripts/cnode-helper-scripts/cabal-build-all.sh
+      - files/cabal.project.local
+
+jobs:
+  prerequisites:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - uses: actions/checkout@v2
+    - name: Extract branch from PR
+      shell: bash
+      run: echo "##[set-output name=branch;]${GITHUB_HEAD_REF}"
+      id: pr_branch
+    - name: Testing prereqs.sh
+      run: |
+        export BRANCH=${{ steps.pr_branch.outputs.branch }}
+        export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
+        docker build . --file files/tests/pre-merge/amazonlinux2_prereqs.sh.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-debian:prereqs_${COMMIT}
+    - name: Push pre-merge-debian:prereqs_${COMMIT}
+      run: |
+        export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
+        docker push ghcr.io/cardano-community/pre-merge-debian:prereqs_${COMMIT}
+
+  build:
+    needs: prerequisites
+    runs-on: ubuntu-latest
+    steps:
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - uses: actions/checkout@v2
+    - name: Extract branch from PR
+      shell: bash
+      run: echo "##[set-output name=branch;]${GITHUB_HEAD_REF}"
+      id: pr_branch
+    - name: Testing cabal-build-all.sh
+      run: |
+        export BRANCH=${{ steps.pr_branch.outputs.branch }}
+        export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
+        docker build . --file files/tests/pre-merge/amazonlinux2-cabal.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-debian:cabal_${COMMIT}
+
+  prerequisites-with-system-libsodium:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - uses: actions/checkout@v2
+    - name: Extract branch from PR
+      shell: bash
+      run: echo "##[set-output name=branch;]${GITHUB_HEAD_REF}"
+      id: pr_branch
+    - name: Testing prereqs.sh -l
+      run: |
+        export BRANCH=${{ steps.pr_branch.outputs.branch }}
+        export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
+        docker build . --file files/tests/pre-merge/amazonlinux2_prereqs.sh_-l.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-debian:prereqs_-l_${COMMIT}
+    - name: Push pre-merge-debian:prereqs_-l_${COMMIT}
+      run: |
+        export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
+        docker push ghcr.io/cardano-community/pre-merge-debian:prereqs_-l_${COMMIT}
+
+  build-with-system-libsodium:
+    needs: prerequisites-with-system-libsodium
+    runs-on: ubuntu-latest
+    steps:
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - uses: actions/checkout@v2
+    - name: Extract branch from PR
+      shell: bash
+      run: echo "##[set-output name=branch;]${GITHUB_HEAD_REF}"
+      id: pr_branch
+    - name: Testing cabal-build-all.sh -l
+      run: |
+        export BRANCH=${{ steps.pr_branch.outputs.branch }}
+        export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
+        docker build . --file files/tests/pre-merge/amazonlinux2-cabal_-l.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-debian:cabal_-l_${COMMIT}

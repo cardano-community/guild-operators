@@ -24,7 +24,7 @@
 		
 		Install and setup haproxy, PostgREST, polling services and create systemd services for haproxy, postgREST and dbsync
 		
-		-f    Force overwrite of all files including normally saved user config sections 
+		-f    Force overwrite of all files including normally saved user config sections
 		-i    Set-up Components individually. If this option is not specified, components will only be installed if found missing (eg: -i prcd)
 		    p    Install/Update PostgREST binaries by downloading latest release from github.
 		    r    (Re-)Install Reverse Proxy Monitoring Layer (haproxy) binaries and config
@@ -404,7 +404,7 @@
 			  #bind :8453 ssl crt /etc/ssl/server.pem no-sslv3
 			  http-request use-service prometheus-exporter if { path /metrics }
 			  http-request track-sc0 src table flood_lmt_rate
-			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 50 }
+			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 250 }
 			  default_backend grest_core
 			
 			backend grest_core

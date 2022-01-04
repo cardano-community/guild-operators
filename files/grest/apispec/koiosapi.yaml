@@ -66,6 +66,7 @@ info:
 servers:
   - url: https://api.koios.rest/api/v0
   - url: https://guild.koios.rest/api/v0
+  - url: https://testnet.koios.rest/api/v0
 paths:
   /tip: #RPC
     get:
