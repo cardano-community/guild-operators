@@ -1,5 +1,5 @@
 ARG COMMIT
-FROM ghcr.io/cardano-community/pre-merge:rockylinux8_prereqs_-l_${COMMIT}
+FROM ghcr.io/cardano-community/pre-merge-rockylinux8:prereqs_-l_${COMMIT}
 ARG BRANCH
 ARG CNODE_HOME=/opt/cardano/cnode
 
