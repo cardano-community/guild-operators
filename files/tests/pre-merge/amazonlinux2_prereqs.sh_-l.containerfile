@@ -13,7 +13,7 @@ ENV \
 WORKDIR /
 
 RUN echo "Working on branch ${BRANCH} and commit ${COMMIT}" &&\
-    amazon-linux-extras install epel -y && yum -y install git-2.32.0-1.amzn2.0.1 && yum clean all &&\
+    amazon-linux-extras install epel -y && yum -y install git && yum clean all &&\
     mkdir -pv /root/.cabal/bin /root/.ghcup/bin &&\
     curl -sS -o prereqs.sh "https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts/prereqs.sh" &&\
     chmod 755 prereqs.sh &&\
