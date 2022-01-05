@@ -1,7 +1,8 @@
 {
   "Providers": [
     {"name":"ola","addr":"koios-testnet.ahlnet.nu","port":2153},
-    {"name":"damjan","addr":"195.201.129.190","port":7053}
+    {"name":"damjan","addr":"195.201.129.190","port":7053},
+    {"name":"homer","addr":"95.216.173.194","port":8053}
   ],
   "Consumers": []
 }
