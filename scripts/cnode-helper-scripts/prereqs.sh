@@ -202,7 +202,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
       pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig srm"
     elif [[ "${VERSION_ID}" == "7" ]]; then
       pkg_list="${pkg_list} libusb pkgconfig srm"
-    elif [[ "${VERSION_ID}" == "8" ]]; then
+    elif [[ "${VERSION_ID}" =~ "8" ]]; then
       pkg_opts="${pkg_opts} --allowerasing"
       pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config"
     elif [[ "${DISTRO}" =~ Fedora ]]; then
