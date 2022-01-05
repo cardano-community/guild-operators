@@ -30,13 +30,14 @@ CREATE FUNCTION grest.get_last_active_stake_validated_epoch ()
   AS
 $$
   BEGIN
-    RETURN QUERY
+    RETURN (
       SELECT
         COALESCE(last_value, 0)
       FROM 
         grest.control_table
       WHERE
-        key = 'last_active_stake_validated_epoch';
+        key = 'last_active_stake_validated_epoch'
+    );
   END;
 $$;
 
@@ -98,7 +99,7 @@ DROP FUNCTION IF EXISTS grest.active_stake_cache_update (integer);
 
 /* UPDATE FUNCTION */
 CREATE FUNCTION grest.active_stake_cache_update (_epoch_no integer)
-  RETURNS BOOLEAN
+  RETURNS VOID
   LANGUAGE plpgsql
   AS
 $$
