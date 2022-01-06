@@ -133,15 +133,16 @@
     echo ""
     get_cron_job_executable "stake-distribution-update"
     set_cron_variables "stake-distribution-update"
-    install_cron_job "stake-distribution-update" "*/30 * * * *"
+    #Special condition for guild network (NWMAGIC=141) where activity and entries are minimal, and epoch duration is 1 hour
+    [[ ${NWMAGIC} -eq 141 ]] && { install_cron_job "stake-distribution-update" "*/5 * * * *" || install_cron_job "stake-distribution-update" "*/30 * * * *" ; }
     
     get_cron_job_executable "pool-history-cache-update"
     set_cron_variables "pool-history-cache-update"
-    install_cron_job "pool-history-cache-update" "*/10 * * * *"
+    [[ ${NWMAGIC} -eq 141 ]] && { install_cron_job "pool-history-cache-update" "*/5 * * * *" || install_cron_job "pool-history-cache-update" "*/10 * * * *"; }
 
     get_cron_job_executable "epoch-info-cache-update"
     set_cron_variables "epoch-info-cache-update"
-    install_cron_job "epoch-info-cache-update" "*/15 * * * *"
+    [[ ${NWMAGIC} -eq 141 ]] && { install_cron_job "epoch-info-cache-update" "*/5 * * * *" || install_cron_job "epoch-info-cache-update" "*/15 * * * *"; }
 
     # Only testnet and mainnet asset registries supported
     # Possible future addition for the Guild network once there is a guild registry
@@ -396,6 +397,7 @@
 			frontend app
 			  bind 0.0.0.0:8053
 			  http-request set-log-level silent
+			  acl is_wss hdr(Upgrade) -i websocket
 			  ## Replace servername.koios.rest below
 			  #http-request replace-value Host (.*):8053 servername.koios.rest:8453
 			  #redirect scheme https code 301 if !{ ssl_fc }
@@ -405,7 +407,7 @@
 			  http-request use-service prometheus-exporter if { path /metrics }
 			  http-request track-sc0 src table flood_lmt_rate
 			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 250 }
-			  use_backend ogmios_core if { path_beg /api/v0/ogmios }
+			  use_backend ogmios_core if { path_beg /api/v0/ogmios } || { path_beg /dashboard.js } || { path_beg /assets } || { path_beg /health } || is_wss
 			  use_backend submitapi if { path_beg /api/v0/submittx }
 			  default_backend grest_core
 			

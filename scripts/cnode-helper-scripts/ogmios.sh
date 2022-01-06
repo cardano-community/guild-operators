@@ -9,9 +9,9 @@
 # Common variables set in env file   #
 ######################################
 
-#SUBMITAPIBIN="${HOME}"/.cabal/bin/cardano-submit-api # Path for cardano-submit-api binary, if not in $PATH
-#HOSTADDR=127.0.0.1                                 # Default Listen IP/Hostname for Submit API
-#HOSTPORT=8090                                      # Default Listen port for Submit API
+#OGMIOSBIN="${HOME}"/.cabal/bin/ogmios        # Path for ogmios binary, if not in $PATH
+#HOSTADDR=127.0.0.1                           # Default Listen IP/Hostname for Ogmios Server
+#HOSTPORT=1337                                # Default Listen port for Ogmios Server
 
 ######################################
 # Do NOT modify code below           #
@@ -26,32 +26,34 @@ usage() {
 		
 		Usage: $(basename "$0") [-d]
 		
-		Cardano Submit API wrapper script !!
-		-d    Deploy cardano-submit-api as a systemd service
+		Cardano Ogmios wrapper script !!
+		-d    Deploy ogmios server as a systemd service
 		
 		EOF
   exit 1
 }
 
 set_defaults() {
-  [[ -z "${SUBMITAPIBIN}" ]] && SUBMITAPIBIN="${HOME}"/.cabal/bin/cardano-submit-api
+  [[ -z "${OGMIOSBIN}" ]] && OGMIOSBIN="${HOME}"/.cabal/bin/ogmios
   [[ -z "${HOSTADDR}" ]] && HOSTADDR=127.0.0.1
-  [[ -z "${HOSTPORT}" ]] && HOSTPORT=8090
+  [[ -z "${HOSTPORT}" ]] && HOSTPORT=1337
 }
 
 pre_startup_sanity() {
-  [[ ! -f "${SUBMITAPIBIN}" ]] && SUBMITAPIBIN=$(command -v cardano-submit-api)
+  [[ ! -f "${OGMIOSBIN}" ]] && OGMIOSBIN="$(command -v ogmios)"
   if [[ ! -S "${CARDANO_NODE_SOCKET_PATH}" ]]; then
     echo "ERROR: Could not locate socket file at ${CARDANO_NODE_SOCKET_PATH}, the node may not have completed startup !!"
     exit 1
   fi
+  # Move logs to archive
+  [[ -f "${LOG_DIR}"/ogmios.log ]] && mv "${LOG_DIR}"/ogmios.log "${LOG_DIR}"/archive/
 }
 
 deploy_systemd() {
-  echo "Deploying ${CNODE_VNAME}-submit-api as systemd service.."
-  sudo bash -c "cat <<-'EOF' > /etc/systemd/system/${CNODE_VNAME}-submit-api.service
+  echo "Deploying ${CNODE_VNAME}-ogmios as systemd service.."
+  sudo bash -c "cat <<-'EOF' > /etc/systemd/system/${CNODE_VNAME}-ogmios.service
 	[Unit]
-	Description=Cardano Node Submit API
+	Description=Cardano Ogmios Server
 	Wants=network-online.target
 	After=network-online.target
 	
@@ -62,18 +64,18 @@ deploy_systemd() {
 	User=${USER}
 	LimitNOFILE=1048576
 	WorkingDirectory=${CNODE_HOME}/scripts
-	ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/submitapi.sh\"
+	ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/ogmios.sh \"
 	KillSignal=SIGINT
 	SuccessExitStatus=143
 	StandardOutput=syslog
 	StandardError=syslog
-	SyslogIdentifier=${CNODE_VNAME}-submit-api
+	SyslogIdentifier=${CNODE_VNAME}-ogmios
 	TimeoutStopSec=5
 	KillMode=mixed
 	
 	[Install]
 	WantedBy=multi-user.target
-	EOF" && echo "${CNODE_VNAME}-submit-api.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}-submit-api.service
+	EOF" && echo "${CNODE_VNAME}-ogmios.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}-ogmios.service
 }
 
 ###################
@@ -105,5 +107,5 @@ if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
 fi
 pre_startup_sanity
 
-# Run Submit API
-"${SUBMITAPIBIN}" --config "${CONFIG}" --testnet-magic ${NWMAGIC} --socket-path "${CARDANO_NODE_SOCKET_PATH}" --listen-address ${HOSTADDR} --port ${HOSTPORT}
+# Run Ogmios Server
+"${OGMIOSBIN}" --node-config "${CONFIG}" --node-socket "${CARDANO_NODE_SOCKET_PATH}" --host ${HOSTADDR} --port ${HOSTPORT} >> "${LOG_DIR}"/ogmios.log 2>&1

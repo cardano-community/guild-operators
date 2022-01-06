@@ -30,6 +30,13 @@ echo "launches the main submitapi.sh script to deploy cardano-submit-api as serv
 echo
 ./submitapi.sh -d
 
+if command -v ogmios >/dev/null 2>&1 ; then
+  echo -e "\e32m~~ Cardano Ogmios Server ~~\e[0m"
+  echo "launches the ogmios.sh script to deploy ogmios"
+  echo
+  ./ogmios.sh -d
+fi
+
 echo
 echo -e "\e[32m~~ Topology Updater ~~\e[0m"
 echo "An intermediate centralized solution for relay nodes to handle the static topology files until P2P network module is implemented on protocol level."
