@@ -354,9 +354,9 @@
     # Create HAProxy config template
     [[ -f "${HAPROXY_CFG}" ]] && cp "${HAPROXY_CFG}" "${HAPROXY_CFG}".bkp_$(date +%s)
     case ${NWMAGIC} in
-      1097911063) KOIOS_SRV="testnet.koios.rest:8453" ;;
-      764824073)  KOIOS_SRV="api.koios.rest:8453" ;;
-      *) KOIOS_SRV="guild.koios.rest:8453" ;;
+      1097911063) KOIOS_SRV="testnet.koios.rest" ;;
+      764824073)  KOIOS_SRV="api.koios.rest" ;;
+      *) KOIOS_SRV="guild.koios.rest" ;;
     esac
 
     # Create skeleton whitelist URL file if one does not already exist using most common option
@@ -369,7 +369,7 @@
     bash -c "cat <<-EOF > ${HAPROXY_CFG}
 			global
 			  daemon
-			  nbthread 2
+			  nbthread 4
 			  maxconn 256
 			  ulimit-n 65536
 			  stats socket \"\\\$GRESTTOP\"/sockets/haproxy.socket mode 0600 level admin user ${USER}
@@ -405,6 +405,8 @@
 			  http-request use-service prometheus-exporter if { path /metrics }
 			  http-request track-sc0 src table flood_lmt_rate
 			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 250 }
+			  use_backend ogmios_core if { path_beg /api/v0/ogmios }
+			  use_backend submitapi if { path_beg /api/v0/submittx }
 			  default_backend grest_core
 			
 			backend grest_core
@@ -419,11 +421,29 @@
 			  external-check path \"/usr/bin:/bin:/tmp:/sbin:/usr/sbin\"
 			  external-check command \"\\\$GRESTTOP\"/scripts/grest-poll.sh
 			  server local 127.0.0.1:8050 check inter 20000
-			  server koios-ssl ${KOIOS_SRV} backup ssl verify none
+			  server koios-ssl ${KOIOS_SRV}:443 backup ssl verify none
 			  ## When adding a peer, ensure to end server name with 'ssl' if enabled as in example below:
 			  ## server name-ssl server.name:443 check inter 60000 ssl verify none
 			  http-response cache-store grestcache
 			  http-response set-header X-Frame-Options: DENY
+			
+			backend ogmios_core
+			  balance first
+			  http-request set-path \"%[path,regsub(^/api/v0/ogmios/,/)]\"
+			  option httpchk GET /health
+			  http-check expect status 200
+			  default-server inter 20s fall 1 rise 2
+			  server local 127.0.0.1:1337 check
+			  server koios-ssl ${KOIOS_SRV}:7443 backup ssl verify none
+			
+			backend submitapi
+			  balance first
+			  option httpchk POST /api/submit/tx
+			  http-request set-path \"%[path,regsub(^/api/v0/submittx,/api/submit/tx)]\"
+			  http-check expect status 415
+			  default-server inter 20s fall 1 rise 2
+			  server rdlrt 127.0.0.1:8090 check
+			  server koios-ssl ${KOIOS_SRV}:443 backup ssl verify none
 			
 			backend flood_lmt_rate
 			  stick-table type ip size 1m expire 10m store http_req_rate(10s)

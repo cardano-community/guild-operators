@@ -13,6 +13,8 @@
   "PBftSignatureThreshold": 1,
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/shelley-genesis.json",
   "ShelleyGenesisHash": "6e32e475f05087edc92945a9fbebe8aa15fdb4333cbd3842737152967065fbf0",
+  "EnableLogging": true,
+  "EnableLogMetrics": false,
   "TraceBlockFetchClient": true,
   "TraceBlockFetchDecisions": true,
   "TraceBlockFetchProtocol": false,
