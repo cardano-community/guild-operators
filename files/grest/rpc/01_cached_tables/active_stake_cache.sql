@@ -32,7 +32,7 @@ $$
   BEGIN
     RETURN (
       SELECT
-        COALESCE(last_value, 0)
+        last_value --coalesce doesn't work if empty set
       FROM 
         grest.control_table
       WHERE
@@ -50,8 +50,9 @@ CREATE FUNCTION grest.get_last_active_stake_cache_address_count ()
   LANGUAGE plpgsql
   AS $$
     BEGIN
-      RETURN QUERY
-      SELECT count(*) from cache...
+      RETURN (
+        SELECT count(*) from cache...
+      )
     END;
   $$;
  */
@@ -68,12 +69,12 @@ $$
   _last_active_stake_validated_epoch text;
   BEGIN
     SELECT
-      grest.get_last_active_stake_validated_epoch
+      grest.get_last_active_stake_validated_epoch()
     INTO
       _last_active_stake_validated_epoch;
 
     SELECT
-      grest.get_current_epoch
+      grest.get_current_epoch()
     INTO
       _current_epoch_no;
 
@@ -83,7 +84,7 @@ $$
       _last_active_stake_validated_epoch;
 
     IF 
-      _current_epoch_no > _last_active_stake_validated_epoch
+      _current_epoch_no > COALESCE(_last_active_stake_validated_epoch::integer, 0)
     THEN 
       RETURN TRUE;
     END IF;
@@ -163,7 +164,7 @@ $$
 
       PERFORM grest.update_control_table(
         'last_active_stake_validated_epoch',
-        _epoch_no
+        _epoch_no::text
       );
   END;
 $$;

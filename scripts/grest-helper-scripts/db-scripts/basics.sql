@@ -129,10 +129,14 @@ CREATE FUNCTION grest.get_epoch_stakes_count (_epoch_no integer)
 $$
   BEGIN
     RETURN (
-      SELECT count(*)
-        FROM public.epoch_stake
-        WHERE epoch_no = _epoch_no
-        GROUP BY epoch_no
+      SELECT
+        count(*)
+      FROM
+        public.epoch_stake
+      WHERE
+        epoch_no = _epoch_no
+      GROUP BY
+        epoch_no
     );
   END;
 $$;
