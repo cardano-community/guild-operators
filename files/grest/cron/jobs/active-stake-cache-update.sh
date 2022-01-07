@@ -1,5 +1,5 @@
 #!/bin/bash
-DB_NAME=cexplorer_testnet
+DB_NAME=cexplorer
 
 echo "$(date +%F_%H:%M:%S) Running active stake cache update..."
 
