@@ -1,5 +1,5 @@
 #!/bin/bash
-DB_NAME=cexplorer_testnet
+DB_NAME=cexplorer
 
 echo "$(date +%F_%H:%M:%S) Running active stake cache update..."
 
@@ -10,7 +10,7 @@ echo "$(date +%F_%H:%M:%S) Running active stake cache update..."
 
 # 2nd and 3rd number in the logs correspond to number of stakes and epoch number
 # Could break due to upstream changes on db-sync
-last_epoch_stakes_log=$(grep -r 'Handling.*.stakes for epoch ' $(find "$(dirname "$0")"/../../logs -name "dbsync-*.json" -mtime -6) /dev/null | sed -e 's#.*.Handling ##' -e 's#stakes for epoch##' -e 's# slot .*.$##' | tail -1)
+last_epoch_stakes_log=$(grep -r 'Handling.*.stakes for epoch ' "$(ls -1rt "$(dirname "$0")"/../../logs/dbsync.json "$(dirname "$0")"/../../logs/archive/dbsync-*.json 2>/dev/null)" /dev/null | sed -e 's#.*.Handling ##' -e 's#stakes for epoch##' -e 's# slot .*.$##' | tail -1)
 [[ -z ${last_epoch_stakes_log} ]] &&
   echo "Could not find any 'Handling stakes' log entries, exiting..." &&
   exit 1;
