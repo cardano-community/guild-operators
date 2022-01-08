@@ -74,9 +74,20 @@ cd $CNODE_HOME/scripts
 
 Stop the node by hitting Ctrl-C.
 
+#### Start the submit-api
+
+`cardano-submit-api` is one of the binaries built as part of `cardano-node` repository and allows you to submit transactions over a Web API. To run this service interactively, you can use the pre-built script below (`submitapi.sh`). Make sure to update `submitapi.sh` script to change listen IP or Port that you'd want to make this service available on.
+
+```bash
+cd $CNODE_HOME/scripts
+./submitapi.sh
+```
+
+To stop the process, hit Ctrl-C
+
 #### Run as systemd service {: id="systemd"}
 
-The preferred way to run the node is through a service manager like systemd. This section explains how to setup a systemd service file.
+The preferred way to run the node (and submit-api) is through a service manager like systemd. This section explains how to setup a systemd service file.
 
 **1. Deploy as a systemd service**  
 Execute the below command to deploy your node as a systemd service (from the respective scripts folder):
@@ -85,18 +96,25 @@ cd $CNODE_HOME/scripts
 ./cnode.sh -d
 # Deploying cnode.service as systemd service..
 # cnode.service deployed successfully!!
+
+./submitapi.sh -d
+# Deploying cnode-submit-api.service as systemd service..
+# cnode-submit-api deployed successfully!!
+
 ```
 
-**2. Start the node**  
+**2. Start the service**  
 Run below commands to enable automatic start of service on startup and start it.
 ``` bash
 sudo systemctl start cnode.service
+sudo systemctl start cnode-submit-api.service
 ```
 
 **3. Check status and stop/start commands** 
 Replace `status` with `stop`/`start`/`restart` depending on what action to take.
 ``` bash
 sudo systemctl status cnode.service
+sudo systemctl status cnode-submit-api.service
 ```
 
 !!! important

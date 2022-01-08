@@ -11,26 +11,30 @@ graph TB
   C(Manage pool-ops, <br/> asset operation tasks <br/> easily?)
   D(Create Custom Assets?)
   E(Monitor node <br/> using Terminal UI)
-  O(Node)
+  N(Node)
   F(Manage Pool/Wallet Keys<br/>and tx signing<br/>offline)
+  O(Ogmios)
   P(gRest/Koios)
   Q(DBSync)
   R(Wallet)
   S(CNTools)
+  T(Tx Submit API)
   U(GraphQL)
   V(OfflineMetadataTools)
   X(gLiveView)
 
 F --x S
-O --x C --x S
-O --x D
+N --x C --x S
+N --x D
 D --x S
 D --x V
-O --x E --x X
-O --x B
+N --x E --x X
+N --x B
 B --x U --x Q
 B --x P --x Q
-O --x A --x R
+P --x O
+P --x T
+N --x A --x R
 ```
 
 !!! warning "Important"

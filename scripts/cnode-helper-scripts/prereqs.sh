@@ -17,6 +17,7 @@ unset CNODE_HOME
 #LIBSODIUM_FORK='Y'     # Use IOG fork of libsodium instead of official repositories - Recommended as per IOG instructions (Default: IOG fork)
 #INSTALL_CNCLI='N'      # Install/Upgrade and build CNCLI with RUST
 #INSTALL_VCHC='N'       # Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
+#INSTALL_OGMIOS='N'     # Install Ogmios Server
 #CNODE_NAME='cnode'     # Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
 #CURL_TIMEOUT=60        # Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
 #UPDATE_CHECK='Y'       # Check if there is an updated version of prereqs.sh script to download
@@ -58,7 +59,7 @@ versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=avail
 usage() {
   cat <<EOF >&2
 
-Usage: $(basename "$0") [-f] [-s] [-i] [-l] [-c] [-w] [-p] [-b <branch>] [-n <mainnet|testnet|guild|staging>] [-t <name>] [-m <seconds>]
+Usage: $(basename "$0") [-f] [-s] [-i] [-l] [-c] [-w] [-o] [-b <branch>] [-n <mainnet|testnet|guild|staging>] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano node and using CNTools
 
 -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
@@ -71,6 +72,7 @@ Install pre-requisites for building cardano node and using CNTools
 -l    Use system libsodium instead of IOG fork (Default: use libsodium from IOG fork)
 -c    Install/Upgrade and build CNCLI with RUST
 -w    Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
+-o    Install/Upgrade Ogmios Server binary
 -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 -i    Interactive mode (Default: silent mode)
 
@@ -78,7 +80,7 @@ EOF
   exit 1
 }
 
-while getopts :in:sflcwt:m:b: opt; do
+while getopts :in:sflcwot:m:b: opt; do
   case ${opt} in
     i ) INTERACTIVE='Y' ;;
     n ) NETWORK=${OPTARG} ;;
@@ -87,6 +89,7 @@ while getopts :in:sflcwt:m:b: opt; do
     l ) LIBSODIUM_FORK='N' ;;
     c ) INSTALL_CNCLI='Y' ;;
     w ) INSTALL_VCHC='Y' ;;
+    o ) INSTALL_OGMIOS='Y' ;;
     t ) CNODE_NAME=${OPTARG//[^[:alnum:]]/_} ;;
     m ) CURL_TIMEOUT=${OPTARG} ;;
     b ) BRANCH=${OPTARG} ;;
@@ -102,6 +105,7 @@ shift $((OPTIND -1))
 [[ -z ${LIBSODIUM_FORK} ]] && LIBSODIUM_FORK='Y'
 [[ -z ${INSTALL_CNCLI} ]] && INSTALL_CNCLI='N'
 [[ -z ${INSTALL_VCHC} ]] && INSTALL_VCHC='N'
+[[ -z ${INSTALL_OGMIOS} ]] && INSTALL_OGMIOS='N'
 [[ -z ${CNODE_NAME} ]] && CNODE_NAME='cnode'
 [[ -z ${INTERACTIVE} ]] && INTERACTIVE='N'
 [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=60
@@ -383,6 +387,30 @@ if [[ "${INSTALL_VCHC}" = "Y" ]]; then
   fi
 fi
 
+if [[ "${INSTALL_OGMIOS}" = "Y" ]]; then
+  echo "Installing Ogmios"
+  if command -v ogmios >/dev/null; then ogmios_version="$(ogmios --version)"; else ogmios_version="v0.0.0"; fi
+  rm -rf /tmp/ogmios && mkdir /tmp/ogmios
+  pushd /tmp/ogmios >/dev/null || err_exit
+  ogmios_asset_url=$(curl -s https://github.com/CardanoSolutions/ogmios/releases/latest | jq -r '.assets[].browser_download_url')
+  if curl -sL -f -m ${CURL_TIMEOUT} -o ogmios.zip ${ogmios_asset_url}; then
+    unzip ogmios.zip &>/dev/null
+    rm -f ogmios.zip
+    [[ -f bin/ogmios ]] || err_exit "ogmios downloaded but binary not found after extracting package!"
+    ogmios_git_version="$(ogmios --version)"
+    if ! versionCheck "${ogmios_git_version}" "${ogmios_version}"; then
+      [[ "${ogmios_version}" = "0.0.0" ]] && echo "  latest version: ${ogmios_git_version}" || echo "  installed version: ${ogmios_version} | latest version: ${ogmios_git_version}"
+      mv -f /tmp/ogmios/bin/ogmios "${HOME}"/.cabal/bin/
+      echo "  ogmios ${ogmios_git_version} installed!"
+    else
+      rm -rf /tmp/ogmios #cleanup in /tmp
+      echo "  ogmios already latest version [${ogmios_version}], skipping!"
+    fi
+  else
+    err_exit "Download of latest release of ogmios archive from GitHub failed! Please retry or manually install it."
+  fi
+fi
+
 $sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/guild-db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv
 $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
 
@@ -442,6 +470,8 @@ curl -s -f -m ${CURL_TIMEOUT} -o setup_mon.sh ${URL_RAW}/scripts/cnode-helper-sc
 curl -s -f -m ${CURL_TIMEOUT} -o setup-grest.sh ${URL_RAW}/scripts/grest-helper-scripts/setup-grest.sh
 curl -s -f -m ${CURL_TIMEOUT} -o topologyUpdater.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/topologyUpdater.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cabal-build-all.sh ${URL_RAW}/scripts/cnode-helper-scripts/cabal-build-all.sh
+curl -s -f -m ${CURL_TIMEOUT} -o submitapi.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/submitapi.sh
+curl -s -f -m ${CURL_TIMEOUT} -o ogmios.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/ogmios.sh
 curl -s -f -m ${CURL_TIMEOUT} -o system-info.sh ${URL_RAW}/scripts/cnode-helper-scripts/system-info.sh
 curl -s -f -m ${CURL_TIMEOUT} -o sLiveView.sh ${URL_RAW}/scripts/cnode-helper-scripts/sLiveView.sh
 curl -s -f -m ${CURL_TIMEOUT} -o gLiveView.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/gLiveView.sh
@@ -475,11 +505,13 @@ updateWithCustomConfig() {
   mv -f ${file}.tmp ${file}
 }
 
-[[ ${FORCE_OVERWRITE} = 'Y' ]] && echo "Forced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/dbsync.sh, scripts/gLiveView.sh and scripts/topologyUpdater.sh (alongwith files/topology.json, files/config.json, files/dbsync.json) as required/"
+[[ ${FORCE_OVERWRITE} = 'Y' ]] && echo "Forced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/dbsync.sh, scripts/submitapi.sh, scripts/ogmios.sh, scripts/gLiveView.sh and scripts/topologyUpdater.sh (alongwith files/topology.json, files/config.json, files/dbsync.json) as required/"
 
 updateWithCustomConfig "env"
 updateWithCustomConfig "cnode.sh"
 updateWithCustomConfig "dbsync.sh"
+updateWithCustomConfig "submitapi.sh"
+updateWithCustomConfig "ogmios.sh"
 updateWithCustomConfig "gLiveView.sh"
 updateWithCustomConfig "topologyUpdater.sh"
 updateWithCustomConfig "logMonitor.sh"
