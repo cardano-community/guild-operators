@@ -9,7 +9,7 @@ echo "$(date +%F_%H:%M:%S) Running active stake cache update..."
   exit 0;
 
 # This could break due to upstream changes on db-sync (based on log format)
-last_epoch_stakes_log=$(grep -r 'Handling.*.stakes for epoch ' "$(ls -1rt "$(dirname "$0")"/../../logs/dbsync.json "$(dirname "$0")"/../../logs/archive/dbsync-*.json 2>/dev/null)" /dev/null | sed -e 's#.*.Handling ##' -e 's#stakes for epoch##' -e 's# slot .*.$##' | tail -1)
+last_epoch_stakes_log=$(grep -r 'Handling.*.stakes for epoch ' "$(dirname "$0")"/../../logs/dbsync-*.json "$(dirname "$0")"/../../logs/archive/dbsync-*.json 2>/dev/null | sed -e 's#.*.Handling ##' -e 's#stakes for epoch##' -e 's# slot .*.$##' | sort -k2 -n  | tail -1)
 [[ -z ${last_epoch_stakes_log} ]] &&
   echo "Could not find any 'Handling stakes' log entries, exiting..." &&
   exit 1;
