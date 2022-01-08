@@ -14,15 +14,27 @@ fi
 . "${PARENT}"/env offline
 
 echo -e "\e[32m~~ Cardano Node ~~\e[0m"
-echo "launches the main cnode.sh script to start cardano-node"
+echo "launches the main cnode.sh script to deploy cardano-node"
 echo
 ./cnode.sh -d
 
 if grep -q "^PGPASSFILE=" "${CNODE_HOME}/scripts/dbsync.sh" 2> /dev/null || [[ -f "${CNODE_HOME}/priv/.pgpass" ]]; then
   echo -e "\e[32m~~ Cardano DB Sync ~~\e[0m"
-  echo "launches the dbsync.sh script to start cardano-db-sync"
+  echo "launches the dbsync.sh script to deploy cardano-db-sync"
   echo
   ./dbsync.sh -d
+fi
+
+echo -e "\e[32m~~ Cardano Submit API ~~\e[0m"
+echo "launches the main submitapi.sh script to deploy cardano-submit-api as service"
+echo
+./submitapi.sh -d
+
+if command -v ogmios >/dev/null 2>&1 ; then
+  echo -e "\e32m~~ Cardano Ogmios Server ~~\e[0m"
+  echo "launches the ogmios.sh script to deploy ogmios"
+  echo
+  ./ogmios.sh -d
 fi
 
 echo
