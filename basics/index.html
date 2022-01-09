@@ -411,7 +411,7 @@ curl -sS -o prereqs.sh https://raw.githubusercontent.com/cardano-community/guild
 chmod <span class="m">755</span> prereqs.sh
 </code></pre></div>
 <p>Please familiarise with the syntax of <code>prereqs.sh</code> before proceeding. The usage syntax can be checked using <code>./prereqs.sh -h</code> , sample output below:</p>
-<div class="highlight"><pre><span></span><code>Usage: prereqs.sh <span class="o">[</span>-f<span class="o">]</span> <span class="o">[</span>-s<span class="o">]</span> <span class="o">[</span>-i<span class="o">]</span> <span class="o">[</span>-l<span class="o">]</span> <span class="o">[</span>-c<span class="o">]</span> <span class="o">[</span>-w<span class="o">]</span> <span class="o">[</span>-b &lt;branch&gt;<span class="o">]</span> <span class="o">[</span>-n &lt;mainnet<span class="p">|</span>testnet<span class="p">|</span>guild<span class="p">|</span>staging&gt;<span class="o">]</span> <span class="o">[</span>-t &lt;name&gt;<span class="o">]</span> <span class="o">[</span>-m &lt;seconds&gt;<span class="o">]</span>
+<div class="highlight"><pre><span></span><code>Usage: prereqs.sh <span class="o">[</span>-f<span class="o">]</span> <span class="o">[</span>-s<span class="o">]</span> <span class="o">[</span>-i<span class="o">]</span> <span class="o">[</span>-l<span class="o">]</span> <span class="o">[</span>-c<span class="o">]</span> <span class="o">[</span>-w<span class="o">]</span> <span class="o">[</span>-o<span class="o">]</span> <span class="o">[</span>-b &lt;branch&gt;<span class="o">]</span> <span class="o">[</span>-n &lt;mainnet<span class="p">|</span>testnet<span class="p">|</span>guild<span class="p">|</span>staging&gt;<span class="o">]</span> <span class="o">[</span>-t &lt;name&gt;<span class="o">]</span> <span class="o">[</span>-m &lt;seconds&gt;<span class="o">]</span>
 Install pre-requisites <span class="k">for</span> building cardano-node and using CNTools
 
 -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
@@ -424,6 +424,7 @@ Install pre-requisites <span class="k">for</span> building cardano-node and usin
 -l    Use system libsodium instead of IOG fork <span class="o">(</span>Default: use libsodium from IOG fork<span class="o">)</span>
 -c    Install/Upgrade and build CNCLI with RUST
 -w    Install/Upgrade Vacuumlabs cardano-hw-cli <span class="k">for</span> hardware wallet support
+-o    Install/Upgrade Ogmios Server binary
 -b    Use alternate branch of scripts to download - only recommended <span class="k">for</span> testing/development <span class="o">(</span>Default: master<span class="o">)</span>
 -i    Interactive mode <span class="o">(</span>Default: silent mode<span class="o">)</span>
 </code></pre></div>
