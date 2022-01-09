@@ -46,7 +46,7 @@ fi
 
 echo "Running cabal update to ensure you're on latest dependencies.."
 cabal update 2>&1 | tee /tmp/cabal-build.log
-cabal configure --with-compiler=ghc-8.10.7 | tee /tmp/cabal-build.log
+[[ "$1" != "-l" ]] && cabal configure --with-compiler=ghc-8.10.7 | tee /tmp/cabal-build.log
 echo "Building.."
 cabal build all 2>&1 | tee /tmp/build.log
 
