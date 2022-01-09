@@ -197,7 +197,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo yum ${pkg_opts} install curl > /dev/null
     $sudo yum ${pkg_opts} update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="python3 coreutils libffi-devel gmp-devel openssl-devel ncurses-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git jq gnupg2 libtool autoconf iproute bc traceroute dialog sqlite util-linux xz"
+    pkg_list="python3 coreutils libffi-devel gmp-devel openssl-devel ncurses-devel ncurses-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git jq gnupg2 libtool autoconf iproute bc traceroute dialog sqlite util-linux xz wget"
     if [[ "${VERSION_ID}" == "2" ]] ; then
       #AmazonLinux2
       pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig srm"
