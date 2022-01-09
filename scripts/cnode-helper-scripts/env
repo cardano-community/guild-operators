@@ -32,7 +32,9 @@
 #TG_CHAT_ID=""                                          # https://cardano-community.github.io/guild-operators/Scripts/sendalerts
 #TIMEOUT_LEDGER_STATE=300                               # Timeout in seconds for querying and dumping ledger-state
 #IP_VERSION=4                                           # The IP version to use for push and fetch, valid options: 4 | 6 | mix (Default: 4)
-#PGREST_API="http://127.0.0.1:8050"                     # Uncomment and set to enable PostgREST API queries against DB-Sync
+#KOIOS_API="https://api.koios.rest/api/v0/"             # Koios API for blockchain queries instead of local cli lookup. (empty to disable)
+                                                        # Leave commented for automatic network detection between MainNet, TestNet and Guild network.
+                                                        # https://www.koios.rest/
 #DBSYNC_QUERY_FOLDER="${CNODE_HOME}/files/dbsync/queries" # [advanced feature] Folder containing DB-Sync chain analysis queries
 
 #WALLET_FOLDER="${CNODE_HOME}/priv/wallet"              # Root folder for Wallets
@@ -213,7 +215,8 @@ checkUpdate() {
 #             : $1 = Old/Current script User Variables
 #             : $2 = User Variables section from GitHub
 checkUserVariables() {
-  tmp_head=$(head -n -2 <<< "$1")
+  tmp_old_static=$(sed '/PGREST_API/d' <<< "$1") # remove old PGREST_API variable, replaced by KOIOS_API
+  tmp_head=$(head -n -2 <<< "$tmp_old_static")
   tmp_tail=$(tail -n -2 <<< "$1")
   while IFS= read -r line; do
     if [[ ${line} =~ ^\#*[[:space:]]*([[:alnum:]_]+\=) ]]; then
@@ -896,7 +899,6 @@ fi
 [[ -z ${TMP_DIR} ]] && TMP_DIR="/tmp/$(basename "${CNODE_HOME}")"
 if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then echo "ERROR: Failed to create directory for temporary files, please set TMP_DIR to a valid folder in 'env', current folder: ${TMP_DIR}" && exit 1; fi
 [[ -z ${TIMEOUT_LEDGER_STATE} ]] && TIMEOUT_LEDGER_STATE=300
-[[ -n ${PGREST_API} && $(curl -Isf -m 5 ${PGREST_API} | head -1) != *"200 OK"* ]] && unset PGREST_API
 [[ -z ${DBSYNC_QUERY_FOLDER} ]] && DBSYNC_QUERY_FOLDER="${CNODE_HOME}/files/dbsync/queries"
 [[ -z ${WALLET_FOLDER} ]] && WALLET_FOLDER="${CNODE_HOME}/priv/wallet"
 [[ -z ${POOL_FOLDER} ]] && POOL_FOLDER="${CNODE_HOME}/priv/pool"
@@ -960,12 +962,33 @@ MAGIC=$(jq -r .protocolMagicId < ${GENESIS_JSON})
 NWMAGIC=$(jq -r .networkMagic < ${GENESIS_JSON})
 [[ ${NETWORKID} = "Mainnet" ]] && HASH_IDENTIFIER="--mainnet" || HASH_IDENTIFIER="--testnet-magic ${NWMAGIC}"
 case ${NWMAGIC} in
-  764824073) NETWORK_NAME="Mainnet"; [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=208; NETWORK_IDENTIFIER="--mainnet" ;;
-  1097911063) NETWORK_NAME="Testnet"; [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=74; NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
-  633343913) NETWORK_NAME="Staging"; [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=208; NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
-  141) NETWORK_NAME="Guild"; [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=2; NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
-  *) NETWORK_NAME="Custom"; [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0; NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
+  764824073) 
+    NETWORK_NAME="Mainnet"
+    [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=208
+    NETWORK_IDENTIFIER="--mainnet"
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://api.koios.rest/api/v0" ;;
+  1097911063) 
+    NETWORK_NAME="Testnet"
+    [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=74
+    NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://testnet.koios.rest/api/v0" ;;
+  633343913) 
+    NETWORK_NAME="Staging"
+    [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=208
+    NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
+  141) 
+    NETWORK_NAME="Guild"
+    [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=2
+    NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://guild.koios.rest/api/v0" ;;
+  *) 
+    NETWORK_NAME="Custom"
+    [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
+    NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
 esac
+
+# make sure KOIOS_API is reachable, else fall back to cli
+[[ -n ${KOIOS_API} && $(curl -Isf -m 5 ${KOIOS_API} | head -1) != *"200 OK"* ]] && unset KOIOS_API
 
 SHELLEY_GENESIS_START_SEC=$(date --date="$(jq -r .systemStart "${GENESIS_JSON}")" +%s)
 EPOCH_LENGTH=$(jq -r .epochLength "${GENESIS_JSON}")

@@ -7,11 +7,11 @@
 # The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 # and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
-CNTOOLS_MAJOR_VERSION=8
+CNTOOLS_MAJOR_VERSION=9
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=8
+CNTOOLS_MINOR_VERSION=0
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=2
+CNTOOLS_PATCH_VERSION=0
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -517,7 +517,6 @@ selectPool() {
   pool_dirs=()
   mode=$1 && shift
   enc_req_files=0
-  current_epoch=$(getEpoch) # Needed for isPoolRegistered() using REST API, best to call outside of loop
   if ! getDirs "${POOL_FOLDER}"; then return 1; fi # dirs() array populated with all pool folders
   for dir in "${dirs[@]}"; do
     for req_file in "$@"; do # check if pool is missing a required file and if so hide it
@@ -535,7 +534,7 @@ selectPool() {
     elif [[ ${mode} = "non-reg" || ${mode} = "reg" ]]; then
       isPoolRegistered "${dir}"
       case $? in
-        0) println "ERROR" "PGREST_API: ${error_msg}" &>/dev/null ;; # log error without printing but show pool
+        0) println "ERROR" "KOIOS_API: ${error_msg}" &>/dev/null ;; # log error without printing but show pool
         1) [[ ${mode} = "reg" ]] && continue ;;
         2) [[ ${mode} = "non-reg" ]] && continue ;;
         3) [[ ${mode} = "reg" ]] && continue ;;
@@ -555,36 +554,73 @@ selectPool() {
 
 # Command     : isPoolRegistered [pool_name]
 # Description : check if pool is registered on chain
-#               existence of POOL_REGCERT_FILENAME checked when REST API is not available
+#               existence of POOL_REGCERT_FILENAME checked when KOIOS API is not available
 # Parameters  : pool_name   >  the name of the pool to check
-# Return      : 0 => error quering REST API (error message saved in ${error_msg})
-#               1 => pool NOT registered
+# Return      : 0 => error quering KOIOS API (error message saved in ${error_msg})
+#               1 => NOT registered
 #               2 => registered
-#               3 => retired (only for REST API)
+#               3 => retiring/retired (only for KOIOS API)
 isPoolRegistered() {
-  error_msg=""; pupd_latest=""; pupd_latest_epoch=""; p_hash_id=""; pretire=""; retiring_epoch=0
-  if [[ ${CNTOOLS_MODE} = "OFFLINE" || -z ${PGREST_API} ]]; then
-    [[ -f "${POOL_FOLDER}/${1}/${POOL_DEREGCERT_FILENAME}" ]] && retiring_epoch=-1 || retiring_epoch=0
+  unset error_msg pool_info pool_info_tsv pool_info_arr
+  unset p_active_epoch_no p_vrf_key_hash p_margin p_fixed_cost p_pledge p_reward_addr p_owners p_relays p_meta_url p_meta_hash p_meta_json p_pool_status
+  unset p_retiring_epoch p_op_cert p_op_cert_counter p_active_stake p_epoch_block_cnt p_live_stake p_live_delegators p_live_saturation
+  if [[ ${CNTOOLS_MODE} = "OFFLINE" || -z ${KOIOS_API} ]]; then
     [[ -f "${POOL_FOLDER}/${1}/${POOL_REGCERT_FILENAME}" ]] && return 2 || return 1
   else
     getPoolID "$1"
-    ! pupd_latest=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -d _state=latest "${PGREST_API}"/rpc/pool_updates 2>&1) && error_msg=${pupd_latest} && return 0
-    pupd_latest_epoch=$(jq '.[0].active_epoch_no //empty' <<< ${pupd_latest})
-    if [[ -z ${pupd_latest_epoch} ]]; then
+    ! pool_info=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} ${KOIOS_API}/pool_info 2>&1) && error_msg=${pool_info} && return 0
+    if [[ ${pool_info} = '[]' ]]; then
       return 1
-    else
-      ! pretire=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -s "${PGREST_API}"/rpc/pool_retire 2>&1) && error_msg=${pretire} && return 0
-      retiring_epoch=$(jq -e '.retiring_epoch' <<< ${pretire}) || retiring_epoch=0
-      if [[ ${retiring_epoch} -gt 0 ]]; then
-        # TODO: update rpc to handle below check
-        #[[ $(jq '.announced_tx_id' <<< ${pretire}) -lt $(jq '.[0].registered_tx_id' <<< ${pupd_latest}) ]] && retiring_epoch=0 # invalidated by newer update
-        [[ ${retiring_epoch} -gt 0 && ${retiring_epoch} -le ${current_epoch} ]] && return 3 # pool retired
-      fi
-      return 2
     fi
+    pool_info_tsv=$(jq -r '[
+    .[0].active_epoch_no //0,
+    .[0].vrf_key_hash //"-",
+    .[0].margin //0,
+    .[0].fixed_cost //0,
+    .[0].pledge //0,
+    .[0].reward_addr //"-",
+    (.[0].owners|@json),
+    (.[0].relays|@json),
+    .[0].meta_url //"-",
+    .[0].meta_hash //"-",
+    (.[0].meta_json|@base64),
+    .[0].pool_status //"-",
+    .[0].retiring_epoch //"-",
+    .[0].op_cert //"-",
+    .[0].op_cert_counter //0,
+    .[0].active_stake //0,
+    .[0].epoch_block_cnt //0,
+    .[0].live_stake //0,
+    .[0].live_delegators //0,
+    .[0].live_saturation //0
+    ] | @tsv' <<< "${pool_info}")
+
+    read -ra pool_info_arr <<< ${pool_info_tsv}
+
+    p_active_epoch_no=${pool_info_arr[0]}
+    p_vrf_key_hash=${pool_info_arr[1]}
+    p_margin=${pool_info_arr[2]}
+    p_fixed_cost=${pool_info_arr[3]}
+    p_pledge=${pool_info_arr[4]}
+    p_reward_addr=${pool_info_arr[5]}
+    p_owners=${pool_info_arr[6]}
+    p_relays=${pool_info_arr[7]}
+    p_meta_url=${pool_info_arr[8]}
+    p_meta_hash=${pool_info_arr[9]}
+    p_meta_json=$(base64 -d <<< ${pool_info_arr[10]})
+    p_pool_status=${pool_info_arr[11]}
+    p_retiring_epoch=${pool_info_arr[12]}
+    p_op_cert=${pool_info_arr[13]}
+    p_op_cert_counter=${pool_info_arr[14]}
+    p_active_stake=${pool_info_arr[15]}
+    p_epoch_block_cnt=${pool_info_arr[16]}
+    p_live_stake=${pool_info_arr[17]}
+    p_live_delegators=${pool_info_arr[18]}
+    p_live_saturation=${pool_info_arr[19]}
+
+    [[ ${p_pool_status} = 'registered' ]] && return 2 || return 3
   fi
 }
-
 
 # Command     : selectPolicy [mode] [file1 file2 ...]
 # Description : A helper function to select a Multi-Asset policy
@@ -2000,10 +2036,10 @@ rotatePoolKeys() {
   ! ${CCLI} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}" && return 1
 
   p_opcert=""
-  if [[ -n ${PGREST_API} ]]; then
+  if [[ -n ${KOIOS_API} ]]; then
     ! getPoolID "${pool_name}" && println "ERROR" "\n${FG_RED}ERROR${NC}: failed to get pool ID!\n" && return 1
-    ! p_opcert=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} "${PGREST_API}"/rpc/pool_opcert 2>&1) && println "ERROR" "\n${FG_RED}PGREST_API ERROR${NC}: p_opcert: ${p_opcert}\n" && p_opcert="" # print error but ignore
-    if old_counter_nbr=$(jq -er '.op_cert_counter' <<< "${p_opcert}" 2>/dev/null); then
+    ! pool_info=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} ${KOIOS_API}/pool_info 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${pool_info}\n" && p_opcert="" # print error but ignore
+    if old_counter_nbr=$(jq -er '.[0].op_cert_counter' <<< "${pool_info}" 2>/dev/null); then
       println ACTION "${CCLI} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value $(( old_counter_nbr + 1 )) --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
       ! ${CCLI} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value $(( old_counter_nbr + 1 )) --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1
     elif [[ ! -f ${pool_opcert_counter_file} ]]; then
@@ -2601,9 +2637,9 @@ runDBSyncQuery() {
       fi
     done
 
-    println LOG "curl -sSL -f ${q_data[*]} ${PGREST_API}/${q_uri}"
-    if ! q_result=$(curl -sSL -f "${q_data[@]}" "${PGREST_API}/${q_uri}" 2>&1) || ! jq -e . <<< ${q_result} &>/dev/null; then
-      println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: ${q_uri}: ${q_result}" && return 1
+    println LOG "curl -sSL -f ${q_data[*]} ${KOIOS_API}/${q_uri}"
+    if ! q_result=$(curl -sSL -f "${q_data[@]}" "${KOIOS_API}/${q_uri}" 2>&1) || ! jq -e . <<< ${q_result} &>/dev/null; then
+      println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${q_uri}: ${q_result}" && return 1
     fi
     println LOG "$(jq -c . <<< ${q_result})"
     variables[query_${q_name//[^[:alnum:]]/_}]="${q_result}"
