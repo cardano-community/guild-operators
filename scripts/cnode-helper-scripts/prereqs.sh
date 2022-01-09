@@ -190,7 +190,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
       err_exit
     fi
   elif [[ "${OS_ID}" =~ rhel ]] || [[ "${OS_ID}" =~ fedora ]] || [[ "${DISTRO}" =~ Fedora ]]; then
-    #CentOS/RHEL/Fedora
+    #CentOS/RHEL/Fedora/RockyLinux
     pkg_opts="-y"
     echo "Using yum to prepare packages for ${DISTRO} system"
     echo "  Updating system packages..."
@@ -199,13 +199,17 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     echo "  Installing missing prerequisite packages, if any.."
     pkg_list="python3 coreutils libffi-devel gmp-devel openssl-devel ncurses-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git jq gnupg2 libtool autoconf iproute bc traceroute dialog sqlite util-linux xz"
     if [[ "${VERSION_ID}" == "2" ]] ; then
+      #AmazonLinux2
       pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig srm"
     elif [[ "${VERSION_ID}" == "7" ]]; then
+      #RHEL/CentOS7
       pkg_list="${pkg_list} libusb pkgconfig srm"
     elif [[ "${VERSION_ID}" =~ "8" ]]; then
+      #RHEL/CentOS/RockyLinux8
       pkg_opts="${pkg_opts} --allowerasing"
       pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config"
     elif [[ "${DISTRO}" =~ Fedora ]]; then
+      #Fedora
       pkg_opts="${pkg_opts} --allowerasing"
       pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config srm"
     fi
