@@ -34,6 +34,8 @@ if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" 
 	EOF
   chmod 640 cabal.project.local
   cabal install bech32 cardano-addresses-cli  --overwrite-policy=always 2>&1 | tee /tmp/build-b32-caddr.log
+  rm -rf cabal.project.local
+  [[ -f cabal.project.local.swp ]] && mv cabal.project.local.swp cabal.project.local
 fi
 
 echo "Running cabal update to ensure you're on latest dependencies.."
