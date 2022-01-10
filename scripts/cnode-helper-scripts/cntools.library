@@ -905,31 +905,59 @@ getBalance() {
       fi
       if [[ ${#utxo_entry[@]} -gt "${idx}" ]]; then
         while [[ ${#utxo_entry[@]} -gt ${idx} ]]; do
-          local asset_amount=${utxo_entry[${idx}]}
+          asset_amount=${utxo_entry[${idx}]}
           if ! isNumber "${asset_amount}"; then break; fi
-          local asset_hash_name="${utxo_entry[$((idx+1))]}"
+          asset_hash_name="${utxo_entry[$((idx+1))]}"
           IFS='.' read -ra asset <<< "${asset_hash_name}"
           policyIDs["${asset[0]}"]=1
           [[ ${#asset[@]} -eq 2 && ${#asset[1]} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#asset[1]}
-          local asset_fmt="$(formatAsset ${asset_amount})"
-          [[ ${#asset_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_fmt}
-          assets["${asset_hash_name}"]=$(( ${assets["${asset_hash_name}"]:-0} + asset_amount ))
+          asset_amount_fmt="$(formatAsset ${asset_amount})"
+          [[ ${#asset_amount_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_amount_fmt}
+          assets["${asset_hash_name}"]=$(( assets["${asset_hash_name}"]:-0} + asset_amount ))
           utxos["${utxo_entry[0]}#${utxo_entry[1]}.${asset_hash_name}"]=${asset_amount}
           idx=$(( idx + 3 ))
         done
       fi
     done <<< "${utxo_raw}"
   else
-    ! addr_balance=$(curl -sSL -f -d _address=${1} ${KOIOS_API}/address_info 2>&1) && return 1
-    [[ ${addr_balance} = '[]' ]] && return
+    ! addr_info=$(curl -sSL -f -d _address=${1} ${KOIOS_API}/address_info 2>&1) && return 1
+    [[ ${addr_info} = '[]' ]] && return
 
-    assets["lovelace"]=$(jq -r .[0].balance <<< ${addr_balance})
+    assets["lovelace"]=$(jq -r .[0].balance <<< ${addr_info})
 
-    ## TODO - complete
+    for utxo in $(jq -r '.[0].utxo_set[] | @base64' <<< "${addr_info}"); do
+      ((utxo_cnt++))
+      utxo_tsv=$(jq -r '[
+      .tx_hash,
+      .tx_index,
+      .value,
+      (.asset_list|@base64)
+      ] | @tsv' <<< "$(base64 -d <<< ${utxo})")
+      read -ra utxo_entry <<< ${utxo_tsv}
+      utxos["${utxo_entry[0]}#${utxo_entry[1]}. Ada"]=${utxo_entry[2]} # Space added before 'Ada' for sort to place it first
+      tx_in+=" --tx-in ${utxo_entry[0]}#${utxo_entry[1]}"
+      asset_list=$(base64 -d <<< ${utxo_entry[3]})
+      if [[ ${asset_list} != '[]' ]]; then
+        for asset in $(jq -r '.[] | @base64' <<< "${asset_list}"); do
+          asset_tsv=$(jq -r '[
+          .policy_id,
+          .asset_name,
+          .quantity
+          ] | @tsv' <<< "$(base64 -d <<< ${asset})")
+          read -ra asset_entry <<< ${asset_tsv}
+          policyIDs["${asset_entry[0]}"]=1
+          [[ ${#asset_entry[1]} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#asset_entry[1]}
+          asset_amount_fmt="$(formatAsset ${asset_entry[2]})"
+          [[ ${#asset_amount_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_amount_fmt}
+          assets["${asset_entry[0]}.${asset_entry[1]}"]=$(( assets[${asset_entry[0]}.${asset_entry[1]}"]:-0} + asset_entry[2] ))
+          utxos["${utxo_entry[0]}#${utxo_entry[1]}.${asset_entry[0]}.${asset_entry[1]}"]=${asset_entry[2]}
+        done
+      fi
+    done
   fi
 
   [[ ${asset_name_maxlen} -ne 5 ]] && asset_name_maxlen=$(( asset_name_maxlen / 2 ))
-  local lovelace_fmt="$(formatLovelace ${assets["lovelace"]})"
+  lovelace_fmt="$(formatLovelace ${assets["lovelace"]})"
   [[ ${#lovelace_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#lovelace_fmt}
 }
 
