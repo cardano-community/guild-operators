@@ -913,7 +913,7 @@ getBalance() {
           [[ ${#asset[@]} -eq 2 && ${#asset[1]} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#asset[1]}
           asset_amount_fmt="$(formatAsset ${asset_amount})"
           [[ ${#asset_amount_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_amount_fmt}
-          assets["${asset_hash_name}"]=$(( assets["${asset_hash_name}"]:-0} + asset_amount ))
+          assets["${asset_hash_name}"]=$(( ${assets["${asset_hash_name}"]:-0} + asset_amount ))
           utxos["${utxo_entry[0]}#${utxo_entry[1]}.${asset_hash_name}"]=${asset_amount}
           idx=$(( idx + 3 ))
         done
@@ -949,7 +949,7 @@ getBalance() {
           [[ ${#asset_entry[1]} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#asset_entry[1]}
           asset_amount_fmt="$(formatAsset ${asset_entry[2]})"
           [[ ${#asset_amount_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_amount_fmt}
-          assets["${asset_entry[0]}.${asset_entry[1]}"]=$(( assets[${asset_entry[0]}.${asset_entry[1]}"]:-0} + asset_entry[2] ))
+          assets["${asset_entry[0]}.${asset_entry[1]}"]=$(( ${assets["${asset_entry[0]}.${asset_entry[1]}"]:-0} + asset_entry[2] ))
           utxos["${utxo_entry[0]}#${utxo_entry[1]}.${asset_entry[0]}.${asset_entry[1]}"]=${asset_entry[2]}
         done
       fi
