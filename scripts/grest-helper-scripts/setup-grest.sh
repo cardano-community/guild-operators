@@ -133,15 +133,16 @@
     echo ""
     get_cron_job_executable "stake-distribution-update"
     set_cron_variables "stake-distribution-update"
-    install_cron_job "stake-distribution-update" "*/30 * * * *"
+    #Special condition for guild network (NWMAGIC=141) where activity and entries are minimal, and epoch duration is 1 hour
+    [[ ${NWMAGIC} -eq 141 ]] && { install_cron_job "stake-distribution-update" "*/5 * * * *" || install_cron_job "stake-distribution-update" "*/30 * * * *" ; }
     
     get_cron_job_executable "pool-history-cache-update"
     set_cron_variables "pool-history-cache-update"
-    install_cron_job "pool-history-cache-update" "*/10 * * * *"
+    [[ ${NWMAGIC} -eq 141 ]] && { install_cron_job "pool-history-cache-update" "*/5 * * * *" || install_cron_job "pool-history-cache-update" "*/10 * * * *"; }
 
     get_cron_job_executable "epoch-info-cache-update"
     set_cron_variables "epoch-info-cache-update"
-    install_cron_job "epoch-info-cache-update" "*/15 * * * *"
+    [[ ${NWMAGIC} -eq 141 ]] && { install_cron_job "epoch-info-cache-update" "*/5 * * * *" || install_cron_job "epoch-info-cache-update" "*/15 * * * *"; }
 
     # Only testnet and mainnet asset registries supported
     # Possible future addition for the Guild network once there is a guild registry
@@ -354,9 +355,9 @@
     # Create HAProxy config template
     [[ -f "${HAPROXY_CFG}" ]] && cp "${HAPROXY_CFG}" "${HAPROXY_CFG}".bkp_$(date +%s)
     case ${NWMAGIC} in
-      1097911063) KOIOS_SRV="testnet.koios.rest:8453" ;;
-      764824073)  KOIOS_SRV="api.koios.rest:8453" ;;
-      *) KOIOS_SRV="guild.koios.rest:8453" ;;
+      1097911063) KOIOS_SRV="testnet.koios.rest" ;;
+      764824073)  KOIOS_SRV="api.koios.rest" ;;
+      *) KOIOS_SRV="guild.koios.rest" ;;
     esac
 
     # Create skeleton whitelist URL file if one does not already exist using most common option
@@ -369,7 +370,7 @@
     bash -c "cat <<-EOF > ${HAPROXY_CFG}
 			global
 			  daemon
-			  nbthread 2
+			  nbthread 4
 			  maxconn 256
 			  ulimit-n 65536
 			  stats socket \"\\\$GRESTTOP\"/sockets/haproxy.socket mode 0600 level admin user ${USER}
@@ -396,6 +397,7 @@
 			frontend app
 			  bind 0.0.0.0:8053
 			  http-request set-log-level silent
+			  acl is_wss hdr(Upgrade) -i websocket
 			  ## Replace servername.koios.rest below
 			  #http-request replace-value Host (.*):8053 servername.koios.rest:8453
 			  #redirect scheme https code 301 if !{ ssl_fc }
@@ -405,6 +407,8 @@
 			  http-request use-service prometheus-exporter if { path /metrics }
 			  http-request track-sc0 src table flood_lmt_rate
 			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 250 }
+			  use_backend ogmios_core if { path_beg /api/v0/ogmios } || { path_beg /dashboard.js } || { path_beg /assets } || { path_beg /health } || is_wss
+			  use_backend submitapi if { path_beg /api/v0/submittx }
 			  default_backend grest_core
 			
 			backend grest_core
@@ -419,11 +423,29 @@
 			  external-check path \"/usr/bin:/bin:/tmp:/sbin:/usr/sbin\"
 			  external-check command \"\\\$GRESTTOP\"/scripts/grest-poll.sh
 			  server local 127.0.0.1:8050 check inter 20000
-			  server koios-ssl ${KOIOS_SRV} backup ssl verify none
+			  server koios-ssl ${KOIOS_SRV}:443 backup ssl verify none
 			  ## When adding a peer, ensure to end server name with 'ssl' if enabled as in example below:
 			  ## server name-ssl server.name:443 check inter 60000 ssl verify none
 			  http-response cache-store grestcache
 			  http-response set-header X-Frame-Options: DENY
+			
+			backend ogmios_core
+			  balance first
+			  http-request set-path \"%[path,regsub(^/api/v0/ogmios/,/)]\"
+			  option httpchk GET /health
+			  http-check expect status 200
+			  default-server inter 20s fall 1 rise 2
+			  server local 127.0.0.1:1337 check
+			  server koios-ssl ${KOIOS_SRV}:7443 backup ssl verify none
+			
+			backend submitapi
+			  balance first
+			  option httpchk POST /api/submit/tx
+			  http-request set-path \"%[path,regsub(^/api/v0/submittx,/api/submit/tx)]\"
+			  http-check expect status 415
+			  default-server inter 20s fall 1 rise 2
+			  server rdlrt 127.0.0.1:8090 check
+			  server koios-ssl ${KOIOS_SRV}:443 backup ssl verify none
 			
 			backend flood_lmt_rate
 			  stick-table type ip size 1m expire 10m store http_req_rate(10s)
