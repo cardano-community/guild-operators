@@ -143,6 +143,11 @@
     get_cron_job_executable "epoch-info-cache-update"
     set_cron_variables "epoch-info-cache-update"
     [[ ${NWMAGIC} -eq 141 ]] && { install_cron_job "epoch-info-cache-update" "*/5 * * * *" || install_cron_job "epoch-info-cache-update" "*/15 * * * *"; }
+    
+    get_cron_job_executable "active-stake-cache-update"
+    set_cron_variables "active-stake-cache-update"
+    install_cron_job "active-stake-cache-update" "*/15 * * * *"
+    [[ ${NWMAGIC} -eq 141 ]] && { install_cron_job "active-stake-cache-update" "*/5 * * * *" || install_cron_job "active-stake-cache-update" "*/15 * * * *"; }
 
     # Only testnet and mainnet asset registries supported
     # Possible future addition for the Guild network once there is a guild registry
