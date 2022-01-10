@@ -14,6 +14,14 @@ CREATE TABLE IF NOT EXISTS GREST.EPOCH_ACTIVE_STAKE_CACHE (
   PRIMARY KEY (EPOCH_NO)
 );
 
+CREATE TABLE IF NOT EXISTS GREST.ACCOUNT_ACTIVE_STAKE_CACHE (
+  STAKE_ADDRESS varchar NOT NULL,
+  POOL_ID varchar NOT NULL,
+  EPOCH_NO bigint NOT NULL,
+  AMOUNT LOVELACE NOT NULL,
+  PRIMARY KEY (STAKE_ADDRESS, POOL_ID, EPOCH_NO)
+);
+
 -- For easier updates only:
 DROP TRIGGER IF EXISTS POOL_ACTIVE_STAKE_EPOCH_UPDATE_TRIGGER ON PUBLIC.EPOCH_STAKE;
 DROP TRIGGER IF EXISTS EPOCH_ACTIVE_STAKE_EPOCH_UPDATE_TRIGGER ON PUBLIC.EPOCH_STAKE;
@@ -107,6 +115,7 @@ $$
   DECLARE
   _last_pool_active_stake_cache_epoch_no integer;
   _last_epoch_active_stake_cache_epoch_no integer;
+  _last_account_active_stake_cache_epoch_no integer;
   BEGIN
     /* POOL ACTIVE STAKE CACHE */
     SELECT
@@ -162,10 +171,43 @@ $$
       ) DO UPDATE
         SET AMOUNT = EXCLUDED.AMOUNT;
 
-      PERFORM grest.update_control_table(
-        'last_active_stake_validated_epoch',
-        _epoch_no::text
-      );
+    /* ACCOUNT ACTIVE STAKE CACHE */
+    SELECT
+      COALESCE(MAX(epoch_no), 0)
+    FROM
+      GREST.ACCOUNT_ACTIVE_STAKE_CACHE
+    INTO _last_account_active_stake_cache_epoch_no;
+
+    INSERT INTO GREST.ACCOUNT_ACTIVE_STAKE_CACHE
+      SELECT
+        STAKE_ADDRESS.VIEW AS STAKE_ADDRESS,
+        POOL_HASH.VIEW AS POOL_ID,
+        EPOCH_STAKE.EPOCH_NO AS EPOCH_NO,
+        SUM(EPOCH_STAKE.AMOUNT) AS AMOUNT
+      FROM
+        EPOCH_STAKE
+        INNER JOIN POOL_HASH ON POOL_HASH.ID = EPOCH_STAKE.POOL_ID
+        INNER JOIN STAKE_ADDRESS ON STAKE_ADDRESS.ID = EPOCH_STAKE.ADDR_ID
+      WHERE
+        EPOCH_STAKE.EPOCH_NO > _last_account_active_stake_cache_epoch_no -- no need to worry about epoch 0 as no stake then
+        AND
+        EPOCH_STAKE.EPOCH_NO <= _epoch_no
+      GROUP BY
+        STAKE_ADDRESS.ID,
+        POOL_HASH.ID,
+        EPOCH_STAKE.EPOCH_NO
+    ON CONFLICT (
+      STAKE_ADDRESS,
+      POOL_ID,
+      EPOCH_NO
+    ) DO UPDATE
+      SET AMOUNT = EXCLUDED.AMOUNT;
+
+    /* CONTROL TABLE ENTRY */
+    PERFORM grest.update_control_table(
+      'last_active_stake_validated_epoch',
+      _epoch_no::text
+    );
   END;
 $$;
 

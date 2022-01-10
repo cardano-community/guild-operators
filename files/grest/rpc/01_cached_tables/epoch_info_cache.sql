@@ -71,11 +71,8 @@ BEGIN
     END IF;
 
   -- GREST control table entry
-  INSERT INTO GREST.CONTROL_TABLE (key, last_value)
-    VALUES('epoch_info_cache_last_update', NOW() at time zone 'utc')
-    ON CONFLICT (key)
-    DO UPDATE
-      SET last_value = NOW() at time zone 'utc';
+  PERFORM grest.update_control_table('pool_history_cache_last_updated', now() at time zone 'utc');
+
 
   IF _epoch_no_to_insert_from IS NULL THEN
     SELECT
