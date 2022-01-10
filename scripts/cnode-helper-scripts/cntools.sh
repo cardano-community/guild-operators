@@ -869,8 +869,8 @@ function main {
                   println "${FG_LBLUE}${utxo_cnt} UTxO(s)${NC} found for ${FG_GREEN}${address_type}${NC} Address!"
                   if [[ ${utxo_cnt} -gt 0 ]]; then
                     echo
-                    println DEBUG "$(printf "%-66s ${FG_DGRAY}|${NC} %${asset_name_maxlen}s ${FG_DGRAY}|${NC} %-${asset_amount_maxlen}s\n" "UTxO Hash#Index" "Asset" "Amount")"
-                    println DEBUG "${FG_DGRAY}$(printf "%67s+%$((asset_name_maxlen+2))s+%$((asset_amount_maxlen+1))s\n" "" "" "" | tr " " "-")${NC}"
+                    println DEBUG "$(printf "%-67s ${FG_DGRAY}|${NC} %${asset_name_maxlen}s ${FG_DGRAY}|${NC} %-${asset_amount_maxlen}s\n" "UTxO Hash#Index" "Asset" "Amount")"
+                    println DEBUG "${FG_DGRAY}$(printf "%68s+%$((asset_name_maxlen+2))s+%$((asset_amount_maxlen+1))s\n" "" "" "" | tr " " "-")${NC}"
                     mapfile -d '' utxos_sorted < <(printf '%s\0' "${!utxos[@]}" | sort -z)
                     for utxo in "${utxos_sorted[@]}"; do
                       IFS='.' read -ra utxo_arr <<< "${utxo}"
