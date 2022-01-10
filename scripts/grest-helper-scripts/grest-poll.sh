@@ -62,7 +62,7 @@ function chk_upd() {
   #! checkUpdate env Y N N && exit 1
   ( ! checkUpdate grest-poll.sh Y N N grest-helper-scripts ) && echo "ERROR: checkUpdate Failed" && exit 1
   curl -sfkL "${API_STRUCT_DEFINITION}" -o "${LOCAL_SPEC}" 2>/dev/null || return 0
-  grep " #RPC" "${LOCAL_SPEC}" | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${PARENT}/../grestrpcs"
+  grep " #RPC" "${LOCAL_SPEC}" | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${PARENT}/../files/grestrpcs"
 }
 
 function optexit() {
