@@ -137,12 +137,17 @@ function chk_rpcs() {
 function chk_cache_status() {
   last_stakedist_block=$(curl -skL "${URL}/control_table?key=eq.stake_distribution_lbh" | jq -r .[0].last_value 2>/dev/null)
   last_poolhist_update=$(curl -skL "${URL}/control_table?key=eq.pool_history_cache_last_updated" | jq -r .[0].last_value 2>/dev/null)
+  last_actvstake_epoch=$(curl -skL "${URL}/control_table?key=eq.last_active_stake_validated_epoch" | jq -r .[0].last_value 2>/dev/null)
   if [[ "${last_stakedist_block}" == "" ]] || [[ "${last_stakedist_block}" == "[]" ]] || [[ $(( block_no - last_stakedist_block )) -gt 1000 ]]; then
     echo "ERROR: Stake Distribution cache too far from tip !!"
     optexit
   fi
   if [[ "${last_poolhist_update}" == "" ]] || [[ "${last_poolhist_update}" == "[]" ]] || [[ $(( $(TZ='UTC' date +%s) - $(date -d "${last_poolhist_update}" -u +%s) )) -gt 1000 ]]; then
     echo "ERROR: Pool History cache too far from tip !!"
+    optexit
+  fi
+  if [[ "${last_actvstake_epoch}" == "" ]] || [[ "${last_actvstake_epoch}" == "[]" ]] || [[ "${last_actvstake_epoch}" != "${epoch}" ]]; then
+    echo "ERROR: Active Stake cache too far from tip !!"
     optexit
   fi
   # TODO: Ensure other cache tables have entry in control table , potentially with last update time
