@@ -875,7 +875,7 @@ function main {
                     for utxo in "${utxos_sorted[@]}"; do
                       IFS='.' read -ra utxo_arr <<< "${utxo}"
                       if [[ ${#utxo_arr[@]} -eq 2 && ${utxo_arr[1]} = " Ada" ]]; then
-                        println DEBUG "$(printf "%-66s ${FG_DGRAY}|${NC} ${FG_GREEN}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "${utxo_arr[0]}" "Ada" "$(formatLovelace ${utxos["${utxo}"]})")"
+                        println DEBUG "$(printf "%-67s ${FG_DGRAY}|${NC} ${FG_GREEN}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "${utxo_arr[0]}" "Ada" "$(formatLovelace ${utxos["${utxo}"]})")"
                       else
                         [[ ${#utxo_arr[@]} -eq 3 ]] && asset_name="${utxo_arr[2]}" || asset_name=""
                         if [[ -n ${token_name[${utxo_arr[1]}.${asset_name}]} ]]; then
@@ -884,7 +884,7 @@ function main {
                           tname="$(hexToAscii ${asset_name})"
                         fi
                         ! assets_id_bech32=$(getAssetIDBech32 ${utxo_arr[1]} ${tname}) && continue 3
-                        println DEBUG "$(printf "${FG_DGRAY}%22s${NC}${FG_LGRAY}%44s${NC} ${FG_DGRAY}|${NC} ${FG_MAGENTA}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "Asset Fingerprint: " "${assets_id_bech32}" "${tname}" "$(formatAsset ${utxos["${utxo}"]})")"
+                        println DEBUG "$(printf "${FG_DGRAY}%20s${NC}${FG_LGRAY}%-47s${NC} ${FG_DGRAY}|${NC} ${FG_MAGENTA}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "Asset Fingerprint: " "${assets_id_bech32}" "${tname}" "$(formatAsset ${utxos["${utxo}"]})")"
                       fi
                     done
                   fi

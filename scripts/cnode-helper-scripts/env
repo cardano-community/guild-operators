@@ -333,6 +333,7 @@ formatAsset() {
 # Description : Convert number in Ada to Lovelace
 #             : $1 = Amount in Ada, decimal number accepted (using dot)
 AdaToLovelace() {
+  [[ -z $1 ]] && return 1
   if validateDecimalNbr $1; then
     echo "$1 * 1000000 / 1" | bc # /1 is to remove decimals from bc command
   else
