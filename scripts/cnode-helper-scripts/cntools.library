@@ -885,87 +885,52 @@ getBalance() {
   asset_name_maxlen=5; asset_amount_maxlen=12
   tx_in=""
   
-  if [[ -z ${1} ]] || ! utxo_raw=$(${CCLI} query utxo ${NETWORK_IDENTIFIER} --address "${1}"); then return 1; fi
-  
-  [[ -z ${utxo_raw} ]] && return
-  
-  while IFS= read -r line; do
-    IFS=' ' read -ra utxo_entry <<< "${line}"
-    [[ ${#utxo_entry[@]} -lt 4 ]] && continue
-    ((utxo_cnt++))
-    tx_in+=" --tx-in ${utxo_entry[0]}#${utxo_entry[1]}"
-    if [[ ${utxo_entry[3]} = "lovelace" ]]; then
-      utxos["${utxo_entry[0]}#${utxo_entry[1]}. Ada"]=${utxo_entry[2]} # Space added before 'Ada' for sort to place it first
-      assets["lovelace"]=$(( ${assets["lovelace"]:-0} + utxo_entry[2] ))
-      idx=5
-    else
-      utxos["${utxo_entry[0]}#${utxo_entry[1]}. Ada"]=0 # Space added before 'Ada' for sort to place it first
-      assets["lovelace"]=0
-      idx=2
-    fi
-    if [[ ${#utxo_entry[@]} -gt "${idx}" ]]; then
-      while [[ ${#utxo_entry[@]} -gt ${idx} ]]; do
-        local asset_amount=${utxo_entry[${idx}]}
-        if ! isNumber "${asset_amount}"; then break; fi
-        local asset_hash_name="${utxo_entry[$((idx+1))]}"
-        IFS='.' read -ra asset <<< "${asset_hash_name}"
-        policyIDs["${asset[0]}"]=1
-        [[ ${#asset[@]} -eq 2 && ${#asset[1]} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#asset[1]}
-        local asset_fmt="$(formatAsset ${asset_amount})"
-        [[ ${#asset_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_fmt}
-        assets["${asset_hash_name}"]=$(( ${assets["${asset_hash_name}"]:-0} + asset_amount ))
-        utxos["${utxo_entry[0]}#${utxo_entry[1]}.${asset_hash_name}"]=${asset_amount}
-        idx=$(( idx + 3 ))
-      done
-    fi
-  done <<< "${utxo_raw}"
+  if [[ -z ${KOIOS_API} ]]; then
+    if [[ -z ${1} ]] || ! utxo_raw=$(${CCLI} query utxo ${NETWORK_IDENTIFIER} --address "${1}"); then return 1; fi
+    [[ -z ${utxo_raw} ]] && return
+    
+    while IFS= read -r line; do
+      IFS=' ' read -ra utxo_entry <<< "${line}"
+      [[ ${#utxo_entry[@]} -lt 4 ]] && continue
+      ((utxo_cnt++))
+      tx_in+=" --tx-in ${utxo_entry[0]}#${utxo_entry[1]}"
+      if [[ ${utxo_entry[3]} = "lovelace" ]]; then
+        utxos["${utxo_entry[0]}#${utxo_entry[1]}. Ada"]=${utxo_entry[2]} # Space added before 'Ada' for sort to place it first
+        assets["lovelace"]=$(( ${assets["lovelace"]:-0} + utxo_entry[2] ))
+        idx=5
+      else
+        utxos["${utxo_entry[0]}#${utxo_entry[1]}. Ada"]=0 # Space added before 'Ada' for sort to place it first
+        assets["lovelace"]=0
+        idx=2
+      fi
+      if [[ ${#utxo_entry[@]} -gt "${idx}" ]]; then
+        while [[ ${#utxo_entry[@]} -gt ${idx} ]]; do
+          local asset_amount=${utxo_entry[${idx}]}
+          if ! isNumber "${asset_amount}"; then break; fi
+          local asset_hash_name="${utxo_entry[$((idx+1))]}"
+          IFS='.' read -ra asset <<< "${asset_hash_name}"
+          policyIDs["${asset[0]}"]=1
+          [[ ${#asset[@]} -eq 2 && ${#asset[1]} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#asset[1]}
+          local asset_fmt="$(formatAsset ${asset_amount})"
+          [[ ${#asset_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_fmt}
+          assets["${asset_hash_name}"]=$(( ${assets["${asset_hash_name}"]:-0} + asset_amount ))
+          utxos["${utxo_entry[0]}#${utxo_entry[1]}.${asset_hash_name}"]=${asset_amount}
+          idx=$(( idx + 3 ))
+        done
+      fi
+    done <<< "${utxo_raw}"
+  else
+    ! addr_balance=$(curl -sSL -f -d _address=${1} ${KOIOS_API}/address_info 2>&1) && return 1
+    [[ ${addr_balance} = '[]' ]] && return
+
+    assets["lovelace"]=$(jq -r .[0].balance <<< ${addr_balance})
+
+    ## TODO - complete
+  fi
+
   [[ ${asset_name_maxlen} -ne 5 ]] && asset_name_maxlen=$(( asset_name_maxlen / 2 ))
   local lovelace_fmt="$(formatLovelace ${assets["lovelace"]})"
   [[ ${#lovelace_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#lovelace_fmt}
-
-  # Alternative code using jq (jq has issues with large integer numbers)
-  : <<'END_COMMENT'
-  if ! utxo_JSON=$(${CCLI} query utxo ${NETWORK_IDENTIFIER} --address "${1}" --out-file /dev/stdout); then return 1; fi
-  
-  utxo_cnt=$(jq length <<< ${utxo_JSON})
-  [[ ${utxo_cnt} = 0 ]] && return
-  
-  # pre Mary style UTxO, if so handle differently
-  if [[ "$(jq -r '[.[]][0].amount | type' <<< ${utxo_JSON})" = "number" ]]; then
-    local lovelace=$(jq '[.[].amount] | add' <<< ${utxo_JSON})
-    local lovelace_fmt="$(formatLovelace ${lovelace})"
-    [[ ${#lovelace_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#lovelace_fmt}
-    assets["lovelace"]="${lovelace}"
-    while read -r utxo_hash_index utxo_amount; do
-      tx_in+=" --tx-in ${utxo_hash_index}"
-      utxos["${utxo_hash_index}.Ada"]=${utxo_amount}
-    done < <(jq -r 'to_entries[] | [.key, .value.amount] | @tsv' <<< ${utxo_JSON})
-    return 0
-  fi
-  
-  local lovelace=$(jq '[.[].amount[0]] | add' <<< ${utxo_JSON})
-  local lovelace_fmt="$(formatLovelace ${lovelace})"
-  [[ ${#lovelace_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#lovelace_fmt}
-  assets["lovelace"]="${lovelace}"
-  while read -r utxo_hash_index utxo_amount assets_b64; do
-    tx_in+=" --tx-in ${utxo_hash_index}"
-    utxos["${utxo_hash_index}. Ada"]=${utxo_amount} # Space added before 'Ada' for sort to place it first
-    while read -r asset_policyID assets2_b64; do
-      policyIDs["${asset_policyID}"]=1
-      while read -r assetName assetAmount; do
-        if [[ ${assetName} = "_" ]]; then
-          assets["${asset_policyID}"]=$(( ${assets["${asset_policyID}"]:-0} + assetAmount ))
-          utxos["${utxo_hash_index}.${asset_policyID}"]=${assetAmount}
-        else
-          [[ ${#assetName} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#assetName}
-          assets["${asset_policyID}.${assetName}"]=$(( ${assets["${asset_policyID}.${assetName}"]:-0} + assetAmount ))
-          utxos["${utxo_hash_index}.${asset_policyID}.${assetName}"]=${assetAmount}
-        fi
-        [[ ${#assetAmount} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#assetAmount}
-      done < <(base64 -d <<< ${assets2_b64} | jq -r 'to_entries[] | [(.value[0] | if . == null or . == "" then "_" else . end), .value[1]//0] | @tsv')
-    done < <(base64 -d <<< ${assets_b64} | jq -r 'to_entries[] | [(.value[0] //empty), (.value[1] | @base64)] | @tsv')
-  done < <(jq -r 'to_entries[] | [.key, .value.amount[0], (.value.amount[1] | @base64)] | @tsv' <<< ${utxo_JSON})
-END_COMMENT
 }
 
 # Command     : getAssetsTxOut [PolicyID.AssetName] [Amount]
