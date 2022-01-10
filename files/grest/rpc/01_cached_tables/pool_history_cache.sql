@@ -205,7 +205,10 @@ begin
                             when 0 then
                               null
                             else
-                              ROUND(actf.pool_fee_fixed + (((COALESCE(m.memtotal, 0) + COALESCE(l.leadertotal, 0)) - actf.pool_fee_fixed) * actf.pool_fee_variable))
+                                case 
+                                    when COALESCE(l.leadertotal, 0) < actf.pool_fee_fixed then COALESCE(l.leadertotal, 0)
+                                    else ROUND(actf.pool_fee_fixed + (((COALESCE(m.memtotal, 0) + COALESCE(l.leadertotal, 0)) - actf.pool_fee_fixed) * actf.pool_fee_variable))
+                                end
                             end
                           end pool_fees,
                           case COALESCE(b.block_cnt, 0)
@@ -217,7 +220,10 @@ begin
                             when 0 then
                               null
                             else
-                              ROUND(COALESCE(m.memtotal, 0) + (COALESCE(l.leadertotal, 0) - (actf.pool_fee_fixed + (((COALESCE(m.memtotal, 0) + COALESCE(l.leadertotal, 0)) - actf.pool_fee_fixed) * actf.pool_fee_variable))))
+                              case
+                              when COALESCE(l.leadertotal, 0) < actf.pool_fee_fixed then COALESCE(m.memtotal, 0)
+                              else ROUND(COALESCE(m.memtotal, 0) + (COALESCE(l.leadertotal, 0) - (actf.pool_fee_fixed + (((COALESCE(m.memtotal, 0) + COALESCE(l.leadertotal, 0)) - actf.pool_fee_fixed) * actf.pool_fee_variable))))
+                              end
                             end
                           end deleg_rewards,
                           case COALESCE(b.block_cnt, 0)
@@ -229,9 +235,13 @@ begin
                             when 0 then
                               null
                             else
+                              case
+                              when COALESCE(l.leadertotal, 0) < actf.pool_fee_fixed then 
+                                   ROUND((((POW(( LEAST(( (COALESCE(m.memtotal, 0)) / (NULLIF(actf.active_stake,0)) ), 1000) + 1), 73) - 1)) * 100)::numeric, 9)
                               -- using LEAST as a way to prevent overflow, in case of dodgy database data (e.g. giant rewards / tiny active stake)
-                              ROUND((((POW(( LEAST(( ((COALESCE(m.memtotal, 0) + (COALESCE(l.leadertotal, 0) - (actf.pool_fee_fixed + (((COALESCE(m.memtotal, 0) + 
-								              COALESCE(l.leadertotal, 0)) - actf.pool_fee_fixed) * actf.pool_fee_variable))))) / (NULLIF(actf.active_stake,0)) ), 1000) + 1), 73) - 1)) * 100)::numeric, 2)
+                              else ROUND((((POW(( LEAST(( ((COALESCE(m.memtotal, 0) + (COALESCE(l.leadertotal, 0) - (actf.pool_fee_fixed + (((COALESCE(m.memtotal, 0) + 
+								              COALESCE(l.leadertotal, 0)) - actf.pool_fee_fixed) * actf.pool_fee_variable))))) / (NULLIF(actf.active_stake,0)) ), 1000) + 1), 73) - 1)) * 100)::numeric, 9)
+                              end
                             end
                           end epoch_ros
                         from
