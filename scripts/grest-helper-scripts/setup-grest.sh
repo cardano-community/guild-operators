@@ -134,20 +134,19 @@
     get_cron_job_executable "stake-distribution-update"
     set_cron_variables "stake-distribution-update"
     #Special condition for guild network (NWMAGIC=141) where activity and entries are minimal, and epoch duration is 1 hour
-    [[ ${NWMAGIC} -eq 141 ]] && { install_cron_job "stake-distribution-update" "*/5 * * * *" || install_cron_job "stake-distribution-update" "*/30 * * * *" ; }
-    
+    [[ ${NWMAGIC} -eq 141 ]] && install_cron_job "stake-distribution-update" "*/5 * * * *" || install_cron_job "stake-distribution-update" "*/30 * * * *"
+
     get_cron_job_executable "pool-history-cache-update"
     set_cron_variables "pool-history-cache-update"
-    [[ ${NWMAGIC} -eq 141 ]] && { install_cron_job "pool-history-cache-update" "*/5 * * * *" || install_cron_job "pool-history-cache-update" "*/10 * * * *"; }
+    [[ ${NWMAGIC} -eq 141 ]] && install_cron_job "pool-history-cache-update" "*/5 * * * *" || install_cron_job "pool-history-cache-update" "*/10 * * * *"
 
     get_cron_job_executable "epoch-info-cache-update"
     set_cron_variables "epoch-info-cache-update"
-    [[ ${NWMAGIC} -eq 141 ]] && { install_cron_job "epoch-info-cache-update" "*/5 * * * *" || install_cron_job "epoch-info-cache-update" "*/15 * * * *"; }
-    
+    [[ ${NWMAGIC} -eq 141 ]] && install_cron_job "epoch-info-cache-update" "*/5 * * * *" || install_cron_job "epoch-info-cache-update" "*/15 * * * *"
+
     get_cron_job_executable "active-stake-cache-update"
     set_cron_variables "active-stake-cache-update"
-    install_cron_job "active-stake-cache-update" "*/15 * * * *"
-    [[ ${NWMAGIC} -eq 141 ]] && { install_cron_job "active-stake-cache-update" "*/5 * * * *" || install_cron_job "active-stake-cache-update" "*/15 * * * *"; }
+    [[ ${NWMAGIC} -eq 141 ]] && install_cron_job "active-stake-cache-update" "*/5 * * * *" || install_cron_job "active-stake-cache-update" "*/15 * * * *"
 
     # Only testnet and mainnet asset registries supported
     # Possible future addition for the Guild network once there is a guild registry
