@@ -56,7 +56,7 @@ else
   echo "Building.."
   cabal build all 2>&1 | tee /tmp/build.log
 
-    if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" ]]; then
+  if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" ]]; then
     echo "Overwriting cabal.project.local to include cardano-addresses and bech32 (previous file, if any, will be saved as cabal.project.local.swp).."
     [[ -f cabal.project.local ]] && mv cabal.project.local cabal.project.local.swp
     cat <<-EOF > cabal.project.local
