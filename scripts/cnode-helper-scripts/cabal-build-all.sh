@@ -16,23 +16,23 @@ if [[ "$1" == "-l" ]] ; then
     echo "Overwriting cabal.project.local to include cardano-addresses and bech32 (previous file, if any, will be saved as cabal.project.local.swp2).."
     [[ -f cabal.project.local ]] && mv cabal.project.local cabal.project.local.swp2
     cat <<-EOF > cabal.project.local
-    ${USE_SYSTEM_LIBSODIUM}
+	${USE_SYSTEM_LIBSODIUM}
 
-    source-repository-package
-      type: git
-      location: https://github.com/input-output-hk/bech32
-      tag: c33dbf2edeb6930328503871e145f011cb20127e
-      subdir: bech32
+	source-repository-package
+	  type: git
+	  location: https://github.com/input-output-hk/bech32
+	  tag: c33dbf2edeb6930328503871e145f011cb20127e
+	  subdir: bech32
 
-    source-repository-package
-      type: git
-      location: https://github.com/input-output-hk/cardano-addresses
-      tag: 9fe7084c9c53b9edf3eba34ee8459c896734ac7a
-      subdir:
-        command-line
-        core
+	source-repository-package
+	  type: git
+	  location: https://github.com/input-output-hk/cardano-addresses
+	  tag: 9fe7084c9c53b9edf3eba34ee8459c896734ac7a
+	  subdir:
+	    command-line
+	    core
 
-    EOF
+	EOF
     chmod 640 cabal.project.local
     cabal install bech32 cardano-addresses-cli  --overwrite-policy=always 2>&1 | tee /tmp/build-b32-caddr.log
   fi
@@ -60,21 +60,21 @@ else
     echo "Overwriting cabal.project.local to include cardano-addresses and bech32 (previous file, if any, will be saved as cabal.project.local.swp).."
     [[ -f cabal.project.local ]] && mv cabal.project.local cabal.project.local.swp
     cat <<-EOF > cabal.project.local
-    source-repository-package
-      type: git
-      location: https://github.com/input-output-hk/bech32
-      tag: c33dbf2edeb6930328503871e145f011cb20127e
-      subdir: bech32
+	source-repository-package
+	  type: git
+	  location: https://github.com/input-output-hk/bech32
+	  tag: c33dbf2edeb6930328503871e145f011cb20127e
+	  subdir: bech32
 
-    source-repository-package
-      type: git
-      location: https://github.com/input-output-hk/cardano-addresses
-      tag: 9fe7084c9c53b9edf3eba34ee8459c896734ac7a
-      subdir:
-        command-line
-        core
+	source-repository-package
+	  type: git
+	  location: https://github.com/input-output-hk/cardano-addresses
+	  tag: 9fe7084c9c53b9edf3eba34ee8459c896734ac7a
+	  subdir:
+	    command-line
+	    core
 
-    EOF
+	EOF
     chmod 640 cabal.project.local
     cabal install bech32 cardano-addresses-cli  --overwrite-policy=always 2>&1 | tee /tmp/build-b32-caddr.log
   fi
