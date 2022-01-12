@@ -11,6 +11,9 @@
 echo "Deleting build config artifact to remove cached version, this prevents invalid Git Rev"
 find dist-newstyle/build/x86_64-linux/ghc-8.10.?/cardano-config-* >/dev/null 2>&1 && rm -rf "dist-newstyle/build/x86_64-linux/ghc-8.*/cardano-config-*"
 
+echo "Running cabal update to ensure you're on latest dependencies.."
+cabal update 2>&1 | tee /tmp/cabal-build.log
+
 if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" ]] && [[ "$1" == "-l" ]] ; then
   echo "Overwriting cabal.project.local to include system libsodium (previous file, if any, will be saved as cabal.project.local.swp).."
   [[ -f cabal.project.local ]] && mv cabal.project.local cabal.project.local.swp
@@ -19,10 +22,12 @@ if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" 
 
 	EOF
   chmod 640 cabal.project.local
+elif [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" ]] && [[ ! "$1" == "-l" ]] ; then
+  ghcup set ghc 8.10.7
+  ghcup set cabal 3.4.0.0
+  cabal configure --with-compiler=ghc-8.10.7
 fi
 
-echo "Running cabal update to ensure you're on latest dependencies.."
-cabal update 2>&1 | tee /tmp/cabal-build.log
 echo "Building.."
 cabal build all 2>&1 | tee /tmp/build.log
 
