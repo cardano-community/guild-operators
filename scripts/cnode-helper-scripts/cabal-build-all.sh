@@ -11,12 +11,27 @@
 echo "Deleting build config artifact to remove cached version, this prevents invalid Git Rev"
 find dist-newstyle/build/x86_64-linux/ghc-8.10.?/cardano-config-* >/dev/null 2>&1 && rm -rf "dist-newstyle/build/x86_64-linux/ghc-8.*/cardano-config-*"
 
-if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" ]]; then
-  echo "Overwriting cabal.project.local to include cardano-addresses and bech32 (previous file, if any, will be saved as cabal.project.local.swp).."
+if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" ]] && [[ "$1" == "-l" ]] ; then
+  echo "Overwriting cabal.project.local to include system libsodium (previous file, if any, will be saved as cabal.project.local.swp).."
   [[ -f cabal.project.local ]] && mv cabal.project.local cabal.project.local.swp
   cat <<-EOF > cabal.project.local
 	${USE_SYSTEM_LIBSODIUM}
-	
+
+	EOF
+  chmod 640 cabal.project.local
+fi
+
+echo "Running cabal update to ensure you're on latest dependencies.."
+cabal update 2>&1 | tee /tmp/cabal-build.log
+echo "Building.."
+cabal build all 2>&1 | tee /tmp/build.log
+
+if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" ]]; then
+  echo "Overwriting cabal.project.local to include cardano-addresses and bech32 (previous file, if any, will be saved as cabal.project.local.swp2).."
+  [[ -f cabal.project.local ]] && mv cabal.project.local cabal.project.local.swp2
+  cat <<-EOF > cabal.project.local
+	${USE_SYSTEM_LIBSODIUM}
+
 	source-repository-package
 	  type: git
 	  location: https://github.com/input-output-hk/bech32
@@ -34,21 +49,7 @@ if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" 
 	EOF
   chmod 640 cabal.project.local
   cabal install bech32 cardano-addresses-cli  --overwrite-policy=always 2>&1 | tee /tmp/build-b32-caddr.log
-  rm -rf cabal.project.local
-  if [[ "$1" == "-l" ]] ; then
-    cat <<-EOF > cabal.project.local
-		${USE_SYSTEM_LIBSODIUM}
-
-		EOF
-    chmod 640 cabal.project.local
-  fi
 fi
-
-echo "Running cabal update to ensure you're on latest dependencies.."
-cabal update 2>&1 | tee /tmp/cabal-build.log
-[[ "$1" != "-l" ]] && cabal configure --with-compiler=ghc-8.10.7 | tee /tmp/cabal-build.log
-echo "Building.."
-cabal build all 2>&1 | tee /tmp/build.log
 
 grep "^Linking" /tmp/build.log | grep -Ev 'test|golden|demo|chairman|locli|ledger|topology' | while read -r line ; do
     act_bin_path=$(echo "$line" | awk '{print $2}')
