@@ -8,31 +8,11 @@
 
 #
 # Todo:
-#  - [x] Move check tip to function
-#  - [x] Add handling of ssl to SCHEME if haproxy.cfg defines endpoint with name
-#  - [x] Move hard coded values to environment variables that can be overridden
-#  - [x] Add chk_endpt_get (parameters: [endpoint starting from /] [rpc|view]
-#  - [x] Add chk_endpt_post (parameters: [endpoint starting from /] [data to submit to POST request]
-#  - [x] Add comparisons for RPC structure itself (prefer local, as it only impacts failover 'from' local instance, and allows to test different branches
-#        This comparison is purely for RPC function name, number of parameters, and name of parameters - derived from koiosapi.yaml on github
-#  - [x] (External) Automate sync of koiosapi from alpha branch every 3 hours on monitoring instance
-#  - [x] Remove loopback of failover (you do not want to mark yourself available, doing failover to remote instance if local struct does not match - redundant hop)
-#        For previous iteration, if instance is DOWN but one of the peer is UP, haproxy would continue to mark instance as available making 2 additional hops within haproxy loop
-#        The behaviour is logged on monitoring instance - so can be easily caught if abused, but more often than not would be done unintentionally
-#  - [x] Ensure the postgREST limit returned is 1000
-#  - [x] Add updateCheck for grest-poll itself, checked hourly (or at first run post haproxy restart)
-#  - [x] Add interval to download spec URL and API_COMPARE
-#  - [x] Update koios API specs to remove rpc references, this automatically also means grest-poll.sh shouldnt use RPC for comparisons (in check structure and shasum match)
-#    - [x] Remove rpc ref from koiosapi.yaml, possibly use comment to identify #RPC
-#    - [x] Update OpenSpec comparison (currently filters RPC for paths, that should use a seperate identifier)
-#    - [x] Update API_STRUCT_DEFINITION, as it uses /rpc to create grestrpcs file
-#    - [x] Verify haproxy.conf side changes
 #  - [ ] Elect few endpoints that will indirectly test data
 #        - [x] Control Table (TODO: Version addition to Control Table)
 #        - [ ] Query a sample from cache table (based on inputs from control table)
 #        - [ ] We may not want to perform extensive dbsync data scan itself, except if bug/troublesome data on dbsync (eg: stake not being populated ~10 hours into epoch)
 #  - [ ] If required and entire polling takes more than 3 seconds, Randomise some of the checks between the elected endpoints
-#  - [x] Add '-d' flag for debug mode - to run all tests without quitting
 #
 
 #TIP_DIFF=600                                                  # Maximum tolerance in seconds for tip to be apart before marking instance as not available to serve requests
@@ -82,7 +62,7 @@ function chk_upd() {
   #! checkUpdate env Y N N && exit 1
   ( ! checkUpdate grest-poll.sh Y N N grest-helper-scripts ) && echo "ERROR: checkUpdate Failed" && exit 1
   curl -sfkL "${API_STRUCT_DEFINITION}" -o "${LOCAL_SPEC}" 2>/dev/null || return 0
-  grep " #RPC" "${LOCAL_SPEC}" | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${PARENT}/../grestrpcs"
+  grep " #RPC" "${LOCAL_SPEC}" | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${PARENT}/../files/grestrpcs"
 }
 
 function optexit() {
@@ -146,9 +126,17 @@ function chk_cache_status() {
     echo "ERROR: Pool History cache too far from tip !!"
     optexit
   fi
-  if [[ "${last_actvstake_epoch}" == "" ]] || [[ "${last_actvstake_epoch}" == "[]" ]] || [[ "${last_actvstake_epoch}" != "${epoch}" ]]; then
-    echo "ERROR: Active Stake cache too far from tip !!"
+  if [[ "${last_actvstake_epoch}" == "" ]] || [[ "${last_actvstake_epoch}" == "[]" ]]; then
+    echo "ERROR: Active Stake cache not populated !!"
     optexit
+  else
+    if [[ "${last_actvstake_epoch}" != "${epoch}" ]]; then
+      epoch_length=$(curl -s ${API_COMPARE}/genesis?select=epochlength | jq -r .[0].epochlength)
+      if ${epoch_slot} -ge $(( ${epoch_length} / 12 )); then
+        echo "ERROR: Active Stake cache too far from tip !!"
+        optexit
+      fi
+    fi
   fi
   # TODO: Ensure other cache tables have entry in control table , potentially with last update time
 }
@@ -197,7 +185,6 @@ chk_tip
 chk_rpcs
 chk_cache_status
 chk_limit
-chk_endpt_get "genesis" view
 chk_endpt_get "tx_metalabels" view
 chk_endpt_get "account_list" view
 chk_endpt_get "totals?_epoch_no=${epoch}" rpc
