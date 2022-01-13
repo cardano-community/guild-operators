@@ -51,7 +51,7 @@ while true; do
                         echo "Version valid"
                         sleep 3
                 else
-                        echo "Version invalid, enter a valid version: "
+                        echo "Version invalid"
                         continue
                 fi
         break
