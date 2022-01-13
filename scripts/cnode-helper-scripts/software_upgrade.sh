@@ -84,33 +84,33 @@ if [ $current_version = $version ]; then
 fi
 
         echo "Stopping cardano-node..."
-#               sudo systemctl stop cnode
+               sudo systemctl stop cnode
                 sleep 10
         echo "Updating cabal, please wait..."
-#               cabal update
-#               cd ~/git
-#               sudo rm -R cardano-node
-#               git clone https://github.com/input-output-hk/cardano-node
-#               cd cardano-node
+               cabal update
+               cd ~/git
+               sudo rm -R cardano-node
+               git clone https://github.com/input-output-hk/cardano-node
+               cd cardano-node
 
-#               git fetch --tags --all
-#               git checkout $version
+               git fetch --tags --all
+               git checkout $version
 
 
-#               echo -e "package cardano-crypto-praos\n  flags: -external-libsodium-vrf" > cabal.project.local
+               echo -e "package cardano-crypto-praos\n  flags: -external-libsodium-vrf" > cabal.project.local
 
-         echo "Starting cardano-node software upgrade, it will take a while, meantime you can enjoy some coffee :)"
-#               $CNODE_HOME/scripts/cabal-build-all.sh
+         echo "Starting software upgrade, it will take a while, meantime you can enjoy some coffee :)"
+               $CNODE_HOME/scripts/cabal-build-all.sh
 
-        echo "The software upgrade is succesfully, starting the node"
-#                sudo systemctl start cnode
+        echo "The software upgrade is succesfully, starting cardano-node"
+                sudo systemctl start cnode
                 sleep 10
         cd $CNODE_HOME/scripts
 
 {
 while true; do
 
-        read -p "The node has been started, do you want to open gLiveView? (yes or no): " INPUT
+        read -p "cardano-node has been started, do you want to open gLiveView? (yes or no): " INPUT
                 if [ "$INPUT" = "no" ]; then
                         echo "Good-bye!"
                         exit 1
