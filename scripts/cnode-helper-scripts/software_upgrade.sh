@@ -48,10 +48,10 @@ while true; do
         TAGS=$(git tag)
         read -p "Enter version: " version
                 if [[ $TAGS == *"$version"* ]]; then            # checking if the version entered is available on github
-                        echo "Version valid"
+                        echo "Version valid :)"
                         sleep 3
                 else
-                        echo "Version invalid"
+                        echo "Version invalid :("
                         continue
                 fi
         break
