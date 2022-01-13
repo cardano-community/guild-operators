@@ -25,9 +25,9 @@ CREATE TABLE IF NOT EXISTS GREST.ACCOUNT_ACTIVE_STAKE_CACHE (
 -- For easier updates only:
 DROP TRIGGER IF EXISTS POOL_ACTIVE_STAKE_EPOCH_UPDATE_TRIGGER ON PUBLIC.EPOCH_STAKE;
 DROP TRIGGER IF EXISTS EPOCH_ACTIVE_STAKE_EPOCH_UPDATE_TRIGGER ON PUBLIC.EPOCH_STAKE;
-
 DROP FUNCTION IF EXISTS GREST.POOL_ACTIVE_STAKE_EPOCH_UPDATE;
 DROP FUNCTION IF EXISTS GREST.EPOCH_ACTIVE_STAKE_EPOCH_UPDATE;
+--
 
 /* HELPER FUNCTIONS */
 DROP FUNCTION IF EXISTS grest.get_last_active_stake_validated_epoch ();
@@ -40,7 +40,7 @@ $$
   BEGIN
     RETURN (
       SELECT
-        last_value --coalesce doesn't work if empty set
+        last_value -- coalesce() doesn't work if empty set
       FROM 
         grest.control_table
       WHERE
@@ -122,21 +122,21 @@ $$
       COALESCE(MAX(epoch_no), 0)
     FROM
       GREST.POOL_ACTIVE_STAKE_CACHE
-    INTO _last_pool_active_stake_cache_epoch_no;
+    INTO
+      _last_pool_active_stake_cache_epoch_no;
 
-    -- no way to reinsert previous epoch data if it gets corrupted ATM
-    -- but that should be a manual task anyway
     INSERT INTO GREST.POOL_ACTIVE_STAKE_CACHE
       SELECT
         POOL_HASH.VIEW AS POOL_ID,
         EPOCH_STAKE.EPOCH_NO,
         SUM(EPOCH_STAKE.AMOUNT) AS AMOUNT
       FROM
-        EPOCH_STAKE
-        INNER JOIN POOL_HASH ON POOL_HASH.ID = EPOCH_STAKE.POOL_ID
+        PUBLIC.EPOCH_STAKE
+        INNER JOIN PUBLIC.POOL_HASH ON POOL_HASH.ID = EPOCH_STAKE.POOL_ID
       WHERE
-        EPOCH_STAKE.EPOCH_NO > _last_pool_active_stake_cache_epoch_no -- no need to worry about epoch 0 as no stake then
-        AND
+        -- no need to worry about epoch 0 as no stake then
+        EPOCH_STAKE.EPOCH_NO > _last_pool_active_stake_cache_epoch_no
+          AND
         EPOCH_STAKE.EPOCH_NO <= _epoch_no
       GROUP BY
         POOL_HASH.VIEW,
@@ -159,10 +159,10 @@ $$
         EPOCH_STAKE.EPOCH_NO,
         SUM(EPOCH_STAKE.AMOUNT) AS AMOUNT
       FROM
-        EPOCH_STAKE
+        PUBLIC.EPOCH_STAKE
       WHERE
-        EPOCH_STAKE.EPOCH_NO > _last_epoch_active_stake_cache_epoch_no -- no need to worry about epoch 0 as no stake then
-        AND
+        EPOCH_STAKE.EPOCH_NO > _last_epoch_active_stake_cache_epoch_no
+          AND
         EPOCH_STAKE.EPOCH_NO <= _epoch_no
       GROUP BY
         EPOCH_STAKE.EPOCH_NO
@@ -185,12 +185,12 @@ $$
         EPOCH_STAKE.EPOCH_NO AS EPOCH_NO,
         SUM(EPOCH_STAKE.AMOUNT) AS AMOUNT
       FROM
-        EPOCH_STAKE
-        INNER JOIN POOL_HASH ON POOL_HASH.ID = EPOCH_STAKE.POOL_ID
-        INNER JOIN STAKE_ADDRESS ON STAKE_ADDRESS.ID = EPOCH_STAKE.ADDR_ID
+        PUBLIC.EPOCH_STAKE
+        INNER JOIN PUBLIC.POOL_HASH ON POOL_HASH.ID = EPOCH_STAKE.POOL_ID
+        INNER JOIN PUBLIC.STAKE_ADDRESS ON STAKE_ADDRESS.ID = EPOCH_STAKE.ADDR_ID
       WHERE
-        EPOCH_STAKE.EPOCH_NO > _last_account_active_stake_cache_epoch_no -- no need to worry about epoch 0 as no stake then
-        AND
+        EPOCH_STAKE.EPOCH_NO > _last_account_active_stake_cache_epoch_no
+          AND
         EPOCH_STAKE.EPOCH_NO <= _epoch_no
       GROUP BY
         STAKE_ADDRESS.ID,
@@ -212,4 +212,4 @@ $$
 $$;
 
 COMMENT ON FUNCTION grest.active_stake_cache_update
-  IS 'Internal function to update active stake cache (both epoch and pool tables).';
+  IS 'Internal function to update active stake cache (epoch, pool, and account tables).';
