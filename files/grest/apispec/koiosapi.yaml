@@ -436,6 +436,25 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Account Assets
       description: Get the native asset balance of an account
+  /account_history: #RPC
+    get:
+      tags:
+        - Account
+      parameters:
+        - $ref: "#/components/parameters/_any_address"
+      responses:
+        "200":
+          description: Array of active stake values per epoch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/account_history"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Account History
+      description: Get the staking history of an account
   /asset_address_list: #RPC
     get:
       tags:
@@ -1555,6 +1574,26 @@ components:
             type: number
             description: A distinct known metalabel
             example: 721
+    account_history:
+      type: array
+      items:
+        properties:
+          stake_address:
+            type: string
+            description: Cardano staking address (reward account) in bech32 format
+            example: stake1u8yxtugdv63wxafy9d00nuz6hjyyp4qnggvc9a3vxh8yl0ckml2uz
+          pool_id:
+            type: string
+            description: Bech32 representation of pool ID
+            example: pool1z5uqdk7dzdxaae5633fqfcu2eqzy3a3rgtuvy087fdld7yws0xt
+          epoch_no:
+            type: integer
+            description: Epoch number
+            example: 301
+          active_stake:
+            type: integer
+            description: Active stake amount (in lovelaces)
+            example: 682334162
     script_list:
       type: array
       items:
