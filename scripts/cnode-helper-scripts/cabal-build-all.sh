@@ -52,7 +52,7 @@ else
   ghcup install cabal 3.4.0.0
   ghcup set ghc 8.10.7
   ghcup set cabal 3.4.0.0
-  cabal configure --with-compiler=ghc-8.10.7
+  cabal configure --with-compiler=ghc-8.10.7 2>&1 | tee /tmp/cabal-build.log
   echo "Building.."
   cabal build all 2>&1 | tee /tmp/build.log
 
