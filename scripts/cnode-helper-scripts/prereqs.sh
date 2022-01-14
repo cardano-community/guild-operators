@@ -23,7 +23,6 @@ unset CNODE_HOME
 #UPDATE_CHECK='Y'       # Check if there is an updated version of prereqs.sh script to download
 #SUDO='Y'               # Used by docker builds to disable sudo, leave unchanged if unsure.
  
-#​###############TEST##################
 ######################################
 # Do NOT modify code below           #
 ######################################
@@ -253,7 +252,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
   fi
   export BOOTSTRAP_HASKELL_NO_UPGRADE=1
   export BOOTSTRAP_HASKELL_GHC_VERSION=8.10.7
-  export BOOTSTRAP_HASKELL_CABAL_VERSION=3.4.0.0
+  export BOOTSTRAP_HASKELL_CABAL_VERSION=3.6.2.0
   if ! command -v ghc &>/dev/null; then
     echo "Install ghcup (The Haskell Toolchain installer) .."
     # TMP: Dirty hack to prevent ghcup interactive setup, yet allow profile set up
@@ -262,6 +261,8 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
   fi
   [ -f "${HOME}/.ghcup/env" ] && source "${HOME}/.ghcup/env"
   if ! ghc --version 2>/dev/null | grep -q ${BOOTSTRAP_HASKELL_GHC_VERSION}; then
+    echo "Upgrading ghcup .."
+    ghcup upgrade 2>/dev/null
     echo "Installing GHC v${BOOTSTRAP_HASKELL_GHC_VERSION} .."
     ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}
     ghcup set ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}
