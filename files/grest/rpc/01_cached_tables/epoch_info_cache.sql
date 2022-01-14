@@ -71,8 +71,10 @@ BEGIN
     END IF;
 
   -- GREST control table entry
-  PERFORM grest.update_control_table('pool_history_cache_last_updated', now() at time zone 'utc');
-
+  PERFORM grest.update_control_table(
+    'pool_history_cache_last_updated',
+    now() at time zone 'utc'::text
+  );
 
   IF _epoch_no_to_insert_from IS NULL THEN
     SELECT
