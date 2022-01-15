@@ -7,7 +7,7 @@ CREATE FUNCTION grest.account_history (
       stake_address varchar,
       pool_id varchar,
       epoch_no bigint,
-      active_stake lovelace
+      active_stake text
     )
   LANGUAGE PLPGSQL
   AS
@@ -38,7 +38,7 @@ $$
           ACCOUNT_ACTIVE_STAKE_CACHE.stake_address,
           ACCOUNT_ACTIVE_STAKE_CACHE.pool_id,
           ACCOUNT_ACTIVE_STAKE_CACHE.epoch_no,
-          ACCOUNT_ACTIVE_STAKE_CACHE.amount as active_stake
+          ACCOUNT_ACTIVE_STAKE_CACHE.amount::text as active_stake
         FROM
           GREST.ACCOUNT_ACTIVE_STAKE_CACHE
         WHERE
@@ -51,7 +51,7 @@ $$
           ACCOUNT_ACTIVE_STAKE_CACHE.stake_address,
           ACCOUNT_ACTIVE_STAKE_CACHE.pool_id,
           ACCOUNT_ACTIVE_STAKE_CACHE.epoch_no,
-          ACCOUNT_ACTIVE_STAKE_CACHE.amount as active_stake
+          ACCOUNT_ACTIVE_STAKE_CACHE.amount::text as active_stake
         FROM
           GREST.ACCOUNT_ACTIVE_STAKE_CACHE
         WHERE

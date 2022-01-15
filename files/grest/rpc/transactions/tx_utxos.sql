@@ -59,13 +59,13 @@ BEGIN
               'stake_addr', SA.view,
               'tx_hash', ENCODE(_all_tx.tx_hash, 'hex'),
               'tx_index', tx_out.index,
-              'value', tx_out.value,
+              'value', tx_out.value::text,
               'asset_list', COALESCE((
                 SELECT
                   JSON_AGG(JSON_BUILD_OBJECT(
                     'policy_id', ENCODE(MA.policy, 'hex'),
                     'asset_name', ENCODE(MA.name, 'hex'),
-                    'quantity', MTX.quantity
+                    'quantity', MTX.quantity::text
                   ))
                 FROM 
                   ma_tx_out MTX
@@ -101,13 +101,13 @@ BEGIN
               'stake_addr', SA.view,
               'tx_hash', ENCODE(tx.hash, 'hex'),
               'tx_index', tx_out.index,
-              'value', tx_out.value,
+              'value', tx_out.value::text,
               'asset_list', COALESCE((
                 SELECT 
                   JSON_AGG(JSON_BUILD_OBJECT(
                     'policy_id', ENCODE(MA.policy, 'hex'),
                     'asset_name', ENCODE(MA.name, 'hex'),
-                    'quantity', MTX.quantity
+                    'quantity', MTX.quantity::text
                   ))
                 FROM 
                   ma_tx_out MTX
