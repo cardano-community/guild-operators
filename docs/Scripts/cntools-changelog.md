@@ -6,6 +6,13 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.0.0] - 2022-01-10
+#### Changed
+- Due to changes in cardano-node 1.33.x -> for utxo ledger lookup and previous heavy pool-params query, Koios API is now the default option for these lookups.
+  - You can update KOIOS_API env variable to connect to a local instance of koios (open source and incentivises all to build a decentralised query layer) if you'd not like to connect to remote instance.
+  - Visit the https://www.koios.rest/ for more information about Koios or check out the API documentation at https://api.koios.rest.
+  - If you'd like to revert to old behaviour (use CLI which could be slow to retrieve UTxOs), you can set ENABLE_KOIOS environment variable to N.
+
 ## [8.8.2] - 2021-12-28
 #### Fixed
 - Transform txBody using canonical order before signing/witnessing in case of HW wallet.

@@ -869,13 +869,13 @@ function main {
                   println "${FG_LBLUE}${utxo_cnt} UTxO(s)${NC} found for ${FG_GREEN}${address_type}${NC} Address!"
                   if [[ ${utxo_cnt} -gt 0 ]]; then
                     echo
-                    println DEBUG "$(printf "%-66s ${FG_DGRAY}|${NC} %${asset_name_maxlen}s ${FG_DGRAY}|${NC} %-${asset_amount_maxlen}s\n" "UTxO Hash#Index" "Asset" "Amount")"
-                    println DEBUG "${FG_DGRAY}$(printf "%67s+%$((asset_name_maxlen+2))s+%$((asset_amount_maxlen+1))s\n" "" "" "" | tr " " "-")${NC}"
+                    println DEBUG "$(printf "%-67s ${FG_DGRAY}|${NC} %${asset_name_maxlen}s ${FG_DGRAY}|${NC} %-${asset_amount_maxlen}s\n" "UTxO Hash#Index" "Asset" "Amount")"
+                    println DEBUG "${FG_DGRAY}$(printf "%68s+%$((asset_name_maxlen+2))s+%$((asset_amount_maxlen+1))s\n" "" "" "" | tr " " "-")${NC}"
                     mapfile -d '' utxos_sorted < <(printf '%s\0' "${!utxos[@]}" | sort -z)
                     for utxo in "${utxos_sorted[@]}"; do
                       IFS='.' read -ra utxo_arr <<< "${utxo}"
                       if [[ ${#utxo_arr[@]} -eq 2 && ${utxo_arr[1]} = " Ada" ]]; then
-                        println DEBUG "$(printf "%-66s ${FG_DGRAY}|${NC} ${FG_GREEN}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "${utxo_arr[0]}" "Ada" "$(formatLovelace ${utxos["${utxo}"]})")"
+                        println DEBUG "$(printf "%-67s ${FG_DGRAY}|${NC} ${FG_GREEN}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "${utxo_arr[0]}" "Ada" "$(formatLovelace ${utxos["${utxo}"]})")"
                       else
                         [[ ${#utxo_arr[@]} -eq 3 ]] && asset_name="${utxo_arr[2]}" || asset_name=""
                         if [[ -n ${token_name[${utxo_arr[1]}.${asset_name}]} ]]; then
@@ -884,7 +884,7 @@ function main {
                           tname="$(hexToAscii ${asset_name})"
                         fi
                         ! assets_id_bech32=$(getAssetIDBech32 ${utxo_arr[1]} ${tname}) && continue 3
-                        println DEBUG "$(printf "${FG_DGRAY}%22s${NC}${FG_LGRAY}%44s${NC} ${FG_DGRAY}|${NC} ${FG_MAGENTA}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "Asset Fingerprint: " "${assets_id_bech32}" "${tname}" "$(formatAsset ${utxos["${utxo}"]})")"
+                        println DEBUG "$(printf "${FG_DGRAY}%20s${NC}${FG_LGRAY}%-47s${NC} ${FG_DGRAY}|${NC} ${FG_MAGENTA}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "Asset Fingerprint: " "${assets_id_bech32}" "${tname}" "$(formatAsset ${utxos["${utxo}"]})")"
                       fi
                     done
                   fi
@@ -2448,7 +2448,7 @@ function main {
               println " >> POOL >> LIST"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
-              current_epoch=$(getEpoch) # Needed for isPoolRegistered() using REST API, best to call outside of loop
+              current_epoch=$(getEpoch)
               while IFS= read -r -d '' pool; do
                 echo
                 pool_name="$(basename ${pool})"
@@ -2456,10 +2456,14 @@ function main {
                 pool_regcert_file="${pool}/${POOL_REGCERT_FILENAME}"
                 isPoolRegistered "${pool_name}"
                 case $? in
-                  0) println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: ${error_msg}" && waitForInput && continue ;;
+                  0) println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" && waitForInput && continue ;;
                   1) pool_registered="${FG_RED}NO${NC}" ;;
                   2) pool_registered="${FG_GREEN}YES${NC}" ;;
-                  3) pool_registered="${FG_RED}NO${NC} - Retired in epoch ${FG_LBLUE}${retiring_epoch}${NC}" ;; # retired, ${retiring_epoch} containing the epoch number it was retired
+                  3) if [[ ${current_epoch} -lt ${p_retiring_epoch} ]]; then
+                       pool_registered="${FG_YELLOW}YES${NC} - Retiring in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}"
+                     else
+                       pool_registered="${FG_RED}NO${NC} - Retired in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}"
+                     fi ;;
                 esac
                 println "${FG_GREEN}${pool_name}${NC}"
                 println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (hex)" "${pool_id}")"
@@ -2506,7 +2510,11 @@ function main {
               current_epoch=$(getEpoch)
               getPoolID ${pool_name}
               tput rc && tput ed
-              if [[ ${CNTOOLS_MODE} = "CONNECTED" && -z ${PGREST_API} ]]; then
+              if [[ ${CNTOOLS_MODE} = "CONNECTED" && -z ${KOIOS_API} ]]; then
+                println DEBUG "Koios API disabled/unreachable, do you want to proceed querying pool parameters from node?"
+                println DEBUG "This is a heavy process and requiring several gigabytes of memory on MainNet."
+                select_opt "[y] Yes" "[n] No, abort"
+                [[ $? -eq 1 ]] && continue
                 tput sc && println DEBUG "Quering pool parameters from node, can take a while...\n"
                 println ACTION "${CCLI} query pool-params --stake-pool-id ${pool_id_bech32} ${NETWORK_IDENTIFIER}"
                 if ! pool_params=$(${CCLI} query pool-params --stake-pool-id ${pool_id_bech32} ${NETWORK_IDENTIFIER} 2>&1); then
@@ -2517,50 +2525,33 @@ function main {
                 tput rc && tput ed
               fi
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-                pool_registered="UNKNOWN"
-              elif [[ -z ${PGREST_API} ]]; then
+                pool_registered="${FG_LGRAY}status unavailable in offline mode${NC}"
+              elif [[ -z ${KOIOS_API} ]]; then
                 ledger_pParams=$(jq -r '.poolParams // empty' <<< ${pool_params})
                 ledger_fPParams=$(jq -r '.futurePoolParams // empty' <<< ${pool_params})
                 ledger_retiring=$(jq -r '.retiring // empty' <<< ${pool_params})
-                [[ -z ${ledger_retiring} ]] && retiring_epoch=0 || retiring_epoch=${ledger_retiring}
+                [[ -z ${ledger_retiring} ]] && p_retiring_epoch=0 || p_retiring_epoch=${ledger_retiring}
                 [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
-                [[ -n "${ledger_pParams}" ]] && pool_registered="YES" || pool_registered="NO"
+                [[ -n "${ledger_pParams}" ]] && pool_registered="${FG_GREEN}YES${NC}" || pool_registered="${FG_RED}NO${NC}"
               else
-                isPoolRegistered ${pool_name} # re-using variables from function [pupd_latest, pupd_latest_epoch, p_hash_id, pretire, retiring_epoch, error_msg]
+                isPoolRegistered ${pool_name} # variables set in isPoolRegistered [pool_info, error_msg, p_<metric>]
                 case $? in
-                  0) println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: ${error_msg}" && waitForInput && continue ;;
-                  1) pool_registered="NO" ;;
-                  2) pool_registered="YES" ;;
-                  3) pool_registered="NO" ;; # retired, ${retiring_epoch} containing the epoch number it was retired
+                  0) println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" && waitForInput && continue ;;
+                  1) pool_registered="${FG_RED}NO${NC}" ;;
+                  2) pool_registered="${FG_GREEN}YES${NC}" ;;
+                  3) if [[ ${current_epoch} -lt ${p_retiring_epoch} ]]; then
+                       pool_registered="${FG_YELLOW}YES${NC} - Retiring in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}"
+                     else
+                       pool_registered="${FG_RED}NO${NC} - Retired in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}"
+                     fi ;;
                 esac
-                if [[ ${pool_registered} = YES ]]; then
-                  ! p_active_stake=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -d _epoch_no=${current_epoch} "${PGREST_API}"/rpc/pool_active_stake 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: p_active_stake: ${p_active_stake}" && waitForInput && continue
-                  ! t_active_stake=$(curl -sSL -f -d _epoch_no=${current_epoch} "${PGREST_API}"/rpc/pool_active_stake 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: t_active_stake: ${t_active_stake}" && waitForInput && continue
-                  ! p_delegator_cnt=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} "${PGREST_API}"/rpc/pool_delegator_count 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: p_delegator_cnt: ${p_delegator_cnt}" && waitForInput && continue
-                  ! prelay_latest=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} "${PGREST_API}"/rpc/pool_relays 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: prelay_latest: ${prelay_latest}" && waitForInput && continue
-                  ! powner_latest=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} "${PGREST_API}"/rpc/pool_owners 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: powner_latest: ${powner_latest}" && waitForInput && continue
-                  if [[ ${pupd_latest_epoch} -gt ${current_epoch} ]]; then # pool update/modification submitted, grab active pool data as well
-                    ! pupd_active=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} -d _current_epoch_no=${current_epoch} -d _state=active "${PGREST_API}"/rpc/pool_updates 2>&1) && println "ERROR" "${FG_RED}PGREST_API ERROR${NC}: pupd_active: ${pupd_active}" && waitForInput && continue
-                  else # grab the rest of the pool data from latest update
-                    unset pupd_active
-                  fi
-                fi
               fi
               echo
-              [[ -n ${PGREST_API} && ${pupd_latest_epoch} -gt ${current_epoch} ]] && println "${FG_YELLOW}Pool modified recently, displaying latest registered.${NC}\n"
-              println "$(printf "%-21s : ${FG_GREEN}%s${NC}${FG_YELLOW}%s${NC}" "Pool Name" "${pool_name}" "${pool_upd_notice}")"
+              [[ -n ${p_active_epoch_no} && ${p_active_epoch_no} -gt ${current_epoch} ]] && println "${FG_YELLOW}Pool modified recently, displaying latest registration update.${NC}\n"
+              println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Pool Name" "${pool_name}")"
               println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (hex)" "${pool_id}")"
               [[ -n ${pool_id_bech32} ]] && println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (bech32)" "${pool_id_bech32}")"
-              if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-                [[ ${pool_registered} = "YES" ]] && pool_reg_color="${FG_GREEN}" || pool_reg_color="${FG_RED}"
-                case ${retiring_epoch} in
-                  -1) println "$(printf "%-21s : ${pool_reg_color}%s${NC} - ${FG_RED}Retired in epoch %s${NC}" "Registered" "${pool_registered}" "?")" ;;
-                  0) println "$(printf "%-21s : ${pool_reg_color}%s${NC}" "Registered" "${pool_registered}")" ;;
-                  *) println "$(printf "%-21s : ${pool_reg_color}%s${NC} - Retired in epoch ${FG_LBLUE}%s${NC}" "Registered" "${pool_registered}" "${retiring_epoch}")" ;;
-                esac
-              else
-                println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "Registered" "status unavailable in offline mode")"
-              fi
+              println "$(printf "%-21s : %s" "Registered" "${pool_registered}")"
               pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
               pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
@@ -2576,9 +2567,9 @@ function main {
                   meta_hash="$( ${CCLI} stake-pool metadata-hash --pool-metadata-file "${pool_meta_file}" )"
                   println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Hash" "${meta_hash}")"
                 fi
-              elif [[ ${pool_registered} = YES ]]; then
-                if [[ -n ${PGREST_API} ]]; then
-                  meta_json_url=$(jq -r '.[0].meta_url //empty' <<< "${pupd_latest}")
+              elif [[ ${pool_registered} = *YES* ]]; then
+                if [[ -n ${KOIOS_API} ]]; then
+                  meta_json_url=${p_meta_url}
                 elif [[ -n ${ledger_fPParams} ]]; then
                   meta_json_url=$(jq -r '.metadata.url //empty' <<< "${ledger_fPParams}")
                 elif [[ -f "${pool_config}" ]]; then
@@ -2594,24 +2585,18 @@ function main {
                   println ACTION "${CCLI} stake-pool metadata-hash --pool-metadata-file ${TMP_DIR}/url_poolmeta.json"
                   meta_hash_url="$( ${CCLI} stake-pool metadata-hash --pool-metadata-file "${TMP_DIR}/url_poolmeta.json" )"
                   println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Hash URL" "${meta_hash_url}")"
-                  if [[ "${pool_registered}" = "YES" ]]; then
-                    if [[ -z ${PGREST_API} ]]; then
-                      meta_hash_pParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_pParams}")
-                      meta_hash_fPParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_fPParams}")
-                    else
-                      meta_hash_fPParams=$(jq -r '.[0].meta_hash //empty' <<< "${pupd_latest}")
-                      if [[ -n ${pupd_active} ]]; then
-                        meta_hash_pParams=$(jq -r '.[0].meta_hash //empty' <<< "${pupd_active}")
-                      else
-                        meta_hash_pParams=${meta_hash_fPParams}
-                      fi
-                    fi
-                    if [[ "${meta_hash_pParams}" = "${meta_hash_fPParams}" ]]; then
-                      println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Hash Ledger" "${meta_hash_pParams}")"
-                    else
-                      println "$(printf "  %-13s (${FG_LGRAY}%s${NC}) : %s" "Hash Ledger" "old" "${meta_hash_pParams}")"
-                      println "$(printf "  %-13s (${FG_YELLOW}%s${NC}) : %s" "Hash Ledger" "new" "${meta_hash_fPParams}")"
-                    fi
+                  if [[ -z ${KOIOS_API} ]]; then
+                    meta_hash_pParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_pParams}")
+                    meta_hash_fPParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_fPParams}")
+                  else
+                    meta_hash_fPParams=${p_meta_hash}
+                    meta_hash_pParams=${meta_hash_fPParams}
+                  fi
+                  if [[ "${meta_hash_pParams}" = "${meta_hash_fPParams}" ]]; then
+                    println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Hash Ledger" "${meta_hash_pParams}")"
+                  else
+                    println "$(printf "  %-13s (${FG_LGRAY}%s${NC}) : %s" "Hash Ledger" "old" "${meta_hash_pParams}")"
+                    println "$(printf "  %-13s (${FG_YELLOW}%s${NC}) : %s" "Hash Ledger" "new" "${meta_hash_fPParams}")"
                   fi
                 else
                   println "$(printf "%-21s : %s" "Metadata" "download failed for ${meta_json_url}")"
@@ -2637,18 +2622,14 @@ function main {
                   fi
                   relay_title=""
                 done < <(jq -r '.relays[] | "\(.type) \(.address) \(.port)"' "${pool_config}")
-              elif [[ "${pool_registered}" = "YES" ]]; then
+              elif [[ ${pool_registered} = *YES* ]]; then
                 # get pledge
-                if [[ -z ${PGREST_API} ]]; then
+                if [[ -z ${KOIOS_API} ]]; then
                   pParams_pledge=$(jq -r '.pledge //0' <<< "${ledger_pParams}")
                   fPParams_pledge=$(jq -r '.pledge //0' <<< "${ledger_fPParams}")
                 else
-                  fPParams_pledge=$(jq -r '.[0].pledge //0' <<< "${pupd_latest}")
-                  if [[ -n ${pupd_active} ]]; then
-                    pParams_pledge=$(jq -r '.[0].pledge //0' <<< "${pupd_active}")
-                  else
-                    pParams_pledge=${fPParams_pledge}
-                  fi
+                  fPParams_pledge=${p_pledge}
+                  pParams_pledge=${fPParams_pledge}
                 fi
                 if [[ ${pParams_pledge} -eq ${fPParams_pledge} ]]; then
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Pledge" "$(formatAsset "${pParams_pledge::-6}")")"
@@ -2657,16 +2638,12 @@ function main {
                 fi
                 
                 # get margin
-                if [[ -z ${PGREST_API} ]]; then
+                if [[ -z ${KOIOS_API} ]]; then
                   pParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_pParams}")")
                   fPParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_fPParams}")")
                 else
-                  fPParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.[0].margin //0' <<< "${pupd_latest}")")
-                  if [[ -n ${pupd_active} ]]; then
-                    pParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.[0].margin //0' <<< "${pupd_active}")")
-                  else
-                    pParams_margin=${fPParams_margin}
-                  fi
+                  fPParams_margin=$(LC_NUMERIC=C printf "%.4f" "${p_margin}")
+                  pParams_margin=${fPParams_margin}
                 fi
                 if [[ "${pParams_margin}" = "${fPParams_margin}" ]]; then
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Margin" "$(fractionToPCT "${pParams_margin}")")"
@@ -2675,16 +2652,12 @@ function main {
                 fi
                 
                 # get fixed cost
-                if [[ -z ${PGREST_API} ]]; then
+                if [[ -z ${KOIOS_API} ]]; then
                   pParams_cost=$(jq -r '.cost //0' <<< "${ledger_pParams}")
                   fPParams_cost=$(jq -r '.cost //0' <<< "${ledger_fPParams}")
                 else
-                  fPParams_cost=$(jq -r '.[0].fixed_cost //0' <<< "${pupd_latest}")
-                  if [[ -n ${pupd_active} ]]; then
-                    pParams_cost=$(jq -r '.[0].fixed_cost //0' <<< "${pupd_active}")
-                  else
-                    pParams_cost=${fPParams_cost}
-                  fi
+                  fPParams_cost=${p_fixed_cost}
+                  pParams_cost=${fPParams_cost}
                 fi
                 if [[ ${pParams_cost} -eq ${fPParams_cost} ]]; then
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Cost" "$(formatAsset "${pParams_cost::-6}")")"
@@ -2693,19 +2666,19 @@ function main {
                 fi
                 
                 # get relays
-                if [[ -z ${PGREST_API} ]]; then
+                if [[ -z ${KOIOS_API} ]]; then
                   relays=$(jq -c '.relays[] //empty' <<< "${ledger_fPParams}")
                   if [[ ${relays} != $(jq -c '.relays[] //empty' <<< "${ledger_pParams}") ]]; then
                     println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Relay(s) updated, showing latest registered")"
                   fi
                 else
-                  relays=$(jq -c '.[] //empty' <<< "${prelay_latest}")
+                  relays=$(jq -c '.[] //empty' <<< "${p_relays}")
                 fi
                 relay_title="Relay(s)"
                 if [[ -n "${relays}" ]]; then
                   while read -r relay; do
                     relay_addr=""; relay_port=""                  
-                    if [[ -z ${PGREST_API} ]]; then
+                    if [[ -z ${KOIOS_API} ]]; then
                       relay_addr="$(jq -r '."single host address".IPv4 //empty' <<< ${relay})"
                       if [[ -n ${relay_addr} ]]; then
                         relay_port="$(jq -r '."single host address".port //empty' <<< ${relay})"
@@ -2731,8 +2704,11 @@ function main {
                         if [[ -z ${relay_addr} ]]; then
                           relay_addr="$(jq -r '.ipv6 //empty' <<< ${relay})"
                           if [[ -z ${relay_addr} ]]; then
-                            relay_addr="unknown type"
-                            relay_port=" only IPv4/v6/DNS supported in CNTools"
+                            relay_addr="$(jq -r '.srv //empty' <<< ${relay})"
+                            if [[ -z ${relay_addr} ]]; then
+                              relay_addr="unknown type"
+                              relay_port=" only IPv4/v6/DNS/SRV supported in CNTools"
+                            fi
                           fi
                         fi
                       fi
@@ -2743,44 +2719,34 @@ function main {
                 fi
                 
                 # get owners
-                if [[ -z ${PGREST_API} ]]; then
+                if [[ -z ${KOIOS_API} ]]; then
                   owners=$(jq -rc '.owners[] // empty' <<< "${ledger_fPParams}")
                   if [[ ${owners} != $(jq -rc '.owners[] // empty' <<< "${ledger_pParams}") ]]; then
                     println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Owner(s) updated, showing latest registered")"
                   fi
                 else
-                  owners=$(jq -rc '.[] //empty' <<< "${powner_latest}")
+                  owners=$(jq -rc '.[] //empty' <<< "${p_owners}")
                 fi
                 owner_title="Owner(s)"
                 while read -r owner; do
-                  [[ -z ${PGREST_API} ]] && owner_reward_addr=${owner} || owner_reward_addr=$(jq -r '.owner //empty' <<< "${owner}")
-                  owner_wallet=$(grep -r ${owner_reward_addr} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
+                  owner_wallet=$(grep -r ${owner} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
                   if [[ -n ${owner_wallet} ]]; then
                     owner_wallet="$(basename "$(dirname "${owner_wallet}")")"
                     println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "${owner_title}" "${owner_wallet}")"
                   else
-                    if [[ -z ${PGREST_API} ]]; then
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "${owner_title}" "${owner}")"
-                    else
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "${owner_title}" "${owner_reward_addr}")"
-                    fi
+                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "${owner_title}" "${owner}")"
                   fi
                   owner_title=""
                 done <<< "${owners}"
                 
                 # get reward account
-                if [[ -z ${PGREST_API} ]]; then
+                if [[ -z ${KOIOS_API} ]]; then
                   reward_account=$(jq -r '.rewardAccount.credential."key hash" // empty' <<< "${ledger_fPParams}")
                   if [[ ${reward_account} != $(jq -r '.rewardAccount.credential."key hash" // empty' <<< "${ledger_pParams}") ]]; then
                     println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Reward account updated, showing latest registered")"
                   fi
                 else
-                  reward_account=$(jq -r '.[0].reward_addr //empty' <<< "${pupd_latest}")
-                  if [[ -n ${pupd_active} && ${reward_account} != $(jq -r '.[0].reward_addr //empty' <<< "${pupd_active}") ]]; then
-                    echo "reward_account=${reward_account}"
-                    echo "reward_account=$(jq -r '.[0].reward_addr //empty' <<< "${pupd_active}")"
-                    println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Reward account updated, showing latest registered")"
-                  fi
+                  reward_account=${p_reward_addr}
                 fi
                 if [[ -n ${reward_account} ]]; then
                   reward_wallet=$(grep -r ${reward_account} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
@@ -2792,19 +2758,20 @@ function main {
                   fi
                 fi
                 
-                # get stake distribution
-                if [[ -z ${PGREST_API} ]]; then
+                if [[ -z ${KOIOS_API} ]]; then
+                  # get stake distribution
                   println "ACTION" "LC_NUMERIC=C printf %.10f \$(${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | grep ${pool_id_bech32} | tr -s ' ' | cut -d ' ' -f 2))"
                   stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | grep "${pool_id_bech32}" | tr -s ' ' | cut -d ' ' -f 2)")")
                   if validateDecimalNbr ${stake_pct}; then
                     println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Stake distribution" "${stake_pct}")"
                   fi
                 else
-                  p_active_stake=$(jq -r '.active_stake_sum //0' <<< "${p_active_stake}")
-                  t_active_stake=$(jq -r '.active_stake_sum //0' <<< "${t_active_stake}")
-                  p_delegator_cnt=$(jq -r '.delegator_count //0' <<< "${p_delegator_cnt}")
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada (${FG_LBLUE}%s${NC} %%)" "Active Stake" "$(formatLovelace "${p_active_stake}")" "$(LC_NUMERIC=C printf "%.4f" "$(fractionToPCT "$(bc -l <<< "${p_active_stake}/${t_active_stake}")")")")"
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} (incl owners)" "Total Delegators" "${p_delegator_cnt}")"
+                  # get active/live stake/block info
+                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Active Stake" "$(formatLovelace "${p_active_stake}")")"
+                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC}" "Epoch Blocks" "${p_epoch_block_cnt}")"
+                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Live Stake" "$(formatLovelace "${p_live_stake}")")"
+                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} (incl owners)" "Delegators" "${p_live_delegators}")"
+                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Saturation" "${p_live_saturation}")"
                 fi
 
                 unset pool_kes_start
@@ -4660,8 +4627,8 @@ function main {
                 println " >> ADVANCED >> CHAIN-ANALYSIS"
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-                if [[ -z ${PGREST_API} ]]; then
-                  println ERROR "${FG_RED}ERROR${NC}: PGREST_API not set in env or DB-Sync PostgREST API unavailable!"
+                if [[ -z ${KOIOS_API} ]]; then
+                  println ERROR "${FG_RED}ERROR${NC}: KOIOS_API not set in env or API unavailable!"
                   waitForInput && break
                 fi
 
@@ -4707,7 +4674,7 @@ function main {
                   println " >> ADVANCED >> CHAIN-ANALYSIS >> DOWNLOAD QUERIES"
                   println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                   println DEBUG "\nDownloading official DBSync queries from Guild Operators GitHub site ..\n"
-                  if ! query_file_list=$(curl -s -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/dbsync/queries?ref=${BRANCH}); then
+                  if ! query_file_list=$(curl -s -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/queries?ref=${BRANCH}); then
                     println ERROR "${FG_RED}ERROR${NC}: ${query_file_list}" && waitForInput && continue
                   fi
                   for row in $(jq -r '.[] | @base64' <<< ${query_file_list}); do

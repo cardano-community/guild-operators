@@ -1,43 +1,16 @@
 {
     "menuPath": "Pool Queries/Info",
-    "description": "Collection of queries to grab pool data based pool id in bech32 format",
+    "description": "Grab pool data based pool id in bech32 format",
     "variables": [
         {
             "name": "pool_id_bech32",
             "question": "Enter pool id to search for in Bech32 format (pool..)",
             "mandatory": true
-        },
-        {
-            "name": "pool_state",
-            "question": "Enter the state to retrieve, all entries returned if blank [latest|active|_]",
-            "mandatory": false
         }
     ],
     "queries": [
         {
-            "name": "Pool Updates",
-            "print": true,
-            "data": [
-                {
-                    "type": "query_variable",
-                    "arg": "_pool_bech32",
-                    "payload": "pool_id_bech32"
-                },
-                {
-                    "type": "query_variable",
-                    "arg": "_state",
-                    "payload": "pool_state"
-                },
-                {
-                    "type": "cntools_variable",
-                    "arg": "_current_epoch_no",
-                    "payload": "epochnum"
-                }
-            ],
-            "uri": "rpc/pool_updates"
-        },
-        {
-            "name": "Metadata",
+            "name": "Pool Info",
             "print": true,
             "data": [
                 {
@@ -46,79 +19,7 @@
                     "payload": "pool_id_bech32"
                 }
             ],
-            "uri": "rpc/pool_metadata"
-        },
-        {
-            "name": "Retired",
-            "print": true,
-            "data": [
-                {
-                    "type": "query_variable",
-                    "arg": "_pool_bech32",
-                    "payload": "pool_id_bech32"
-                }
-            ],
-            "uri": "rpc/pool_retire"
-        },
-        {
-            "name": "Relays",
-            "print": true,
-            "data": [
-                {
-                    "type": "query_variable",
-                    "arg": "_pool_bech32",
-                    "payload": "pool_id_bech32"
-                }
-            ],
-            "uri": "rpc/pool_relays"
-        },
-        {
-            "name": "Owners",
-            "print": true,
-            "data": [
-                {
-                    "type": "query_variable",
-                    "arg": "_pool_bech32",
-                    "payload": "pool_id_bech32"
-                }
-            ],
-            "uri": "rpc/pool_owners"
-        },
-        {
-            "name": "Active Stake",
-            "print": true,
-            "data": [
-                {
-                    "type": "query_variable",
-                    "arg": "_pool_bech32",
-                    "payload": "pool_id_bech32"
-                }
-            ],
-            "uri": "rpc/pool_active_stake"
-        },
-        {
-            "name": "Delegator Count",
-            "print": true,
-            "data": [
-                {
-                    "type": "query_variable",
-                    "arg": "_pool_bech32",
-                    "payload": "pool_id_bech32"
-                }
-            ],
-            "uri": "rpc/pool_delegator_count"
-        },
-        {
-            "name": "Operational Certificate",
-            "print": true,
-            "data": [
-                {
-                    "type": "query_variable",
-                    "arg": "_pool_bech32",
-                    "payload": "pool_id_bech32"
-                }
-            ],
-            "uri": "rpc/pool_opcert"
+            "uri": "pool_info"
         }
     ],
     "script": []
