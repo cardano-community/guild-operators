@@ -2656,12 +2656,14 @@ runDBSyncQuery() {
   [[ -z ${query_script} ]] && return 0
 
   script_file="$(mktemp "${TMP_DIR}/query_script_XXXXXXXXXX.sh")"
-  echo -e '#!/usr/bin/env bash' "\n\n# Script to execute [Press 'q' to quit]" "\n\n${query_script}" > "${script_file}"
+  echo -e "#########################################\n# Script to execute [Press 'q' to quit] #\n#########################################" '\n\n#!/usr/bin/env bash' "\n\n${query_script}" > "${script_file}"
   chmod +x "${script_file}"
 
-  cat "${script_file}" | less -X
+  exec >&6 # normal stdout
+  less "${script_file}"
+  exec >&8 # custom stdout
 
-  println DEBUG "\nProceed to run above script?"
+  println DEBUG "\nProceed to run script?"
   select_opt "[y] Yes" "[n] No"
   selection=$?
   tput rc && tput ed
