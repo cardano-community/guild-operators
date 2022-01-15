@@ -568,6 +568,7 @@ isPoolRegistered() {
     [[ -f "${POOL_FOLDER}/${1}/${POOL_REGCERT_FILENAME}" ]] && return 2 || return 1
   else
     getPoolID "$1"
+    println ACTION "curl -sSL -f -d _pool_bech32=${pool_id_bech32} ${KOIOS_API}/pool_info"
     ! pool_info=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} ${KOIOS_API}/pool_info 2>&1) && error_msg=${pool_info} && return 0
     if [[ ${pool_info} = '[]' ]]; then
       return 1
@@ -920,6 +921,7 @@ getBalance() {
       fi
     done <<< "${utxo_raw}"
   else
+    println ACTION "curl -sSL -f -d _address=${1} ${KOIOS_API}/address_info"
     ! addr_info=$(curl -sSL -f -d _address=${1} ${KOIOS_API}/address_info 2>&1) && return 1
     [[ ${addr_info} = '[]' || $(jq -r '.[0].balance //0' <<< ${addr_info}) -eq 0 ]] && return
 
@@ -2035,6 +2037,7 @@ rotatePoolKeys() {
   p_opcert=""
   if [[ -n ${KOIOS_API} ]]; then
     ! getPoolID "${pool_name}" && println "ERROR" "\n${FG_RED}ERROR${NC}: failed to get pool ID!\n" && return 1
+    println ACTION "curl -sSL -f -d _pool_bech32=${pool_id_bech32} ${KOIOS_API}/pool_info"
     ! pool_info=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} ${KOIOS_API}/pool_info 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${pool_info}\n" && p_opcert="" # print error but ignore
     if old_counter_nbr=$(jq -er '.[0].op_cert_counter' <<< "${pool_info}" 2>/dev/null); then
       println ACTION "${CCLI} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value $(( old_counter_nbr + 1 )) --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
@@ -2634,7 +2637,7 @@ runDBSyncQuery() {
       fi
     done
 
-    println LOG "curl -sSL -f ${q_data[*]} ${KOIOS_API}/${q_uri}"
+    println ACTION "curl -sSL -f ${q_data[*]} ${KOIOS_API}/${q_uri}"
     if ! q_result=$(curl -sSL -f "${q_data[@]}" "${KOIOS_API}/${q_uri}" 2>&1) || ! jq -e . <<< ${q_result} &>/dev/null; then
       println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${q_uri}: ${q_result}" && return 1
     fi
@@ -2653,16 +2656,10 @@ runDBSyncQuery() {
   [[ -z ${query_script} ]] && return 0
 
   script_file="$(mktemp "${TMP_DIR}/query_script_XXXXXXXXXX.sh")"
-  echo -e '#!/usr/bin/env bash' "\n${query_script}" > "${script_file}"
+  echo -e '#!/usr/bin/env bash' "\n\n# Script to execute [Press 'q' to quit]" "\n\n${query_script}" > "${script_file}"
   chmod +x "${script_file}"
 
-  echo
-  tput sc
-  exec >&6 # normal stdout
-  echo -e "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~${FG_LBLUE}"
-  cat "${script_file}"
-  echo -e "${NC}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-  exec >&8 # custom stdout
+  cat "${script_file}" | less -X
 
   println DEBUG "\nProceed to run above script?"
   select_opt "[y] Yes" "[n] No"
