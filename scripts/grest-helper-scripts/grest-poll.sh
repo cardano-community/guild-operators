@@ -132,7 +132,7 @@ function chk_cache_status() {
   else
     if [[ "${last_actvstake_epoch}" != "${epoch}" ]]; then
       epoch_length=$(curl -s ${API_COMPARE}/genesis?select=epochlength | jq -r .[0].epochlength)
-      if ${epoch_slot} -ge $(( ${epoch_length} / 12 )); then
+      if [[ ${epoch_slot} -ge $(( ${epoch_length} / 12 )) ]]; then
         echo "ERROR: Active Stake cache too far from tip !!"
         optexit
       fi
