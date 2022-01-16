@@ -6,7 +6,15 @@ CREATE FUNCTION grest.asset_address_list (_asset_policy text, _asset_name text)
     quantity numeric)
   LANGUAGE PLPGSQL
   AS $$
+DECLARE
+  _asset_policy_decoded bytea;
+  _asset_name_decoded bytea;
+  _asset_id int;
 BEGIN
+  SELECT DECODE(_asset_policy, 'hex') INTO _asset_policy_decoded;
+  SELECT DECODE(_asset_name, 'hex') INTO _asset_name_decoded;
+  SELECT id INTO _asset_id FROM multi_asset MA WHERE MA.policy = _asset_policy_decoded AND MA.name = _asset_name_decoded;
+
   RETURN QUERY
   SELECT
     TXO.ADDRESS,
@@ -18,8 +26,7 @@ BEGIN
     LEFT JOIN TX_IN ON TXO.TX_ID = TX_IN.TX_OUT_ID
       AND TXO.INDEX::smallint = TX_IN.TX_OUT_INDEX::smallint
   WHERE
-    MA.policy = _asset_policy
-    AND MA.name = _asset_name
+    MA.id = _asset_id
     AND TX_IN.TX_IN_ID IS NULL
   GROUP BY
     TXO.ADDRESS;
