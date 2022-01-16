@@ -2,15 +2,15 @@ DROP FUNCTION IF EXISTS grest.asset_address_list (text, text);
 
 CREATE FUNCTION grest.asset_address_list (_asset_policy text, _asset_name text)
   RETURNS TABLE (
-    address varchar,
-    quantity numeric)
-  LANGUAGE PLPGSQL
+    payment_address varchar,
+    quantity text
+  ) LANGUAGE PLPGSQL
   AS $$
 BEGIN
   RETURN QUERY
   SELECT
     TXO.ADDRESS,
-    SUM(MTX.QUANTITY)
+    SUM(MTX.QUANTITY)::text
   FROM
     MA_TX_OUT MTX
     INNER JOIN MULTI_ASSET MA ON MA.id = MTX.ident
