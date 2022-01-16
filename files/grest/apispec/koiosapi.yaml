@@ -1732,7 +1732,7 @@ components:
             example: "2021-10-10T18:42:14"
     asset_txs:
       type: array
-      description: An array of Tx hashes that included the given asset
+      description: An array of Tx hashes that included the given asset (latest first)
       items:
         properties:
           policy_id:
