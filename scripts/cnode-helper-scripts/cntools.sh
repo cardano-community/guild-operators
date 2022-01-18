@@ -4529,11 +4529,6 @@ function main {
                     ! meta_file=$(token-metadata-creator entry ${asset_subject} --finalize 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator finalize:\n${meta_file}" && popd >/dev/null && waitForInput && continue
                     println DEBUG " ${FG_GREEN}OK${NC}!"
                     
-                    # Adding Creator-Credits
-                    tmpJSON=$(cat ${meta_file})
-                    tmpJSON=$(jq ". += {tool: {description: \"CNTools by Guild Operators\", url: \"https://cardano-community.github.io/guild-operators/Scripts/cntools\"} } " <<< ${tmpJSON})
-                    echo -e "${tmpJSON}" > ${meta_file}
-                    
                     # Validating the final metadata registry submission file
                     println DEBUG false "Validating the final metadata registry submission file ..."
                     ! output=$(token-metadata-creator validate ${meta_file} 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator validation:\n${output}" && popd >/dev/null && waitForInput && continue
