@@ -6,6 +6,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.0.2] - 2022-01-22
+#### Changed
+- Add decimal param to token metadata creator and increase ticker max length to 9 chars according to spec changes.
+
 ## [9.0.1] - 2022-01-17
 #### Changed
 - Removing tool credits in offline metadata registry due to "out of protocol".
