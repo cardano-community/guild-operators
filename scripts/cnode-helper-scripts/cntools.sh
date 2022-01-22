@@ -4484,7 +4484,7 @@ function main {
                     getAnswerAnyCust meta_url "URL         [${FG_YELLOW}optional${NC}] (Max. 250 chars)"
                     [[ -n ${meta_url} && ( ! ${meta_url} =~ https://.* || ${#meta_url} -gt 250 ) ]] && println ERROR "\n${FG_RED}ERROR${NC}: Invalid metadata URL format or greater than 250 char limit!" && waitForInput && continue
                     getAnswerAnyCust meta_decimals "Decimals    [${FG_YELLOW}optional${NC}]"
-                    [[ -n ${meta_decimals} && ! isNumber ${meta_decimals} ]] && println ERROR "\n${FG_RED}ERROR${NC}: Invalid decimal number" && waitForInput && continue
+                    [[ -n ${meta_decimals} ]] && ! isNumber ${meta_decimals} && println ERROR "\n${FG_RED}ERROR${NC}: Invalid decimal number" && waitForInput && continue
                     fileDialog "Logo/Icon   [${FG_YELLOW}optional${NC}] (PNG, <64kb)    " "${TMP_DIR}/"
                     meta_logo="${file}"
                     if [[ -n ${meta_logo} ]]; then
