@@ -10,7 +10,7 @@
 NODE_NAME="Cardano Node"                  # Change your node's name prefix here, keep at or below 19 characters!
 REFRESH_RATE=2                            # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
 LEGACY_MODE=false                         # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
-RETRIES=3                                 # How many attempts to connect to running Cardano node before erroring out and quitting
+RETRIES=3                                 # How many attempts to connect to running Cardano node before erroring out and quitting (0 for continuous retries)
 PEER_LIST_CNT=10                          # Number of peers to show on each in/out page in peer analysis view
 THEME="dark"                              # dark  = suited for terminals with a dark background
                                           # light = suited for terminals with a bright background
@@ -56,7 +56,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.25.1
+GLV_VERSION=v1.25.2
 
 PARENT="$(dirname $0)"
 
@@ -604,15 +604,15 @@ while true; do
 
   # Gather some data
   getNodeMetrics
-  [[ ${fail_count} -eq ${RETRIES} ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}"
+  [[ ${RETRIES} -gt 0 && ${fail_count} -eq ${RETRIES} ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}"
   if [[ ${nodeStartTime} -le 0 ]]; then
     ((fail_count++))
     clrScreen && mvPos 2 2
-    printf "${style_status_3}Connection to node lost, retrying (${fail_count}/${RETRIES})!${NC}"
+    printf "${style_status_3}Connection to node lost, retrying (${fail_count}$([[ ${RETRIES} -gt 0 ]] && echo "/${RETRIES}"))!${NC}"
     waitForInput && continue
   elif [[ ${fail_count} -ne 0 ]]; then # was failed but now ok, re-check
     CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.port ${CNODE_PORT}")
-    version=$("$(command -v cardano-node)" version)
+    version=$("${CNODEBIN}" version)
     node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
     node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
     fail_count=0
