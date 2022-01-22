@@ -404,14 +404,15 @@ if [[ "${INSTALL_OGMIOS}" = "Y" ]]; then
   if command -v ogmios >/dev/null; then ogmios_version="$(ogmios --version)"; else ogmios_version="v0.0.0"; fi
   rm -rf /tmp/ogmios && mkdir /tmp/ogmios
   pushd /tmp/ogmios >/dev/null || err_exit
-  ogmios_asset_url=$(curl -s https://github.com/CardanoSolutions/ogmios/releases/latest | jq -r '.assets[].browser_download_url')
+  ogmios_asset_url=$(curl -s https://api.github.com/repos/CardanoSolutions/ogmios/releases/latest | jq -r '.assets[].browser_download_url')
   if curl -sL -f -m ${CURL_TIMEOUT} -o ogmios.zip ${ogmios_asset_url}; then
     unzip ogmios.zip &>/dev/null
     rm -f ogmios.zip
     [[ -f bin/ogmios ]] || err_exit "ogmios downloaded but binary not found after extracting package!"
-    ogmios_git_version="$(ogmios --version)"
+    ogmios_git_version=$(curl -s https://api.github.com/repos/CardanoSolutions/ogmios/releases/latest | jq -r '.tag_name')
     if ! versionCheck "${ogmios_git_version}" "${ogmios_version}"; then
       [[ "${ogmios_version}" = "0.0.0" ]] && echo "  latest version: ${ogmios_git_version}" || echo "  installed version: ${ogmios_version} | latest version: ${ogmios_git_version}"
+      chmod +x /tmp/ogmios/bin/ogmios
       mv -f /tmp/ogmios/bin/ogmios "${HOME}"/.cabal/bin/
       echo "  ogmios ${ogmios_git_version} installed!"
     else
