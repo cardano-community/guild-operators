@@ -503,6 +503,23 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Asset Summary
       description: Get the summary of an asset (total transactions exclude minting/total wallets include only wallets with asset balance)
+  /asset_list:
+    get:
+      tags:
+        - Asset
+      responses:
+        "200":
+          description: Array of policy IDs and asset names 
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/asset_list"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Asset Summary
+      description: Get the list of all native assets (paginated)
   /address_assets: #RPC
     get:
       tags:
@@ -1594,6 +1611,26 @@ components:
             type: integer
             description: Active stake amount (in lovelaces)
             example: 682334162
+    asset_list:
+      type: array
+      description: Array of policy IDs and asset names
+      items:
+        properties:
+          policy_id:
+            type: string
+            description: Asset Policy ID (hex)
+            example: d3501d9531fcc25e3ca4b6429318c2cc374dbdbcf5e99c1c1e5da1ff
+          asset_names:
+            type: object
+            properties:
+              hex:
+                type: string
+                description: Asset Name (hex)
+                example: 444f4e545350414d
+              ascii:
+                type: string
+                description: Asset Name (ASCII)
+                example: DONTSPAM
     script_list:
       type: array
       items:
