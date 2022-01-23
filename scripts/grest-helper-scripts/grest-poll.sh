@@ -33,8 +33,8 @@ function set_defaults() {
   [[ -z "${API_STRUCT_DEFINITION}" ]] && API_STRUCT_DEFINITION="https://api.koios.rest/koiosapi.yaml"
   [[ -z "${LOCAL_SPEC}" ]] && LOCAL_SPEC="${PARENT}/../files/koiosapi.yaml"
   [[ "${HAPROXY_SERVER_NAME}" == *ssl ]] && SCHEME="https" || SCHEME="http"
-  URL="${SCHEME}://${1}:${2}"
-  URLRPC="${URL}/${APIPATH}"
+  GURL="${SCHEME}://${1}:${2}"
+  URLRPC="${GURL}/${APIPATH}"
 }
 
 function chk_upd() {
@@ -59,10 +59,12 @@ function chk_upd() {
     echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
     exit 1
   fi
-  #! checkUpdate env Y N N && exit 1
-  ( ! checkUpdate grest-poll.sh Y N N grest-helper-scripts ) && echo "ERROR: checkUpdate Failed" && exit 1
+  
   curl -sfkL "${API_STRUCT_DEFINITION}" -o "${LOCAL_SPEC}" 2>/dev/null || return 0
   grep " #RPC" "${LOCAL_SPEC}" | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${PARENT}/../files/grestrpcs"
+
+  checkUpdate grest-poll.sh Y N N grest-helper-scripts
+  [[ "$?" == "2" ]] && echo "ERROR: checkUpdate Failed" && exit 1
 }
 
 function optexit() {
@@ -106,18 +108,18 @@ function chk_rpc_struct() {
 }
 
 function chk_rpcs() {
-  instance_rpc_cksum="$(chk_rpc_struct "${URL}" | sort | grep -v -e description\"\$ -e summary\"\$ | tee .dltarget | shasum -a 256)"
+  instance_rpc_cksum="$(chk_rpc_struct "${GURL}" | sort | grep -v -e description\"\$ -e summary\"\$ | tee .dltarget | shasum -a 256)"
   monitor_rpc_cksum="$(chk_rpc_struct "${API_COMPARE}" | sort | grep -v -e description\"\$ -e summary\"\$ | tee .dlsource | shasum -a 256)"
   if [[ "${instance_rpc_cksum}" != "${monitor_rpc_cksum}" ]]; then
-    echo "ERROR: The specs returned by ${URL} do not seem to match ${API_COMPARE} for endpoints mentioned at: ${API_STRUCT_DEFINITION}"
+    echo "ERROR: The specs returned by ${GURL} do not seem to match ${API_COMPARE} for endpoints mentioned at: ${API_STRUCT_DEFINITION}"
     optexit
   fi
 }
 
 function chk_cache_status() {
-  last_stakedist_block=$(curl -skL "${URL}/control_table?key=eq.stake_distribution_lbh" | jq -r .[0].last_value 2>/dev/null)
-  last_poolhist_update=$(curl -skL "${URL}/control_table?key=eq.pool_history_cache_last_updated" | jq -r .[0].last_value 2>/dev/null)
-  last_actvstake_epoch=$(curl -skL "${URL}/control_table?key=eq.last_active_stake_validated_epoch" | jq -r .[0].last_value 2>/dev/null)
+  last_stakedist_block=$(curl -skL "${GURL}/control_table?key=eq.stake_distribution_lbh" | jq -r .[0].last_value 2>/dev/null)
+  last_poolhist_update=$(curl -skL "${GURL}/control_table?key=eq.pool_history_cache_last_updated" | jq -r .[0].last_value 2>/dev/null)
+  last_actvstake_epoch=$(curl -skL "${GURL}/control_table?key=eq.last_active_stake_validated_epoch" | jq -r .[0].last_value 2>/dev/null)
   if [[ "${last_stakedist_block}" == "" ]] || [[ "${last_stakedist_block}" == "[]" ]] || [[ $(( block_no - last_stakedist_block )) -gt 1000 ]]; then
     echo "ERROR: Stake Distribution cache too far from tip !!"
     optexit
@@ -142,7 +144,7 @@ function chk_cache_status() {
 }
 
 function chk_limit() {
-  limit=$(curl -skL "${URL}"/blocks -I | grep -i 'content-range' | sed -e 's#.*.-##' -e 's#/.*.##' 2>/dev/null)
+  limit=$(curl -skL "${GURL}"/blocks -I | grep -i 'content-range' | sed -e 's#.*.-##' -e 's#/.*.##' 2>/dev/null)
   if [[ "${limit}" != "999" ]]; then
     echo "ERROR: The PostgREST config for uses a custom limit that does not match monitoring instances"
     optexit
@@ -151,7 +153,7 @@ function chk_limit() {
 
 function chk_endpt_get() {
   local endpt=${1}
-  [[ "${2}" != "rpc" ]] && urlendpt="${URL}/${endpt}" || urlendpt="${URLRPC}/${endpt}"
+  [[ "${2}" != "rpc" ]] && urlendpt="${GURL}/${endpt}" || urlendpt="${URLRPC}/${endpt}"
   getrslt=$(curl -sfkL "${urlendpt}" -H "Range: 0-1" 2>/dev/null)
   if [[ -z "${getrslt}" ]] || [[ "${getrslt}" == "[]" ]]; then
     [[ "${DEBUG_MODE}" == "1" ]] && echo "Response received for ${urlendpt} : $(curl -skL "${urlendpt}" -H "Range: 0-1" -I)"
@@ -163,7 +165,7 @@ function chk_endpt_get() {
 function chk_endpt_post() {
   local endpt="${1}"
   local data="${2}"
-  echo rslt="$(curl -sL -X POST -H "Content-Type: application/json" "${URL}/${endpt}" -d "${data}" 2>&1)"
+  echo rslt="$(curl -sL -X POST -H "Content-Type: application/json" "${GURL}/${endpt}" -d "${data}" 2>&1)"
 }
 
 ##################
