@@ -57,6 +57,25 @@ DBSync instance requires the schema files from the git repository to be present 
 ln -s ~/git/cardano-db-sync/schema $CNODE_HOME/guild-db/schema
 ```
 
+#### Restore using Snapshot
+
+If you're running a testnet or mainnet instance of dbsync, you might want to consider use of dbsync snapshots as documented [here](https://github.com/input-output-hk/cardano-db-sync/blob/master/doc/state-snapshot.md). The snapshot files for latest epoch for mainnet as well as testnet are available via links in [release notes](https://github.com/input-output-hk/cardano-db-sync/releases).
+
+At high-level, this would involve steps as below (read and update paths as per your environment):
+
+``` bash
+
+# Replace the actual link below with the latest one from release notes
+wget https://update-cardano-mainnet.iohk.io/cardano-db-sync/12/db-sync-snapshot-schema-12-block-6764999-x86_64.tgz -O /tmp/dbsyncsnap.tgz
+rm -rf ${CNODE_HOME}/guild-db/ledger-state ; mkdir -p ${CNODE_HOME}/guild-db/ledger-state
+cd -; cd ~/git/cardano-db-sync
+scripts/postgresql-setup.sh --restore-snapshot /tmp/dbsyncsnap.tgz ${CNODE_HOME}/guild-db/ledger-state
+# The restore may take a while, please be patient and do not interrupt the restore process. Once restore is successful, you may delete the downloaded snapshot as below:
+#   rm -f /tmp/dbsyncsnap.tgz
+
+```
+
+
 #### Test running dbsync manually at terminal
 
 In order to verify that you can run dbsync, before making a start - you'd want to ensure that you can run it interactively once. To do so, try the commands below:
