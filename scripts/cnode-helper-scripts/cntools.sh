@@ -4479,10 +4479,12 @@ function main {
                     [[ -z ${meta_name} || ${#meta_name} -gt 50 ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata name is a required field and limited to 50 chars in length!" && waitForInput && continue
                     getAnswerAnyCust meta_desc "Description [${FG_RED}required${NC}] (Max. 500 chars)"
                     [[ -z ${meta_desc} || ${#meta_desc} -gt 500 ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata description is a required field and limited to 500 chars in length!" && waitForInput && continue
-                    getAnswerAnyCust meta_ticker "Ticker      [${FG_YELLOW}optional${NC}] (3-5 chars)     "
-                    [[ -n ${meta_ticker} && ( ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ) ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata ticker is limited to 3-5 chars in length!" && waitForInput && continue
+                    getAnswerAnyCust meta_ticker "Ticker      [${FG_YELLOW}optional${NC}] (3-9 chars)     "
+                    [[ -n ${meta_ticker} && ( ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 9 ) ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata ticker is limited to 3-9 chars in length!" && waitForInput && continue
                     getAnswerAnyCust meta_url "URL         [${FG_YELLOW}optional${NC}] (Max. 250 chars)"
                     [[ -n ${meta_url} && ( ! ${meta_url} =~ https://.* || ${#meta_url} -gt 250 ) ]] && println ERROR "\n${FG_RED}ERROR${NC}: Invalid metadata URL format or greater than 250 char limit!" && waitForInput && continue
+                    getAnswerAnyCust meta_decimals "Decimals    [${FG_YELLOW}optional${NC}]"
+                    [[ -n ${meta_decimals} ]] && ! isNumber ${meta_decimals} && println ERROR "\n${FG_RED}ERROR${NC}: Invalid decimal number" && waitForInput && continue
                     fileDialog "Logo/Icon   [${FG_YELLOW}optional${NC}] (PNG, <64kb)    " "${TMP_DIR}/"
                     meta_logo="${file}"
                     if [[ -n ${meta_logo} ]]; then
@@ -4503,6 +4505,7 @@ function main {
                     )
                     [[ -n ${meta_ticker} ]] && cmd_args+=( "--ticker" "${meta_ticker}" )
                     [[ -n ${meta_url} ]] && cmd_args+=( "--url" "${meta_url}" )
+                    [[ -n ${meta_decimals} && ${meta_decimals} -gt 0 ]] && cmd_args+=( "--decimals" "${meta_decimals}" )
                     [[ -n ${meta_logo} ]] && cmd_args+=( "--logo" "${meta_logo}" )
                     
                     pushd ${policy_folder} &>/dev/null || { println ERROR "\n${FG_RED}ERROR${NC}: unable to change directory to: ${policy_folder}" && waitForInput && continue; }

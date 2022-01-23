@@ -117,6 +117,27 @@ $$
   _last_epoch_active_stake_cache_epoch_no integer;
   _last_account_active_stake_cache_epoch_no integer;
   BEGIN
+
+    /* CHECK PREVIOUS QUERY FINISHED RUNNING */
+    IF (
+      SELECT
+        COUNT(pid) > 1
+      FROM
+        pg_stat_activity
+      WHERE
+        state = 'active'
+          AND 
+        query ILIKE '%grest.active_stake_cache_update(%'
+          AND 
+        datname = (
+          SELECT
+          current_database()
+      )
+    ) THEN 
+      RAISE EXCEPTION 
+        'Previous query still running but should have completed! Exiting...';
+    END IF;
+    
     /* POOL ACTIVE STAKE CACHE */
     SELECT
       COALESCE(MAX(epoch_no), 0)
