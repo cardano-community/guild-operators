@@ -280,6 +280,36 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Transaction Metadata Labels
       description: Get a list of all transaction metalabels
+  /submittx: #submit-api
+    post:
+      tags:
+        - Transactions
+      requestBody:
+        $ref: "#/components/requestBodies/txbin"
+      x-code-samples:
+        - lang: "Shell"
+          source: |
+            # Assuming ${data} is a raw binary serialized transaction on the file-system.
+            # If using a CLI-generated tx file, please ensure to deserialise (using `xxd -p -r <<< $(jq .cborHex ${tx.signed}) > ${data}`) first before submitting.
+            curl -X POST \
+                --header "Content-Type: application/cbor" \
+                --data-binary ${data} https://api.koios.rest/api/v0/submittx
+      responses:
+        "202":
+          description: OK
+          content:
+            application/json:
+              schema:
+                description: The transaction id.
+                type: string
+                format: hex
+                minLength: 64
+                maxLength: 64
+                example: 92bcd06b25dfbd89b578d536b4d3b7dd269b7c2aa206ed518012cffe0444d67f
+        "400":
+          description: An error occured while submitting transaction.
+      summary: Submit Transaction
+      description: Submit an already serialized transaction to the network.
   /tx_status:
     post:
       tags:
@@ -503,6 +533,23 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Asset Summary
       description: Get the summary of an asset (total transactions exclude minting/total wallets include only wallets with asset balance)
+  /asset_list:
+    get:
+      tags:
+        - Asset
+      responses:
+        "200":
+          description: Array of policy IDs and asset names 
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/asset_list"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Asset Summary
+      description: Get the list of all native assets (paginated)
   /address_assets: #RPC
     get:
       tags:
@@ -890,6 +937,13 @@ components:
               _tx_hashes:
                 - f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
                 - 0b8ba3bed976fa4913f19adc9f6dd9063138db5b4dd29cecde369456b5155e94
+    txbin:
+      content:
+        application/cbor:
+          schema:
+            type: string
+            format: binary
+            example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
   securitySchemes: {}
   schemas:
     tip:
@@ -1594,6 +1648,26 @@ components:
             type: string
             description: Active stake amount (in lovelaces)
             example: 682334162
+    asset_list:
+      type: array
+      description: Array of policy IDs and asset names
+      items:
+        properties:
+          policy_id:
+            type: string
+            description: Asset Policy ID (hex)
+            example: d3501d9531fcc25e3ca4b6429318c2cc374dbdbcf5e99c1c1e5da1ff
+          asset_names:
+            type: object
+            properties:
+              hex:
+                type: string
+                description: Asset Name (hex)
+                example: 444f4e545350414d
+              ascii:
+                type: string
+                description: Asset Name (ASCII)
+                example: DONTSPAM
     script_list:
       type: array
       items:
