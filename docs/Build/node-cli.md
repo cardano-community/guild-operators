@@ -75,7 +75,7 @@ cd $CNODE_HOME/scripts
 Stop the node by hitting Ctrl-C.
 
 !!! note
-    An average pool operator may not require `cardano-submit-api` at all. Please verify if it is required for your use as mentioned [here](../build.md#components).
+    An average pool operator may not require `cardano-submit-api` at all. Please verify if it is required for your use as mentioned [here](../build.md#components). If - however - you do run submit-api for accepting sizeable transaction load, you would want to override the default MEMPOOL_BYTES by uncommenting it in cnode.sh.
 
 #### Start the submit-api
 
