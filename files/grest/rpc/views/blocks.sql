@@ -6,6 +6,7 @@ CREATE VIEW grest.blocks AS
     b.SLOT_NO AS ABS_SLOT,
     b.EPOCH_SLOT_NO AS EPOCH_SLOT,
     b.BLOCK_NO AS HEIGHT,
+    b.SIZE,
     b.TIME AS BLOCK_TIME,
     b.TX_COUNT,
     b.VRF_KEY,
