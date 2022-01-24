@@ -280,6 +280,36 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Transaction Metadata Labels
       description: Get a list of all transaction metalabels
+  /submittx: #submit-api
+    post:
+      tags:
+        - Transactions
+      requestBody:
+        $ref: "#/components/requestBodies/txbin"
+      x-code-samples:
+        - lang: "Shell"
+          source: |
+            # Assuming ${data} is a raw binary serialized transaction on the file-system.
+            # If using a CLI-generated tx file, please ensure to deserialise (using `xxd -p -r <<< $(jq .cborHex ${tx.signed}) > ${data}`) first before submitting.
+            curl -X POST \
+                --header "Content-Type: application/cbor" \
+                --data-binary ${data} https://api.koios.rest/api/v0/submittx
+      responses:
+        "202":
+          description: OK
+          content:
+            application/json:
+              schema:
+                description: The transaction id.
+                type: string
+                format: hex
+                minLength: 64
+                maxLength: 64
+                example: 92bcd06b25dfbd89b578d536b4d3b7dd269b7c2aa206ed518012cffe0444d67f
+        "400":
+          description: An error occured while submitting transaction.
+      summary: Submit Transaction
+      description: Submit an already serialized transaction to the network.
   /tx_status:
     post:
       tags:
@@ -907,6 +937,13 @@ components:
               _tx_hashes:
                 - f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
                 - 0b8ba3bed976fa4913f19adc9f6dd9063138db5b4dd29cecde369456b5155e94
+    txbin:
+      content:
+        application/cbor:
+          schema:
+            type: string
+            format: binary
+            example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
   securitySchemes: {}
   schemas:
     tip:
