@@ -74,6 +74,9 @@ cd $CNODE_HOME/scripts
 
 Stop the node by hitting Ctrl-C.
 
+!!! note
+    An average pool operator may not require `cardano-submit-api` at all. Please verify if it is required for your use as mentioned [here](../build.md#components).
+
 #### Start the submit-api
 
 `cardano-submit-api` is one of the binaries built as part of `cardano-node` repository and allows you to submit transactions over a Web API. To run this service interactively, you can use the pre-built script below (`submitapi.sh`). Make sure to update `submitapi.sh` script to change listen IP or Port that you'd want to make this service available on.
