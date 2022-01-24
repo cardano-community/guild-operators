@@ -4,7 +4,8 @@ CREATE FUNCTION grest.account_assets (_address text DEFAULT NULL)
     RETURNS TABLE (
         asset_policy text,
         asset_name text,
-        quantity numeric)
+        quantity text
+    )
     LANGUAGE PLPGSQL
     AS $$
 DECLARE
@@ -34,7 +35,7 @@ BEGIN
         SELECT
             ENCODE(MA.POLICY::bytea, 'hex') AS asset_policy,
             ENCODE(MA.NAME::bytea, 'escape') AS asset_name,
-            sum(MTX.QUANTITY)
+            sum(MTX.QUANTITY)::text
         FROM
             MA_TX_OUT MTX
             INNER JOIN MULTI_ASSET MA ON MA.ID = MTX.ident

@@ -8,7 +8,7 @@ CREATE FUNCTION grest.asset_info (_asset_policy text, _asset_name text)
     fingerprint character varying,
     minting_tx_metadata json,
     token_registry_metadata json,
-    total_supply numeric,
+    total_supply text,
     creation_time timestamp without time zone)
   LANGUAGE PLPGSQL
   AS $$
@@ -62,7 +62,7 @@ BEGIN
     ) AS token_registry_metadata,
     (
       SELECT
-        SUM(MTM.quantity) AS amount
+        SUM(MTM.quantity)::text AS amount
       FROM
         ma_tx_mint MTM
       WHERE

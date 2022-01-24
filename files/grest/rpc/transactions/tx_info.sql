@@ -11,9 +11,9 @@ CREATE FUNCTION grest.tx_info (_tx_hashes text[])
     tx_timestamp timestamp without time zone,
     tx_block_index uinteger,
     tx_size uinteger,
-    total_output lovelace,
-    fee lovelace,
-    deposit bigint,
+    total_output text,
+    fee text,
+    deposit text,
     invalid_before word64type,
     invalid_after word64type,
     inputs json,
@@ -91,13 +91,13 @@ BEGIN
               'stake_addr', SA.view,
               'tx_hash', ENCODE(_all_tx.tx_hash, 'hex'),
               'tx_index', tx_out.index,
-              'value', tx_out.value,
+              'value', tx_out.value::text,
               'asset_list', COALESCE((
                 SELECT
                   JSON_AGG(JSON_BUILD_OBJECT(
                     'policy_id', ENCODE(MA.policy, 'hex'),
                     'asset_name', ENCODE(MA.name, 'hex'),
-                    'quantity', MTX.quantity
+                    'quantity', MTX.quantity::text
                   ))
                 FROM 
                   ma_tx_out MTX
@@ -133,13 +133,13 @@ BEGIN
               'stake_addr', SA.view,
               'tx_hash', ENCODE(tx.hash, 'hex'),
               'tx_index', tx_out.index,
-              'value', tx_out.value,
+              'value', tx_out.value::text,
               'asset_list', COALESCE((
                 SELECT 
                   JSON_AGG(JSON_BUILD_OBJECT(
                     'policy_id', ENCODE(MA.policy, 'hex'),
                     'asset_name', ENCODE(MA.name, 'hex'),
-                    'quantity', MTX.quantity
+                    'quantity', MTX.quantity::text
                   ))
                 FROM 
                   ma_tx_out MTX
@@ -169,7 +169,7 @@ BEGIN
           SELECT
             W.tx_id,
             JSON_BUILD_OBJECT(
-              'amount', W.amount,
+              'amount', W.amount::text,
               'stake_addr', SA.view
             ) AS data
           FROM 
@@ -192,7 +192,7 @@ BEGIN
             JSON_BUILD_OBJECT(
               'policy_id', ENCODE(MA.policy, 'hex'),
               'asset_name', ENCODE(MA.name, 'hex'),
-              'quantity', MTM.quantity
+              'quantity', MTM.quantity::text
             ) AS data
           FROM 
             ma_tx_mint MTM
@@ -291,7 +291,7 @@ BEGIN
               'type', 'treasury_MIR',
               'info', JSON_BUILD_OBJECT(
                 'stake_address', SA.view, 
-                'amount', T.amount
+                'amount', T.amount::text
               )
             ) AS data
           FROM 
@@ -309,7 +309,7 @@ BEGIN
               'type', 'reserve_MIR',
               'info', JSON_BUILD_OBJECT(
                 'stake_address', SA.view, 
-                'amount', R.amount
+                'amount', R.amount::text
               )
             ) AS data
           FROM 
@@ -326,8 +326,8 @@ BEGIN
               'index', PT.cert_index,
               'type', 'pot_transfer',
               'info', JSON_BUILD_OBJECT(
-                'treasury', PT.treasury,
-                'reserves', PT.reserves
+                'treasury', PT.treasury::text,
+                'reserves', PT.reserves::text
               )
             ) AS data
           FROM
@@ -412,8 +412,8 @@ BEGIN
                 'active_epoch_no', PIC.active_epoch_no,
                 'vrf_key_hash', PIC.vrf_key_hash,
                 'margin', PIC.margin,
-                'fixed_cost', PIC.fixed_cost,
-                'pledge', PIC.pledge,
+                'fixed_cost', PIC.fixed_cost::text,
+                'pledge', PIC.pledge::text,
                 'reward_addr', PIC.reward_addr,
                 'owners', PIC.owners,
                 'relays', PIC.relays,
@@ -442,9 +442,9 @@ BEGIN
       ATX.tx_timestamp,
       ATX.tx_block_index,
       ATX.tx_size,
-      ATX.total_output,
-      ATX.fee,
-      ATX.deposit,
+      ATX.total_output::text,
+      ATX.fee::text,
+      ATX.deposit::text,
       ATX.invalid_before,
       ATX.invalid_after,
       COALESCE(AI.list, JSON_BUILD_ARRAY()),
