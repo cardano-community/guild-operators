@@ -10,6 +10,7 @@
 ######################################
 
 #CPU_CORES=2              # Number of CPU cores cardano-node process has access to (please don't set higher than physical core count, 2-4 recommended)
+#MEMPOOL_BYTES=8388608    # Override mempool in bytes (Default: Do not override)
 #CNODE_LISTEN_IP4=0.0.0.0 # IP to use for listening (only applicable to Node Connection Port) for IPv4
 #CNODE_LISTEN_IP6=::      # IP to use for listening (only applicable to Node Connection Port) for IPv6
 
@@ -41,6 +42,7 @@ set_defaults() {
   host_addr=()
   [[ ${IP_VERSION} = "4" || ${IP_VERSION} = "mix" ]] && host_addr+=("--host-addr" "${CNODE_LISTEN_IP4}")
   [[ ${IP_VERSION} = "6" || ${IP_VERSION} = "mix" ]] && host_addr+=("--host-ipv6-addr" "${CNODE_LISTEN_IP6}")
+  [[ -z ${MEMPOOL_BYTES} ]] && MEMPOOL_OVERRIDE="" || MEMPOOL_OVERRIDE="--mempool-capacity-override ${MEMPOOL_BYTES}"
 }
 
 pre_startup_sanity() {
@@ -128,7 +130,7 @@ if [[ -f "${POOL_DIR}/${POOL_OPCERT_FILENAME}" && -f "${POOL_DIR}/${POOL_VRF_SK_
     --shelley-vrf-key "${POOL_DIR}/${POOL_VRF_SK_FILENAME}" \
     --shelley-operational-certificate "${POOL_DIR}/${POOL_OPCERT_FILENAME}" \
     --port ${CNODE_PORT} \
-    "${host_addr[@]}"
+    ${MEMPOOL_OVERRIDE} "${host_addr[@]}"
 else
   "${CNODEBIN}" "${CPU_RUNTIME[@]}" run \
     --topology "${TOPOLOGY}" \
@@ -136,5 +138,5 @@ else
     --database-path "${DB_DIR}" \
     --socket-path "${CARDANO_NODE_SOCKET_PATH}" \
     --port ${CNODE_PORT} \
-    "${host_addr[@]}"
+    ${MEMPOOL_OVERRIDE} "${host_addr[@]}"
 fi

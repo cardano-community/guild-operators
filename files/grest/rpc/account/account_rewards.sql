@@ -4,7 +4,7 @@ CREATE FUNCTION grest.account_rewards (_stake_address text, _epoch_no numeric DE
   RETURNS TABLE (
     earned_epoch bigint,
     spendable_epoch bigint,
-    amount lovelace,
+    amount text,
     type rewardtype,
     pool_id character varying)
   LANGUAGE PLPGSQL
@@ -26,7 +26,7 @@ BEGIN
     SELECT
       r.earned_epoch,
       r.spendable_epoch,
-      r.amount,
+      r.amount::text,
       r.type,
       ph.view as pool_id
     FROM
@@ -41,7 +41,7 @@ BEGIN
     SELECT
       r.earned_epoch,
       r.spendable_epoch,
-      r.amount,
+      r.amount::text,
       r.type,
       ph.view as pool_id
     FROM

@@ -280,6 +280,36 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Transaction Metadata Labels
       description: Get a list of all transaction metalabels
+  /submittx: #submit-api
+    post:
+      tags:
+        - Transactions
+      requestBody:
+        $ref: "#/components/requestBodies/txbin"
+      x-code-samples:
+        - lang: "Shell"
+          source: |
+            # Assuming ${data} is a raw binary serialized transaction on the file-system.
+            # If using a CLI-generated tx file, please ensure to deserialise (using `xxd -p -r <<< $(jq .cborHex ${tx.signed}) > ${data}`) first before submitting.
+            curl -X POST \
+                --header "Content-Type: application/cbor" \
+                --data-binary ${data} https://api.koios.rest/api/v0/submittx
+      responses:
+        "202":
+          description: OK
+          content:
+            application/json:
+              schema:
+                description: The transaction id.
+                type: string
+                format: hex
+                minLength: 64
+                maxLength: 64
+                example: 92bcd06b25dfbd89b578d536b4d3b7dd269b7c2aa206ed518012cffe0444d67f
+        "400":
+          description: An error occured while submitting transaction.
+      summary: Submit Transaction
+      description: Submit an already serialized transaction to the network.
   /tx_status:
     post:
       tags:
@@ -470,6 +500,23 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Account History
       description: Get the staking history of an account
+  /asset_list:
+    get:
+      tags:
+        - Asset
+      responses:
+        "200":
+          description: Array of policy IDs and asset names 
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/asset_list"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Asset List
+      description: Get the list of all native assets (paginated)
   /asset_address_list: #RPC
     get:
       tags:
@@ -488,7 +535,7 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-      summary: Assets Address List
+      summary: Asset Address List
       description: Get the list of all addresses holding a given asset
   /asset_info: #RPC
     get:
@@ -922,6 +969,13 @@ components:
               _tx_hashes:
                 - f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
                 - 0b8ba3bed976fa4913f19adc9f6dd9063138db5b4dd29cecde369456b5155e94
+    txbin:
+      content:
+        application/cbor:
+          schema:
+            type: string
+            format: binary
+            example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
   securitySchemes: {}
   schemas:
     tip:
@@ -1013,23 +1067,23 @@ components:
             description: Epoch number
             example: 294
           circulation:
-            type: integer
+            type: string
             description: Circulating UTxOs for given epoch (in lovelaces)
             example: 32081169442642320
           treasury:
-            type: integer
+            type: string
             description: Funds in treasury for given epoch (in lovelaces)
             example: 637024173474141
           reward:
-            type: integer
+            type: string
             description: Rewards accumulated as of given epoch (in lovelaces)
             example: 506871250479840
           supply:
-            type: integer
+            type: string
             description: Total Active Supply (sum of treasury funds, rewards, UTxOs, deposits and fees) for given epoch (in lovelaces)
             example: 33228495612391330
           reserves:
-            type: integer
+            type: string
             description: Total Reserves yet to be unlocked on chain
             example: 11771504387608670
     pool_list:
@@ -1053,11 +1107,11 @@ components:
             description: Epoch number
             example: 294
           out_sum:
-            type: integer
+            type: string
             description: Total output value across all transactions in epoch
             example: 15432725054364942
           fees:
-            type: integer
+            type: string
             description: Total fees incurred by transactions in epoch
             example: 74325855210
           tx_count:
@@ -1077,7 +1131,7 @@ components:
             description: Timestamp for last block created in epoch
             example: "2021-10-02T21:50:11"
           active_stake:
-            type: integer
+            type: string
             description: Rewards accumulated as of given epoch (in lovelaces)
             example: 23395112387185880
     epoch_params:
@@ -1260,15 +1314,15 @@ components:
             description: Size in bytes of transaction
             example: 391
           total_output:
-            type: integer
+            type: string
             description: Total sum of all transaction outputs (in lovelaces)
             example: 157832856
           fee:
-            type: integer
+            type: string
             description: Total Transaction fee (in lovelaces)
             example: 172761
           deposit:
-            type: integer
+            type: string
             description: Total Deposits included in transaction (for example, if it is registering a pool/key)
             example: 0
           invalid_before:
@@ -1308,7 +1362,7 @@ components:
                   description: Index of input UTxO on the mentioned address used for input
                   example: 0
                 value:
-                  type: integer
+                  type: string
                   description: Balance on the selected input transaction
                   example: 158005617
                 asset_list:
@@ -1325,7 +1379,7 @@ components:
                         description: Asset Name (hex)
                         example: 6d65736d6572697a65723038353436
                       quantity:
-                        type: integer
+                        type: string
                         description: Asset balance on the selected input transaction
                         example: 1
           outputs:
@@ -1358,7 +1412,7 @@ components:
                   description: Index of output UTxO
                   example: 0
                 value:
-                  type: integer
+                  type: string
                   description: Total sum on the output address
                   example: 157832856
                 asset_list:
@@ -1375,7 +1429,7 @@ components:
                         description: Asset Name (hex)
                         example: 6d65736d6572697a65723038353436
                       quantity:
-                        type: integer
+                        type: string
                         description: Sum of assets for output UTxO
                         example: 1
           withdrawals:
@@ -1385,7 +1439,7 @@ components:
               type: object
               properties:
                 amount:
-                  type: integer
+                  type: string
                   description: Withdrawal amount (in lovelaces)
                   example: 9845162
                 stake_addr:
@@ -1409,7 +1463,7 @@ components:
                   description: Asset Name (hex)
                   example: 6d65736d6572697a65723036363333
                 quantity:
-                  type: integer
+                  type: string
                   description: Sum of minted assets (negative on burn)
                   example: 1
           metadata:
@@ -1494,7 +1548,7 @@ components:
                   description: Index of input UTxO on the mentioned address used for input
                   example: 0
                 value:
-                  type: integer
+                  type: string
                   description: Balance on the selected input transaction
                   example: 158005617
                 asset_list:
@@ -1511,7 +1565,7 @@ components:
                         description: Asset Name (hex)
                         example: 6d65736d6572697a65723038353436
                       quantity:
-                        type: integer
+                        type: string
                         description: Asset balance on the selected input transaction
                         example: 1
           outputs:
@@ -1544,7 +1598,7 @@ components:
                   description: Index of output UTxO
                   example: 0
                 value:
-                  type: integer
+                  type: string
                   description: Total sum on the output address
                   example: 157832856
                 asset_list:
@@ -1561,7 +1615,7 @@ components:
                         description: Asset Name (hex)
                         example: 6d65736d6572697a65723038353436
                       quantity:
-                        type: integer
+                        type: string
                         description: Sum of assets for output UTxO
                         example: 1
     tx_metadata:
@@ -1623,9 +1677,25 @@ components:
             description: Epoch number
             example: 301
           active_stake:
-            type: integer
+            type: string
             description: Active stake amount (in lovelaces)
             example: 682334162
+    asset_list:
+      type: array
+      description: Array of policy IDs and asset names
+      items:
+        properties:
+          asset_names:
+            type: object
+            properties:
+              hex:
+                type: string
+                description: Asset Name (hex)
+                example: 444f4e545350414d
+              ascii:
+                type: string
+                description: Asset Name (ASCII)
+                example: DONTSPAM
     asset_address_list:
       type: array
       description: An array of payment addresses holding the given token (including balances)
@@ -1794,7 +1864,7 @@ components:
                   description: The budget in Cpu steps to run a script
                   example: 211535239
                 fee:
-                  type: integer
+                  type: string
                   description: The budget in fees to run a script - the fees depend on the ExUnits and the current prices
                   example: 45282
                 purpose:
