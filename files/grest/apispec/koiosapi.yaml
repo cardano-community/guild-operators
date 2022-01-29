@@ -1300,6 +1300,56 @@ components:
             type: integer
             description: Slot after which transaction cannot be validated
             example: 42332172
+          collaterals:
+            type: array
+            description: An array collateral inputs needed when dealing with smart contracts
+            items:
+              type: object
+              properties:
+                payment_addr:
+                  type: object
+                  properties:
+                    bech32:
+                      type: string
+                      description: A Cardano payment/base address (bech32 encoded) for transaction's input UTxO
+                      example: addr1qxkfe8s6m8qt5436lec3f0320hrmpppwqgs2gah4360krvyssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqdc3cxp
+                    cred:
+                      type: string
+                      description: Payment credential
+                      example: ac9c9e1ad9c0ba563afe7114be2a7dc7b0842e0220a476f58e9f61b0
+                stake_addr:
+                  type: string
+                  description: A Cardano staking address (reward account, bech32 encoded) for transaction's input UTxO
+                  example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
+                tx_hash:
+                  type: string
+                  description: Hash of Transaction for input UTxO
+                  example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
+                tx_index:
+                  type: integer
+                  description: Index of input UTxO on the mentioned address used for input
+                  example: 0
+                value:
+                  type: string
+                  description: Balance on the selected input transaction
+                  example: 158005617
+                asset_list:
+                  type: array
+                  description: An array of assets contained on input UTxO
+                  items:
+                    properties:
+                      policy_id:
+                        type: string
+                        description: Asset Policy ID (hex)
+                        example: 6cf6b5cf0fefbe9e69d640d8be84912bb2c9e132671954548790bcfb
+                      asset_name:
+                        type: string
+                        description: Asset Name (hex)
+                        example: 6d65736d6572697a65723038353436
+                      quantity:
+                        type: string
+                        description: Asset balance on the selected input transaction
+                        example: 1
           inputs:
             type: array
             description: An array with details about inputs used in a transaction

@@ -16,6 +16,7 @@ CREATE FUNCTION grest.tx_info (_tx_hashes text[])
     deposit text,
     invalid_before word64type,
     invalid_after word64type,
+    collaterals json,
     inputs json,
     outputs json,
     withdrawals json,
@@ -89,7 +90,7 @@ BEGIN
                 'cred', ENCODE(tx_out.payment_cred, 'hex')
               ),
               'stake_addr', SA.view,
-              'tx_hash', ENCODE(_all_tx.tx_hash, 'hex'),
+              'tx_hash', ENCODE(tx.hash, 'hex'),
               'tx_index', tx_out.index,
               'value', tx_out.value::text,
               'asset_list', COALESCE((
@@ -108,14 +109,56 @@ BEGIN
             ) AS t_outputs
           FROM
             tx_out
-            INNER JOIN _all_tx ON tx_out.tx_id = _all_tx.id
+            INNER JOIN tx ON tx_out.tx_id = tx.id
             LEFT JOIN stake_address SA on tx_out.stake_address_id = SA.id
           WHERE 
             tx_out.tx_id = ANY (_tx_id_list)
         ) AS tmp
 
         GROUP BY tx_id
-        ORDER BY tx_id
+      ),
+
+      _all_collateral_inputs AS (
+        SELECT
+          tx_id,
+          JSON_AGG(tc_inputs) AS list
+        FROM (
+          SELECT 
+            collateral_tx_in.tx_in_id AS tx_id,
+            JSON_BUILD_OBJECT(
+              'payment_addr', JSON_BUILD_OBJECT(
+                'bech32', tx_out.address,
+                'cred', ENCODE(tx_out.payment_cred, 'hex')
+              ),
+              'stake_addr', SA.view,
+              'tx_hash', ENCODE(tx.hash, 'hex'),
+              'tx_index', tx_out.index,
+              'value', tx_out.value::text,
+              'asset_list', COALESCE((
+                SELECT 
+                  JSON_AGG(JSON_BUILD_OBJECT(
+                    'policy_id', ENCODE(MA.policy, 'hex'),
+                    'asset_name', ENCODE(MA.name, 'hex'),
+                    'quantity', MTX.quantity::text
+                  ))
+                FROM 
+                  ma_tx_out MTX
+                  INNER JOIN MULTI_ASSET MA ON MA.id = MTX.ident
+                WHERE 
+                  MTX.tx_out_id = tx_out.id
+              ), JSON_BUILD_ARRAY())
+            ) AS tc_inputs
+          FROM
+            collateral_tx_in
+            INNER JOIN tx on collateral_tx_in.tx_in_id = tx.id
+            INNER JOIN tx_out ON tx_out.tx_id = collateral_tx_in.tx_out_id
+              AND tx_out.index = collateral_tx_in.tx_out_index
+            LEFT JOIN stake_address SA on tx_out.stake_address_id = SA.id
+          WHERE 
+            collateral_tx_in.tx_in_id = ANY (_tx_id_list)
+        ) AS tmp
+
+        GROUP BY tx_id
       ),
 
       _all_inputs AS (
@@ -447,20 +490,15 @@ BEGIN
       ATX.deposit::text,
       ATX.invalid_before,
       ATX.invalid_after,
-      COALESCE(AI.list, JSON_BUILD_ARRAY()),
-      COALESCE(AO.list, JSON_BUILD_ARRAY()),
-      COALESCE(AW.list, JSON_BUILD_ARRAY()),
-      COALESCE(AMI.list, JSON_BUILD_ARRAY()),
-      COALESCE(AME.list, JSON_BUILD_ARRAY()),
-      COALESCE(AC.list, JSON_BUILD_ARRAY())
+      COALESCE((SELECT ACI.list FROM _all_collateral_inputs ACI WHERE ACI.tx_id = ATX.id), JSON_BUILD_ARRAY()),
+      COALESCE((SELECT AI.list FROM _all_inputs AI WHERE AI.tx_id = ATX.id), JSON_BUILD_ARRAY()),
+      COALESCE((SELECT AO.list FROM _all_outputs AO WHERE AO.tx_id = ATX.id), JSON_BUILD_ARRAY()),
+      COALESCE((SELECT AW.list FROM _all_withdrawals AW WHERE AW.tx_id = ATX.id), JSON_BUILD_ARRAY()),
+      COALESCE((SELECT AMI.list FROM _all_mints AMI WHERE AMI.tx_id = ATX.id), JSON_BUILD_ARRAY()),
+      COALESCE((SELECT AME.list FROM _all_metadata AME WHERE AME.tx_id = ATX.id), JSON_BUILD_ARRAY()),
+      COALESCE((SELECT AC.list FROM _all_certs AC WHERE AC.tx_id = ATX.id), JSON_BUILD_ARRAY())
     FROM
       _all_tx ATX
-      LEFT JOIN _all_inputs AI ON AI.tx_id = ATX.id
-      LEFT JOIN _all_outputs AO ON AO.tx_id = ATX.id
-      LEFT JOIN _all_withdrawals AW ON AW.tx_id = ATX.id
-      LEFT JOIN _all_mints AMI ON AMI.tx_id = ATX.id
-      LEFT JOIN _all_metadata AME ON AME.tx_id = ATX.id
-      LEFT JOIN _all_certs AC ON AC.tx_id = ATX.id
     WHERE ATX.tx_hash = ANY (_tx_hashes_bytea)
 );
 
