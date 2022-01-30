@@ -1,6 +1,6 @@
-DROP FUNCTION IF EXISTS grest.pool_info (text);
+DROP FUNCTION IF EXISTS grest.pool_info (text[]);
 
-CREATE FUNCTION grest.pool_info (_pool_bech32 text)
+CREATE FUNCTION grest.pool_info (_pool_bech32_ids text[])
   RETURNS TABLE (
     pool_id_bech32 character varying,
     pool_id_hex text,
@@ -30,13 +30,18 @@ CREATE FUNCTION grest.pool_info (_pool_bech32 text)
   #variable_conflict use_column
 DECLARE
   _epoch_no bigint;
-  _total_supply bigint;
+  _saturation_limit bigint;
 BEGIN
   SELECT epoch.no INTO _epoch_no FROM public.epoch ORDER BY epoch.no DESC LIMIT 1;
-  SELECT FLOOR(supply::bigint / (SELECT p_optimal_pool_count FROM grest.epoch_info_cache WHERE epoch_no = _epoch_no))::bigint INTO _total_supply FROM grest.totals(_epoch_no);
+
+  SELECT FLOOR(supply::bigint / (
+      SELECT p_optimal_pool_count 
+      FROM grest.epoch_info_cache
+      WHERE epoch_no = _epoch_no
+    ))::bigint INTO _saturation_limit FROM grest.totals(_epoch_no);
 
   RETURN QUERY
-  SELECT
+  SELECT DISTINCT ON (pic.pool_id_bech32)
     pic.pool_id_bech32,
     pic.pool_id_hex,
     pic.active_epoch_no,
@@ -58,12 +63,12 @@ BEGIN
     block_data.cnt,
     live.stake::text,
     live.delegators,
-    ROUND((live.stake / _total_supply) * 100, 2)
+    ROUND((live.stake / _saturation_limit) * 100, 2)
   FROM
     grest.pool_info_cache AS pic
   LEFT JOIN
     public.pool_offline_data AS pod ON pod.pmr_id = pic.meta_id
-  LEFT JOIN LATERAL(
+  LEFT JOIN LATERAL (
     SELECT
       SUM(COUNT(b.id)) OVER () AS cnt,
       b.op_cert,
@@ -84,7 +89,7 @@ BEGIN
   LEFT JOIN LATERAL(
     SELECT
       amount::lovelace AS as_sum
-    FROM 
+    FROM
       grest.pool_active_stake_cache AS easc
     WHERE 
       easc.pool_id = pic.pool_id_bech32
@@ -101,11 +106,11 @@ BEGIN
       sdc.pool_id = pic.pool_id_bech32
   ) live ON TRUE
   WHERE
-    pic.pool_id_bech32 = _pool_bech32
+    pic.pool_id_bech32 = ANY(SELECT UNNEST(_pool_bech32_ids))
   ORDER BY
-    pic.tx_id DESC
-  LIMIT 1;
+    pic.pool_id_bech32,
+    pic.tx_id DESC;
 END;
 $$;
 
-COMMENT ON FUNCTION grest.pool_info IS 'Current pool status and details for specified pool id';
+COMMENT ON FUNCTION grest.pool_info IS 'Current pool status and details for a specified list of pool ids';
