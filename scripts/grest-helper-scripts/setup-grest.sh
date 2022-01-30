@@ -401,13 +401,13 @@
 			frontend app
 			  bind 0.0.0.0:8053
 			  http-request set-log-level silent
-			  acl is_wss hdr(Upgrade) -i websocket
 			  ## Replace servername.koios.rest below
 			  #http-request replace-value Host (.*):8053 servername.koios.rest:8453
 			  #redirect scheme https code 301 if !{ ssl_fc }
 			  #
 			  #frontend app-secured
 			  #bind :8453 ssl crt /etc/ssl/server.pem no-sslv3
+			  acl is_wss hdr(Upgrade) -i websocket
 			  http-request use-service prometheus-exporter if { path /metrics }
 			  http-request track-sc0 src table flood_lmt_rate
 			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 250 }
