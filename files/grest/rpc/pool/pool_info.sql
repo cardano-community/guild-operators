@@ -20,7 +20,7 @@ CREATE FUNCTION grest.pool_info (_pool_bech32_ids text[])
     op_cert text,
     op_cert_counter word63type,
     active_stake text,
-    epoch_block_cnt numeric,
+    block_count numeric,
     live_stake text,
     live_delegators bigint,
     live_saturation numeric
@@ -80,10 +80,10 @@ BEGIN
     WHERE
       sl.pool_hash_id = pic.pool_hash_id
     GROUP BY
-	    b.op_cert,
-	    b.op_cert_counter
+      b.op_cert,
+      b.op_cert_counter
     ORDER BY
-	    b.op_cert_counter DESC
+      b.op_cert_counter DESC
     LIMIT 1
   ) block_data ON TRUE
   LEFT JOIN LATERAL(
