@@ -33,7 +33,7 @@ DECLARE
   _total_supply bigint;
 BEGIN
   SELECT epoch.no INTO _epoch_no FROM public.epoch ORDER BY epoch.no DESC LIMIT 1;
-  SELECT FLOOR(supply / (SELECT p_optimal_pool_count FROM grest.epoch_info_cache WHERE epoch_no = _epoch_no))::bigint INTO _total_supply FROM grest.totals(_epoch_no);
+  SELECT FLOOR(supply::bigint / (SELECT p_optimal_pool_count FROM grest.epoch_info_cache WHERE epoch_no = _epoch_no))::bigint INTO _total_supply FROM grest.totals(_epoch_no);
 
   RETURN QUERY
   SELECT
