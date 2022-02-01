@@ -26,7 +26,7 @@ info:
     give enough flexibility to all the participants to select their backend, or pick from any of the available ones instead.
     - Bad human errors causing an outage? The bandwidth for Koios becomes better with more participation, but just in case there is not enough participation - we will
     ensure that at least 4 trusted Koios instances across the globe will be around for the initial year, allowing for enough time for adoption to build up gradually.
-    - Flexibility to participate at different levels. A consumer of these services can participate with a complete independent instance (optionally extend existing ones), run certain parts (eg: submit-api or PostgREST only) OR simply consume the API without running anything locally
+    - Flexibility to participate at different levels. A consumer of these services can participate with a complete independent instance (optionally extend existing ones), by running only certain parts (e.g. submit-api or PostgREST only), or simply consuming the API without running anything locally.
 
     # Architecture
 
