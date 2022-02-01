@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=9
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=0
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=2
+CNTOOLS_PATCH_VERSION=3
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -25,6 +25,7 @@ if ! mkdir -p "${WALLET_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}
 if ! mkdir -p "${POOL_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}: Failed to create pool directory: ${POOL_FOLDER}"; fi
 if ! mkdir -p "${ASSET_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}: Failed to create asset directory: ${POOL_ASSET}"; fi
 [[ -z ${TIMEOUT_NO_OF_SLOTS} ]] && TIMEOUT_NO_OF_SLOTS=600
+[[ -z ${TX_TTL} ]] && TX_TTL=3600
 [[ -z ${WALLET_SELECTION_FILTER_LIMIT} ]] && WALLET_SELECTION_FILTER_LIMIT=10
 [[ -z ${KES_ALERT_PERIOD} ]] && KES_ALERT_PERIOD=172800 # default 2 days
 [[ -z ${KES_WARNING_PERIOD} ]] && KES_WARNING_PERIOD=604800 # default 7 days
@@ -1119,7 +1120,7 @@ getTTL() {
     fi
     ttl=$(( tip_ref + (ttl_enter/SLOT_LENGTH) ))
   else
-    ttl=$(( tip_ref + (600/SLOT_LENGTH) )) # TTL default: 10min
+    ttl=$(( tip_ref + (TX_TTL/SLOT_LENGTH) )) # TTL default: 10min
   fi
   println LOG "Current slot is ${tip_ref}, setting ttl to ${ttl}"
 }
