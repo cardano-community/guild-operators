@@ -1120,7 +1120,7 @@ getTTL() {
     fi
     ttl=$(( tip_ref + (ttl_enter/SLOT_LENGTH) ))
   else
-    ttl=$(( tip_ref + (TX_TTL/SLOT_LENGTH) )) # TTL default: 10min
+    ttl=$(( tip_ref + (TX_TTL/SLOT_LENGTH) ))
   fi
   println LOG "Current slot is ${tip_ref}, setting ttl to ${ttl}"
 }
