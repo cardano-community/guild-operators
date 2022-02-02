@@ -155,7 +155,7 @@ begin
                           epochActiveStakeCache.epoch_no = act.epoch_no)) * 100 active_stake_pct,
                       ROUND((amount / (
                           select
-                            supply / (
+                            supply::bigint / (
                               select
                                 p_optimal_pool_count from grest.epoch_info_cache
                               where
