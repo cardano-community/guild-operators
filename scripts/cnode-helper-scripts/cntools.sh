@@ -29,6 +29,9 @@ fi
 #KES_ALERT_PERIOD=172800 # default 2 days
 #KES_WARNING_PERIOD=604800 # default 7 days
 
+# Default Transaction TTL (slots after which transaction will expire from queue) to use
+#TX_TTL=3600
+
 # limit for extended wallet selection menu filtering (balance check and delegation status)
 # if more wallets exist than limit set these checks will be disabled to improve performance
 #WALLET_SELECTION_FILTER_LIMIT=10
