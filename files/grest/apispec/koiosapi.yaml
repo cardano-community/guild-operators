@@ -487,7 +487,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
       summary: Address Information
-      description: Get address info - balance, associated stake address (if any) and UTXO set
+      description: Get address info - balance, associated stake address (if any) and UTxO set
   /address_txs: #RPC
     post:
       tags:
@@ -503,6 +503,21 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Address Transactions
       description: Get the transaction hash list of input address array, optionally filtering after specified block height (inclusive)
+  /address_assets: #RPC
+    get:
+      tags:
+        - Address
+      parameters:
+        - $ref: "#/components/parameters/_address"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Address Assets
+      description: Get the list of all the assets (policy, name and quantity) for a given address
   /credential_txs: #RPC
     post:
       tags:
@@ -629,6 +644,23 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Account History
       description: Get the staking history of an account
+  /asset_list:
+    get:
+      tags:
+        - Asset
+      responses:
+        "200":
+          description: Array of policy IDs and asset names 
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/asset_list"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Asset List
+      description: Get the list of all native assets (paginated)
   /asset_address_list: #RPC
     get:
       tags:
@@ -638,13 +670,17 @@ paths:
         - $ref: "#/components/parameters/_asset_name"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of payment addresses holding the given token (including balances)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/asset_address_list"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-      summary: Assets Address List
-      description: Get a list of all addresses for a given asset
+      summary: Asset Address List
+      description: Get the list of all addresses holding a given asset
   /asset_info: #RPC
     get:
       tags:
@@ -654,13 +690,37 @@ paths:
         - $ref: "#/components/parameters/_asset_name"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of detailed asset information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/asset_info"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
       summary: Asset Information
-      description: Get the information of an asset incl first minting & token registry metadata
+      description: Get the information of an asset including first minting & token registry metadata
+  /asset_summary: #RPC
+    get:
+      tags:
+        - Asset
+      parameters:
+        - $ref: "#/components/parameters/_asset_policy"
+        - $ref: "#/components/parameters/_asset_name"
+      responses:
+        "200":
+          description: Array of asset summary information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/asset_summary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Asset Summary
+      description: Get the summary of an asset (total transactions exclude minting/total wallets include only wallets with asset balance)
   /asset_txs: #RPC
     get:
       tags:
@@ -670,45 +730,17 @@ paths:
         - $ref: "#/components/parameters/_asset_name"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-      summary: Asset Summary
-      description: Get the summary of an asset (total transactions exclude minting/total wallets include only wallets with asset balance)
-  /asset_list:
-    get:
-      tags:
-        - Asset
-      responses:
-        "200":
-          description: Array of policy IDs and asset names
+          description: Array of Tx hashes that included the given asset
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/asset_list"
+                $ref: "#/components/schemas/asset_txs"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-      summary: Asset Summary
-      description: Get the list of all native assets (paginated)
-  /address_assets: #RPC
-    get:
-      tags:
-        - Address
-      parameters:
-        - $ref: "#/components/parameters/_address"
-      responses:
-        "200":
-          $ref: "#/components/responses/OK"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-      summary: Address Assets
-      description: Get the list of all the assets (policy, name and quantity) for a given address
+      summary: Asset Transaction History
+      description: Get the list of all asset transaction hashes (newest first)
   /pool_list: #RPC
     get:
       tags:
@@ -1797,10 +1829,6 @@ components:
       description: Array of policy IDs and asset names
       items:
         properties:
-          policy_id:
-            type: string
-            description: Asset Policy ID (hex)
-            example: d3501d9531fcc25e3ca4b6429318c2cc374dbdbcf5e99c1c1e5da1ff
           asset_names:
             type: object
             properties:
@@ -1812,6 +1840,131 @@ components:
                 type: string
                 description: Asset Name (ASCII)
                 example: DONTSPAM
+    asset_address_list:
+      type: array
+      description: An array of payment addresses holding the given token (including balances)
+      items:
+        properties:
+          payment_address:
+              type: string
+              description: A Cardano payment/base address (bech32 encoded) for transaction's input UTxO
+              example: addr1qxkfe8s6m8qt5436lec3f0320hrmpppwqgs2gah4360krvyssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqdc3cxp
+          quantity:
+            type: string
+            description: Asset balance on the payment address
+            example: 23
+    asset_summary:
+      type: array
+      description: An array of assets contained on input UTxO
+      items:
+        properties:
+          policy_id:
+            type: string
+            description: Asset Policy ID (hex)
+            example: 6cf6b5cf0fefbe9e69d640d8be84912bb2c9e132671954548790bcfb
+          asset_name:
+            type: string
+            description: Asset Name (hex)
+            example: 6d65736d6572697a65723038353436
+          total_transactions:
+            type: integer
+            description: Total number of transactions including the given asset
+            example: 89416
+          staked_wallets:
+            type: integer
+            description: Total number of registered wallets holding the given asset
+            example: 548
+          unstaked_addresses:
+            type: integer
+            description: Total number of payment addresses (not belonging to registered wallets) holding the given asset
+            example: 245
+    asset_info:
+      type: array
+      description: An array of assets contained on input UTxO
+      items:
+        properties:
+          policy_id:
+            type: string
+            description: Asset Policy ID (hex)
+            example: d3501d9531fcc25e3ca4b6429318c2cc374dbdbcf5e99c1c1e5da1ff
+          asset_name:
+            type: string
+            description: Asset Name (hex)
+            example: 444f4e545350414d
+          asset_name_ascii:
+            type: string
+            description: Asset Name (ASCII)
+            example: DONTSPAM
+          fingerprint:
+            type: string
+            description: The CIP14 fingerprint of the asset
+            example: asset1ua6pz3yd5mdka946z8jw2fld3f8d0mmxt75gv9
+          minting_tx_metadata:
+            type: object
+            properties:
+              key:
+                type: string
+                description: The metadata key
+                example: 721
+              json:
+                type: object
+                description: The minting Tx JSON payload if it can be decoded as JSON
+                example: {
+                  "image": "ipfs://QmVHpTQL4Furw6fFNhSHdT3AWGbDE9Vs341JHJhQF1bAEA",
+                  "pattern": "08",
+                  "collection": "ccvault.io - the mesmerizer 2021",
+                  "description": "Thanks for supporting ccvault.io development!"
+                }
+          token_registry_metadata:
+            type: object
+            description: Asset metadata registered on the Cardano Token Registry
+            properties:
+              name:
+                type: string
+                example: Rackmob
+              description:
+                type: string
+                example: Metaverse Blockchain Cryptocurrency.
+              ticker:
+                type: string
+                example: MOB
+              url:
+                type: string
+                example: https://www.rackmob.com/ 
+              logo:
+                type: string
+                description: A PNG image file as a byte string
+                example: iVBORw0KGgoAAAANSUhEUgAAAPoAAAD6CAYAAACI7Fo9AAAACXBIWXMAAA7EAAAOxAGVKw4bAAADnmlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSfvu78nIGlkPSdXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQnPz4KPHg6eG1wbWV0YSB4bWxuczp4PSdhZG9iZTpuczptZXRhLyc
+              decimals:
+                type: integer
+                example: 0
+          total_supply:
+            type: integer
+            example: 35000
+          creation_time:
+            type: string
+            example: "2021-10-10T18:42:14"
+    asset_txs:
+      type: array
+      description: An array of Tx hashes that included the given asset (latest first)
+      items:
+        properties:
+          policy_id:
+            type: string
+            description: Asset Policy ID (hex)
+            example: 6cf6b5cf0fefbe9e69d640d8be84912bb2c9e132671954548790bcfb
+          asset_name:
+            type: string
+            description: Asset Name (hex)
+            example: 6d65736d6572697a65723038353436
+          tx_hashes:
+            type: array
+            description: List of Tx hashes
+            example: [
+              "17377b1978c8be190d31b418d1999d8b5c2748709580ded896163440e70face1",
+              "a50b2bbb40b25b6fc19b56c2b3d7887086d0df5a03414e1097d9fba852134bb4",
+              "c418d9c874aff0a163218ffdb5ba9189202473cdc16d7dfe66420e95fa398ee9"
+            ]
     script_list:
       type: array
       items:
