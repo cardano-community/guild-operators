@@ -2,9 +2,9 @@ DROP FUNCTION IF EXISTS grest.asset_address_list (text, text);
 
 CREATE FUNCTION grest.asset_address_list (_asset_policy text, _asset_name text)
   RETURNS TABLE (
-    address varchar,
-    quantity text)
-  LANGUAGE PLPGSQL
+    payment_address varchar,
+    quantity text
+  ) LANGUAGE PLPGSQL
   AS $$
 DECLARE
   _asset_policy_decoded bytea;
