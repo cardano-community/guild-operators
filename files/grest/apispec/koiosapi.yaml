@@ -1987,6 +1987,10 @@ components:
       description: Array of policy IDs and asset names
       items:
         properties:
+          policy_id:
+            type: string
+            description: Asset Policy ID (hex)
+            example: d3501d9531fcc25e3ca4b6429318c2cc374dbdbcf5e99c1c1e5da1ff
           asset_names:
             type: object
             properties:
