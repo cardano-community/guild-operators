@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1090,SC2086
+# shellcheck disable=SC1090,SC2086,SC2281
 
 #Todo: adapt for node names != cnode
 #Todo: fix logRotation lock
