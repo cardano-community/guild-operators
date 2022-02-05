@@ -8,19 +8,32 @@ CREATE FUNCTION grest.pool_list ()
   AS $$
   # variable_conflict use_column
 BEGIN
-  RETURN QUERY SELECT DISTINCT ON (pic.pool_id_bech32)
-    pool_id_bech32,
-    pod.ticker_name
-  FROM
-    grest.pool_info_cache AS pic
-  LEFT JOIN public.pool_offline_data AS pod ON pod.pmr_id = pic.meta_id
-WHERE
-  pic.pool_status != 'retired'
-ORDER BY
-  pic.pool_id_bech32,
-  pic.tx_id DESC;
+
+  RETURN QUERY (
+    WITH
+      -- Get last pool update for each pool
+      _pool_updates AS (
+        SELECT
+          DISTINCT ON (pic.pool_id_bech32) pool_id_bech32,
+          pod.ticker_name,
+          pic.pool_status
+        FROM
+          grest.pool_info_cache AS pic
+          LEFT JOIN public.pool_offline_data AS pod ON pod.pmr_id = pic.meta_id
+        ORDER BY
+          pic.pool_id_bech32,
+          pic.tx_id DESC
+      )
+
+    SELECT
+      pool_id_bech32,
+      ticker_name
+    FROM
+      _pool_updates
+    WHERE
+      pool_status != 'retired'
+
+  );
+
 END;
 $$;
-
-COMMENT ON FUNCTION grest.pool_list IS 'A list of all currently registered/retiring (not retired) pools';
-

@@ -1,7 +1,7 @@
 DROP FUNCTION IF EXISTS grest.account_history (text, integer);
 
 CREATE FUNCTION grest.account_history (
-  _address text DEFAULT NULL,
+  _address text,
   _epoch_no integer DEFAULT NULL
   ) RETURNS TABLE (
       stake_address varchar,

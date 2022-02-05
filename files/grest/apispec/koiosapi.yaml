@@ -487,7 +487,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
       summary: Address Information
-      description: Get address info - balance, associated stake address (if any) and UTXO set
+      description: Get address info - balance, associated stake address (if any) and UTxO set
   /address_txs: #RPC
     post:
       tags:
@@ -503,6 +503,21 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Address Transactions
       description: Get the transaction hash list of input address array, optionally filtering after specified block height (inclusive)
+  /address_assets: #RPC
+    get:
+      tags:
+        - Address
+      parameters:
+        - $ref: "#/components/parameters/_address"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Address Assets
+      description: Get the list of all the assets (policy, name and quantity) for a given address
   /credential_txs: #RPC
     post:
       tags:
@@ -629,6 +644,23 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Account History
       description: Get the staking history of an account
+  /asset_list:
+    get:
+      tags:
+        - Asset
+      responses:
+        "200":
+          description: Array of policy IDs and asset names 
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/asset_list"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Asset List
+      description: Get the list of all native assets (paginated)
   /asset_address_list: #RPC
     get:
       tags:
@@ -638,13 +670,17 @@ paths:
         - $ref: "#/components/parameters/_asset_name"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of payment addresses holding the given token (including balances)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/asset_address_list"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-      summary: Assets Address List
-      description: Get a list of all addresses for a given asset
+      summary: Asset Address List
+      description: Get the list of all addresses holding a given asset
   /asset_info: #RPC
     get:
       tags:
@@ -654,13 +690,37 @@ paths:
         - $ref: "#/components/parameters/_asset_name"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of detailed asset information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/asset_info"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
       summary: Asset Information
-      description: Get the information of an asset incl first minting & token registry metadata
+      description: Get the information of an asset including first minting & token registry metadata
+  /asset_summary: #RPC
+    get:
+      tags:
+        - Asset
+      parameters:
+        - $ref: "#/components/parameters/_asset_policy"
+        - $ref: "#/components/parameters/_asset_name"
+      responses:
+        "200":
+          description: Array of asset summary information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/asset_summary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Asset Summary
+      description: Get the summary of an asset (total transactions exclude minting/total wallets include only wallets with asset balance)
   /asset_txs: #RPC
     get:
       tags:
@@ -670,45 +730,17 @@ paths:
         - $ref: "#/components/parameters/_asset_name"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-      summary: Asset Summary
-      description: Get the summary of an asset (total transactions exclude minting/total wallets include only wallets with asset balance)
-  /asset_list:
-    get:
-      tags:
-        - Asset
-      responses:
-        "200":
-          description: Array of policy IDs and asset names
+          description: Array of Tx hashes that included the given asset
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/asset_list"
+                $ref: "#/components/schemas/asset_txs"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-      summary: Asset Summary
-      description: Get the list of all native assets (paginated)
-  /address_assets: #RPC
-    get:
-      tags:
-        - Address
-      parameters:
-        - $ref: "#/components/parameters/_address"
-      responses:
-        "200":
-          $ref: "#/components/responses/OK"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-      summary: Address Assets
-      description: Get the list of all the assets (policy, name and quantity) for a given address
+      summary: Asset Transaction History
+      description: Get the list of all asset transaction hashes (newest first)
   /pool_list: #RPC
     get:
       tags:
@@ -727,20 +759,24 @@ paths:
       summary: Pool List
       description: A list of all currently registered/retiring (not retired) pools
   /pool_info: #RPC
-    get:
+    post:
       tags:
         - Pool
-      parameters:
-        - $ref: "#/components/parameters/_pool_bech32"
+      requestBody:
+        $ref: "#/components/requestBodies/pool_ids"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of pool information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/pool_info"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
       summary: Pool Information
-      description: Current pool status and details for specified pool id
+      description: Current pool statuses and details for a specified list of pool ids
   /pool_delegators: #RPC
     get:
       tags:
@@ -1088,6 +1124,25 @@ components:
             type: string
             format: binary
             example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
+    pool_ids:
+      content:
+        application/json:
+          schema:
+            required:
+              - _pool_bech32_ids
+            type: object
+            properties:
+              _pool_bech32_ids:
+                format: text
+                type: array
+                items:
+                  type: string
+                description: Array of Cardano pool IDs (bech32 format)
+            example:
+              _pool_bech32_ids:
+                - pool100wj94uzf54vup2hdzk0afng4dhjaqggt7j434mtgm8v2gfvfgp
+                - pool102s2nqtea2hf5q0s4amj0evysmfnhrn4apyyhd4azcmsclzm96m
+                - pool102vsulhfx8ua2j9fwl2u7gv57fhhutc3tp6juzaefgrn7ae35wm
   securitySchemes: {}
   schemas:
     tip:
@@ -1210,6 +1265,137 @@ components:
             type: string
             description: Pool ticker
             example: JAZZ
+    pool_info:
+      type: array
+      items:
+        type: object
+        properties:
+          pool_id_bech32:
+            type: string
+            description: Pool ID (bech32 format)
+            example: pool155efqn9xpcf73pphkk88cmlkdwx4ulkg606tne970qswczg3asc
+          pool_id_hex:
+            type: string
+            description: Pool ID (Hex format)
+            example: a532904ca60e13e88437b58e7c6ff66b8d5e7ec8d3f4b9e4be7820ec
+          active_epoch_no:
+            type: integer
+            description: Block number on chain where transaction was included
+            example: 6354154
+          vrf_key_hash:
+            type: string
+            description: Pool VRF key hash
+            example: 25efdad1bc12944d38e4e3c26c43565bec84973a812737b163b289e87d0d5ed3
+          margin:
+            type: number
+            description: Margin (decimal format)
+            example: 0.1
+          fixed_cost:
+            type: integer
+            description: Pool fixed cost per epoch
+            example: 500000000
+          pledge:
+            type: string
+            description: Pool pledge in lovelace
+            example: "64000000000000"
+          reward_addr:
+            type: string
+            description: Pool reward address
+            example: stake1uy6yzwsxxc28lfms0qmpxvyz9a7y770rtcqx9y96m42cttqwvp4m5
+          owners:
+            type: array
+            items:
+              type: string
+              description: Pool (co)owner address
+              example: stake1u8088wvudd7dp3rxl0v9xgng8r3j50s65ge3l3jvgd94keqfm3nv3
+          relays:
+            type: array
+            items:
+              type: object
+              properties:
+                dns:
+                  type: string
+                  description: DNS name of the relay (nullable)
+                  example: relays-new.cardano-mainnet.iohk.io
+                srv:
+                  type: string
+                  description: DNS service name of the relay (nullable)
+                  example: biostakingpool3.hopto.org
+                ipv4:
+                  type: string
+                  description: IPv4 address of the relay (nullable)
+                  example: "54.220.20.40"
+                ipv6:
+                  type: string
+                  description: IPv6 address of the relay (nullable)
+                  example: 2604:ed40:1000:1711:6082:78ff:fe0c:ebf
+                port:
+                  type: string
+                  description: Port number of the relay (nullable)
+                  example: 6000
+          meta_url:
+            type: string
+            description: Pool metadata URL
+            example: https://pools.iohk.io/IOGP.json
+          meta_hash:
+            type: string
+            description: Pool metadata hash
+            example: 37eb004c0dd8a221ac3598ca1c6d6257fb5207ae9857b7c163ae0f39259d6cc0
+          meta_json:
+            type: object
+            properties:
+              name:
+                type: string
+                description: Pool name
+                example: Input Output Global (IOHK) - Private
+              ticker:
+                type: string
+                description: Pool ticker
+                example: IOGP
+              homepage:
+                type: string
+                description: Pool homepage URL
+                example: https://iohk.io
+              description:
+                type: string
+                description: Pool description
+                example: Our mission is to provide economic identity to the billions of people who lack it. IOHK will not use the IOHK ticker.
+          pool_status:
+            type: string
+            description: Pool status (registered | retiring | retired)
+            example: registered
+          retiring_epoch:
+            type: integer
+            description: Announced retiring epoch (nullable)
+            example: null
+          op_cert:
+            type: string
+            description: Pool latest operational certificate hash
+            example: 37eb004c0dd8a221ac3598ca1c6d6257fb5207ae9857b7c163ae0f39259d6cc0
+          op_cert_counter:
+            type: integer
+            description: Pool latest operational certificate counter value
+            example: 8
+          active_stake:
+            type: string
+            description: Pool active stake
+            example: "64328627680963"
+          block_count:
+            type: integer
+            description: Total pool blocks on chain
+            example: 4509
+          live_stake:
+            type: string
+            description: Pool live stake
+            example: "64328627680963"
+          live_delegators:
+            type: integer
+            description: Pool live delegator count
+            example: 5
+          live_saturation:
+            type: number
+            description: Pool live saturation (decimal format)
+            example: 94.52
     epoch_info:
       type: array
       items:
@@ -1444,6 +1630,10 @@ components:
             type: integer
             description: Slot after which transaction cannot be validated
             example: 42332172
+          collaterals:
+            type: string
+            description: An array of collateral inputs needed when dealing with smart contracts (same json schema as inputs)
+            example: '[]'
           inputs:
             type: array
             description: An array with details about inputs used in a transaction
@@ -1797,21 +1987,146 @@ components:
       description: Array of policy IDs and asset names
       items:
         properties:
-          policy_id:
-            type: string
-            description: Asset Policy ID (hex)
-            example: d3501d9531fcc25e3ca4b6429318c2cc374dbdbcf5e99c1c1e5da1ff
           asset_names:
             type: object
             properties:
               hex:
-                type: string
+                type: array
                 description: Asset Name (hex)
-                example: 444f4e545350414d
+                items:
+                  type: string
+                  example: "\x444f4e545350414d"
               ascii:
-                type: string
+                type: array
                 description: Asset Name (ASCII)
-                example: DONTSPAM
+                items:
+                  type: string
+                  example: "DONTSPAM"
+    asset_address_list:
+      type: array
+      description: An array of payment addresses holding the given token (including balances)
+      items:
+        properties:
+          payment_address:
+              type: string
+              description: A Cardano payment/base address (bech32 encoded) for transaction's input UTxO
+              example: addr1qxkfe8s6m8qt5436lec3f0320hrmpppwqgs2gah4360krvyssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqdc3cxp
+          quantity:
+            type: string
+            description: Asset balance on the payment address
+            example: 23
+    asset_summary:
+      type: array
+      description: An array of assets contained on input UTxO
+      items:
+        properties:
+          policy_id:
+            type: string
+            description: Asset Policy ID (hex)
+            example: 6cf6b5cf0fefbe9e69d640d8be84912bb2c9e132671954548790bcfb
+          asset_name:
+            type: string
+            description: Asset Name (hex)
+            example: 6d65736d6572697a65723038353436
+          total_transactions:
+            type: integer
+            description: Total number of transactions including the given asset
+            example: 89416
+          staked_wallets:
+            type: integer
+            description: Total number of registered wallets holding the given asset
+            example: 548
+          unstaked_addresses:
+            type: integer
+            description: Total number of payment addresses (not belonging to registered wallets) holding the given asset
+            example: 245
+    asset_info:
+      type: array
+      description: An array of assets contained on input UTxO
+      items:
+        properties:
+          policy_id:
+            type: string
+            description: Asset Policy ID (hex)
+            example: d3501d9531fcc25e3ca4b6429318c2cc374dbdbcf5e99c1c1e5da1ff
+          asset_name:
+            type: string
+            description: Asset Name (hex)
+            example: 444f4e545350414d
+          asset_name_ascii:
+            type: string
+            description: Asset Name (ASCII)
+            example: DONTSPAM
+          fingerprint:
+            type: string
+            description: The CIP14 fingerprint of the asset
+            example: asset1ua6pz3yd5mdka946z8jw2fld3f8d0mmxt75gv9
+          minting_tx_metadata:
+            type: object
+            properties:
+              key:
+                type: string
+                description: The metadata key
+                example: 721
+              json:
+                type: object
+                description: The minting Tx JSON payload if it can be decoded as JSON
+                example: {
+                  "image": "ipfs://QmVHpTQL4Furw6fFNhSHdT3AWGbDE9Vs341JHJhQF1bAEA",
+                  "pattern": "08",
+                  "collection": "ccvault.io - the mesmerizer 2021",
+                  "description": "Thanks for supporting ccvault.io development!"
+                }
+          token_registry_metadata:
+            type: object
+            description: Asset metadata registered on the Cardano Token Registry
+            properties:
+              name:
+                type: string
+                example: Rackmob
+              description:
+                type: string
+                example: Metaverse Blockchain Cryptocurrency.
+              ticker:
+                type: string
+                example: MOB
+              url:
+                type: string
+                example: https://www.rackmob.com/ 
+              logo:
+                type: string
+                description: A PNG image file as a byte string
+                example: iVBORw0KGgoAAAANSUhEUgAAAPoAAAD6CAYAAACI7Fo9AAAACXBIWXMAAA7EAAAOxAGVKw4bAAADnmlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSfvu78nIGlkPSdXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQnPz4KPHg6eG1wbWV0YSB4bWxuczp4PSdhZG9iZTpuczptZXRhLyc
+              decimals:
+                type: integer
+                example: 0
+          total_supply:
+            type: integer
+            example: 35000
+          creation_time:
+            type: string
+            example: "2021-10-10T18:42:14"
+    asset_txs:
+      type: array
+      description: An array of Tx hashes that included the given asset (latest first)
+      items:
+        properties:
+          policy_id:
+            type: string
+            description: Asset Policy ID (hex)
+            example: 6cf6b5cf0fefbe9e69d640d8be84912bb2c9e132671954548790bcfb
+          asset_name:
+            type: string
+            description: Asset Name (hex)
+            example: 6d65736d6572697a65723038353436
+          tx_hashes:
+            type: array
+            description: List of Tx hashes
+            example: [
+              "17377b1978c8be190d31b418d1999d8b5c2748709580ded896163440e70face1",
+              "a50b2bbb40b25b6fc19b56c2b3d7887086d0df5a03414e1097d9fba852134bb4",
+              "c418d9c874aff0a163218ffdb5ba9189202473cdc16d7dfe66420e95fa398ee9"
+            ]
     script_list:
       type: array
       items:
