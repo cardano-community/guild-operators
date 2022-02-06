@@ -701,6 +701,25 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Asset Information
       description: Get the information of an asset including first minting & token registry metadata
+  /asset_policy_info: #RPC
+    get:
+      tags:
+        - Asset
+      parameters:
+        - $ref: "#/components/parameters/_asset_policy"
+      responses:
+        "200":
+          description: Array of detailed information of assets under the same policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/asset_policy_info"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Asset Policy Information
+      description: Get the information for all assets under the same policy
   /asset_summary: #RPC
     get:
       tags:
@@ -2106,6 +2125,77 @@ components:
           creation_time:
             type: string
             example: "2021-10-10T18:42:14"
+    asset_policy_info:
+      type: array
+      description: An array of assets contained on input UTxO
+      items:
+        properties:
+          policy_id:
+            type: string
+            description: Asset Policy ID (hex)
+            example: d3501d9531fcc25e3ca4b6429318c2cc374dbdbcf5e99c1c1e5da1ff
+          assets:
+            type: array
+            description: List of policy assets
+            items:
+              properties:
+                asset_name:
+                  type: string
+                  description: Asset Name (hex)
+                  example: 444f4e545350414d
+                asset_name_ascii:
+                  type: string
+                  description: Asset Name (ASCII)
+                  example: DONTSPAM
+                fingerprint:
+                  type: string
+                  description: The CIP14 fingerprint of the asset
+                  example: asset1ua6pz3yd5mdka946z8jw2fld3f8d0mmxt75gv9
+                minting_tx_metadata:
+                  type: object
+                  properties:
+                    key:
+                      type: string
+                      description: The metadata key
+                      example: 721
+                    json:
+                      type: object
+                      description: The minting Tx JSON payload if it can be decoded as JSON
+                      example: {
+                        "image": "ipfs://QmVHpTQL4Furw6fFNhSHdT3AWGbDE9Vs341JHJhQF1bAEA",
+                        "pattern": "08",
+                        "collection": "ccvault.io - the mesmerizer 2021",
+                        "description": "Thanks for supporting ccvault.io development!"
+                      }
+                token_registry_metadata:
+                  type: object
+                  description: Asset metadata registered on the Cardano Token Registry
+                  properties:
+                    name:
+                      type: string
+                      example: Rackmob
+                    description:
+                      type: string
+                      example: Metaverse Blockchain Cryptocurrency.
+                    ticker:
+                      type: string
+                      example: MOB
+                    url:
+                      type: string
+                      example: https://www.rackmob.com/ 
+                    logo:
+                      type: string
+                      description: A PNG image file as a byte string
+                      example: iVBORw0KGgoAAAANSUhEUgAAAPoAAAD6CAYAAACI7Fo9AAAACXBIWXMAAA7EAAAOxAGVKw4bAAADnmlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSfvu78nIGlkPSdXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQnPz4KPHg6eG1wbWV0YSB4bWxuczp4PSdhZG9iZTpuczptZXRhLyc
+                    decimals:
+                      type: integer
+                      example: 0
+                total_supply:
+                  type: integer
+                  example: 35000
+                creation_time:
+                  type: string
+                  example: "2021-10-10T18:42:14"
     asset_txs:
       type: array
       description: An array of Tx hashes that included the given asset (latest first)
