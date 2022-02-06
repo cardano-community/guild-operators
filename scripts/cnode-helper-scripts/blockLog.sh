@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC1090,SC2086,SC2281
 
-#Todo: adapt for node names != cnode
+# Script to collect block information across nodes to provide comprehensive analytics data from participants
+# For now, the script is intended for mainnet network only.
+
+#Todo:
+# - adapt for node names != cnode
+# - add versioning for updates (might be good to also add variables seperator in this case for easier addition)
+# - Add to docs
+# - Add to prereqs.sh
 
 # Option A: you can manually point this script to your nodes config.json file
 CONFIG=""  # for example "/home/user/mynode/logs/node0.json"
 
 # Option B: in CNTools environments just let the script determine config and logfile
 if [ -z "$CONFIG" ]; then
-  . "${CNODE_HOME}"/scripts/env
+  [[ -f "$(dirname $0)"/env ]] &&  . "$(dirname $0)"/env
 fi
 
 unset logfile
