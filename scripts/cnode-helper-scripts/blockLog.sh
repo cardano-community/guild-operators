@@ -49,7 +49,7 @@ do
     echo "WARN: can't query EKG on http://127.0.0.1:$(cat $CONFIG | jq .hasEKG)/ ..."
   elif  [ "$blockHeight" -gt "$blockHeightPrev" ] ; then # new Block
   
-    blockHash=$(grep -m 1 "$blockHeight" ${logfile} | jq -r .data.block)  # we parse the second last, now fully logged block
+    blockHash=$(grep -m 1 "$blockHeight" ${logfile} | jq -r .data.block)
     blockLog=$(grep $blockHash ${logfile})
 
     if [[ ! -z "$blockLog" ]]; then
