@@ -44,9 +44,9 @@ getDeltaMS() {
 
 while true
 do
-  blockHeight=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r .cardano.node.metrics.blockNum.int.val)
-  if [ -z $blockHeight ] || [ "$blockHeight" == "null" ]; then
-    echo "WARN: can't query EKG on http://127.0.0.1:$(cat $CONFIG | jq .hasEKG)/ ..."
+  blockHeight=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r '.cardano.node.metrics.blockNum.int.val //0' )
+  if [ -z $blockHeight ] || [ "$blockHeight" -eq 0 ]; then
+    echo "WARN: can't query EKG on http://${EKG_HOST}:${EKG_PORT}/ ..."
   elif  [ "$blockHeight" -gt "$blockHeightPrev" ] ; then # new Block
   
     blockHash=$(grep -m 1 "$blockHeight" ${logfile} | jq -r .data.block)
