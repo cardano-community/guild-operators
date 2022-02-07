@@ -1,13 +1,13 @@
 DROP FUNCTION IF EXISTS grest.credential_txs (text[], integer);
 
-CREATE FUNCTION grest.credential_txs (_payment_credentials text[], _after_block_height integer DEFAULT NULL)
+CREATE FUNCTION grest.credential_txs (_payment_credentials text[], _after_block_height integer DEFAULT 0)
   RETURNS TABLE (
     tx_hash text)
   LANGUAGE PLPGSQL
   AS $$
 DECLARE
   _payment_cred_bytea  bytea[];
-  _addresses           text[];
+  _tx_id_list     bigint[];
 BEGIN
   -- convert input _payment_credentials array into bytea array
   SELECT INTO _payment_cred_bytea ARRAY_AGG(cred_bytea)
@@ -18,35 +18,38 @@ BEGIN
       UNNEST(_payment_credentials) AS cred_hex
   ) AS tmp;
 
-  -- all used base/enterprise addresses
-  SELECT INTO _addresses ARRAY_AGG(address)
+  -- all tx_out & tx_in tx ids
+  SELECT INTO _tx_id_list ARRAY_AGG(tx_id)
   FROM (
-    SELECT DISTINCT ON (address) address
-    FROM tx_out
-    WHERE payment_cred = ANY (_payment_cred_bytea)
+    SELECT
+      tx_id
+    FROM
+      tx_out
+    WHERE
+      payment_cred = ANY (_payment_cred_bytea)
+    --
+    UNION
+    --
+    SELECT
+      tx_in_id AS tx_id
+    FROM
+      tx_out
+      LEFT JOIN tx_in ON tx_out.tx_id = tx_in.tx_out_id
+        AND tx_out.index = tx_in.tx_out_index
+    WHERE
+      tx_in.tx_in_id IS NOT NULL
+      AND tx_out.payment_cred = ANY (_payment_cred_bytea)
   ) AS tmp;
 
-  IF _after_block_height IS NOT NULL THEN
-    RETURN QUERY
+  RETURN QUERY
     SELECT
-      DISTINCT ON (tx.hash) ENCODE(tx.hash, 'hex') as tx_hash
+      DISTINCT(ENCODE(tx.hash, 'hex')) as tx_hash
     FROM
-      public.tx_out
-      INNER JOIN public.tx ON tx_out.tx_id = tx.id
+      public.tx
       INNER JOIN public.block ON block.id = tx.block_id
     WHERE
-      tx_out.address = ANY (_addresses)
+      tx.id = ANY (_tx_id_list)
       AND block.block_no >= _after_block_height;
-  ELSE
-    RETURN QUERY
-    SELECT
-      DISTINCT ON (tx.hash) ENCODE(tx.hash, 'hex') as tx_hash
-    FROM
-      public.tx_out
-      INNER JOIN public.tx ON tx_out.tx_id = tx.id
-    WHERE
-      tx_out.address = ANY (_addresses);
-  END IF;
 END;
 $$;
 
