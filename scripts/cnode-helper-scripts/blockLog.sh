@@ -36,7 +36,7 @@ fi
 
 echo "$(date) parsing ${logfile} ..." | tee ${CNODE_HOME}/logs/blockLog_debug.log
 
-blockHeightPrev=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r .cardano.node.metrics.blockNum.int.val)
+blockHeightPrev=0
 
 getDeltaMS() {
   echo $(echo "$2 $4" | awk -F '[:, ]' '{print ($1*3600000+$2*60000+$3*1000+$4)-($5*3600000+$6*60000+$7*1000+$8) }')
@@ -44,9 +44,9 @@ getDeltaMS() {
 
 while true
 do
-  blockHeight=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r .cardano.node.metrics.blockNum.int.val)
-  if [ -z $blockHeight ] || [ "$blockHeight" == "null" ] || [ "$blockHeightPrev" == "null" ] ; then
-    echo "WARN: can't query EKG on http://127.0.0.1:$(cat $CONFIG | jq .hasEKG)/ ..."
+  blockHeight=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r '.cardano.node.metrics.blockNum.int.val //0' )
+  if [ -z $blockHeight ] || [ "$blockHeight" -eq 0 ]; then
+    echo "WARN: can't query EKG on http://${EKG_HOST}:${EKG_PORT}/ ..."
   elif  [ "$blockHeight" -gt "$blockHeightPrev" ] ; then # new Block
   
     blockHash=$(grep -m 1 "$blockHeight" ${logfile} | jq -r .data.block)
