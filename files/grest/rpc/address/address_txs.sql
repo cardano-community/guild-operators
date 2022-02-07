@@ -1,32 +1,45 @@
 DROP FUNCTION IF EXISTS grest.address_txs (text[], integer);
 
-CREATE FUNCTION grest.address_txs (_addresses text[], _after_block_height integer DEFAULT NULL)
+CREATE FUNCTION grest.address_txs (_addresses text[], _after_block_height integer DEFAULT 0)
   RETURNS TABLE (
     tx_hash text)
   LANGUAGE PLPGSQL
   AS $$
+DECLARE
+  _tx_id_list     bigint[];
 BEGIN
-  IF _after_block_height IS NOT NULL THEN
-    RETURN QUERY
+  -- all tx_out & tx_in tx ids
+  SELECT INTO _tx_id_list ARRAY_AGG(tx_id)
+  FROM (
+    SELECT
+      tx_id
+    FROM
+      tx_out
+    WHERE
+      address = ANY (_addresses)
+    --
+    UNION
+    --
+    SELECT
+      tx_in_id AS tx_id
+    FROM
+      tx_out
+      LEFT JOIN tx_in ON tx_out.tx_id = tx_in.tx_out_id
+        AND tx_out.index = tx_in.tx_out_index
+    WHERE
+      tx_in.tx_in_id IS NOT NULL
+      AND tx_out.address = ANY (_addresses)
+  ) AS tmp;
+
+  RETURN QUERY
     SELECT
       DISTINCT(ENCODE(tx.hash, 'hex')) as tx_hash
     FROM
-      public.tx_out
-      INNER JOIN public.tx ON tx_out.tx_id = tx.id
+      public.tx
       INNER JOIN public.block ON block.id = tx.block_id
     WHERE
-      tx_out.address = ANY (_addresses)
+      tx.id = ANY (_tx_id_list)
       AND block.block_no >= _after_block_height;
-  ELSE
-    RETURN QUERY
-    SELECT
-      DISTINCT(ENCODE(tx.hash, 'hex')) as tx_hash
-    FROM
-      public.tx_out
-      INNER JOIN public.tx ON tx_out.tx_id = tx.id
-    WHERE
-      tx_out.address = ANY (_addresses);
-  END IF;
 END;
 $$;
 
