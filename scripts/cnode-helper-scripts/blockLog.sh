@@ -51,7 +51,7 @@ do
   
     blockHash=$(grep -m 1 "$blockHeight" ${logfile} | jq -r .data.block)
     blockLog=$(grep $blockHash ${logfile})
-
+    
     if [[ ! -z "$blockLog" ]]; then
       blockLogLineCycles=0
       while IFS= read -r blockLogLine;do
@@ -103,7 +103,7 @@ do
       echo "$(date) CP2 deltaSlots:$((blockHeight-blockHeightPrev))  blockheight:${blockHeight} ${blockHeightPrev}" | tee -a ${CNODE_HOME}/logs/blockLog_debug.log
     fi
     [[ -z  ${slotHeightPrev} ]] && slotHeightPrev=${blockSlot} # first monitored block only 
-
+    
     if [[ ! -z ${blockTimeTbh} ]]; then
       # calculate delta-milliseconds from original slottime
       deltaSlotTbh=$(getDeltaMS ${blockTimeTbh} ${blockSlotTime},000)
@@ -111,9 +111,13 @@ do
       deltaSfrCbf=$(( $(getDeltaMS ${blockTimeCbf} ${blockSlotTime},000) - deltaTbhSfr - deltaSlotTbh))
       deltaCbfAb=$(( $(getDeltaMS ${blockTimeAb} ${blockSlotTime},000) - deltaSfrCbf - deltaTbhSfr - deltaSlotTbh))
       
-      echo -e "${FG_YELLOW}Block:.... ${blockHeight}\n${NC} Slot..... ${blockSlot} (+$((blockSlot-slotHeightPrev))s)\n ......... ${blockSlotTime}\n Header... ${blockTimeTbh} (+${deltaSlotTbh} ms)\n Request.. ${blockTimeSfr} (+${deltaTbhSfr} ms)\n Block.... ${blockTimeCbf} (+${deltaSfrCbf} ms)\n Adopted.. ${blockTimeAb} (+${deltaCbfAb} ms)\n Size..... ${blockSize} bytes\n delay.... ${blockDelay} sec\n From..... ${blockTimeCbfAddr}:${blockTimeCbfPort}"
-      
-      result=$(curl -4 -s "https://api.clio.one/blocklog/v1/?ts=$(date +"%T.%4N")&bn=${blockHeight}&slot=${blockSlot}&slott=${blockSlotTime}&tbh=${deltaSlotTbh}&sfr=${deltaTbhSfr}&cbf=${deltaSfrCbf}&ab=${deltaCbfAb}&size=${blockSize}&addr=${blockTimeCbfAddr}&port=${blockTimeCbfPort}" &)
+      if [[ "${deltaSlotTbh}" -lt 10000 ]] && [[ "$((blockSlot-slotHeightPrev))" -lt 200 ]] && [[ "${blockHeightPrev}" -gt 0 ]]; then
+        echo -e "${FG_YELLOW}Block:.... ${blockHeight}\n${NC} Slot..... ${blockSlot} (+$((blockSlot-slotHeightPrev))s)\n ......... ${blockSlotTime}\n Header... ${blockTimeTbh} (+${deltaSlotTbh} ms)\n Request.. ${blockTimeSfr} (+${deltaTbhSfr} ms)\n Block.... ${blockTimeCbf} (+${deltaSfrCbf} ms)\n Adopted.. ${blockTimeAb} (+${deltaCbfAb} ms)\n Size..... ${blockSize} bytes\n delay.... ${blockDelay} sec\n From..... ${blockTimeCbfAddr}:${blockTimeCbfPort}"
+        result=$(curl -4 -s "https://api.clio.one/blocklog/v1/?ts=$(date +"%T.%4N")&bn=${blockHeight}&slot=${blockSlot}&slott=${blockSlotTime}&tbh=${deltaSlotTbh}&sfr=${deltaTbhSfr}&cbf=${deltaSfrCbf}&ab=${deltaCbfAb}&size=${blockSize}&addr=${blockTimeCbfAddr}&port=${blockTimeCbfPort}" &)
+      else
+        # skip block reporting while node is synching up, and when blockLog script just started
+        echo -e "${FG_YELLOW}Block:.... ${blockHeight} skipped\n${NC} Slot..... ${blockSlot}\n ......... ${blockSlotTime}\n now...... $(date +"%F %T")"
+      fi
     fi
     
     # prepare for next round
