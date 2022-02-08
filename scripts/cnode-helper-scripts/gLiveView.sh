@@ -760,9 +760,18 @@ while true; do
       for peer in ${rttResultsSorted}; do
         ((peerNbr++))
         [[ ${peerNbr} -lt ${peerNbr_start} ]] && continue
-        peerRTT=$(echo ${peer} | cut -d: -f1)
-        peerIP=$(echo ${peer} | cut -d: -f2)
-        peerPORT=$(echo ${peer} | cut -d: -f3)
+		IFS=":" read -a peerData <<< ${peer}
+		if (( ${#peerData[@]} == 3 )); then 
+		  # IPv4 RTT:ip.ad.dr.es:port:
+		  peerRTT=${peerData[0]}
+          peerIP=${peerData[1]}
+          peerPORT=${peerData[2]}
+		else 
+		  # IPv6 RTT:ip:v6:addr::es:port:
+		  peerRTT=${peerData[0]}
+		  peerIP="[${peerData[1]}...${peerData[-2]}]"
+		  peerPORT=${peerData[-1]}
+		fi
         IFS=',' read -ra peerLocation <<< "${geoIP[${peerIP}]}"
         if isPrivateIP ${peerIP}; then
           peerLocationFmt="(Private IP)"
