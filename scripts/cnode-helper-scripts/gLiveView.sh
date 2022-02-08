@@ -56,7 +56,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.25.2
+GLV_VERSION=v1.26.0
 
 PARENT="$(dirname $0)"
 
@@ -425,30 +425,22 @@ checkPeers() {
   peerRTTSUM=0; peerRTTAVG=0
   rttResults=(); rttResultsSorted=""
   geoIPquery="[]"; geoIPqueryCNT=0
-  direction=$1
 
   command -v dig >/dev/null && ext_ip_resolve=$(dig @resolver1.opendns.com ANY myip.opendns.com +short) || ext_ip_resolve=""
 
   if [[ ${use_lsof} = 'Y' ]]; then
-    peers=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v host="->" '$2 == pid && $9 ~ host {print $9}' | awk -F "->" '{print $2}')
+    peers_in=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}')
+    peers_out=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}')
   else
-    peers=$(ss -tnp state established 2>/dev/null | grep "pid=${CNODE_PID}," | awk '{print $4}')
+    peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print $4}')
+    peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})" '$3 !~ port {print $4}')
   fi
 
-  [[ -z ${peers} ]] && return
+  [[ -z ${peers_in} && -z ${peers_out} ]] && return
 
-  peersSorted=$(printf '%s\n' "${peers[@]}" | sort)
-  peerCNT=$(wc -w <<< "${peers}")
+  declare -A peersFiltered
 
-  print_start=$(( width - (${#peerCNT}*2) - 2 ))
-  mvPos ${line} ${print_start}
-  printf "${style_values_1}%${#peerCNT}s${NC}/${style_values_2}%s${NC}" "0" "${peerCNT}"
-
-  # Ping every node in the list
-  index=0
-  lastpeerIP=""
-
-  for peer in ${peersSorted}; do
+  for peer in ${peers_in}; do
 
     if [[ ${peer} = "["* ]]; then # IPv6
       IFS=']' read -ra ipv6_peer <<< "${peer:1}"
@@ -460,8 +452,57 @@ checkPeers() {
     fi
 
     if [[ -z ${peerIP} || -z ${peerPORT} || ${peerIP} = 127.0.0.1 || (${peerIP} = ${ext_ip_resolve} && ${peerPORT} = ${CNODE_PORT}) ]]; then
-      mvPos ${line} ${print_start} && printf "${style_values_1}%${#peerCNT}s${NC}" "$((++index))" && continue
+      continue
     fi
+
+    [[ -v 'peersFiltered[$peerIP]' ]] && continue # IP already added
+
+    peersFiltered[${peerIP}]="${peerPORT};i"
+
+  done
+
+  for peer in ${peers_out}; do
+
+    if [[ ${peer} = "["* ]]; then # IPv6
+      IFS=']' read -ra ipv6_peer <<< "${peer:1}"
+      peerIP=${ipv6_peer[0]}
+      peerPORT=${ipv6_peer[1]:1}
+    else # IPv4
+      peerIP=$(cut -d: -f1 <<< "${peer}")
+      peerPORT=$(cut -d: -f2 <<< "${peer}")
+    fi
+
+    if [[ -z ${peerIP} || -z ${peerPORT} || ${peerIP} = 127.0.0.1 || (${peerIP} = ${ext_ip_resolve} && ${peerPORT} = ${CNODE_PORT}) ]]; then
+      continue
+    fi
+
+    if [[ -v 'peersFiltered[$peerIP]' ]]; then
+      IFS=";" read -r -a peer_arr <<< "${peersFiltered[$peerIP]}"
+      if [[ ${peer_arr[1]} != *o ]]; then
+        peersFiltered[$peerIP]="${peerPORT};i+o"
+      fi
+    else
+      peersFiltered[${peerIP}]="${peerPORT};o"
+    fi
+
+  done
+
+  peerCNT=${#peersFiltered[@]}
+
+  print_start=$(( width - (${#peerCNT}*2) - 2 ))
+  mvPos ${line} ${print_start}
+  printf "${style_values_1}%${#peerCNT}s${NC}/${style_values_2}%s${NC}" "0" "${peerCNT}"
+
+  # Ping every node in the list
+  index=0
+  lastpeerIP=""
+
+  for peerIP in "${!peersFiltered[@]}"; do
+
+    IFS=";" read -r -a peer_arr <<< "${peersFiltered[$peerIP]}"
+
+    peerPORT=${peer_arr[0]}
+    peerDIR=${peer_arr[1]}
 
     if [[ ${ENABLE_IP_GEOLOCATION} = "Y" && "${peerIP}" != "${lastpeerIP}" ]] && ! isPrivateIP "${peerIP}"; then
       if [[ ! -v "geoIP[${peerIP}]" && $((++geoIPqueryCNT)) -le 100 ]]; then # not previously checked and less than 100 queries
@@ -499,7 +540,7 @@ checkPeers() {
     elif [[ ${peerRTT} -lt 200   ]]; then ((peerCNT3++))
     elif [[ ${peerRTT} -lt 99999 ]]; then ((peerCNT4++))
     else ((peerCNT0++)); fi
-    rttResults+=( "${peerRTT}:${peerIP}:${peerPORT}" )
+    rttResults+=( "${peerRTT};${peerIP};${peerPORT};${peerDIR}" )
 
     mvPos ${line} ${print_start}
     printf "${style_values_1}%${#peerCNT}s${NC}" "$((++index))"
@@ -752,17 +793,28 @@ while true; do
     if [[ -n ${rttResultsSorted} ]]; then
       echo "${m3divider}" && ((line++))
 
-      printf "${VL}${style_info}   #  %21s  RTT    Geolocation${NC}\n" "REMOTE PEER"
+      printf "${VL}${style_info}   # %24s  I/O RTT   Geolocation${NC}\n" "REMOTE PEER"
       header_line=$((line++))
 
       peerNbr=0
-      peerLocationWidth=$((width-38))
+      peerLocationWidth=$((width-41))
       for peer in ${rttResultsSorted}; do
         ((peerNbr++))
         [[ ${peerNbr} -lt ${peerNbr_start} ]] && continue
-        peerRTT=$(echo ${peer} | cut -d: -f1)
-        peerIP=$(echo ${peer} | cut -d: -f2)
-        peerPORT=$(echo ${peer} | cut -d: -f3)
+        IFS=";" read -a peerData <<< ${peer}
+        peerRTT="${peerData[0]}"
+        peerPORT="${peerData[2]}"
+        peerDIR="${peerData[3]}"
+        if [[ ${peerData[1]} = *:* ]]; then # IPv6
+          IFS=":" read -a ipv6IP <<< ${peerData[1]}
+          if [[ ${#ipv6IP[@]} -le 3 ]]; then
+            peerIP="[${peerData[1]}]"
+          else
+            peerIP="[${ipv6IP[0]}...${ipv6IP[-2]}:${ipv6IP[-1]}]"
+          fi
+        else
+          peerIP="${peerData[1]}"
+        fi
         IFS=',' read -ra peerLocation <<< "${geoIP[${peerIP}]}"
         if isPrivateIP ${peerIP}; then
           peerLocationFmt="(Private IP)"
@@ -774,11 +826,11 @@ while true; do
         else
           peerLocationFmt="Unknown location"
         fi
-          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_1}%-5s${NC}  ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_2}%-5s${NC}  ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_3}%-5s${NC}  ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s  %15s:%-5s  ${style_status_4}%-5s${NC}  ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        else printf "${VL} %3s  %15s:%-5s  %-5s  ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "---" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"; fi
+          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s %19s:%-5s %-3s ${style_status_1}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerDIR}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s %19s:%-5s %-3s ${style_status_2}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerDIR}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s %19s:%-5s %-3s ${style_status_3}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerDIR}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s %19s:%-5s %-3s ${style_status_4}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerDIR}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        else printf "${VL} %3s %19s:%-5s %-3s %-5s ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerDIR}" "${peerPORT}" "---" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"; fi
         closeRow
         [[ ${peerNbr} -eq $((peerNbr_start+PEER_LIST_CNT-1)) ]] && break
       done
