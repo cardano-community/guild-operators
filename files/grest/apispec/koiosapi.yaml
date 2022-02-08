@@ -177,14 +177,16 @@ info:
     ## Libraries
 
       - [.Net SDK](https://github.com/CardanoSharp/cardanosharp-koios)
+      - [Go Library and CLI](https://github.com/howijd/koios-rest-go-client)
       - [Java Client](https://github.com/edridudi/koios-java-client)
 
     ## Builder Tools
 
-      - [CCVault](https://ccvault.io/)
-      - [PoolPeek](https://poolpeek.com)
-      - [CNTools](https://cardano-community.github.io/guild-operators/Scripts/cntools/)
       - [Building On Cardano](https://buildingoncardano.com)
+      - [CCVault](https://ccvault.io/)
+      - [CNTools](https://cardano-community.github.io/guild-operators/Scripts/cntools/)
+      - [Dandelion](https://dandelion.link)
+      - [PoolPeek](https://poolpeek.com)
 
     # FAQ
 
