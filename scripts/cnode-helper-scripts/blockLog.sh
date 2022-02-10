@@ -16,7 +16,7 @@ CONFIG=""  # for example "/home/user/mynode/logs/node0.json"
 
 # Option B: in CNTools environments just let the script determine config and logfile
 if [ -z "$CONFIG" ]; then
-  [[ -f "$(dirname $0)"/env ]] &&  . "$(dirname $0)"/env
+  [[ -f "$(dirname $0)"/env ]] &&  . "$(dirname $0)"/env offline
 fi
 
 unset logfile
@@ -29,7 +29,6 @@ if [[ "${CONFIG##*.}" = "json" ]] && [[ -f ${CONFIG} ]]; then
   [[ -z "${EKG_PORT}" ]] && echo -e "${RED}Error:${NC} Failed to locate the EKG Port in node configuration file" && errors=1
   [[ "$(jq -r .TraceChainSyncClient "${CONFIG}")" != "true" ]] && echo -e "${RED}Error:${NC} In config file please set ${FG_YELLOW}\"TraceChainSyncClient\":\"true\"${NC}" && errors=1
   [[ "$(jq -r .TraceBlockFetchClient "${CONFIG}")" != "true" ]] && echo -e "${RED}Error:${NC} In config file please set ${FG_YELLOW}\"TraceBlockFetchClient\":\"true\"${NC}" && errors=1
-  [[ "$(jq -r .TraceChainSyncHeaderServer "${CONFIG}")" != "true" ]] && echo -e "${RED}Error:${NC} In config file please set ${FG_YELLOW}\"TraceChainSyncHeaderServer\":\"true\"${NC}" && errors=1
   [[ $errors -eq 1 ]] && exit 1
 else 
   echo -e "${RED}Error:${NC} Failed to locate json configuration file" && exit 1
@@ -51,7 +50,7 @@ do
   elif  [ "$blockHeight" -gt "$blockHeightPrev" ] ; then # new Block
   
     blockHash=$(grep -m 1 "$blockHeight" ${logfile} | jq -r .data.block)
-    blockLog=$(grep $blockHash ${logfile})
+    blockLog=$(grep ${blockHash:0:7} ${logfile})
     
     if [[ ! -z "$blockLog" ]]; then
       blockLogLineCycles=0
@@ -87,7 +86,7 @@ do
             [ -z "$blockDelay" ] && blockDelay=${line_data_arr[3]}
             [ -z "$blockSize" ] && blockSize=${line_data_arr[4]}
             ;;
-          ChainSyncServerEvent.TraceChainSyncServerReadBlocked.AddBlock)
+          TraceAddBlockEvent.AddedToCurrentChain)
             [ -z "$blockTimeAb" ] && blockTimeAb=$(date -d $(jq -r .at <<< $blockLogLine) +"%F %T,%3N")
             break
             ;;
