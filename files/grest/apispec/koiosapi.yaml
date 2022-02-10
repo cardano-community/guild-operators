@@ -703,6 +703,26 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Asset Information
       description: Get the information of an asset including first minting & token registry metadata
+  /asset_history: #RPC
+    get:
+      tags:
+        - Asset
+      parameters:
+        - $ref: "#/components/parameters/_asset_policy"
+        - $ref: "#/components/parameters/_asset_name"
+      responses:
+        "200":
+          description: Array of asset mint/burn history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/asset_history"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Asset History
+      description: Get the mint/burn history of an asset
   /asset_policy_info: #RPC
     get:
       tags:
@@ -2038,7 +2058,6 @@ components:
             example: 23
     asset_summary:
       type: array
-      description: An array of assets contained on input UTxO
       items:
         properties:
           policy_id:
@@ -2063,7 +2082,6 @@ components:
             example: 245
     asset_info:
       type: array
-      description: An array of assets contained on input UTxO
       items:
         properties:
           policy_id:
@@ -2127,9 +2145,33 @@ components:
           creation_time:
             type: string
             example: "2021-10-10T18:42:14"
+    asset_history:
+      type: array
+      items:
+        properties:
+          policy_id:
+            type: string
+            description: Asset Policy ID (hex)
+            example: d3501d9531fcc25e3ca4b6429318c2cc374dbdbcf5e99c1c1e5da1ff
+          asset_name:
+            type: string
+            description: Asset Name (hex)
+            example: 444f4e545350414d
+          minting_txs:
+            type: array
+            description: Array of all mint/burn transcations for an asset
+            items:
+              type: object
+              properties:
+                tx_hash:
+                  type: string
+                  example: e1ecc517f95715bb87681cfde2c594dbc971739f84f8bfda16170b35d63d0ddf
+                quantity:
+                  type: string
+                  description: Quantity minted/burned (negative numbers indicate burn transactions)
+                  example: "-10"
     asset_policy_info:
       type: array
-      description: An array of assets contained on input UTxO
       items:
         properties:
           policy_id:
