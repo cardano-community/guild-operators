@@ -468,6 +468,7 @@
     echo "  Done!! Please ensure to set any custom settings/peers/TLS configs/etc back and update configs as necessary!"
     checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
     checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
+    checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
   }
 
   deploy_systemd() {
