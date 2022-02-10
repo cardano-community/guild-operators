@@ -6,12 +6,13 @@
 
 #Todo:
 # - adapt for node names != cnode
-# - add versioning for updates (might be good to also add variables seperator in this case for easier addition)
-# - Add to docs
-# - Add to prereqs.sh
 
 # Option A: you can manually point this script to your nodes config.json file
 CONFIG=""  # for example "/home/user/mynode/logs/node0.json"
+
+######################################
+# Do NOT modify code below           #
+######################################
 
 # Option B: in CNTools environments just let the script determine config and logfile
 if [ -z "$CONFIG" ]; then
@@ -112,8 +113,8 @@ do
       deltaCbfAb=$(( $(getDeltaMS ${blockTimeAb} ${blockSlotTime},000) - deltaSfrCbf - deltaTbhSfr - deltaSlotTbh))
       
       if [[ "${deltaSlotTbh}" -lt 10000 ]] && [[ "$((blockSlot-slotHeightPrev))" -lt 200 ]] && [[ "${blockHeightPrev}" -gt 0 ]]; then
-        echo -e "${FG_YELLOW}Block:.... ${blockHeight}\n${NC} Slot..... ${blockSlot} (+$((blockSlot-slotHeightPrev))s)\n ......... ${blockSlotTime}\n Header... ${blockTimeTbh} (+${deltaSlotTbh} ms)\n Request.. ${blockTimeSfr} (+${deltaTbhSfr} ms)\n Block.... ${blockTimeCbf} (+${deltaSfrCbf} ms)\n Adopted.. ${blockTimeAb} (+${deltaCbfAb} ms)\n Size..... ${blockSize} bytes\n delay.... ${blockDelay} sec\n From..... ${blockTimeCbfAddr}:${blockTimeCbfPort}"
         result=$(curl -4 -s "https://api.clio.one/blocklog/v1/?ts=$(date +"%T.%4N")&bn=${blockHeight}&slot=${blockSlot}&slott=${blockSlotTime}&tbh=${deltaSlotTbh}&sfr=${deltaTbhSfr}&cbf=${deltaSfrCbf}&ab=${deltaCbfAb}&size=${blockSize}&addr=${blockTimeCbfAddr}&port=${blockTimeCbfPort}" &)
+        echo -e "${FG_YELLOW}Block:.... ${blockHeight}\n${NC} Slot..... ${blockSlot} (+$((blockSlot-slotHeightPrev))s)\n ......... ${blockSlotTime}\n Header... ${blockTimeTbh} (+${deltaSlotTbh} ms)\n Request.. ${blockTimeSfr} (+${deltaTbhSfr} ms)\n Block.... ${blockTimeCbf} (+${deltaSfrCbf} ms)\n Adopted.. ${blockTimeAb} (+${deltaCbfAb} ms)\n Size..... ${blockSize} bytes\n delay.... ${blockDelay} sec\n From..... ${blockTimeCbfAddr}:${blockTimeCbfPort}"
       else
         # skip block reporting while node is synching up, and when blockLog script just started
         echo -e "${FG_YELLOW}Block:.... ${blockHeight} skipped\n${NC} Slot..... ${blockSlot}\n ......... ${blockSlotTime}\n now...... $(date +"%F %T")"

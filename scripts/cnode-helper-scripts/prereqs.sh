@@ -490,6 +490,7 @@ curl -s -f -m ${CURL_TIMEOUT} -o sLiveView.sh ${URL_RAW}/scripts/cnode-helper-sc
 curl -s -f -m ${CURL_TIMEOUT} -o gLiveView.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/gLiveView.sh
 curl -s -f -m ${CURL_TIMEOUT} -o deploy-as-systemd.sh ${URL_RAW}/scripts/cnode-helper-scripts/deploy-as-systemd.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cncli.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cncli.sh
+curl -s -f -m ${CURL_TIMEOUT} -o blockLog.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/blockLog.sh
 sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*.*
 
 ### Update file retaining existing custom configs
@@ -529,6 +530,7 @@ updateWithCustomConfig "gLiveView.sh"
 updateWithCustomConfig "topologyUpdater.sh"
 updateWithCustomConfig "logMonitor.sh"
 updateWithCustomConfig "cncli.sh"
+updateWithCustomConfig "blockLog.sh"
 
 find "${CNODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
 chmod -R 700 "${CNODE_HOME}"/priv 2>/dev/null
