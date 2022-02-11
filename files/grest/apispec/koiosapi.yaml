@@ -2159,7 +2159,7 @@ components:
             example: 444f4e545350414d
           minting_txs:
             type: array
-            description: Array of all mint/burn transcations for an asset
+            description: Array of all mint/burn transactions for an asset
             items:
               type: object
               properties:
