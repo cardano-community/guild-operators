@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=9
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=0
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=3
+CNTOOLS_PATCH_VERSION=4
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -569,8 +569,8 @@ isPoolRegistered() {
     [[ -f "${POOL_FOLDER}/${1}/${POOL_REGCERT_FILENAME}" ]] && return 2 || return 1
   else
     getPoolID "$1"
-    println ACTION "curl -sSL -f -d _pool_bech32=${pool_id_bech32} ${KOIOS_API}/pool_info"
-    ! pool_info=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} ${KOIOS_API}/pool_info 2>&1) && error_msg=${pool_info} && return 0
+    println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_pool_bech32_ids\":[\"${pool_id_bech32}\"]}' ${KOIOS_API}/pool_info"
+    ! pool_info=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_pool_bech32_ids":["'${pool_id_bech32}'"]}' "${KOIOS_API}/pool_info" 2>&1) && error_msg=${pool_info} && return 0
     if [[ ${pool_info} = '[]' ]]; then
       return 1
     fi
@@ -2038,8 +2038,8 @@ rotatePoolKeys() {
   p_opcert=""
   if [[ -n ${KOIOS_API} ]]; then
     ! getPoolID "${pool_name}" && println "ERROR" "\n${FG_RED}ERROR${NC}: failed to get pool ID!\n" && return 1
-    println ACTION "curl -sSL -f -d _pool_bech32=${pool_id_bech32} ${KOIOS_API}/pool_info"
-    ! pool_info=$(curl -sSL -f -d _pool_bech32=${pool_id_bech32} ${KOIOS_API}/pool_info 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${pool_info}\n" && p_opcert="" # print error but ignore
+    println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_pool_bech32_ids\":[\"${pool_id_bech32}\"]}' ${KOIOS_API}/pool_info"
+    ! pool_info=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_pool_bech32_ids":["'${pool_id_bech32}'"]}' "${KOIOS_API}/pool_info" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${pool_info}\n" && p_opcert="" # print error but ignore
     if old_counter_nbr=$(jq -er '.[0].op_cert_counter' <<< "${pool_info}" 2>/dev/null); then
       println ACTION "${CCLI} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value $(( old_counter_nbr + 1 )) --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
       ! ${CCLI} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value $(( old_counter_nbr + 1 )) --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1

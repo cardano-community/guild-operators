@@ -144,6 +144,8 @@ getAnswerAny() {
 #             : 1 = update applied
 #             : 2 = update failed
 checkUpdate() {
+  dname="$(dirname "${1}")"
+  fname="$(basename "${1}")"
   [[ "${UPDATE_CHECK}" != "Y" ]] && return 0
 
   if [[ ${OFFLINE_MODE} = N && ${BRANCH} != master && ${BRANCH} != alpha ]]; then
@@ -156,37 +158,37 @@ checkUpdate() {
   fi
   [[ -n $5 ]] && URL="${URL_RAW}/scripts/$5" || URL="${URL_RAW}/scripts/cnode-helper-scripts"
   URL_DOCS="${URL_RAW}/docs/Scripts"
-  if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}/${1}".tmp "${URL}/${1}" 2>/dev/null; then
+  if curl -s -f -m ${CURL_TIMEOUT} -o "${dname}/${fname}".tmp "${URL}/${fname}" 2>/dev/null; then
 
     # replace default CNODE with custom name if needed
-    [[ ${CNODE_VNAME} != cnode ]] && sed -e "s@/opt/cardano/[c]node@/opt/cardano/${CNODE_VNAME}@g" -e "s@[C]NODE_HOME@${CNODE_VNAME_UPPERCASE}_HOME@g" -i "${PARENT}/${1}".tmp
+    [[ ${CNODE_VNAME} != cnode ]] && sed -e "s@/opt/cardano/[c]node@/opt/cardano/${CNODE_VNAME}@g" -e "s@[C]NODE_HOME@${CNODE_VNAME_UPPERCASE}_HOME@g" -i "${dname}/${fname}".tmp
 
     # make sure script exist, else just rename
-    [[ ! -f "${PARENT}/${1}" ]] && mv -f "${PARENT}/${1}".tmp "${PARENT}/${1}" && chmod +x "${PARENT}/${1}" && return 0
+    [[ ! -f "${dname}/${fname}" ]] && mv -f "${dname}/${fname}".tmp "${dname}/${fname}" && chmod +x "${dname}/${fname}" && return 0
 
-    OLD_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/${1}")
-    OLD_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}")
-    GIT_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}/${1}".tmp)
-    GIT_TEMPL=$(awk '/^# Do NOT modify/,0' "${PARENT}/${1}".tmp)
+    OLD_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${dname}/${fname}")
+    OLD_TEMPL=$(awk '/^# Do NOT modify/,0' "${dname}/${fname}")
+    GIT_STATIC=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${dname}/${fname}".tmp)
+    GIT_TEMPL=$(awk '/^# Do NOT modify/,0' "${dname}/${fname}".tmp)
     NEW_STATIC=$(checkUserVariables "${OLD_STATIC}" "${GIT_STATIC}")
-    if [[ ($3 = Y && "$(sha256sum "${PARENT}/${1}" | cut -d' ' -f1)" != "$(sha256sum "${PARENT}/${1}.tmp" | cut -d' ' -f1)") || "$(echo ${OLD_STATIC} | sha256sum)" != "$(echo ${NEW_STATIC} | sha256sum)" || "$(echo ${OLD_TEMPL} | sha256sum)" != "$(echo ${GIT_TEMPL} | sha256sum)" ]]; then
+    if [[ ($3 = Y && "$(sha256sum "${dname}/${fname}" | cut -d' ' -f1)" != "$(sha256sum "${dname}/${fname}.tmp" | cut -d' ' -f1)") || "$(echo ${OLD_STATIC} | sha256sum)" != "$(echo ${NEW_STATIC} | sha256sum)" || "$(echo ${OLD_TEMPL} | sha256sum)" != "$(echo ${GIT_TEMPL} | sha256sum)" ]]; then
       update_msg="\nScript update(s) detected, do you want to download the latest version?"
-      if [[ $1 = cntools.library || $1 = gLiveView.sh ]]; then
-        if [[ $1 = cntools.library ]]; then
-          CUR_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${PARENT}/${1}" |sed -e "s#.*=##")
-          CUR_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${PARENT}/${1}" |sed -e "s#.*=##")
-          CUR_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${PARENT}/${1}" |sed -e "s#.*=##")
+      if [[ ${fname} = cntools.library || ${fname} = gLiveView.sh ]]; then
+        if [[ ${fname} = cntools.library ]]; then
+          CUR_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${dname}/${fname}" |sed -e "s#.*=##")
+          CUR_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${dname}/${fname}" |sed -e "s#.*=##")
+          CUR_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${dname}/${fname}" |sed -e "s#.*=##")
           CUR_VERSION="${CUR_MAJOR_VERSION}.${CUR_MINOR_VERSION}.${CUR_PATCH_VERSION}"
-          GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${PARENT}/${1}".tmp |sed -e "s#.*=##")
-          GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${PARENT}/${1}".tmp |sed -e "s#.*=##")
-          GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${PARENT}/${1}".tmp |sed -e "s#.*=##")
+          GIT_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${dname}/${fname}".tmp |sed -e "s#.*=##")
+          GIT_MINOR_VERSION=$(grep -r ^CNTOOLS_MINOR_VERSION= "${dname}/${fname}".tmp |sed -e "s#.*=##")
+          GIT_PATCH_VERSION=$(grep -r ^CNTOOLS_PATCH_VERSION= "${dname}/${fname}".tmp |sed -e "s#.*=##")
           GIT_VERSION="${GIT_MAJOR_VERSION}.${GIT_MINOR_VERSION}.${GIT_PATCH_VERSION}"
         else
-          CUR_VERSION=$(grep -r ^GLV_VERSION= "${PARENT}/${1}" | cut -d'=' -f2)
-          GIT_VERSION=$(grep -r ^GLV_VERSION= "${PARENT}/${1}".tmp | cut -d'=' -f2)
+          CUR_VERSION=$(grep -r ^GLV_VERSION= "${dname}/${fname}" | cut -d'=' -f2)
+          GIT_VERSION=$(grep -r ^GLV_VERSION= "${dname}/${fname}".tmp | cut -d'=' -f2)
         fi
         if ! versionCheck ${GIT_VERSION} ${CUR_VERSION}; then
-          [[ $1 = cntools.library ]] && script_name="CNTools" || script_name="Guild LiveView"
+          [[ ${fname} = cntools.library ]] && script_name="CNTools" || script_name="Guild LiveView"
           update_msg="\nA new version of ${script_name} is available."
           update_msg="${update_msg}\nInstalled Version : ${FG_LGRAY}${CUR_VERSION}${NC}"
           update_msg="${update_msg}\nAvailable Version : ${FG_GREEN}${GIT_VERSION}${NC}"
@@ -195,19 +197,19 @@ checkUpdate() {
         fi
       fi
       if [[ $2 = Y ]] || { [[ -t 1 ]] && getAnswer "${update_msg}"; }; then
-        if [[ $3 != Y ]] && grep -q "# Do NOT modify" "${PARENT}/${1}"; then
-          printf '%s\n%s\n' "${NEW_STATIC}" "${GIT_TEMPL}" > "${PARENT}/${1}".tmp
+        if [[ $3 != Y ]] && grep -q "# Do NOT modify" "${dname}/${fname}"; then
+          printf '%s\n%s\n' "${NEW_STATIC}" "${GIT_TEMPL}" > "${dname}/${fname}".tmp
         fi
-        cp "${PARENT}/${1}" "${PARENT}/${1}_bkp$(date +%s)"
-        mv -f "${PARENT}/${1}".tmp "${PARENT}/${1}"
-        [[ ! "${1}" == "env" ]] && chmod +x "${PARENT}/${1}"
-        echo -e "\n${FG_YELLOW}${1}${NC} update successfully applied!"
+        cp "${dname}/${fname}" "${dname}/${fname}_bkp$(date +%s)"
+        mv -f "${dname}/${fname}".tmp "${dname}/${fname}"
+        [[ ! "${fname}" == "env" ]] && chmod +x "${dname}/${fname}"
+        echo -e "\n${FG_YELLOW}${fname}${NC} update successfully applied!"
         [[ -t 1 && $4 != N ]] && waitToProceed && clear
         return 1
       fi
     fi
   fi
-  rm -f "${PARENT}/${1}".tmp
+  rm -f "${dname}/${fname}".tmp
   return 0
 }
 
@@ -717,6 +719,75 @@ telegramSend() {
   fi
 }
 
+set_default_vars() {
+  [[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
+  CNODE_NAME="$(basename ${CNODE_HOME})"
+  CNODE_VNAME=$(tr '[:upper:]' '[:lower:]' <<< ${CNODE_NAME//_HOME/})
+  CNODE_VNAME_UPPERCASE=$(tr '[:lower:]' '[:upper:]' <<< ${CNODE_VNAME})
+  [[ -z "${CNODE_PORT}" ]] && CNODE_PORT=6000
+  [[ -z ${UPDATE_CHECK} ]] && UPDATE_CHECK="Y"
+  [[ -z ${TOPOLOGY} ]] && TOPOLOGY="${CNODE_HOME}/files/topology.json"
+  [[ -n ${CNODE_TOPOLOGY} ]] && TOPOLOGY="${CNODE_TOPOLOGY}" # compatibility with older topologyUpdater
+  [[ -z ${LOG_DIR} ]] && LOG_DIR="${CNODE_HOME}/logs"
+  [[ -n ${CNODE_LOG_DIR} ]] && LOG_DIR="${CNODE_LOG_DIR}" # compatibility with older topologyUpdater
+  [[ -z ${DB_DIR} ]] && DB_DIR="${CNODE_HOME}/db"
+  [[ -z ${TMP_DIR} ]] && TMP_DIR="/tmp/$(basename "${CNODE_HOME}")"
+  if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then echo "ERROR: Failed to create directory for temporary files, please set TMP_DIR to a valid folder in 'env', current folder: ${TMP_DIR}" && exit 1; fi
+  [[ -z ${TIMEOUT_LEDGER_STATE} ]] && TIMEOUT_LEDGER_STATE=300
+  [[ -z ${ENABLE_KOIOS} ]] && ENABLE_KOIOS="Y"
+  [[ -z ${DBSYNC_QUERY_FOLDER} ]] && DBSYNC_QUERY_FOLDER="${CNODE_HOME}/files/dbsync/queries"
+  [[ -z ${WALLET_FOLDER} ]] && WALLET_FOLDER="${CNODE_HOME}/priv/wallet"
+  [[ -z ${POOL_FOLDER} ]] && POOL_FOLDER="${CNODE_HOME}/priv/pool"
+  [[ -z ${POOL_NAME} ]] && POOL_NAME="CHANGE_ME"
+  [[ -z ${POOL_DIR} ]] && POOL_DIR="${POOL_FOLDER}/${POOL_NAME}"
+  [[ -z ${WALLET_PAY_VK_FILENAME} ]] && WALLET_PAY_VK_FILENAME="payment.vkey"
+  [[ -z ${WALLET_PAY_SK_FILENAME} ]] && WALLET_PAY_SK_FILENAME="payment.skey"
+  [[ -z ${WALLET_HW_PAY_SK_FILENAME} ]] && WALLET_HW_PAY_SK_FILENAME="payment.hwsfile"
+  [[ -z ${WALLET_PAY_ADDR_FILENAME} ]] && WALLET_PAY_ADDR_FILENAME="payment.addr"
+  [[ -z ${WALLET_BASE_ADDR_FILENAME} ]] && WALLET_BASE_ADDR_FILENAME="base.addr"
+  [[ -z ${WALLET_STAKE_VK_FILENAME} ]] && WALLET_STAKE_VK_FILENAME="stake.vkey"
+  [[ -z ${WALLET_STAKE_SK_FILENAME} ]] && WALLET_STAKE_SK_FILENAME="stake.skey"
+  [[ -z ${WALLET_HW_STAKE_SK_FILENAME} ]] && WALLET_HW_STAKE_SK_FILENAME="stake.hwsfile"
+  [[ -z ${WALLET_STAKE_ADDR_FILENAME} ]] && WALLET_STAKE_ADDR_FILENAME="reward.addr"
+  [[ -z ${WALLET_STAKE_CERT_FILENAME} ]] && WALLET_STAKE_CERT_FILENAME="stake.cert"
+  [[ -z ${WALLET_STAKE_DEREG_FILENAME} ]] && WALLET_STAKE_DEREG_FILENAME="stake.dereg"
+  [[ -z ${WALLET_DELEGCERT_FILENAME} ]] && WALLET_DELEGCERT_FILENAME="delegation.cert"
+  [[ -z ${POOL_ID_FILENAME} ]] && POOL_ID_FILENAME="pool.id"
+  [[ -z ${POOL_HOTKEY_VK_FILENAME} ]] && POOL_HOTKEY_VK_FILENAME="hot.vkey"
+  [[ -z ${POOL_HOTKEY_SK_FILENAME} ]] && POOL_HOTKEY_SK_FILENAME="hot.skey"
+  [[ -z ${POOL_COLDKEY_VK_FILENAME} ]] && POOL_COLDKEY_VK_FILENAME="cold.vkey"
+  [[ -z ${POOL_COLDKEY_SK_FILENAME} ]] && POOL_COLDKEY_SK_FILENAME="cold.skey"
+  [[ -z ${POOL_OPCERT_COUNTER_FILENAME} ]] && POOL_OPCERT_COUNTER_FILENAME="cold.counter"
+  [[ -z ${POOL_OPCERT_FILENAME} ]] && POOL_OPCERT_FILENAME="op.cert"
+  [[ -z ${POOL_VRF_VK_FILENAME} ]] && POOL_VRF_VK_FILENAME="vrf.vkey"
+  [[ -z ${POOL_VRF_SK_FILENAME} ]] && POOL_VRF_SK_FILENAME="vrf.skey"
+  [[ -z ${POOL_CONFIG_FILENAME} ]] && POOL_CONFIG_FILENAME="pool.config"
+  [[ -z ${POOL_REGCERT_FILENAME} ]] && POOL_REGCERT_FILENAME="pool.cert"
+  [[ -z ${POOL_CURRENT_KES_START} ]] && POOL_CURRENT_KES_START="kes.start"
+  [[ -z ${POOL_DEREGCERT_FILENAME} ]] && POOL_DEREGCERT_FILENAME="pool.dereg"
+  [[ -z ${ASSET_FOLDER} ]] && ASSET_FOLDER="${CNODE_HOME}/priv/asset"
+  [[ -z ${ASSET_POLICY_VK_FILENAME} ]] && ASSET_POLICY_VK_FILENAME="policy.vkey"
+  [[ -z ${ASSET_POLICY_SK_FILENAME} ]] && ASSET_POLICY_SK_FILENAME="policy.skey"
+  [[ -z ${ASSET_POLICY_SCRIPT_FILENAME} ]] && ASSET_POLICY_SCRIPT_FILENAME="policy.script"
+  [[ -z ${ASSET_POLICY_ID_FILENAME} ]] && ASSET_POLICY_ID_FILENAME="policy.id"
+  FG_BLACK='\e[30m'
+  FG_RED='\e[31m'
+  FG_GREEN='\e[32m'
+  FG_YELLOW='\e[33m'
+  FG_BLUE='\e[34m'
+  FG_MAGENTA='\e[35m'
+  FG_CYAN='\e[36m'
+  FG_LGRAY='\e[37m'
+  FG_DGRAY='\e[90m'
+  FG_LBLUE='\e[94m'
+  FG_WHITE='\e[97m'
+  STANDOUT='\e[7m'
+  BOLD='\e[1m'
+  NC='\e[0m'
+}
+
+set_default_vars
+
 [[ -z "${CCLI}" ]] && CCLI=$(command -v cardano-cli)
 if [[ -z "${CCLI}" ]]; then
   if [[ -f "${HOME}/.cabal/bin/cardano-cli" ]]; then
@@ -748,13 +819,6 @@ fi
 
 [[ -f /usr/local/lib/libsodium.so ]] && export LD_LIBRARY_PATH=/usr/local/lib:"${LD_LIBRARY_PATH}" && PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:"${PKG_CONFIG_PATH}"
 
-[[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
-
-CNODE_NAME="$(basename ${CNODE_HOME})"
-CNODE_VNAME=$(tr '[:upper:]' '[:lower:]' <<< ${CNODE_NAME//_HOME/})
-CNODE_VNAME_UPPERCASE=$(tr '[:lower:]' '[:upper:]' <<< ${CNODE_VNAME})
-
-[[ -z "${CNODE_PORT}" ]] && CNODE_PORT=6000
 if [[ -z "${SOCKET}" ]]; then
   if [[ "$(ps -ef | grep "$(basename ${CNODEBIN}).*.port ${CNODE_PORT}" | grep -v grep)" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
     export CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
@@ -891,67 +955,6 @@ if [[ -n "${CNODE_PID}" ]]; then
     fi
   fi
 fi
-
-[[ -z ${UPDATE_CHECK} ]] && UPDATE_CHECK="Y"
-[[ -z ${TOPOLOGY} ]] && TOPOLOGY="${CNODE_HOME}/files/topology.json"
-[[ -n ${CNODE_TOPOLOGY} ]] && TOPOLOGY="${CNODE_TOPOLOGY}" # compatibility with older topologyUpdater
-[[ -z ${LOG_DIR} ]] && LOG_DIR="${CNODE_HOME}/logs"
-[[ -n ${CNODE_LOG_DIR} ]] && LOG_DIR="${CNODE_LOG_DIR}" # compatibility with older topologyUpdater
-[[ -z ${DB_DIR} ]] && DB_DIR="${CNODE_HOME}/db"
-[[ -z ${TMP_DIR} ]] && TMP_DIR="/tmp/$(basename "${CNODE_HOME}")"
-if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then echo "ERROR: Failed to create directory for temporary files, please set TMP_DIR to a valid folder in 'env', current folder: ${TMP_DIR}" && exit 1; fi
-[[ -z ${TIMEOUT_LEDGER_STATE} ]] && TIMEOUT_LEDGER_STATE=300
-[[ -z ${ENABLE_KOIOS} ]] && ENABLE_KOIOS="Y"
-[[ -z ${DBSYNC_QUERY_FOLDER} ]] && DBSYNC_QUERY_FOLDER="${CNODE_HOME}/files/dbsync/queries"
-[[ -z ${WALLET_FOLDER} ]] && WALLET_FOLDER="${CNODE_HOME}/priv/wallet"
-[[ -z ${POOL_FOLDER} ]] && POOL_FOLDER="${CNODE_HOME}/priv/pool"
-[[ -z ${POOL_NAME} ]] && POOL_NAME="CHANGE_ME"
-[[ -z ${POOL_DIR} ]] && POOL_DIR="${POOL_FOLDER}/${POOL_NAME}"
-[[ -z ${WALLET_PAY_VK_FILENAME} ]] && WALLET_PAY_VK_FILENAME="payment.vkey"
-[[ -z ${WALLET_PAY_SK_FILENAME} ]] && WALLET_PAY_SK_FILENAME="payment.skey"
-[[ -z ${WALLET_HW_PAY_SK_FILENAME} ]] && WALLET_HW_PAY_SK_FILENAME="payment.hwsfile"
-[[ -z ${WALLET_PAY_ADDR_FILENAME} ]] && WALLET_PAY_ADDR_FILENAME="payment.addr"
-[[ -z ${WALLET_BASE_ADDR_FILENAME} ]] && WALLET_BASE_ADDR_FILENAME="base.addr"
-[[ -z ${WALLET_STAKE_VK_FILENAME} ]] && WALLET_STAKE_VK_FILENAME="stake.vkey"
-[[ -z ${WALLET_STAKE_SK_FILENAME} ]] && WALLET_STAKE_SK_FILENAME="stake.skey"
-[[ -z ${WALLET_HW_STAKE_SK_FILENAME} ]] && WALLET_HW_STAKE_SK_FILENAME="stake.hwsfile"
-[[ -z ${WALLET_STAKE_ADDR_FILENAME} ]] && WALLET_STAKE_ADDR_FILENAME="reward.addr"
-[[ -z ${WALLET_STAKE_CERT_FILENAME} ]] && WALLET_STAKE_CERT_FILENAME="stake.cert"
-[[ -z ${WALLET_STAKE_DEREG_FILENAME} ]] && WALLET_STAKE_DEREG_FILENAME="stake.dereg"
-[[ -z ${WALLET_DELEGCERT_FILENAME} ]] && WALLET_DELEGCERT_FILENAME="delegation.cert"
-[[ -z ${POOL_ID_FILENAME} ]] && POOL_ID_FILENAME="pool.id"
-[[ -z ${POOL_HOTKEY_VK_FILENAME} ]] && POOL_HOTKEY_VK_FILENAME="hot.vkey"
-[[ -z ${POOL_HOTKEY_SK_FILENAME} ]] && POOL_HOTKEY_SK_FILENAME="hot.skey"
-[[ -z ${POOL_COLDKEY_VK_FILENAME} ]] && POOL_COLDKEY_VK_FILENAME="cold.vkey"
-[[ -z ${POOL_COLDKEY_SK_FILENAME} ]] && POOL_COLDKEY_SK_FILENAME="cold.skey"
-[[ -z ${POOL_OPCERT_COUNTER_FILENAME} ]] && POOL_OPCERT_COUNTER_FILENAME="cold.counter"
-[[ -z ${POOL_OPCERT_FILENAME} ]] && POOL_OPCERT_FILENAME="op.cert"
-[[ -z ${POOL_VRF_VK_FILENAME} ]] && POOL_VRF_VK_FILENAME="vrf.vkey"
-[[ -z ${POOL_VRF_SK_FILENAME} ]] && POOL_VRF_SK_FILENAME="vrf.skey"
-[[ -z ${POOL_CONFIG_FILENAME} ]] && POOL_CONFIG_FILENAME="pool.config"
-[[ -z ${POOL_REGCERT_FILENAME} ]] && POOL_REGCERT_FILENAME="pool.cert"
-[[ -z ${POOL_CURRENT_KES_START} ]] && POOL_CURRENT_KES_START="kes.start"
-[[ -z ${POOL_DEREGCERT_FILENAME} ]] && POOL_DEREGCERT_FILENAME="pool.dereg"
-[[ -z ${ASSET_FOLDER} ]] && ASSET_FOLDER="${CNODE_HOME}/priv/asset"
-[[ -z ${ASSET_POLICY_VK_FILENAME} ]] && ASSET_POLICY_VK_FILENAME="policy.vkey"
-[[ -z ${ASSET_POLICY_SK_FILENAME} ]] && ASSET_POLICY_SK_FILENAME="policy.skey"
-[[ -z ${ASSET_POLICY_SCRIPT_FILENAME} ]] && ASSET_POLICY_SCRIPT_FILENAME="policy.script"
-[[ -z ${ASSET_POLICY_ID_FILENAME} ]] && ASSET_POLICY_ID_FILENAME="policy.id"
-
-FG_BLACK='\e[30m'
-FG_RED='\e[31m'
-FG_GREEN='\e[32m'
-FG_YELLOW='\e[33m'
-FG_BLUE='\e[34m'
-FG_MAGENTA='\e[35m'
-FG_CYAN='\e[36m'
-FG_LGRAY='\e[37m'
-FG_DGRAY='\e[90m'
-FG_LBLUE='\e[94m'
-FG_WHITE='\e[97m'
-STANDOUT='\e[7m'
-BOLD='\e[1m'
-NC='\e[0m'
 
 node_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
 if ! versionCheck "1.32.1" "${node_version}"; then

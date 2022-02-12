@@ -6,6 +6,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.0.4] - 2022-02-14
+#### Fixed
+- Update request for pool_info endpoint from Koios
+
 ## [9.0.3] - 2022-02-01
 #### Added
 - Add a config variable TX_TTL to allow transaction to be valid (by default for 3600 slots) from the point of creation - previous default of 10 minutes on mainnet could be hit-and-miss with the state of network.

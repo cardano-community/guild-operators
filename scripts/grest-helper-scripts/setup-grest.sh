@@ -364,13 +364,6 @@
       *) KOIOS_SRV="guild.koios.rest" ;;
     esac
 
-    # Create skeleton whitelist URL file if one does not already exist using most common option
-    if [[ ! -f "${CNODE_HOME}"/files/grestrpcs ]]; then
-      # Not network dependent, as the URL patterns followed will default to monitoring instance from koios - it will anyways be overwritten as per user preference based on variables in grest-poll.sh
-      curl -sfkL "https://api.koios.rest/koiosapi.yaml" -o .koiosapispec 2>/dev/null || return 0
-      grep " #RPC" .koiosapispec | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${CNODE_HOME}"/files/grestrpcs
-    fi
-
     bash -c "cat <<-EOF > ${HAPROXY_CFG}
 			global
 			  daemon
@@ -466,9 +459,19 @@
 			  max-age 300
 			EOF"
     echo "  Done!! Please ensure to set any custom settings/peers/TLS configs/etc back and update configs as necessary!"
-    checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
-    checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
-    checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
+  }
+
+  common_update() {
+    # Create skeleton whitelist URL file if one does not already exist using most common option
+    if [[ ! -f "${CNODE_HOME}"/files/grestrpcs ]]; then
+      # Not network dependent, as the URL patterns followed will default to monitoring instance from koios - it will anyways be overwritten as per user preference based on variables in grest-poll.sh
+      curl -sfkL "https://api.koios.rest/koiosapi.yaml" -o "${CNODE_HOME}"/files/koiosapi.yaml 2>/dev/null
+      grep " #RPC" "${CNODE_HOME}"/files/koiosapi.yaml | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
+    fi
+    checkUpdate env Y N N >/dev/null
+    [[ -f grest-poll.sh ]] && checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
+    [[ -f checkstatus.sh ]] && checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
+    [[ -f getmetrics.sh ]] && checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
   }
 
   deploy_systemd() {
@@ -648,6 +651,7 @@
   [[ "${INSTALL_MONITORING_AGENTS}" == "Y" ]] && deploy_monitoring_agents
   [[ "${OVERWRITE_CONFIG}" == "Y" ]] && deploy_configs
   [[ "${OVERWRITE_SYSTEMD}" == "Y" ]] && deploy_systemd
+  common_update
   [[ "${RESET_GREST}" == "Y" ]] && setup_db_basics && reset_grest
   [[ "${DB_QRY_UPDATES}" == "Y" ]] && setup_db_basics && deploy_query_updates
   pushd -0 >/dev/null || err_exit

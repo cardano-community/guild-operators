@@ -40,12 +40,12 @@ function set_defaults() {
 function chk_upd() {
   # Check if the update was polled within past hour
   curr_hour=$(date +%H)
-  if [[ ! -f ./.last_grest_poll ]]; then
-    echo "${curr_hour}" > .last_grest_poll
+  if [[ ! -f "${PARENT}"/.last_grest_poll ]]; then
+    echo "${curr_hour}" > "${PARENT}"/.last_grest_poll
     curl -sfkL "${API_STRUCT_DEFINITION}" -o "${LOCAL_SPEC}" 2>/dev/null
   else
-    last_hour=$(cat .last_grest_poll)
-    [[ "${curr_hour}" == "${last_hour}" ]] && SKIP_UPDATE=Y || echo "${curr_hour}" > .last_grest_poll
+    last_hour=$(cat "${PARENT}"/.last_grest_poll)
+    [[ "${curr_hour}" == "${last_hour}" ]] && SKIP_UPDATE=Y || echo "${curr_hour}" > "${PARENT}"/.last_grest_poll
   fi
   if [[ ! -f "${PARENT}"/env ]]; then
     echo -e "\nCommon env file missing: ${PARENT}/env"
@@ -54,16 +54,16 @@ function chk_upd() {
   fi
 
   . "${PARENT}"/env offline &>/dev/null
-  { [[ "${UPDATE_CHECK}" != "Y" ]] || [[ "${SKIP_UPDATE}" == "Y" ]] ; } && return 0
+  [[ "${SKIP_UPDATE}" == "Y" ]] && return 0
   if [[ ! $(command -v checkUpdate) ]]; then
     echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
     exit 1
   fi
   
-  curl -sfkL "${API_STRUCT_DEFINITION}" -o "${LOCAL_SPEC}" 2>/dev/null || return 0
-  grep " #RPC" "${LOCAL_SPEC}" | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${PARENT}/../files/grestrpcs"
+  curl -sfkL "${API_STRUCT_DEFINITION}" -o "${LOCAL_SPEC}" 2>/dev/null
+  grep " #RPC" "${LOCAL_SPEC}" | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${PARENT}"/../files/grestrpcs
 
-  checkUpdate grest-poll.sh Y N N grest-helper-scripts
+  checkUpdate "${PARENT}"/grest-poll.sh Y N N grest-helper-scripts
   [[ "$?" == "2" ]] && echo "ERROR: checkUpdate Failed" && exit 1
 }
 
@@ -99,7 +99,7 @@ function chk_tip() {
 }
 
 function chk_rpc_struct() {
-  srvr_spec="$(curl -skL "${1}" | jq 'leaf_paths | join(".")' 2>/dev/null)"
+  srvr_spec="$(curl -skL "${1}" | jq 'leaf_paths as $p | [$p[] | tostring] |join(".")' 2>/dev/null)"
   api_endpts="$(grep ^\ \ / "${LOCAL_SPEC}" | sed -e 's#  /#/#g' -e 's#:##' | sort)"
   for endpt in ${api_endpts}
   do
@@ -108,8 +108,8 @@ function chk_rpc_struct() {
 }
 
 function chk_rpcs() {
-  instance_rpc_cksum="$(chk_rpc_struct "${GURL}" | sort | grep -v -e description\"\$ -e summary\"\$ | tee .dltarget | shasum -a 256)"
-  monitor_rpc_cksum="$(chk_rpc_struct "${API_COMPARE}" | sort | grep -v -e description\"\$ -e summary\"\$ | tee .dlsource | shasum -a 256)"
+  instance_rpc_cksum="$(chk_rpc_struct "${GURL}" | sort | grep -v -e description\"\$ -e summary\"\$ | tee "${PARENT}"/.dltarget | shasum -a 256)"
+  monitor_rpc_cksum="$(chk_rpc_struct "${API_COMPARE}" | sort | grep -v -e description\"\$ -e summary\"\$ | tee "${PARENT}"/.dlsource | shasum -a 256)"
   if [[ "${instance_rpc_cksum}" != "${monitor_rpc_cksum}" ]]; then
     echo "ERROR: The specs returned by ${GURL} do not seem to match ${API_COMPARE} for endpoints mentioned at: ${API_STRUCT_DEFINITION}"
     optexit
