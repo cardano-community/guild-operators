@@ -1332,9 +1332,9 @@ components:
             description: Margin (decimal format)
             example: 0.1
           fixed_cost:
-            type: integer
+            type: string
             description: Pool fixed cost per epoch
-            example: 500000000
+            example: "500000000"
           pledge:
             type: string
             description: Pool pledge in lovelace
@@ -2140,8 +2140,8 @@ components:
                 type: integer
                 example: 0
           total_supply:
-            type: integer
-            example: 35000
+            type: string
+            example: "35000"
           creation_time:
             type: string
             example: "2021-10-10T18:42:14"
@@ -2235,8 +2235,8 @@ components:
                       type: integer
                       example: 0
                 total_supply:
-                  type: integer
-                  example: 35000
+                  type: string
+                  example: "35000"
                 creation_time:
                   type: string
                   example: "2021-10-10T18:42:14"
