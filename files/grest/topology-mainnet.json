@@ -6,7 +6,8 @@
       { "name": "markus", "addr": "185.161.193.32", "port": 8053},
       { "name": "homer-redoracle", "addr": "194.233.71.104", "port": 8053},
       { "name": "docker", "addr": "92.204.53.48", "port": 8053},
-      { "name": "rdlrt2", "addr": "194.36.145.157", "port": 8053}
+      { "name": "rdlrt2", "addr": "194.36.145.157", "port": 8053},
+      { "name": "digsyn1", "addr": "162.55.239.49", "port": 8053}
   ],
   "Consumers": []
 }
