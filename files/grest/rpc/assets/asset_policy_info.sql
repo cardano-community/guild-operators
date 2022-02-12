@@ -105,7 +105,7 @@ BEGIN
           ),
           'total_supply', (
             SELECT
-              amount
+              amount::text
             FROM
               total_supplies
             WHERE
