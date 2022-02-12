@@ -14,6 +14,6 @@
     {"addr": "95.216.160.145", "port": 6000, "valency": 1, "name": "damjan"},
     {"addr": "relay-guild.adaplus.io", "port": 6000, "valency": 1, "name": "adaplus"},
     {"addr": "relays-guild.poolunder.com", "port": 8900, "valency": 1, "name": "TUNDR"},
-    {"addr": "guild.digitalsyndicate.io", "port": 6001, "valency": 1, "name": "TUNDR"}
+    {"addr": "guild.digitalsyndicate.io", "port": 6001, "valency": 1, "name": "BUDZ"}
   ]
 }
