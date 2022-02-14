@@ -468,7 +468,7 @@
       curl -sfkL "https://api.koios.rest/koiosapi.yaml" -o "${CNODE_HOME}"/files/koiosapi.yaml 2>/dev/null
       grep " #RPC" "${CNODE_HOME}"/files/koiosapi.yaml | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
     fi
-    checkUpdate env Y N N >/dev/null
+    [[ "${SKIP_UPDATE}" == "Y" ]] && return 0
     [[ -f grest-poll.sh ]] && checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
     [[ -f checkstatus.sh ]] && checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
     [[ -f getmetrics.sh ]] && checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
