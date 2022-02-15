@@ -1,0 +1,8 @@
+op_cert_counter:
+  type: integer
+  description: Pools' latest operational certificate counter value
+  example: 8
+pool_id_bech32:
+  type: string
+  description: Pool ID in bech32 format
+  example: pool155efqn9xpcf73pphkk88cmlkdwx4ulkg606tne970qswczg3asc

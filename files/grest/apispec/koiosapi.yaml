@@ -315,7 +315,11 @@ paths:
         - Block
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of block information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/blocks"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1611,6 +1615,51 @@ components:
             type: integer
             description: The cost per UTxO word
             example: 34482
+    blocks:
+      type: array
+      items:
+        type: object
+        properties:
+          hash:
+            type: string
+            description: Hash of the block
+            example: e8c6992d52cd74b577b79251e0351be25070797a0dbc486b2c284d0bf7aeea9c
+          epoch:
+            type: integer
+            description: Epoch number of the block
+            example: 321
+          abs_slot:
+            type: integer
+            description: Absolute slot number of the block
+            example: 53384242
+          epoch_slot:
+            type: integer
+            description: Slot number of the block in epoch
+            example: 75442
+          height:
+            type: integer
+            description: Block height
+            example: 42325043
+          size:
+            type: integer
+            description: Block size in bytes
+            example: 79109
+          block_time:
+            type: string
+            description: Timestamp of the block
+            example: "2022-02-15T18:42:13"
+          tx_count:
+            type: integer
+            description: Number of transactions in the block
+            example: 44
+          vrf_key:
+            type: string
+            description: VRF key of the block creator
+            example: "vrf_vk1pmxyz8efuyj6eq6zkk373f28u47v06nwp5t59jr5fcmcusaazlmqhxu8k2"
+          pool:
+            $ref: "types.yaml#/pool_id_bech32"
+          op_cert_counter:
+            $ref: "types.yaml#/op_cert_counter"
     tx_info:
       type: array
       items:
