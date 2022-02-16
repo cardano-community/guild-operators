@@ -588,7 +588,11 @@ paths:
         - $ref: "#/components/parameters/_any_address"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of account information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/account_info"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -604,7 +608,11 @@ paths:
         - $ref: "#/components/parameters/_earned_epoch_no"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of reward history information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/account_rewards"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1781,6 +1789,69 @@ components:
         properties:
           id:
             $ref: "#/components/schemas/account_history/items/properties/stake_address"
+    account_info:
+      type: array
+      items:
+        type: object
+        properties:
+          status:
+            type: string
+            description: Stake address status
+            enum: ["registered", "not registered"]
+            example: registered
+          delegated_pool:
+            $ref: "#/components/schemas/pool_list/items/properties/pool_id_bech32"
+          total_balance:
+            type: string
+            description: Total balance of the account including UTxO, rewards and MIRs (in lovelace)
+            example: 207116800428
+          utxo:
+            type: string
+            description: Total UTxO balance of the account
+            example: 162764177131
+          rewards:
+            type: string
+            description: Total rewards earned by the account
+            example: 56457728047
+          withdrawals:
+            type: string
+            description: Total rewards withdrawn by the account
+            example: 12105104750
+          rewards_available:
+            type: string
+            description: Total rewards available for withdawal
+            example: 44352623297
+          reserves:
+            type: string
+            description: Total reserves MIR value of the account
+            example: "0"
+          treasury:
+            type: string
+            description: Total treasury MIR value of the account
+            example: "0"
+
+    account_rewards:
+      type: array
+      items:
+        type: object
+        properties:
+          earned_epoch:
+            $ref: "#/components/schemas/epoch_info/items/properties/epoch_no"
+          spendable_epoch:
+            $ref: "#/components/schemas/epoch_info/items/properties/epoch_no"
+          amount:
+            type: string
+            description: Amount of rewards earned (in lovelace)
+          type:
+            type: string
+            description: The source of the rewards
+            enum: [member, leader, treasury, reserves]
+            example: member
+          pool_id:
+            $ref: "#/components/schemas/pool_list/items/properties/pool_id_bech32"
+    account_updates:
+    account_addresses:
+    account_assets:
 
     tx_info:
       type: array
