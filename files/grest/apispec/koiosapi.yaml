@@ -353,7 +353,11 @@ paths:
         - $ref: "#/components/parameters/_block_hash"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of transactions hashes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/block_txs"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1707,6 +1711,13 @@ components:
             type: string
             description: Hash of the child of this block (if present)
             example: "a3b525ba0747ce9daa928fa28fbc680f95e6927943a1fbd6fa5394d96c9dc2fa"
+    block_txs:
+      type: array
+      items:
+        type: object
+        properties:
+          tx_hash:
+            $ref: "#/components/schemas/tx_info/items/properties/tx_hash"
     tx_info:
       type: array
       items:
@@ -1714,7 +1725,7 @@ components:
         properties:
           tx_hash:
             type: string
-            description: Hash of Transaction for which details are being shown
+            description: Hash identifier of the transaction
             example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
           block_hash:
             type: string
@@ -2261,6 +2272,7 @@ components:
               properties:
                 tx_hash:
                   type: string
+                  description: Hash of minting/burning transaction
                   example: e1ecc517f95715bb87681cfde2c594dbc971739f84f8bfda16170b35d63d0ddf
                 quantity:
                   type: string
