@@ -533,7 +533,11 @@ paths:
         - $ref: "#/components/parameters/_address"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of address-owned assets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/address_assets"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -548,7 +552,11 @@ paths:
         $ref: "#/components/requestBodies/credential_txs"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of transaction hashes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/credential_txs"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1757,6 +1765,10 @@ components:
         properties:
           tx_hash:
             $ref: "#/components/schemas/tx_info/items/properties/tx_hash"
+    address_assets:
+      $ref: "#/components/schemas/tx_info/items/properties/outputs/items/properties/asset_list"
+    credential_txs:
+      $ref: "#/components/schemas/address_txs"
     tx_info:
       type: array
       items:
