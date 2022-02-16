@@ -514,7 +514,11 @@ paths:
         $ref: "#/components/requestBodies/address_txs"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of transaction hashes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/address_txs"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1746,6 +1750,13 @@ components:
                   $ref: "#/components/schemas/tx_info/items/properties/outputs/items/properties/value"
                 asset_list:
                   $ref: "#/components/schemas/tx_info/items/properties/outputs/items/properties/asset_list"
+    address_txs:
+      type: array
+      items:
+        type: object
+        properties:
+          tx_hash:
+            $ref: "#/components/schemas/tx_info/items/properties/tx_hash"
     tx_info:
       type: array
       items:
