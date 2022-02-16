@@ -569,7 +569,11 @@ paths:
         - Account
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of account (stake address) IDs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/account_list"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1769,6 +1773,14 @@ components:
       $ref: "#/components/schemas/tx_info/items/properties/outputs/items/properties/asset_list"
     credential_txs:
       $ref: "#/components/schemas/address_txs"
+    account_list:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            $ref: "#/components/schemas/account_history/items/properties/stake_address"
+
     tx_info:
       type: array
       items:
