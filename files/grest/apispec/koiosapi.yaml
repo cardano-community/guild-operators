@@ -495,7 +495,11 @@ paths:
         - $ref: "#/components/parameters/_address"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of address information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/address_info"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1718,6 +1722,30 @@ components:
         properties:
           tx_hash:
             $ref: "#/components/schemas/tx_info/items/properties/tx_hash"
+    address_info:
+      type: array
+      items:
+        type: object
+        properties:
+          balance:
+            type: string
+            description: Sum of all UTxO values beloning to address
+            example: 10723473983
+          stake_address:
+            $ref: "#/components/schemas/account_history/items/properties/stake_address"
+          utxo_set:
+            type: array
+            items:
+              type: object
+              properties:
+                tx_hash:
+                  $ref: "#/components/schemas/tx_info/items/properties/outputs/items/properties/tx_hash"
+                tx_index:
+                  $ref: "#/components/schemas/tx_info/items/properties/outputs/items/properties/tx_index"
+                value:
+                  $ref: "#/components/schemas/tx_info/items/properties/outputs/items/properties/value"
+                asset_list:
+                  $ref: "#/components/schemas/tx_info/items/properties/outputs/items/properties/asset_list"
     tx_info:
       type: array
       items:
