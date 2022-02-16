@@ -334,7 +334,11 @@ paths:
         - $ref: "#/components/parameters/_block_hash"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of detailed block information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/block_info"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1654,12 +1658,55 @@ components:
             example: 44
           vrf_key:
             type: string
-            description: VRF key of the block creator
+            description: VRF key of the block producer
             example: "vrf_vk1pmxyz8efuyj6eq6zkk373f28u47v06nwp5t59jr5fcmcusaazlmqhxu8k2"
           pool:
-            $ref: "types.yaml#/pool_id_bech32"
+            type: string
+            description: Pool ID in bech32 format
+            example: pool155efqn9xpcf73pphkk88cmlkdwx4ulkg606tne970qswczg3asc
           op_cert_counter:
-            $ref: "types.yaml#/op_cert_counter"
+            type: integer
+            description: Counter value of the operational certificate used to create this block
+            example: 8
+    block_info:
+      type: array
+      items:
+        type: object
+        properties:
+          hash:
+            $ref: "#/components/schemas/blocks/items/properties/hash"
+          epoch:
+            $ref: "#/components/schemas/blocks/items/properties/epoch"
+          abs_slot:
+            $ref: "#/components/schemas/blocks/items/properties/abs_slot"
+          epoch_slot:
+            $ref: "#/components/schemas/blocks/items/properties/epoch_slot"
+          height:
+            $ref: "#/components/schemas/blocks/items/properties/height"
+          size:
+            $ref: "#/components/schemas/blocks/items/properties/size"
+          block_time:
+            $ref: "#/components/schemas/blocks/items/properties/block_time"
+          tx_count:
+            $ref: "#/components/schemas/blocks/items/properties/tx_count"
+          vrf_key:
+            $ref: "#/components/schemas/blocks/items/properties/vrf_key"
+          op_cert:
+            type: string
+            description: Hash of the block producers' operational certificate
+            example: "16bfc28a7127d11805fe02df67f8c3909ab7e2e2cd81b6954d90eeff1938614c"
+          op_cert_counter:
+            $ref: "#/components/schemas/blocks/items/properties/op_cert_counter"
+          pool:
+            $ref: "#/components/schemas/blocks/items/properties/pool"
+          parent_hash:
+            type: string
+            description: Hash of the parent of this block
+            example: "16bfc28a7127d11805fe02df67f8c3909ab7e2e2cd81b6954d90eeff1938614c"
+          child_hash:
+            type: string
+            description: Hash of the child of this block (if present)
+            example: "a3b525ba0747ce9daa928fa28fbc680f95e6927943a1fbd6fa5394d96c9dc2fa"
     tx_info:
       type: array
       items:
