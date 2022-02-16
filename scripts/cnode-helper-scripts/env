@@ -208,6 +208,9 @@ checkUpdate() {
         return 1
       fi
     fi
+  else
+    # curl failed, return error code 2
+    return 2
   fi
   rm -f "${dname}/${fname}".tmp
   return 0
