@@ -174,8 +174,8 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       1) checkUpdate cntools.sh Y
          if [[ $? = 2 ]]; then
            echo -e "\n${FG_RED}ERROR${NC}: Update check of cntools.sh against GitHub failed!"
-           waitToProceed 
          fi
+         waitToProceed
          $0 "$@" "-u"; myExit 0 ;; # re-launch script with same args skipping update check
       2) echo -e "\n${FG_RED}ERROR${NC}: Update check of cntools.library against GitHub failed!"
          waitToProceed ;;
