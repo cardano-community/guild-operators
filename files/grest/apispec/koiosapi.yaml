@@ -578,7 +578,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-      summary: Get a list of all accounts
+      summary: Account List
+      description: Get a list of all accounts
   /account_info: #RPC
     get:
       tags:
