@@ -705,7 +705,7 @@ paths:
         - Asset
       responses:
         "200":
-          description: Array of policy IDs and asset names 
+          description: Array of policy IDs and asset names
           content:
             application/json:
               schema:
@@ -880,7 +880,11 @@ paths:
         - $ref: "#/components/parameters/_epoch_no"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of pool delegator information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/pool_delegators"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1490,9 +1494,23 @@ components:
             type: number
             description: Pool live saturation (decimal format)
             example: 94.52
+    pool_delegators:
+      type: array
+      items:
+        type: object
+        properties:
+          stake_address:
+            $ref: "#/components/schemas/account_history/items/properties/stake_address"
+          amount:
+            type: string
+            description: Current delegator live stake (in lovelace)
+            example: 64328591517480
+          epoch_no:
+            $ref: "#/components/schemas/epoch_info/items/properties/epoch_no"
     epoch_info:
       type: array
       items:
+        type: object
         properties:
           epoch_no:
             type: integer
@@ -1975,7 +1993,7 @@ components:
           collaterals:
             type: string
             description: An array of collateral inputs needed when dealing with smart contracts (same json schema as inputs)
-            example: '[]'
+            example: "[]"
           inputs:
             type: array
             description: An array with details about inputs used in a transaction
@@ -2129,8 +2147,8 @@ components:
                           "version": 1,
                           "copyright": "...",
                           "publisher": ["p...o"],
-                          "4bf184e01e0f163296ab253edd60774e2d34367d0e7b6cbc689b567d":
-                            {},
+                          ? "4bf184e01e0f163296ab253edd60774e2d34367d0e7b6cbc689b567d"
+                          : {},
                         },
                     }
           certificates:
@@ -2333,9 +2351,9 @@ components:
       items:
         properties:
           payment_address:
-              type: string
-              description: A Cardano payment/base address (bech32 encoded)
-              example: addr1qxkfe8s6m8qt5436lec3f0320hrmpppwqgs2gah4360krvyssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqdc3cxp
+            type: string
+            description: A Cardano payment/base address (bech32 encoded)
+            example: addr1qxkfe8s6m8qt5436lec3f0320hrmpppwqgs2gah4360krvyssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqdc3cxp
           quantity:
             type: string
             description: Asset balance on the payment address
@@ -2394,12 +2412,13 @@ components:
               json:
                 type: object
                 description: The minting Tx JSON payload if it can be decoded as JSON
-                example: {
-                  "image": "ipfs://QmVHpTQL4Furw6fFNhSHdT3AWGbDE9Vs341JHJhQF1bAEA",
-                  "pattern": "08",
-                  "collection": "ccvault.io - the mesmerizer 2021",
-                  "description": "Thanks for supporting ccvault.io development!"
-                }
+                example:
+                  {
+                    "image": "ipfs://QmVHpTQL4Furw6fFNhSHdT3AWGbDE9Vs341JHJhQF1bAEA",
+                    "pattern": "08",
+                    "collection": "ccvault.io - the mesmerizer 2021",
+                    "description": "Thanks for supporting ccvault.io development!",
+                  }
           token_registry_metadata:
             type: object
             description: Asset metadata registered on the Cardano Token Registry
@@ -2415,7 +2434,7 @@ components:
                 example: MOB
               url:
                 type: string
-                example: https://www.rackmob.com/ 
+                example: https://www.rackmob.com/
               logo:
                 type: string
                 description: A PNG image file as a byte string
@@ -2490,12 +2509,13 @@ components:
                     json:
                       type: object
                       description: The minting Tx JSON payload if it can be decoded as JSON
-                      example: {
-                        "image": "ipfs://QmVHpTQL4Furw6fFNhSHdT3AWGbDE9Vs341JHJhQF1bAEA",
-                        "pattern": "08",
-                        "collection": "ccvault.io - the mesmerizer 2021",
-                        "description": "Thanks for supporting ccvault.io development!"
-                      }
+                      example:
+                        {
+                          "image": "ipfs://QmVHpTQL4Furw6fFNhSHdT3AWGbDE9Vs341JHJhQF1bAEA",
+                          "pattern": "08",
+                          "collection": "ccvault.io - the mesmerizer 2021",
+                          "description": "Thanks for supporting ccvault.io development!",
+                        }
                 token_registry_metadata:
                   type: object
                   description: Asset metadata registered on the Cardano Token Registry
@@ -2511,7 +2531,7 @@ components:
                       example: MOB
                     url:
                       type: string
-                      example: https://www.rackmob.com/ 
+                      example: https://www.rackmob.com/
                     logo:
                       type: string
                       description: A PNG image file as a byte string
@@ -2541,11 +2561,12 @@ components:
           tx_hashes:
             type: array
             description: List of Tx hashes
-            example: [
-              "17377b1978c8be190d31b418d1999d8b5c2748709580ded896163440e70face1",
-              "a50b2bbb40b25b6fc19b56c2b3d7887086d0df5a03414e1097d9fba852134bb4",
-              "c418d9c874aff0a163218ffdb5ba9189202473cdc16d7dfe66420e95fa398ee9"
-            ]
+            example:
+              [
+                "17377b1978c8be190d31b418d1999d8b5c2748709580ded896163440e70face1",
+                "a50b2bbb40b25b6fc19b56c2b3d7887086d0df5a03414e1097d9fba852134bb4",
+                "c418d9c874aff0a163218ffdb5ba9189202473cdc16d7dfe66420e95fa398ee9",
+              ]
     script_list:
       type: array
       items:
