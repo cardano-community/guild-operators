@@ -3,20 +3,21 @@ DROP FUNCTION IF EXISTS grest.pool_blocks (text, uinteger);
 CREATE FUNCTION grest.pool_blocks (_pool_bech32 text, _epoch_no uinteger DEFAULT NULL)
     RETURNS TABLE (
         epoch_no uinteger,
-        epoch_slot_no uinteger,
-        block_no uinteger,
-        slot_no uinteger,
+        epoch_slot uinteger,
+        abs_slot uinteger,
+        height uinteger,
         block_hash text,
-        block_time timestamp without time zone)
+        block_time timestamp without time zone
+    )
     LANGUAGE plpgsql
     AS $$
 BEGIN
     RETURN query
     SELECT
         b.epoch_no,
-        b.epoch_slot_no,
-        b.block_no,
-        b.slot_no,
+        b.epoch_slot_no as epoch_slot,
+        b.slot_no as abs_slot,
+        b.block_no as height,
         encode(b.hash::bytea, 'hex'),
         b.time
     FROM

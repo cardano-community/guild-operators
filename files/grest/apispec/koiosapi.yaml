@@ -900,7 +900,11 @@ paths:
         - $ref: "#/components/parameters/_epoch_no"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of blocks created by pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/pool_blocks"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1507,6 +1511,23 @@ components:
             example: 64328591517480
           epoch_no:
             $ref: "#/components/schemas/epoch_info/items/properties/epoch_no"
+    pool_blocks:
+      type: array
+      items:
+        type: object
+        properties:
+          epoch_no:
+            $ref: "#/components/schemas/epoch_info/items/properties/epoch_no"
+          epoch_slot:
+            $ref: "#/components/schemas/blocks/items/properties/epoch_slot"
+          abs_slot:
+            $ref: "#/components/schemas/blocks/items/properties/abs_slot"
+          height:
+            $ref: "#/components/schemas/blocks/items/properties/height"
+          block_hash:
+            $ref: "#/components/schemas/blocks/items/properties/hash"
+          block_time:
+            $ref: "#/components/schemas/blocks/items/properties/block_time"
     epoch_info:
       type: array
       items:
