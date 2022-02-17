@@ -172,12 +172,13 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     checkUpdate cntools.library "${ENV_UPDATED}" Y N
     case $? in
       1) checkUpdate cntools.sh Y
-         case $? in
-           1) $0 "$@" "-u"; myExit 0 ;; # re-launch script with same args skipping update check
-           2) exit 1 ;;
-         esac
-         ;;
-      2) exit 1 ;;
+         if [[ $? = 2 ]]; then
+           echo -e "\n${FG_RED}ERROR${NC}: Update check of cntools.sh against GitHub failed!"
+         fi
+         waitToProceed
+         $0 "$@" "-u"; myExit 0 ;; # re-launch script with same args skipping update check
+      2) echo -e "\n${FG_RED}ERROR${NC}: Update check of cntools.library against GitHub failed!"
+         waitToProceed ;;
     esac
     
     # check if CNTools was recently updated, if so show whats new
