@@ -629,12 +629,16 @@ paths:
         - $ref: "#/components/parameters/_stake_address"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of account updates information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/account_updates"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-      summary: Account Updates (History)
+      summary: Account Updates
       description: >-
         Get the account updates (registration, deregistration, delegation and
         withdrawals)
@@ -646,7 +650,11 @@ paths:
         - $ref: "#/components/parameters/_any_address"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of payment addresses
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/account_addresses"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1829,7 +1837,6 @@ components:
             type: string
             description: Total treasury MIR value of the account
             example: "0"
-
     account_rewards:
       type: array
       items:
@@ -1850,7 +1857,24 @@ components:
           pool_id:
             $ref: "#/components/schemas/pool_list/items/properties/pool_id_bech32"
     account_updates:
+      type: array
+      items:
+        type: object
+        properties:
+          action_type:
+            type: string
+            description: Type of certificate submitted
+            enum: ["registration", "delegation", "withdrawal", "deregistration"]
+            example: "registration"
+          tx_hash:
+            $ref: "#/components/schemas/tx_info/items/properties/tx_hash"
     account_addresses:
+      type: array
+      items:
+        type: object
+        properties:
+          address:
+            $ref: "#/components/schemas/asset_address_list/items/properties/payment_addres"
     account_assets:
 
     tx_info:
@@ -2292,7 +2316,7 @@ components:
         properties:
           payment_address:
               type: string
-              description: A Cardano payment/base address (bech32 encoded) for transaction's input UTxO
+              description: A Cardano payment/base address (bech32 encoded)
               example: addr1qxkfe8s6m8qt5436lec3f0320hrmpppwqgs2gah4360krvyssntpwjcz303mx3h4avg7p29l3zd8u3jyglmewds9ezrqdc3cxp
           quantity:
             type: string
