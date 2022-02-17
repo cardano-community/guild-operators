@@ -922,7 +922,11 @@ paths:
           required: false
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of historical pool updates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/pool_updates"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1464,7 +1468,8 @@ components:
                 example: Our mission is to provide economic identity to the billions of people who lack it. IOHK will not use the IOHK ticker.
           pool_status:
             type: string
-            description: Pool status (registered | retiring | retired)
+            description: Pool status
+            enum: ["registered", "retiring", "retired"]
             example: registered
           retiring_epoch:
             type: integer
@@ -1528,6 +1533,45 @@ components:
             $ref: "#/components/schemas/blocks/items/properties/hash"
           block_time:
             $ref: "#/components/schemas/blocks/items/properties/block_time"
+    pool_updates:
+      type: array
+      items:
+        type: object
+        properties:
+          tx_hash:
+            $ref: "#/components/schemas/tx_info/items/properties/tx_hash"
+          block_time:
+            $ref: "#/components/schemas/blocks/items/properties/block_time"
+          pool_id_bech32:
+            $ref: "#/components/schemas/pool_info/items/properties/pool_id_bech32"
+          pool_id_hex:
+            $ref: "#/components/schemas/pool_info/items/properties/pool_id_hex"
+          active_epoch_no:
+            type: integer
+            description: Epoch number in which the update becomes active
+            example: 324
+          vrf_key_hash:
+            $ref: "#/components/schemas/pool_info/items/properties/vrf_key_hash"
+          margin:
+            $ref: "#/components/schemas/pool_info/items/properties/margin"
+          fixed_cost:
+            $ref: "#/components/schemas/pool_info/items/properties/fixed_cost"
+          pledge:
+            $ref: "#/components/schemas/pool_info/items/properties/pledge"
+          reward_addr:
+            $ref: "#/components/schemas/pool_info/items/properties/reward_addr"
+          owners:
+            $ref: "#/components/schemas/pool_info/items/properties/owners"
+          relays:
+            $ref: "#/components/schemas/pool_info/items/properties/relays"
+          meta_url:
+            $ref: "#/components/schemas/pool_info/items/properties/meta_url"
+          meta_hash:
+            $ref: "#/components/schemas/pool_info/items/properties/meta_hash"
+          pool_status:
+            $ref: "#/components/schemas/pool_info/items/properties/pool_status"
+          retiring_epoch:
+            $ref: "#/components/schemas/pool_info/items/properties/retiring_epoch"
     epoch_info:
       type: array
       items:
