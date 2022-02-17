@@ -7,8 +7,7 @@
       { "name": "homer-redoracle", "addr": "194.233.71.104", "port": 8053},
       { "name": "docker", "addr": "92.204.53.48", "port": 8053},
       { "name": "rdlrt2", "addr": "194.36.145.157", "port": 8053},
-      { "name": "HuthS0lo1", "addr": "db-sync1.digitalsyndicate.io", "port": 8053},
-      { "name": "HuthS0lo2", "addr": "db-sync3.digitalsyndicate.io", "port": 8053}
+      { "name": "HuthS0lo1", "addr": "db-sync1.digitalsyndicate.io", "port": 8053}
   ],
   "Consumers": []
 }
