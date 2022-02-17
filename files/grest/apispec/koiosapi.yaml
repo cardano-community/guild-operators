@@ -669,7 +669,11 @@ paths:
         - $ref: "#/components/parameters/_any_address"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of assets owned by account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/account_assets"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1874,9 +1878,40 @@ components:
         type: object
         properties:
           address:
-            $ref: "#/components/schemas/asset_address_list/items/properties/payment_addres"
+            $ref: "#/components/schemas/asset_address_list/items/properties/payment_address"
     account_assets:
-
+      type: array
+      items:
+        type: object
+        properties:
+          asset_policy:
+            $ref: "#/components/schemas/asset_summary/items/properties/policy_id"
+          asset_name:
+            $ref: "#/components/schemas/asset_summary/items/properties/asset_name"
+          quantity:
+            type: string
+            description: Asset quantity owned by account
+            example: 990000
+    account_history:
+      type: array
+      items:
+        properties:
+          stake_address:
+            type: string
+            description: Cardano staking address (reward account) in bech32 format
+            example: stake1u8yxtugdv63wxafy9d00nuz6hjyyp4qnggvc9a3vxh8yl0ckml2uz
+          pool_id:
+            type: string
+            description: Bech32 representation of pool ID
+            example: pool1z5uqdk7dzdxaae5633fqfcu2eqzy3a3rgtuvy087fdld7yws0xt
+          epoch_no:
+            type: integer
+            description: Epoch number
+            example: 301
+          active_stake:
+            type: string
+            description: Active stake amount (in lovelaces)
+            example: 682334162
     tx_info:
       type: array
       items:
@@ -2269,31 +2304,14 @@ components:
             type: number
             description: A distinct known metalabel
             example: 721
-    account_history:
-      type: array
-      items:
-        properties:
-          stake_address:
-            type: string
-            description: Cardano staking address (reward account) in bech32 format
-            example: stake1u8yxtugdv63wxafy9d00nuz6hjyyp4qnggvc9a3vxh8yl0ckml2uz
-          pool_id:
-            type: string
-            description: Bech32 representation of pool ID
-            example: pool1z5uqdk7dzdxaae5633fqfcu2eqzy3a3rgtuvy087fdld7yws0xt
-          epoch_no:
-            type: integer
-            description: Epoch number
-            example: 301
-          active_stake:
-            type: string
-            description: Active stake amount (in lovelaces)
-            example: 682334162
     asset_list:
       type: array
       description: Array of policy IDs and asset names
       items:
+        type: object
         properties:
+          policy_id:
+            $ref: "#/components/schemas/asset_summary/items/properties/policy_id"
           asset_names:
             type: object
             properties:
