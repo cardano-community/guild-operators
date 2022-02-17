@@ -956,7 +956,11 @@ paths:
         - Pool
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of pool metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/pool_metadata"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1585,6 +1589,19 @@ components:
             $ref: "#/components/schemas/pool_info/items/properties/pool_id_bech32"
           relays:
             $ref: "#/components/schemas/pool_info/items/properties/relays"
+    pool_metadata:
+      type: array
+      items:
+        type: object
+        properties:
+          pool_id_bech32:
+            $ref: "#/components/schemas/pool_info/items/properties/pool_id_bech32"
+          meta_url:
+            $ref: "#/components/schemas/pool_info/items/properties/meta_url"
+          meta_hash:
+            $ref: "#/components/schemas/pool_info/items/properties/meta_hash"
+          meta_json:
+            $ref: "#/components/schemas/pool_info/items/properties/meta_json"
     epoch_info:
       type: array
       items:
