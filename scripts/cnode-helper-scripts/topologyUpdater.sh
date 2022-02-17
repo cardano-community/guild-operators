@@ -135,6 +135,7 @@ if [[ ${TU_FETCH} = "Y" ]]; then
   else
     curl -s -f -6 -o "${TOPOLOGY}".tmp "https://api.clio.one/htopology/v1/fetch/?max=${MAX_PEERS}&magic=${NWMAGIC}&ipv=${IP_VERSION}"
   fi
+  [[ ! -s "${TOPOLOGY}".tmp ]] && echo "ERROR: The downloaded file is empty!" && exit 1
   if [[ -n "${CUSTOM_PEERS}" ]]; then
     topo="$(cat "${TOPOLOGY}".tmp)"
     IFS='|' read -ra cpeers <<< "${CUSTOM_PEERS}"
