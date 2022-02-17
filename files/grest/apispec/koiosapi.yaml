@@ -939,7 +939,11 @@ paths:
         - Pool
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of pool relay information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/pool_relays"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1572,6 +1576,15 @@ components:
             $ref: "#/components/schemas/pool_info/items/properties/pool_status"
           retiring_epoch:
             $ref: "#/components/schemas/pool_info/items/properties/retiring_epoch"
+    pool_relays:
+      type: array
+      items:
+        type: object
+        properties:
+          pool_id_bech32:
+            $ref: "#/components/schemas/pool_info/items/properties/pool_id_bech32"
+          relays:
+            $ref: "#/components/schemas/pool_info/items/properties/relays"
     epoch_info:
       type: array
       items:
