@@ -17,7 +17,7 @@ SELFISH_MODE='N'
 # Do NOT modify code below           #
 ######################################
 
-if pidof -x "blockPerf.sh" >/dev/null; then
+if [[ $(pgrep -fl blockPerf.sh | wc -l ) -gt 2 ]]; then
     echo "WARN: This script is already running (probably as a service)" && exit 1
 fi
 

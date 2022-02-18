@@ -28,7 +28,7 @@ The script is best run as a background process. This can be accomplished in many
 ##### Run as service
 
 Use the `deploy-as-systemd.sh` script to create a systemd unit file.
-In this setup the script is started in "service" mode. Error/Warn level log output is handled by syslog and end up in the systems standard syslog file, normally `/var/log/syslog`. `journalctl -f -u cnode-blockperf.service` can be used to check service output (follow mode). 
+In this setup the script is started in "service" mode. Error/Warn level log output is handled by syslog and end up in the systems standard syslog file, normally `/var/log/syslog`. `journalctl -f -u cnode-tu-blockperf.service` can be used to check service output (follow mode). 
 
 ##### Console view
 If you run blockPerf local in the console (`scripts/blockPerf.sh`) , immediately after the appearance of a new block it shows where it came from, how many slots away from the previous block it was, and how many milliseconds the individual steps took.
