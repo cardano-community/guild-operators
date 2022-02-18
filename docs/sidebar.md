@@ -17,7 +17,7 @@
       - CNCLI: Scripts/cncli.md
       - Guild LiveView: Scripts/gliveview.md
       - Log Monitor: Scripts/logmonitor.md
-      - Block Logger: Scripts/blocklog.md
+      - Block Performance: Scripts/blockperf.md
     - Topology Updater: Scripts/topologyupdater.md
     - ITN Metadata Proof: Scripts/itnwitness.md
   - Docker:

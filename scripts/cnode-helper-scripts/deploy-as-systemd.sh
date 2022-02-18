@@ -377,17 +377,17 @@ else
 fi
 
 echo
-echo -e "\e[32m~~ BlockLog / Propagation performance ~~\e[0m"
-echo "A collection of services that together creates a blocklog of current and upcoming blocks"
-echo "sends block propagation time data to TopologyUpdater for network analysis and performance comparison"
-echo "${vname}-tu-blocklog          : Parses JSON log of cardano-node for block network propagation times"
+echo -e "\e[32m~~ BlockPerf / Propagation performance ~~\e[0m"
+echo "A service parsing the node block propagation times from announced header to adopted block"
+echo "sends block propagation time data to TopologyUpdater for common network analysis and performance comparison"
+echo "${vname}-tu-blockperf          : Parses JSON log of cardano-node for block network propagation times"
 echo
-echo "Deploy BlockLog as systemd services? [y|n]"
+echo "Deploy BlockPerf as systemd services? [y|n]"
 read -rsn1 yn
 if [[ ${yn} = [Yy]* ]]; then
-  sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-tu-blocklog.service
+  sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-tu-blockperf.service
 [Unit]
-Description=Cardano Node - BlockLog Performance
+Description=Cardano Node - Block Performance
 BindsTo=${vname}.service
 After=${vname}.service
 
@@ -397,11 +397,11 @@ Restart=on-failure
 RestartSec=20
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
-ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/blocklog.sh service\"
+ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/blockPerf.sh service\"
 KillSignal=SIGINT
 StandardOutput=syslog
 StandardError=syslog
-SyslogIdentifier=${vname}-tu-blocklog
+SyslogIdentifier=${vname}-tu-blockperf
 TimeoutStopSec=5
 KillMode=mixed
 
@@ -409,9 +409,9 @@ KillMode=mixed
 WantedBy=${vname}.service
 EOF"
 else
-  if [[ -f /etc/systemd/system/${vname}-tu-blocklog.service ]]; then
-    sudo systemctl disable ${vname}-tu-blocklog.service
-    sudo rm -f /etc/systemd/system/${vname}-tu-blocklog.service
+  if [[ -f /etc/systemd/system/${vname}-tu-blockperf.service ]]; then
+    sudo systemctl disable ${vname}-tu-blockperf.service
+    sudo rm -f /etc/systemd/system/${vname}-tu-blockperf.service
   fi
 fi
 
@@ -423,7 +423,7 @@ sudo systemctl daemon-reload
 [[ -f /etc/systemd/system/${vname}-tu-fetch.service ]] && sudo systemctl enable ${vname}-tu-fetch.service
 [[ -f /etc/systemd/system/${vname}-tu-restart.timer ]] && sudo systemctl enable ${vname}-tu-restart.timer
 [[ -f /etc/systemd/system/${vname}-tu-push.timer ]] && sudo systemctl enable ${vname}-tu-push.timer
-[[ -f /etc/systemd/system/${vname}-tu-blocklog.service ]] && sudo systemctl enable ${vname}-tu-blocklog.service
+[[ -f /etc/systemd/system/${vname}-tu-blockperf.service ]] && sudo systemctl enable ${vname}-tu-blockperf.service
 [[ -f /etc/systemd/system/${vname}-cncli-sync.service ]] && sudo systemctl enable ${vname}-cncli-sync.service
 [[ -f /etc/systemd/system/${vname}-cncli-leaderlog.service ]] && sudo systemctl enable ${vname}-cncli-leaderlog.service
 [[ -f /etc/systemd/system/${vname}-cncli-validate.service ]] && sudo systemctl enable ${vname}-cncli-validate.service
