@@ -13,6 +13,13 @@ CONFIG=""  # for example "/home/user/mynode/logs/node0.json"
 # in case you don't want to share this node's block propagation data, turn the selfish mode on (Y)
 SELFISH_MODE='N'
 
+# if you deploy-as-service this script it will run with the 'service' parameter, and surpress console output
+# you can comment out (#) the second line and restart the cnode-tu-blockperf service, 
+# to see all the usual console output in the journal log (journalctl -f -u cnode-tu-blockperf) 
+SERVICE_MODE='N'
+[[ $1 = "service" ]] && SERVICE_MODE='Y'
+
+
 ######################################
 # Do NOT modify code below           #
 ######################################
@@ -21,13 +28,19 @@ if [[ $(pgrep -fl blockPerf.sh | wc -l ) -gt 2 ]]; then
     echo "WARN: This script is already running (probably as a service)" && exit 1
 fi
 
-# in CNTools environments just let the script determine config and logfile
 if [ -z "$CONFIG" ]; then
+  # in CNTools environments just let the script determine config, logfile, parameters
   [[ -f "$(dirname $0)"/env ]] &&  . "$(dirname $0)"/env offline
+else 
+  # parse the min required values from the specified CONFIG file  
+  if ! GENESIS_JSON=$(jq -er '.ShelleyGenesisFile' "${CONFIG}" 2>/dev/null); then
+    echo "ERROR: Could not get 'ShelleyGenesisFile' in ${CONFIG}" && exit 1
+  else
+    # if relative path is used, assume same parent dir as config
+    [[ ! ${GENESIS_JSON} =~ ^/ ]] && GENESIS_JSON="$(dirname "${CONFIG}")/${GENESIS_JSON}"
+    [[ ! -f "${GENESIS_JSON}" ]] && echo "ERROR: Shelley genesis file not found: ${GENESIS_JSON}" && exit 1
+  fi
 fi
-
-SERVICE_MODE='N'
-[[ $1 = "service" ]] && SERVICE_MODE='Y'
 
 unset logfile
 if [[ "${CONFIG##*.}" = "json" ]] && [[ -f ${CONFIG} ]]; then
@@ -37,14 +50,15 @@ if [[ "${CONFIG##*.}" = "json" ]] && [[ -f ${CONFIG} ]]; then
   [[ -z ${EKG_HOST} ]] && EKG_HOST=127.0.0.1
   [[ -z ${EKG_PORT} ]] && EKG_PORT=$(jq .hasEKG $CONFIG)
   [[ -z "${EKG_PORT}" ]] && echo -e "ERROR: Failed to locate the EKG Port in node configuration file" && errors=1
-  [[ "$(jq -r .TraceChainSyncClient "${CONFIG}")" != "true" ]] && echo -e "ERROR: In config file please set ${FG_YELLOW}\"TraceChainSyncClient\":\"true\"${NC}" && errors=1
-  [[ "$(jq -r .TraceBlockFetchClient "${CONFIG}")" != "true" ]] && echo -e "ERROR: In config file please set ${FG_YELLOW}\"TraceBlockFetchClient\":\"true\"${NC}" && errors=1
+  NWMAGIC=$(jq -r .networkMagic < ${GENESIS_JSON})
+  [[ "$(jq -r .TraceChainSyncClient "${CONFIG}")" != "true" ]] && echo "ERROR: In config file please set \"TraceChainSyncClient\":\"true\"" && errors=1
+  [[ "$(jq -r .TraceBlockFetchClient "${CONFIG}")" != "true" ]] && echo "ERROR: In config file please set \"TraceBlockFetchClient\":\"true\"" && errors=1
   [[ $errors -eq 1 ]] && exit 1
 else 
   echo "ERROR: Failed to locate json configuration file" && exit 1
 fi
 
-[[ ${SERVICE_MODE} = "N" ]] && echo "INFO parsing ${logfile} ..." 
+[[ ${SERVICE_MODE} = "N" ]] && echo "INFO parsing ${logfile} for network ${NETWORK_NAME} ${NWMAGIC} blocks ..." 
 
 blockHeightPrev=0; missingTbh=true; missingCbf=true; 
 
@@ -132,7 +146,7 @@ do
         echo "WARN: blockheight:${blockHeight} (negative delta) tbh:${blockTimeTbh} ${deltaSlotTbh} sfr:${blockTimeSfr} ${deltaTbhSfr} cbf:${blockTimeCbf} ${deltaSfrCbf} ab:${blockTimeAb} ${deltaCbfAb}" 
 	  else
         if [[ "${deltaSlotTbh}" -lt 10000 ]] && [[ "$((blockSlot-slotHeightPrev))" -lt 200 ]] && [[ "${blockHeightPrev}" -gt 0 ]]; then
-          [[ ${SELFISH_MODE} = "N" ]] && result=$(curl -4 -s "https://api.clio.one/blocklog/v1/?ts=$(date +"%T.%4N")&bn=${blockHeight}&slot=${blockSlot}&slott=${blockSlotTime}&tbh=${deltaSlotTbh}&sfr=${deltaTbhSfr}&cbf=${deltaSfrCbf}&ab=${deltaCbfAb}&size=${blockSize}&addr=${blockTimeCbfAddr}&port=${blockTimeCbfPort}" &)
+          [[ ${SELFISH_MODE} = "N" ]] && result=$(curl -4 -s "https://api.clio.one/blocklog/v1/?magic=${NWMAGIC}&ts=$(date +"%T.%4N")&bn=${blockHeight}&slot=${blockSlot}&slott=${blockSlotTime}&tbh=${deltaSlotTbh}&sfr=${deltaTbhSfr}&cbf=${deltaSfrCbf}&ab=${deltaCbfAb}&size=${blockSize}&addr=${blockTimeCbfAddr}&port=${blockTimeCbfPort}" &)
           [[ ${SERVICE_MODE} = "N" ]] && echo -e "${FG_YELLOW}Block:.... ${blockHeight}\n${NC} Slot..... ${blockSlot} (+$((blockSlot-slotHeightPrev))s)\n ......... ${blockSlotTime}\n Header... ${blockTimeTbh} (+${deltaSlotTbh} ms)\n Request.. ${blockTimeSfr} (+${deltaTbhSfr} ms)\n Block.... ${blockTimeCbf} (+${deltaSfrCbf} ms)\n Adopted.. ${blockTimeAb} (+${deltaCbfAb} ms)\n Size..... ${blockSize} bytes\n delay.... ${blockDelay} sec\n From..... ${blockTimeCbfAddr}:${blockTimeCbfPort}"
         else
           # skip block reporting while node is synching up, and when blockLog script just started
