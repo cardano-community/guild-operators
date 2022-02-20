@@ -4429,7 +4429,7 @@ function main {
                     echo
                     if ! cmdAvailable "token-metadata-creator"; then
                       println ERROR "Please follow instructions on Guild Operators site to download or build the tool:"
-                      println ERROR "${FG_YELLOW}https://cardano-community.github.io/guild-operators/Build/offchainMetadataTools${NC}"
+                      println ERROR "${FG_YELLOW}https://cardano-community.github.io/guild-operators/Build/offchain-metadata-tools/${NC}"
                       waitForInput && continue
                     fi
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies found!${NC}\n\nPlease first create a policy to use for Cardano Token Registry" && waitForInput && continue
