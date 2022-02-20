@@ -5,7 +5,7 @@
     {"name":"damjan","addr":"95.216.160.145","port":8053},
     {"name":"homer","addr":"95.216.188.94","port":8053},
     {"name":"gufmar","addr":"185.161.193.105","port":6029},
-    {"name":"huths0lo","addr":"dbsync-guild.digitalsyndicate.io","port":6029}
+    {"name":"huths0lo","addr":"dbsync-guild1.digitalsyndicate.io","port":6029}
   ],
   "Consumers": []
 }
