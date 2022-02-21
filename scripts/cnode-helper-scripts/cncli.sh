@@ -155,14 +155,14 @@ cncliInit() {
 
     # check for env update
     ENV_UPDATED=${BATCH_AUTO_UPDATE}
-    checkUpdate env N N N
+    checkUpdate "${PARENT}"/env N N N
     case $? in
       1) ENV_UPDATED=Y ;;
       2) exit 1 ;;
     esac
 
     # check for cncli.sh update
-    checkUpdate cncli.sh ${ENV_UPDATED}
+    checkUpdate "${PARENT}"/cncli.sh ${ENV_UPDATED}
     case $? in
       1) $0 "-u" "$@"; exit 0 ;; # re-launch script with same args skipping update check
       2) exit 1 ;;

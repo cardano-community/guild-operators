@@ -6,6 +6,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.0.6] - 2022-02-20
+#### Fixed
+- Fix for update check if not executed from default scripts folder.
+
 ## [9.0.5] - 2022-02-16
 #### Fixed
 - Script update code fixed to better handle in-app update. Would sometimes update but not source library correctly.
