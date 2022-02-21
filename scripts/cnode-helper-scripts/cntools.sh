@@ -169,9 +169,9 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     esac
     
     # check for cntools update
-    checkUpdate cntools.library "${ENV_UPDATED}" Y N
+    checkUpdate "${PARENT}"/cntools.library "${ENV_UPDATED}" Y N
     case $? in
-      1) checkUpdate cntools.sh Y
+      1) checkUpdate "${PARENT}"/cntools.sh Y
          if [[ $? = 2 ]]; then
            echo -e "\n${FG_RED}ERROR${NC}: Update check of cntools.sh against GitHub failed!"
          fi

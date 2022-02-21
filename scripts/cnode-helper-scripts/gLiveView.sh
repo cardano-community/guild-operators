@@ -56,7 +56,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.26.0
+GLV_VERSION=v1.26.1
 
 PARENT="$(dirname $0)"
 
@@ -129,7 +129,7 @@ if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
 
   # check for env update
   ENV_UPDATED=N
-  checkUpdate env N N N
+  checkUpdate "${PARENT}"/env N N N
   case $? in
     1) ENV_UPDATED=Y ;;
     2) myExit 1 ;;
@@ -143,7 +143,7 @@ if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
   esac
 
   # check for gLV update
-  checkUpdate gLiveView.sh "${ENV_UPDATED}"
+  checkUpdate "${PARENT}"/gLiveView.sh "${ENV_UPDATED}"
   case $? in
     1) $0 "$@" "-u"; myExit 0 ;; # re-launch script with same args skipping update check
     2) exit 1 ;;
