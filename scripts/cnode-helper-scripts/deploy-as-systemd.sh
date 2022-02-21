@@ -385,29 +385,7 @@ echo
 echo "Deploy BlockPerf as systemd services? [y|n]"
 read -rsn1 yn
 if [[ ${yn} = [Yy]* ]]; then
-  sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-tu-blockperf.service
-[Unit]
-Description=Cardano Node - Block Performance
-BindsTo=${vname}.service
-After=${vname}.service
-
-[Service]
-Type=simple
-Restart=on-failure
-RestartSec=20
-User=$USER
-WorkingDirectory=${CNODE_HOME}/scripts
-ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/blockPerf.sh -s\"
-KillSignal=SIGINT
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=${vname}-tu-blockperf
-TimeoutStopSec=5
-KillMode=mixed
-
-[Install]
-WantedBy=${vname}.service
-EOF"
+  ./blockPerf.sh -d
 else
   if [[ -f /etc/systemd/system/${vname}-tu-blockperf.service ]]; then
     sudo systemctl disable ${vname}-tu-blockperf.service
