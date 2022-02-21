@@ -1425,6 +1425,10 @@ components:
             type: integer
             description: Total pool blocks on chain
             example: 4509
+          live_pledge:
+            type: string
+            description: Summary of account balance for all pool owner's 
+            example: "64328594406327"
           live_stake:
             type: string
             description: Pool live stake
