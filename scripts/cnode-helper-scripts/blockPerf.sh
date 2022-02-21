@@ -4,26 +4,74 @@
 # Script to collect block information across nodes to provide comprehensive analytics data from participants
 # For now, the script is intended for mainnet network only.
 
-#Todo:
-# - adapt for node names != cnode
+######################################
+# User Variables - Change as desired #
+# Common variables set in env file   #
+######################################
 
-# Outside the cnTools environment you can manually point this script to your nodes config.json file
-CONFIG=""  # for example "/home/user/mynode/logs/node0.json"
-
-# in case you don't want to share this node's block propagation data, turn the selfish mode on (Y)
-SELFISH_MODE='N'
-
-# if you deploy-as-service this script it will run with the 'service' parameter, and surpress console output
-# you can comment out (#) the second line and restart the cnode-tu-blockperf service, 
-# to see all the usual console output in the journal log (journalctl -f -u cnode-tu-blockperf) 
-SERVICE_MODE='N'
-[[ $1 = "service" ]] && SERVICE_MODE='Y'
+#CONFIG=""             # Outside the cnTools environment you can manually point this script to your nodes config.json file
+#SELFISH_MODE='Y'      # in case you don't want to share this node's block propagation data, turn the selfish mode on (Y)
+#SERVICE_MODE='N'      # if you deploy-as-service this script it will run with the -s (service) parameter, and surpress console/syslog output. you can overwrite it here, restart the service and watch the console output with 'journalctl -f -u cnode-tu-blockperf'
 
 
 ######################################
 # Do NOT modify code below           #
 ######################################
 
+
+deploy_systemd() {
+  echo "Deploying ${CNODE_VNAME} blockPerf as systemd service.."
+  sudo bash -c "cat << 'EOF' > /etc/systemd/system/${CNODE_VNAME}-tu-blockperf.service
+[Unit]
+Description=Cardano Node - Block Performance
+BindsTo=${CNODE_VNAME}.service
+After=${CNODE_VNAME}.service
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=20
+User=$USER
+WorkingDirectory=${CNODE_HOME}/scripts
+ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/blockPerf.sh -s\"
+KillSignal=SIGINT
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=${CNODE_VNAME}-tu-blockperf
+TimeoutStopSec=5
+KillMode=mixed
+
+[Install]
+WantedBy=${CNODE_VNAME}.service
+EOF" && echo "${CNODE_VNAME}-tu-blockperf.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}-tu-blockperf.service
+}
+
+usage() {
+  cat <<-EOF
+		
+		Usage: $(basename "$0") [-d] [-s]
+		
+		Cardano Node wrapper script !!
+		-d    Deploy cnode-tu-blockperf as a systemd service
+		-s    Run cnode-tu-blockperf without INFO message output to console/syslog 
+		
+		EOF
+  exit 1
+}
+###################
+# Execution       #
+###################
+
+# Parse command line options
+while getopts :ds opt; do
+  case ${opt} in
+    d ) DEPLOY_SYSTEMD="Y" ;;
+	s ) if [[ -z $SERVICE_MODE ]]; then SERVICE_MODE="Y"; fi ;;
+    \? ) usage ;;
+  esac
+done
+
+# check if the script is not already running (service and console) 
 if [[ $(pgrep -fl blockPerf.sh | wc -l ) -gt 2 ]]; then
     echo "WARN: This script is already running (probably as a service)" && exit 1
 fi
@@ -42,6 +90,12 @@ else
   fi
 fi
 
+#Deploy systemd if -d argument was specified
+if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
+  deploy_systemd && exit 0
+  exit 2
+fi
+
 unset logfile
 if [[ "${CONFIG##*.}" = "json" ]] && [[ -f ${CONFIG} ]]; then
   errors=0
@@ -58,7 +112,7 @@ else
   echo "ERROR: Failed to locate json configuration file" && exit 1
 fi
 
-[[ ${SERVICE_MODE} = "N" ]] && echo "INFO parsing ${logfile} for network ${NETWORK_NAME} ${NWMAGIC} blocks ..." 
+echo "INFO parsing ${logfile} for ${NETWORK_NAME} ${NWMAGIC} blocks ..." 
 
 blockHeightPrev=0; missingTbh=true; missingCbf=true; 
 
@@ -146,11 +200,11 @@ do
         echo "WARN: blockheight:${blockHeight} (negative delta) tbh:${blockTimeTbh} ${deltaSlotTbh} sfr:${blockTimeSfr} ${deltaTbhSfr} cbf:${blockTimeCbf} ${deltaSfrCbf} ab:${blockTimeAb} ${deltaCbfAb}" 
 	  else
         if [[ "${deltaSlotTbh}" -lt 10000 ]] && [[ "$((blockSlot-slotHeightPrev))" -lt 200 ]] && [[ "${blockHeightPrev}" -gt 0 ]]; then
-          [[ ${SELFISH_MODE} = "N" ]] && result=$(curl -4 -s "https://api.clio.one/blocklog/v1/?magic=${NWMAGIC}&ts=$(date +"%T.%4N")&bn=${blockHeight}&slot=${blockSlot}&slott=${blockSlotTime}&tbh=${deltaSlotTbh}&sfr=${deltaTbhSfr}&cbf=${deltaSfrCbf}&ab=${deltaCbfAb}&size=${blockSize}&addr=${blockTimeCbfAddr}&port=${blockTimeCbfPort}" &)
-          [[ ${SERVICE_MODE} = "N" ]] && echo -e "${FG_YELLOW}Block:.... ${blockHeight}\n${NC} Slot..... ${blockSlot} (+$((blockSlot-slotHeightPrev))s)\n ......... ${blockSlotTime}\n Header... ${blockTimeTbh} (+${deltaSlotTbh} ms)\n Request.. ${blockTimeSfr} (+${deltaTbhSfr} ms)\n Block.... ${blockTimeCbf} (+${deltaSfrCbf} ms)\n Adopted.. ${blockTimeAb} (+${deltaCbfAb} ms)\n Size..... ${blockSize} bytes\n delay.... ${blockDelay} sec\n From..... ${blockTimeCbfAddr}:${blockTimeCbfPort}"
+          [[ ${SELFISH_MODE} != "Y" ]] && result=$(curl -4 -s "https://api.clio.one/blocklog/v1/?magic=${NWMAGIC}&ts=$(date +"%T.%4N")&bn=${blockHeight}&slot=${blockSlot}&slott=${blockSlotTime}&tbh=${deltaSlotTbh}&sfr=${deltaTbhSfr}&cbf=${deltaSfrCbf}&ab=${deltaCbfAb}&size=${blockSize}&addr=${blockTimeCbfAddr}&port=${blockTimeCbfPort}" &)
+          [[ ${SERVICE_MODE} != "Y" ]] && echo -e "${FG_YELLOW}Block:.... ${blockHeight}\n${NC} Slot..... ${blockSlot} (+$((blockSlot-slotHeightPrev))s)\n ......... ${blockSlotTime}\n Header... ${blockTimeTbh} (+${deltaSlotTbh} ms)\n Request.. ${blockTimeSfr} (+${deltaTbhSfr} ms)\n Block.... ${blockTimeCbf} (+${deltaSfrCbf} ms)\n Adopted.. ${blockTimeAb} (+${deltaCbfAb} ms)\n Size..... ${blockSize} bytes\n delay.... ${blockDelay} sec\n From..... ${blockTimeCbfAddr}:${blockTimeCbfPort}"
         else
           # skip block reporting while node is synching up, and when blockLog script just started
-          [[ ${SERVICE_MODE} = "N" ]] && echo -e "${FG_YELLOW}Block:.... ${blockHeight} skipped\n${NC} Slot..... ${blockSlot}\n ......... ${blockSlotTime}\n now...... $(date +"%F %T")"
+          [[ ${SERVICE_MODE} != "Y" ]] && echo -e "${FG_YELLOW}Block:.... ${blockHeight} skipped\n${NC} Slot..... ${blockSlot}\n ......... ${blockSlotTime}\n now...... $(date +"%F %T")"
           sleep 10
         fi
       fi
