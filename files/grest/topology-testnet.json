@@ -3,7 +3,7 @@
     {"name":"olassl","addr":"koios-testnet.ahlnet.nu","port":2155,"ssl":"true"},
     {"name":"damjan","addr":"195.201.129.190","port":8053},
     {"name":"homer","addr":"95.216.173.194","port":8053},
-    {"name":"HuthS0lo1","dbsync-testnet1.digitalsyndicate.io","port":8053}
+    {"name":"HuthS0lo1","dbsync-testnet1.digitalsyndicate.io","port":8453,"ssl":"true"}
   ],
   "Consumers": []
 }

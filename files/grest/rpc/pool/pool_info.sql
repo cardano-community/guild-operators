@@ -21,6 +21,7 @@ CREATE FUNCTION grest.pool_info (_pool_bech32_ids text[])
     op_cert_counter word63type,
     active_stake text,
     block_count numeric,
+    live_pledge text,
     live_stake text,
     live_delegators bigint,
     live_saturation numeric
@@ -61,6 +62,7 @@ BEGIN
     block_data.op_cert_counter,
     active_stake.as_sum::text,
     block_data.cnt,
+    live.pledge::text,
     live.stake::text,
     live.delegators,
     ROUND((live.stake / _saturation_limit) * 100, 2)
@@ -99,7 +101,8 @@ BEGIN
   LEFT JOIN LATERAL(
     SELECT
       SUM (total_balance)::lovelace AS stake,
-      COUNT (stake_address) AS delegators
+      COUNT (stake_address) AS delegators,
+      SUM (CASE WHEN sdc.stake_address = ANY (pic.owners) THEN total_balance ELSE 0 END)::lovelace AS pledge
     FROM
       grest.stake_distribution_cache AS sdc
     WHERE
