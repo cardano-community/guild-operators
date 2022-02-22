@@ -852,6 +852,24 @@ paths:
       description: >-
         Return information about blocks minted by a given pool in current epoch
         (or _epoch_no if provided)
+  /pool_history: #RPC
+    get:
+      tags:
+        - Pool
+      parameters:
+        - $ref: "#/components/parameters/_pool_bech32"
+        - $ref: "#/components/parameters/_epoch_no"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Pool Stake, Block and Reward History
+      description: >-
+        Return information about pool stake, block and reward history in a given epoch _epoch_no
+        (or all epochs that pool existed for, in descending order if no _epoch_no was provided)        
   /pool_updates: #RPC
     get:
       tags:
