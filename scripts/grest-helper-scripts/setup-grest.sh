@@ -441,7 +441,7 @@
 			  http-request set-path \"%[path,regsub(^/api/v0/submittx,/api/submit/tx)]\"
 			  http-check expect status 415
 			  default-server inter 20s fall 1 rise 2
-			  server rdlrt 127.0.0.1:8090 check
+			  server local 127.0.0.1:8090 check
 			  server koios-ssl ${KOIOS_SRV}:443 backup ssl verify none
 			
 			backend flood_lmt_rate

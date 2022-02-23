@@ -141,7 +141,7 @@ else
 fi
 
 echo
-echo -e "\e[32m~~ Blocklog / PoolTool SendSlots ~~\e[0m"
+echo -e "\e[32m~~ Leaderlog / PoolTool SendSlots ~~\e[0m"
 echo "A collection of services that together creates a blocklog of current and upcoming blocks"
 echo "Dependant on ${vname}.service and when started|stopped|restarted all these companion services will apply the same action"
 echo "${vname}-cncli-sync        : Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB"
@@ -376,6 +376,23 @@ else
   echo "cncli executable not found... skipping!"
 fi
 
+echo
+echo -e "\e[32m~~ BlockPerf / Propagation performance ~~\e[0m"
+echo "A service parsing the node block propagation times from announced header to adopted block"
+echo "sends block propagation time data to TopologyUpdater for common network analysis and performance comparison"
+echo "${vname}-tu-blockperf          : Parses JSON log of cardano-node for block network propagation times"
+echo
+echo "Deploy BlockPerf as systemd services? [y|n]"
+read -rsn1 yn
+if [[ ${yn} = [Yy]* ]]; then
+  ./blockPerf.sh -d
+else
+  if [[ -f /etc/systemd/system/${vname}-tu-blockperf.service ]]; then
+    sudo systemctl disable ${vname}-tu-blockperf.service
+    sudo rm -f /etc/systemd/system/${vname}-tu-blockperf.service
+  fi
+fi
+
 
 echo
 sudo systemctl daemon-reload
@@ -384,6 +401,7 @@ sudo systemctl daemon-reload
 [[ -f /etc/systemd/system/${vname}-tu-fetch.service ]] && sudo systemctl enable ${vname}-tu-fetch.service
 [[ -f /etc/systemd/system/${vname}-tu-restart.timer ]] && sudo systemctl enable ${vname}-tu-restart.timer
 [[ -f /etc/systemd/system/${vname}-tu-push.timer ]] && sudo systemctl enable ${vname}-tu-push.timer
+[[ -f /etc/systemd/system/${vname}-tu-blockperf.service ]] && sudo systemctl enable ${vname}-tu-blockperf.service
 [[ -f /etc/systemd/system/${vname}-cncli-sync.service ]] && sudo systemctl enable ${vname}-cncli-sync.service
 [[ -f /etc/systemd/system/${vname}-cncli-leaderlog.service ]] && sudo systemctl enable ${vname}-cncli-leaderlog.service
 [[ -f /etc/systemd/system/${vname}-cncli-validate.service ]] && sudo systemctl enable ${vname}-cncli-validate.service

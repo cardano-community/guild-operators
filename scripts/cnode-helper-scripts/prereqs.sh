@@ -319,7 +319,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     echo "  previous CNCLI installation found, pulling latest version from GitHub..."
   else
     echo "  downloading CNCLI..."
-    if ! output=$(git clone https://github.com/AndrewWestberg/cncli.git 2>&1); then echo -e "${output}" && err_exit; fi
+    if ! output=$(git clone https://github.com/cardano-community/cncli.git 2>&1); then echo -e "${output}" && err_exit; fi
   fi
   pushd ./cncli >/dev/null || err_exit
   if ! output=$(git fetch --all --prune 2>&1); then echo -e "${output}" && err_exit; fi
@@ -490,6 +490,7 @@ curl -s -f -m ${CURL_TIMEOUT} -o sLiveView.sh ${URL_RAW}/scripts/cnode-helper-sc
 curl -s -f -m ${CURL_TIMEOUT} -o gLiveView.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/gLiveView.sh
 curl -s -f -m ${CURL_TIMEOUT} -o deploy-as-systemd.sh ${URL_RAW}/scripts/cnode-helper-scripts/deploy-as-systemd.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cncli.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cncli.sh
+curl -s -f -m ${CURL_TIMEOUT} -o blockPerf.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/blockPerf.sh
 sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*.*
 
 ### Update file retaining existing custom configs
@@ -529,6 +530,7 @@ updateWithCustomConfig "gLiveView.sh"
 updateWithCustomConfig "topologyUpdater.sh"
 updateWithCustomConfig "logMonitor.sh"
 updateWithCustomConfig "cncli.sh"
+updateWithCustomConfig "blockPerf.sh"
 
 find "${CNODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
 chmod -R 700 "${CNODE_HOME}"/priv 2>/dev/null

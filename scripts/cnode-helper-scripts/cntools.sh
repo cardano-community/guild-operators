@@ -169,9 +169,9 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     esac
     
     # check for cntools update
-    checkUpdate cntools.library "${ENV_UPDATED}" Y N
+    checkUpdate "${PARENT}"/cntools.library "${ENV_UPDATED}" Y N
     case $? in
-      1) checkUpdate cntools.sh Y
+      1) checkUpdate "${PARENT}"/cntools.sh Y
          if [[ $? = 2 ]]; then
            echo -e "\n${FG_RED}ERROR${NC}: Update check of cntools.sh against GitHub failed!"
          fi
@@ -4429,7 +4429,7 @@ function main {
                     echo
                     if ! cmdAvailable "token-metadata-creator"; then
                       println ERROR "Please follow instructions on Guild Operators site to download or build the tool:"
-                      println ERROR "${FG_YELLOW}https://cardano-community.github.io/guild-operators/Build/offchainMetadataTools${NC}"
+                      println ERROR "${FG_YELLOW}https://cardano-community.github.io/guild-operators/Build/offchain-metadata-tools/${NC}"
                       waitForInput && continue
                     fi
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies found!${NC}\n\nPlease first create a policy to use for Cardano Token Registry" && waitForInput && continue
