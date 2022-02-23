@@ -862,7 +862,11 @@ paths:
         - $ref: "#/components/parameters/_epoch_no"
       responses:
         "200":
-          $ref: "#/components/responses/OK"
+          description: Array of pool history information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/pool_history_info"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1325,6 +1329,55 @@ components:
             type: string
             description: Pool ticker
             example: JAZZ
+    pool_history_info:
+      type: array
+      items:
+        type: object
+        properties:
+          epoch_no:
+            type: integer
+            description: Epoch for which the pool history data is shown
+            example: 312
+          active_stake:
+            type: number
+            description: Amount of delegated Ada to this pool at the time of epoch snapshot (lovelaces)
+            example: 31235800000
+          active_stake_pct:
+            type: number
+            description: Active stake for the pool, expressed as a percentage of total active stake on network
+            example: 13.512182543475783
+          saturation_pct:
+            type: number
+            description: Saturation percentage of a pool at the time of snapshot (2 decimals)
+            example: 45.32
+          block_cnt:
+            type: integer
+            description: Number of blocks pool created in that epoch
+            example: 14
+          delegator_cnt:
+            type: integer
+            description: Number of delegators to the pool for that epoch snapshot
+            example: 1432
+          pool_fee_variable:
+            type: number
+            description: Margin (decimal format)
+            example: 0.125
+          pool_fee_fixed:
+            type: number
+            description: Pool fixed cost per epoch (in lovelaces)
+            example: 340000000
+          pool_fees:
+            type: number
+            description: Total amount of fees earned by pool owners in that epoch
+            example: 123.327382
+          deleg_rewards:
+            type: number
+            description: Total amount of rewards earned by delegators in that epoch
+            example: 123456.789123
+          epoch_ros:
+            type: number
+            description: Annualized ROS (return on staking) for delegators for this epoch
+            example: 3.000340466
     pool_info:
       type: array
       items:
