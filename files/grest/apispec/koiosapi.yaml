@@ -1340,7 +1340,7 @@ components:
             example: 312
           active_stake:
             type: number
-            description: Amount of delegated Ada to this pool at the time of epoch snapshot (lovelaces)
+            description: Amount of delegated stake to this pool at the time of epoch snapshot (in lovelaces)
             example: 31235800000
           active_stake_pct:
             type: number
@@ -1368,12 +1368,12 @@ components:
             example: 340000000
           pool_fees:
             type: number
-            description: Total amount of fees earned by pool owners in that epoch
-            example: 123.327382
+            description: Total amount of fees earned by pool owners in that epoch (in lovelaces)
+            example: 123327382
           deleg_rewards:
             type: number
-            description: Total amount of rewards earned by delegators in that epoch
-            example: 123456.789123
+            description: Total amount of rewards earned by delegators in that epoch (in lovelaces)
+            example: 123456789123
           epoch_ros:
             type: number
             description: Annualized ROS (return on staking) for delegators for this epoch
