@@ -61,7 +61,7 @@
 
       checkUpdate setup-grest.sh Y N N grest-helper-scripts
       case $? in
-        1) echo; $0 "$@" "-u"; exit 0 ;; # re-launch script with same args skipping update check
+        1) echo; $0 "$@"; exit 0 ;; # re-launch script with same args
         2) exit 1 ;;
       esac
     fi
@@ -469,9 +469,9 @@
       grep " #RPC" "${CNODE_HOME}"/files/koiosapi.yaml | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
     fi
     [[ "${SKIP_UPDATE}" == "Y" ]] && return 0
-    [[ -f grest-poll.sh ]] && checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
-    [[ -f checkstatus.sh ]] && checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
-    [[ -f getmetrics.sh ]] && checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
+    checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
+    checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
+    checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
   }
 
   deploy_systemd() {
