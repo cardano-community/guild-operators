@@ -1339,9 +1339,9 @@ components:
             description: Epoch for which the pool history data is shown
             example: 312
           active_stake:
-            type: number
+            type: string
             description: Amount of delegated stake to this pool at the time of epoch snapshot (in lovelaces)
-            example: 31235800000
+            example: "31235800000"
           active_stake_pct:
             type: number
             description: Active stake for the pool, expressed as a percentage of total active stake on network
@@ -1358,22 +1358,22 @@ components:
             type: integer
             description: Number of delegators to the pool for that epoch snapshot
             example: 1432
-          pool_fee_variable:
+          margin:
             type: number
             description: Margin (decimal format)
             example: 0.125
-          pool_fee_fixed:
-            type: number
+          fixed_cost:
+            type: string
             description: Pool fixed cost per epoch (in lovelaces)
-            example: 340000000
+            example: "340000000"
           pool_fees:
-            type: number
+            type: string
             description: Total amount of fees earned by pool owners in that epoch (in lovelaces)
-            example: 123327382
+            example: "123327382"
           deleg_rewards:
-            type: number
+            type: string
             description: Total amount of rewards earned by delegators in that epoch (in lovelaces)
-            example: 123456789123
+            example: "123456789123"
           epoch_ros:
             type: number
             description: Annualized ROS (return on staking) for delegators for this epoch
