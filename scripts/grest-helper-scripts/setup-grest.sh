@@ -61,7 +61,7 @@
 
       checkUpdate setup-grest.sh Y N N grest-helper-scripts
       case $? in
-        1) echo; $0 "$@" "-u"; exit 0 ;; # re-launch script with same args skipping update check
+        1) echo; $0 "$@"; exit 0 ;; # re-launch script with same args
         2) exit 1 ;;
       esac
     fi
