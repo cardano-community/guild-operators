@@ -4,6 +4,7 @@ CREATE FUNCTION grest.address_info (_address text DEFAULT NULL)
   RETURNS TABLE (
     balance text,
     stake_address character varying,
+    script_address boolean,
     utxo_set json
   )
   LANGUAGE PLPGSQL
@@ -25,12 +26,14 @@ BEGIN
   SELECT
     SUM(tx_out.value)::text,
     SA.view,
+    bool_or(tx_out.address_hash_script),
     COALESCE(
       JSON_AGG(
         JSON_BUILD_OBJECT(
           'tx_hash', ENCODE(tx.hash, 'hex'), 
           'tx_index', tx_out.index,
           'value', tx_out.value::text,
+          'datum_hash', ENCODE(tx_out.data_hash, 'hex'),
           'asset_list', COALESCE(
             (
               SELECT
