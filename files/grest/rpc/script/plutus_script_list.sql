@@ -1,5 +1,5 @@
-DROP FUNCTION IF EXISTS grest.script_list ();
-CREATE FUNCTION grest.script_list ()
+DROP FUNCTION IF EXISTS grest.plutus_script_list ();
+CREATE FUNCTION grest.plutus_script_list ()
 RETURNS TABLE (
     script_hash text,
     creation_tx_hash text
@@ -17,4 +17,4 @@ WHERE script.type = 'plutus';
 END;
 $$;
 
-COMMENT ON FUNCTION grest.script_list IS 'Get a list of all script hashes with creation tx hashes.';
+COMMENT ON FUNCTION grest.script_list IS 'Get a list of all plutus script hashes with creation tx hash.';

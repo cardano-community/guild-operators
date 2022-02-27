@@ -22,7 +22,9 @@ CREATE FUNCTION grest.tx_info (_tx_hashes text[])
     withdrawals json,
     assets_minted json,
     metadata json,
-    certificates json
+    certificates json,
+    native_scripts json,
+    plutus_contracts json
   )
   LANGUAGE PLPGSQL
   AS $$
@@ -150,10 +152,10 @@ BEGIN
             ) AS tc_inputs
           FROM
             collateral_tx_in
-            INNER JOIN tx on collateral_tx_in.tx_in_id = tx.id
+            INNER JOIN tx ON collateral_tx_in.tx_in_id = tx.id
             INNER JOIN tx_out ON tx_out.tx_id = collateral_tx_in.tx_out_id
               AND tx_out.index = collateral_tx_in.tx_out_index
-            LEFT JOIN stake_address SA on tx_out.stake_address_id = SA.id
+            LEFT JOIN stake_address SA ON tx_out.stake_address_id = SA.id
           WHERE 
             collateral_tx_in.tx_in_id = ANY (_tx_id_list)
         ) AS tmp
@@ -473,6 +475,86 @@ BEGIN
 
         GROUP BY tx_id
         ORDER BY tx_id
+      ),
+
+      _all_native_scripts AS (
+        SELECT
+          tx_id,
+          JSON_AGG(data) AS list
+        FROM (
+          SELECT
+            script.tx_id,
+            JSON_BUILD_OBJECT(
+              'script_hash', ENCODE(script.hash, 'hex'),
+              'script', script.json
+            ) AS data
+          FROM
+            script
+          WHERE
+            script.tx_id = ANY (_tx_id_list)
+            AND
+            script.type IN ('timelock', 'multisig')
+        ) AS tmp
+
+        GROUP BY tx_id
+        ORDER BY tx_id
+      ),
+
+      _all_plutus_contracts AS (
+        SELECT
+          tx_id,
+          JSON_AGG(data) AS list
+        FROM (
+          SELECT
+            redeemer.tx_id,
+            JSON_BUILD_OBJECT(
+              'address', INUTXO.address,
+              'script_hash', ENCODE(script.hash, 'hex'),
+              'bytecode', ENCODE(script.bytes, 'hex'),
+              'size', script.serialised_size,
+              'valid_contract', tx.valid_contract,
+              'input', JSON_BUILD_OBJECT(
+                'redeemer', JSON_BUILD_OBJECT(
+                  'purpose', redeemer.purpose,
+                  'fee', redeemer.fee::text,
+                  'unit', JSON_BUILD_OBJECT(
+                    'steps', redeemer.unit_steps::text,
+                    'mem', redeemer.unit_mem::text
+                  ),
+                  'datum', JSON_BUILD_OBJECT(
+                    'hash', ENCODE(rd.hash, 'hex'),
+                    'value', rd.value
+                  )
+                ),
+                'datum', JSON_BUILD_OBJECT(
+                  'hash', ENCODE(ind.hash, 'hex'),
+                  'value', ind.value
+                )
+              ),
+              'output', CASE WHEN outd.hash IS NULL THEN NULL
+                        ELSE
+                          JSON_BUILD_OBJECT(
+                            'hash', ENCODE(outd.hash, 'hex'),
+                            'value', outd.value
+                          )
+                        END
+            ) AS data
+          FROM
+            redeemer
+            INNER JOIN tx ON redeemer.tx_id = tx.id
+            INNER JOIN datum RD ON RD.id = redeemer.datum_id
+            INNER JOIN script ON redeemer.script_hash = script.hash
+            INNER JOIN tx_in ON tx_in.redeemer_id = redeemer.id
+            INNER JOIN tx_out INUTXO ON INUTXO.tx_id = tx_in.tx_out_id AND INUTXO.index = tx_in.tx_out_index
+            INNER JOIN datum IND ON IND.hash = INUTXO.data_hash
+            LEFT JOIN tx_out OUTUTXO ON OUTUTXO.tx_id = redeemer.tx_id AND OUTUTXO.address = INUTXO.address
+            LEFT JOIN datum OUTD ON OUTD.hash = OUTUTXO.data_hash
+          WHERE
+            redeemer.tx_id = ANY (_tx_id_list)
+        ) AS tmp
+
+        GROUP BY tx_id
+        ORDER BY tx_id
       )
 
     SELECT
@@ -496,7 +578,9 @@ BEGIN
       COALESCE((SELECT AW.list FROM _all_withdrawals AW WHERE AW.tx_id = ATX.id), JSON_BUILD_ARRAY()),
       COALESCE((SELECT AMI.list FROM _all_mints AMI WHERE AMI.tx_id = ATX.id), JSON_BUILD_ARRAY()),
       COALESCE((SELECT AME.list FROM _all_metadata AME WHERE AME.tx_id = ATX.id), JSON_BUILD_ARRAY()),
-      COALESCE((SELECT AC.list FROM _all_certs AC WHERE AC.tx_id = ATX.id), JSON_BUILD_ARRAY())
+      COALESCE((SELECT AC.list FROM _all_certs AC WHERE AC.tx_id = ATX.id), JSON_BUILD_ARRAY()),
+      COALESCE((SELECT ANS.list FROM _all_native_scripts ANS WHERE ANS.tx_id = ATX.id), JSON_BUILD_ARRAY()),
+      COALESCE((SELECT APC.list FROM _all_plutus_contracts APC WHERE APC.tx_id = ATX.id), JSON_BUILD_ARRAY())
     FROM
       _all_tx ATX
     WHERE ATX.tx_hash = ANY (_tx_hashes_bytea)
