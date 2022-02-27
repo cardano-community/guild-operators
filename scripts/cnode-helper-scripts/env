@@ -609,11 +609,12 @@ getSlotInEpochFromSlot() {
 }
 
 # Description : Offline calculation of date based on provided slot number
-#             : $1 = slot, $2 = (optional) printf date format
+#             : $1 = slot, $2 = (optional) printf date format, $3 = (optional) timezone name, example: UTC, CET etc.
 getDateFromSlot() {
   byron_slots=$(( SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH ))
   [[ -n $2 ]] && date_fmt="$2" || date_fmt='%(%FT%T%z)T'
-  printf -v date_from_slot "${date_fmt}" $(( ((byron_slots * BYRON_SLOT_LENGTH) / 1000) + (($1-byron_slots) * SLOT_LENGTH) + SHELLEY_GENESIS_START_SEC ))
+  [[ -n $3 ]] && date_tz="$3" || date_tz="$(printf '%(%Z)T')"
+  TZ=${date_tz} printf -v date_from_slot "${date_fmt}" $(( ((byron_slots * BYRON_SLOT_LENGTH) / 1000) + (($1-byron_slots) * SLOT_LENGTH) + SHELLEY_GENESIS_START_SEC ))
   [[ -n $2 ]] && echo "${date_from_slot}" || echo "${date_from_slot%??}:${date_from_slot: -2}"
 }
 
