@@ -486,7 +486,6 @@ curl -s -f -m ${CURL_TIMEOUT} -o cabal-build-all.sh ${URL_RAW}/scripts/cnode-hel
 curl -s -f -m ${CURL_TIMEOUT} -o submitapi.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/submitapi.sh
 curl -s -f -m ${CURL_TIMEOUT} -o ogmios.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/ogmios.sh
 curl -s -f -m ${CURL_TIMEOUT} -o system-info.sh ${URL_RAW}/scripts/cnode-helper-scripts/system-info.sh
-curl -s -f -m ${CURL_TIMEOUT} -o sLiveView.sh ${URL_RAW}/scripts/cnode-helper-scripts/sLiveView.sh
 curl -s -f -m ${CURL_TIMEOUT} -o gLiveView.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/gLiveView.sh
 curl -s -f -m ${CURL_TIMEOUT} -o deploy-as-systemd.sh ${URL_RAW}/scripts/cnode-helper-scripts/deploy-as-systemd.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cncli.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cncli.sh
