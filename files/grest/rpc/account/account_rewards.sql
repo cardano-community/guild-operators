@@ -6,7 +6,8 @@ CREATE FUNCTION grest.account_rewards (_stake_address text, _epoch_no numeric DE
     spendable_epoch bigint,
     amount text,
     type rewardtype,
-    pool_id character varying)
+    pool_id character varying
+  )
   LANGUAGE PLPGSQL
   AS $$
 DECLARE
