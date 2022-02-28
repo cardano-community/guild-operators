@@ -56,7 +56,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.26.1
+GLV_VERSION=v1.26.2
 
 PARENT="$(dirname $0)"
 
@@ -646,7 +646,7 @@ while true; do
   # Gather some data
   getNodeMetrics
   [[ ${RETRIES} -gt 0 && ${fail_count} -eq ${RETRIES} ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}"
-  if [[ ${nodeStartTime} -le 0 ]]; then
+  if [[ ${uptimes} -le 5 ]]; then
     ((fail_count++))
     clrScreen && mvPos 2 2
     printf "${style_status_3}Connection to node lost, retrying (${fail_count}$([[ ${RETRIES} -gt 0 ]] && echo "/${RETRIES}"))!${NC}"
