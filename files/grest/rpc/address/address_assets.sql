@@ -2,16 +2,17 @@ DROP FUNCTION IF EXISTS grest.address_assets (_address text);
 
 CREATE FUNCTION grest.address_assets (_address text)
   RETURNS TABLE (
-    asset_policy_hex text,
-    asset_name_hex text,
-    quantity text)
+    policy_id text,
+    asset_name text,
+    quantity text
+  )
   LANGUAGE PLPGSQL
   AS $$
 BEGIN
   return QUERY
   select
-    ENCODE(MA.policy, 'hex') as hex_policy,
-    ENCODE(MA.name, 'escape') escaped_name,
+    ENCODE(MA.policy, 'hex') as policy_id,
+    ENCODE(MA.name, 'hex') as asset_name,
     mtx.quantity::text
   from
     MA_TX_OUT MTX
