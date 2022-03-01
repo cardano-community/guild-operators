@@ -598,6 +598,18 @@ getEpoch() {
   echo $(( SHELLEY_TRANS_EPOCH + ( (current_time_sec - byron_end_time) / SLOT_LENGTH / EPOCH_LENGTH ) ))
 }
 
+# Description : Offline calculation of start timestamp of input epoch, current if empty.
+getEpochStart() {
+  [[ -z $1 ]] && epoch_no=$(getEpoch) || epoch_no=$1
+  byron_end_time=$(( BYRON_GENESIS_START_SEC + ((SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH) / 1000) ))
+  shelley_slots=$(( (epoch_no - SHELLEY_TRANS_EPOCH) * EPOCH_LENGTH ))
+  if [[ ${shelley_slots} -ge 0 ]]; then
+    echo $(( byron_end_time + shelley_slots ))
+  else
+    echo $(( BYRON_GENESIS_START_SEC + ((epoch_no * BYRON_EPOCH_LENGTH * BYRON_SLOT_LENGTH) / 1000) ))
+  fi
+}
+
 # Description : Offline calculation of current epoch based on provided slot number
 getEpochFromSlot() {
   echo $(( SHELLEY_TRANS_EPOCH + (($1 - (SHELLEY_TRANS_EPOCH * BYRON_EPOCH_LENGTH)) / EPOCH_LENGTH) ))
