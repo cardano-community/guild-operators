@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS grest.epoch_info_cache (
   i_blk_count uinteger NOT NULL,
   i_first_block_time timestamp without time zone UNIQUE NOT NULL,
   i_last_block_time timestamp without time zone UNIQUE NOT NULL,
+  i_start_time timestamp without time zone UNIQUE NOT NULL,
+  i_end_time timestamp without time zone UNIQUE NOT NULL,
   p_min_fee_a uinteger NULL,
   p_min_fee_b uinteger NULL,
   p_max_block_size uinteger NULL,
@@ -39,24 +41,34 @@ CREATE TABLE IF NOT EXISTS grest.epoch_info_cache (
   p_coins_per_utxo_word lovelace
 );
 
-COMMENT ON TABLE grest.epoch_info_cache IS 'Get detailed info for epoch including protocol parameters';
-
--- Dropping triggers, here just for making updates easier by automatically removing stale triggers.
--- Should be removed after updates are done:
-DROP TRIGGER IF EXISTS epoch_info_update_trigger ON public.block;
-DROP TRIGGER IF EXISTS new_epoch_insert_trigger ON public.epoch;
-
+COMMENT ON TABLE grest.epoch_info_cache IS 'Contains detailed info for epochs including protocol parameters';
 
 DROP FUNCTION IF EXISTS grest.EPOCH_INFO_CACHE_UPDATE CASCADE;
 
-CREATE FUNCTION grest.EPOCH_INFO_CACHE_UPDATE (_epoch_no_to_insert_from bigint default NULL)
+CREATE FUNCTION grest.EPOCH_INFO_CACHE_UPDATE (
+    _network_identifier integer,
+    _epoch_no_to_insert_from bigint default NULL
+  )
   RETURNS void
   LANGUAGE plpgsql
   AS $$
 DECLARE
   _curr_epoch bigint;
   _latest_epoch_no_in_cache bigint;
+  _epoch_interval varchar;
+  _first_epoch_start_time time;
 BEGIN
+  -- Set correct epoch start/end time variables depending on network
+  IF _network_identifier = 764824073 THEN -- Mainnet
+    _epoch_interval := '5 days';
+    _first_epoch_start_time := '21:44:51'::time;
+  ELSIF _network_identifier = 1097911063 THEN -- Testnet
+    _epoch_interval := '5 days';
+    _first_epoch_start_time := '20:20:16'::time;
+  ELSIF _network_identifier = 141 THEN -- Guildnet
+    _epoch_interval := '1 hour';
+    _first_epoch_start_time := '23:56:34'::time;
+  END IF;
   -- Check previous cache update completed before running
   IF (
     SELECT
@@ -68,11 +80,11 @@ BEGIN
       AND datname = (SELECT current_database())
     ) THEN
         RAISE EXCEPTION 'Previous EPOCH_INFO_CACHE_UPDATE query still running but should have completed! Exiting...';
-    END IF;
+  END IF;
 
   -- GREST control table entry
   PERFORM grest.update_control_table(
-    'pool_history_cache_last_updated',
+    'epoch_info_cache_last_updated',
     (now() at time zone 'utc')::text
   );
 
@@ -125,6 +137,8 @@ BEGIN
       e.blk_count AS i_blk_count,
       e.start_time AS i_first_block_time,
       e.end_time AS i_last_block_time,
+      (DATE(start_time) + _first_epoch_start_time)::timestamp AS i_start_time,
+      (DATE(start_time + _epoch_interval::interval) + _first_epoch_start_time)::timestamp AS i_end_time,
       ep.min_fee_a AS p_min_fee_a,
       ep.min_fee_b AS p_min_fee_b,
       ep.max_block_size AS p_max_block_size,
