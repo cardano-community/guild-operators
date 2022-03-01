@@ -267,6 +267,14 @@ waitToProceed() {
   tput ed
 }
 
+# Description : join bash array as a string with provided delimiter
+# Parameters  : $1 = delimiter, $2 = array to join
+joinArray() {
+  local IFS="$1"
+  shift
+  echo "$*"
+}
+
 # Description : Generate asset id according to CIP-14 standard
 #               https://github.com/cardano-foundation/CIPs/pull/64
 #             : $1 = hex-encoded policy ID
