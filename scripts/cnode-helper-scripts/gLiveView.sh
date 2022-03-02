@@ -56,7 +56,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.26.2
+GLV_VERSION=v1.26.3
 
 PARENT="$(dirname $0)"
 
@@ -646,13 +646,13 @@ while true; do
   # Gather some data
   getNodeMetrics
   [[ ${RETRIES} -gt 0 && ${fail_count} -eq ${RETRIES} ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}"
-  if [[ ${uptimes} -le 5 ]]; then
+  CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.port ${CNODE_PORT}")
+  if [[ -z ${CNODE_PID} ]]; then
     ((fail_count++))
     clrScreen && mvPos 2 2
     printf "${style_status_3}Connection to node lost, retrying (${fail_count}$([[ ${RETRIES} -gt 0 ]] && echo "/${RETRIES}"))!${NC}"
     waitForInput && continue
   elif [[ ${fail_count} -ne 0 ]]; then # was failed but now ok, re-check
-    CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.port ${CNODE_PORT}")
     version=$("${CNODEBIN}" version)
     node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
     node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)

@@ -1017,8 +1017,10 @@ case ${NWMAGIC} in
     NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
 esac
 
-# make sure KOIOS_API is reachable, else fall back to cli
-[[ ${ENABLE_KOIOS} = 'Y' && -n ${KOIOS_API} && $(curl -Isf -m 5 ${KOIOS_API}/tip | head -1) = *"200 OK"* ]] || unset KOIOS_API
+test_koios() {
+  # make sure KOIOS_API is reachable, else fall back to cli
+  [[ ${ENABLE_KOIOS} = 'Y' && -n ${KOIOS_API} && $(curl -Isf -m 5 ${KOIOS_API}/tip | head -1) = *"200 OK"* ]] || unset KOIOS_API
+}
 
 SHELLEY_GENESIS_START_SEC=$(date --date="$(jq -r .systemStart "${GENESIS_JSON}")" +%s)
 EPOCH_LENGTH=$(jq -r .epochLength "${GENESIS_JSON}")
