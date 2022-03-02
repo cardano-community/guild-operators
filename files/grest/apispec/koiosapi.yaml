@@ -1290,7 +1290,7 @@ components:
             type: string
             description: Block Hash in hex
             example: 3cc8cfdb2d68fdb2a467292bf0acda7b91ab677741e3e1c1dc111f5be0cef0fe
-          epoch:
+          epoch_no:
             type: integer
             description: Epoch number
             example: 294
@@ -1611,8 +1611,8 @@ components:
             $ref: "#/components/schemas/blocks/items/properties/epoch_slot"
           abs_slot:
             $ref: "#/components/schemas/blocks/items/properties/abs_slot"
-          height:
-            $ref: "#/components/schemas/blocks/items/properties/height"
+          block_height:
+            $ref: "#/components/schemas/blocks/items/properties/block_height"
           block_hash:
             $ref: "#/components/schemas/blocks/items/properties/hash"
           block_time:
@@ -1870,7 +1870,7 @@ components:
             type: string
             description: Hash of the block
             example: e8c6992d52cd74b577b79251e0351be25070797a0dbc486b2c284d0bf7aeea9c
-          epoch:
+          epoch_no:
             type: integer
             description: Epoch number of the block
             example: 321
@@ -1882,11 +1882,11 @@ components:
             type: integer
             description: Slot number of the block in epoch
             example: 75442
-          height:
+          block_height:
             type: integer
             description: Block height
             example: 42325043
-          size:
+          block_size:
             type: integer
             description: Block size in bytes
             example: 79109
@@ -1917,16 +1917,16 @@ components:
         properties:
           hash:
             $ref: "#/components/schemas/blocks/items/properties/hash"
-          epoch:
-            $ref: "#/components/schemas/blocks/items/properties/epoch"
+          epoch_no:
+            $ref: "#/components/schemas/blocks/items/properties/epoch_no"
           abs_slot:
             $ref: "#/components/schemas/blocks/items/properties/abs_slot"
           epoch_slot:
             $ref: "#/components/schemas/blocks/items/properties/epoch_slot"
-          height:
-            $ref: "#/components/schemas/blocks/items/properties/height"
-          size:
-            $ref: "#/components/schemas/blocks/items/properties/size"
+          block_height:
+            $ref: "#/components/schemas/blocks/items/properties/block_height"
+          block_size:
+            $ref: "#/components/schemas/blocks/items/properties/block_size"
           block_time:
             $ref: "#/components/schemas/blocks/items/properties/block_time"
           tx_count:
@@ -2126,7 +2126,7 @@ components:
             type: integer
             description: Block number on chain where transaction was included
             example: 6354154
-          epoch:
+          epoch_no:
             type: integer
             description: Epoch number
             example: 295
