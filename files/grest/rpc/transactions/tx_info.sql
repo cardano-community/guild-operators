@@ -486,7 +486,7 @@ BEGIN
             script.tx_id,
             JSON_BUILD_OBJECT(
               'script_hash', ENCODE(script.hash, 'hex'),
-              'script', script.json
+              'script_json', script.json
             ) AS data
           FROM
             script
