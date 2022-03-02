@@ -39,17 +39,13 @@ CREATE TABLE IF NOT EXISTS grest.epoch_info_cache (
   p_coins_per_utxo_word lovelace
 );
 
-COMMENT ON TABLE grest.epoch_info_cache IS 'Get detailed info for epoch including protocol parameters';
-
--- Dropping triggers, here just for making updates easier by automatically removing stale triggers.
--- Should be removed after updates are done:
-DROP TRIGGER IF EXISTS epoch_info_update_trigger ON public.block;
-DROP TRIGGER IF EXISTS new_epoch_insert_trigger ON public.epoch;
-
+COMMENT ON TABLE grest.epoch_info_cache IS 'Contains detailed info for epochs including protocol parameters';
 
 DROP FUNCTION IF EXISTS grest.EPOCH_INFO_CACHE_UPDATE CASCADE;
 
-CREATE FUNCTION grest.EPOCH_INFO_CACHE_UPDATE (_epoch_no_to_insert_from bigint default NULL)
+CREATE FUNCTION grest.EPOCH_INFO_CACHE_UPDATE (
+    _epoch_no_to_insert_from bigint default NULL
+  )
   RETURNS void
   LANGUAGE plpgsql
   AS $$
@@ -68,11 +64,11 @@ BEGIN
       AND datname = (SELECT current_database())
     ) THEN
         RAISE EXCEPTION 'Previous EPOCH_INFO_CACHE_UPDATE query still running but should have completed! Exiting...';
-    END IF;
+  END IF;
 
   -- GREST control table entry
   PERFORM grest.update_control_table(
-    'pool_history_cache_last_updated',
+    'epoch_info_cache_last_updated',
     (now() at time zone 'utc')::text
   );
 
