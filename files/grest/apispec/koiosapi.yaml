@@ -1709,7 +1709,7 @@ components:
             example: "2021-10-02T21:44:51"
           end_time:
             type: string
-            description: Timestamp of the epoch start
+            description: Timestamp of the epoch end
             example: "2021-10-02T21:44:51"
           first_block_time:
             type: string
