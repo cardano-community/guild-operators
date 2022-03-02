@@ -491,7 +491,6 @@ getNodeMetrics() {
     .cardano.node.metrics.Forge.adopted.int.val //0,
     .cardano.node.metrics.Forge["didnt-adopt"].int.val //0,
     .cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0,
-    .cardano.node.metrics.nodeStartTime.int.val //0,
     .cardano.node.metrics.slotsMissedNum.int.val //0,
     .cardano.node.metrics.RTS.gcLiveBytes.int.val //0,
     .cardano.node.metrics.RTS.gcHeapBytes.int.val //0,
