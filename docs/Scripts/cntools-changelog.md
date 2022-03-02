@@ -6,6 +6,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.0.7] - 2022-03-02
+#### Fixed
+- Call Test Koios function at start of CNTools, instead of calling by default every time env is sourced
+
 ## [9.0.6] - 2022-02-20
 #### Fixed
 - Fix for update check if not executed from default scripts folder.
