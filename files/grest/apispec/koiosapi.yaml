@@ -935,7 +935,7 @@ paths:
       summary: Pool Stake, Block and Reward History
       description: >-
         Return information about pool stake, block and reward history in a given epoch _epoch_no
-        (or all epochs that pool existed for, in descending order if no _epoch_no was provided)        
+        (or all epochs that pool existed for, in descending order if no _epoch_no was provided)
   /pool_updates: #RPC
     get:
       tags:
@@ -990,23 +990,40 @@ paths:
           $ref: "#/components/responses/NotFound"
       summary: Pool Metadata
       description: Metadata(on & off-chain) for all currently registered/retiring (not retired) pools
-  /script_list: #RPC
+  /native_script_list: #RPC
     get:
       tags:
         - Script
       responses:
         "200":
-          description: List of script and creation tx hash pairs
+          description: List of native script and creation tx hash pairs
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/script_list"
+                $ref: "#/components/schemas/native_script_list"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-      summary: Script List
-      description: List of all existing script hashes along with their creation transaction hashes
+      summary: Native Script List
+      description: List of all existing native script hashes along with their creation transaction hashes
+  /plutus_script_list: #RPC
+    get:
+      tags:
+        - Script
+      responses:
+        "200":
+          description: List of Plutus script and creation tx hash pairs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/plutus_script_list"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Plutus Script List
+      description: List of all existing Plutus script hashes along with their creation transaction hashes
   /script_redeemers: #RPC
     get:
       tags:
@@ -2397,11 +2414,29 @@ components:
             items:
               properties:
                 script_hash:
-                  $ref: "#/components/schemas/script_list/items/properties/script_hash"
+                  $ref: "#/components/schemas/plutus_script_list/items/properties/script_hash"
                 script_json:
                   type: object
                   description: JSON representation of the timelock script (null for other script types)
-                  example: {"type": "all", "scripts": [{"type": "sig", "keyHash": "a96da581c39549aeda81f539ac3940ac0cb53657e774ca7e68f15ed9"}, {"type": "sig", "keyHash": "ccfcb3fed004562be1354c837a4a4b9f4b1c2b6705229efeedd12d4d"}, {"type": "sig", "keyHash": "74fcd61aecebe36aa6b6cd4314027282fa4b41c3ce8af17d9b77d0d1"}]}
+                  example:
+                    {
+                      "type": "all",
+                      "scripts":
+                        [
+                          {
+                            "type": "sig",
+                            "keyHash": "a96da581c39549aeda81f539ac3940ac0cb53657e774ca7e68f15ed9",
+                          },
+                          {
+                            "type": "sig",
+                            "keyHash": "ccfcb3fed004562be1354c837a4a4b9f4b1c2b6705229efeedd12d4d",
+                          },
+                          {
+                            "type": "sig",
+                            "keyHash": "74fcd61aecebe36aa6b6cd4314027282fa4b41c3ce8af17d9b77d0d1",
+                          },
+                        ],
+                    }
           plutus_contracts:
             type: array
             description: Plutus contracts present in transaction (if any)
@@ -2410,7 +2445,9 @@ components:
                 address:
                   type: string
                   description: Plutus script address
-                  example: 
+                  example: addr1w999n67e86jn6xal07pzxtrmqynspgx0fwmcmpua4wc6yzsxpljz3
+                script_hash:
+                  $ref: "#/components/schemas/plutus_script_list/items/properties/script_hash"
                 bytecode:
                   type: string
                   description: CBOR-encoded Plutus script data
@@ -2424,7 +2461,43 @@ components:
                   description: True if the contract is valid or there is no contract
                   example: true
                 input:
+                  type: object
+                  properties:
+                    redeemer:
+                      type: object
+                      properties:
+                        purpose:
+                          $ref: "#/components/schemas/script_redeemers/items/properties/redeemers/items/properties/purpose"
+                        fee:
+                          $ref: "#/components/schemas/script_redeemers/items/properties/redeemers/items/properties/fee"
+                        unit:
+                          type: object
+                          properties:
+                            steps:
+                              $ref: "#/components/schemas/script_redeemers/items/properties/redeemers/items/properties/unit_steps"
+                            mem:
+                              $ref: "#/components/schemas/script_redeemers/items/properties/redeemers/items/properties/unit_mem"
+                        datum:
+                          type: object
+                          properties:
+                            hash:
+                              $ref: "#/components/schemas/script_redeemers/items/properties/redeemers/items/properties/datum_hash"
+                            value:
+                              $ref: "#/components/schemas/script_redeemers/items/properties/redeemers/items/properties/datum_value"
+                    datum:
+                      type: object
+                      properties:
+                        hash:
+                          $ref: "#/components/schemas/script_redeemers/items/properties/redeemers/items/properties/datum_hash"
+                        value:
+                          $ref: "#/components/schemas/script_redeemers/items/properties/redeemers/items/properties/datum_value"
                 output:
+                  type: object
+                  properties:
+                    hash:
+                      $ref: "#/components/schemas/script_redeemers/items/properties/redeemers/items/properties/datum_hash"
+                    value:
+                      $ref: "#/components/schemas/script_redeemers/items/properties/redeemers/items/properties/datum_value"
     tx_utxos:
       type: array
       items:
@@ -2832,7 +2905,20 @@ components:
                 "a50b2bbb40b25b6fc19b56c2b3d7887086d0df5a03414e1097d9fba852134bb4",
                 "c418d9c874aff0a163218ffdb5ba9189202473cdc16d7dfe66420e95fa398ee9",
               ]
-    script_list:
+    native_script_list:
+      type: array
+      items:
+        properties:
+          script_hash:
+            $ref: "#/components/schemas/plutus_script_list/items/properties/script_hash"
+          creation_tx_hash:
+            $ref: "#/components/schemas/plutus_script_list/items/properties/creation_tx_hash"
+          type:
+            type: string
+            description: Type of the script
+            enum: ["timelock", "multisig"]
+            example: timelock
+    plutus_script_list:
       type: array
       items:
         properties:
@@ -2880,7 +2966,8 @@ components:
                   example: 45282
                 purpose:
                   type: string
-                  description: What kind pf validation this redeemer is used for, it can be one of 'spend', 'mint', 'cert', 'reward'
+                  description: What kind of validation this redeemer is used for
+                  enum: ["spend", "mint", "cert", "reward"]
                   example: spend
                 datum_hash:
                   type: string
