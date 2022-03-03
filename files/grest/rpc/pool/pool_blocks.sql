@@ -5,7 +5,7 @@ CREATE FUNCTION grest.pool_blocks (_pool_bech32 text, _epoch_no uinteger DEFAULT
         epoch_no uinteger,
         epoch_slot uinteger,
         abs_slot uinteger,
-        height uinteger,
+        block_height uinteger,
         block_hash text,
         block_time timestamp without time zone
     )
@@ -17,7 +17,7 @@ BEGIN
         b.epoch_no,
         b.epoch_slot_no as epoch_slot,
         b.slot_no as abs_slot,
-        b.block_no as height,
+        b.block_no as block_height,
         encode(b.hash::bytea, 'hex'),
         b.time
     FROM

@@ -85,7 +85,7 @@ BEGIN
     LEFT JOIN LATERAL (
       SELECT
         MIN(B.time) AS date,
-        SUM(MTM.quantity)::text AS amount,
+        SUM(MTM.quantity)::text AS total_supply,
         SUM(CASE WHEN quantity > 0 then 1 else 0 end) AS mint_cnt,
         SUM(CASE WHEN quantity < 0 then 1 else 0 end) AS burn_cnt
       FROM

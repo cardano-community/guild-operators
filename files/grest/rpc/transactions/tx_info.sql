@@ -605,7 +605,7 @@ BEGIN
             script.tx_id,
             JSON_BUILD_OBJECT(
               'script_hash', ENCODE(script.hash, 'hex'),
-              'script', script.json
+              'script_json', script.json
             ) AS data
           FROM
             script
@@ -678,7 +678,7 @@ BEGIN
       ENCODE(ATX.tx_hash, 'hex'),
       ENCODE(ATX.block_hash, 'hex'),
       ATX.block_height,
-      ATX.epoch,
+      ATX.epoch AS epoch_no,
       ATX.epoch_slot,
       ATX.absolute_slot,
       ATX.tx_timestamp,
