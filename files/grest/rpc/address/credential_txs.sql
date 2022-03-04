@@ -2,7 +2,10 @@ DROP FUNCTION IF EXISTS grest.credential_txs (text[], integer);
 
 CREATE FUNCTION grest.credential_txs (_payment_credentials text[], _after_block_height integer DEFAULT 0)
   RETURNS TABLE (
-    tx_hash text)
+    tx_hash text,
+    block_height uinteger,
+    block_time timestamp
+  )
   LANGUAGE PLPGSQL
   AS $$
 DECLARE
@@ -43,7 +46,9 @@ BEGIN
 
   RETURN QUERY
     SELECT
-      DISTINCT(ENCODE(tx.hash, 'hex')) as tx_hash
+      DISTINCT(ENCODE(tx.hash, 'hex')) as tx_hash,
+      block.block_no,
+      block.time
     FROM
       public.tx
       INNER JOIN public.block ON block.id = tx.block_id

@@ -78,8 +78,8 @@ function usage() {
 }
 
 function chk_tip() {
-  read -ra tip <<< "$(curl -skL "${URLRPC}/tip" 2>/dev/null | jq -r '[
-    .[0].epoch // 0,
+  read -ra tip <<< "$(curl -m 2 -sfkL "${URLRPC}/tip" 2>/dev/null | jq -r '[
+    .[0].epoch_no // 0,
     .[0].abs_slot //0,
     .[0].epoch_slot //0,
     .[0].block_no //0,
@@ -188,8 +188,4 @@ chk_rpcs
 chk_cache_status
 chk_limit
 chk_endpt_get "tx_metalabels" view
-chk_endpt_get "account_list" view
-chk_endpt_get "totals?_epoch_no=${epoch}" rpc
-chk_endpt_get "epoch_params?_epoch_no=${epoch}" rpc
 chk_endpt_get "epoch_info?_epoch_no=$(( epoch - 1 ))" rpc
-chk_endpt_get "pool_list" rpc

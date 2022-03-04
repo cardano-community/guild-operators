@@ -6,10 +6,14 @@ CREATE FUNCTION grest.asset_info (_asset_policy text, _asset_name text)
     asset_name text,
     asset_name_ascii text,
     fingerprint character varying,
-    minting_tx_metadata json,
-    token_registry_metadata json,
+    minting_tx_hash text,
     total_supply text,
-    creation_time timestamp without time zone)
+    mint_cnt bigint,
+    burn_cnt bigint,
+    creation_time timestamp without time zone,
+    minting_tx_metadata json,
+    token_registry_metadata json
+  )
   LANGUAGE PLPGSQL
   AS $$
 DECLARE
@@ -27,6 +31,22 @@ BEGIN
     _asset_name,
     ENCODE(_asset_name_decoded, 'escape'),
     MA.fingerprint,
+    (
+      SELECT
+        ENCODE(tx.hash, 'hex')
+      FROM
+        ma_tx_mint MTM
+        INNER JOIN tx ON tx.id = MTM.tx_id
+      WHERE
+        MTM.ident = _asset_id
+      ORDER BY
+        MTM.tx_id ASC
+      LIMIT 1
+    ) AS tx_hash,
+    minting_data.total_supply,
+    minting_data.mint_cnt,
+    minting_data.burn_cnt,
+    minting_data.date,
     (
       SELECT
         JSON_BUILD_OBJECT(
@@ -59,27 +79,22 @@ BEGIN
         AND 
         ARC.asset_name = _asset_name
       LIMIT 1
-    ) AS token_registry_metadata,
-    (
+    ) AS token_registry_metadata
+  FROM 
+    multi_asset MA
+    LEFT JOIN LATERAL (
       SELECT
-        SUM(MTM.quantity)::text AS amount
-      FROM
-        ma_tx_mint MTM
-      WHERE
-        MTM.ident = _asset_id
-    ) AS total_supply,
-    (
-      SELECT
-        MIN(B.time) AS date
+        MIN(B.time) AS date,
+        SUM(MTM.quantity)::text AS total_supply,
+        SUM(CASE WHEN quantity > 0 then 1 else 0 end) AS mint_cnt,
+        SUM(CASE WHEN quantity < 0 then 1 else 0 end) AS burn_cnt
       FROM
         ma_tx_mint MTM
         INNER JOIN tx ON tx.id = MTM.tx_id
         INNER JOIN block B ON B.id = tx.block_id
       WHERE
-        MTM.ident = _asset_id
-    ) AS creation_time
-  FROM 
-    multi_asset MA
+        MTM.ident = MA.id
+    ) minting_data ON TRUE
   WHERE
     MA.id = _asset_id;
 END;

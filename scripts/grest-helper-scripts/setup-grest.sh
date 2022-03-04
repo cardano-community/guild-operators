@@ -364,7 +364,10 @@
       *) KOIOS_SRV="guild.koios.rest" ;;
     esac
 
-    bash -c "cat <<-EOF > ${HAPROXY_CFG}
+    if grep 'koios.rest:8443' ${HAPROXY_CFG}; then
+      echo "  Skipping update of ${HAPROXY_CFG} as this instance is a monitoring instance"
+    else
+      bash -c "cat <<-EOF > ${HAPROXY_CFG}
 			global
 			  daemon
 			  nbthread 4
@@ -458,7 +461,8 @@
 			  max-secondary-entries 500
 			  max-age 300
 			EOF"
-    echo "  Done!! Please ensure to set any custom settings/peers/TLS configs/etc back and update configs as necessary!"
+      echo "  Done!! Please ensure to set any custom settings/peers/TLS configs/etc back and update configs as necessary!"
+    fi
   }
 
   common_update() {
@@ -489,7 +493,7 @@
 			User=${USER}
 			LimitNOFILE=1048576
 			ExecStart=${HOME}/.cabal/bin/postgrest ${CNODE_HOME}/priv/grest.conf
-			ExecReload=/bin/kill -SIGUSR1 \$MAINPID
+			ExecReload=/bin/kill -SIGUSR1 \\\$MAINPID
 			StandardOutput=syslog
 			StandardError=syslog
 			SyslogIdentifier=postgrest
