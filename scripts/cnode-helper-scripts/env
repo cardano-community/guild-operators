@@ -499,7 +499,6 @@ getNodeMetrics() {
     .cardano.node.metrics.Forge.adopted.int.val //0,
     .cardano.node.metrics.Forge["didnt-adopt"].int.val //0,
     .cardano.node.metrics.Forge["forge-about-to-lead"].int.val //0,
-    .cardano.node.metrics.nodeStartTime.int.val //0,
     .cardano.node.metrics.slotsMissedNum.int.val //0,
     .cardano.node.metrics.RTS.gcLiveBytes.int.val //0,
     .cardano.node.metrics.RTS.gcHeapBytes.int.val //0,
@@ -530,14 +529,14 @@ getNodeMetrics() {
     missed_slots=${node_metrics_arr[14]}
     mem_live=${node_metrics_arr[15]}; mem_heap=${node_metrics_arr[16]}
     gc_minor=${node_metrics_arr[17]}; gc_major=${node_metrics_arr[18]}
-    forks=${node_metrics_arr[20]}
-    block_delay=${node_metrics_arr[21]}; blocks_served=${node_metrics_arr[22]}; blocks_late=${node_metrics_arr[23]};
-    printf -v blocks_w1s "%.6f" "${node_metrics_arr[24]}"
-    printf -v blocks_w3s "%.6f" "${node_metrics_arr[25]}"
-    printf -v blocks_w5s "%.6f" "${node_metrics_arr[26]}"
-    peers_cold=${node_metrics_arr[27]}; peers_warm=${node_metrics_arr[28]}; peers_hot=${node_metrics_arr[29]}
-    conn_incoming=${node_metrics_arr[30]}; conn_outgoing=${node_metrics_arr[31]}
-    conn_uni_dir=${node_metrics_arr[32]}; conn_bi_dir=${node_metrics_arr[33]}; conn_duplex=${node_metrics_arr[34]}
+    forks=${node_metrics_arr[19]}
+    block_delay=${node_metrics_arr[20]}; blocks_served=${node_metrics_arr[21]}; blocks_late=${node_metrics_arr[22]};
+    printf -v blocks_w1s "%.6f" "${node_metrics_arr[23]}"
+    printf -v blocks_w3s "%.6f" "${node_metrics_arr[24]}"
+    printf -v blocks_w5s "%.6f" "${node_metrics_arr[25]}"
+    peers_cold=${node_metrics_arr[26]}; peers_warm=${node_metrics_arr[27]}; peers_hot=${node_metrics_arr[28]}
+    conn_incoming=${node_metrics_arr[29]}; conn_outgoing=${node_metrics_arr[30]}
+    conn_uni_dir=${node_metrics_arr[31]}; conn_bi_dir=${node_metrics_arr[32]}; conn_duplex=${node_metrics_arr[33]}
   else
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
     [[ ${node_metrics} =~ cardano_node_metrics_blockNum_int[[:space:]]([^[:space:]]*) ]] && blocknum=${BASH_REMATCH[1]} || blocknum=0
