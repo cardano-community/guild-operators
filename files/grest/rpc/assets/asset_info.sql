@@ -43,7 +43,7 @@ BEGIN
         MTM.tx_id ASC
       LIMIT 1
     ) AS tx_hash,
-    minting_data.amount,
+    minting_data.total_supply,
     minting_data.mint_cnt,
     minting_data.burn_cnt,
     minting_data.date,

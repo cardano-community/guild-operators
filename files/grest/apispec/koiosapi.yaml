@@ -531,7 +531,7 @@ paths:
       tags:
         - Address
       parameters:
-        - $ref: "#/components/parameters/_address"
+        - $ref: "#/components/parameters/_address_assets"
       responses:
         "200":
           description: Array of address-owned assets
@@ -1146,6 +1146,16 @@ components:
       in: query
       required: true
       allowEmptyValue: false
+    _address_assets:
+     deprecated: false
+     name: _address
+     description: Cardano payment address in bech32 format
+     schema:
+       type: string
+       example: addr1q8h22z0n3zqecr9n4q9ysds2m2ms3dqesz575accjpc3jclw55yl8zypnsxt82q2fqmq4k4hpz6pnq9fafm33yr3r93sgnpdw6
+     in: query
+     required: true
+     allowEmptyValue: false
     _stake_address:
       deprecated: false
       name: _stake_address
@@ -1460,6 +1470,7 @@ components:
             example: 45.32
           block_cnt:
             type: integer
+            nullable: true
             description: Number of blocks pool created in that epoch
             example: 14
           delegator_cnt:
@@ -1536,34 +1547,42 @@ components:
               properties:
                 dns:
                   type: string
+                  nullable: true
                   description: DNS name of the relay (nullable)
                   example: relays-new.cardano-mainnet.iohk.io
                 srv:
                   type: string
+                  nullable: true
                   description: DNS service name of the relay (nullable)
                   example: biostakingpool3.hopto.org
                 ipv4:
                   type: string
+                  nullable: true
                   description: IPv4 address of the relay (nullable)
                   example: "54.220.20.40"
                 ipv6:
                   type: string
+                  nullable: true
                   description: IPv6 address of the relay (nullable)
                   example: 2604:ed40:1000:1711:6082:78ff:fe0c:ebf
                 port:
-                  type: string
+                  type: number
+                  nullable: true
                   description: Port number of the relay (nullable)
                   example: 6000
           meta_url:
             type: string
             description: Pool metadata URL
+            nullable: true
             example: https://pools.iohk.io/IOGP.json
           meta_hash:
             type: string
             description: Pool metadata hash
+            nullable: true
             example: 37eb004c0dd8a221ac3598ca1c6d6257fb5207ae9857b7c163ae0f39259d6cc0
           meta_json:
             type: object
+            nullable: true
             properties:
               name:
                 type: string
@@ -1590,12 +1609,15 @@ components:
             type: integer
             description: Announced retiring epoch (nullable)
             example: null
+            nullable: true
           op_cert:
             type: string
+            nullable: true
             description: Pool latest operational certificate hash
             example: 37eb004c0dd8a221ac3598ca1c6d6257fb5207ae9857b7c163ae0f39259d6cc0
           op_cert_counter:
             type: integer
+            nullable: true
             description: Pool latest operational certificate counter value
             example: 8
           active_stake:
@@ -1604,6 +1626,7 @@ components:
             example: "64328627680963"
           block_count:
             type: integer
+            nullable: true
             description: Total pool blocks on chain
             example: 4509
           live_pledge:
@@ -1624,6 +1647,7 @@ components:
             example: 94.52
     pool_delegators:
       type: array
+      nullable: true
       items:
         type: object
         properties:
@@ -1637,6 +1661,7 @@ components:
             $ref: "#/components/schemas/epoch_info/items/properties/epoch_no"
     pool_blocks:
       type: array
+      nullable: true
       items:
         type: object
         properties:
@@ -1826,6 +1851,7 @@ components:
             type: string
             description: The hash of 32-byte string of extra random-ness added into the protocol's entropy pool
             example: d982e06fd33e7440b43cefad529b7ecafbaa255e38178ad4189a37e4ce9bf1fa
+            nullable: True
           protocol_major:
             type: integer
             description: The protocol major version
@@ -2222,14 +2248,19 @@ components:
           invalid_before:
             type: integer
             description: Slot before which transaction cannot be validated (if supplied, else null)
+            nullable: true
           invalid_after:
             type: integer
             description: Slot after which transaction cannot be validated
             example: 42332172
           collaterals:
-            type: string
+            type: array
             description: An array of collateral inputs needed when dealing with smart contracts (same json schema as inputs)
-            example: "[]"
+            nullable: true
+            items:
+              type: string
+              nullable: true
+            example: []
           inputs:
             type: array
             description: An array with details about inputs used in a transaction
@@ -2249,6 +2280,7 @@ components:
                       example: ac9c9e1ad9c0ba563afe7114be2a7dc7b0842e0220a476f58e9f61b0
                 stake_addr:
                   type: string
+                  nullable: true
                   description: A Cardano staking address (reward account, bech32 encoded) for transaction's input UTxO
                   example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
                 tx_hash:
@@ -2299,6 +2331,7 @@ components:
                       example: de3c1c527e8826b9cd2030f88f75fc44cd4ce519b9ded9eb794b3794
                 stake_addr:
                   type: string
+                  nullable: true
                   description: A Cardano staking address (reward account, bech32 encoded) for transaction's output UTxO
                   example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
                 tx_hash:
@@ -2332,7 +2365,8 @@ components:
                         example: 1
           withdrawals:
             type: array
-            description: Array of withdrawals with-in a transaction (if any)
+            description: Array of withdrawals with-in a transaction
+            nullable: true
             items:
               type: object
               properties:
@@ -2349,7 +2383,8 @@ components:
                       example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
           assets_minted:
             type: array
-            description: Array of minted assets with-in a transaction (if any)
+            description: Array of minted assets with-in a transaction
+            nullable: true
             items:
               properties:
                 policy_id:
@@ -2366,6 +2401,7 @@ components:
                   example: 1
           metadata:
             type: array
+            nullable: true
             description: Metadata present with-in a transaction (if any)
             items:
               properties:
@@ -2374,8 +2410,9 @@ components:
                   description: Metadata key (index)
                   example: 0
                 json:
-                  type: string
+                  type: object
                   description: A JSON containing details about metadata within transaction
+                  nullable: true
                   example:
                     {
                       "721":
@@ -2389,6 +2426,7 @@ components:
                     }
           certificates:
             type: array
+            nullable: true
             description: Certificates present with-in a transaction (if any)
             items:
               properties:
@@ -2401,8 +2439,9 @@ components:
                   description: Type of certificate (could be delegation, stake_registration, stake_deregistraion, pool_update, pool_retire, param_proposal, reserve_MIR, treasury_MIR)
                   example: delegation
                 info:
-                  type: string
+                  type: object
                   description: A JSON array containing information from the certificate
+                  nullable: true
                   example:
                     {
                       "stake_address": "stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj",
@@ -2410,6 +2449,7 @@ components:
                     }
           native_scripts:
             type: array
+            nullable: true
             description: Native scripts present in a transaction (if any)
             items:
               properties:
@@ -2525,6 +2565,7 @@ components:
                       example: ac9c9e1ad9c0ba563afe7114be2a7dc7b0842e0220a476f58e9f61b0
                 stake_addr:
                   type: string
+                  nullable: true
                   description: A Cardano staking address (reward account, bech32 encoded) for transaction's input UTxO
                   example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
                 tx_hash:
@@ -2575,8 +2616,10 @@ components:
                       example: de3c1c527e8826b9cd2030f88f75fc44cd4ce519b9ded9eb794b3794
                 stake_addr:
                   type: string
+                  nullable: true
                   description: A Cardano staking address (reward account, bech32 encoded) for transaction's output UTxO
                   example: stake1uxggf4shfvpghcangm67ky0q4zlc3xn7gezy0auhxczu3pslm9wrj
+                  nullable: true
                 tx_hash:
                   type: string
                   description: Hash of this transaction
@@ -2608,6 +2651,7 @@ components:
                         example: 1
     tx_metadata:
       type: array
+      nullable: true
       items:
         properties:
           tx_hash:
@@ -2615,7 +2659,8 @@ components:
             description: Hash of the transaction for which details are being shown
             example: f144a8264acf4bdfe2e1241170969c930d64ab6b0996a4a45237b623f1dd670e
           metadata:
-            type: string
+            type: object
+            nullable: true
             description: A JSON array containing details about metadata within transaction
             example:
               {
@@ -2640,6 +2685,7 @@ components:
             type: integer
             description: Number of block confirmations
             example: 17
+            nullable: True
     tx_metalabels:
       type: array
       items:
@@ -2742,6 +2788,7 @@ components:
             example: 5
           minting_tx_metadata:
             type: object
+            nullable: true
             properties:
               key:
                 type: string
@@ -2760,6 +2807,7 @@ components:
           token_registry_metadata:
             type: object
             description: Asset metadata registered on the Cardano Token Registry
+            nullable: true
             properties:
               name:
                 type: string
@@ -2801,6 +2849,7 @@ components:
           minting_txs:
             type: array
             description: Array of all mint/burn transactions for an asset
+            nullable: True
             items:
               type: object
               properties:
@@ -2839,6 +2888,7 @@ components:
                   example: asset1ua6pz3yd5mdka946z8jw2fld3f8d0mmxt75gv9
                 minting_tx_metadata:
                   type: object
+                  nullable: true
                   properties:
                     key:
                       type: string
@@ -2857,6 +2907,7 @@ components:
                 token_registry_metadata:
                   type: object
                   description: Asset metadata registered on the Cardano Token Registry
+                  nullable: true
                   properties:
                     name:
                       type: string
@@ -2899,6 +2950,7 @@ components:
           tx_hashes:
             type: array
             description: List of Tx hashes
+            nullable: True
             example:
               [
                 "17377b1978c8be190d31b418d1999d8b5c2748709580ded896163440e70face1",
@@ -2972,6 +3024,7 @@ components:
                 datum_hash:
                   type: string
                   description: The Hash of the Plutus Data
+                  nullable: true
                   example: 5a595ce795815e81d22a1a522cf3987d546dc5bb016de61b002edd63a5413ec4
                 datum_value:
                   type: object
