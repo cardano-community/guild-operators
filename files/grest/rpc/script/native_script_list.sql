@@ -21,4 +21,4 @@ WHERE script.type IN ('timelock', 'multisig');
 END;
 $$;
 
-COMMENT ON FUNCTION grest.script_list IS 'Get a list of all native(multisig/timelock) script hashes with creation tx hash, type and script in json format.';
+COMMENT ON FUNCTION grest.native_script_list IS 'Get a list of all native(multisig/timelock) script hashes with creation tx hash, type and script in json format.';

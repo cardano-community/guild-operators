@@ -17,4 +17,4 @@ WHERE script.type = 'plutus';
 END;
 $$;
 
-COMMENT ON FUNCTION grest.script_list IS 'Get a list of all plutus script hashes with creation tx hash.';
+COMMENT ON FUNCTION grest.plutus_script_list IS 'Get a list of all plutus script hashes with creation tx hash.';
