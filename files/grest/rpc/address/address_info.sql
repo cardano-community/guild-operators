@@ -77,6 +77,7 @@ BEGIN
       SELECT
         '0'::text AS balance,
         SA.view AS stake_address,
+        bool_or(tx_out.address_has_script),
         '[]'::json AS utxo_set
       FROM
         public.tx_out
