@@ -101,7 +101,7 @@ BEGIN
           collateral_tx_in
           INNER JOIN tx_out ON tx_out.tx_id = collateral_tx_in.tx_out_id
             AND tx_out.index = collateral_tx_in.tx_out_index
-          INNER JOIN tx ON collateral_tx_in.tx_in_id = tx.id
+          INNER JOIN tx ON tx_out.tx_id = tx.id
           LEFT JOIN stake_address SA ON tx_out.stake_address_id = SA.id
           LEFT JOIN ma_tx_out MTO ON MTO.tx_out_id = tx_out.id
           LEFT JOIN multi_asset MA ON MA.id = MTO.ident
