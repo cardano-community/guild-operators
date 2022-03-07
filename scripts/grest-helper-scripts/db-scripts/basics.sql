@@ -4,8 +4,9 @@
 -- 2) web_anon user
 -- 3) grest.control_table
 -- 4) grest.genesis
--- 5) helper functions
--- 6) optional db indexes on important public tables
+-- 5) drop existing functions
+-- 6) helper functions
+-- 7) optional db indexes on important public tables
 --------------------------------------------------------------------------------
 -- GREST SCHEMA --
 CREATE SCHEMA IF NOT EXISTS grest;
@@ -63,6 +64,41 @@ CREATE TABLE grest.genesis (
   SECURITYPARAM varchar,
   ALONZOGENESIS varchar
 );
+
+-- DROP EXISTING FUNCTIONS
+DO
+$do$
+DECLARE
+  _sql text;
+BEGIN
+  SELECT INTO _sql
+    string_agg(
+      format(
+        'DROP %s %s CASCADE;',
+        CASE prokind
+            WHEN 'f' THEN 'FUNCTION'
+            WHEN 'a' THEN 'AGGREGATE'
+            WHEN 'p' THEN 'PROCEDURE'
+            WHEN 'w' THEN 'FUNCTION'  -- window function (rarely applicable)
+        END,
+        oid::regprocedure
+      ),
+      E'\n'
+    )
+  FROM 
+    pg_proc
+  WHERE
+    pronamespace = 'grest'::regnamespace  -- schema name here
+    AND prokind = ANY ('{f,a,p,w}');      -- optionally filter kinds
+
+  IF _sql IS NOT NULL THEN
+    RAISE NOTICE '%', _sql; -- debug
+    EXECUTE _sql;
+  ELSE 
+    RAISE NOTICE 'No fuctions found in schema %', quote_ident('grest');
+  END IF;
+END
+$do$;
 
 -- HELPER FUNCTIONS --
 DROP FUNCTION IF EXISTS grest.get_query_pids_partial_match (_query text);
@@ -161,3 +197,4 @@ $$
 $$;
 
 -- DATABASE INDEXES --
+-- Empty
