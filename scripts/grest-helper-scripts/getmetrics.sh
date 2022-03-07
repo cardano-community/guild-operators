@@ -2,8 +2,6 @@
 #shellcheck disable=SC2005,SC2046,SC2154,SC2155,SC2034,SC2086
 #shellcheck source=/dev/null
 
-. "$(dirname $0)"/env offline
-
 ######################################
 # User Variables - Change as desired #
 # Common variables set in env file   #
@@ -54,7 +52,7 @@ function get-metrics() {
   export METRIC_dbsynctipref=$(( currslottip - $( echo "${tip}" | jq .[0].abs_slot) ))
   export METRIC_nodetipref=$(( currslottip - slotnum ))
   export METRIC_uptime="${uptimes}"
-  export METRIC_dbsyncBlockHeight=$(curl -s http://${RESTAPI_HOST}:${RESTAPI_PORT}/rpc/tip | jq .[0].block_no)
+  export METRIC_dbsyncBlockHeight=$(echo "${tip}" | jq .[0].block_no)
   export METRIC_nodeBlockHeight=${blocknum}
   export METRIC_dbsyncQueueLength=$(( METRIC_nodeBlockHeight - METRIC_dbsyncBlockHeight ))
   export METRIC_memtotal="${memtotal}"

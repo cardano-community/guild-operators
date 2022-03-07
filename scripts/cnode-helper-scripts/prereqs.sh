@@ -530,6 +530,7 @@ updateWithCustomConfig "topologyUpdater.sh"
 updateWithCustomConfig "logMonitor.sh"
 updateWithCustomConfig "cncli.sh"
 updateWithCustomConfig "blockPerf.sh"
+updateWithCustomConfig "setup-grest.sh"
 
 find "${CNODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
 chmod -R 700 "${CNODE_HOME}"/priv 2>/dev/null

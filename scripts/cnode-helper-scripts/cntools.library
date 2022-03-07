@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=9
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=0
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=7
+CNTOOLS_PATCH_VERSION=8
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -806,8 +806,8 @@ getPayAddress() {
   [[ -f ${payment_addr_file} ]] && pay_addr=$(cat "${payment_addr_file}") && return 0
   pay_addr=""
   if [[ -f "${payment_vk_file}" ]]; then
-    println ACTION "${CCLI} address build --payment-verification-key-file ${payment_vk_file} --out-file ${payment_addr_file} ${HASH_IDENTIFIER}"
-    if ${CCLI} address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" ${HASH_IDENTIFIER} 2>/dev/null; then
+    println ACTION "${CCLI} address build --payment-verification-key-file ${payment_vk_file} --out-file ${payment_addr_file} ${NETWORK_IDENTIFIER}"
+    if ${CCLI} address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" ${NETWORK_IDENTIFIER} 2>/dev/null; then
       pay_addr=$(cat "${payment_addr_file}")
       return 0
     fi
@@ -826,14 +826,14 @@ getBaseAddress() {
   [[ -f ${base_addr_file} ]] && base_addr=$(cat "${base_addr_file}") && return 0
   base_addr=""
   if [[ -f "${payment_vk_file}" && -f "${stake_vk_file}" ]]; then
-    println ACTION "${CCLI} address build --payment-verification-key-file ${payment_vk_file} --stake-verification-key-file ${stake_vk_file} --out-file ${base_addr_file} ${HASH_IDENTIFIER}"
-    if ${CCLI} address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${HASH_IDENTIFIER} 2>/dev/null; then
+    println ACTION "${CCLI} address build --payment-verification-key-file ${payment_vk_file} --stake-verification-key-file ${stake_vk_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
+    if ${CCLI} address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>/dev/null; then
       base_addr=$(cat "${base_addr_file}")
       return 0
     fi
   elif [[ $# -eq 2 && -f "${1}" && -f "${2}" ]]; then
-    println ACTION "${CCLI} address build --payment-verification-key-file ${1} --stake-verification-key-file ${2} ${HASH_IDENTIFIER}"
-    base_addr=$(${CCLI} address build --payment-verification-key-file "${1}" --stake-verification-key-file "${2}" ${HASH_IDENTIFIER} 2>/dev/null)
+    println ACTION "${CCLI} address build --payment-verification-key-file ${1} --stake-verification-key-file ${2} ${NETWORK_IDENTIFIER}"
+    base_addr=$(${CCLI} address build --payment-verification-key-file "${1}" --stake-verification-key-file "${2}" ${NETWORK_IDENTIFIER} 2>/dev/null)
   fi
   return 1
 }
@@ -848,14 +848,14 @@ getRewardAddress() {
   [[ -f ${stake_addr_file} ]] && reward_addr=$(cat "${stake_addr_file}") && return 0
   reward_addr=""
   if [[ -f "${stake_vk_file}" ]]; then
-    println ACTION "${CCLI} stake-address build --stake-verification-key-file ${stake_vk_file} --out-file ${stake_addr_file} ${HASH_IDENTIFIER}"
-    if ${CCLI} stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" ${HASH_IDENTIFIER} 2>/dev/null; then
+    println ACTION "${CCLI} stake-address build --stake-verification-key-file ${stake_vk_file} --out-file ${stake_addr_file} ${NETWORK_IDENTIFIER}"
+    if ${CCLI} stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" ${NETWORK_IDENTIFIER} 2>/dev/null; then
       reward_addr=$(cat "${stake_addr_file}")
       return 0
     fi
   elif [[ -f "${1}" ]]; then
-    println ACTION "${CCLI} stake-address build --stake-verification-key-file ${1} ${HASH_IDENTIFIER}"
-    reward_addr=$(${CCLI} stake-address build --stake-verification-key-file "${1}" ${HASH_IDENTIFIER} 2>/dev/null)
+    println ACTION "${CCLI} stake-address build --stake-verification-key-file ${1} ${NETWORK_IDENTIFIER}"
+    reward_addr=$(${CCLI} stake-address build --stake-verification-key-file "${1}" ${NETWORK_IDENTIFIER} 2>/dev/null)
   fi
   return 1
 }
@@ -865,8 +865,8 @@ getRewardAddress() {
 # Parameters  : stake key  >  path to stake.vkey file
 # Return      : populates ${reward_addr}
 getRewardAddressFromKey() {
-  println ACTION "${CCLI} stake-address build --stake-verification-key-file ${1} ${HASH_IDENTIFIER}"
-  reward_addr=$(${CCLI} stake-address build --stake-verification-key-file "${1}" ${HASH_IDENTIFIER} 2>/dev/null)
+  println ACTION "${CCLI} stake-address build --stake-verification-key-file ${1} ${NETWORK_IDENTIFIER}"
+  reward_addr=$(${CCLI} stake-address build --stake-verification-key-file "${1}" ${NETWORK_IDENTIFIER} 2>/dev/null)
 }
 
 # Command     : getAddressInfo [address]
