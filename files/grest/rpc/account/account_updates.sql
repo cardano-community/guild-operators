@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.account_updates (text);
-
 CREATE FUNCTION grest.account_updates (_stake_address text)
   RETURNS TABLE (
     action_type text,

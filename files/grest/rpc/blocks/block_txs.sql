@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.block_txs (_block_hash text);
-
 CREATE FUNCTION grest.block_txs (_block_hash text)
     RETURNS TABLE (
         TX_HASH text)

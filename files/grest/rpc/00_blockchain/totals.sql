@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.totals (numeric);
-
 CREATE FUNCTION grest.totals (_epoch_no numeric DEFAULT NULL)
   RETURNS TABLE (
     epoch_no uinteger,

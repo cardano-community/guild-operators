@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.tx_metadata (text[]);
-
 CREATE FUNCTION grest.tx_metadata (_tx_hashes text[])
   RETURNS TABLE (
     tx_hash text,

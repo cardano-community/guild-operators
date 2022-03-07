@@ -25,9 +25,6 @@ CREATE TABLE grest.pool_info_cache (
 
 COMMENT ON TABLE grest.pool_info_cache IS 'A summary of all pool parameters and updates';
 
-
-DROP FUNCTION IF EXISTS grest.pool_info_insert CASCADE;
-
 CREATE FUNCTION grest.pool_info_insert (
         _update_id bigint,
         _tx_id bigint,
@@ -133,9 +130,6 @@ $$;
 
 COMMENT ON FUNCTION grest.pool_info_insert IS 'Internal function to insert a single pool update';
 
-
-DROP FUNCTION IF EXISTS grest.pool_info_retire_status CASCADE;
-
 CREATE FUNCTION grest.pool_info_retire_status ()
     RETURNS TRIGGER
     LANGUAGE plpgsql
@@ -153,9 +147,6 @@ END;
 $$;
 
 COMMENT ON FUNCTION grest.pool_info_retire_status IS 'Internal function to update pool_info_cache with new retire status based on epoch switch';
-
-
-DROP FUNCTION IF EXISTS grest.pool_info_retire_update CASCADE;
 
 CREATE FUNCTION grest.pool_info_retire_update ()
     RETURNS TRIGGER
@@ -206,9 +197,6 @@ END;
 $$;
 
 COMMENT ON FUNCTION grest.pool_info_retire_update IS 'Internal function to update pool_info cache table based on insert/delete on pool_retire table';
-
-
-DROP FUNCTION IF EXISTS grest.pool_info_update CASCADE;
 
 CREATE FUNCTION grest.pool_info_update ()
     RETURNS TRIGGER

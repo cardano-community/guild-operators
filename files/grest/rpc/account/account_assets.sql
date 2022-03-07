@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.account_assets (text);
-
 CREATE FUNCTION grest.account_assets (_address text DEFAULT NULL)
     RETURNS TABLE (
         asset_policy text,

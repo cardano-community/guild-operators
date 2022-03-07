@@ -22,15 +22,7 @@ CREATE TABLE IF NOT EXISTS GREST.ACCOUNT_ACTIVE_STAKE_CACHE (
   PRIMARY KEY (STAKE_ADDRESS, POOL_ID, EPOCH_NO)
 );
 
--- For easier updates only:
-DROP TRIGGER IF EXISTS POOL_ACTIVE_STAKE_EPOCH_UPDATE_TRIGGER ON PUBLIC.EPOCH_STAKE;
-DROP TRIGGER IF EXISTS EPOCH_ACTIVE_STAKE_EPOCH_UPDATE_TRIGGER ON PUBLIC.EPOCH_STAKE;
-DROP FUNCTION IF EXISTS GREST.POOL_ACTIVE_STAKE_EPOCH_UPDATE;
-DROP FUNCTION IF EXISTS GREST.EPOCH_ACTIVE_STAKE_EPOCH_UPDATE;
---
-
 /* HELPER FUNCTIONS */
-DROP FUNCTION IF EXISTS grest.get_last_active_stake_validated_epoch ();
 
 CREATE FUNCTION grest.get_last_active_stake_validated_epoch ()
   RETURNS INTEGER
@@ -51,8 +43,6 @@ $$;
 
 /* POSSIBLE VALIDATION FOR CACHE (COUNTING ENTRIES) INSTEAD OF JUST DB-SYNC PART (EPOCH_STAKE)
 
-DROP FUNCTION IF EXISTS grest.get_last_active_stake_cache_address_count ();
-
 CREATE FUNCTION grest.get_last_active_stake_cache_address_count ()
   RETURNS INTEGER
   LANGUAGE plpgsql
@@ -64,8 +54,6 @@ CREATE FUNCTION grest.get_last_active_stake_cache_address_count ()
     END;
   $$;
  */
-
-DROP FUNCTION IF EXISTS grest.active_stake_cache_update_check ();
 
 CREATE FUNCTION grest.active_stake_cache_update_check ()
   RETURNS BOOLEAN
@@ -103,8 +91,6 @@ $$;
 
 COMMENT ON FUNCTION grest.active_stake_cache_update_check
   IS 'Internal function to determine whether active stake cache should be updated';
-
-DROP FUNCTION IF EXISTS grest.active_stake_cache_update (integer);
 
 /* UPDATE FUNCTION */
 CREATE FUNCTION grest.active_stake_cache_update (_epoch_no integer)

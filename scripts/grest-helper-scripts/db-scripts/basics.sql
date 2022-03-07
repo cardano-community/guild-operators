@@ -101,8 +101,6 @@ END
 $do$;
 
 -- HELPER FUNCTIONS --
-DROP FUNCTION IF EXISTS grest.get_query_pids_partial_match (_query text);
-
 CREATE FUNCTION grest.get_query_pids_partial_match (_query text)
   RETURNS TABLE (
     pid integer)
@@ -142,8 +140,6 @@ BEGIN
 END;
 $$; */
 
-DROP FUNCTION IF EXISTS grest.get_current_epoch ();
-
 CREATE FUNCTION grest.get_current_epoch ()
   RETURNS integer
   LANGUAGE plpgsql
@@ -155,8 +151,6 @@ $$
     );
   END;
 $$;
-
-DROP FUNCTION IF EXISTS grest.get_epoch_stakes_count (integer);
 
 CREATE FUNCTION grest.get_epoch_stakes_count (_epoch_no integer)
   RETURNS integer
@@ -176,8 +170,6 @@ $$
     );
   END;
 $$;
-
-DROP FUNCTION IF EXISTS grest.update_control_table (text, text, text);
 
 CREATE FUNCTION grest.update_control_table (_key text, _last_value text, _artifacts text default null)
   RETURNS void

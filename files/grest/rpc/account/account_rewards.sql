@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.account_rewards (text, numeric);
-
 CREATE FUNCTION grest.account_rewards (_stake_address text, _epoch_no numeric DEFAULT NULL)
   RETURNS TABLE (
     earned_epoch bigint,
