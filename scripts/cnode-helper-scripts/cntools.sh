@@ -473,9 +473,9 @@ function main {
                     stake_xprv=$(cardano-address key child 1852H/1815H/0H/2/0 <<< ${root_prv})
                     payment_xpub=$(cardano-address key public ${caddr_arg} <<< ${payment_xprv})
                     stake_xpub=$(cardano-address key public ${caddr_arg} <<< ${stake_xprv})
-                    [[ "${NETWORKID}" = "Mainnet" ]] && network_tag=1 || network_tag=0
+                    [[ "${NWMAGIC}" == "764824073" ]] && network_tag=1 || network_tag=0
                     base_addr_candidate=$(cardano-address address delegation ${stake_xpub} <<< "$(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub})")
-                    if [[ "${caddr_v}" == 2* ]] && [[ "${NETWORKID}" = "Testnet" ]]; then
+                    if [[ "${caddr_v}" == 2* ]] && [[ "${NWMAGIC}" != "764824073" ]]; then
                       println LOG "TestNet, converting address to 'addr_test'"
                       base_addr_candidate=$(bech32 addr_test <<< ${base_addr_candidate})
                     fi

@@ -881,12 +881,23 @@ if ! command -v "jq" &>/dev/null; then
   return 1
 fi
 
-if ! jq -r . "${CONFIG}" >/dev/null 2>&1; then
-  echo "Could not parse ${CONFIG} file in JSON format, please double-check the syntax of your config, or simply download it from guild-operators repository!"
+read -ra CONFIG_CONTENTS <<<"$(jq -r '[ .AlonzoGenesisFile, .ByronGenesisFile, .ShelleyGenesisFile, .Protocol, .TraceChainDb]| @tsv' "${CONFIG}" 2>/dev/null)"
+if [[ -z "${CONFIG_CONTENTS[4]}" ]]; then
+  echo "Could not find TraceChainDb when attempting to parse ${CONFIG} file in JSON format, please double-check the syntax of your config, or simply download it from guild-operators repository!"
   return 1
-elif [[ "$(jq -r .TraceChainDb ${CONFIG})" != "true" ]]; then
-  echo "The ${CONFIG} file suggests that you have set TraceChainDb parameter to false. Please change it to true, as it is required to extract statistics from node."
-  return 1
+else
+  ALONZO_GENESIS_JSON="${CONFIG_CONTENTS[0]}"
+  BYRON_GENESIS_JSON="${CONFIG_CONTENTS[1]}"
+  GENESIS_JSON="${CONFIG_CONTENTS[2]}"
+  # if relative path is used, assume same parent dir as config
+  [[ ! ${ALONZO_GENESIS_JSON} =~ ^/ ]] && ALONZO_GENESIS_JSON="$(dirname "${CONFIG}")/${ALONZO_GENESIS_JSON}"
+  [[ ! ${BYRON_GENESIS_JSON} =~ ^/ ]] && BYRON_GENESIS_JSON="$(dirname "${CONFIG}")/${BYRON_GENESIS_JSON}"
+  [[ ! ${GENESIS_JSON} =~ ^/ ]] && GENESIS_JSON="$(dirname "${CONFIG}")/${GENESIS_JSON}"
+  # if genesis files not found, exit with rc 1
+  [[ ! -f "${ALONZO_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${ALONZO_GENESIS_JSON}" && return 1
+  [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
+  [[ ! -f "${GENESIS_JSON}" ]] && echo "Shelley genesis file not found: ${GENESIS_JSON}" && return 1
+  PROTOCOL="${CONFIG_CONTENTS[3]}"
 fi
 
 [[ -z ${EKG_TIMEOUT} ]] && EKG_TIMEOUT=3
@@ -938,24 +949,6 @@ elif [[ ! ${PROM_PORT} =~ ^[0-9]+$ ]]; then
   return 1
 fi
 
-if ! GENESIS_JSON=$(jq -er '.ShelleyGenesisFile' "${CONFIG}" 2>/dev/null); then
-  echo "Could not get 'ShelleyGenesisFile' in ${CONFIG}"
-  return 1
-else
-  # if relative path is used, assume same parent dir as config
-  [[ ! ${GENESIS_JSON} =~ ^/ ]] && GENESIS_JSON="$(dirname "${CONFIG}")/${GENESIS_JSON}"
-  [[ ! -f "${GENESIS_JSON}" ]] && echo "Shelley genesis file not found: ${GENESIS_JSON}" && return 1
-fi
-
-if ! BYRON_GENESIS_JSON=$(jq -er '.ByronGenesisFile' "${CONFIG}" 2>/dev/null); then
-  echo "Could not get 'ByronGenesisFile' specified in ${CONFIG}"
-  return 1
-else
-  # if relative path is used, assume same parent dir as config
-  [[ ! ${BYRON_GENESIS_JSON} =~ ^/ ]] && BYRON_GENESIS_JSON="$(dirname "${CONFIG}")/${BYRON_GENESIS_JSON}"
-  [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
-fi
-
 [[ -z ${BLOCKLOG_DIR} ]] && BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"
 BLOCKLOG_DB="${BLOCKLOG_DIR}/blocklog.db"
 [[ -z ${BLOCKLOG_TZ} ]] && BLOCKLOG_TZ="UTC"
@@ -985,35 +978,44 @@ if ! versionCheck "1.32.1" "${node_version}"; then
   return 1
 fi
 
-PROTOCOL=$(jq -r .Protocol "${CONFIG}")
-NETWORKID=$(jq -r .networkId ${GENESIS_JSON})
-MAGIC=$(jq -r .protocolMagicId < ${GENESIS_JSON})
-NWMAGIC=$(jq -r .networkMagic < ${GENESIS_JSON})
-[[ ${NETWORKID} = "Mainnet" ]] && HASH_IDENTIFIER="--mainnet" || HASH_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+read_genesis() {
+  read -ra SHGENESIS <<< "$(jq -r '[ .networkMagic, .systemStart, .epochLength, .slotLength, .activeSlotsCoeff, .slotsPerKESPeriod, .maxKESEvolutions ] |@tsv' < ${GENESIS_JSON})"
+  read -ra BYGENESIS <<< "$(jq -r '[ .startTime, .protocolConsts.k, .blockVersionData.slotDuration ] |@tsv' < ${BYRON_GENESIS_JSON})"
+  NWMAGIC=${SHGENESIS[0]}
+  SHELLEY_GENESIS_START_SEC=$(date --date="${SHGENESIS[1]}" +%s)
+  EPOCH_LENGTH=${SHGENESIS[2]}
+  SLOT_LENGTH=${SHGENESIS[3]}
+  ACTIVE_SLOTS_COEFF=${SHGENESIS[4]}
+  SLOTS_PER_KES_PERIOD=${SHGENESIS[5]}
+  MAX_KES_EVOLUTIONS=${SHGENESIS[6]}
+  BYRON_GENESIS_START_SEC=${BYGENESIS[0]}
+  BYRON_K=${BYGENESIS[1]}
+  BYRON_SLOT_LENGTH=${BYGENESIS[2]}
+  BYRON_EPOCH_LENGTH=$(( 10 * BYRON_K ))
+}
+
+read_genesis
+
+[[ ${NWMAGIC} == "764824073" ]] && NETWORK_IDENTIFIER="--mainnet" || NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
 case ${NWMAGIC} in
   764824073) 
     NETWORK_NAME="Mainnet"
-    [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=208
-    NETWORK_IDENTIFIER="--mainnet"
+    SHELLEY_TRANS_EPOCH=208
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://api.koios.rest/api/v0" ;;
   1097911063) 
     NETWORK_NAME="Testnet"
-    [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=74
-    NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+    SHELLEY_TRANS_EPOCH=74
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://testnet.koios.rest/api/v0" ;;
   633343913) 
     NETWORK_NAME="Staging"
-    [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=208
-    NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
+    SHELLEY_TRANS_EPOCH=208 ;;
   141) 
     NETWORK_NAME="Guild"
-    [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=2
-    NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+    SHELLEY_TRANS_EPOCH=2
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://guild.koios.rest/api/v0" ;;
   *) 
     NETWORK_NAME="Custom"
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
-    NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}" ;;
 esac
 
 test_koios() {
@@ -1021,20 +1023,9 @@ test_koios() {
   [[ ${ENABLE_KOIOS} = 'Y' && -n ${KOIOS_API} && $(curl -Isf -m 5 ${KOIOS_API}/tip | head -1) = *"200 OK"* ]] || unset KOIOS_API
 }
 
-SHELLEY_GENESIS_START_SEC=$(date --date="$(jq -r .systemStart "${GENESIS_JSON}")" +%s)
-EPOCH_LENGTH=$(jq -r .epochLength "${GENESIS_JSON}")
-SLOT_LENGTH=$(jq -r .slotLength "${GENESIS_JSON}")
-ACTIVE_SLOTS_COEFF=$(jq -r .activeSlotsCoeff "${GENESIS_JSON}")
-SLOTS_PER_KES_PERIOD=$(jq -r .slotsPerKESPeriod "${GENESIS_JSON}")
-MAX_KES_EVOLUTIONS=$(jq -r .maxKESEvolutions "${GENESIS_JSON}")
-BYRON_GENESIS_START_SEC=$(jq -r .startTime "${BYRON_GENESIS_JSON}")
-BYRON_K=$(jq -r .protocolConsts.k "${BYRON_GENESIS_JSON}")
-BYRON_SLOT_LENGTH=$(( $(jq -r .blockVersionData.slotDuration "${BYRON_GENESIS_JSON}") ))
-BYRON_EPOCH_LENGTH=$(( 10 * BYRON_K ))
+[[ ${OFFLINE_MODE} = "N" && ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && getNodeMetrics && getShelleyTransitionEpoch
 
 # Return code 2 is used for scripts that want to source env but not fail due to a starting node
-
-[[ ${OFFLINE_MODE} = "N" && ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && getNodeMetrics && getShelleyTransitionEpoch
 
 if [[ ${OFFLINE_MODE} = "N" && ! -S ${CARDANO_NODE_SOCKET_PATH} ]]; then
   echo -e "${FG_RED}Looks like cardano-node is running with socket-path as ${FG_LBLUE}${CARDANO_NODE_SOCKET_PATH}${FG_RED}, but the actual socket file does not exist."

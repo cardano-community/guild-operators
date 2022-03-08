@@ -58,13 +58,11 @@ check_defaults() {
 }
 
 check_config_sanity() {
-  read -ra genfiles <<<"$(jq -r '[ .ByronGenesisFile, .ShelleyGenesisFile, .AlonzoGenesisFile] | @tsv' "${CONFIG}")"
-  [[ -z "${genfiles[1]}" ]] || [[ -z "${genfiles[2]}" ]] && err_exit "Could not find Shelley/Alonzo Genesis Files in ${CONFIG}! Please re-run prereqs.sh with right arguments!" && exit 1
-  BYGENHASH=$(cardano-cli byron genesis print-genesis-hash --genesis-json "${genfiles[0]}" 2>/dev/null)
+  BYGENHASH=$(cardano-cli byron genesis print-genesis-hash --genesis-json "${BYRON_GENESIS_JSON}" 2>/dev/null)
   BYGENHASHCFG=$(jq '.ByronGenesisHash' <"${CONFIG}" 2>/dev/null)
-  SHGENHASH=$(cardano-cli genesis hash --genesis "${genfiles[1]}" 2>/dev/null)
+  SHGENHASH=$(cardano-cli genesis hash --genesis "${GENESIS_JSON}" 2>/dev/null)
   SHGENHASHCFG=$(jq '.ShelleyGenesisHash' <"${CONFIG}" 2>/dev/null)
-  ALGENHASH=$(cardano-cli genesis hash --genesis "${genfiles[2]}" 2>/dev/null)
+  ALGENHASH=$(cardano-cli genesis hash --genesis "${ALONZO_GENESIS_JSON}" 2>/dev/null)
   ALGENHASHCFG=$(jq '.AlonzoGenesisHash' <"${CONFIG}" 2>/dev/null)
   # If hash are missing/do not match, add that to the end of config. We could have sorted it based on logic, but that would mess up sdiff comparison outputs
   if [[ "${BYGENHASH}" != "${BYGENHASHCFG}" ]] || [[ "${SHGENHASH}" != "${SHGENHASHCFG}" ]] || [[ "${ALGENHASH}" != "${ALGENHASHCFG}" ]]; then

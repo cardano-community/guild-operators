@@ -260,7 +260,6 @@
   #             : Note: Given the Plutus schema is far from finalized, we expect changes as SC layer matures and PAB gets into real networks.
   #             :       For now, a compressed jq will be inserted as a shell escaped json data blob.
   populate_genesis_table() {
-    read -ra genfiles <<<$(jq -r '[ .ByronGenesisFile, .ShelleyGenesisFile, .AlonzoGenesisFile] | @tsv' "${CONFIG}")
     read -ra SHGENESIS <<<$(jq -r '[
       .activeSlotsCoeff,
       .updateQuorum,
@@ -273,8 +272,8 @@
       .slotLength,
       .maxKESEvolutions,
       .securityParam
-      ] | @tsv' <"${genfiles[1]}")
-    ALGENESIS="$(jq -c . <${genfiles[2]})"
+      ] | @tsv' <"${GENESIS_JSON}")
+    ALGENESIS="$(jq -c . <"${ALONZO_GENESIS_JSON}")"
 
     insert_genesis_table_data "${ALGENESIS}" "${SHGENESIS[@]}"
   }
