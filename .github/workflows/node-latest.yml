@@ -1,5 +1,6 @@
 name: Get latest Node release version
 on:
+  workflow_dispatch:
   schedule:
     - cron:  '0 0 */2 * *'
 jobs:
@@ -9,6 +10,8 @@ jobs:
       - uses: actions/checkout@v2
         with:
           token: ${{ secrets.REPO_SCOPED_TOKEN }}
+          fetch-depth: 0
+          ref: alpha
       - name: Fetch node release version
         run: |
           curl -sL https://api.github.com/repos/input-output-hk/cardano-node/releases/latest | grep tag_name | awk '{print $2}' | cut -d\" -f 2 > files/docker/node/release-versions/cardano-node-latest.txt
