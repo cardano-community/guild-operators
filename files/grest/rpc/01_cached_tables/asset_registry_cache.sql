@@ -13,8 +13,6 @@ CREATE TABLE grest.asset_registry_cache (
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_asset ON grest.asset_registry_cache (asset_policy, asset_name);
 
-DROP FUNCTION IF EXISTS grest.asset_registry_cache_update CASCADE;
-
 CREATE FUNCTION grest.asset_registry_cache_update (
         _asset_policy text,
         _asset_name text,

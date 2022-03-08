@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.pool_list ();
-
 CREATE FUNCTION grest.pool_list ()
   RETURNS TABLE (
     pool_id_bech32 character varying,

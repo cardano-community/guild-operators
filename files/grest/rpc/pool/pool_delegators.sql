@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.pool_delegators (text, uinteger);
-
 CREATE FUNCTION grest.pool_delegators (_pool_bech32 text, _epoch_no uinteger DEFAULT NULL)
   RETURNS TABLE (
     stake_address character varying,

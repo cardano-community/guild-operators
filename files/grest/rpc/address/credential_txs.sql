@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.credential_txs (text[], integer);
-
 CREATE FUNCTION grest.credential_txs (_payment_credentials text[], _after_block_height integer DEFAULT 0)
   RETURNS TABLE (
     tx_hash text,

@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.account_info (text);
-
 CREATE FUNCTION grest.account_info (_address text)
   RETURNS TABLE (
     STATUS text,

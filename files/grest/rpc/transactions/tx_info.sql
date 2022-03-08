@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.tx_info (text[]);
-
 CREATE FUNCTION grest.tx_info (_tx_hashes text[])
   RETURNS TABLE (
     tx_hash text,

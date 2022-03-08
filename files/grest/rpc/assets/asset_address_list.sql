@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.asset_address_list (text, text);
-
 CREATE FUNCTION grest.asset_address_list (_asset_policy text, _asset_name text)
   RETURNS TABLE (
     payment_address varchar,
