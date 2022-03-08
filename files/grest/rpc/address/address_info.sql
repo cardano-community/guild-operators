@@ -82,6 +82,8 @@ BEGIN
         LEFT JOIN stake_address SA on tx_out.stake_address_id = SA.id
       WHERE
         tx_out.address = _address
+      GROUP BY
+        SA.view
       LIMIT 1;
 END IF;
 END;
