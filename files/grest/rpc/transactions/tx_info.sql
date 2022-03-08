@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.tx_info (text[]);
-
 CREATE FUNCTION grest.tx_info (_tx_hashes text[])
   RETURNS TABLE (
     tx_hash text,
@@ -29,15 +27,8 @@ CREATE FUNCTION grest.tx_info (_tx_hashes text[])
   LANGUAGE PLPGSQL
   AS $$
 DECLARE
-  _tx_hashes_bytea          bytea[];
-  _tx_id_list               bigint[];
-  _collateral_id_list       bigint[];
-  _withdrawal_id_list       bigint[];
-  _mint_id_list             bigint[];
-  _metadata_id_list         bigint[];
-  _cert_id_list             bigint[];
-  _native_script_id_list    bigint[];
-  _plutus_contract_id_list  bigint[];
+  _tx_hashes_bytea  bytea[];
+  _tx_id_list       bigint[];
 BEGIN
 
   -- convert input _tx_hashes array into bytea array
@@ -57,120 +48,6 @@ BEGIN
     FROM 
       tx
     WHERE tx.hash = ANY (_tx_hashes_bytea)
-  ) AS tmp;
-  
-  -- all tx with collateral
-  SELECT INTO _collateral_id_list ARRAY_AGG(tx_id)
-  FROM (
-    SELECT
-      tx_in_id AS tx_id
-    FROM 
-      collateral_tx_in
-    WHERE collateral_tx_in.tx_in_id = ANY (_tx_id_list)
-  ) AS tmp;
-  
-  -- all tx with withdrawals
-  SELECT INTO _withdrawal_id_list ARRAY_AGG(tx_id)
-  FROM (
-    SELECT
-      tx_id
-    FROM 
-      withdrawal
-    WHERE withdrawal.tx_id = ANY (_tx_id_list)
-  ) AS tmp;
-  
-  -- all tx with assets minted
-  SELECT INTO _mint_id_list ARRAY_AGG(tx_id)
-  FROM (
-    SELECT
-      tx_id
-    FROM 
-      ma_tx_mint
-    WHERE ma_tx_mint.tx_id = ANY (_tx_id_list)
-  ) AS tmp;
-  
-  -- all tx with metadata
-  SELECT INTO _metadata_id_list ARRAY_AGG(tx_id)
-  FROM (
-    SELECT
-      tx_id
-    FROM 
-      tx_metadata
-    WHERE tx_metadata.tx_id = ANY (_tx_id_list)
-  ) AS tmp;
-  
-  -- all tx with certificates
-  SELECT INTO _cert_id_list ARRAY_AGG(DISTINCT(tx_id))
-  FROM (
-    SELECT tx_id
-    FROM   stake_registration
-    WHERE  stake_registration.tx_id = ANY (_tx_id_list)
-    --
-    UNION ALL
-    --
-    SELECT tx_id
-    FROM   stake_deregistration
-    WHERE  stake_deregistration.tx_id = ANY (_tx_id_list)
-    --
-    UNION ALL
-    --
-    SELECT tx_id
-    FROM   delegation
-    WHERE  delegation.tx_id = ANY (_tx_id_list)
-    --
-    UNION ALL
-    --
-    SELECT tx_id
-    FROM   treasury
-    WHERE  treasury.tx_id = ANY (_tx_id_list)
-    --
-    UNION ALL
-    --
-    SELECT tx_id
-    FROM   reserve
-    WHERE  reserve.tx_id = ANY (_tx_id_list)
-    --
-    UNION ALL
-    --
-    SELECT tx_id
-    FROM   pot_transfer
-    WHERE  pot_transfer.tx_id = ANY (_tx_id_list)
-    --
-    UNION ALL
-    --
-    SELECT registered_tx_id AS tx_id
-    FROM   param_proposal
-    WHERE  param_proposal.registered_tx_id = ANY (_tx_id_list)
-    --
-    UNION ALL
-    --
-    SELECT announced_tx_id AS tx_id
-    FROM   pool_retire
-    WHERE  pool_retire.announced_tx_id = ANY (_tx_id_list)
-    --
-    UNION ALL
-    --
-    SELECT tx_id
-    FROM   grest.pool_info_cache
-    WHERE  pool_info_cache.tx_id = ANY (_tx_id_list)
-  ) AS tmp;
-  
-  -- all tx with native scripts
-  SELECT INTO _native_script_id_list ARRAY_AGG(tx_id)
-  FROM (
-    SELECT tx_id
-    FROM   script
-    WHERE  script.tx_id = ANY (_tx_id_list)
-           AND
-           script.type = 'timelock'
-  ) AS tmp;
-  
-  -- all tx with plutus contracts
-  SELECT INTO _plutus_contract_id_list ARRAY_AGG(tx_id)
-  FROM (
-    SELECT tx_id
-    FROM   redeemer
-    WHERE  redeemer.tx_id = ANY (_tx_id_list)
   ) AS tmp;
 
   RETURN QUERY (
@@ -200,131 +77,92 @@ BEGIN
         WHERE tx.id = ANY (_tx_id_list)
       ),
 
-      _all_outputs AS (
-        SELECT
-          tx_id,
-          JSON_AGG(t_outputs) AS list
-        FROM (
-          SELECT 
-            tx_out.tx_id,
-            JSON_BUILD_OBJECT(
-              'payment_addr', JSON_BUILD_OBJECT(
-                'bech32', tx_out.address,
-                'cred', ENCODE(tx_out.payment_cred, 'hex')
-              ),
-              'stake_addr', SA.view,
-              'tx_hash', ENCODE(tx.hash, 'hex'),
-              'tx_index', tx_out.index,
-              'value', tx_out.value::text,
-              'asset_list', COALESCE((
-                SELECT
-                  JSON_AGG(JSON_BUILD_OBJECT(
-                    'policy_id', ENCODE(MA.policy, 'hex'),
-                    'asset_name', ENCODE(MA.name, 'hex'),
-                    'quantity', MTX.quantity::text
-                  ))
-                FROM 
-                  ma_tx_out MTX
-                  INNER JOIN MULTI_ASSET MA ON MA.id = MTX.ident
-                WHERE 
-                  MTX.tx_out_id = tx_out.id
-              ), JSON_BUILD_ARRAY())
-            ) AS t_outputs
-          FROM
-            tx_out
-            INNER JOIN tx ON tx_out.tx_id = tx.id
-            LEFT JOIN stake_address SA on tx_out.stake_address_id = SA.id
-          WHERE 
-            tx_out.tx_id = ANY (_tx_id_list)
-        ) AS tmp
-
-        GROUP BY tx_id
-      ),
-
       _all_collateral_inputs AS (
         SELECT
-          tx_id,
-          JSON_AGG(tc_inputs) AS list
-        FROM (
-          SELECT 
-            collateral_tx_in.tx_in_id AS tx_id,
-            JSON_BUILD_OBJECT(
-              'payment_addr', JSON_BUILD_OBJECT(
-                'bech32', tx_out.address,
-                'cred', ENCODE(tx_out.payment_cred, 'hex')
-              ),
-              'stake_addr', SA.view,
-              'tx_hash', ENCODE(tx.hash, 'hex'),
-              'tx_index', tx_out.index,
-              'value', tx_out.value::text,
-              'asset_list', COALESCE((
-                SELECT 
-                  JSON_AGG(JSON_BUILD_OBJECT(
-                    'policy_id', ENCODE(MA.policy, 'hex'),
-                    'asset_name', ENCODE(MA.name, 'hex'),
-                    'quantity', MTX.quantity::text
-                  ))
-                FROM 
-                  ma_tx_out MTX
-                  INNER JOIN MULTI_ASSET MA ON MA.id = MTX.ident
-                WHERE 
-                  MTX.tx_out_id = tx_out.id
-              ), JSON_BUILD_ARRAY())
-            ) AS tc_inputs
-          FROM
-            collateral_tx_in
-            INNER JOIN tx ON collateral_tx_in.tx_in_id = tx.id
-            INNER JOIN tx_out ON tx_out.tx_id = collateral_tx_in.tx_out_id
-              AND tx_out.index = collateral_tx_in.tx_out_index
-            LEFT JOIN stake_address SA ON tx_out.stake_address_id = SA.id
-          WHERE 
-            collateral_tx_in.tx_in_id = ANY (_collateral_id_list)
-        ) AS tmp
-
-        GROUP BY tx_id
+          collateral_tx_in.tx_in_id AS tx_id,
+          tx_out.address AS payment_addr_bech32,
+          ENCODE(tx_out.payment_cred, 'hex') AS payment_addr_cred,
+          SA.view AS stake_addr,
+          ENCODE(tx.hash, 'hex') AS tx_hash,
+          tx_out.index AS tx_index,
+          tx_out.value::text AS value,
+          ( CASE WHEN MA.policy IS NULL THEN NULL
+            ELSE
+              JSON_BUILD_OBJECT(
+                'policy_id', ENCODE(MA.policy, 'hex'),
+                'asset_name', ENCODE(MA.name, 'hex'),
+                'quantity', MTO.quantity::text
+              )
+            END
+          ) AS asset_list
+        FROM
+          collateral_tx_in
+          INNER JOIN tx_out ON tx_out.tx_id = collateral_tx_in.tx_out_id
+            AND tx_out.index = collateral_tx_in.tx_out_index
+          INNER JOIN tx ON tx_out.tx_id = tx.id
+          LEFT JOIN stake_address SA ON tx_out.stake_address_id = SA.id
+          LEFT JOIN ma_tx_out MTO ON MTO.tx_out_id = tx_out.id
+          LEFT JOIN multi_asset MA ON MA.id = MTO.ident
+        WHERE 
+          collateral_tx_in.tx_in_id = ANY (_tx_id_list)
       ),
 
       _all_inputs AS (
         SELECT
-          tx_id,
-          JSON_AGG(t_inputs) AS list
-        FROM (
-          SELECT 
-            tx_in.tx_in_id AS tx_id,
-            JSON_BUILD_OBJECT(
-              'payment_addr', JSON_BUILD_OBJECT(
-                'bech32', tx_out.address,
-                'cred', ENCODE(tx_out.payment_cred, 'hex')
-              ),
-              'stake_addr', SA.view,
-              'tx_hash', ENCODE(tx.hash, 'hex'),
-              'tx_index', tx_out.index,
-              'value', tx_out.value::text,
-              'asset_list', COALESCE((
-                SELECT 
-                  JSON_AGG(JSON_BUILD_OBJECT(
-                    'policy_id', ENCODE(MA.policy, 'hex'),
-                    'asset_name', ENCODE(MA.name, 'hex'),
-                    'quantity', MTX.quantity::text
-                  ))
-                FROM 
-                  ma_tx_out MTX
-                  INNER JOIN MULTI_ASSET MA ON MA.id = MTX.ident
-                WHERE 
-                  MTX.tx_out_id = tx_out.id
-              ), JSON_BUILD_ARRAY())
-            ) AS t_inputs
-          FROM
-            tx_in
-            INNER JOIN tx_out ON tx_out.tx_id = tx_in.tx_out_id
-              AND tx_out.index = tx_in.tx_out_index
-            INNER JOIN tx on tx_out.tx_id = tx.id
-            LEFT JOIN stake_address SA on tx_out.stake_address_id = SA.id
-          WHERE 
-            tx_in.tx_in_id = ANY (_tx_id_list)
-        ) AS tmp
+          tx_in.tx_in_id AS tx_id,
+          tx_out.address AS payment_addr_bech32,
+          ENCODE(tx_out.payment_cred, 'hex') AS payment_addr_cred,
+          SA.view AS stake_addr,
+          ENCODE(tx.hash, 'hex') AS tx_hash,
+          tx_out.index AS tx_index,
+          tx_out.value::text AS value,
+          ( CASE WHEN MA.policy IS NULL THEN NULL
+            ELSE
+              JSON_BUILD_OBJECT(
+                'policy_id', ENCODE(MA.policy, 'hex'),
+                'asset_name', ENCODE(MA.name, 'hex'),
+                'quantity', MTO.quantity::text
+              )
+            END
+          ) AS asset_list
+        FROM
+          tx_in
+          INNER JOIN tx_out ON tx_out.tx_id = tx_in.tx_out_id
+            AND tx_out.index = tx_in.tx_out_index
+          INNER JOIN tx on tx_out.tx_id = tx.id
+          LEFT JOIN stake_address SA ON tx_out.stake_address_id = SA.id
+          LEFT JOIN ma_tx_out MTO ON MTO.tx_out_id = tx_out.id
+          LEFT JOIN multi_asset MA ON MA.id = MTO.ident
+        WHERE 
+          tx_in.tx_in_id = ANY (_tx_id_list)
+      ),
 
-        GROUP BY tx_id
+      _all_outputs AS (
+        SELECT
+          tx_out.tx_id,
+          tx_out.address AS payment_addr_bech32,
+          ENCODE(tx_out.payment_cred, 'hex') AS payment_addr_cred,
+          SA.view AS stake_addr,
+          ENCODE(tx.hash, 'hex') AS tx_hash,
+          tx_out.index AS tx_index,
+          tx_out.value::text AS value,
+          ( CASE WHEN MA.policy IS NULL THEN NULL
+            ELSE
+              JSON_BUILD_OBJECT(
+                'policy_id', ENCODE(MA.policy, 'hex'),
+                'asset_name', ENCODE(MA.name, 'hex'),
+                'quantity', MTO.quantity::text
+              )
+            END
+          ) AS asset_list
+        FROM
+          tx_out
+          INNER JOIN tx ON tx_out.tx_id = tx.id
+          LEFT JOIN stake_address SA ON tx_out.stake_address_id = SA.id
+          LEFT JOIN ma_tx_out MTO ON MTO.tx_out_id = tx_out.id
+          LEFT JOIN multi_asset MA ON MA.id = MTO.ident
+        WHERE 
+          tx_out.tx_id = ANY (_tx_id_list)
       ),
 
       _all_withdrawals AS (
@@ -342,7 +180,7 @@ BEGIN
             withdrawal W
             INNER JOIN stake_address SA ON W.addr_id = SA.id
           WHERE
-            W.tx_id = ANY (_withdrawal_id_list)
+            W.tx_id = ANY (_tx_id_list)
         ) AS tmp
 
         GROUP BY tx_id
@@ -364,7 +202,7 @@ BEGIN
             ma_tx_mint MTM
             INNER JOIN MULTI_ASSET MA ON MA.id = MTM.ident
           WHERE
-            MTM.tx_id = ANY (_mint_id_list)
+            MTM.tx_id = ANY (_tx_id_list)
         ) AS tmp
 
         GROUP BY tx_id
@@ -384,7 +222,7 @@ BEGIN
           FROM 
             tx_metadata TM
           WHERE
-            TM.tx_id = ANY (_metadata_id_list)
+            TM.tx_id = ANY (_tx_id_list)
         ) AS tmp
 
         GROUP BY tx_id
@@ -408,7 +246,7 @@ BEGIN
             public.stake_registration SR
             INNER JOIN public.stake_address SA ON SA.id = SR.addr_id
           WHERE
-            SR.tx_id = ANY (_cert_id_list)
+            SR.tx_id = ANY (_tx_id_list)
           --
           UNION ALL
           --
@@ -425,7 +263,7 @@ BEGIN
             public.stake_deregistration SD
             INNER JOIN public.stake_address SA ON SA.id = SD.addr_id
           WHERE
-            SD.tx_id = ANY (_cert_id_list)
+            SD.tx_id = ANY (_tx_id_list)
           --
           UNION ALL
           --
@@ -445,7 +283,7 @@ BEGIN
             INNER JOIN public.stake_address SA ON SA.id = D.addr_id
             INNER JOIN public.pool_hash PH ON PH.id = D.pool_hash_id
           WHERE
-            D.tx_id = ANY (_cert_id_list)
+            D.tx_id = ANY (_tx_id_list)
           --
           UNION ALL
           --
@@ -463,7 +301,7 @@ BEGIN
             public.treasury T
             INNER JOIN public.stake_address SA ON SA.id = T.addr_id
           WHERE
-            T.tx_id = ANY (_cert_id_list)
+            T.tx_id = ANY (_tx_id_list)
           --
           UNION ALL
           --
@@ -481,7 +319,7 @@ BEGIN
             public.reserve R
             INNER JOIN public.stake_address SA ON SA.id = R.addr_id
           WHERE
-            R.tx_id = ANY (_cert_id_list)
+            R.tx_id = ANY (_tx_id_list)
           --
           UNION ALL
           --
@@ -498,7 +336,7 @@ BEGIN
           FROM
             public.pot_transfer PT
           WHERE
-            PT.tx_id = ANY (_cert_id_list)
+            PT.tx_id = ANY (_tx_id_list)
           --
           UNION ALL
           --
@@ -543,7 +381,7 @@ BEGIN
           FROM 
             public.param_proposal PP
           WHERE
-            PP.registered_tx_id = ANY (_cert_id_list)
+            PP.registered_tx_id = ANY (_tx_id_list)
           --
           UNION ALL
           --
@@ -562,7 +400,7 @@ BEGIN
             public.pool_retire PR
             INNER JOIN public.pool_hash PH ON PH.id = PR.hash_id
           WHERE
-            PR.announced_tx_id = ANY (_cert_id_list)
+            PR.announced_tx_id = ANY (_tx_id_list)
           --
           UNION ALL
           --
@@ -590,7 +428,7 @@ BEGIN
             grest.pool_info_cache PIC
             INNER JOIN public.pool_update PU ON PU.registered_tx_id = PIC.tx_id
           WHERE
-            PIC.tx_id = ANY (_cert_id_list)
+            PIC.tx_id = ANY (_tx_id_list)
         ) AS tmp
 
         GROUP BY tx_id
@@ -610,7 +448,7 @@ BEGIN
           FROM
             script
           WHERE
-            script.tx_id = ANY (_native_script_id_list)
+            script.tx_id = ANY (_tx_id_list)
             AND
             script.type = 'timelock'
         ) AS tmp
@@ -668,7 +506,7 @@ BEGIN
             LEFT JOIN tx_out OUTUTXO ON OUTUTXO.tx_id = redeemer.tx_id AND OUTUTXO.address = INUTXO.address
             LEFT JOIN datum OUTD ON OUTD.hash = OUTUTXO.data_hash
           WHERE
-            redeemer.tx_id = ANY (_plutus_contract_id_list)
+            redeemer.tx_id = ANY (_tx_id_list)
         ) AS tmp
 
         GROUP BY tx_id
@@ -689,15 +527,72 @@ BEGIN
       ATX.deposit::text,
       ATX.invalid_before,
       ATX.invalid_after,
-      (CASE WHEN array_length(_collateral_id_list, 1) > 0 THEN (SELECT ACI.list FROM _all_collateral_inputs ACI WHERE ACI.tx_id = ATX.id) ELSE JSON_BUILD_ARRAY() END),
-      COALESCE((SELECT AI.list FROM _all_inputs AI WHERE AI.tx_id = ATX.id), JSON_BUILD_ARRAY()),
-      COALESCE((SELECT AO.list FROM _all_outputs AO WHERE AO.tx_id = ATX.id), JSON_BUILD_ARRAY()),
-      (CASE WHEN array_length(_withdrawal_id_list, 1) > 0 THEN (SELECT AW.list FROM _all_withdrawals AW WHERE AW.tx_id = ATX.id) ELSE JSON_BUILD_ARRAY() END),
-      (CASE WHEN array_length(_mint_id_list, 1) > 0 THEN (SELECT AMI.list FROM _all_mints AMI WHERE AMI.tx_id = ATX.id) ELSE JSON_BUILD_ARRAY() END),
-      (CASE WHEN array_length(_metadata_id_list, 1) > 0 THEN (SELECT AME.list FROM _all_metadata AME WHERE AME.tx_id = ATX.id) ELSE JSON_BUILD_ARRAY() END),
-      (CASE WHEN array_length(_cert_id_list, 1) > 0 THEN (SELECT AC.list FROM _all_certs AC WHERE AC.tx_id = ATX.id) ELSE JSON_BUILD_ARRAY() END),
-      (CASE WHEN array_length(_native_script_id_list, 1) > 0 THEN (SELECT ANS.list FROM _all_native_scripts ANS WHERE ANS.tx_id = ATX.id) ELSE JSON_BUILD_ARRAY() END),
-      (CASE WHEN array_length(_plutus_contract_id_list, 1) > 0 THEN (SELECT APC.list FROM _all_plutus_contracts APC WHERE APC.tx_id = ATX.id) ELSE JSON_BUILD_ARRAY() END)
+      COALESCE((
+        SELECT JSON_AGG(tx_collateral)
+        FROM (
+          SELECT
+            JSON_BUILD_OBJECT(
+              'payment_addr', JSON_BUILD_OBJECT(
+                'bech32', payment_addr_bech32,
+                'cred', payment_addr_cred
+              ),
+              'stake_addr', stake_addr,
+              'tx_hash', ACI.tx_hash,
+              'tx_index', tx_index,
+              'value', value,
+              'asset_list', COALESCE(JSON_AGG(asset_list) FILTER (WHERE asset_list IS NOT NULL), JSON_BUILD_ARRAY())
+            ) AS tx_collateral
+          FROM _all_collateral_inputs ACI
+          WHERE ACI.tx_id = ATX.id
+          GROUP BY payment_addr_bech32, payment_addr_cred, stake_addr, ACI.tx_hash, tx_index, value
+        ) AS tmp
+      ), JSON_BUILD_ARRAY()),
+      COALESCE((
+        SELECT JSON_AGG(tx_inputs)
+        FROM (
+          SELECT
+            JSON_BUILD_OBJECT(
+              'payment_addr', JSON_BUILD_OBJECT(
+                'bech32', payment_addr_bech32,
+                'cred', payment_addr_cred
+              ),
+              'stake_addr', stake_addr,
+              'tx_hash', AI.tx_hash,
+              'tx_index', tx_index,
+              'value', value,
+              'asset_list', COALESCE(JSON_AGG(asset_list) FILTER (WHERE asset_list IS NOT NULL), JSON_BUILD_ARRAY())
+            ) AS tx_inputs
+          FROM _all_inputs AI
+          WHERE AI.tx_id = ATX.id
+          GROUP BY payment_addr_bech32, payment_addr_cred, stake_addr, AI.tx_hash, tx_index, value
+        ) AS tmp
+      ), JSON_BUILD_ARRAY()),
+      COALESCE((
+        SELECT JSON_AGG(tx_outputs)
+        FROM (
+          SELECT
+            JSON_BUILD_OBJECT(
+              'payment_addr', JSON_BUILD_OBJECT(
+                'bech32', payment_addr_bech32,
+                'cred', payment_addr_cred
+              ),
+              'stake_addr', stake_addr,
+              'tx_hash', AO.tx_hash,
+              'tx_index', tx_index,
+              'value', value,
+              'asset_list', COALESCE(JSON_AGG(asset_list) FILTER (WHERE asset_list IS NOT NULL), JSON_BUILD_ARRAY())
+            ) AS tx_outputs
+          FROM _all_outputs AO
+          WHERE AO.tx_id = ATX.id
+          GROUP BY payment_addr_bech32, payment_addr_cred, stake_addr, AO.tx_hash, tx_index, value
+        ) AS tmp
+      ), JSON_BUILD_ARRAY()),
+      COALESCE((SELECT AW.list  FROM _all_withdrawals AW        WHERE AW.tx_id  = ATX.id), JSON_BUILD_ARRAY()),
+      COALESCE((SELECT AMI.list FROM _all_mints AMI             WHERE AMI.tx_id = ATX.id), JSON_BUILD_ARRAY()),
+      COALESCE((SELECT AME.list FROM _all_metadata AME          WHERE AME.tx_id = ATX.id), JSON_BUILD_ARRAY()),
+      COALESCE((SELECT AC.list  FROM _all_certs AC              WHERE AC.tx_id  = ATX.id), JSON_BUILD_ARRAY()),
+      COALESCE((SELECT ANS.list FROM _all_native_scripts ANS    WHERE ANS.tx_id = ATX.id), JSON_BUILD_ARRAY()),
+      COALESCE((SELECT APC.list FROM _all_plutus_contracts APC  WHERE APC.tx_id = ATX.id), JSON_BUILD_ARRAY())
     FROM
       _all_tx ATX
     WHERE ATX.tx_hash = ANY (_tx_hashes_bytea)

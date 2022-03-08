@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.tip ();
-
 CREATE FUNCTION grest.tip ()
   RETURNS TABLE (
     hash text,

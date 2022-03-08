@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.asset_history (text, text);
-
 CREATE FUNCTION grest.asset_history (_asset_policy text, _asset_name text)
   RETURNS TABLE (
     policy_id text,

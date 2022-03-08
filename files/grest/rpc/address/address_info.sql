@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.address_info (text);
-
 CREATE FUNCTION grest.address_info (_address text DEFAULT NULL)
   RETURNS TABLE (
     balance text,

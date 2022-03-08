@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.address_assets (_address text);
-
 CREATE FUNCTION grest.address_assets (_address text)
   RETURNS TABLE (
     policy_id text,

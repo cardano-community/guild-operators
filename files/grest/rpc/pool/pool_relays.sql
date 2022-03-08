@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.pool_relays ();
-
 CREATE FUNCTION grest.pool_relays ()
     RETURNS TABLE (
         pool_id_bech32 character varying,

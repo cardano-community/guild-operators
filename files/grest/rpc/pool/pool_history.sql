@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.pool_history (text, uinteger);
-
 CREATE FUNCTION grest.pool_history (_pool_bech32 text, _epoch_no uinteger DEFAULT NULL)
   RETURNS TABLE (
     epoch_no bigint,
