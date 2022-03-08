@@ -1,10 +1,8 @@
-DROP FUNCTION IF EXISTS grest.script_redeemers (_script_hash text);
-
 CREATE FUNCTION grest.script_redeemers (_script_hash text) 
-RETURNS TABLE (
+  RETURNS TABLE (
     script_hash text,
     redeemers json
-) 
+  ) 
 LANGUAGE PLPGSQL AS 
 $$
 DECLARE _script_hash_bytea bytea;

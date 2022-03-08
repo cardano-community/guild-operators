@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.pool_updates (text);
-
 CREATE FUNCTION grest.pool_updates (_pool_bech32 text DEFAULT NULL)
     RETURNS TABLE (
         tx_hash text,

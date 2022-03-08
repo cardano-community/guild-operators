@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.pool_blocks (text, uinteger);
-
 CREATE FUNCTION grest.pool_blocks (_pool_bech32 text, _epoch_no uinteger DEFAULT NULL)
     RETURNS TABLE (
         epoch_no uinteger,

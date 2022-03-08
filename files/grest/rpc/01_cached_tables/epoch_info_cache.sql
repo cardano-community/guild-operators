@@ -41,8 +41,6 @@ CREATE TABLE IF NOT EXISTS grest.epoch_info_cache (
 
 COMMENT ON TABLE grest.epoch_info_cache IS 'Contains detailed info for epochs including protocol parameters';
 
-DROP FUNCTION IF EXISTS grest.EPOCH_INFO_CACHE_UPDATE CASCADE;
-
 CREATE FUNCTION grest.EPOCH_INFO_CACHE_UPDATE (
     _epoch_no_to_insert_from bigint default NULL
   )
@@ -167,8 +165,6 @@ END;
 $$;
 
 -- Helper function for updating current epoch data
-DROP FUNCTION IF EXISTS grest.UPDATE_LATEST_EPOCH_INFO_CACHE;
-
 CREATE FUNCTION grest.UPDATE_LATEST_EPOCH_INFO_CACHE (_epoch_no_to_update bigint default NULL)
   RETURNS void
   LANGUAGE plpgsql

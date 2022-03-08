@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.epoch_info (numeric);
-
 CREATE FUNCTION grest.epoch_info (_epoch_no numeric DEFAULT NULL)
   RETURNS TABLE (
     epoch_no uinteger,

@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.address_txs (text[], integer);
-
 CREATE FUNCTION grest.address_txs (_addresses text[], _after_block_height integer DEFAULT 0)
   RETURNS TABLE (
     tx_hash text,

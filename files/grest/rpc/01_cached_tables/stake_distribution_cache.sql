@@ -9,8 +9,7 @@ CREATE TABLE IF NOT EXISTS GREST.STAKE_DISTRIBUTION_CACHE (
   RESERVES numeric,
   TREASURY numeric
 );
-DROP PROCEDURE IF EXISTS GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
-DROP FUNCTION IF EXISTS GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
+
 CREATE PROCEDURE GREST.UPDATE_STAKE_DISTRIBUTION_CACHE () LANGUAGE PLPGSQL AS $$
 DECLARE -- Last block height to control future re-runs of the query
   _last_accounted_block_height bigint;
@@ -255,7 +254,6 @@ $$;
  * Determines whether or not the stake distribution cache should be updated
  * based on the time rule (max once in 60 mins), and ensures previous run completed.
  */
-DROP FUNCTION IF EXISTS GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK;
 CREATE FUNCTION GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK () RETURNS VOID LANGUAGE PLPGSQL AS $$
 DECLARE _last_update_block_height bigint DEFAULT NULL;
 _current_block_height bigint DEFAULT NULL;

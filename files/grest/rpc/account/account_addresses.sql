@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS grest.account_addresses (text);
-
 CREATE FUNCTION grest.account_addresses (_address text DEFAULT NULL)
     RETURNS TABLE (
         address varchar)

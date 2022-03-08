@@ -4,8 +4,9 @@
 -- 2) web_anon user
 -- 3) grest.control_table
 -- 4) grest.genesis
--- 5) helper functions
--- 6) optional db indexes on important public tables
+-- 5) drop existing functions
+-- 6) helper functions
+-- 7) optional db indexes on important public tables
 --------------------------------------------------------------------------------
 -- GREST SCHEMA --
 CREATE SCHEMA IF NOT EXISTS grest;
@@ -64,9 +65,42 @@ CREATE TABLE grest.genesis (
   ALONZOGENESIS varchar
 );
 
--- HELPER FUNCTIONS --
-DROP FUNCTION IF EXISTS grest.get_query_pids_partial_match (_query text);
+-- DROP EXISTING FUNCTIONS
+DO
+$do$
+DECLARE
+  _sql text;
+BEGIN
+  SELECT INTO _sql
+    string_agg(
+      format(
+        'DROP %s %s CASCADE;',
+        CASE prokind
+            WHEN 'f' THEN 'FUNCTION'
+            WHEN 'a' THEN 'AGGREGATE'
+            WHEN 'p' THEN 'PROCEDURE'
+            WHEN 'w' THEN 'FUNCTION'  -- window function (rarely applicable)
+        END,
+        oid::regprocedure
+      ),
+      E'\n'
+    )
+  FROM 
+    pg_proc
+  WHERE
+    pronamespace = 'grest'::regnamespace  -- schema name here
+    AND prokind = ANY ('{f,a,p,w}');      -- optionally filter kinds
 
+  IF _sql IS NOT NULL THEN
+    RAISE NOTICE '%', _sql; -- debug
+    EXECUTE _sql;
+  ELSE 
+    RAISE NOTICE 'No fuctions found in schema %', quote_ident('grest');
+  END IF;
+END
+$do$;
+
+-- HELPER FUNCTIONS --
 CREATE FUNCTION grest.get_query_pids_partial_match (_query text)
   RETURNS TABLE (
     pid integer)
@@ -106,8 +140,6 @@ BEGIN
 END;
 $$; */
 
-DROP FUNCTION IF EXISTS grest.get_current_epoch ();
-
 CREATE FUNCTION grest.get_current_epoch ()
   RETURNS integer
   LANGUAGE plpgsql
@@ -119,8 +151,6 @@ $$
     );
   END;
 $$;
-
-DROP FUNCTION IF EXISTS grest.get_epoch_stakes_count (integer);
 
 CREATE FUNCTION grest.get_epoch_stakes_count (_epoch_no integer)
   RETURNS integer
@@ -141,8 +171,6 @@ $$
   END;
 $$;
 
-DROP FUNCTION IF EXISTS grest.update_control_table (text, text, text);
-
 CREATE FUNCTION grest.update_control_table (_key text, _last_value text, _artifacts text default null)
   RETURNS void
   LANGUAGE plpgsql
@@ -161,3 +189,4 @@ $$
 $$;
 
 -- DATABASE INDEXES --
+-- Empty
