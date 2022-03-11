@@ -64,4 +64,6 @@ Block:.... 6860535
 
 #### Collaborative web view
 
-(todo: preview of common comparison and visual timeline)
+A further aim of the blockPerf project is to use the data that individual nodes send to the central TopologyUpdater database to produce graphical visualisations and evaluations that provide the participating node operators with useful insights into their performance compared to all others.
+
+![Core](https://raw.githubusercontent.com/cardano-community/guild-operators/images/blockperf_commonview.png 'Gantt diagramm: different Nodes block propagation times')
