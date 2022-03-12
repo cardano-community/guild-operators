@@ -13,11 +13,13 @@
 #SELFISH_MODE='Y'      # in case you don't want to share this node's block propagation data, turn the selfish mode on (Y)
 #SERVICE_MODE='N'      # if you deploy-as-service this script it will run with the -s (service) parameter, and surpress console/syslog output. you can overwrite it here, restart the service and watch the console output with 'journalctl -f -u cnode-tu-blockperf'
 
+#AddrBlacklist="192.168.1.123, " # uncomment with your block producers or other nodes IP that you do not want to expose to common view
 
 ######################################
 # Do NOT modify code below           #
 ######################################
 
+BP_VERSION=v1.1.0
 
 deploy_systemd() {
   echo "Deploying ${CNODE_VNAME} blockPerf as systemd service.."
@@ -225,13 +227,22 @@ do
         deltaTbhSfr=$(( $(getDeltaMS ${blockTimeSfr} ${blockSlotTime},000) - deltaSlotTbh))
         deltaSfrCbf=$(( $(getDeltaMS ${blockTimeCbf} ${blockSlotTime},000) - deltaTbhSfr - deltaSlotTbh))
         deltaCbfAb=$(( $(getDeltaMS ${blockTimeAb} ${blockSlotTime},000) - deltaSfrCbf - deltaTbhSfr - deltaSlotTbh))
+		# may blacklist some internal IPs, to not expose them to common views (api.clio.one)
+		if [[ "$AddrBlacklist" == *"$blockTimeCbfAddr"* ]]; then
+			blockTimeCbfAddrPublic="0.0.0.0"
+			blockTimeCbfPortPublic="0"
+			echo "DBG: $blockTimeCbfAddr redacted"
+		else
+			blockTimeCbfAddrPublic=$blockTimeCbfAddr
+			blockTimeCbfPortPublic=$blockTimeCbfPort
+		fi
         if [[ "$deltaSlotTbh" -lt 0 ]] ||[[ "$deltaTbhSfr" -lt 0 ]] ||[[ "$deltaSfrCbf" -lt 0 ]] ||[[ "$deltaCbfAb" -lt 0 ]]; then
           # don't report abnormal cases with negative delta time values. eg block was produced by this node. 
           echo "WARN: blockheight:${iblockHeight} (negative delta) tbh:${blockTimeTbh} ${deltaSlotTbh} sfr:${blockTimeSfr} ${deltaTbhSfr} cbf:${blockTimeCbf} ${deltaSfrCbf} ab:${blockTimeAb} ${deltaCbfAb}" 
         else
           if [[ "${deltaSlotTbh}" -lt 10000 ]] && [[ "$((blockSlot-slotHeightPrev))" -lt 200 ]]; then
-            [[ ${SELFISH_MODE} != "Y" ]] && result=$(curl -4 -s "https://api.clio.one/blocklog/v1/?magic=${NWMAGIC}&ts=$(date +"%T.%4N")&bn=${iblockHeight}&slot=${blockSlot}&slott=${blockSlotTime}&tbh=${deltaSlotTbh}&sfr=${deltaTbhSfr}&cbf=${deltaSfrCbf}&ab=${deltaCbfAb}&size=${blockSize}&addr=${blockTimeCbfAddr}&port=${blockTimeCbfPort}" &)
-            [[ ${SERVICE_MODE} != "Y" ]] && echo -e "${FG_YELLOW}Block:.... ${iblockHeight}\n${NC} Slot..... ${blockSlot} (+$((blockSlot-slotHeightPrev))s)\n ......... ${blockSlotTime}\n Header... ${blockTimeTbh} (+${deltaSlotTbh} ms)\n Request.. ${blockTimeSfr} (+${deltaTbhSfr} ms)\n Block.... ${blockTimeCbf} (+${deltaSfrCbf} ms)\n Adopted.. ${blockTimeAb} (+${deltaCbfAb} ms)\n Size..... ${blockSize} bytes\n delay.... ${blockDelay} sec\n From..... ${blockTimeCbfAddr}:${blockTimeCbfPort}"
+            [[ ${SELFISH_MODE} != "Y" ]] && result=$(curl -4 -s "https://api.clio.one/blocklog/v1/?magic=${NWMAGIC}&bpv=${BP_VERSION}&bn=${iblockHeight}&slot=${blockSlot}&tbh=${deltaSlotTbh}&sfr=${deltaTbhSfr}&cbf=${deltaSfrCbf}&ab=${deltaCbfAb}&size=${blockSize}&addr=${blockTimeCbfAddrPublic}&port=${blockTimeCbfPortPublic}&bh=${blockHash}" &)
+            [[ ${SERVICE_MODE} != "Y" ]] && echo -e "${FG_YELLOW}Block:.... ${iblockHeight} (${blockHash:0:7}...)\n${NC} Slot..... ${blockSlot} (+$((blockSlot-slotHeightPrev))s)\n ......... ${blockSlotTime}\n Header... ${blockTimeTbh} (+${deltaSlotTbh} ms)\n Request.. ${blockTimeSfr} (+${deltaTbhSfr} ms)\n Block.... ${blockTimeCbf} (+${deltaSfrCbf} ms)\n Adopted.. ${blockTimeAb} (+${deltaCbfAb} ms)\n Size..... ${blockSize} bytes\n delay.... ${blockDelay} sec\n From..... ${blockTimeCbfAddr}:${blockTimeCbfPort}"
           else
             # skip block reporting while node is synching up
             [[ ${SERVICE_MODE} != "Y" ]] && echo -e "${FG_YELLOW}Block:.... ${iblockHeight} skipped\n${NC} Slot..... ${blockSlot}\n ......... ${blockSlotTime}\n now...... $(date +"%F %T")"
@@ -250,4 +261,3 @@ do
   
   sleep 1 # slot and second
 done
-
