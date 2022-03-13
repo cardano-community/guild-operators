@@ -17,6 +17,7 @@ THEME="dark"                              # dark  = suited for terminals with a 
 #ENABLE_IP_GEOLOCATION="Y"                # Enable IP geolocation on outgoing and incoming connections using ip-api.com (default: Y)
 #LATENCY_TOOLS="cncli|ss|tcptraceroute|ping" # Preferred latency check tool order, valid entries: cncli|ss|tcptraceroute|ping (must be separated by |)
 #CNCLI_CONNECT_ONLY=false                 # By default cncli measure full connect handshake duration. If set to false, only connect is measured similar to other tools
+#HIDE_DUPLICATE_IPS="N"                   # If set to 'Y', duplicate IP's will be filtered out in peer analysis, else unique ip:port entries are shown (default: N)
 
 #####################################
 # Themes                            #
@@ -56,7 +57,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.26.3
+GLV_VERSION=v1.26.4
 
 PARENT="$(dirname $0)"
 
@@ -414,6 +415,17 @@ latencyPING () {
   fi
 }
 
+# Description: Get index of first entry in array matching input string (no spaces allowed in search)
+# $1 = string to match against, $2 = array to search
+# returns index in array or -1 if not found
+getArrayIndex () {
+  local match=$1
+  shift
+  arr=("$@")
+  for i in "${!arr[@]}"; do [[ $e = ${arr[$i]} ]] && return $i; done
+  return -1
+}
+
 # Command    : checkPeers
 # Description: Check peer connections
 #              Inspired by ping script from Martin @ ATADA pool
@@ -438,12 +450,10 @@ checkPeers() {
 
   [[ -z ${peers_in} && -z ${peers_out} ]] && return
 
-  declare -A peersFiltered
-
   for peer in ${peers_in}; do
 
     if [[ ${peer} = "["* ]]; then # IPv6
-      IFS=']' read -ra ipv6_peer <<< "${peer:1}"
+      IFS=']' read -ra ipv6_peer <<< "${peer:1}"; unset IFS
       peerIP=${ipv6_peer[0]}
       peerPORT=${ipv6_peer[1]:1}
     else # IPv4
@@ -455,16 +465,16 @@ checkPeers() {
       continue
     fi
 
-    [[ -v 'peersFiltered[$peerIP]' ]] && continue # IP already added
+    [[ ${HIDE_DUPLICATE_IPS} = 'Y' && $(getArrayIndex "${peerIP};" "${peersFiltered[@]}") -ge 0 ]] && continue # IP already added and duplicates not wanted
 
-    peersFiltered[${peerIP}]="${peerPORT};i"
+    peersFiltered+=("${peerIP};${peerPORT};i")
 
   done
 
   for peer in ${peers_out}; do
 
     if [[ ${peer} = "["* ]]; then # IPv6
-      IFS=']' read -ra ipv6_peer <<< "${peer:1}"
+      IFS=']' read -ra ipv6_peer <<< "${peer:1}"; unset IFS
       peerIP=${ipv6_peer[0]}
       peerPORT=${ipv6_peer[1]:1}
     else # IPv4
@@ -476,16 +486,19 @@ checkPeers() {
       continue
     fi
 
-    if [[ -v 'peersFiltered[$peerIP]' ]]; then
-      IFS=";" read -r -a peer_arr <<< "${peersFiltered[$peerIP]}"
-      if [[ ${peer_arr[1]} != *o ]]; then
-        peersFiltered[$peerIP]="${peerPORT};i+o"
+    [[ ${HIDE_DUPLICATE_IPS} = 'Y' ]] && matchStr="${peerIP};" || matchStr="${peerIP};${peerPORT};"
+    local peerIndex=$(getArrayIndex "${matchStr}" "${peersFiltered[@]}")
+    if [[ ${peerIndex} -ge 0 ]]; then
+      if [[ ${peersFiltered[$peerIndex]} != *o ]]; then
+        peersFiltered[$peerIndex]="${peerIP};${peerPORT};i+o"
       fi
     else
-      peersFiltered[${peerIP}]="${peerPORT};o"
+      peersFiltered+=("${peerIP};${peerPORT};o")
     fi
 
   done
+
+  IFS=$'\n' peersFiltered=($(sort <<<"${peersFiltered[*]}")); unset IFS
 
   peerCNT=${#peersFiltered[@]}
 
@@ -497,12 +510,13 @@ checkPeers() {
   index=0
   lastpeerIP=""
 
-  for peerIP in "${!peersFiltered[@]}"; do
+  for peerIndex in "${!peersFiltered[@]}"; do
 
-    IFS=";" read -r -a peer_arr <<< "${peersFiltered[$peerIP]}"
+    IFS=";" read -r -a peer_arr <<< "${peersFiltered[$peerIndex]}"; unset IFS
 
-    peerPORT=${peer_arr[0]}
-    peerDIR=${peer_arr[1]}
+    peerIP=${peer_arr[0]}
+    peerPORT=${peer_arr[1]}
+    peerDIR=${peer_arr[2]}
 
     if [[ ${ENABLE_IP_GEOLOCATION} = "Y" && "${peerIP}" != "${lastpeerIP}" ]] && ! isPrivateIP "${peerIP}"; then
       if [[ ! -v "geoIP[${peerIP}]" && $((++geoIPqueryCNT)) -le 100 ]]; then # not previously checked and less than 100 queries
@@ -510,8 +524,8 @@ checkPeers() {
       fi
     fi
 
-    if [[ "${peerIP}" = "${lastpeerIP}" ]]; then
-      [[ ${peerRTT} -ne 99999 ]] && peerRTTSUM=$((peerRTTSUM + peerRTT)) # skip RTT check and reuse old ${peerRTT} number if reachable
+    if [[ "${peerIP}" = "${lastpeerIP}" && ${peerRTT} -ne 99999 ]]; then
+      peerRTTSUM=$((peerRTTSUM + peerRTT)) # skip RTT check and reuse old ${peerRTT} number
     else
       unset peerRTT
       for tool in ${LATENCY_TOOLS//|/ }; do
@@ -801,7 +815,7 @@ while true; do
       for peer in ${rttResultsSorted}; do
         ((peerNbr++))
         [[ ${peerNbr} -lt ${peerNbr_start} ]] && continue
-        IFS=";" read -a peerData <<< ${peer}
+        IFS=";" read -a peerData <<< ${peer}; unset IFS
         peerRTT="${peerData[0]}"
         peerPORT="${peerData[2]}"
         peerDIR="${peerData[3]}"
@@ -815,7 +829,7 @@ while true; do
         else
           peerIP="${peerData[1]}"
         fi
-        IFS=',' read -ra peerLocation <<< "${geoIP[${peerIP}]}"
+        IFS=',' read -ra peerLocation <<< "${geoIP[${peerIP}]}"; unset IFS
         if isPrivateIP ${peerIP}; then
           peerLocationFmt="(Private IP)"
         elif [[ ${#peerLocation[@]} -eq 2 ]]; then
@@ -1060,7 +1074,7 @@ while true; do
       if [[ -f "${BLOCKLOG_DB}" ]]; then
         invalid_cnt=0; missed_cnt=0; ghosted_cnt=0; stolen_cnt=0; confirmed_cnt=0; adopted_cnt=0; leader_cnt=0
         for status_type in $(sqlite3 "${BLOCKLOG_DB}" "SELECT status, COUNT(status) FROM blocklog WHERE epoch=${epochnum} GROUP BY status;" 2>/dev/null); do
-          IFS='|' read -ra status <<< ${status_type}
+          IFS='|' read -ra status <<< ${status_type}; unset IFS
           case ${status[0]} in
             invalid) invalid_cnt=${status[1]} ;;
             missed) missed_cnt=${status[1]} ;;
@@ -1074,7 +1088,7 @@ while true; do
         adopted_cnt=$(( adopted_cnt + confirmed_cnt ))
         leader_cnt=$(( leader_cnt + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
         leader_next=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE datetime(at) > datetime('now') ORDER BY slot ASC LIMIT 1;" 2>/dev/null)
-        IFS='|' read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${epochnum};" 2>/dev/null)"
+        IFS='|' read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${epochnum};" 2>/dev/null)"; unset IFS
         if [[ ${#epoch_stats[@]} -eq 0 ]]; then epoch_stats=("-" "-"); else epoch_stats[1]="${epoch_stats[1]}%"; fi
 
         [[ ${invalid_cnt} -eq 0 ]] && invalid_fmt="${style_values_1}" || invalid_fmt="${style_status_3}"
