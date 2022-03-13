@@ -17,7 +17,7 @@ THEME="dark"                              # dark  = suited for terminals with a 
 #ENABLE_IP_GEOLOCATION="Y"                # Enable IP geolocation on outgoing and incoming connections using ip-api.com (default: Y)
 #LATENCY_TOOLS="cncli|ss|tcptraceroute|ping" # Preferred latency check tool order, valid entries: cncli|ss|tcptraceroute|ping (must be separated by |)
 #CNCLI_CONNECT_ONLY=false                 # By default cncli measure full connect handshake duration. If set to false, only connect is measured similar to other tools
-#HIDE_DUPLICATE_IPS="N"                   # If set to 'Y', duplicate IP's will be filtered out in peer analysis, else unique ip:port entries are shown (default: N)
+#HIDE_DUPLICATE_IPS="N"                   # If set to 'Y', duplicate and local IP's will be filtered out in peer analysis, else all connected peers are shown (default: N)
 
 #####################################
 # Themes                            #
@@ -463,7 +463,7 @@ checkPeers() {
       peerPORT=$(cut -d: -f2 <<< "${peer}")
     fi
 
-    if [[ -z ${peerIP} || -z ${peerPORT} || ${peerIP} = 127.0.0.1 || (${peerIP} = ${ext_ip_resolve} && ${peerPORT} = ${CNODE_PORT}) ]]; then
+    if [[ -z ${peerIP} || -z ${peerPORT} || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = 127.0.0.1) || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = ${ext_ip_resolve} && ${peerPORT} = ${CNODE_PORT}) ]]; then
       continue
     fi
 
@@ -484,7 +484,7 @@ checkPeers() {
       peerPORT=$(cut -d: -f2 <<< "${peer}")
     fi
 
-    if [[ -z ${peerIP} || -z ${peerPORT} || ${peerIP} = 127.0.0.1 || (${peerIP} = ${ext_ip_resolve} && ${peerPORT} = ${CNODE_PORT}) ]]; then
+    if [[ -z ${peerIP} || -z ${peerPORT} || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = 127.0.0.1) || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = ${ext_ip_resolve} && ${peerPORT} = ${CNODE_PORT}) ]]; then
       continue
     fi
 
