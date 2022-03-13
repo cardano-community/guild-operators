@@ -17,7 +17,7 @@ THEME="dark"                              # dark  = suited for terminals with a 
 #ENABLE_IP_GEOLOCATION="Y"                # Enable IP geolocation on outgoing and incoming connections using ip-api.com (default: Y)
 #LATENCY_TOOLS="cncli|ss|tcptraceroute|ping" # Preferred latency check tool order, valid entries: cncli|ss|tcptraceroute|ping (must be separated by |)
 #CNCLI_CONNECT_ONLY=false                 # By default cncli measure full connect handshake duration. If set to false, only connect is measured similar to other tools
-#HIDE_DUPLICATE_IPS="N"                   # If set to 'Y', duplicate IP's will be filtered out in peer analysis, else unique ip:port entries are shown (default: N)
+#HIDE_DUPLICATE_IPS="Y"                   # If set to 'Y', duplicate IP's will be filtered out in peer analysis, else unique ip:port entries are shown (default: Y)
 
 #####################################
 # Themes                            #
@@ -176,6 +176,8 @@ declare -gA geoIP=()
 [[ -z ${LATENCY_TOOLS} ]] && LATENCY_TOOLS="cncli|ss|tcptraceroute|ping"
 
 [[ -z ${CNCLI_CONNECT_ONLY} ]] && CNCLI_CONNECT_ONLY=false
+
+[[ -z ${HIDE_DUPLICATE_IPS} ]] && HIDE_DUPLICATE_IPS=Y
 
 #######################################################
 # Style / UI                                          #
@@ -486,11 +488,14 @@ checkPeers() {
       continue
     fi
 
-    [[ ${HIDE_DUPLICATE_IPS} = 'Y' ]] && matchStr="${peerIP};" || matchStr="${peerIP};${peerPORT};"
-    local peerIndex=$(getArrayIndex "${matchStr}" "${peersFiltered[@]}")
-    if [[ ${peerIndex} -ge 0 ]]; then
-      if [[ ${peersFiltered[$peerIndex]} != *o ]]; then
-        peersFiltered[$peerIndex]="${peerIP};${peerPORT};i+o"
+    if [[ ${HIDE_DUPLICATE_IPS} = 'Y' ]]; then
+      local peerIndex=$(getArrayIndex "${peerIP};" "${peersFiltered[@]}")
+      if [[ ${peerIndex} -ge 0 ]]; then
+        if [[ ${peersFiltered[$peerIndex]} != *o ]]; then
+          peersFiltered[$peerIndex]="${peerIP};${peerPORT};i+o"
+        fi
+      else
+        peersFiltered+=("${peerIP};${peerPORT};o")
       fi
     else
       peersFiltered+=("${peerIP};${peerPORT};o")
