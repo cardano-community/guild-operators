@@ -424,8 +424,8 @@ getArrayIndex () {
   local match=$1
   shift
   arr=("$@")
-  for i in "${!arr[@]}"; do [[ $e = ${arr[$i]} ]] && return $i; done
-  return -1
+  for i in "${!arr[@]}"; do [[ ${arr[$i]} = *"${match}"* ]] && echo $i && return; done
+  echo -1
 }
 
 # Command    : checkPeers
