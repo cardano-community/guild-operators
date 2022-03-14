@@ -98,7 +98,7 @@ PRINT_VERSION="false"
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat "${PARENT}"/.env_branch)" || BRANCH="master"
 
-while getopts :oaub: opt; do
+while getopts :oaub:v opt; do
   case ${opt} in
     o ) CNTOOLS_MODE="OFFLINE" ;;
     a ) ADVANCED_MODE="true" ;;
