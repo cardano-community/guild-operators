@@ -131,7 +131,7 @@ fi
 # get helper functions from library file
 ! . "${PARENT}"/cntools.library && myExit 1
 
-[[ ${PRINT_VERSION} = "true" ]] && echo -e "\nCNTools v${CNTOOLS_VERSION} (branch: $([[ -f "${PARENT}"/.env_branch ]] && cat "${PARENT}"/.env_branch || echo "master"))\n" && exit 0
+[[ ${PRINT_VERSION} = "true" ]] && myExit 0 "CNTools v${CNTOOLS_VERSION} (branch: $([[ -f "${PARENT}"/.env_branch ]] && cat "${PARENT}"/.env_branch || echo "master"))"
 
 archiveLog # archive current log and cleanup log archive folder
 
@@ -239,7 +239,7 @@ if [[ ${CHECK_KES} = true ]]; then
   while IFS= read -r -d '' pool; do
     unset pool_kes_start
     [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && getNodeMetrics
-    [[ (-z ${remaining_kes_periods} || ${remaining_kes_periods} -eq 0) && -f "${pool}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"  
+    [[ (-z ${remaining_kes_periods} || ${remaining_kes_periods} -eq 0) && -f "${pool}/${POOL_CURRENT_KES_START}" ]] && unset remaining_kes_periods && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"  
   
     if ! kesExpiration ${pool_kes_start}; then println ERROR "${FG_RED}ERROR${NC}: failure during KES calculation for ${FG_GREEN}$(basename ${pool})${NC}" && waitForInput && continue; fi
 
