@@ -86,6 +86,7 @@ usage() {
 		-a    Enable advanced/developer features like metadata transactions, multi-asset management etc (not needed for SPO usage)
     -u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Run CNTools and look for updates on alternate branch instead of master of guild repository (only for testing/development purposes)
+    -v    Print CNTools version
 		
 		EOF
 }
@@ -93,6 +94,7 @@ usage() {
 CNTOOLS_MODE="CONNECTED"
 ADVANCED_MODE="false"
 SKIP_UPDATE=N
+PRINT_VERSION="false"
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat "${PARENT}"/.env_branch)" || BRANCH="master"
 
@@ -102,6 +104,7 @@ while getopts :oaub: opt; do
     a ) ADVANCED_MODE="true" ;;
     u ) SKIP_UPDATE=Y ;;
     b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
+    v ) PRINT_VERSION="true" ;;
     \? ) myExit 1 "$(usage)" ;;
     esac
 done
@@ -127,6 +130,8 @@ fi
 
 # get helper functions from library file
 ! . "${PARENT}"/cntools.library && myExit 1
+
+[[ ${PRINT_VERSION} = "true" ]] && echo -e "\nCNTools v${CNTOOLS_VERSION} (branch: $([[ -f "${PARENT}"/.env_branch ]] && cat "${PARENT}"/.env_branch || echo "master"))\n" && exit 0
 
 archiveLog # archive current log and cleanup log archive folder
 

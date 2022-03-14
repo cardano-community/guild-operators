@@ -72,17 +72,19 @@ usage() {
 		-l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
     -u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Use alternate branch to check for updates - only for testing/development (Default: Master)
+    -v    Print Guild LiveView version
 		EOF
   exit 1
 }
 
 SKIP_UPDATE=N
 
-while getopts :lub: opt; do
+while getopts :lub:v opt; do
   case ${opt} in
     l ) LEGACY_MODE="true" ;;
     u ) SKIP_UPDATE=Y ;;
     b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
+    v ) echo -e "\nGuild LiveView ${GLV_VERSION} (branch: $([[ -f "${PARENT}"/.env_branch ]] && cat "${PARENT}"/.env_branch || echo "master"))\n"; exit 0 ;;
     \? ) usage ;;
   esac
 done
