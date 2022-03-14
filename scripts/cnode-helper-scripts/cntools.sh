@@ -238,11 +238,8 @@ if [[ ${CHECK_KES} = true ]]; then
 
   while IFS= read -r -d '' pool; do
     unset pool_kes_start
-    if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-      getNodeMetrics
-    else
-      [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"
-    fi
+    [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && getNodeMetrics
+    [[ (-z ${remaining_kes_periods} || ${remaining_kes_periods} -eq 0) && -f "${pool}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"  
   
     if ! kesExpiration ${pool_kes_start}; then println ERROR "${FG_RED}ERROR${NC}: failure during KES calculation for ${FG_GREEN}$(basename ${pool})${NC}" && waitForInput && continue; fi
 
