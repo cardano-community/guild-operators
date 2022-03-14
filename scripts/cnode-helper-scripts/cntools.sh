@@ -79,14 +79,14 @@ myExit() {
 
 usage() {
   cat <<-EOF
-		Usage: $(basename "$0") [-o] [-a] [-b <branch name>]
+		Usage: $(basename "$0") [-o] [-a] [-b <branch name>] [-v]
 		CNTools - The Cardano SPOs best friend
 		
 		-o    Activate offline mode - run CNTools in offline mode without node access, a limited set of functions available
 		-a    Enable advanced/developer features like metadata transactions, multi-asset management etc (not needed for SPO usage)
-    -u    Skip script update check overriding UPDATE_CHECK value in env
+		-u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Run CNTools and look for updates on alternate branch instead of master of guild repository (only for testing/development purposes)
-    -v    Print CNTools version
+		-v    Print CNTools version
 		
 		EOF
 }

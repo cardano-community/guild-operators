@@ -66,7 +66,7 @@ PARENT="$(dirname $0)"
 
 usage() {
   cat <<-EOF
-		Usage: $(basename "$0") [-l] [-p] [-b <branch name>]
+		Usage: $(basename "$0") [-l] [-p] [-b <branch name>] [-v]
 		Guild LiveView - An alternative cardano-node LiveView
 
 		-l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
