@@ -35,7 +35,7 @@ usage() {
 		Usage: $(basename "$0") [operation <sub arg>]
 		Script to run CNCLI, best launched through systemd deployed by 'deploy-as-systemd.sh'
 		
-    -u          Skip script update check overriding UPDATE_CHECK value in env (must be first argument to script)
+		-u          Skip script update check overriding UPDATE_CHECK value in env (must be first argument to script)
 
 		sync        Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB (deployed as service)
 		leaderlog   One-time leader schedule calculation for current epoch, then continously monitors and calculates schedule for coming epochs, 1.5 days before epoch boundary on MainNet (deployed as service)

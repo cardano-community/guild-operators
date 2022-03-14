@@ -79,13 +79,14 @@ myExit() {
 
 usage() {
   cat <<-EOF
-		Usage: $(basename "$0") [-o] [-a] [-b <branch name>]
+		Usage: $(basename "$0") [-o] [-a] [-b <branch name>] [-v]
 		CNTools - The Cardano SPOs best friend
 		
 		-o    Activate offline mode - run CNTools in offline mode without node access, a limited set of functions available
 		-a    Enable advanced/developer features like metadata transactions, multi-asset management etc (not needed for SPO usage)
-    -u    Skip script update check overriding UPDATE_CHECK value in env
+		-u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Run CNTools and look for updates on alternate branch instead of master of guild repository (only for testing/development purposes)
+		-v    Print CNTools version
 		
 		EOF
 }
@@ -93,15 +94,17 @@ usage() {
 CNTOOLS_MODE="CONNECTED"
 ADVANCED_MODE="false"
 SKIP_UPDATE=N
+PRINT_VERSION="false"
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat "${PARENT}"/.env_branch)" || BRANCH="master"
 
-while getopts :oaub: opt; do
+while getopts :oaub:v opt; do
   case ${opt} in
     o ) CNTOOLS_MODE="OFFLINE" ;;
     a ) ADVANCED_MODE="true" ;;
     u ) SKIP_UPDATE=Y ;;
     b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
+    v ) PRINT_VERSION="true" ;;
     \? ) myExit 1 "$(usage)" ;;
     esac
 done
@@ -127,6 +130,8 @@ fi
 
 # get helper functions from library file
 ! . "${PARENT}"/cntools.library && myExit 1
+
+[[ ${PRINT_VERSION} = "true" ]] && myExit 0 "CNTools v${CNTOOLS_VERSION} (branch: $([[ -f "${PARENT}"/.env_branch ]] && cat "${PARENT}"/.env_branch || echo "master"))"
 
 archiveLog # archive current log and cleanup log archive folder
 
@@ -174,8 +179,8 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       1) checkUpdate "${PARENT}"/cntools.sh Y
          if [[ $? = 2 ]]; then
            echo -e "\n${FG_RED}ERROR${NC}: Update check of cntools.sh against GitHub failed!"
+           waitToProceed
          fi
-         waitToProceed
          $0 "$@" "-u"; myExit 0 ;; # re-launch script with same args skipping update check
       2) echo -e "\n${FG_RED}ERROR${NC}: Update check of cntools.library against GitHub failed!"
          waitToProceed ;;
@@ -233,11 +238,8 @@ if [[ ${CHECK_KES} = true ]]; then
 
   while IFS= read -r -d '' pool; do
     unset pool_kes_start
-    if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-      getNodeMetrics
-    else
-      [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"
-    fi
+    [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && getNodeMetrics
+    [[ (-z ${remaining_kes_periods} || ${remaining_kes_periods} -eq 0) && -f "${pool}/${POOL_CURRENT_KES_START}" ]] && unset remaining_kes_periods && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"  
   
     if ! kesExpiration ${pool_kes_start}; then println ERROR "${FG_RED}ERROR${NC}: failure during KES calculation for ${FG_GREEN}$(basename ${pool})${NC}" && waitForInput && continue; fi
 
