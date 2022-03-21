@@ -287,11 +287,11 @@ if [ ! -d "${HOME}"/.cabal/bin ]; then mkdir -p "${HOME}"/.cabal/bin; fi
 
 echo "Creating Folder Structure .."
 
-if grep -q "${CNODE_VNAME}_HOME" "${HOME}"/.bashrc; then
+if grep -q "export ${CNODE_VNAME}_HOME=" "${HOME}"/.bashrc; then
   echo "Environment Variable already set up!"
 else
   echo "Setting up Environment Variable"
-  echo "export ${CNODE_VNAME}_HOME=${CNODE_HOME}" >> "${HOME}"/.bashrc
+  echo -e "\nexport ${CNODE_VNAME}_HOME=${CNODE_HOME}" >> "${HOME}"/.bashrc
   
 fi
 
