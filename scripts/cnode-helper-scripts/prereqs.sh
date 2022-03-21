@@ -107,7 +107,6 @@ shift $((OPTIND -1))
 [[ -z ${INSTALL_VCHC} ]] && INSTALL_VCHC='N'
 [[ -z ${INSTALL_OGMIOS} ]] && INSTALL_OGMIOS='N'
 [[ -z ${CNODE_NAME} ]] && CNODE_NAME='cnode'
-[[ -z ${INTERACTIVE} ]] && INTERACTIVE='N'
 [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=60
 [[ -z ${UPDATE_CHECK} ]] && UPDATE_CHECK='Y'
 [[ -z ${SUDO} ]] && SUDO='Y'
@@ -255,9 +254,12 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
   export BOOTSTRAP_HASKELL_CABAL_VERSION=3.6.2.0
   if ! command -v ghc &>/dev/null; then
     echo "Install ghcup (The Haskell Toolchain installer) .."
-    # TMP: Dirty hack to prevent ghcup interactive setup, yet allow profile set up
-    unset BOOTSTRAP_HASKELL_NONINTERACTIVE
-    curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sed -e 's#read.*#answer=Y;next_answer=P;hls_answer=N#' | bash
+    BOOTSTRAP_HASKELL_NONINTERACTIVE=1
+    BOOTSTRAP_HASKELL_INSTALL_STACK=1
+    BOOTSTRAP_HASKELL_ADJUST_BASHRC=1
+    unset BOOTSTRAP_HASKELL_INSTALL_HLS
+    export BOOTSTRAP_HASKELL_NONINTERACTIVE BOOTSTRAP_HASKELL_INSTALL_STACK BOOTSTRAP_HASKELL_ADJUST_BASHRC
+    curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | bash
   fi
   [ -f "${HOME}/.ghcup/env" ] && source "${HOME}/.ghcup/env"
   if ! ghc --version 2>/dev/null | grep -q ${BOOTSTRAP_HASKELL_GHC_VERSION}; then
