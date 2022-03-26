@@ -89,15 +89,16 @@ migrate     One-time migration from old blocklog (cntoolsBlockCollector) to new 
 Best and easiest viewed in CNTools and `gLiveView` but the blocklog database is a SQLite DB so if you are comfortable with SQL, the `sqlite3` command can be used to query the DB. 
 
 **Block status**
-- Leader    : Scheduled to make block at this slot
-- Ideal     : Expected/Ideal number of blocks assigned based on active stake (sigma)
-- Luck      : Leader slots assigned vs ideal slots for this epoch
-- Adopted   : Block created successfully
-- Confirmed : Block created validated to be on-chain with the certainty set in `cncli.sh` for `CONFIRM_BLOCK_CNT`
-- Missed    : Scheduled at slot but no record of it in CNCLI DB and no other pool has made a block for this slot
-- Ghosted   : Block created but marked as orphaned and no other pool has made a valid block for this slot -> height battle or block propagation issue
-- Stolen    : Another pool has a valid block registered on-chain for the same slot
-- Invalid   : Pool failed to create block, base64 encoded error message can be decoded with `echo <base64 hash> | base64 -d | jq -r`
+
+    - Leader    : Scheduled to make block at this slot
+    - Ideal     : Expected/Ideal number of blocks assigned based on active stake (sigma)
+    - Luck      : Leader slots assigned vs ideal slots for this epoch
+    - Adopted   : Block created successfully
+    - Confirmed : Block created validated to be on-chain with the certainty set in `cncli.sh` for `CONFIRM_BLOCK_CNT`
+    - Missed    : Scheduled at slot but no record of it in CNCLI DB and no other pool has made a block for this slot
+    - Ghosted   : Block created but marked as orphaned and no other pool has made a valid block for this slot -> height battle or block propagation issue
+    - Stolen    : Another pool has a valid block registered on-chain for the same slot
+    - Invalid   : Pool failed to create block, base64 encoded error message can be decoded with `echo <base64 hash> | base64 -d | jq -r`
 
 === "CNTools"
     Open CNTools and select `[b] Blocks` to open the block viewer.  
