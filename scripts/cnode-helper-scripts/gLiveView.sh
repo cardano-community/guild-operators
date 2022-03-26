@@ -57,7 +57,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.26.4
+GLV_VERSION=v1.26.5
 
 PARENT="$(dirname $0)"
 
@@ -439,7 +439,7 @@ checkPeers() {
   peerPCT1=0; peerPCT2=0; peerPCT3=0; peerPCT4=0
   peerPCT1items=0; peerPCT2items=0; peerPCT3items=0; peerPCT4items=0
   peerRTTSUM=0; peerRTTAVG=0
-  rttResults=(); rttResultsSorted=""
+  peersFiltered=(); rttResults=(); rttResultsSorted=""
   geoIPquery="[]"; geoIPqueryCNT=0
 
   command -v dig >/dev/null && ext_ip_resolve=$(dig @resolver1.opendns.com ANY myip.opendns.com +short) || ext_ip_resolve=""
