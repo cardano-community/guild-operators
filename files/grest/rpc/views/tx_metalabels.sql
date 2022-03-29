@@ -1,7 +1,7 @@
 DROP VIEW IF EXISTS grest.tx_metalabels;
 
 CREATE VIEW grest.tx_metalabels AS SELECT DISTINCT
-  key as metalabel
+  key::text as metalabel
 FROM
   public.tx_metadata;
 

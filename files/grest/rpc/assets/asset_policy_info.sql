@@ -18,7 +18,7 @@ BEGIN
         SELECT DISTINCT ON (MTM.ident)
           MTM.ident,
           JSON_BUILD_OBJECT(
-            'key', TM.key,
+            'key', TM.key::text,
             'json', TM.json
           ) AS metadata
         FROM
