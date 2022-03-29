@@ -1,4 +1,4 @@
-CREATE FUNCTION grest.pool_metadata ()
+CREATE FUNCTION grest.pool_metadata (_pool_bech32_ids text[])
     RETURNS TABLE (
         pool_id_bech32 character varying,
         meta_url character varying,
@@ -21,9 +21,12 @@ BEGIN
         public.pool_offline_data AS pod ON pod.pmr_id = pic.meta_id
     WHERE
         pic.pool_status != 'retired'
+        AND
+        pic.pool_id_bech32 = ANY(SELECT UNNEST(_pool_bech32_ids))
     ORDER BY
         pic.pool_id_bech32, pic.tx_id DESC;
 END;
 $$;
+CREATE FUNCTION
 
 COMMENT ON FUNCTION grest.pool_metadata IS 'Metadata(on & off-chain) for all currently registered/retiring (not retired) pools';
