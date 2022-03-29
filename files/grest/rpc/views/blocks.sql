@@ -1,3 +1,5 @@
+DROP VIEW IF EXISTS grest.blocks;
+
 CREATE VIEW grest.blocks AS
   SELECT
     ENCODE(B.HASH::bytea, 'hex') AS HASH,
