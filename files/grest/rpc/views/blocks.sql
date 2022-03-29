@@ -1,4 +1,3 @@
-DROP VIEW IF EXISTS grest.blocks;
 CREATE VIEW grest.blocks AS
   SELECT
     ENCODE(B.HASH::bytea, 'hex') AS HASH,
@@ -14,9 +13,11 @@ CREATE VIEW grest.blocks AS
     b.OP_CERT_COUNTER
   FROM
     BLOCK B
-  LEFT JOIN SLOT_LEADER SL ON SL.ID = B.SLOT_LEADER_ID
-  LEFT JOIN POOL_HASH PH ON PH.ID = SL.POOL_HASH_ID
-ORDER BY
-  B.ID DESC;
+    LEFT JOIN SLOT_LEADER SL ON SL.ID = B.SLOT_LEADER_ID
+    LEFT JOIN POOL_HASH PH ON PH.ID = SL.POOL_HASH_ID
+  WHERE
+    B.BLOCK_NO IS NOT NULL
+  ORDER BY
+    B.ID DESC;
 
 COMMENT ON VIEW grest.blocks IS 'Get detailed information about all blocks (paginated - latest first)';

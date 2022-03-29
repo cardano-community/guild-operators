@@ -1,5 +1,3 @@
-DROP VIEW IF EXISTS grest.asset_list;
-
 CREATE VIEW grest.asset_list AS
   SELECT
       ENCODE(policy, 'hex') AS policy_id,
