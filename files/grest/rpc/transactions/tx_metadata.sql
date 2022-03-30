@@ -23,7 +23,10 @@ BEGIN
           UNNEST(_tx_hashes) AS hashes)) T1
   LEFT JOIN LATERAL (
     SELECT
-      JSON_OBJECT_AGG(tx_metadata.key, tx_metadata.json) as metadata
+      JSON_OBJECT_AGG(
+        tx_metadata.key::text,
+        tx_metadata.json
+      ) as metadata
     FROM
       tx_metadata
     WHERE

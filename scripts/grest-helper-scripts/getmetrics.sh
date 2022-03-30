@@ -44,9 +44,9 @@ function get-metrics() {
   memused=$(( memtotal - $(echo "${meminf}" | grep MemAvailable | awk '{print $2}') ))
   cpuutil=$(awk -v a="$(awk '/cpu /{print $2+$4,$2+$4+$5}' /proc/stat; sleep 1)" '/cpu /{split(a,b," "); print 100*($2+$4-b[1])/($2+$4+$5-b[2])}'  /proc/stat)
   # in Bytes
-  pubschsize=$(psql -t --csv -d cexplorer -c "SELECT sum(pg_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'public'" | grep "^[0-9]")
-  grestschsize=$(psql -t --csv -d cexplorer -c "SELECT sum(pg_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'grest'" | grep "^[0-9]")
-  dbsize=$(( pubschsize + grestschsize ))
+  pubschsize=$(psql -t --csv -d cexplorer -c "SELECT sum(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'public'" | grep "^[0-9]")
+  grestschsize=$(psql -t --csv -d cexplorer -c "SELECT sum(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'grest'" | grep "^[0-9]")
+  dbsize=$(psql -t --csv -d cexplorer -c "SELECT pg_database_size ('cexplorer');" | grep "^[0-9]")
 
   # Metrics
   export METRIC_dbsynctipref=$(( currslottip - $( echo "${tip}" | jq .[0].abs_slot) ))
