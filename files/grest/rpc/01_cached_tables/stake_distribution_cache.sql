@@ -23,6 +23,7 @@ BEGIN
 
   SELECT id INTO _last_active_stake_blockid FROM PUBLIC.BLOCK
     WHERE epoch_no = _active_stake_epoch
+    AND block_no IS NOT NULL
     ORDER BY block_no DESC LIMIT 1 ;
 
   WITH 
@@ -80,6 +81,7 @@ BEGIN
       FROM REWARD
         INNER JOIN accounts_with_delegated_pools awdp ON awdp.stake_address_id = reward.addr_id
       WHERE REWARD.SPENDABLE_EPOCH >= _active_stake_epoch
+        AND REWARD.SPENDABLE_EPOCH <= (SELECT MAX(NO) FROM EPOCH)
       GROUP BY awdp.stake_address_id
     ),
     account_delta_withdrawals AS (
@@ -94,10 +96,7 @@ BEGIN
         COALESCE(SUM(REWARD.AMOUNT), 0) AS REWARDS
       FROM REWARD
         INNER JOIN accounts_with_delegated_pools ON accounts_with_delegated_pools.stake_address_id = reward.addr_id
-      WHERE REWARD.SPENDABLE_EPOCH <= (
-          SELECT MAX(NO)
-          FROM EPOCH
-        )
+      WHERE REWARD.SPENDABLE_EPOCH <= (SELECT MAX(NO) FROM EPOCH)
       GROUP BY accounts_with_delegated_pools.stake_address_id
     ),
     account_total_withdrawals as (
@@ -137,7 +136,27 @@ BEGIN
       LEFT JOIN account_delta_input adi ON adi.stake_address_id = awdp.stake_address_id
       LEFT JOIN account_delta_output ado ON ado.stake_address_id = awdp.stake_address_id
       LEFT JOIN account_delta_rewards adr ON adr.stake_address_id = awdp.stake_address_id
-      LEFT JOIN account_delta_withdrawals adw ON adw.stake_address_id = awdp.stake_address_id;
+      LEFT JOIN account_delta_withdrawals adw ON adw.stake_address_id = awdp.stake_address_id
+    ON CONFLICT (STAKE_ADDRESS) DO
+      UPDATE
+        SET POOL_ID = EXCLUDED.POOL_ID,
+          TOTAL_BALANCE = EXCLUDED.TOTAL_BALANCE,
+          UTXO = EXCLUDED.UTXO,
+          REWARDS = EXCLUDED.REWARDS,
+          WITHDRAWALS = EXCLUDED.WITHDRAWALS,
+          REWARDS_AVAILABLE = EXCLUDED.REWARDS_AVAILABLE
+    WHERE STAKE_DISTRIBUTION_CACHE.POOL_ID IS DISTINCT
+      FROM EXCLUDED.POOL_ID
+        OR STAKE_DISTRIBUTION_CACHE.TOTAL_BALANCE IS DISTINCT
+      FROM EXCLUDED.TOTAL_BALANCE
+        OR STAKE_DISTRIBUTION_CACHE.UTXO IS DISTINCT
+      FROM EXCLUDED.UTXO
+        OR STAKE_DISTRIBUTION_CACHE.REWARDS IS DISTINCT
+      FROM EXCLUDED.REWARDS
+        OR STAKE_DISTRIBUTION_CACHE.WITHDRAWALS IS DISTINCT
+      FROM EXCLUDED.WITHDRAWALS
+        OR STAKE_DISTRIBUTION_CACHE.REWARDS_AVAILABLE IS DISTINCT
+      FROM EXCLUDED.REWARDS_AVAILABLE;
 
   INSERT INTO GREST.CONTROL_TABLE (key, last_value)
     VALUES (
@@ -154,7 +173,7 @@ $$;
 -- Determines whether or not the stake distribution cache should be updated
 -- based on the time rule (max once in 60 mins), and ensures previous run completed.
 
-CREATE FUNCTION GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK () RETURNS VOID LANGUAGE PLPGSQL AS $$
+CREATE OR REPLACE FUNCTION GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK () RETURNS VOID LANGUAGE PLPGSQL AS $$
   DECLARE
     _last_update_block_height bigint DEFAULT NULL;
     _current_block_height bigint DEFAULT NULL;
@@ -167,7 +186,16 @@ CREATE FUNCTION GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK () RETURNS VOID LANG
       AND datname = (
         SELECT current_database()
       )
-    ) THEN RAISE EXCEPTION 'Previous query still running but should have completed! Exiting...';
+    ) THEN
+      RAISE EXCEPTION 'Previous query still running but should have completed! Exiting...';
+  ELSIF (
+      SELECT count(last_value) = 0 FROM GREST.CONTROL_TABLE WHERE key = 'last_active_stake_validated_epoch'
+    ) OR (
+      SELECT ((SELECT MAX(NO) FROM EPOCH) - COALESCE((last_value::integer - 2)::integer, 0 ))  > 3
+        FROM GREST.CONTROL_TABLE
+        WHERE key = 'last_active_stake_validated_epoch'
+    ) THEN
+      RAISE EXCEPTION 'Active Stake cache too far, skipping...';
   END IF;
 
   -- QUERY START --
@@ -176,17 +204,19 @@ CREATE FUNCTION GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK () RETURNS VOID LANG
         SELECT last_value::bigint
         FROM GREST.control_table
         WHERE key = 'stake_distribution_lbh'
-      ),
-      0
+      ), 0
     ) INTO _last_update_block_height;
+
   SELECT MAX(block_no)
-  FROM PUBLIC.BLOCK
-  WHERE BLOCK_NO IS NOT NULL INTO _current_block_height;
+    FROM PUBLIC.BLOCK
+    WHERE BLOCK_NO IS NOT NULL INTO _current_block_height;
+  
   SELECT (
       _current_block_height - _last_update_block_height
     ) INTO _last_update_block_diff;
   -- Do nothing until there is a 180 blocks difference in height - 60 minutes theoretical time
   -- 185 in check because last block height considered is 5 blocks behind tip
+  
   Raise NOTICE 'Last stake distribution update was % blocks ago...',
     _last_update_block_diff;
     IF (_last_update_block_diff >= 185 -- Special case for db-sync restart rollback to epoch start
