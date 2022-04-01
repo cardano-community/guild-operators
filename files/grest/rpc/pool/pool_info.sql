@@ -104,7 +104,11 @@ BEGIN
         SUM (total_balance)::lovelace
       END AS stake,
       COUNT (stake_address) AS delegators,
-      SUM (CASE WHEN sdc.stake_address = ANY (pic.owners) THEN total_balance ELSE 0 END)::lovelace AS pledge
+      CASE WHEN pic.pool_status = 'retired'
+        THEN NULL
+      ELSE
+        SUM (CASE WHEN sdc.stake_address = ANY (pic.owners) THEN total_balance ELSE 0 END)::lovelace
+      END AS pledge
     FROM
       grest.stake_distribution_cache AS sdc
     WHERE
