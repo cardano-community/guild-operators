@@ -71,7 +71,7 @@ deploy_systemd() {
 	[Service]
 	Type=simple
 	Restart=always
-	RestartSec=5
+	RestartSec=60
 	User=${USER}
 	LimitNOFILE=1048576
 	WorkingDirectory=${CNODE_HOME}/scripts
@@ -82,7 +82,7 @@ deploy_systemd() {
 	StandardOutput=syslog
 	StandardError=syslog
 	SyslogIdentifier=${CNODE_VNAME}
-	TimeoutStopSec=5
+	TimeoutStopSec=60
 	KillMode=mixed
 	
 	[Install]
