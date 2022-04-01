@@ -98,7 +98,11 @@ BEGIN
   ) active_stake ON TRUE
   LEFT JOIN LATERAL(
     SELECT
-      SUM (total_balance)::lovelace AS stake,
+      CASE WHEN pic.pool_status = 'retired'
+        THEN NULL
+      ELSE
+        SUM (total_balance)::lovelace
+      END AS stake,
       COUNT (stake_address) AS delegators,
       SUM (CASE WHEN sdc.stake_address = ANY (pic.owners) THEN total_balance ELSE 0 END)::lovelace AS pledge
     FROM
