@@ -504,7 +504,8 @@
     command -v haproxy >/dev/null && sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-haproxy.service
 			[Unit]
 			Description=HAProxy Load Balancer
-			After=network.target
+			After=network-online.target
+			Wants=network-online.target
 			
 			[Service]
 			Environment=\"GRESTTOP=${CNODE_HOME}\" \"CONFIG=${HAPROXY_CFG}\" \"PIDFILE=${CNODE_HOME}/logs/haproxy.pid\"
@@ -522,7 +523,8 @@
     [[ -f "${CNODE_HOME}"/scripts/grest-exporter.sh ]] && sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-grest_exporter.service
 			[Unit]
 			Description=Guild Rest Services Metrics Exporter
-			After=network.target
+			After=network-online.target
+			Wants=network-online.target
 			
 			[Service]
 			Type=simple
