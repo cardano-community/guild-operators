@@ -12,19 +12,26 @@ CREATE TABLE GREST.STAKE_DISTRIBUTION_CACHE (
 CREATE OR REPLACE PROCEDURE GREST.UPDATE_STAKE_DISTRIBUTION_CACHE () LANGUAGE PLPGSQL AS $$
 DECLARE -- Last block height to control future re-runs of the query
   _last_accounted_block_height bigint;
+  _last_account_tx_id bigint;
   _active_stake_epoch bigint;
   _last_active_stake_blockid bigint;
+  _latest_epoch bigint;
 BEGIN
   SELECT block_no FROM PUBLIC.BLOCK
     WHERE block_no IS NOT NULL
       AND block_no = (SELECT MAX(BLOCK_NO) FROM PUBLIC.BLOCK) INTO _last_accounted_block_height;
-  
-  SELECT (last_value::integer - 2)::integer INTO _active_stake_epoch FROM GREST.CONTROL_TABLE WHERE key = 'last_active_stake_validated_epoch';
+
+  SELECT MAX(id) INTO _last_account_tx_id FROM PUBLIC.TX WHERE block_id = _last_active_stake_blockid;  
+
+  SELECT (last_value::integer - 2)::integer INTO _active_stake_epoch FROM GREST.CONTROL_TABLE
+    WHERE key = 'last_active_stake_validated_epoch';
 
   SELECT id INTO _last_active_stake_blockid FROM PUBLIC.BLOCK
     WHERE epoch_no = _active_stake_epoch
-    AND block_no IS NOT NULL
+      AND block_no IS NOT NULL
     ORDER BY block_no DESC LIMIT 1 ;
+
+  SELECT MAX(no) INTO _latest_epoch FROM PUBLIC.EPOCH WHERE NO IS NOT NULL;
 
   WITH 
     accounts_with_delegated_pools AS (
@@ -58,7 +65,7 @@ BEGIN
       SELECT awdp.stake_address_id, tx_in.tx_out_id AS txoid, tx_in.tx_out_index AS txoidx FROM tx_in
         LEFT JOIN tx_out ON tx_in.tx_out_id = tx_out.tx_id AND tx_in.tx_out_index::smallint = tx_out.index::smallint
         INNER JOIN accounts_with_delegated_pools awdp ON awdp.stake_address_id = tx_out.stake_address_id
-        WHERE tx_in.tx_in_id > (SELECT MAX(id) FROM tx WHERE block_id = _last_active_stake_blockid)
+        WHERE tx_in.tx_in_id > _last_account_tx_id
     ),
     account_delta_input AS (
       SELECT tx_out.stake_address_id, COALESCE(SUM(tx_out.value), 0) AS amount
@@ -81,14 +88,14 @@ BEGIN
       FROM REWARD
         INNER JOIN accounts_with_delegated_pools awdp ON awdp.stake_address_id = reward.addr_id
       WHERE REWARD.SPENDABLE_EPOCH >= _active_stake_epoch
-        AND REWARD.SPENDABLE_EPOCH <= (SELECT MAX(NO) FROM EPOCH)
+        AND REWARD.SPENDABLE_EPOCH <= _latest_epoch
       GROUP BY awdp.stake_address_id
     ),
     account_delta_withdrawals AS (
       SELECT accounts_with_delegated_pools.stake_address_id, COALESCE(SUM(withdrawal.amount), 0) AS withdrawals
       FROM withdrawal
         INNER JOIN accounts_with_delegated_pools ON accounts_with_delegated_pools.stake_address_id = withdrawal.addr_id
-      WHERE withdrawal.tx_id > (SELECT max(id) FROM tx WHERE block_id = _last_active_stake_blockid)
+      WHERE withdrawal.tx_id > _last_account_tx_id
       GROUP BY accounts_with_delegated_pools.stake_address_id
     ),
     account_total_rewards as (
@@ -96,7 +103,7 @@ BEGIN
         COALESCE(SUM(REWARD.AMOUNT), 0) AS REWARDS
       FROM REWARD
         INNER JOIN accounts_with_delegated_pools ON accounts_with_delegated_pools.stake_address_id = reward.addr_id
-      WHERE REWARD.SPENDABLE_EPOCH <= (SELECT MAX(NO) FROM EPOCH)
+      WHERE REWARD.SPENDABLE_EPOCH <= _latest_epoch
       GROUP BY accounts_with_delegated_pools.stake_address_id
     ),
     account_total_withdrawals as (
@@ -178,6 +185,7 @@ CREATE OR REPLACE FUNCTION GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK () RETURN
     _last_update_block_height bigint DEFAULT NULL;
     _current_block_height bigint DEFAULT NULL;
     _last_update_block_diff bigint DEFAULT NULL;
+    _latest_epoch bigint DEFAULT NULL;
   BEGIN IF (
     SELECT COUNT(pid) > 1
     FROM pg_stat_activity
@@ -210,7 +218,7 @@ CREATE OR REPLACE FUNCTION GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK () RETURN
   SELECT MAX(block_no)
     FROM PUBLIC.BLOCK
     WHERE BLOCK_NO IS NOT NULL INTO _current_block_height;
-  
+
   SELECT (
       _current_block_height - _last_update_block_height
     ) INTO _last_update_block_diff;
