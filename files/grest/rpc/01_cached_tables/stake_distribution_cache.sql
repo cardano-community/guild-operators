@@ -229,8 +229,8 @@ CREATE OR REPLACE FUNCTION GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK () RETURN
   
   Raise NOTICE 'Last stake distribution update was % blocks ago...',
     _last_update_block_diff;
-    IF (_last_update_block_diff >= 185 -- Special case for db-sync restart rollback to epoch start
-        OR _last_update_block_diff < 0
+    IF (_last_update_block_diff >= 180
+        OR _last_update_block_diff < 0 -- Special case for db-sync restart rollback to epoch start
       ) THEN
       RAISE NOTICE 'Re-running...';
       CALL GREST.UPDATE_STAKE_DISTRIBUTION_CACHE ();
