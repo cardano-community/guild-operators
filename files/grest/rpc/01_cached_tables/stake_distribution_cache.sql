@@ -1,3 +1,4 @@
+
 DROP TABLE IF EXISTS GREST.STAKE_DISTRIBUTION_CACHE ;
 CREATE TABLE GREST.STAKE_DISTRIBUTION_CACHE (
   STAKE_ADDRESS varchar PRIMARY KEY,
@@ -17,11 +18,10 @@ DECLARE -- Last block height to control future re-runs of the query
   _last_active_stake_blockid bigint;
   _latest_epoch bigint;
 BEGIN
+
   SELECT block_no FROM PUBLIC.BLOCK
     WHERE block_no IS NOT NULL
       AND block_no = (SELECT MAX(BLOCK_NO) FROM PUBLIC.BLOCK) INTO _last_accounted_block_height;
-
-  SELECT MAX(id) INTO _last_account_tx_id FROM PUBLIC.TX WHERE block_id = _last_active_stake_blockid;  
 
   SELECT (last_value::integer - 2)::integer INTO _active_stake_epoch FROM GREST.CONTROL_TABLE
     WHERE key = 'last_active_stake_validated_epoch';
@@ -30,6 +30,8 @@ BEGIN
     WHERE epoch_no = _active_stake_epoch
       AND block_no IS NOT NULL
     ORDER BY block_no DESC LIMIT 1 ;
+
+  SELECT MAX(id) INTO _last_account_tx_id FROM PUBLIC.TX WHERE block_id = _last_active_stake_blockid; 
 
   SELECT MAX(no) INTO _latest_epoch FROM PUBLIC.EPOCH WHERE NO IS NOT NULL;
 
@@ -59,7 +61,7 @@ BEGIN
       SELECT awdp.stake_address_id, acsc.amount
       FROM grest.account_active_stake_cache acsc
         INNER JOIN accounts_with_delegated_pools awdp ON awdp.stake_address = acsc.stake_address
-        WHERE epoch_no = _active_stake_epoch
+        WHERE epoch_no = (_active_stake_epoch + 2)
     ),
     account_delta_tx_ins AS (
       SELECT awdp.stake_address_id, tx_in.tx_out_id AS txoid, tx_in.tx_out_index AS txoidx FROM tx_in
@@ -79,16 +81,16 @@ BEGIN
       FROM tx_out
         INNER JOIN accounts_with_delegated_pools awdp ON awdp.stake_address_id = tx_out.stake_address_id
         INNER JOIN tx ON tx.id = tx_out.tx_id
-        LEFT JOIN tx_in ON tx_out.tx_id = tx_in.tx_out_id AND tx_out.index::smallint = tx_in.tx_out_index::smallint
-      WHERE TX.BLOCK_ID > _last_active_stake_blockid
+      WHERE TX_OUT.TX_ID > _last_account_tx_id
       GROUP BY awdp.stake_address_id
     ),
     account_delta_rewards AS (
       SELECT awdp.stake_address_id, COALESCE(SUM(reward.amount), 0) AS REWARDS
       FROM REWARD
         INNER JOIN accounts_with_delegated_pools awdp ON awdp.stake_address_id = reward.addr_id
-      WHERE REWARD.SPENDABLE_EPOCH >= _active_stake_epoch
-        AND REWARD.SPENDABLE_EPOCH <= _latest_epoch
+      WHERE REWARD.SPENDABLE_EPOCH >= (_active_stake_epoch + 2)
+        AND REWARD.SPENDABLE_EPOCH <= (SELECT MAX(NO) FROM EPOCH)
+        -- AND REWARD.SPENDABLE_EPOCH <= _latest_epoch -- Causes performance regression for some reason than above
       GROUP BY awdp.stake_address_id
     ),
     account_delta_withdrawals AS (
@@ -103,7 +105,8 @@ BEGIN
         COALESCE(SUM(REWARD.AMOUNT), 0) AS REWARDS
       FROM REWARD
         INNER JOIN accounts_with_delegated_pools ON accounts_with_delegated_pools.stake_address_id = reward.addr_id
-      WHERE REWARD.SPENDABLE_EPOCH <= _latest_epoch
+      WHERE REWARD.SPENDABLE_EPOCH <= (SELECT MAX(NO) FROM EPOCH)
+      --REWARD.SPENDABLE_EPOCH <= _latest_epoch -- consistency with account_delta_rewards
       GROUP BY accounts_with_delegated_pools.stake_address_id
     ),
     account_total_withdrawals as (
@@ -185,7 +188,6 @@ CREATE OR REPLACE FUNCTION GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK () RETURN
     _last_update_block_height bigint DEFAULT NULL;
     _current_block_height bigint DEFAULT NULL;
     _last_update_block_diff bigint DEFAULT NULL;
-    _latest_epoch bigint DEFAULT NULL;
   BEGIN IF (
     SELECT COUNT(pid) > 1
     FROM pg_stat_activity
