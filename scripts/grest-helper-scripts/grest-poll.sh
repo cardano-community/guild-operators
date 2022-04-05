@@ -6,15 +6,6 @@
 # Common variables set in env file   #
 ######################################
 
-#
-# Todo:
-#  - [ ] Elect few endpoints that will indirectly test data
-#        - [x] Control Table (TODO: Version addition to Control Table)
-#        - [ ] Query a sample from cache table (based on inputs from control table)
-#        - [ ] We may not want to perform extensive dbsync data scan itself, except if bug/troublesome data on dbsync (eg: stake not being populated ~10 hours into epoch)
-#  - [ ] If required and entire polling takes more than 3 seconds, Randomise some of the checks between the elected endpoints
-#
-
 #TIP_DIFF=600                                                  # Maximum tolerance in seconds for tip to be apart before marking instance as not available to serve requests
 #APIPATH=rpc                                                   # Default API path (without start/end slashes) to serve URL endpoints
 #API_COMPARE="http://127.0.0.1:8050"                           # Source to be used for comparing RPC endpoint structure against. This variable only impacts failover "locally".
@@ -67,6 +58,10 @@ function chk_upd() {
   [[ "$?" == "2" ]] && echo "ERROR: checkUpdate Failed" && exit 1
 }
 
+function log_err() {
+	echo "$(date +%DT%T)	- ERROR: " "$@" >> "${LOG_DIR}"/grest-poll.sh_"$(date +%d%m%y)"
+}
+
 function optexit() {
   [[ "${DEBUG_MODE}" != "1" ]] && exit 1
 }
@@ -88,7 +83,7 @@ function chk_tip() {
   currtip=$(TZ='UTC' date "+%Y-%m-%d %H:%M:%S")
   dbtip=${tip[4]}
   if [[ -z "${dbtip}" ]] || [[ $(( $(date -d "${currtip}" +%s) - $(date -d "${dbtip}" +%s) )) -gt ${TIP_DIFF} ]] ; then
-    echo "ERROR: ${URLRPC}/tip endpoint did not provide a timestamp that's within ${TIP_DIFF} seconds - Tip: ${currtip}, DB Tip: ${dbtip}, Difference: $(( $(date -d "${currtip}" +%s) - $(date -d "${dbtip}" +%s) ))"
+    log_err "${URLRPC}/tip endpoint did not provide a timestamp that's within ${TIP_DIFF} seconds - Tip: ${currtip}, DB Tip: ${dbtip}, Difference: $(( $(date -d "${currtip}" +%s) - $(date -d "${dbtip}" +%s) ))"
     optexit
   else
     epoch=${tip[0]}
@@ -111,7 +106,7 @@ function chk_rpcs() {
   instance_rpc_cksum="$(chk_rpc_struct "${GURL}" | sort | grep -v -e description\"\$ -e summary\"\$ | tee "${PARENT}"/.dltarget | shasum -a 256)"
   monitor_rpc_cksum="$(chk_rpc_struct "${API_COMPARE}" | sort | grep -v -e description\"\$ -e summary\"\$ | tee "${PARENT}"/.dlsource | shasum -a 256)"
   if [[ "${instance_rpc_cksum}" != "${monitor_rpc_cksum}" ]]; then
-    echo "ERROR: The specs returned by ${GURL} do not seem to match ${API_COMPARE} for endpoints mentioned at: ${API_STRUCT_DEFINITION}"
+    log_err "The specs returned by ${GURL} do not seem to match ${API_COMPARE} for endpoints mentioned at: ${API_STRUCT_DEFINITION}"
     optexit
   fi
 }
@@ -121,32 +116,31 @@ function chk_cache_status() {
   last_poolhist_update=$(curl -skL "${GURL}/control_table?key=eq.pool_history_cache_last_updated" | jq -r .[0].last_value 2>/dev/null)
   last_actvstake_epoch=$(curl -skL "${GURL}/control_table?key=eq.last_active_stake_validated_epoch" | jq -r .[0].last_value 2>/dev/null)
   if [[ "${last_stakedist_block}" == "" ]] || [[ "${last_stakedist_block}" == "[]" ]] || [[ $(( block_no - last_stakedist_block )) -gt 1000 ]]; then
-    echo "ERROR: Stake Distribution cache too far from tip !!"
+    log_err "Stake Distribution cache too far from tip !!"
     optexit
   fi
   if [[ "${last_poolhist_update}" == "" ]] || [[ "${last_poolhist_update}" == "[]" ]] || [[ $(( $(TZ='UTC' date +%s) - $(date -d "${last_poolhist_update}" -u +%s) )) -gt 1000 ]]; then
-    echo "ERROR: Pool History cache too far from tip !!"
+    log_err "Pool History cache too far from tip !!"
     optexit
   fi
   if [[ "${last_actvstake_epoch}" == "" ]] || [[ "${last_actvstake_epoch}" == "[]" ]]; then
-    echo "ERROR: Active Stake cache not populated !!"
+    log_err "Active Stake cache not populated !!"
     optexit
   else
     if [[ "${last_actvstake_epoch}" != "${epoch}" ]]; then
       epoch_length=$(curl -s ${API_COMPARE}/genesis?select=epochlength | jq -r .[0].epochlength)
       if [[ ${epoch_slot} -ge $(( epoch_length / 12 )) ]]; then
-        echo "ERROR: Active Stake cache too far from tip !!"
+        log_err "Active Stake cache too far from tip !!"
         optexit
       fi
     fi
   fi
-  # TODO: Ensure other cache tables have entry in control table , potentially with last update time
 }
 
 function chk_limit() {
   limit=$(curl -skL "${GURL}"/blocks -I | grep -i 'content-range' | sed -e 's#.*.-##' -e 's#/.*.##' 2>/dev/null)
   if [[ "${limit}" != "999" ]]; then
-    echo "ERROR: The PostgREST config for uses a custom limit that does not match monitoring instances"
+    log_err "The PostgREST config for uses a custom limit that does not match monitoring instances"
     optexit
   fi
 }
@@ -157,7 +151,7 @@ function chk_endpt_get() {
   getrslt=$(curl -sfkL "${urlendpt}" -H "Range: 0-1" 2>/dev/null)
   if [[ -z "${getrslt}" ]] || [[ "${getrslt}" == "[]" ]]; then
     [[ "${DEBUG_MODE}" == "1" ]] && echo "Response received for ${urlendpt} : $(curl -skL "${urlendpt}" -H "Range: 0-1" -I)"
-    echo "ERROR: Could not fetch from endpoint ${urlendpt} !!"
+    log_err "Could not fetch from endpoint ${urlendpt} !!"
     optexit
   fi
 }
@@ -187,5 +181,5 @@ chk_tip
 chk_rpcs
 chk_cache_status
 chk_limit
-chk_endpt_get "tx_metalabels" view
+chk_endpt_get "blocks" view
 chk_endpt_get "epoch_info?_epoch_no=$(( epoch - 1 ))" rpc
