@@ -19,6 +19,7 @@
 #PT_SENDSLOTS_START=30                    # POOLTOOL sendslots: delay after epoch boundary before sending slots (in minutes)
 #PT_SENDSLOTS_STOP=60                     # POOLTOOL sendslots: prohibit sending of slots to pooltool after X number of minutes (in minutes, blocked on pooltool end as well)
 #CNCLI_DIR="${CNODE_HOME}/guild-db/cncli" # path to folder for cncli sqlite db
+#CNODE_HOST="127.0.0.1"                   # IP Address to connect to Cardano Node (using remote host can have severe impact on performance, do not modify unless you're absolutely certain)
 #SLEEP_RATE=60                            # CNCLI leaderlog/validate: time to wait until next check (in seconds)
 #CONFIRM_SLOT_CNT=600                     # CNCLI validate: require at least these many slots to have passed before validating
 #CONFIRM_BLOCK_CNT=15                     # CNCLI validate: require at least these many blocks on top of minted before validating
@@ -186,6 +187,7 @@ cncliInit() {
   if ! mkdir -p "${CNCLI_DIR}" 2>/dev/null; then echo "ERROR: Failed to create CNCLI DB directory: ${CNCLI_DIR}"; exit 1; fi
   CNCLI_DB="${CNCLI_DIR}/cncli.db"
   [[ -z "${LEDGER_API}" ]] && LEDGER_API=false
+  [[ -z "${CNODE_HOST}" ]] && CNODE_HOST="127.0.0.1"
   [[ -z "${SLEEP_RATE}" ]] && SLEEP_RATE=60
   [[ -z "${CONFIRM_SLOT_CNT}" ]] && CONFIRM_SLOT_CNT=600
   [[ -z "${CONFIRM_BLOCK_CNT}" ]] && CONFIRM_BLOCK_CNT=15
@@ -207,7 +209,7 @@ cncliInit() {
 #################################
 
 cncliSync() {
-  ${CNCLI} sync --host 127.0.0.1 --network-magic "${NWMAGIC}" --port "${CNODE_PORT}" --db "${CNCLI_DB}"
+  ${CNCLI} sync --host "${CNODE_HOST}" --network-magic "${NWMAGIC}" --port "${CNODE_PORT}" --db "${CNCLI_DB}"
 }
 
 #################################

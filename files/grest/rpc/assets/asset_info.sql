@@ -48,7 +48,7 @@ BEGIN
     (
       SELECT
         JSON_BUILD_OBJECT(
-          'key', TM.key,
+          'key', TM.key::text,
           'json', TM.json
         )
       FROM
