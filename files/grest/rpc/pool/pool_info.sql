@@ -119,7 +119,7 @@ BEGIN
     pic.pool_id_bech32 = ANY(SELECT UNNEST(_pool_bech32_ids))
   ORDER BY
     pic.pool_id_bech32,
-    pic.tx_id, pod.pmr_id DESC;
+    pod.pmr_id, pic.tx_id DESC;
 END;
 $$;
 
