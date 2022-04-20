@@ -29,13 +29,13 @@ BEGIN
   SELECT id INTO _last_active_stake_blockid FROM PUBLIC.BLOCK
     WHERE epoch_no = _active_stake_epoch
       AND block_no IS NOT NULL
-    ORDER BY block_no DESC LIMIT 1 ;
+    ORDER BY block_no DESC LIMIT 1;
 
   SELECT MAX(id) INTO _last_account_tx_id FROM PUBLIC.TX WHERE block_id = _last_active_stake_blockid; 
 
   SELECT MAX(no) INTO _latest_epoch FROM PUBLIC.EPOCH WHERE NO IS NOT NULL;
 
-  WITH 
+  WITH
     accounts_with_delegated_pools AS (
       SELECT DISTINCT ON (STAKE_ADDRESS.ID) stake_address.id as stake_address_id, stake_address.view as stake_address, pool_hash_id
       FROM STAKE_ADDRESS
@@ -50,9 +50,14 @@ BEGIN
               WHERE STAKE_DEREGISTRATION.ADDR_ID = DELEGATION.ADDR_ID
                 AND STAKE_DEREGISTRATION.TX_ID > DELEGATION.TX_ID
           )
+          -- Account must be present in epoch_stake table for the last validated epoch
+          -- Up for discussion whether this should be switched to _latest_epoch
           AND EXISTS (
             SELECT TRUE FROM EPOCH_STAKE
-              WHERE EPOCH_STAKE.EPOCH_NO = _latest_epoch
+              WHERE EPOCH_STAKE.EPOCH_NO = (
+                SELECT last_value::integer FROM GREST.CONTROL_TABLE
+                  WHERE key = 'last_active_stake_validated_epoch'
+                )
                 AND EPOCH_STAKE.ADDR_ID = STAKE_ADDRESS.ID
           )
     ),
