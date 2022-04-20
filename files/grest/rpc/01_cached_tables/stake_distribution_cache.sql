@@ -50,6 +50,11 @@ BEGIN
               WHERE STAKE_DEREGISTRATION.ADDR_ID = DELEGATION.ADDR_ID
                 AND STAKE_DEREGISTRATION.TX_ID > DELEGATION.TX_ID
           )
+          AND EXISTS (
+            SELECT TRUE FROM EPOCH_STAKE
+              WHERE EPOCH_STAKE.EPOCH_NO = _latest_epoch
+                AND EPOCH_STAKE.ADDR_ID = STAKE_ADDRESS.ID
+          )
     ),
     pool_ids as (
       SELECT awdp.stake_address_id,
