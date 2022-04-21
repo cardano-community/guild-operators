@@ -1,5 +1,4 @@
-
-DROP TABLE IF EXISTS GREST.STAKE_DISTRIBUTION_CACHE ;
+DROP TABLE IF EXISTS GREST.STAKE_DISTRIBUTION_CACHE;
 CREATE TABLE GREST.STAKE_DISTRIBUTION_CACHE (
   STAKE_ADDRESS varchar PRIMARY KEY,
   POOL_ID varchar,
@@ -188,15 +187,27 @@ CREATE OR REPLACE FUNCTION GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK () RETURN
     _current_block_height bigint DEFAULT NULL;
     _last_update_block_diff bigint DEFAULT NULL;
   BEGIN IF (
+    -- If checking query with the same name there will be 2 results
     SELECT COUNT(pid) > 1
-    FROM pg_stat_activity
-    WHERE state = 'active'
-      AND query ILIKE '%GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK(%'
-      AND datname = (
-        SELECT current_database()
-      )
+      FROM pg_stat_activity
+      WHERE state = 'active'
+        AND query ILIKE '%GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK(%'
+        AND datname = (
+          SELECT current_database()
+        )
     ) THEN
       RAISE EXCEPTION 'Previous query still running but should have completed! Exiting...';
+    ELSIF (
+      -- If checking query with a different name there will be 1 result
+      SELECT COUNT(pid) > 0
+        FROM pg_stat_activity
+        WHERE state = 'active'
+          AND query ILIKE '%GREST.UPDATE_NEWLY_REGISTERED_ACCOUNTS_STAKE_DISTRIBUTION_CACHE(%'
+          AND datname = (
+            SELECT current_database()
+          )
+    ) THEN
+      RAISE EXCEPTION 'New accounts query running! Exiting...';
   ELSIF (
       SELECT count(last_value) = 0 FROM GREST.CONTROL_TABLE WHERE key = 'last_active_stake_validated_epoch'
     ) OR (

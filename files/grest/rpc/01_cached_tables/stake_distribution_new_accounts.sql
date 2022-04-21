@@ -2,6 +2,20 @@ CREATE OR REPLACE PROCEDURE GREST.UPDATE_NEWLY_REGISTERED_ACCOUNTS_STAKE_DISTRIB
 LANGUAGE PLPGSQL AS
 $$
 BEGIN
+  IF (
+    -- If checking query with a different name there will be 1 result
+    SELECT COUNT(pid) > 0
+      FROM pg_stat_activity
+    WHERE state = 'active'
+      AND query ILIKE '%GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK(%'
+      AND datname = (
+        SELECT current_database()
+      )
+  ) THEN
+    RAISE NOTICE 'Stake distribution query running! Killing it and running new accounts update...';
+    CALL grest.kill_queries_partial_match('GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK(');
+  END IF;
+
   WITH
     newly_registered_accounts AS (
       SELECT DISTINCT ON (STAKE_ADDRESS.ID)
