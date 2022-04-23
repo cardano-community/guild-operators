@@ -1,4 +1,4 @@
-CREATE FUNCTION grest.asset_history (_asset_policy text, _asset_name text)
+CREATE FUNCTION grest.asset_history (_asset_policy text, _asset_name text default '')
   RETURNS TABLE (
     policy_id text,
     asset_name text,
@@ -12,7 +12,14 @@ DECLARE
   _asset_id int;
 BEGIN
   SELECT DECODE(_asset_policy, 'hex') INTO _asset_policy_decoded;
-  SELECT DECODE(_asset_name, 'hex') INTO _asset_name_decoded;
+  SELECT DECODE(
+    CASE WHEN _asset_name IS NULL
+      THEN ''
+    ELSE
+      _asset_name
+    END,
+    'hex'
+  ) INTO _asset_name_decoded;
   SELECT
     id
   INTO

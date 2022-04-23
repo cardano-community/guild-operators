@@ -1,7 +1,12 @@
 CREATE FUNCTION grest.asset_policy_info (_asset_policy text)
   RETURNS TABLE (
-    policy_id text,
-    assets json
+    asset_name text,
+    asset_name_ascii text,
+    fingerprint varchar,
+    minting_tx_metadata jsonb,
+    token_registry_metadata jsonb,
+    total_supply text,
+    creation_time timestamp without time zone
   )
   LANGUAGE PLPGSQL
   AS $$
@@ -17,7 +22,7 @@ BEGIN
       minting_tx_metadatas AS (
         SELECT DISTINCT ON (MTM.ident)
           MTM.ident,
-          JSON_BUILD_OBJECT(
+          JSONB_BUILD_OBJECT(
             'key', TM.key::text,
             'json', TM.json
           ) AS metadata
@@ -33,8 +38,8 @@ BEGIN
       token_registry_metadatas AS (
         SELECT DISTINCT ON (asset_policy, asset_name)
           asset_policy,
-          asset_name,
-          JSON_BUILD_OBJECT(
+          ARC.asset_name,
+          JSONB_BUILD_OBJECT(
             'name', ARC.name,
             'description', ARC.description,
             'ticker', ARC.ticker,
@@ -48,7 +53,7 @@ BEGIN
           asset_policy = _asset_policy
         ORDER BY
           asset_policy,
-          asset_name
+          ARC.asset_name
       ),
       total_supplies AS (
         SELECT
@@ -76,58 +81,34 @@ BEGIN
       )
 
     SELECT
-      ENCODE(MA.policy, 'hex'),
-      JSON_AGG(
-        JSON_BUILD_OBJECT(
-          'asset_name', ENCODE(MA.name, 'hex'),
-          'asset_name_ascii', ENCODE(MA.name, 'escape'),
-          'fingerprint', MA.fingerprint,
-          'minting_tx_metadata', (
-            SELECT
-              metadata
-            FROM
-              minting_tx_metadatas
-            WHERE
-              minting_tx_metadatas.ident = MA.id
-          ),
-          'token_registry_metadata', (
-            SELECT 
-              metadata
-            FROM
-              token_registry_metadatas
-            WHERE
-              token_registry_metadatas.asset_policy = _asset_policy
-              AND
-              DECODE(token_registry_metadatas.asset_name, 'hex') = MA.name
-              
-          ),
-          'total_supply', (
-            SELECT
-              amount::text
-            FROM
-              total_supplies
-            WHERE
-              total_supplies.ident = MA.id
-          ),
-          'creation_time', (
-            SELECT
-              date
-            FROM
-              creation_times
-            WHERE
-              creation_times.ident = MA.id
-          )
-        )
-      ) AS assets
+      ENCODE(MA.name, 'hex') as asset_name,
+      ENCODE(MA.name, 'escape') as asset_name_ascii,
+      MA.fingerprint as fingerprint,
+      mtm.metadata as minting_tx_metadata,
+      trm.metadata as token_registry_metadata,
+      ts.amount::text as total_supply,
+      ct.date
     FROM 
       multi_asset MA
+      LEFT JOIN minting_tx_metadatas mtm ON mtm.ident = MA.id
+      LEFT JOIN token_registry_metadatas trm ON trm.asset_policy = _asset_policy
+        AND DECODE(trm.asset_name, 'hex') = MA.name
+      INNER JOIN total_supplies ts on ts.ident = MA.id
+      INNER JOIN  creation_times ct ON ct.ident = MA.id
     WHERE
       MA.id = ANY(_policy_asset_ids)
     GROUP BY
-      MA.policy
+      MA.policy,
+      MA.name,
+      MA.fingerprint,
+      MA.id,
+      mtm.metadata,
+      trm.metadata,
+      ts.amount,
+      ct.date
   );
 END;
 $$;
 
-COMMENT ON FUNCTION grest.asset_info IS 'Get the asset information of all assets under a policy';
+COMMENT ON FUNCTION grest.asset_policy_info IS 'Get the asset information of all assets under a policy';
 
