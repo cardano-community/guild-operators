@@ -17,9 +17,8 @@ DECLARE -- Last block height to control future re-runs of the query
   _latest_epoch bigint;
 BEGIN
 
-  SELECT block_no FROM PUBLIC.BLOCK
-    WHERE block_no IS NOT NULL
-      AND block_no = (SELECT MAX(BLOCK_NO) FROM PUBLIC.BLOCK) INTO _last_accounted_block_height;
+  SELECT MAX(block_no) FROM PUBLIC.BLOCK
+    WHERE block_no IS NOT NULL INTO _last_accounted_block_height;
 
   SELECT (last_value::integer - 2)::integer INTO _active_stake_epoch FROM GREST.CONTROL_TABLE
     WHERE key = 'last_active_stake_validated_epoch';
@@ -88,7 +87,6 @@ BEGIN
       SELECT awdp.stake_address_id, COALESCE(SUM(tx_out.value), 0) AS amount
       FROM tx_out
         INNER JOIN accounts_with_delegated_pools awdp ON awdp.stake_address_id = tx_out.stake_address_id
-        INNER JOIN tx ON tx.id = tx_out.tx_id
       WHERE TX_OUT.TX_ID > _last_account_tx_id
       GROUP BY awdp.stake_address_id
     ),
@@ -132,18 +130,15 @@ BEGIN
       pi.pool_id,
       COALESCE(aas.amount, 0) + COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0) AS TOTAL_BALANCE,
       CASE
-        WHEN (
-          COALESCE(atrew.REWARDS, 0) - COALESCE(atw.WITHDRAWALS, 0)
-        ) <= 0 THEN COALESCE(aas.amount, 0) + COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0)
+        WHEN ( COALESCE(atrew.REWARDS, 0) - COALESCE(atw.WITHDRAWALS, 0) ) <= 0 THEN
+          COALESCE(aas.amount, 0) + COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0)
         ELSE
           COALESCE(aas.amount, 0) + COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0) - (COALESCE(atrew.REWARDS, 0) - COALESCE(atw.WITHDRAWALS, 0))
       END AS UTXO,
       COALESCE(atrew.REWARDS, 0) AS REWARDS,
       COALESCE(atw.WITHDRAWALS, 0) AS WITHDRAWALS,
       CASE
-        WHEN (
-          COALESCE(atrew.REWARDS, 0) - COALESCE(atw.WITHDRAWALS, 0)
-        ) <= 0 THEN 0
+        WHEN ( COALESCE(atrew.REWARDS, 0) - COALESCE(atw.WITHDRAWALS, 0) ) <= 0 THEN 0
         ELSE COALESCE(atrew.REWARDS, 0) - COALESCE(atw.WITHDRAWALS, 0)
       END AS REWARDS_AVAILABLE
     from accounts_with_delegated_pools awdp
