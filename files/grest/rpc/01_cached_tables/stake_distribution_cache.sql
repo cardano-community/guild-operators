@@ -1,5 +1,3 @@
-
-DROP TABLE IF EXISTS GREST.STAKE_DISTRIBUTION_CACHE ;
 CREATE TABLE GREST.STAKE_DISTRIBUTION_CACHE (
   STAKE_ADDRESS varchar PRIMARY KEY,
   POOL_ID varchar,
@@ -19,9 +17,8 @@ DECLARE -- Last block height to control future re-runs of the query
   _latest_epoch bigint;
 BEGIN
 
-  SELECT block_no FROM PUBLIC.BLOCK
-    WHERE block_no IS NOT NULL
-      AND block_no = (SELECT MAX(BLOCK_NO) FROM PUBLIC.BLOCK) INTO _last_accounted_block_height;
+  SELECT MAX(block_no) FROM PUBLIC.BLOCK
+    WHERE block_no IS NOT NULL INTO _last_accounted_block_height;
 
   SELECT (last_value::integer - 2)::integer INTO _active_stake_epoch FROM GREST.CONTROL_TABLE
     WHERE key = 'last_active_stake_validated_epoch';
@@ -29,13 +26,13 @@ BEGIN
   SELECT id INTO _last_active_stake_blockid FROM PUBLIC.BLOCK
     WHERE epoch_no = _active_stake_epoch
       AND block_no IS NOT NULL
-    ORDER BY block_no DESC LIMIT 1 ;
+    ORDER BY block_no DESC LIMIT 1;
 
   SELECT MAX(id) INTO _last_account_tx_id FROM PUBLIC.TX WHERE block_id = _last_active_stake_blockid; 
 
   SELECT MAX(no) INTO _latest_epoch FROM PUBLIC.EPOCH WHERE NO IS NOT NULL;
 
-  WITH 
+  WITH
     accounts_with_delegated_pools AS (
       SELECT DISTINCT ON (STAKE_ADDRESS.ID) stake_address.id as stake_address_id, stake_address.view as stake_address, pool_hash_id
       FROM STAKE_ADDRESS
@@ -49,6 +46,16 @@ BEGIN
             SELECT TRUE FROM STAKE_DEREGISTRATION
               WHERE STAKE_DEREGISTRATION.ADDR_ID = DELEGATION.ADDR_ID
                 AND STAKE_DEREGISTRATION.TX_ID > DELEGATION.TX_ID
+          )
+          -- Account must be present in epoch_stake table for the last validated epoch
+          -- Up for discussion whether this should be switched to _latest_epoch
+          AND EXISTS (
+            SELECT TRUE FROM EPOCH_STAKE
+              WHERE EPOCH_STAKE.EPOCH_NO = (
+                SELECT last_value::integer FROM GREST.CONTROL_TABLE
+                  WHERE key = 'last_active_stake_validated_epoch'
+                )
+                AND EPOCH_STAKE.ADDR_ID = STAKE_ADDRESS.ID
           )
     ),
     pool_ids as (
@@ -80,7 +87,6 @@ BEGIN
       SELECT awdp.stake_address_id, COALESCE(SUM(tx_out.value), 0) AS amount
       FROM tx_out
         INNER JOIN accounts_with_delegated_pools awdp ON awdp.stake_address_id = tx_out.stake_address_id
-        INNER JOIN tx ON tx.id = tx_out.tx_id
       WHERE TX_OUT.TX_ID > _last_account_tx_id
       GROUP BY awdp.stake_address_id
     ),
@@ -124,18 +130,15 @@ BEGIN
       pi.pool_id,
       COALESCE(aas.amount, 0) + COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0) AS TOTAL_BALANCE,
       CASE
-        WHEN (
-          COALESCE(atrew.REWARDS, 0) - COALESCE(atw.WITHDRAWALS, 0)
-        ) <= 0 THEN COALESCE(aas.amount, 0) + COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0)
+        WHEN ( COALESCE(atrew.REWARDS, 0) - COALESCE(atw.WITHDRAWALS, 0) ) <= 0 THEN
+          COALESCE(aas.amount, 0) + COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0)
         ELSE
           COALESCE(aas.amount, 0) + COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0) - (COALESCE(atrew.REWARDS, 0) - COALESCE(atw.WITHDRAWALS, 0))
       END AS UTXO,
       COALESCE(atrew.REWARDS, 0) AS REWARDS,
       COALESCE(atw.WITHDRAWALS, 0) AS WITHDRAWALS,
       CASE
-        WHEN (
-          COALESCE(atrew.REWARDS, 0) - COALESCE(atw.WITHDRAWALS, 0)
-        ) <= 0 THEN 0
+        WHEN ( COALESCE(atrew.REWARDS, 0) - COALESCE(atw.WITHDRAWALS, 0) ) <= 0 THEN 0
         ELSE COALESCE(atrew.REWARDS, 0) - COALESCE(atw.WITHDRAWALS, 0)
       END AS REWARDS_AVAILABLE
     from accounts_with_delegated_pools awdp
@@ -178,15 +181,27 @@ CREATE OR REPLACE FUNCTION GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK () RETURN
     _current_block_height bigint DEFAULT NULL;
     _last_update_block_diff bigint DEFAULT NULL;
   BEGIN IF (
+    -- If checking query with the same name there will be 2 results
     SELECT COUNT(pid) > 1
-    FROM pg_stat_activity
-    WHERE state = 'active'
-      AND query ILIKE '%GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK(%'
-      AND datname = (
-        SELECT current_database()
-      )
+      FROM pg_stat_activity
+      WHERE state = 'active'
+        AND query ILIKE '%GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK(%'
+        AND datname = (
+          SELECT current_database()
+        )
     ) THEN
       RAISE EXCEPTION 'Previous query still running but should have completed! Exiting...';
+    ELSIF (
+      -- If checking query with a different name there will be 1 result
+      SELECT COUNT(pid) > 0
+        FROM pg_stat_activity
+        WHERE state = 'active'
+          AND query ILIKE '%GREST.UPDATE_NEWLY_REGISTERED_ACCOUNTS_STAKE_DISTRIBUTION_CACHE(%'
+          AND datname = (
+            SELECT current_database()
+          )
+    ) THEN
+      RAISE EXCEPTION 'New accounts query running! Exiting...';
   ELSIF (
       SELECT count(last_value) = 0 FROM GREST.CONTROL_TABLE WHERE key = 'last_active_stake_validated_epoch'
     ) OR (

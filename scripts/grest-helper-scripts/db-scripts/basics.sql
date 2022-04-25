@@ -115,30 +115,28 @@ BEGIN
   WHERE
     query ILIKE '%' || _query || '%'
     AND query NOT ILIKE '%grest.get_query_pids_partial_match%'
+    AND query NOT ILIKE '%grest.kill_queries_partial_match%'
     AND datname = (SELECT current_database());
 END;
 $$;
-
--- Not really fully tested nor working yet, but in case we'll need something like this for the future.
-/* DROP PROCEDURE IF EXISTS grest.kill_queries_partial_match (_query text);
 
 CREATE PROCEDURE grest.kill_queries_partial_match (_query text)
 LANGUAGE plpgsql
 AS $$
 DECLARE
- _pids integer[];
+  _pids integer[];
+  _pid integer;
 BEGIN
- _pids := ARRAY (
- SELECT
- grest.get_query_pids_partial_match (_query));
- FOR i IN 1..ARRAY_UPPER(_pids, 1)
- LOOP
- RAISE NOTICE 'Cancelling PID: %', _pids[i];
- PERFORM
- PG_CANCEL_BACKEND(_pids[i]);
- END LOOP;
+  _pids := ARRAY (
+    SELECT grest.get_query_pids_partial_match (_query)
+  );
+  FOREACH _pid IN ARRAY _pids
+  LOOP
+    RAISE NOTICE 'Cancelling PID: %', _pid;
+    PERFORM PG_TERMINATE_BACKEND(_pid);
+  END LOOP;
 END;
-$$; */
+$$;
 
 CREATE FUNCTION grest.get_current_epoch ()
   RETURNS integer
