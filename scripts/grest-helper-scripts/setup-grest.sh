@@ -16,6 +16,8 @@
 # Do NOT modify code below           #
 ######################################
 
+SGVERSION=1.0.0rc
+
 ######## Functions ########
   usage() {
     cat <<-EOF >&2
@@ -643,6 +645,17 @@
     echo -e "  \e[94msudo systemctl restart ${CNODE_VNAME}-postgrest.service\e[0m\n"
   }
 
+  # Description : Update the setup-grest.sh version used in the database.
+  update_grest_version() {
+    [[ "${RESET_GREST}" == "Y" ]] && artifacts=['reset'] || artifacts=''
+
+    ! output=$(psql ${PGDATABASE} -qbt -c "SELECT GREST.update_control_table(
+        'version',
+        '${SGVERSION}',
+        '${artifacts}'
+      );" 2>&1 1>/dev/null) && err_exit "${output}"
+  }
+
 ######## Execution ########
   # Parse command line options
   while getopts :fi:urqb: opt; do
@@ -667,6 +680,6 @@
   [[ "${OVERWRITE_SYSTEMD}" == "Y" ]] && deploy_systemd
   common_update
   [[ "${RESET_GREST}" == "Y" ]] && setup_db_basics && reset_grest
-  [[ "${DB_QRY_UPDATES}" == "Y" ]] && setup_db_basics && deploy_query_updates
+  [[ "${DB_QRY_UPDATES}" == "Y" ]] && setup_db_basics && deploy_query_updates && update_grest_version
   pushd -0 >/dev/null || err_exit
   dirs -c
