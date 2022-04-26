@@ -72,6 +72,21 @@ function usage() {
   exit 1
 }
 
+chk_version() {
+  instance_vr=$(curl -sfkL "${GURL}/control_table?key=eq.version&select=last_value" 2>/dev/null)
+  monitor_vr=$(curl -sfkL "${API_COMPARE}/control_table?key=eq.version&select=last_value" 2>/dev/null)
+
+  if [[ -z "${instance_vr}" ]] || [[ "${instance_vr}" == "[]" ]]; then
+    [[ "${DEBUG_MODE}" == "1" ]] && echo "Response received for ${GURL} version: ${instance_vr}"
+    log_err "Could not fetch the grest version for ${GURL} !!"
+    optexit
+  elif [[ "${instance_vr}" != "${monitor_vr}" ]]; then
+    [[ "${DEBUG_MODE}" == "1" ]] && echo "${GURL} grest version: ${instance_vr}, ${API_COMPARE} grest version: ${monitor_vr}"
+    log_err "Version mismatch for ${GURL} !!"
+    optexit
+  fi
+}
+
 function chk_tip() {
   read -ra tip <<< "$(curl -m 2 -sfkL "${URLRPC}/tip" 2>/dev/null | jq -r '[
     .[0].epoch_no // 0,
@@ -177,6 +192,7 @@ PARENT="$(dirname "${0}")"
 set_defaults "$3" "$4"
 chk_upd
 
+chk_version
 chk_tip
 chk_rpcs
 chk_cache_status
