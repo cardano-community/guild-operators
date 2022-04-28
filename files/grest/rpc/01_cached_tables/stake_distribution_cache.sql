@@ -40,7 +40,8 @@ BEGIN
         WHERE
           NOT EXISTS (
             SELECT TRUE FROM DELEGATION D
-              WHERE D.ADDR_ID = DELEGATION.ADDR_ID AND D.ID > DELEGATION.ID
+              WHERE D.ADDR_ID = DELEGATION.ADDR_ID
+                AND D.ID > DELEGATION.ID
           )
           AND NOT EXISTS (
             SELECT TRUE FROM STAKE_DEREGISTRATION
@@ -48,7 +49,6 @@ BEGIN
                 AND STAKE_DEREGISTRATION.TX_ID > DELEGATION.TX_ID
           )
           -- Account must be present in epoch_stake table for the last validated epoch
-          -- Up for discussion whether this should be switched to _latest_epoch
           AND EXISTS (
             SELECT TRUE FROM EPOCH_STAKE
               WHERE EPOCH_STAKE.EPOCH_NO = (
