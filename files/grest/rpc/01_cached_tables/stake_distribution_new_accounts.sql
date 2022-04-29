@@ -64,5 +64,19 @@ BEGIN
           REWARDS = EXCLUDED.rewards,
           WITHDRAWALS = EXCLUDED.withdrawals,
           REWARDS_AVAILABLE = EXCLUDED.rewards_available;
+
+    -- Clean up de-registered accounts
+    DELETE FROM grest.stake_distribution_cache
+      WHERE stake_address IN (
+        SELECT DISTINCT ON (SA.id)
+          SA.view
+        FROM STAKE_ADDRESS SA
+        INNER JOIN STAKE_DEREGISTRATION SD ON SA.ID = SD.ADDR_ID
+          WHERE NOT EXISTS (
+            SELECT TRUE FROM STAKE_REGISTRATION SR
+              WHERE SR.ADDR_ID = SD.ADDR_ID
+                AND SR.TX_ID > SD.TX_ID
+          )
+      );
 END;
 $$;

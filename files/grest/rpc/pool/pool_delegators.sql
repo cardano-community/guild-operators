@@ -16,7 +16,12 @@ BEGIN
     RETURN QUERY
       SELECT
         stake_address,
-        total_balance::text,
+        (
+          CASE WHEN total_balance >= 0
+            THEN total_balance
+            ELSE 0
+          END
+        )::text,
         (SELECT MAX(no) FROM public.epoch)::uinteger
       FROM
         grest.stake_distribution_cache AS sdc
