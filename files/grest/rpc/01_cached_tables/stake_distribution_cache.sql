@@ -1,4 +1,4 @@
-CREATE TABLE GREST.STAKE_DISTRIBUTION_CACHE (
+CREATE TABLE IF NOT EXISTS GREST.STAKE_DISTRIBUTION_CACHE (
   STAKE_ADDRESS varchar PRIMARY KEY,
   POOL_ID varchar,
   TOTAL_BALANCE numeric,
@@ -40,8 +40,7 @@ BEGIN
         WHERE
           NOT EXISTS (
             SELECT TRUE FROM DELEGATION D
-              WHERE D.ADDR_ID = DELEGATION.ADDR_ID
-                AND D.ID > DELEGATION.ID
+              WHERE D.ADDR_ID = DELEGATION.ADDR_ID AND D.ID > DELEGATION.ID
           )
           AND NOT EXISTS (
             SELECT TRUE FROM STAKE_DEREGISTRATION
@@ -94,9 +93,9 @@ BEGIN
       SELECT awdp.stake_address_id, COALESCE(SUM(reward.amount), 0) AS REWARDS
       FROM REWARD
         INNER JOIN accounts_with_delegated_pools awdp ON awdp.stake_address_id = reward.addr_id
-      WHERE REWARD.SPENDABLE_EPOCH >= (_active_stake_epoch + 2)
-        AND REWARD.SPENDABLE_EPOCH <= (SELECT MAX(NO) FROM EPOCH)
-        -- AND REWARD.SPENDABLE_EPOCH <= _latest_epoch -- Causes performance regression for some reason than above
+      WHERE
+        ( REWARD.SPENDABLE_EPOCH >= (_active_stake_epoch + 2) AND REWARD.SPENDABLE_EPOCH <= (SELECT MAX(NO) FROM EPOCH) )
+        OR ( REWARD.TYPE = 'refund' AND REWARD.SPENDABLE_EPOCH >= (_active_stake_epoch + 1) AND REWARD.SPENDABLE_EPOCH <= (SELECT MAX(NO) FROM EPOCH) )
       GROUP BY awdp.stake_address_id
     ),
     account_delta_withdrawals AS (
