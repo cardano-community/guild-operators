@@ -72,7 +72,7 @@ function usage() {
   exit 1
 }
 
-function is_up() {
+function chk_is_up() {
   rc=$(curl -s "${GURL}"/ready -I 2>/dev/null | grep x-failover)
   if [[ "${rc}" != "" ]]; then
     log_err "${GURL}/ready status check failed!!"
