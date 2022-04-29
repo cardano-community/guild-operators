@@ -18,8 +18,8 @@ NEXP_PORT=$(( PROM_PORT + 1 ))
 ######################################################################
 ARCHS=("darwin-amd64" "linux-amd64"  "linux-armv6" "linux-arm64" "linux-aarch64")
 TMP_DIR=$(mktemp -d "/tmp/cnode_monitoring.XXXXXXXX")
-PROM_VER=2.33.1
-GRAF_VER=8.3.4
+PROM_VER=2.35.0
+GRAF_VER=8.5.1
 NEXP_VER=1.3.1
 NEXP="node_exporter"
 SKY_DB_URL="https://raw.githubusercontent.com/Oqulent/SkyLight-Pool/master/Haskel_Node_SKY_Relay1_Dash.json"
