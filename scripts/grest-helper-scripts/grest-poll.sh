@@ -59,7 +59,7 @@ function chk_upd() {
 }
 
 function log_err() {
-	echo "$(date +%DT%T)	- ERROR: " "$@" >> "${LOG_DIR}"/grest-poll.sh_"$(date +%d%m%y)"
+  echo "$(date +%DT%T)	- ERROR: ${HAPROXY_SERVER_NAME}" "$@" >> "${LOG_DIR}"/grest-poll.sh_"$(date +%d%m%y)"
 }
 
 function optexit() {
@@ -70,6 +70,14 @@ function usage() {
   echo -e "\nUsage: $(basename "$0") <haproxy IP> <haproxy port> <server IP> <server port> [-d]\n"
   echo -e "Polling script used by haproxy to query server IP at server Port, and perform health checks. Use '-d' parameter to run all health checks.\n\n"
   exit 1
+}
+
+function is_up() {
+  rc=$(curl -s "${GURL}"/ready -I 2>/dev/null | grep x-failover)
+  if [[ "${rc}" != "" ]]; then
+    log_err "${GURL}/ready status check failed!!"
+    optexit
+  fi
 }
 
 function chk_tip() {
@@ -128,9 +136,9 @@ function chk_cache_status() {
     optexit
   else
     if [[ "${last_actvstake_epoch}" != "${epoch}" ]]; then
-      epoch_length=$(curl -s ${API_COMPARE}/genesis?select=epochlength | jq -r .[0].epochlength)
+      epoch_length=$(curl -s "${GURL}"/genesis?select=epochlength | jq -r .[0].epochlength)
       if [[ ${epoch_slot} -ge $(( epoch_length / 12 )) ]]; then
-        log_err "Active Stake cache too far from tip !!"
+        log_err "Active Stake cache for epoch ${epoch} still not populated as of ${epoch_slot} slot, maximum tolerance was $(( epoch_length / 12 )) !!"
         optexit
       fi
     fi
@@ -177,8 +185,9 @@ PARENT="$(dirname "${0}")"
 set_defaults "$3" "$4"
 chk_upd
 
-chk_tip
+chk_is_up
 chk_rpcs
+chk_tip
 chk_cache_status
 chk_limit
 chk_endpt_get "blocks" view

@@ -381,7 +381,7 @@
 			  nbthread 4
 			  maxconn 256
 			  ulimit-n 65536
-			  stats socket \"\\\$GRESTTOP\"/sockets/haproxy.socket mode 0600 level admin user ${USER}
+			  stats socket \"\\\$GRESTTOP\"/sockets/haproxy.socket mode 0600 level admin user \"\\\$HAPROXY_SOCKET_USER\"
 			  cpu-map 1/all 1-2
 			  log 127.0.0.1 local2 info
 			  insecure-fork-wanted
@@ -404,47 +404,46 @@
 			
 			frontend app
 			  bind 0.0.0.0:8053
-			  http-request set-log-level silent
-			  ## Replace servername.koios.rest below
+			  ## If using SSL, comment line above, replace servername.koios.rest and uncomment lines below as per docs
 			  #http-request replace-value Host (.*):8053 servername.koios.rest:8453
 			  #redirect scheme https code 301 if !{ ssl_fc }
 			  #
 			  #frontend app-secured
 			  #bind :8453 ssl crt /etc/ssl/server.pem no-sslv3
+			  http-request set-log-level silent
+			  acl srv_down nbsrv(grest_postgrest) eq 0
 			  acl is_wss hdr(Upgrade) -i websocket
 			  http-request use-service prometheus-exporter if { path /metrics }
 			  http-request track-sc0 src table flood_lmt_rate
 			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 250 }
-			  use_backend ogmios_core if { path_beg /api/v0/ogmios } || { path_beg /dashboard.js } || { path_beg /assets } || { path_beg /health } || is_wss
+			  use_backend ogmios if { path_beg /api/v0/ogmios } || { path_beg /dashboard.js } || { path_beg /assets } || { path_beg /health } || is_wss
 			  use_backend submitapi if { path_beg /api/v0/submittx }
-			  default_backend grest_core
+			  use_backend grest_failover if srv_down
+			  default_backend grest_postgrest
 			
-			backend grest_core
+			backend grest_postgrest
 			  balance first
 			  option external-check
-			  acl chktip path -m beg /rpc/tip
 			  acl grestrpcs path_beg -f \"\\\$GRESTTOP\"/files/grestrpcs
-			  http-request set-path \"%[path,regsub(^/api/v0/,/)]\" if ! grestrpcs
+			  http-request set-path \"%[path,regsub(^/api/v0/,/)]\"
 			  http-request set-path \"%[path,regsub(^/,/rpc/)]\" if grestrpcs
 			  http-request cache-use grestcache
-			  http-request set-log-level silent if chktip
 			  external-check path \"/usr/bin:/bin:/tmp:/sbin:/usr/sbin\"
 			  external-check command \"\\\$GRESTTOP\"/scripts/grest-poll.sh
-			  server local 127.0.0.1:8050 check inter 20000
-			  server koios-ssl ${KOIOS_SRV}:443 backup ssl verify none
-			  ## When adding a peer, ensure to end server name with 'ssl' if enabled as in example below:
-			  ## server name-ssl server.name:443 check inter 60000 ssl verify none
+			  server local 127.0.0.1:8050 check inter 20000 fall 1 rise 2
 			  http-response cache-store grestcache
-			  http-response set-header X-Frame-Options: DENY
 			
-			backend ogmios_core
+			backend grest_failover
+			  server koios-ssl ${KOIOS_SRV}:443 ssl verify none
+			  http-response set-header X-Failover true
+			
+			backend ogmios
 			  balance first
 			  http-request set-path \"%[path,regsub(^/api/v0/ogmios/,/)]\"
 			  option httpchk GET /health
 			  http-check expect status 200
 			  default-server inter 20s fall 1 rise 2
 			  server local 127.0.0.1:1337 check
-			  server koios-ssl ${KOIOS_SRV}:7443 backup ssl verify none
 			
 			backend submitapi
 			  balance first
@@ -517,7 +516,7 @@
 			Wants=network-online.target
 			
 			[Service]
-			Environment=\"GRESTTOP=${CNODE_HOME}\" \"CONFIG=${HAPROXY_CFG}\" \"PIDFILE=${CNODE_HOME}/logs/haproxy.pid\"
+			Environment=\"GRESTTOP=${CNODE_HOME}\" \"CONFIG=${HAPROXY_CFG}\" \"PIDFILE=${CNODE_HOME}/logs/haproxy.pid\" \"HAPROXY_SOCKET_USER=${USER}\"
 			ExecStartPre=/usr/sbin/haproxy -f \"\\\$CONFIG\" -c -q
 			ExecStart=/usr/sbin/haproxy -Ws -f \"\\\$CONFIG\" -p \"\\\$PIDFILE\"
 			ExecReload=/usr/sbin/haproxy -f \"\\\$CONFIG\" -c -q
