@@ -8,7 +8,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [9.0.10] - 2022-05-03
 #### Fixed
-- Detect if cardano-hw-cli has execition permission
+- Detect if cardano-hw-cli has execution permission
 
 ## [9.0.9] - 2022-03-14
 #### Changed
