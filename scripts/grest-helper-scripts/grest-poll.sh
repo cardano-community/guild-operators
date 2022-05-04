@@ -59,7 +59,7 @@ function chk_upd() {
 }
 
 function log_err() {
-	echo "$(date +%DT%T)	- ERROR: " "$@" >> "${LOG_DIR}"/grest-poll.sh_"$(date +%d%m%y)"
+  echo "$(date +%DT%T)	- ERROR: ${HAPROXY_SERVER_NAME}" "$@" >> "${LOG_DIR}"/grest-poll.sh_"$(date +%d%m%y)"
 }
 
 function optexit() {
@@ -72,7 +72,7 @@ function usage() {
   exit 1
 }
 
-chk_version() {
+function chk_version() {
   instance_vr=$(curl -sfkL "${GURL}/control_table?key=eq.version&select=last_value" 2>/dev/null)
   monitor_vr=$(curl -sfkL "${API_COMPARE}/control_table?key=eq.version&select=last_value" 2>/dev/null)
 
@@ -83,6 +83,14 @@ chk_version() {
   elif [[ "${instance_vr}" != "${monitor_vr}" ]]; then
     [[ "${DEBUG_MODE}" == "1" ]] && echo "${GURL} grest version: ${instance_vr}, ${API_COMPARE} grest version: ${monitor_vr}"
     log_err "Version mismatch for ${GURL} !!"
+    optexit
+  fi
+}
+
+function chk_is_up() {
+  rc=$(curl -s "${GURL}"/ready -I 2>/dev/null | grep x-failover)
+  if [[ "${rc}" != "" ]]; then
+    log_err "${GURL}/ready status check failed!!"
     optexit
   fi
 }
@@ -143,9 +151,9 @@ function chk_cache_status() {
     optexit
   else
     if [[ "${last_actvstake_epoch}" != "${epoch}" ]]; then
-      epoch_length=$(curl -s ${API_COMPARE}/genesis?select=epochlength | jq -r .[0].epochlength)
+      epoch_length=$(curl -s "${GURL}"/genesis?select=epochlength | jq -r .[0].epochlength)
       if [[ ${epoch_slot} -ge $(( epoch_length / 12 )) ]]; then
-        log_err "Active Stake cache too far from tip !!"
+        log_err "Active Stake cache for epoch ${epoch} still not populated as of ${epoch_slot} slot, maximum tolerance was $(( epoch_length / 12 )) !!"
         optexit
       fi
     fi
@@ -194,7 +202,9 @@ chk_upd
 
 chk_version
 chk_tip
+chk_is_up
 chk_rpcs
+chk_tip
 chk_cache_status
 chk_limit
 chk_endpt_get "blocks" view

@@ -570,6 +570,10 @@ function main {
                       println ERROR "Please run '${FG_YELLOW}prereqs.sh -w${NC}' to add hardware wallet support and install Vaccumlabs cardano-hw-cli, '${FG_YELLOW}prereqs.sh -h${NC}' shows all available options"
                       waitForInput && continue
                     fi
+                    if [[ ! -x $(command -v cardano-hw-cli) ]]; then
+                      println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli binary doesn't have execution persmission, please fix!"
+                      waitForInput && continue
+                    fi
                     if ! HWCLIversionCheck; then waitForInput && continue; fi
                     getAnswerAnyCust wallet_name "Name of imported wallet"
                     # Remove unwanted characters from wallet name

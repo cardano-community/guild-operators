@@ -1,4 +1,3 @@
-DROP FUNCTION IF EXISTS grest.pool_info;
 CREATE FUNCTION grest.pool_info (_pool_bech32_ids text[])
   RETURNS TABLE (
     pool_id_bech32 character varying,
@@ -102,7 +101,12 @@ BEGIN
       CASE WHEN pic.pool_status = 'retired'
         THEN NULL
       ELSE
-        SUM (total_balance)::lovelace
+        SUM (
+          CASE WHEN total_balance >= 0
+            THEN total_balance
+            ELSE 0
+          END
+        )::lovelace
       END AS stake,
       COUNT (stake_address) AS delegators,
       CASE WHEN pic.pool_status = 'retired'
