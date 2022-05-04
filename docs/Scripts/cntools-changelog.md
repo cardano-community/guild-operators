@@ -6,6 +6,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.0.10] - 2022-05-03
+#### Fixed
+- Detect if cardano-hw-cli has execution permission
+
 ## [9.0.9] - 2022-03-14
 #### Changed
 - Add version (-v) argument to cntools script to print current version
