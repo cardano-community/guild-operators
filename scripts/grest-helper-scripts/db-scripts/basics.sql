@@ -183,7 +183,7 @@ $$
       key
     ) DO UPDATE
       SET
-        last_value = _last_value
+        last_value = _last_value,
         artifacts = _artifacts;
   END;
 $$;
