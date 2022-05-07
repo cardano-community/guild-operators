@@ -182,7 +182,9 @@ $$
     ON CONFLICT (
       key
     ) DO UPDATE
-      SET last_value = _last_value;
+      SET
+        last_value = _last_value,
+        artifacts = _artifacts;
   END;
 $$;
 
