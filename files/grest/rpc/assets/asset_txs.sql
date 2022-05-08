@@ -31,25 +31,24 @@ BEGIN
       tx_hashes.time
     FROM (
       SELECT DISTINCT ON (tx.hash)
-        tx.id,
         tx.hash,
-	block.epoch_no,
-	block.block_no,
-	block.time
+        block.epoch_no,
+        block.block_no,
+        block.time
       FROM
         ma_tx_out MTO
         INNER JOIN tx_out TXO ON TXO.id = MTO.tx_out_id
         INNER JOIN tx ON tx.id = TXO.tx_id
-	INNER JOIN block ON block.id = tx.block_id
+        INNER JOIN block ON block.id = tx.block_id
       WHERE
         MTO.ident = _asset_id
       GROUP BY
         ident,
-        tx.id,
-	block.epoch_no,
-	block.block_no,
-	block.time
-    ) tx_hashes ORDER BY tx_hashes.id DESC;
+        tx.hash,
+        block.epoch_no,
+        block.block_no,
+        block.time
+    ) tx_hashes ORDER BY tx_hashes.block_no DESC;
 END;
 $$;
 
