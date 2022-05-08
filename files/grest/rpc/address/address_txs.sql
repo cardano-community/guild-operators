@@ -44,7 +44,9 @@ BEGIN
       INNER JOIN public.block ON block.id = tx.block_id
     WHERE
       tx.id = ANY (_tx_id_list)
-      AND block.block_no >= _after_block_height;
+      AND block.block_no >= _after_block_height
+    ORDER BY
+      block.block_no DESC;
 END;
 $$;
 
