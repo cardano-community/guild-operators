@@ -1,6 +1,7 @@
 CREATE FUNCTION grest.credential_txs (_payment_credentials text[], _after_block_height integer DEFAULT 0)
   RETURNS TABLE (
     tx_hash text,
+    epoch_no uinteger,
     block_height uinteger,
     block_time timestamp
   )
@@ -45,6 +46,7 @@ BEGIN
   RETURN QUERY
     SELECT
       DISTINCT(ENCODE(tx.hash, 'hex')) as tx_hash,
+      block.epoch_no,
       block.block_no,
       block.time
     FROM

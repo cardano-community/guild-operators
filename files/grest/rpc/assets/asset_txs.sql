@@ -1,8 +1,9 @@
 CREATE FUNCTION grest.asset_txs (_asset_policy text, _asset_name text default '')
   RETURNS TABLE (
-    policy_id text,
-    asset_name text,
-    tx_hashes text[]
+    tx_hash text,
+    epoch_no uinteger,
+    block_height uinteger,
+    block_time timestamp
   )
   LANGUAGE PLPGSQL
   AS $$
@@ -24,26 +25,31 @@ BEGIN
 
   RETURN QUERY
     SELECT
-      _asset_policy,
-      _asset_name,
-      array_agg(
-        ENCODE(tx_hashes.hash, 'hex')
-          ORDER BY tx_hashes.id DESC
-      )
+      ENCODE(tx_hashes.hash, 'hex') as tx_hash,
+      tx_hashes.epoch_no,
+      tx_hashes.block_no,
+      tx_hashes.time
     FROM (
       SELECT DISTINCT ON (tx.hash)
         tx.id,
-        tx.hash
+        tx.hash,
+	block.epoch_no,
+	block.block_no,
+	block.time
       FROM
         ma_tx_out MTO
         INNER JOIN tx_out TXO ON TXO.id = MTO.tx_out_id
         INNER JOIN tx ON tx.id = TXO.tx_id
+	INNER JOIN block ON block.id = tx.block_id
       WHERE
         MTO.ident = _asset_id
       GROUP BY
         ident,
-        tx.id
-    ) tx_hashes;
+        tx.id,
+	block.epoch_no,
+	block.block_no,
+	block.time
+    ) tx_hashes ORDER BY tx_hashes.id DESC;
 END;
 $$;
 
