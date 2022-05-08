@@ -7,6 +7,9 @@
 
 gRest is an open source implementation of a `query layer built over dbsync using PostgREST and HAProxy`. The package is built as part of [Koios](https://www.koios.rest) team's efforts to unite community individual stream of work together and give back a more aligned structure to query dbsync and adopt standardisation to queries utilising open-source tooling as well as collaboration. In addition to these, there are also accessibility features to deploy rules for failover, do healthchecks, set up priorities, have ability to prevent DDoS attacks, provide timeouts, report tips for analysis over a longer period, etc - which can prove to be really useful when performing any analysis for instances.
 
+!!! warning ""
+    Note that the scripts below do allow for provisioning ogmios integration too, but Ogmios does not provide advanced session management for a server-client architecture in absence of a middleware. The availability for ogmios from monitoring instance is restricted to avoid ability to DDoS an instance.
+
 ### Components
 
 1. [PostgREST](https://postgrest.org/en/latest):  
@@ -63,9 +66,9 @@ Similarly - if instead, you'd like to re-install all components as well as force
 ./setup-grest.sh -f -i prmcd -q
 ```
 
-Another example could be to preserve your config, but only update queries using an alternate branch (eg: `alpha`). To do so, you may run:
+Another example could be to preserve your config, but only update queries using an alternate branch (eg: let's say you want to try the tag `koios-1.0.0rc1`). To do so, you may run:
 ``` bash
-./setup-grest.sh -q -b alpha
+./setup-grest.sh -q -b koios-1.0.0rc1
 ```
 
 Please ensure to follow the on-screen instructions, if any (for example restarting deployed services, or updating configs to specify correct target postgres URLs/enable TLS/add peers etc in `${CNODE_HOME}/priv/grest.conf` and `${CNODE_HOME}/files/haproxy.cfg`).
