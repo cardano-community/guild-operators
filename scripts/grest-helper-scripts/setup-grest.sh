@@ -600,6 +600,8 @@ SGVERSION=1.0.0rc1
 
   # Description : Fully reset the grest node from the database POV.
   reset_grest() {
+    local tr_dir="${HOME}/git/${CNODE_VNAME}-token-registry"
+    [[ -d "${tr_dir}" ]] && rm -rf "${tr_dir}"
     remove_all_grest_cron_jobs
     recreate_grest_schema
   }
