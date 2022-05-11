@@ -2209,11 +2209,11 @@ function main {
               fi
 
               if [[ ${SUBCOMMAND} = "register" ]]; then
-                println DEBUG "# Pool Registration Transaction"
+                println DEBUG "\n# Pool Registration Transaction"
                 registerPool
                 rc=$?
               else
-                println DEBUG "# Pool Update Transaction"
+                println DEBUG "\n# Pool Update Transaction"
                 modifyPool
                 rc=$?
               fi
