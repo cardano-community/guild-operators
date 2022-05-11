@@ -6,6 +6,12 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.1.0] - 2022-05-11
+#### Changed
+- Harmonize flow for reusing old wallet configuration on pool modification vs setting new wallets.
+- Remove the requirement for reward stake signing key in wallet registration/modification
+- Reward wallet no longer auto-delegated on pool registration just like for multi-owners. 
+
 ## [9.0.10] - 2022-05-03
 #### Fixed
 - Detect if cardano-hw-cli has execution permission
