@@ -201,7 +201,6 @@ set_defaults "$3" "$4"
 chk_upd
 
 chk_version
-chk_tip
 chk_is_up
 chk_rpcs
 chk_tip
