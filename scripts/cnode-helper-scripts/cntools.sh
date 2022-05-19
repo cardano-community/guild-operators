@@ -1996,8 +1996,10 @@ function main {
                             fi ;;
                         3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
                             waitForInput "Did you mean to run in Hybrid mode?  press any key to return home!" && continue 2 ;;
-                        4) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake verification keys missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
-                            waitForInput "Unable to reuse old configuration, please set new owner(s) & reward wallet" && owner_wallets=() && reward_wallet="" && reuse_wallets='N' && break ;;
+                        4) if [[ ${wallet_name} != "${owner_wallets[0]}" && ! -f "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}" ]]; then # ignore if payment vkey is missing for multi-owner, only stake vkey important
+                              println ERROR "${FG_RED}ERROR${NC}: stake verification key missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
+                              waitForInput "Unable to reuse old configuration, please set new owner(s) & reward wallet" && owner_wallets=() && reward_wallet="" && reuse_wallets='N' && break
+                            fi ;;
                       esac
                       if [[ ${wallet_name} = "${owner_wallets[0]}" ]] && ! isWalletRegistered ${wallet_name}; then # make sure at least main owner is registered
                         if [[ ${op_mode} = "hybrid" ]]; then
@@ -2016,36 +2018,17 @@ function main {
                       fi
                     done
 
-                    getWalletType ${reward_wallet}
-                    case $? in
-                      0) hw_reward_wallet='Y' ;;
-                      2) if [[ ${op_mode} = "online" && ${SUBCOMMAND} = "register" && ${hw_owner_wallets} = 'N' ]]; then
-                            println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted for reward wallet ${FG_GREEN}${reward_wallet}${NC}, please decrypt before use!"
-                            waitForInput && continue
-                          fi ;;
-                      3) if [[ ${SUBCOMMAND} = "register" && ${hw_owner_wallets} = 'N' ]]; then
-                            println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from reward wallet ${FG_GREEN}${reward_wallet}${NC}!"
-                            waitForInput "Did you mean to run in Hybrid mode?  press any key to return home!" && continue
-                          fi ;;
-                      4) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake verification keys missing from reward wallet ${FG_GREEN}${reward_wallet}${NC}!"
-                          waitForInput "Unable to reuse old configuration, please set new owner(s) & reward wallet" && owner_wallets=() && reward_wallet="" && reuse_wallets='N' ;;
-                    esac
-
-                    if ! isWalletRegistered ${reward_wallet}; then
-                      if [[ ${op_mode} = "hybrid" ]]; then
-                        println ERROR "\n${FG_RED}ERROR${NC}: reward wallet ${FG_GREEN}${reward_wallet}${NC} not a registered wallet on chain and CNTools run in hybrid mode"
-                        println ERROR "Please first register the rewards wallet to use in pool registration using 'Wallet >> Register'"
-                        waitForInput && continue
-                      fi
-                      getBaseAddress ${reward_wallet}
-                      getBalance ${base_addr}
-                      if [[ ${assets[lovelace]} -eq 0 ]]; then
-                        println ERROR "${FG_RED}ERROR${NC}: no funds available in base address for reward wallet ${FG_GREEN}${reward_wallet}${NC}, needed to pay for registration fee"
-                        waitForInput && continue
-                      fi
-                      println DEBUG "# Wallet Registration Transaction"
-                      if ! registerStakeWallet ${reward_wallet}; then waitForInput && continue; fi
+                    if [[ ${reuse_wallets} = 'Y' ]]; then # re-check reuse_wallets in case flow was broken
+                      getWalletType ${reward_wallet}
+                      case $? in
+                        0) hw_reward_wallet='Y' ;;
+                        4) if [[ ! -f "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}" ]]; then # ignore if payment vkey is missing for reward wallet, only stake vkey important
+                              println ERROR "${FG_RED}ERROR${NC}: stake verification key missing from reward wallet ${FG_GREEN}${wallet_name}${NC}!"
+                              waitForInput "Unable to reuse old configuration, please set new owner(s) & reward wallet" && owner_wallets=() && reward_wallet="" && reuse_wallets='N'
+                            fi ;;
+                      esac
                     fi
+
                     ;;
                   1) owner_wallets=() && reward_wallet="" && reuse_wallets='N'
                     println DEBUG "\n${FG_YELLOW}If new wallets are chosen for owner(s)/reward, a manual delegation to the pool for each wallet is needed if not done already!${NC}\n"
@@ -2143,32 +2126,13 @@ function main {
                       [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
                     fi
                     reward_wallet="${wallet_name}"
-                    if ! isWalletRegistered ${reward_wallet}; then
-                      if [[ ${op_mode} = "hybrid" ]]; then
-                        println ERROR "\nReward wallet ${FG_GREEN}${reward_wallet}${NC} not a registered wallet on chain and CNTools run in hybrid mode"
-                        println ERROR "Please first register the reward wallet to use in pool registration using 'Wallet >> Register'"
-                        waitForInput && continue
-                      fi
-                      getWalletType ${reward_wallet}
-                      case $? in
-                        0) hw_reward_wallet='Y' ;;
-                        2) println ERROR "${FG_RED}ERROR${NC}: stake signing key encrypted, please decrypt before use!" && waitForInput && continue ;;
-                        3) println ERROR "${FG_RED}ERROR${NC}: stake signing key missing from wallet!" && waitForInput && continue ;;
-                      esac
-                      getBaseAddress ${reward_wallet}
-                      getBalance ${base_addr}
-                      if [[ ${assets[lovelace]} -gt 0 ]]; then
-                        println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Funds in reward wallet:"  "$(formatLovelace ${assets[lovelace]})")"
-                        echo
-                      else
-                        println ERROR "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${reward_wallet}${NC}, needed to pay for registration fee"
-                        waitForInput && continue
-                      fi
-                      println DEBUG "# Wallet Registration Transaction"
-                      if ! registerStakeWallet ${reward_wallet}; then
-                        waitForInput && continue
-                      fi
-                    fi
+                    getWalletType ${reward_wallet}
+                    case $? in
+                      0) hw_reward_wallet='Y' ;;
+                      4) if [[ ! -f "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}" ]]; then # ignore if payment vkey is missing
+                            println ERROR "${FG_RED}ERROR${NC}: stake verification key missing from wallet ${FG_GREEN}${wallet_name}${NC}!" && waitForInput && continue
+                          fi ;;
+                    esac
                     ;;
                   2) continue ;;
                 esac
@@ -2186,8 +2150,6 @@ function main {
               owner_stake_sk_file="${WALLET_FOLDER}/${owner_wallets[0]}/${WALLET_STAKE_SK_FILENAME}"
               owner_delegation_cert_file="${WALLET_FOLDER}/${owner_wallets[0]}/${WALLET_DELEGCERT_FILENAME}"
               reward_stake_vk_file="${WALLET_FOLDER}/${reward_wallet}/${WALLET_STAKE_VK_FILENAME}"
-              reward_stake_sk_file="${WALLET_FOLDER}/${reward_wallet}/${WALLET_STAKE_SK_FILENAME}"
-              reward_delegation_cert_file="${WALLET_FOLDER}/${reward_wallet}/${WALLET_DELEGCERT_FILENAME}"
 
               pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
               pool_hotkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_SK_FILENAME}"
@@ -2225,7 +2187,6 @@ function main {
               println ACTION "${CCLI} stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${reward_stake_vk_file} --pool-owner-stake-verification-key-file ${owner_stake_vk_file} ${multi_owner_output} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output} ${NETWORK_IDENTIFIER} --out-file ${pool_regcert_file}"
               ${CCLI} stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${reward_stake_vk_file}" --pool-owner-stake-verification-key-file "${owner_stake_vk_file}" ${multi_owner_output} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output} ${NETWORK_IDENTIFIER} --out-file "${pool_regcert_file}"
 
-              delegate_reward_wallet='N'
               delegate_owner_wallet='N'
               if [[ ${SUBCOMMAND} = "register" ]]; then
                 if [[ ${hw_owner_wallets} = 'Y' || ${hw_reward_wallet} = 'Y' ]]; then
@@ -2238,20 +2199,19 @@ function main {
                   ${CCLI} stake-address delegation-certificate --stake-verification-key-file "${owner_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${owner_delegation_cert_file}"
                   delegate_owner_wallet='Y'
                   if [[ "${owner_wallets[0]}" != "${reward_wallet}" ]]; then
-                    println LOG "creating delegation certificate for reward wallet"
-                    println ACTION "${CCLI} stake-address delegation-certificate --stake-verification-key-file ${reward_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${reward_delegation_cert_file}"
-                    ${CCLI} stake-address delegation-certificate --stake-verification-key-file "${reward_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${reward_delegation_cert_file}"
-                    delegate_reward_wallet='Y'
+                    println DEBUG "\n${FG_BLUE}INFO${NC}: reward wallet not the same as owner, automatic reward wallet delegation disabled"
+                    println DEBUG "${FG_BLUE}INFO${NC}: ${FG_YELLOW}please manually delegate reward wallet to the pool!!!${NC}"
+                    waitForInput "press any key to continue"
                   fi
                 fi
               fi
 
               if [[ ${SUBCOMMAND} = "register" ]]; then
-                println DEBUG "# Pool Registration Transaction"
+                println DEBUG "\n# Pool Registration Transaction"
                 registerPool
                 rc=$?
               else
-                println DEBUG "# Pool Update Transaction"
+                println DEBUG "\n# Pool Update Transaction"
                 modifyPool
                 rc=$?
               fi

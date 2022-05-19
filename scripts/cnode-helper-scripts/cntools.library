@@ -9,9 +9,9 @@
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
 CNTOOLS_MAJOR_VERSION=9
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=0
+CNTOOLS_MINOR_VERSION=1
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=10
+CNTOOLS_PATCH_VERSION=0
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -1673,19 +1673,6 @@ registerPool() {
   
   witness_count=$(( 2 + ${#owner_wallets[@]} )) # owner payment + cold + multi-owners(main owner included)
   
-  reward_delegation_cert=""
-  reward_wallet_stake_key=""
-  if [[ ${delegate_reward_wallet} = 'Y' ]]; then
-    reward_delegation_cert="${reward_delegation_cert_file}"
-    reward_mu='N'
-    for wallet_name in "${owner_wallets[@]}"; do
-      [[ "${wallet_name}" = "${reward_wallet}" ]] && reward_mu='Y' && break # reward wallet is also a multi owner, witness count already include reward wallet stake key
-    done
-    [[ ${reward_mu} = 'N' ]] && ((witness_count++)) # reward wallet to be delegated but not a multi-owner, increase witness count
-  else
-    reward_stake_sk_file=""
-  fi
-  
   owner_delegation_cert=""
   if [[ ${delegate_owner_wallet} = 'Y' ]]; then
     owner_delegation_cert="${owner_delegation_cert_file}"
@@ -1703,7 +1690,6 @@ registerPool() {
     --out-file "${TMP_DIR}"/tx0.tmp
   )
   [[ -n ${owner_delegation_cert} ]] && dummy_build_args+=( --certificate-file "${owner_delegation_cert}" )
-  [[ -n ${reward_delegation_cert} ]] && dummy_build_args+=( --certificate-file "${reward_delegation_cert}" )
   println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
   if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
 
@@ -1747,7 +1733,6 @@ registerPool() {
     --out-file "${TMP_DIR}"/tx.raw
   )
   [[ -n ${owner_delegation_cert} ]] && build_args+=( --certificate-file "${owner_delegation_cert}" )
-  [[ -n ${reward_delegation_cert} ]] && build_args+=( --certificate-file "${reward_delegation_cert}" )
   if ! buildTx; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -1768,7 +1753,6 @@ registerPool() {
       stake_vk_file="${WALLET_FOLDER}/${owner_wallets[${index}]}/${WALLET_STAKE_VK_FILENAME}"
       if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Owner #$((index+1)) '${owner_wallets[${index}]}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     done
-    [[ ${delegate_reward_wallet} = 'Y' && ${reward_mu} = 'N' ]] && if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Reward wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${reward_stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { witness: [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
@@ -1783,19 +1767,17 @@ registerPool() {
       [[ ${index} -eq 0 ]] && continue # skip main owner
       println DEBUG "Owner #$((index+1)) ${FG_GREEN}${owner_wallets[${index}]} ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}"
     done
-    [[ delegate_reward_wallet = 'Y' ]] && println DEBUG "Reward wallet ${FG_GREEN}${reward_wallet} ${FG_LGRAY}$(basename ${reward_stake_sk_file})${NC}"
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
   multi_owner_keys=()
   for index in "${!owner_wallets[@]}"; do
     [[ ${index} -eq 0 ]] && continue # skip main owner
-    [[ ${owner_wallets[${index}]} = "${reward_wallet}" && ${delegate_reward_wallet} = 'Y' ]] && continue # skip reward wallet, already included due to delegation
     getWalletType ${owner_wallets[${index}]}
     multi_owner_keys+=( "${stake_sk_file}" )
   done
   
-  if ! witnessTx "${TMP_DIR}/tx.raw" "${owner_payment_sk_file}" "${pool_coldkey_sk_file}" "${owner_stake_sk_file}" "${reward_stake_sk_file}" "${multi_owner_keys[@]}"; then return 1; fi
+  if ! witnessTx "${TMP_DIR}/tx.raw" "${owner_payment_sk_file}" "${pool_coldkey_sk_file}" "${owner_stake_sk_file}" "${multi_owner_keys[@]}"; then return 1; fi
   if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
