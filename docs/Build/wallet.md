@@ -29,7 +29,7 @@ git fetch --tags --all
 git pull
 # Replace tag against checkout if you do not want to build the latest released version
 git checkout $(curl -s https://api.github.com/repos/input-output-hk/cardano-wallet/releases/latest | jq -r .tag_name)
-$CNODE_HOME/scripts/stack-build.sh
+$CNODE_HOME/scripts/cabal-build-all.sh
 ```
 
 The above would copy the binaries into `~/.cabal/bin` folder.
