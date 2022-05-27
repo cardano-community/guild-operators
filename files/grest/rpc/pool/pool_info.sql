@@ -67,7 +67,7 @@ BEGIN
   FROM
     grest.pool_info_cache AS pic
   LEFT JOIN
-    public.pool_offline_data AS pod ON pic.pool_hash_id = pod.pool_id
+    public.pool_offline_data AS pod ON pic.pool_hash_id = pod.pool_id AND pic.meta_id = pod.pmr_id
   LEFT JOIN LATERAL (
     SELECT
       SUM(COUNT(b.id)) OVER () AS cnt,
@@ -122,8 +122,7 @@ BEGIN
   WHERE
     pic.pool_id_bech32 = ANY(SELECT UNNEST(_pool_bech32_ids))
   ORDER BY
-    pic.pool_id_bech32,
-    pod.pmr_id, pic.tx_id DESC;
+    pic.pool_id_bech32,pic.meta_id DESC, pic.tx_id DESC;
 END;
 $$;
 
