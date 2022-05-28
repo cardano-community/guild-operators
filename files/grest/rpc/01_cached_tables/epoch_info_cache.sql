@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS grest.epoch_info_cache (
   i_blk_count uinteger NOT NULL,
   i_first_block_time timestamp without time zone UNIQUE NOT NULL,
   i_last_block_time timestamp without time zone UNIQUE NOT NULL,
+  i_total_rewards lovelace DEFAULT NULL,
+  i_avg_blk_reward uinteger DEFAULT NULL,
   p_min_fee_a uinteger NULL,
   p_min_fee_b uinteger NULL,
   p_max_block_size uinteger NULL,
@@ -70,6 +72,11 @@ BEGIN
     (now() at time zone 'utc')::text
   );
 
+  SELECT
+    MAX(no) INTO _curr_epoch
+  FROM
+    public.epoch;
+
   IF _epoch_no_to_insert_from IS NULL THEN
     SELECT
       COALESCE(MAX(epoch_no), 0) INTO _latest_epoch_no_in_cache
@@ -81,11 +88,6 @@ BEGIN
       PERFORM grest.EPOCH_INFO_CACHE_UPDATE (0);
       RETURN;
     END IF;
-
-    SELECT
-      MAX(no) INTO _curr_epoch
-    FROM
-      public.epoch;
 
     RAISE NOTICE 'Latest epoch in cache: %, current epoch: %.', _latest_epoch_no_in_cache, _curr_epoch;
 
@@ -103,6 +105,9 @@ BEGIN
     RAISE NOTICE 'Updating cache with new epoch(s) data...';
     -- We need to update last epoch one last time before going to new one
     PERFORM grest.UPDATE_LATEST_EPOCH_INFO_CACHE(_latest_epoch_no_in_cache);
+    -- Populate rewards data for epoch n - 2
+    PERFORM grest.UPDATE_TOTAL_REWARDS_EPOCH_INFO_CACHE(_latest_epoch_no_in_cache - 1);
+    -- Continue new epoch data insert
     _epoch_no_to_insert_from := _latest_epoch_no_in_cache + 1;
   END IF;  
 
@@ -119,6 +124,14 @@ BEGIN
       e.blk_count AS i_blk_count,
       e.start_time AS i_first_block_time,
       e.end_time AS i_last_block_time,
+      CASE -- populated in epoch n + 2
+        WHEN e.no <= _curr_epoch - 2 THEN reward_pot.amount 
+        ELSE NULL
+      END AS i_total_rewards,
+      CASE -- populated in epoch n + 2
+        WHEN e.no <= _curr_epoch THEN ROUND(reward_pot.amount / e.blk_count)
+        ELSE NULL
+      END AS i_avg_blk_reward, 
       ep.min_fee_a AS p_min_fee_a,
       ep.min_fee_b AS p_min_fee_b,
       ep.max_block_size AS p_max_block_size,
@@ -155,6 +168,17 @@ BEGIN
       LEFT JOIN epoch_param ep ON ep.epoch_no = e.no
       LEFT JOIN cost_model cm ON cm.id = ep.cost_model_id
       INNER JOIN block b ON b.time = e.start_time
+      LEFT JOIN LATERAL (
+        SELECT
+          e.no,
+          SUM(r.amount) as amount
+        FROM
+          reward r
+        WHERE
+          r.earned_epoch = e.no
+        GROUP BY
+          e.no
+      ) reward_pot ON TRUE
     WHERE
       e.no >= _epoch_no_to_insert_from
     ORDER BY
@@ -165,7 +189,7 @@ END;
 $$;
 
 -- Helper function for updating current epoch data
-CREATE FUNCTION grest.UPDATE_LATEST_EPOCH_INFO_CACHE (_epoch_no_to_update bigint default NULL)
+CREATE FUNCTION grest.UPDATE_LATEST_EPOCH_INFO_CACHE (_epoch_no_to_update bigint)
   RETURNS void
   LANGUAGE plpgsql
   AS $$
@@ -194,3 +218,33 @@ BEGIN
     epoch_no = _epoch_no_to_update;
 END;
 $$;
+
+-- Helper function for updating epoch total rewards (epoch n - 2)
+CREATE FUNCTION grest.UPDATE_TOTAL_REWARDS_EPOCH_INFO_CACHE (_epoch_no_to_update bigint)
+  RETURNS void
+  LANGUAGE plpgsql
+  AS $$
+BEGIN
+  UPDATE
+    grest.epoch_info_cache
+  SET
+    i_total_rewards = rewards_pot.amount,
+    i_avg_blk_reward = rewards_pot.avg_blk_reward
+  FROM (
+    SELECT
+      e.no,
+      SUM(r.amount) AS amount,
+      ROUND(r.amount / e.blk_count) AS avg_blk_reward
+    FROM
+      reward r
+      INNER JOIN epoch e ON e.no = _epoch_no_to_update
+    WHERE
+      r.earned_epoch = _epoch_no_to_update
+    GROUP BY
+      e.no
+  ) rewards_pot
+  WHERE
+    epoch_no = _epoch_no_to_update;
+END;
+$$;
+
