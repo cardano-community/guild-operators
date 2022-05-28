@@ -228,21 +228,26 @@ BEGIN
   UPDATE
     grest.epoch_info_cache
   SET
-    i_total_rewards = rewards_pot.amount,
-    i_avg_blk_reward = rewards_pot.avg_blk_reward
+    i_total_rewards = update_t.amount,
+    i_avg_blk_reward = update_t.avg_blk_reward
   FROM (
     SELECT
-      e.no,
-      SUM(r.amount) AS amount,
-      ROUND(r.amount / e.blk_count) AS avg_blk_reward
-    FROM
-      reward r
-      INNER JOIN epoch e ON e.no = _epoch_no_to_update
-    WHERE
-      r.earned_epoch = _epoch_no_to_update
-    GROUP BY
-      e.no
-  ) rewards_pot
+      reward_pot.amount,
+      ROUND(reward_pot.amount /  e.blk_count) AS avg_blk_reward
+    FROM (
+      SELECT
+        r.earned_epoch,
+        SUM(r.amount) AS amount
+      FROM
+        reward r
+      WHERE
+        r.earned_epoch = _epoch_no_to_update
+      GROUP BY
+        r.earned_epoch
+    ) reward_pot
+    INNER JOIN epoch e ON reward_pot.earned_epoch = e.no
+      AND e.no = _epoch_no_to_update
+  ) update_t
   WHERE
     epoch_no = _epoch_no_to_update;
 END;
