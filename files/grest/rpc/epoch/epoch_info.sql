@@ -5,11 +5,12 @@ CREATE FUNCTION grest.epoch_info (_epoch_no numeric DEFAULT NULL)
     fees text,
     tx_count uinteger,
     blk_count uinteger,
-    start_time timestamp without time zone,
-    end_time timestamp without time zone,
-    first_block_time timestamp without time zone,
-    last_block_time timestamp without time zone,
-    active_stake text)
+    start_time double precision,
+    end_time double precision,
+    first_block_time double precision,
+    last_block_time double precision,
+    active_stake text
+  )
   LANGUAGE PLPGSQL
   AS $$
 DECLARE
@@ -26,13 +27,17 @@ BEGIN
     ei.i_blk_count AS blk_count,
     CASE WHEN ei.epoch_no < shelley_ref_epoch THEN
         ei.i_first_block_time
-      ELSE
-        (shelley_ref_time + ((ei.epoch_no - shelley_ref_epoch) * shelley_epoch_duration)::text::interval)
+    ELSE
+        EXTRACT(epoch from (
+          shelley_ref_time + ((ei.epoch_no - shelley_ref_epoch) * shelley_epoch_duration)::text::interval
+        ))
       END AS start_time,
     CASE WHEN ei.epoch_no < shelley_ref_epoch THEN
-        ei.i_first_block_time::timestamp + shelley_epoch_duration::text::interval
-      ELSE
+      ei.i_first_block_time + shelley_epoch_duration
+    ELSE
+      EXTRACT(epoch from (
         (shelley_ref_time + (((ei.epoch_no+1) - shelley_ref_epoch) * shelley_epoch_duration)::text::interval)
+      ))
     END AS end_time,
     ei.i_first_block_time AS first_block_time,
     ei.i_last_block_time AS last_block_time,
