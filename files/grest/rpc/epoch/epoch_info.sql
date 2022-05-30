@@ -16,7 +16,7 @@ CREATE FUNCTION grest.epoch_info (_epoch_no numeric DEFAULT NULL)
 DECLARE
   shelley_epoch_duration numeric := (select epochlength::numeric * slotlength::numeric as epochduration from grest.genesis);
   shelley_ref_epoch numeric := (select (ep.epoch_no::numeric + 1) from epoch_param ep ORDER BY ep.epoch_no LIMIT 1);
-  shelley_ref_time timestamp := (select ei.i_first_block_time from grest.epoch_info_cache ei where ei.epoch_no = shelley_ref_epoch);
+  shelley_ref_time double precision := (select ei.i_first_block_time from grest.epoch_info_cache ei where ei.epoch_no = shelley_ref_epoch);
 BEGIN
   RETURN QUERY
   SELECT
@@ -28,16 +28,12 @@ BEGIN
     CASE WHEN ei.epoch_no < shelley_ref_epoch THEN
         ei.i_first_block_time
     ELSE
-        EXTRACT(epoch from (
-          shelley_ref_time + ((ei.epoch_no - shelley_ref_epoch) * shelley_epoch_duration)::text::interval
-        ))
-      END AS start_time,
+        shelley_ref_time + (ei.epoch_no - shelley_ref_epoch) * shelley_epoch_duration
+    END AS start_time,
     CASE WHEN ei.epoch_no < shelley_ref_epoch THEN
       ei.i_first_block_time + shelley_epoch_duration
     ELSE
-      EXTRACT(epoch from (
-        (shelley_ref_time + (((ei.epoch_no+1) - shelley_ref_epoch) * shelley_epoch_duration)::text::interval)
-      ))
+      shelley_ref_time + ((ei.epoch_no + 1) - shelley_ref_epoch) * shelley_epoch_duration
     END AS end_time,
     ei.i_first_block_time AS first_block_time,
     ei.i_last_block_time AS last_block_time,
