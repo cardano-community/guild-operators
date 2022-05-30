@@ -1,5 +1,8 @@
 # Koios gRest Changelog
 
+## [1.0.0]
+- First Production release for Koios gRest
+
 ## [1.0.0-rc1]
 
 ### Changes for API
