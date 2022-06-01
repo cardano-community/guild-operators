@@ -7,6 +7,8 @@ on:
       - scripts/cnode-helper-scripts/prereqs.sh
       - scripts/cnode-helper-scripts/cabal-build-all.sh
       - files/cabal.project.local
+      - files/tests/amazonlinux2_prereqs.sh.containerfile
+      - files/tests/amazonlinux2_prereqs.sh_-l.containerfile
 
 jobs:
   prerequisites:
