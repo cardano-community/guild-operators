@@ -12,6 +12,18 @@ jobs:
   prerequisites:
     runs-on: ubuntu-latest
     steps:
+    - name: Provide additional free space
+      run: |
+        # Workaround to provide additional free space for builds.
+        #   https://github.com/actions/virtual-environments/issues/2840
+        sudo apt-get remove -y '^dotnet-.*'
+        sudo apt-get remove -y 'php.*'
+        sudo apt-get remove -y azure-cli google-cloud-sdk hhvm google-chrome-stable firefox powershell mono-devel
+        sudo apt-get autoremove -y
+        sudo apt-get clean
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf "/usr/local/share/boost"
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
     - name: Login to GitHub Container Registry
       uses: docker/login-action@v1
       with:
@@ -37,6 +49,18 @@ jobs:
     needs: prerequisites
     runs-on: ubuntu-latest
     steps:
+    - name: Provide additional free space
+      run: |
+        # Workaround to provide additional free space for builds.
+        #   https://github.com/actions/virtual-environments/issues/2840
+        sudo apt-get remove -y '^dotnet-.*'
+        sudo apt-get remove -y 'php.*'
+        sudo apt-get remove -y azure-cli google-cloud-sdk hhvm google-chrome-stable firefox powershell mono-devel
+        sudo apt-get autoremove -y
+        sudo apt-get clean
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf "/usr/local/share/boost"
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
     - name: Login to GitHub Container Registry
       uses: docker/login-action@v1
       with:
@@ -58,6 +82,18 @@ jobs:
   prerequisites-with-system-libsodium:
     runs-on: ubuntu-latest
     steps:
+    - name: Provide additional free space
+      run: |
+        # Workaround to provide additional free space for builds.
+        #   https://github.com/actions/virtual-environments/issues/2840
+        sudo apt-get remove -y '^dotnet-.*'
+        sudo apt-get remove -y 'php.*'
+        sudo apt-get remove -y azure-cli google-cloud-sdk hhvm google-chrome-stable firefox powershell mono-devel
+        sudo apt-get autoremove -y
+        sudo apt-get clean
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf "/usr/local/share/boost"
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
     - name: Login to GitHub Container Registry
       uses: docker/login-action@v1
       with:
@@ -83,6 +119,18 @@ jobs:
     needs: prerequisites-with-system-libsodium
     runs-on: ubuntu-latest
     steps:
+    - name: Provide additional free space
+      run: |
+        # Workaround to provide additional free space for builds.
+        #   https://github.com/actions/virtual-environments/issues/2840
+        sudo apt-get remove -y '^dotnet-.*'
+        sudo apt-get remove -y 'php.*'
+        sudo apt-get remove -y azure-cli google-cloud-sdk hhvm google-chrome-stable firefox powershell mono-devel
+        sudo apt-get autoremove -y
+        sudo apt-get clean
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf "/usr/local/share/boost"
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
     - name: Login to GitHub Container Registry
       uses: docker/login-action@v1
       with:
