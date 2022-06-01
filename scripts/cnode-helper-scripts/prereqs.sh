@@ -199,7 +199,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo yum ${pkg_opts} install curl > /dev/null
     $sudo yum ${pkg_opts} update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="python3 coreutils libffi-devel gmp-devel openssl-devel ncurses-devel ncurses-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git jq gnupg2 libtool autoconf iproute bc traceroute dialog sqlite util-linux xz wget unzip"
+    pkg_list="python3 coreutils libffi-devel gmp-devel openssl-devel ncurses-devel ncurses-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git jq gnupg2 libtool autoconf iproute bc traceroute dialog sqlite util-linux xz wget unzip procps-ng"
     if [[ "${VERSION_ID}" == "2" ]] ; then
       #AmazonLinux2
       pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig srm"
@@ -246,7 +246,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     echo "please manually install required packages."
     echo "Their relative names are:"
     echo "Debian: curl build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev tmux"
-    echo "CentOS: curl pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd-devel zlib-devel tmux"
+    echo "CentOS: curl pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd-devel zlib-devel tmux procps-ng"
     err_exit
   fi
   export BOOTSTRAP_HASKELL_NO_UPGRADE=1
