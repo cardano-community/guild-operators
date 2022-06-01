@@ -16,7 +16,6 @@ WORKDIR /
 RUN set -x && apt update \
     && mkdir -pv /root/.{cabal,ghcup}/bin \
     && apt install -y apt-utils curl gnupg git udev ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
     && curl --silent --show-error --insecure --output prereqs.sh "https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts/prereqs.sh" \
     && chmod 0755 prereqs.sh \
     && export SUDO='N' \
