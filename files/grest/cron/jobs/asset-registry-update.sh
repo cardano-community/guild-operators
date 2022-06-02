@@ -17,9 +17,16 @@ fi
 pushd "${TR_DIR}/${TR_NAME}" >/dev/null || exit 1
 git pull >/dev/null || exit 1
 
+last_commit="$(psql ${DB_NAME} -c "select last_value from grest.control_table where key='asset_registry_commit'" -t | xargs)"
+[[ -z "${last_commit}" ]] && last_commit="$(git rev-list HEAD | tail -n 1)"
+latest_commit="$(git rev-list HEAD | head -n 1)"
+
+[[ "${last_commit}" == "${latest_commit}" ]] && echo "$(date +%F_%H:%M:%S) - END - Asset Registry Update, no updates necessary." && exit 0
+
 asset_cnt=0
 
-while IFS= read -r -d '' assetfile; do
+[[ -f '.assetregistry.sql' ]] && rm -f .assetregistry.sql
+while IFS= read -re assetfile; do
   if ! asset_data_csv=$(jq -er '[
       .subject,
       .name.value,
@@ -44,9 +51,10 @@ while IFS= read -r -d '' assetfile; do
     [[ -z ${url} || ! ${url//\"} =~ ^https?:// || ${#url} -gt 250 ]] && url=NULL || url="\$\$${url}\$\$"
     [[ -z ${logo} ]] && logo=NULL || logo="\$\$${logo}\$\$"
     [[ ! ${decimals} =~ ^[0-9]+$ ]] && decimals=0
-    psql ${DB_NAME} -qbt -c "SELECT grest.asset_registry_cache_update(\$\$${asset_policy}\$\$, \$\$${asset_name}\$\$, \$\$${name}\$\$, \$\$${description}\$\$, ${ticker}, ${url}, ${logo}, ${decimals});" >/dev/null
+    echo "SELECT grest.asset_registry_cache_update(\$\$${asset_policy}\$\$, \$\$${asset_name}\$\$, \$\$${name}\$\$, \$\$${description}\$\$, ${ticker}, ${url}, ${logo}, ${decimals});" >> .assetregistry.sql
     ((asset_cnt++))
   done <<< ${asset_data_csv}
-done < <(find "${TR_DIR}/${TR_NAME}/${TR_SUBDIR}" -mindepth 1 -maxdepth 1 -type f -name "*.json" -mmin -15 -print0)
-
-echo "$(date +%F_%H:%M:%S) - END - Asset Registry Update, ${asset_cnt} assets added/updated."
+done < <(git diff --name-only "${last_commit}" "${latest_commit}" | grep ^${TR_SUBDIR})
+psql ${DB_NAME} -qb -f .assetregistry.sql >/dev/null
+psql ${DB_NAME} -qb -c "INSERT INTO grest.control_table (key, last_value) VALUES ('asset_registry_commit','${latest_commit}') ON CONFLICT(key) DO UPDATE SET last_value='${latest_commit}'"
+echo "$(date +%F_%H:%M:%S) - END - Asset Registry Update, ${asset_cnt} assets added/updated for commits ${last_commit} to ${latest_commit}."
