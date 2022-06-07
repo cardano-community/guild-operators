@@ -18,8 +18,8 @@ ENV \
 
 # COPY NODE BINS AND DEPS 
 COPY --from=cardanocommunity/cardano-node:stage2 /root/.cabal/bin/* /usr/local/bin/
-COPY --from=stakelovelace/cardano-htn:stage2 /root/bin/* /usr/local/bin/
-COPY --from=stakelovelace/cardano-htn:stage2 /root/git/cncli/target/release/cncli /usr/local/bin/
+COPY --from=cardanocommunity/cardano-node:stage2 /root/bin/* /usr/local/bin/
+COPY --from=cardanocommunity/cardano-node:stage2 /root/git/cncli/target/release/cncli /usr/local/bin/
 COPY --from=cardanocommunity/cardano-node:stage2 /opt/ /opt/
 
 RUN chmod a+x /usr/local/bin/* && ls /opt/ \
