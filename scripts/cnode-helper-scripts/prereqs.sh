@@ -151,6 +151,8 @@ if [[ ${UPDATE_CHECK} = 'Y' ]] && curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/p
 fi
 rm -f "${PARENT}"/prereqs.sh.tmp
 
+mkdir -p "${HOME}"/git > /dev/null 2>&1 # To hold git repositories that will be used for building binaries
+
 if [[ "${INTERACTIVE}" = 'Y' ]]; then
   clear
   CNODE_PATH=$(get_input "Please enter the project path" ${CNODE_PATH})
@@ -249,6 +251,19 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     echo "CentOS: curl pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd-devel zlib-devel tmux procps-ng"
     err_exit
   fi
+  echo "Install libsecp256k1 ... "
+  if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
+    echo "export LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
+    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+  fi
+  pushd "${HOME}"/git >/dev/null || err_exit
+  [[ ! -d "./secp256k1" ]] && git clone https://github.com/bitcoin-core/secp256k1 &>/dev/null
+  pushd secp256k1 >/dev/null || err_exit
+  git checkout ac83be33 &>/dev/null
+  ./autogen.sh > autogen.log > /tmp/secp256k1.log 2>&1
+  ./configure --enable-module-schnorrsig --enable-experimental > configure.log >> /tmp/secp256k1.log 2>&1
+  make > make.log 2>&1
+  $sudo make install > install.log 2>&1
   export BOOTSTRAP_HASKELL_NO_UPGRADE=1
   export BOOTSTRAP_HASKELL_GHC_VERSION=8.10.7
   export BOOTSTRAP_HASKELL_CABAL_VERSION=3.6.2.0
@@ -294,8 +309,6 @@ else
   echo -e "\nexport ${CNODE_VNAME}_HOME=${CNODE_HOME}" >> "${HOME}"/.bashrc
   
 fi
-
-mkdir -p "${HOME}"/git > /dev/null 2>&1 # To hold git repositories that will be used for building binaries
 
 if [[ "${LIBSODIUM_FORK}" = "Y" ]]; then
   if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
