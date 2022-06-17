@@ -76,7 +76,7 @@ deploy_systemd() {
 	LimitNOFILE=1048576
 	WorkingDirectory=${CNODE_HOME}/scripts
 	ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cnode.sh\"
-	ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep ${CNODEBIN}.*.${CNODE_HOME}/ | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
+	ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep ${CNODEBIN}.*.--port\\ ${CNODE_PORT} | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
 	KillSignal=SIGINT
 	SuccessExitStatus=143
 	StandardOutput=syslog

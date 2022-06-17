@@ -13,6 +13,16 @@ jobs:
     - name: Compiling new node software suite
       run: |      
         DOCKER_BUILDKIT=1 docker build . --file files/docker/node/dockerfile_stage3 --compress --tag cardanocommunity/cardano-node:stage3
+        # Workaround to provide additional free space for builds.
+        #   https://github.com/actions/virtual-environments/issues/2840
+        sudo apt-get remove -y '^dotnet-.*'
+        sudo apt-get remove -y 'php.*'
+        sudo apt-get remove -y azure-cli google-cloud-sdk hhvm google-chrome-stable firefox powershell mono-devel
+        sudo apt-get autoremove -y
+        sudo apt-get clean
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf "/usr/local/share/boost"
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
     - name: docker push stage3 and latest
       run: |
         CNVERSION=`cat files/docker/node/release-versions/cardano-node-latest.txt`
