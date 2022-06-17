@@ -1,5 +1,11 @@
 # Koios gRest Changelog
 
+## [1.0.1]
+- Modify `asset_registry_update.sh` script to rely on commit hash instead of POSIX timestamps, and performance bump. [#1428](https://github.com/cardano-community/guild-operators/pull/1428)
+
+## [1.0.0]
+- First Production release for Koios gRest
+
 ## [1.0.0-rc1]
 
 ### Changes for API

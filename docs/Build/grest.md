@@ -66,9 +66,9 @@ Similarly - if instead, you'd like to re-install all components as well as force
 ./setup-grest.sh -f -i prmcd -q
 ```
 
-Another example could be to preserve your config, but only update queries using an alternate branch (eg: let's say you want to try the tag `koios-1.0.0rc1`). To do so, you may run:
+Another example could be to preserve your config, but only update queries using an alternate branch (eg: let's say you want to try the tag `koios-1.0.0`). To do so, you may run:
 ``` bash
-./setup-grest.sh -q -b koios-1.0.0rc1
+./setup-grest.sh -q -b koios-1.0.0
 ```
 
 Please ensure to follow the on-screen instructions, if any (for example restarting deployed services, or updating configs to specify correct target postgres URLs/enable TLS/add peers etc in `${CNODE_HOME}/priv/grest.conf` and `${CNODE_HOME}/files/haproxy.cfg`).
@@ -136,3 +136,15 @@ curl -d _pool_bech32=pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr -s
 ```
 
 You may want to explore what all endpoints come out of the box, and test them out, to do so - refer to [API documentation](https://api.koios.rest) for OpenAPI3 documentation. Each endpoint has a pre-filled example for mainnet and connects by default to primary Koios endpoint, allowing you to test endpoints and if needed - grab the `curl` commands to start testing yourself against your local or remote instances.
+
+### Participating in Koios Cluster as instance Provider
+
+If you're interested to participate in decentralised infrastructure by providing an instance, there are a few additional steps you'd need:
+
+1. Enable ports for your HAProxy instance (default: 8053), gRest Exporter service (default: 8059) and (optionally) submit API instance (default: 8090) against the monitoring instance (do not need to open these ports to internet) of corresponding network.
+
+2. Ensure that each of the service above is listening on your public IP address (for instance, submitapi.sh might need to be edited to change HOSTADDR to `0.0.0.0` and restarted).
+
+3. Create a PR specifying connectivity information to your HAProxy port [here](https://github.com/cardano-community/koios-artifacts/tree/main/topology).
+
+4. Make sure to join the [telegram discussions group](https://t.me/+zE4Lce_QUepiY2U1) to participate in any discussions, actions, polls for new-features, etc. Feel free to give a shout in the group in case you have trouble following any of the above
