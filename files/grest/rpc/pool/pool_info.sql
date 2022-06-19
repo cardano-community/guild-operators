@@ -31,7 +31,7 @@ DECLARE
   _epoch_no bigint;
   _saturation_limit bigint;
 BEGIN
-  SELECT epoch.no INTO _epoch_no FROM public.epoch ORDER BY epoch.no DESC LIMIT 1;
+  SELECT MAX(epoch.no) INTO _epoch_no FROM public.epoch;
 
   SELECT FLOOR(supply::bigint / (
       SELECT p_optimal_pool_count 
@@ -40,89 +40,121 @@ BEGIN
     ))::bigint INTO _saturation_limit FROM grest.totals(_epoch_no);
 
   RETURN QUERY
-  SELECT DISTINCT ON (pic.pool_id_bech32)
-    pic.pool_id_bech32,
-    pic.pool_id_hex,
-    pic.active_epoch_no,
-    pic.vrf_key_hash,
-    pic.margin,
-    pic.fixed_cost::text,
-    pic.pledge::text,
-    pic.reward_addr,
-    pic.owners,
-    pic.relays,
-    pic.meta_url,
-    pic.meta_hash,
-    pod.json,
-    pic.pool_status,
-    pic.retiring_epoch,
-    ENCODE(block_data.op_cert::bytea, 'hex'),
-    block_data.op_cert_counter,
-    active_stake.as_sum::text,
-    block_data.cnt,
-    live.pledge::text,
-    live.stake::text,
-    live.delegators,
-    ROUND((live.stake / _saturation_limit) * 100, 2)
-  FROM
-    grest.pool_info_cache AS pic
-  LEFT JOIN
-    public.pool_offline_data AS pod ON pic.pool_hash_id = pod.pool_id AND pic.meta_id = pod.pmr_id
-  LEFT JOIN LATERAL (
+    WITH
+      _all_pool_info AS (
+        SELECT DISTINCT ON (pic.pool_id_bech32)
+          *
+        FROM
+          grest.pool_info_cache AS pic
+        WHERE
+          pic.pool_id_bech32 = ANY(SELECT UNNEST(_pool_bech32_ids))
+        ORDER BY
+          pic.pool_id_bech32, pic.tx_id DESC
+      )
+
     SELECT
-      SUM(COUNT(b.id)) OVER () AS cnt,
-      b.op_cert,
-      b.op_cert_counter
-    FROM 
-      public.block AS b
-    INNER JOIN 
-      public.slot_leader AS sl ON b.slot_leader_id = sl.id
-    WHERE
-      sl.pool_hash_id = pic.pool_hash_id
-    GROUP BY
-      b.op_cert,
-      b.op_cert_counter
-    ORDER BY
-      b.op_cert_counter DESC
-    LIMIT 1
-  ) block_data ON TRUE
-  LEFT JOIN LATERAL(
-    SELECT
-      amount::lovelace AS as_sum
+      api.pool_id_bech32,
+      api.pool_id_hex,
+      api.active_epoch_no,
+      api.vrf_key_hash,
+      api.margin,
+      api.fixed_cost::text,
+      api.pledge::text,
+      api.reward_addr,
+      api.owners,
+      api.relays,
+      api.meta_url,
+      api.meta_hash,
+      offline_data.json,
+      api.pool_status,
+      api.retiring_epoch,
+      ENCODE(block_data.op_cert::bytea, 'hex'),
+      block_data.op_cert_counter,
+      active_stake.as_sum::text,
+      block_data.cnt,
+      live.pledge::text,
+      live.stake::text,
+      live.delegators,
+      ROUND((live.stake / _saturation_limit) * 100, 2)
     FROM
-      grest.pool_active_stake_cache AS easc
-    WHERE 
-      easc.pool_id = pic.pool_id_bech32
-      AND
-      easc.epoch_no = _epoch_no
-  ) active_stake ON TRUE
-  LEFT JOIN LATERAL(
-    SELECT
-      CASE WHEN pic.pool_status = 'retired'
-        THEN NULL
-      ELSE
-        SUM (
-          CASE WHEN total_balance >= 0
-            THEN total_balance
-            ELSE 0
-          END
-        )::lovelace
-      END AS stake,
-      COUNT (stake_address) AS delegators,
-      CASE WHEN pic.pool_status = 'retired'
-        THEN NULL
-      ELSE
-        SUM (CASE WHEN sdc.stake_address = ANY (pic.owners) THEN total_balance ELSE 0 END)::lovelace
-      END AS pledge
-    FROM
-      grest.stake_distribution_cache AS sdc
-    WHERE
-      sdc.pool_id = pic.pool_id_bech32
-  ) live ON TRUE
-  WHERE
-    pic.pool_id_bech32 = ANY(SELECT UNNEST(_pool_bech32_ids))
-  ORDER BY
-    pic.pool_id_bech32,pic.meta_id DESC, pic.tx_id DESC;
+      _all_pool_info AS api
+    LEFT JOIN LATERAL (
+      (
+        SELECT
+          pod.json
+        FROM
+          public.pool_offline_data AS pod
+        WHERE
+          pod.pool_id = api.pool_hash_id
+          AND
+          pod.pmr_id = api.meta_id
+      )
+      UNION ALL
+      (
+        SELECT
+          pod.json
+        FROM
+          public.pool_offline_data AS pod
+        WHERE
+          pod.pool_id = api.pool_hash_id
+          AND
+          pod.json IS NOT NULL
+        ORDER BY
+          pod.pmr_id DESC
+      )
+      LIMIT 1
+    ) offline_data ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT
+        SUM(COUNT(b.id)) OVER () AS cnt,
+        b.op_cert,
+        b.op_cert_counter
+      FROM 
+        public.block AS b
+      INNER JOIN 
+        public.slot_leader AS sl ON b.slot_leader_id = sl.id
+      WHERE
+        sl.pool_hash_id = api.pool_hash_id
+      GROUP BY
+        b.op_cert,
+        b.op_cert_counter
+      ORDER BY
+        b.op_cert_counter DESC
+      LIMIT 1
+    ) block_data ON TRUE
+    LEFT JOIN LATERAL(
+      SELECT
+        amount::lovelace AS as_sum
+      FROM
+        grest.pool_active_stake_cache AS easc
+      WHERE 
+        easc.pool_id = api.pool_id_bech32
+        AND
+        easc.epoch_no = _epoch_no
+    ) active_stake ON TRUE
+    LEFT JOIN LATERAL(
+      SELECT
+        CASE WHEN api.pool_status = 'retired'
+          THEN NULL
+        ELSE
+          SUM (
+            CASE WHEN total_balance >= 0
+              THEN total_balance
+              ELSE 0
+            END
+          )::lovelace
+        END AS stake,
+        COUNT (stake_address) AS delegators,
+        CASE WHEN api.pool_status = 'retired'
+          THEN NULL
+        ELSE
+          SUM (CASE WHEN sdc.stake_address = ANY (api.owners) THEN total_balance ELSE 0 END)::lovelace
+        END AS pledge
+      FROM
+        grest.stake_distribution_cache AS sdc
+      WHERE
+        sdc.pool_id = api.pool_id_bech32
+    ) live ON TRUE;
 END;
 $$;
 
