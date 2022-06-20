@@ -1,7 +1,7 @@
 CREATE FUNCTION grest.pool_updates (_pool_bech32 text DEFAULT NULL)
     RETURNS TABLE (
         tx_hash text,
-        block_time timestamp without time zone,
+        block_time double precision,
         pool_id_bech32 character varying,
         pool_id_hex text,
         active_epoch_no bigint,

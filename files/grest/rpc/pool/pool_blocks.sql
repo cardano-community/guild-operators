@@ -5,7 +5,7 @@ CREATE FUNCTION grest.pool_blocks (_pool_bech32 text, _epoch_no uinteger DEFAULT
         abs_slot uinteger,
         block_height uinteger,
         block_hash text,
-        block_time timestamp without time zone
+        block_time double precision
     )
     LANGUAGE plpgsql
     AS $$
@@ -17,7 +17,7 @@ BEGIN
         b.slot_no as abs_slot,
         b.block_no as block_height,
         encode(b.hash::bytea, 'hex'),
-        b.time
+        EXTRACT(epoch from b.time)
     FROM
         public.block b
     INNER JOIN

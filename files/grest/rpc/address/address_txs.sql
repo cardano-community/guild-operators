@@ -3,7 +3,7 @@ CREATE FUNCTION grest.address_txs (_addresses text[], _after_block_height intege
     tx_hash text,
     epoch_no uinteger,
     block_height uinteger,
-    block_time timestamp
+    block_time double precision
   )
   LANGUAGE PLPGSQL
   AS $$
@@ -38,7 +38,7 @@ BEGIN
       DISTINCT(ENCODE(tx.hash, 'hex')) as tx_hash,
       block.epoch_no,
       block.block_no,
-      block.time
+      EXTRACT(epoch from block.time)
     FROM
       public.tx
       INNER JOIN public.block ON block.id = tx.block_id
