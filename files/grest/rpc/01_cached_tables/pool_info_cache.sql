@@ -312,7 +312,12 @@ DECLARE
 BEGIN
     SELECT COALESCE(MAX(tx_id), 0) INTO _latest_pool_info_tx_id FROM grest.pool_info_cache;
 
-    FOR rec IN (SELECT * FROM public.pool_update AS pu WHERE pu.registered_tx_id > _latest_pool_info_tx_id) LOOP
+    FOR rec IN (
+        SELECT pu.*, sa.view 
+        FROM public.pool_update AS pu
+        INNER JOIN public.stake_address AS sa ON sa.id = pu.reward_addr_id
+        WHERE pu.registered_tx_id > _latest_pool_info_tx_id
+    ) LOOP
         PERFORM grest.pool_info_insert(
             rec.id,
             rec.registered_tx_id,
@@ -322,7 +327,7 @@ BEGIN
             rec.margin,
             rec.fixed_cost,
             rec.pledge,
-            rec.reward_addr,
+            rec.view AS reward_addr,
             rec.meta_id
         );
     END LOOP;
