@@ -375,7 +375,7 @@ BEGIN
                 'max_val_size', PP.max_val_size,
                 'collateral_percent', PP.collateral_percent,
                 'max_collateral_inputs', PP.max_collateral_inputs,
-                'coins_per_utxo_word', PP.coins_per_utxo_word
+                'coins_per_utxo_size', PP.coins_per_utxo_size
               ))
             ) AS data
           FROM 
