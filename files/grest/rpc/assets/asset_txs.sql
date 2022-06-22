@@ -3,7 +3,7 @@ CREATE FUNCTION grest.asset_txs (_asset_policy text, _asset_name text default ''
     tx_hash text,
     epoch_no uinteger,
     block_height uinteger,
-    block_time timestamp
+    block_time double precision
   )
   LANGUAGE PLPGSQL
   AS $$
@@ -28,7 +28,7 @@ BEGIN
       ENCODE(tx_hashes.hash, 'hex') as tx_hash,
       tx_hashes.epoch_no,
       tx_hashes.block_no,
-      tx_hashes.time
+      EXTRACT(epoch from tx_hashes.time)
     FROM (
       SELECT DISTINCT ON (tx.hash)
         tx.hash,

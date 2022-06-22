@@ -8,7 +8,7 @@ CREATE FUNCTION grest.asset_info (_asset_policy text, _asset_name text default '
     total_supply text,
     mint_cnt bigint,
     burn_cnt bigint,
-    creation_time timestamp without time zone,
+    creation_time double precision,
     minting_tx_metadata json,
     token_registry_metadata json
   )
@@ -51,7 +51,7 @@ BEGIN
     minting_data.total_supply,
     minting_data.mint_cnt,
     minting_data.burn_cnt,
-    minting_data.date,
+    EXTRACT(epoch from minting_data.date),
     (
       SELECT
         JSON_BUILD_OBJECT(
