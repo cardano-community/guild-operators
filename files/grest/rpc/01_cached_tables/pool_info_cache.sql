@@ -34,7 +34,7 @@ CREATE FUNCTION grest.pool_info_insert (
         _margin double precision,
         _fixed_cost lovelace,
         _pledge lovelace,
-        _reward_addr addr29type,
+        _reward_addr_id bigint,
         _meta_id bigint
     )
     RETURNS void
@@ -101,7 +101,7 @@ BEGIN
                 sa.view
             FROM public.pool_owner AS po
             INNER JOIN public.stake_address AS sa ON sa.id = po.addr_id
-            WHERE po.registered_tx_id = _tx_id
+            WHERE po.pool_update_id = _update_id
         ),
         ARRAY(
             SELECT json_build_object(
@@ -123,7 +123,7 @@ BEGIN
     INNER JOIN public.tx ON tx.id = _tx_id
     INNER JOIN public.block AS b ON b.id = tx.block_id
     LEFT JOIN public.pool_metadata_ref AS pmr ON pmr.id = _meta_id
-    LEFT JOIN public.stake_address AS sa ON sa.hash_raw = _reward_addr
+    LEFT JOIN public.stake_address AS sa ON sa.id = _reward_addr_id
     WHERE ph.id = _hash_id;
 END;
 $$;
@@ -216,7 +216,7 @@ BEGIN
                 NEW.margin,
                 NEW.fixed_cost,
                 NEW.pledge,
-                NEW.reward_addr,
+                NEW.reward_addr_id,
                 NEW.meta_id
             );
         ELSIF (TG_OP = 'DELETE') THEN
@@ -313,10 +313,7 @@ BEGIN
     SELECT COALESCE(MAX(tx_id), 0) INTO _latest_pool_info_tx_id FROM grest.pool_info_cache;
 
     FOR rec IN (
-        SELECT pu.*, sa.view 
-        FROM public.pool_update AS pu
-        INNER JOIN public.stake_address AS sa ON sa.id = pu.reward_addr_id
-        WHERE pu.registered_tx_id > _latest_pool_info_tx_id
+        SELECT * FROM public.pool_update AS pu WHERE pu.registered_tx_id > _latest_pool_info_tx_id
     ) LOOP
         PERFORM grest.pool_info_insert(
             rec.id,
@@ -327,7 +324,7 @@ BEGIN
             rec.margin,
             rec.fixed_cost,
             rec.pledge,
-            rec.view AS reward_addr,
+            rec.reward_addr_id,
             rec.meta_id
         );
     END LOOP;
