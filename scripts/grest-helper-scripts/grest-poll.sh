@@ -88,7 +88,7 @@ function chk_version() {
 }
 
 function chk_is_up() {
-  rc=$(curl -s "${GURL}"/ready -I 2>/dev/null | grep x-failover)
+  rc=$(curl -sf "${GURL}"/ready -I 2>/dev/null | grep x-failover)
   if [[ "${rc}" != "" ]]; then
     log_err "${GURL}/ready status check failed!!"
     optexit
@@ -200,8 +200,8 @@ PARENT="$(dirname "${0}")"
 set_defaults "$3" "$4"
 chk_upd
 
+#chk_is_up # Part of PostgREST 9.0.1 , but requires seperate admin port
 chk_version
-chk_is_up
 chk_rpcs
 chk_tip
 chk_cache_status

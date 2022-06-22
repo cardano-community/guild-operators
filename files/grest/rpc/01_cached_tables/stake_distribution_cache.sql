@@ -94,8 +94,8 @@ BEGIN
       FROM REWARD
         INNER JOIN accounts_with_delegated_pools awdp ON awdp.stake_address_id = reward.addr_id
       WHERE
-        ( REWARD.SPENDABLE_EPOCH >= (_active_stake_epoch + 2) AND REWARD.SPENDABLE_EPOCH <= (SELECT MAX(NO) FROM EPOCH) )
-        OR ( REWARD.TYPE = 'refund' AND REWARD.SPENDABLE_EPOCH >= (_active_stake_epoch + 1) AND REWARD.SPENDABLE_EPOCH <= (SELECT MAX(NO) FROM EPOCH) )
+        ( REWARD.SPENDABLE_EPOCH >= (_active_stake_epoch + 2) AND REWARD.SPENDABLE_EPOCH <= _latest_epoch )
+        OR ( REWARD.TYPE = 'refund' AND REWARD.SPENDABLE_EPOCH >= (_active_stake_epoch + 1) AND REWARD.SPENDABLE_EPOCH <= _latest_epoch )
       GROUP BY awdp.stake_address_id
     ),
     account_delta_withdrawals AS (
@@ -110,8 +110,7 @@ BEGIN
         COALESCE(SUM(REWARD.AMOUNT), 0) AS REWARDS
       FROM REWARD
         INNER JOIN accounts_with_delegated_pools ON accounts_with_delegated_pools.stake_address_id = reward.addr_id
-      WHERE REWARD.SPENDABLE_EPOCH <= (SELECT MAX(NO) FROM EPOCH)
-      --REWARD.SPENDABLE_EPOCH <= _latest_epoch -- consistency with account_delta_rewards
+      WHERE REWARD.SPENDABLE_EPOCH <= _latest_epoch
       GROUP BY accounts_with_delegated_pools.stake_address_id
     ),
     account_total_withdrawals as (
