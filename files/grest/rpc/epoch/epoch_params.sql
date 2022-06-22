@@ -14,7 +14,7 @@ CREATE FUNCTION grest.epoch_params (_epoch_no numeric DEFAULT NULL)
     monetary_expand_rate double precision,
     treasury_growth_rate double precision,
     decentralisation double precision,
-    entropy text,
+    extra_entropy text,
     protocol_major uinteger,
     protocol_minor uinteger,
     min_utxo_value lovelace,
@@ -52,7 +52,7 @@ BEGIN
       ei.p_monetary_expand_rate AS monetary_expand_rate,
       ei.p_treasury_growth_rate AS treasury_growth_rate,
       ei.p_decentralisation AS decentralisation,
-      ei.p_entropy AS entropy,
+      ei.p_extra_entropy AS extra_entropy,
       ei.p_protocol_major AS protocol_major,
       ei.p_protocol_minor AS protocol_minor,
       ei.p_min_utxo_value AS min_utxo_value,
@@ -91,7 +91,7 @@ BEGIN
       ei.p_monetary_expand_rate AS monetary_expand_rate,
       ei.p_treasury_growth_rate AS treasury_growth_rate,
       ei.p_decentralisation AS decentralisation,
-      ei.p_entropy AS entropy,
+      ei.p_extra_entropy AS extra_entropy,
       ei.p_protocol_major AS protocol_major,
       ei.p_protocol_minor AS protocol_minor,
       ei.p_min_utxo_value AS min_utxo_value,
@@ -108,7 +108,7 @@ BEGIN
       ei.p_max_val_size AS max_val_size,
       ei.p_collateral_percent AS collateral_percent,
       ei.p_max_collateral_inputs AS max_collateral_inputs,
-      ei.p_coins_per_utxo_word AS coins_per_utxo_word
+      ei.p_coins_per_utxo_size AS coins_per_utxo_size
     FROM
       grest.epoch_info_cache ei
     WHERE

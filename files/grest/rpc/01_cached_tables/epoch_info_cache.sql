@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS grest.epoch_info_cache (
   p_monetary_expand_rate double precision NULL,
   p_treasury_growth_rate double precision NULL,
   p_decentralisation double precision NULL,
-  p_entropy text,
+  p_extra_entropy text,
   p_protocol_major uinteger NULL,
   p_protocol_minor uinteger NULL,
   p_min_utxo_value lovelace NULL,
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS grest.epoch_info_cache (
   p_max_val_size word64type,
   p_collateral_percent uinteger,
   p_max_collateral_inputs uinteger,
-  p_coins_per_utxo_word lovelace
+  p_coins_per_utxo_size lovelace
 );
 
 COMMENT ON TABLE grest.epoch_info_cache IS 'Contains detailed info for epochs including protocol parameters';
@@ -132,7 +132,7 @@ BEGIN
       ep.monetary_expand_rate AS p_monetary_expand_rate,
       ep.treasury_growth_rate AS p_treasury_growth_rate,
       ep.decentralisation AS p_decentralisation,
-      ENCODE(ep.entropy, 'hex') AS p_entropy,
+      ENCODE(ep.extra_entropy, 'hex') AS p_extra_entropy,
       ep.protocol_major AS p_protocol_major,
       ep.protocol_minor AS p_protocol_minor,
       ep.min_utxo_value AS p_min_utxo_value,
@@ -149,7 +149,7 @@ BEGIN
       ep.max_val_size AS p_max_val_size,
       ep.collateral_percent AS p_collateral_percent,
       ep.max_collateral_inputs AS p_max_collateral_inputs,
-      ep.coins_per_utxo_word AS p_coins_per_utxo_word
+      ep.coins_per_utxo_size AS p_coins_per_utxo_size
     FROM
       epoch e
       LEFT JOIN epoch_param ep ON ep.epoch_no = e.no
