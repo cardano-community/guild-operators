@@ -498,13 +498,13 @@ BEGIN
           FROM
             redeemer
             INNER JOIN tx ON redeemer.tx_id = tx.id
-            INNER JOIN datum RD ON RD.id = redeemer.datum_id
-            INNER JOIN script ON redeemer.script_hash = script.hash
+            INNER JOIN redeemer_data RD ON RD.id = redeemer.redeemer_data_id
+            INNER JOIN script ON redeemer.script_hash = script.hash -- perhaps we should join on tx.reference_script_id here?
             INNER JOIN tx_in ON tx_in.redeemer_id = redeemer.id
             INNER JOIN tx_out INUTXO ON INUTXO.tx_id = tx_in.tx_out_id AND INUTXO.index = tx_in.tx_out_index
-            INNER JOIN datum IND ON IND.hash = INUTXO.data_hash
+            INNER JOIN datum IND ON IND.id = INUTXO.inline_datum_id
             LEFT JOIN tx_out OUTUTXO ON OUTUTXO.tx_id = redeemer.tx_id AND OUTUTXO.address = INUTXO.address
-            LEFT JOIN datum OUTD ON OUTD.hash = OUTUTXO.data_hash
+            LEFT JOIN datum OUTD ON OUTD.id = OUTUTXO.inline_datum_id
           WHERE
             redeemer.tx_id = ANY (_tx_id_list)
         ) AS tmp
