@@ -4,8 +4,8 @@ CREATE TABLE IF NOT EXISTS grest.epoch_info_cache (
   i_fees lovelace NOT NULL,
   i_tx_count uinteger NOT NULL,
   i_blk_count uinteger NOT NULL,
-  i_first_block_time timestamp without time zone UNIQUE NOT NULL,
-  i_last_block_time timestamp without time zone UNIQUE NOT NULL,
+  i_first_block_time double precision UNIQUE NOT NULL,
+  i_last_block_time double precision UNIQUE NOT NULL,
   i_total_rewards lovelace DEFAULT NULL,
   i_avg_blk_reward uinteger DEFAULT NULL,
   p_min_fee_a uinteger NULL,
@@ -122,8 +122,8 @@ BEGIN
       e.fees AS i_fees,
       e.tx_count AS i_tx_count,
       e.blk_count AS i_blk_count,
-      e.start_time AS i_first_block_time,
-      e.end_time AS i_last_block_time,
+      EXTRACT(epoch from e.start_time) AS i_first_block_time,
+      EXTRACT(epoch from e.end_time) AS i_last_block_time,
       CASE -- populated in epoch n + 2
         WHEN e.no <= _curr_epoch - 2 THEN reward_pot.amount 
         ELSE NULL
@@ -201,7 +201,7 @@ BEGIN
     i_fees = update_table.fees,
     i_tx_count = update_table.tx_count,
     i_blk_count = update_table.blk_count,
-    i_last_block_time = update_table.end_time
+    i_last_block_time = EXTRACT(epoch from update_table.end_time)
   FROM (
     SELECT
       e.out_sum,

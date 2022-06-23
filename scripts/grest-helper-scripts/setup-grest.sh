@@ -305,7 +305,7 @@ SGVERSION=1.0.1
   deploy_haproxy() {
     echo "[Re]Installing HAProxy.."
     pushd ~/tmp >/dev/null || err_exit
-    haproxy_url="http://www.haproxy.org/download/2.5/src/haproxy-2.5.0.tar.gz"
+    haproxy_url="http://www.haproxy.org/download/2.6/src/haproxy-2.6.0.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
       if command -v apt-get >/dev/null; then
@@ -314,7 +314,7 @@ SGVERSION=1.0.1
       if command -v yum >/dev/null; then
         sudo yum -y install pcre-devel >/dev/null || err_exit "'sudo yum -y install prce-devel' failed!"
       fi
-      cd haproxy-2.5.0 || return
+      cd haproxy-2.6.0 || return
       make clean >/dev/null
       make -j $(nproc) TARGET=linux-glibc USE_ZLIB=1 USE_LIBCRYPT=1 USE_OPENSSL=1 USE_PCRE=1 USE_SYSTEMD=1 USE_PROMEX=1 >/dev/null
       sudo make install-bin >/dev/null
@@ -521,7 +521,8 @@ SGVERSION=1.0.1
 			Environment=\"GRESTTOP=${CNODE_HOME}\" \"CONFIG=${HAPROXY_CFG}\" \"PIDFILE=${CNODE_HOME}/logs/haproxy.pid\" \"HAPROXY_SOCKET_USER=${USER}\"
 			ExecStartPre=/usr/sbin/haproxy -f \"\\\$CONFIG\" -c -q
 			ExecStart=/usr/sbin/haproxy -Ws -f \"\\\$CONFIG\" -p \"\\\$PIDFILE\"
-			ExecReload=/usr/sbin/haproxy -f \"\\\$CONFIG\" -c -q
+			ExecReload=/bin/kill -USR2 $MAINPID
+			Restart=on-failure
 			SuccessExitStatus=143
 			KillMode=mixed
 			Type=notify

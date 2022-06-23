@@ -4,7 +4,7 @@ CREATE TABLE grest.pool_info_cache (
     id SERIAL PRIMARY KEY,
     tx_id bigint NOT NULL,
     tx_hash text,
-    block_time timestamp without time zone,
+    block_time double precision,
     pool_hash_id bigint NOT NULL,
     pool_id_bech32 character varying NOT NULL,
     pool_id_hex text NOT NULL,
@@ -86,7 +86,7 @@ BEGIN
     SELECT
         _tx_id,
         encode(tx.hash::bytea, 'hex'), 
-        b.time,
+        EXTRACT(epoch from b.time),
         _hash_id,
         ph.view,
         encode(ph.hash_raw::bytea, 'hex'),
