@@ -31,7 +31,7 @@ cat <<-EOF > .tmp.cabal.project.local
 	source-repository-package
 	  type: git
 	  location: https://github.com/input-output-hk/cardano-addresses
-	  tag: ba8390504b6613957b73bf8d0d2aab1a989f104d
+	  tag: b6f2f3cef01a399376064194fd96711a5bdba4a7
 	  subdir:
 	    command-line
 	    core
