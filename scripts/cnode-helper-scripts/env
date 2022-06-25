@@ -700,14 +700,14 @@ slotInterval() {
 
 # Description : Identify current era and set variables accordingly
 getEraIdentifier() {
-  network_era=$(${CCLI} query tip ${NETWORK_IDENTIFIER} 2>/dev/null | jq  '.era //empty')
-  case ${network_era} in
+  NETWORK_ERA=$(${CCLI} query tip ${NETWORK_IDENTIFIER} 2>/dev/null | jq  '.era //empty')
+  case ${NETWORK_ERA} in
     Byron)   ERA_IDENTIFIER="--byron-era" ;;
     Shelley) ERA_IDENTIFIER="--shelley-era" ;;
     Allegra) ERA_IDENTIFIER="--allegra-era" ;;
     Mary)    ERA_IDENTIFIER="--mary-era" ;;
     Alonzo)  ERA_IDENTIFIER="--alonzo-era" ;;
-    # Babbage) ERA_IDENTIFIER="--babbage-era" ;; # Enable later???
+    Babbage) ERA_IDENTIFIER="--babbage-era" ;;
     *)       ERA_IDENTIFIER="" # use cli default
              [[ ${OFFLINE_MODE} = "N" ]] && return 1
   esac
