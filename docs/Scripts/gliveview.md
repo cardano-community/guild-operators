@@ -56,6 +56,12 @@ Displays live metrics from cardano-node gathered through the nodes EKG/Prometheu
 - **Tip (diff) / Status** - Will either show node status as `starting|sync xx.x%` or if close to reference tip, the tip difference `Tip (ref) - Tip (node)` to see how far of the tip (diff value) the node is. With current parameters a slot diff up to 40 from reference tip is considered good but it should usually stay below 30. It's perfectly normal to see big differences in slots between blocks. It's the built in randomness at play. To see if a node is really healthy and staying on tip you would need to compare the tip between multiple nodes.  
 - **Forks** - The number of forks since node start. Each fork means the blockchain evolved in a different direction, thereby discarding blocks. A high number of forks means there is a higher chance of orphaned blocks.  
 - **Peers In / Out** - Shows how many connections the node has established in and out. See [Peer analysis](#peer-analysis) section for how to get more details of incoming and outgoing connections.  
+- **P2P Mode** 
+  - `Cold` peers indicate the number of inactive but known peers to the node.
+  - `Warm` peers tell how many established connections the node has.
+  - `Hot` peers how many established connections are actually active.
+  - `Bi-Dir`(bidirectional) and `Uni-Dir`(unidirectional) indicate how the handshake protocol negotiated the connection. The connection between p2p nodes will always be bidirectional, but it will be unidirectional between p2p nodes and non-p2p nodes. 
+  - `Duplex` shows the connections that are actually used in both directions, only bidirectional connections have this potential.
 - **Mem (RSS)** - RSS is the Resident Set Size and shows how much memory is allocated to cardano-node and that is in RAM. It does not include memory that is swapped out. It does include memory from shared libraries as long as the pages from those libraries are actually in memory. It does include all stack and heap memory.  
 - **Mem (Live) / (Heap)** - GC (Garbage Collector) values that show how much memory is used for live/heap data. A large difference between them (or the heap approaching the physical memory limit) means the node is struggling with the garbage collector and/or may begin swapping.  
 - **GC Minor / Major** - Collecting garbage from "Young space" is called a Minor GC. Major (Full) GC is done more rarily and is a more expensive operation. Explaining garbage collection is a topic outside the scope of this documentation and google is your friend for this.  
