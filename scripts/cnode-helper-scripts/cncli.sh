@@ -26,7 +26,7 @@
 #CONFIRM_BLOCK_CNT=15                     # CNCLI validate: require at least these many blocks on top of minted before validating
 #BATCH_AUTO_UPDATE=N                      # Set to Y to automatically update the script if a new version is available without user interaction
 #USE_KOIOS_API=Y                          # Use Koios API in cncli leaderlog instead of local stake-snapshot query to reduce system resources. (default true)
-#CNCLI_PROM_PORT=12799                    # Set Prometheus port for cncli block metrics available through metrics operation
+#CNCLI_PROM_PORT=12799                    # Set Prometheus port for cncli block metrics available through metrics operation (default: 12799)
 
 ######################################
 # Do NOT modify code below           #
@@ -50,8 +50,9 @@ usage() {
 		ptsendslots Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs (deployed as service)
 		  force     Manually force pooltool sendslots submission ignoring configured time window 
 		init        One-time initialization adding all minted and confirmed blocks to blocklog
-		metrics
-		
+		metrics     Print cncli block metrics in Prometheus format
+		  deploy    Install dependencies and deploy cncli monitoring agent service (available through port specified by CNCLI_PROM_PORT)
+		  serve     Run Prometheus service (mainly for use by deployed systemd service though deploy argument)
 		EOF
   exit 1
 }
