@@ -25,6 +25,7 @@
 #CONFIRM_BLOCK_CNT=15                     # CNCLI validate: require at least these many blocks on top of minted before validating
 #BATCH_AUTO_UPDATE=N                      # Set to Y to automatically update the script if a new version is available without user interaction
 #LEDGER_API=false                         # Use API from api.crypto2099.io in cncli leaderlog instead of local stake-snapshot query to reduce system resources. ONLY for MainNet network (true|false)
+#CNCLI_PROM_PORT=12799                    # Set Prometheus port for cncli block metrics available through metrics operation
 
 ######################################
 # Do NOT modify code below           #
@@ -48,8 +49,7 @@ usage() {
 		ptsendslots Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs (deployed as service)
 		  force     Manually force pooltool sendslots submission ignoring configured time window 
 		init        One-time initialization adding all minted and confirmed blocks to blocklog
-		migrate     One-time migration from old blocklog(cntoolsBlockCollector) to new format (post cncli)
-		  path      Path to the old cntoolsBlockCollector blocklog folder holding json files with blocks created
+    metrics
 		
 		EOF
   exit 1
@@ -512,35 +512,153 @@ cncliInitBlocklogDB() {
 
 #################################
 
-cncliMigrateBlocklog() {
-  [[ ! -d ${subarg} ]] && echo -e "\nERROR: unable to locate directory holding cntoolsBlockCollector blocklog json files:\n${subarg}" && usage
+cncliMetrics() {
+  if [[ ${subarg} = "deploy" ]]; then
+    deployMonitoringAgent
+    return
+  elif [[ ${subarg} = "serve" ]]; then
+    if ! command -v socat >/dev/null; then
+      echo "ERROR: socat not installed, please first run cncli.sh metrics deploy to install socat and deploy service, or manually install socat."
+      return
+    fi
+    socat TCP-LISTEN:${CNCLI_PROM_PORT},reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;bash ${CNODE_HOME}/scripts/cncli.sh metrics;"
+    return
+  fi
   getNodeMetrics
-  if ! getShelleyTransitionEpoch; then echo "ERROR: failed to calculate shelley transition epoch" && exit 1; fi
-  createBlocklogDB || exit 1 # create db if needed
-  while IFS= read -r -d '' blocks_file; do
-    echo "> Migrating: $(basename "${blocks_file}")"
-    [[ ${blocks_file} =~ blocks_([0-9]+) ]] && epoch=${BASH_REMATCH[1]} || epoch=0
-    blocks_data="$(cat "${blocks_file}")"
-    while read -r block; do
-      block_slot=$(jq -r '.slot' <<< "${block}")
-      block_at=$(jq -r '.at' <<< "${block}" | sed 's/\.[0-9]\{2\}Z/+00:00/')
-      block_hash=$(jq -r '.hash //empty' <<< "${block}")
-      block_size=$(jq -r '.size //0' <<< "${block}")
-      slot_in_epoch=$(getSlotInEpochFromSlot ${block_slot} ${epoch})
-      if [[ -n ${block_hash} ]]; then
-        [[ ${block_hash} =~ ^Invalid ]] && block_status="invalid" || block_status="adopted"
-      else
-        block_status="leader"
-      fi
-      sqlite3 ${BLOCKLOG_DB} <<-EOF
-				UPDATE OR IGNORE blocklog SET at = '${block_at}', epoch = ${epoch}, slot_in_epoch = ${slot_in_epoch}, hash = '${block_hash}', size = ${block_size}, status = '${block_status}'
-				WHERE slot = ${block_slot};
-				INSERT OR IGNORE INTO blocklog (slot, at, epoch, slot_in_epoch, hash, size, status)
-				VALUES (${block_slot}, '${block_at}', ${epoch}, ${slot_in_epoch}, '${block_hash}', ${block_size}, '${block_status}');
-				EOF
-      echo "Block at slot ${block_slot} added/updated, status '${block_status}'"
-    done < <(jq -c '.[]' <<< "${blocks_data}" 2>/dev/null)
-  done < <(find "${subarg}" -mindepth 1 -maxdepth 1 -type f -name "blocks_*.json" -print0 | sort -z)
+  getBlocklogMetrics ${epochnum}
+}
+
+deployMonitoringAgent() {
+  # Install socat if needed to allow metrics operation to listen on port
+  if ! command -v socat >/dev/null; then
+    echo -e "Installing socat .."
+    if command -v apt-get >/dev/null; then
+      sudo apt-get -y install socat >/dev/null || err_exit "'sudo apt-get -y install socat' failed!"
+    elif command -v yum >/dev/null; then
+      sudo yum -y install socat >/dev/null || err_exit "'sudo yum -y install socat' failed!"
+    else
+      err_exit "'socat' not found in \$PATH, needed to for node exporter monitoring!"
+    fi
+  fi
+  echo -e "[Re]Installing Monitoring Agent service.."
+  sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-cncli-exporter.service
+    [Unit]
+    Description=Guild CNCLI Metrics Exporter
+    After=network-online.target
+    Wants=network-online.target
+    
+    [Service]
+    Type=simple
+    Restart=always
+    RestartSec=5
+    User=${USER}
+    WorkingDirectory=${CNODE_HOME}/scripts
+    ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh metrics serve\"
+    KillSignal=SIGINT
+    SuccessExitStatus=143
+    StandardOutput=syslog
+    StandardError=syslog
+    SyslogIdentifier=${CNODE_VNAME}_cncli_exporter
+    TimeoutStopSec=5
+    KillMode=mixed
+    
+    [Install]
+    WantedBy=multi-user.target
+    EOF"
+  sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}-cncli-exporter.service &>/dev/null && sudo systemctl restart ${CNODE_VNAME}-cncli-exporter.service &>/dev/null
+  echo -e "Done!!"
+}
+
+getBlocklogMetrics() {
+  shopt -s expand_aliases
+  if [[ ${subarg} = "serve" ]]; then
+    echo "Content-type: text/plain" # Tells the browser what kind of content to expect
+    echo "" # request body starts from this empty line
+  fi
+
+  cncli_error=""
+  next_leader_time_utc=0
+  next_next_leader_time_utc=0
+  leader=0
+  ideal=0
+  luck=0
+  adopted_total=0
+  confirmed_total=0
+  missed_total=0
+  ghosted_total=0
+  stolen_total=0
+  invalid_total=0
+  adopted_max_consec=0
+  confirmed_max_consec=0
+  missed_max_consec=0
+  ghosted_max_consec=0
+  stolen_max_consec=0
+  invalid_max_consec=0
+  
+  if [[ ! -f "${BLOCKLOG_DB}" ]]; then
+    cncli_error="ERROR: blocklog database not found: ${BLOCKLOG_DB}"
+  elif ! cncliDBinSync; then
+    cncli_error="CNCLI DB out of sync :( [$(printf "%2.4f %%" ${cncli_sync_prog})]"
+  else
+    for status_type in $(sqlite3 "${BLOCKLOG_DB}" "SELECT status, COUNT(status) FROM blocklog WHERE epoch=${epochnum} GROUP BY status;" 2>/dev/null); do
+      IFS='|' read -ra status <<< ${status_type}; unset IFS
+      case ${status[0]} in
+        invalid) invalid_total=${status[1]} ;;
+        missed) missed_total=${status[1]} ;;
+        ghosted) ghosted_total=${status[1]} ;;
+        stolen) stolen_total=${status[1]} ;;
+        confirmed) confirmed_total=${status[1]} ;;
+        adopted) adopted_total=${status[1]} ;;
+        leader) leader=${status[1]} ;;
+      esac
+    done
+    adopted_total=$(( adopted_cnt + confirmed_cnt ))
+    leader=$(( leader_cnt + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
+    next_leader_time_utc=$(sqlite3 "${BLOCKLOG_DB}" "SELECT unixepoch(at) FROM blocklog WHERE datetime(at) > datetime('now') ORDER BY slot ASC LIMIT 1;" 2>/dev/null)
+    if [[ -z ${next_leader_time_utc} ]]; then
+      next_leader_time_utc=0
+    else
+      next_next_leader_time_utc=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE unixepoch(at) > ${next_leader_time_utc} ORDER BY slot ASC LIMIT 1;" 2>/dev/null)
+      [[ -z ${next_next_leader_time_utc} ]] && next_next_leader_time_utc=0
+    fi
+    IFS='|' read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${epochnum};" 2>/dev/null)"; unset IFS
+    if [[ ${#epoch_stats[@]} -eq 2 ]]; then
+      ideal=${epoch_stats[0]}
+      luck=${epoch_stats[1]}
+    fi
+  fi
+
+  # Metrics
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_next_leader_time_utc=${next_leader_time_utc}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_next_next_leader_time_utc=${next_next_leader_time_utc}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_leader=${leader}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_ideal=${ideal}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_luck=${luck}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_adopted_total=${adopted_total}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_confirmed_total=${confirmed_total}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_missed_total=${missed_total}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_ghosted_total=${ghosted_total}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_stolen_total=${stolen_total}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_invalid_total=${invalid_total}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_adopted_max_consec=${adopted_max_consec}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_confirmed_max_consec=${confirmed_max_consec}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_missed_max_consec=${missed_max_consec}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_ghosted_max_consec=${ghosted_max_consec}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_stolen_max_consec=${stolen_max_consec}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_invalid_max_consec=${invalid_max_consec}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_error=${cncli_error}
+
+  for metric_var_name in $(env | grep ^METRIC | sort | awk -F= '{print $1}')
+  do
+    METRIC_NAME=${metric_var_name//CNCLI_METRIC_/}
+    # default NULL values to 0
+    if [[ -z "${!metric_var_name}" ]]; then
+      METRIC_VALUE="0"
+    else
+      METRIC_VALUE="${!metric_var_name}"
+    fi
+    echo "${METRIC_NAME} ${METRIC_VALUE}"
+  done
 }
 
 #################################
@@ -622,7 +740,7 @@ case ${subcommand} in
     cncliInit && cncliPTsendslots ;;
   init )
     cncliInit && cncliInitBlocklogDB ;;
-  migrate )
-    cncliInit && cncliMigrateBlocklog ;;
+  metrics )
+    cncliInit && cncliMetrics ;;
   * ) usage ;;
 esac
