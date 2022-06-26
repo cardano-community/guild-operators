@@ -244,6 +244,8 @@ cncliLeaderlog() {
   
   [[ ${subarg} != "force" ]] && echo "Node in sync, sleeping for ${SLEEP_RATE}s before running leaderlogs for current epoch" && sleep ${SLEEP_RATE}
   getNodeMetrics
+  getEraIdentifier
+  if [[ ${NETWORK_ERA} = "Babbage" ]]; then consensus="praos"; else consensus="tpraos"; fi
   curr_epoch=${epochnum}
   if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM epochdata WHERE epoch=${curr_epoch};" 2>/dev/null) -eq 1 && ${subarg} != "force" ]]; then
     echo "Leaderlogs already calculated for epoch ${curr_epoch}, skipping!"
@@ -253,14 +255,14 @@ cncliLeaderlog() {
     if [[ ${LEDGER_API} = false || ${NWMAGIC} -ne 764824073 ]]; then 
       if ! getLedgerData; then exit 1; else stake_param_current="--active-stake ${active_stake_set} --pool-stake ${pool_stake_set}"; fi
     fi
-    cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current ${stake_param_current} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
+    cncli_leaderlog=$(${CNCLI} leaderlog --consensus "${consensus}" --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current ${stake_param_current} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
     if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
       error_msg=$(jq -r .errorMessage <<< "${cncli_leaderlog}")
       if [[ "${error_msg}" = "Query returned no rows" ]]; then
         echo "No leader slots found for epoch ${curr_epoch} :("
       else
         echo "ERROR: failure in leaderlog while running:"
-        echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set current ${stake_param_current} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
+        echo "${CNCLI} leaderlog --consensus "${consensus}" --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set current ${stake_param_current} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
         echo "Error message: ${error_msg}"
         exit 1
       fi
@@ -296,6 +298,8 @@ cncliLeaderlog() {
   while true; do
     [[ ${subarg} != "force" ]] && sleep ${SLEEP_RATE}
     getNodeMetrics
+    getEraIdentifier
+    if [[ ${NETWORK_ERA} = "Babbage" ]]; then consensus="praos"; else consensus="tpraos"; fi
     if ! cncliDBinSync; then # verify that cncli DB is still in sync
       echo "CNCLI DB out of sync :( [$(printf "%2.4f %%" ${cncli_sync_prog})] ... checking again in ${SLEEP_RATE}s"
       [[ ${subarg} = force ]] && sleep ${SLEEP_RATE}
@@ -315,14 +319,14 @@ cncliLeaderlog() {
       if [[ ${LEDGER_API} = false || ${NWMAGIC} -ne 764824073 ]]; then 
         if ! getLedgerData; then sleep 300; continue; else stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"; fi # Sleep for 5 min before retrying to query stake snapshot in case of error
       fi
-      cncli_leaderlog=$(${CNCLI} leaderlog --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next ${stake_param_next} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
+      cncli_leaderlog=$(${CNCLI} leaderlog --consensus "${consensus}" --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next ${stake_param_next} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
       if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
         error_msg=$(jq -r .errorMessage <<< "${cncli_leaderlog}")
         if [[ "${error_msg}" = "Query returned no rows" ]]; then
           echo "No leader slots found for epoch ${curr_epoch} :("
         else
           echo "ERROR: failure in leaderlog while running:"
-          echo "${CNCLI} leaderlog --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set next ${stake_param_next} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
+          echo "${CNCLI} leaderlog --consensus "${consensus}" --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set next ${stake_param_next} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
           echo "Error message: ${error_msg}"
         fi
       else
