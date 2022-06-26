@@ -882,8 +882,8 @@ if ! command -v "jq" &>/dev/null; then
   return 1
 fi
 
-read -ra CONFIG_CONTENTS <<<"$(jq -r '[ .AlonzoGenesisFile, .ByronGenesisFile, .ShelleyGenesisFile, .Protocol, .TraceChainDb, .EnableP2P]| @tsv' "${CONFIG}" 2>/dev/null)"
-if [[ -z "${CONFIG_CONTENTS[4]}" ]]; then
+read -ra CONFIG_CONTENTS <<<"$(jq -r '[ .AlonzoGenesisFile //"null", .ByronGenesisFile //"null", .ShelleyGenesisFile //"null", .Protocol //"Cardano", .TraceChainDb //"null", .EnableP2P //"false"]| @tsv' "${CONFIG}" 2>/dev/null)"
+if [[ -z ${CONFIG_CONTENTS[4]} || ${CONFIG_CONTENTS[4]}==null ]]; then
   echo "Could not find TraceChainDb when attempting to parse ${CONFIG} file in JSON format, please double-check the syntax of your config, or simply download it from guild-operators repository!"
   return 1
 else
@@ -899,7 +899,7 @@ else
   [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
   [[ ! -f "${GENESIS_JSON}" ]] && echo "Shelley genesis file not found: ${GENESIS_JSON}" && return 1
   PROTOCOL="${CONFIG_CONTENTS[3]}"
-  P2P_ENABLED="${CONFIG_CONTENTS[5]:=false}"
+  P2P_ENABLED="${CONFIG_CONTENTS[5]}"
 fi
 
 [[ -z ${EKG_TIMEOUT} ]] && EKG_TIMEOUT=3
