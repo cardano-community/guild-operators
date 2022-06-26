@@ -9,7 +9,9 @@ CREATE FUNCTION grest.epoch_info (_epoch_no numeric DEFAULT NULL)
     end_time double precision,
     first_block_time double precision,
     last_block_time double precision,
-    active_stake text
+    active_stake text,
+    total_rewards text,
+    avg_blk_reward text
   )
   LANGUAGE PLPGSQL
   AS $$
@@ -37,7 +39,9 @@ BEGIN
     END AS end_time,
     ei.i_first_block_time AS first_block_time,
     ei.i_last_block_time AS last_block_time,
-    eas.amount::text AS active_stake
+    eas.amount::text AS active_stake,
+    ei.i_total_rewards::text AS total_rewards,
+    ei.i_avg_blk_reward::text AS avg_blk_reward
   FROM
     grest.epoch_info_cache ei
     LEFT JOIN grest.EPOCH_ACTIVE_STAKE_CACHE eas ON eas.epoch_no = ei.epoch_no

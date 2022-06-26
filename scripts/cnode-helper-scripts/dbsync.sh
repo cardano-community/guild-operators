@@ -9,7 +9,7 @@
 ######################################
 
 #PGPASSFILE="${CNODE_HOME}/priv/.pgpass"                    # PGPass file containing connection information for the postgres instance
-#DBSYNCBIN="${HOME}/.cabal/bin/cardano-db-sync-extended"    # Path for cardano-db-sync-extended binary, assumed to be available in $PATH
+#DBSYNCBIN="${HOME}/.cabal/bin/cardano-db-sync"             # Path for cardano-db-sync binary, assumed to be available in $PATH
 #DBSYNC_STATE_DIR="${CNODE_HOME}/guild-db/ledger-state"     # Folder where DBSync instance will dump ledger-state files
 #DBSYNC_SCHEMA_DIR="${CNODE_HOME}/guild-db/schema"          # Path to DBSync repository's schema folder
 #DBSYNC_CONFIG="${CNODE_HOME}/files/dbsync.json"            # Config file for dbsync instance
@@ -36,7 +36,7 @@ usage() {
 }
 
 set_defaults() {
-  [[ -z "${DBSYNCBIN}" ]] && DBSYNCBIN="${HOME}/.cabal/bin/cardano-db-sync-extended"
+  [[ -z "${DBSYNCBIN}" ]] && DBSYNCBIN="${HOME}/.cabal/bin/cardano-db-sync"
   [[ -z "${PGPASSFILE}" ]] && PGPASSFILE="${CNODE_HOME}/priv/.pgpass"
   [[ -z "${DBSYNC_CONFIG}" ]] && DBSYNC_CONFIG="${CNODE_HOME}/files/dbsync.json"
   [[ -z "${DBSYNC_SCHEMA_DIR}" ]] && DBSYNC_SCHEMA_DIR="${CNODE_HOME}/guild-db/schema"
@@ -45,8 +45,8 @@ set_defaults() {
 }
 
 check_defaults() {
-  if [[ ! -f "${DBSYNCBIN}" ]] && [[ ! $(command -v cardano-db-sync-extended &>/dev/null) ]]; then
-    echo "ERROR: cardano-db-sync-extended seems to be absent in PATH, please investigate \$PATH environment variable!" && exit 1
+  if [[ ! -f "${DBSYNCBIN}" ]] && [[ ! $(command -v cardano-db-sync &>/dev/null) ]]; then
+    echo "ERROR: cardano-db-sync seems to be absent in PATH, please investigate \$PATH environment variable!" && exit 1
   elif [[ ! -f "${PGPASSFILE}" ]]; then
     echo "ERROR: The PGPASSFILE (${PGPASSFILE}) not found, please ensure you've followed the instructions on guild-operators website!" && exit 1
     exit 1

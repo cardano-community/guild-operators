@@ -458,6 +458,7 @@ fi
 
 # Download dbsync config
 curl -sL -f -m ${CURL_TIMEOUT} -o dbsync.json.tmp ${URL_RAW}/files/config-dbsync.json
+[[ "${NETWORK}" != "mainnet" ]] && sed -i 's#NetworkName": "mainnet"#NetworkName": "testnet"#g' dbsync.json.tmp
 
 # Download node config, genesis and topology from template
 if [[ ${NETWORK} = "guild" ]]; then

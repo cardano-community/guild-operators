@@ -23,6 +23,24 @@ cat <<-EOF > .tmp.cabal.project.local
 	${USE_SYSTEM_LIBSODIUM}
 	
 	source-repository-package
+	    type: git
+	    location: https://github.com/input-output-hk/hjsonpointer
+	    tag: bb99294424e0c5b3c2942c743b545e4b01c12ce8
+	    --sha256: 11z5s4xmm6cxy6sdcf9ly4lr0qh3c811hpm0bmlp4c3yq8v3m9rk
+	
+	source-repository-package
+	    type: git
+	    location: https://github.com/input-output-hk/hjsonschema
+	    tag: 1546af7fc267d5eea805ef223dd2b59ac120b784
+	    --sha256: 0sdikhsq6nnhmmvcpwzzrwfn9cn7rg75629qnrx01i5vm5ci4314
+	
+	source-repository-package
+	    type: git
+	    location: https://github.com/haskell-works/hw-aeson
+	    tag: d99d2f3e39a287607418ae605b132a3deb2b753f
+	    --sha256: 1vxqcwjg9q37wbwi27y9ba5163lzfz51f1swbi0rp681yg63zvn4
+	
+	source-repository-package
 	  type: git
 	  location: https://github.com/input-output-hk/bech32
 	  tag: ab61914443e5f53624d3b2995767761b3f68e576
@@ -31,10 +49,13 @@ cat <<-EOF > .tmp.cabal.project.local
 	source-repository-package
 	  type: git
 	  location: https://github.com/input-output-hk/cardano-addresses
-	  tag: ba8390504b6613957b73bf8d0d2aab1a989f104d
+	  tag: b6f2f3cef01a399376064194fd96711a5bdba4a7
 	  subdir:
 	    command-line
 	    core
+	
+	allow-newer:
+	  *:aeson
 	
 	EOF
 chmod 640 .tmp.cabal.project.local
