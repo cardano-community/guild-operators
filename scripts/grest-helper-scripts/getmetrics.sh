@@ -63,7 +63,7 @@ function get-metrics() {
   export METRIC_grestschsize="${grestschsize}"
   export METRIC_dbsize="${dbsize}"
   #export METRIC_cnodeversion="$(echo $(cardano-node --version) | awk '{print $2 "-" $9}')"
-  #export METRIC_dbsyncversion="$(echo $(cardano-db-sync-extended --version) | awk '{print $2 "-" $9}')"
+  #export METRIC_dbsyncversion="$(echo $(cardano-db-sync --version) | awk '{print $2 "-" $9}')"
   #export METRIC_psqlversion="$(echo "" | psql cexplorer -c "SELECT version();" | grep PostgreSQL | awk '{print $2}')"
 
   for metric_var_name in $(env | grep ^METRIC | sort | awk -F= '{print $1}')
