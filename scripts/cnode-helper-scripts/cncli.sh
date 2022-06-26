@@ -521,7 +521,7 @@ cncliMetrics() {
       echo "ERROR: socat not installed, please first run cncli.sh metrics deploy to install socat and deploy service, or manually install socat."
       return
     fi
-    socat TCP-LISTEN:${CNCLI_PROM_PORT},reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;bash ${CNODE_HOME}/scripts/cncli.sh metrics;"
+    socat TCP-LISTEN:${CNCLI_PROM_PORT:-12799},reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;SERVED=true bash ${CNODE_HOME}/scripts/cncli.sh metrics;"
     return
   fi
   getNodeMetrics
@@ -540,38 +540,38 @@ deployMonitoringAgent() {
       err_exit "'socat' not found in \$PATH, needed to for node exporter monitoring!"
     fi
   fi
-  echo -e "[Re]Installing Monitoring Agent service.."
+  echo -e "[Re]Installing CNCLI Monitoring Agent service.."
   sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-cncli-exporter.service
-    [Unit]
-    Description=Guild CNCLI Metrics Exporter
-    After=network-online.target
-    Wants=network-online.target
-    
-    [Service]
-    Type=simple
-    Restart=always
-    RestartSec=5
-    User=${USER}
-    WorkingDirectory=${CNODE_HOME}/scripts
-    ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh metrics serve\"
-    KillSignal=SIGINT
-    SuccessExitStatus=143
-    StandardOutput=syslog
-    StandardError=syslog
-    SyslogIdentifier=${CNODE_VNAME}_cncli_exporter
-    TimeoutStopSec=5
-    KillMode=mixed
-    
-    [Install]
-    WantedBy=multi-user.target
-    EOF"
+[Unit]
+Description=Guild CNCLI Metrics Exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+User=${USER}
+WorkingDirectory=${CNODE_HOME}/scripts
+ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh metrics serve\"
+KillSignal=SIGINT
+SuccessExitStatus=143
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=${CNODE_VNAME}_cncli_exporter
+TimeoutStopSec=5
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target
+EOF"
   sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}-cncli-exporter.service &>/dev/null && sudo systemctl restart ${CNODE_VNAME}-cncli-exporter.service &>/dev/null
   echo -e "Done!!"
 }
 
 getBlocklogMetrics() {
   shopt -s expand_aliases
-  if [[ ${subarg} = "serve" ]]; then
+  if [[ ${SERVED} = true ]]; then
     echo "Content-type: text/plain" # Tells the browser what kind of content to expect
     echo "" # request body starts from this empty line
   fi
@@ -594,6 +594,9 @@ getBlocklogMetrics() {
   ghosted_max_consec=0
   stolen_max_consec=0
   invalid_max_consec=0
+
+  [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
+  CNCLI_DB="${CNCLI_DIR}/cncli.db"
   
   if [[ ! -f "${BLOCKLOG_DB}" ]]; then
     cncli_error="ERROR: blocklog database not found: ${BLOCKLOG_DB}"
@@ -612,13 +615,13 @@ getBlocklogMetrics() {
         leader) leader=${status[1]} ;;
       esac
     done
-    adopted_total=$(( adopted_cnt + confirmed_cnt ))
-    leader=$(( leader_cnt + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
-    next_leader_time_utc=$(sqlite3 "${BLOCKLOG_DB}" "SELECT unixepoch(at) FROM blocklog WHERE datetime(at) > datetime('now') ORDER BY slot ASC LIMIT 1;" 2>/dev/null)
+    adopted_total=$(( adopted_total + confirmed_total ))
+    leader=$(( leader + adopted_total + invalid_total + missed_total + ghosted_total + stolen_total ))
+    next_leader_time_utc=$(sqlite3 "${BLOCKLOG_DB}" "SELECT STRFTIME('%s', at) FROM blocklog WHERE datetime(at) > datetime('now') ORDER BY slot ASC LIMIT 1;" 2>/dev/null)
     if [[ -z ${next_leader_time_utc} ]]; then
       next_leader_time_utc=0
     else
-      next_next_leader_time_utc=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE unixepoch(at) > ${next_leader_time_utc} ORDER BY slot ASC LIMIT 1;" 2>/dev/null)
+      next_next_leader_time_utc=$(sqlite3 "${BLOCKLOG_DB}" "SELECT STRFTIME('%s', at) FROM blocklog WHERE CAST(STRFTIME('%s', at) AS INTEGER) > ${next_leader_time_utc} ORDER BY slot ASC LIMIT 1;" 2>/dev/null)
       [[ -z ${next_next_leader_time_utc} ]] && next_next_leader_time_utc=0
     fi
     IFS='|' read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${epochnum};" 2>/dev/null)"; unset IFS
@@ -626,6 +629,18 @@ getBlocklogMetrics() {
       ideal=${epoch_stats[0]}
       luck=${epoch_stats[1]}
     fi
+    for max_consecutive in $(sqlite3 "${BLOCKLOG_DB}" "SELECT status, MAX(seqnum) FROM (SELECT status, COUNT(*) AS seqnum FROM (SELECT blocklog.*, (ROW_NUMBER() OVER (ORDER BY id) - ROW_NUMBER() OVER (PARTITION BY status ORDER BY id)) AS seqnum FROM blocklog WHERE epoch=${epochnum}) tmp GROUP BY seqnum, status) GROUP BY status;"); do
+      IFS='|' read -ra consecutive <<< ${max_consecutive}; unset IFS
+      case ${consecutive[0]} in
+        invalid) invalid_max_consec=${consecutive[1]} ;;
+        missed) missed_max_consec=${consecutive[1]} ;;
+        ghosted) ghosted_max_consec=${consecutive[1]} ;;
+        stolen) stolen_max_consec=${consecutive[1]} ;;
+        confirmed) confirmed_max_consec=${consecutive[1]} ;;
+        adopted) adopted_max_consec=${consecutive[1]} ;;
+      esac
+    done
+    adopted_max_consec=$(( adopted_max_consec + confirmed_max_consec ))
   fi
 
   # Metrics
@@ -648,12 +663,11 @@ getBlocklogMetrics() {
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_invalid_max_consec=${invalid_max_consec}
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_error=${cncli_error}
 
-  for metric_var_name in $(env | grep ^METRIC | sort | awk -F= '{print $1}')
-  do
+  for metric_var_name in $(env | grep ^CNCLI_METRIC_ | sort | awk -F= '{print $1}'); do
     METRIC_NAME=${metric_var_name//CNCLI_METRIC_/}
-    # default NULL values to 0
+    # default NULL values to empty string
     if [[ -z "${!metric_var_name}" ]]; then
-      METRIC_VALUE="0"
+      METRIC_VALUE="\"\""
     else
       METRIC_VALUE="${!metric_var_name}"
     fi
@@ -741,6 +755,6 @@ case ${subcommand} in
   init )
     cncliInit && cncliInitBlocklogDB ;;
   metrics )
-    cncliInit && cncliMetrics ;;
+    cncliMetrics ;; # no cncliInit needed
   * ) usage ;;
 esac
