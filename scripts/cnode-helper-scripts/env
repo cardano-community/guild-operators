@@ -700,16 +700,17 @@ slotInterval() {
 
 # Description : Identify current era and set variables accordingly
 getEraIdentifier() {
-    if ${CCLI} query protocol-parameters --byron-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--byron-era"
-  elif ${CCLI} query protocol-parameters --shelley-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--shelley-era"
-  elif ${CCLI} query protocol-parameters --allegra-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--allegra-era"
-  elif ${CCLI} query protocol-parameters --mary-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--mary-era"
-  #Alonzo era disabled for now until hw support is fully implemented
-  #elif ${CCLI} query protocol-parameters --alonzo-era ${NETWORK_IDENTIFIER} &>/dev/null; then ERA_IDENTIFIER="--alonzo-era"
-  else
-    ERA_IDENTIFIER="--mary-era"
-    [[ ${OFFLINE_MODE} = "N" ]] && return 1
-  fi
+  NETWORK_ERA=$(${CCLI} query tip ${NETWORK_IDENTIFIER} 2>/dev/null | jq  '.era //empty')
+  case ${NETWORK_ERA} in
+    Byron)   ERA_IDENTIFIER="--byron-era" ;;
+    Shelley) ERA_IDENTIFIER="--shelley-era" ;;
+    Allegra) ERA_IDENTIFIER="--allegra-era" ;;
+    Mary)    ERA_IDENTIFIER="--mary-era" ;;
+    Alonzo)  ERA_IDENTIFIER="--alonzo-era" ;;
+    Babbage) ERA_IDENTIFIER="--babbage-era" ;;
+    *)       ERA_IDENTIFIER="" # use cli default
+             [[ ${OFFLINE_MODE} = "N" ]] && return 1
+  esac
   return 0
 }
 
