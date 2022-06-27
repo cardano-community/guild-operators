@@ -6,6 +6,8 @@
 echo "Deleting build config artifact to remove cached version, this prevents invalid Git Rev"
 find dist-newstyle/build/x86_64-linux/ghc-8.10.?/cardano-config-* >/dev/null 2>&1 && rm -rf "dist-newstyle/build/x86_64-linux/ghc-8.*/cardano-config-*"
 
+source "${HOME}"/.bashrc
+
 if [[ "$1" == "-l" ]] ; then
   USE_SYSTEM_LIBSODIUM="package cardano-crypto-praos
     flags: -external-libsodium-vrf"
@@ -13,7 +15,6 @@ if [[ "$1" == "-l" ]] ; then
   [[ -f /usr/local/lib/libsodium.so ]] && export LD_LIBRARY_PATH=${LD_LIBRARY_PATH/\/usr\/local\/lib:/}
 else
   unset USE_SYSTEM_LIBSODIUM
-  source "${HOME}"/.bashrc
   [[ -d /usr/local/lib/pkgconfig ]] && export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:"${PKG_CONFIG_PATH}"
   [[ -f /usr/local/lib/libsodium.so ]] && export LD_LIBRARY_PATH=/usr/local/lib:"${LD_LIBRARY_PATH}"
 fi

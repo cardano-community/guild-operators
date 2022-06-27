@@ -208,7 +208,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     elif [[ "${VERSION_ID}" == "7" ]]; then
       #RHEL/CentOS7
       pkg_list="${pkg_list} libusb pkgconfig srm"
-    elif [[ "${VERSION_ID}" =~ "8" ]]; then
+    elif [[ "${VERSION_ID}" =~ "8" ]] || [[ "${VERSION_ID}" =~ "9" ]]; then
       #RHEL/CentOS/RockyLinux8
       pkg_opts="${pkg_opts} --allowerasing"
       pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config"
@@ -217,7 +217,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
       pkg_opts="${pkg_opts} --allowerasing"
       pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config srm"
     fi
-    ! grep -q ^epel <<< "$(yum repolist)" && $sudo yum ${pkg_opts} install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"$(grep ^VERSION_ID /etc/os-release | cut -d\" -f2)".noarch.rpm > /dev/null
+    ! grep -q ^epel <<< "$(yum repolist)" && $sudo yum ${pkg_opts} install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"${VERSION_ID}".noarch.rpm > /dev/null
     $sudo yum ${pkg_opts} install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
@@ -337,6 +337,7 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     if ! output=$(git clone https://github.com/cardano-community/cncli.git 2>&1); then echo -e "${output}" && err_exit; fi
   fi
   pushd ./cncli >/dev/null || err_exit
+  git remote set-url origin https://github.com/cardano-community/cncli >/dev/null
   if ! output=$(git fetch --all --prune 2>&1); then echo -e "${output}" && err_exit; fi
   cncli_git_latestTag=$(git describe --tags "$(git rev-list --tags --max-count=1)")
   if ! output=$(git checkout ${cncli_git_latestTag} 2>&1 && git submodule update --init --recursive --force 2>&1); then echo -e "${output}" && err_exit; fi
