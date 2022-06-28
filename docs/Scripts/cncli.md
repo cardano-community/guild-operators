@@ -1,7 +1,7 @@
 !!! info "Reminder !!"
     Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
 
-`cncli.sh` is a script to download and deploy [CNCLI](https://github.com/AndrewWestberg/cncli) created and maintained by Andrew Westberg. It's a community-based CLI tool written in RUST for low-level `cardano-node` communication. Usage is **optional** and no script is dependent on it. The main features include:
+`cncli.sh` is a script to download and deploy [CNCLI](https://github.com/cardano-community/cncli) created and maintained by Andrew Westberg. It's a community-based CLI tool written in RUST for low-level `cardano-node` communication. Usage is **optional** and no script is dependent on it. The main features include:
 
 - **PING** - Validates that the remote server is on the given network and returns its response time. Utilized by `gLiveView` for peer analysis if available. 
 - **SYNC** - Connects to a node (local or remote) and synchronizes blocks to a local `sqlite` database. 
