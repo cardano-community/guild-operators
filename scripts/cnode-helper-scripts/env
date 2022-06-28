@@ -882,8 +882,8 @@ if ! command -v "jq" &>/dev/null; then
   return 1
 fi
 
-read -ra CONFIG_CONTENTS <<<"$(jq -r '[ .AlonzoGenesisFile, .ByronGenesisFile, .ShelleyGenesisFile, .Protocol, .TraceChainDb]| @tsv' "${CONFIG}" 2>/dev/null)"
-if [[ -z "${CONFIG_CONTENTS[4]}" ]]; then
+read -ra CONFIG_CONTENTS <<<"$(jq -r '[ .AlonzoGenesisFile //"null", .ByronGenesisFile //"null", .ShelleyGenesisFile //"null", .Protocol //"Cardano", .TraceChainDb //"null", .EnableP2P //"false"]| @tsv' "${CONFIG}" 2>/dev/null)"
+if [ ${CONFIG_CONTENTS[4]} != "true" ]; then
   echo "Could not find TraceChainDb when attempting to parse ${CONFIG} file in JSON format, please double-check the syntax of your config, or simply download it from guild-operators repository!"
   return 1
 else
@@ -899,6 +899,7 @@ else
   [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
   [[ ! -f "${GENESIS_JSON}" ]] && echo "Shelley genesis file not found: ${GENESIS_JSON}" && return 1
   PROTOCOL="${CONFIG_CONTENTS[3]}"
+  P2P_ENABLED="${CONFIG_CONTENTS[5]}"
 fi
 
 [[ -z ${EKG_TIMEOUT} ]] && EKG_TIMEOUT=3
@@ -974,8 +975,8 @@ if [[ -n "${CNODE_PID}" ]]; then
 fi
 
 node_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
-if ! versionCheck "1.32.1" "${node_version}"; then
-  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.32.1 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
+if ! versionCheck "1.35.0" "${node_version}"; then
+  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.35.0 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
   return 1
 fi
 

@@ -57,7 +57,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.26.5
+GLV_VERSION=v1.27.0
 
 PARENT="$(dirname $0)"
 
@@ -603,7 +603,6 @@ checkPeers() {
 #####################################
 check_peers="false"
 show_peers="false"
-p2p_enabled=$(jq -r '.EnableP2P //false' ${CONFIG} 2>/dev/null)
 getNodeMetrics
 curr_epoch=${epochnum}
 getShelleyTransitionEpoch
@@ -687,7 +686,7 @@ while true; do
 
   if [[ ${show_peers} = "false" ]]; then
 
-    if [[ ${p2p_enabled} != true ]]; then
+    if [[ ${P2P_ENABLED} != true ]]; then
       if [[ ${use_lsof} = 'Y' ]]; then
         peers_in=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
         peers_out=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
@@ -970,7 +969,7 @@ while true; do
 
     echo "${conndivider}" && ((line++))
 
-    if [[ ${p2p_enabled} = true ]]; then
+    if [[ ${P2P_ENABLED} = true ]]; then
 
       # row 1
       printf "${VL} P2P        : ${style_status_1}%-${three_col_2_value_width}s${NC}" "enabled"
