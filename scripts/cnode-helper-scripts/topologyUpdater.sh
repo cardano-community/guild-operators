@@ -129,39 +129,44 @@ if [[ ${TU_PUSH} = "Y" ]]; then
     curl -s -f -6 "https://api.clio.one/htopology/v1/?port=${CNODE_PORT}&blockNo=${blockNo}&valency=${CNODE_VALENCY}&magic=${NWMAGIC}${T_HOSTNAME}" | tee -a "${LOG_DIR}"/topologyUpdater_lastresult.json
   fi
 fi
+
 if [[ ${TU_FETCH} = "Y" ]]; then
-  if [[ ${IP_VERSION} = "4" || ${IP_VERSION} = "mix" ]]; then
-    curl -s -f -4 -o "${TOPOLOGY}".tmp "https://api.clio.one/htopology/v1/fetch/?max=${MAX_PEERS}&magic=${NWMAGIC}&ipv=${IP_VERSION}"
+  if [[ ${P2P_ENABLED} = "true" ]]; then
+    echo "INFO: Skipping the TU fetch request because the node is running in P2P mode"
   else
-    curl -s -f -6 -o "${TOPOLOGY}".tmp "https://api.clio.one/htopology/v1/fetch/?max=${MAX_PEERS}&magic=${NWMAGIC}&ipv=${IP_VERSION}"
+    if [[ ${IP_VERSION} = "4" || ${IP_VERSION} = "mix" ]]; then
+      curl -s -f -4 -o "${TOPOLOGY}".tmp "https://api.clio.one/htopology/v1/fetch/?max=${MAX_PEERS}&magic=${NWMAGIC}&ipv=${IP_VERSION}"
+    else
+      curl -s -f -6 -o "${TOPOLOGY}".tmp "https://api.clio.one/htopology/v1/fetch/?max=${MAX_PEERS}&magic=${NWMAGIC}&ipv=${IP_VERSION}"
+    fi
+    [[ ! -s "${TOPOLOGY}".tmp ]] && echo "ERROR: The downloaded file is empty!" && exit 1
+    if [[ -n "${CUSTOM_PEERS}" ]]; then
+      topo="$(cat "${TOPOLOGY}".tmp)"
+      IFS='|' read -ra cpeers <<< "${CUSTOM_PEERS}"
+      for cpeer in "${cpeers[@]}"; do
+        IFS=',' read -ra cpeer_attr <<< "${cpeer}"
+        case ${#cpeer_attr[@]} in
+          2) addr="${cpeer_attr[0]}"
+             port=${cpeer_attr[1]}
+             valency=1 ;;
+          3) addr="${cpeer_attr[0]}"
+             port=${cpeer_attr[1]}
+             valency=${cpeer_attr[2]} ;;
+          *) echo "ERROR: Invalid Custom Peer definition '${cpeer}'. Please double check CUSTOM_PEERS definition"
+             exit 1 ;;
+        esac
+        if [[ ${addr} = *.* ]]; then
+          ! isValidIPv4 "${addr}" && echo "ERROR: Invalid IPv4 address or hostname '${addr}'. Please check CUSTOM_PEERS definition" && continue
+        elif [[ ${addr} = *:* ]]; then
+          ! isValidIPv6 "${addr}" && echo "ERROR: Invalid IPv6 address '${addr}'. Please check CUSTOM_PEERS definition" && continue
+        fi
+        ! isNumber ${port} && echo "ERROR: Invalid port number '${port}'. Please check CUSTOM_PEERS definition" && continue
+        ! isNumber ${valency} && echo "ERROR: Invalid valency number '${valency}'. Please check CUSTOM_PEERS definition" && continue
+        topo=$(jq '.Producers += [{"addr": $addr, "port": $port|tonumber, "valency": $valency|tonumber}]' --arg addr "${addr}" --arg port ${port} --arg valency ${valency} <<< "${topo}")
+      done
+      echo "${topo}" | jq -r . >/dev/null 2>&1 && echo "${topo}" > "${TOPOLOGY}".tmp
+    fi
+    mv "${TOPOLOGY}".tmp "${TOPOLOGY}"
   fi
-  [[ ! -s "${TOPOLOGY}".tmp ]] && echo "ERROR: The downloaded file is empty!" && exit 1
-  if [[ -n "${CUSTOM_PEERS}" ]]; then
-    topo="$(cat "${TOPOLOGY}".tmp)"
-    IFS='|' read -ra cpeers <<< "${CUSTOM_PEERS}"
-    for cpeer in "${cpeers[@]}"; do
-      IFS=',' read -ra cpeer_attr <<< "${cpeer}"
-      case ${#cpeer_attr[@]} in
-        2) addr="${cpeer_attr[0]}"
-           port=${cpeer_attr[1]}
-           valency=1 ;;
-        3) addr="${cpeer_attr[0]}"
-           port=${cpeer_attr[1]}
-           valency=${cpeer_attr[2]} ;;
-        *) echo "ERROR: Invalid Custom Peer definition '${cpeer}'. Please double check CUSTOM_PEERS definition"
-           exit 1 ;;
-      esac
-      if [[ ${addr} = *.* ]]; then
-        ! isValidIPv4 "${addr}" && echo "ERROR: Invalid IPv4 address or hostname '${addr}'. Please check CUSTOM_PEERS definition" && continue
-      elif [[ ${addr} = *:* ]]; then
-        ! isValidIPv6 "${addr}" && echo "ERROR: Invalid IPv6 address '${addr}'. Please check CUSTOM_PEERS definition" && continue
-      fi
-      ! isNumber ${port} && echo "ERROR: Invalid port number '${port}'. Please check CUSTOM_PEERS definition" && continue
-      ! isNumber ${valency} && echo "ERROR: Invalid valency number '${valency}'. Please check CUSTOM_PEERS definition" && continue
-      topo=$(jq '.Producers += [{"addr": $addr, "port": $port|tonumber, "valency": $valency|tonumber}]' --arg addr "${addr}" --arg port ${port} --arg valency ${valency} <<< "${topo}")
-    done
-    echo "${topo}" | jq -r . >/dev/null 2>&1 && echo "${topo}" > "${TOPOLOGY}".tmp
-  fi
-  mv "${TOPOLOGY}".tmp "${TOPOLOGY}"
 fi
 exit 0

@@ -2606,6 +2606,7 @@ function main {
                 else
                   println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} Ada" "Pledge" "new" "$(formatAsset "${fPParams_pledge::-6}")" )"
                 fi
+                [[ -n ${KOIOS_API} ]] && println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Live Pledge" "$(formatLovelace "${p_live_pledge}")")"
                 
                 # get margin
                 if [[ -z ${KOIOS_API} ]]; then
@@ -2738,14 +2739,29 @@ function main {
                 else
                   # get active/live stake/block info
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Active Stake" "$(formatLovelace "${p_active_stake}")")"
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC}" "Epoch Blocks" "${p_epoch_block_cnt}")"
+                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC}" "Epoch Blocks" "${p_block_count}")"
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Live Stake" "$(formatLovelace "${p_live_stake}")")"
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} (incl owners)" "Delegators" "${p_live_delegators}")"
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Saturation" "${p_live_saturation}")"
                 fi
 
                 unset pool_kes_start
-                if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+                if [[ -n ${KOIOS_API} ]]; then
+                  [[ ${p_op_cert_counter} != null ]] && kes_counter_str="${FG_LBLUE}${p_op_cert_counter}${FG_LGRAY} - use counter ${FG_LBLUE}$((p_op_cert_counter+1))${FG_LGRAY} for rotation in offline mode.${NC}" || kes_counter_str="${FG_LGRAY}No blocks minted so far with active operational certificate. Use counter ${FG_LBLUE}0${FG_LGRAY} for rotation in offline mode.${NC}"
+                  println "$(printf "%-21s : %s" "KES counter" "${kes_counter_str}")"
+                elif [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+                  pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
+                  println ACTION "${CCLI} query kes-period-info --op-cert-file ${pool_opcert_file} ${NETWORK_IDENTIFIER}"
+                  if ! kes_period_info=$(${CCLI} query kes-period-info --op-cert-file "${pool_opcert_file}" ${NETWORK_IDENTIFIER}); then
+                    kes_counter_str="${FG_RED}ERROR${NC}: failed to grab counter from node: [${FG_LGRAY}${kes_period_info}${NC}]"
+                  else
+                    if op_cert_counter=$(awk '/{/,0' <<< "${kes_period_info}" | jq -er '.qKesNodeStateOperationalCertificateNumber' 2>/dev/null); then
+                      kes_counter_str="${FG_LBLUE}${op_cert_counter}${FG_LGRAY} - use counter ${FG_LBLUE}$((op_cert_counter+1))${FG_LGRAY} for rotation in offline mode.${NC}"
+                    else
+                      kes_counter_str="${FG_LGRAY}No blocks minted so far with active operational certificate. Use counter ${FG_LBLUE}0${FG_LGRAY} for rotation in offline mode.${NC}"
+                    fi
+                  fi
+                  println "$(printf "%-21s : %s" "KES counter" "${kes_counter_str}")"
                   getNodeMetrics
                 else
                   [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
@@ -2774,13 +2790,27 @@ function main {
               println " >> POOL >> ROTATE KES"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               echo
+              if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+                println DEBUG "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, please grab correct counter value from online node using pool info!\n"
+              fi
               [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
               println DEBUG "# Select pool to rotate KES keys on"
               if ! selectPool "all" "${POOL_COLDKEY_SK_FILENAME}"; then # ${pool_name} populated by selectPool function
                 waitForInput && continue
               fi
-              if ! rotatePoolKeys; then
-                waitForInput && continue
+              if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+                getAnswerAnyCust new_counter "Enter new counter number"
+                if ! isNumber ${new_counter}; then
+                  println ERROR "\n${FG_RED}ERROR${NC}: not a number"
+                  waitForInput && continue
+                fi
+                if ! rotatePoolKeys ${new_counter}; then
+                  waitForInput && continue
+                fi
+              else
+                if ! rotatePoolKeys; then
+                  waitForInput && continue
+                fi
               fi
               echo
               println "Pool KES keys successfully updated"
