@@ -261,8 +261,9 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
   pushd secp256k1 >/dev/null || err_exit
   git checkout ac83be33 &>/dev/null
   ./autogen.sh > autogen.log > /tmp/secp256k1.log 2>&1
-  ./configure --enable-module-schnorrsig --enable-experimental > configure.log >> /tmp/secp256k1.log 2>&1
+  ./configure --prefix=/usr --enable-module-schnorrsig --enable-experimental > configure.log >> /tmp/secp256k1.log 2>&1
   make > make.log 2>&1
+  make check >>make.log 2>&1
   $sudo make install > install.log 2>&1
   export BOOTSTRAP_HASKELL_NO_UPGRADE=1
   export BOOTSTRAP_HASKELL_GHC_VERSION=8.10.7

@@ -6,17 +6,18 @@
 echo "Deleting build config artifact to remove cached version, this prevents invalid Git Rev"
 find dist-newstyle/build/x86_64-linux/ghc-8.10.?/cardano-config-* >/dev/null 2>&1 && rm -rf "dist-newstyle/build/x86_64-linux/ghc-8.*/cardano-config-*"
 
-source "${HOME}"/.bashrc
+[[ -f /usr/lib/libsecp256k1.so ]] && export LD_LIBRARY_PATH=/usr/lib:"${LD_LIBRARY_PATH}"
+[[ -f /usr/lib64/libsecp256k1.so ]] && export LD_LIBRARY_PATH=/usr/lib64:"${LD_LIBRARY_PATH}"
+[[ -f /usr/local/lib/libsecp256k1.so ]] && export LD_LIBRARY_PATH=/usr/local/lib:"${LD_LIBRARY_PATH}"
+[[ -d /usr/lib/pkgconfig ]] && export PKG_CONFIG_PATH=/usr/lib/pkgconfig:"${PKG_CONFIG_PATH}"
+[[ -d /usr/lib64/pkgconfig ]] && export PKG_CONFIG_PATH=/usr/lib64/pkgconfig:"${PKG_CONFIG_PATH}"
+[[ -d /usr/local/lib/pkgconfig ]] && export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:"${PKG_CONFIG_PATH}"
 
 if [[ "$1" == "-l" ]] ; then
   USE_SYSTEM_LIBSODIUM="package cardano-crypto-praos
     flags: -external-libsodium-vrf"
-  # In case Custom libsodium module is present, exclude it from Load Library Path
-  [[ -f /usr/local/lib/libsodium.so ]] && export LD_LIBRARY_PATH=${LD_LIBRARY_PATH/\/usr\/local\/lib:/}
 else
   unset USE_SYSTEM_LIBSODIUM
-  [[ -d /usr/local/lib/pkgconfig ]] && export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:"${PKG_CONFIG_PATH}"
-  [[ -f /usr/local/lib/libsodium.so ]] && export LD_LIBRARY_PATH=/usr/local/lib:"${LD_LIBRARY_PATH}"
 fi
 
 [[ -f cabal.project.local ]] && mv cabal.project.local cabal.project.local.bkp_"$(date +%s)"
@@ -61,26 +62,29 @@ cat <<-EOF > .tmp.cabal.project.local
 	EOF
 chmod 640 .tmp.cabal.project.local
 
-if [[ -z "${USE_SYSTEM_LIBSODIUM}" ]] ; then
-  echo "Running cabal update to ensure you're on latest dependencies.."
-  cabal update 2>&1 | tee /tmp/cabal-update.log
-  echo "Building.."
-  cabal build all 2>&1 | tee tee /tmp/build.log
+echo "Running cabal update to ensure you're on latest dependencies.."
+cabal update 2>&1 | tee /tmp/cabal-update.log
+echo "Building.."
+
+if [[ -z "${USE_SYSTEM_LIBSODIUM}" ]] ; then # Build using default cabal.project first and then add cabal.project.local for additional packages
   if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" ]]; then
-    echo "Overwriting cabal.project.local to include cardano-addresses and bech32 .."
+    #cabal install cardano-crypto-class --disable-tests --disable-profiling | tee /tmp/build.log
+    [[ "${PWD##*/}" == "cardano-node" ]] && cabal build cardano-node cardano-cli cardano-submit-api --disable-tests --disable-profiling | tee /tmp/build.log
+    [[ "${PWD##*/}" == "cardano-db-sync" ]] && cabal build cardano-db-sync --disable-tests --disable-profiling | tee /tmp/build.log
     mv .tmp.cabal.project.local cabal.project.local
-    cabal install bech32 cardano-addresses-cli  --overwrite-policy=always 2>&1 | tee /tmp/build-b32-caddr.log
+    cabal install bech32 cardano-addresses-cli cardano-ping --overwrite-policy=always 2>&1 | tee /tmp/build-b32-caddr.log
+  else
+    cabal build all --disable-tests --disable-profiling 2>&1 | tee /tmp/build.log
   fi
-else
+else # Add cabal.project.local customisations first before building
   if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" ]]; then
-    echo "Overwriting cabal.project.local to include cardano-addresses and bech32 .."
     mv .tmp.cabal.project.local cabal.project.local
+    [[ "${PWD##*/}" == "cardano-node" ]] && cabal build cardano-node cardano-cli cardano-submit-api --disable-tests --disable-profiling | tee /tmp/build.log
+    [[ "${PWD##*/}" == "cardano-db-sync" ]] && cabal build cardano-db-sync --disable-tests --disable-profiling | tee /tmp/build.log
+  else
+    cabal build all --disable-tests --disable-profiling 2>&1 | tee /tmp/build.log
   fi
-  echo "Running cabal update to ensure you're on latest dependencies.."
-  cabal update 2>&1 | tee /tmp/cabal-update.log
-  echo "Building.."
-  cabal build all 2>&1 | tee tee /tmp/build.log
-  [[ -f cabal.project.local ]] && cabal install bech32 cardano-addresses-cli  --overwrite-policy=always 2>&1 | tee /tmp/build-b32-caddr.log
+  [[ -f cabal.project.local ]] && cabal install bech32 cardano-ping cardano-addresses-cli --overwrite-policy=always 2>&1 | tee /tmp/build-b32-caddr.log
 fi
 
 grep "^Linking" /tmp/build.log | grep -Ev 'test|golden|demo|chairman|locli|ledger|topology' | while read -r line ; do

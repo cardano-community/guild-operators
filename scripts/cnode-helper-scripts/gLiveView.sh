@@ -57,7 +57,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.26.5
+GLV_VERSION=v1.27.0
 
 PARENT="$(dirname $0)"
 
