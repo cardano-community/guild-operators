@@ -6,10 +6,11 @@ ARG CNODE_HOME=/opt/cardano/cnode
 ENV \
   LANG=C.UTF-8 \
   USER=root \
-  PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:$PATH
+  PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:$PATH \
+  LD_LIBRARY_PATH=/usr/lib:/usr/lib64:/usr/local/lib:$LD_LIBRARY_PATH
 
 RUN git clone https://github.com/input-output-hk/cardano-node &&\
-    pwd ; ls -l
+    pwd
 
 WORKDIR /cardano-node
 
