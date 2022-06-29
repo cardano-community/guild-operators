@@ -83,7 +83,6 @@ deploy_systemd() {
 	StandardError=syslog
 	SyslogIdentifier=${CNODE_VNAME}
 	TimeoutStopSec=60
-	KillMode=mixed
 	
 	[Install]
 	WantedBy=multi-user.target
