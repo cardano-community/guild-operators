@@ -262,7 +262,7 @@ cncliLeaderlog() {
         echo "No leader slots found for epoch ${curr_epoch} :("
       else
         echo "ERROR: failure in leaderlog while running:"
-        echo "${CNCLI} leaderlog --consensus ${consensus} --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set current ${stake_param_current} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
+        echo "${CNCLI} leaderlog --consensus "${consensus}" --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set current ${stake_param_current} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
         echo "Error message: ${error_msg}"
         exit 1
       fi
@@ -326,7 +326,7 @@ cncliLeaderlog() {
           echo "No leader slots found for epoch ${curr_epoch} :("
         else
           echo "ERROR: failure in leaderlog while running:"
-          echo "${CNCLI} leaderlog --consensus ${consensus} --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set next ${stake_param_next} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
+          echo "${CNCLI} leaderlog --consensus "${consensus}" --db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --ledger-set next ${stake_param_next} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
           echo "Error message: ${error_msg}"
         fi
       else
