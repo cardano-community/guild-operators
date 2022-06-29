@@ -3,7 +3,7 @@ CREATE FUNCTION grest.address_txs (_addresses text[], _after_block_height intege
     tx_hash text,
     epoch_no word31type,
     block_height word31type,
-    block_time double precision
+    block_time numeric
   )
   LANGUAGE PLPGSQL
   AS $$
