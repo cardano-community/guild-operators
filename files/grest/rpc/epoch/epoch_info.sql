@@ -1,10 +1,10 @@
 CREATE FUNCTION grest.epoch_info (_epoch_no numeric DEFAULT NULL)
   RETURNS TABLE (
-    epoch_no uinteger,
+    epoch_no word31type,
     out_sum text,
     fees text,
-    tx_count uinteger,
-    blk_count uinteger,
+    tx_count word31type,
+    blk_count word31type,
     start_time double precision,
     end_time double precision,
     first_block_time double precision,

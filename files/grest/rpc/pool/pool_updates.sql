@@ -15,7 +15,7 @@ CREATE FUNCTION grest.pool_updates (_pool_bech32 text DEFAULT NULL)
         meta_url character varying,
         meta_hash text,
         pool_status text,
-        retiring_epoch uinteger
+        retiring_epoch word31type
     )
     LANGUAGE plpgsql
     AS $$

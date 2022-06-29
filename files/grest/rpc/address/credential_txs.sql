@@ -1,8 +1,8 @@
 CREATE FUNCTION grest.credential_txs (_payment_credentials text[], _after_block_height integer DEFAULT 0)
   RETURNS TABLE (
     tx_hash text,
-    epoch_no uinteger,
-    block_height uinteger,
+    epoch_no word31type,
+    block_height word31type,
     block_time double precision
   )
   LANGUAGE PLPGSQL

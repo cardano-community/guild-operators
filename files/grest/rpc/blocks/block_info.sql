@@ -1,19 +1,19 @@
 CREATE FUNCTION grest.block_info (_block_hashes text[])
   RETURNS TABLE (
     hash text,
-    epoch_no uinteger,
-    abs_slot uinteger,
-    epoch_slot uinteger,
-    block_height uinteger,
-    block_size uinteger,
+    epoch_no word31type,
+    abs_slot word31type,
+    epoch_slot word31type,
+    block_height word31type,
+    block_size word31type,
     block_time double precision,
     tx_count bigint,
     vrf_key varchar,
     op_cert text,
     op_cert_counter word63type,
     pool varchar,
-    proto_major uinteger,
-    proto_minor uinteger,
+    proto_major word31type,
+    proto_minor word31type,
     total_output text,
     total_fees text,
     num_confirmations integer,
@@ -25,7 +25,7 @@ CREATE FUNCTION grest.block_info (_block_hashes text[])
 DECLARE
   _block_hashes_bytea   bytea[];
   _block_id_list        bigint[];
-  _curr_block_no        uinteger;
+  _curr_block_no        word31type;
 BEGIN
   SELECT max(block_no) INTO _curr_block_no FROM block b;
 

@@ -1,8 +1,8 @@
-CREATE FUNCTION grest.pool_delegators (_pool_bech32 text, _epoch_no uinteger DEFAULT NULL)
+CREATE FUNCTION grest.pool_delegators (_pool_bech32 text, _epoch_no word31type DEFAULT NULL)
   RETURNS TABLE (
     stake_address character varying,
     amount text,
-    epoch_no uinteger
+    epoch_no word31type
   )
   LANGUAGE plpgsql
   AS $$
@@ -22,7 +22,7 @@ BEGIN
             ELSE 0
           END
         )::text,
-        (SELECT MAX(no) FROM public.epoch)::uinteger
+        (SELECT MAX(no) FROM public.epoch)::word31type
       FROM
         grest.stake_distribution_cache AS sdc
       WHERE

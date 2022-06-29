@@ -20,7 +20,7 @@ CREATE TABLE grest.pool_info_cache (
     meta_url character varying,
     meta_hash text,
     pool_status text,
-    retiring_epoch uinteger
+    retiring_epoch word31type
 );
 
 COMMENT ON TABLE grest.pool_info_cache IS 'A summary of all pool parameters and updates';
@@ -41,8 +41,8 @@ CREATE FUNCTION grest.pool_info_insert (
     LANGUAGE plpgsql
     AS $$
 DECLARE
-    _current_epoch_no uinteger;
-    _retiring_epoch uinteger;
+    _current_epoch_no word31type;
+    _retiring_epoch word31type;
     _pool_status text;
 BEGIN
     SELECT COALESCE(MAX(no), 0) INTO _current_epoch_no FROM public.epoch;
@@ -153,10 +153,10 @@ CREATE FUNCTION grest.pool_info_retire_update ()
     LANGUAGE plpgsql
     AS $$
 DECLARE
-    _current_epoch_no uinteger;
+    _current_epoch_no word31type;
     _pool_hash_id bigint;
     _latest_pool_update_tx_id bigint;
-    _retiring_epoch uinteger;
+    _retiring_epoch word31type;
     _pool_status text;
 BEGIN
     SELECT COALESCE(MAX(no), 0) INTO _current_epoch_no FROM public.epoch;

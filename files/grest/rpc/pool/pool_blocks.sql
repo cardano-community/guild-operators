@@ -1,9 +1,9 @@
-CREATE FUNCTION grest.pool_blocks (_pool_bech32 text, _epoch_no uinteger DEFAULT NULL)
+CREATE FUNCTION grest.pool_blocks (_pool_bech32 text, _epoch_no word31type DEFAULT NULL)
     RETURNS TABLE (
-        epoch_no uinteger,
-        epoch_slot uinteger,
-        abs_slot uinteger,
-        block_height uinteger,
+        epoch_no word31type,
+        epoch_slot word31type,
+        abs_slot word31type,
+        block_height word31type,
         block_hash text,
         block_time double precision
     )

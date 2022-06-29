@@ -1,6 +1,6 @@
 CREATE FUNCTION grest.totals (_epoch_no numeric DEFAULT NULL)
   RETURNS TABLE (
-    epoch_no uinteger,
+    epoch_no word31type,
     circulation text,
     treasury text,
     reward text,

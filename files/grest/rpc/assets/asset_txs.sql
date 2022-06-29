@@ -1,8 +1,8 @@
 CREATE FUNCTION grest.asset_txs (_asset_policy text, _asset_name text default '')
   RETURNS TABLE (
     tx_hash text,
-    epoch_no uinteger,
-    block_height uinteger,
+    epoch_no word31type,
+    block_height word31type,
     block_time double precision
   )
   LANGUAGE PLPGSQL
