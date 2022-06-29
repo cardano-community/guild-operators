@@ -16,7 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=1.0.1
+SGVERSION=1.0.5 # Using versions from 1.0.5 for minor commit alignment before we're prepared for wider networks, targetted support for dbsync 13 will be against v1.1.0. Using a gap from 1.0.1 - 1.0.5 allows for scope to have any urgent fixes required before then on alpha branch itself
 
 ######## Functions ########
   usage() {
