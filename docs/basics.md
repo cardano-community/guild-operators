@@ -39,7 +39,7 @@ Install pre-requisites for building cardano-node and using CNTools
 -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
       topology.json, config.json and genesis files normally saved will also be overwritten
 -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
--n    Connect to specified network instead of mainnet network (Default: connect to cardano mainnet network)
+-n    Connect to specified network (mainnet | guild | testnet | staging) (Default: mainnet)
       eg: -n testnet
 -t    Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
