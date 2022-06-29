@@ -5,10 +5,10 @@ CREATE FUNCTION grest.epoch_info (_epoch_no numeric DEFAULT NULL)
     fees text,
     tx_count word31type,
     blk_count word31type,
-    start_time double precision,
-    end_time double precision,
-    first_block_time double precision,
-    last_block_time double precision,
+    start_time numeric,
+    end_time numeric,
+    first_block_time numeric,
+    last_block_time numeric,
     active_stake text,
     total_rewards text,
     avg_blk_reward text
@@ -18,7 +18,7 @@ CREATE FUNCTION grest.epoch_info (_epoch_no numeric DEFAULT NULL)
 DECLARE
   shelley_epoch_duration numeric := (select epochlength::numeric * slotlength::numeric as epochduration from grest.genesis);
   shelley_ref_epoch numeric := (select (ep.epoch_no::numeric + 1) from epoch_param ep ORDER BY ep.epoch_no LIMIT 1);
-  shelley_ref_time double precision := (select ei.i_first_block_time from grest.epoch_info_cache ei where ei.epoch_no = shelley_ref_epoch);
+  shelley_ref_time numeric := (select ei.i_first_block_time from grest.epoch_info_cache ei where ei.epoch_no = shelley_ref_epoch);
 BEGIN
   RETURN QUERY
   SELECT

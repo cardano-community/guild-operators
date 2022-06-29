@@ -5,7 +5,7 @@ CREATE FUNCTION grest.tip ()
     abs_slot word31type,
     epoch_slot word31type,
     block_no word31type,
-    block_time double precision
+    block_time numeric
   )
   LANGUAGE PLPGSQL
   AS $$

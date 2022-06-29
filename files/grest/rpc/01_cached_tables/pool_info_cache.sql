@@ -4,7 +4,7 @@ CREATE TABLE grest.pool_info_cache (
     id SERIAL PRIMARY KEY,
     tx_id bigint NOT NULL,
     tx_hash text,
-    block_time double precision,
+    block_time numeric,
     pool_hash_id bigint NOT NULL,
     pool_id_bech32 character varying NOT NULL,
     pool_id_hex text NOT NULL,
