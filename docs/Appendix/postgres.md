@@ -72,10 +72,10 @@ You might want to fill in some sample information as per below to fill in the fo
 
 | Option         | Value |
 |----------------|-------|
-| DB Version     | 13    |
+| DB Version     | 14    |
 | OS Type        | Linux |
 | DB Type        | Online Transaction Processing System|
-| Total RAM      | 32 (or as per your server) |
+| Total RAM      | 64 (or as per your server) |
 | Number of CPUs | 8 (or as per your server)  |
 | Number of Connections | 200 |
 | Data Storage   | HDD Storage |
