@@ -3,7 +3,7 @@ CREATE FUNCTION grest.asset_txs (_asset_policy text, _asset_name text default ''
     tx_hash text,
     epoch_no word31type,
     block_height word31type,
-    block_time double precision
+    block_time numeric
   )
   LANGUAGE PLPGSQL
   AS $$

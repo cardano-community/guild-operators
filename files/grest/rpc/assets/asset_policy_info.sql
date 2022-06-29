@@ -6,7 +6,7 @@ CREATE FUNCTION grest.asset_policy_info (_asset_policy text)
     minting_tx_metadata jsonb,
     token_registry_metadata jsonb,
     total_supply text,
-    creation_time double precision
+    creation_time numeric
   )
   LANGUAGE PLPGSQL
   AS $$

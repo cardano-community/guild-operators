@@ -3,7 +3,7 @@ CREATE FUNCTION grest.credential_txs (_payment_credentials text[], _after_block_
     tx_hash text,
     epoch_no word31type,
     block_height word31type,
-    block_time double precision
+    block_time numeric
   )
   LANGUAGE PLPGSQL
   AS $$
