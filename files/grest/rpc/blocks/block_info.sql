@@ -7,7 +7,7 @@ CREATE FUNCTION grest.block_info (_block_hashes text[])
     block_height word31type,
     block_size word31type,
     block_time numeric,
-    tx_count word63type,
+    tx_count bigint,
     vrf_key varchar,
     op_cert text,
     op_cert_counter word63type,

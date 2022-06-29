@@ -31,7 +31,7 @@ CREATE FUNCTION grest.epoch_params (_epoch_no numeric DEFAULT NULL)
     max_val_size word64type,
     collateral_percent word31type,
     max_collateral_inputs word31type,
-    coins_per_utxo_word lovelace)
+    coins_per_utxo_size lovelace)
   LANGUAGE PLPGSQL
   AS $$
 BEGIN
@@ -69,7 +69,7 @@ BEGIN
       ei.p_max_val_size AS max_val_size,
       ei.p_collateral_percent AS collateral_percent,
       ei.p_max_collateral_inputs AS max_collateral_inputs,
-      ei.p_coins_per_utxo_word AS coins_per_utxo_word
+      ei.p_coins_per_utxo_size AS coins_per_utxo_size
     FROM
       grest.epoch_info_cache ei
     ORDER BY
