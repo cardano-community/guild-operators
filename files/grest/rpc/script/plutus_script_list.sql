@@ -12,7 +12,7 @@ BEGIN
     ENCODE(tx.hash, 'hex') as creation_tx_hash
   FROM script
     INNER JOIN tx ON tx.id = script.tx_id
-  WHERE script.type = 'plutus';
+  WHERE script.type IN ('plutusV1', 'plutusV2');
 END;
 $$;
 
