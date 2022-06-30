@@ -103,9 +103,9 @@ function chk_tip() {
     .[0].block_no //0,
     .[0].block_time // 0
   ] | @tsv' )"
-  currtip=$(TZ='UTC' date "+%Y-%m-%d %H:%M:%S")
-  dbtip=${tip[4]}
-  if [[ -z "${dbtip}" ]] || [[ $(( $(date -d "${currtip}" +%s) - $(date -d "${dbtip}" +%s) )) -gt ${TIP_DIFF} ]] ; then
+  currtip=$(date +%s)
+  dbtip=$(cut -d. -f1 <<< "${tip[4]}")
+  if [[ -z "${dbtip}" ]] || [[ $(( currtip - dbtip )) -gt ${TIP_DIFF} ]] ; then
     log_err "${URLRPC}/tip endpoint did not provide a timestamp that's within ${TIP_DIFF} seconds - Tip: ${currtip}, DB Tip: ${dbtip}, Difference: $(( $(date -d "${currtip}" +%s) - $(date -d "${dbtip}" +%s) ))"
     optexit
   else
