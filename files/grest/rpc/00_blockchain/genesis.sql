@@ -34,6 +34,3 @@ BEGIN
     grest.genesis g;
 END;
 $$;
-
-COMMENT ON FUNCTION grest.tip IS 'Get the tip info about the latest block seen by chain';
-
