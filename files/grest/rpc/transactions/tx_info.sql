@@ -502,9 +502,9 @@ BEGIN
             INNER JOIN script ON redeemer.script_hash = script.hash -- perhaps we should join on tx.reference_script_id here?
             INNER JOIN tx_in ON tx_in.redeemer_id = redeemer.id
             INNER JOIN tx_out INUTXO ON INUTXO.tx_id = tx_in.tx_out_id AND INUTXO.index = tx_in.tx_out_index
-            INNER JOIN datum IND ON IND.id = INUTXO.inline_datum_id
+            INNER JOIN datum IND ON IND.hash = INUTXO.data_hash
             LEFT JOIN tx_out OUTUTXO ON OUTUTXO.tx_id = redeemer.tx_id AND OUTUTXO.address = INUTXO.address
-            LEFT JOIN datum OUTD ON OUTD.id = OUTUTXO.inline_datum_id
+            LEFT JOIN datum OUTD ON OUTD.hash = OUTUTXO.data_hash
           WHERE
             redeemer.tx_id = ANY (_tx_id_list)
         ) AS tmp
