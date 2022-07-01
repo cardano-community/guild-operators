@@ -173,10 +173,10 @@ SGVERSION=1.0.5 # Using versions from 1.0.5 for minor commit alignment before we
   # Description : Remove a given grest cron entry.
   remove_cron_job() {
     local job=$1
-    local cron_job_path_legacy="${CRON_DIR}/${job}" # legacy name w/o vname part, can be removed in future
     local cron_job_path="${CRON_DIR}/${CNODE_VNAME}-${job}"
-    is_file "${cron_job_path_legacy}" && sudo rm "${cron_job_path_legacy}"
     is_file "${cron_job_path}" && sudo rm "${cron_job_path}"
+    kill_cron_psql_process $(echo ${job} | tr '-' '_')
+    kill_cron_script_process ${job}
   }
 
   # Description : Find and kill psql processes based on partial function name.
@@ -189,16 +189,10 @@ SGVERSION=1.0.5 # Using versions from 1.0.5 for minor commit alignment before we
     [[ -n "${output}" ]] && echo ${output} | xargs sudo kill -SIGTERM > /dev/null
   }
 
-  # Description : Kill cron-related psql update functions.
-  kill_cron_psql_processes() {
-    kill_cron_psql_process 'stake_distribution_cache_update'
-    kill_cron_psql_process 'pool_history_cache_update'
-    kill_cron_psql_process 'asset_registry_cache_update'
-  }
-
   # Description : Kill a running cron script (does not stop psql executions).
-  kill_cron_script_processes() {
-    sudo pkill -9 -f asset-registry-update.sh
+  kill_cron_script_process() {
+    local job=$1
+    sudo pkill -9 -f "${job}.sh"
   }
 
   # Description : Stop running grest-related cron jobs.
@@ -211,10 +205,12 @@ SGVERSION=1.0.5 # Using versions from 1.0.5 for minor commit alignment before we
   # Description : Remove all grest-related cron entries.
   remove_all_grest_cron_jobs() {
     echo "Removing all installed cron jobs..."
-    remove_cron_job "stake-distribution-update"
-    remove_cron_job "pool-history-cache-update"
+    remove_cron_job "active-stake-cache-update"
     remove_cron_job "asset-registry-update"
-    kill_running_cron_jobs
+    remove_cron_job "epoch-info-cache-update"
+    remove_cron_job "pool-history-cache-update"
+    remove_cron_job "stake-distribution-new-accounts-update"
+    remove_cron_job "stake-distribution-update"
   }
 
   # Description : Set default env values if not user-specified.
