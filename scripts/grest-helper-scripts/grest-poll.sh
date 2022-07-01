@@ -73,8 +73,8 @@ function usage() {
 }
 
 function chk_version() {
-  instance_vr=$(curl -sfkL "${GURL}/control_table?key=eq.version&select=last_value" 2>/dev/null)
-  monitor_vr=$(curl -sfkL "${API_COMPARE}/control_table?key=eq.version&select=last_value" 2>/dev/null)
+  instance_vr=$(curl -sfkL "${GURL}/control_table?key=eq.version&select=last_value" | jq -r '.[0].last_value' 2>/dev/null)
+  monitor_vr=$(curl -sf "${API_STRUCT_DEFINITION}" | grep ^\ \ version|awk '{print $2}' 2>/dev/null)
 
   if [[ -z "${instance_vr}" ]] || [[ "${instance_vr}" == "[]" ]]; then
     [[ "${DEBUG_MODE}" == "1" ]] && echo "Response received for ${GURL} version: ${instance_vr}"
@@ -151,7 +151,7 @@ function chk_cache_status() {
     optexit
   else
     if [[ "${last_actvstake_epoch}" != "${epoch}" ]]; then
-      epoch_length=$(curl -s "${GURL}"/genesis?select=epochlength | jq -r .[0].epochlength)
+      epoch_length=$(cat "${GENESIS_JSON}" | jq -r .epochLength 2>/dev/null)
       if [[ ${epoch_slot} -ge $(( epoch_length / 12 )) ]]; then
         log_err "Active Stake cache for epoch ${epoch} still not populated as of ${epoch_slot} slot, maximum tolerance was $(( epoch_length / 12 )) !!"
         optexit
