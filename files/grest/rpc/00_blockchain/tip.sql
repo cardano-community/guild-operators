@@ -1,11 +1,11 @@
 CREATE FUNCTION grest.tip ()
   RETURNS TABLE (
     hash text,
-    epoch_no uinteger,
-    abs_slot uinteger,
-    epoch_slot uinteger,
-    block_no uinteger,
-    block_time double precision
+    epoch_no word31type,
+    abs_slot word63type,
+    epoch_slot word31type,
+    block_no word31type,
+    block_time numeric
   )
   LANGUAGE PLPGSQL
   AS $$

@@ -12,6 +12,8 @@ CREATE VIEW grest.blocks AS
     b.TX_COUNT,
     b.VRF_KEY,
     ph.VIEW AS POOL,
+    b.PROTO_MAJOR,
+    b.PROTO_MINOR,
     b.OP_CERT_COUNTER
   FROM
     BLOCK B

@@ -2,13 +2,13 @@ CREATE FUNCTION grest.tx_info (_tx_hashes text[])
   RETURNS TABLE (
     tx_hash text,
     block_hash text,
-    block_height uinteger,
-    epoch uinteger,
-    epoch_slot uinteger,
-    absolute_slot uinteger,
-    tx_timestamp double precision,
-    tx_block_index uinteger,
-    tx_size uinteger,
+    block_height word31type,
+    epoch word31type,
+    epoch_slot word31type,
+    absolute_slot word63type,
+    tx_timestamp numeric,
+    tx_block_index word31type,
+    tx_size word31type,
     total_output text,
     fee text,
     deposit text,
@@ -375,7 +375,7 @@ BEGIN
                 'max_val_size', PP.max_val_size,
                 'collateral_percent', PP.collateral_percent,
                 'max_collateral_inputs', PP.max_collateral_inputs,
-                'coins_per_utxo_word', PP.coins_per_utxo_word
+                'coins_per_utxo_size', PP.coins_per_utxo_size
               ))
             ) AS data
           FROM 
@@ -498,8 +498,8 @@ BEGIN
           FROM
             redeemer
             INNER JOIN tx ON redeemer.tx_id = tx.id
-            INNER JOIN datum RD ON RD.id = redeemer.datum_id
-            INNER JOIN script ON redeemer.script_hash = script.hash
+            INNER JOIN redeemer_data RD ON RD.id = redeemer.redeemer_data_id
+            INNER JOIN script ON redeemer.script_hash = script.hash -- perhaps we should join on tx.reference_script_id here?
             INNER JOIN tx_in ON tx_in.redeemer_id = redeemer.id
             INNER JOIN tx_out INUTXO ON INUTXO.tx_id = tx_in.tx_out_id AND INUTXO.index = tx_in.tx_out_index
             INNER JOIN datum IND ON IND.hash = INUTXO.data_hash

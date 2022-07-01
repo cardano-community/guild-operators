@@ -1,29 +1,29 @@
 CREATE TABLE IF NOT EXISTS grest.epoch_info_cache (
-  epoch_no uinteger PRIMARY KEY NOT NULL,
+  epoch_no word31type PRIMARY KEY NOT NULL,
   i_out_sum word128type NOT NULL,
   i_fees lovelace NOT NULL,
-  i_tx_count uinteger NOT NULL,
-  i_blk_count uinteger NOT NULL,
-  i_first_block_time double precision UNIQUE NOT NULL,
-  i_last_block_time double precision UNIQUE NOT NULL,
+  i_tx_count word31type NOT NULL,
+  i_blk_count word31type NOT NULL,
+  i_first_block_time numeric UNIQUE NOT NULL,
+  i_last_block_time numeric UNIQUE NOT NULL,
   i_total_rewards lovelace DEFAULT NULL,
-  i_avg_blk_reward uinteger DEFAULT NULL,
-  p_min_fee_a uinteger NULL,
-  p_min_fee_b uinteger NULL,
-  p_max_block_size uinteger NULL,
-  p_max_tx_size uinteger NULL,
-  p_max_bh_size uinteger NULL,
+  i_avg_blk_reward lovelace DEFAULT NULL,
+  p_min_fee_a word31type NULL,
+  p_min_fee_b word31type NULL,
+  p_max_block_size word31type NULL,
+  p_max_tx_size word31type NULL,
+  p_max_bh_size word31type NULL,
   p_key_deposit lovelace NULL,
   p_pool_deposit lovelace NULL,
-  p_max_epoch uinteger NULL,
-  p_optimal_pool_count uinteger NULL,
+  p_max_epoch word31type NULL,
+  p_optimal_pool_count word31type NULL,
   p_influence double precision NULL,
   p_monetary_expand_rate double precision NULL,
   p_treasury_growth_rate double precision NULL,
   p_decentralisation double precision NULL,
-  p_entropy text,
-  p_protocol_major uinteger NULL,
-  p_protocol_minor uinteger NULL,
+  p_extra_entropy text,
+  p_protocol_major word31type NULL,
+  p_protocol_minor word31type NULL,
   p_min_utxo_value lovelace NULL,
   p_min_pool_cost lovelace NULL,
   p_nonce text,
@@ -36,9 +36,9 @@ CREATE TABLE IF NOT EXISTS grest.epoch_info_cache (
   p_max_block_ex_mem word64type,
   p_max_block_ex_steps word64type,
   p_max_val_size word64type,
-  p_collateral_percent uinteger,
-  p_max_collateral_inputs uinteger,
-  p_coins_per_utxo_word lovelace
+  p_collateral_percent word31type,
+  p_max_collateral_inputs word31type,
+  p_coins_per_utxo_size lovelace
 );
 
 COMMENT ON TABLE grest.epoch_info_cache IS 'Contains detailed info for epochs including protocol parameters';
@@ -145,7 +145,7 @@ BEGIN
       ep.monetary_expand_rate AS p_monetary_expand_rate,
       ep.treasury_growth_rate AS p_treasury_growth_rate,
       ep.decentralisation AS p_decentralisation,
-      ENCODE(ep.entropy, 'hex') AS p_entropy,
+      ENCODE(ep.extra_entropy, 'hex') AS p_extra_entropy,
       ep.protocol_major AS p_protocol_major,
       ep.protocol_minor AS p_protocol_minor,
       ep.min_utxo_value AS p_min_utxo_value,
@@ -162,7 +162,7 @@ BEGIN
       ep.max_val_size AS p_max_val_size,
       ep.collateral_percent AS p_collateral_percent,
       ep.max_collateral_inputs AS p_max_collateral_inputs,
-      ep.coins_per_utxo_word AS p_coins_per_utxo_word
+      ep.coins_per_utxo_size AS p_coins_per_utxo_size
     FROM
       epoch e
       LEFT JOIN epoch_param ep ON ep.epoch_no = e.no

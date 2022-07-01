@@ -14,7 +14,7 @@ CREATE FUNCTION grest.pool_info (_pool_bech32_ids text[])
     meta_hash text,
     meta_json jsonb,
     pool_status text,
-    retiring_epoch uinteger,
+    retiring_epoch word31type,
     op_cert text,
     op_cert_counter word63type,
     active_stake text,

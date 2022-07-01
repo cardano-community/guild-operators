@@ -4,7 +4,7 @@ CREATE TABLE grest.pool_info_cache (
     id SERIAL PRIMARY KEY,
     tx_id bigint NOT NULL,
     tx_hash text,
-    block_time double precision,
+    block_time numeric,
     pool_hash_id bigint NOT NULL,
     pool_id_bech32 character varying NOT NULL,
     pool_id_hex text NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE grest.pool_info_cache (
     meta_url character varying,
     meta_hash text,
     pool_status text,
-    retiring_epoch uinteger
+    retiring_epoch word31type
 );
 
 COMMENT ON TABLE grest.pool_info_cache IS 'A summary of all pool parameters and updates';
@@ -34,15 +34,15 @@ CREATE FUNCTION grest.pool_info_insert (
         _margin double precision,
         _fixed_cost lovelace,
         _pledge lovelace,
-        _reward_addr addr29type,
+        _reward_addr_id bigint,
         _meta_id bigint
     )
     RETURNS void
     LANGUAGE plpgsql
     AS $$
 DECLARE
-    _current_epoch_no uinteger;
-    _retiring_epoch uinteger;
+    _current_epoch_no word31type;
+    _retiring_epoch word31type;
     _pool_status text;
 BEGIN
     SELECT COALESCE(MAX(no), 0) INTO _current_epoch_no FROM public.epoch;
@@ -101,7 +101,7 @@ BEGIN
                 sa.view
             FROM public.pool_owner AS po
             INNER JOIN public.stake_address AS sa ON sa.id = po.addr_id
-            WHERE po.registered_tx_id = _tx_id
+            WHERE po.pool_update_id = _update_id
         ),
         ARRAY(
             SELECT json_build_object(
@@ -123,7 +123,7 @@ BEGIN
     INNER JOIN public.tx ON tx.id = _tx_id
     INNER JOIN public.block AS b ON b.id = tx.block_id
     LEFT JOIN public.pool_metadata_ref AS pmr ON pmr.id = _meta_id
-    LEFT JOIN public.stake_address AS sa ON sa.hash_raw = _reward_addr
+    LEFT JOIN public.stake_address AS sa ON sa.id = _reward_addr_id
     WHERE ph.id = _hash_id;
 END;
 $$;
@@ -153,10 +153,10 @@ CREATE FUNCTION grest.pool_info_retire_update ()
     LANGUAGE plpgsql
     AS $$
 DECLARE
-    _current_epoch_no uinteger;
+    _current_epoch_no word31type;
     _pool_hash_id bigint;
     _latest_pool_update_tx_id bigint;
-    _retiring_epoch uinteger;
+    _retiring_epoch word31type;
     _pool_status text;
 BEGIN
     SELECT COALESCE(MAX(no), 0) INTO _current_epoch_no FROM public.epoch;
@@ -216,7 +216,7 @@ BEGIN
                 NEW.margin,
                 NEW.fixed_cost,
                 NEW.pledge,
-                NEW.reward_addr,
+                NEW.reward_addr_id,
                 NEW.meta_id
             );
         ELSIF (TG_OP = 'DELETE') THEN
@@ -312,7 +312,9 @@ DECLARE
 BEGIN
     SELECT COALESCE(MAX(tx_id), 0) INTO _latest_pool_info_tx_id FROM grest.pool_info_cache;
 
-    FOR rec IN (SELECT * FROM public.pool_update AS pu WHERE pu.registered_tx_id > _latest_pool_info_tx_id) LOOP
+    FOR rec IN (
+        SELECT * FROM public.pool_update AS pu WHERE pu.registered_tx_id > _latest_pool_info_tx_id
+    ) LOOP
         PERFORM grest.pool_info_insert(
             rec.id,
             rec.registered_tx_id,
@@ -322,7 +324,7 @@ BEGIN
             rec.margin,
             rec.fixed_cost,
             rec.pledge,
-            rec.reward_addr,
+            rec.reward_addr_id,
             rec.meta_id
         );
     END LOOP;

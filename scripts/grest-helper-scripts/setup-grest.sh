@@ -16,7 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=1.0.1
+SGVERSION=1.0.5 # Using versions from 1.0.5 for minor commit alignment before we're prepared for wider networks, targetted support for dbsync 13 will be against v1.1.0. Using a gap from 1.0.1 - 1.0.5 allows for scope to have any urgent fixes required before then on alpha branch itself
 
 ######## Functions ########
   usage() {
@@ -84,7 +84,7 @@ SGVERSION=1.0.1
     [[ -z ${file_name} || ${file_name} != *.sql ]] && return
     dl_url=$(jqDecode '.download_url //empty' "${1}")
     [[ -z ${dl_url} ]] && return
-    ! rpc_sql=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url%.json}.sql" && return 1
+    ! rpc_sql=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url%.json}" && return 1
     echo -e "      Deploying Function :   \e[32m${file_name%.sql}\e[0m"
     ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<${rpc_sql} 2>&1) && echo -e "        \e[31mERROR\e[0m: ${output}"
   }
@@ -339,6 +339,7 @@ SGVERSION=1.0.1
     fi
     pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
     checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
+    # script not available at first load
     sed -e "s@cexplorer@${PGDATABASE}@g" -i "${CNODE_HOME}"/scripts/getmetrics.sh
     echo -e "[Re]Installing Monitoring Agent.."
     e=!

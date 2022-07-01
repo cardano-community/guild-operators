@@ -1,9 +1,9 @@
 CREATE FUNCTION grest.address_txs (_addresses text[], _after_block_height integer DEFAULT 0)
   RETURNS TABLE (
     tx_hash text,
-    epoch_no uinteger,
-    block_height uinteger,
-    block_time double precision
+    epoch_no word31type,
+    block_height word31type,
+    block_time numeric
   )
   LANGUAGE PLPGSQL
   AS $$

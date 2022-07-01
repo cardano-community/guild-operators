@@ -8,7 +8,7 @@ CREATE FUNCTION grest.asset_info (_asset_policy text, _asset_name text default '
     total_supply text,
     mint_cnt bigint,
     burn_cnt bigint,
-    creation_time double precision,
+    creation_time numeric,
     minting_tx_metadata json,
     token_registry_metadata json
   )

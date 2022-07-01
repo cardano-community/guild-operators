@@ -14,7 +14,7 @@ CREATE FUNCTION grest.account_info (_address text)
 DECLARE
   SA_ID integer DEFAULT NULL;
   LATEST_WITHDRAWAL_TX bigint DEFAULT NULL;
-  LATEST_WITHDRAWAL_EPOCH uinteger DEFAULT NULL;
+  LATEST_WITHDRAWAL_EPOCH word31type DEFAULT NULL;
 BEGIN
   IF _address LIKE 'stake%' THEN
     -- Shelley stake address

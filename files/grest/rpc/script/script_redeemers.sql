@@ -25,14 +25,15 @@ select _script_hash,
             'purpose',
             redeemer.purpose,
             'datum_hash',
-            ENCODE(datum.hash, 'hex'),
+            ENCODE(rd.hash, 'hex'),
             'datum_value',
-            datum.value
+            rd.value
+            -- extra bytes field available in rd. table here
         )
     ) as redeemers
 FROM redeemer
     INNER JOIN TX ON tx.id = redeemer.tx_id
-    INNER JOIN DATUM on datum.id = redeemer.datum_id
+    INNER JOIN REDEEMER_DATA rd on rd.id = redeemer.redeemer_data_id
 WHERE redeemer.script_hash = _script_hash_bytea
 GROUP BY redeemer.script_hash;
 END;

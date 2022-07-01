@@ -1,22 +1,22 @@
 CREATE FUNCTION grest.epoch_params (_epoch_no numeric DEFAULT NULL)
   RETURNS TABLE (
-    epoch_no uinteger,
-    min_fee_a uinteger,
-    min_fee_b uinteger,
-    max_block_size uinteger,
-    max_tx_size uinteger,
-    max_bh_size uinteger,
+    epoch_no word31type,
+    min_fee_a word31type,
+    min_fee_b word31type,
+    max_block_size word31type,
+    max_tx_size word31type,
+    max_bh_size word31type,
     key_deposit lovelace,
     pool_deposit lovelace,
-    max_epoch uinteger,
-    optimal_pool_count uinteger,
+    max_epoch word31type,
+    optimal_pool_count word31type,
     influence double precision,
     monetary_expand_rate double precision,
     treasury_growth_rate double precision,
     decentralisation double precision,
-    entropy text,
-    protocol_major uinteger,
-    protocol_minor uinteger,
+    extra_entropy text,
+    protocol_major word31type,
+    protocol_minor word31type,
     min_utxo_value lovelace,
     min_pool_cost lovelace,
     nonce text,
@@ -29,9 +29,9 @@ CREATE FUNCTION grest.epoch_params (_epoch_no numeric DEFAULT NULL)
     max_block_ex_mem word64type,
     max_block_ex_steps word64type,
     max_val_size word64type,
-    collateral_percent uinteger,
-    max_collateral_inputs uinteger,
-    coins_per_utxo_word lovelace)
+    collateral_percent word31type,
+    max_collateral_inputs word31type,
+    coins_per_utxo_size lovelace)
   LANGUAGE PLPGSQL
   AS $$
 BEGIN
@@ -52,7 +52,7 @@ BEGIN
       ei.p_monetary_expand_rate AS monetary_expand_rate,
       ei.p_treasury_growth_rate AS treasury_growth_rate,
       ei.p_decentralisation AS decentralisation,
-      ei.p_entropy AS entropy,
+      ei.p_extra_entropy AS extra_entropy,
       ei.p_protocol_major AS protocol_major,
       ei.p_protocol_minor AS protocol_minor,
       ei.p_min_utxo_value AS min_utxo_value,
@@ -69,7 +69,7 @@ BEGIN
       ei.p_max_val_size AS max_val_size,
       ei.p_collateral_percent AS collateral_percent,
       ei.p_max_collateral_inputs AS max_collateral_inputs,
-      ei.p_coins_per_utxo_word AS coins_per_utxo_word
+      ei.p_coins_per_utxo_size AS coins_per_utxo_size
     FROM
       grest.epoch_info_cache ei
     ORDER BY
@@ -91,7 +91,7 @@ BEGIN
       ei.p_monetary_expand_rate AS monetary_expand_rate,
       ei.p_treasury_growth_rate AS treasury_growth_rate,
       ei.p_decentralisation AS decentralisation,
-      ei.p_entropy AS entropy,
+      ei.p_extra_entropy AS extra_entropy,
       ei.p_protocol_major AS protocol_major,
       ei.p_protocol_minor AS protocol_minor,
       ei.p_min_utxo_value AS min_utxo_value,
@@ -108,7 +108,7 @@ BEGIN
       ei.p_max_val_size AS max_val_size,
       ei.p_collateral_percent AS collateral_percent,
       ei.p_max_collateral_inputs AS max_collateral_inputs,
-      ei.p_coins_per_utxo_word AS coins_per_utxo_word
+      ei.p_coins_per_utxo_size AS coins_per_utxo_size
     FROM
       grest.epoch_info_cache ei
     WHERE
