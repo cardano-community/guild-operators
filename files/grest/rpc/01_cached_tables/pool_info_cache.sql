@@ -3,6 +3,7 @@ DROP TABLE IF EXISTS grest.pool_info_cache;
 CREATE TABLE grest.pool_info_cache (
     id SERIAL PRIMARY KEY,
     tx_id bigint NOT NULL,
+    update_id bigint NOT NULL,
     tx_hash text,
     block_time numeric,
     pool_hash_id bigint NOT NULL,
@@ -64,6 +65,7 @@ BEGIN
 
     INSERT INTO grest.pool_info_cache (
         tx_id,
+        update_id,
         tx_hash,
         block_time,
         pool_hash_id,
@@ -85,6 +87,7 @@ BEGIN
     )
     SELECT
         _tx_id,
+        _update_id,
         encode(tx.hash::bytea, 'hex'), 
         EXTRACT(epoch from b.time),
         _hash_id,
@@ -251,9 +254,7 @@ BEGIN
         SET
             owners = owners || (SELECT sa.view FROM public.stake_address AS sa WHERE sa.id = NEW.addr_id)
         WHERE
-            pool_hash_id = NEW.pool_hash_id
-            AND
-            tx_id = NEW.registered_tx_id;
+            update_id = NEW.pool_update_id;
     END IF;
 
     RETURN NULL;
