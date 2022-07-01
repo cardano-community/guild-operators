@@ -176,7 +176,7 @@ SGVERSION=1.0.5 # Using versions from 1.0.5 for minor commit alignment before we
     local cron_job_path="${CRON_DIR}/${CNODE_VNAME}-${job}"
     is_file "${cron_job_path}" && sudo rm "${cron_job_path}"
     kill_cron_psql_process $(echo ${job} | tr '-' '_')
-    kill_cron_script_process ${job}
+    kill_cron_script_process ${job} &>/dev/null
   }
 
   # Description : Find and kill psql processes based on partial function name.
@@ -193,13 +193,6 @@ SGVERSION=1.0.5 # Using versions from 1.0.5 for minor commit alignment before we
   kill_cron_script_process() {
     local job=$1
     sudo pkill -9 -f "${job}.sh"
-  }
-
-  # Description : Stop running grest-related cron jobs.
-  kill_running_cron_jobs() {
-    echo "Stopping currently running cron jobs..."
-    kill_cron_script_processes &>/dev/null
-    kill_cron_psql_processes
   }
 
   # Description : Remove all grest-related cron entries.
