@@ -215,6 +215,11 @@ SGVERSION=1.0.5 # Using versions from 1.0.5 for minor commit alignment before we
     DOCS_URL="https://cardano-community.github.io/guild-operators"
     API_DOCS_URL="https://api.koios.rest"
     [[ -z "${PGPASSFILE}" ]] && export PGPASSFILE="${CNODE_HOME}"/priv/.pgpass
+    case ${NWMAGIC} in
+      1097911063) KOIOS_SRV="testnet.koios.rest" ;;
+      764824073)  KOIOS_SRV="api.koios.rest" ;;
+      *) KOIOS_SRV="guild.koios.rest" ;;
+    esac
   }
 
   parse_args() {
@@ -294,7 +299,7 @@ SGVERSION=1.0.5 # Using versions from 1.0.5 for minor commit alignment before we
   deploy_haproxy() {
     echo "[Re]Installing HAProxy.."
     pushd ~/tmp >/dev/null || err_exit
-    haproxy_url="http://www.haproxy.org/download/2.6/src/haproxy-2.6.0.tar.gz"
+    haproxy_url="http://www.haproxy.org/download/2.6/src/haproxy-2.6.1.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
       if command -v apt-get >/dev/null; then
@@ -303,7 +308,7 @@ SGVERSION=1.0.5 # Using versions from 1.0.5 for minor commit alignment before we
       if command -v yum >/dev/null; then
         sudo yum -y install pcre-devel >/dev/null || err_exit "'sudo yum -y install prce-devel' failed!"
       fi
-      cd haproxy-2.6.0 || return
+      cd haproxy-2.6.1 || return
       make clean >/dev/null
       make -j $(nproc) TARGET=linux-glibc USE_ZLIB=1 USE_LIBCRYPT=1 USE_OPENSSL=1 USE_PCRE=1 USE_SYSTEMD=1 USE_PROMEX=1 >/dev/null
       sudo make install-bin >/dev/null
@@ -358,11 +363,6 @@ SGVERSION=1.0.5 # Using versions from 1.0.5 for minor commit alignment before we
 			EOF
     # Create HAProxy config template
     [[ -f "${HAPROXY_CFG}" ]] && cp "${HAPROXY_CFG}" "${HAPROXY_CFG}".bkp_$(date +%s)
-    case ${NWMAGIC} in
-      1097911063) KOIOS_SRV="testnet.koios.rest" ;;
-      764824073)  KOIOS_SRV="api.koios.rest" ;;
-      *) KOIOS_SRV="guild.koios.rest" ;;
-    esac
 
     if grep 'koios.rest:8443' ${HAPROXY_CFG}; then
       echo "  Skipping update of ${HAPROXY_CFG} as this instance is a monitoring instance"
@@ -467,12 +467,12 @@ SGVERSION=1.0.5 # Using versions from 1.0.5 for minor commit alignment before we
   common_update() {
     # Create skeleton whitelist URL file if one does not already exist using most common option
     if [[ ! -f "${CNODE_HOME}"/files/grestrpcs ]]; then
-      # Not network dependent, as the URL patterns followed will default to monitoring instance from koios - it will anyways be overwritten as per user preference based on variables in grest-poll.sh
-      curl -sfkL "https://api.koios.rest/koiosapi.yaml" -o "${CNODE_HOME}"/files/koiosapi.yaml 2>/dev/null
+      curl -sfkL "https://${KOIOS_SRV}/koiosapi.yaml" -o "${CNODE_HOME}"/files/koiosapi.yaml 2>/dev/null
       grep " #RPC" "${CNODE_HOME}"/files/koiosapi.yaml | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
     fi
     [[ "${SKIP_UPDATE}" == "Y" ]] && return 0
     checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
+    sed -i "s# API_STRUCT_DEFINITION=\"https://api.koios.rest/koiosapi.yaml\"# API_STRUCT_DEFINITION=\"https://${KOIOS_SRV}/koiosapi.yaml\"#g" grest-poll.sh
     checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
     checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
   }
