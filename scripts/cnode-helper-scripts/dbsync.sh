@@ -68,7 +68,7 @@ check_config_sanity() {
   if [[ "${BYGENHASH}" != "${BYGENHASHCFG}" ]] || [[ "${SHGENHASH}" != "${SHGENHASHCFG}" ]] || [[ "${ALGENHASH}" != "${ALGENHASHCFG}" ]]; then
     cp "${CONFIG}" "${CONFIG}".tmp
     jq --arg BYGENHASH ${BYGENHASH} --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} '.ByronGenesisHash = $BYGENHASH | .ShelleyGenesisHash = $SHGENHASH | .AlonzoGenesisHash = $ALGENHASH' <"${CONFIG}" >"${CONFIG}".tmp
-    mv -f "${CONFIG}".tmp "${CONFIG}"
+    [[ -s "${CONFIG}".tmp ]] && mv -f "${CONFIG}".tmp "${CONFIG}"
   fi
 }
 

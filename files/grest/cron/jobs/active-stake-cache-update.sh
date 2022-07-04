@@ -17,13 +17,13 @@ last_epoch_stakes_log=$(grep -r 'Inserted.*.EpochStake for EpochNo ' "$(dirname 
 logs_last_epoch_stakes_count=$(echo "${last_epoch_stakes_log}" | cut -d\  -f1)
 logs_last_epoch_no=$(echo "${last_epoch_stakes_log}" | cut -d\  -f3)
 
-db_last_epoch_no=$(psql ${DB_NAME} -qbt -c "SELECT grest.get_current_epoch();" | tr -cd '[:alnum:]')
+db_last_epoch_no=$(psql ${DB_NAME} -qbt -c "SELECT MAX(NO) from EPOCH;" | tr -cd '[:alnum:]')
 [[ "${db_last_epoch_no}" != "${logs_last_epoch_no}" ]] &&
   echo "Mismatch between last epoch in logs and database, exiting..." &&
   exit 1
 
 # Count current epoch entries processed by db-sync
-db_epoch_stakes_count=$(psql ${DB_NAME} -qbt -c "SELECT grest.get_epoch_stakes_count(${db_last_epoch_no});" | tr -cd '[:alnum:]')
+db_epoch_stakes_count=$(psql ${DB_NAME} -qbt -c "SELECT COUNT(1) FROM EPOCH_STAKE WHERE epoch_no = ${db_last_epoch_no};" | tr -cd '[:alnum:]')
 
 # Check if db-sync completed handling stakes
 [[ "${db_epoch_stakes_count}" != "${logs_last_epoch_stakes_count}" ]] &&

@@ -22,39 +22,6 @@ CREATE TABLE IF NOT EXISTS GREST.ACCOUNT_ACTIVE_STAKE_CACHE (
   PRIMARY KEY (STAKE_ADDRESS, POOL_ID, EPOCH_NO)
 );
 
-/* HELPER FUNCTIONS */
-
-CREATE FUNCTION grest.get_last_active_stake_validated_epoch ()
-  RETURNS INTEGER
-  LANGUAGE plpgsql
-  AS
-$$
-  BEGIN
-    RETURN (
-      SELECT
-        last_value -- coalesce() doesn't work if empty set
-      FROM 
-        grest.control_table
-      WHERE
-        key = 'last_active_stake_validated_epoch'
-    );
-  END;
-$$;
-
-/* POSSIBLE VALIDATION FOR CACHE (COUNTING ENTRIES) INSTEAD OF JUST DB-SYNC PART (EPOCH_STAKE)
-
-CREATE FUNCTION grest.get_last_active_stake_cache_address_count ()
-  RETURNS INTEGER
-  LANGUAGE plpgsql
-  AS $$
-    BEGIN
-      RETURN (
-        SELECT count(*) from cache...
-      )
-    END;
-  $$;
- */
-
 CREATE FUNCTION grest.active_stake_cache_update_check ()
   RETURNS BOOLEAN
   LANGUAGE plpgsql
@@ -64,15 +31,19 @@ $$
   _current_epoch_no integer;
   _last_active_stake_validated_epoch text;
   BEGIN
-    SELECT
-      grest.get_last_active_stake_validated_epoch()
-    INTO
-      _last_active_stake_validated_epoch;
 
-    SELECT
-      grest.get_current_epoch()
-    INTO
-      _current_epoch_no;
+    -- Get Last Active Stake Validated Epoch
+    SELECT last_value
+      INTO _last_active_stake_validated_epoch
+    FROM
+      grest.control_table
+    WHERE
+      key = 'last_active_stake_validated_epoch';
+
+    -- Get Current Epoch
+    SELECT MAX(NO)
+      INTO _current_epoch_no
+    FROM epoch;
 
     RAISE NOTICE 'Current epoch: %',
       _current_epoch_no;
@@ -127,10 +98,10 @@ $$
     /* POOL ACTIVE STAKE CACHE */
     SELECT
       COALESCE(MAX(epoch_no), 0)
-    FROM
-      GREST.POOL_ACTIVE_STAKE_CACHE
     INTO
-      _last_pool_active_stake_cache_epoch_no;
+      _last_pool_active_stake_cache_epoch_no
+    FROM
+      GREST.POOL_ACTIVE_STAKE_CACHE;
 
     INSERT INTO GREST.POOL_ACTIVE_STAKE_CACHE
       SELECT
@@ -157,9 +128,9 @@ $$
     /* EPOCH ACTIVE STAKE CACHE */
     SELECT
       COALESCE(MAX(epoch_no), 0)
+    INTO _last_epoch_active_stake_cache_epoch_no
     FROM
-      GREST.EPOCH_ACTIVE_STAKE_CACHE
-    INTO _last_epoch_active_stake_cache_epoch_no;
+      GREST.EPOCH_ACTIVE_STAKE_CACHE;
 
     INSERT INTO GREST.EPOCH_ACTIVE_STAKE_CACHE
       SELECT
@@ -180,10 +151,10 @@ $$
 
     /* ACCOUNT ACTIVE STAKE CACHE */
     SELECT
-      COALESCE(MAX(epoch_no), 0)
+      COALESCE(MAX(epoch_no), (_epoch_no - 4) )
+    INTO _last_account_active_stake_cache_epoch_no
     FROM
-      GREST.ACCOUNT_ACTIVE_STAKE_CACHE
-    INTO _last_account_active_stake_cache_epoch_no;
+      GREST.ACCOUNT_ACTIVE_STAKE_CACHE;
 
     INSERT INTO GREST.ACCOUNT_ACTIVE_STAKE_CACHE
       SELECT
@@ -209,6 +180,9 @@ $$
       EPOCH_NO
     ) DO UPDATE
       SET AMOUNT = EXCLUDED.AMOUNT;
+
+    DELETE FROM GREST.ACCOUNT_ACTIVE_STAKE_CACHE
+      WHERE EPOCH_NO <= (_epoch_no - 4);
 
     /* CONTROL TABLE ENTRY */
     PERFORM grest.update_control_table(
