@@ -13,7 +13,7 @@ BEGIN
 
   IF _epoch_no IS NULL THEN
 
-    RETURN QUERY (
+    RETURN QUERY 
       WITH 
         _all_delegations AS (
           SELECT
@@ -42,9 +42,8 @@ BEGIN
       GROUP BY
         AD.stake_address, AD.total_balance
       ORDER BY
-        AD.total_balance DESC
-    )
-
+        AD.total_balance DESC;
+        
   ELSE
 
     SELECT id INTO _pool_id FROM pool_hash WHERE pool_hash.view = _pool_bech32;
