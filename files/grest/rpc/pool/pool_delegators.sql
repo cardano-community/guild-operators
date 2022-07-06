@@ -2,7 +2,7 @@ CREATE FUNCTION grest.pool_delegators (_pool_bech32 text, _epoch_no word31type D
   RETURNS TABLE (
     stake_address character varying,
     amount text,
-    epoch_no word31type
+    active_epoch_no bigint
   )
   LANGUAGE plpgsql
   AS $$
@@ -10,40 +10,63 @@ CREATE FUNCTION grest.pool_delegators (_pool_bech32 text, _epoch_no word31type D
 DECLARE
   _pool_id bigint;
 BEGIN
-  SELECT id INTO _pool_id FROM pool_hash WHERE pool_hash.view = _pool_bech32;
 
   IF _epoch_no IS NULL THEN
-    RETURN QUERY
+
+    RETURN QUERY (
+      WITH 
+        _all_delegations AS (
+          SELECT
+            SA.id AS stake_address_id,
+            SDC.stake_address,
+            (
+              CASE WHEN SDC.total_balance >= 0
+                THEN SDC.total_balance
+                ELSE 0
+              END
+            ) AS total_balance
+          FROM
+            grest.stake_distribution_cache AS SDC
+            INNER JOIN public.stake_address SA ON SA.view = SDC.stake_address
+          WHERE
+            SDC.pool_id = _pool_bech32
+        )
+
       SELECT
-        stake_address,
-        (
-          CASE WHEN total_balance >= 0
-            THEN total_balance
-            ELSE 0
-          END
-        )::text,
-        (SELECT MAX(no) FROM public.epoch)::word31type
+        AD.stake_address,
+        AD.total_balance::text,
+        max(D.active_epoch_no)
       FROM
-        grest.stake_distribution_cache AS sdc
-      WHERE
-        sdc.pool_id = _pool_bech32
+        _all_delegations AS AD
+        INNER JOIN public.delegation D ON D.addr_id = AD.stake_address_id
+      GROUP BY
+        AD.stake_address, AD.total_balance
       ORDER BY
-        sdc.total_balance DESC;
+        AD.total_balance DESC
+    )
+
   ELSE
+
+    SELECT id INTO _pool_id FROM pool_hash WHERE pool_hash.view = _pool_bech32;
+
     RETURN QUERY
       SELECT
         SA.view,
         ES.amount::text,
-        _epoch_no
+        max(D.active_epoch_no)
       FROM
         public.epoch_stake ES
         INNER JOIN public.stake_address SA ON ES.addr_id = SA.id
+        INNER JOIN public.delegation D ON D.addr_id = SA.id
       WHERE
         ES.pool_id = _pool_id
         AND
         ES.epoch_no = _epoch_no
+      GROUP BY
+        SA.view, ES.amount
       ORDER BY
         ES.amount DESC;
+
   END IF;
 END;
 $$;
