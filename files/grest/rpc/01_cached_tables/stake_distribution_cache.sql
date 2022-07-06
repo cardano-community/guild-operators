@@ -246,6 +246,4 @@ $$;
 
 DROP INDEX IF EXISTS GREST.idx_pool_id;
 CREATE INDEX idx_pool_id ON GREST.STAKE_DISTRIBUTION_CACHE (POOL_ID);
-DROP INDEX IF EXISTS GREST.idx_stake_address;
-CREATE INDEX idx_stake_address ON GREST.STAKE_DISTRIBUTION_CACHE (STAKE_ADDRESS);
 -- Populated by first crontab execution
