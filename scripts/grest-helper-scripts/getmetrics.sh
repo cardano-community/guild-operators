@@ -46,6 +46,7 @@ function get-metrics() {
   # in Bytes
   pubschsize=$(psql -t --csv -d cexplorer -c "SELECT sum(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'public'" | grep "^[0-9]")
   grestschsize=$(psql -t --csv -d cexplorer -c "SELECT sum(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'grest'" | grep "^[0-9]")
+  grestconns=$(psql -t --csv -d cexplorer -c "select count(1) from pg_stat_activity where state='active' or state='idle';" | awk '{print $1}')
   dbsize=$(psql -t --csv -d cexplorer -c "SELECT pg_database_size ('cexplorer');" | grep "^[0-9]")
 
   # Metrics
@@ -61,6 +62,7 @@ function get-metrics() {
   export METRIC_load1m="$(( load1m ))"
   export METRIC_pubschsize="${pubschsize}"
   export METRIC_grestschsize="${grestschsize}"
+  export METRIC_grestconns="${grestconns}"
   export METRIC_dbsize="${dbsize}"
   #export METRIC_cnodeversion="$(echo $(cardano-node --version) | awk '{print $2 "-" $9}')"
   #export METRIC_dbsyncversion="$(echo $(cardano-db-sync --version) | awk '{print $2 "-" $9}')"

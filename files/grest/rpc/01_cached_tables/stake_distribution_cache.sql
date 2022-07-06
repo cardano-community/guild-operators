@@ -28,7 +28,9 @@ BEGIN
       AND block_no IS NOT NULL
     ORDER BY block_no DESC LIMIT 1;
 
-  SELECT MAX(id) INTO _last_account_tx_id FROM PUBLIC.TX WHERE block_id = _last_active_stake_blockid; 
+  SELECT MAX(tx.id) INTO _last_account_tx_id FROM PUBLIC.TX INNER JOIN PUBLIC.BLOCK b
+    WHERE b.block_id <= _last_active_stake_blockid
+      AND b.tx_count != 0;
 
   SELECT MAX(no) INTO _latest_epoch FROM PUBLIC.EPOCH WHERE NO IS NOT NULL;
 
@@ -168,7 +170,7 @@ BEGIN
 
 END;
 $$;
- 
+
 -- HELPER FUNCTION: GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK
 -- Determines whether or not the stake distribution cache should be updated
 -- based on the time rule (max once in 60 mins), and ensures previous run completed.

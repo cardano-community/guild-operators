@@ -16,7 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=1.0.5 # Using versions from 1.0.5 for minor commit alignment before we're prepared for wider networks, targetted support for dbsync 13 will be against v1.1.0. Using a gap from 1.0.1 - 1.0.5 allows for scope to have any urgent fixes required before then on alpha branch itself
+SGVERSION=1.0.6 # Using versions from 1.0.5-1.0.9 for minor commit alignment before we're prepared for wider networks, targetted support for dbsync 13 will be against v1.1.0. Using a gap from 1.0.1 - 1.0.5 allows for scope to have any urgent fixes required before then on alpha branch itself
 
 ######## Functions ########
   usage() {
@@ -159,6 +159,10 @@ SGVERSION=1.0.5 # Using versions from 1.0.5 for minor commit alignment before we
     ([[ ${NWMAGIC} -eq 141 ]] && install_cron_job "active-stake-cache-update" "*/5 * * * *") ||
       install_cron_job "active-stake-cache-update" "*/15 * * * *"
 
+    get_cron_job_executable "stake-snapshot-cache"
+    set_cron_variables "stake-snapshot-cache"
+    install_cron_job "stake-snapshot-cache" "*/10 * * * *"
+
     # Only testnet and mainnet asset registries supported
     # Possible future addition for the Guild network once there is a guild registry
     if [[ ${NWMAGIC} -eq 764824073 || ${NWMAGIC} -eq 1097911063 ]]; then
@@ -204,6 +208,7 @@ SGVERSION=1.0.5 # Using versions from 1.0.5 for minor commit alignment before we
     remove_cron_job "pool-history-cache-update"
     remove_cron_job "stake-distribution-new-accounts-update"
     remove_cron_job "stake-distribution-update"
+    remove_cron_job "stake-snapshot-cache"
   }
 
   # Description : Set default env values if not user-specified.

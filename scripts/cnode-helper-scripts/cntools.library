@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=10
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=0
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=0
+CNTOOLS_PATCH_VERSION=1
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -1169,17 +1169,16 @@ registerStakeWallet() {
 
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
     --certificate-file "${stake_cert_file}"
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
   
   min_fee_args=(
     transaction calculate-min-fee
@@ -1220,6 +1219,7 @@ registerStakeWallet() {
     --certificate-file "${stake_cert_file}"
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -1267,17 +1267,16 @@ deregisterStakeWallet() {
 
   getAssetsTxOut
 
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
     --certificate-file "${stake_dereg_file}"
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
 
   min_fee_args=(
     transaction calculate-min-fee
@@ -1318,6 +1317,7 @@ deregisterStakeWallet() {
     --certificate-file "${stake_dereg_file}"
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -1375,21 +1375,20 @@ sendAssets() {
     [[ ${assets_to_send[${idx}]} -gt 0 ]] && assets_tx_out_d+="+${assets_to_send[${idx}]} ${idx}"
   done
 
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --invalid-hereafter ${ttl}
     --fee 0
     ${metafile_param}
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
   if [[ ${outCount} -eq 1 ]]; then
-    dummy_build_args+=( --tx-out "${d_addr}+0${assets_tx_out_d}" )
+    build_args+=( --tx-out "${d_addr}+0${assets_tx_out_d}" )
   else
-    dummy_build_args+=( --tx-out "${s_addr}+0${assets_tx_out_s}" --tx-out "${d_addr}+0${assets_tx_out_d}" )
+    build_args+=( --tx-out "${s_addr}+0${assets_tx_out_s}" --tx-out "${d_addr}+0${assets_tx_out_d}" )
   fi
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
   
   min_fee_args=(
     transaction calculate-min-fee
@@ -1492,17 +1491,16 @@ delegate() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
     --certificate-file "${pool_delegcert_file}"
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
 
   min_fee_args=(
     transaction calculate-min-fee
@@ -1543,6 +1541,7 @@ delegate() {
     --certificate-file "${pool_delegcert_file}"
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -1582,16 +1581,15 @@ withdrawRewards() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
 
   min_fee_args=(
     transaction calculate-min-fee
@@ -1632,6 +1630,7 @@ withdrawRewards() {
     --fee ${min_fee}
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -1682,18 +1681,17 @@ registerPool() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
     --certificate-file "${pool_regcert_file}"
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  [[ -n ${owner_delegation_cert} ]] && dummy_build_args+=( --certificate-file "${owner_delegation_cert}" )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+  [[ -n ${owner_delegation_cert} ]] && build_args+=( --certificate-file "${owner_delegation_cert}" )
+
+  if ! buildTx; then return 1; fi
 
   min_fee_args=(
     transaction calculate-min-fee
@@ -1735,6 +1733,7 @@ registerPool() {
     --out-file "${TMP_DIR}"/tx.raw
   )
   [[ -n ${owner_delegation_cert} ]] && build_args+=( --certificate-file "${owner_delegation_cert}" )
+
   if ! buildTx; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -1798,17 +1797,16 @@ modifyPool() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
     --certificate-file "${pool_regcert_file}"
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
 
   min_fee_args=(
     transaction calculate-min-fee
@@ -1849,6 +1847,7 @@ modifyPool() {
     --certificate-file "${pool_regcert_file}"
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -1909,17 +1908,16 @@ deRegisterPool() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
     --certificate-file "${pool_deregcert_file}"
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
 
   min_fee_args=(
     transaction calculate-min-fee
@@ -1960,6 +1958,7 @@ deRegisterPool() {
     --certificate-file "${pool_deregcert_file}"
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -2081,17 +2080,16 @@ sendMetadata() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
     ${metafile_param}
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
 
   min_fee_args=(
     transaction calculate-min-fee
@@ -2132,6 +2130,7 @@ sendMetadata() {
     --fee ${min_fee}
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -2175,7 +2174,7 @@ mintAsset() {
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".$(asciiToHex "${asset_name}")"
   getAssetsTxOut "${policy_id}${asset_name_out}" "${asset_amount}"
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --mint "${asset_amount} ${policy_id}${asset_name_out}"
@@ -2183,11 +2182,10 @@ mintAsset() {
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee 0
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
   
   min_fee_args=(
     transaction calculate-min-fee
@@ -2230,6 +2228,7 @@ mintAsset() {
     --fee ${min_fee}
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -2280,7 +2279,7 @@ burnAsset() {
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".${asset_name}"
   getAssetsTxOut "${policy_id}${asset_name_out}" "-${assets_to_burn}"
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --mint "-${assets_to_burn} ${policy_id}${asset_name_out}"
@@ -2288,11 +2287,10 @@ burnAsset() {
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee 0
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
 
   min_fee_args=(
     transaction calculate-min-fee
@@ -2335,6 +2333,7 @@ burnAsset() {
     --fee ${min_fee}
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -2374,8 +2373,8 @@ burnAsset() {
 #             : populate an array variable called 'build_args' with all data
 # Parameters  : build_args  >  an array with all the arguments to assemble the transaction
 buildTx() {
-  println ACTION "${CCLI} transaction build-raw ${ERA_IDENTIFIER} ${build_args[*]}"
-  ${CCLI} transaction build-raw ${ERA_IDENTIFIER} "${build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${ERA_IDENTIFIER} --cddl-format ${build_args[*]}"
+  ${CCLI} transaction build-raw ${ERA_IDENTIFIER} --cddl-format "${build_args[@]}"
 }
 
 # Command     : witnessTx [raw tx file] [signing keys ...]
