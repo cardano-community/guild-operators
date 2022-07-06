@@ -248,10 +248,7 @@ BEGIN
           -- Account must be present in epoch_stake table for the last validated epoch
           AND EXISTS (
             SELECT TRUE FROM EPOCH_STAKE
-              WHERE EPOCH_STAKE.EPOCH_NO = (
-                SELECT last_value::integer FROM GREST.CONTROL_TABLE
-                  WHERE key = 'last_active_stake_validated_epoch'
-                )
+              WHERE EPOCH_STAKE.EPOCH_NO = _previous_epoch_no
                 AND EPOCH_STAKE.ADDR_ID = STAKE_ADDRESS.ID
           )
     ),
@@ -333,6 +330,9 @@ BEGIN
         _previous_epoch_no
       ) ON CONFLICT (key) DO
     UPDATE
-    SET last_value = _previous_epoch_no; 
+    SET last_value = _previous_epoch_no;
+
+    DELETE FROM grest.last_two_epochs_account_active_stake_cache
+      WHERE epoch_no <= _previous_epoch_no - 2;
 END;
 $$;
