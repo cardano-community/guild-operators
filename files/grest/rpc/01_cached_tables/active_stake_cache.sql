@@ -227,8 +227,11 @@ BEGIN
       AND block_no IS NOT NULL
     ORDER BY block_no DESC LIMIT 1;
 
-  SELECT MAX(id) INTO _lower_bound_account_tx_id FROM PUBLIC.TX WHERE block_id = _last_active_stake_block_id;
-  SELECT MAX(id) INTO _upper_bound_account_tx_id FROM PUBLIC.TX WHERE block_id = _previous_epoch_last_block_id; 
+  SELECT MAX(id) INTO _lower_bound_account_tx_id FROM PUBLIC.TX
+    WHERE block_id <= _last_active_stake_block_id;
+
+  SELECT MAX(id) INTO _upper_bound_account_tx_id FROM PUBLIC.TX
+    WHERE block_id <= _previous_epoch_last_block_id;
 
   WITH
     accounts_with_delegated_pools AS (
