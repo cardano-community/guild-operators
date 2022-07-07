@@ -481,7 +481,7 @@ createDistanceToBottom() {
 # Description : Query cardano-node for current metrics
 getNodeMetrics() {
   CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.--port ${CNODE_PORT}") # Define again - as node could be restarted since last attempt of sourcing env
-  [[ -n ${CNODE_PID} ]] && uptimes=$(( $(date +%s) - $(date -d "$(TZ=UTC ps -p ${CNODE_PID} -o lstart | tail -1)" +%s) )) || uptimes=0
+  [[ -n ${CNODE_PID} ]] && uptimes=$(( $(date -u +%s) - $(date -d "$(ps -p ${CNODE_PID} -o lstart=)" +%s) )) || uptimes=0
   if [[ ${USE_EKG} = 'Y' ]]; then
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
     node_metrics_tsv=$(jq -r '[
