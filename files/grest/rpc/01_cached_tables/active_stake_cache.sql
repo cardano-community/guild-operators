@@ -203,6 +203,7 @@ COMMENT ON FUNCTION grest.active_stake_cache_update
 CREATE OR REPLACE PROCEDURE GREST.CAPTURE_LAST_EPOCH_SNAPSHOT ()
 LANGUAGE PLPGSQL
 AS $$
+DO $$
 DECLARE
   _previous_epoch_no bigint;
   _previous_epoch_last_block_id bigint;
@@ -233,9 +234,13 @@ BEGIN
   SELECT MAX(id) INTO _upper_bound_account_tx_id FROM PUBLIC.TX
     WHERE block_id <= _previous_epoch_last_block_id;
 
+  /* Registered and delegated accounts to be captured (have epoch_stake entries for baseline) */
   WITH
     accounts_with_delegated_pools AS (
-      SELECT DISTINCT ON (STAKE_ADDRESS.ID) stake_address.id as stake_address_id, stake_address.view as stake_address, pool_hash_id
+      SELECT DISTINCT ON (STAKE_ADDRESS.ID)
+        stake_address.id as stake_address_id,
+        stake_address.view as stake_address,
+        pool_hash_id
       FROM STAKE_ADDRESS
         INNER JOIN DELEGATION ON DELEGATION.ADDR_ID = STAKE_ADDRESS.ID
         WHERE
@@ -248,7 +253,7 @@ BEGIN
               WHERE STAKE_DEREGISTRATION.ADDR_ID = DELEGATION.ADDR_ID
                 AND STAKE_DEREGISTRATION.TX_ID > DELEGATION.TX_ID
           )
-          -- Account must be present in epoch_stake table for the last validated epoch
+          -- Account must be present in epoch_stake table for the previous epoch
           AND EXISTS (
             SELECT TRUE FROM EPOCH_STAKE
               WHERE EPOCH_STAKE.EPOCH_NO = _previous_epoch_no
@@ -307,35 +312,75 @@ BEGIN
       GROUP BY accounts_with_delegated_pools.stake_address_id
     )
 
-  -- INSERT QUERY START
-  INSERT INTO GREST.last_two_epochs_account_active_stake_cache
-    SELECT
-      awdp.stake_address,
-      pi.pool_id,
-      COALESCE(aas.amount, 0) + COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0)
-        AS TOTAL_BALANCE,
-      _previous_epoch_no
-    from accounts_with_delegated_pools awdp
-      INNER JOIN pool_ids pi ON pi.stake_address_id = awdp.stake_address_id
-      LEFT JOIN account_active_stake aas ON aas.stake_address_id = awdp.stake_address_id
-      LEFT JOIN account_delta_input adi ON adi.stake_address_id = awdp.stake_address_id
-      LEFT JOIN account_delta_output ado ON ado.stake_address_id = awdp.stake_address_id
-      LEFT JOIN account_delta_rewards adr ON adr.stake_address_id = awdp.stake_address_id
-      LEFT JOIN account_delta_withdrawals adw ON adw.stake_address_id = awdp.stake_address_id
-    ON CONFLICT (STAKE_ADDRESS, EPOCH_NO) DO
-      UPDATE
-        SET POOL_ID = EXCLUDED.POOL_ID,
-          TOTAL_BALANCE = EXCLUDED.TOTAL_BALANCE;
+      INSERT INTO GREST.last_two_epochs_account_active_stake_cache
+        SELECT
+          awdp.stake_address,
+          pi.pool_id,
+          COALESCE(aas.amount, 0) + COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0)
+            AS TOTAL_BALANCE,
+          _previous_epoch_no
+        from accounts_with_delegated_pools awdp
+          INNER JOIN pool_ids pi ON pi.stake_address_id = awdp.stake_address_id
+          LEFT JOIN account_active_stake aas ON aas.stake_address_id = awdp.stake_address_id
+          LEFT JOIN account_delta_input adi ON adi.stake_address_id = awdp.stake_address_id
+          LEFT JOIN account_delta_output ado ON ado.stake_address_id = awdp.stake_address_id
+          LEFT JOIN account_delta_rewards adr ON adr.stake_address_id = awdp.stake_address_id
+          LEFT JOIN account_delta_withdrawals adw ON adw.stake_address_id = awdp.stake_address_id
+        ON CONFLICT (STAKE_ADDRESS, EPOCH_NO) DO
+          UPDATE
+            SET
+              POOL_ID = EXCLUDED.POOL_ID,
+              TOTAL_BALANCE = EXCLUDED.TOTAL_BALANCE;
 
-    INSERT INTO GREST.CONTROL_TABLE (key, last_value)
+  /* Newly registered accounts to be captured (they don't have epoch_stake entries for baseline) */
+  WITH
+    newly_registered_accounts AS (
+      SELECT DISTINCT ON (STAKE_ADDRESS.ID)
+        stake_address.id as stake_address_id,
+        stake_address.view as stake_address,
+        pool_hash_id
+      FROM STAKE_ADDRESS
+        INNER JOIN DELEGATION ON DELEGATION.ADDR_ID = STAKE_ADDRESS.ID
+        WHERE
+          NOT EXISTS (
+            SELECT TRUE FROM DELEGATION D
+              WHERE D.ADDR_ID = DELEGATION.ADDR_ID AND D.ID > DELEGATION.ID
+          )
+          AND NOT EXISTS (
+            SELECT TRUE FROM STAKE_DEREGISTRATION
+              WHERE STAKE_DEREGISTRATION.ADDR_ID = DELEGATION.ADDR_ID
+                AND STAKE_DEREGISTRATION.TX_ID > DELEGATION.TX_ID
+          )
+          -- Account must NOT be present in epoch_stake table for the previous epoch
+          AND NOT EXISTS (
+            SELECT TRUE FROM EPOCH_STAKE
+              WHERE EPOCH_STAKE.EPOCH_NO = _previous_epoch_no
+                AND EPOCH_STAKE.ADDR_ID = STAKE_ADDRESS.ID
+          )
+    )
+      INSERT INTO GREST.last_two_epochs_account_active_stake_cache
+        SELECT
+          nra.stake_address,
+          ai.delegated_pool as pool_id,
+          ai.total_balance::lovelace,
+          _previous_epoch_no
+        FROM newly_registered_accounts nra,
+          LATERAL grest.account_info(nra.stake_address) ai
+        ON CONFLICT (STAKE_ADDRESS, EPOCH_NO) DO
+          UPDATE
+            SET
+              POOL_ID = EXCLUDED.POOL_ID,
+              TOTAL_BALANCE = EXCLUDED.total_balance;
+
+  INSERT INTO GREST.CONTROL_TABLE (key, last_value)
     VALUES (
-        'last_stake_snapshot_epoch',
-        _previous_epoch_no
-      ) ON CONFLICT (key) DO
-    UPDATE
-    SET last_value = _previous_epoch_no;
+      'last_stake_snapshot_epoch',
+      _previous_epoch_no
+    ) ON CONFLICT (key)
+    DO UPDATE
+      SET last_value = _previous_epoch_no;
 
-    DELETE FROM grest.last_two_epochs_account_active_stake_cache
-      WHERE epoch_no <= _previous_epoch_no - 2;
+  DELETE FROM grest.last_two_epochs_account_active_stake_cache
+    WHERE epoch_no <= _previous_epoch_no - 2;
 END;
 $$;
