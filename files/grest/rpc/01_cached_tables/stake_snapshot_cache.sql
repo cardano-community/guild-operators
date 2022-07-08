@@ -181,7 +181,7 @@ BEGIN
                 WHERE pool_id_bech32 = ph.view
           )
     )
-      --INSERT INTO GREST.stake_snapshot_cache
+      INSERT INTO GREST.stake_snapshot_cache
         SELECT
           nra.stake_address,
           ai.delegated_pool as pool_id,
