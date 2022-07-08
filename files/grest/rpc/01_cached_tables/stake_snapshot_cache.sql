@@ -27,7 +27,7 @@ BEGIN
     SELECT FROM grest.stake_snapshot_cache
       WHERE epoch_no = _previos_epoch_no
         LIMIT 1
-  )
+  ) THEN
     RETURN;
   END IF;
     
