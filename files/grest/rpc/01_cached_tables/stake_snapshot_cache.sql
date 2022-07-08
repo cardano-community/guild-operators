@@ -21,16 +21,28 @@ DECLARE
   _lower_bound_account_tx_id bigint;
   _upper_bound_account_tx_id bigint;
 BEGIN
-  SELECT MAX(NO) - 1 INTO _previous_epoch_no FROM PUBLIC.EPOCH;
+  IF (
+    -- If checking query with the same name there will be 2 results
+    SELECT COUNT(pid) > 1
+      FROM pg_stat_activity
+      WHERE state = 'active'
+        AND query ILIKE '%GREST.CAPTURE_LAST_EPOCH_SNAPSHOT(%'
+        AND datname = (
+          SELECT current_database()
+        )
+  ) THEN
+      RAISE EXCEPTION 'Previous query still running but should have completed! Exiting...';
+  END IF;
 
   IF EXISTS (
     SELECT FROM grest.stake_snapshot_cache
-      WHERE epoch_no = _previos_epoch_no
+      WHERE epoch_no = (SELECT MAX(NO) - 1 FROM PUBLIC.EPOCH)
         LIMIT 1
   ) THEN
     RETURN;
   END IF;
-    
+
+  SELECT MAX(NO) - 1 INTO _previous_epoch_no FROM PUBLIC.EPOCH;
 
   SELECT _previous_epoch_no - 2 INTO _active_stake_baseline_epoch;
 
@@ -174,12 +186,12 @@ BEGIN
               WHERE EPOCH_STAKE.EPOCH_NO = _previous_epoch_no
                 AND EPOCH_STAKE.ADDR_ID = STAKE_ADDRESS.ID
           )
-          AND NOT EXISTS (
+/*           AND NOT EXISTS (
             SELECT pool_status = 'retired'
               FROM grest.pool_info_cache
               INNER JOIN pool_hash ph ON ph.id = delegation.pool_hash_id
                 WHERE pool_id_bech32 = ph.view
-          )
+          ) */
     )
       INSERT INTO GREST.stake_snapshot_cache
         SELECT
