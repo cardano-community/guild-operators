@@ -1,5 +1,7 @@
 /* Keeps track of stake snapshots taken at the end of epochs n - 1 and n - 2 */
-CREATE TABLE IF NOT EXISTS GREST.stake_snapshot_cache (
+DROP TABLE IF EXISTS GREST.stake_snapshot_cache;
+
+CREATE TABLE GREST.stake_snapshot_cache (
   STAKE_ADDRESS varchar,
   POOL_ID varchar,
   TOTAL_BALANCE numeric,
@@ -19,12 +21,20 @@ DECLARE
   _lower_bound_account_tx_id bigint;
   _upper_bound_account_tx_id bigint;
 BEGIN
-
-  -- Set-up interval limits for previous epoch
   SELECT MAX(NO) - 1 INTO _previous_epoch_no FROM PUBLIC.EPOCH;
+
+  IF EXISTS (
+    SELECT FROM grest.stake_snapshot_cache
+      WHERE epoch_no = _previos_epoch_no
+        LIMIT 1
+  )
+    RETURN;
+  END IF;
+    
 
   SELECT _previous_epoch_no - 2 INTO _active_stake_baseline_epoch;
 
+  -- Set-up interval limits for previous epoch
   SELECT id INTO _last_active_stake_block_id FROM PUBLIC.BLOCK
     WHERE epoch_no = _active_stake_baseline_epoch
       AND block_no IS NOT NULL
