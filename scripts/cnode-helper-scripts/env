@@ -700,7 +700,7 @@ slotInterval() {
 
 # Description : Identify current era and set variables accordingly
 getEraIdentifier() {
-  NETWORK_ERA=$(${CCLI} query tip ${NETWORK_IDENTIFIER} 2>/dev/null | jq  '.era //empty')
+  NETWORK_ERA=$(${CCLI} query tip ${NETWORK_IDENTIFIER} 2>/dev/null | jq -r '.era //empty')
   case ${NETWORK_ERA} in
     Byron)   ERA_IDENTIFIER="--byron-era" ;;
     Shelley) ERA_IDENTIFIER="--shelley-era" ;;
