@@ -145,7 +145,7 @@ BEGIN
       SELECT DISTINCT ON (STAKE_ADDRESS.ID)
         stake_address.id as stake_address_id,
         stake_address.view as stake_address,
-        pool_hash_id
+        delegation.pool_hash_id
       FROM STAKE_ADDRESS
         INNER JOIN DELEGATION ON DELEGATION.ADDR_ID = STAKE_ADDRESS.ID
         WHERE
@@ -164,8 +164,14 @@ BEGIN
               WHERE EPOCH_STAKE.EPOCH_NO = _previous_epoch_no
                 AND EPOCH_STAKE.ADDR_ID = STAKE_ADDRESS.ID
           )
+          AND NOT EXISTS (
+            SELECT pool_status = 'retired'
+              FROM grest.pool_info_cache
+              INNER JOIN pool_hash ph ON ph.id = delegation.pool_hash_id
+                WHERE pool_id_bech32 = ph.view
+          )
     )
-      INSERT INTO GREST.stake_snapshot_cache
+      --INSERT INTO GREST.stake_snapshot_cache
         SELECT
           nra.stake_address,
           ai.delegated_pool as pool_id,
