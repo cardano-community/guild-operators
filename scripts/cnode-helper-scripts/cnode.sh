@@ -86,7 +86,7 @@ deploy_systemd() {
 	LimitNOFILE=1048576
 	WorkingDirectory=${CNODE_HOME}/scripts
 	ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cnode.sh\"
-	ExecStop=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts.cnode.sh -s\"
+	ExecStop=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cnode.sh -s\"
 	KillSignal=SIGINT
 	SuccessExitStatus=143
 	SyslogIdentifier=${CNODE_VNAME}
