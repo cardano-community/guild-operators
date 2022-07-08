@@ -159,6 +159,10 @@ SGVERSION=1.0.5 # Using versions from 1.0.5 for minor commit alignment before we
     ([[ ${NWMAGIC} -eq 141 ]] && install_cron_job "active-stake-cache-update" "*/5 * * * *") ||
       install_cron_job "active-stake-cache-update" "*/15 * * * *"
 
+    get_cron_job_executable "stake-snapshot-cache"
+    set_cron_variables "stake-snapshot-cache"
+    install_cron_job "stake-snapshot-cache" "*/10 * * * *"
+
     # Only testnet and mainnet asset registries supported
     # Possible future addition for the Guild network once there is a guild registry
     if [[ ${NWMAGIC} -eq 764824073 || ${NWMAGIC} -eq 1097911063 ]]; then
