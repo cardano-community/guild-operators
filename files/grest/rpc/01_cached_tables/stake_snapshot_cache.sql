@@ -69,24 +69,36 @@ BEGIN
       SELECT DISTINCT ON (STAKE_ADDRESS.ID)
         stake_address.id as stake_address_id,
         stake_address.view as stake_address,
-        pool_hash_id
+        delegation.pool_hash_id
       FROM STAKE_ADDRESS
         INNER JOIN DELEGATION ON DELEGATION.ADDR_ID = STAKE_ADDRESS.ID
         WHERE
           NOT EXISTS (
             SELECT TRUE FROM DELEGATION D
-              WHERE D.ADDR_ID = DELEGATION.ADDR_ID AND D.ID > DELEGATION.ID
+              WHERE D.ADDR_ID = DELEGATION.ADDR_ID
+                AND D.ID > DELEGATION.ID
+                AND D.TX_ID <= _upper_bound_account_tx_id
           )
           AND NOT EXISTS (
             SELECT TRUE FROM STAKE_DEREGISTRATION
               WHERE STAKE_DEREGISTRATION.ADDR_ID = DELEGATION.ADDR_ID
                 AND STAKE_DEREGISTRATION.TX_ID > DELEGATION.TX_ID
+                AND STAKE_DEREGISTRATION.TX_ID <= _upper_bound_account_tx_id
           )
           -- Account must be present in epoch_stake table for the previous epoch
           AND EXISTS (
             SELECT TRUE FROM EPOCH_STAKE
               WHERE EPOCH_STAKE.EPOCH_NO = _previous_epoch_no
                 AND EPOCH_STAKE.ADDR_ID = STAKE_ADDRESS.ID
+          )
+          AND _previous_epoch_no + 1 <= (
+            SELECT COALESCE(pic.retiring_epoch, 9999) --handle this better?
+              FROM grest.pool_info_cache pic
+                WHERE pic.pool_hash_id = delegation.pool_hash_id
+                  AND pic.tx_id <= _upper_bound_account_tx_id
+              ORDER BY 
+                pic.tx_id DESC
+              LIMIT 1
           )
     ),
     pool_ids as (
@@ -170,15 +182,20 @@ BEGIN
         delegation.pool_hash_id
       FROM STAKE_ADDRESS
         INNER JOIN DELEGATION ON DELEGATION.ADDR_ID = STAKE_ADDRESS.ID
-        WHERE
+          AND DELEGATION.TX_ID > _lower_bound_account_tx_id
+          AND DELEGATION.TX_ID <= _upper_bound_account_tx_id
+      WHERE
           NOT EXISTS (
             SELECT TRUE FROM DELEGATION D
-              WHERE D.ADDR_ID = DELEGATION.ADDR_ID AND D.ID > DELEGATION.ID
+              WHERE D.ADDR_ID = DELEGATION.ADDR_ID
+                AND D.ID > DELEGATION.ID
+                AND D.TX_ID <= _upper_bound_account_tx_id 
           )
           AND NOT EXISTS (
             SELECT TRUE FROM STAKE_DEREGISTRATION
               WHERE STAKE_DEREGISTRATION.ADDR_ID = DELEGATION.ADDR_ID
                 AND STAKE_DEREGISTRATION.TX_ID > DELEGATION.TX_ID
+                AND STAKE_DEREGISTRATION.TX_ID <= _upper_bound_account_tx_id
           )
           -- Account must NOT be present in epoch_stake table for the previous epoch
           AND NOT EXISTS (
@@ -186,12 +203,15 @@ BEGIN
               WHERE EPOCH_STAKE.EPOCH_NO = _previous_epoch_no
                 AND EPOCH_STAKE.ADDR_ID = STAKE_ADDRESS.ID
           )
-/*           AND NOT EXISTS (
-            SELECT pool_status = 'retired'
-              FROM grest.pool_info_cache
-              INNER JOIN pool_hash ph ON ph.id = delegation.pool_hash_id
-                WHERE pool_id_bech32 = ph.view
-          ) */
+          AND _previous_epoch_no + 1 <= (
+            SELECT COALESCE(pic.retiring_epoch, 9999) -- handle this better?
+              FROM grest.pool_info_cache pic
+                WHERE pic.pool_hash_id = delegation.pool_hash_id
+                  AND pic.tx_id <= _upper_bound_account_tx_id
+              ORDER BY 
+                pic.tx_id DESC
+              LIMIT 1
+          )
     )
       INSERT INTO GREST.stake_snapshot_cache
         SELECT
