@@ -141,9 +141,8 @@ BEGIN
         INNER JOIN accounts_with_delegated_pools awdp ON awdp.stake_address_id = reward.addr_id
       WHERE
         CASE WHEN REWARD.TYPE = 'refund'
-          THEN REWARD.SPENDABLE_EPOCH = _previous_epoch_no
-          ELSE REWARD.SPENDABLE_EPOCH >= _previous_epoch_no
-            AND REWARD.SPENDABLE_EPOCH <= _previous_epoch_no + 1
+          THEN REWARD.SPENDABLE_EPOCH IN (_previous_epoch_no - 1, _previous_epoch_no)
+          ELSE REWARD.SPENDABLE_EPOCH IN (_previous_epoch_no, _previous_epoch_no + 1)
         END
       GROUP BY awdp.stake_address_id
     ),
@@ -248,9 +247,8 @@ BEGIN
         INNER JOIN newly_registered_accounts nra ON nra.stake_address_id = reward.addr_id
       WHERE
         CASE WHEN REWARD.TYPE = 'refund'
-          THEN REWARD.SPENDABLE_EPOCH = _previous_epoch_no
-          ELSE REWARD.SPENDABLE_EPOCH >= _previous_epoch_no
-            AND REWARD.SPENDABLE_EPOCH <= _previous_epoch_no + 1
+          THEN REWARD.SPENDABLE_EPOCH <= _previous_epoch_no
+          ELSE REWARD.SPENDABLE_EPOCH <= _previous_epoch_no + 1
         END
       GROUP BY nra.stake_address_id
     ),
