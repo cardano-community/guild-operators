@@ -35,7 +35,7 @@ BEGIN
     CASE WHEN ei.epoch_no < shelley_ref_epoch THEN
       (ei.i_first_block_time + shelley_epoch_duration)::integer
     ELSE
-      shelley_ref_time + ((ei.epoch_no + 1) - shelley_ref_epoch) * shelley_epoch_duration
+      (shelley_ref_time + ((ei.epoch_no + 1) - shelley_ref_epoch) * shelley_epoch_duration)::integer
     END AS end_time,
     ei.i_first_block_time::integer AS first_block_time,
     ei.i_last_block_time::integer AS last_block_time,
