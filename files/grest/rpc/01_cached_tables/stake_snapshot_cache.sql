@@ -140,8 +140,11 @@ BEGIN
       FROM REWARD
         INNER JOIN accounts_with_delegated_pools awdp ON awdp.stake_address_id = reward.addr_id
       WHERE
-        REWARD.SPENDABLE_EPOCH >= _previous_epoch_no
-          AND REWARD.SPENDABLE_EPOCH <= _previous_epoch_no + 1
+        CASE WHEN REWARD.TYPE = 'refund'
+          THEN REWARD.SPENDABLE_EPOCH = _previous_epoch_no
+          ELSE REWARD.SPENDABLE_EPOCH >= _previous_epoch_no
+            AND REWARD.SPENDABLE_EPOCH <= _previous_epoch_no + 1
+        END
       GROUP BY awdp.stake_address_id
     ),
     account_delta_withdrawals AS (
@@ -212,20 +215,70 @@ BEGIN
                 pic.tx_id DESC
               LIMIT 1
           )
+    ),
+    pool_ids as (
+      SELECT nra.stake_address_id,
+        pool_hash.view AS pool_id
+      FROM POOL_HASH
+        INNER JOIN newly_registered_accounts nra ON nra.pool_hash_id = pool_hash.id
+    ),
+    account_delta_tx_ins AS (
+      SELECT nra.stake_address_id, tx_in.tx_out_id AS txoid, tx_in.tx_out_index AS txoidx FROM tx_in
+        LEFT JOIN tx_out ON tx_in.tx_out_id = tx_out.tx_id AND tx_in.tx_out_index::smallint = tx_out.index::smallint
+        INNER JOIN newly_registered_accounts nra ON nra.stake_address_id = tx_out.stake_address_id
+        WHERE tx_in.tx_in_id <= _upper_bound_account_tx_id
+    ),
+    account_delta_input AS (
+      SELECT tx_out.stake_address_id, COALESCE(SUM(tx_out.value), 0) AS amount
+      FROM account_delta_tx_ins
+        LEFT JOIN tx_out ON account_delta_tx_ins.txoid=tx_out.tx_id AND account_delta_tx_ins.txoidx = tx_out.index
+        INNER JOIN newly_registered_accounts nra ON nra.stake_address_id = tx_out.stake_address_id
+        GROUP BY tx_out.stake_address_id
+    ),
+    account_delta_output AS (
+      SELECT nra.stake_address_id, COALESCE(SUM(tx_out.value), 0) AS amount
+      FROM tx_out
+        INNER JOIN newly_registered_accounts nra ON nra.stake_address_id = tx_out.stake_address_id
+      WHERE TX_OUT.TX_ID <= _upper_bound_account_tx_id
+      GROUP BY nra.stake_address_id
+    ),
+    account_delta_rewards AS (
+      SELECT nra.stake_address_id, COALESCE(SUM(reward.amount), 0) AS REWARDS
+      FROM REWARD
+        INNER JOIN newly_registered_accounts nra ON nra.stake_address_id = reward.addr_id
+      WHERE
+        CASE WHEN REWARD.TYPE = 'refund'
+          THEN REWARD.SPENDABLE_EPOCH = _previous_epoch_no
+          ELSE REWARD.SPENDABLE_EPOCH >= _previous_epoch_no
+            AND REWARD.SPENDABLE_EPOCH <= _previous_epoch_no + 1
+        END
+      GROUP BY nra.stake_address_id
+    ),
+    account_delta_withdrawals AS (
+      SELECT nra.stake_address_id, COALESCE(SUM(withdrawal.amount), 0) AS withdrawals
+      FROM withdrawal
+        INNER JOIN newly_registered_accounts nra ON nra.stake_address_id = withdrawal.addr_id
+      WHERE withdrawal.tx_id <= _upper_bound_account_tx_id
+      GROUP BY nra.stake_address_id
     )
+
       INSERT INTO GREST.stake_snapshot_cache
         SELECT
           nra.stake_address,
-          ai.delegated_pool as pool_id,
-          ai.total_balance::lovelace,
+          pi.pool_id,
+          COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0) as total_balance,
           _previous_epoch_no
-        FROM newly_registered_accounts nra,
-          LATERAL grest.account_info(nra.stake_address) ai
-        ON CONFLICT (STAKE_ADDRESS, EPOCH_NO) DO
-          UPDATE
-            SET
-              POOL_ID = EXCLUDED.POOL_ID,
-              TOTAL_BALANCE = EXCLUDED.total_balance;
+        FROM newly_registered_accounts nra
+          INNER JOIN pool_ids pi ON pi.stake_address_id = nra.stake_address_id
+          LEFT JOIN account_delta_input adi ON adi.stake_address_id = nra.stake_address_id
+          LEFT JOIN account_delta_output ado ON ado.stake_address_id = nra.stake_address_id
+          LEFT JOIN account_delta_rewards adr ON adr.stake_address_id = nra.stake_address_id
+          LEFT JOIN account_delta_withdrawals adw ON adw.stake_address_id = nra.stake_address_id
+      ON CONFLICT (STAKE_ADDRESS, EPOCH_NO) DO
+        UPDATE
+          SET
+            POOL_ID = EXCLUDED.POOL_ID,
+            TOTAL_BALANCE = EXCLUDED.total_balance;
 
   INSERT INTO GREST.CONTROL_TABLE (key, last_value)
     VALUES (
