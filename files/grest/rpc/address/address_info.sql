@@ -31,7 +31,7 @@ BEGIN
           'tx_hash', ENCODE(tx.hash, 'hex'), 
           'tx_index', tx_out.index,
           'block_height', block.block_no,
-          'block_time', EXTRACT(epoch from block.time),
+          'block_time', EXTRACT(epoch from block.time)::integer,
           'value', tx_out.value::text,
           'datum_hash', ENCODE(tx_out.data_hash, 'hex'),
           'asset_list', COALESCE(

@@ -6,7 +6,7 @@ CREATE FUNCTION grest.asset_policy_info (_asset_policy text)
     minting_tx_metadata jsonb,
     token_registry_metadata jsonb,
     total_supply text,
-    creation_time numeric
+    creation_time integer
   )
   LANGUAGE PLPGSQL
   AS $$
@@ -87,7 +87,7 @@ BEGIN
       mtm.metadata as minting_tx_metadata,
       trm.metadata as token_registry_metadata,
       ts.amount::text as total_supply,
-      EXTRACT(epoch from ct.date)
+      EXTRACT(epoch from ct.date)::integer
     FROM 
       multi_asset MA
       LEFT JOIN minting_tx_metadatas mtm ON mtm.ident = MA.id
