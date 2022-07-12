@@ -3201,6 +3201,7 @@ function main {
                   done
                   echo
                   if [[ $(jq -r '."signing-file" | length' <<< "${offlineJSON}") -eq $(jq -r '.witness | length' <<< "${offlineJSON}") ]]; then # witnessed by all signing keys
+                    tx_witness_files=()
                     for otx_witness in $(jq -r '.witness[] | @base64' <<< "${offlineJSON}"); do
                       _jq() { base64 -d <<< ${otx_witness} | jq -r "${1}"; }
                       tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
