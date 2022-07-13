@@ -5,7 +5,7 @@ CREATE FUNCTION grest.tip ()
     abs_slot word63type,
     epoch_slot word31type,
     block_no word31type,
-    block_time numeric
+    block_time integer
   )
   LANGUAGE PLPGSQL
   AS $$
@@ -17,7 +17,7 @@ BEGIN
     b.SLOT_NO AS ABS_SLOT,
     b.EPOCH_SLOT_NO AS EPOCH_SLOT,
     b.BLOCK_NO,
-    EXTRACT(EPOCH from b.TIME)
+    EXTRACT(EPOCH from b.TIME)::integer
   FROM
     BLOCK B
   ORDER BY
