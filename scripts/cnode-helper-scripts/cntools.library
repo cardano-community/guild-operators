@@ -1169,7 +1169,7 @@ registerStakeWallet() {
 
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
@@ -1267,7 +1267,7 @@ deregisterStakeWallet() {
 
   getAssetsTxOut
 
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
@@ -1375,7 +1375,7 @@ sendAssets() {
     [[ ${assets_to_send[${idx}]} -gt 0 ]] && assets_tx_out_d+="+${assets_to_send[${idx}]} ${idx}"
   done
 
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --invalid-hereafter ${ttl}
     --fee 0
@@ -1383,9 +1383,9 @@ sendAssets() {
     --out-file "${TMP_DIR}"/tx0.tmp
   )
   if [[ ${outCount} -eq 1 ]]; then
-    dummy_build_args+=( --tx-out "${d_addr}+0${assets_tx_out_d}" )
+    build_args+=( --tx-out "${d_addr}+0${assets_tx_out_d}" )
   else
-    dummy_build_args+=( --tx-out "${s_addr}+0${assets_tx_out_s}" --tx-out "${d_addr}+0${assets_tx_out_d}" )
+    build_args+=( --tx-out "${s_addr}+0${assets_tx_out_s}" --tx-out "${d_addr}+0${assets_tx_out_d}" )
   fi
 
   if ! buildTx; then return 1; fi
@@ -1491,7 +1491,7 @@ delegate() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
@@ -1581,7 +1581,7 @@ withdrawRewards() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
@@ -1681,7 +1681,7 @@ registerPool() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
@@ -1689,7 +1689,7 @@ registerPool() {
     --certificate-file "${pool_regcert_file}"
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  [[ -n ${owner_delegation_cert} ]] && dummy_build_args+=( --certificate-file "${owner_delegation_cert}" )
+  [[ -n ${owner_delegation_cert} ]] && build_args+=( --certificate-file "${owner_delegation_cert}" )
 
   if ! buildTx; then return 1; fi
 
@@ -1797,7 +1797,7 @@ modifyPool() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
@@ -1908,7 +1908,7 @@ deRegisterPool() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
@@ -2080,7 +2080,7 @@ sendMetadata() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
@@ -2174,7 +2174,7 @@ mintAsset() {
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".$(asciiToHex "${asset_name}")"
   getAssetsTxOut "${policy_id}${asset_name_out}" "${asset_amount}"
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --mint "${asset_amount} ${policy_id}${asset_name_out}"
@@ -2279,7 +2279,7 @@ burnAsset() {
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".${asset_name}"
   getAssetsTxOut "${policy_id}${asset_name_out}" "-${assets_to_burn}"
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --mint "-${assets_to_burn} ${policy_id}${asset_name_out}"
@@ -2333,7 +2333,7 @@ burnAsset() {
     --fee ${min_fee}
     --out-file "${TMP_DIR}"/tx.raw
   )
-  
+
   if ! buildTx; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
