@@ -3,7 +3,7 @@ CREATE FUNCTION grest.credential_txs (_payment_credentials text[], _after_block_
     tx_hash text,
     epoch_no word31type,
     block_height word31type,
-    block_time numeric
+    block_time integer
   )
   LANGUAGE PLPGSQL
   AS $$
@@ -48,7 +48,7 @@ BEGIN
       DISTINCT(ENCODE(tx.hash, 'hex')) as tx_hash,
       block.epoch_no,
       block.block_no,
-      EXTRACT(epoch from block.time)
+      EXTRACT(epoch from block.time)::integer
     FROM
       public.tx
       INNER JOIN public.block ON block.id = tx.block_id

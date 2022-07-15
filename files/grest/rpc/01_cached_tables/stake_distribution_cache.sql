@@ -168,7 +168,7 @@ BEGIN
 
 END;
 $$;
- 
+
 -- HELPER FUNCTION: GREST.STAKE_DISTRIBUTION_CACHE_UPDATE_CHECK
 -- Determines whether or not the stake distribution cache should be updated
 -- based on the time rule (max once in 60 mins), and ensures previous run completed.
