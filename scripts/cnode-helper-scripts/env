@@ -699,6 +699,7 @@ slotInterval() {
 }
 
 # Description : Identify current era and set variables accordingly
+# TODO: Track progress of https://github.com/input-output-hk/cardano-node/pull/4135 to see if era identifier can be removed in a future release. 
 getEraIdentifier() {
   NETWORK_ERA=$(${CCLI} query tip ${NETWORK_IDENTIFIER} 2>/dev/null | jq -r '.era //empty')
   case ${NETWORK_ERA} in
@@ -706,9 +707,9 @@ getEraIdentifier() {
     Shelley) ERA_IDENTIFIER="--shelley-era" ;;
     Allegra) ERA_IDENTIFIER="--allegra-era" ;;
     Mary)    ERA_IDENTIFIER="--mary-era" ;;
-    Alonzo)  ERA_IDENTIFIER="--alonzo-era" ;;
-    Babbage) ERA_IDENTIFIER="--babbage-era" ;;
-    *)       ERA_IDENTIFIER="" # use cli default
+    #Alonzo)  ERA_IDENTIFIER="--alonzo-era" ;;
+    #Babbage) ERA_IDENTIFIER="--babbage-era" ;;
+    *)       ERA_IDENTIFIER="--mary-era" # use mary era as default
              [[ ${OFFLINE_MODE} = "N" ]] && return 1
   esac
   return 0
