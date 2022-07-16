@@ -237,7 +237,7 @@ BEGIN
         SELECT
           awdp.stake_address,
           pi.pool_id,
-          COALESCE(aas.amount, 0) + COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0) as total_balance,
+          COALESCE(aas.amount, 0) + COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0) as AMOUNT,
           _previous_epoch_no as epoch_no
         from accounts_with_delegated_pools awdp
           INNER JOIN pool_ids pi ON pi.stake_address_id = awdp.stake_address_id
@@ -250,7 +250,7 @@ BEGIN
           UPDATE
             SET
               POOL_ID = EXCLUDED.POOL_ID,
-              TOTAL_BALANCE = EXCLUDED.TOTAL_BALANCE;
+              AMOUNT = EXCLUDED.AMOUNT;
 
   /* Newly registered accounts to be captured (they don't have epoch_stake entries for baseline) */
   WITH
@@ -417,11 +417,7 @@ BEGIN
         SELECT
           nra.stake_address,
           pi.pool_id,
-          COALESCE(adi.amount, 0) as inputs,
-          COALESCE(ado.amount, 0) as outputs,
-          COALESCE(adr.rewards, 0) as rewards,
-          COALESCE(adw.withdrawals, 0) as withdrawals,
-          COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0) as total_balance,
+          COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0) as amount,
           _previous_epoch_no as epoch_no
         FROM newly_registered_accounts nra
           INNER JOIN pool_ids pi ON pi.stake_address_id = nra.stake_address_id
@@ -433,7 +429,7 @@ BEGIN
         UPDATE
           SET
             POOL_ID = EXCLUDED.POOL_ID,
-            TOTAL_BALANCE = EXCLUDED.total_balance;
+            AMOUNT = EXCLUDED.AMOUNT;
 
   INSERT INTO GREST.CONTROL_TABLE (key, last_value)
     VALUES (
