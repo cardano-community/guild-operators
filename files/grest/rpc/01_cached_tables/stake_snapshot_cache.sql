@@ -4,7 +4,7 @@ DROP TABLE IF EXISTS GREST.stake_snapshot_cache;
 CREATE TABLE GREST.stake_snapshot_cache (
   STAKE_ADDRESS varchar,
   POOL_ID varchar,
-  TOTAL_BALANCE numeric,
+  AMOUNT numeric,
   EPOCH_NO bigint,
   PRIMARY KEY (STAKE_ADDRESS, EPOCH_NO)
 );
@@ -65,6 +65,69 @@ BEGIN
 
 /* Registered and delegated accounts to be captured (have epoch_stake entries for baseline) */
   WITH
+    latest_non_cancelled_pool_retire as (
+      SELECT DISTINCT ON (pr.hash_id)
+        pr.hash_id,
+        pr.retiring_epoch
+      FROM pool_retire pr
+      WHERE
+        pr.announced_tx_id <= _upper_bound_account_tx_id
+        AND pr.retiring_epoch <= _previous_epoch_no
+        AND NOT EXISTS (
+          SELECT TRUE
+          FROM pool_update pu
+          WHERE pu.hash_id = pr.hash_id 
+            AND (
+              pu.registered_tx_id > pr.announced_tx_id
+                OR (
+                  pu.registered_tx_id = pr.announced_tx_id
+                    AND pu.cert_index > pr.cert_index
+                )
+            )
+            AND registered_tx_id <= _upper_bound_account_tx_id
+            AND registered_tx_id <= (
+              SELECT MAX(id)
+              FROM public.tx
+              WHERE block_id <= (
+                SELECT id
+                FROM public.block
+                WHERE epoch_no = pr.retiring_epoch - 1
+                  AND block_no IS NOT NULL
+                ORDER BY block_no DESC
+                LIMIT 1
+              )
+            )
+        )
+        ORDER BY
+          pr.hash_id, pr.retiring_epoch DESC
+    ),
+    minimum_pool_delegation_tx_ids as (
+      SELECT DISTINCT ON (pu.hash_id)
+        pu.hash_id,
+        pu.registered_tx_id as min_tx_id,
+        pu.cert_index
+      FROM pool_update pu
+      LEFT JOIN latest_non_cancelled_pool_retire lncpr ON lncpr.hash_id = pu.hash_id
+      WHERE pu.registered_tx_id <= _upper_bound_account_tx_id AND
+      CASE WHEN lncpr.retiring_epoch IS NOT NULL
+      THEN
+        pu.registered_tx_id > (
+          SELECT MAX(id)
+            FROM public.tx
+            WHERE block_id <= (
+              SELECT id
+              FROM public.block
+              WHERE epoch_no = lncpr.retiring_epoch - 1
+                AND block_no IS NOT NULL
+              ORDER BY block_no DESC
+              LIMIT 1
+            )
+        )
+      ELSE TRUE
+      END
+      ORDER BY
+        pu.hash_id, pu.registered_tx_id ASC
+    ),
     accounts_with_delegated_pools AS (
       SELECT DISTINCT ON (STAKE_ADDRESS.ID)
         stake_address.id as stake_address_id,
@@ -72,34 +135,49 @@ BEGIN
         delegation.pool_hash_id
       FROM STAKE_ADDRESS
         INNER JOIN DELEGATION ON DELEGATION.ADDR_ID = STAKE_ADDRESS.ID
-        WHERE
-          NOT EXISTS (
-            SELECT TRUE FROM DELEGATION D
-              WHERE D.ADDR_ID = DELEGATION.ADDR_ID
-                AND D.ID > DELEGATION.ID
-                AND D.TX_ID <= _upper_bound_account_tx_id
-          )
-          AND NOT EXISTS (
-            SELECT TRUE FROM STAKE_DEREGISTRATION
-              WHERE STAKE_DEREGISTRATION.ADDR_ID = DELEGATION.ADDR_ID
-                AND STAKE_DEREGISTRATION.TX_ID > DELEGATION.TX_ID
-                AND STAKE_DEREGISTRATION.TX_ID <= _upper_bound_account_tx_id
-          )
-          -- Account must be present in epoch_stake table for the previous epoch
-          AND EXISTS (
-            SELECT TRUE FROM EPOCH_STAKE
-              WHERE EPOCH_STAKE.EPOCH_NO = _previous_epoch_no
-                AND EPOCH_STAKE.ADDR_ID = STAKE_ADDRESS.ID
-          )
-          AND _previous_epoch_no + 1 <= (
-            SELECT COALESCE(pic.retiring_epoch, 9999) --handle this better?
-              FROM grest.pool_info_cache pic
-                WHERE pic.pool_hash_id = delegation.pool_hash_id
-                  AND pic.tx_id <= _upper_bound_account_tx_id
-              ORDER BY 
-                pic.tx_id DESC
-              LIMIT 1
-          )
+        INNER JOIN minimum_pool_delegation_tx_ids mpdtx ON mpdtx.hash_id = delegation.pool_hash_id
+      WHERE
+        DELEGATION.TX_ID <= _upper_bound_account_tx_id
+        AND (
+          delegation.tx_id > mpdtx.min_tx_id
+            OR (
+              delegation.tx_id = mpdtx.min_tx_id
+                AND delegation.cert_index > mpdtx.cert_index
+            )
+        )
+        AND NOT EXISTS (
+        SELECT TRUE FROM DELEGATION D
+            WHERE D.ADDR_ID = DELEGATION.ADDR_ID
+            AND D.ID > DELEGATION.ID
+            AND D.TX_ID <= _upper_bound_account_tx_id
+        )
+        AND NOT EXISTS (
+        SELECT TRUE FROM STAKE_DEREGISTRATION
+            WHERE STAKE_DEREGISTRATION.ADDR_ID = DELEGATION.ADDR_ID
+            AND (
+                STAKE_DEREGISTRATION.TX_ID > DELEGATION.TX_ID
+                OR (
+                    STAKE_DEREGISTRATION.TX_ID = DELEGATION.TX_ID
+                        AND STAKE_DEREGISTRATION.CERT_INDEX > DELEGATION.CERT_INDEX
+                )
+            )
+            AND STAKE_DEREGISTRATION.TX_ID <= _upper_bound_account_tx_id
+        )
+        -- Account must be present in epoch_stake table for the previous epoch
+        AND EXISTS (
+        SELECT TRUE FROM EPOCH_STAKE
+            WHERE EPOCH_STAKE.EPOCH_NO = _previous_epoch_no
+            AND EPOCH_STAKE.ADDR_ID = STAKE_ADDRESS.ID
+        )
+        AND _previous_epoch_no + 1 <= (
+          SELECT COALESCE(pic.retiring_epoch, 9999) --handle this better?
+          FROM grest.pool_info_cache pic
+          WHERE pic.pool_hash_id = delegation.pool_hash_id
+            AND pic.tx_id <= _upper_bound_account_tx_id
+          ORDER BY
+            pic.tx_id DESC
+          LIMIT 1
+        )
     ),
     pool_ids as (
       SELECT awdp.stake_address_id,
@@ -108,9 +186,9 @@ BEGIN
         INNER JOIN accounts_with_delegated_pools awdp ON awdp.pool_hash_id = pool_hash.id
     ),
     account_active_stake AS (
-      SELECT awdp.stake_address_id, acsc.amount
-      FROM grest.account_active_stake_cache acsc
-        INNER JOIN accounts_with_delegated_pools awdp ON awdp.stake_address = acsc.stake_address
+      SELECT awdp.stake_address_id, es.amount
+      FROM public.epoch_stake es
+        INNER JOIN accounts_with_delegated_pools awdp ON awdp.stake_address_id = es.addr_id
         WHERE epoch_no = _previous_epoch_no
     ),
     account_delta_tx_ins AS (
@@ -159,9 +237,8 @@ BEGIN
         SELECT
           awdp.stake_address,
           pi.pool_id,
-          COALESCE(aas.amount, 0) + COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0)
-            AS TOTAL_BALANCE,
-          _previous_epoch_no
+          COALESCE(aas.amount, 0) + COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0) as total_balance,
+          _previous_epoch_no as epoch_no
         from accounts_with_delegated_pools awdp
           INNER JOIN pool_ids pi ON pi.stake_address_id = awdp.stake_address_id
           LEFT JOIN account_active_stake aas ON aas.stake_address_id = awdp.stake_address_id
@@ -177,6 +254,69 @@ BEGIN
 
   /* Newly registered accounts to be captured (they don't have epoch_stake entries for baseline) */
   WITH
+    latest_non_cancelled_pool_retire as (
+      SELECT DISTINCT ON (pr.hash_id)
+        pr.hash_id,
+        pr.retiring_epoch
+      FROM pool_retire pr
+      WHERE
+        pr.announced_tx_id <= _upper_bound_account_tx_id
+        AND pr.retiring_epoch <= _previous_epoch_no
+        AND NOT EXISTS (
+          SELECT TRUE
+          FROM pool_update pu
+          WHERE pu.hash_id = pr.hash_id 
+            AND (
+              pu.registered_tx_id > pr.announced_tx_id
+                OR (
+                  pu.registered_tx_id = pr.announced_tx_id
+                    AND pu.cert_index > pr.cert_index
+                )
+            )
+            AND registered_tx_id <= _upper_bound_account_tx_id
+            AND registered_tx_id <= (
+              SELECT MAX(id)
+              FROM public.tx
+              WHERE block_id <= (
+                SELECT id
+                FROM public.block
+                WHERE epoch_no = pr.retiring_epoch - 1
+                  AND block_no IS NOT NULL
+                ORDER BY block_no DESC
+                LIMIT 1
+              )
+            )
+        )
+        ORDER BY
+          pr.hash_id, pr.retiring_epoch DESC
+    ),
+    minimum_pool_delegation_tx_ids as (
+      SELECT DISTINCT ON (pu.hash_id)
+        pu.hash_id,
+        pu.registered_tx_id as min_tx_id,
+        pu.cert_index
+      FROM pool_update pu
+      LEFT JOIN latest_non_cancelled_pool_retire lncpr ON lncpr.hash_id = pu.hash_id
+      WHERE pu.registered_tx_id <= _upper_bound_account_tx_id AND
+      CASE WHEN lncpr.retiring_epoch IS NOT NULL
+      THEN
+        pu.registered_tx_id > (
+          SELECT MAX(id)
+            FROM public.tx
+            WHERE block_id <= (
+              SELECT id
+              FROM public.block
+              WHERE epoch_no = lncpr.retiring_epoch - 1
+                AND block_no IS NOT NULL
+              ORDER BY block_no DESC
+              LIMIT 1
+            )
+        )
+      ELSE TRUE
+      END
+      ORDER BY
+        pu.hash_id, pu.registered_tx_id ASC
+    ),
     newly_registered_accounts AS (
       SELECT DISTINCT ON (STAKE_ADDRESS.ID)
         stake_address.id as stake_address_id,
@@ -184,10 +324,17 @@ BEGIN
         delegation.pool_hash_id
       FROM STAKE_ADDRESS
         INNER JOIN DELEGATION ON DELEGATION.ADDR_ID = STAKE_ADDRESS.ID
-          AND DELEGATION.TX_ID > _lower_bound_account_tx_id
-          AND DELEGATION.TX_ID <= _upper_bound_account_tx_id
+        INNER JOIN minimum_pool_delegation_tx_ids mpdtx ON mpdtx.hash_id = delegation.pool_hash_id        
       WHERE
-          NOT EXISTS (
+          DELEGATION.TX_ID <= _upper_bound_account_tx_id
+          AND (
+            delegation.tx_id > mpdtx.min_tx_id
+              OR (
+                delegation.tx_id = mpdtx.min_tx_id
+                  AND delegation.cert_index > mpdtx.cert_index
+              )
+          )
+          AND NOT EXISTS (
             SELECT TRUE FROM DELEGATION D
               WHERE D.ADDR_ID = DELEGATION.ADDR_ID
                 AND D.ID > DELEGATION.ID
@@ -196,8 +343,14 @@ BEGIN
           AND NOT EXISTS (
             SELECT TRUE FROM STAKE_DEREGISTRATION
               WHERE STAKE_DEREGISTRATION.ADDR_ID = DELEGATION.ADDR_ID
-                AND STAKE_DEREGISTRATION.TX_ID > DELEGATION.TX_ID
-                AND STAKE_DEREGISTRATION.TX_ID <= _upper_bound_account_tx_id
+                AND (
+                    STAKE_DEREGISTRATION.TX_ID > DELEGATION.TX_ID
+                    OR (
+                        STAKE_DEREGISTRATION.TX_ID = DELEGATION.TX_ID
+                            AND STAKE_DEREGISTRATION.CERT_INDEX > DELEGATION.CERT_INDEX
+                    )
+                )
+              AND STAKE_DEREGISTRATION.TX_ID <= _upper_bound_account_tx_id
           )
           -- Account must NOT be present in epoch_stake table for the previous epoch
           AND NOT EXISTS (
@@ -264,8 +417,12 @@ BEGIN
         SELECT
           nra.stake_address,
           pi.pool_id,
+          COALESCE(adi.amount, 0) as inputs,
+          COALESCE(ado.amount, 0) as outputs,
+          COALESCE(adr.rewards, 0) as rewards,
+          COALESCE(adw.withdrawals, 0) as withdrawals,
           COALESCE(ado.amount, 0) - COALESCE(adi.amount, 0) + COALESCE(adr.rewards, 0) - COALESCE(adw.withdrawals, 0) as total_balance,
-          _previous_epoch_no
+          _previous_epoch_no as epoch_no
         FROM newly_registered_accounts nra
           INNER JOIN pool_ids pi ON pi.stake_address_id = nra.stake_address_id
           LEFT JOIN account_delta_input adi ON adi.stake_address_id = nra.stake_address_id
