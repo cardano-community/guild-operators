@@ -540,7 +540,7 @@ BEGIN
                 'protocol_minor', PP.protocol_minor,
                 'min_utxo_value', PP.min_utxo_value,
                 'min_pool_cost', PP.min_pool_cost,
-                'cost_model_id', PP.cost_model_id,
+                'cost_model', CM.costs,
                 'price_mem', PP.price_mem,
                 'price_step', PP.price_step,
                 'max_tx_ex_mem', PP.max_tx_ex_mem,
@@ -555,6 +555,7 @@ BEGIN
             ) AS data
           FROM 
             public.param_proposal PP
+            INNER JOIN cost_model CM ON CM.id = PP.cost_model_id
           WHERE
             PP.registered_tx_id = ANY (_tx_id_list)
           --
