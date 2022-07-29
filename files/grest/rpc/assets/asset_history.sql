@@ -12,6 +12,7 @@ DECLARE
   _asset_id int;
 BEGIN
   SELECT DECODE(_asset_policy, 'hex') INTO _asset_policy_decoded;
+
   SELECT DECODE(
     CASE WHEN _asset_name IS NULL
       THEN ''
@@ -20,6 +21,7 @@ BEGIN
     END,
     'hex'
   ) INTO _asset_name_decoded;
+
   SELECT
     id
   INTO
@@ -36,7 +38,9 @@ BEGIN
       ARRAY_AGG(
         JSON_BUILD_OBJECT(
           'tx_hash', minting_data.tx_hash,
-          'quantity', minting_data.quantity
+          'block_time', minting_data.block_time,
+          'quantity', minting_data.quantity,
+          'metadata', minting_data.metadata
         )
         ORDER BY minting_data.id DESC
       )
@@ -44,12 +48,28 @@ BEGIN
       SELECT
         tx.id,
         ENCODE(tx.hash, 'hex') AS tx_hash,
-        mtm.quantity::text
+        EXTRACT(epoch from b.time)::integer as block_time,
+        mtm.quantity::text,
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'key', TM.key::text,
+              'json', TM.json
+            )
+          ),
+          JSON_BUILD_ARRAY()
+        ) AS metadata
       FROM
         ma_tx_mint mtm
         INNER JOIN tx ON tx.id = MTM.tx_id
+        INNER JOIN block b ON b.id = tx.block_id
+        LEFT JOIN tx_metadata TM ON TM.tx_id = tx.id
       WHERE
         mtm.ident = _asset_id
+      GROUP BY
+        tx.id,
+        b.time,
+        mtm.quantity
     ) minting_data;
 END;
 $$;
