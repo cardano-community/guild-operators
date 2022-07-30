@@ -50,18 +50,20 @@ BEGIN
   SELECT id INTO _last_active_stake_block_id FROM PUBLIC.BLOCK
     WHERE epoch_no = _active_stake_baseline_epoch
       AND block_no IS NOT NULL
+      AND tx_count != 0
     ORDER BY block_no DESC LIMIT 1;
 
   SELECT id INTO _previous_epoch_last_block_id FROM PUBLIC.BLOCK
     WHERE epoch_no = _previous_epoch_no
       AND block_no IS NOT NULL
+      AND tx_count != 0
     ORDER BY block_no DESC LIMIT 1;
 
   SELECT MAX(id) INTO _lower_bound_account_tx_id FROM PUBLIC.TX
-    WHERE block_id <= _last_active_stake_block_id;
+    WHERE block_id = _last_active_stake_block_id;
 
   SELECT MAX(id) INTO _upper_bound_account_tx_id FROM PUBLIC.TX
-    WHERE block_id <= _previous_epoch_last_block_id;
+    WHERE block_id = _previous_epoch_last_block_id;
 
 /* Registered and delegated accounts to be captured (have epoch_stake entries for baseline) */
   WITH
@@ -86,16 +88,17 @@ BEGIN
             )
             AND registered_tx_id <= _upper_bound_account_tx_id
             AND registered_tx_id <= (
-              SELECT MAX(id)
+              SELECT id
               FROM public.tx
-              WHERE block_id <= (
+              WHERE block_id = (
                 SELECT id
                 FROM public.block
                 WHERE epoch_no = pr.retiring_epoch - 1
                   AND block_no IS NOT NULL
+                  AND tx_count != 0
                 ORDER BY block_no DESC
                 LIMIT 1
-              )
+              ) ORDER BY id DESC LIMIT 1
             )
         )
         ORDER BY
@@ -112,16 +115,17 @@ BEGIN
       CASE WHEN lncpr.retiring_epoch IS NOT NULL
       THEN
         pu.registered_tx_id > (
-          SELECT MAX(id)
+          SELECT id
             FROM public.tx
-            WHERE block_id <= (
+            WHERE block_id = (
               SELECT id
               FROM public.block
               WHERE epoch_no = lncpr.retiring_epoch - 1
                 AND block_no IS NOT NULL
+                AND tx_count != 0
               ORDER BY block_no DESC
               LIMIT 1
-            )
+            )  ORDER BY id DESC LIMIT 1
         )
       ELSE TRUE
       END
@@ -275,16 +279,17 @@ BEGIN
             )
             AND registered_tx_id <= _upper_bound_account_tx_id
             AND registered_tx_id <= (
-              SELECT MAX(id)
+              SELECT id
               FROM public.tx
-              WHERE block_id <= (
+              WHERE block_id = (
                 SELECT id
                 FROM public.block
                 WHERE epoch_no = pr.retiring_epoch - 1
                   AND block_no IS NOT NULL
+                  AND tx_count != 0
                 ORDER BY block_no DESC
                 LIMIT 1
-              )
+              ) ORDER BY id DESC LIMIT 1
             )
         )
         ORDER BY
@@ -301,16 +306,17 @@ BEGIN
       CASE WHEN lncpr.retiring_epoch IS NOT NULL
       THEN
         pu.registered_tx_id > (
-          SELECT MAX(id)
+          SELECT id
             FROM public.tx
-            WHERE block_id <= (
+            WHERE block_id = (
               SELECT id
               FROM public.block
               WHERE epoch_no = lncpr.retiring_epoch - 1
                 AND block_no IS NOT NULL
+                AND tx_count != 0
               ORDER BY block_no DESC
               LIMIT 1
-            )
+            )  ORDER BY id DESC LIMIT 1
         )
       ELSE TRUE
       END
