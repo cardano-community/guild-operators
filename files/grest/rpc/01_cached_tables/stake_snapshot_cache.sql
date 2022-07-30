@@ -34,15 +34,15 @@ BEGIN
       RAISE EXCEPTION 'Previous query still running but should have completed! Exiting...';
   END IF;
 
+  SELECT MAX(NO) - 1 INTO _previous_epoch_no FROM PUBLIC.EPOCH;
+
   IF EXISTS (
     SELECT FROM grest.stake_snapshot_cache
-      WHERE epoch_no = (SELECT MAX(NO) - 1 FROM PUBLIC.EPOCH)
-        LIMIT 1
+    WHERE epoch_no = _previous_epoch_no
+    LIMIT 1
   ) THEN
     RETURN;
   END IF;
-
-  SELECT MAX(NO) - 1 INTO _previous_epoch_no FROM PUBLIC.EPOCH;
 
   SELECT _previous_epoch_no - 2 INTO _active_stake_baseline_epoch;
 
@@ -88,17 +88,12 @@ BEGIN
             )
             AND registered_tx_id <= _upper_bound_account_tx_id
             AND registered_tx_id <= (
-              SELECT id
+              SELECT MAX(tx.id)
               FROM public.tx
-              WHERE block_id = (
-                SELECT id
-                FROM public.block
-                WHERE epoch_no = pr.retiring_epoch - 1
-                  AND block_no IS NOT NULL
-                  AND tx_count != 0
-                ORDER BY block_no DESC
-                LIMIT 1
-              ) ORDER BY id DESC LIMIT 1
+              INNER JOIN public.block ON tx.block_id = block.id
+              WHERE epoch_no = pr.retiring_epoch - 1
+                AND block_no IS NOT NULL
+                AND tx_count != 0
             )
         )
         ORDER BY
@@ -115,17 +110,12 @@ BEGIN
       CASE WHEN lncpr.retiring_epoch IS NOT NULL
       THEN
         pu.registered_tx_id > (
-          SELECT id
-            FROM public.tx
-            WHERE block_id = (
-              SELECT id
-              FROM public.block
-              WHERE epoch_no = lncpr.retiring_epoch - 1
-                AND block_no IS NOT NULL
-                AND tx_count != 0
-              ORDER BY block_no DESC
-              LIMIT 1
-            )  ORDER BY id DESC LIMIT 1
+          SELECT MAX(tx.id)
+          FROM public.tx
+          INNER JOIN public.block ON tx.block_id = block.id
+          WHERE epoch_no = lncpr.retiring_epoch - 1
+            AND block_no IS NOT NULL
+            AND tx_count != 0
         )
       ELSE TRUE
       END
