@@ -63,7 +63,13 @@ BEGIN
   SELECT MAX(id) INTO _upper_bound_account_tx_id FROM PUBLIC.TX
     WHERE block_id <= _previous_epoch_last_block_id;
 
-/* Registered and delegated accounts to be captured (have epoch_stake entries for baseline) */
+  /* Temporary table to figure out valid delegations ending up in active stake in case of pool retires */
+  CREATE TEMP TABLE minimum_pool_delegation_tx_ids (
+    pool_hash_id integer PRIMARY KEY,
+    latest_registered_tx_id integer,
+    latest_registered_tx_cert_index integer
+  );
+  
   WITH
     latest_non_cancelled_pool_retire as (
       SELECT DISTINCT ON (pr.hash_id)
@@ -86,48 +92,59 @@ BEGIN
             )
             AND registered_tx_id <= _upper_bound_account_tx_id
             AND registered_tx_id <= (
-              SELECT MAX(id)
+              SELECT id
               FROM public.tx
-              WHERE block_id <= (
+              WHERE block_id = (
                 SELECT id
                 FROM public.block
                 WHERE epoch_no = pr.retiring_epoch - 1
                   AND block_no IS NOT NULL
+                  AND tx_count != 0
                 ORDER BY block_no DESC
                 LIMIT 1
               )
+              ORDER BY id DESC
+              LIMIT 1
             )
         )
-        ORDER BY
-          pr.hash_id, pr.retiring_epoch DESC
-    ),
-    minimum_pool_delegation_tx_ids as (
+      ORDER BY
+        pr.hash_id, pr.retiring_epoch DESC
+    )
+
+    INSERT INTO minimum_pool_delegation_tx_ids
       SELECT DISTINCT ON (pu.hash_id)
         pu.hash_id,
         pu.registered_tx_id as min_tx_id,
         pu.cert_index
       FROM pool_update pu
-      LEFT JOIN latest_non_cancelled_pool_retire lncpr ON lncpr.hash_id = pu.hash_id
-      WHERE pu.registered_tx_id <= _upper_bound_account_tx_id AND
-      CASE WHEN lncpr.retiring_epoch IS NOT NULL
-      THEN
-        pu.registered_tx_id > (
-          SELECT MAX(id)
-            FROM public.tx
-            WHERE block_id <= (
+        LEFT JOIN latest_non_cancelled_pool_retire lncpr ON lncpr.hash_id = pu.hash_id
+      WHERE pu.registered_tx_id <= _upper_bound_account_tx_id
+        AND
+        CASE WHEN lncpr.retiring_epoch IS NOT NULL
+          THEN
+            pu.registered_tx_id > (
               SELECT id
-              FROM public.block
-              WHERE epoch_no = lncpr.retiring_epoch - 1
-                AND block_no IS NOT NULL
-              ORDER BY block_no DESC
-              LIMIT 1
+                FROM public.tx
+                WHERE block_id = (
+                  SELECT id
+                  FROM public.block
+                  WHERE epoch_no = lncpr.retiring_epoch - 1
+                    AND block_no IS NOT NULL
+                    AND tx_count != 0
+                  ORDER BY block_no DESC
+                  LIMIT 1
+                )
+                ORDER BY id DESC
+                LIMIT 1
             )
-        )
-      ELSE TRUE
-      END
+          ELSE TRUE
+        END
       ORDER BY
-        pu.hash_id, pu.registered_tx_id ASC
-    ),
+        pu.hash_id, pu.registered_tx_id ASC;
+
+
+  /* Registered and delegated accounts to be captured (have epoch_stake entries for baseline) */
+  WITH
     accounts_with_delegated_pools AS (
       SELECT DISTINCT ON (STAKE_ADDRESS.ID)
         stake_address.id as stake_address_id,
@@ -135,14 +152,14 @@ BEGIN
         delegation.pool_hash_id
       FROM STAKE_ADDRESS
         INNER JOIN DELEGATION ON DELEGATION.ADDR_ID = STAKE_ADDRESS.ID
-        INNER JOIN minimum_pool_delegation_tx_ids mpdtx ON mpdtx.hash_id = delegation.pool_hash_id
+        INNER JOIN minimum_pool_delegation_tx_ids mpdtx ON mpdtx.pool_hash_id = delegation.pool_hash_id
       WHERE
         DELEGATION.TX_ID <= _upper_bound_account_tx_id
         AND (
-          delegation.tx_id > mpdtx.min_tx_id
+          delegation.tx_id > mpdtx.latest_registered_tx_id
             OR (
-              delegation.tx_id = mpdtx.min_tx_id
-                AND delegation.cert_index > mpdtx.cert_index
+              delegation.tx_id = mpdtx.latest_registered_tx_id
+                AND delegation.cert_index > mpdtx.latest_registered_tx_cert_index
             )
         )
         AND NOT EXISTS (
@@ -254,69 +271,6 @@ BEGIN
 
   /* Newly registered accounts to be captured (they don't have epoch_stake entries for baseline) */
   WITH
-    latest_non_cancelled_pool_retire as (
-      SELECT DISTINCT ON (pr.hash_id)
-        pr.hash_id,
-        pr.retiring_epoch
-      FROM pool_retire pr
-      WHERE
-        pr.announced_tx_id <= _upper_bound_account_tx_id
-        AND pr.retiring_epoch <= _previous_epoch_no
-        AND NOT EXISTS (
-          SELECT TRUE
-          FROM pool_update pu
-          WHERE pu.hash_id = pr.hash_id 
-            AND (
-              pu.registered_tx_id > pr.announced_tx_id
-                OR (
-                  pu.registered_tx_id = pr.announced_tx_id
-                    AND pu.cert_index > pr.cert_index
-                )
-            )
-            AND registered_tx_id <= _upper_bound_account_tx_id
-            AND registered_tx_id <= (
-              SELECT MAX(id)
-              FROM public.tx
-              WHERE block_id <= (
-                SELECT id
-                FROM public.block
-                WHERE epoch_no = pr.retiring_epoch - 1
-                  AND block_no IS NOT NULL
-                ORDER BY block_no DESC
-                LIMIT 1
-              )
-            )
-        )
-        ORDER BY
-          pr.hash_id, pr.retiring_epoch DESC
-    ),
-    minimum_pool_delegation_tx_ids as (
-      SELECT DISTINCT ON (pu.hash_id)
-        pu.hash_id,
-        pu.registered_tx_id as min_tx_id,
-        pu.cert_index
-      FROM pool_update pu
-      LEFT JOIN latest_non_cancelled_pool_retire lncpr ON lncpr.hash_id = pu.hash_id
-      WHERE pu.registered_tx_id <= _upper_bound_account_tx_id AND
-      CASE WHEN lncpr.retiring_epoch IS NOT NULL
-      THEN
-        pu.registered_tx_id > (
-          SELECT MAX(id)
-            FROM public.tx
-            WHERE block_id <= (
-              SELECT id
-              FROM public.block
-              WHERE epoch_no = lncpr.retiring_epoch - 1
-                AND block_no IS NOT NULL
-              ORDER BY block_no DESC
-              LIMIT 1
-            )
-        )
-      ELSE TRUE
-      END
-      ORDER BY
-        pu.hash_id, pu.registered_tx_id ASC
-    ),
     newly_registered_accounts AS (
       SELECT DISTINCT ON (STAKE_ADDRESS.ID)
         stake_address.id as stake_address_id,
@@ -324,14 +278,14 @@ BEGIN
         delegation.pool_hash_id
       FROM STAKE_ADDRESS
         INNER JOIN DELEGATION ON DELEGATION.ADDR_ID = STAKE_ADDRESS.ID
-        INNER JOIN minimum_pool_delegation_tx_ids mpdtx ON mpdtx.hash_id = delegation.pool_hash_id        
+        INNER JOIN minimum_pool_delegation_tx_ids mpdtx ON mpdtx.pool_hash_id = delegation.pool_hash_id        
       WHERE
           DELEGATION.TX_ID <= _upper_bound_account_tx_id
           AND (
-            delegation.tx_id > mpdtx.min_tx_id
+            delegation.tx_id > mpdtx.latest_registered_tx_id
               OR (
-                delegation.tx_id = mpdtx.min_tx_id
-                  AND delegation.cert_index > mpdtx.cert_index
+                delegation.tx_id = mpdtx.latest_registered_tx_id
+                  AND delegation.cert_index > mpdtx.latest_registered_tx_cert_index
               )
           )
           AND NOT EXISTS (
