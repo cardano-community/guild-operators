@@ -67,6 +67,28 @@ BEGIN
 
 /* Registered and delegated accounts to be captured (have epoch_stake entries for baseline) */
   WITH
+    latest_retiring_epoch as (
+      SELECT DISTINCT ON (pr.retiring_epoch)
+        pr.retiring_epoch
+      FROM pool_retire pr
+      WHERE
+        pr.announced_tx_id <= _upper_bound_account_tx_id
+        AND pr.retiring_epoch <= _previous_epoch_no
+      ORDER BY
+        pr.retiring_epoch DESC
+    ),
+    epoch_last_tx_id as (
+      SELECT
+        lre.retiring_epoch - 1 as epoch,
+        MAX(tx.id) as last_tx_id
+      FROM latest_retiring_epoch lre
+      INNER JOIN public.block ON block.epoch_no = lre.retiring_epoch - 1
+      INNER JOIN public.tx ON tx.block_id = block.id
+      WHERE
+        block_no IS NOT NULL
+        AND tx_count != 0
+      GROUP BY lre.retiring_epoch
+    ),
     latest_non_cancelled_pool_retire as (
       SELECT DISTINCT ON (pr.hash_id)
         pr.hash_id,
@@ -88,12 +110,9 @@ BEGIN
             )
             AND registered_tx_id <= _upper_bound_account_tx_id
             AND registered_tx_id <= (
-              SELECT MAX(tx.id)
-              FROM public.tx
-              INNER JOIN public.block ON tx.block_id = block.id
-              WHERE epoch_no = pr.retiring_epoch - 1
-                AND block_no IS NOT NULL
-                AND tx_count != 0
+              SELECT last_tx_id
+              FROM epoch_last_tx_id elti
+              WHERE elti.epoch = pr.retiring_epoch - 1
             )
         )
         ORDER BY
@@ -110,12 +129,9 @@ BEGIN
       CASE WHEN lncpr.retiring_epoch IS NOT NULL
       THEN
         pu.registered_tx_id > (
-          SELECT MAX(tx.id)
-          FROM public.tx
-          INNER JOIN public.block ON tx.block_id = block.id
-          WHERE epoch_no = lncpr.retiring_epoch - 1
-            AND block_no IS NOT NULL
-            AND tx_count != 0
+          SELECT last_tx_id
+          FROM epoch_last_tx_id elti
+          WHERE elti.epoch = lncpr.retiring_epoch - 1
         )
       ELSE TRUE
       END
