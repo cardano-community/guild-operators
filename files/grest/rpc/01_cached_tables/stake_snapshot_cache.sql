@@ -89,7 +89,7 @@ BEGIN
             AND registered_tx_id <= _upper_bound_account_tx_id
             AND registered_tx_id <= (
               SELECT i_last_tx_id
-              FROM epoch_info_cache eic
+              FROM grest.epoch_info_cache eic
               WHERE eic.epoch_no = pr.retiring_epoch - 1
             )
         )
@@ -108,7 +108,7 @@ BEGIN
       THEN
         pu.registered_tx_id > (
           SELECT i_last_tx_id
-          FROM epoch_info_cache eic
+          FROM grest.epoch_info_cache eic
           WHERE eic.epoch_no = lncpr.retiring_epoch - 1
         )
       ELSE TRUE
@@ -264,7 +264,7 @@ BEGIN
             AND registered_tx_id <= _upper_bound_account_tx_id
             AND registered_tx_id <= (
               SELECT i_last_tx_id
-              FROM epoch_info_cache eic
+              FROM grest.epoch_info_cache eic
               WHERE eic.epoch_no = pr.retiring_epoch - 1
             )
         )
@@ -283,7 +283,7 @@ BEGIN
       THEN
         pu.registered_tx_id > (
           SELECT i_last_tx_id
-          FROM epoch_info_cache eic
+          FROM grest.epoch_info_cache eic
           WHERE eic.epoch_no = lncpr.retiring_epoch - 1
         )
       ELSE TRUE
