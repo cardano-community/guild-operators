@@ -180,9 +180,9 @@ BEGIN
         d.pool_hash_id
       FROM DELEGATION D
         LEFT JOIN STAKE_DEREGISTRATION SR ON SR.addr_id = d.addr_id
+          AND SR.tx_id <= _upper_bound_account_tx_id
       WHERE
         d.tx_id <= _upper_bound_account_tx_id
-        AND SR.tx_id <= _upper_bound_account_tx_id
         AND
         (
           d.tx_id > COALESCE(SR.tx_id, 0)
