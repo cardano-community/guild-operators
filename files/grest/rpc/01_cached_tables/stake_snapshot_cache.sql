@@ -157,15 +157,6 @@ BEGIN
             WHERE EPOCH_STAKE.EPOCH_NO = _previous_epoch_no
             AND EPOCH_STAKE.ADDR_ID = STAKE_ADDRESS.ID
         )
-        AND _previous_epoch_no + 1 <= (
-          SELECT COALESCE(pic.retiring_epoch, 9999) --handle this better?
-          FROM grest.pool_info_cache pic
-          WHERE pic.pool_hash_id = delegation.pool_hash_id
-            AND pic.tx_id <= _upper_bound_account_tx_id
-          ORDER BY
-            pic.tx_id DESC
-          LIMIT 1
-        )
     ),
     pool_ids as (
       SELECT awdp.stake_address_id,
@@ -331,15 +322,6 @@ BEGIN
             SELECT TRUE FROM EPOCH_STAKE
               WHERE EPOCH_STAKE.EPOCH_NO = _previous_epoch_no
                 AND EPOCH_STAKE.ADDR_ID = STAKE_ADDRESS.ID
-          )
-          AND _previous_epoch_no + 1 <= (
-            SELECT COALESCE(pic.retiring_epoch, 9999) -- handle this better?
-              FROM grest.pool_info_cache pic
-                WHERE pic.pool_hash_id = delegation.pool_hash_id
-                  AND pic.tx_id <= _upper_bound_account_tx_id
-              ORDER BY 
-                pic.tx_id DESC
-              LIMIT 1
           )
     ),
     pool_ids as (
