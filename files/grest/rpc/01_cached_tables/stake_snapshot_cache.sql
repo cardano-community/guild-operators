@@ -74,9 +74,8 @@ BEGIN
     addr_id integer PRIMARY KEY,
     tx_id integer,
     cert_index integer,
-    pool_hash_id integer INDEX _idx_pool_hash_id,
+    pool_hash_id integer
   );
-
   
   WITH
     latest_retiring_epoch as (
@@ -194,6 +193,8 @@ BEGIN
         )
       ORDER BY
         d.addr_id, d.tx_id DESC;
+    
+    CREATE INDEX _idx_pool_hash_id ON latest_accounts_delegation_txs (pool_hash_id);
 
 
 /* Registered and delegated accounts to be captured (have epoch_stake entries for baseline) */
