@@ -179,17 +179,19 @@ BEGIN
         d.cert_index,
         d.pool_hash_id
       FROM DELEGATION D
-        LEFT JOIN STAKE_DEREGISTRATION SR ON SR.addr_id = d.addr_id
-          AND SR.tx_id <= _upper_bound_account_tx_id
       WHERE
         d.tx_id <= _upper_bound_account_tx_id
-        AND
-        (
-          d.tx_id > COALESCE(SR.tx_id, 0)
-            OR (
-              d.tx_id = SR.tx_id
-                AND d.cert_index > SR.cert_index
+        AND NOT EXISTS (
+          SELECT TRUE FROM STAKE_DEREGISTRATION
+            WHERE STAKE_DEREGISTRATION.ADDR_ID = D.ADDR_ID
+            AND (
+                STAKE_DEREGISTRATION.TX_ID > D.TX_ID
+                OR (
+                    STAKE_DEREGISTRATION.TX_ID = D.TX_ID
+                        AND STAKE_DEREGISTRATION.CERT_INDEX > D.CERT_INDEX
+                )
             )
+            AND STAKE_DEREGISTRATION.TX_ID <= _upper_bound_account_tx_id
         )
       ORDER BY
         d.addr_id, d.tx_id DESC;
