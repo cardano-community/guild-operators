@@ -46,7 +46,8 @@ BEGIN
 
   SELECT _previous_epoch_no - 2 INTO _active_stake_baseline_epoch;
 
-    -- Set-up interval limits for previous epoch
+
+  -- Set-up interval limits for previous epoch
   SELECT MAX(tx.id) INTO _lower_bound_account_tx_id
   FROM PUBLIC.TX
   INNER JOIN BLOCK b ON b.id = tx.block_id
@@ -77,6 +78,8 @@ BEGIN
     pool_hash_id integer
   );
   
+
+/* Registered and delegated accounts to be captured (have epoch_stake entries for baseline) */
   WITH
     latest_retiring_epoch as (
       SELECT DISTINCT ON (pr.retiring_epoch)
