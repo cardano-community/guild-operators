@@ -1,6 +1,3 @@
---------------------------------------------------------------------------------
--- Pool active stake cache setup
---------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS GREST.POOL_ACTIVE_STAKE_CACHE (
   POOL_ID varchar NOT NULL,
   EPOCH_NO bigint NOT NULL,
@@ -63,7 +60,6 @@ $$;
 COMMENT ON FUNCTION grest.active_stake_cache_update_check
   IS 'Internal function to determine whether active stake cache should be updated';
 
-/* UPDATE FUNCTION */
 CREATE FUNCTION grest.active_stake_cache_update (_epoch_no integer)
   RETURNS VOID
   LANGUAGE plpgsql
