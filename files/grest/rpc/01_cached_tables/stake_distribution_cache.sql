@@ -23,14 +23,12 @@ BEGIN
   SELECT (last_value::integer - 2)::integer INTO _active_stake_epoch FROM GREST.CONTROL_TABLE
     WHERE key = 'last_active_stake_validated_epoch';
 
-  SELECT id INTO _last_active_stake_blockid FROM PUBLIC.BLOCK
-    WHERE epoch_no = _active_stake_epoch
-      AND block_no IS NOT NULL
-    ORDER BY block_no DESC LIMIT 1;
-
-  SELECT MAX(tx.id) INTO _last_account_tx_id FROM PUBLIC.TX INNER JOIN PUBLIC.BLOCK b
-    WHERE b.block_id <= _last_active_stake_blockid
-      AND b.tx_count != 0;
+  SELECT MAX(tx.id) INTO _last_account_tx_id
+  FROM PUBLIC.TX
+  INNER JOIN BLOCK b ON b.id = tx.block_id
+  WHERE b.epoch_no <= _active_stake_epoch
+    AND b.block_no IS NOT NULL
+    AND b.tx_count != 0;
 
   SELECT MAX(no) INTO _latest_epoch FROM PUBLIC.EPOCH WHERE NO IS NOT NULL;
 
