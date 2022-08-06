@@ -1,10 +1,10 @@
 /* Keeps track of stake snapshots taken at the end of epochs n - 1 and n - 2 */
 CREATE TABLE IF NOT EXISTS GREST.stake_snapshot_cache (
-  addr_id integer PRIMARY KEY,
+  addr_id integer,
   pool_id integer,
   amount numeric,
   epoch_no bigint,
-  UNIQUE (addr_id, epoch_no)
+  PRIMARY KEY (addr_id, epoch_no)
 );
 
 CREATE OR REPLACE PROCEDURE GREST.CAPTURE_LAST_EPOCH_SNAPSHOT ()
@@ -349,6 +349,9 @@ BEGIN
           SET
             pool_id = EXCLUDED.pool_id,
             amount = EXCLUDED.amount;
+  
+  CREATE INDEX IF NOT EXISTS _idx_pool_id ON grest.stake_snapshot_cache (pool_id);
+  CREATE INDEX IF NOT EXISTS _idx_addr_id ON grest.stake_snapshot_cache (addr_id);
 
   INSERT INTO GREST.CONTROL_TABLE (key, last_value)
     VALUES (
