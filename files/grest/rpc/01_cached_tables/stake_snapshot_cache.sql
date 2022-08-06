@@ -7,6 +7,9 @@ CREATE TABLE IF NOT EXISTS GREST.stake_snapshot_cache (
   PRIMARY KEY (addr_id, epoch_no)
 );
 
+CREATE INDEX IF NOT EXISTS _idx_pool_id ON grest.stake_snapshot_cache (pool_id);
+CREATE INDEX IF NOT EXISTS _idx_addr_id ON grest.stake_snapshot_cache (addr_id);
+
 CREATE OR REPLACE PROCEDURE GREST.CAPTURE_LAST_EPOCH_SNAPSHOT ()
 LANGUAGE PLPGSQL
 AS $$
@@ -29,7 +32,7 @@ BEGIN
       RAISE EXCEPTION 'Previous query still running but should have completed! Exiting...';
   END IF;
 
-  SELECT MAX(NO) - 1 INTO _previous_epoch_no FROM PUBLIC.EPOCH;
+  SELECT 353 INTO _previous_epoch_no FROM PUBLIC.EPOCH;
 
   IF EXISTS (
     SELECT FROM grest.stake_snapshot_cache
@@ -349,9 +352,6 @@ BEGIN
           SET
             pool_id = EXCLUDED.pool_id,
             amount = EXCLUDED.amount;
-  
-  CREATE INDEX IF NOT EXISTS _idx_pool_id ON grest.stake_snapshot_cache (pool_id);
-  CREATE INDEX IF NOT EXISTS _idx_addr_id ON grest.stake_snapshot_cache (addr_id);
 
   INSERT INTO GREST.CONTROL_TABLE (key, last_value)
     VALUES (
