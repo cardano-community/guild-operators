@@ -1,7 +1,5 @@
 /* Keeps track of stake snapshots taken at the end of epochs n - 1 and n - 2 */
-DROP TABLE IF EXISTS GREST.stake_snapshot_cache;
-
-CREATE TABLE GREST.stake_snapshot_cache (
+CREATE TABLE IF NOT EXISTS GREST.stake_snapshot_cache (
   addr_id integer PRIMARY KEY,
   pool_id integer,
   amount numeric,
