@@ -899,6 +899,7 @@ else
   [[ ! -f "${ALONZO_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${ALONZO_GENESIS_JSON}" && return 1
   [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
   [[ ! -f "${GENESIS_JSON}" ]] && echo "Shelley genesis file not found: ${GENESIS_JSON}" && return 1
+  GENESIS_HASH="$(${CCLI} genesis hash --genesis "${GENESIS_JSON}")"
   PROTOCOL="${CONFIG_CONTENTS[3]}"
   P2P_ENABLED="${CONFIG_CONTENTS[5]}"
 fi
