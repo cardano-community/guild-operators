@@ -32,7 +32,7 @@ BEGIN
       RAISE EXCEPTION 'Previous query still running but should have completed! Exiting...';
   END IF;
 
-  SELECT 353 INTO _previous_epoch_no FROM PUBLIC.EPOCH;
+  SELECT MAX(NO) - 1 INTO _previous_epoch_no FROM PUBLIC.EPOCH;
 
   IF EXISTS (
     SELECT FROM grest.stake_snapshot_cache
