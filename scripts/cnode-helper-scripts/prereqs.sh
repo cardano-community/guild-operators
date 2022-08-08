@@ -324,6 +324,8 @@ if [[ "${INSTALL_CNCLI}" = "Y" ]]; then
     if ! output=$(git clone https://github.com/cardano-community/cncli.git 2>&1); then echo -e "${output}" && err_exit; fi
   fi
   pushd ./cncli >/dev/null || err_exit
+  git remote set-url origin https://github.com/cardano-community/cncli >/dev/null
+  git checkout develop >/dev/null
   if ! output=$(git fetch --all --prune 2>&1); then echo -e "${output}" && err_exit; fi
   cncli_git_latestTag=$(git describe --tags "$(git rev-list --tags --max-count=1)")
   if ! output=$(git checkout ${cncli_git_latestTag} 2>&1 && git submodule update --init --recursive --force 2>&1); then echo -e "${output}" && err_exit; fi
