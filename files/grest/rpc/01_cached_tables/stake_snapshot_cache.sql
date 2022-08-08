@@ -1,15 +1,15 @@
 /* Keeps track of stake snapshots taken at the end of epochs n - 1 and n - 2 */
-DROP TABLE IF EXISTS GREST.stake_snapshot_cache;
-
-CREATE TABLE GREST.stake_snapshot_cache (
-  addr_id integer PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS GREST.stake_snapshot_cache (
+  addr_id integer,
   pool_id integer,
   amount numeric,
   epoch_no bigint,
-  UNIQUE (addr_id, epoch_no)
+  PRIMARY KEY (addr_id, epoch_no)
 );
 
--- This function captures the stake snapshot of previous epoch
+CREATE INDEX IF NOT EXISTS _idx_pool_id ON grest.stake_snapshot_cache (pool_id);
+CREATE INDEX IF NOT EXISTS _idx_addr_id ON grest.stake_snapshot_cache (addr_id);
+
 CREATE OR REPLACE PROCEDURE GREST.CAPTURE_LAST_EPOCH_SNAPSHOT ()
 LANGUAGE PLPGSQL
 AS $$
@@ -316,15 +316,15 @@ BEGIN
       GROUP BY tx_out.stake_address_id
     ),
     account_delta_rewards AS (
-      SELECT rs.stake_address_id, COALESCE(SUM(rs.amount), 0) AS REWARDS
-      FROM rewards_subset rs
-      WHERE rs.stake_address_id = ANY(_newly_registered_account_ids)
+      SELECT r.addr_id as stake_address_id, COALESCE(SUM(r.amount), 0) AS REWARDS
+      FROM REWARD r
+      WHERE r.addr_id = ANY(_newly_registered_account_ids)
         AND
-        CASE WHEN rs.type = 'refund'
-          THEN rs.spendable_epoch <= _previous_epoch_no
-          ELSE rs.spendable_epoch <= _previous_epoch_no + 1
+        CASE WHEN r.type = 'refund'
+          THEN r.spendable_epoch <= _previous_epoch_no
+          ELSE r.spendable_epoch <= _previous_epoch_no + 1
         END
-      GROUP BY rs.stake_address_id
+      GROUP BY r.addr_id
     ),
     account_delta_withdrawals AS (
       SELECT withdrawal.addr_id as stake_address_id, COALESCE(SUM(withdrawal.amount), 0) AS withdrawals
