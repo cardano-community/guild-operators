@@ -9,7 +9,7 @@ ENV \
   PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:$PATH
 
 RUN git clone https://github.com/input-output-hk/cardano-node &&\
-    pwd ; ls -l
+    pwd
 
 WORKDIR /cardano-node
 

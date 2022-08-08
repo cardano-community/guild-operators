@@ -1,4 +1,4 @@
-CREATE FUNCTION grest.pool_history (_pool_bech32 text, _epoch_no uinteger DEFAULT NULL)
+CREATE FUNCTION grest.pool_history (_pool_bech32 text, _epoch_no word31type DEFAULT NULL)
   RETURNS TABLE (
     epoch_no bigint,
     active_stake text,

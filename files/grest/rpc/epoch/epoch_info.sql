@@ -1,14 +1,14 @@
 CREATE FUNCTION grest.epoch_info (_epoch_no numeric DEFAULT NULL)
   RETURNS TABLE (
-    epoch_no uinteger,
+    epoch_no word31type,
     out_sum text,
     fees text,
-    tx_count uinteger,
-    blk_count uinteger,
-    start_time double precision,
-    end_time double precision,
-    first_block_time double precision,
-    last_block_time double precision,
+    tx_count word31type,
+    blk_count word31type,
+    start_time integer,
+    end_time integer,
+    first_block_time integer,
+    last_block_time integer,
     active_stake text,
     total_rewards text,
     avg_blk_reward text
@@ -18,7 +18,7 @@ CREATE FUNCTION grest.epoch_info (_epoch_no numeric DEFAULT NULL)
 DECLARE
   shelley_epoch_duration numeric := (select epochlength::numeric * slotlength::numeric as epochduration from grest.genesis);
   shelley_ref_epoch numeric := (select (ep.epoch_no::numeric + 1) from epoch_param ep ORDER BY ep.epoch_no LIMIT 1);
-  shelley_ref_time double precision := (select ei.i_first_block_time from grest.epoch_info_cache ei where ei.epoch_no = shelley_ref_epoch);
+  shelley_ref_time numeric := (select ei.i_first_block_time from grest.epoch_info_cache ei where ei.epoch_no = shelley_ref_epoch);
 BEGIN
   RETURN QUERY
   SELECT
@@ -28,17 +28,17 @@ BEGIN
     ei.i_tx_count AS tx_count,
     ei.i_blk_count AS blk_count,
     CASE WHEN ei.epoch_no < shelley_ref_epoch THEN
-        ei.i_first_block_time
+        ei.i_first_block_time::integer
     ELSE
-        shelley_ref_time + (ei.epoch_no - shelley_ref_epoch) * shelley_epoch_duration
+        (shelley_ref_time + (ei.epoch_no - shelley_ref_epoch) * shelley_epoch_duration)::integer
     END AS start_time,
     CASE WHEN ei.epoch_no < shelley_ref_epoch THEN
-      ei.i_first_block_time + shelley_epoch_duration
+      (ei.i_first_block_time + shelley_epoch_duration)::integer
     ELSE
-      shelley_ref_time + ((ei.epoch_no + 1) - shelley_ref_epoch) * shelley_epoch_duration
+      (shelley_ref_time + ((ei.epoch_no + 1) - shelley_ref_epoch) * shelley_epoch_duration)::integer
     END AS end_time,
-    ei.i_first_block_time AS first_block_time,
-    ei.i_last_block_time AS last_block_time,
+    ei.i_first_block_time::integer AS first_block_time,
+    ei.i_last_block_time::integer AS last_block_time,
     eas.amount::text AS active_stake,
     ei.i_total_rewards::text AS total_rewards,
     ei.i_avg_blk_reward::text AS avg_blk_reward
