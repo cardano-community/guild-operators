@@ -59,7 +59,7 @@ rsync -arvh ../node_modules ./
 
 ##### Set up environment for cardano-graphql
 
-cardano-graphql requires cardano-node, cardano-db-sync-extended, postgresql and graphql-engine to be set up and running.
+cardano-graphql requires cardano-node, cardano-db-sync, postgresql and graphql-engine to be set up and running.
 The below will help you map the components:
 ``` bash
 export PGPASSFILE=$CNODE_HOME/priv/.pgpass

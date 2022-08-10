@@ -138,37 +138,6 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION grest.get_current_epoch ()
-  RETURNS integer
-  LANGUAGE plpgsql
-  AS 
-$$
-  BEGIN
-    RETURN (
-      SELECT MAX(no) FROM public.epoch
-    );
-  END;
-$$;
-
-CREATE FUNCTION grest.get_epoch_stakes_count (_epoch_no integer)
-  RETURNS integer
-  LANGUAGE plpgsql
-  AS
-$$
-  BEGIN
-    RETURN (
-      SELECT
-        count(*)
-      FROM
-        public.epoch_stake
-      WHERE
-        epoch_no = _epoch_no
-      GROUP BY
-        epoch_no
-    );
-  END;
-$$;
-
 CREATE FUNCTION grest.update_control_table (_key text, _last_value text, _artifacts text default null)
   RETURNS void
   LANGUAGE plpgsql

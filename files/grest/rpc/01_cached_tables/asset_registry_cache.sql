@@ -21,7 +21,7 @@ CREATE FUNCTION grest.asset_registry_cache_update (
         _ticker text DEFAULT NULL,
         _url text DEFAULT NULL,
         _logo text DEFAULT NULL,
-        _decimals uinteger DEFAULT 0
+        _decimals word31type DEFAULT 0
     )
     RETURNS void
     LANGUAGE plpgsql

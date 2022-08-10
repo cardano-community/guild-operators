@@ -1,29 +1,30 @@
 CREATE TABLE IF NOT EXISTS grest.epoch_info_cache (
-  epoch_no uinteger PRIMARY KEY NOT NULL,
+  epoch_no word31type PRIMARY KEY NOT NULL,
   i_out_sum word128type NOT NULL,
   i_fees lovelace NOT NULL,
-  i_tx_count uinteger NOT NULL,
-  i_blk_count uinteger NOT NULL,
-  i_first_block_time double precision UNIQUE NOT NULL,
-  i_last_block_time double precision UNIQUE NOT NULL,
+  i_tx_count word31type NOT NULL,
+  i_blk_count word31type NOT NULL,
+  i_first_block_time numeric UNIQUE NOT NULL,
+  i_last_block_time numeric UNIQUE NOT NULL,
   i_total_rewards lovelace DEFAULT NULL,
-  i_avg_blk_reward uinteger DEFAULT NULL,
-  p_min_fee_a uinteger NULL,
-  p_min_fee_b uinteger NULL,
-  p_max_block_size uinteger NULL,
-  p_max_tx_size uinteger NULL,
-  p_max_bh_size uinteger NULL,
+  i_avg_blk_reward lovelace DEFAULT NULL,
+  i_last_tx_id bigint DEFAULT NULL,
+  p_min_fee_a word31type NULL,
+  p_min_fee_b word31type NULL,
+  p_max_block_size word31type NULL,
+  p_max_tx_size word31type NULL,
+  p_max_bh_size word31type NULL,
   p_key_deposit lovelace NULL,
   p_pool_deposit lovelace NULL,
-  p_max_epoch uinteger NULL,
-  p_optimal_pool_count uinteger NULL,
+  p_max_epoch word31type NULL,
+  p_optimal_pool_count word31type NULL,
   p_influence double precision NULL,
   p_monetary_expand_rate double precision NULL,
   p_treasury_growth_rate double precision NULL,
   p_decentralisation double precision NULL,
-  p_entropy text,
-  p_protocol_major uinteger NULL,
-  p_protocol_minor uinteger NULL,
+  p_extra_entropy text,
+  p_protocol_major word31type NULL,
+  p_protocol_minor word31type NULL,
   p_min_utxo_value lovelace NULL,
   p_min_pool_cost lovelace NULL,
   p_nonce text,
@@ -36,9 +37,9 @@ CREATE TABLE IF NOT EXISTS grest.epoch_info_cache (
   p_max_block_ex_mem word64type,
   p_max_block_ex_steps word64type,
   p_max_val_size word64type,
-  p_collateral_percent uinteger,
-  p_max_collateral_inputs uinteger,
-  p_coins_per_utxo_word lovelace
+  p_collateral_percent word31type,
+  p_max_collateral_inputs word31type,
+  p_coins_per_utxo_size lovelace
 );
 
 COMMENT ON TABLE grest.epoch_info_cache IS 'Contains detailed info for epochs including protocol parameters';
@@ -93,7 +94,7 @@ BEGIN
 
     IF _curr_epoch = _latest_epoch_no_in_cache THEN
       RAISE NOTICE 'Updating latest epoch info in cache...';
-      PERFORM grest.UPDATE_LATEST_EPOCH_INFO_CACHE(_latest_epoch_no_in_cache);
+      PERFORM grest.UPDATE_LATEST_EPOCH_INFO_CACHE(_curr_epoch, _latest_epoch_no_in_cache);
       RETURN;
     END IF;
 
@@ -104,7 +105,7 @@ BEGIN
 
     RAISE NOTICE 'Updating cache with new epoch(s) data...';
     -- We need to update last epoch one last time before going to new one
-    PERFORM grest.UPDATE_LATEST_EPOCH_INFO_CACHE(_latest_epoch_no_in_cache);
+    PERFORM grest.UPDATE_LATEST_EPOCH_INFO_CACHE(_curr_epoch, _latest_epoch_no_in_cache);
     -- Populate rewards data for epoch n - 2
     PERFORM grest.UPDATE_TOTAL_REWARDS_EPOCH_INFO_CACHE(_latest_epoch_no_in_cache - 1);
     -- Continue new epoch data insert
@@ -132,6 +133,7 @@ BEGIN
         WHEN e.no <= _curr_epoch THEN ROUND(reward_pot.amount / e.blk_count)
         ELSE NULL
       END AS i_avg_blk_reward, 
+      last_tx.tx_id AS i_last_tx_id,
       ep.min_fee_a AS p_min_fee_a,
       ep.min_fee_b AS p_min_fee_b,
       ep.max_block_size AS p_max_block_size,
@@ -145,7 +147,7 @@ BEGIN
       ep.monetary_expand_rate AS p_monetary_expand_rate,
       ep.treasury_growth_rate AS p_treasury_growth_rate,
       ep.decentralisation AS p_decentralisation,
-      ENCODE(ep.entropy, 'hex') AS p_entropy,
+      ENCODE(ep.extra_entropy, 'hex') AS p_extra_entropy,
       ep.protocol_major AS p_protocol_major,
       ep.protocol_minor AS p_protocol_minor,
       ep.min_utxo_value AS p_min_utxo_value,
@@ -162,7 +164,7 @@ BEGIN
       ep.max_val_size AS p_max_val_size,
       ep.collateral_percent AS p_collateral_percent,
       ep.max_collateral_inputs AS p_max_collateral_inputs,
-      ep.coins_per_utxo_word AS p_coins_per_utxo_word
+      ep.coins_per_utxo_size AS p_coins_per_utxo_size
     FROM
       epoch e
       LEFT JOIN epoch_param ep ON ep.epoch_no = e.no
@@ -179,6 +181,16 @@ BEGIN
         GROUP BY
           e.no
       ) reward_pot ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT
+          MAX(tx.id) AS tx_id
+        FROM
+          block b
+          INNER JOIN tx ON tx.block_id = b.id
+        WHERE
+          b.epoch_no = e.no
+          AND b.epoch_no <> _curr_epoch
+      ) last_tx ON TRUE
     WHERE
       e.no >= _epoch_no_to_insert_from
     ORDER BY
@@ -189,11 +201,29 @@ END;
 $$;
 
 -- Helper function for updating current epoch data
-CREATE FUNCTION grest.UPDATE_LATEST_EPOCH_INFO_CACHE (_epoch_no_to_update bigint)
+CREATE FUNCTION grest.UPDATE_LATEST_EPOCH_INFO_CACHE (_curr_epoch bigint, _epoch_no_to_update bigint)
   RETURNS void
   LANGUAGE plpgsql
   AS $$
 BEGIN
+
+  -- only update last tx id in case of new epoch
+  IF _curr_epoch <> _epoch_no_to_update THEN
+    UPDATE
+      grest.epoch_info_cache
+    SET
+      i_last_tx_id = last_tx.tx_id
+    FROM (
+      SELECT
+        MAX(tx.id) AS tx_id
+      FROM
+        block b
+        INNER JOIN tx ON tx.block_id = b.id
+      WHERE
+        b.epoch_no = _epoch_no_to_update
+    ) last_tx;
+  END IF;
+
   UPDATE
     grest.epoch_info_cache
   SET

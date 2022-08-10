@@ -1,7 +1,7 @@
 CREATE FUNCTION grest.pool_updates (_pool_bech32 text DEFAULT NULL)
     RETURNS TABLE (
         tx_hash text,
-        block_time double precision,
+        block_time integer,
         pool_id_bech32 character varying,
         pool_id_hex text,
         active_epoch_no bigint,
@@ -15,7 +15,7 @@ CREATE FUNCTION grest.pool_updates (_pool_bech32 text DEFAULT NULL)
         meta_url character varying,
         meta_hash text,
         pool_status text,
-        retiring_epoch uinteger
+        retiring_epoch word31type
     )
     LANGUAGE plpgsql
     AS $$
@@ -24,7 +24,7 @@ BEGIN
     RETURN QUERY
     SELECT
         tx_hash,
-        block_time,
+        block_time::integer,
         pool_id_bech32,
         pool_id_hex,
         active_epoch_no,

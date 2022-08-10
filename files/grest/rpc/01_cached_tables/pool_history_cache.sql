@@ -26,7 +26,7 @@ declare
   _curr_epoch bigint;
   _latest_epoch_no_in_cache bigint;
 begin
-   IF (
+  IF (
     SELECT
       COUNT(pid) > 1
     FROM
