@@ -6,8 +6,8 @@ CREATE FUNCTION grest.epoch_params (_epoch_no numeric DEFAULT NULL)
     max_block_size word31type,
     max_tx_size word31type,
     max_bh_size word31type,
-    key_deposit lovelace,
-    pool_deposit lovelace,
+    key_deposit text,
+    pool_deposit text,
     max_epoch word31type,
     optimal_pool_count word31type,
     influence double precision,
@@ -17,8 +17,8 @@ CREATE FUNCTION grest.epoch_params (_epoch_no numeric DEFAULT NULL)
     extra_entropy text,
     protocol_major word31type,
     protocol_minor word31type,
-    min_utxo_value lovelace,
-    min_pool_cost lovelace,
+    min_utxo_value text,
+    min_pool_cost text,
     nonce text,
     block_hash text,
     cost_models character varying,
@@ -31,7 +31,7 @@ CREATE FUNCTION grest.epoch_params (_epoch_no numeric DEFAULT NULL)
     max_val_size word64type,
     collateral_percent word31type,
     max_collateral_inputs word31type,
-    coins_per_utxo_size lovelace)
+    coins_per_utxo_size text)
   LANGUAGE PLPGSQL
   AS $$
 BEGIN
@@ -44,8 +44,8 @@ BEGIN
       ei.p_max_block_size AS max_block_size,
       ei.p_max_tx_size AS max_tx_size,
       ei.p_max_bh_size AS max_bh_size,
-      ei.p_key_deposit AS key_deposit,
-      ei.p_pool_deposit AS pool_deposit,
+      ei.p_key_deposit::text AS key_deposit,
+      ei.p_pool_deposit::text AS pool_deposit,
       ei.p_max_epoch AS max_epoch,
       ei.p_optimal_pool_count AS optimal_pool_count,
       ei.p_influence AS influence,
@@ -55,8 +55,8 @@ BEGIN
       ei.p_extra_entropy AS extra_entropy,
       ei.p_protocol_major AS protocol_major,
       ei.p_protocol_minor AS protocol_minor,
-      ei.p_min_utxo_value AS min_utxo_value,
-      ei.p_min_pool_cost AS min_pool_cost,
+      ei.p_min_utxo_value::text AS min_utxo_value,
+      ei.p_min_pool_cost::text AS min_pool_cost,
       ei.p_nonce AS nonce,
       ei.p_block_hash AS block_hash,
       ei.p_cost_models AS cost_models,
@@ -69,7 +69,7 @@ BEGIN
       ei.p_max_val_size AS max_val_size,
       ei.p_collateral_percent AS collateral_percent,
       ei.p_max_collateral_inputs AS max_collateral_inputs,
-      ei.p_coins_per_utxo_size AS coins_per_utxo_size
+      ei.p_coins_per_utxo_size::text AS coins_per_utxo_size
     FROM
       grest.epoch_info_cache ei
     ORDER BY
@@ -83,8 +83,8 @@ BEGIN
       ei.p_max_block_size AS max_block_size,
       ei.p_max_tx_size AS max_tx_size,
       ei.p_max_bh_size AS max_bh_size,
-      ei.p_key_deposit AS key_deposit,
-      ei.p_pool_deposit AS pool_deposit,
+      ei.p_key_deposit::text AS key_deposit,
+      ei.p_pool_deposit::text AS pool_deposit,
       ei.p_max_epoch AS max_epoch,
       ei.p_optimal_pool_count AS optimal_pool_count,
       ei.p_influence AS influence,
@@ -94,8 +94,8 @@ BEGIN
       ei.p_extra_entropy AS extra_entropy,
       ei.p_protocol_major AS protocol_major,
       ei.p_protocol_minor AS protocol_minor,
-      ei.p_min_utxo_value AS min_utxo_value,
-      ei.p_min_pool_cost AS min_pool_cost,
+      ei.p_min_utxo_value::text AS min_utxo_value,
+      ei.p_min_pool_cost::text AS min_pool_cost,
       ei.p_nonce AS nonce,
       ei.p_block_hash AS block_hash,
       ei.p_cost_models AS cost_models,
@@ -108,7 +108,7 @@ BEGIN
       ei.p_max_val_size AS max_val_size,
       ei.p_collateral_percent AS collateral_percent,
       ei.p_max_collateral_inputs AS max_collateral_inputs,
-      ei.p_coins_per_utxo_size AS coins_per_utxo_size
+      ei.p_coins_per_utxo_size::text AS coins_per_utxo_size
     FROM
       grest.epoch_info_cache ei
     WHERE
