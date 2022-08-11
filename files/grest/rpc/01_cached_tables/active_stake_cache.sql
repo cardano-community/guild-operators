@@ -135,7 +135,7 @@ $$
       FROM
         PUBLIC.EPOCH_STAKE
       WHERE
-        EPOCH_STAKE.EPOCH_NO > _last_epoch_active_stake_cache_epoch_no
+        EPOCH_STAKE.EPOCH_NO >= _last_epoch_active_stake_cache_epoch_no
           AND
         EPOCH_STAKE.EPOCH_NO <= _epoch_no
       GROUP BY
