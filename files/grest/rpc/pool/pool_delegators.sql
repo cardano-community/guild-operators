@@ -2,7 +2,8 @@ CREATE FUNCTION grest.pool_delegators (_pool_bech32 text)
   RETURNS TABLE (
     stake_address character varying,
     amount text,
-    active_epoch_no bigint
+    active_epoch_no bigint,
+    latest_delegation_tx_hash text
   )
   LANGUAGE plpgsql
   AS $$
@@ -29,17 +30,17 @@ BEGIN
           SDC.pool_id = _pool_bech32
       )
 
-    SELECT
+    SELECT DISTINCT ON (AD.stake_address)
       AD.stake_address,
       AD.total_balance::text,
-      max(D.active_epoch_no)
+      D.active_epoch_no,
+      ENCODE(tx.hash, 'hex')
     FROM
       _all_delegations AS AD
       INNER JOIN public.delegation D ON D.addr_id = AD.stake_address_id
-    GROUP BY
-      AD.stake_address, AD.total_balance
+      INNER JOIN public.tx ON tx.id = D.tx_id
     ORDER BY
-      AD.total_balance DESC;
+      AD.stake_address, D.tx_id DESC;
 END;
 $$;
 
