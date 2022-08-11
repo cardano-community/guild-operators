@@ -361,6 +361,13 @@ BEGIN
     DO UPDATE
       SET last_value = _previous_epoch_no;
 
+  INSERT INTO grest.epoch_active_stake_cache
+    SELECT
+      _previous_epoch_no + 2,
+      SUM(amount)
+    FROM grest.stake_snapshot_cache
+    WHERE epoch_no = _previous_epoch_no;
+
   DELETE FROM grest.stake_snapshot_cache
     WHERE epoch_no <= _previous_epoch_no - 2;
 END;
