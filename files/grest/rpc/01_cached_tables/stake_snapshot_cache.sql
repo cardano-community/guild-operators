@@ -368,7 +368,7 @@ BEGIN
     FROM grest.stake_snapshot_cache
     WHERE epoch_no = _previous_epoch_no
     ON CONFLICT (epoch_no) DO UPDATE
-      SET epoch_active_stake_cache.amount = excluded.amount
+      SET amount = excluded.amount
       WHERE epoch_active_stake_cache.amount IS DISTINCT FROM excluded.amount;
 
   INSERT INTO grest.pool_active_stake_cache
@@ -382,7 +382,7 @@ BEGIN
     GROUP BY
       ssc.pool_id, ph.view
     ON CONFLICT (pool_id, epoch_no) DO UPDATE
-      SET pool_active_stake_cache.amount = excluded.amount
+      SET amount = excluded.amount
       WHERE pool_active_stake_cache.amount IS DISTINCT FROM excluded.amount;
 
   DELETE FROM grest.stake_snapshot_cache
