@@ -977,13 +977,13 @@ Type <code>exit</code> at shell to return to your user from postgres</p>
 <span class="nb">echo</span> <span class="s2">&quot;/var/run/postgresql:5432:cexplorer:*:*&quot;</span> &gt; <span class="nv">$PGPASSFILE</span>
 chmod <span class="m">0600</span> <span class="nv">$PGPASSFILE</span>
 psql postgres
-<span class="c1"># psql (13.4)</span>
+<span class="c1"># psql (14.0)</span>
 <span class="c1"># Type &quot;help&quot; for help.</span>
 <span class="c1"># </span>
 <span class="c1"># postgres=#</span>
 </code></pre></div>
 <h4 id="tuning-your-instance">Tuning your instance<a class="headerlink" href="#tuning-your-instance" title="Permanent link">⚓︎</a></h4>
-<p>Before you start populating your DB instance using dbsync data, now might be a good time to put some thought on to baseline configuration of your postgres instance by editing <code>/etc/postgresql/13/main/postgresql.conf</code>.
+<p>Before you start populating your DB instance using dbsync data, now might be a good time to put some thought on to baseline configuration of your postgres instance by editing <code>/etc/postgresql/14/main/postgresql.conf</code>.
 Typically, you might find a lot of common standard practices parameters available in tuning guides. For our consideration, it would be nice to start with some baselines - for which we will use inputs from example <a href="https://pgtune.leopard.in.ua/#/">here</a>.
 You might want to fill in some sample information as per below to fill in the form:</p>
 <table>
@@ -996,7 +996,7 @@ You might want to fill in some sample information as per below to fill in the fo
 <tbody>
 <tr>
 <td>DB Version</td>
-<td>13</td>
+<td>14</td>
 </tr>
 <tr>
 <td>OS Type</td>
@@ -1008,7 +1008,7 @@ You might want to fill in some sample information as per below to fill in the fo
 </tr>
 <tr>
 <td>Total RAM</td>
-<td>32 (or as per your server)</td>
+<td>64 (or as per your server)</td>
 </tr>
 <tr>
 <td>Number of CPUs</td>
@@ -1024,7 +1024,7 @@ You might want to fill in some sample information as per below to fill in the fo
 </tr>
 </tbody>
 </table>
-<p>In addition to above, due to the nature of usage by dbsync (restart of instance does a rollback to start of epoch), and data retention on blockchain - we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your <code>/etc/postgresql/13/main/postgresql.conf</code>:</p>
+<p>In addition to above, due to the nature of usage by dbsync (restart of instance does a rollback to start of epoch), and data retention on blockchain - we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your <code>/etc/postgresql/14/main/postgresql.conf</code>:</p>
 <table>
 <thead>
 <tr>
