@@ -189,7 +189,6 @@ BEGIN
           INNER JOIN tx ON tx.block_id = b.id
         WHERE
           b.epoch_no = e.no
-          AND b.epoch_no <> _curr_epoch
       ) last_tx ON TRUE
     WHERE
       e.no >= _epoch_no_to_insert_from
@@ -221,7 +220,8 @@ BEGIN
         INNER JOIN tx ON tx.block_id = b.id
       WHERE
         b.epoch_no = _epoch_no_to_update
-    ) last_tx;
+    ) last_tx
+    WHERE epoch_no = _epoch_no_to_update;
   END IF;
 
   UPDATE
