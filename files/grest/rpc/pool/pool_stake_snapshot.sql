@@ -1,7 +1,7 @@
 CREATE FUNCTION grest.pool_stake_snapshot (_pool_bech32 text)
   RETURNS TABLE (
     snapshot text,
-    epoch_no numeric,
+    epoch_no word31type,
     nonce text,
     pool_stake text,
     active_stake text
@@ -15,8 +15,8 @@ DECLARE
   _go       bigint;
 BEGIN
   SELECT MAX(epoch.no) INTO _epoch_no FROM public.epoch;
-  _mark := (_epoch_no-3);
-  _set  := (_epoch_no-2);
+  _mark := (_epoch_no+1);
+  _set  := (_epoch_no);
   _go   := (_epoch_no-1);
 
   RETURN QUERY
@@ -36,10 +36,10 @@ BEGIN
     INNER JOIN grest.epoch_info_cache eic ON eic.epoch_no = pasc.epoch_no
   WHERE
     pasc.pool_id = _pool_bech32
-    AND pasc.epoch_no BETWEEN _mark AND _go
+    AND pasc.epoch_no BETWEEN _go AND _mark
   ORDER BY
     pasc.epoch_no;
 END;
 $$;
 
-COMMENT ON FUNCTION grest.pool_relays IS 'Returns Mark, Set and Go stake snapshots for the selected pool, useful for leaderlog calculation';
+COMMENT ON FUNCTION grest.pool_stake_snapshot IS 'Returns Mark, Set and Go stake snapshots for the selected pool, useful for leaderlog calculation';
