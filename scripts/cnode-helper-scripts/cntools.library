@@ -2415,7 +2415,7 @@ witnessTx() {
       tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
       witness_command=(
         cardano-hw-cli transaction witness
-        --tx-body-file "${tx_raw}"
+        --tx-file "${tx_raw}"
         --hw-signing-file "${skey}"
         ${NETWORK_IDENTIFIER}
         --out-file "${tx_witness}"
@@ -2504,7 +2504,7 @@ signTx() {
       if ! unlockHWDevice "sign the transaction"; then return 1; fi
       sign_command=(
         cardano-hw-cli transaction sign
-        --tx-body-file "${tx_raw}"
+        --tx-file "${tx_raw}"
         ${tx_sign_out[@]}
         ${NETWORK_IDENTIFIER}
         --out-file "${tx_signed}"
