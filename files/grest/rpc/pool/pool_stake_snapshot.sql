@@ -33,7 +33,7 @@ BEGIN
   FROM
     grest.pool_active_stake_cache pasc
     INNER JOIN grest.epoch_active_stake_cache easc ON easc.epoch_no = pasc.epoch_no
-    INNER JOIN grest.epoch_info_cache eic ON eic.epoch_no = (pasc.epoch_no-2)
+    INNER JOIN grest.epoch_info_cache eic ON eic.epoch_no = pasc.epoch_no
   WHERE
     pasc.pool_id = _pool_bech32
     AND pasc.epoch_no BETWEEN _go AND _mark
