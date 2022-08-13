@@ -26,7 +26,7 @@ BEGIN
       WHEN (pasc.epoch_no = _set)  THEN 'Set'
       ELSE 'Go'
     END AS snapshot,
-    eic.epoch_no,
+    pasc.epoch_no,
     eic.p_nonce,
     pasc.amount::text,
     easc.amount::text
