@@ -2085,7 +2085,7 @@ function main {
               fi
 
               if [[ ${reuse_wallets} = 'N' ]]; then
-                println DEBUG "\nRegister a multi-owner pool (you need to have stake.vkey of any additional owner in a seperate wallet folder under \$CNODE_HOME/priv/wallet)?"
+                println DEBUG "\nRegister a multi-owner pool (you need to have stake.vkey of any additional owner in a seperate wallet folder under $CNODE_HOME/priv/wallet)?"
                 while true; do
                   select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
                   case $? in
