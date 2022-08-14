@@ -6,6 +6,31 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.0.2] - 2022-08-13
+#### Fixed
+- Bump min cardano-hw-cli version to 1.10.0
+- Requires cardano-hw-cli to be present on online node for pool registration/modification to be able to transform tx if needed
+- Transform tx if needed before any witnessing/signing is done.
+- Wrong arguments in call to cardano-hw-cli for cddl-formatted tx
+
+## [10.0.1] - 2022-07-14
+#### Changed
+- Transactions now built using cddl-format to ensure that the formatting of transaction adheres the ledger specs.
+- Default to mary era transaction building format for now.
+#### Fixed
+- Cold signing fix for pool registration / update. Last key was added twice when assemling witnesses.
+
+## [10.0.0] - 2022-06-28
+#### Added
+- Support for Vasil Fork
+- Preliminary support for Post HF updates (a short release will follow post fork in coming days)
+- Minimum version for Node bumped to 1.35.0
+
+#### Changed
+- Pool > Rotate code now uses kes-periodinfo CLI query to get counter from node (fallback for Koios)
+- Pool > Show Info updated to include current KES counter
+- Update getEraIdentifier to include Babbage era
+
 ## [9.1.0] - 2022-05-11
 #### Changed
 - Harmonize flow for reusing old wallet configuration on pool modification vs setting new wallets.

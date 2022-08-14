@@ -5,7 +5,7 @@ CREATE FUNCTION grest.tx_status (_tx_hashes text[])
     LANGUAGE plpgsql
     AS $$
 DECLARE
-    _curr_block_no uinteger;
+    _curr_block_no word31type;
 BEGIN
     SELECT
         max(block_no) INTO _curr_block_no

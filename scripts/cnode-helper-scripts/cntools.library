@@ -7,11 +7,11 @@
 # The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 # and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
-CNTOOLS_MAJOR_VERSION=9
+CNTOOLS_MAJOR_VERSION=10
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=1
+CNTOOLS_MINOR_VERSION=0
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=0
+CNTOOLS_PATCH_VERSION=2
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -590,9 +590,10 @@ isPoolRegistered() {
     .[0].pool_status //"-",
     .[0].retiring_epoch //"-",
     .[0].op_cert //"-",
-    .[0].op_cert_counter //0,
+    .[0].op_cert_counter //"null",
     .[0].active_stake //0,
-    .[0].epoch_block_cnt //0,
+    .[0].block_count //0,
+    .[0].live_pledge //0,
     .[0].live_stake //0,
     .[0].live_delegators //0,
     .[0].live_saturation //0
@@ -616,10 +617,11 @@ isPoolRegistered() {
     p_op_cert=${pool_info_arr[13]}
     p_op_cert_counter=${pool_info_arr[14]}
     p_active_stake=${pool_info_arr[15]}
-    p_epoch_block_cnt=${pool_info_arr[16]}
-    p_live_stake=${pool_info_arr[17]}
-    p_live_delegators=${pool_info_arr[18]}
-    p_live_saturation=${pool_info_arr[19]}
+    p_block_count=${pool_info_arr[16]}
+    p_live_pledge=${pool_info_arr[17]}
+    p_live_stake=${pool_info_arr[18]}
+    p_live_delegators=${pool_info_arr[19]}
+    p_live_saturation=${pool_info_arr[20]}
 
     [[ ${p_pool_status} = 'registered' ]] && return 2 || return 3
   fi
@@ -1167,17 +1169,16 @@ registerStakeWallet() {
 
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
     --certificate-file "${stake_cert_file}"
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
   
   min_fee_args=(
     transaction calculate-min-fee
@@ -1218,6 +1219,7 @@ registerStakeWallet() {
     --certificate-file "${stake_cert_file}"
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -1265,17 +1267,16 @@ deregisterStakeWallet() {
 
   getAssetsTxOut
 
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
     --certificate-file "${stake_dereg_file}"
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
 
   min_fee_args=(
     transaction calculate-min-fee
@@ -1316,6 +1317,7 @@ deregisterStakeWallet() {
     --certificate-file "${stake_dereg_file}"
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -1373,21 +1375,20 @@ sendAssets() {
     [[ ${assets_to_send[${idx}]} -gt 0 ]] && assets_tx_out_d+="+${assets_to_send[${idx}]} ${idx}"
   done
 
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --invalid-hereafter ${ttl}
     --fee 0
     ${metafile_param}
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
   if [[ ${outCount} -eq 1 ]]; then
-    dummy_build_args+=( --tx-out "${d_addr}+0${assets_tx_out_d}" )
+    build_args+=( --tx-out "${d_addr}+0${assets_tx_out_d}" )
   else
-    dummy_build_args+=( --tx-out "${s_addr}+0${assets_tx_out_s}" --tx-out "${d_addr}+0${assets_tx_out_d}" )
+    build_args+=( --tx-out "${s_addr}+0${assets_tx_out_s}" --tx-out "${d_addr}+0${assets_tx_out_d}" )
   fi
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
   
   min_fee_args=(
     transaction calculate-min-fee
@@ -1490,17 +1491,16 @@ delegate() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
     --certificate-file "${pool_delegcert_file}"
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
 
   min_fee_args=(
     transaction calculate-min-fee
@@ -1541,6 +1541,7 @@ delegate() {
     --certificate-file "${pool_delegcert_file}"
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -1580,16 +1581,15 @@ withdrawRewards() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
 
   min_fee_args=(
     transaction calculate-min-fee
@@ -1630,6 +1630,7 @@ withdrawRewards() {
     --fee ${min_fee}
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -1680,18 +1681,17 @@ registerPool() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
     --certificate-file "${pool_regcert_file}"
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  [[ -n ${owner_delegation_cert} ]] && dummy_build_args+=( --certificate-file "${owner_delegation_cert}" )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+  [[ -n ${owner_delegation_cert} ]] && build_args+=( --certificate-file "${owner_delegation_cert}" )
+
+  if ! buildTx; then return 1; fi
 
   min_fee_args=(
     transaction calculate-min-fee
@@ -1733,7 +1733,18 @@ registerPool() {
     --out-file "${TMP_DIR}"/tx.raw
   )
   [[ -n ${owner_delegation_cert} ]] && build_args+=( --certificate-file "${owner_delegation_cert}" )
+
   if ! buildTx; then return 1; fi
+
+  needHWCLI=false
+  for index in "${!owner_wallets[@]}"; do
+    stake_vk_file="${WALLET_FOLDER}/${owner_wallets[${index}]}/${WALLET_STAKE_VK_FILENAME}"
+    [[ $(jq .description "${stake_vk_file}") = *Hardware* ]] && needHWCLI=true && break
+  done
+  if [[ ${needHWCLI} = true ]]; then
+    if ! HWCLIversionCheck; then return 1; fi
+    if ! transformRawTx "${TMP_DIR}"/tx.raw; then return 1; fi
+  fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Pool Registration"; then return 1; fi
@@ -1796,17 +1807,16 @@ modifyPool() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
     --certificate-file "${pool_regcert_file}"
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
 
   min_fee_args=(
     transaction calculate-min-fee
@@ -1847,7 +1857,18 @@ modifyPool() {
     --certificate-file "${pool_regcert_file}"
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
+
+  needHWCLI=false
+  for index in "${!owner_wallets[@]}"; do
+    stake_vk_file="${WALLET_FOLDER}/${owner_wallets[${index}]}/${WALLET_STAKE_VK_FILENAME}"
+    [[ $(jq .description "${stake_vk_file}") = *Hardware* ]] && needHWCLI=true && break
+  done
+  if [[ ${needHWCLI} = true ]]; then
+    if ! HWCLIversionCheck; then return 1; fi
+    if ! transformRawTx "${TMP_DIR}"/tx.raw; then return 1; fi
+  fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Pool Update"; then return 1; fi
@@ -1907,17 +1928,16 @@ deRegisterPool() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
     --certificate-file "${pool_deregcert_file}"
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
 
   min_fee_args=(
     transaction calculate-min-fee
@@ -1958,6 +1978,7 @@ deRegisterPool() {
     --certificate-file "${pool_deregcert_file}"
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -1993,7 +2014,7 @@ deRegisterPool() {
 
 # Command     : rotatePoolKeys
 # Description : Rotate pool's KES keys
-# Parameters  : pool name   >  the pool name to rotate KES keys for
+# parameters  : $1 = cold counter (offline mode)
 rotatePoolKeys() {
   # cold keys
   pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
@@ -2019,18 +2040,34 @@ rotatePoolKeys() {
   ! ${CCLI} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}" && return 1
 
   p_opcert=""
-  if [[ -n ${KOIOS_API} ]]; then
+  if [[ $# -eq 1 ]]; then
+    println ACTION "${CCLI} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value $1 --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
+    ! ${CCLI} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value $1 --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1
+  elif [[ -n ${KOIOS_API} ]]; then
     ! getPoolID "${pool_name}" && println "ERROR" "\n${FG_RED}ERROR${NC}: failed to get pool ID!\n" && return 1
     println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_pool_bech32_ids\":[\"${pool_id_bech32}\"]}' ${KOIOS_API}/pool_info"
     ! pool_info=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_pool_bech32_ids":["'${pool_id_bech32}'"]}' "${KOIOS_API}/pool_info" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${pool_info}\n" && p_opcert="" # print error but ignore
     if old_counter_nbr=$(jq -er '.[0].op_cert_counter' <<< "${pool_info}" 2>/dev/null); then
-      println ACTION "${CCLI} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value $(( old_counter_nbr + 1 )) --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
-      ! ${CCLI} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value $(( old_counter_nbr + 1 )) --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1
-    elif [[ ! -f ${pool_opcert_counter_file} ]]; then
-      println "ERROR" "\n${FG_RED}ERROR${NC}: op cert counter file missing and unable to get previous counter value!\n" && return 1
+      new_counter_nbr=$(( old_counter_nbr + 1 ))
+    else
+      new_counter_nbr=0 # null returned = no block on chain for this pool
     fi
-  elif [[ ! -f ${pool_opcert_counter_file} ]]; then
-    println "ERROR" "\n${FG_RED}ERROR${NC}: op cert counter file missing and unable to get previous counter value!\n" && return 1
+    println ACTION "${CCLI} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
+    ! ${CCLI} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1
+  elif [[ -f ${pool_opcert_file} ]]; then
+    println ACTION "${CCLI} query kes-period-info --op-cert-file ${pool_opcert_file} ${NETWORK_IDENTIFIER}"
+    if ! kes_period_info=$(${CCLI} query kes-period-info --op-cert-file "${pool_opcert_file}" ${NETWORK_IDENTIFIER}); then
+      println "ERROR" "\n${FG_RED}ERROR${NC}: failed to grab counter from node: [${kes_period_info}]\n" && return 1
+    fi
+    if old_counter_nbr=$(awk '/{/,0' <<< "${kes_period_info}" | jq -er '.qKesNodeStateOperationalCertificateNumber' 2>/dev/null); then
+      new_counter_nbr=$(( old_counter_nbr + 1 ))
+    else
+      new_counter_nbr=0 # null returned = no block on chain for this pool
+    fi
+    println ACTION "${CCLI} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
+    ! ${CCLI} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1
+  else
+    println "ERROR" "\n${FG_RED}ERROR${NC}: op cert file missing and Koios disabled/unavailable. Unable to get current on-chain counter value!\n" && return 1
   fi
 
   println ACTION "${CCLI} node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
@@ -2063,17 +2100,16 @@ sendMetadata() {
   
   getAssetsTxOut
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
     ${metafile_param}
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
 
   min_fee_args=(
     transaction calculate-min-fee
@@ -2114,6 +2150,7 @@ sendMetadata() {
     --fee ${min_fee}
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -2157,7 +2194,7 @@ mintAsset() {
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".$(asciiToHex "${asset_name}")"
   getAssetsTxOut "${policy_id}${asset_name_out}" "${asset_amount}"
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --mint "${asset_amount} ${policy_id}${asset_name_out}"
@@ -2165,11 +2202,10 @@ mintAsset() {
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee 0
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
   
   min_fee_args=(
     transaction calculate-min-fee
@@ -2212,6 +2248,7 @@ mintAsset() {
     --fee ${min_fee}
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -2262,7 +2299,7 @@ burnAsset() {
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".${asset_name}"
   getAssetsTxOut "${policy_id}${asset_name_out}" "-${assets_to_burn}"
   
-  dummy_build_args=(
+  build_args=(
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --mint "-${assets_to_burn} ${policy_id}${asset_name_out}"
@@ -2270,11 +2307,10 @@ burnAsset() {
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee 0
-    ${ERA_IDENTIFIER}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-  println ACTION "${CCLI} transaction build-raw ${dummy_build_args[*]}"
-  if ! ${CCLI} transaction build-raw "${dummy_build_args[@]}"; then return 1; fi
+
+  if ! buildTx; then return 1; fi
 
   min_fee_args=(
     transaction calculate-min-fee
@@ -2317,6 +2353,7 @@ burnAsset() {
     --fee ${min_fee}
     --out-file "${TMP_DIR}"/tx.raw
   )
+
   if ! buildTx; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
@@ -2356,8 +2393,8 @@ burnAsset() {
 #             : populate an array variable called 'build_args' with all data
 # Parameters  : build_args  >  an array with all the arguments to assemble the transaction
 buildTx() {
-  println ACTION "${CCLI} transaction build-raw ${ERA_IDENTIFIER} ${build_args[*]}"
-  ${CCLI} transaction build-raw ${ERA_IDENTIFIER} "${build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${ERA_IDENTIFIER} --cddl-format ${build_args[*]}"
+  ${CCLI} transaction build-raw ${ERA_IDENTIFIER} --cddl-format "${build_args[@]}"
 }
 
 # Command     : witnessTx [raw tx file] [signing keys ...]
@@ -2375,11 +2412,10 @@ witnessTx() {
       return 1
     elif [[ $(jq -r '.description' "${skey}") = *"Hardware"* ]]; then # HW signing key
       if ! unlockHWDevice "witness the transaction"; then return 1; fi
-      if ! transformRawTx "${tx_raw}"; then return 1; fi
       tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
       witness_command=(
         cardano-hw-cli transaction witness
-        --tx-body-file "${tx_raw}"
+        --tx-file "${tx_raw}"
         --hw-signing-file "${skey}"
         ${NETWORK_IDENTIFIER}
         --out-file "${tx_witness}"
@@ -2440,6 +2476,9 @@ signTx() {
   tx_raw="$1"
   shift
   tx_signed="${TMP_DIR}/tx.signed_$(date +%s)"
+  if HWCLIversionCheck >/dev/null; then 
+    if ! transformRawTx "${tx_raw}"; then return 1; fi
+  fi
   if [[ $# -gt 0 ]]; then
     tx_sign_out=()
     hw_wallet='N'
@@ -2463,10 +2502,9 @@ signTx() {
     done
     if [[ ${hw_wallet} = 'Y' ]]; then
       if ! unlockHWDevice "sign the transaction"; then return 1; fi
-      if ! transformRawTx "${tx_raw}"; then return 1; fi
       sign_command=(
         cardano-hw-cli transaction sign
-        --tx-body-file "${tx_raw}"
+        --tx-file "${tx_raw}"
         ${tx_sign_out[@]}
         ${NETWORK_IDENTIFIER}
         --out-file "${tx_signed}"
@@ -2511,8 +2549,8 @@ submitTx() {
 transformRawTx() {
   tx_raw="$1"
   tx_raw_tmp="$(mktemp "${TMP_DIR}/tx.raw_XXXXXXXXXX")"
-  println ACTION "cardano-hw-cli transaction transform-raw --tx-body-file ${tx_raw} --out-file ${tx_raw_tmp}"
-  if ! cardano-hw-cli transaction transform-raw --tx-body-file "${tx_raw}" --out-file "${tx_raw_tmp}" >/dev/null; then return 1; fi
+  println ACTION "cardano-hw-cli transaction transform --tx-file ${tx_raw} --out-file ${tx_raw_tmp}"
+  if ! cardano-hw-cli transaction transform --tx-file "${tx_raw}" --out-file "${tx_raw_tmp}" >/dev/null; then return 1; fi
   println ACTION "mv ${tx_raw_tmp} ${tx_raw}"
   if ! mv "${tx_raw_tmp}" "${tx_raw}" >/dev/null; then return 1; fi
 }
@@ -2550,11 +2588,12 @@ unlockHWDevice() {
 }
 
 HWCLIversionCheck() {
+  ! command -v "cardano-hw-cli" &>/dev/null && echo "cardano-hw-cli not found, please install using prereqs.sh with -w option" && return 1
   println ACTION "cardano-hw-cli version"
   HWCLI_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
   println LOG "cardano-hw-cli version: ${HWCLI_version}"
-  if ! versionCheck "1.9.0" "${HWCLI_version}"; then
-    println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.9.0${NC} !!"
+  if ! versionCheck "1.10.0" "${HWCLI_version}"; then
+    println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.10.0${NC} !!"
     println ERROR "Please run ${FG_LGRAY}prereqs.sh -w${NC} to upgrade to the latest version."
     return 1
   fi

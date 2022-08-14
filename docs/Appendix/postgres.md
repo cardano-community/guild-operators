@@ -58,7 +58,7 @@ export PGPASSFILE=$CNODE_HOME/priv/.pgpass
 echo "/var/run/postgresql:5432:cexplorer:*:*" > $PGPASSFILE
 chmod 0600 $PGPASSFILE
 psql postgres
-# psql (13.4)
+# psql (14.0)
 # Type "help" for help.
 # 
 # postgres=#
@@ -66,21 +66,21 @@ psql postgres
 
 #### Tuning your instance
 
-Before you start populating your DB instance using dbsync data, now might be a good time to put some thought on to baseline configuration of your postgres instance by editing `/etc/postgresql/13/main/postgresql.conf`.
+Before you start populating your DB instance using dbsync data, now might be a good time to put some thought on to baseline configuration of your postgres instance by editing `/etc/postgresql/14/main/postgresql.conf`.
 Typically, you might find a lot of common standard practices parameters available in tuning guides. For our consideration, it would be nice to start with some baselines - for which we will use inputs from example [here](https://pgtune.leopard.in.ua/#/).
 You might want to fill in some sample information as per below to fill in the form:
 
 | Option         | Value |
 |----------------|-------|
-| DB Version     | 13    |
+| DB Version     | 14    |
 | OS Type        | Linux |
 | DB Type        | Online Transaction Processing System|
-| Total RAM      | 32 (or as per your server) |
+| Total RAM      | 64 (or as per your server) |
 | Number of CPUs | 8 (or as per your server)  |
 | Number of Connections | 200 |
 | Data Storage   | HDD Storage |
 
-In addition to above, due to the nature of usage by dbsync (restart of instance does a rollback to start of epoch), and data retention on blockchain - we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your `/etc/postgresql/13/main/postgresql.conf`:
+In addition to above, due to the nature of usage by dbsync (restart of instance does a rollback to start of epoch), and data retention on blockchain - we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your `/etc/postgresql/14/main/postgresql.conf`:
 
 | Parameter          | Value   |
 |--------------------|---------|

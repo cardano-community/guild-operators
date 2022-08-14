@@ -57,7 +57,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.26.5
+GLV_VERSION=v1.27.1
 
 PARENT="$(dirname $0)"
 
@@ -603,7 +603,6 @@ checkPeers() {
 #####################################
 check_peers="false"
 show_peers="false"
-p2p_enabled=$(jq -r '.EnableP2P //false' ${CONFIG} 2>/dev/null)
 getNodeMetrics
 curr_epoch=${epochnum}
 getShelleyTransitionEpoch
@@ -629,6 +628,8 @@ clrScreen
 tlines=$(tput lines) # set initial terminal lines
 tcols=$(tput cols)   # set initial terminal columns
 printf "${NC}"       # reset and set default color
+
+unset cpu_now cpu_last
 
 #####################################
 # MAIN LOOP                         #
@@ -687,7 +688,7 @@ while true; do
 
   if [[ ${show_peers} = "false" ]]; then
 
-    if [[ ${p2p_enabled} != true ]]; then
+    if [[ ${P2P_ENABLED} != true ]]; then
       if [[ ${use_lsof} = 'Y' ]]; then
         peers_in=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
         peers_out=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
@@ -697,13 +698,24 @@ while true; do
       fi
     fi
 
-    read -ra proc_data <<<"$(ps -q ${CNODE_PID} -o pcpu= -o rss=)"
-    if [[ ${#proc_data[@]} -eq 2 ]]; then
-      proc_cpu=${proc_data[0]}
-      mem_rss=${proc_data[1]}
+    mem_rss="$(ps -q ${CNODE_PID} -o rss=)"
+    read -ra cpu_now <<< "$(awk '/cpu /{print $2+$4,$2+$4+$5}' /proc/stat)"
+    if [[ ${#cpu_now[@]} -eq 2 ]]; then
+      if [[ ${#cpu_last[@]} -eq 2 ]]; then
+        cpu_util=$(bc -l <<< "100*((${cpu_now[0]}-${cpu_last[0]})/(${cpu_now[1]}-${cpu_last[1]}))")
+        if [[ ${cpu_util%.*} -gt 99 ]]; then
+          cpu_util=$(printf "%.0f" "${cpu_util}")
+        elif [[ ${cpu_util%.*} -gt 9 ]]; then
+          cpu_util=$(printf "%.1f" "${cpu_util}")
+        else
+          cpu_util=$(printf "%.2f" "${cpu_util}")
+        fi
+      else
+        cpu_util="0.0"
+      fi
+      cpu_last=("${cpu_now[@]}")
     else
-      proc_cpu="0.0"
-      mem_rss=0
+      cpu_util="0.0"
     fi
     if [[ ${about_to_lead} -gt 0 ]]; then
       [[ ${nodemode} != "Core" ]] && clrScreen && nodemode="Core"
@@ -970,7 +982,7 @@ while true; do
 
     echo "${conndivider}" && ((line++))
 
-    if [[ ${p2p_enabled} = true ]]; then
+    if [[ ${P2P_ENABLED} = true ]]; then
 
       # row 1
       printf "${VL} P2P        : ${style_status_1}%-${three_col_2_value_width}s${NC}" "enabled"
@@ -1033,7 +1045,7 @@ while true; do
     echo "${resourcesdivider}" && ((line++))
 
     # row 1
-    printf "${VL} CPU node   : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#proc_cpu}))s" "${proc_cpu}" "%"
+    printf "${VL} CPU (sys)  : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#cpu_util}))s" "${cpu_util}" "%"
     mvThreeSecond
     printf -v mem_live_gb "%.1f" "$(bc -l <<<"(${mem_live}/1073741824)")"
     printf "Mem (Live) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"

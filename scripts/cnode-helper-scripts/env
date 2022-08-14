@@ -481,7 +481,7 @@ createDistanceToBottom() {
 # Description : Query cardano-node for current metrics
 getNodeMetrics() {
   CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.--port ${CNODE_PORT}") # Define again - as node could be restarted since last attempt of sourcing env
-  [[ -n ${CNODE_PID} ]] && uptimes=$(ps -p ${CNODE_PID} -o etimes=) || uptimes=0
+  [[ -n ${CNODE_PID} ]] && uptimes=$(( $(date -u +%s) - $(date -d "$(ps -p ${CNODE_PID} -o lstart=)" +%s) )) || uptimes=0
   if [[ ${USE_EKG} = 'Y' ]]; then
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} -H 'Accept: application/json' "http://${EKG_HOST}:${EKG_PORT}/" 2>/dev/null)
     node_metrics_tsv=$(jq -r '[
@@ -699,16 +699,17 @@ slotInterval() {
 }
 
 # Description : Identify current era and set variables accordingly
+# TODO: Track progress of https://github.com/input-output-hk/cardano-node/pull/4135 to see if era identifier can be removed in a future release. 
 getEraIdentifier() {
-  NETWORK_ERA=$(${CCLI} query tip ${NETWORK_IDENTIFIER} 2>/dev/null | jq  '.era //empty')
+  NETWORK_ERA=$(${CCLI} query tip ${NETWORK_IDENTIFIER} 2>/dev/null | jq -r '.era //empty')
   case ${NETWORK_ERA} in
     Byron)   ERA_IDENTIFIER="--byron-era" ;;
     Shelley) ERA_IDENTIFIER="--shelley-era" ;;
     Allegra) ERA_IDENTIFIER="--allegra-era" ;;
     Mary)    ERA_IDENTIFIER="--mary-era" ;;
-    Alonzo)  ERA_IDENTIFIER="--alonzo-era" ;;
-    Babbage) ERA_IDENTIFIER="--babbage-era" ;;
-    *)       ERA_IDENTIFIER="" # use cli default
+    #Alonzo)  ERA_IDENTIFIER="--alonzo-era" ;;
+    #Babbage) ERA_IDENTIFIER="--babbage-era" ;;
+    *)       ERA_IDENTIFIER="--mary-era" # use mary era as default
              [[ ${OFFLINE_MODE} = "N" ]] && return 1
   esac
   return 0
@@ -882,8 +883,8 @@ if ! command -v "jq" &>/dev/null; then
   return 1
 fi
 
-read -ra CONFIG_CONTENTS <<<"$(jq -r '[ .AlonzoGenesisFile, .ByronGenesisFile, .ShelleyGenesisFile, .Protocol, .TraceChainDb]| @tsv' "${CONFIG}" 2>/dev/null)"
-if [[ -z "${CONFIG_CONTENTS[4]}" ]]; then
+read -ra CONFIG_CONTENTS <<<"$(jq -r '[ .AlonzoGenesisFile //"null", .ByronGenesisFile //"null", .ShelleyGenesisFile //"null", .Protocol //"Cardano", .TraceChainDb //"null", .EnableP2P //"false"]| @tsv' "${CONFIG}" 2>/dev/null)"
+if [[ ${CONFIG_CONTENTS[4]} != "true" ]]; then
   echo "Could not find TraceChainDb when attempting to parse ${CONFIG} file in JSON format, please double-check the syntax of your config, or simply download it from guild-operators repository!"
   return 1
 else
@@ -898,7 +899,9 @@ else
   [[ ! -f "${ALONZO_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${ALONZO_GENESIS_JSON}" && return 1
   [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
   [[ ! -f "${GENESIS_JSON}" ]] && echo "Shelley genesis file not found: ${GENESIS_JSON}" && return 1
+  GENESIS_HASH="$(${CCLI} genesis hash --genesis "${GENESIS_JSON}")"
   PROTOCOL="${CONFIG_CONTENTS[3]}"
+  P2P_ENABLED="${CONFIG_CONTENTS[5]}"
 fi
 
 [[ -z ${EKG_TIMEOUT} ]] && EKG_TIMEOUT=3
@@ -974,8 +977,8 @@ if [[ -n "${CNODE_PID}" ]]; then
 fi
 
 node_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
-if ! versionCheck "1.32.1" "${node_version}"; then
-  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.32.1 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
+if ! versionCheck "1.35.0" "${node_version}"; then
+  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.35.0 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
   return 1
 fi
 

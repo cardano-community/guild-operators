@@ -8,10 +8,12 @@ CREATE VIEW grest.blocks AS
     b.EPOCH_SLOT_NO AS EPOCH_SLOT,
     b.BLOCK_NO AS BLOCK_HEIGHT,
     b.SIZE AS BLOCK_SIZE,
-    EXTRACT(epoch from b.TIME) AS BLOCK_TIME,
+    EXTRACT(epoch from b.TIME)::integer AS BLOCK_TIME,
     b.TX_COUNT,
     b.VRF_KEY,
     ph.VIEW AS POOL,
+    b.PROTO_MAJOR,
+    b.PROTO_MINOR,
     b.OP_CERT_COUNTER
   FROM
     BLOCK B

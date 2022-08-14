@@ -29,6 +29,7 @@ usage() {
 		
 		Cardano Node wrapper script !!
 		-d    Deploy cnode as a systemd service
+		-s    Stop cnode using SIGINT
 		
 		EOF
   exit 1
@@ -60,6 +61,13 @@ pre_startup_sanity() {
   [[ $(find "${LOG_DIR}"/node*.json 2>/dev/null | wc -l) -gt 0 ]] && mv "${LOG_DIR}"/node*.json "${LOG_DIR}"/archive/
 }
 
+stop_node() {
+  CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.--port ${CNODE_PORT}" 2>/dev/null) # env was only called in offline mode
+  kill -2 ${CNODE_PID} 2>/dev/null
+  # touch clean "${CNODE_HOME}"/db/clean # Disabled as it's a bit hacky, but only runs when SIGINT is passed to node process. Should not be needed if node does it's job
+  exit 0
+}
+
 deploy_systemd() {
   echo "Deploying ${CNODE_VNAME} as systemd service.."
   sudo bash -c "cat <<-'EOF' > /etc/systemd/system/${CNODE_VNAME}.service
@@ -67,23 +75,22 @@ deploy_systemd() {
 	Description=Cardano Node
 	Wants=network-online.target
 	After=network-online.target
+	StartLimitIntervalSec=600
+	StartLimitBurst=5
 	
 	[Service]
 	Type=simple
-	Restart=always
+	Restart=on-failure
 	RestartSec=60
 	User=${USER}
 	LimitNOFILE=1048576
 	WorkingDirectory=${CNODE_HOME}/scripts
 	ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cnode.sh\"
-	ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep ${CNODEBIN}.*.--port\\ ${CNODE_PORT} | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
+	ExecStop=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cnode.sh -s\"
 	KillSignal=SIGINT
 	SuccessExitStatus=143
-	StandardOutput=syslog
-	StandardError=syslog
 	SyslogIdentifier=${CNODE_VNAME}
 	TimeoutStopSec=60
-	KillMode=mixed
 	
 	[Install]
 	WantedBy=multi-user.target
@@ -95,9 +102,10 @@ deploy_systemd() {
 ###################
 
 # Parse command line options
-while getopts :d opt; do
+while getopts :ds opt; do
   case ${opt} in
     d ) DEPLOY_SYSTEMD="Y" ;;
+    s ) STOP_NODE="Y" ;;
     \? ) usage ;;
   esac
 done
@@ -109,6 +117,8 @@ case $? in
   1) echo -e "ERROR: Failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" && exit 1;;
   2) clear ;;
 esac
+
+[[ "${STOP_NODE}" == "Y" ]] && stop_node
 
 # Set defaults and do basic sanity checks
 set_defaults

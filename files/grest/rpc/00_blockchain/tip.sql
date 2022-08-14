@@ -1,11 +1,11 @@
 CREATE FUNCTION grest.tip ()
   RETURNS TABLE (
     hash text,
-    epoch_no uinteger,
-    abs_slot uinteger,
-    epoch_slot uinteger,
-    block_no uinteger,
-    block_time double precision
+    epoch_no word31type,
+    abs_slot word63type,
+    epoch_slot word31type,
+    block_no word31type,
+    block_time integer
   )
   LANGUAGE PLPGSQL
   AS $$
@@ -17,7 +17,7 @@ BEGIN
     b.SLOT_NO AS ABS_SLOT,
     b.EPOCH_SLOT_NO AS EPOCH_SLOT,
     b.BLOCK_NO,
-    EXTRACT(EPOCH from b.TIME)
+    EXTRACT(EPOCH from b.TIME)::integer
   FROM
     BLOCK B
   ORDER BY

@@ -33,27 +33,31 @@ $$
     THEN
       RETURN QUERY
         SELECT
-          ACCOUNT_ACTIVE_STAKE_CACHE.stake_address,
-          ACCOUNT_ACTIVE_STAKE_CACHE.pool_id,
-          ACCOUNT_ACTIVE_STAKE_CACHE.epoch_no,
-          ACCOUNT_ACTIVE_STAKE_CACHE.amount::text as active_stake
+          sa.view as stake_address,
+          ph.view as pool_id,
+          es.epoch_no::bigint,
+          es.amount::text as active_stake
         FROM
-          GREST.ACCOUNT_ACTIVE_STAKE_CACHE
+          EPOCH_STAKE es
+        LEFT JOIN stake_address sa ON sa.id = es.addr_id
+        LEFT JOIN pool_hash ph ON ph.id = es.pool_id
         WHERE
-          ACCOUNT_ACTIVE_STAKE_CACHE.epoch_no = _epoch_no
+          es.epoch_no = _epoch_no
             AND
-          ACCOUNT_ACTIVE_STAKE_CACHE.stake_address = _address;
+          sa.view = _address;
     ELSE
       RETURN QUERY
         SELECT
-          ACCOUNT_ACTIVE_STAKE_CACHE.stake_address,
-          ACCOUNT_ACTIVE_STAKE_CACHE.pool_id,
-          ACCOUNT_ACTIVE_STAKE_CACHE.epoch_no,
-          ACCOUNT_ACTIVE_STAKE_CACHE.amount::text as active_stake
+          sa.view as stake_address,
+          ph.view as pool_id,
+          es.epoch_no::bigint,
+          es.amount::text as active_stake
         FROM
-          GREST.ACCOUNT_ACTIVE_STAKE_CACHE
+          EPOCH_STAKE es
+        LEFT JOIN stake_address sa ON sa.id = es.addr_id
+        LEFT JOIN pool_hash ph ON ph.id = es.pool_id
         WHERE
-          ACCOUNT_ACTIVE_STAKE_CACHE.stake_address = _address;
+          sa.view = _address;
     END IF;
   END;
 $$;

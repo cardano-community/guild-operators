@@ -73,8 +73,8 @@ function usage() {
 }
 
 function chk_version() {
-  instance_vr=$(curl -sfkL "${GURL}/control_table?key=eq.version&select=last_value" 2>/dev/null)
-  monitor_vr=$(curl -sfkL "${API_COMPARE}/control_table?key=eq.version&select=last_value" 2>/dev/null)
+  instance_vr=$(curl -sfkL "${GURL}/control_table?key=eq.version&select=last_value" | jq -r '.[0].last_value' 2>/dev/null)
+  monitor_vr=$(curl -sf "${API_STRUCT_DEFINITION}" | grep ^\ \ version|awk '{print $2}' 2>/dev/null)
 
   if [[ -z "${instance_vr}" ]] || [[ "${instance_vr}" == "[]" ]]; then
     [[ "${DEBUG_MODE}" == "1" ]] && echo "Response received for ${GURL} version: ${instance_vr}"
@@ -103,10 +103,10 @@ function chk_tip() {
     .[0].block_no //0,
     .[0].block_time // 0
   ] | @tsv' )"
-  currtip=$(TZ='UTC' date "+%Y-%m-%d %H:%M:%S")
-  dbtip=${tip[4]}
-  if [[ -z "${dbtip}" ]] || [[ $(( $(date -d "${currtip}" +%s) - $(date -d "${dbtip}" +%s) )) -gt ${TIP_DIFF} ]] ; then
-    log_err "${URLRPC}/tip endpoint did not provide a timestamp that's within ${TIP_DIFF} seconds - Tip: ${currtip}, DB Tip: ${dbtip}, Difference: $(( $(date -d "${currtip}" +%s) - $(date -d "${dbtip}" +%s) ))"
+  currtip=$(date +%s)
+  [[ ${tip[4]} =~ ^[0-9.]+$ ]] && dbtip=$(cut -d. -f1 <<< "${tip[4]}") || dbtip=$(date --date "${tip[4]}+0" +%s)
+  if [[ -z "${dbtip}" ]] || [[ $(( currtip - dbtip )) -gt ${TIP_DIFF} ]] ; then
+    log_err "${URLRPC}/tip endpoint did not provide a timestamp that's within ${TIP_DIFF} seconds - Tip: ${currtip}, DB Tip: ${dbtip}, Difference: $(( currtip - dbtip ))"
     optexit
   else
     epoch=${tip[0]}
@@ -151,7 +151,8 @@ function chk_cache_status() {
     optexit
   else
     if [[ "${last_actvstake_epoch}" != "${epoch}" ]]; then
-      epoch_length=$(curl -s "${GURL}"/genesis?select=epochlength | jq -r .[0].epochlength)
+      [[ -z "${GENESIS_JSON}" ]] && GENESIS_JSON="${PARENT}"/../files/shelley-genesis.json
+      epoch_length=$(jq -r .epochLength "${GENESIS_JSON}" 2>/dev/null)
       if [[ ${epoch_slot} -ge $(( epoch_length / 12 )) ]]; then
         log_err "Active Stake cache for epoch ${epoch} still not populated as of ${epoch_slot} slot, maximum tolerance was $(( epoch_length / 12 )) !!"
         optexit
