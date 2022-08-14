@@ -221,7 +221,8 @@ BEGIN
         INNER JOIN tx ON tx.block_id = b.id
       WHERE
         b.epoch_no = _epoch_no_to_update
-    ) last_tx;
+    ) last_tx
+    WHERE epoch_no = _epoch_no_to_update;
   END IF;
 
   UPDATE
