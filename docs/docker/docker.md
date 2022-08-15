@@ -17,7 +17,7 @@ Running your own Cardano node has never been so fast and easy.
 - Monitoring ready  
 - EKG, Prometheus
 
-#### Guild Operators Docker startegy (testnet / mainnet / staging / guild)  {: id="strategy"}
+#### Guild Operators Docker startegy (testnet / mainnet / preprod / guild)  {: id="strategy"}
 
 Modular docker images based on Debian.
 
