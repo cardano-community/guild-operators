@@ -203,6 +203,9 @@ cncliInit() {
     [[ -z "${POOL_VRF_VKEY}" ]] && POOL_VRF_VKEY="${POOL_DIR}/${POOL_VRF_VK_FILENAME}"
   fi
 
+  # export SHELLEY_TRANS_EPOCH to be seen by cncli
+  export SHELLEY_TRANS_EPOCH
+
   return 0
 }
 
