@@ -15,7 +15,7 @@ CREATE FUNCTION grest.tx_info (_tx_hashes text[])
     invalid_before word64type,
     invalid_after word64type,
     collateral_inputs jsonb,
-    collateral_outputs jsonb,
+    collateral_output jsonb,
     reference_inputs jsonb,
     inputs jsonb,
     outputs jsonb,
@@ -726,29 +726,27 @@ BEGIN
           GROUP BY payment_addr_bech32, payment_addr_cred, stake_addr, ACI.tx_hash, tx_index, value, datum_hash, inline_datum, reference_script
         ) AS tmp
       ), JSONB_BUILD_ARRAY()),
-      COALESCE((
-        SELECT JSONB_AGG(tx_collateral_outputs)
-        FROM (
-          SELECT
-            JSONB_BUILD_OBJECT(
-              'payment_addr', JSONB_BUILD_OBJECT(
-                'bech32', payment_addr_bech32,
-                'cred', payment_addr_cred
-              ),
-              'stake_addr', stake_addr,
-              'tx_hash', ACO.tx_hash,
-              'tx_index', tx_index,
-              'value', value,
-              'datum_hash', datum_hash,
-              'inline_datum', inline_datum,
-              'reference_script', reference_script,
-              'asset_list', COALESCE(JSONB_AGG(asset_list) FILTER (WHERE asset_list IS NOT NULL), JSONB_BUILD_ARRAY())
-            ) AS tx_collateral_outputs
-          FROM _all_collateral_outputs ACO
-          WHERE ACO.tx_id = ATX.id
-          GROUP BY payment_addr_bech32, payment_addr_cred, stake_addr, ACO.tx_hash, tx_index, value, datum_hash, inline_datum, reference_script
-        ) AS tmp
-      ), JSONB_BUILD_ARRAY()),
+      (
+        SELECT
+          JSONB_BUILD_OBJECT(
+            'payment_addr', JSONB_BUILD_OBJECT(
+              'bech32', payment_addr_bech32,
+              'cred', payment_addr_cred
+            ),
+            'stake_addr', stake_addr,
+            'tx_hash', ACO.tx_hash,
+            'tx_index', tx_index,
+            'value', value,
+            'datum_hash', datum_hash,
+            'inline_datum', inline_datum,
+            'reference_script', reference_script,
+            'asset_list', COALESCE(JSONB_AGG(asset_list) FILTER (WHERE asset_list IS NOT NULL), JSONB_BUILD_ARRAY())
+          ) AS tx_collateral_outputs
+        FROM _all_collateral_outputs ACO
+        WHERE ACO.tx_id = ATX.id
+        GROUP BY payment_addr_bech32, payment_addr_cred, stake_addr, ACO.tx_hash, tx_index, value, datum_hash, inline_datum, reference_script
+        LIMIT 1 -- there can only be one collateral output
+      ),
       COALESCE((
         SELECT JSONB_AGG(tx_reference_inputs)
         FROM (
