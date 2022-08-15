@@ -151,7 +151,7 @@ function chk_cache_status() {
     optexit
   else
     if [[ "${last_actvstake_epoch}" != "${epoch}" ]]; then
-      [[ -z "${GENESIS_JSON}" ]] && GENESIS_JSON="${PARENT}"/../shelley-genesis.json
+      [[ -z "${GENESIS_JSON}" ]] && GENESIS_JSON="${PARENT}"/../files/shelley-genesis.json
       epoch_length=$(jq -r .epochLength "${GENESIS_JSON}" 2>/dev/null)
       if [[ ${epoch_slot} -ge $(( epoch_length / 12 )) ]]; then
         log_err "Active Stake cache for epoch ${epoch} still not populated as of ${epoch_slot} slot, maximum tolerance was $(( epoch_length / 12 )) !!"

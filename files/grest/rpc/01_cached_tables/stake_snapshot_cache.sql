@@ -34,6 +34,15 @@ BEGIN
 
   SELECT MAX(NO) - 1 INTO _previous_epoch_no FROM PUBLIC.EPOCH;
 
+  IF NOT EXISTS (
+    SELECT i_last_tx_id from grest.epoch_info_cache
+      WHERE epoch_no = _previous_epoch_no
+      AND i_last_tx_id IS NOT NULL
+  ) THEN
+    RAISE NOTICE 'Epoch % info cache not ready, exiting.', _previous_epoch_no;
+    RETURN;
+  END IF;
+
   IF EXISTS (
     SELECT FROM grest.stake_snapshot_cache
       WHERE epoch_no = _previous_epoch_no
@@ -360,6 +369,30 @@ BEGIN
     ) ON CONFLICT (key)
     DO UPDATE
       SET last_value = _previous_epoch_no;
+
+  INSERT INTO grest.epoch_active_stake_cache
+    SELECT
+      _previous_epoch_no + 2,
+      SUM(amount)
+    FROM grest.stake_snapshot_cache
+    WHERE epoch_no = _previous_epoch_no
+    ON CONFLICT (epoch_no) DO UPDATE
+      SET amount = excluded.amount
+      WHERE epoch_active_stake_cache.amount IS DISTINCT FROM excluded.amount;
+
+  INSERT INTO grest.pool_active_stake_cache
+    SELECT
+      ph.view,
+      _previous_epoch_no + 2,
+      SUM(ssc.amount)
+    FROM grest.stake_snapshot_cache ssc
+      INNER JOIN pool_hash ph ON ph.id = ssc.pool_id
+    WHERE epoch_no = _previous_epoch_no
+    GROUP BY
+      ssc.pool_id, ph.view
+    ON CONFLICT (pool_id, epoch_no) DO UPDATE
+      SET amount = excluded.amount
+      WHERE pool_active_stake_cache.amount IS DISTINCT FROM excluded.amount;
 
   DELETE FROM grest.stake_snapshot_cache
     WHERE epoch_no <= _previous_epoch_no - 2;

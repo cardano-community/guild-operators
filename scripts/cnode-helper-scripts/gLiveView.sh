@@ -57,7 +57,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.27.1
+GLV_VERSION=v1.27.2
 
 PARENT="$(dirname $0)"
 
@@ -699,7 +699,7 @@ while true; do
     fi
 
     mem_rss="$(ps -q ${CNODE_PID} -o rss=)"
-    read -ra cpu_now <<< "$(awk '/cpu /{print $2+$4,$2+$4+$5}' /proc/stat)"
+    read -ra cpu_now <<< "$(awk '/cpu /{printf "%.f %.f", $2+$4,$2+$4+$5}' /proc/stat)"
     if [[ ${#cpu_now[@]} -eq 2 ]]; then
       if [[ ${#cpu_last[@]} -eq 2 ]]; then
         cpu_util=$(bc -l <<< "100*((${cpu_now[0]}-${cpu_last[0]})/(${cpu_now[1]}-${cpu_last[1]}))")

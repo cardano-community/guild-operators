@@ -6,6 +6,13 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.0.2] - 2022-08-13
+#### Fixed
+- Bump min cardano-hw-cli version to 1.10.0
+- Requires cardano-hw-cli to be present on online node for pool registration/modification to be able to transform tx if needed
+- Transform tx if needed before any witnessing/signing is done.
+- Wrong arguments in call to cardano-hw-cli for cddl-formatted tx
+
 ## [10.0.1] - 2022-07-14
 #### Changed
 - Transactions now built using cddl-format to ensure that the formatting of transaction adheres the ledger specs.

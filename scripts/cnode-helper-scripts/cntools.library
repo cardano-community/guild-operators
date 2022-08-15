@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=10
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=0
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=2
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -1735,6 +1735,16 @@ registerPool() {
   [[ -n ${owner_delegation_cert} ]] && build_args+=( --certificate-file "${owner_delegation_cert}" )
 
   if ! buildTx; then return 1; fi
+
+  needHWCLI=false
+  for index in "${!owner_wallets[@]}"; do
+    stake_vk_file="${WALLET_FOLDER}/${owner_wallets[${index}]}/${WALLET_STAKE_VK_FILENAME}"
+    [[ $(jq .description "${stake_vk_file}") = *Hardware* ]] && needHWCLI=true && break
+  done
+  if [[ ${needHWCLI} = true ]]; then
+    if ! HWCLIversionCheck; then return 1; fi
+    if ! transformRawTx "${TMP_DIR}"/tx.raw; then return 1; fi
+  fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Pool Registration"; then return 1; fi
@@ -1849,6 +1859,16 @@ modifyPool() {
   )
 
   if ! buildTx; then return 1; fi
+
+  needHWCLI=false
+  for index in "${!owner_wallets[@]}"; do
+    stake_vk_file="${WALLET_FOLDER}/${owner_wallets[${index}]}/${WALLET_STAKE_VK_FILENAME}"
+    [[ $(jq .description "${stake_vk_file}") = *Hardware* ]] && needHWCLI=true && break
+  done
+  if [[ ${needHWCLI} = true ]]; then
+    if ! HWCLIversionCheck; then return 1; fi
+    if ! transformRawTx "${TMP_DIR}"/tx.raw; then return 1; fi
+  fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Pool Update"; then return 1; fi
@@ -2392,11 +2412,10 @@ witnessTx() {
       return 1
     elif [[ $(jq -r '.description' "${skey}") = *"Hardware"* ]]; then # HW signing key
       if ! unlockHWDevice "witness the transaction"; then return 1; fi
-      if ! transformRawTx "${tx_raw}"; then return 1; fi
       tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
       witness_command=(
         cardano-hw-cli transaction witness
-        --tx-body-file "${tx_raw}"
+        --tx-file "${tx_raw}"
         --hw-signing-file "${skey}"
         ${NETWORK_IDENTIFIER}
         --out-file "${tx_witness}"
@@ -2457,6 +2476,9 @@ signTx() {
   tx_raw="$1"
   shift
   tx_signed="${TMP_DIR}/tx.signed_$(date +%s)"
+  if HWCLIversionCheck >/dev/null; then 
+    if ! transformRawTx "${tx_raw}"; then return 1; fi
+  fi
   if [[ $# -gt 0 ]]; then
     tx_sign_out=()
     hw_wallet='N'
@@ -2480,10 +2502,9 @@ signTx() {
     done
     if [[ ${hw_wallet} = 'Y' ]]; then
       if ! unlockHWDevice "sign the transaction"; then return 1; fi
-      if ! transformRawTx "${tx_raw}"; then return 1; fi
       sign_command=(
         cardano-hw-cli transaction sign
-        --tx-body-file "${tx_raw}"
+        --tx-file "${tx_raw}"
         ${tx_sign_out[@]}
         ${NETWORK_IDENTIFIER}
         --out-file "${tx_signed}"
@@ -2528,8 +2549,8 @@ submitTx() {
 transformRawTx() {
   tx_raw="$1"
   tx_raw_tmp="$(mktemp "${TMP_DIR}/tx.raw_XXXXXXXXXX")"
-  println ACTION "cardano-hw-cli transaction transform-raw --tx-body-file ${tx_raw} --out-file ${tx_raw_tmp}"
-  if ! cardano-hw-cli transaction transform-raw --tx-body-file "${tx_raw}" --out-file "${tx_raw_tmp}" >/dev/null; then return 1; fi
+  println ACTION "cardano-hw-cli transaction transform --tx-file ${tx_raw} --out-file ${tx_raw_tmp}"
+  if ! cardano-hw-cli transaction transform --tx-file "${tx_raw}" --out-file "${tx_raw_tmp}" >/dev/null; then return 1; fi
   println ACTION "mv ${tx_raw_tmp} ${tx_raw}"
   if ! mv "${tx_raw_tmp}" "${tx_raw}" >/dev/null; then return 1; fi
 }
@@ -2567,11 +2588,12 @@ unlockHWDevice() {
 }
 
 HWCLIversionCheck() {
+  ! command -v "cardano-hw-cli" &>/dev/null && echo "cardano-hw-cli not found, please install using prereqs.sh with -w option" && return 1
   println ACTION "cardano-hw-cli version"
   HWCLI_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
   println LOG "cardano-hw-cli version: ${HWCLI_version}"
-  if ! versionCheck "1.9.0" "${HWCLI_version}"; then
-    println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.9.0${NC} !!"
+  if ! versionCheck "1.10.0" "${HWCLI_version}"; then
+    println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.10.0${NC} !!"
     println ERROR "Please run ${FG_LGRAY}prereqs.sh -w${NC} to upgrade to the latest version."
     return 1
   fi
