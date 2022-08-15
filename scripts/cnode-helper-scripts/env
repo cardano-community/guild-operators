@@ -1006,21 +1006,23 @@ case ${NWMAGIC} in
     NETWORK_NAME="Mainnet"
     SHELLEY_TRANS_EPOCH=208
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://api.koios.rest/api/v0" ;;
-  1097911063) 
-    NETWORK_NAME="Testnet"
-    SHELLEY_TRANS_EPOCH=74
-    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://testnet.koios.rest/api/v0" ;;
+  1)
+    NETWORK_NAME="PreProd"
+    SHELLEY_TRANS_EPOCH=4
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preprod.koios.rest/api/v0";;
   141) 
     NETWORK_NAME="Guild"
     SHELLEY_TRANS_EPOCH=2
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://guild.koios.rest/api/v0" ;;
   2)
-    NETWORK_NAME="PreProd"
-    SHELLEY_TRANS_EPOCH=4
-    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preprod.koios.rest/api/v0";;
+    NETWORK_NAME="Preview"
+    SHELLEY_TRANS_EPOCH=4;;
+  1097911063) # To be retired soon
+    NETWORK_NAME="Testnet"
+    SHELLEY_TRANS_EPOCH=74
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://testnet.koios.rest/api/v0" ;;
   *) 
     NETWORK_NAME="Custom"
-    SHELLEY_TRANS_EPOCH=0
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
 esac
 
