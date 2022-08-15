@@ -1017,8 +1017,13 @@ case ${NWMAGIC} in
     NETWORK_NAME="Guild"
     SHELLEY_TRANS_EPOCH=2
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://guild.koios.rest/api/v0" ;;
+  2)
+    NETWORK_NAME="Pre-Prod"
+    SHELLEY_TRANS_EPOCH=2
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preprod.koios.rest/api/v0";;
   *) 
     NETWORK_NAME="Custom"
+    SHELLEY_TRANS_EPOCH=0
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
 esac
 
