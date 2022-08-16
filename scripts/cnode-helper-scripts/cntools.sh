@@ -217,6 +217,8 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   echo "${PROT_PARAMS}" > "${TMP_DIR}"/protparams.json
 fi
 
+test_koios
+
 # check that bash version is > 4.4.0
 [[ $(bash --version | head -n 1) =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] || myExit 1 "Unable to get BASH version"
 if ! versionCheck "4.4.0" "${BASH_REMATCH[1]}"; then
