@@ -23,6 +23,8 @@
   "TestEnableDevelopmentNetworkProtocols": true,
   "TestMaryHardForkAtEpoch": 0,
   "TestShelleyHardForkAtEpoch": 0,
+  "EnableLogging": true,
+  "EnableLogMetrics": false,
   "TraceAcceptPolicy": true,
   "TraceBlockFetchClient": false,
   "TraceBlockFetchDecisions": false,
