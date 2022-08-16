@@ -32,7 +32,7 @@ git checkout $(curl -s https://api.github.com/repos/input-output-hk/cardano-db-s
 # Use `-l` argument if you'd like to use system libsodium instead of IOG fork of libsodium while compiling
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
-The above would copy the binaries into `~/.cabal/bin` folder.
+The above would copy the `cardano-db-sync` binary into `~/.cabal/bin` folder.
 
 #### Prepare DB for sync
 
@@ -66,7 +66,7 @@ At high-level, this would involve steps as below (read and update paths as per y
 ``` bash
 
 # Replace the actual link below with the latest one from release notes
-wget https://update-cardano-mainnet.iohk.io/cardano-db-sync/12/db-sync-snapshot-schema-12-block-6764999-x86_64.tgz -O /tmp/dbsyncsnap.tgz
+wget https://update-cardano-mainnet.iohk.io/cardano-db-sync/13/db-sync-snapshot-schema-13-block-7622755-x86_64.tgz
 rm -rf ${CNODE_HOME}/guild-db/ledger-state ; mkdir -p ${CNODE_HOME}/guild-db/ledger-state
 cd -; cd ~/git/cardano-db-sync
 scripts/postgresql-setup.sh --restore-snapshot /tmp/dbsyncsnap.tgz ${CNODE_HOME}/guild-db/ledger-state

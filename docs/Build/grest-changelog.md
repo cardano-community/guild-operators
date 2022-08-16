@@ -1,5 +1,27 @@
 # Koios gRest Changelog
 
+## [1.0.7] - For all networks
+
+This release continues updates from koios-1.0.6 to further utilise stake-snapshot cache tables which would be useful for SPOs as well as reduce downtime post epoch transition.
+Additionally, koios instance providers are now recommended to use latest releases (cardano-node 1.35.3 with dbsync 13.0.4) of core components.
+
+### Changes for API 
+
+### New endpoints added
+- `pool_delegators_history` - Provides historical record for pool's delegators [#1486](https://github.com/cardano-community/guild-operators/pull/1486)
+- `pool_stake_snapshot` - Provides mark, set and go snapshot values for pool being queried. [#1489](https://github.com/cardano-community/guild-operators/pull/1489)
+
+### Data Input/Output changes
+- `pool_delegators` - No longer accepts `_epoch_no` as parameter, as it only returns live delegators. Additionally provides `latest_delegation_hash` in output. [#1486](https://github.com/cardano-community/guild-operators/pull/1486)
+- `tx_info` - `epoch` => `epoch_no` [#1494](https://github.com/cardano-community/guild-operators/pull/1494)
+- `tx_info` - Change `collateral_outputs` (array) to `collateral_output` (object) as collateral output is only singular in current implementation [#1496](https://github.com/cardano-community/guild-operators/pull/1496)
+- `address_info` - Add `inline_datum` and `reference_script` to output [#1500](https://github.com/cardano-community/guild-operators/pull/1500)
+
+### Changes for Instance Providers
+- `epoch_info_cache` - Only update last_tx_id of previous epoch on epoch transition [#1490](https://github.com/cardano-community/guild-operators/pull/1490)
+- `epoch_info_cache` / `stake_snapshot_cache` - Store total snapshot stake to epoch stake cache, and active pool stake to stake snapshot cache [#1485](https://github.com/cardano-community/guild-operators/pull/1485)
+
+
 ## [1.0.6/1.0.6m] - Interim release for all networks to upgrade to dbsync v13
 
 The backlog of items not being added to mainnet has been increasing due to delays with Vasil HFC event to Mainnet. As such we had to come up with a split update approach.
