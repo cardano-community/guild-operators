@@ -18,6 +18,7 @@
 
 SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment before we're prepared for wider networks, targetted support for dbsync 13 will be against v1.1.0. Using a gap from 1.0.1 - 1.0.5 allows for scope to have any urgent fixes required before then on alpha branch itself
 
+
 ######## Functions ########
   usage() {
     cat <<-EOF >&2
@@ -44,7 +45,7 @@ SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
   
   update_check() {
     # Check if env file is missing in current folder, note that some env functions may not be present until env is sourced successfully
-    [[ ! -f ./env ]] && echo -e "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
+    [[ ! -f ./env ]] && printf "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
     . ./env offline # Just to source checkUpdate, will be re-sourced later
     
     # Update check
@@ -54,7 +55,7 @@ SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
 
       # Check availability of checkUpdate function
       if [[ ! $(command -v checkUpdate) ]]; then
-        echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
+        printf "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!\n"
         exit 1
       fi
 
@@ -70,7 +71,7 @@ SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
 
     . "${PARENT}"/env offline &>/dev/null
     case $? in
-      1) echo -e "ERROR: Failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" && exit 1;;
+      1) printf "\nERROR: Failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub\n" && exit 1;;
       2) clear ;;
     esac
   }
@@ -84,9 +85,9 @@ SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
     [[ -z ${file_name} || ${file_name} != *.sql ]] && return
     dl_url=$(jqDecode '.download_url //empty' "${1}")
     [[ -z ${dl_url} ]] && return
-    ! rpc_sql=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && echo -e "\e[31mERROR\e[0m: download failed: ${dl_url%.json}" && return 1
-    echo -e "      Deploying Function :   \e[32m${file_name%.sql}\e[0m"
-    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<${rpc_sql} 2>&1) && echo -e "        \e[31mERROR\e[0m: ${output}"
+    ! rpc_sql=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && printf "\n \e[31mERROR\e[0m: download failed: ${dl_url%.json}" && return 1
+    printf "\n      Deploying Function :   \e[32m${file_name%.sql}\e[0m"
+    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<${rpc_sql} 2>&1) && printf "\n        \e[31mERROR\e[0m: ${output}"
   }
 
   get_cron_job_executable() {
@@ -95,10 +96,10 @@ SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
     local job_url="${URL_RAW}/files/grest/cron/jobs/${job}.sh"
     is_file "${job_path}" && rm "${job_path}"
     if curl -s -f -m "${CURL_TIMEOUT}" -o "${job_path}" "${job_url}"; then
-      echo -e "    Downloaded \e[32m${job_path}\e[0m"
+      printf "\n    Downloaded \e[32m${job_path}\e[0m"
       chmod +x "${job_path}"
     else
-      err_exit "Could not download ${job_url}"
+      err_exit "\nCould not download ${job_url}"
     fi
   }
 
@@ -327,7 +328,7 @@ SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
   deploy_monitoring_agents() {
     # Install socat to allow creating getmetrics script to listen on port
     if ! command -v socat >/dev/null; then
-      echo -e "Installing socat .."
+      printf "\nInstalling socat .."
       if command -v apt-get >/dev/null; then
         sudo apt-get -y install socat >/dev/null || err_exit "'sudo apt-get -y install socat' failed!"
       elif command -v yum >/dev/null; then
@@ -340,7 +341,7 @@ SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
     checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
     # script not available at first load
     sed -e "s@cexplorer@${PGDATABASE}@g" -i "${CNODE_HOME}"/scripts/getmetrics.sh
-    echo -e "[Re]Installing Monitoring Agent.."
+    printf "\n[Re]Installing Monitoring Agent.."
     e=!
     sudo bash -c "cat <<-EOF > ${CNODE_HOME}/scripts/grest-exporter.sh
 			#${e}/usr/bin/env bash
@@ -483,8 +484,8 @@ SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
   }
 
   deploy_systemd() {
-    echo "[Re]Deploying Services.."
-    echo -e "  PostgREST Service"
+    printf "\n[Re]Deploying Services.."
+    printf "\n  PostgREST Service"
     command -v postgrest >/dev/null && sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-postgrest.service
 			[Unit]
 			Description=REST Overlay for Postgres database
@@ -505,7 +506,7 @@ SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
 			[Install]
 			WantedBy=multi-user.target
 			EOF"
-    echo -e "  HAProxy Service"
+    printf "\n  HAProxy Service"
     command -v haproxy >/dev/null && sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-haproxy.service
 			[Unit]
 			Description=HAProxy Load Balancer
@@ -525,7 +526,7 @@ SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
 			[Install]
 			WantedBy=multi-user.target
 			EOF"
-    echo -e "  GRest Exporter Service"
+    printf "\n  GRest Exporter Service"
     [[ -f "${CNODE_HOME}"/scripts/grest-exporter.sh ]] && sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-grest_exporter.service
 			[Unit]
 			Description=Guild Rest Services Metrics Exporter
@@ -562,7 +563,7 @@ SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
     if ! basics_sql=$(curl -s -f -m "${CURL_TIMEOUT}" "${basics_sql_url}" 2>&1); then
       err_exit "Failed to get basic db setup SQL from ${basics_sql_url}"
     fi
-    echo -e "Adding grest schema if missing and granting usage for web_anon..."
+    printf "\nAdding grest schema if missing and granting usage for web_anon..."
     ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -q <<<${basics_sql} 2>&1) && err_exit "${output}"
     return 0
   }
@@ -590,7 +591,7 @@ SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
     if ! reset_sql=$(curl -s -f -m "${CURL_TIMEOUT}" "${reset_sql_url}" 2>&1); then
       err_exit "Failed to get reset grest SQL from ${reset_sql_url}."
     fi
-    echo -e "Resetting grest schema..."
+    printf "\nResetting grest schema..."
     ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -q <<<${reset_sql} 2>&1) && err_exit "${output}"
   }
 
@@ -617,17 +618,17 @@ SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
       err_exit "Please wait for Cardano DBSync to populate PostgreSQL DB at least until Alonzo fork, and then re-run this setup script with the -q flag."
     fi
 
-    echo -e "  Downloading DBSync RPC functions from Guild Operators GitHub store..."
+    printf "\n  Downloading DBSync RPC functions from Guild Operators GitHub store..."
     if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc?ref=${BRANCH} 2>&1); then
       err_exit "${rpc_file_list}"
     fi
-    echo -e "  (Re)Deploying GRest objects to DBSync..."
+    printf "\n  (Re)Deploying GRest objects to DBSync..."
     populate_genesis_table
     for row in $(jq -r '.[] | @base64' <<<${rpc_file_list}); do
       if [[ $(jqDecode '.type' "${row}") = 'dir' ]]; then
-        echo -e "\n    Downloading pSQL executions from subdir $(jqDecode '.name' "${row}")"
+        printf "\n    Downloading pSQL executions from subdir $(jqDecode '.name' "${row}")"
         if ! rpc_file_list_subdir=$(curl -s -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc/$(jqDecode '.name' "${row}")?ref=${BRANCH}"); then
-          echo -e "      \e[31mERROR\e[0m: ${rpc_file_list_subdir}" && continue
+          printf "\n      \e[31mERROR\e[0m: ${rpc_file_list_subdir}" && continue
         fi
         for row2 in $(jq -r '.[] | @base64' <<<${rpc_file_list_subdir}); do
           deployRPC ${row2}
@@ -637,9 +638,9 @@ SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
       fi
     done
     setup_cron_jobs
-    echo -e "\n  All RPC functions successfully added to DBSync! For detailed query specs and examples, visit ${API_DOCS_URL}!\n"
-    echo -e "Please restart PostgREST before attempting to use the added functions"
-    echo -e "  \e[94msudo systemctl restart ${CNODE_VNAME}-postgrest.service\e[0m\n"
+    printf "\n  All RPC functions successfully added to DBSync! For detailed query specs and examples, visit ${API_DOCS_URL}!\n"
+    printf "\nPlease restart PostgREST before attempting to use the added functions"
+    printf "\n  \e[94msudo systemctl restart ${CNODE_VNAME}-postgrest.service\e[0m\n"
   }
 
   # Description : Update the setup-grest.sh version used in the database.
