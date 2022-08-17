@@ -220,7 +220,9 @@ BEGIN
         block b
         INNER JOIN tx ON tx.block_id = b.id
       WHERE
-        b.epoch_no = _epoch_no_to_update
+        b.epoch_no <= _epoch_no_to_update
+        AND b.block_no IS NOT NULL
+        AND b.tx_count != 0
     ) last_tx
     WHERE epoch_no = _epoch_no_to_update;
   END IF;

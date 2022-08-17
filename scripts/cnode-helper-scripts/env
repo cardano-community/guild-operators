@@ -977,8 +977,8 @@ if [[ -n "${CNODE_PID}" ]]; then
 fi
 
 node_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
-if ! versionCheck "1.35.0" "${node_version}"; then
-  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.35.0 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
+if ! versionCheck "1.35.2" "${node_version}"; then
+  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.35.2 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
   return 1
 fi
 
