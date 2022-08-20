@@ -1,6 +1,6 @@
-CREATE FUNCTION grest.account_info (_stake_address text[])
+CREATE FUNCTION grest.account_info (_stake_addresses text[])
   RETURNS TABLE (
-    account varchar,
+    stake_address varchar,
     STATUS text,
     DELEGATED_POOL varchar,
     TOTAL_BALANCE text,
@@ -20,7 +20,7 @@ BEGIN
   FROM
     STAKE_ADDRESS
   WHERE
-    STAKE_ADDRESS.VIEW = ANY(_stake_address);
+    STAKE_ADDRESS.VIEW = ANY(_stake_addresses);
 
   RETURN QUERY
     WITH latest_withdrawal_txs AS (
@@ -31,7 +31,7 @@ BEGIN
       WHERE ADDR_ID = ANY(sa_id_list)
       ORDER BY addr_id, TX_ID DESC
     ),
-    latest_withdrawal_epoch AS (
+    latest_withdrawal_epochs AS (
       SELECT
         lwt.addr_id,
         b.epoch_no
@@ -41,7 +41,7 @@ BEGIN
     )
 
     SELECT
-      STATUS_T.view,
+      STATUS_T.view as stake_address,
       CASE WHEN STATUS_T.REGISTERED = TRUE THEN
         'registered'
       ELSE
@@ -157,7 +157,7 @@ BEGIN
           RESERVE
           INNER JOIN TX ON TX.ID = RESERVE.TX_ID
           INNER JOIN BLOCK ON BLOCK.ID = TX.BLOCK_ID
-          INNER JOIN latest_withdrawal_epoch lwe ON lwe.addr_id = reserve.addr_id
+          INNER JOIN latest_withdrawal_epochs lwe ON lwe.addr_id = reserve.addr_id
         WHERE
           RESERVE.ADDR_ID = ANY(sa_id_list)
           AND BLOCK.EPOCH_NO >= lwe.epoch_no
@@ -172,7 +172,7 @@ BEGIN
           TREASURY
           INNER JOIN TX ON TX.ID = TREASURY.TX_ID
           INNER JOIN BLOCK ON BLOCK.ID = TX.BLOCK_ID
-          INNER JOIN latest_withdrawal_epoch lwe ON lwe.addr_id = TREASURY.addr_id
+          INNER JOIN latest_withdrawal_epochs lwe ON lwe.addr_id = TREASURY.addr_id
         WHERE
           TREASURY.ADDR_ID = ANY(sa_id_list)
           AND BLOCK.EPOCH_NO >= lwe.epoch_no
@@ -182,5 +182,5 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION grest.account_info IS 'Get the account info of an address';
+COMMENT ON FUNCTION grest.account_info IS 'Get the account info for given stake addresses';
 

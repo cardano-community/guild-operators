@@ -39,5 +39,5 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION grest.block_txs IS 'Get all transactions contained in a block';
+COMMENT ON FUNCTION grest.block_txs IS 'Get all transactions contained in given blocks';
 

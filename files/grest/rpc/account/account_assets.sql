@@ -62,5 +62,5 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION grest.account_assets IS 'Get the native asset balance of an account';
+COMMENT ON FUNCTION grest.account_assets IS 'Get the native asset balance of given accounts';
 

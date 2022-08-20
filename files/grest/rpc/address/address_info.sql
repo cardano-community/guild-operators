@@ -102,5 +102,5 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION grest.address_info IS 'Get address info - balance, associated stake address (if any) and UTXO set';
+COMMENT ON FUNCTION grest.address_info IS 'Get bulk address info - balance, associated stake address (if any) and UTXO set';
 
