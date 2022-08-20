@@ -1,11 +1,20 @@
 CREATE FUNCTION grest.address_info (_addresses text[])
   RETURNS TABLE (
-    address text,
+    address varchar,
     info json
   )
   LANGUAGE PLPGSQL
   AS $$
+DECLARE
+  known_addresses varchar[];
 BEGIN
+  SELECT INTO known_addresses
+    ARRAY_AGG(DISTINCT(tx_out.address))
+  FROM
+    tx_out
+  WHERE
+    tx_out.address = ANY(_addresses);
+
   RETURN QUERY
     WITH _all_utxos AS (
       SELECT
@@ -27,19 +36,19 @@ BEGIN
           AND tx_in.tx_out_index = tx_out.index
       WHERE
         tx_in.id IS NULL
-        AND 
-        tx_out.address = ANY(_addresses)
+        AND
+        tx_out.address = ANY(known_addresses)
     )
 
       SELECT
-        ad.address,
+        ka.address,
         JSON_BUILD_OBJECT(
           'balance', COALESCE(SUM(au.value), '0')::text,
           'stake_address', SA.view,
           'script_address', bool_or(au.address_has_script),
-          'utxo_set', 
+          'utxo_set',
           CASE WHEN EXISTS (
-            SELECT TRUE FROM _all_utxos aus WHERE aus.address=ad.address
+            SELECT TRUE FROM _all_utxos aus WHERE aus.address = ka.address
           ) THEN
             JSON_AGG(
               JSON_BUILD_OBJECT(
@@ -91,14 +100,14 @@ BEGIN
           END
         )
       FROM
-        (SELECT UNNEST(_addresses) as address) ad
-        LEFT OUTER JOIN _all_utxos au ON ad.address = au.address
+        (SELECT UNNEST(known_addresses) as address) ka
+        LEFT OUTER JOIN _all_utxos au ON au.address = ka.address
         LEFT JOIN public.block ON block.id = au.block_id
         LEFT JOIN stake_address SA on au.stake_address_id = SA.id
         LEFT JOIN datum ON datum.id = au.inline_datum_id
         LEFT JOIN script ON script.id = au.reference_script_id
       GROUP BY
-        ad.address, SA.view;
+        ka.address, SA.view;
 END;
 $$;
 
