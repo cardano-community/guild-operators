@@ -1,57 +1,66 @@
-CREATE FUNCTION grest.account_rewards (_stake_address text, _epoch_no numeric DEFAULT NULL)
+CREATE FUNCTION grest.account_rewards (_stake_addresses text[], _epoch_no numeric DEFAULT NULL)
   RETURNS TABLE (
-    earned_epoch bigint,
-    spendable_epoch bigint,
-    amount text,
-    type rewardtype,
-    pool_id character varying
+    stake_address varchar,
+    rewards json
   )
   LANGUAGE PLPGSQL
   AS $$
 DECLARE
-  SA_ID integer DEFAULT NULL;
+  sa_id_list integer[];
 BEGIN
-  SELECT
-    STAKE_ADDRESS.ID INTO SA_ID
+  SELECT INTO sa_id_list
+    ARRAY_AGG(STAKE_ADDRESS.ID)
   FROM
     STAKE_ADDRESS
   WHERE
-    STAKE_ADDRESS.VIEW = _stake_address;
-  IF SA_ID IS NULL THEN
-    RETURN;
-  END IF;
+    STAKE_ADDRESS.VIEW = ANY(_stake_addresses);
+
   IF _epoch_no IS NULL THEN
     RETURN QUERY
-    SELECT
-      r.earned_epoch,
-      r.spendable_epoch,
-      r.amount::text,
-      r.type,
-      ph.view as pool_id
-    FROM
-      reward AS r
-    LEFT JOIN pool_hash AS ph ON r.pool_id = ph.id
-  WHERE
-    r.addr_id = SA_ID
-  ORDER BY
-    r.spendable_epoch DESC;
+      SELECT
+        sa.view,
+        JSON_AGG(
+          JSON_BUILD_OBJECT(
+          'earned_epoch', r.earned_epoch,
+          'spendable_epoch', r.spendable_epoch,
+          'amount', r.amount::text,
+          'type', r.type,
+          'pool_id', ph.view
+          )
+        ) as rewards
+      FROM
+        reward AS r
+        LEFT JOIN pool_hash AS ph ON r.pool_id = ph.id
+        INNER JOIN stake_address sa ON sa.id = r.addr_id
+      WHERE
+        r.addr_id = ANY(sa_id_list)
+      GROUP BY
+        sa.id;
   ELSE
     RETURN QUERY
-    SELECT
-      r.earned_epoch,
-      r.spendable_epoch,
-      r.amount::text,
-      r.type,
-      ph.view as pool_id
-    FROM
-      reward r
-    LEFT JOIN pool_hash ph ON r.pool_id = ph.id
-  WHERE
-    r.addr_id = SA_ID
-      AND r.earned_epoch = _epoch_no;
+      SELECT
+        sa.view,
+        JSON_AGG(
+          JSON_BUILD_OBJECT(
+            'earned_epoch', r.earned_epoch,
+            'spendable_epoch', r.spendable_epoch,
+            'amount', r.amount::text,
+            'type', r.type,
+            'pool_id', ph.view
+          )
+        ) as rewards
+      FROM
+        reward r
+        LEFT JOIN pool_hash ph ON r.pool_id = ph.id
+        INNER JOIN stake_address sa ON sa.id = r.addr_id
+      WHERE
+        r.addr_id = ANY(sa_id_list)
+        AND r.earned_epoch = _epoch_no
+      GROUP BY
+        sa.id;
   END IF;
 END;
 $$;
 
-COMMENT ON FUNCTION grest.account_rewards IS 'Get the full rewards history (including MIR) for a stake address, or certain epoch if specified';
+COMMENT ON FUNCTION grest.account_rewards IS 'Get the full rewards history (including MIR) for given stake addresses, or certain epoch if specified';
 
