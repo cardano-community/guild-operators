@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS grest.epoch_info_cache (
   i_last_block_time numeric UNIQUE NOT NULL,
   i_total_rewards lovelace DEFAULT NULL,
   i_avg_blk_reward lovelace DEFAULT NULL,
+  i_last_tx_id bigint DEFAULT NULL,
   p_min_fee_a word31type NULL,
   p_min_fee_b word31type NULL,
   p_max_block_size word31type NULL,
@@ -93,7 +94,7 @@ BEGIN
 
     IF _curr_epoch = _latest_epoch_no_in_cache THEN
       RAISE NOTICE 'Updating latest epoch info in cache...';
-      PERFORM grest.UPDATE_LATEST_EPOCH_INFO_CACHE(_latest_epoch_no_in_cache);
+      PERFORM grest.UPDATE_LATEST_EPOCH_INFO_CACHE(_curr_epoch, _latest_epoch_no_in_cache);
       RETURN;
     END IF;
 
@@ -104,7 +105,7 @@ BEGIN
 
     RAISE NOTICE 'Updating cache with new epoch(s) data...';
     -- We need to update last epoch one last time before going to new one
-    PERFORM grest.UPDATE_LATEST_EPOCH_INFO_CACHE(_latest_epoch_no_in_cache);
+    PERFORM grest.UPDATE_LATEST_EPOCH_INFO_CACHE(_curr_epoch, _latest_epoch_no_in_cache);
     -- Populate rewards data for epoch n - 2
     PERFORM grest.UPDATE_TOTAL_REWARDS_EPOCH_INFO_CACHE(_latest_epoch_no_in_cache - 1);
     -- Continue new epoch data insert
@@ -132,6 +133,7 @@ BEGIN
         WHEN e.no <= _curr_epoch THEN ROUND(reward_pot.amount / e.blk_count)
         ELSE NULL
       END AS i_avg_blk_reward, 
+      last_tx.tx_id AS i_last_tx_id,
       ep.min_fee_a AS p_min_fee_a,
       ep.min_fee_b AS p_min_fee_b,
       ep.max_block_size AS p_max_block_size,
@@ -179,6 +181,16 @@ BEGIN
         GROUP BY
           e.no
       ) reward_pot ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT
+          MAX(tx.id) AS tx_id
+        FROM
+          block b
+          INNER JOIN tx ON tx.block_id = b.id
+        WHERE
+          b.epoch_no = e.no
+          AND b.epoch_no <> _curr_epoch
+      ) last_tx ON TRUE
     WHERE
       e.no >= _epoch_no_to_insert_from
     ORDER BY
@@ -189,11 +201,32 @@ END;
 $$;
 
 -- Helper function for updating current epoch data
-CREATE FUNCTION grest.UPDATE_LATEST_EPOCH_INFO_CACHE (_epoch_no_to_update bigint)
+CREATE FUNCTION grest.UPDATE_LATEST_EPOCH_INFO_CACHE (_curr_epoch bigint, _epoch_no_to_update bigint)
   RETURNS void
   LANGUAGE plpgsql
   AS $$
 BEGIN
+
+  -- only update last tx id in case of new epoch
+  IF _curr_epoch <> _epoch_no_to_update THEN
+    UPDATE
+      grest.epoch_info_cache
+    SET
+      i_last_tx_id = last_tx.tx_id
+    FROM (
+      SELECT
+        MAX(tx.id) AS tx_id
+      FROM
+        block b
+        INNER JOIN tx ON tx.block_id = b.id
+      WHERE
+        b.epoch_no <= _epoch_no_to_update
+        AND b.block_no IS NOT NULL
+        AND b.tx_count != 0
+    ) last_tx
+    WHERE epoch_no = _epoch_no_to_update;
+  END IF;
+
   UPDATE
     grest.epoch_info_cache
   SET

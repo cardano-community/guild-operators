@@ -1,6 +1,3 @@
---------------------------------------------------------------------------------
--- Pool active stake cache setup
---------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS GREST.POOL_ACTIVE_STAKE_CACHE (
   POOL_ID varchar NOT NULL,
   EPOCH_NO bigint NOT NULL,
@@ -63,7 +60,6 @@ $$;
 COMMENT ON FUNCTION grest.active_stake_cache_update_check
   IS 'Internal function to determine whether active stake cache should be updated';
 
-/* UPDATE FUNCTION */
 CREATE FUNCTION grest.active_stake_cache_update (_epoch_no integer)
   RETURNS VOID
   LANGUAGE plpgsql
@@ -112,8 +108,7 @@ $$
         PUBLIC.EPOCH_STAKE
         INNER JOIN PUBLIC.POOL_HASH ON POOL_HASH.ID = EPOCH_STAKE.POOL_ID
       WHERE
-        -- no need to worry about epoch 0 as no stake then
-        EPOCH_STAKE.EPOCH_NO > _last_pool_active_stake_cache_epoch_no
+        EPOCH_STAKE.EPOCH_NO >= _last_pool_active_stake_cache_epoch_no
           AND
         EPOCH_STAKE.EPOCH_NO <= _epoch_no
       GROUP BY
@@ -123,7 +118,8 @@ $$
       POOL_ID,
       EPOCH_NO
     ) DO UPDATE
-      SET AMOUNT = EXCLUDED.AMOUNT;
+      SET AMOUNT = EXCLUDED.AMOUNT
+      WHERE POOL_ACTIVE_STAKE_CACHE.AMOUNT IS DISTINCT FROM EXCLUDED.AMOUNT;
     
     /* EPOCH ACTIVE STAKE CACHE */
     SELECT
@@ -139,7 +135,7 @@ $$
       FROM
         PUBLIC.EPOCH_STAKE
       WHERE
-        EPOCH_STAKE.EPOCH_NO > _last_epoch_active_stake_cache_epoch_no
+        EPOCH_STAKE.EPOCH_NO >= _last_epoch_active_stake_cache_epoch_no
           AND
         EPOCH_STAKE.EPOCH_NO <= _epoch_no
       GROUP BY
@@ -147,7 +143,8 @@ $$
       ON CONFLICT (
         EPOCH_NO
       ) DO UPDATE
-        SET AMOUNT = EXCLUDED.AMOUNT;
+        SET AMOUNT = EXCLUDED.AMOUNT
+        WHERE EPOCH_ACTIVE_STAKE_CACHE.AMOUNT IS DISTINCT FROM EXCLUDED.AMOUNT;
 
     /* ACCOUNT ACTIVE STAKE CACHE */
     SELECT

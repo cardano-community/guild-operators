@@ -53,8 +53,8 @@ pre_startup_sanity() {
        echo "ERROR: A Cardano node is already running, please terminate this node before starting a new one with this script."
        exit 1
     else
-      echo "WARN: A prior running Cardano node was not cleanly shutdown, socket file still exists. Cleaning up."
       unlink "${CARDANO_NODE_SOCKET_PATH}"
+      echo "INFO: Cleaned-up stale socket file"
     fi
   fi
   # Move logs to archive
@@ -65,6 +65,8 @@ stop_node() {
   CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.--port ${CNODE_PORT}" 2>/dev/null) # env was only called in offline mode
   kill -2 ${CNODE_PID} 2>/dev/null
   # touch clean "${CNODE_HOME}"/db/clean # Disabled as it's a bit hacky, but only runs when SIGINT is passed to node process. Should not be needed if node does it's job
+  printf "  Sending SIGINT to cardano-node process.."
+  sleep 5
   exit 0
 }
 
@@ -86,7 +88,7 @@ deploy_systemd() {
 	LimitNOFILE=1048576
 	WorkingDirectory=${CNODE_HOME}/scripts
 	ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cnode.sh\"
-	ExecStop=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts.cnode.sh -s\"
+	ExecStop=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cnode.sh -s\"
 	KillSignal=SIGINT
 	SuccessExitStatus=143
 	SyslogIdentifier=${CNODE_VNAME}

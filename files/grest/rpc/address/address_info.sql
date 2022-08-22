@@ -34,6 +34,25 @@ BEGIN
           'block_time', EXTRACT(epoch from block.time)::integer,
           'value', tx_out.value::text,
           'datum_hash', ENCODE(tx_out.data_hash, 'hex'),
+          'inline_datum', ( CASE WHEN tx_out.inline_datum_id IS NULL THEN NULL
+            ELSE
+              JSONB_BUILD_OBJECT(
+                'bytes', ENCODE(datum.bytes, 'hex'),
+                'value', datum.value
+              )
+            END
+          ),
+          'reference_script', ( CASE WHEN tx_out.reference_script_id IS NULL THEN NULL
+            ELSE
+              JSONB_BUILD_OBJECT(
+                'hash', ENCODE(script.hash, 'hex'),
+                'bytes', ENCODE(script.bytes, 'hex'),
+                'value', script.json,
+                'type', script.type::text,
+                'size', script.serialised_size
+              )
+            END
+          ),
           'asset_list', COALESCE(
             (
               SELECT
@@ -61,6 +80,8 @@ BEGIN
     LEFT JOIN public.tx_in ON tx_in.tx_out_id = tx_out.tx_id
       AND tx_in.tx_out_index = tx_out.index
     LEFT JOIN stake_address SA on tx_out.stake_address_id = SA.id
+    LEFT JOIN datum ON datum.id = tx_out.inline_datum_id
+    LEFT JOIN script ON script.id = tx_out.reference_script_id
   WHERE
     tx_in.id IS NULL
     AND 
