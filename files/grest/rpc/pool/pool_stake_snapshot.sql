@@ -1,7 +1,7 @@
 CREATE FUNCTION grest.pool_stake_snapshot (_pool_bech32 text)
   RETURNS TABLE (
     snapshot text,
-    epoch_no word31type,
+    epoch_no bigint,
     nonce text,
     pool_stake text,
     active_stake text
