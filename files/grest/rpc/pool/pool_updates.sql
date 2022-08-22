@@ -14,6 +14,7 @@ CREATE FUNCTION grest.pool_updates (_pool_bech32 text DEFAULT NULL)
         relays jsonb [],
         meta_url character varying,
         meta_hash text,
+        meta_json jsonb,
         pool_status text,
         retiring_epoch word31type
     )
@@ -37,10 +38,12 @@ BEGIN
         relays,
         meta_url,
         meta_hash,
+        pod.json,
         pool_status,
         retiring_epoch
     FROM
-        grest.pool_info_cache
+        grest.pool_info_cache pic
+        LEFT JOIN public.pool_offline_data pod ON pod.id = pic.meta_id 
     WHERE
         _pool_bech32 IS NULL
         OR
