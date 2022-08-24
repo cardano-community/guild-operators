@@ -939,14 +939,14 @@ curl -sS -o prereqs.sh https://raw.githubusercontent.com/cardano-community/guild
 chmod <span class="m">755</span> prereqs.sh
 </code></pre></div>
 <p>Please familiarise with the syntax of <code>prereqs.sh</code> before proceeding. The usage syntax can be checked using <code>./prereqs.sh -h</code> , sample output below:</p>
-<div class="highlight"><pre><span></span><code>Usage: prereqs.sh <span class="o">[</span>-f<span class="o">]</span> <span class="o">[</span>-s<span class="o">]</span> <span class="o">[</span>-i<span class="o">]</span> <span class="o">[</span>-l<span class="o">]</span> <span class="o">[</span>-c<span class="o">]</span> <span class="o">[</span>-w<span class="o">]</span> <span class="o">[</span>-o<span class="o">]</span> <span class="o">[</span>-b &lt;branch&gt;<span class="o">]</span> <span class="o">[</span>-n &lt;mainnet<span class="p">|</span>testnet<span class="p">|</span>guild<span class="p">|</span>staging&gt;<span class="o">]</span> <span class="o">[</span>-t &lt;name&gt;<span class="o">]</span> <span class="o">[</span>-m &lt;seconds&gt;<span class="o">]</span>
-Install pre-requisites <span class="k">for</span> building cardano-node and using CNTools
+<div class="highlight"><pre><span></span><code>Usage: prereqs.sh <span class="o">[</span>-f<span class="o">]</span> <span class="o">[</span>-s<span class="o">]</span> <span class="o">[</span>-i<span class="o">]</span> <span class="o">[</span>-l<span class="o">]</span> <span class="o">[</span>-c<span class="o">]</span> <span class="o">[</span>-w<span class="o">]</span> <span class="o">[</span>-o<span class="o">]</span> <span class="o">[</span>-b &lt;branch&gt;<span class="o">]</span> <span class="o">[</span>-n &lt;mainnet<span class="p">|</span>preprod<span class="p">|</span>guild<span class="p">|</span>preview&gt;<span class="o">]</span> <span class="o">[</span>-t &lt;name&gt;<span class="o">]</span> <span class="o">[</span>-m &lt;seconds&gt;<span class="o">]</span>
+Install pre-requisites <span class="k">for</span> building cardano node and using CNTools
 
 -f    Force overwrite of all files including normally saved user config sections <span class="k">in</span> env, cnode.sh and gLiveView.sh
       topology.json, config.json and genesis files normally saved will also be overwritten
 -s    Skip installing OS level dependencies <span class="o">(</span>Default: will check and install any missing OS level prerequisites<span class="o">)</span>
--n    Connect to specified network <span class="o">(</span>mainnet <span class="p">|</span> guild <span class="p">|</span> testnet <span class="p">|</span> staging<span class="o">)</span> <span class="o">(</span>Default: mainnet<span class="o">)</span>
-      eg: -n testnet
+-n    Connect to specified network instead of mainnet network <span class="o">(</span>Default: connect to cardano mainnet network<span class="o">)</span>
+      eg: -n guild
 -t    Alternate name <span class="k">for</span> top level folder, non alpha-numeric chars will be replaced with underscore <span class="o">(</span>Default: cnode<span class="o">)</span>
 -m    Maximum <span class="nb">time</span> <span class="k">in</span> seconds that you allow the file download operation to take before aborting <span class="o">(</span>Default: 60s<span class="o">)</span>
 -l    Use system libsodium instead of IOG fork <span class="o">(</span>Default: use libsodium from IOG fork<span class="o">)</span>

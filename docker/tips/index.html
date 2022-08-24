@@ -1010,7 +1010,7 @@
 <div class="highlight"><pre><span></span><code>docker run -itd  
 -name Relay                                   <span class="c1"># Optional (recommended for quick access): set a name for your newly created container.</span>
 -p <span class="m">9000</span>:6000                                  <span class="c1"># Optional: to expose the internal container&#39;s port (6000) to the host &lt;IP&gt; port 9000</span>
--e <span class="nv">NETWORK</span><span class="o">=</span>mainnet                            <span class="c1"># Mandatory: mainnet / testnet / staging / guild-mainnet / guild</span>
+-e <span class="nv">NETWORK</span><span class="o">=</span>mainnet                            <span class="c1"># Mandatory: mainnet / testnet / preprod / guild-mainnet / guild</span>
 --security-opt<span class="o">=</span>no-new-privileges              <span class="c1"># Option to prevent privilege escalations</span>
 -v &lt;YourNetPath&gt;:/opt/cardano/cnode/sockets   <span class="c1"># Optional: useful to share the node socket with other containers</span>
 -v &lt;YourCfgPath&gt;:/opt/cardano/cnode/priv      <span class="c1"># Optional: if used has to contain all the sensitive keys needed to run a node as core</span>
