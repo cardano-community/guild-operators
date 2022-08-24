@@ -19,7 +19,7 @@
 # Do NOT modify code below           #
 ######################################
 
-BP_VERSION=v1.1.0
+BP_VERSION=v1.2.0
 
 deploy_systemd() {
   echo "Deploying ${CNODE_VNAME} blockPerf as systemd service.."
@@ -73,11 +73,6 @@ while getopts :ds opt; do
   esac
 done
 
-# check if the script is not already running (service and console) 
-if [[ $(pgrep -fl blockPerf.sh | wc -l ) -gt 2 ]]; then
-    echo "WARN: This script is already running (probably as a service)" && exit 1
-fi
-
 if [ -z "$CONFIG" ]; then
   # in CNTools environments just let the script determine config, logfile, parameters
   [[ -f "$(dirname $0)"/env ]] &&  . "$(dirname $0)"/env offline
@@ -114,18 +109,31 @@ else
   echo "ERROR: Failed to locate json configuration file" && exit 1
 fi
 
-case ${NWMAGIC} in  # simple-static way to convert slotnumber <=> unixtime (works as slong as slot time remain 1sec)
+# simple-static way to convert slotnumber <=> unixtime (works as slong as slot time is 1sec)
+case ${NWMAGIC} in  
+  1) 
+    [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="PreView"
+    NETWORK_UTIME_OFFSET=1660003200;;  
+  2) 
+    [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="PreView"
+    NETWORK_UTIME_OFFSET=1655683200;;
   764824073) 
     [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Mainnet"
-    NETWORK_UTIME_OFFSET=1591566291;;
-  1097911063) 
-    [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Testnet"
-    NETWORK_UTIME_OFFSET=1594372816;;
+    NETWORK_UTIME_OFFSET=1591566291;; 
   *)
-    echo "ERROR: Currently only Mainnet and Testnet are supported" && exit 1
+    echo "ERROR: Currently only Mainnet, PreProd and PreView are supported" && exit 1
 esac
 
-echo "INFO parsing ${logfile} for ${NETWORK_NAME} ${NWMAGIC} blocks..." 
+# check if the script is not already running (service and console) 
+pidfile=${CNODE_HOME}/blockPerf-${NETWORK_NAME}.pid
+if [[ -f ${pidfile} ]]; then
+    echo "WARN: This script is already running on this node for ${NETWORK_NAME} network (probably as a service)" && exit 1
+else
+	trap "rm -f -- '$pidfile'" EXIT
+	echo $! > $pidfile
+fi
+
+echo "INFO parsing ${logfile} for ${NETWORK_NAME} blocks (networkmagic: ${NWMAGIC})"
 
 # on (re)start wait until node metrics become available
 while true [ -z $(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r '.cardano.node.metrics.blockNum.int.val //0') ]
@@ -192,7 +200,8 @@ do
                  .data.peer.remote.addr //0,
                  .data.peer.remote.port //0,
                  .data.delay //0,
-                 .data.size //0
+                 .data.size //0,
+                 .env //0
                  ] | @tsv' <<< "${blockLogLine}")
                 read -ra line_data_arr <<< ${line_tsv}
                 [ -z "$blockTimeCbf" ] && blockTimeCbf=$(date -d ${line_data_arr[0]} +"%F %T,%3N")
@@ -200,6 +209,7 @@ do
                 [ -z "$blockTimeCbfPort" ] && blockTimeCbfPort=${line_data_arr[2]}
                 [ -z "$blockDelay" ] && blockDelay=${line_data_arr[3]}
                 [ -z "$blockSize" ] && blockSize=${line_data_arr[4]}
+                [ -z "$BPenv" ] && envBP=${line_data_arr[5]}
                 missingCbf=false
               fi
               ;;
@@ -241,7 +251,7 @@ do
           echo "WARN: blockheight:${iblockHeight} (negative delta) tbh:${blockTimeTbh} ${deltaSlotTbh} sfr:${blockTimeSfr} ${deltaTbhSfr} cbf:${blockTimeCbf} ${deltaSfrCbf} ab:${blockTimeAb} ${deltaCbfAb}" 
         else
           if [[ "${deltaSlotTbh}" -lt 10000 ]] && [[ "$((blockSlot-slotHeightPrev))" -lt 200 ]]; then
-            [[ ${SELFISH_MODE} != "Y" ]] && result=$(curl -4 -s "https://api.clio.one/blocklog/v1/?magic=${NWMAGIC}&bpv=${BP_VERSION}&bn=${iblockHeight}&slot=${blockSlot}&tbh=${deltaSlotTbh}&sfr=${deltaTbhSfr}&cbf=${deltaSfrCbf}&ab=${deltaCbfAb}&size=${blockSize}&addr=${blockTimeCbfAddrPublic}&port=${blockTimeCbfPortPublic}&bh=${blockHash}" &)
+            [[ ${SELFISH_MODE} != "Y" ]] && result=$(curl -4 -s "https://api.clio.one/blocklog/v1/?magic=${NWMAGIC}&bpv=${BP_VERSION}&bn=${iblockHeight}&slot=${blockSlot}&tbh=${deltaSlotTbh}&sfr=${deltaTbhSfr}&cbf=${deltaSfrCbf}&ab=${deltaCbfAb}&size=${blockSize}&addr=${blockTimeCbfAddrPublic}&port=${blockTimeCbfPortPublic}&bh=${blockHash}&bpenv=${envBP}" &)
             [[ ${SERVICE_MODE} != "Y" ]] && echo -e "${FG_YELLOW}Block:.... ${iblockHeight} (${blockHash:0:7}...)\n${NC} Slot..... ${blockSlot} (+$((blockSlot-slotHeightPrev))s)\n ......... ${blockSlotTime}\n Header... ${blockTimeTbh} (+${deltaSlotTbh} ms)\n Request.. ${blockTimeSfr} (+${deltaTbhSfr} ms)\n Block.... ${blockTimeCbf} (+${deltaSfrCbf} ms)\n Adopted.. ${blockTimeAb} (+${deltaCbfAb} ms)\n Size..... ${blockSize} bytes\n delay.... ${blockDelay} sec\n From..... ${blockTimeCbfAddr}:${blockTimeCbfPort}"
           else
             # skip block reporting while node is synching up
