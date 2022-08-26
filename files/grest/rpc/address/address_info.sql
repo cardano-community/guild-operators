@@ -1,7 +1,10 @@
 CREATE FUNCTION grest.address_info (_addresses text[])
   RETURNS TABLE (
     address varchar,
-    info json
+    balance text,
+    stake_address character varying,
+    script_address boolean,
+    utxo_set json
   )
   LANGUAGE PLPGSQL
   AS $$
@@ -42,63 +45,60 @@ BEGIN
 
       SELECT
         ka.address,
-        JSON_BUILD_OBJECT(
-          'balance', COALESCE(SUM(au.value), '0')::text,
-          'stake_address', SA.view,
-          'script_address', bool_or(au.address_has_script),
-          'utxo_set',
-          CASE WHEN EXISTS (
-            SELECT TRUE FROM _all_utxos aus WHERE aus.address = ka.address
-          ) THEN
-            JSON_AGG(
-              JSON_BUILD_OBJECT(
-                'tx_hash', ENCODE(au.hash, 'hex'), 
-                'tx_index', au.index,
-                'block_height', block.block_no,
-                'block_time', EXTRACT(epoch from block.time)::integer,
-                'value', au.value::text,
-                'datum_hash', ENCODE(au.data_hash, 'hex'),
-                'inline_datum', ( CASE WHEN au.inline_datum_id IS NULL THEN NULL
-                  ELSE
-                    JSONB_BUILD_OBJECT(
-                      'bytes', ENCODE(datum.bytes, 'hex'),
-                      'value', datum.value
-                    )
-                  END
+        COALESCE(SUM(au.value), '0')::text AS balance,
+        SA.view as stake_address,
+        bool_or(au.address_has_script) as script_address,
+        CASE WHEN EXISTS (
+          SELECT TRUE FROM _all_utxos aus WHERE aus.address = ka.address
+        ) THEN
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'tx_hash', ENCODE(au.hash, 'hex'), 
+              'tx_index', au.index,
+              'block_height', block.block_no,
+              'block_time', EXTRACT(epoch from block.time)::integer,
+              'value', au.value::text,
+              'datum_hash', ENCODE(au.data_hash, 'hex'),
+              'inline_datum', ( CASE WHEN au.inline_datum_id IS NULL THEN NULL
+                ELSE
+                  JSONB_BUILD_OBJECT(
+                    'bytes', ENCODE(datum.bytes, 'hex'),
+                    'value', datum.value
+                  )
+                END
+              ),
+              'reference_script', ( CASE WHEN au.reference_script_id IS NULL THEN NULL
+                ELSE
+                  JSONB_BUILD_OBJECT(
+                    'hash', ENCODE(script.hash, 'hex'),
+                    'bytes', ENCODE(script.bytes, 'hex'),
+                    'value', script.json,
+                    'type', script.type::text,
+                    'size', script.serialised_size
+                  )
+                END
+              ),
+              'asset_list', COALESCE(
+                (
+                  SELECT
+                    JSON_AGG(JSON_BUILD_OBJECT(
+                      'policy_id', ENCODE(MA.policy, 'hex'),
+                      'asset_name', ENCODE(MA.name, 'hex'),
+                      'quantity', MTX.quantity::text
+                      ))
+                  FROM
+                      ma_tx_out MTX
+                      INNER JOIN multi_asset MA ON MA.id = MTX.ident
+                  WHERE
+                      MTX.tx_out_id = au.id
                 ),
-                'reference_script', ( CASE WHEN au.reference_script_id IS NULL THEN NULL
-                  ELSE
-                    JSONB_BUILD_OBJECT(
-                      'hash', ENCODE(script.hash, 'hex'),
-                      'bytes', ENCODE(script.bytes, 'hex'),
-                      'value', script.json,
-                      'type', script.type::text,
-                      'size', script.serialised_size
-                    )
-                  END
-                ),
-                'asset_list', COALESCE(
-                  (
-                    SELECT
-                      JSON_AGG(JSON_BUILD_OBJECT(
-                        'policy_id', ENCODE(MA.policy, 'hex'),
-                        'asset_name', ENCODE(MA.name, 'hex'),
-                        'quantity', MTX.quantity::text
-                        ))
-                    FROM
-                        ma_tx_out MTX
-                        INNER JOIN multi_asset MA ON MA.id = MTX.ident
-                    WHERE
-                        MTX.tx_out_id = au.id
-                  ),
-                  JSON_BUILD_ARRAY()
-                )
+                JSON_BUILD_ARRAY()
               )
             )
-          ELSE
-            '[]'::json
-          END
-        )
+          )
+        ELSE
+          '[]'::json
+        END as utxo_set
       FROM
         (SELECT UNNEST(known_addresses) as address) ka
         LEFT OUTER JOIN _all_utxos au ON au.address = ka.address
