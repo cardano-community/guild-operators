@@ -4348,11 +4348,11 @@ function main {
                     if [[ ${selection_arr[2]} = *"base" ]]; then 
                       addr=${base_addr}
                       wallet_source="base"
-                      asset_amount=${base_assets[${asset}]}
+                      curr_asset_amount=${base_assets[${asset}]}
                     else
                       addr=${pay_addr}
                       wallet_source="enterprise"
-                      asset_amount=${pay_assets[${asset}]}
+                      curr_asset_amount=${pay_assets[${asset}]}
                     fi
                     echo
                     
@@ -4376,12 +4376,12 @@ function main {
                     policy_ttl=$(jq -r '.scripts[0].slot //0' "${policy_script_file}")
                     [[ ${policy_ttl} -gt 0 && ${policy_ttl} -lt $(getSlotTipRef) ]] && println ERROR "${FG_RED}ERROR${NC}: Policy expired!" && waitForInput && continue
                     # ask amount to burn
-                    println DEBUG "Available assets to burn: ${FG_LBLUE}$(formatAsset "${asset_amount}")${NC}\n"
+                    println DEBUG "Available assets to burn: ${FG_LBLUE}$(formatAsset "${curr_asset_amount}")${NC}\n"
                     getAnswerAnyCust assets_to_burn "Amount (commas allowed as thousand separator)"
                     assets_to_burn="${assets_to_burn//,}"
-                    [[ ${assets_to_burn} = "all" ]] && assets_to_burn=${asset_amount}
+                    [[ ${assets_to_burn} = "all" ]] && assets_to_burn=${curr_asset_amount}
                     if ! isNumber ${assets_to_burn}; then println ERROR "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue; fi
-                    [[ ${assets_to_burn} -gt ${asset_amount} ]] && println ERROR "${FG_RED}ERROR${NC}: Amount exceeding assets in address, you can only burn ${FG_LBLUE}$(formatAsset "${asset_amount}")${NC}" && waitForInput && continue
+                    [[ ${assets_to_burn} -gt ${curr_asset_amount} ]] && println ERROR "${FG_RED}ERROR${NC}: Amount exceeding assets in address, you can only burn ${FG_LBLUE}$(formatAsset "${asset_amount}")${NC}" && waitForInput && continue
                     asset_minted=$(( $(jq -r .minted "${asset_file}") - assets_to_burn ))
                     # Attach metadata?
                     metafile_param=""
@@ -4416,7 +4416,7 @@ function main {
                     [[ ${asset_name} = '.' ]] && asset_name_hex="" || asset_name_hex=" ($(asciiToHex "${asset_name}"))"
                     println "Asset Name          : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY}${asset_name_hex}${NC}"
                     println "Burned              : ${FG_LBLUE}$(formatAsset ${assets_to_burn})${NC}"
-                    println "Left in Address     : ${FG_LBLUE}$(formatAsset $(( asset_amount - assets_to_burn )))${NC}"
+                    println "Left in Address     : ${FG_LBLUE}$(formatAsset $(( curr_asset_amount - assets_to_burn )))${NC}"
                     println "Left in Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)"
                     waitForInput && continue
                     ;; ###################################################################
