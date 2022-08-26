@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=10
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=0
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=3
+CNTOOLS_PATCH_VERSION=4
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -2192,13 +2192,13 @@ mintAsset() {
   fi
   
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".$(asciiToHex "${asset_name}")"
-  getAssetsTxOut "${policy_id}${asset_name_out}" "${asset_amount}"
+  getAssetsTxOut "${policy_id}${asset_name_out}" "${assets_to_mint}"
   
   build_args=(
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
-    --mint "${asset_amount} ${policy_id}${asset_name_out}"
-    --minting-script-file "${policy_script_file}"
+    --mint "${assets_to_mint} ${policy_id}${asset_name_out}"
+    --mint-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee 0
@@ -2241,8 +2241,8 @@ mintAsset() {
   build_args=(
     ${tx_in}
     --tx-out "${tx_out}"
-    --mint "${asset_amount} ${policy_id}${asset_name_out}"
-    --minting-script-file "${policy_script_file}"
+    --mint "${assets_to_mint} ${policy_id}${asset_name_out}"
+    --mint-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
@@ -2257,7 +2257,7 @@ mintAsset() {
     if ! offlineJSON=$(jq ". += { \"policy-name\": \"${policy_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"policy-id\": \"${policy_id}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"asset-name\": \"$(asciiToHex "${asset_name}") (${asset_name})\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"asset-amount\": \"${asset_amount}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"asset-amount\": \"${assets_to_mint}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"asset-minted\": \"${asset_minted}\" }" <<< ${offlineJSON}); then return 1; fi
     if [[ -n ${metafile_param} ]]; then
       if ! offlineJSON=$(jq ". += { metadata: $(jq -c . "${metafile}") }" <<< ${offlineJSON}); then return 1; fi
@@ -2303,7 +2303,7 @@ burnAsset() {
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --mint "-${assets_to_burn} ${policy_id}${asset_name_out}"
-    --minting-script-file "${policy_script_file}"
+    --mint-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee 0
@@ -2347,7 +2347,7 @@ burnAsset() {
     ${tx_in}
     --tx-out "${tx_out}"
     --mint "-${assets_to_burn} ${policy_id}${asset_name_out}"
-    --minting-script-file "${policy_script_file}"
+    --mint-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}

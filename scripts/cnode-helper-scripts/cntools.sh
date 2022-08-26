@@ -4197,11 +4197,11 @@ function main {
                     [[ ${#asset_name} -gt 32 ]] && println ERROR "${FG_RED}ERROR${NC}: Asset name is limited to 32 chars in length!" && waitForInput && continue
                     asset_file="${policy_folder}/${asset_name}.asset"
                     echo
-                    getAnswerAnyCust asset_amount "Amount (commas allowed as thousand separator)"
-                    asset_amount="${asset_amount//,}"
-                    [[ -z "${asset_amount}" ]] && println ERROR "${FG_RED}ERROR${NC}: Amount empty, please set a valid integer number!" && waitForInput && continue
-                    if ! isNumber ${asset_amount}; then println ERROR "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue; fi
-                    [[ -f "${asset_file}" ]] && asset_minted=$(( $(jq -r .minted "${asset_file}") + asset_amount )) || asset_minted=${asset_amount}
+                    getAnswerAnyCust assets_to_mint "Amount (commas allowed as thousand separator)"
+                    assets_to_mint="${assets_to_mint//,}"
+                    [[ -z "${assets_to_mint}" ]] && println ERROR "${FG_RED}ERROR${NC}: Amount empty, please set a valid integer number!" && waitForInput && continue
+                    if ! isNumber ${assets_to_mint}; then println ERROR "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue; fi
+                    [[ -f "${asset_file}" ]] && asset_minted=$(( $(jq -r .minted "${asset_file}") + assets_to_mint )) || asset_minted=${assets_to_mint}
                     metafile_param=""
                     println DEBUG "\nDo you want to attach a metadata JSON file to the minting transaction?"
                     select_opt "[n] No" "[y] Yes"
@@ -4281,7 +4281,7 @@ function main {
                     [[ -z ${asset_name} ]] && asset_name="."
                     [[ ${asset_name} = '.' ]] && asset_name_hex="" || asset_name_hex=" ($(asciiToHex "${asset_name}"))"
                     println "Asset Name     : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY}${asset_name_hex}${NC}"
-                    println "Minted         : ${FG_LBLUE}$(formatAsset ${asset_amount})${NC}"
+                    println "Minted         : ${FG_LBLUE}$(formatAsset ${assets_to_mint})${NC}"
                     println "In Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)"
                     waitForInput && continue
                     ;; ###################################################################
