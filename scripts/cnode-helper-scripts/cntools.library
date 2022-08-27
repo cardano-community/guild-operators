@@ -657,15 +657,15 @@ getAssetInfo() {
 
     read -ra asset_info_arr <<< ${asset_info_tsv}
 
-    a_asset_name_ascii=${pool_info_arr[0]}
-    a_fingerprint=${pool_info_arr[1]}
-    a_minting_tx_hash=${pool_info_arr[2]}
-    a_total_supply=${pool_info_arr[3]}
-    a_mint_cnt=${pool_info_arr[4]}
-    a_burn_cnt=${pool_info_arr[5]}
-    a_creation_time=${pool_info_arr[6]}
-    a_minting_tx_metadata=${pool_info_arr[7]}
-    a_token_registry_metadata=${pool_info_arr[8]}
+    a_asset_name_ascii=${asset_info_arr[0]}
+    a_fingerprint=${asset_info_arr[1]}
+    a_minting_tx_hash=${asset_info_arr[2]}
+    a_total_supply=${asset_info_arr[3]}
+    a_mint_cnt=${asset_info_arr[4]}
+    a_burn_cnt=${asset_info_arr[5]}
+    a_creation_time=${asset_info_arr[6]}
+    a_minting_tx_metadata=${asset_info_arr[7]}
+    a_token_registry_metadata=${asset_info_arr[8]}
   fi
 }
 
