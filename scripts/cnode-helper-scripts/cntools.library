@@ -627,6 +627,48 @@ isPoolRegistered() {
   fi
 }
 
+# Command     : getAssetInfo [policy_id] [asset_name_hex]
+# Description : Query Koios for asset information.
+# Return      : 0: data saved in asset_<koios_field>
+#               1: on error ($error_msg contains error message)
+#               2: offline/disabled/no result
+getAssetInfo() {
+  unset 
+  if [[ ${CNTOOLS_MODE} = "OFFLINE" || -z ${KOIOS_API} || "$#" -ne 2 ]]; then
+    return 2
+  else
+    getPoolID "$1"
+    println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" ${KOIOS_API}/asset_info?_asset_policy=$1&_asset_name=$2"
+    ! asset_info=$(curl -sSL -f -X POST -H "Content-Type: application/json" "${KOIOS_API}/asset_info?_asset_policy=$1&_asset_name=$2" 2>&1) && error_msg=${asset_info} && return 1
+    if [[ ${asset_info} = '[]' ]]; then
+      return 2
+    fi
+    asset_info_tsv=$(jq -r '[
+    .[0].asset_name_ascii //"-",
+    .[0].fingerprint //"-",
+    .[0].minting_tx_hash //"-",
+    .[0].total_supply //0,
+    .[0].mint_cnt //0,
+    .[0].burn_cnt //0,
+    .[0].creation_time //0,
+    (.[0].minting_tx_metadata|@json),
+    (.[0].token_registry_metadata|@json)
+    ] | @tsv' <<< "${pool_info}")
+
+    read -ra asset_info_arr <<< ${asset_info_tsv}
+
+    a_asset_name_ascii=${pool_info_arr[0]}
+    a_fingerprint=${pool_info_arr[1]}
+    a_minting_tx_hash=${pool_info_arr[2]}
+    a_total_supply=${pool_info_arr[3]}
+    a_mint_cnt=${pool_info_arr[4]}
+    a_burn_cnt=${pool_info_arr[5]}
+    a_creation_time=${pool_info_arr[6]}
+    a_minting_tx_metadata=${pool_info_arr[7]}
+    a_token_registry_metadata=${pool_info_arr[8]}
+  fi
+}
+
 # Command     : selectPolicy [mode] [file1 file2 ...]
 # Description : A helper function to select a Multi-Asset policy
 # Parameters  : fileX  >  array of files required to exist in policy folder for it to be selectable

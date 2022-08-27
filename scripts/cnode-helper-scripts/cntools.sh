@@ -4281,8 +4281,17 @@ function main {
                     [[ -z ${asset_name} ]] && asset_name="."
                     [[ ${asset_name} = '.' ]] && asset_name_hex="" || asset_name_hex=" ($(asciiToHex "${asset_name}"))"
                     println "Asset Name     : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY}${asset_name_hex}${NC}"
-                    println "Minted         : ${FG_LBLUE}$(formatAsset ${assets_to_mint})${NC}"
-                    println "In Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)"
+                    getAssetInfo "${policy_id}" "${${asset_name_hex}}"
+                    case $? in
+                      0) println "Fingerprint    : ${FG_LGRAY}${a_fingerprint}${NC}"
+                         println "Minted         : ${FG_LBLUE}$(formatAsset ${assets_to_mint})${NC}"
+                         println "In Circulation : ${FG_LBLUE}$(formatAsset ${a_total_supply})${NC}"
+                         println "Mint Count     : ${FG_LBLUE}${a_mint_cnt}${NC}"
+                         println "Burn Count     : ${FG_LBLUE}${a_burn_cnt}${NC}" ;;
+                      1) println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" ;;
+                      2) println "Minted         : ${FG_LBLUE}$(formatAsset ${assets_to_mint})${NC}"
+                         println "In Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)" ;;
+                    esac
                     waitForInput && continue
                     ;; ###################################################################
                   burn-asset)
@@ -4410,14 +4419,23 @@ function main {
                     if ! verifyTx ${addr}; then waitForInput && continue; fi
                     echo
                     println "Assets successfully burned!"
-                    println "Policy Name         : ${FG_GREEN}${policy_name}${NC}"
-                    println "Policy ID           : ${FG_LGRAY}${policy_id}${NC}"
+                    println "Policy Name     : ${FG_GREEN}${policy_name}${NC}"
+                    println "Policy ID       : ${FG_LGRAY}${policy_id}${NC}"
                     [[ -z ${asset_name} ]] && asset_name="." || asset_name="$(hexToAscii "${asset_name}")"
                     [[ ${asset_name} = '.' ]] && asset_name_hex="" || asset_name_hex=" ($(asciiToHex "${asset_name}"))"
-                    println "Asset Name          : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY}${asset_name_hex}${NC}"
-                    println "Burned              : ${FG_LBLUE}$(formatAsset ${assets_to_burn})${NC}"
-                    println "Left in Address     : ${FG_LBLUE}$(formatAsset $(( curr_asset_amount - assets_to_burn )))${NC}"
-                    println "Left in Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)"
+                    println "Asset Name      : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY}${asset_name_hex}${NC}"
+                    println "Left in Address : ${FG_LBLUE}$(formatAsset $(( curr_asset_amount - assets_to_burn )))${NC}"
+                    getAssetInfo "${policy_id}" "${${asset_name_hex}}"
+                    case $? in
+                      0) println "Fingerprint     : ${FG_LGRAY}${a_fingerprint}${NC}"
+                         println "Burned          : ${FG_LBLUE}$(formatAsset ${assets_to_burn})${NC}"
+                         println "In Circulation  : ${FG_LBLUE}$(formatAsset ${a_total_supply})${NC}"
+                         println "Mint Count      : ${FG_LBLUE}${a_mint_cnt}${NC}"
+                         println "Burn Count      : ${FG_LBLUE}${a_burn_cnt}${NC}" ;;
+                      1) println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" ;;
+                      2) println "Burned          : ${FG_LBLUE}$(formatAsset ${assets_to_burn})${NC}"
+                         println "In Circulation  : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)" ;;
+                    esac
                     waitForInput && continue
                     ;; ###################################################################
                   register-asset)
