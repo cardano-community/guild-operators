@@ -4279,8 +4279,8 @@ function main {
                     println "Policy Name    : ${FG_GREEN}${policy_name}${NC}"
                     println "Policy ID      : ${FG_LGRAY}${policy_id}${NC}"
                     [[ -z ${asset_name} ]] && asset_name="."
-                    [[ ${asset_name} = '.' ]] && asset_name_hex="" || asset_name_hex=" ($(asciiToHex "${asset_name}"))"
-                    println "Asset Name     : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY}${asset_name_hex}${NC}"
+                    [[ ${asset_name} = '.' ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
+                    println "Asset Name     : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY} (${asset_name_hex})${NC}"
                     getAssetInfo "${policy_id}" "${asset_name_hex}"
                     case $? in
                       0) println "Fingerprint    : ${FG_LGRAY}${a_fingerprint}${NC}"
@@ -4422,8 +4422,8 @@ function main {
                     println "Policy Name     : ${FG_GREEN}${policy_name}${NC}"
                     println "Policy ID       : ${FG_LGRAY}${policy_id}${NC}"
                     [[ -z ${asset_name} ]] && asset_name="." || asset_name="$(hexToAscii "${asset_name}")"
-                    [[ ${asset_name} = '.' ]] && asset_name_hex="" || asset_name_hex=" ($(asciiToHex "${asset_name}"))"
-                    println "Asset Name      : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY}${asset_name_hex}${NC}"
+                    [[ ${asset_name} = '.' ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
+                    println "Asset Name      : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY} (${asset_name_hex})${NC}"
                     println "Left in Address : ${FG_LBLUE}$(formatAsset $(( curr_asset_amount - assets_to_burn )))${NC}"
                     getAssetInfo "${policy_id}" "${asset_name_hex}"
                     case $? in
