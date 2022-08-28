@@ -50,6 +50,10 @@ elif [[ "$NETWORK" == "preprod" ]]; then
   $CNODE_HOME/scripts/prereqs.sh -n preprod -t cnode -s -f > /dev/null 2>&1 \
   && customise \
   && exec $CNODE_HOME/scripts/cnode.sh
+elif [[ "$NETWORK" == "preview" ]]; then
+  $CNODE_HOME/scripts/prereqs.sh -n preview -t cnode -s -f > /dev/null 2>&1 \
+  && customise \
+  && exec $CNODE_HOME/scripts/cnode.sh
 elif [[ "$NETWORK" == "guild-mainnet" ]]; then
   $CNODE_HOME/scripts/prereqs.sh -n mainnet -t cnode -s -f > /dev/null 2>&1 \
   && bash /home/guild/.scripts/guild-topology.sh > /dev/null 2>&1 \
@@ -61,7 +65,7 @@ elif [[ "$NETWORK" == "guild" ]]; then
   && customise \
   && exec $CNODE_HOME/scripts/cnode.sh
 else
-  echo "Please set a NETWORK environment variable to one of: mainnet / testnet / preprod / guild-mainnet / guild"
+  echo "Please set a NETWORK environment variable to one of: mainnet / testnet / preview / preprod / guild-mainnet / guild"
   echo "mount a '$CNODE_HOME/priv/files' volume containing: mainnet-config.json, mainnet-shelley-genesis.json, mainnet-byron-genesis.json, and mainnet-topology.json "
   echo "for active nodes set POOL_DIR environment variable where op.cert, hot.skey and vrf.skey files reside. (usually under '${CNODE_HOME}/priv/pool/$POOL_NAME' ) "
   echo "or just set POOL_NAME environment variable (for default path). "
