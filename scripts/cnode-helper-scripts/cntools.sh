@@ -3922,7 +3922,8 @@ function main {
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println OFF " Multi-Asset Token Management\n"\
 									" ) Create Policy  - create a new asset policy"\
-									" ) List Assets    - list created/minted policies/assets"\
+									" ) List Assets    - list created/minted policies/assets (local)"\
+                  " ) Show Asset     - show minted asset information"\
 									" ) Decrypt Policy - remove write protection and decrypt policy"\
 									" ) Encrypt Policy - encrypt policy sign key and make all files immutable"\
 									" ) Mint Asset     - mint new assets for selected policy"\
@@ -3930,17 +3931,18 @@ function main {
 									" ) Register Asset - create/update JSON submission file for Cardano Token Registry"\
 									"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println DEBUG " Select Multi-Asset Operation\n"
-                select_opt "[c] Create Policy" "[l] List Assets" "[d] Decrypt / Unlock Policy" "[e] Encrypt / Lock Policy" "[m] Mint Asset" "[x] Burn Asset" "[r] Register Asset" "[b] Back" "[h] Home"
+                select_opt "[c] Create Policy" "[l] List Assets" "[s] Show Asset" "[d] Decrypt / Unlock Policy" "[e] Encrypt / Lock Policy" "[m] Mint Asset" "[x] Burn Asset" "[r] Register Asset" "[b] Back" "[h] Home"
                 case $? in
                   0) SUBCOMMAND="create-policy" ;;
                   1) SUBCOMMAND="list-assets" ;;
-                  2) SUBCOMMAND="decrypt-policy" ;;
-                  3) SUBCOMMAND="encrypt-policy" ;;
-                  4) SUBCOMMAND="mint-asset" ;;
-                  5) SUBCOMMAND="burn-asset" ;;
-                  6) SUBCOMMAND="register-asset" ;;
-                  7) break ;;
-                  8) break 2 ;;
+                  2) SUBCOMMAND="show-asset" ;;
+                  3) SUBCOMMAND="decrypt-policy" ;;
+                  4) SUBCOMMAND="encrypt-policy" ;;
+                  5) SUBCOMMAND="mint-asset" ;;
+                  6) SUBCOMMAND="burn-asset" ;;
+                  7) SUBCOMMAND="register-asset" ;;
+                  8) break ;;
+                  9) break 2 ;;
                 esac
                 case $SUBCOMMAND in
                   create-policy)
@@ -4029,7 +4031,7 @@ function main {
                       if [[ $(find "${policy}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | wc -c) -gt 0 ]]; then
                         while IFS= read -r -d '' asset; do
                           asset_filename=$(basename ${asset})
-                          [[ -z ${asset_filename%.*} ]] && asset_name="" || asset_name="${asset_filename%.*}"
+                          [[ -z ${asset_filename%.*} ]] && asset_name="" || asset_name="${asset_filename%%.*}"
                           [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
                           println "Asset         : Name: ${FG_MAGENTA}${asset_name}${NC} (${FG_LGRAY}(${asset_name_hex}${NC}) - Minted: ${FG_LBLUE}$(formatAsset "$(jq -r .minted "${asset}")")${NC}"
                         done < <(find "${policy}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | sort -z)
@@ -4037,6 +4039,51 @@ function main {
                         println "Asset         : ${FG_LGRAY}No assets minted for this policy!${NC}"
                       fi
                     done < <(find "${ASSET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+                    waitForInput && continue
+                    ;; ###################################################################
+                  show-asset)
+                    clear
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    println " >> ADVANCED >> MULTI-ASSET >> SHOW ASSET"
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies or assets found!${NC}" && waitForInput && continue
+                    println DEBUG "# Select minted asset to show information for"
+                    if ! selectAsset; then # ${selected_value} populated
+                      waitForInput && continue
+                    fi
+                    echo
+                    policy_id=$(cat "${ASSET_FOLDER}/${policy_dir}/${ASSET_POLICY_ID_FILENAME}")
+                    println "Policy Name    : ${FG_GREEN}${policy_dir}${NC}"
+                    println "Policy ID      : ${FG_LGRAY}${policy_id}${NC}"
+                    ttl=$(jq -er '.scripts[0].slot //0' "${ASSET_FOLDER}/${policy_dir}/${ASSET_POLICY_SCRIPT_FILENAME}")
+                    current_slot=$(getSlotTipRef)
+                    if [[ ${ttl} -eq 0 ]]; then
+                      println "Policy Expire  : ${FG_LGRAY}unlimited${NC}"
+                    elif [[ ${ttl} -gt ${current_slot} ]]; then
+                      println "Policy Expire  : ${FG_LGRAY}$(getDateFromSlot ${ttl} '%(%F %T %Z)T')${NC}, ${FG_LGRAY}$(timeLeft $((ttl-current_slot)))${NC} remaining"
+                    else
+                      println "Policy Expire  : ${FG_LGRAY}$(getDateFromSlot ${ttl} '%(%F %T %Z)T')${NC}, ${FG_RED}expired $(timeLeft $((current_slot-ttl))) ago !!${NC}"
+                    fi
+                    [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
+                    println "Asset Name     : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY} (${asset_name_hex})${NC}"
+                    getAssetInfo "${policy_id}" "${asset_name_hex}"
+                    case $? in
+                      0) println "Fingerprint    : ${FG_LGRAY}${a_fingerprint}${NC}"
+                         println "In Circulation : ${FG_LBLUE}$(formatAsset ${a_total_supply})${NC}"
+                         println "Mint Count     : ${FG_LBLUE}${a_mint_cnt}${NC}"
+                         println "Burn Count     : ${FG_LBLUE}${a_burn_cnt}${NC}"
+                         println "Mint Tx Meta   :"
+                         if [[ ${a_minting_tx_metadata} != '[]' ]]; then jq -r . <<< "${a_minting_tx_metadata}"; fi
+                         println "Token Reg Meta :"
+                         if [[ ${a_token_registry_metadata} != 'null' ]]; then jq -r . <<< "${a_token_registry_metadata}"; fi ;;
+                      1) println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" ;;
+                      2) a_minted=$(jq -er '.minted //0' "${asset_file}")
+                         println "In Circulation : ${FG_LBLUE}$(formatAsset "$(jq -er '.minted //0' "${asset_file}")")${NC} (local tracking)" ;;
+                    esac
+                    a_last_update=$(jq -er '.lastUpdate //"-"' "${asset_file}")
+                    a_last_action=$(jq -er '.lastAction //"-"' "${asset_file}")
+                    println "Last Updated   : ${FG_LGRAY}${a_last_update}${NC}"
+                    println "Last Action    : ${FG_LGRAY}${a_last_action}${NC}"
                     waitForInput && continue
                     ;; ###################################################################
                   decrypt-policy)
@@ -4278,8 +4325,7 @@ function main {
                     println "Assets successfully minted!"
                     println "Policy Name    : ${FG_GREEN}${policy_name}${NC}"
                     println "Policy ID      : ${FG_LGRAY}${policy_id}${NC}"
-                    [[ -z ${asset_name} ]] && asset_name="."
-                    [[ ${asset_name} = '.' ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
+                    [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
                     println "Asset Name     : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY} (${asset_name_hex})${NC}"
                     getAssetInfo "${policy_id}" "${asset_name_hex}"
                     case $? in
@@ -4421,8 +4467,7 @@ function main {
                     println "Assets successfully burned!"
                     println "Policy Name     : ${FG_GREEN}${policy_name}${NC}"
                     println "Policy ID       : ${FG_LGRAY}${policy_id}${NC}"
-                    [[ -z ${asset_name} ]] && asset_name="." || asset_name="$(hexToAscii "${asset_name}")"
-                    [[ ${asset_name} = '.' ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
+                    [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
                     println "Asset Name      : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY} (${asset_name_hex})${NC}"
                     println "Left in Address : ${FG_LBLUE}$(formatAsset $(( curr_asset_amount - assets_to_burn )))${NC}"
                     getAssetInfo "${policy_id}" "${asset_name_hex}"

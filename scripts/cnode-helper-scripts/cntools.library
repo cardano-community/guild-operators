@@ -395,7 +395,7 @@ getDirs() {
 
 # Command     : selectDir [type] [dir1 dir2 ...]
 # Description : A helper function to selectOption() specifically for directory selection
-# Parameters  : type  >  'wallet' 'pool' 'policy'
+# Parameters  : type  >  'wallet' 'pool' 'policy' 'asset'
 #             : dirX  >  array of dirs to include in selection, '[Esc] Cancel' option added to all selections
 # Return      : populates ${dir_name} variable
 selectDir() {
@@ -701,6 +701,30 @@ selectPolicy() {
   [[ ${enc_req_files} -gt 0 ]] && println DEBUG "${FG_YELLOW}encrypted policies found but NOT listed, please decrypt to show${NC}"
   if ! selectDir "policy" "${policy_dirs[@]}"; then return 1; fi # ${dir_name} populated by selectDir function
   policy_name="$(echo ${dir_name} | cut -d' ' -f1)"
+}
+
+# Command     : selectAsset
+# Description : A helper function to select a Multi-Asset minted on device
+# Return      : populates ${policy_dir}, ${asset_name} & ${asset_file} variables
+selectAsset() {
+  asset_list=() # <policy_id>.<asset_name>
+  if ! getDirs "${ASSET_FOLDER}"; then return 1; fi
+  for dir in "${dirs[@]}"; do
+    if [[ $(find "${ASSET_FOLDER}/${dir}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | wc -c) -gt 0 ]]; then
+      while IFS= read -r -d '' asset; do
+        asset_file=${asset##*/}
+        asset_list+=("${dir}/${asset_file%%.*}")
+      done < <(find "${ASSET_FOLDER}/${dir}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | sort -z)
+    fi
+  done
+  if [[ ${#asset_list[@]} -eq 0 ]]; then
+    println ERROR "${FG_YELLOW}WARN${NC}: No assets found on disk!"
+    return 1
+  fi
+  if ! selectDir "asset" "${asset_list[@]}"; then return 1; fi # ${dir_name} populated by selected value
+  policy_dir="${dir_name%%/*}"
+  asset_name="${dir_name##*/}"
+  asset_file="${ASSET_FOLDER}/${policy_dir}/${asset_name}.asset"
 }
 
 # Command     : getPasswordCust [optional: confirm]
