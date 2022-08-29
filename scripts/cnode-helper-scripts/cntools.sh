@@ -1769,10 +1769,10 @@ function main {
               else
                 margin_fraction=$(pctToFraction "${margin}")
               fi
-              minPoolCost=$(( $(jq -r '.minPoolCost //0' <<< "${PROT_PARAMS}") / 1000000 )) # convert to Ada
+              minPoolCost=$(formatLovelace $(jq -r '.minPoolCost //0' <<< "${PROT_PARAMS}") normal) # convert to Ada
               [[ -f ${pool_config} ]] && cost_ada=$(jq -r '.costADA //0' "${pool_config}") || cost_ada=${minPoolCost} # default cost
               [[ ${cost_ada} -lt ${minPoolCost} ]] && cost_ada=${minPoolCost} # raise old value to new minimum cost
-              getAnswerAnyCust cost_enter "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAsset ${cost_ada}))"
+              getAnswerAnyCust cost_enter "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatLovelace ${cost_ada}) normal)"
               cost_enter="${cost_enter//,}"
               if [[ -n "${cost_enter}" ]]; then
                 if ! AdaToLovelace "${cost_enter}" >/dev/null; then
@@ -1783,7 +1783,7 @@ function main {
               else
                 cost_lovelace=$(AdaToLovelace "${cost_ada}")
               fi
-              if [[ ${cost_ada} -lt ${minPoolCost} ]]; then
+              if [[ $(bc -l <<< "${cost_ada} < ${minPoolCost}") ]]; then
                 println ERROR "\n${FG_RED}ERROR${NC}: cost set lower than allowed"
                 waitForInput && continue
               fi
@@ -2271,7 +2271,7 @@ function main {
               println "Reward Wallet : ${FG_GREEN}${reward_wallet}${NC}"
               println "Pledge        : ${FG_LBLUE}$(formatAsset ${pledge_ada})${NC} Ada"
               println "Margin        : ${FG_LBLUE}${margin}${NC} %"
-              println "Cost          : ${FG_LBLUE}$(formatAsset ${cost_ada})${NC} Ada"
+              println "Cost          : ${FG_LBLUE}$(formatLovelace ${cost_lovelace})${NC} Ada"
               if [[ ${SUBCOMMAND} = "register" ]]; then
                 if [[ ${op_mode} = "hybrid" ]]; then
                   println DEBUG "\n${FG_YELLOW}After offline pool transaction is signed and submitted, uncomment and set value for POOL_NAME in ${PARENT}/env with${NC} '${FG_GREEN}${pool_name}${NC}'"
