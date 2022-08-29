@@ -4033,7 +4033,7 @@ function main {
                           asset_filename=$(basename ${asset})
                           [[ -z ${asset_filename%.*} ]] && asset_name="" || asset_name="${asset_filename%%.*}"
                           [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
-                          println "Asset         : Name: ${FG_MAGENTA}${asset_name}${NC} (${FG_LGRAY}(${asset_name_hex}${NC}) - Minted: ${FG_LBLUE}$(formatAsset "$(jq -r .minted "${asset}")")${NC}"
+                          println "Asset         : Name: ${FG_MAGENTA}${asset_name}${NC} (${FG_LGRAY}${asset_name_hex}${NC}) - Minted: ${FG_LBLUE}$(formatAsset "$(jq -r .minted "${asset}")")${NC}"
                         done < <(find "${policy}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | sort -z)
                       else
                         println "Asset         : ${FG_LGRAY}No assets minted for this policy!${NC}"
