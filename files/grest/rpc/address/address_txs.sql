@@ -8,7 +8,7 @@ CREATE FUNCTION grest.address_txs (_addresses text[], _after_block_height intege
   LANGUAGE PLPGSQL
   AS $$
 DECLARE
-  _tx_id_list     bigint[];
+  _tx_id_list bigint[];
 BEGIN
   -- all tx_out & tx_in tx ids
   SELECT INTO _tx_id_list ARRAY_AGG(tx_id)
