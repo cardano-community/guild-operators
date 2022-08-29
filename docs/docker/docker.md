@@ -9,15 +9,43 @@ Running your own Cardano node has never been so fast and easy.
 - [DockerHub Guild's images](https://hub.docker.com/u/cardanocommunity)
 - [YouTube Guild's Videos](https://www.youtube.com/channel/UC1eg3ljUWjIHeU0Vpqicj6A)
 
+### 🔔 Built-in Cardano software
+
+- cardano-address
+- cardano-cli
+- cardano-hw-cli
+- cardano-node
+- cardano-ping
+- cardano-submit-api
+
 ### 🔔 Built-in tools
 
 - CNTools
 - gLiveView
 - CNCLI
-- Monitoring ready  
-- EKG, Prometheus
+- Monitoring ready (with EKG and Prometheus)
 
-#### Guild Operators Docker startegy (testnet / mainnet / preprod / guild)  {: id="strategy"}
+#### Docker Splash screen
+
+![Docker Splash screen](./imgs/container_splashscreen.png)
+
+#### Cntools 
+
+![CNTools](./imgs/cntools.png)
+
+#### gLiveView
+
+![gLiveView](./imgs/gLiveView.png)
+
+#### gLiveView Peers analyzer 
+
+![gLiveView](./imgs/gLiveView_peers.png)
+
+#### CNCLI
+
+![CNCLI](./imgs/cncli.png)
+
+#### Guild Operators Docker strategy ( mainnet/ testnet / preview / preprod / guild)  {: id="strategy"}
 
 Modular docker images based on Debian.
 
