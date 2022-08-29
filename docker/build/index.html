@@ -944,13 +944,13 @@
   <h1>Build</h1>
 
 <h3 id="intro">Intro<a class="headerlink" href="#intro" title="Permanent link">⚓︎</a></h3>
-<p>💡 Docker containers are fastest way to run a Cardano node in both "Relay" and "Block-Producing" mode.</p>
+<p>💡 Docker containers are the fastest way to run a Cardano node in both "Relay" and "Block-Producing" (Pool) mode.</p>
 <p>For easy of use and maintenance we adopted a 3 stage building strategy.</p>
 <p>Each stage derives from a specific phase of the building strategy:</p>
 <ul>
 <li>stage1 &rarr; is the first stage of the builds and the only thing it does is to prepare the compiling environment.</li>
 <li>stage2 &rarr; at this stage the Cardano source code is downloaded and compiled on top of the stage1.</li>
-<li>stage3 &rarr; Here is where we copy over a new debian-slim image the results of the copiled software (binaries and libs) including the guild's scripts and tools.</li>
+<li>stage3 &rarr; Here is where we copy over a new debian-slim image the results of the compiled software (binaries and libs) including the guild's scripts and tools.</li>
 </ul>
 <h4 id="how-to-build">How to build<a class="headerlink" href="#how-to-build" title="Permanent link">⚓︎</a></h4>
 <p>You can chose to just start building from the stage3 (or a custom stage3 dockerfile) or build all 3 stages from scratch.</p>
