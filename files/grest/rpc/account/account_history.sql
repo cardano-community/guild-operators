@@ -1,66 +1,63 @@
-CREATE FUNCTION grest.account_history (
-  _address text,
-  _epoch_no integer DEFAULT NULL
-  ) RETURNS TABLE (
-      stake_address varchar,
-      pool_id varchar,
-      epoch_no bigint,
-      active_stake text
-    )
+CREATE FUNCTION grest.account_history (_stake_addresses text[], _epoch_no integer DEFAULT NULL)
+  RETURNS TABLE (
+    stake_address varchar,
+    history json
+  )
   LANGUAGE PLPGSQL
-  AS
-$$
-  DECLARE
-    SA_ID integer DEFAULT NULL;
-  BEGIN
-    -- Payment address
-    IF
-      _address NOT LIKE 'stake%'
-    THEN
-      SELECT
-        STAKE_ADDRESS.VIEW INTO _address
-      FROM
-        PUBLIC.TX_OUT
-        INNER JOIN PUBLIC.STAKE_ADDRESS ON STAKE_ADDRESS.ID = TX_OUT.STAKE_ADDRESS_ID
-      WHERE
-        TX_OUT.ADDRESS = _address
-      LIMIT
-        1;
-    END IF;
+  AS $$
+DECLARE
+  sa_id_list integer[];
+BEGIN
+  SELECT INTO sa_id_list
+    ARRAY_AGG(STAKE_ADDRESS.ID)
+  FROM
+    STAKE_ADDRESS
+  WHERE
+    STAKE_ADDRESS.VIEW = ANY(_stake_addresses);
 
-    IF
-      _epoch_no IS NOT NULL
-    THEN
-      RETURN QUERY
-        SELECT
-          sa.view as stake_address,
-          ph.view as pool_id,
-          es.epoch_no::bigint,
-          es.amount::text as active_stake
-        FROM
-          EPOCH_STAKE es
+  IF _epoch_no IS NOT NULL THEN
+    RETURN QUERY
+      SELECT
+        sa.view as stake_address,
+        JSON_AGG(
+          JSON_BUILD_OBJECT(
+            'pool_id', ph.view,
+            'epoch_no', es.epoch_no::bigint,
+            'active_stake', es.amount::text
+          )
+        )
+      FROM
+        EPOCH_STAKE es
         LEFT JOIN stake_address sa ON sa.id = es.addr_id
         LEFT JOIN pool_hash ph ON ph.id = es.pool_id
-        WHERE
-          es.epoch_no = _epoch_no
-            AND
-          sa.view = _address;
-    ELSE
-      RETURN QUERY
-        SELECT
-          sa.view as stake_address,
-          ph.view as pool_id,
-          es.epoch_no::bigint,
-          es.amount::text as active_stake
-        FROM
-          EPOCH_STAKE es
+      WHERE
+        es.epoch_no = _epoch_no
+        AND
+        sa.id = ANY(sa_id_list)
+      GROUP BY
+        sa.view;
+  ELSE
+    RETURN QUERY
+      SELECT
+        sa.view as stake_address,
+        JSON_AGG(
+          JSON_BUILD_OBJECT(
+            'pool_id', ph.view,
+            'epoch_no', es.epoch_no::bigint,
+            'active_stake', es.amount::text
+          )
+        )
+      FROM
+        EPOCH_STAKE es
         LEFT JOIN stake_address sa ON sa.id = es.addr_id
         LEFT JOIN pool_hash ph ON ph.id = es.pool_id
-        WHERE
-          sa.view = _address;
-    END IF;
-  END;
+      WHERE
+        sa.id = ANY(sa_id_list)
+      GROUP BY
+        sa.view;
+  END IF;
+END;
 $$;
 
-COMMENT ON FUNCTION grest.account_history IS 'Get the active stake history of an account';
+COMMENT ON FUNCTION grest.account_history IS 'Get the active stake history of given accounts';
 
