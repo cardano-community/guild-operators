@@ -26,7 +26,6 @@ if grep -q "^PGPASSFILE=" "${CNODE_HOME}/scripts/dbsync.sh" 2> /dev/null || [[ -
 fi
 
 echo -e "\e[32m~~ Cardano Submit API ~~\e[0m"
-echo "Please note that cardano-submit-api will listen on ports on your system to serve the API."
 echo "Deploy Cardano Submit API as systemd services? [y|n]"
 echo
 read -rsn1 yn
