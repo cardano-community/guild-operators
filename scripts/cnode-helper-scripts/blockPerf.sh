@@ -19,7 +19,7 @@
 # Do NOT modify code below           #
 ######################################
 
-BP_VERSION=v1.2.0
+BP_VERSION=v1.2.1
 
 deploy_systemd() {
   echo "Deploying ${CNODE_VNAME} blockPerf as systemd service.."
@@ -42,6 +42,7 @@ StandardError=syslog
 SyslogIdentifier=${CNODE_VNAME}-tu-blockperf
 TimeoutStopSec=5
 KillMode=mixed
+ExecStop=rm -f -- '${CNODE_HOME}/blockPerf-running.pid'
 
 [Install]
 WantedBy=${CNODE_VNAME}.service
