@@ -3576,9 +3576,9 @@ function main {
                    "--delete *${ASSET_POLICY_SK_FILENAME}"
                    "--delete *${ASSET_POLICY_SK_FILENAME}.gpg"
                  )
-                 backup_file="${backup_path}online_cntools_backup-$(date '+%Y%m%d%H%M%S').tar"
+                 backup_file="${backup_path}online_cntools_backup-$(date '+%Y%m%d%H%M%S').${CNODE_NAME}.tar"
                  ;;
-              1) backup_file="${backup_path}offline_cntools_backup-$(date '+%Y%m%d%H%M%S').tar" ;;
+              1) backup_file="${backup_path}offline_cntools_backup-$(date '+%Y%m%d%H%M%S').${CNODE_NAME}.tar" ;;
             esac
             echo
             backup_source=(
