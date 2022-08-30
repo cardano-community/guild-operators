@@ -1,60 +1,66 @@
-CREATE FUNCTION grest.account_assets (_address text DEFAULT NULL)
-    RETURNS TABLE (
-        asset_policy text,
-        asset_name text,
-        quantity text
-    )
-    LANGUAGE PLPGSQL
-    AS $$
+CREATE FUNCTION grest.account_assets (_stake_addresses text[])
+  RETURNS TABLE (
+    stake_address varchar,
+    assets json
+  )
+  LANGUAGE PLPGSQL
+  AS $$
 DECLARE
-    SA_ID integer DEFAULT NULL;
+  sa_id_list integer[];
 BEGIN
-    IF _address LIKE 'stake%' THEN
-        -- Shelley stake address
-        SELECT
-            STAKE_ADDRESS.ID INTO SA_ID
-        FROM
-            STAKE_ADDRESS
-        WHERE
-            STAKE_ADDRESS.VIEW = _address
-        LIMIT 1;
-    ELSE
-        -- Payment address
-        SELECT
-            TX_OUT.STAKE_ADDRESS_ID INTO SA_ID
-        FROM
-            TX_OUT
-        WHERE
-            TX_OUT.ADDRESS = _address
-        LIMIT 1;
-    END IF;
-    IF SA_ID IS NOT NULL THEN
-        RETURN QUERY
-        SELECT
-            ENCODE(MA.POLICY::bytea, 'hex') AS asset_policy,
-            ENCODE(MA.NAME::bytea, 'escape') AS asset_name,
-            sum(MTX.QUANTITY)::text
-        FROM
-            MA_TX_OUT MTX
-            INNER JOIN MULTI_ASSET MA ON MA.ID = MTX.ident
-            INNER JOIN TX_OUT TXO ON TXO.ID = MTX.TX_OUT_ID
-                AND TXO.STAKE_ADDRESS_ID = SA_ID
-        WHERE
-            NOT EXISTS (
-                SELECT
-                    TX_OUT.ID
-                FROM
-                    TX_OUT
-                    INNER JOIN TX_IN ON TX_OUT.TX_ID = TX_IN.TX_OUT_ID
-                        AND TX_OUT.INDEX = TX_IN.TX_OUT_INDEX
-                WHERE
-                    TXO.ID = TX_OUT.ID)
-        GROUP BY
-            MA.POLICY,
-            MA.NAME;
-    END IF;
+  SELECT INTO sa_id_list
+    ARRAY_AGG(STAKE_ADDRESS.ID)
+  FROM
+    STAKE_ADDRESS
+  WHERE
+    STAKE_ADDRESS.VIEW = ANY(_stake_addresses);
+
+  RETURN QUERY
+    WITH _all_assets AS (
+      SELECT
+        sa.view,
+        ma.policy,
+        ma.name,
+        SUM(mtx.quantity) as quantity
+      FROM
+        MA_TX_OUT MTX
+        INNER JOIN MULTI_ASSET MA ON MA.id = MTX.ident
+        INNER JOIN TX_OUT TXO ON TXO.ID = MTX.TX_OUT_ID
+        INNER JOIN STAKE_ADDRESS sa ON sa.id = TXO.stake_address_id
+        LEFT JOIN TX_IN on TXO.TX_ID = TX_IN.TX_OUT_ID
+          AND TXO.INDEX::smallint = TX_IN.TX_OUT_INDEX::smallint
+      WHERE
+        sa.id = ANY(sa_id_list)
+        AND TX_IN.TX_IN_ID IS NULL
+      GROUP BY
+        sa.view, MA.policy, MA.name
+    )
+
+  SELECT
+    assets_grouped.view as stake_address,
+    JSON_AGG(assets_grouped.assets)
+  FROM (
+    SELECT
+      aa.view,
+      JSON_BUILD_OBJECT(
+        'policy_id', ENCODE(aa.policy, 'hex'),
+        'assets', JSON_AGG(
+          JSON_BUILD_OBJECT(
+            'asset_name', ENCODE(aa.name, 'hex'),
+            'asset_name_ascii', ENCODE(aa.name, 'escape'),
+            'balance', aa.quantity::text
+          )
+        )
+      ) as assets
+    FROM 
+      _all_assets aa
+    GROUP BY
+      aa.view, aa.policy
+  ) assets_grouped
+  GROUP BY
+    assets_grouped.view;
 END;
 $$;
 
-COMMENT ON FUNCTION grest.account_assets IS 'Get the native asset balance of an account';
+COMMENT ON FUNCTION grest.account_assets IS 'Get the native asset balance of given accounts';
 

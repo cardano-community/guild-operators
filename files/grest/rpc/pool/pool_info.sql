@@ -18,6 +18,7 @@ CREATE FUNCTION grest.pool_info (_pool_bech32_ids text[])
     op_cert text,
     op_cert_counter word63type,
     active_stake text,
+    sigma numeric,
     block_count numeric,
     live_pledge text,
     live_stake text,
@@ -71,6 +72,7 @@ BEGIN
       ENCODE(block_data.op_cert::bytea, 'hex'),
       block_data.op_cert_counter,
       active_stake.as_sum::text,
+      active_stake.as_sum / epoch_stake.es_sum,
       block_data.cnt,
       live.pledge::text,
       live.stake::text,
@@ -126,12 +128,20 @@ BEGIN
       SELECT
         amount::lovelace AS as_sum
       FROM
-        grest.pool_active_stake_cache AS easc
+        grest.pool_active_stake_cache AS pasc
       WHERE 
-        easc.pool_id = api.pool_id_bech32
+        pasc.pool_id = api.pool_id_bech32
         AND
-        easc.epoch_no = _epoch_no
+        pasc.epoch_no = _epoch_no
     ) active_stake ON TRUE
+    LEFT JOIN LATERAL(
+      SELECT
+        amount::lovelace AS es_sum
+      FROM
+        grest.epoch_active_stake_cache AS easc
+      WHERE 
+        easc.epoch_no = _epoch_no
+    ) epoch_stake ON TRUE
     LEFT JOIN LATERAL(
       SELECT
         CASE WHEN api.pool_status = 'retired'
