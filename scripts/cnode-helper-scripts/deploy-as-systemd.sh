@@ -26,7 +26,7 @@ if grep -q "^PGPASSFILE=" "${CNODE_HOME}/scripts/dbsync.sh" 2> /dev/null || [[ -
 fi
 
 echo -e "\e[32m~~ Cardano Submit API ~~\e[0m"
-echo "Deploy Cardano Submit API as systemd services? [y|n]"
+echo "Deploy Cardano Submit API as systemd service? [y|n]"
 echo
 read -rsn1 yn
 if [[ ${yn} = [Yy]* ]]; then
