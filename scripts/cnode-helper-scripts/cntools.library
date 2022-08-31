@@ -990,8 +990,8 @@ getBalance() {
       fi
     done <<< "${utxo_raw}"
   else
-    println ACTION "curl -sSL -f -d _address=${1} ${KOIOS_API}/address_info"
-    ! addr_info=$(curl -sSL -f -d _address=${1} ${KOIOS_API}/address_info 2>&1) && return 1
+    println ACTION "curl -sSL -f -H \"Content-Type: application/json\" -H \"Accept: application/json\" -X POST -d '{\"_addresses\":[\"${1}\"]}' ${KOIOS_API}/address_info"
+    ! addr_info=$(curl -sSL -f -H "Content-Type: application/json" -H "Accept: application/json" -X POST -d "{\"_addresses\":\"[\"${1}\"]}" ${KOIOS_API}/address_info 2>&1) && return 1
     [[ ${addr_info} = '[]' || $(jq -r '.[0].balance //0' <<< ${addr_info}) -eq 0 ]] && return
 
     assets["lovelace"]=$(jq -r .[0].balance <<< ${addr_info})
