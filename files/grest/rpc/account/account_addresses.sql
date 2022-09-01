@@ -1,40 +1,35 @@
-CREATE FUNCTION grest.account_addresses (_address text DEFAULT NULL)
-    RETURNS TABLE (
-        address varchar)
-    LANGUAGE PLPGSQL
-    AS $$
+CREATE FUNCTION grest.account_addresses (_stake_addresses text[])
+  RETURNS TABLE (
+    stake_address varchar,
+    addresses json
+  )
+  LANGUAGE PLPGSQL
+  AS $$
 DECLARE
-    SA_ID integer DEFAULT NULL;
+  sa_id_list integer[];
 BEGIN
-    IF _address LIKE 'stake%' THEN
-        -- Shelley stake address
-        SELECT
-            STAKE_ADDRESS.ID INTO SA_ID
-        FROM
-            STAKE_ADDRESS
-        WHERE
-            STAKE_ADDRESS.VIEW = _address
-        LIMIT 1;
-    ELSE
-        -- Payment address
-        SELECT
-            TX_OUT.STAKE_ADDRESS_ID INTO SA_ID
-        FROM
-            TX_OUT
-        WHERE
-            TX_OUT.ADDRESS = _address
-        LIMIT 1;
-    END IF;
-    IF SA_ID IS NOT NULL THEN
-        RETURN QUERY SELECT DISTINCT
-            TX_OUT.address
-        FROM
-            TX_OUT
-        WHERE
-            TX_OUT.STAKE_ADDRESS_ID = SA_ID;
-    END IF;
+  SELECT INTO sa_id_list
+    ARRAY_AGG(STAKE_ADDRESS.ID)
+  FROM
+    STAKE_ADDRESS
+  WHERE
+    STAKE_ADDRESS.VIEW = ANY(_stake_addresses);
+
+  RETURN QUERY
+    SELECT
+      sa.view as stake_address,
+      JSON_AGG(
+        DISTINCT(TX_OUT.address)
+      ) as addresses
+    FROM
+      TX_OUT
+      INNER JOIN STAKE_ADDRESS sa ON sa.id = tx_out.stake_address_id
+    WHERE
+      TX_OUT.STAKE_ADDRESS_ID = ANY(sa_id_list)
+    GROUP BY
+      sa.id;
 END;
 $$;
 
-COMMENT ON FUNCTION grest.account_addresses IS 'Get all addresses associated with an account';
+COMMENT ON FUNCTION grest.account_addresses IS 'Get all addresses associated with given accounts';
 
