@@ -19,7 +19,7 @@
 # Do NOT modify code below           #
 ######################################
 
-BP_VERSION=v1.2.1
+BP_VERSION=v1.2.2
 
 deploy_systemd() {
   echo "Deploying ${CNODE_VNAME} blockPerf as systemd service.."
@@ -90,6 +90,10 @@ fi
 
 #Deploy systemd if -d argument was specified
 if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
+  # if not already enabled activate the required Tracers in the config file
+  [[ "$(jq -r .TraceChainSyncClient "${CONFIG}")" != "true" ]] && jq '.TraceChainSyncClient = "true"' ${CONFIG} > ${CONFIG}.tmp && mv ${CONFIG}.tmp ${CONFIG} && echo "INFO: Enabling node config TraceChainSyncClient" && config_changed=1
+  [[ "$(jq -r .TraceBlockFetchClient "${CONFIG}")" != "true" ]] && jq '.TraceBlockFetchClient = "true"' ${CONFIG} > ${CONFIG}.tmp && mv ${CONFIG}.tmp ${CONFIG} && echo "INFO: Enabling node config TraceBlockFetchClient" && config_changed=1
+  [[ $config_changed -eq 1 ]] && echo "Please restart the node with new Tracers before using blockPerf."
   deploy_systemd && exit 0
   exit 2
 fi
@@ -103,8 +107,8 @@ if [[ "${CONFIG##*.}" = "json" ]] && [[ -f ${CONFIG} ]]; then
   [[ -z ${EKG_PORT} ]] && EKG_PORT=$(jq .hasEKG $CONFIG)
   [[ -z "${EKG_PORT}" ]] && echo -e "ERROR: Failed to locate the EKG Port in node configuration file" && errors=1
   NWMAGIC=$(jq -r .networkMagic < ${GENESIS_JSON})
-  [[ "$(jq -r .TraceChainSyncClient "${CONFIG}")" != "true" ]] && echo "ERROR: In config file please set \"TraceChainSyncClient\":\"true\"" && errors=1
-  [[ "$(jq -r .TraceBlockFetchClient "${CONFIG}")" != "true" ]] && echo "ERROR: In config file please set \"TraceBlockFetchClient\":\"true\"" && errors=1
+  [[ "$(jq -r .TraceChainSyncClient "${CONFIG}")" != "true" ]] && echo "ERROR: please set \"TraceChainSyncClient\":\"true\" in config file " && errors=1
+  [[ "$(jq -r .TraceBlockFetchClient "${CONFIG}")" != "true" ]] && echo "ERROR: please set \"TraceBlockFetchClient\":\"true\" in config file " && errors=1
   [[ $errors -eq 1 ]] && exit 1
 else 
   echo "ERROR: Failed to locate json configuration file" && exit 1
@@ -130,8 +134,8 @@ pidfile=${CNODE_HOME}/blockPerf-${NETWORK_NAME}.pid
 if [[ -f ${pidfile} ]]; then
     echo "WARN: This script is already running on this node for ${NETWORK_NAME} network (probably as a service)" && exit 1
 else
-	trap "rm -f -- '$pidfile'" EXIT
-	echo $! > $pidfile
+    trap "rm -f -- '$pidfile'" EXIT
+    echo $! > $pidfile
 fi
 
 echo "INFO parsing ${logfile} for ${NETWORK_NAME} blocks (networkmagic: ${NWMAGIC})"
@@ -143,8 +147,8 @@ do
     if [ -z $blockHeightPrev ] || [ $blockHeightPrev == 0 ] ; then
       echo "WARN: can't query EKG on http://${EKG_HOST}:${EKG_PORT} ... waiting ..."
       sleep 5
-	else 
-	  break;
+    else 
+      break;
     fi
 done
 
@@ -238,15 +242,15 @@ do
         deltaTbhSfr=$(( $(getDeltaMS ${blockTimeSfr} ${blockSlotTime},000) - deltaSlotTbh))
         deltaSfrCbf=$(( $(getDeltaMS ${blockTimeCbf} ${blockSlotTime},000) - deltaTbhSfr - deltaSlotTbh))
         deltaCbfAb=$(( $(getDeltaMS ${blockTimeAb} ${blockSlotTime},000) - deltaSfrCbf - deltaTbhSfr - deltaSlotTbh))
-		# may blacklist some internal IPs, to not expose them to common views (api.clio.one)
-		if [[ "$AddrBlacklist" == *"$blockTimeCbfAddr"* ]]; then
-			blockTimeCbfAddrPublic="0.0.0.0"
-			blockTimeCbfPortPublic="0"
-			echo "DBG: $blockTimeCbfAddr redacted"
-		else
-			blockTimeCbfAddrPublic=$blockTimeCbfAddr
-			blockTimeCbfPortPublic=$blockTimeCbfPort
-		fi
+        # may blacklist some internal IPs, to not expose them to common views (api.clio.one)
+        if [[ "$AddrBlacklist" == *"$blockTimeCbfAddr"* ]]; then
+          blockTimeCbfAddrPublic="0.0.0.0"
+          blockTimeCbfPortPublic="0"
+          echo "DBG: $blockTimeCbfAddr redacted"
+        else
+          blockTimeCbfAddrPublic=$blockTimeCbfAddr
+          blockTimeCbfPortPublic=$blockTimeCbfPort
+        fi
         if [[ "$deltaSlotTbh" -lt 0 ]] ||[[ "$deltaTbhSfr" -lt 0 ]] ||[[ "$deltaSfrCbf" -lt 0 ]] ||[[ "$deltaCbfAb" -lt 0 ]]; then
           # don't report abnormal cases with negative delta time values. eg block was produced by this node. 
           echo "WARN: blockheight:${iblockHeight} (negative delta) tbh:${blockTimeTbh} ${deltaSlotTbh} sfr:${blockTimeSfr} ${deltaTbhSfr} cbf:${blockTimeCbf} ${deltaSfrCbf} ab:${blockTimeAb} ${deltaCbfAb}" 
