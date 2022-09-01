@@ -1636,8 +1636,8 @@ function main {
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println OFF " Pool Management\n"\
 						" ) New      - create a new pool"\
-						" ) Register - register created pool on chain using a stake wallet (pledge wallet)"\
-						" ) Modify   - change pool parameters and register updated pool values on chain"\
+						" ) Register - register a newly created pool on chain using a stake wallet (pledge wallet)"\
+						" ) Modify   - re-register pool modifying pool definition and/or parameters"\
 						" ) Retire   - de-register stake pool from chain in specified epoch"\
 						" ) List     - a compact list view of available local pools"\
 						" ) Show     - detailed view of specified pool"\
