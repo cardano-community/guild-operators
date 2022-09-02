@@ -1031,6 +1031,20 @@ test_koios() {
   [[ ${ENABLE_KOIOS} = 'Y' && -n ${KOIOS_API} && $(curl -Isf -m 5 ${KOIOS_API}/tip | head -1) = *"200 OK"* ]] || unset KOIOS_API
 }
 
+check_cncli_versions() {
+  if [[ $(command -v cncli) ]] ; then
+    vcur=$(cncli -V | sed 's/cncli /v/g')
+    vrem=$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r .tag_name)
+    if [[ ! -z ${vrem} ]]; then
+      [[ ${vcur} == ${vrem} ]] && printf "${FG_GREEN}CNCLI ${vcur} up to date${NC}" || printf "${FG_MAGENTA}CNCLI current version ($vcur) different from repo ($vrem).${NC}"
+    else
+      printf "${FG_RED}CNCLI : GITHUB API Not Reachable or Not Responding.${NC}"
+    fi
+  else
+    printf "${FG_RED}CNCLI nos installed. Run prereqs.sh -c [...] to install if needed.${NC}"
+  fi
+}
+
 [[ ${OFFLINE_MODE} = "N" && ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && getNodeMetrics && getShelleyTransitionEpoch
 
 # Return code 2 is used for scripts that want to source env but not fail due to a starting node

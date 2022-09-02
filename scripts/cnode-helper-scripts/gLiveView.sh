@@ -1175,7 +1175,10 @@ while true; do
   [[ ${check_peers} = "true" ]] && check_peers=false && show_peers=true && clrScreen && continue
 
   echo "${bdivider}" && ((line++))
-  printf " TG Announcement/Support channel: ${style_info}t.me/guild_operators_official${NC}\n\n" && line=$((line+2))
+  printf " TG Announcement/Support channel: ${style_info}t.me/guild_operators_official${NC}\n" && line=$((line+1))
+
+  [[ -z ${CNCLI_STATUS} ]] && CNCLI_STATUS=$(check_cncli_versions)
+  [[ -z ${CNCLI_STATUS} ]] || printf " $CNCLI_STATUS\n" && line=$((line+1))
 
   [[ -z ${oldLine} ]] && oldLine=$line
 
