@@ -170,6 +170,16 @@ if [[ "${INTERACTIVE}" = 'Y' ]]; then
   fi
 fi
 
+# Description : Add epel repository when needed
+#             : $1 = DISTRO
+#             : $2 = Epel repository VERSION_ID
+#             : $3 = pkg_opts for repo install
+add_epel_repository() {
+  if [[ "${1}" =~ Fedora ]]; then return; fi
+  echo "  Enabling epel repository..."
+  ! grep -q ^epel <<< "$(yum repolist)" && $sudo yum ${2} install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"${3}".noarch.rpm > /dev/null
+}
+
 if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
 
   # Determine OS platform
@@ -217,7 +227,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
       pkg_opts="${pkg_opts} --allowerasing"
       pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config srm"
     fi
-    ! grep -q ^epel <<< "$(yum repolist)" && $sudo yum ${pkg_opts} install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"${VERSION_ID}".noarch.rpm > /dev/null
+    add_epel_repository "${DISTRO}" "${VERSION_ID}" "${pkg_opts}"
     $sudo yum ${pkg_opts} install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
