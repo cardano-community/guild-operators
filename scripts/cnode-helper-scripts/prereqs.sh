@@ -177,7 +177,7 @@ fi
 add_epel_repository() {
   if [[ "${1}" =~ Fedora ]]; then return; fi
   echo "  Enabling epel repository..."
-  ! grep -q ^epel <<< "$(yum repolist)" && $sudo yum ${2} install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"${3}".noarch.rpm > /dev/null
+  ! grep -q ^epel <<< "$(yum repolist)" && $sudo yum ${3} install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"${2}".noarch.rpm > /dev/null
 }
 
 if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
