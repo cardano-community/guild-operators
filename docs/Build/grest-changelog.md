@@ -2,7 +2,7 @@
 
 ## [1.0.7] - For all networks
 
-This release continues updates from koios-1.0.6 to further utilise stake-snapshot cache tables which would be useful for SPOs as well as reduce downtime post epoch transition.
+This release continues updates from koios-1.0.6 to further utilise stake-snapshot cache tables which would be useful for SPOs as well as reduce downtime post epoch transition. One largely requested feature to accept bulk inputs for many block/address/account endpoints is now complete.
 Additionally, koios instance providers are now recommended to use latest releases (cardano-node 1.35.3 with dbsync 13.0.4) of core components.
 
 ### Changes for API 
@@ -16,9 +16,21 @@ Additionally, koios instance providers are now recommended to use latest release
 - `tx_info` - `epoch` => `epoch_no` [#1494](https://github.com/cardano-community/guild-operators/pull/1494)
 - `tx_info` - Change `collateral_outputs` (array) to `collateral_output` (object) as collateral output is only singular in current implementation [#1496](https://github.com/cardano-community/guild-operators/pull/1496)
 - `address_info` - Add `inline_datum` and `reference_script` to output [#1500](https://github.com/cardano-community/guild-operators/pull/1500)
+- `pool_info` - Add `sigma` field to output [#1511](https://github.com/cardano-community/guild-operators/pull/1511)
+- `pool_updates` - Add historical metadata information to output [#1503](https://github.com/cardano-community/guild-operators/pull/1503)
+- Change block/address/account endpoints to accept bulk input where applicable. This resulted in GET requests changing to POST accepting payload of multiple blocks, addresses or accounts for respective endpoints as *input* (eg: `_stake_address text` becomes `_stake_addresses text[]`). The additional changes in output as below:
+  - `block_txs` - Now returns `block_hash` and array of `tx_hashes`
+  - `address_info` - Additional field `address` returned in output
+  - `address_assets` - Now returns `address` and an array of `assets` JSON
+  - `account_addresses` - Accepts `stake_addresses` array and outputs `stake_address` and array of `addresses`
+  - `account_assets` - Accepts `stake_addresses` array and outputs `stake_address` and array of `assets` JSON
+  - `account_history` - Accepts `stake_addresses` array alongwith `epoch_no` integer and outputs `stake_address` and array of `history` JSON
+  - `account_info` - Accepts `stake_addresses` array and returns additional field `stake_address` to output
+  - `account_rewards` - Now returns `stake_address` and an array of `rewards` JSON
+  - `account_updates` - Now returns `stake_address` and an array of `updates` JSON
 
 ### Changes for Instance Providers
-- `epoch_info_cache` - Only update last_tx_id of previous epoch on epoch transition [#1490](https://github.com/cardano-community/guild-operators/pull/1490)
+- `epoch_info_cache` - Only update last_tx_id of previous epoch on epoch transition [#1490](https://github.com/cardano-community/guild-operators/pull/1490) and [#1502](https://github.com/cardano-community/guild-operators/pull/1502)
 - `epoch_info_cache` / `stake_snapshot_cache` - Store total snapshot stake to epoch stake cache, and active pool stake to stake snapshot cache [#1485](https://github.com/cardano-community/guild-operators/pull/1485)
 
 
