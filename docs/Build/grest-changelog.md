@@ -3,7 +3,7 @@
 ## [1.0.7] - For all networks
 
 This release continues updates from koios-1.0.6 to further utilise stake-snapshot cache tables which would be useful for SPOs as well as reduce downtime post epoch transition. One largely requested feature to accept bulk inputs for many block/address/account endpoints is now complete.
-Additionally, koios instance providers are now recommended to use latest releases (cardano-node 1.35.3 with dbsync 13.0.4) of core components.
+Additionally, koios instance providers are now recommended to use cardano-node 1.35.3 with dbsync 13.0.5.
 
 ### Changes for API 
 
