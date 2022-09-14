@@ -151,6 +151,13 @@ if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
     1) $0 "$@" "-u"; myExit 0 ;; # re-launch script with same args skipping update check
     2) exit 1 ;;
   esac
+
+  # check for CNCLI update
+  if [ -z "${CNCLI_STATUS}" ] ; then CNCLI_STATUS=$(check_cncli_versions) ; fi
+  if [ -n "${CNCLI_STATUS}" ] ; then
+    printf "$CNCLI_STATUS\n\n" && read -p "Press key to ACK"
+  fi
+
 else
   # source common env variables in offline mode
   . "${PARENT}"/env offline
@@ -1175,10 +1182,7 @@ while true; do
   [[ ${check_peers} = "true" ]] && check_peers=false && show_peers=true && clrScreen && continue
 
   echo "${bdivider}" && ((line++))
-  printf " TG Announcement/Support channel: ${style_info}t.me/guild_operators_official${NC}\n" && line=$((line+1))
-
-  [[ -z ${CNCLI_STATUS} ]] && CNCLI_STATUS=$(check_cncli_versions)
-  [[ -z ${CNCLI_STATUS} ]] || printf " $CNCLI_STATUS\n" && line=$((line+1))
+  printf " TG Announcement/Support channel: ${style_info}t.me/guild_operators_official${NC}\n\n" && line=$((line+2))
 
   [[ -z ${oldLine} ]] && oldLine=$line
 

@@ -1036,13 +1036,14 @@ check_cncli_versions() {
     vcur=$(cncli -V | sed 's/cncli /v/g')
     vrem=$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r .tag_name)
     if [[ ! -z ${vrem} ]]; then
-      [[ ${vcur} == ${vrem} ]] && printf "${FG_GREEN}CNCLI ${vcur} up to date${NC}" || printf "${FG_MAGENTA}CNCLI current version ($vcur) different from repo ($vrem).${NC}"
+      [[ ${vcur} == ${vrem} ]] || upCNCLI="${FG_MAGENTA}CNCLI current version ($vcur) different from repo ($vrem).${NC}"
     else
-      printf "${FG_RED}CNCLI : GITHUB API Not Reachable or Not Responding.${NC}"
+      upCNCLI="${FG_RED}CNCLI : GITHUB API Not Reachable or Not Responding.${NC}"
     fi
   else
-    printf "${FG_RED}CNCLI nos installed. Run prereqs.sh -c [...] to install if needed.${NC}"
+    upCNCLI="${FG_RED}CNCLI nos installed. Run prereqs.sh -c [...] to install if needed.${NC}"
   fi
+  printf "%s" $upCNCLI
 }
 
 [[ ${OFFLINE_MODE} = "N" && ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && getNodeMetrics && getShelleyTransitionEpoch
