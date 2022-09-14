@@ -291,7 +291,13 @@ SGVERSION=1.0.6 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
   deploy_postgrest() {
     echo "[Re]Installing PostgREST.."
     pushd ~/tmp >/dev/null || err_exit
-    pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-static-x64.tar.xz')"
+    ARCH=$(uname -i)
+    if [ -z "${ARCH##*aarch64*}" ]; then
+      pgrest_binary=ubuntu-aarch64.tar.xz
+    else 
+      pgrest_binary=linux-static-x64.tar.xz
+    fi
+    pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep ${pgrest_binary})"
     if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest.tar.xz "${pgrest_asset_url}"; then
       tar xf postgrest.tar.xz &>/dev/null && rm -f postgrest.tar.xz
       [[ -f postgrest ]] || err_exit "PostgREST archive downloaded but binary not found after attempting to extract package!"
