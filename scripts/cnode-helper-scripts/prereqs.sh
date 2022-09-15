@@ -186,6 +186,7 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
   OS_ID=$(grep -i ^id_like= /etc/os-release | cut -d= -f 2)
   DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
   VERSION_ID=$(grep -i ^version_id= /etc/os-release | cut -d= -f 2 | tr -d '"' | cut -d. -f 1)
+  ARCH=$(uname -i)
 
   if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
     #Debian/Ubuntu
@@ -196,6 +197,9 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     $sudo apt-get ${pkg_opts} update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
     pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute dialog automake sqlite3 bsdmainutils libusb-1.0-0-dev libudev-dev unzip"
+    if [ -z "${ARCH##*aarch64*}" ]; then
+      pkg_list="${pkg_list} llvm clang libnuma-dev"
+    fi
     $sudo apt-get ${pkg_opts} install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
@@ -227,6 +231,9 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
       pkg_opts="${pkg_opts} --allowerasing"
       pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config srm"
     fi
+    if [ -z "${ARCH##*aarch64*}" ]; then
+      pkg_list="${pkg_list} llvm clang numactl-devel"
+    fi    
     add_epel_repository "${DISTRO}" "${VERSION_ID}" "${pkg_opts}"
     $sudo yum ${pkg_opts} install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
