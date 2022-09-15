@@ -91,8 +91,8 @@ fi
 #Deploy systemd if -d argument was specified
 if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
   # if not already enabled activate the required Tracers in the config file
-  [[ "$(jq -r .TraceChainSyncClient "${CONFIG}")" != "true" ]] && jq '.TraceChainSyncClient = "true"' ${CONFIG} > ${CONFIG}.tmp && mv ${CONFIG}.tmp ${CONFIG} && echo "INFO: Enabling node config TraceChainSyncClient" && config_changed=1
-  [[ "$(jq -r .TraceBlockFetchClient "${CONFIG}")" != "true" ]] && jq '.TraceBlockFetchClient = "true"' ${CONFIG} > ${CONFIG}.tmp && mv ${CONFIG}.tmp ${CONFIG} && echo "INFO: Enabling node config TraceBlockFetchClient" && config_changed=1
+  [[ "$(jq -r .TraceChainSyncClient "${CONFIG}")" != "true" ]] && jq '.TraceChainSyncClient = true' ${CONFIG} > ${CONFIG}.tmp && mv ${CONFIG}.tmp ${CONFIG} && echo "INFO: Enabling node config TraceChainSyncClient" && config_changed=1
+  [[ "$(jq -r .TraceBlockFetchClient "${CONFIG}")" != "true" ]] && jq '.TraceBlockFetchClient = true' ${CONFIG} > ${CONFIG}.tmp && mv ${CONFIG}.tmp ${CONFIG} && echo "INFO: Enabling node config TraceBlockFetchClient" && config_changed=1
   [[ $config_changed -eq 1 ]] && echo "Please restart the node with new Tracers before using blockPerf."
   deploy_systemd && exit 0
   exit 2
