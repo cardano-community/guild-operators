@@ -23,6 +23,7 @@ BEGIN
       SELECT
         tx.id,
         tx.hash,
+        tx_out.id as txo_id,
         tx_out.address,
         tx_out.value,
         tx_out.index,
@@ -90,7 +91,7 @@ BEGIN
                       ma_tx_out MTX
                       INNER JOIN multi_asset MA ON MA.id = MTX.ident
                   WHERE
-                      MTX.tx_out_id = au.id
+                      MTX.tx_out_id = au.txo_id
                 ),
                 JSON_BUILD_ARRAY()
               )

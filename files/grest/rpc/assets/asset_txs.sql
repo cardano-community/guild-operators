@@ -1,4 +1,8 @@
-CREATE FUNCTION grest.asset_txs (_asset_policy text, _asset_name text default '')
+CREATE FUNCTION grest.asset_txs (
+  _asset_policy text,
+  _asset_name text default '',
+  _after_block_height integer DEFAULT 0
+)
   RETURNS TABLE (
     tx_hash text,
     epoch_no word31type,
@@ -42,6 +46,8 @@ BEGIN
         INNER JOIN block ON block.id = tx.block_id
       WHERE
         MTO.ident = _asset_id
+        AND
+        block.block_no >= _after_block_height
       GROUP BY
         ident,
         tx.hash,
