@@ -130,7 +130,7 @@ case ${NWMAGIC} in
 esac
 
 # check if the script is not already running (service and console) 
-pidfile=${CNODE_HOME}/blockPerf-${NETWORK_NAME}.pid
+pidfile=${CNODE_HOME}/blockPerf-running.pid
 if [[ -f ${pidfile} ]]; then
     echo "WARN: This script is already running on this node for ${NETWORK_NAME} network (probably as a service)" && exit 1
 else
