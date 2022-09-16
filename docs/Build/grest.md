@@ -102,18 +102,6 @@ frontend app-secured
 ```
 Restart haproxy service for changes to take effect.
 
-### Performance Tuning Considerations
-
-While the defaults on your system should not cause you any trouble, note that haproxy relies on ephemeral ports available on your system to be able to redirect frontend requests to backend servers. The four important configuration settings in your `/etc/sysctl.conf` files would be:
-
-```
-net.ipv4.ip_local_port_range="1024 65534"
-net.core.somaxconn=65534
-net.ipv4.tcp_rmem=4096 16060 64060
-net.ipv4.tcp_wmem=4096 16384 262144
-```
-Again, defaults should be fine for minimal usage, you do not need to tinker with above unless you expect a very high amount of load on your frontend. We intentionally do not set these for you as system tuning activities should be done very carefully, understanding what you're modifying and their impacts - these would be part of your SysOps + SecOps practices.
-
 ### Validation
 
 With the setup, you also have a `checkstatus.sh` script, which will query the Postgres DB instance via haproxy (coming through postgREST), and only show an instance up if the latest block in your DB instance is within 180 seconds.
