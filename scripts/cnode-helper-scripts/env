@@ -1032,16 +1032,12 @@ test_koios() {
 }
 
 check_cncli_versions() {
-  if [[ $(command -v cncli) ]] ; then
+  if command -v cncli >/dev/null && systemctl is-active --quiet ${CNODE_VNAME}-cncli-sync.service; then
     vcur=$(cncli -V | sed 's/cncli /v/g')
     vrem=$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r .tag_name)
     if [[ ! -z ${vrem} ]]; then
       [[ ${vcur} == ${vrem} ]] || upCNCLI="${FG_MAGENTA}CNCLI current version ($vcur) different from repo ($vrem).${NC}"
-    else
-      upCNCLI="${FG_RED}CNCLI : GITHUB API Not Reachable or Not Responding.${NC}"
     fi
-  else
-    upCNCLI="${FG_RED}CNCLI nos installed. Run prereqs.sh -c [...] to install if needed.${NC}"
   fi
   printf "%s" $upCNCLI
 }

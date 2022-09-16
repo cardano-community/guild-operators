@@ -153,9 +153,9 @@ if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
   esac
 
   # check for CNCLI update
-  if [ -z "${CNCLI_STATUS}" ] ; then CNCLI_STATUS=$(check_cncli_versions) ; fi
+  CNCLI_STATUS=$(check_cncli_versions)
   if [ -n "${CNCLI_STATUS}" ] ; then
-    printf "$CNCLI_STATUS\n\n" && read -p "Press key to ACK"
+    printf "$CNCLI_STATUS\n" && waitToProceed
   fi
 
 else
