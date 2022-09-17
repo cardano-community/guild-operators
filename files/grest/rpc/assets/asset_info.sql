@@ -57,13 +57,11 @@ BEGIN
       (
         SELECT
           COALESCE(
-            JSON_AGG(
-              JSON_BUILD_OBJECT(
-                'key', TM.key::text,
-                'json', TM.json
-              )
+            JSON_BUILD_OBJECT(
+              'key', TM.key::text,
+              'json', TM.json
             ),
-            JSON_BUILD_ARRAY()
+            JSON_BUILD_OBJECT()
           )
         FROM
           tx_metadata TM
