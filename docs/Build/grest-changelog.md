@@ -28,6 +28,7 @@ Additionally, koios instance providers are now recommended to use cardano-node 1
   - `account_info` - Accepts `stake_addresses` array and returns additional field `stake_address` to output
   - `account_rewards` - Now returns `stake_address` and an array of `rewards` JSON
   - `account_updates` - Now returns `stake_address` and an array of `updates` JSON
+- `asset_info` - Change `minting_tx_metadata` from array to object [#1533](https://github.com/cardano-community/guild-operators/pull/1533)
 
 ### Changes for Instance Providers
 - `epoch_info_cache` - Only update last_tx_id of previous epoch on epoch transition [#1490](https://github.com/cardano-community/guild-operators/pull/1490) and [#1502](https://github.com/cardano-community/guild-operators/pull/1502)
