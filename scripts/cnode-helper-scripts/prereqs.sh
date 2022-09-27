@@ -82,7 +82,7 @@ EOF
   exit 1
 }
 
-while getopts :in:sflcwot:m:b: opt; do
+while getopts :in:sflcwoxt:m:b: opt; do
   case ${opt} in
     i ) INTERACTIVE='Y' ;;
     n ) NETWORK=${OPTARG} ;;
