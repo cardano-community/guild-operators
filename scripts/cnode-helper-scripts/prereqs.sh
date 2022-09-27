@@ -18,6 +18,7 @@ unset CNODE_HOME
 #INSTALL_CNCLI='N'      # Install/Upgrade and build CNCLI with RUST
 #INSTALL_VCHC='N'       # Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
 #INSTALL_OGMIOS='N'     # Install Ogmios Server
+#INSTALL_CSIGNER='N'    # Install/Upgrade Cardano Signer (https://github.com/gitmachtl/cardano-signer)
 #CNODE_NAME='cnode'     # Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
 #CURL_TIMEOUT=60        # Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
 #UPDATE_CHECK='Y'       # Check if there is an updated version of prereqs.sh script to download
@@ -73,6 +74,7 @@ Install pre-requisites for building cardano node and using CNTools
 -c    Install/Upgrade and build CNCLI with RUST
 -w    Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
 -o    Install/Upgrade Ogmios Server binary
+-x    Install/Upgrade Cardano Signer (https://github.com/gitmachtl/cardano-signer)
 -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 -i    Interactive mode (Default: silent mode)
 
@@ -90,6 +92,7 @@ while getopts :in:sflcwot:m:b: opt; do
     c ) INSTALL_CNCLI='Y' ;;
     w ) INSTALL_VCHC='Y' ;;
     o ) INSTALL_OGMIOS='Y' ;;
+    o ) INSTALL_CSIGNER='Y' ;;
     t ) CNODE_NAME=${OPTARG//[^[:alnum:]]/_} ;;
     m ) CURL_TIMEOUT=${OPTARG} ;;
     b ) BRANCH=${OPTARG} ;;
@@ -106,6 +109,7 @@ shift $((OPTIND -1))
 [[ -z ${INSTALL_CNCLI} ]] && INSTALL_CNCLI='N'
 [[ -z ${INSTALL_VCHC} ]] && INSTALL_VCHC='N'
 [[ -z ${INSTALL_OGMIOS} ]] && INSTALL_OGMIOS='N'
+[[ -z ${INSTALL_CSIGNER} ]] && INSTALL_CSIGNER='N'
 [[ -z ${CNODE_NAME} ]] && CNODE_NAME='cnode'
 [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=60
 [[ -z ${UPDATE_CHECK} ]] && UPDATE_CHECK='Y'
@@ -456,6 +460,45 @@ if [[ "${INSTALL_OGMIOS}" = "Y" ]]; then
     fi
   else
     err_exit "Download of latest release of ogmios archive from GitHub failed! Please retry or manually install it."
+  fi
+fi
+
+if [[ "${INSTALL_CSIGNER}" = "Y" ]]; then
+  echo "Installing Cardano Signer"
+  if command -v cardano-signer >/dev/null; then csigner_version="v$(cardano-signer version)"; else csigner_version="v0.0.0"; fi
+  csigner_git_version="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.tag_name')"
+  if ! versionCheck "${csigner_git_version}" "${csigner_version}"; then
+    rm -rf /tmp/csigner && mkdir /tmp/csigner
+    pushd /tmp/csigner >/dev/null || err_exit
+    csigner_asset_url="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.assets[].browser_download_url')"
+    ARCH=$(uname -i)
+    csigner_release_url=""
+    while IFS= read -r release; do
+      if [[ -z ${ARCH##*aarch64*} && ${release} = *arm-x64.tar.gz ]]; then # ARM64
+        csigner_release_url=${release}; break
+      elif [[ $(uname) == Darwin && ${release} = *mac-x64.tar.gz ]]; then # Mac OSX
+        csigner_release_url=${release}; break
+      elif [[ ${ARCH} = x86_64 && ${release} = *linux-x64.tar.gz ]]; then # Linux x64
+        csigner_release_url=${release}; break
+      fi
+    done <<< "${csigner_asset_url}"
+    if [[ -n ${csigner_release_url} ]]; then
+      if curl -sL -f -m ${CURL_TIMEOUT} -o csigner.tar.gz ${csigner_release_url}; then
+        tar zxf csigner.tar.gz &>/dev/null
+        rm -f csigner.tar.gz
+        [[ -f cardano-signer ]] || err_exit "Cardano Signer downloaded but binary(cardano-signer) not found after extracting package!"
+        [[ "${csigner_version}" = "v0.0.0" ]] && echo "  latest version: ${csigner_git_version}" || echo "  installed version: ${csigner_version} | latest version: ${csigner_git_version}"
+        chmod +x /tmp/csigner/cardano-signer
+        mv -f /tmp/csigner/cardano-signer "${HOME}"/.cabal/bin/
+        echo "  cardano-signer ${csigner_git_version} installed!"
+      else
+        err_exit "Download of latest release of Cardano Signer archive from GitHub failed! Please retry or manually install it."
+      fi
+    else
+      err_exit "Unsupported system, no cardano-signer release found matching system architecture."
+    fi
+  else
+    echo "  Cardano Signer already latest version [${csigner_version}], skipping!"
   fi
 fi
 
