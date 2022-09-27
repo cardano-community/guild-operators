@@ -18,7 +18,7 @@ unset CNODE_HOME
 #INSTALL_CNCLI='N'      # Install/Upgrade and build CNCLI with RUST
 #INSTALL_VCHC='N'       # Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
 #INSTALL_OGMIOS='N'     # Install Ogmios Server
-#INSTALL_CSIGNER='N'    # Install/Upgrade Cardano Signer (https://github.com/gitmachtl/cardano-signer)
+#INSTALL_CSIGNER='N'    # Install/Upgrade Cardano Signer
 #CNODE_NAME='cnode'     # Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
 #CURL_TIMEOUT=60        # Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
 #UPDATE_CHECK='Y'       # Check if there is an updated version of prereqs.sh script to download
@@ -74,7 +74,7 @@ Install pre-requisites for building cardano node and using CNTools
 -c    Install/Upgrade and build CNCLI with RUST
 -w    Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
 -o    Install/Upgrade Ogmios Server binary
--x    Install/Upgrade Cardano Signer (https://github.com/gitmachtl/cardano-signer)
+-x    Install/Upgrade Cardano Signer
 -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 -i    Interactive mode (Default: silent mode)
 

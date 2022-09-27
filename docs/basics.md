@@ -47,7 +47,7 @@ Install pre-requisites for building cardano node and using CNTools
 -c    Install/Upgrade and build CNCLI with RUST
 -w    Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
 -o    Install/Upgrade Ogmios Server binary
--x    Install/Upgrade Cardano Signer (https://github.com/gitmachtl/cardano-signer)
+-x    Install/Upgrade Cardano Signer
 -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 -i    Interactive mode (Default: silent mode)
 ```
