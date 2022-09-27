@@ -92,7 +92,7 @@ while getopts :in:sflcwot:m:b: opt; do
     c ) INSTALL_CNCLI='Y' ;;
     w ) INSTALL_VCHC='Y' ;;
     o ) INSTALL_OGMIOS='Y' ;;
-    o ) INSTALL_CSIGNER='Y' ;;
+    x ) INSTALL_CSIGNER='Y' ;;
     t ) CNODE_NAME=${OPTARG//[^[:alnum:]]/_} ;;
     m ) CURL_TIMEOUT=${OPTARG} ;;
     b ) BRANCH=${OPTARG} ;;
