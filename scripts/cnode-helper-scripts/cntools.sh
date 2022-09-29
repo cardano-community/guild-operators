@@ -1771,8 +1771,8 @@ function main {
               fi
               minPoolCost=$(formatLovelace $(jq -r '.minPoolCost //0' <<< "${PROT_PARAMS}") normal) # convert to Ada
               [[ -f ${pool_config} ]] && cost_ada=$(jq -r '.costADA //0' "${pool_config}") || cost_ada=${minPoolCost} # default cost
-              [[ $(bc -l <<< "${cost_ada} < ${minPoolCost}") ]] && cost_ada=${minPoolCost} # raise old value to new minimum cost
-              getAnswerAnyCust cost_enter "Cost (in Ada, minimum: ${minPoolCost}, default: ${cost_ada}"
+              [[ $(bc -l <<< "${cost_ada} < ${minPoolCost}") -eq 1 ]] && cost_ada=${minPoolCost} # raise old value to new minimum cost
+              getAnswerAnyCust cost_enter "Cost (in Ada, minimum: ${minPoolCost}, default: ${cost_ada})"
               cost_enter="${cost_enter//,}"
               if [[ -n "${cost_enter}" ]]; then
                 if ! AdaToLovelace "${cost_enter}" >/dev/null; then
@@ -1783,7 +1783,7 @@ function main {
               else
                 cost_lovelace=$(AdaToLovelace "${cost_ada}")
               fi
-              if [[ $(bc -l <<< "${cost_ada} < ${minPoolCost}") ]]; then
+              if [[ $(bc -l <<< "${cost_ada} < ${minPoolCost}") -eq 1 ]]; then
                 println ERROR "\n${FG_RED}ERROR${NC}: cost set lower than allowed"
                 waitForInput && continue
               fi
