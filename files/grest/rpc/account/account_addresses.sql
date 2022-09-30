@@ -19,7 +19,7 @@ BEGIN
     SELECT
       sa.view as stake_address,
       JSON_AGG(
-        DISTINCT(TX_OUT.address)
+        DISTINCT(TX_OUT.address) ORDER BY (TX_OUT.id)
       ) as addresses
     FROM
       TX_OUT
