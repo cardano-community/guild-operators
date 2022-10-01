@@ -159,7 +159,7 @@ function chk_cache_status() {
           optexit
         fi
       else
-        if [[ $((last_snapshot_epoch + 2)) -ne ${epoch} ]]; then
+        if [[ $((last_snapshot_epoch + 2)) -lt ${epoch} ]]; then
           [[ "${DEBUG_MODE}" == "1" ]] && echo "Last stake snapshot was captured in epoch: ${last_snapshot_epoch}."
           log_err "Stake snapshot for current epoch ${epoch} was not captured !!"
           optexit
