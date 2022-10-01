@@ -322,11 +322,12 @@ validateDecimalNbr() {
 
 # Description : Pretty print Lovelace value
 #             : $1 = Amount in Lovelace
+#             : $2 = normal | pretty (default)
 formatLovelace() {
   if isNumber $1; then
     [[ $1 -eq 0 ]] && echo 0 && return
     [[ $1 -le 999999 ]] && printf '0.%06d' "$1" && return
-    printf '%s.%s' "$(sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< ${1::-6})" "${1: -6}"
+    [[ -z $2 || $2 = 'pretty' ]] && printf '%s.%s' "$(sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< ${1::-6})" "${1: -6}" || printf '%s.%s' "${1::-6}" "${1: -6}"
   else
     printf "${FG_RED}ERROR${NC}: must be a valid integer number" 1>&2
     return 1

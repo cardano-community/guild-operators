@@ -1636,8 +1636,8 @@ function main {
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println OFF " Pool Management\n"\
 						" ) New      - create a new pool"\
-						" ) Register - register created pool on chain using a stake wallet (pledge wallet)"\
-						" ) Modify   - change pool parameters and register updated pool values on chain"\
+						" ) Register - register a newly created pool on chain using a stake wallet (pledge wallet)"\
+						" ) Modify   - re-register pool modifying pool definition and/or parameters"\
 						" ) Retire   - de-register stake pool from chain in specified epoch"\
 						" ) List     - a compact list view of available local pools"\
 						" ) Show     - detailed view of specified pool"\
@@ -1769,10 +1769,10 @@ function main {
               else
                 margin_fraction=$(pctToFraction "${margin}")
               fi
-              minPoolCost=$(( $(jq -r '.minPoolCost //0' <<< "${PROT_PARAMS}") / 1000000 )) # convert to Ada
+              minPoolCost=$(formatLovelace $(jq -r '.minPoolCost //0' <<< "${PROT_PARAMS}") normal) # convert to Ada
               [[ -f ${pool_config} ]] && cost_ada=$(jq -r '.costADA //0' "${pool_config}") || cost_ada=${minPoolCost} # default cost
-              [[ ${cost_ada} -lt ${minPoolCost} ]] && cost_ada=${minPoolCost} # raise old value to new minimum cost
-              getAnswerAnyCust cost_enter "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAsset ${cost_ada}))"
+              [[ $(bc -l <<< "${cost_ada} < ${minPoolCost}") -eq 1 ]] && cost_ada=${minPoolCost} # raise old value to new minimum cost
+              getAnswerAnyCust cost_enter "Cost (in Ada, minimum: ${minPoolCost}, default: ${cost_ada})"
               cost_enter="${cost_enter//,}"
               if [[ -n "${cost_enter}" ]]; then
                 if ! AdaToLovelace "${cost_enter}" >/dev/null; then
@@ -1783,7 +1783,7 @@ function main {
               else
                 cost_lovelace=$(AdaToLovelace "${cost_ada}")
               fi
-              if [[ ${cost_ada} -lt ${minPoolCost} ]]; then
+              if [[ $(bc -l <<< "${cost_ada} < ${minPoolCost}") -eq 1 ]]; then
                 println ERROR "\n${FG_RED}ERROR${NC}: cost set lower than allowed"
                 waitForInput && continue
               fi
@@ -2271,7 +2271,7 @@ function main {
               println "Reward Wallet : ${FG_GREEN}${reward_wallet}${NC}"
               println "Pledge        : ${FG_LBLUE}$(formatAsset ${pledge_ada})${NC} Ada"
               println "Margin        : ${FG_LBLUE}${margin}${NC} %"
-              println "Cost          : ${FG_LBLUE}$(formatAsset ${cost_ada})${NC} Ada"
+              println "Cost          : ${FG_LBLUE}$(formatLovelace ${cost_lovelace})${NC} Ada"
               if [[ ${SUBCOMMAND} = "register" ]]; then
                 if [[ ${op_mode} = "hybrid" ]]; then
                   println DEBUG "\n${FG_YELLOW}After offline pool transaction is signed and submitted, uncomment and set value for POOL_NAME in ${PARENT}/env with${NC} '${FG_GREEN}${pool_name}${NC}'"
@@ -3922,7 +3922,8 @@ function main {
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println OFF " Multi-Asset Token Management\n"\
 									" ) Create Policy  - create a new asset policy"\
-									" ) List Assets    - list created/minted policies/assets"\
+									" ) List Assets    - list created/minted policies/assets (local)"\
+                  " ) Show Asset     - show minted asset information"\
 									" ) Decrypt Policy - remove write protection and decrypt policy"\
 									" ) Encrypt Policy - encrypt policy sign key and make all files immutable"\
 									" ) Mint Asset     - mint new assets for selected policy"\
@@ -3930,17 +3931,18 @@ function main {
 									" ) Register Asset - create/update JSON submission file for Cardano Token Registry"\
 									"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println DEBUG " Select Multi-Asset Operation\n"
-                select_opt "[c] Create Policy" "[l] List Assets" "[d] Decrypt / Unlock Policy" "[e] Encrypt / Lock Policy" "[m] Mint Asset" "[x] Burn Asset" "[r] Register Asset" "[b] Back" "[h] Home"
+                select_opt "[c] Create Policy" "[l] List Assets" "[s] Show Asset" "[d] Decrypt / Unlock Policy" "[e] Encrypt / Lock Policy" "[m] Mint Asset" "[x] Burn Asset" "[r] Register Asset" "[b] Back" "[h] Home"
                 case $? in
                   0) SUBCOMMAND="create-policy" ;;
                   1) SUBCOMMAND="list-assets" ;;
-                  2) SUBCOMMAND="decrypt-policy" ;;
-                  3) SUBCOMMAND="encrypt-policy" ;;
-                  4) SUBCOMMAND="mint-asset" ;;
-                  5) SUBCOMMAND="burn-asset" ;;
-                  6) SUBCOMMAND="register-asset" ;;
-                  7) break ;;
-                  8) break 2 ;;
+                  2) SUBCOMMAND="show-asset" ;;
+                  3) SUBCOMMAND="decrypt-policy" ;;
+                  4) SUBCOMMAND="encrypt-policy" ;;
+                  5) SUBCOMMAND="mint-asset" ;;
+                  6) SUBCOMMAND="burn-asset" ;;
+                  7) SUBCOMMAND="register-asset" ;;
+                  8) break ;;
+                  9) break 2 ;;
                 esac
                 case $SUBCOMMAND in
                   create-policy)
@@ -4029,14 +4031,59 @@ function main {
                       if [[ $(find "${policy}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | wc -c) -gt 0 ]]; then
                         while IFS= read -r -d '' asset; do
                           asset_filename=$(basename ${asset})
-                          [[ -z ${asset_filename%.*} ]] && asset_name="" || asset_name="${asset_filename%.*}"
+                          [[ -z ${asset_filename%.*} ]] && asset_name="" || asset_name="${asset_filename%%.*}"
                           [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
-                          println "Asset         : Name: ${FG_MAGENTA}${asset_name}${NC} (${FG_LGRAY}(${asset_name_hex}${NC}) - Minted: ${FG_LBLUE}$(formatAsset "$(jq -r .minted "${asset}")")${NC}"
+                          println "Asset         : Name: ${FG_MAGENTA}${asset_name}${NC} (${FG_LGRAY}${asset_name_hex}${NC}) - Minted: ${FG_LBLUE}$(formatAsset "$(jq -r .minted "${asset}")")${NC}"
                         done < <(find "${policy}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | sort -z)
                       else
                         println "Asset         : ${FG_LGRAY}No assets minted for this policy!${NC}"
                       fi
                     done < <(find "${ASSET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+                    waitForInput && continue
+                    ;; ###################################################################
+                  show-asset)
+                    clear
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    println " >> ADVANCED >> MULTI-ASSET >> SHOW ASSET"
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies or assets found!${NC}" && waitForInput && continue
+                    println DEBUG "# Select minted asset to show information for"
+                    if ! selectAsset; then # ${selected_value} populated
+                      waitForInput && continue
+                    fi
+                    echo
+                    policy_id=$(cat "${ASSET_FOLDER}/${policy_dir}/${ASSET_POLICY_ID_FILENAME}")
+                    println "Policy Name    : ${FG_GREEN}${policy_dir}${NC}"
+                    println "Policy ID      : ${FG_LGRAY}${policy_id}${NC}"
+                    ttl=$(jq -er '.scripts[0].slot //0' "${ASSET_FOLDER}/${policy_dir}/${ASSET_POLICY_SCRIPT_FILENAME}")
+                    current_slot=$(getSlotTipRef)
+                    if [[ ${ttl} -eq 0 ]]; then
+                      println "Policy Expire  : ${FG_LGRAY}unlimited${NC}"
+                    elif [[ ${ttl} -gt ${current_slot} ]]; then
+                      println "Policy Expire  : ${FG_LGRAY}$(getDateFromSlot ${ttl} '%(%F %T %Z)T')${NC}, ${FG_LGRAY}$(timeLeft $((ttl-current_slot)))${NC} remaining"
+                    else
+                      println "Policy Expire  : ${FG_LGRAY}$(getDateFromSlot ${ttl} '%(%F %T %Z)T')${NC}, ${FG_RED}expired $(timeLeft $((current_slot-ttl))) ago !!${NC}"
+                    fi
+                    [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
+                    println "Asset Name     : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY} (${asset_name_hex})${NC}"
+                    getAssetInfo "${policy_id}" "${asset_name_hex}"
+                    case $? in
+                      0) println "Fingerprint    : ${FG_LGRAY}${a_fingerprint}${NC}"
+                         println "In Circulation : ${FG_LBLUE}$(formatAsset ${a_total_supply})${NC}"
+                         println "Mint Count     : ${FG_LBLUE}${a_mint_cnt}${NC}"
+                         println "Burn Count     : ${FG_LBLUE}${a_burn_cnt}${NC}"
+                         println "Mint Tx Meta   :"
+                         if [[ ${a_minting_tx_metadata} != '[]' ]]; then jq -r . <<< "${a_minting_tx_metadata}"; fi
+                         println "Token Reg Meta :"
+                         if [[ ${a_token_registry_metadata} != 'null' ]]; then jq -r . <<< "${a_token_registry_metadata}"; fi ;;
+                      1) println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" ;;
+                      2) a_minted=$(jq -er '.minted //0' "${asset_file}")
+                         println "In Circulation : ${FG_LBLUE}$(formatAsset "$(jq -er '.minted //0' "${asset_file}")")${NC} (local tracking)" ;;
+                    esac
+                    a_last_update=$(jq -er '.lastUpdate //"-"' "${asset_file}")
+                    a_last_action=$(jq -er '.lastAction //"-"' "${asset_file}")
+                    println "Last Updated   : ${FG_LGRAY}${a_last_update}${NC}"
+                    println "Last Action    : ${FG_LGRAY}${a_last_action}${NC}"
                     waitForInput && continue
                     ;; ###################################################################
                   decrypt-policy)
@@ -4197,11 +4244,11 @@ function main {
                     [[ ${#asset_name} -gt 32 ]] && println ERROR "${FG_RED}ERROR${NC}: Asset name is limited to 32 chars in length!" && waitForInput && continue
                     asset_file="${policy_folder}/${asset_name}.asset"
                     echo
-                    getAnswerAnyCust asset_amount "Amount (commas allowed as thousand separator)"
-                    asset_amount="${asset_amount//,}"
-                    [[ -z "${asset_amount}" ]] && println ERROR "${FG_RED}ERROR${NC}: Amount empty, please set a valid integer number!" && waitForInput && continue
-                    if ! isNumber ${asset_amount}; then println ERROR "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue; fi
-                    [[ -f "${asset_file}" ]] && asset_minted=$(( $(jq -r .minted "${asset_file}") + asset_amount )) || asset_minted=${asset_amount}
+                    getAnswerAnyCust assets_to_mint "Amount (commas allowed as thousand separator)"
+                    assets_to_mint="${assets_to_mint//,}"
+                    [[ -z "${assets_to_mint}" ]] && println ERROR "${FG_RED}ERROR${NC}: Amount empty, please set a valid integer number!" && waitForInput && continue
+                    if ! isNumber ${assets_to_mint}; then println ERROR "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue; fi
+                    [[ -f "${asset_file}" ]] && asset_minted=$(( $(jq -r .minted "${asset_file}") + assets_to_mint )) || asset_minted=${assets_to_mint}
                     metafile_param=""
                     println DEBUG "\nDo you want to attach a metadata JSON file to the minting transaction?"
                     select_opt "[n] No" "[y] Yes"
@@ -4270,7 +4317,7 @@ function main {
                       waitForInput && continue
                     fi
                     if [[ ! -f "${asset_file}" ]]; then echo "{}" > ${asset_file}; fi
-                    assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"${asset_name}\", policyID: \"${policy_id}\", assetName: \"$(asciiToHex "${asset_name}")\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"mint ${asset_amount}\"}" < ${asset_file})
+                    assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"${asset_name}\", policyID: \"${policy_id}\", assetName: \"$(asciiToHex "${asset_name}")\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"Minted $(formatAsset ${assets_to_mint})\"}" < ${asset_file})
                     echo -e "${assetJSON}" > ${asset_file}
                     echo
                     if ! verifyTx ${addr}; then waitForInput && continue; fi
@@ -4278,11 +4325,19 @@ function main {
                     println "Assets successfully minted!"
                     println "Policy Name    : ${FG_GREEN}${policy_name}${NC}"
                     println "Policy ID      : ${FG_LGRAY}${policy_id}${NC}"
-                    [[ -z ${asset_name} ]] && asset_name="."
-                    [[ ${asset_name} = '.' ]] && asset_name_hex="" || asset_name_hex=" ($(asciiToHex "${asset_name}"))"
-                    println "Asset Name     : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY}${asset_name_hex}${NC}"
-                    println "Minted         : ${FG_LBLUE}$(formatAsset ${asset_amount})${NC}"
-                    println "In Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)"
+                    [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
+                    println "Asset Name     : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY} (${asset_name_hex})${NC}"
+                    getAssetInfo "${policy_id}" "${asset_name_hex}"
+                    case $? in
+                      0) println "Fingerprint    : ${FG_LGRAY}${a_fingerprint}${NC}"
+                         println "Minted         : ${FG_LBLUE}$(formatAsset ${assets_to_mint})${NC}"
+                         println "In Circulation : ${FG_LBLUE}$(formatAsset ${a_total_supply})${NC}"
+                         println "Mint Count     : ${FG_LBLUE}${a_mint_cnt}${NC}"
+                         println "Burn Count     : ${FG_LBLUE}${a_burn_cnt}${NC}" ;;
+                      1) println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" ;;
+                      2) println "Minted         : ${FG_LBLUE}$(formatAsset ${assets_to_mint})${NC}"
+                         println "In Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)" ;;
+                    esac
                     waitForInput && continue
                     ;; ###################################################################
                   burn-asset)
@@ -4348,11 +4403,11 @@ function main {
                     if [[ ${selection_arr[2]} = *"base" ]]; then 
                       addr=${base_addr}
                       wallet_source="base"
-                      asset_amount=${base_assets[${asset}]}
+                      curr_asset_amount=${base_assets[${asset}]}
                     else
                       addr=${pay_addr}
                       wallet_source="enterprise"
-                      asset_amount=${pay_assets[${asset}]}
+                      curr_asset_amount=${pay_assets[${asset}]}
                     fi
                     echo
                     
@@ -4376,12 +4431,12 @@ function main {
                     policy_ttl=$(jq -r '.scripts[0].slot //0' "${policy_script_file}")
                     [[ ${policy_ttl} -gt 0 && ${policy_ttl} -lt $(getSlotTipRef) ]] && println ERROR "${FG_RED}ERROR${NC}: Policy expired!" && waitForInput && continue
                     # ask amount to burn
-                    println DEBUG "Available assets to burn: ${FG_LBLUE}$(formatAsset "${asset_amount}")${NC}\n"
+                    println DEBUG "Available assets to burn: ${FG_LBLUE}$(formatAsset "${curr_asset_amount}")${NC}\n"
                     getAnswerAnyCust assets_to_burn "Amount (commas allowed as thousand separator)"
                     assets_to_burn="${assets_to_burn//,}"
-                    [[ ${assets_to_burn} = "all" ]] && assets_to_burn=${asset_amount}
+                    [[ ${assets_to_burn} = "all" ]] && assets_to_burn=${curr_asset_amount}
                     if ! isNumber ${assets_to_burn}; then println ERROR "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue; fi
-                    [[ ${assets_to_burn} -gt ${asset_amount} ]] && println ERROR "${FG_RED}ERROR${NC}: Amount exceeding assets in address, you can only burn ${FG_LBLUE}$(formatAsset "${asset_amount}")${NC}" && waitForInput && continue
+                    [[ ${assets_to_burn} -gt ${curr_asset_amount} ]] && println ERROR "${FG_RED}ERROR${NC}: Amount exceeding assets in address, you can only burn ${FG_LBLUE}$(formatAsset "${asset_amount}")${NC}" && waitForInput && continue
                     asset_minted=$(( $(jq -r .minted "${asset_file}") - assets_to_burn ))
                     # Attach metadata?
                     metafile_param=""
@@ -4404,20 +4459,28 @@ function main {
                     fi
                     # TODO: Update asset file
                     if [[ ! -f "${asset_file}" ]]; then echo "{}" > ${asset_file}; fi
-                    assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"$(hexToAscii "${asset_name}")\", policyID: \"${policy_id}\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"burn ${assets_to_burn}\"}" < ${asset_file})
+                    assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"$(hexToAscii "${asset_name}")\", policyID: \"${policy_id}\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"Burned $(formatAsset ${assets_to_burn})\"}" < ${asset_file})
                     echo -e "${assetJSON}" > ${asset_file}
                     echo
                     if ! verifyTx ${addr}; then waitForInput && continue; fi
                     echo
                     println "Assets successfully burned!"
-                    println "Policy Name         : ${FG_GREEN}${policy_name}${NC}"
-                    println "Policy ID           : ${FG_LGRAY}${policy_id}${NC}"
-                    [[ -z ${asset_name} ]] && asset_name="." || asset_name="$(hexToAscii "${asset_name}")"
-                    [[ ${asset_name} = '.' ]] && asset_name_hex="" || asset_name_hex=" ($(asciiToHex "${asset_name}"))"
-                    println "Asset Name          : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY}${asset_name_hex}${NC}"
-                    println "Burned              : ${FG_LBLUE}$(formatAsset ${assets_to_burn})${NC}"
-                    println "Left in Address     : ${FG_LBLUE}$(formatAsset $(( asset_amount - assets_to_burn )))${NC}"
-                    println "Left in Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)"
+                    println "Policy Name     : ${FG_GREEN}${policy_name}${NC}"
+                    println "Policy ID       : ${FG_LGRAY}${policy_id}${NC}"
+                    [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
+                    println "Asset Name      : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY} (${asset_name_hex})${NC}"
+                    println "Left in Address : ${FG_LBLUE}$(formatAsset $(( curr_asset_amount - assets_to_burn )))${NC}"
+                    getAssetInfo "${policy_id}" "${asset_name_hex}"
+                    case $? in
+                      0) println "Fingerprint     : ${FG_LGRAY}${a_fingerprint}${NC}"
+                         println "Burned          : ${FG_LBLUE}$(formatAsset ${assets_to_burn})${NC}"
+                         println "In Circulation  : ${FG_LBLUE}$(formatAsset ${a_total_supply})${NC}"
+                         println "Mint Count      : ${FG_LBLUE}${a_mint_cnt}${NC}"
+                         println "Burn Count      : ${FG_LBLUE}${a_burn_cnt}${NC}" ;;
+                      1) println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" ;;
+                      2) println "Burned          : ${FG_LBLUE}$(formatAsset ${assets_to_burn})${NC}"
+                         println "In Circulation  : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)" ;;
+                    esac
                     waitForInput && continue
                     ;; ###################################################################
                   register-asset)

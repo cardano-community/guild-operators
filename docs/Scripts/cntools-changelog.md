@@ -6,6 +6,15 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.0.4] - 2022-08-26
+#### Changed
+- Allow pool cost to use fraction of ADA
+- Starts using koios-1.0.7 endpoints to fetch information
+
+#### Fixed
+- Fixes an issue with reusage of variable name and updated param name for cardano-cli.
+- Fix token minting and burn assets
+
 ## [10.0.3] - 2022-08-16
 #### Fixed
 - env file was sourced after calling cntools.library, overriding test_koios result
