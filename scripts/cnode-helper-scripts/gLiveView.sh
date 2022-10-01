@@ -57,7 +57,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.27.2
+GLV_VERSION=v1.27.3
 
 PARENT="$(dirname $0)"
 
@@ -123,6 +123,13 @@ fi
 . "${PARENT}"/env &>/dev/null # ignore any errors, re-sourced later
 
 if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
+
+  if command -v cncli >/dev/null && systemctl is-active --quiet ${CNODE_VNAME}-cncli-sync.service; then
+    vcur=$(cncli -V | sed 's/cncli /v/g')
+    vrem=$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r .tag_name)
+    [[ ${vcur} != ${vrem} ]] && printf "${FG_MAGENTA}CNCLI current version (${vcur}) different from repo (${vrem}), consider upgrading!.${NC}" && waitToProceed
+  fi
+
   echo "Checking for script updates..."
   # Check availability of checkUpdate function
   if [[ ! $(command -v checkUpdate) ]]; then
@@ -151,13 +158,6 @@ if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
     1) $0 "$@" "-u"; myExit 0 ;; # re-launch script with same args skipping update check
     2) exit 1 ;;
   esac
-
-  # check for CNCLI update
-  CNCLI_STATUS=$(check_cncli_versions)
-  if [ -n "${CNCLI_STATUS}" ] ; then
-    printf "$CNCLI_STATUS\n" && waitToProceed
-  fi
-
 else
   # source common env variables in offline mode
   . "${PARENT}"/env offline
