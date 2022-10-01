@@ -16,16 +16,21 @@ BEGIN
     STAKE_ADDRESS.VIEW = ANY(_stake_addresses);
 
   RETURN QUERY
+    WITH txo_addr AS (
+      SELECT address, stake_address_id FROM
+        (SELECT
+          DISTINCT ON (address) address, stake_address_id, id
+        FROM
+          TX_OUT
+        WHERE stake_address_id = ANY(sa_id_list) ORDER BY address, id) x
+        ORDER BY id
+    )
     SELECT
       sa.view as stake_address,
-      JSON_AGG(
-        DISTINCT(TX_OUT.address) ORDER BY (TX_OUT.id)
-      ) as addresses
+      JSON_AGG(DISTINCT txo_addr.address) as addresses
     FROM
-      TX_OUT
-      INNER JOIN STAKE_ADDRESS sa ON sa.id = tx_out.stake_address_id
-    WHERE
-      TX_OUT.STAKE_ADDRESS_ID = ANY(sa_id_list)
+      txo_addr
+      INNER JOIN STAKE_ADDRESS sa ON sa.id = txo_addr.stake_address_id
     GROUP BY
       sa.id;
 END;
