@@ -1,7 +1,7 @@
 CREATE FUNCTION grest.tx_metadata (_tx_hashes text[])
   RETURNS TABLE (
     tx_hash text,
-    metadata json)
+    metadata jsonb)
   LANGUAGE PLPGSQL
   AS $$
 BEGIN
@@ -20,17 +20,29 @@ BEGIN
         SELECT
           DECODE(hashes, 'hex')
         FROM
-          UNNEST(_tx_hashes) AS hashes)) T1
+          UNNEST(_tx_hashes) AS hashes
+      )
+    ) T1
   LEFT JOIN LATERAL (
     SELECT
-      JSON_OBJECT_AGG(
-        tx_metadata.key::text,
-        tx_metadata.json
-      ) as metadata
+      tx_id,
+      JSONB_AGG(data) AS metadata
     FROM
-      tx_metadata
-    WHERE
-      tx_id = T1.id) METADATA_T ON TRUE;
+      (
+        SELECT
+          TM.tx_id,
+          JSONB_BUILD_OBJECT(
+            'key', TM.key::text,
+            'json', TM.json
+          ) AS data
+        FROM 
+          tx_metadata TM
+        WHERE
+          TM.tx_id = T1.id
+      ) as tmp
+    GROUP BY
+      tx_id
+  ) METADATA_T ON METADATA_T.tx_id = T1.id;
 END;
 $$;
 
