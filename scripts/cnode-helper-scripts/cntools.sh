@@ -4738,7 +4738,7 @@ function main {
                   println " >> ADVANCED >> CHAIN-ANALYSIS >> DOWNLOAD QUERIES"
                   println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                   println DEBUG "\nDownloading official DBSync queries from Guild Operators GitHub site ..\n"
-                  if ! query_file_list=$(curl -s -m ${CURL_TIMEOUT} https://api.github.com/repos/${G_REPO}/contents/files/grest/queries?ref=${BRANCH}); then
+                  if ! query_file_list=$(curl -s -m ${CURL_TIMEOUT} https://api.github.com/repos/${G_ACCOUNT}/guild-operators/contents/files/grest/queries?ref=${BRANCH}); then
                     println ERROR "${FG_RED}ERROR${NC}: ${query_file_list}" && waitForInput && continue
                   fi
                   for row in $(jq -r '.[] | @base64' <<< ${query_file_list}); do
