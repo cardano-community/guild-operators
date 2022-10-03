@@ -54,7 +54,7 @@ BEGIN
       ai.withdrawals::lovelace,
       ai.rewards_available::lovelace
     FROM newly_registered_accounts nra,
-      LATERAL grest.account_info(nra.stake_address) ai
+      LATERAL grest.account_info(array[nra.stake_address]) ai
     ON CONFLICT (STAKE_ADDRESS) DO
       UPDATE
         SET
