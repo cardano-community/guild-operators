@@ -625,7 +625,7 @@ SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
     fi
 
     printf "\n  Downloading DBSync RPC functions from Guild Operators GitHub store..."
-    if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc?ref=${BRANCH} 2>&1); then
+    if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/${G_ACCOUNT}/guild-operators/contents/files/grest/rpc?ref=${BRANCH} 2>&1); then
       err_exit "${rpc_file_list}"
     fi
     printf "\n  (Re)Deploying GRest objects to DBSync..."
@@ -633,7 +633,7 @@ SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
     for row in $(jq -r '.[] | @base64' <<<${rpc_file_list}); do
       if [[ $(jqDecode '.type' "${row}") = 'dir' ]]; then
         printf "\n    Downloading pSQL executions from subdir $(jqDecode '.name' "${row}")"
-        if ! rpc_file_list_subdir=$(curl -s -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/rpc/$(jqDecode '.name' "${row}")?ref=${BRANCH}"); then
+        if ! rpc_file_list_subdir=$(curl -s -m ${CURL_TIMEOUT} "https://api.github.com/repos/${G_ACCOUNT}/guild-operators/contents/files/grest/rpc/$(jqDecode '.name' "${row}")?ref=${BRANCH}"); then
           printf "\n      \e[31mERROR\e[0m: ${rpc_file_list_subdir}" && continue
         fi
         for row2 in $(jq -r '.[] | @base64' <<<${rpc_file_list_subdir}); do
