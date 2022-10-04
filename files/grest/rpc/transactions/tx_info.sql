@@ -386,20 +386,14 @@ BEGIN
       _all_metadata AS (
         SELECT
           tx_id,
-          JSONB_AGG(data) AS list
-        FROM (
-          SELECT
-            TM.tx_id,
-            JSONB_BUILD_OBJECT(
-              'key', TM.key::text,
-              'json', TM.json
-            ) AS data
-          FROM 
+          JSONB_OBJECT_AGG(
+            tm.key::text,
+            tm.json
+          ) AS list
+        FROM 
             tx_metadata TM
           WHERE
             TM.tx_id = ANY (_tx_id_list)
-        ) AS tmp
-
         GROUP BY tx_id
       ),
 
