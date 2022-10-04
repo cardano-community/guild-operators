@@ -3,7 +3,7 @@ DROP VIEW IF EXISTS grest.blocks;
 CREATE VIEW grest.blocks AS
   SELECT
     ENCODE(B.HASH::bytea, 'hex') AS HASH,
-    b.EPOCH_NO AS EPOCH,
+    b.EPOCH_NO AS EPOCH_NO,
     b.SLOT_NO AS ABS_SLOT,
     b.EPOCH_SLOT_NO AS EPOCH_SLOT,
     b.BLOCK_NO AS BLOCK_HEIGHT,
