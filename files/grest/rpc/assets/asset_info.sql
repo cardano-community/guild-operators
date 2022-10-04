@@ -9,7 +9,7 @@ CREATE FUNCTION grest.asset_info (_asset_policy text, _asset_name text default '
     mint_cnt bigint,
     burn_cnt bigint,
     creation_time integer,
-    minting_tx_metadata json,
+    minting_tx_metadata jsonb,
     token_registry_metadata json
   )
   LANGUAGE PLPGSQL
@@ -57,12 +57,12 @@ BEGIN
       (
         SELECT
           COALESCE(
-            JSON_BUILD_OBJECT(
-              'key', TM.key::text,
-              'json', TM.json
+            JSONB_OBJECT_AGG(
+              tm.key::text,
+              tm.json
             ),
-            JSON_BUILD_OBJECT()
-          )
+            JSONB_BUILD_OBJECT()
+          ) as minting_tx_metadata
         FROM
           tx_metadata TM
         WHERE
