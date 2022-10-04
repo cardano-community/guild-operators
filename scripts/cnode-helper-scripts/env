@@ -172,7 +172,7 @@ checkUpdate() {
     GIT_TEMPL=$(awk '/^# Do NOT modify/,0' "${dname}/${fname}".tmp)
     NEW_STATIC=$(checkUserVariables "${OLD_STATIC}" "${GIT_STATIC}")
     if [[ ($3 = Y && "$(sha256sum "${dname}/${fname}" | cut -d' ' -f1)" != "$(sha256sum "${dname}/${fname}.tmp" | cut -d' ' -f1)") || "$(echo ${OLD_STATIC} | sha256sum)" != "$(echo ${NEW_STATIC} | sha256sum)" || "$(echo ${OLD_TEMPL} | sha256sum)" != "$(echo ${GIT_TEMPL} | sha256sum)" ]]; then
-      update_msg="\nScript update(s) detected, do you want to download the latest version?"
+      update_msg="\n${fname} script update(s) detected, do you want to download the latest version?"
       if [[ ${fname} = cntools.library || ${fname} = gLiveView.sh ]]; then
         if [[ ${fname} = cntools.library ]]; then
           CUR_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${dname}/${fname}" |sed -e "s#.*=##")
