@@ -581,7 +581,7 @@ updateWithCustomConfig() {
     return
   fi
   if [[ -f ${file} && ${FORCE_OVERWRITE} = 'N' ]]; then
-    if grep '^# Do NOT modify' ${file} >/dev/null 2>&1; then
+    if grep '^# User Variables' ${file}.tmp >/dev/null 2>&1; then
       TEMPL_CMD=$(awk '/^# Do NOT modify/,0' ${file}.tmp)
       if [[ -z ${TEMPL_CMD} ]]; then
         echo "ERROR!! Script downloaded from GitHub corrupt, ignoring update for '${file}'"
