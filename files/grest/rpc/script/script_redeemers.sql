@@ -3,7 +3,7 @@ CREATE FUNCTION grest.script_redeemers (_script_hash text)
     script_hash text,
     redeemers json
   ) 
-LANGUAGE PLPGSQL AS 
+LANGUAGE PLPGSQL AS
 $$
 DECLARE _script_hash_bytea bytea;
 BEGIN

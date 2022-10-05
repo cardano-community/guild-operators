@@ -5,9 +5,9 @@ CREATE FUNCTION grest.plutus_script_list ()
   )
 LANGUAGE PLPGSQL AS
 $$
-BEGIN 
+BEGIN
   RETURN QUERY
-  SELECT 
+  SELECT
     ENCODE(script.hash, 'hex') as script_hash, 
     ENCODE(tx.hash, 'hex') as creation_tx_hash
   FROM script

@@ -7,9 +7,9 @@ CREATE FUNCTION grest.native_script_list ()
   )
 LANGUAGE PLPGSQL AS
 $$
-BEGIN 
+BEGIN
   RETURN QUERY
-  SELECT 
+  SELECT
     ENCODE(script.hash, 'hex'), 
     ENCODE(tx.hash, 'hex'),
     script.type,
