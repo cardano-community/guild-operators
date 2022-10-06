@@ -52,7 +52,6 @@ function chk_upd() {
   fi
   
   curl -sfkL "${API_STRUCT_DEFINITION}" -o "${LOCAL_SPEC}" 2>/dev/null
-  grep " #RPC" "${LOCAL_SPEC}" | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${PARENT}"/../files/grestrpcs
 
   checkUpdate "${PARENT}"/grest-poll.sh Y N N grest-helper-scripts
   [[ "$?" == "2" ]] && echo "ERROR: checkUpdate Failed" && exit 1
@@ -214,4 +213,3 @@ chk_rpcs
 chk_tip
 chk_cache_status
 chk_limit
-chk_endpt_get "blocks" view
