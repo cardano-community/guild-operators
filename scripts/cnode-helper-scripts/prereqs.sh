@@ -8,7 +8,7 @@ unset CNODE_HOME
 # User Variables - Change as desired     #
 # command line flags override set values #
 ##########################################
-
+#G_ACCOUNT="cardano-community"    # Override github GUILD account if you forked the project
 #INTERACTIVE='N'        # Interactive mode (Default: silent mode)
 #NETWORK='mainnet'      # Connect to specified network instead of public network (Default: connect to public cardano network)
 #WANT_BUILD_DEPS='Y'    # Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
@@ -23,7 +23,7 @@ unset CNODE_HOME
 #CURL_TIMEOUT=60        # Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
 #UPDATE_CHECK='Y'       # Check if there is an updated version of prereqs.sh script to download
 #SUDO='Y'               # Used by docker builds to disable sudo, leave unchanged if unsure.
- 
+
 ######################################
 # Do NOT modify code below           #
 ######################################
@@ -101,6 +101,7 @@ while getopts :in:sflcwoxt:m:b: opt; do
 done
 shift $((OPTIND -1))
 
+[[ -z ${G_ACCOUNT} ]] && G_ACCOUNT="cardano-community"
 [[ -z ${INTERACTIVE} ]] && INTERACTIVE='N'
 [[ -z ${NETWORK} ]] && NETWORK='mainnet'
 [[ -z ${WANT_BUILD_DEPS} ]] && WANT_BUILD_DEPS='Y'
@@ -127,8 +128,8 @@ CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
 CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
 [[ -z "${BRANCH}" ]] && BRANCH="master"
 
-REPO="https://github.com/cardano-community/guild-operators"
-REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
+REPO="https://github.com/${G_ACCOUNT}/guild-operators"
+REPO_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators"
 URL_RAW="${REPO_RAW}/${BRANCH}"
 
 # Check if prereqs.sh update is available
@@ -510,7 +511,7 @@ echo "Downloading files..."
 pushd "${CNODE_HOME}"/files >/dev/null || err_exit
 
 
-if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
+if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/${G_ACCOUNT}/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
   echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to alpha branch\n"
   BRANCH=alpha
   URL_RAW="${REPO_RAW}/${BRANCH}"
@@ -580,7 +581,7 @@ updateWithCustomConfig() {
     return
   fi
   if [[ -f ${file} && ${FORCE_OVERWRITE} = 'N' ]]; then
-    if grep '^# Do NOT modify' ${file} >/dev/null 2>&1; then
+    if grep '^# User Variables' ${file}.tmp >/dev/null 2>&1; then
       TEMPL_CMD=$(awk '/^# Do NOT modify/,0' ${file}.tmp)
       if [[ -z ${TEMPL_CMD} ]]; then
         echo "ERROR!! Script downloaded from GitHub corrupt, ignoring update for '${file}'"

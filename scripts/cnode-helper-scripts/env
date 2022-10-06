@@ -37,6 +37,7 @@
                                                         # Leave commented for automatic network detection between MainNet, TestNet and Guild network.
                                                         # https://www.koios.rest/
 #DBSYNC_QUERY_FOLDER="${CNODE_HOME}/files/dbsync/queries" # [advanced feature] Folder containing DB-Sync chain analysis queries
+#G_ACCOUNT="cardano-community"             # Override default github repository if you forked project
 
 #WALLET_FOLDER="${CNODE_HOME}/priv/wallet"              # Root folder for Wallets
 #POOL_FOLDER="${CNODE_HOME}/priv/pool"                  # Root folder for Pools
@@ -149,7 +150,7 @@ checkUpdate() {
   [[ "${UPDATE_CHECK}" != "Y" ]] && return 0
 
   if [[ ${OFFLINE_MODE} = N && ${BRANCH} != master && ${BRANCH} != alpha ]]; then
-    if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
+    if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/${G_ACCOUNT}/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
       echo -e "WARN!! The folder was configured against ${BRANCH} branch - which does not exist anymore, falling back to alpha branch"
       # alpha because if someone was testing something against a custom branch, it would likely be merged to alpha first. Production systems should not be using custom branch anyways
       BRANCH=alpha
@@ -718,24 +719,6 @@ getEraIdentifier() {
 
 [[ ${0} != '-bash' ]] && PARENT=$(dirname $0) || PARENT="$(pwd)" # If sourcing at terminal, $0 would be "-bash" , which is invalid. Thus, fallback to present working directory
 
-OFFLINE_MODE='N'
-[[ $1 = "offline" ]] && OFFLINE_MODE='Y'
-[[ $(basename $0 2>/dev/null) = "cnode.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
-[[ $(basename $0 2>/dev/null) = "topologyUpdater.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
-
-[[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master
-
-URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
-DB_SCRIPTS_URL="${URL_RAW}/scripts/grest-helper-scripts/db-scripts"
-export LC_ALL=C.UTF-8
-
-# special mapping of coreutils gdate to date for MacOS
-if [[ $(uname) == Darwin ]]; then
-   date () { gdate "$@"; }
-fi
-
-[[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
-
 telegramSend() {
   if [[ -z "${TG_BOT_TOKEN}" ]] || [[ -z "${TG_CHAT_ID}" ]]; then
     echo "Warn: to use the telegramSend function you must first set the bot and chat id in the env file"
@@ -746,6 +729,22 @@ telegramSend() {
 }
 
 set_default_vars() {
+  OFFLINE_MODE='N'
+  [[ $1 = "offline" ]] && OFFLINE_MODE='Y'
+  [[ $(basename $0 2>/dev/null) = "cnode.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
+  [[ $(basename $0 2>/dev/null) = "topologyUpdater.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
+
+  [[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master
+  [[ -z ${G_ACCOUNT} ]] && G_ACCOUNT="cardano-community"
+
+  URL_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}"
+  DB_SCRIPTS_URL="${URL_RAW}/scripts/grest-helper-scripts/db-scripts"
+  export LC_ALL=C.UTF-8
+  # special mapping of coreutils gdate to date for MacOS
+  if [[ $(uname) == Darwin ]]; then
+     date () { gdate "$@"; }
+  fi
+  [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
   [[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
   CNODE_NAME="$(basename ${CNODE_HOME})"
   CNODE_VNAME=$(tr '[:upper:]' '[:lower:]' <<< ${CNODE_NAME//_HOME/})
