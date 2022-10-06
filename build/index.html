@@ -353,6 +353,13 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#description-for-components-built-by-community" class="md-nav__link">
+    Description for components built by community
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -869,6 +876,13 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#description-for-components-built-by-community" class="md-nav__link">
+    Description for components built by community
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -889,17 +903,17 @@
 
   <h1>Overview</h1>
 
-<p>The documentation here uses instructions from <a href="https://github.com/input-output-hk">IOHK repositories</a> as a foundation, with additional info which we can contribute to where appropriate. Note that not everyone needs to build each component. You can refer to <a href="https://docs.cardano.org/explore-cardano/cardano-architecture">architecture</a> to understand and qualify which components you want to run.</p>
+<p>The documentation here uses instructions from <a href="https://github.com/input-output-hk">IOHK repositories</a> as a foundation, with additional info which we can contribute to where appropriate. Note that not everyone needs to build each component. You can refer to <a href="https://docs.cardano.org/explore-cardano/cardano-architecture">architecture</a> to understand and qualify which of the components built by IO you want to run.</p>
 <h4 id="components">Components<a class="headerlink" href="#components" title="Permanent link">⚓︎</a></h4>
 <p>For most Pool Operators, simply building <a href="../Build/node-cli/">cardano-node</a> should be enough. Use the below to decide whether you need other components:</p>
 <pre class="mermaid"><code>graph TB
-  A(Need to interact with &lt;br/&gt;HD Wallets with keys&lt;br/&gt;saved locally?)
-  B(Need to explore &lt;br/&gt; blockchain locally?)
-  C(Manage pool-ops, &lt;br/&gt; asset operation tasks &lt;br/&gt; easily?)
-  D(Create Custom Assets?)
-  E(Monitor node &lt;br/&gt; using Terminal UI)
+  A([Interact with HD Wallets&lt;br/&gt;locally])
+  B([Explore blockchain&lt;br/&gt;locally])
+  C([Easy pool-ops and&lt;br/&gt;fund management])
+  D([Create Custom Assets])
+  E([Monitor node &lt;br/&gt;using Terminal UI])
+  F([Sign/verify any data&lt;br/&gt;using crypto keys])
   N(Node)
-  F(Manage Pool/Wallet Keys&lt;br/&gt;and tx signing&lt;br/&gt;offline)
   O(Ogmios)
   P(gRest/Koios)
   Q(DBSync)
@@ -909,19 +923,20 @@
   U(GraphQL)
   V(OfflineMetadataTools)
   X(gLiveView)
+  Y(cardano-signer)
+  Z[(PostgreSQL)]
 
-F --x S
 N --x C --x S
-N --x D
-D --x S
-D --x V
+N --x D --x S &amp; V
 N --x E --x X
 N --x B
 B --x U --x Q
 B --x P --x Q
 P --x O
 P --x T
-N --x A --x R</code></pre>
+F ---x Y
+N --x A --x R
+Q --x Z</code></pre>
 <div class="admonition warning">
 <p class="admonition-title">Important</p>
 <p>We strongly prefer use of gRest over GraphQL components due to performance, security, simplicity, control and most importantly - consistency benefits. Please refer to <a href="https://docs.cardano.org">official documentations</a> if you're interested in <code>GraphQL</code> or <code>Cardano-Rest</code> components instead.</p>
@@ -930,6 +945,21 @@ N --x A --x R</code></pre>
 <p class="admonition-title">Note</p>
 <p>The instructions are intentionally limited to stack/cabal** to avoid wait times/availability of nix/docker files on a rapidly developing codebase - this also helps us prevent managing multiple versions of instructions.</p>
 </div>
+<h4 id="description-for-components-built-by-community">Description for components built by community<a class="headerlink" href="#description-for-components-built-by-community" title="Permanent link">⚓︎</a></h4>
+<h5 id="cntools">CNTools<a class="headerlink" href="#cntools" title="Permanent link">⚓︎</a></h5>
+<p>A swiss army knife for pool operators, primarily built by <a href="https://github.com/scitz0">Ola</a>, to simplify typical operations regarding their wallet keys and pool management. You can read more about it <a href="../Scripts/cntools/">here</a></p>
+<h5 id="gliveview">gLiveView<a class="headerlink" href="#gliveview" title="Permanent link">⚓︎</a></h5>
+<p>A local node monitoring tool, primarily built by <a href="https://github.com/scitz0">Ola</a>, to use in addition to remote monitoring tools like Prometheus/Grafana, Zabbix or IOG's RTView. This is especially useful when moving to a systemd deployment - if you haven't done so already - as it offers an intuitive UI to monitor the node status. You can read more about it <a href="../Scripts/gliveview/">here</a></p>
+<h5 id="topology-updater">Topology Updater<a class="headerlink" href="#topology-updater" title="Permanent link">⚓︎</a></h5>
+<p>A temporary node-to-node discovery solution, run by <a href="https://github.com/gufmar">Markus</a>, that was started initially to bridge the gap created while awaiting completion of P2P on cardano network, but has since become an important lifeline to the network health - to allow everyone to activate their relay nodes without having to postpone and wait for manual topology completion requests. You can read more about it <a href="../Scripts/topologyupdater/">here</a></p>
+<h5 id="koiosgrest">Koios/gRest<a class="headerlink" href="#koiosgrest" title="Permanent link">⚓︎</a></h5>
+<p>A full-featured local query layer node to explore blockchain data (via dbsync) using standardised pre-built queries served via API as per standard from <a href="https://koios.rest">Koios</a> - for which user can opt to participate in elastic query layer. You can read more about build steps <a href="../Build/grest/">here</a> and reference API endpoints <a href="https://api.koios.rest">here</a></p>
+<h5 id="ogmios">Ogmios<a class="headerlink" href="#ogmios" title="Permanent link">⚓︎</a></h5>
+<p>A lightweight bridge interface for cardano-node. It offers a WebSockets API that enables local clients to speak Ouroboros' mini-protocols via JSON/RPC. You can read more about it <a href="https://ogmios.dev">here</a></p>
+<h5 id="cncli">CNCLI<a class="headerlink" href="#cncli" title="Permanent link">⚓︎</a></h5>
+<p>A CLI tool written in Rust by <a href="https://github.com/AndrewWestberg">Andrew Westberg</a> for low-level communication with cardano-node. It is commonly used by SPOs to check their leader logs (integrates with CNTools as well as gLiveView) or to send their pool's health information to <a href="https://pooltool.io">https://pooltool.io</a>. You can read more about it <a href="https://github.com/cardano-community/cncli">here</a></p>
+<h5 id="cardano-signer">Cardano Signer<a class="headerlink" href="#cardano-signer" title="Permanent link">⚓︎</a></h5>
+<p>A tool written by <a href="https://github.com/gitmachtl/">Martin</a> to sign/verify data (hex, text or binary) using cryptographic keys to generate data as per <a href="https://cips.cardano.org/cips/cip8/">CIP-8</a> or <a href="https://cips.cardano.org/cips/cip36/">CIP-36</a> standards. You can read more about it <a href="https://github.com/gitmachtl/cardano-signer">here</a></p>
 
               
             </article>

@@ -1026,7 +1026,7 @@ git checkout <span class="k">$(</span>curl -s https://api.github.com/repos/input
 <span class="c1"># Use `-l` argument if you&#39;d like to use system libsodium instead of IOG fork of libsodium while compiling</span>
 <span class="nv">$CNODE_HOME</span>/scripts/cabal-build-all.sh
 </code></pre></div>
-The above would copy the binaries into <code>~/.cabal/bin</code> folder.</p>
+The above would copy the <code>cardano-db-sync</code> binary into <code>~/.cabal/bin</code> folder.</p>
 <h4 id="prepare-db-for-sync">Prepare DB for sync<a class="headerlink" href="#prepare-db-for-sync" title="Permanent link">⚓︎</a></h4>
 <p>Now that binaries are available, let's create our database (when going through breaking changes, you may need to use <code>--recreatedb</code> instead of <code>--createdb</code> used for the first time. Again, we expect that <code>PGPASSFILE</code> environment variable is already set (refer to the top of this guide for sample instructions):</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span> ~/git/cardano-db-sync
@@ -1045,7 +1045,7 @@ scripts/postgresql-setup.sh --createdb
 <p>If you're running a testnet or mainnet instance of dbsync, you might want to consider use of dbsync snapshots as documented <a href="https://github.com/input-output-hk/cardano-db-sync/blob/master/doc/state-snapshot.md">here</a>. The snapshot files for latest epoch for mainnet as well as testnet are available via links in <a href="https://github.com/input-output-hk/cardano-db-sync/releases">release notes</a>.</p>
 <p>At high-level, this would involve steps as below (read and update paths as per your environment):</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Replace the actual link below with the latest one from release notes</span>
-wget https://update-cardano-mainnet.iohk.io/cardano-db-sync/12/db-sync-snapshot-schema-12-block-6764999-x86_64.tgz -O /tmp/dbsyncsnap.tgz
+wget https://update-cardano-mainnet.iohk.io/cardano-db-sync/13/db-sync-snapshot-schema-13-block-7622755-x86_64.tgz
 rm -rf <span class="si">${</span><span class="nv">CNODE_HOME</span><span class="si">}</span>/guild-db/ledger-state <span class="p">;</span> mkdir -p <span class="si">${</span><span class="nv">CNODE_HOME</span><span class="si">}</span>/guild-db/ledger-state
 <span class="nb">cd</span> -<span class="p">;</span> <span class="nb">cd</span> ~/git/cardano-db-sync
 scripts/postgresql-setup.sh --restore-snapshot /tmp/dbsyncsnap.tgz <span class="si">${</span><span class="nv">CNODE_HOME</span><span class="si">}</span>/guild-db/ledger-state

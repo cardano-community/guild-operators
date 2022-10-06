@@ -417,13 +417,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#performance-tuning-considerations" class="md-nav__link">
-    Performance Tuning Considerations
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#validation" class="md-nav__link">
     Validation
   </a>
@@ -933,13 +926,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#performance-tuning-considerations" class="md-nav__link">
-    Performance Tuning Considerations
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#validation" class="md-nav__link">
     Validation
   </a>
@@ -1061,14 +1047,6 @@ frontend app-secured
   http-request use-service prometheus-exporter if { path /metrics }
 </code></pre></div>
 Restart haproxy service for changes to take effect.</p>
-<h3 id="performance-tuning-considerations">Performance Tuning Considerations<a class="headerlink" href="#performance-tuning-considerations" title="Permanent link">⚓︎</a></h3>
-<p>While the defaults on your system should not cause you any trouble, note that haproxy relies on ephemeral ports available on your system to be able to redirect frontend requests to backend servers. The four important configuration settings in your <code>/etc/sysctl.conf</code> files would be:</p>
-<p><div class="highlight"><pre><span></span><code>net.ipv4.ip_local_port_range=&quot;1024 65534&quot;
-net.core.somaxconn=65534
-net.ipv4.tcp_rmem=4096 16060 64060
-net.ipv4.tcp_wmem=4096 16384 262144
-</code></pre></div>
-Again, defaults should be fine for minimal usage, you do not need to tinker with above unless you expect a very high amount of load on your frontend. We intentionally do not set these for you as system tuning activities should be done very carefully, understanding what you're modifying and their impacts - these would be part of your SysOps + SecOps practices.</p>
 <h3 id="validation">Validation<a class="headerlink" href="#validation" title="Permanent link">⚓︎</a></h3>
 <p>With the setup, you also have a <code>checkstatus.sh</code> script, which will query the Postgres DB instance via haproxy (coming through postgREST), and only show an instance up if the latest block in your DB instance is within 180 seconds.</p>
 <div class="admonition warning">
