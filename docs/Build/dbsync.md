@@ -3,6 +3,7 @@
 
     - Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
     - The [Cardano DB Sync](https://github.com/input-output-hk/cardano-db-sync) relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to [Sample Local PostgreSQL Server Deployment instructions](../Appendix/postgres.md) for setting up a Postgres instance. Specifically, we expect the `PGPASSFILE` environment variable is set as per the instructions in the sample guide, for `db-sync` to be able to connect.
+    - One of the biggest obstacles for user experience when running dbsync is ensuring you satisfy EACH of the points mentioned in System Requirements [here](https://github.com/input-output-hk/cardano-db-sync#system-requirements). Also, note that we do not advise running dbsync on mainnet if your RAM is below 48GB.
 
 
 ### Build Instructions
