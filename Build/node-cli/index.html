@@ -382,6 +382,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#download-pre-compiled-binary-from-node-release" class="md-nav__link">
+    Download pre-compiled Binary from Node release
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -945,6 +952,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#download-pre-compiled-binary-from-node-release" class="md-nav__link">
+    Download pre-compiled Binary from Node release
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1033,18 +1047,24 @@ git checkout <span class="k">$(</span>curl -s https://api.github.com/repos/input
 <span class="nv">$CNODE_HOME</span>/scripts/cabal-build-all.sh
 </code></pre></div>
 <p>The above would copy the binaries built into <code>~/.cabal/bin</code> folder.</p>
+<h4 id="download-pre-compiled-binary-from-node-release">Download pre-compiled Binary from Node release<a class="headerlink" href="#download-pre-compiled-binary-from-node-release" title="Permanent link">⚓︎</a></h4>
+<p>While certain folks might want to build the node themselves (could be due to OS/arch compatibility, trust factor or customisations), for most it might not make sense to build the node locally.
+Instead, you can download the binaries using <a href="https://github.com/input-output-hk/cardano-node/releases">cardano-node release notes</a>, where-in you can find the download links for every version.
+Once downloaded, you would want to make it available to preferred <code>PATH</code> in your environment (if you're asking how - that'd mean you've skipped skillsets mentioned on homepage).</p>
 <h3 id="verify">Verify<a class="headerlink" href="#verify" title="Permanent link">⚓︎</a></h3>
 <p>Execute <code>cardano-cli</code> and <code>cardano-node</code> to verify output as below (the exact version and git rev should depend on your checkout tag on github repository):</p>
 <div class="highlight"><pre><span></span><code>cardano-cli version
-<span class="c1"># cardano-cli 1.35.0 - linux-x86_64 - ghc-8.10</span>
+<span class="c1"># cardano-cli 1.35.3 - linux-x86_64 - ghc-8.10</span>
 <span class="c1"># git rev &lt;...&gt;</span>
 cardano-node version
-<span class="c1"># cardano-node 1.35.0 - linux-x86_64 - ghc-8.10</span>
+<span class="c1"># cardano-node 1.35.3 - linux-x86_64 - ghc-8.10</span>
 <span class="c1"># git rev &lt;...&gt;</span>
 </code></pre></div>
 <h4 id="update-port-number-or-pool-name-for-relative-paths">Update port number or pool name for relative paths<a class="headerlink" href="#update-port-number-or-pool-name-for-relative-paths" title="Permanent link">⚓︎</a></h4>
 <p>Before you go ahead with starting your node, you may want to update values for <code>CNODE_PORT</code> in <code>$CNODE_HOME/scripts/env</code>. Note that it is imperative for operational relays and pools to ensure that the port mentioned is opened via firewall to the destination your node is supposed to connect from. Update your network/firewall configuration accordingly. Future executions of <code>prereqs.sh</code> will preserve and not overwrite these values.</p>
-<div class="highlight"><pre><span></span><code><span class="nv">CNODE_PORT</span><span class="o">=</span><span class="m">6000</span>
+<div class="highlight"><pre><span></span><code><span class="nv">CNODEBIN</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/.cabal/bin/cardano-node&quot;</span>
+<span class="nv">CCLI</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/.cabal/bin/cardano-cli&quot;</span>
+<span class="nv">CNODE_PORT</span><span class="o">=</span><span class="m">6000</span>
 <span class="nv">POOL_NAME</span><span class="o">=</span><span class="s2">&quot;GUILD&quot;</span>
 </code></pre></div>
 <div class="admonition important">

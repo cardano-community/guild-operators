@@ -931,12 +931,16 @@
 
   <h1>Sample Postgres Setup</h1>
 
-<p>These deployment instructions used for reference while building <a href="../../Build/dbsync/">cardano-db-sync</a> tool. These are just for reference and ease of set up and consistency for those who are new to Postgres DB.
+<p>These deployment instructions used for reference while building <a href="../../Build/dbsync/">cardano-db-sync</a> tool, with the scope being ease of set up, and some tuning baselines for those who are new to Postgres DB.
 It is recommended to customise these as per your needs for Production builds.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>You'd find it pretty useful to set up ZFS on your system prior to setting up Postgres, to help with your IOPs throughput requirements. You can find sample install instructions <a href="https://openzfs.github.io/openzfs-docs/Getting%20Started/Debian/index.html">here</a>. You can set up your entire root mount to be on ZFS, or you can opt to mount a file as ZFS on "${CNODE_HOME}"</p>
+</div>
 <h4 id="install-postgresql-server">Install PostgreSQL Server<a class="headerlink" href="#install-postgresql-server" title="Permanent link">⚓︎</a></h4>
 <p>Execute commands below to set up Postgres Server</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Determine OS platform</span>
-<span class="nv">OS_ID</span><span class="o">=</span><span class="k">$(</span>grep -i ^id_like<span class="o">=</span> /etc/os-release <span class="p">|</span> cut -d<span class="o">=</span> -f <span class="m">2</span><span class="k">)</span>
+<span class="nv">OS_ID</span><span class="o">=</span><span class="k">$(</span>grep -i ^ID_LIKE<span class="o">=</span> /etc/os-release <span class="p">|</span> cut -d<span class="o">=</span> -f <span class="m">2</span><span class="k">)</span>
 <span class="nv">DISTRO</span><span class="o">=</span><span class="k">$(</span>grep -i ^NAME<span class="o">=</span> /etc/os-release <span class="p">|</span> cut -d<span class="o">=</span> -f <span class="m">2</span><span class="k">)</span>
 
 <span class="k">if</span> <span class="o">[</span> -z <span class="s2">&quot;</span><span class="si">${</span><span class="nv">OS_ID</span><span class="p">##*debian*</span><span class="si">}</span><span class="s2">&quot;</span> <span class="o">]</span><span class="p">;</span> <span class="k">then</span>
@@ -1024,7 +1028,7 @@ You might want to fill in some sample information as per below to fill in the fo
 </tr>
 </tbody>
 </table>
-<p>In addition to above, due to the nature of usage by dbsync (restart of instance does a rollback to start of epoch), and data retention on blockchain - we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your <code>/etc/postgresql/14/main/postgresql.conf</code>:</p>
+<p>In addition to above, due to the nature of usage by dbsync (restart of instance does a rollback to last saved ledger-state snapshot), and data retention on blockchain - we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your <code>/etc/postgresql/14/main/postgresql.conf</code>:</p>
 <table>
 <thead>
 <tr>

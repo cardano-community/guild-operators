@@ -1005,6 +1005,7 @@
 <ul>
 <li>Ensure the <a href="../../basics/#pre-requisites">Pre-Requisites</a> are in place before you proceed.</li>
 <li>The <a href="https://github.com/input-output-hk/cardano-db-sync">Cardano DB Sync</a> relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to <a href="../../Appendix/postgres/">Sample Local PostgreSQL Server Deployment instructions</a> for setting up a Postgres instance. Specifically, we expect the <code>PGPASSFILE</code> environment variable is set as per the instructions in the sample guide, for <code>db-sync</code> to be able to connect.</li>
+<li>One of the biggest obstacles for user experience when running dbsync is ensuring you satisfy EACH of the points mentioned in System Requirements <a href="https://github.com/input-output-hk/cardano-db-sync#system-requirements">here</a>. Also, note that we do not advise running dbsync on mainnet if your RAM is below 48GB.</li>
 </ul>
 </div>
 <h3 id="build-instructions">Build Instructions<a class="headerlink" href="#build-instructions" title="Permanent link">⚓︎</a></h3>
