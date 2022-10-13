@@ -32,7 +32,7 @@ The above would copy the binaries built into `~/.cabal/bin` folder.
 #### Download pre-compiled Binary from Node release
 
 While certain folks might want to build the node themselves (could be due to OS/arch compatibility, trust factor or customisations), for most it might not make sense to build the node locally.
-Instead, you can download the binaries using [cardano-node release notes](https://github.com/input-output-hk/cardano-node/releases) , where-in you can find the download links for every version.
+Instead, you can download the binaries using [cardano-node release notes](https://github.com/input-output-hk/cardano-node/releases), where-in you can find the download links for every version.
 Once downloaded, you would want to make it available to preferred `PATH` in your environment (if you're asking how - that'd mean you've skipped skillsets mentioned on homepage).
 
 ### Verify
