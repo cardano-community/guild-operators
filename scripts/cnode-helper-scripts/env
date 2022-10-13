@@ -154,10 +154,9 @@ checkUpdate() {
   [[ "${UPDATE_CHECK}" != "Y" ]] && return 0
 
   if [[ ${OFFLINE_MODE} = N && ${BRANCH} != master && ${BRANCH} != alpha ]]; then
-    if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/${G_ACCOUNT}/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
-      echo -e "WARN!! The folder was configured against ${BRANCH} branch - which does not exist anymore, falling back to alpha branch"
-      # alpha because if someone was testing something against a custom branch, it would likely be merged to alpha first. Production systems should not be using custom branch anyways
-      BRANCH=alpha
+    if ! curl -s -f -m ${CURL_TIMEOUT} "${URL_RAW}/LICENSE" -o /dev/null ; then
+      echo -e "WARN!! The folder was configured against ${BRANCH} branch - which does not exist anymore, falling back to master branch"
+      BRANCH=master
       echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
     fi
   fi
