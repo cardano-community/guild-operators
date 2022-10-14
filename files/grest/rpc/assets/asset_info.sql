@@ -45,7 +45,7 @@ BEGIN
           ma_tx_mint MTM
           INNER JOIN tx ON tx.id = MTM.tx_id
         WHERE
-          MTM.ident = _asset_id
+          MTM.ident = _asset_id AND MTM.quantity > 0
         ORDER BY
           MTM.tx_id ASC
         LIMIT 1
@@ -69,7 +69,7 @@ BEGIN
           TM.tx_id = (
             SELECT MAX(MTM.tx_id)
             FROM ma_tx_mint MTM
-            WHERE MTM.ident = _asset_id
+            WHERE MTM.ident = _asset_id AND MTM.quantity > 0
           )
       ) AS minting_tx_metadata,
       (
