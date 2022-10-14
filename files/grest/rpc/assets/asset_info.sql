@@ -1,4 +1,4 @@
-CREATE FUNCTION grest.asset_info (_asset_policy text, _asset_name text default '')
+CREATE OR REPLACE FUNCTION grest.asset_info (_asset_policy text, _asset_name text default '')
   RETURNS TABLE (
     policy_id text,
     asset_name text,
@@ -56,21 +56,22 @@ BEGIN
       EXTRACT(epoch from minting_data.date)::integer,
       (
         SELECT
-          COALESCE(
-            JSONB_OBJECT_AGG(
-              tm.key::text,
-              tm.json
-            ),
-            JSONB_BUILD_OBJECT()
+          JSONB_OBJECT_AGG(
+            key::text,
+            json
           ) as minting_tx_metadata
         FROM
-          tx_metadata TM
-        WHERE
-          TM.tx_id = (
-            SELECT MAX(MTM.tx_id)
-            FROM ma_tx_mint MTM
-            WHERE MTM.ident = _asset_id AND MTM.quantity > 0
-          )
+          (
+            SELECT TM.key, TM.json, MAX(MTM.tx_id)
+              FROM tx_metadata TM
+                INNER JOIN ma_tx_mint MTM
+                ON TM.tx_id = MTM.tx_id
+              WHERE
+                MTM.ident = _asset_id
+                AND MTM.quantity > 0
+                AND TM.JSON IS NOT NULL
+              GROUP BY TM.key, TM.json
+          ) x
       ) AS minting_tx_metadata,
       (
         SELECT
