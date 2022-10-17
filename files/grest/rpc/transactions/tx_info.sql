@@ -812,7 +812,7 @@ BEGIN
       ), JSONB_BUILD_ARRAY()),
       COALESCE((SELECT AW.list  FROM _all_withdrawals AW        WHERE AW.tx_id  = ATX.id), JSONB_BUILD_ARRAY()),
       COALESCE((SELECT AMI.list FROM _all_mints AMI             WHERE AMI.tx_id = ATX.id), JSONB_BUILD_ARRAY()),
-      COALESCE((SELECT AME.list FROM _all_metadata AME          WHERE AME.tx_id = ATX.id), JSONB_BUILD_ARRAY()),
+      COALESCE((SELECT AME.list FROM _all_metadata AME          WHERE AME.tx_id = ATX.id), NULL),
       COALESCE((SELECT AC.list  FROM _all_certs AC              WHERE AC.tx_id  = ATX.id), JSONB_BUILD_ARRAY()),
       COALESCE((SELECT ANS.list FROM _all_native_scripts ANS    WHERE ANS.tx_id = ATX.id), JSONB_BUILD_ARRAY()),
       COALESCE((SELECT APC.list FROM _all_plutus_contracts APC  WHERE APC.tx_id = ATX.id), JSONB_BUILD_ARRAY())

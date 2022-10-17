@@ -11,12 +11,18 @@ CREATE FUNCTION grest.address_info (_addresses text[])
 DECLARE
   known_addresses varchar[];
 BEGIN
-  SELECT INTO known_addresses
-    ARRAY_AGG(DISTINCT(tx_out.address))
-  FROM
-    tx_out
-  WHERE
-    tx_out.address = ANY(_addresses);
+
+  CREATE TEMPORARY TABLE _known_addresses AS
+    SELECT
+      DISTINCT ON (tx_out.address) tx_out.address,
+      sa.view as stake_address,
+      COALESCE(tx_out.address_has_script, 'false') as script_address
+    FROM
+      tx_out
+      LEFT JOIN stake_address SA on sa.id = tx_out.stake_address_id
+    WHERE
+      tx_out.address = ANY(_addresses)
+  ;
 
   RETURN QUERY
     WITH _all_utxos AS (
@@ -27,28 +33,26 @@ BEGIN
         tx_out.address,
         tx_out.value,
         tx_out.index,
-        tx_out.stake_address_id,
         tx.block_id,
         tx_out.data_hash,
         tx_out.inline_datum_id,
-        tx_out.reference_script_id,
-        tx_out.address_has_script
+        tx_out.reference_script_id
       FROM
         tx_out
-        INNER JOIN tx ON tx.id = tx_out.tx_id
         LEFT JOIN tx_in ON tx_in.tx_out_id = tx_out.tx_id
           AND tx_in.tx_out_index = tx_out.index
+        INNER JOIN tx ON tx.id = tx_out.tx_id
       WHERE
         tx_in.id IS NULL
         AND
-        tx_out.address = ANY(known_addresses)
+        tx_out.address = ANY(_addresses)
     )
 
       SELECT
         ka.address,
         COALESCE(SUM(au.value), '0')::text AS balance,
-        SA.view as stake_address,
-        bool_or(au.address_has_script) as script_address,
+        ka.stake_address,
+        ka.script_address,
         CASE WHEN EXISTS (
           SELECT TRUE FROM _all_utxos aus WHERE aus.address = ka.address
         ) THEN
@@ -101,16 +105,16 @@ BEGIN
           '[]'::json
         END as utxo_set
       FROM
-        (SELECT UNNEST(known_addresses) as address) ka
+        _known_addresses ka
         LEFT OUTER JOIN _all_utxos au ON au.address = ka.address
         LEFT JOIN public.block ON block.id = au.block_id
-        LEFT JOIN stake_address SA on au.stake_address_id = SA.id
         LEFT JOIN datum ON datum.id = au.inline_datum_id
         LEFT JOIN script ON script.id = au.reference_script_id
       GROUP BY
-        ka.address, SA.view;
+        ka.address, ka.stake_address, ka.script_address
+      ;
+    DROP TABLE _known_addresses;
 END;
 $$;
 
 COMMENT ON FUNCTION grest.address_info IS 'Get bulk address info - balance, associated stake address (if any) and UTXO set';
-
