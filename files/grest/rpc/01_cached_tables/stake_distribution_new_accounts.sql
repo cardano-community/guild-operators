@@ -3,6 +3,18 @@ LANGUAGE PLPGSQL AS
 $$
 BEGIN
   IF (
+      -- If checking query with a different name there will be 1 result
+      SELECT COUNT(pid) > 1
+        FROM pg_stat_activity
+        WHERE state = 'active'
+          AND query ILIKE '%GREST.UPDATE_NEWLY_REGISTERED_ACCOUNTS_STAKE_DISTRIBUTION_CACHE(%'
+          AND query NOT ILIKE '%pg_stat_activity%'
+          AND datname = (
+            SELECT current_database()
+          )
+    ) THEN
+      RAISE EXCEPTION 'New accounts query already running! Exiting...';
+  ELSIF (
     -- If checking query with a different name there will be 1 result
     SELECT COUNT(pid) > 0
       FROM pg_stat_activity
