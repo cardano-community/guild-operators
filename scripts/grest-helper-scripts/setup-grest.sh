@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2086,SC2046,SC1078
+# shellcheck disable=SC2086,SC2046,SC1078,SC2059
 # shellcheck source=/dev/null
 
 ##########################################
@@ -16,7 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment before we're prepared for wider networks, targetted support for dbsync 13 will be against v1.1.0. Using a gap from 1.0.1 - 1.0.5 allows for scope to have any urgent fixes required before then on alpha branch itself
+SGVERSION=1.0.8 # Using versions from 1.0.5-1.0.9 for minor commit alignment before we're prepared for wider networks, targetted support for dbsync 13 will be against v1.1.0. Using a gap from 1.0.1 - 1.0.5 allows for scope to have any urgent fixes required before then on alpha branch itself
 
 
 ######## Functions ########
@@ -164,13 +164,14 @@ SGVERSION=1.0.7 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
     set_cron_variables "stake-snapshot-cache"
     install_cron_job "stake-snapshot-cache" "*/10 * * * *"
 
-    # Only testnet and mainnet asset registries supported
+    # Only (legacy) testnet and mainnet asset registries supported
+    # In absence of official messaging, current (soon to be reset) preprod/preview networks use same registry as testnet. TBC - once there is an update from IO on these
     # Possible future addition for the Guild network once there is a guild registry
-    if [[ ${NWMAGIC} -eq 764824073 || ${NWMAGIC} -eq 1097911063 ]]; then
+    if [[ ${NWMAGIC} -eq 764824073 || ${NWMAGIC} -eq 1097911063 || ${NWMAGIC} -eq 1 || ${NWMAGIC} -eq 2 ]]; then
       get_cron_job_executable "asset-registry-update"
       set_cron_variables "asset-registry-update"
       # Point the update script to testnet regisry repo structure (default: mainnet)
-      [[ ${NWMAGIC} -eq 1097911063 ]] && set_cron_asset_registry_testnet_variables
+      [[ ${NWMAGIC} -eq 1097911063 || ${NWMAGIC} -eq 1 || ${NWMAGIC} -eq 2 ]] && set_cron_asset_registry_testnet_variables
       install_cron_job "asset-registry-update" "*/10 * * * *"
     fi
   }

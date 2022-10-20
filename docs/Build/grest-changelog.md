@@ -1,5 +1,26 @@
 # Koios gRest Changelog
 
+## [1.0.8] - For all networks
+
+This release is contains minor bug-fixes that were discovered in koios-1.0.7.
+No major changes to output for this one.
+
+### Changes for API
+
+#### New endpoints added
+- None
+
+#### Data Input/Output changes
+- `tx_info` and `tx_metadata` - Align metadata for JSON output format [#1542](https://github.com/cardano-community/guild-operators/pull/1542)
+- `blocks` - Query Output aligned to specs (`epoch` => `epoch_no`)
+- `epoch_block_protocols` - [ ** Specs only ** ] Fix Documentation schema , which was accidentally showing wrong output
+- `pool_delegators_history` - List all epochs instead of current, if no `_epoch_no` is specified [#1545](https://github.com/cardano-community/guild-operators/issues/1545)
+
+### Changes for Instance Providers
+- `asset_info` - Fix metadata aggregaton for minting transactions with multiple metadata keys [#1543](https://github.com/cardano-community/guild-operators/pull/1543)
+- `stake_distribution_new_accounts` - Leftover reference for `account_info` which now accepts array, resulted in error to populate stake distribution cache for new accounts [#1541](https://github.com/cardano-community/guild-operators/pull/1541)
+- `grest-poll.sh` - Remove query view section from polling script, and remove grestrpcs re-creation per hour (it's already updated when `setup-grest.sh` is run) , in preparation for [#1545](https://github.com/cardano-community/guild-operators/issues/1545)
+
 ## [1.0.7] - For all networks
 
 This release continues updates from koios-1.0.6 to further utilise stake-snapshot cache tables which would be useful for SPOs as well as reduce downtime post epoch transition. One largely requested feature to accept bulk inputs for many block/address/account endpoints is now complete.

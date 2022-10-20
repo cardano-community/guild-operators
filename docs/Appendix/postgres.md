@@ -1,5 +1,8 @@
-These deployment instructions used for reference while building [cardano-db-sync](../Build/dbsync.md) tool. These are just for reference and ease of set up and consistency for those who are new to Postgres DB.
+These deployment instructions used for reference while building [cardano-db-sync](../Build/dbsync.md) tool, with the scope being ease of set up, and some tuning baselines for those who are new to Postgres DB.
 It is recommended to customise these as per your needs for Production builds.
+
+!!! important
+    You'd find it pretty useful to set up ZFS on your system prior to setting up Postgres, to help with your IOPs throughput requirements. You can find sample install instructions [here](https://openzfs.github.io/openzfs-docs/Getting%20Started/Debian/index.html). You can set up your entire root mount to be on ZFS, or you can opt to mount a file as ZFS on "${CNODE_HOME}"
 
 #### Install PostgreSQL Server
 
@@ -7,7 +10,7 @@ Execute commands below to set up Postgres Server
 
 ``` bash
 # Determine OS platform
-OS_ID=$(grep -i ^id_like= /etc/os-release | cut -d= -f 2)
+OS_ID=$(grep -i ^ID_LIKE= /etc/os-release | cut -d= -f 2)
 DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
 
 if [ -z "${OS_ID##*debian*}" ]; then
@@ -80,7 +83,7 @@ You might want to fill in some sample information as per below to fill in the fo
 | Number of Connections | 200 |
 | Data Storage   | HDD Storage |
 
-In addition to above, due to the nature of usage by dbsync (restart of instance does a rollback to start of epoch), and data retention on blockchain - we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your `/etc/postgresql/14/main/postgresql.conf`:
+In addition to above, due to the nature of usage by dbsync (restart of instance does a rollback to last saved ledger-state snapshot), and data retention on blockchain - we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your `/etc/postgresql/14/main/postgresql.conf`:
 
 | Parameter          | Value   |
 |--------------------|---------|

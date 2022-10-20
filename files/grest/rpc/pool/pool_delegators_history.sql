@@ -23,10 +23,8 @@ BEGIN
         INNER JOIN public.stake_address SA ON ES.addr_id = SA.id
       WHERE
         ES.pool_id = _pool_id
-        AND
-        ES.epoch_no = (SELECT MAX(NO) FROM public.epoch)
       ORDER BY
-        ES.amount DESC;
+        ES.epoch_no DESC, ES.amount DESC;
   ELSE
     RETURN QUERY
       SELECT

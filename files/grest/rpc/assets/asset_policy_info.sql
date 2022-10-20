@@ -30,7 +30,7 @@ BEGIN
           tx_metadata TM
           INNER JOIN ma_tx_mint MTM on MTM.tx_id = TM.tx_id
         WHERE
-          MTM.ident = ANY(_policy_asset_ids)
+          MTM.ident = ANY(_policy_asset_ids) AND MTM.quantity > 0
         ORDER BY
           MTM.ident,
           TM.tx_id ASC

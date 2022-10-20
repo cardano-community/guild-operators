@@ -511,9 +511,9 @@ echo "Downloading files..."
 pushd "${CNODE_HOME}"/files >/dev/null || err_exit
 
 
-if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/${G_ACCOUNT}/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
-  echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to alpha branch\n"
-  BRANCH=alpha
+if ! curl -s -f -m ${CURL_TIMEOUT} "${REPO_RAW}/${BRANCH}/LICENSE" -o /dev/null ; then
+  echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to master branch\n"
+  BRANCH=master
   URL_RAW="${REPO_RAW}/${BRANCH}"
   echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
 else
@@ -522,7 +522,7 @@ fi
 
 # Download dbsync config
 curl -sL -f -m ${CURL_TIMEOUT} -o dbsync.json.tmp ${URL_RAW}/files/config-dbsync.json
-[[ "${NETWORK}" != "mainnet" ]] && sed -i 's#NetworkName": "mainnet"#NetworkName": "testnet"#g' dbsync.json.tmp
+[[ "${NETWORK}" != "mainnet" ]] && sed -i "s#NetworkName\": \"mainnet\"#NetworkName\": \"${NETWORK}\"#g" dbsync.json.tmp
 
 # Download node config, genesis and topology from template
 if [[ ${NETWORK} = "guild" ]]; then
