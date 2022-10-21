@@ -89,7 +89,8 @@ BEGIN
                     JSON_AGG(JSON_BUILD_OBJECT(
                       'policy_id', ENCODE(MA.policy, 'hex'),
                       'asset_name', ENCODE(MA.name, 'hex'),
-                      'quantity', MTX.quantity::text
+                      'fingerprint', MA.fingerprint,
+                      'balance', MTX.quantity::text
                       ))
                   FROM
                       ma_tx_out MTX

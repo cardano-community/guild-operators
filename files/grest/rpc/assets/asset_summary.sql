@@ -2,6 +2,7 @@ CREATE FUNCTION grest.asset_summary (_asset_policy text, _asset_name text defaul
   RETURNS TABLE (
     policy_id text,
     asset_name text,
+    fingerprint character varying,
     total_transactions bigint,
     staked_wallets bigint,
     unstaked_addresses bigint
@@ -44,6 +45,7 @@ RETURN QUERY
   SELECT
     _asset_policy,
     _asset_name,
+    MA.fingerprint,
     (
       SELECT
         COUNT(DISTINCT(TXO.tx_id))

@@ -95,7 +95,7 @@ BEGIN
                 'policy_id', ENCODE(MA.policy, 'hex'),
                 'asset_name', ENCODE(MA.name, 'hex'),
                 'fingerprint', MA.fingerprint,
-                'quantity', MTO.quantity::text
+                'balance', MTO.quantity::text
               )
             END
           )                                   AS asset_list,
@@ -148,7 +148,7 @@ BEGIN
                 'policy_id', ENCODE(MA.policy, 'hex'),
                 'asset_name', ENCODE(MA.name, 'hex'),
                 'fingerprint', MA.fingerprint,
-                'quantity', MTO.quantity::text
+                'balance', MTO.quantity::text
               )
             END
           )                                   AS asset_list,
@@ -201,7 +201,7 @@ BEGIN
                 'policy_id', ENCODE(MA.policy, 'hex'),
                 'asset_name', ENCODE(MA.name, 'hex'),
                 'fingerprint', MA.fingerprint,
-                'quantity', MTO.quantity::text
+                'balance', MTO.quantity::text
               )
             END
           )                                   AS asset_list,
@@ -254,7 +254,7 @@ BEGIN
                 'policy_id', ENCODE(MA.policy, 'hex'),
                 'asset_name', ENCODE(MA.name, 'hex'),
                 'fingerprint', MA.fingerprint,
-                'quantity', MTO.quantity::text
+                'balance', MTO.quantity::text
               )
             END
           )                                   AS asset_list,
@@ -305,7 +305,7 @@ BEGIN
                 'policy_id', ENCODE(MA.policy, 'hex'),
                 'asset_name', ENCODE(MA.name, 'hex'),
                 'fingerprint', MA.fingerprint,
-                'quantity', MTO.quantity::text
+                'balance', MTO.quantity::text
               )
             END
           )                                   AS asset_list,
@@ -371,7 +371,8 @@ BEGIN
             JSONB_BUILD_OBJECT(
               'policy_id', ENCODE(MA.policy, 'hex'),
               'asset_name', ENCODE(MA.name, 'hex'),
-              'quantity', MTM.quantity::text
+              'fingerprint', MA.fingerprint,
+              'balance', MTM.quantity::text
             ) AS data
           FROM 
             ma_tx_mint MTM

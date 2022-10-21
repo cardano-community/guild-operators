@@ -13,6 +13,7 @@ BEGIN
       txo.address,
       ma.policy,
       ma.name,
+      ma.fingerprint,
       SUM(mtx.quantity) as quantity
     FROM
       MA_TX_OUT MTX
@@ -24,32 +25,28 @@ BEGIN
       TXO.address = ANY(_addresses)
       AND TX_IN.TX_IN_ID IS NULL
     GROUP BY
-      TXO.address, MA.policy, MA.name
+      TXO.address, MA.policy, MA.name, ma.fingerprint
   )
 
   SELECT
     assets_grouped.address,
-    JSON_AGG(assets_grouped.assets)
+    assets_grouped.assets
   FROM (
     SELECT
       aa.address,
-      JSON_BUILD_OBJECT(
-        'policy_id', ENCODE(aa.policy, 'hex'),
-        'assets', JSON_AGG(
-          JSON_BUILD_OBJECT(
-            'asset_name', ENCODE(aa.name, 'hex'),
-            'asset_name_ascii', ENCODE(aa.name, 'escape'),
-            'balance', aa.quantity::text
-          )
+      JSON_AGG(
+        JSON_BUILD_OBJECT(
+          'policy_id', ENCODE(aa.policy, 'hex'),
+          'asset_name', ENCODE(aa.name, 'hex'),
+          'fingerprint', aa.fingerprint,
+          'balance', aa.quantity::text
         )
       ) as assets
     FROM 
       _all_assets aa
     GROUP BY
-      aa.address, aa.policy
-  ) assets_grouped
-  GROUP BY
-    assets_grouped.address;
+      aa.address
+  ) assets_grouped;
 END;
 $$;
 
