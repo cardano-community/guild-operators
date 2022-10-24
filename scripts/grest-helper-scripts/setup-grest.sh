@@ -117,6 +117,10 @@ SGVERSION=1.0.8 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
   set_cron_variables() {
     local job=$1
     [[ ${PGDATABASE} != cexplorer ]] && sed -e "s@DB_NAME=.*@DB_NAME=${PGDATABASE}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
+    [[ ${job} == populate-next-epoch-nonce ]] &&
+      sed -e "s@NWMAGIC=.*@NWMAGIC=${NWMAGIC}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh" &&
+      sed -e "s@EPOCH_LENGTH=.*@EPOCH_LENGTH=${EPOCH_LENGTH}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh" &&
+      sed -e "s@PROM_URL=.*@PROM_URL=http://${PROM_HOST}:${PROM_PORT}/metrics@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
     # update last modified date of all json files to trigger cron job to process all
     [[ -d "${HOME}/git/${CNODE_VNAME}-token-registry" ]] && find "${HOME}/git/${CNODE_VNAME}-token-registry" -mindepth 2 -maxdepth 2 -type f -name "*.json" -exec touch {} +
   }
@@ -163,6 +167,10 @@ SGVERSION=1.0.8 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
     get_cron_job_executable "stake-snapshot-cache"
     set_cron_variables "stake-snapshot-cache"
     install_cron_job "stake-snapshot-cache" "*/10 * * * *"
+
+    get_cron_job_executable "populate-next-epoch-nonce"
+    set_cron_variables "populate-next-epoch-nonce"
+    install_cron_job "populate-next-epoch-nonce" "*/10 * * * *"
 
     # Only (legacy) testnet and mainnet asset registries supported
     # In absence of official messaging, current (soon to be reset) preprod/preview networks use same registry as testnet. TBC - once there is an update from IO on these
@@ -211,6 +219,7 @@ SGVERSION=1.0.8 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
     remove_cron_job "stake-distribution-new-accounts-update"
     remove_cron_job "stake-distribution-update"
     remove_cron_job "stake-snapshot-cache"
+    remove_cron_job "populate-next-epoch_nonce"
   }
 
   # Description : Set default env values if not user-specified.
