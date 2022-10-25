@@ -1,4 +1,4 @@
-name: Pre-merge Ubuntu20
+name: Pre-merge Ubuntu
 
 on:
   workflow_dispatch:
@@ -7,8 +7,8 @@ on:
       - scripts/cnode-helper-scripts/prereqs.sh
       - scripts/cnode-helper-scripts/cabal-build-all.sh
       - files/cabal.project.local
-      - files/tests/ubuntu20_prereqs.sh.containerfile
-      - files/tests/ubuntu20_prereqs.sh_-l.containerfile
+      - files/tests/ubuntu_prereqs.sh.containerfile
+      - files/tests/ubuntu_prereqs.sh_-l.containerfile
 
 jobs:
   prerequisites:
@@ -41,11 +41,11 @@ jobs:
       run: |
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
-        docker build . --file files/tests/pre-merge/ubuntu20_prereqs.sh.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-ubuntu20:prereqs_${COMMIT}
-    - name: Push pre-merge-ubuntu20:prereqs_${COMMIT}
+        docker build . --file files/tests/pre-merge/ubuntu_prereqs.sh.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-ubuntu:prereqs_${COMMIT}
+    - name: Push pre-merge-ubuntu:prereqs_${COMMIT}
       run: |
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
-        docker push ghcr.io/cardano-community/pre-merge-ubuntu20:prereqs_${COMMIT}
+        docker push ghcr.io/cardano-community/pre-merge-ubuntu:prereqs_${COMMIT}
 
   build:
     needs: prerequisites
@@ -79,7 +79,7 @@ jobs:
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
         echo "Working from PR Branch ${BRANCH} on Commit ${COMMIT}"
-        docker build . --file files/tests/pre-merge/ubuntu20-cabal.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-ubuntu20:cabal_${COMMIT}
+        docker build . --file files/tests/pre-merge/ubuntu-cabal.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-ubuntu:cabal_${COMMIT}
 
   prerequisites-with-system-libsodium:
     runs-on: ubuntu-latest
@@ -111,11 +111,11 @@ jobs:
       run: |
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
-        docker build . --file files/tests/pre-merge/ubuntu20_prereqs.sh_-l.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-ubuntu20:prereqs_-l_${COMMIT}
-    - name: Push pre-merge-ubuntu20:prereqs_-l
+        docker build . --file files/tests/pre-merge/ubuntu_prereqs.sh_-l.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-ubuntu:prereqs_-l_${COMMIT}
+    - name: Push pre-merge-ubuntu:prereqs_-l
       run: |
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
-        docker push ghcr.io/cardano-community/pre-merge-ubuntu20:prereqs_-l_${COMMIT}
+        docker push ghcr.io/cardano-community/pre-merge-ubuntu:prereqs_-l_${COMMIT}
 
   build-with-system-libsodium:
     needs: prerequisites-with-system-libsodium
@@ -149,4 +149,4 @@ jobs:
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
         echo "Working from PR Branch ${BRANCH} on Commit ${COMMIT}"
-        docker build . --file files/tests/pre-merge/ubuntu20-cabal_-l.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-ubuntu20:cabal_-l_${COMMIT}
+        docker build . --file files/tests/pre-merge/ubuntu-cabal_-l.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-ubuntu:cabal_-l_${COMMIT}

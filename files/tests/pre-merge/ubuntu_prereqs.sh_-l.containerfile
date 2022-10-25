@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 ARG COMMIT
 ARG BRANCH
 ARG CNODE_HOME=/opt/cardano/cnode
@@ -20,4 +20,4 @@ RUN set -x && apt-get -y update && apt-get -y --no-install-recommends install cu
     chmod 0755 prereqs.sh &&\
     export SUDO='N' &&\
     export UPDATE_CHECK='N' &&\
-    ./prereqs.sh -b "${BRANCH}"
+    ./prereqs.sh -l -b "${BRANCH}"
