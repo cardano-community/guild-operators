@@ -199,13 +199,11 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     echo "Using apt to prepare packages for ${DISTRO} system"
     echo "  Updating system packages..."
     $sudo apt-get ${pkg_opts} install curl > /dev/null
-    $sudo apt-get ${pkg_opts} update > /dev/null
+    $sudo env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get ${pkg_opts} update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
     pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute dialog automake sqlite3 bsdmainutils libusb-1.0-0-dev libudev-dev unzip"
-    if [ -z "${ARCH##*aarch64*}" ]; then
-      pkg_list="${pkg_list} llvm clang libnuma-dev"
-    fi
-    $sudo apt-get ${pkg_opts} install ${pkg_list} > /dev/null;rc=$?
+    pkg_list="${pkg_list} llvm clang libnuma-dev"
+    $sudo env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get ${pkg_opts} install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
       echo "$sudo apt-get ${pkg_opts} install ${pkg_list}"
@@ -448,12 +446,14 @@ if [[ "${INSTALL_OGMIOS}" = "Y" ]]; then
   if curl -sL -f -m ${CURL_TIMEOUT} -o ogmios.zip ${ogmios_asset_url}; then
     unzip ogmios.zip &>/dev/null
     rm -f ogmios.zip
-    [[ -f bin/ogmios ]] || err_exit "ogmios downloaded but binary not found after extracting package!"
+    [[ -f bin/ogmios ]] && OGMIOSPATH=bin/ogmios
+    [[ -f ogmios ]] && OGMIOSPATH=ogmios
+    [[ -n ${OGMIOSPATH} ]] || err_exit "ogmios downloaded but binary not found after extracting package!"
     ogmios_git_version="$(curl -s https://api.github.com/repos/CardanoSolutions/ogmios/releases/latest | jq -r '.tag_name')"
     if ! versionCheck "${ogmios_git_version}" "${ogmios_version}"; then
       [[ "${ogmios_version}" = "0.0.0" ]] && echo "  latest version: ${ogmios_git_version}" || echo "  installed version: ${ogmios_version} | latest version: ${ogmios_git_version}"
-      chmod +x /tmp/ogmios/bin/ogmios
-      mv -f /tmp/ogmios/bin/ogmios "${HOME}"/.cabal/bin/
+      chmod +x /tmp/ogmios/${OGMIOSPATH}
+      mv -f /tmp/ogmios/${OGMIOSPATH} "${HOME}"/.cabal/bin/
       echo "  ogmios ${ogmios_git_version} installed!"
     else
       rm -rf /tmp/ogmios #cleanup in /tmp
