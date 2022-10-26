@@ -448,12 +448,8 @@ if [[ "${INSTALL_OGMIOS}" = "Y" ]]; then
   if curl -sL -f -m ${CURL_TIMEOUT} -o ogmios.zip ${ogmios_asset_url}; then
     unzip ogmios.zip &>/dev/null
     rm -f ogmios.zip
-    if [[ -f bin/ogmios ]];  then
-      OGMIOSPATH=bin/ogmios
-    fi
-    if [[ -f ogmios ]];  then
-      OGMIOSPATH=ogmios
-    fi
+    [[ -f bin/ogmios ]] && OGMIOSPATH=bin/ogmios
+    [[ -f ogmios ]] && OGMIOSPATH=ogmios
     [[ -n ${OGMIOSPATH} ]] || err_exit "ogmios downloaded but binary not found after extracting package!"
     ogmios_git_version="$(curl -s https://api.github.com/repos/CardanoSolutions/ogmios/releases/latest | jq -r '.tag_name')"
     if ! versionCheck "${ogmios_git_version}" "${ogmios_version}"; then
