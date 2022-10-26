@@ -1,34 +1,34 @@
 CREATE TABLE IF NOT EXISTS grest.epoch_info_cache (
   epoch_no word31type PRIMARY KEY NOT NULL,
-  i_out_sum word128type NOT NULL,
-  i_fees lovelace NOT NULL,
-  i_tx_count word31type NOT NULL,
-  i_blk_count word31type NOT NULL,
-  i_first_block_time numeric UNIQUE NOT NULL,
-  i_last_block_time numeric UNIQUE NOT NULL,
-  i_total_rewards lovelace DEFAULT NULL,
-  i_avg_blk_reward lovelace DEFAULT NULL,
-  i_last_tx_id bigint DEFAULT NULL,
-  p_min_fee_a word31type NULL,
-  p_min_fee_b word31type NULL,
-  p_max_block_size word31type NULL,
-  p_max_tx_size word31type NULL,
-  p_max_bh_size word31type NULL,
-  p_key_deposit lovelace NULL,
-  p_pool_deposit lovelace NULL,
-  p_max_epoch word31type NULL,
-  p_optimal_pool_count word31type NULL,
-  p_influence double precision NULL,
-  p_monetary_expand_rate double precision NULL,
-  p_treasury_growth_rate double precision NULL,
-  p_decentralisation double precision NULL,
+  i_out_sum word128type,
+  i_fees lovelace,
+  i_tx_count word31type,
+  i_blk_count word31type,
+  i_first_block_time numeric UNIQUE,
+  i_last_block_time numeric UNIQUE,
+  i_total_rewards lovelace,
+  i_avg_blk_reward lovelace,
+  i_last_tx_id bigint,
+  p_min_fee_a word31type,
+  p_min_fee_b word31type,
+  p_max_block_size word31type,
+  p_max_tx_size word31type,
+  p_max_bh_size word31type,
+  p_key_deposit lovelace,
+  p_pool_deposit lovelace,
+  p_max_epoch word31type,
+  p_optimal_pool_count word31type,
+  p_influence double precision,
+  p_monetary_expand_rate double precision,
+  p_treasury_growth_rate double precision,
+  p_decentralisation double precision,
   p_extra_entropy text,
-  p_protocol_major word31type NULL,
-  p_protocol_minor word31type NULL,
-  p_min_utxo_value lovelace NULL,
-  p_min_pool_cost lovelace NULL,
+  p_protocol_major word31type,
+  p_protocol_minor word31type,
+  p_min_utxo_value lovelace,
+  p_min_pool_cost lovelace,
   p_nonce text,
-  p_block_hash text NOT NULL,
+  p_block_hash text,
   p_cost_models character varying,
   p_price_mem double precision,
   p_price_step double precision,
@@ -82,7 +82,9 @@ BEGIN
     SELECT
       COALESCE(MAX(epoch_no), 0) INTO _latest_epoch_no_in_cache
     FROM
-      grest.epoch_info_cache;
+      grest.epoch_info_cache
+    WHERE
+      i_first_block_time IS NOT NULL;
 
     IF _latest_epoch_no_in_cache = 0 THEN
       RAISE NOTICE 'Epoch info cache table is empty, starting initial population...';
@@ -110,11 +112,11 @@ BEGIN
     PERFORM grest.UPDATE_TOTAL_REWARDS_EPOCH_INFO_CACHE(_latest_epoch_no_in_cache - 1);
     -- Continue new epoch data insert
     _epoch_no_to_insert_from := _latest_epoch_no_in_cache + 1;
-  END IF;  
+  END IF;
 
   RAISE NOTICE 'Deleting cache records from epoch % onwards...', _epoch_no_to_insert_from;
   DELETE FROM grest.epoch_info_cache
-  WHERE epoch_no >= _epoch_no_to_insert_from;
+    WHERE epoch_no >= _epoch_no_to_insert_from;
 
   INSERT INTO grest.epoch_info_cache
     SELECT DISTINCT ON (b.time)
@@ -188,8 +190,9 @@ BEGIN
           block b
           INNER JOIN tx ON tx.block_id = b.id
         WHERE
-          b.epoch_no = e.no
-          AND b.epoch_no <> _curr_epoch
+          b.epoch_no <= e.no
+          AND b.block_no IS NOT NULL
+          AND b.tx_count != 0
       ) last_tx ON TRUE
     WHERE
       e.no >= _epoch_no_to_insert_from
@@ -206,7 +209,6 @@ CREATE FUNCTION grest.UPDATE_LATEST_EPOCH_INFO_CACHE (_curr_epoch bigint, _epoch
   LANGUAGE plpgsql
   AS $$
 BEGIN
-
   -- only update last tx id in case of new epoch
   IF _curr_epoch <> _epoch_no_to_update THEN
     UPDATE
