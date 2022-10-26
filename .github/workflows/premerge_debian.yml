@@ -35,13 +35,16 @@ jobs:
     - uses: actions/checkout@v2
     - name: Extract branch from PR
       shell: bash
-      run: echo "##[set-output name=branch;]${GITHUB_HEAD_REF}"
+      run: |
+        echo "##[set-output name=branch;]${GITHUB_HEAD_REF}"
+        echo "##[set-output name=owner;]${GITHUB_REPOSITORY_OWNER}"
       id: pr_branch
     - name: Testing prereqs.sh
       run: |
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
+        export G_ACCOUNT=${{ steps.pr_branch.outputs.owner }}
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
-        docker build . --file files/tests/pre-merge/debian_prereqs.sh.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-debian:prereqs_${COMMIT}
+        docker build . --file files/tests/pre-merge/debian_prereqs.sh.containerfile --compress --build-arg BRANCH --build-arg COMMIT --build-arg G_ACCOUNT --tag ghcr.io/cardano-community/pre-merge-debian:prereqs_${COMMIT}
     - name: Push pre-merge-debian:prereqs_${COMMIT}
       run: |
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
@@ -104,13 +107,16 @@ jobs:
     - uses: actions/checkout@v2
     - name: Extract branch from PR
       shell: bash
-      run: echo "##[set-output name=branch;]${GITHUB_HEAD_REF}"
+      run: |
+        echo "##[set-output name=branch;]${GITHUB_HEAD_REF}"
+        echo "##[set-output name=owner;]${GITHUB_REPOSITORY_OWNER}"
       id: pr_branch
     - name: Testing prereqs.sh -l
       run: |
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
+        export G_ACCOUNT=${{ steps.pr_branch.outputs.owner }}
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
-        docker build . --file files/tests/pre-merge/debian_prereqs.sh_-l.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-debian:prereqs_-l_${COMMIT}
+        docker build . --file files/tests/pre-merge/debian_prereqs.sh_-l.containerfile --compress --build-arg BRANCH --build-arg COMMIT --build-arg G_ACCOUNT --tag ghcr.io/cardano-community/pre-merge-debian:prereqs_-l_${COMMIT}
     - name: Push pre-merge-debian:prereqs_-l_${COMMIT}
       run: |
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
@@ -141,7 +147,8 @@ jobs:
     - uses: actions/checkout@v2
     - name: Extract branch from PR
       shell: bash
-      run: echo "##[set-output name=branch;]${GITHUB_HEAD_REF}"
+      run: |
+        echo "##[set-output name=branch;]${GITHUB_HEAD_REF}"
       id: pr_branch
     - name: Testing cabal-build-all.sh -l
       run: |
