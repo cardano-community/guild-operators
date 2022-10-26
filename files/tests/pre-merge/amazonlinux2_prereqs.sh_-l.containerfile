@@ -1,5 +1,6 @@
 FROM amazonlinux:2
 ARG COMMIT
+ARG G_ACCOUNT
 ARG BRANCH
 ARG CNODE_HOME=/opt/cardano/cnode
 
@@ -15,8 +16,9 @@ WORKDIR /
 RUN echo "Working on branch ${BRANCH} and commit ${COMMIT}" &&\
     amazon-linux-extras install epel -y && yum -y install git && yum clean all &&\
     mkdir -pv /root/.cabal/bin /root/.ghcup/bin &&\
-    curl -sS -o prereqs.sh "https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}/scripts/cnode-helper-scripts/prereqs.sh" &&\
+    curl -sS -o prereqs.sh "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/scripts/cnode-helper-scripts/prereqs.sh" &&\
     chmod 755 prereqs.sh &&\
     export SUDO='N' &&\
     export UPDATE_CHECK='N' &&\
+    export G_ACCOUNT="${G_ACCOUNT}" &&\
     ./prereqs.sh -l -b "${BRANCH}"
