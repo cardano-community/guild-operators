@@ -372,7 +372,7 @@ BEGIN
               'policy_id', ENCODE(MA.policy, 'hex'),
               'asset_name', ENCODE(MA.name, 'hex'),
               'fingerprint', MA.fingerprint,
-              'balance', MTM.quantity::text
+              'quantity', MTM.quantity::text
             ) AS data
           FROM 
             ma_tx_mint MTM
