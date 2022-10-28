@@ -1,7 +1,7 @@
 CREATE FUNCTION grest.address_assets (_addresses text[])
   RETURNS TABLE (
     address varchar,
-    assets json
+    asset_list json
   )
   LANGUAGE PLPGSQL
   AS $$
@@ -30,7 +30,7 @@ BEGIN
 
   SELECT
     assets_grouped.address,
-    assets_grouped.assets
+    assets_grouped.asset_list
   FROM (
     SELECT
       aa.address,
@@ -41,7 +41,7 @@ BEGIN
           'fingerprint', aa.fingerprint,
           'balance', aa.quantity::text
         )
-      ) as assets
+      ) as asset_list
     FROM 
       _all_assets aa
     GROUP BY
