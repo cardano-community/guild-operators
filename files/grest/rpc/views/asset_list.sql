@@ -2,14 +2,11 @@ DROP VIEW IF EXISTS grest.asset_list;
 
 CREATE VIEW grest.asset_list AS
   SELECT
-      ENCODE(policy, 'hex') AS policy_id,
-      JSON_BUILD_OBJECT(
-        'hex', JSON_AGG(ENCODE(name, 'hex')),
-        'ascii', JSON_AGG(ENCODE(name, 'escape'))
-      ) AS asset_names
+      ENCODE(MA.policy, 'hex') AS policy_id,
+      ENCODE(MA.name, 'hex') AS asset_name,
+      MA.fingerprint
   FROM 
     public.multi_asset MA
-  GROUP BY
-    policy;
+  ORDER BY MA.policy, MA.name;
 
 COMMENT ON VIEW grest.asset_list IS 'Get the list of all native assets';

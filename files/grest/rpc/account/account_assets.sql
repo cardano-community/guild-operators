@@ -1,7 +1,7 @@
 CREATE FUNCTION grest.account_assets (_stake_addresses text[])
   RETURNS TABLE (
     stake_address varchar,
-    assets json
+    asset_list json
   )
   LANGUAGE PLPGSQL
   AS $$
@@ -21,6 +21,7 @@ BEGIN
         sa.view,
         ma.policy,
         ma.name,
+        ma.fingerprint,
         SUM(mtx.quantity) as quantity
       FROM
         MA_TX_OUT MTX
@@ -33,32 +34,28 @@ BEGIN
         sa.id = ANY(sa_id_list)
         AND TX_IN.TX_IN_ID IS NULL
       GROUP BY
-        sa.view, MA.policy, MA.name
+        sa.view, MA.policy, MA.name, MA.fingerprint
     )
 
   SELECT
     assets_grouped.view as stake_address,
-    JSON_AGG(assets_grouped.assets)
+    assets_grouped.assets
   FROM (
     SELECT
       aa.view,
-      JSON_BUILD_OBJECT(
-        'policy_id', ENCODE(aa.policy, 'hex'),
-        'assets', JSON_AGG(
-          JSON_BUILD_OBJECT(
-            'asset_name', ENCODE(aa.name, 'hex'),
-            'asset_name_ascii', ENCODE(aa.name, 'escape'),
-            'balance', aa.quantity::text
-          )
+      JSON_AGG(
+        JSON_BUILD_OBJECT(
+          'policy_id', ENCODE(aa.policy, 'hex'),
+          'asset_name', ENCODE(aa.name, 'hex'),
+          'fingerprint', aa.fingerprint,
+          'quantity', aa.quantity::text
         )
       ) as assets
     FROM 
       _all_assets aa
     GROUP BY
-      aa.view, aa.policy
-  ) assets_grouped
-  GROUP BY
-    assets_grouped.view;
+      aa.view
+  ) assets_grouped;
 END;
 $$;
 
