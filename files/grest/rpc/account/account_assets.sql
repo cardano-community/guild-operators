@@ -48,7 +48,7 @@ BEGIN
           'policy_id', ENCODE(aa.policy, 'hex'),
           'asset_name', ENCODE(aa.name, 'hex'),
           'fingerprint', aa.fingerprint,
-          'balance', aa.quantity::text
+          'quantity', aa.quantity::text
         )
       ) as assets
     FROM 

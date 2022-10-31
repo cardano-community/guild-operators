@@ -57,7 +57,7 @@ BEGIN
                 'policy_id', ENCODE(MA.policy, 'hex'),
                 'asset_name', ENCODE(MA.name, 'hex'),
                 'fingerprint', MA.fingerprint,
-                'balance', MTO.quantity::text
+                'quantity', MTO.quantity::text
               )
             END
           )                                   AS asset_list
@@ -88,7 +88,7 @@ BEGIN
                 'policy_id', ENCODE(MA.policy, 'hex'),
                 'asset_name', ENCODE(MA.name, 'hex'),
                 'fingerprint', MA.fingerprint,
-                'balance', MTO.quantity::text
+                'quantity', MTO.quantity::text
               )
             END
           )                                   AS asset_list

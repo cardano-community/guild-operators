@@ -90,7 +90,7 @@ BEGIN
                       'policy_id', ENCODE(MA.policy, 'hex'),
                       'asset_name', ENCODE(MA.name, 'hex'),
                       'fingerprint', MA.fingerprint,
-                      'balance', MTX.quantity::text
+                      'quantity', MTX.quantity::text
                       ))
                   FROM
                       ma_tx_out MTX
