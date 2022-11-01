@@ -16,7 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=1.0.8 # Using versions from 1.0.5-1.0.9 for minor commit alignment before we're prepared for wider networks, targetted support for dbsync 13 will be against v1.1.0. Using a gap from 1.0.1 - 1.0.5 allows for scope to have any urgent fixes required before then on alpha branch itself
+SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment before we're prepared for wider networks, targetted support for dbsync 13 will be against v1.1.0. Using a gap from 1.0.1 - 1.0.5 allows for scope to have any urgent fixes required before then on alpha branch itself
 
 
 ######## Functions ########
@@ -93,7 +93,7 @@ SGVERSION=1.0.8 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
   get_cron_job_executable() {
     local job=$1
     local job_path="${CRON_SCRIPTS_DIR}/${job}.sh"
-    local job_url="${URL_RAW}/files/grest/cron/jobs/${job}.sh"
+    local job_url="https://raw.githubusercontent.com/cardano-community/koios-artifacts/v${SGVERSION}/files/grest/cron/jobs/${job}.sh"
     is_file "${job_path}" && rm "${job_path}"
     if curl -s -f -m "${CURL_TIMEOUT}" -o "${job_path}" "${job_url}"; then
       printf "\n    Downloaded \e[32m${job_path}\e[0m"
@@ -181,7 +181,7 @@ SGVERSION=1.0.8 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
       get_cron_job_executable "asset-registry-update"
       set_cron_variables "asset-registry-update"
       # Point the update script to testnet regisry repo structure (default: mainnet)
-      [[ ${NWMAGIC} -eq 1097911063 || ${NWMAGIC} -eq 1 || ${NWMAGIC} -eq 2 ]] && set_cron_asset_registry_testnet_variables
+      [[ ${NWMAGIC} -eq 1097911063 || ${NWMAGIC} -eq 1 || ${NWMAGIC} -eq 2 || ${NWMAGIC} -eq 141 ]] && set_cron_asset_registry_testnet_variables
       install_cron_job "asset-registry-update" "*/10 * * * *"
     fi
   }
@@ -231,13 +231,15 @@ SGVERSION=1.0.8 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
     [[ -z "${PGDATABASE}" ]] && PGDATABASE="cexplorer"
     [[ -z "${HAPROXY_CFG}" ]] && HAPROXY_CFG="${CNODE_HOME}/files/haproxy.cfg"
     DOCS_URL="https://cardano-community.github.io/guild-operators"
-    API_DOCS_URL="https://api.koios.rest"
     [[ -z "${PGPASSFILE}" ]] && export PGPASSFILE="${CNODE_HOME}"/priv/.pgpass
     case ${NWMAGIC} in
       1097911063) KOIOS_SRV="testnet.koios.rest" ;;
       764824073)  KOIOS_SRV="api.koios.rest" ;;
+      1) KOIOS_SRV="preprod.koios.rest" ;;
+      2) KOIOS_SRV="preview.koios.rest" ;;
       *) KOIOS_SRV="guild.koios.rest" ;;
     esac
+    API_DOCS_URL="https://${KOIOS_SRV}"
   }
 
   parse_args() {
@@ -490,10 +492,8 @@ SGVERSION=1.0.8 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
 
   common_update() {
     # Create skeleton whitelist URL file if one does not already exist using most common option
-    if [[ ! -f "${CNODE_HOME}"/files/grestrpcs ]]; then
-      curl -sfkL "https://${KOIOS_SRV}/koiosapi.yaml" -o "${CNODE_HOME}"/files/koiosapi.yaml 2>/dev/null
-      grep " #RPC" "${CNODE_HOME}"/files/koiosapi.yaml | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
-    fi
+    curl -sfkL "https://${KOIOS_SRV}/koiosapi.yaml" -o "${CNODE_HOME}"/files/koiosapi.yaml 2>/dev/null
+    grep " #RPC" "${CNODE_HOME}"/files/koiosapi.yaml | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
     [[ "${SKIP_UPDATE}" == "Y" ]] && return 0
     checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
     sed -i "s# API_STRUCT_DEFINITION=\"https://api.koios.rest/koiosapi.yaml\"# API_STRUCT_DEFINITION=\"https://${KOIOS_SRV}/koiosapi.yaml\"#g" grest-poll.sh
@@ -630,14 +630,14 @@ SGVERSION=1.0.8 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
   #             : 4) Cron jobs - deploy cron entries to /etc/cron.d/ from files/grest/cron/jobs/*.sh
   #             :    Used for updating cached tables data.
   deploy_query_updates() {
-    echo "(Re)Deploying Postgres RPCs/views/schedule..."
+    printf "\n(Re)Deploying Postgres RPCs/views/schedule...\n"
     check_db_status
     if [[ $? -eq 1 ]]; then
       err_exit "Please wait for Cardano DBSync to populate PostgreSQL DB at least until Alonzo fork, and then re-run this setup script with the -q flag."
     fi
 
     printf "\n  Downloading DBSync RPC functions from Guild Operators GitHub store..."
-    if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/${G_ACCOUNT}/guild-operators/contents/files/grest/rpc?ref=${BRANCH} 2>&1); then
+    if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/${G_ACCOUNT}/koios-artifacts/contents/files/grest/rpc?ref=v${SGVERSION} 2>&1); then
       err_exit "${rpc_file_list}"
     fi
     printf "\n  (Re)Deploying GRest objects to DBSync..."
@@ -645,7 +645,7 @@ SGVERSION=1.0.8 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
     for row in $(jq -r '.[] | @base64' <<<${rpc_file_list}); do
       if [[ $(jqDecode '.type' "${row}") = 'dir' ]]; then
         printf "\n    Downloading pSQL executions from subdir $(jqDecode '.name' "${row}")"
-        if ! rpc_file_list_subdir=$(curl -s -m ${CURL_TIMEOUT} "https://api.github.com/repos/${G_ACCOUNT}/guild-operators/contents/files/grest/rpc/$(jqDecode '.name' "${row}")?ref=${BRANCH}"); then
+        if ! rpc_file_list_subdir=$(curl -s -m ${CURL_TIMEOUT} "https://api.github.com/repos/${G_ACCOUNT}/koios-artifacts/contents/files/grest/rpc/$(jqDecode '.name' "${row}")?ref=v${SGVERSION}"); then
           printf "\n      \e[31mERROR\e[0m: ${rpc_file_list_subdir}" && continue
         fi
         for row2 in $(jq -r '.[] | @base64' <<<${rpc_file_list_subdir}); do
@@ -657,8 +657,8 @@ SGVERSION=1.0.8 # Using versions from 1.0.5-1.0.9 for minor commit alignment bef
     done
     setup_cron_jobs
     printf "\n  All RPC functions successfully added to DBSync! For detailed query specs and examples, visit ${API_DOCS_URL}!\n"
-    printf "\nPlease restart PostgREST before attempting to use the added functions"
-    printf "\n  \e[94msudo systemctl restart ${CNODE_VNAME}-postgrest.service\e[0m\n"
+    printf "\nRestarting PostgREST to clear schema cache..\n"
+    sudo systemctl restart ${CNODE_VNAME}-postgrest.service && printf "\nDone!!\n"
   }
 
   # Description : Update the setup-grest.sh version used in the database.
