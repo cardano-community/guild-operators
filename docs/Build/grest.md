@@ -107,7 +107,7 @@ Restart haproxy service for changes to take effect.
 With the setup, you also have a `checkstatus.sh` script, which will query the Postgres DB instance via haproxy (coming through postgREST), and only show an instance up if the latest block in your DB instance is within 180 seconds.
 
 !!! warning "Important"
-    While currently the HAProxy config only checks for tip, there will be test cases added for validating each endpoint in future. If you'd like to participate in joining to the elastic cluster via Koios, please raise a PR request by editing topology files in [this folder](https://github.com/cardano-community/guild-operators/tree/alpha/files/grest) to do so!!
+    While currently the HAProxy config only checks for tip, there will be test cases added for validating each endpoint in future. If you'd like to participate in joining to the elastic cluster via Koios, please raise a PR request by editing topology files in [this folder](https://github.com/cardano-community/koios-artifacts/tree/main/topology) to do so!!
 
 If you were using `guild` network, you could do a couple of very basic sanity checks as per below:
 
