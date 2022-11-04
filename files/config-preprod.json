@@ -12,6 +12,7 @@
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/shelley-genesis.json",
   "EnableLogging": true,
   "EnableLogMetrics": false,
+  "TestEnableDevelopmentNetworkProtocols": true,
   "TargetNumberOfActivePeers": 20,
   "TargetNumberOfEstablishedPeers": 50,
   "TargetNumberOfKnownPeers": 100,
