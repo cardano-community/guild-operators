@@ -849,8 +849,7 @@ function main {
                 # Token Metadata API URLs
                 case ${NWMAGIC} in
                   764824073) token_meta_server="https://tokens.cardano.org/metadata/" ;; # mainnet
-                  1097911063) token_meta_server="https://metadata.cardano-testnet.iohkdev.io/metadata/" ;; # public testnet
-                  *) token_meta_server="" ;; # Not a valid asset metadata network
+                  *) token_meta_server="https://metadata.cardano-testnet.iohkdev.io/metadata/" ;; # other test networks
                 esac
                 for i in {1..2}; do
                   if [[ $i -eq 1 ]]; then 
@@ -4619,11 +4618,10 @@ function main {
                         println "\nPlease follow directions on CF Token Registry GitHub site to create a PR for the generated metadata file"
                         println "https://github.com/cardano-foundation/cardano-token-registry/wiki/How-to-submit-an-entry-to-the-registry"
                         ;;
-                      1097911063) # public testnet
+                      *) # public testnet
                         println "\nPlease create a PR on IOHK Metadata Registry TestNet GitHub site for the generated metadata file"
                         println "https://github.com/input-output-hk/metadata-registry-testnet"
                         ;;
-                      *) : ;; # ignore other networks
                     esac
                     
                     waitForInput && continue
