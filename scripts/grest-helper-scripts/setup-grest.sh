@@ -60,7 +60,7 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
       fi
 
       checkUpdate env N N N
-      [[ $? -eq 2 ]] && exit 1
+      [[ $? -eq 2 ]] && print"\nERROR: Failed to check updates from github against specified branch\n" && exit 1
 
       checkUpdate setup-grest.sh Y N N grest-helper-scripts
       case $? in
@@ -320,6 +320,7 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
     else
       err_exit "Could not download ${pgrest_asset_url}"
     fi
+    [[ ! -f "${CNODE_HOME}"/priv/grest.conf ]] && OVERWRITE_CONFIG="Y"
   }
 
   deploy_haproxy() {
@@ -358,7 +359,6 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
       fi
     fi
     pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
-    checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
     # script not available at first load
     sed -e "s@cexplorer@${PGDATABASE}@g" -i "${CNODE_HOME}"/scripts/getmetrics.sh
     printf "\n[Re]Installing Monitoring Agent.."
@@ -679,7 +679,7 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
     f) FORCE_OVERWRITE='Y' ;;
     i) I_ARGS="${OPTARG}" ;;
     u) SKIP_UPDATE='Y' ;;
-    r) RESET_GREST='Y' ;;
+    r) RESET_GREST='Y' && DB_QRY_UPDATES='y' ;;
     q) DB_QRY_UPDATES='Y' ;;
     b) echo "${OPTARG}" > ./.env_branch ;;
     \?) usage ;;
