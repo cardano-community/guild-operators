@@ -1,5 +1,24 @@
 # Koios gRest Changelog
 
+## [1.0.9rc] - For non-mainnet networks
+
+This release candidate is non-breaking for existing methods and inputs, but breaking for output objects for endpoints.
+The aim with release candidate version is to allow folks couple of weeks to test, adapt their libraries before applying to mainnet.
+
+### New endpoints added
+- `datum_info` - List of datum information for given datum hashes
+- `account_info_cached` - Same as `account_info`, but serves cached information instead of live one
+
+### Data Input/Output changes
+- `address_info`, `address_assets`, `account_assets`, `tx_info`, `asset_list` `asset_summary` to align output `asset_list` object to return array of `policy_id`, `asset_name`, `fingerprint` (and `quantity`, `minting_txs` where applicable) [#120](https://github.com/cardano-community/koios-artifacts/pull/120)
+- `asset_history` - Fix metadata to wrap in array to refer to right object [#122](https://github.com/cardano-community/koios-artifacts/pull/122)
+- `asset_txs` - Add optional boolean parameter `_history` (default: `false`) to toggle between querying current UTxO set vs entire history for asset [#122](https://github.com/cardano-community/koios-artifacts/pull/122)
+
+### Changes for Instance Providers
+- SQL queries have been moved from `guild-operators` repository to `koios-artifacts` repository. This is to ensure that the updates made to scripts and other tooling do not have a dependency on Koios query versioning [#122](https://github.com/cardano-community/koios-artifacts/pull/122)
+- `block_info` - Use `block_no` instead of `id` to check for previous/next block hash [#122](https://github.com/cardano-community/koios-artifacts/pull/122)
+- Add topology for preprod and preview networks [#122](https://github.com/cardano-community/koios-artifacts/pull/122)
+
 ## [1.0.8] - For all networks
 
 This release is contains minor bug-fixes that were discovered in koios-1.0.7.
