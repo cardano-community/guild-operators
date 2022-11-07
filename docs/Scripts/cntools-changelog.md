@@ -9,6 +9,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [10.0.5] - 2022-11-07
 #### Changed
 - Updated testnet token registry to be reused for each non-mainnet network
+- Remove stale code for remote chain analysis
 
 ## [10.0.4] - 2022-08-26
 #### Changed

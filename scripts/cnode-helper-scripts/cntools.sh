@@ -3757,16 +3757,14 @@ function main {
 						" ) Metadata       - create and optionally post metadata on-chain"\
 						" ) Multi-Asset    - multi-asset nanagement"\
 						" ) Delete Keys    - Delete all sign/cold keys from CNTools (wallet|pool|asset)"\
-						" ) Chain Analysis - Query external DB-Sync REST API using predefined queries"\
 						"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println DEBUG " Select Operation\n"
-          select_opt "[m] Metadata" "[a] Multi-Asset" "[x] Delete Private Keys" "[c] Chain Analysis" "[h] Home"
+          select_opt "[m] Metadata" "[a] Multi-Asset" "[x] Delete Private Keys" "[h] Home"
           case $? in
             0) SUBCOMMAND="metadata" ;;
             1) SUBCOMMAND="multi-asset" ;;
             2) SUBCOMMAND="del-keys" ;;
-            3) SUBCOMMAND="chain-analysis" ;;
-            4) break ;;
+            3) break ;;
           esac
           case $SUBCOMMAND in  
             metadata)
@@ -4681,180 +4679,6 @@ function main {
                 println "\n${FG_LBLUE}${key_del_cnt}${NC} private key(s) found and deleted!"
               fi
               waitForInput && continue
-              ;; ###################################################################
-            chain-analysis)
-              while true; do # Chain Analysis - loop 1
-                clear
-                println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                println " >> ADVANCED >> CHAIN-ANALYSIS"
-                println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-
-                if [[ -z ${KOIOS_API} ]]; then
-                  println ERROR "${FG_RED}ERROR${NC}: KOIOS_API not set in env or API unavailable!"
-                  waitForInput && break
-                fi
-
-                declare -A ca_menu1=(); declare -A ca_menu2=(); declare -A ca_menu3=()
-                mkdir -p "${DBSYNC_QUERY_FOLDER}"
-                while IFS= read -r -d '' query_file; do
-                  ! query_file_json=$(jq -er '.' "${query_file}") && println ERROR "${FG_RED}ERROR${NC}: .menuPath missing in '${FG_LGRAY}${query_file}${NC}'" && waitForInput && break 2
-                  ! menu_path=$(jq -er '.menuPath' <<< ${query_file_json}) && println ERROR "${FG_RED}ERROR${NC}: .menuPath missing in '${FG_LGRAY}${query_file}${NC}'" && waitForInput && break 2
-                  IFS='/' read -ra menu_path_arr <<< "${menu_path}"
-                  if [[ ${#menu_path_arr[@]} -eq 1 ]]; then
-                    ca_menu1[${menu_path_arr[0]}]="${query_file_json}"
-                  elif [[ ${#menu_path_arr[@]} -eq 2 ]]; then
-                    ca_menu1[${menu_path_arr[0]}]=""
-                    ca_menu2[${menu_path_arr[1]}]="${query_file_json}"
-                  elif [[ ${#menu_path_arr[@]} -eq 2 ]]; then
-                    ca_menu1[${menu_path_arr[0]}]=""
-                    ca_menu2[${menu_path_arr[1]}]=""
-                    ca_menu3[${menu_path_arr[2]}]="${query_file_json}"
-                  else
-                    println ERROR "${FG_RED}ERROR${NC}: invalid .menuPath entry, 2 level submenu level maximum(/), found '${FG_LBLUE}${#menu_path_arr[@]}${NC}', in '${FG_LGRAY}${query_file}${NC}'" && waitForInput && break 2
-                  fi
-                done < <(find "${DBSYNC_QUERY_FOLDER}" -mindepth 1 -maxdepth 1 -type f -name '*.json' -print0)
-
-                println OFF " Chain Analysis - Main Menu\n"
-                
-                index=0; ca_menu1_select=()
-                for mi in "${!ca_menu1[@]}"; do
-                  mi_desc=$(jq -er '.description //empty' <<< "${ca_menu1[${mi}]}")
-                  if [[ -z ${mi_desc} ]]; then println OFF "$(printf ' ) %-14s - [sub menu]' "${mi}")"; else println OFF "$(printf ' ) %-14s - %s' "${mi}" "${mi_desc}")"; fi
-                  ca_menu1_select+=( "[${index}] ${mi}" )
-                  ((index++))
-                done
-                println OFF "$(printf ' ) %-14s - %s' "DL Queries" "Download official Guild Operators queries")"
-                println OFF "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                println DEBUG " Select Chain Analysis Operation\n"
-                
-                select_opt "${ca_menu1_select[@]}" "[d] Download Queries" "[b] Back" "[h] Home"
-                selection=$?
-                
-                if [[ ${selection} -eq ${#ca_menu1[@]} ]]; then
-                  clear
-                  println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                  println " >> ADVANCED >> CHAIN-ANALYSIS >> DOWNLOAD QUERIES"
-                  println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                  println DEBUG "\nDownloading official DBSync queries from Guild Operators GitHub site ..\n"
-                  if ! query_file_list=$(curl -s -m ${CURL_TIMEOUT} https://api.github.com/repos/${G_ACCOUNT}/guild-operators/contents/files/grest/queries?ref=${BRANCH}); then
-                    println ERROR "${FG_RED}ERROR${NC}: ${query_file_list}" && waitForInput && continue
-                  fi
-                  for row in $(jq -r '.[] | @base64' <<< ${query_file_list}); do
-                    file_name=$(base64 -d <<< ${row} | jq -r '.name')
-                    [[ -z ${file_name} || ${file_name} != *.json ]] && continue
-                    dl_url=$(base64 -d <<< ${row} | jq -r '.download_url //empty')
-                    [[ -z ${dl_url} ]] && continue
-                    file_dest="${DBSYNC_QUERY_FOLDER}/${file_name}"
-                    if ! curl -s -f -m ${CURL_TIMEOUT} -o "${file_dest}" ${dl_url} 2>/dev/null; then
-                      println ERROR "${FG_RED}ERROR${NC}: download failed: ${dl_url}"
-                      waitForInput && continue 2
-                    fi
-                    println "Query:       ${FG_GREEN}$(jq -r '.menuPath' "${file_dest}")${NC}"
-                    println "Description: ${FG_LGRAY}$(jq -r '.description' "${file_dest}")${NC}"
-                    echo
-                  done
-                  println DEBUG "${FG_GREEN}All DBSync queries successfully download!${NC}"
-                  println DEBUG "${FG_YELLOW}'ADVANCED >> CHAIN-ANALYSIS' menu will automatically be populated${NC}"
-                  waitForInput && continue
-                fi
-
-                [[ ${selection} -eq $(( ${#ca_menu1[@]} + 1 )) ]] && break
-                [[ ${selection} -eq $(( ${#ca_menu1[@]} + 2 )) ]] && break 2
-
-                index=0; selected_name=""; selected_json=""
-                for mi in "${!ca_menu1[@]}"; do
-                  if [[ ${selection} -eq ${index} ]]; then
-                    selected_name="${mi}"
-                    selected_json="${ca_menu1[${mi}]}"
-                    break
-                  fi
-                  ((index++))
-                done
-
-                if [[ -n ${selected_json} ]]; then
-                  clear
-                  println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                  println " >> ADVANCED >> CHAIN-ANALYSIS >> $(echo ${selected_name} | tr '[:lower:]' '[:upper:]')"
-                  println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                  runDBSyncQuery "${selected_json}"
-                  waitForInput && continue
-                else
-                  while true; do # Chain Analysis - loop 2
-                    clear
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> CHAIN-ANALYSIS >> $(echo ${selected_name} | tr '[:lower:]' '[:upper:]')"
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println OFF " Chain Analysis - ${selected_name} Sub Menu\n"
-                    index=0; ca_menu2_select=()
-                    for mi in "${!ca_menu2[@]}"; do
-                      mi_desc=$(jq -er '.description //empty' <<< "${ca_menu2[${mi}]}")
-                      if [[ -z ${mi_desc} ]]; then println OFF "$(printf ' ) %-14s - [sub menu]' "${mi}")"; else println OFF "$(printf ' ) %-14s - %s' "${mi}" "${mi_desc}")"; fi
-                      ca_menu2_select+=( "[${index}] ${mi}" )
-                      ((index++))
-                    done
-                    println OFF "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println DEBUG " Select Chain Analysis Operation\n"
-                    select_opt "${ca_menu2_select[@]}" "[b] Back" "[h] Home"
-                    selection=$?
-                    [[ ${selection} -eq ${#ca_menu2[@]} ]] && break
-                    [[ ${selection} -gt ${#ca_menu2[@]} ]] && break 3
-                    index=0; selected_name2=""; selected_json2=""
-                    for mi in "${!ca_menu2[@]}"; do
-                      if [[ ${selection} -eq ${index} ]]; then
-                        selected_name2="${mi}"
-                        selected_json2="${ca_menu2[${mi}]}"
-                        break
-                      fi
-                      ((index++))
-                    done
-
-                    if [[ -n ${selected_json2} ]]; then
-                      clear
-                      println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                      println " >> ADVANCED >> CHAIN-ANALYSIS >> $(echo ${selected_name} | tr '[:lower:]' '[:upper:]') >> $(echo ${selected_name2} | tr '[:lower:]' '[:upper:]')"
-                      println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                      runDBSyncQuery "${selected_json2}"
-                      waitForInput && continue
-                    else
-                      while true; do # Chain Analysis - loop 3
-                        clear
-                        println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                        println " >> ADVANCED >> CHAIN-ANALYSIS >> $(echo ${selected_name} | tr '[:lower:]' '[:upper:]') >> $(echo ${selected_name2} | tr '[:lower:]' '[:upper:]')"
-                        println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                        println OFF " Chain Analysis - ${selected_name2} Sub Menu\n"
-                        index=0; ca_menu3_select=()
-                        for mi in "${!ca_menu3[@]}"; do
-                          mi_desc=$(jq -er '.description //empty' <<< "${ca_menu3[${mi}]}")
-                          println OFF "$(printf ' ) %-14s - %s' "${mi}" "${mi_desc}")"
-                          ca_menu3_select+=( "[${index}] ${mi}" )
-                          ((index++))
-                        done
-                        println OFF "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                        println DEBUG " Select Chain Analysis Operation\n"
-                        select_opt "${ca_menu3_select[@]}" "[b] Back" "[h] Home"
-                        selection=$?
-                        [[ ${selection} -eq ${#ca_menu3[@]} ]] && break
-                        [[ ${selection} -gt ${#ca_menu3[@]} ]] && break 4
-                        index=0; selected_name3=""; selected_json3=""
-                        for mi in "${!ca_menu3[@]}"; do
-                          if [[ ${selection} -eq ${index} ]]; then
-                            selected_name="${mi}"
-                            selected_json3="${ca_menu3[${mi}]}"
-                            break
-                          fi
-                          ((index++))
-                        done
-                        clear
-                        println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                        println " >> ADVANCED >> CHAIN-ANALYSIS >> $(echo ${selected_name} | tr '[:lower:]' '[:upper:]') >> $(echo ${selected_name2} | tr '[:lower:]' '[:upper:]') >> $(echo ${selected_name3} | tr '[:lower:]' '[:upper:]')"
-                        println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                        runDBSyncQuery "${selected_json3}"
-                        waitForInput && continue
-                      done # Chain Analysis - loop 3
-                    fi
-                  done # Chain Analysis - loop 2
-                fi
-              done # Chain Analysis - loop 1
               ;; ###################################################################
           esac # advanced sub OPERATION
         done # Advanced loop
