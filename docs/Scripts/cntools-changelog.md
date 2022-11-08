@@ -6,6 +6,11 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.0.5] - 2022-11-07
+#### Changed
+- Updated testnet token registry to be reused for each non-mainnet network
+- Remove stale code for remote chain analysis
+
 ## [10.0.4] - 2022-08-26
 #### Changed
 - Allow pool cost to use fraction of ADA

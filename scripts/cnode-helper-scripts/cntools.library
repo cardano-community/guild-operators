@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=10
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=0
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=4
+CNTOOLS_PATCH_VERSION=5
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -2680,85 +2680,4 @@ selectOpMode() {
     1) op_mode="hybrid" ;;
     2) return 1 ;;
   esac
-}
-
-# Command     : runDBSyncQuery [json query]
-# Description : Helper function to execute DB-Sync query
-# Parameters  : json query  >  JSON schema for the query to run
-runDBSyncQuery() {
-  json_query=$1
-  
-  declare -A variables=()
-  for variable in $(jq -r '.variables[] | @base64' <<< "${json_query}"); do
-    v_name=$(base64 -d <<< ${variable} | jq -r '.name')
-    v_name=${v_name//[^[:alnum:]]/_}
-    v_question=$(base64 -d <<< ${variable} | jq -r '.question')
-    v_mandatory=$(base64 -d <<< ${variable} | jq -r '.mandatory')
-    echo
-    getAnswerAnyCust answer "${v_question}"
-    [[ -z ${answer} && ${v_mandatory} = true ]] && println ERROR "${FG_RED}ERROR${NC}: answer empty for a mandatory question :(" && return 1
-    variables[${v_name}]="${answer}"
-  done
-
-  for query in $(jq -r '.queries[] | @base64' <<< "${json_query}"); do
-    q_name=$(base64 -d <<< ${query} | jq -r '.name')
-    q_print=$(base64 -d <<< ${query} | jq -r '.print')
-    q_uri=$(base64 -d <<< ${query} | jq -r '.uri')
-
-    [[ ${q_print} = true ]] && echo
-
-    q_data=()
-    for data in $(base64 -d <<< ${query} | jq -r '.data[] | @base64'); do
-      d_type=$(base64 -d <<< ${data} | jq -r '.type')
-      [[ ${d_type} = query_result ]] && d_q_name=$(base64 -d <<< ${data} | jq -r '.queryName') && d_q_name=${d_q_name//[^[:alnum:]]/_}
-      d_arg=$(base64 -d <<< ${data} | jq -r '.arg')
-      d_payload=$(base64 -d <<< ${data} | jq -r '.payload')
-      if [[ ${d_type} = query_result && -n ${d_q_name} && ${variables[query_${d_q_name}]+isset} ]]; then
-        q_json_payload=$(jq -r "${d_payload}" <<< "${variables[query_${d_q_name}]}")
-        q_data+=( "-d" "${d_arg}=${q_json_payload}" )
-      elif [[ ${d_type} = query_variable && ${variables[${d_payload}]+isset} ]]; then
-        q_data+=( "-d" "${d_arg}=${variables[${d_payload}]}" )
-      elif [[ ${d_type} = cntools_variable && -n ${!d_payload} ]]; then
-        q_data+=( "-d" "${d_arg}=${!d_payload}" )
-      else
-        println ERROR "\n${FG_RED}ERROR${NC}: variable defined in query not set: '${d_payload}'\n" && return 1
-      fi
-    done
-
-    println ACTION "curl -sSL -f ${q_data[*]} ${KOIOS_API}/${q_uri}"
-    if ! q_result=$(curl -sSL -f "${q_data[@]}" "${KOIOS_API}/${q_uri}" 2>&1) || ! jq -e . <<< ${q_result} &>/dev/null; then
-      println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${q_uri}: ${q_result}" && return 1
-    fi
-    println LOG "$(jq -c . <<< ${q_result})"
-    variables[query_${q_name//[^[:alnum:]]/_}]="${q_result}"
-    if [[ ${q_print} = true ]]; then
-      exec >&6 # normal stdout
-      println OFF "  ${FG_LBLUE}> ${FG_GREEN}${q_name} ${FG_LBLUE}<${NC}"
-      jq -r . <<< ${q_result}
-      exec >&8 # custom stdout
-    fi
-  done
-
-  ! query_script=$(jq -er '.script | join("\n")' <<< ${json_query} 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during script parsing: ${query_script}\n" && return 1
-
-  [[ -z ${query_script} ]] && return 0
-
-  script_file="$(mktemp "${TMP_DIR}/query_script_XXXXXXXXXX.sh")"
-  echo -e "#########################################\n# Script to execute [Press 'q' to quit] #\n#########################################" '\n\n#!/usr/bin/env bash' "\n\n${query_script}" > "${script_file}"
-  chmod +x "${script_file}"
-
-  exec >&6 # normal stdout
-  less "${script_file}"
-  exec >&8 # custom stdout
-
-  println DEBUG "\nProceed to run script?"
-  select_opt "[y] Yes" "[n] No"
-  selection=$?
-  tput rc && tput ed
-  case ${selection} in
-    0) . "${script_file}" ;;
-    1) : ;;
-  esac
-
-  return 0
 }
