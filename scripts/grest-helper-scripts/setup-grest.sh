@@ -27,7 +27,6 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
 		
 		Install and setup haproxy, PostgREST, polling services and create systemd services for haproxy, postgREST and dbsync
 		
-		-f    Force overwrite of all files including normally saved user config sections
 		-i    Set-up Components individually. If this option is not specified, components will only be installed if found missing (eg: -i prcd)
 		    p    Install/Update PostgREST binaries by downloading latest release from github.
 		    r    (Re-)Install Reverse Proxy Monitoring Layer (haproxy) binaries and config
@@ -174,10 +173,7 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
     set_cron_variables "populate-next-epoch-nonce"
     install_cron_job "populate-next-epoch-nonce" "*/10 * * * *"
 
-    # Only (legacy) testnet and mainnet asset registries supported
-    # In absence of official messaging, current (soon to be reset) preprod/preview networks use same registry as testnet. TBC - once there is an update from IO on these
-    # Possible future addition for the Guild network once there is a guild registry
-    if [[ ${NWMAGIC} -eq 764824073 || ${NWMAGIC} -eq 1097911063 || ${NWMAGIC} -eq 1 || ${NWMAGIC} -eq 2 ]]; then
+    if [[ ${NWMAGIC} -eq 764824073 || ${NWMAGIC} -eq 1097911063 || ${NWMAGIC} -eq 1 || ${NWMAGIC} -eq 2 || ${NWMAGIC} -eq 141 ]]; then
       get_cron_job_executable "asset-registry-update"
       set_cron_variables "asset-registry-update"
       # Point the update script to testnet regisry repo structure (default: mainnet)
@@ -247,14 +243,15 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
       ! command -v postgrest >/dev/null && INSTALL_POSTGREST="Y"
       ! command -v haproxy >/dev/null && INSTALL_HAPROXY="Y"
       [[ ! -f "${CNODE_HOME}"/scripts/grest-exporter.sh ]] && INSTALL_MONITORING_AGENTS="Y"
-      [[ "${FORCE_OVERWRITE}" == "Y" ]] && OVERWRITE_CONFIG="Y" && OVERWRITE_SYSTEMD="Y"
-      [[ ! -f "${HAPROXY_CFG}" ]] && FORCE_OVERWRITE="Y" # absence of haproxy.cfg at mentioned path would mean setup is not updated, or has not been run - hence, overwrite all
+      # absence of haproxy.cfg or grest.conf at mentioned path would mean setup is not updated, or has not been run - hence, overwrite all
+      [[ ! -f "${HAPROXY_CFG}" ]] && OVERWRITE_CONFIG="Y"
+      [[ ! -f "${CNODE_HOME}"/priv/grest.conf ]] && OVERWRITE_CONFIG="Y"
     else
       [[ "${I_ARGS}" =~ "p" ]] && INSTALL_POSTGREST="Y"
       [[ "${I_ARGS}" =~ "r" ]] && INSTALL_HAPROXY="Y"
       [[ "${I_ARGS}" =~ "m" ]] && INSTALL_MONITORING_AGENTS="Y"
-      [[ "${I_ARGS}" =~ "c" ]] || [[ "${FORCE_OVERWRITE}" == "Y" ]] && OVERWRITE_CONFIG="Y"
-      [[ "${I_ARGS}" =~ "d" ]] || [[ "${FORCE_OVERWRITE}" == "Y" ]] && OVERWRITE_SYSTEMD="Y"
+      [[ "${I_ARGS}" =~ "c" ]] && OVERWRITE_CONFIG="Y"
+      [[ "${I_ARGS}" =~ "d" ]] && OVERWRITE_SYSTEMD="Y"
     fi
   }
 
@@ -265,6 +262,16 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
     # sudo chown -R ${USER} "${CNODE_HOME}"/scripts "${CNODE_HOME}"/files "${CNODE_HOME}"/priv
     dirs -c # clear dir stack
     mkdir -p ~/tmp
+  }
+
+  common_update() {
+    # Create skeleton whitelist URL file if one does not already exist using most common option
+    curl -sfkL "https://${KOIOS_SRV}/koiosapi.yaml" -o "${CNODE_HOME}"/files/koiosapi.yaml 2>/dev/null
+    grep " #RPC" "${CNODE_HOME}"/files/koiosapi.yaml | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
+    checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
+    sed -i "s# API_STRUCT_DEFINITION=\"https://api.koios.rest/koiosapi.yaml\"# API_STRUCT_DEFINITION=\"https://${KOIOS_SRV}/koiosapi.yaml\"#g" grest-poll.sh
+    checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
+    checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
   }
 
   # Description : Populate genesis table with given values.
@@ -320,7 +327,6 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
     else
       err_exit "Could not download ${pgrest_asset_url}"
     fi
-    [[ ! -f "${CNODE_HOME}"/priv/grest.conf ]] && OVERWRITE_CONFIG="Y"
   }
 
   deploy_haproxy() {
@@ -390,10 +396,7 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
     # Create HAProxy config template
     [[ -f "${HAPROXY_CFG}" ]] && cp "${HAPROXY_CFG}" "${HAPROXY_CFG}".bkp_$(date +%s)
 
-    if grep 'koios.rest:8443' ${HAPROXY_CFG}; then
-      echo "  Skipping update of ${HAPROXY_CFG} as this instance is a monitoring instance"
-    else
-      bash -c "cat <<-EOF > ${HAPROXY_CFG}
+    bash -c "cat <<-EOF > ${HAPROXY_CFG}
 			global
 			  daemon
 			  nbthread 4
@@ -401,7 +404,7 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
 			  ulimit-n 65536
 			  stats socket \"\\\$GRESTTOP\"/sockets/haproxy.socket mode 0600 level admin user \"\\\$HAPROXY_SOCKET_USER\"
 			  cpu-map 1/all 1-2
-			  log 127.0.0.1 local2 info
+			  log 127.0.0.1 local0 notice
 			  insecure-fork-wanted
 			  external-check
 			
@@ -412,7 +415,7 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
 			  option http-ignore-probes
 			  option http-server-close
 			  option forwardfor
-			  log-format \"%ci:%cp a:%f/%b/%s t:%Tq/%Tt %{+Q}r %ST b:%B C:%ac,%fc,%bc,%sc Q:%sq/%bq\"
+			  #log-format \"%ci:%cp a:%f/%b/%s t:%Tq/%Tt %{+Q}r %ST b:%B C:%ac,%fc,%bc,%sc Q:%sq/%bq\"
 			  option dontlog-normal
 			  timeout client 30s
 			  timeout server 30s
@@ -422,11 +425,7 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
 			
 			frontend app
 			  bind 0.0.0.0:8053
-			  ## If using SSL, comment line above, replace servername.koios.rest and uncomment lines below as per docs
-			  #http-request replace-value Host (.*):8053 servername.koios.rest:8453
-			  #redirect scheme https code 301 if !{ ssl_fc }
-			  #
-			  #frontend app-secured
+			  ## If using SSL, comment line above and uncomment line below
 			  #bind :8453 ssl crt /etc/ssl/server.pem no-sslv3
 			  http-request set-log-level silent
 			  acl srv_down nbsrv(grest_postgrest) eq 0
@@ -441,15 +440,13 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
 			
 			backend grest_postgrest
 			  balance first
-			  option external-check
+			  #option external-check
 			  acl grestrpcs path_beg -f \"\\\$GRESTTOP\"/files/grestrpcs
 			  http-request set-path \"%[path,regsub(^/api/v0/,/)]\"
 			  http-request set-path \"%[path,regsub(^/,/rpc/)]\" if grestrpcs
-			  http-request cache-use grestcache
-			  external-check path \"/usr/bin:/bin:/tmp:/sbin:/usr/sbin\"
-			  external-check command \"\\\$GRESTTOP\"/scripts/grest-poll.sh
+			  #external-check path \"/usr/bin:/bin:/tmp:/sbin:/usr/sbin\"
+			  #external-check command \"\\\$GRESTTOP\"/scripts/grest-poll.sh
 			  server local 127.0.0.1:8050 check inter 20000 fall 1 rise 2
-			  http-response cache-store grestcache
 			
 			backend grest_failover
 			  server koios-ssl ${KOIOS_SRV}:443 ssl verify none
@@ -470,35 +467,16 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
 			  http-check expect status 415
 			  default-server inter 20s fall 1 rise 2
 			  server local 127.0.0.1:8090 check
-			  server koios-ssl ${KOIOS_SRV}:443 backup ssl verify none
+			  #server koios-ssl ${KOIOS_SRV}:443 backup ssl verify none
+			  http-after-response set-header Access-Control-Allow-Origin *
+			  http-after-response set-header Access-Control-Allow-Headers \"Origin, X-Requested-With, Content-Type, Accept\"
+			  http-after-response set-header Access-Control-Allow-Methods \"GET, HEAD, OPTIONS, POST\"
+			  http-response return status 200 if METH_OPTIONS
 			
 			backend flood_lmt_rate
 			  stick-table type ip size 1m expire 10m store http_req_rate(10s)
-			
-			backend unauthorized
-			  ## Used by monitoring instances only
-			  http-request deny deny_status 401
-			
-			cache grestcache
-			  total-max-size 1024
-			  max-object-size 51200
-			  process-vary on
-			  max-secondary-entries 500
-			  max-age 300
 			EOF"
-      echo "  Done!! Please ensure to set any custom settings/peers/TLS configs/etc back and update configs as necessary!"
-    fi
-  }
-
-  common_update() {
-    # Create skeleton whitelist URL file if one does not already exist using most common option
-    curl -sfkL "https://${KOIOS_SRV}/koiosapi.yaml" -o "${CNODE_HOME}"/files/koiosapi.yaml 2>/dev/null
-    grep " #RPC" "${CNODE_HOME}"/files/koiosapi.yaml | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
-    [[ "${SKIP_UPDATE}" == "Y" ]] && return 0
-    checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
-    sed -i "s# API_STRUCT_DEFINITION=\"https://api.koios.rest/koiosapi.yaml\"# API_STRUCT_DEFINITION=\"https://${KOIOS_SRV}/koiosapi.yaml\"#g" grest-poll.sh
-    checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
-    checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
+    echo "  Done!! Please ensure to set any custom settings/peers/TLS configs/etc back and update configs as necessary!"
   }
 
   deploy_systemd() {
@@ -674,9 +652,8 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
 
 ######## Execution ########
   # Parse command line options
-  while getopts :fi:urqb: opt; do
+  while getopts :i:urqb: opt; do
     case ${opt} in
-    f) FORCE_OVERWRITE='Y' ;;
     i) I_ARGS="${OPTARG}" ;;
     u) SKIP_UPDATE='Y' ;;
     r) RESET_GREST='Y' && DB_QRY_UPDATES='y' ;;
@@ -689,12 +666,12 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
   common_init
   set_environment_variables
   parse_args
+  common_update
   [[ "${INSTALL_POSTGREST}" == "Y" ]] && deploy_postgrest
   [[ "${INSTALL_HAPROXY}" == "Y" ]] && deploy_haproxy
   [[ "${INSTALL_MONITORING_AGENTS}" == "Y" ]] && deploy_monitoring_agents
   [[ "${OVERWRITE_CONFIG}" == "Y" ]] && deploy_configs
   [[ "${OVERWRITE_SYSTEMD}" == "Y" ]] && deploy_systemd
-  common_update
   [[ "${RESET_GREST}" == "Y" ]] && setup_db_basics && reset_grest
   [[ "${DB_QRY_UPDATES}" == "Y" ]] && setup_db_basics && deploy_query_updates && update_grest_version
   pushd -0 >/dev/null || err_exit
