@@ -2,6 +2,12 @@
 # shellcheck disable=SC2086,SC1090,SC2059
 # shellcheck source=/dev/null
 
+# Todo:
+# - see if update_check and updateWithCustomConfig can be combined
+#
+# - Adopt updates as per https://github.com/cardano-community/guild-operators/issues/1262
+# - Use the same for env files too
+
 unset CNODE_HOME
 
 ##########################################
@@ -20,7 +26,7 @@ unset CNODE_HOME
 #INSTALL_CSIGNER='N'    # Install/Upgrade Cardano Signer
 #CNODE_NAME='cnode'     # Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
 #CURL_TIMEOUT=60        # Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
-#UPDATE_CHECK='Y'       # Check if there is an updated version of prereqs.sh script to download
+#UPDATE_CHECK='Y'       # Check if there is an updated version of guild-deploy.sh script to download
 #SUDO='Y'               # Used by docker builds to disable sudo, leave unchanged if unsure.
 
 ######################################
@@ -62,24 +68,26 @@ usage() {
   cat <<-EOF >&2
 		
 		Usage: $(basename "$0") [-n <mainnet|preprod|guild|preview>] [-p path] [-t <name>] [-b <branch>] [-i] [-u] [-s [p][b][l][f][s][d][c][o][w][x]]
-		Install pre-requisites for building/using common tools across cardano ecosystem
+		Set up dependencies for building/using common tools across cardano ecosystem.
+		The script will always update dynamic content from existing scripts retaining existing user variables
 		
 		-n    Connect to specified network instead of mainnet network (Default: connect to cardano mainnet network) eg: -n guild
 		-p    Parent folder path underneath which the top-level folder will be created (Default: /opt/cardano)
 		-t    Alternate name for top level folder - only alpha-numeric chars allowed (Default: cnode)
 		-b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
-		-u    Skip update check for prereqs itself
+		-u    Skip update check for script itself
 		-s    Selective Install, only deploy specific components as below:
-		  p   Install common pre-requisite OS-level Dependencies for most tools on this repo (Default: skip if curl/jq/nc are present)
+		  p   Install common pre-requisite OS-level Dependencies for most tools on this repo (Default: skip)
 		  b   Install OS level dependencies for tools required while building cardano-node/cardano-db-sync components (Default: skip)
 		  l   Build and Install libsodium fork from IO repositories (Default: skip)
-		  f   Force overwrite all scripts and config files (create backup of existing ones before updating) (Default: skip)
+		  f   Force overwrite entire content of scripts and config files (backups of existing ones will be created) (Default: skip)
 		  s   Re-Create cnode Folder Structure (Default: skip if folder exists)
 		  d   Download latest (released) cardano-node, cardano-cli, cardano-db-sync and cardano-submit-api binaries (Default: skip)
 		  c   Install/Upgrade CNCLI binary (Default: skip)
 		  o   Install/Upgrade Ogmios Server binary (Default: skip)
 		  w   Install/Upgrade Cardano Hardware CLI (Default: skip)
 		  x   Install/Upgrade Cardano Signer binary (Default: skip)
+		
 		EOF
   exit 1
 }
@@ -88,9 +96,9 @@ usage() {
 set_defaults() {
   [[ -z ${G_ACCOUNT} ]] && G_ACCOUNT="cardano-community"
   [[ -z ${NETWORK} ]] && NETWORK='mainnet'
-  [[ -z ${WANT_BUILD_DEPS} ]] && WANT_BUILD_DEPS='Y'
+  [[ -z ${WANT_BUILD_DEPS} ]] && WANT_BUILD_DEPS='N'
   [[ -z ${FORCE_OVERWRITE} ]] && FORCE_OVERWRITE='N'
-  [[ -z ${LIBSODIUM_FORK} ]] && LIBSODIUM_FORK='Y'
+  [[ -z ${LIBSODIUM_FORK} ]] && LIBSODIUM_FORK='N'
   [[ -z ${INSTALL_CNCLI} ]] && INSTALL_CNCLI='N'
   [[ -z ${INSTALL_VCHC} ]] && INSTALL_VCHC='N'
   [[ -z ${INSTALL_OGMIOS} ]] && INSTALL_OGMIOS='N'
@@ -110,37 +118,45 @@ set_defaults() {
   URL_RAW="${REPO_RAW}/${BRANCH}"
   U_ID=$(id -u)
   G_ID=$(id -g)
+  # Determine OS platform
+  OS_ID=$(grep -i ^id_like= /etc/os-release | cut -d= -f 2)
+  [[ -z "${OS_ID}" ]] && OS_ID=$(grep -i ^id= /etc/os-release | cut -d= -f 2)
+  DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
+  VERSION_ID=$(grep -i ^version_id= /etc/os-release | cut -d= -f 2 | tr -d '"' | cut -d. -f 1)
+  ARCH=$(uname -i)
+  if ! curl -s -f -m ${CURL_TIMEOUT} "${REPO_RAW}/${BRANCH}/LICENSE" -o /dev/null ; then
+    echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to master branch\n"
+    BRANCH=master
+    URL_RAW="${REPO_RAW}/${BRANCH}"
+  fi
 }
 
-# Check and prompt/apply update for prereqs.sh itself
+# Check and prompt/apply update for guild-deploy.sh itself
 update_check() {
-  if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/prereqs.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/prereqs.sh 2>/dev/null; then
-    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/prereqs.sh)
-    TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/prereqs.sh.tmp)
+  if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/guild-deploy.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/guild-deploy.sh 2>/dev/null; then
+    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/guild-deploy.sh)
+    TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/guild-deploy.sh.tmp)
     if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-      if get_answer "A new version of prereqs script is available, do you want to download the latest version?"; then
-        cp "${PARENT}"/prereqs.sh "${PARENT}/prereqs.sh_bkp$(date +%s)"
-        STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/prereqs.sh)
-        printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/prereqs.sh.tmp
-        {
-          mv -f "${PARENT}"/prereqs.sh.tmp "${PARENT}"/prereqs.sh && \
-          chmod 755 "${PARENT}"/prereqs.sh && \
-          echo -e "\nUpdate applied successfully, please run prereqs again!\n" && \
-          exit 0; 
-        } || {
-          echo -e "Update failed!\n\nPlease manually download latest version of prereqs.sh script from GitHub" && \
-          exit 1;
-        }
-      fi
+      cp "${PARENT}"/guild-deploy.sh "${PARENT}/guild-deploy.sh_bkp$(date +%s)"
+      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/guild-deploy.sh)
+      printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/guild-deploy.sh.tmp
+      {
+        mv -f "${PARENT}"/guild-deploy.sh.tmp "${PARENT}"/guild-deploy.sh && \
+        chmod 755 "${PARENT}"/guild-deploy.sh && \
+        echo -e "\nUpdate applied successfully, please run the script again!\n" && \
+        exit 0; 
+      } || {
+        echo -e "Update failed!\n\nPlease manually download latest version of guild-deploy.sh script from GitHub" && \
+        exit 1;
+      }
     fi
   fi
-  rm -f "${PARENT}"/prereqs.sh.tmp
+  rm -f "${PARENT}"/guild-deploy.sh.tmp
 }
 
 # Initialise all variables
 common_init() {
   dirs -c # clear dir stack
-  mkdir -p "${HOME}"/git > /dev/null 2>&1 # To hold git repositories that will be used for building binaries
   set_defaults
 }
 
@@ -149,29 +165,21 @@ updateWithCustomConfig() {
   file=$1
   [[ $# -ne 2 ]] && subdir="cnode-helper-scripts" || subdir=$2
   curl -s -f -m ${CURL_TIMEOUT} -o ${file}.tmp "${URL_RAW}/scripts/${subdir}/${file}"
-  if [[ ! -f ${file}.tmp ]]; then
-    echo "ERROR!! Failed to download '${file}' from GitHub"
-    return
-  fi
-  if [[ -f ${file} && ${FORCE_OVERWRITE} = 'N' ]]; then
+  [[ ! -f ${file}.tmp ]] && err_exit "Failed to download '${file}' from GitHub"
+  if [[ -f ${file} && ${FORCE_OVERWRITE} != 'Y' ]]; then
     if grep '^# Do NOT modify' ${file}.tmp >/dev/null 2>&1; then
       TEMPL_CMD=$(awk '/^# Do NOT modify/,0' ${file}.tmp)
-      if [[ -z ${TEMPL_CMD} ]]; then
-        echo "ERROR!! Script downloaded from GitHub corrupt, ignoring update for '${file}'"
-        rm -f ${file}.tmp
-        return
-      fi
       STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' ${file})
       printf '%s\n%s\n' "${STATIC_CMD}" "${TEMPL_CMD}" > ${file}.tmp
     else
+      err_exit "Problems encountered while fetching \"${file}\" from Github, could be an issue with connectivity or Github site!"
       rm -f ${file}.tmp
       return
     fi
-  else
-    cp ${file}.tmp ${file}
   fi
   [[ -f ${file} ]] && cp -f ${file} "${file}_bkp$(date +%s)"
   mv -f ${file}.tmp ${file}
+  [[ "${file}" =~ '.sh' ]] && chmod 755 ${file}
 }
 
 # Description : Add epel repository when needed
@@ -184,39 +192,19 @@ add_epel_repository() {
   ! grep -q ^epel <<< "$(yum repolist)" && $sudo yum ${3} install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"${2}".noarch.rpm > /dev/null
 }
 
-# OS Dependencies (TODO: Split into OS and Build dependencies)
+# OS Dependencies (TODO: Add cabal/bin to bashrc?)
 os_dependencies() {
-  # Determine OS platform
-  OS_ID=$(grep -i ^id_like= /etc/os-release | cut -d= -f 2)
-  DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
-  VERSION_ID=$(grep -i ^version_id= /etc/os-release | cut -d= -f 2 | tr -d '"' | cut -d. -f 1)
-  ARCH=$(uname -i)
-  if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
+  pkg_opts="-y"
+  echo "Preparing OS dependency packages for ${DISTRO} system"
+  echo "  Updating system packages..."
+  if [[ "${OS_ID}" =~ ebian ]] || [[ "${OS_ID}" =~ buntu ]] || [[ "${DISTRO}" =~ ebian ]] || [[ "${DISTRO}" =~ buntu ]]; then
     #Debian/Ubuntu
-    pkg_opts="-y"
-    echo "Using apt to prepare packages for ${DISTRO} system"
-    echo "  Updating system packages..."
-    $sudo apt-get ${pkg_opts} install curl > /dev/null
-    $sudo env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get ${pkg_opts} update > /dev/null
-    echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute dialog automake sqlite3 bsdmainutils libusb-1.0-0-dev libudev-dev unzip"
-    pkg_list="${pkg_list} llvm clang libnuma-dev"
-    $sudo env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get ${pkg_opts} install ${pkg_list} > /dev/null;rc=$?
-    if [ $rc != 0 ]; then
-      echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
-      echo "$sudo apt-get ${pkg_opts} install ${pkg_list}"
-      echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
-      err_exit
-    fi
+    pkgmgrcmd="env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get"
+    pkg_list="python3 pkg-config libssl-dev libncursesw5 libtinfo-dev systemd libsystemd-dev libsodium-dev tmux git jq libtool bc gnupg aptitude libtool secure-delete iproute2 tcptraceroute sqlite3 bsdmainutils libusb-1.0-0-dev libudev-dev unzip llvm clang libnuma-dev libpq-dev build-essential libffi-dev libgmp-dev zlib1g-dev make g++ autoconf automake liblmdb-dev"
   elif [[ "${OS_ID}" =~ rhel ]] || [[ "${OS_ID}" =~ fedora ]] || [[ "${DISTRO}" =~ Fedora ]]; then
     #CentOS/RHEL/Fedora/RockyLinux
-    pkg_opts="-y"
-    echo "Using yum to prepare packages for ${DISTRO} system"
-    echo "  Updating system packages..."
-    $sudo yum ${pkg_opts} install curl > /dev/null
-    $sudo yum ${pkg_opts} update > /dev/null
-    echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="python3 coreutils libffi-devel gmp-devel openssl-devel ncurses-devel ncurses-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git jq gnupg2 libtool autoconf iproute bc traceroute dialog sqlite util-linux xz wget unzip procps-ng"
+    pkgmgrcmd="yum"
+    pkg_list="python3 coreutils ncurses-devel ncurses-libs openssl-devel systemd systemd-devel libsodium-devel tmux git jq gnupg2 libtool iproute bc traceroute sqlite util-linux xz wget unzip procps-ng llvm clang numactl-devel libffi-devel gmp-devel zlib-devel make gcc-c++ autoconf lmdb-devel"
     if [[ "${VERSION_ID}" == "2" ]] ; then
       #AmazonLinux2
       pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig srm"
@@ -232,17 +220,7 @@ os_dependencies() {
       pkg_opts="${pkg_opts} --allowerasing"
       pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config srm"
     fi
-    if [ -z "${ARCH##*aarch64*}" ]; then
-      pkg_list="${pkg_list} llvm clang numactl-devel"
-    fi    
     add_epel_repository "${DISTRO}" "${VERSION_ID}" "${pkg_opts}"
-    $sudo yum ${pkg_opts} install ${pkg_list} > /dev/null;rc=$?
-    if [ $rc != 0 ]; then
-      echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
-      echo "$sudo yum ${pkg_opts} install ${pkg_list}"
-      echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
-      err_exit
-    fi
     if [ -f /usr/lib64/libtinfo.so ] && [ -f /usr/lib64/libtinfo.so.5 ]; then
       echo "  Symlink updates not required for ncurse libs, skipping.."
     else
@@ -250,43 +228,34 @@ os_dependencies() {
       $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so
       $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so.5
     fi
-  elif [[ $(uname) == Darwin ]]; then
-    echo "MacOS detected";
-    pkg_list="coreutils gnupg jq libsodium tcptraceroute"
-    brew install ${pkg_list} > /dev/null;rc=$?
-     if [ $rc != 0 ]; then
-      echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
-      echo "brew install ${pkg_list}"
-      echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
-      err_exit
-    fi
   else
     echo "We have no automated procedures for this ${DISTRO} system"
-    echo "please manually install required packages."
-    echo "Their relative names are:"
-    echo "Debian: curl build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev tmux"
-    echo "CentOS: curl pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd-devel zlib-devel tmux procps-ng"
     err_exit
   fi
-  echo "Install libsecp256k1 ... "
-  if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
-    echo "export LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
-    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+  $sudo ${pkgmgrcmd} ${pkg_opts} update > /dev/null;rc=$?
+  if [[ $rc != 0 ]]; then
+    echo "An error occured while executing \"${pkgmgrcmd} ${pkg_opts} update\" which indicates an existing issue with your base OS, please investigate manually prior to running the script again"
+    err_exit
   fi
-  pushd "${HOME}"/git >/dev/null || err_exit
-  [[ ! -d "./secp256k1" ]] && git clone https://github.com/bitcoin-core/secp256k1 &>/dev/null
-  pushd secp256k1 >/dev/null || err_exit
-  git checkout ac83be33 &>/dev/null
-  ./autogen.sh > autogen.log > /tmp/secp256k1.log 2>&1
-  ./configure --prefix=/usr --enable-module-schnorrsig --enable-experimental > configure.log >> /tmp/secp256k1.log 2>&1
-  make > make.log 2>&1
-  make check >>make.log 2>&1
-  $sudo make install > install.log 2>&1
+  echo "  Installing missing prerequisite packages, if any.."
+  $sudo ${pkgmgrcmd} ${pkg_opts} install ${pkg_list} > /dev/null;rc=$?
+  if [[ $rc != 0 ]]; then
+    echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
+    echo "$sudo ${pkgmgrcmd} ${pkg_opts} install ${pkg_list}"
+    echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
+    err_exit
+  fi
+  if [[ ! -d "${HOME}"/.cabal/bin ]]; then mkdir -p "${HOME}"/.cabal/bin; fi
+}
+
+# Build Dependencies for cabal builds
+build_dependencies() {
+  echo "Installing Haskell build/compiler dependencies (if missing)..."
   export BOOTSTRAP_HASKELL_NO_UPGRADE=1
   export BOOTSTRAP_HASKELL_GHC_VERSION=8.10.7
   export BOOTSTRAP_HASKELL_CABAL_VERSION=3.6.2.0
-  if ! command -v ghc &>/dev/null; then
-    echo "Install ghcup (The Haskell Toolchain installer) .."
+  if ! command -v ghcup &>/dev/null; then
+    echo "Installing ghcup (The Haskell Toolchain installer) .."
     BOOTSTRAP_HASKELL_NONINTERACTIVE=1
     BOOTSTRAP_HASKELL_INSTALL_STACK=1
     BOOTSTRAP_HASKELL_ADJUST_BASHRC=1
@@ -294,159 +263,44 @@ os_dependencies() {
     export BOOTSTRAP_HASKELL_NONINTERACTIVE BOOTSTRAP_HASKELL_INSTALL_STACK BOOTSTRAP_HASKELL_ADJUST_BASHRC
     curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | bash
   fi
-  [ -f "${HOME}/.ghcup/env" ] && source "${HOME}/.ghcup/env"
+  [[ -f "${HOME}/.ghcup/env" ]] && source "${HOME}/.ghcup/env"
   if ! ghc --version 2>/dev/null | grep -q ${BOOTSTRAP_HASKELL_GHC_VERSION}; then
     echo "Upgrading ghcup .."
     ghcup upgrade 2>/dev/null
     echo "Installing GHC v${BOOTSTRAP_HASKELL_GHC_VERSION} .."
-    ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}
-    ghcup set ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}
-    ghc --version
+    ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null || err_exit " Executing \"ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}\" failed, please try to diagnose/execute it manually to diagnose!"
+    ghcup set ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null
   fi
   cabal_version=$(cabal --version 2>/dev/null | head -n 1 | cut -d' ' -f3)
   if [[ -z ${cabal_version} || ! ${cabal_version} = "${BOOTSTRAP_HASKELL_CABAL_VERSION}" ]]; then
     if [[ -n ${cabal_version} ]]; then
       echo "Uninstalling Cabal v${cabal_version} .."
-      ghcup rm cabal ${cabal_version}
+      ghcup rm cabal ${cabal_version} 2>/dev/null
     fi
     echo "Installing Cabal v${BOOTSTRAP_HASKELL_CABAL_VERSION}.."
-    ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION}
+    ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION} >/dev/null || err_exit " Executing \"ghcup install cabal ${BOOTSTRAP_HASKELL_GHC_VERSION}\" failed, please try to diagnose/execute it manually to diagnose!"
   fi
-  if [ ! -d "${HOME}"/.cabal/bin ]; then mkdir -p "${HOME}"/.cabal/bin; fi
-}
-
-os_dependencies() {
-  # Determine OS platform
-  OS_ID=$(grep -i ^id_like= /etc/os-release | cut -d= -f 2)
-  DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
-  VERSION_ID=$(grep -i ^version_id= /etc/os-release | cut -d= -f 2 | tr -d '"' | cut -d. -f 1)
-  ARCH=$(uname -i)
-  if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
-    #Debian/Ubuntu
-    pkg_opts="-y"
-    echo "Using apt to prepare packages for ${DISTRO} system"
-    echo "  Updating system packages..."
-    $sudo apt-get ${pkg_opts} install curl > /dev/null
-    $sudo env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get ${pkg_opts} update > /dev/null
-    echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute dialog automake sqlite3 bsdmainutils libusb-1.0-0-dev libudev-dev unzip"
-    pkg_list="${pkg_list} llvm clang libnuma-dev"
-    $sudo env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get ${pkg_opts} install ${pkg_list} > /dev/null;rc=$?
-    if [ $rc != 0 ]; then
-      echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
-      echo "$sudo apt-get ${pkg_opts} install ${pkg_list}"
-      echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
-      err_exit
-    fi
-  elif [[ "${OS_ID}" =~ rhel ]] || [[ "${OS_ID}" =~ fedora ]] || [[ "${DISTRO}" =~ Fedora ]]; then
-    #CentOS/RHEL/Fedora/RockyLinux
-    pkg_opts="-y"
-    echo "Using yum to prepare packages for ${DISTRO} system"
-    echo "  Updating system packages..."
-    $sudo yum ${pkg_opts} install curl > /dev/null
-    $sudo yum ${pkg_opts} update > /dev/null
-    echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="python3 coreutils libffi-devel gmp-devel openssl-devel ncurses-devel ncurses-libs systemd systemd-devel libsodium-devel zlib-devel make gcc-c++ tmux git jq gnupg2 libtool autoconf iproute bc traceroute dialog sqlite util-linux xz wget unzip procps-ng"
-    if [[ "${VERSION_ID}" == "2" ]] ; then
-      #AmazonLinux2
-      pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig srm"
-    elif [[ "${VERSION_ID}" == "7" ]]; then
-      #RHEL/CentOS7
-      pkg_list="${pkg_list} libusb pkgconfig srm"
-    elif [[ "${VERSION_ID}" =~ "8" ]] || [[ "${VERSION_ID}" =~ "9" ]]; then
-      #RHEL/CentOS/RockyLinux8
-      pkg_opts="${pkg_opts} --allowerasing"
-      pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config"
-    elif [[ "${DISTRO}" =~ Fedora ]]; then
-      #Fedora
-      pkg_opts="${pkg_opts} --allowerasing"
-      pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config srm"
-    fi
-    if [ -z "${ARCH##*aarch64*}" ]; then
-      pkg_list="${pkg_list} llvm clang numactl-devel"
-    fi    
-    add_epel_repository "${DISTRO}" "${VERSION_ID}" "${pkg_opts}"
-    $sudo yum ${pkg_opts} install ${pkg_list} > /dev/null;rc=$?
-    if [ $rc != 0 ]; then
-      echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
-      echo "$sudo yum ${pkg_opts} install ${pkg_list}"
-      echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
-      err_exit
-    fi
-    if [ -f /usr/lib64/libtinfo.so ] && [ -f /usr/lib64/libtinfo.so.5 ]; then
-      echo "  Symlink updates not required for ncurse libs, skipping.."
-    else
-      echo "  Updating symlinks for ncurse libs.."
-      $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so
-      $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so.5
-    fi
-  elif [[ $(uname) == Darwin ]]; then
-    echo "MacOS detected";
-    pkg_list="coreutils gnupg jq libsodium tcptraceroute"
-    brew install ${pkg_list} > /dev/null;rc=$?
-     if [ $rc != 0 ]; then
-      echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
-      echo "brew install ${pkg_list}"
-      echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
-      err_exit
-    fi
-  else
-    echo "We have no automated procedures for this ${DISTRO} system"
-    echo "please manually install required packages."
-    echo "Their relative names are:"
-    echo "Debian: curl build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev tmux"
-    echo "CentOS: curl pkgconfig libffi-devel gmp-devel openssl-devel ncurses-libs ncurses-compat-libs systemd-devel zlib-devel tmux procps-ng"
-    err_exit
-  fi
-  echo "Install libsecp256k1 ... "
-  if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
-    echo "export LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
-    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-  fi
+  # Cannot verify the version and availability of libsecp256k1 package built previously, hence have to re-install each time
+  echo "[Re]-Install libsecp256k1 ..."
+  mkdir -p "${HOME}"/git > /dev/null 2>&1 # To hold git repositories that will be used for building binaries
   pushd "${HOME}"/git >/dev/null || err_exit
   [[ ! -d "./secp256k1" ]] && git clone https://github.com/bitcoin-core/secp256k1 &>/dev/null
   pushd secp256k1 >/dev/null || err_exit
   git checkout ac83be33 &>/dev/null
   ./autogen.sh > autogen.log > /tmp/secp256k1.log 2>&1
   ./configure --prefix=/usr --enable-module-schnorrsig --enable-experimental > configure.log >> /tmp/secp256k1.log 2>&1
-  make > make.log 2>&1
+  make > make.log 2>&1 || err_exit " Could not complete \"make\" for libsecp256k1 package, please try to run it manually to diagnose!"
   make check >>make.log 2>&1
   $sudo make install > install.log 2>&1
-  export BOOTSTRAP_HASKELL_NO_UPGRADE=1
-  export BOOTSTRAP_HASKELL_GHC_VERSION=8.10.7
-  export BOOTSTRAP_HASKELL_CABAL_VERSION=3.6.2.0
-  if ! command -v ghc &>/dev/null; then
-    echo "Install ghcup (The Haskell Toolchain installer) .."
-    BOOTSTRAP_HASKELL_NONINTERACTIVE=1
-    BOOTSTRAP_HASKELL_INSTALL_STACK=1
-    BOOTSTRAP_HASKELL_ADJUST_BASHRC=1
-    unset BOOTSTRAP_HASKELL_INSTALL_HLS
-    export BOOTSTRAP_HASKELL_NONINTERACTIVE BOOTSTRAP_HASKELL_INSTALL_STACK BOOTSTRAP_HASKELL_ADJUST_BASHRC
-    curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | bash
+  if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
+    echo "export LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
+    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
   fi
-  [ -f "${HOME}/.ghcup/env" ] && source "${HOME}/.ghcup/env"
-  if ! ghc --version 2>/dev/null | grep -q ${BOOTSTRAP_HASKELL_GHC_VERSION}; then
-    echo "Upgrading ghcup .."
-    ghcup upgrade 2>/dev/null
-    echo "Installing GHC v${BOOTSTRAP_HASKELL_GHC_VERSION} .."
-    ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}
-    ghcup set ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}
-    ghc --version
-  fi
-  cabal_version=$(cabal --version 2>/dev/null | head -n 1 | cut -d' ' -f3)
-  if [[ -z ${cabal_version} || ! ${cabal_version} = "${BOOTSTRAP_HASKELL_CABAL_VERSION}" ]]; then
-    if [[ -n ${cabal_version} ]]; then
-      echo "Uninstalling Cabal v${cabal_version} .."
-      ghcup rm cabal ${cabal_version}
-    fi
-    echo "Installing Cabal v${BOOTSTRAP_HASKELL_CABAL_VERSION}.."
-    ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION}
-  fi
-  if [ ! -d "${HOME}"/.cabal/bin ]; then mkdir -p "${HOME}"/.cabal/bin; fi
 }
 
-# Build fork of libsodium (TODO: Re-consider commit, may not be required)
+# Build fork of libsodium
 build_libsodium() {
+  echo "Building libsodium ..."
   if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
     echo "export LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
@@ -457,15 +311,32 @@ build_libsodium() {
   git checkout 66f017f1 &>/dev/null
   ./autogen.sh > autogen.log > /tmp/libsodium.log 2>&1
   ./configure > configure.log >> /tmp/libsodium.log 2>&1
-  make > make.log 2>&1
+  make > make.log 2>&1 || err_exit  " Could not complete \"make\" for libsodium package, please try to run it manually to diagnose!"
   $sudo make install > install.log 2>&1
   echo "IOG fork of libsodium installed to /usr/local/lib/"
 }
 
-# Download cardano-node, cardano-cli and cardano-submit-api
+# Download cardano-node, cardano-cli, cardano-db-sync, bech32 and cardano-submit-api
+# TODO: Replace these with self-hosted ones
 download_cnodebins() {
-  # TODO
-  echo
+  echo "Downloading binaries.."
+  pushd "${HOME}"/tmp >/dev/null || err_exit
+  echo "  Downloading Cardano Node archive from IO Hydra CI builds.."
+  rm -f cardano-node cardano-address
+  curl -m 200 -sfL https://hydra.iohk.io/build/21343721/download/1/cardano-node-1.35.4-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node's latest release archive from IO CI builds at hydra.iohk.io!"
+  tar zxf cnode.tar.gz ./cardano-node ./cardano-cli ./cardano-submit-api ./bech32 &>/dev/null
+  rm -f cnodebin.tar.gz
+  [[ -f cardano-node ]] || err_exit " cardano-node archive downloaded but binary (cardano-node) not found after extracting package!"
+  echo "  Downloading Github release package for Cardano Wallet"
+  curl -m 200 -sfL https://hydra.iohk.io/build/21343721/download/1/cardano-node-1.35.4-linux.tar.gz -o cwallet.tar.gz || err_exit " Could not download cardano-wallet's latest release archive from IO github!"
+  tar zxf cwallet.tar.gz --strip-components=1 cardano-wallet-v2022-10-06-linux64/cardano-address &>/dev/null
+  rm -f cwallet.tar.gz
+  [[ -f cardano-address ]] || err_exit " cardano-wallet archive downloaded but binary (cardano-address) not found after extracting package!"
+  echo "  Downloading Cardano DB Sync archive from IO Hydra CI Builds.."
+  curl -m 200 -sfL https://hydra.iohk.io/build/19105782/download/1/cardano-db-sync-13.0.5-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync's latest release archive from IO CI builds at hydra.iohk.io!"
+  tar zxf cnodedbsync.tar.gz ./cardano-db-sync &>/dev/null
+  [[ -f cardano-db-sync ]] || err_exit " cardano-db-sync archive downloaded but binary (cardano-db-sync) not found after extracting package!"
+  rm -f cnodebin.tar.gz
 }
 
 # Download CNCLI
@@ -476,15 +347,11 @@ download_cncli() {
   echo "  Downloading CNCLI..."
   rm -rf /tmp/cncli-bin && mkdir /tmp/cncli-bin
   pushd /tmp/cncli >/dev/null || err_exit
-  if [[ $(uname) == Darwin ]]; then
-    cncli_asset_url="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.assets[].browser_download_url' | grep 'darwin.tar.gz')"
-  else
-    cncli_asset_url="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-gnu.tar.gz')"
-  fi
+  cncli_asset_url="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-gnu.tar.gz')"
   if curl -sL -f -m ${CURL_TIMEOUT} -o cncli.tar.gz ${cncli_asset_url}; then
     tar zxf cncli.tar.gz &>/dev/null
     rm -f cncli.tar.gz
-    [[ -f cncli ]] || err_exit "CNCLI downloaded but binary(cncli) not found after extracting package!"
+    [[ -f cncli ]] || err_exit "CNCLI downloaded but binary (cncli) not found after extracting package!"
     [[ "${cncli_version}" = "v0.0.0" ]] && echo " latest_version: ${cncli_git_version}" || echo " installed version: ${cncli_version} | latest version: ${cncli_git_version}"
     chmod +x /tmp/cncli-bin/cncli
     mv -f /tmp/cncli-bin "${HOME}"/.cabal/bin/
@@ -503,11 +370,7 @@ download_cardanohwcli() {
   mkdir -p /tmp/cncli-bin
   pushd /tmp >/dev/null || err_exit
   rm -rf cardano-hw-cli*
-  if [[ $(uname) == Darwin ]]; then
-    vchc_asset_url="$(curl -s https://api.github.com/repos/vacuumlabs/cardano-hw-cli/releases/latest | jq -r '.assets[].browser_download_url' | grep '_mac-x64.tar.gz')"
-  else
-    vchc_asset_url="$(curl -s https://api.github.com/repos/vacuumlabs/cardano-hw-cli/releases/latest | jq -r '.assets[].browser_download_url' | grep '_linux-x64.tar.gz')"
-  fi
+  vchc_asset_url="$(curl -s https://api.github.com/repos/vacuumlabs/cardano-hw-cli/releases/latest | jq -r '.assets[].browser_download_url' | grep '_linux-x64.tar.gz')"
   if curl -sL -f -m ${CURL_TIMEOUT} -o cardano-hw-cli_linux-x64.tar.gz ${vchc_asset_url}; then
     tar zxf cardano-hw-cli_linux-x64.tar.gz &>/dev/null
     rm -f cardano-hw-cli_linux-x64.tar.gz
@@ -590,8 +453,6 @@ download_cardanosigner() {
     while IFS= read -r release; do
       if [[ -z ${ARCH##*aarch64*} && ${release} = *arm-x64.tar.gz ]]; then # ARM64
         csigner_release_url=${release}; break
-      elif [[ $(uname) == Darwin && ${release} = *mac-x64.tar.gz ]]; then # Mac OSX
-        csigner_release_url=${release}; break
       elif [[ ${ARCH} = x86_64 && ${release} = *linux-x64.tar.gz ]]; then # Linux x64
         csigner_release_url=${release}; break
       fi
@@ -629,58 +490,52 @@ setup_folder() {
   
   $sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/guild-db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv
   $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
+  populate_cnode
 }
 
-# Download and update scripts for cnode (TODO: Set up and test it out)
+# Download and update scripts for cnode (TODO: Set up and test it out, differentiate between FORCE_OVERWRITE and normal execution)
 populate_cnode() {
   echo "Downloading files..."
-  
   pushd "${CNODE_HOME}"/files >/dev/null || err_exit
-  
-  
-  if ! curl -s -f -m ${CURL_TIMEOUT} "${REPO_RAW}/${BRANCH}/LICENSE" -o /dev/null ; then
-    echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to master branch\n"
-    BRANCH=master
-    URL_RAW="${REPO_RAW}/${BRANCH}"
-    echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
-  else
-    echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
-  fi
+  echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
   
   # Download dbsync config
   curl -sL -f -m ${CURL_TIMEOUT} -o dbsync.json.tmp ${URL_RAW}/files/config-dbsync.json
   [[ "${NETWORK}" != "mainnet" ]] && sed -i "s#NetworkName\": \"mainnet\"#NetworkName\": \"${NETWORK}\"#g" dbsync.json.tmp
 
+  err_msg=" Had Trouble downloading the file:"
   # Download node config, genesis and topology from template
   if [[ ${NETWORK} = "guild" ]]; then
-    curl -s -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp ${URL_RAW}/files/byron-genesis-guild.json
-    curl -s -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp ${URL_RAW}/files/genesis-guild.json
-    curl -s -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp ${URL_RAW}/files/alonzo-genesis-guild.json
-    curl -s -f -m ${CURL_TIMEOUT} -o topology.json.tmp ${URL_RAW}/files/topology-guild.json
-    curl -s -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-guild.json
+    curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp ${URL_RAW}/files/byron-genesis-guild.json || err_exit "${err_msg} byron-genesis-guild.json"
+    curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp ${URL_RAW}/files/genesis-guild.json || err_exit "${err_msg} genesis-guild.json"
+    curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp ${URL_RAW}/files/alonzo-genesis-guild.json || err_exit "${err_msg} alonzo-genesis-guild.json"
+    curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp ${URL_RAW}/files/topology-guild.json || err_exit "${err_msg} topology-guild.json"
+    curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-guild.json || err_exit "${err_msg} config-guild.json"
   elif [[ ${NETWORK} =~ ^(mainnet|preprod|preview|testnet)$ ]]; then # testnet will be retired , already marked as legacy soon
     NWCONFURL="https://raw.githubusercontent.com/input-output-hk/cardano-world/master/docs/environments"
-    curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/${NETWORK}/byron-genesis.json"
-    curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp "${NWCONFURL}/${NETWORK}/shelley-genesis.json"
-    curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp "${NWCONFURL}/${NETWORK}/alonzo-genesis.json"
-    curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp "${NWCONFURL}/${NETWORK}/topology.json"
-    curl -s -f -m ${CURL_TIMEOUT} -o config.json.tmp "${URL_RAW}/files/config-${NETWORK}.json"
+    curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/${NETWORK}/byron-genesis.json" || err_exit "${err_msg} byron-genesis.json"
+    curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp "${NWCONFURL}/${NETWORK}/shelley-genesis.json" || err_exit "${err_msg} shelley-genesis.json"
+    curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp "${NWCONFURL}/${NETWORK}/alonzo-genesis.json" || err_exit "${err_msg} alonzo-genesis.json"
+    curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp "${NWCONFURL}/${NETWORK}/topology.json" || err_exit "${err_msg} topology.json"
+    curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp "${URL_RAW}/files/config-${NETWORK}.json" || err_exit "${err_msg} config-${NETWORK}.json"
   else
     err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, preprod, guild or preview."
   fi
   sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -i ./*.json.tmp
-  [[ ${FORCE_OVERWRITE} = 'Y' && -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
-  [[ ${FORCE_OVERWRITE} = 'Y' && -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
-  [[ ${FORCE_OVERWRITE} = 'Y' && -f dbsync.json ]] && cp -f dbsync.json "dbsync.json_bkp$(date +%s)"
-  if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f byron-genesis.json ]]; then mv -f byron-genesis.json.tmp byron-genesis.json; else rm -f byron-genesis.json.tmp; fi
-  if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f shelley-genesis.json ]]; then mv -f shelley-genesis.json.tmp shelley-genesis.json; else rm -f shelley-genesis.json.tmp; fi
-  if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f alonzo-genesis.json ]]; then mv -f alonzo-genesis.json.tmp alonzo-genesis.json; else rm -f alonzo-genesis.json.tmp; fi
-  if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f topology.json ]]; then mv -f topology.json.tmp topology.json; else rm -f topology.json.tmp; fi
-  if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f config.json ]]; then mv -f config.json.tmp config.json; else rm -f config.json.tmp; fi
-  if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f dbsync.json ]]; then mv -f dbsync.json.tmp dbsync.json; else rm -f dbsync.json.tmp; fi
+  if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
+    [[ -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
+    [[ -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
+    [[ -f dbsync.json ]] && cp -f dbsync.json "dbsync.json_bkp$(date +%s)"
+  fi
+  if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f byron-genesis.json || ! -f shelley-genesis.json || ! -f alonzo-genesis.json || ! -f topology.json || ! -f config.json || ! -f dbsync.json ]]; then
+    mv -f byron-genesis.json.tmp byron-genesis.json && mv -f shelley-genesis.json.tmp shelley-genesis.json && mv -f alonzo-genesis.json.tmp alonzo-genesis.json
+    mv -f topology.json.tmp topology.json && mv -f config.json.tmp config.json && mv -f dbsync.json.tmp dbsync.json
+  else
+    rm -f byron-genesis.json.tmp && rm -f shelley-genesis.json.tmp && rm -f alonzo-genesis.json.tmp
+    rm -f topology.json.tmp && rm -f config.json.tmp && rm -f dbsync.json.tmp
+  fi
   
   pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
-  sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -e "s@CNODE_HOME@${CNODE_VNAME}_HOME@g" -i ./*.*
   
   [[ ${FORCE_OVERWRITE} = 'Y' ]] && echo "Forced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/dbsync.sh, scripts/submitapi.sh, scripts/ogmios.sh, scripts/gLiveView.sh and scripts/topologyUpdater.sh (alongwith files/topology.json, files/config.json, files/dbsync.json) as required!"
   
@@ -705,12 +560,14 @@ populate_cnode() {
   chmod -R 700 "${CNODE_HOME}"/priv 2>/dev/null
 }
 
+# Parse arguments supplied to script
 parse_args() {
+  POPULATE_CNODE="Y"
   if [[ -n "${S_ARGS}" ]]; then
     [[ "${S_ARGS}" =~ "p" ]] && INSTALL_OS_DEPS="Y"
     [[ "${S_ARGS}" =~ "b" ]] && INSTALL_OS_DEPS="Y" && WANT_BUILD_DEPS="Y"
     [[ "${S_ARGS}" =~ "l" ]] && INSTALL_OS_DEPS="Y" && WANT_BUILD_DEPS="Y" && INSTALL_LIBSODIUM_FORK="Y"
-    [[ "${S_ARGS}" =~ "f" ]] && FORCE_OVERWRITE="Y"
+    [[ "${S_ARGS}" =~ "f" ]] && FORCE_OVERWRITE="Y" && POPULATE_CNODE="F"
     [[ "${S_ARGS}" =~ "s" ]] && RECREATE_FOLDERS="Y"
     [[ "${S_ARGS}" =~ "d" ]] && INSTALL_CNODEBINS="Y"
     [[ "${S_ARGS}" =~ "c" ]] && INSTALL_CNCLI="Y"
@@ -718,26 +575,30 @@ parse_args() {
     [[ "${S_ARGS}" =~ "w" ]] && INSTALL_CWHCLI="Y"
     [[ "${S_ARGS}" =~ "x" ]] && INSTALL_CARDANO_SIGNER="Y"
   else
-    # TODO
-    [[ ! -f "${CNODE_HOME}"/scripts/grest-exporter.sh ]] && INSTALL_MONITORING_AGENTS="Y"
+    if [[ ! -d ${CNODE_HOME} ]]; then
+      # Guess this is a fresh machine and set minimal params
+      RECREATE_FOLDERS="Y"
+      INSTALL_OS_DEPS="Y"
+    fi
+    echo "Nothing to do.."
   fi
 }
 
-# TODO: Re-vamp flow below after discussion (see usage() for potential idea), also consider adding pre-built node/dbsync binaries
+# Main Flow for calling different functions
 main_flow() {
   common_init
-  [[ "${UPDATE_CHECK}" == "Y" ]] && echo "update_check"
-  [[ "${INSTALL_OS_DEPS}" == "Y" ]] && echo "os_dependencies"
-  [[ "${WANT_BUILD_DEPS}" == "Y" ]] && echo "build_dependencies"
-  [[ "${INSTALL_LIBSODIUM_FORK}" == "Y" ]] && echo "build_libsodium"
-  [[ "${FORCE_OVERWRITE}" == "Y" ]] && echo "populate_cnode"
-  [[ "${RECREATE_FOLDERS}" == "Y" ]] && echo "setup_folder"
-  [[ "${INSTALL_CNODEBINS}" == "Y" ]] && echo "download_cnodebins"
-  [[ "${INSTALL_CNCLI}" == "Y" ]] && echo "download_cncli"
-  [[ "${INSTALL_OGMIOS}" == "Y" ]] && echo "download_ogmios"
-  [[ "${INSTALL_CWHCLI}" == "Y" ]] && echo "download_cardanohwcli"
-  [[ "${INSTALL_CARDANO_SIGNER}" == "Y" ]] && echo "download_cardanosigner"
-  return 0
+  [[ "${UPDATE_CHECK}" == "Y" ]] && update_check
+  [[ "${INSTALL_OS_DEPS}" == "Y" ]] && os_dependencies
+  [[ "${WANT_BUILD_DEPS}" == "Y" ]] && build_dependencies
+  [[ "${INSTALL_LIBSODIUM_FORK}" == "Y" ]] && build_libsodium
+  [[ "${FORCE_OVERWRITE}" == "Y" ]] && POPULATE_CNODE="F" && populate_cnode
+  [[ "${POPULATE_CNODE}" == "Y" ]] && populate_cnode
+  [[ "${RECREATE_FOLDERS}" == "Y" ]] && setup_folder
+  [[ "${INSTALL_CNODEBINS}" == "Y" ]] && download_cnodebins
+  [[ "${INSTALL_CNCLI}" == "Y" ]] && download_cncli
+  [[ "${INSTALL_OGMIOS}" == "Y" ]] && download_ogmios
+  [[ "${INSTALL_CWHCLI}" == "Y" ]] && download_cardanohwcli
+  [[ "${INSTALL_CARDANO_SIGNER}" == "Y" ]] && download_cardanosigner
 }
 
 while getopts :n:p:t:s:b:u opt; do

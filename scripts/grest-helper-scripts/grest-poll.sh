@@ -62,7 +62,6 @@ function chk_upd() {
 }
 
 function log_err() {
-  "$(date +%DT%T) - ERROR: ${HAPROXY_SERVER_NAME}" "$@"
   [[ "${DEBUG_MODE}" == "1" ]] && echo "$(date +%DT%T) - ERROR: ${HAPROXY_SERVER_NAME}" "$@"
   echo "$(date +%DT%T) - ERROR: ${HAPROXY_SERVER_NAME}" "$@" >> "${LOG_DIR}"/grest-poll.sh_"$(date +%d%m%y)"
 }
@@ -194,22 +193,29 @@ function chk_endpt_post() {
   echo rslt="$(curl -sL -X POST -H "Content-Type: application/json" "${GURL}/${endpt}" -d "${data}" 2>&1)"
 }
 
+function chk_asset_registry() {
+  ct=$(curl -sfL -H 'Prefer: count=exact' "${GURL}/asset_registry_cache?select=name&limit=1" -I 2>/dev/null | grep content-range | cut -d/ -f2)
+  [[ "${ct}" == "" ]] && log_err "Asset registry cache not yet populated!"
+  [[ ${ct} -lt 500 ]] && log_err "Asset registry cache seems incomplete (<500) assets, try deleting key: asset_registry_commit in control_table and wait for next cron run"
+}
+
 ##################
 # Main Execution #
 ##################
 
-if [[ $# = 2 ]]; then
+PARENT="$(dirname "${0}")"
+
+if [[ "$3" == "-d" || "$5" == "-d" ]]; then
+  export DEBUG_MODE=1
+  echo "Debug Mode enabled!"
+fi
+if [[ $# = 2 ]] || [[ $# = 3 ]]; then
   set_defaults "$1" "$2"
-elif [[ $# -gt 2 ]]; then
+elif [[ $# -gt 3 ]]; then
   set_defaults
-  if [[ "$3" == "-d" ]] || [[ "$5" == "-d" ]] ; then
-    export DEBUG_MODE=1
-    echo "Debug Mode enabled!"
-  fi
 else
   usage
 fi
-PARENT="$(dirname "${0}")"
 
 chk_upd
 
@@ -219,3 +225,4 @@ chk_rpcs
 chk_tip
 chk_cache_status
 chk_limit
+chk_asset_registry

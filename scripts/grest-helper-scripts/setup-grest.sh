@@ -332,7 +332,7 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
   deploy_haproxy() {
     echo "[Re]Installing HAProxy.."
     pushd ~/tmp >/dev/null || err_exit
-    haproxy_url="http://www.haproxy.org/download/2.6/src/haproxy-2.6.1.tar.gz"
+    haproxy_url="http://www.haproxy.org/download/2.6/src/haproxy-2.6.5.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
       if command -v apt-get >/dev/null; then
@@ -341,7 +341,7 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
       if command -v yum >/dev/null; then
         sudo yum -y install pcre-devel >/dev/null || err_exit "'sudo yum -y install prce-devel' failed!"
       fi
-      cd haproxy-2.6.1 || return
+      cd haproxy-2.6.5 || return
       make clean >/dev/null
       make -j $(nproc) TARGET=linux-glibc USE_ZLIB=1 USE_LIBCRYPT=1 USE_OPENSSL=1 USE_PCRE=1 USE_SYSTEMD=1 USE_PROMEX=1 >/dev/null
       sudo make install-bin >/dev/null
