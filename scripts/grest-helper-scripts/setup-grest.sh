@@ -16,8 +16,8 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment before we're prepared for wider networks, targetted support for dbsync 13 will be against v1.1.0. Using a gap from 1.0.1 - 1.0.5 allows for scope to have any urgent fixes required before then on alpha branch itself
-
+SGVERSION=1.0.9
+# Using versions from 1.0.5-1.0.9 for minor commit alignment before we're prepared for wider networks
 
 ######## Functions ########
   usage() {
@@ -494,7 +494,6 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
     # Create skeleton whitelist URL file if one does not already exist using most common option
     curl -sfkL "https://${KOIOS_SRV}/koiosapi.yaml" -o "${CNODE_HOME}"/files/koiosapi.yaml 2>/dev/null
     grep " #RPC" "${CNODE_HOME}"/files/koiosapi.yaml | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
-    [[ "${SKIP_UPDATE}" == "Y" ]] && return 0
     checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
     sed -i "s# API_STRUCT_DEFINITION=\"https://api.koios.rest/koiosapi.yaml\"# API_STRUCT_DEFINITION=\"https://${KOIOS_SRV}/koiosapi.yaml\"#g" grest-poll.sh
     checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
@@ -689,12 +688,12 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
   common_init
   set_environment_variables
   parse_args
+  common_update
   [[ "${INSTALL_POSTGREST}" == "Y" ]] && deploy_postgrest
   [[ "${INSTALL_HAPROXY}" == "Y" ]] && deploy_haproxy
   [[ "${INSTALL_MONITORING_AGENTS}" == "Y" ]] && deploy_monitoring_agents
   [[ "${OVERWRITE_CONFIG}" == "Y" ]] && deploy_configs
   [[ "${OVERWRITE_SYSTEMD}" == "Y" ]] && deploy_systemd
-  common_update
   [[ "${RESET_GREST}" == "Y" ]] && setup_db_basics && reset_grest
   [[ "${DB_QRY_UPDATES}" == "Y" ]] && setup_db_basics && deploy_query_updates && update_grest_version
   pushd -0 >/dev/null || err_exit
