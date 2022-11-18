@@ -1,5 +1,9 @@
 # Koios gRest Changelog
 
+## [1.0.9] - For all networks
+
+This release is effectively same as `1.0.9rc` below (please check out the notes accordingly), just with minor bug fix on `setup-grest.sh` itself.
+
 ## [1.0.9rc] - For non-mainnet networks
 
 This release candidate is non-breaking for existing methods and inputs, but breaking for output objects for endpoints.
