@@ -16,8 +16,8 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment before we're prepared for wider networks, targetted support for dbsync 13 will be against v1.1.0. Using a gap from 1.0.1 - 1.0.5 allows for scope to have any urgent fixes required before then on alpha branch itself
-
+SGVERSION=1.0.9
+# Using versions from 1.0.5-1.0.9 for minor commit alignment before we're prepared for wider networks
 
 ######## Functions ########
   usage() {
@@ -389,7 +389,6 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
 			server-port = 8050
 			#jwt-secret = "secret-token"
 			#db-pool = 10
-			#db-pool-timeout = 10
 			#db-extra-search-path = "public"
 			max-rows = 1000
 			EOF
@@ -450,6 +449,7 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
 			
 			backend grest_failover
 			  server koios-ssl ${KOIOS_SRV}:443 ssl verify none
+			  http-request set-header X-HAProxy-Hostname \"${KOIOS_SRV}\"
 			  http-response set-header X-Failover true
 			
 			backend ogmios
@@ -511,8 +511,9 @@ SGVERSION=1.0.9rc # Using versions from 1.0.5-1.0.9 for minor commit alignment b
 			
 			[Service]
 			Environment=\"GRESTTOP=${CNODE_HOME}\" \"CONFIG=${HAPROXY_CFG}\" \"PIDFILE=${CNODE_HOME}/logs/haproxy.pid\" \"HAPROXY_SOCKET_USER=${USER}\"
-			ExecStartPre=/usr/sbin/haproxy -f \"\\\$CONFIG\" -c -q
+			ExecStartPre=/usr/sbin/haproxy -f \"\\\$CONFIG\" -c
 			ExecStart=/usr/sbin/haproxy -Ws -f \"\\\$CONFIG\" -p \"\\\$PIDFILE\"
+			ExecReload=/usr/sbin/haproxy -f \"\\\$CONFIG\" -c
 			ExecReload=/bin/kill -USR2 $MAINPID
 			Restart=on-failure
 			SuccessExitStatus=143

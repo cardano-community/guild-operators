@@ -27,7 +27,7 @@ function set_defaults() {
   if [[ $# == 2 ]]; then
     GURL="${SCHEME}://${1}:${2}"
   else
-    GURL="${SCHEME}://${HAPROXY_SERVER_ADDR}:${HAPROXY_SERVER_PORT}/"
+    GURL="${SCHEME}://${HAPROXY_SERVER_ADDR}:${HAPROXY_SERVER_PORT}"
   fi
   URLRPC="${GURL}/${APIPATH}"
 }
@@ -219,7 +219,6 @@ fi
 
 chk_upd
 
-#chk_is_up # Part of PostgREST 9.0.1 , but requires seperate admin port
 chk_version
 chk_rpcs
 chk_tip

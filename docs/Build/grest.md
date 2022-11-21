@@ -56,24 +56,28 @@ cd "${CNODE_HOME}"/scripts
 #
 ```
 
-To run the setup with typical options, you may want to use:
+To run the setup overwriting all standard deployment tasks from a branch (eg: `koios-1.0.9` branch), you may want to use:
 ``` bash
-./setup-grest.sh -f -q
+./setup-grest.sh -f -i prmcd -r -q -b koios-1.0.9
 ```
 
-Similarly - if instead, you'd like to re-install all components as well as force overwrite all configs and queries, you may run:
+Similarly - if you'd like to re-install all components and force overwrite all configs but not reset cache tables, you may run:
 ``` bash
 ./setup-grest.sh -f -i prmcd -q
 ```
 
-Another example could be to preserve your config, but only update queries using an alternate branch (eg: let's say you want to try the tag `koios-1.0.0`). To do so, you may run:
+Another example could be to preserve your config, but only update queries using an alternate branch (eg: let's say you want to try the branch `alpha` prior to a tagged release). To do so, you may run:
 ``` bash
-./setup-grest.sh -q -b koios-1.0.0
+./setup-grest.sh -q -b alpha
 ```
 
 Please ensure to follow the on-screen instructions, if any (for example restarting deployed services, or updating configs to specify correct target postgres URLs/enable TLS/add peers etc in `${CNODE_HOME}/priv/grest.conf` and `${CNODE_HOME}/files/haproxy.cfg`).
 
 The default ports used will make haproxy instance available at port 8053 or 8453 if TLS is enabled (you might want to enable firewall rule to open this port to services you would like to access). If you want to prevent unauthenticated access to grest schema, uncomment the jwt-secret and specify a custom `secret-token`.
+
+!!! info "Reminder"
+
+Once you've successfully deployed the grest instance, it will deploy certain cron jobs that will ensure the relevant cache tables are updated periodically. Until these have finished (especially on first run, it could take an hour or so on mainnet, your instance will likely not pass any tests from `grest-poll.sh` but that's expected.
 
 ### Enable TLS on HAProxy {: id="tls"}
 
@@ -135,4 +139,4 @@ If you're interested to participate in decentralised infrastructure by providing
 
 3. Create a PR specifying connectivity information to your HAProxy port [here](https://github.com/cardano-community/koios-artifacts/tree/main/topology).
 
-4. Make sure to join the [telegram discussions group](https://t.me/+zE4Lce_QUepiY2U1) to participate in any discussions, actions, polls for new-features, etc. Feel free to give a shout in the group in case you have trouble following any of the above
+4. Make sure to join the [telegram discussions group](https://t.me/CardanoKoios) to participate in any discussions, actions, polls for new-features, etc. Feel free to give a shout in the group in case you have trouble following any of the above
