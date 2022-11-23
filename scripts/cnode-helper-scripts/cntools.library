@@ -2081,8 +2081,14 @@ deRegisterPool() {
 # Description : Rotate pool's KES keys
 # parameters  : $1 = cold counter (offline mode)
 rotatePoolKeys() {
+
   # cold keys
-  pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
+  if [ -f "${POOL_FOLDER}/${pool_name}/${POOL_HW_COLDKEY_SK_FILENAME}" ] ; then
+    pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HW_COLDKEY_SK_FILENAME}"
+    needHWCLI=true
+  else
+    pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
+  fi
   pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
 
   # generated files
@@ -2135,8 +2141,22 @@ rotatePoolKeys() {
     println "ERROR" "\n${FG_RED}ERROR${NC}: op cert file missing and Koios disabled/unavailable. Unable to get current on-chain counter value!\n" && return 1
   fi
 
-  println ACTION "${CCLI} node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
-  ! ${CCLI} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}" && return 1
+  if [[ ${needHWCLI} = true ]]; then
+    if ! unlockHWDevice "issue the opcert"; then return 1; fi
+    println ACTION "cardano-hw-cli node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --hw-signing-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
+    ! cardano-hw-cli node issue-op-cert \
+    --kes-verification-key-file "${pool_hotkey_vk_file}" \
+    --hw-signing-file "${pool_coldkey_sk_file}" \
+    --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" \
+    --kes-period "${current_kes_period}" \
+    --out-file "${pool_opcert_file}" \
+    && return 1
+
+  else
+    println ACTION "${CCLI} node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
+    ! ${CCLI} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}" && return 1
+  fi
+
   chmod 700 ${POOL_FOLDER}/${pool_name}/*
 
   unset remaining_kes_periods
