@@ -1635,6 +1635,7 @@ function main {
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println OFF " Pool Management\n"\
 						" ) New      - create a new pool"\
+                                                " ) Import   - import node cold keys from hardware"\
 						" ) Register - register a newly created pool on chain using a stake wallet (pledge wallet)"\
 						" ) Modify   - re-register pool modifying pool definition and/or parameters"\
 						" ) Retire   - de-register stake pool from chain in specified epoch"\
@@ -1645,18 +1646,19 @@ function main {
 						" ) Encrypt  - encrypt pool cold keys and make all files immutable"\
 						"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println DEBUG " Select Pool Operation\n"
-          select_opt "[n] New" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home"
+          select_opt "[n] New" "[i] Import HW" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home"
           case $? in
             0) SUBCOMMAND="new" ;;
-            1) SUBCOMMAND="register" ;;
-            2) SUBCOMMAND="modify" ;;
-            3) SUBCOMMAND="retire" ;;
-            4) SUBCOMMAND="list" ;;
-            5) SUBCOMMAND="show" ;;
-            6) SUBCOMMAND="rotate" ;;
-            7) SUBCOMMAND="decrypt" ;;
-            8) SUBCOMMAND="encrypt" ;;
-            9) break ;;
+            1) SUBCOMMAND="import" ;;
+            2) SUBCOMMAND="register" ;;
+            3) SUBCOMMAND="modify" ;;
+            4) SUBCOMMAND="retire" ;;
+            5) SUBCOMMAND="list" ;;
+            6) SUBCOMMAND="show" ;;
+            7) SUBCOMMAND="rotate" ;;
+            8) SUBCOMMAND="decrypt" ;;
+            9) SUBCOMMAND="encrypt" ;;
+            10) break ;;
           esac
           case $SUBCOMMAND in
             new)
@@ -1704,6 +1706,48 @@ function main {
               [[ -n ${pool_id_bech32} ]] && println "ID (bech32) : ${pool_id_bech32}"
               waitForInput && continue
               ;; ###################################################################
+           import)
+              clear
+              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+              println " >> POOL >> IMPORT"
+              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+              echo
+              getAnswerAnyCust pool_name "Pool Name"
+              # Remove unwanted characters from pool name
+              pool_name=${pool_name//[^[:alnum:]]/_}
+              if [[ -z "${pool_name}" ]]; then
+                println ERROR "${FG_RED}ERROR${NC}: Empty pool name, please retry!"
+                waitForInput && continue
+              fi
+              mkdir -p "${POOL_FOLDER}/${pool_name}"
+              pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
+              pool_hotkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_SK_FILENAME}"
+              pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
+              pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HW_COLDKEY_SK_FILENAME}"
+              pool_opcert_counter_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_COUNTER_FILENAME}"
+              pool_vrf_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_VK_FILENAME}"
+              pool_vrf_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_SK_FILENAME}"
+              if [[ -f "${pool_hotkey_vk_file}" ]]; then
+                println ERROR "${FG_RED}WARN${NC}: A pool ${FG_GREEN}$pool_name${NC} already exists"
+                println ERROR "      Choose another name or delete the existing one"
+                waitForInput && continue
+              fi
+              println ACTION "${CCLI} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
+              ${CCLI} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
+              println ACTION "${CCLI} node key-gen-VRF --verification-key-file ${pool_vrf_vk_file} --signing-key-file ${pool_vrf_sk_file}"
+              ${CCLI} node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
+              println ACTION "cardano-hw-cli node key-gen --path 1853H/1815H/0H/0H --hw-signing-file ${pool_coldkey_sk_file} --cold-verification-key-file ${pool_coldkey_kk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
+              if ! unlockHWDevice "export cold pub keys"; then return 1; fi
+              cardano-hw-cli node key-gen --path "1853H/1815H/0H/0H" --hw-signing-file "${pool_coldkey_sk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
+              chmod 600 "${POOL_FOLDER}/${pool_name}/"*
+              sed -i 's/Shelley//g' "${pool_coldkey_vk_file}" # TEMP FIX FOR https://github.com/vacuumlabs/cardano-hw-cli/issues/139
+              getPoolID ${pool_name}
+              echo
+              println "Pool: ${FG_GREEN}${pool_name}${NC}"
+              [[ -n ${pool_id} ]] && println "ID (hex)    : ${pool_id}"
+              [[ -n ${pool_id_bech32} ]] && println "ID (bech32) : ${pool_id_bech32}"
+              waitForInput && continue
+              ;; ##################################################################
             register|modify)
               clear
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
