@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#shellcheck disable=SC2034,SC1090
+#shellcheck disable=SC2034,SC1090 source=/dev/null
 
 ######################################
 # User Variables - Change as desired #
@@ -23,8 +23,12 @@ function set_defaults() {
   [[ -z "${API_COMPARE}" ]] && API_COMPARE="http://127.0.0.1:8050"
   [[ -z "${API_STRUCT_DEFINITION}" ]] && API_STRUCT_DEFINITION="https://api.koios.rest/koiosapi.yaml"
   [[ -z "${LOCAL_SPEC}" ]] && LOCAL_SPEC="${PARENT}/../files/koiosapi.yaml"
-  [[ "${HAPROXY_SERVER_NAME}" == *ssl ]] && SCHEME="https" || SCHEME="http"
-  GURL="${SCHEME}://${1}:${2}"
+  [[ "${HAPROXY_SERVER_SSL}" == 1 ]] && SCHEME="https" || SCHEME="http"
+  if [[ $# == 2 ]]; then
+    GURL="${SCHEME}://${1}:${2}"
+  else
+    GURL="${SCHEME}://${HAPROXY_SERVER_ADDR}:${HAPROXY_SERVER_PORT}"
+  fi
   URLRPC="${GURL}/${APIPATH}"
 }
 
@@ -58,7 +62,8 @@ function chk_upd() {
 }
 
 function log_err() {
-  echo "$(date +%DT%T)	- ERROR: ${HAPROXY_SERVER_NAME}" "$@" >> "${LOG_DIR}"/grest-poll.sh_"$(date +%d%m%y)"
+  [[ "${DEBUG_MODE}" == "1" ]] && echo "$(date +%DT%T) - ERROR: ${HAPROXY_SERVER_NAME}" "$@"
+  echo "$(date +%DT%T) - ERROR: ${HAPROXY_SERVER_NAME}" "$@" >> "${LOG_DIR}"/grest-poll.sh_"$(date +%d%m%y)"
 }
 
 function optexit() {
@@ -66,8 +71,8 @@ function optexit() {
 }
 
 function usage() {
-  echo -e "\nUsage: $(basename "$0") <haproxy IP> <haproxy port> <server IP> <server port> [-d]\n"
-  echo -e "Polling script used by haproxy to query server IP at server Port, and perform health checks. Use '-d' parameter to run all health checks.\n\n"
+  echo -e "\nUsage: $(basename "$0") <server IP> <server port> [-d]\n"
+  echo -e "Polling script used by haproxy to query 'server IP' at 'server Port', and perform health checks. Use '-d' parameter to run all health checks.\n\n"
   exit 1
 }
 
@@ -76,12 +81,10 @@ function chk_version() {
   monitor_vr=$(curl -sf "${API_STRUCT_DEFINITION}" | grep ^\ \ version|awk '{print $2}' 2>/dev/null)
 
   if [[ -z "${instance_vr}" ]] || [[ "${instance_vr}" == "[]" ]]; then
-    [[ "${DEBUG_MODE}" == "1" ]] && echo "Response received for ${GURL} version: ${instance_vr}"
-    log_err "Could not fetch the grest version for ${GURL} !!"
+    log_err "Could not fetch the grest version for ${GURL} using control_table endpoint (response received: ${instance_vr})!!"
     optexit
   elif [[ "${instance_vr}" != "${monitor_vr}" ]]; then
-    [[ "${DEBUG_MODE}" == "1" ]] && echo "${GURL} grest version: ${instance_vr}, ${API_COMPARE} grest version: ${monitor_vr}"
-    log_err "Version mismatch for ${GURL} !!"
+    log_err "Version mismatch: ${GURL} is at version : ${instance_vr} while ${API_STRUCT_DEFINITION} is on version: ${monitor_vr}!!"
     optexit
   fi
 }
@@ -159,8 +162,7 @@ function chk_cache_status() {
         fi
       else
         if [[ $((last_snapshot_epoch + 2)) -lt ${epoch} ]]; then
-          [[ "${DEBUG_MODE}" == "1" ]] && echo "Last stake snapshot was captured in epoch: ${last_snapshot_epoch}."
-          log_err "Stake snapshot for current epoch ${epoch} was not captured !!"
+          log_err "Stake snapshot for instance is at '${last_snapshot_epoch}' while current epoch is ${epoch}  !!"
           optexit
         fi
     fi
@@ -180,8 +182,7 @@ function chk_endpt_get() {
   [[ "${2}" != "rpc" ]] && urlendpt="${GURL}/${endpt}" || urlendpt="${URLRPC}/${endpt}"
   getrslt=$(curl -sfkL "${urlendpt}" -H "Range: 0-1" 2>/dev/null)
   if [[ -z "${getrslt}" ]] || [[ "${getrslt}" == "[]" ]]; then
-    [[ "${DEBUG_MODE}" == "1" ]] && echo "Response received for ${urlendpt} : $(curl -skL "${urlendpt}" -H "Range: 0-1" -I)"
-    log_err "Could not fetch from endpoint ${urlendpt} !!"
+    log_err "Could not fetch from endpoint ${urlendpt}, response received : $(curl -skL "${urlendpt}" -H "Range: 0-1" -I) !!"
     optexit
   fi
 }
@@ -192,24 +193,35 @@ function chk_endpt_post() {
   echo rslt="$(curl -sL -X POST -H "Content-Type: application/json" "${GURL}/${endpt}" -d "${data}" 2>&1)"
 }
 
+function chk_asset_registry() {
+  ct=$(curl -sfL -H 'Prefer: count=exact' "${GURL}/asset_registry_cache?select=name&limit=1" -I 2>/dev/null | grep content-range | cut -d/ -f2)
+  [[ "${ct}" == "" ]] && log_err "Asset registry cache not yet populated!"
+  [[ ${ct} -lt 500 ]] && log_err "Asset registry cache seems incomplete (<500) assets, try deleting key: asset_registry_commit in control_table and wait for next cron run"
+}
+
 ##################
 # Main Execution #
 ##################
 
-if [[ $# -lt 4 ]]; then
-  usage
-elif [[ "$5" == "-d" ]]; then
+PARENT="$(dirname "${0}")"
+
+if [[ "$3" == "-d" || "$5" == "-d" ]]; then
   export DEBUG_MODE=1
   echo "Debug Mode enabled!"
 fi
-PARENT="$(dirname "${0}")"
+if [[ $# = 2 ]] || [[ $# = 3 ]]; then
+  set_defaults "$1" "$2"
+elif [[ $# -gt 3 ]]; then
+  set_defaults
+else
+  usage
+fi
 
-set_defaults "$3" "$4"
 chk_upd
 
-#chk_is_up # Part of PostgREST 9.0.1 , but requires seperate admin port
 chk_version
 chk_rpcs
 chk_tip
 chk_cache_status
 chk_limit
+chk_asset_registry

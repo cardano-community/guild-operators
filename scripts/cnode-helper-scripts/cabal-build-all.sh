@@ -3,6 +3,10 @@
 # executes cabal build all
 # parses executables created from compiler output and copies it to ~./cabal/bin folder.
 
+######################################
+# Do NOT modify code below           #
+######################################
+
 echo "Deleting build config artifact to remove cached version, this prevents invalid Git Rev"
 find dist-newstyle/build/x86_64-linux/ghc-8.10.?/cardano-config-* >/dev/null 2>&1 && rm -rf "dist-newstyle/build/x86_64-linux/ghc-8.*/cardano-config-*"
 

@@ -6,6 +6,7 @@
 # Leave as is if unsure              #
 ######################################
 
+#USESYSVARS="N"                                         # Whether to use environment variable from shell session for CNODE_HOME
 #CNODEBIN="${HOME}/.cabal/bin/cardano-node"             # Override automatic detection of cardano-node executable
 #CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of cardano-cli executable
 #CNCLI="${HOME}/.cargo/bin/cncli"                       # Override automatic detection of executable (https://github.com/AndrewWestberg/cncli)
@@ -81,10 +82,6 @@
 ######################################
 # Do NOT modify code below           #
 ######################################
-
-# Initialise/Set offline mode prior to calling functions
-OFFLINE_MODE='N'
-[[ $1 = "offline" ]] && OFFLINE_MODE='Y'
 
 # Description : Check if provided file exists
 #             : $1 = File (with path) to check
@@ -164,9 +161,6 @@ checkUpdate() {
   [[ -n $5 ]] && URL="${URL_RAW}/scripts/$5" || URL="${URL_RAW}/scripts/cnode-helper-scripts"
   URL_DOCS="${URL_RAW}/docs/Scripts"
   if curl -s -f -m ${CURL_TIMEOUT} -o "${dname}/${fname}".tmp "${URL}/${fname}" 2>/dev/null; then
-
-    # replace default CNODE with custom name if needed
-    [[ ${CNODE_VNAME} != cnode ]] && sed -e "s@/opt/cardano/[c]node@/opt/cardano/${CNODE_VNAME}@g" -e "s@[C]NODE_HOME@${CNODE_VNAME_UPPERCASE}_HOME@g" -i "${dname}/${fname}".tmp
 
     # make sure script exist, else just rename
     [[ ! -f "${dname}/${fname}" ]] && mv -f "${dname}/${fname}".tmp "${dname}/${fname}" && chmod +x "${dname}/${fname}" && return 0
@@ -721,8 +715,6 @@ getEraIdentifier() {
   return 0
 }
 
-[[ ${0} != '-bash' ]] && PARENT=$(dirname $0) || PARENT="$(pwd)" # If sourcing at terminal, $0 would be "-bash" , which is invalid. Thus, fallback to present working directory
-
 telegramSend() {
   if [[ -z "${TG_BOT_TOKEN}" ]] || [[ -z "${TG_CHAT_ID}" ]]; then
     echo "Warn: to use the telegramSend function you must first set the bot and chat id in the env file"
@@ -733,6 +725,8 @@ telegramSend() {
 }
 
 set_default_vars() {
+
+  [[ "${USESYSVARS}" != "Y" ]] && unset CNODE_HOME
   [[ $(basename $0 2>/dev/null) = "cnode.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
   [[ $(basename $0 2>/dev/null) = "topologyUpdater.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
 
@@ -747,7 +741,7 @@ set_default_vars() {
      date () { gdate "$@"; }
   fi
   [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
-  [[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
+  [[ -z "${CNODE_HOME}" ]] && CNODE_HOME="$(readlink -f ${PARENT}/..)"
   CNODE_NAME="$(basename ${CNODE_HOME})"
   CNODE_VNAME=$(tr '[:upper:]' '[:lower:]' <<< ${CNODE_NAME//_HOME/})
   CNODE_VNAME_UPPERCASE=$(tr '[:lower:]' '[:upper:]' <<< ${CNODE_VNAME})
@@ -813,6 +807,11 @@ set_default_vars() {
   BOLD='\e[1m'
   NC='\e[0m'
 }
+
+[[ ${0} != '-bash' ]] && PARENT=$(dirname $0) || PARENT="$(pwd)" # If sourcing at terminal, $0 would be "-bash" , which is invalid. Thus, fallback to present working directory
+# Initialise/Set offline mode prior to calling functions
+OFFLINE_MODE='N'
+[[ $1 = "offline" ]] && OFFLINE_MODE='Y'
 
 set_default_vars
 

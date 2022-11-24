@@ -28,6 +28,10 @@ IOHK_DB_URL="https://raw.githubusercontent.com/input-output-hk/cardano-ops/maste
 export CNODE_IP CNODE_PORT PROJ_PATH TMP_DIR
 DEBUG="N"
 
+######################################
+# Do NOT modify code below           #
+######################################
+
 ######################################################################
 #### Functions
 ######################################################################
