@@ -81,7 +81,6 @@ usage() {
 		  b   Install OS level dependencies for tools required while building cardano-node/cardano-db-sync components (Default: skip)
 		  l   Build and Install libsodium fork from IO repositories (Default: skip)
 		  f   Force overwrite entire content of scripts and config files (backups of existing ones will be created) (Default: skip)
-		  s   Re-Create cnode Folder Structure (Default: skip if folder exists)
 		  d   Download latest (released) cardano-node, cardano-cli, cardano-db-sync and cardano-submit-api binaries (Default: skip)
 		  c   Install/Upgrade CNCLI binary (Default: skip)
 		  o   Install/Upgrade Ogmios Server binary (Default: skip)
@@ -261,7 +260,7 @@ build_dependencies() {
     BOOTSTRAP_HASKELL_ADJUST_BASHRC=1
     unset BOOTSTRAP_HASKELL_INSTALL_HLS
     export BOOTSTRAP_HASKELL_NONINTERACTIVE BOOTSTRAP_HASKELL_INSTALL_STACK BOOTSTRAP_HASKELL_ADJUST_BASHRC
-    curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | bash
+    curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | bash >/dev/null
   fi
   [[ -f "${HOME}/.ghcup/env" ]] && source "${HOME}/.ghcup/env"
   if ! ghc --version 2>/dev/null | grep -q ${BOOTSTRAP_HASKELL_GHC_VERSION}; then
@@ -346,7 +345,7 @@ download_cncli() {
   cncli_git_version="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.tag_name')"
   echo "  Downloading CNCLI..."
   rm -rf /tmp/cncli-bin && mkdir /tmp/cncli-bin
-  pushd /tmp/cncli >/dev/null || err_exit
+  pushd /tmp/cncli-bin >/dev/null || err_exit
   cncli_asset_url="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-gnu.tar.gz')"
   if curl -sL -f -m ${CURL_TIMEOUT} -o cncli.tar.gz ${cncli_asset_url}; then
     tar zxf cncli.tar.gz &>/dev/null
@@ -367,8 +366,8 @@ download_cardanohwcli() {
   echo "Installing Vacuumlabs cardano-hw-cli"
   if command -v cardano-hw-cli >/dev/null; then vchc_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"; else vchc_version="0.0.0"; fi
   echo "  Downloading Vacuumlabs cardano-hw-cli..."
-  mkdir -p /tmp/cncli-bin
-  pushd /tmp >/dev/null || err_exit
+  rm -rf /tmp/chwcli-bin && mkdir -p /tmp/chwcli-bin
+  pushd /tmp/chwcli-bin >/dev/null || err_exit
   rm -rf cardano-hw-cli*
   vchc_asset_url="$(curl -s https://api.github.com/repos/vacuumlabs/cardano-hw-cli/releases/latest | jq -r '.assets[].browser_download_url' | grep '_linux-x64.tar.gz')"
   if curl -sL -f -m ${CURL_TIMEOUT} -o cardano-hw-cli_linux-x64.tar.gz ${vchc_asset_url}; then
@@ -383,14 +382,14 @@ download_cardanohwcli() {
         rm -rf "${HOME}"/bin/cardano-hw-cli 
       fi
       pushd "${HOME}"/bin >/dev/null || err_exit
-      mv -f /tmp/cardano-hw-cli .
+      mv -f /tmp/chwcli-bin/cardano-hw-cli .
       if ! grep -q "cardano-hw-cli" "${HOME}"/.bashrc; then
         echo "  adding cardano-hw-cli to PATH and setting Ledger udev rules, reload shell to take effect!"
         echo "  PATH=\"$HOME/bin/cardano-hw-cli:\$PATH\"" >> "${HOME}"/.bashrc
       fi
       if [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ]]; then
         # Ledger udev rules
-        curl -s -f -m ${CURL_TIMEOUT} https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh | $sudo bash
+        curl -s -f -m ${CURL_TIMEOUT} https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh | $sudo bash >/dev/null 2>&1
         $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" -i /etc/udev/rules.d/20-hw1.rules
       fi
       if [[ ! -f "/etc/udev/rules.d/51-trezor.rules" ]]; then
@@ -399,8 +398,8 @@ download_cardanohwcli() {
         $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" -i /etc/udev/rules.d/51-trezor.rules
       fi
       # Trigger rules update
-      $sudo udevadm control --reload-rules
-      $sudo udevadm trigger
+      $sudo udevadm control --reload-rules >/dev/null 2>&1
+      $sudo udevadm trigger >/dev/null 2>&1
       echo "  cardano-hw-cli v${vchc_git_version} installed!"
     else
       rm -rf cardano-hw-cli #cleanup in /tmp
@@ -490,11 +489,11 @@ setup_folder() {
   
   $sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/guild-db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv
   $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
-  populate_cnode
 }
 
 # Download and update scripts for cnode (TODO: Set up and test it out, differentiate between FORCE_OVERWRITE and normal execution)
 populate_cnode() {
+  [[ ! -d "${CNODE_HOME}"/files ]] && setup_folder
   echo "Downloading files..."
   pushd "${CNODE_HOME}"/files >/dev/null || err_exit
   echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
@@ -553,7 +552,7 @@ populate_cnode() {
   updateWithCustomConfig "ogmios.sh"
   updateWithCustomConfig "submitapi.sh"
   updateWithCustomConfig "setup_mon.sh"
-  updateWithCustomConfig "setup-grest.sh"
+  updateWithCustomConfig "setup-grest.sh" "grest-helper-scripts"
   updateWithCustomConfig "topologyUpdater.sh"
   
   find "${CNODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
@@ -563,23 +562,20 @@ populate_cnode() {
 # Parse arguments supplied to script
 parse_args() {
   POPULATE_CNODE="Y"
+  if [[ ! -d "${CNODE_HOME}"/files ]]; then
+    # Guess this is a fresh machine and set minimal params
+    INSTALL_OS_DEPS="Y"
+  fi
   if [[ -n "${S_ARGS}" ]]; then
     [[ "${S_ARGS}" =~ "p" ]] && INSTALL_OS_DEPS="Y"
     [[ "${S_ARGS}" =~ "b" ]] && INSTALL_OS_DEPS="Y" && WANT_BUILD_DEPS="Y"
     [[ "${S_ARGS}" =~ "l" ]] && INSTALL_OS_DEPS="Y" && WANT_BUILD_DEPS="Y" && INSTALL_LIBSODIUM_FORK="Y"
     [[ "${S_ARGS}" =~ "f" ]] && FORCE_OVERWRITE="Y" && POPULATE_CNODE="F"
-    [[ "${S_ARGS}" =~ "s" ]] && RECREATE_FOLDERS="Y"
     [[ "${S_ARGS}" =~ "d" ]] && INSTALL_CNODEBINS="Y"
     [[ "${S_ARGS}" =~ "c" ]] && INSTALL_CNCLI="Y"
     [[ "${S_ARGS}" =~ "o" ]] && INSTALL_OGMIOS="Y"
     [[ "${S_ARGS}" =~ "w" ]] && INSTALL_CWHCLI="Y"
     [[ "${S_ARGS}" =~ "x" ]] && INSTALL_CARDANO_SIGNER="Y"
-  else
-    if [[ ! -d ${CNODE_HOME} ]]; then
-      # Guess this is a fresh machine and set minimal params
-      RECREATE_FOLDERS="Y"
-      INSTALL_OS_DEPS="Y"
-    fi
     echo "Nothing to do.."
   fi
 }
@@ -593,7 +589,6 @@ main_flow() {
   [[ "${INSTALL_LIBSODIUM_FORK}" == "Y" ]] && build_libsodium
   [[ "${FORCE_OVERWRITE}" == "Y" ]] && POPULATE_CNODE="F" && populate_cnode
   [[ "${POPULATE_CNODE}" == "Y" ]] && populate_cnode
-  [[ "${RECREATE_FOLDERS}" == "Y" ]] && setup_folder
   [[ "${INSTALL_CNODEBINS}" == "Y" ]] && download_cnodebins
   [[ "${INSTALL_CNCLI}" == "Y" ]] && download_cncli
   [[ "${INSTALL_OGMIOS}" == "Y" ]] && download_ogmios
