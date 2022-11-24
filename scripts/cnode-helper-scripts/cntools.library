@@ -1178,6 +1178,26 @@ getWalletType() {
   fi
 }
 
+# Command     : getPoolType [pool name]
+# Description : check if pool is a hardware pool, 0=yes, 1=cli, 2=cli & encrypted, 3=signing keys missing, 4=verification keys missing
+# Parameters  : pool name  >  the name of the pool
+getPoolType() {
+  cold_vk_file="${POOL_FOLDER}/${1}/${POOL_COLDKEY_VK_FILENAME}"
+  cold_sk_file="${POOL_FOLDER}/${1}/${POOL_COLDKEY_SK_FILENAME}"
+  if [[ -f "${POOL_FOLDER}/${1}/${POOL_COLDKEY_VK_FILENAME}" ]]; then # CNTools pool
+    if [[ $(jq -r '.description' "${cold_vk_file}") = *"Hardware"* ]]; then
+      cold_sk_file="${POOL_FOLDER}/${1}/${POOL_HW_COLDKEY_SK_FILENAME}"
+      ([[ ${op_mode} = "online" && ( ! -f ${cold_sk_file} ) ]]) && return 3 || return 0
+    elif [[ -f "${POOL_FOLDER}/${1}/${POOL_COLDKEY_SK_FILENAME}.gpg" ]]; then
+      return 2
+    else
+      ([[ ${op_mode} = "online" && ( ! -f ${cold_sk_file} ) ]]) && return 3 || return 1
+    fi
+  else
+    return 4
+  fi
+}
+
 # Command     : getTTL
 # Description : query node for slot tip and calculate/get TTL from input depending on op_mode
 getTTL() {

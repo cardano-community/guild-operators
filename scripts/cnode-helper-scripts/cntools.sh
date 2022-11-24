@@ -596,7 +596,7 @@ function main {
                     payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_PAY_SK_FILENAME}"
                     payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
                     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_STAKE_SK_FILENAME}"
-                    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"  
+                    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
                     if ! unlockHWDevice "extract ${FG_LGRAY}payment keys${NC}"; then safeDel "${WALLET_FOLDER}/${wallet_name}"; continue; fi
                     println ACTION "cardano-hw-cli address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file ${payment_vk_file} --hw-signing-file ${payment_sk_file}"
                     if ! cardano-hw-cli address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file "${payment_vk_file}" --hw-signing-file "${payment_sk_file}"; then
@@ -1737,11 +1737,12 @@ function main {
               println ACTION "${CCLI} node key-gen-VRF --verification-key-file ${pool_vrf_vk_file} --signing-key-file ${pool_vrf_sk_file}"
               ${CCLI} node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
               println ACTION "cardano-hw-cli node key-gen --path 1853H/1815H/0H/0H --hw-signing-file ${pool_coldkey_sk_file} --cold-verification-key-file ${pool_coldkey_kk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
-              if ! unlockHWDevice "export cold pub keys"; then return 1; fi
+              if ! unlockHWDevice "export cold pub keys"; then safeDel "${POOL_FOLDER}/${pool_name}"; continue; fi
               cardano-hw-cli node key-gen --path "1853H/1815H/0H/0H" --hw-signing-file "${pool_coldkey_sk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
+              jq '.description = "Stake Pool Operator Hardware Verification Key"' "${pool_coldkey_vk_file}" > "${TMP_DIR}/$(basename "${pool_coldkey_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${pool_coldkey_vk_file}").tmp" "${pool_coldkey_vk_file}"
               chmod 600 "${POOL_FOLDER}/${pool_name}/"*
               sed -i 's/Shelley//g' "${pool_coldkey_vk_file}" # TEMP FIX FOR https://github.com/vacuumlabs/cardano-hw-cli/issues/139
-              getPoolID ${pool_name}
+              getPoolID ${pool_name} && touch "${POOL_FOLDER}/${pool_name}/.hwtype"
               echo
               println "Pool: ${FG_GREEN}${pool_name}${NC}"
               [[ -n ${pool_id} ]] && println "ID (hex)    : ${pool_id}"
@@ -1763,26 +1764,23 @@ function main {
               fi
               echo
 
-              HW=1 ### TEMP TO ENABLE HW PROC
-
-              println DEBUG "# Select pool"
+              # HW=1 ### TEMP TO ENABLE HW PROC
+              println DEBUG "# Select pool to register|modify"
               [[ ${SUBCOMMAND} = "register" ]] && pool_filter="non-reg" || pool_filter="reg"
               if [[ ${op_mode} = "online" ]]; then
-
-              if [ $HW -eq 1 ] ; then
-               if ! selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_HW_COLDKEY_SK_FILENAME}" "${POOL_VRF_VK_FILENAME}"; then # ${pool_name} populated by selectPool function
-                  waitForInput && continue
+                if ! selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_VRF_VK_FILENAME}"; then
+                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
                 fi
+                getPoolType ${pool_name}
+                case $? in
+                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
+                  3) println ERROR "${FG_RED}ERROR${NC}: signing keys missing from pool!" && waitForInput && continue ;;
+                esac
               else
-                if ! selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_COLDKEY_SK_FILENAME}" "${POOL_VRF_VK_FILENAME}"; then # ${pool_name} populated by selectPool function
-                  waitForInput && continue
+                if ! selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_VRF_VK_FILENAME}"; then
+                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
                 fi
-              fi
-
-              else
-                if ! selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_VRF_VK_FILENAME}"; then # ${pool_name} populated by selectPool function
-                  waitForInput && continue
-                fi
+                getPoolType ${pool_name}
               fi
               echo
               pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
@@ -2211,11 +2209,9 @@ function main {
               pool_hotkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_SK_FILENAME}"
               pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
               pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
-
-              if [ $HW -eq 1 ] ; then
-              pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HW_COLDKEY_SK_FILENAME}"
+              if getPoolType "${pool_name}" ; then
+                pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HW_COLDKEY_SK_FILENAME}"
               fi
-
               pool_vrf_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_VK_FILENAME}"
               pool_opcert_counter_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_COUNTER_FILENAME}"
               pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
@@ -2394,8 +2390,8 @@ function main {
               echo
               println DEBUG "# Select pool to retire"
               if [[ ${op_mode} = "online" ]]; then
-                selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_COLDKEY_SK_FILENAME}" || selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_HW_COLDKEY_SK_FILENAME}"
-                if [[ $? -ne 0 ]] ; then # ${pool_name} populated by selectPool function
+
+                if ! selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}" ; then # ${pool_name} populated by selectPool function
                   waitForInput && continue
                 fi
               else
@@ -2403,6 +2399,7 @@ function main {
                   waitForInput && continue
                 fi
               fi
+
               echo
               epoch=$(getEpoch)
               poolRetireMaxEpoch=$(jq -r '.poolRetireMaxEpoch' <<< "${PROT_PARAMS}")
@@ -2472,12 +2469,9 @@ function main {
                 waitForInput && continue
               fi
               pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
-
-              HW="true"
-              if [[ $HW="true" ]] ; then
+              pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
+              if getPoolType "${pool_name}" ; then
                 pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HW_COLDKEY_SK_FILENAME}"
-              else
-                pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
               fi
               pool_deregcert_file="${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}"
               pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
