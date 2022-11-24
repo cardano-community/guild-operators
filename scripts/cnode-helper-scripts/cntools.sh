@@ -2394,7 +2394,8 @@ function main {
               echo
               println DEBUG "# Select pool to retire"
               if [[ ${op_mode} = "online" ]]; then
-                if ! selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_COLDKEY_SK_FILENAME}"; then # ${pool_name} populated by selectPool function
+                selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_COLDKEY_SK_FILENAME}" || selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_HW_COLDKEY_SK_FILENAME}"
+                if [[ $? -ne 0 ]] ; then # ${pool_name} populated by selectPool function
                   waitForInput && continue
                 fi
               else
@@ -2471,7 +2472,13 @@ function main {
                 waitForInput && continue
               fi
               pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
-              pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
+
+              HW="true"
+              if [[ $HW="true" ]] ; then
+                pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HW_COLDKEY_SK_FILENAME}"
+              else
+                pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
+              fi
               pool_deregcert_file="${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}"
               pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
               println LOG "creating de-registration cert"
