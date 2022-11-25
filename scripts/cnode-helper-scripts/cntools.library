@@ -1170,7 +1170,7 @@ getWalletType() {
       ([[ ${op_mode} = "online" && ( ! -f ${payment_sk_file} || ! -f ${stake_sk_file} ) ]]) && return 3 || return 0
     elif [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_SK_FILENAME}.gpg" || -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}.gpg" ]]; then
       return 2
-    else    
+    else
       ([[ ${op_mode} = "online" && ( ! -f ${payment_sk_file} || ! -f ${stake_sk_file} ) ]]) && return 3 || return 1
     fi
   else
@@ -1983,24 +1983,24 @@ modifyPool() {
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}${POOL_COLDKEY_SK_FILENAME}${NC}" 
-    println DEBUG "Owner #1 ${FG_GREEN}${owner_wallets[0]} ${FG_LGRAY}${WALLET_PAY_SK_FILENAME}${NC} & ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}" 
+    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+    println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}${POOL_COLDKEY_SK_FILENAME}${NC}"
+    println DEBUG "Owner #1 ${FG_GREEN}${owner_wallets[0]} ${FG_LGRAY}${WALLET_PAY_SK_FILENAME}${NC} & ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}"
     for index in "${!owner_wallets[@]}"; do
       [[ ${index} -eq 0 ]] && continue # skip main owner
       println DEBUG "Owner #$((index+1)) ${FG_GREEN}${owner_wallets[${index}]} ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}"
     done
     return 2 # return as failed to stop main processing and return to home menu
   fi
-  
+
   multi_owner_keys=()
   for index in "${!owner_wallets[@]}"; do
     [[ ${index} -eq 0 ]] && continue # skip main owner
     getWalletType ${owner_wallets[${index}]}
     multi_owner_keys+=( "${stake_sk_file}" )
   done
-  
+
   if ! witnessTx "${TMP_DIR}/tx.raw" "${owner_payment_sk_file}" "${pool_coldkey_sk_file}" "${owner_stake_sk_file}" "${multi_owner_keys[@]}"; then return 1; fi
   if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
@@ -2014,9 +2014,9 @@ deRegisterPool() {
 
   getBalance ${addr}
   if ! getTTL; then return 1; fi
-  
+
   getAssetsTxOut
-  
+
   build_args=(
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
@@ -2051,14 +2051,14 @@ deRegisterPool() {
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
     return 1
   fi
-  
+
   tx_out="${addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
     return 1
   fi
-  
+
   build_args=(
     ${tx_in}
     --tx-out "${tx_out}"
@@ -2069,7 +2069,15 @@ deRegisterPool() {
   )
 
   if ! buildTx; then return 1; fi
-  
+
+  needHWCLI=false
+  pay_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
+  [[ $(jq .description "${pay_vk_file}") = *Hardware* ]] && needHWCLI=true
+  if [[ ${needHWCLI} = true ]]; then
+    if ! HWCLIversionCheck; then return 1; fi
+    if ! transformRawTx "${TMP_DIR}"/tx.raw; then return 1; fi
+  fi
+
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Pool De-Registration"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
@@ -2090,15 +2098,19 @@ deRegisterPool() {
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
-    println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}$(basename ${pool_coldkey_sk_file})${NC}" 
+    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
+    println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}$(basename ${pool_coldkey_sk_file})${NC}"
     return 2 # return as failed to stop main processing and return to home menu
   fi
-  
-  if ! signTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${pool_coldkey_sk_file}"; then return 1; fi
+
+  getWalletType ${wallet_name}
+
+  if ! witnessTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${pool_coldkey_sk_file}"; then return 1; fi
+  if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
+
 }
 
 # Command     : rotatePoolKeys

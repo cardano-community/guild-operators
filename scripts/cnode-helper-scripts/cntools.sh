@@ -2228,7 +2228,7 @@ function main {
                   echo "${current_kes_period}" > ${pool_saved_kes_start}
 
                   if [[ ! -f "${pool_opcert_file}" ]] ; then
-                    if [ $HW -eq 1 ] ; then
+                    if getPoolType "${pool_name}" ; then
                       if ! unlockHWDevice "issue the opcert"; then return 1; fi
 		      println ACTION "cardano-hw-cli node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --hw-signing-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
 		      ! cardano-hw-cli node issue-op-cert \
