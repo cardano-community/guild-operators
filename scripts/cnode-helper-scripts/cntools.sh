@@ -1732,14 +1732,18 @@ function main {
                 println ERROR "      Choose another name or delete the existing one"
                 waitForInput && continue
               fi
+
               println ACTION "${CCLI} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
               ${CCLI} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
+
               println ACTION "${CCLI} node key-gen-VRF --verification-key-file ${pool_vrf_vk_file} --signing-key-file ${pool_vrf_sk_file}"
               ${CCLI} node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
+
               println ACTION "cardano-hw-cli node key-gen --path 1853H/1815H/0H/0H --hw-signing-file ${pool_coldkey_sk_file} --cold-verification-key-file ${pool_coldkey_kk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
               if ! unlockHWDevice "export cold pub keys"; then safeDel "${POOL_FOLDER}/${pool_name}"; continue; fi
               cardano-hw-cli node key-gen --path "1853H/1815H/0H/0H" --hw-signing-file "${pool_coldkey_sk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
               jq '.description = "Stake Pool Operator Hardware Verification Key"' "${pool_coldkey_vk_file}" > "${TMP_DIR}/$(basename "${pool_coldkey_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${pool_coldkey_vk_file}").tmp" "${pool_coldkey_vk_file}"
+
               chmod 600 "${POOL_FOLDER}/${pool_name}/"*
               sed -i 's/Shelley//g' "${pool_coldkey_vk_file}" # TEMP FIX FOR https://github.com/vacuumlabs/cardano-hw-cli/issues/139
               getPoolID ${pool_name} && touch "${POOL_FOLDER}/${pool_name}/.hwtype"
@@ -2873,7 +2877,7 @@ function main {
               fi
               [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
               println DEBUG "# Select pool to rotate KES keys on"
-              selectPool "all" "${POOL_COLDKEY_SK_FILENAME}" || selectPool "all" "${POOL_HW_COLDKEY_SK_FILENAME}"
+              selectPool "all" "${POOL_COLDKEY_VK_FILENAME}"
               if [ ! $? -eq 0 ] ; then # ${pool_name} populated by selectPool function
                 waitForInput && continue
               fi

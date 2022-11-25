@@ -2119,13 +2119,9 @@ deRegisterPool() {
 rotatePoolKeys() {
 
   # cold keys
-  if [ -f "${POOL_FOLDER}/${pool_name}/${POOL_HW_COLDKEY_SK_FILENAME}" ] ; then
-    pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HW_COLDKEY_SK_FILENAME}"
-    needHWCLI=true
-  else
-    pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
-  fi
-  pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
+  if getPoolType ${pool_name} ; then needHWCLI="true" ;fi
+  pool_coldkey_vk_file=${cold_vk_file}
+  pool_coldkey_sk_file=${cold_sk_file}
 
   # generated files
   pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
@@ -2218,9 +2214,9 @@ sendMetadata() {
 
   getBalance ${addr}
   if ! getTTL; then return 1; fi
-  
+
   getAssetsTxOut
-  
+
   build_args=(
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
