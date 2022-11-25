@@ -1182,16 +1182,16 @@ getWalletType() {
 # Description : check if pool is a hardware pool, 0=yes, 1=cli, 2=cli & encrypted, 3=signing keys missing, 4=verification keys missing
 # Parameters  : pool name  >  the name of the pool
 getPoolType() {
-  cold_vk_file="${POOL_FOLDER}/${1}/${POOL_COLDKEY_VK_FILENAME}"
-  cold_sk_file="${POOL_FOLDER}/${1}/${POOL_COLDKEY_SK_FILENAME}"
+  pool_coldkey_vk_file="${POOL_FOLDER}/${1}/${POOL_COLDKEY_VK_FILENAME}"
+  pool_coldkey_sk_file="${POOL_FOLDER}/${1}/${POOL_COLDKEY_SK_FILENAME}"
   if [[ -f "${POOL_FOLDER}/${1}/${POOL_COLDKEY_VK_FILENAME}" ]]; then # CNTools pool
-    if [[ $(jq -r '.description' "${cold_vk_file}") = *"Hardware"* ]]; then
-      cold_sk_file="${POOL_FOLDER}/${1}/${POOL_HW_COLDKEY_SK_FILENAME}"
-      ([[ ${op_mode} = "online" && ( ! -f ${cold_sk_file} ) ]]) && return 3 || return 0
+    if [[ $(jq -r '.description' "${pool_coldkey_vk_file}") = *"Hardware"* ]]; then
+      pool_coldkey_sk_file="${POOL_FOLDER}/${1}/${POOL_HW_COLDKEY_SK_FILENAME}"
+      ([[ ${op_mode} = "online" && ( ! -f ${pool_coldkey_sk_file} ) ]]) && return 3 || return 0
     elif [[ -f "${POOL_FOLDER}/${1}/${POOL_COLDKEY_SK_FILENAME}.gpg" ]]; then
       return 2
     else
-      ([[ ${op_mode} = "online" && ( ! -f ${cold_sk_file} ) ]]) && return 3 || return 1
+      ([[ ${op_mode} = "online" && ( ! -f ${pool_coldkey_sk_file} ) ]]) && return 3 || return 1
     fi
   else
     return 4
@@ -2120,8 +2120,6 @@ rotatePoolKeys() {
 
   # cold keys
   if getPoolType ${pool_name} ; then needHWCLI="true" ;fi
-  pool_coldkey_vk_file=${cold_vk_file}
-  pool_coldkey_sk_file=${cold_sk_file}
 
   # generated files
   pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
