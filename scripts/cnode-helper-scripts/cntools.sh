@@ -2266,8 +2266,8 @@ function main {
 
               delegate_owner_wallet='N'
               if [[ ${SUBCOMMAND} = "register" ]]; then
-                if [[ ${hw_owner_wallets} = 'Y' || ${hw_reward_wallet} = 'Y' ]]; then
-                  println DEBUG "\n${FG_BLUE}INFO${NC}: hardware wallet included as reward or multi-owner, automatic owner/reward wallet delegation disabled"
+                if [[ ${hw_owner_wallets} = 'Y' || ${hw_reward_wallet} = 'Y' ]] || getPoolType "${pool_name}" ; then
+                  println DEBUG "\n${FG_BLUE}INFO${NC}: hardware wallet included as reward or multi-owner or hardware pool, automatic owner/reward wallet delegation disabled"
                   println DEBUG "${FG_BLUE}INFO${NC}: ${FG_YELLOW}please manually delegate all wallets to the pool!!!${NC}"
                   waitForInput "press any key to continue"
                 else
