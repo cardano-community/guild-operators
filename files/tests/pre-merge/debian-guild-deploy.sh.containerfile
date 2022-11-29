@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM debian:stable
 ARG G_ACCOUNT
 ARG COMMIT
 ARG BRANCH
@@ -19,8 +19,8 @@ RUN rm /bin/sh && ln -s /bin/bash /bin/sh
 
 RUN set -x && apt-get -y update && apt-get -y --no-install-recommends install curl git ca-certificates gnupg apt-utils udev &&\
     rm -rf /var/lib/apt/lists/* &&\
-    mkdir -pv /root/.cabal/bin /root/.ghcup/bin &&\
-    curl --silent --show-error --insecure --output guild-deploy.sh "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh" &&\
+    mkdir -pv /root/.{cabal,ghcup}/bin &&\
+    curl -s -f -k -o guild-deploy.sh "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh" &&\
     chmod 0755 guild-deploy.sh &&\
     export SUDO='N' &&\
     export G_ACCOUNT="${G_ACCOUNT}" &&\

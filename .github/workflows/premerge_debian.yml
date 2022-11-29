@@ -1,4 +1,4 @@
-name: Pre-merge Ubuntu
+name: Pre-merge Debian
 
 on:
   workflow_dispatch:
@@ -6,11 +6,11 @@ on:
     paths:
       - scripts/cnode-helper-scripts/guild-deploy.sh
       - scripts/cnode-helper-scripts/cabal-build-all.sh
-      - files/tests/pre-merge/ubuntu-guild-deploy.sh.containerfile
-      - files/tests/pre-merge/ubuntu-guild-deploy.sh-l.containerfile
+      - files/tests/pre-merge/debian-guild-deploy.sh.containerfile
+      - files/tests/pre-merge/debian-guild-deploy.sh-l.containerfile
 
 jobs:
-  guild-deploy-and-build-ubuntu:
+  guild-deploy-and-build-debian:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     steps:
@@ -46,32 +46,33 @@ jobs:
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
         export G_ACCOUNT=${{ steps.pr_branch.outputs.owner }}
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
-        docker build . --file files/tests/pre-merge/ubuntu-guild-deploy.sh.containerfile --compress --build-arg BRANCH --build-arg COMMIT --build-arg G_ACCOUNT --tag ghcr.io/cardano-community/pre-merge-ubuntu:guild-deploy_${COMMIT}
-    - name: Push pre-merge-ubuntu:guild-deploy_${COMMIT}
+        docker build . --file files/tests/pre-merge/debian-guild-deploy.sh.containerfile --compress --build-arg BRANCH --build-arg COMMIT --build-arg G_ACCOUNT --tag ghcr.io/cardano-community/pre-merge-debian:guild-deploy_${COMMIT}
+    - name: Push pre-merge-debian:guild-deploy_${COMMIT}
       run: |
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
-        docker push ghcr.io/cardano-community/pre-merge-ubuntu:guild-deploy_${COMMIT}
+        docker push ghcr.io/cardano-community/pre-merge-debian:guild-deploy_${COMMIT}
     - name: Testing cabal-build-all.sh (system libsodium)
       run: |
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
         export G_ACCOUNT=${{ steps.pr_branch.outputs.owner }}
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
         echo "Working from PR Branch ${G_ACCOUNT}/guild-operators/${BRANCH} on Commit ${COMMIT}"
-        docker build . --file files/tests/pre-merge/ubuntu-cabal.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-ubuntu:cabal_${COMMIT}
+        docker build . --file files/tests/pre-merge/debian-cabal.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-debian:cabal_${COMMIT}
     - name: Testing guild-deploy.sh (IO fork of libsodium)
       run: |
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
         export G_ACCOUNT=${{ steps.pr_branch.outputs.owner }}
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
-        docker build . --file files/tests/pre-merge/ubuntu-guild-deploy.sh-l.containerfile --compress --build-arg BRANCH --build-arg COMMIT --build-arg G_ACCOUNT --tag ghcr.io/cardano-community/pre-merge-ubuntu:guild-deploy-l_${COMMIT}
-    - name: Push pre-merge-ubuntu:guild-deploy-l_${COMMIT}
+        docker build . --file files/tests/pre-merge/debian-guild-deploy.sh-l.containerfile --compress --build-arg BRANCH --build-arg COMMIT --build-arg G_ACCOUNT --tag ghcr.io/cardano-community/pre-merge-debian:guild-deploy-l_${COMMIT}
+    - name: Push pre-merge-debian:guild-deploy-l_${COMMIT}
       run: |
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
-        docker push ghcr.io/cardano-community/pre-merge-ubuntu:guild-deploy-l_${COMMIT}
+        docker push ghcr.io/cardano-community/pre-merge-debian:guild-deploy-l_${COMMIT}
     - name: Testing cabal-build-all.sh (IO fork of libsodium)
       run: |
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
         export G_ACCOUNT=${{ steps.pr_branch.outputs.owner }}
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
         echo "Working from PR Branch ${G_ACCOUNT}/guild-operators/${BRANCH} on Commit ${COMMIT}"
-        docker build . --file files/tests/pre-merge/ubuntu-cabal-l.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-ubuntu:cabal-l_${COMMIT}
+        docker build . --file files/tests/pre-merge/debian-cabal-l.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-debian:cabal-l_${COMMIT}
+

@@ -1,5 +1,5 @@
 ARG COMMIT
-FROM ghcr.io/cardano-community/pre-merge-debian:guild-deploy_${COMMIT}
+FROM ghcr.io/cardano-community/pre-merge-ubuntu:guild-deploy-l_${COMMIT}
 ARG G_ACCOUNT
 ARG BRANCH
 ARG CNODE_HOME=/opt/cardano/cnode
@@ -23,5 +23,5 @@ RUN curl -s -f -k -o cardano-node-latest.txt "https://raw.githubusercontent.com/
     git fetch --tags --all &&\
     git checkout tags/"${CNODE_VERSION}" &&\
     git status &&\
-    /opt/cardano/cnode/scripts/cabal-build-all.sh -l &&\
+    /opt/cardano/cnode/scripts/cabal-build-all.sh &&\
     /root/.cabal/bin/cardano-cli version ; /root/.cabal/bin/cardano-node version

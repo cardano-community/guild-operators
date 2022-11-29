@@ -122,7 +122,7 @@ set_defaults() {
   [[ -z "${OS_ID}" ]] && OS_ID=$(grep -i ^id= /etc/os-release | cut -d= -f 2)
   DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
   VERSION_ID=$(grep -i ^version_id= /etc/os-release | cut -d= -f 2 | tr -d '"' | cut -d. -f 1)
-  ARCH=$(uname -i)
+  ARCH=$(uname -a)
   if ! curl -s -f -m ${CURL_TIMEOUT} "${REPO_RAW}/${BRANCH}/LICENSE" -o /dev/null ; then
     echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to master branch\n"
     BRANCH=master
@@ -178,7 +178,7 @@ updateWithCustomConfig() {
   fi
   [[ -f ${file} ]] && cp -f ${file} "${file}_bkp$(date +%s)"
   mv -f ${file}.tmp ${file}
-  [[ "${file}" =~ '.sh' ]] && chmod 755 ${file}
+  [[ "${file}" == *.sh ]] && chmod 755 ${file}
 }
 
 # Description : Add epel repository when needed
@@ -203,17 +203,14 @@ os_dependencies() {
   elif [[ "${OS_ID}" =~ rhel ]] || [[ "${OS_ID}" =~ fedora ]] || [[ "${DISTRO}" =~ Fedora ]]; then
     #CentOS/RHEL/Fedora/RockyLinux
     pkgmgrcmd="yum"
-    pkg_list="python3 coreutils ncurses-devel ncurses-libs openssl-devel systemd systemd-devel libsodium-devel tmux git jq gnupg2 libtool iproute bc traceroute sqlite util-linux xz wget unzip procps-ng llvm clang numactl-devel libffi-devel gmp-devel zlib-devel make gcc-c++ autoconf lmdb-devel"
+    pkg_list="python3 coreutils ncurses-devel ncurses-libs openssl-devel systemd systemd-devel libsodium-devel tmux git jq gnupg2 libtool iproute bc traceroute sqlite util-linux xz wget unzip procps-ng llvm clang numactl-devel libffi-devel gmp-devel zlib-devel make gcc-c++ autoconf udev lmdb-devel"
     if [[ "${VERSION_ID}" == "2" ]] ; then
       #AmazonLinux2
       pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig srm"
-    elif [[ "${VERSION_ID}" == "7" ]]; then
-      #RHEL/CentOS7
-      pkg_list="${pkg_list} libusb pkgconfig srm"
     elif [[ "${VERSION_ID}" =~ "8" ]] || [[ "${VERSION_ID}" =~ "9" ]]; then
       #RHEL/CentOS/RockyLinux8
       pkg_opts="${pkg_opts} --allowerasing"
-      pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config"
+      pkg_list="${pkg_list} --enablerepo=devel,crb libusbx ncurses-compat-libs pkgconf-pkg-config"
     elif [[ "${DISTRO}" =~ Fedora ]]; then
       #Fedora
       pkg_opts="${pkg_opts} --allowerasing"
@@ -260,14 +257,14 @@ build_dependencies() {
     BOOTSTRAP_HASKELL_ADJUST_BASHRC=1
     unset BOOTSTRAP_HASKELL_INSTALL_HLS
     export BOOTSTRAP_HASKELL_NONINTERACTIVE BOOTSTRAP_HASKELL_INSTALL_STACK BOOTSTRAP_HASKELL_ADJUST_BASHRC
-    curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | bash >/dev/null
+    curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | bash >/dev/null 2>&1
   fi
   [[ -f "${HOME}/.ghcup/env" ]] && source "${HOME}/.ghcup/env"
   if ! ghc --version 2>/dev/null | grep -q ${BOOTSTRAP_HASKELL_GHC_VERSION}; then
     echo "Upgrading ghcup .."
     ghcup upgrade 2>/dev/null
     echo "Installing GHC v${BOOTSTRAP_HASKELL_GHC_VERSION} .."
-    ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null || err_exit " Executing \"ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}\" failed, please try to diagnose/execute it manually to diagnose!"
+    ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null 2>&1 || err_exit " Executing \"ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}\" failed, please try to diagnose/execute it manually to diagnose!"
     ghcup set ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null
   fi
   cabal_version=$(cabal --version 2>/dev/null | head -n 1 | cut -d' ' -f3)
@@ -277,7 +274,7 @@ build_dependencies() {
       ghcup rm cabal ${cabal_version} 2>/dev/null
     fi
     echo "Installing Cabal v${BOOTSTRAP_HASKELL_CABAL_VERSION}.."
-    ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION} >/dev/null || err_exit " Executing \"ghcup install cabal ${BOOTSTRAP_HASKELL_GHC_VERSION}\" failed, please try to diagnose/execute it manually to diagnose!"
+    ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION} >/dev/null 2>&1 || err_exit " Executing \"ghcup install cabal ${BOOTSTRAP_HASKELL_GHC_VERSION}\" failed, please try to diagnose/execute it manually to diagnose!"
   fi
   # Cannot verify the version and availability of libsecp256k1 package built previously, hence have to re-install each time
   echo "[Re]-Install libsecp256k1 ..."
@@ -447,12 +444,11 @@ download_cardanosigner() {
     rm -rf /tmp/csigner && mkdir /tmp/csigner
     pushd /tmp/csigner >/dev/null || err_exit
     csigner_asset_url="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.assets[].browser_download_url')"
-    ARCH=$(uname -i)
     csigner_release_url=""
     while IFS= read -r release; do
       if [[ -z ${ARCH##*aarch64*} && ${release} = *arm-x64.tar.gz ]]; then # ARM64
         csigner_release_url=${release}; break
-      elif [[ ${ARCH} = x86_64 && ${release} = *linux-x64.tar.gz ]]; then # Linux x64
+      elif [[ -z ${ARCH##*x86_64*} && ${release} = *linux-x64.tar.gz ]]; then # Linux x64
         csigner_release_url=${release}; break
       fi
     done <<< "${csigner_asset_url}"
