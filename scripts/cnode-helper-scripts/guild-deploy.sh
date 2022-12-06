@@ -157,6 +157,9 @@ update_check() {
 common_init() {
   dirs -c # clear dir stack
   set_defaults
+  if ! grep -q '/.local/bin' "${HOME}"/.bashrc; then
+    export PATH="${HOME}/.local/bin:${PATH}"
+  fi
 }
 
 ### Update file retaining existing custom configs
@@ -191,7 +194,7 @@ add_epel_repository() {
   ! grep -q ^epel <<< "$(yum repolist)" && $sudo yum ${3} install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"${2}".noarch.rpm > /dev/null
 }
 
-# OS Dependencies (TODO: Add cabal/bin to bashrc?)
+# OS Dependencies
 os_dependencies() {
   pkg_opts="-y"
   echo "Preparing OS dependency packages for ${DISTRO} system"
@@ -241,7 +244,7 @@ os_dependencies() {
     echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
     err_exit
   fi
-  if [[ ! -d "${HOME}"/.cabal/bin ]]; then mkdir -p "${HOME}"/.cabal/bin; fi
+  [[ ! -d "${HOME}"/.local/bin ]] && mkdir -p "${HOME}"/.local/bin
 }
 
 # Build Dependencies for cabal builds
@@ -350,8 +353,8 @@ download_cncli() {
     [[ -f cncli ]] || err_exit "CNCLI downloaded but binary (cncli) not found after extracting package!"
     [[ "${cncli_version}" = "v0.0.0" ]] && echo " latest_version: ${cncli_git_version}" || echo " installed version: ${cncli_version} | latest version: ${cncli_git_version}"
     chmod +x /tmp/cncli-bin/cncli
-    mv -f /tmp/cncli-bin "${HOME}"/.cabal/bin/
-    rm -f "${HOME}"/.cargo/bin/cncli
+    mv -f /tmp/cncli-bin "${HOME}"/.local/bin/
+    rm -f "${HOME}"/.cargo/bin/cncli # Remove duplicate file in $PATH (old convention)
     echo " cncli ${cncli_git_version} installed!"
   else
     err_exit "Download of latest release of CNCLI from GitHub failed! Please retry or install it manually."
@@ -374,16 +377,13 @@ download_cardanohwcli() {
     vchc_git_version="$(cardano-hw-cli/cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
     if ! versionCheck "${vchc_git_version}" "${vchc_version}"; then
       [[ ${vchc_version} = "0.0.0" ]] && echo "  latest version: ${vchc_git_version}" || echo "  installed version: ${vchc_version}  |  latest version: ${vchc_git_version}"
-      mkdir -p "${HOME}"/bin
-      if [ -d "${HOME}"/bin/cardano-hw-cli ]; then
-        rm -rf "${HOME}"/bin/cardano-hw-cli 
+      mkdir -p "${HOME}"/.local/bin
+      rm -rf "${HOME}"/bin/cardano-hw-cli # Remove duplicate file in $PATH (old convention)
+      if [ -f "${HOME}"/.local/bin/cardano-hw-cli ]; then
+        rm -rf "${HOME}"/.local/bin/cardano-hw-cli 
       fi
-      pushd "${HOME}"/bin >/dev/null || err_exit
+      pushd "${HOME}"/.local/bin >/dev/null || err_exit
       mv -f /tmp/chwcli-bin/cardano-hw-cli .
-      if ! grep -q "cardano-hw-cli" "${HOME}"/.bashrc; then
-        echo "  adding cardano-hw-cli to PATH and setting Ledger udev rules, reload shell to take effect!"
-        echo "  PATH=\"$HOME/bin/cardano-hw-cli:\$PATH\"" >> "${HOME}"/.bashrc
-      fi
       if [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ]]; then
         # Ledger udev rules
         curl -s -f -m ${CURL_TIMEOUT} https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh | $sudo bash >/dev/null 2>&1
@@ -424,7 +424,8 @@ download_ogmios() {
     if ! versionCheck "${ogmios_git_version}" "${ogmios_version}"; then
       [[ "${ogmios_version}" = "0.0.0" ]] && echo "  latest version: ${ogmios_git_version}" || echo "  installed version: ${ogmios_version} | latest version: ${ogmios_git_version}"
       chmod +x /tmp/ogmios/${OGMIOSPATH}
-      mv -f /tmp/ogmios/${OGMIOSPATH} "${HOME}"/.cabal/bin/
+      mv -f /tmp/ogmios/${OGMIOSPATH} "${HOME}"/.local/bin/
+      rm -f "${HOME}"/.cabal/bin/ogmios # Remove duplicate from $PATH
       echo "  ogmios ${ogmios_git_version} installed!"
     else
       rm -rf /tmp/ogmios #cleanup in /tmp
@@ -459,7 +460,8 @@ download_cardanosigner() {
         [[ -f cardano-signer ]] || err_exit "Cardano Signer downloaded but binary(cardano-signer) not found after extracting package!"
         [[ "${csigner_version}" = "v0.0.0" ]] && echo "  latest version: ${csigner_git_version}" || echo "  installed version: ${csigner_version} | latest version: ${csigner_git_version}"
         chmod +x /tmp/csigner/cardano-signer
-        mv -f /tmp/csigner/cardano-signer "${HOME}"/.cabal/bin/
+        mv -f /tmp/csigner/cardano-signer "${HOME}"/.local/bin/
+	rm -f "${HOME}"/.cabal/bin/cardano-signer # Remove duplicate from $PATH
         echo "  cardano-signer ${csigner_git_version} installed!"
       else
         err_exit "Download of latest release of Cardano Signer archive from GitHub failed! Please retry or install it manually."

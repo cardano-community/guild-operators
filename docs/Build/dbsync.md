@@ -33,7 +33,7 @@ git checkout $(curl -s https://api.github.com/repos/input-output-hk/cardano-db-s
 # Use `-l` argument if you'd like to use system libsodium instead of IOG fork of libsodium while compiling
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
-The above would copy the `cardano-db-sync` binary into `~/.cabal/bin` folder.
+The above would copy the `cardano-db-sync` binary into `~/.local/bin` folder.
 
 #### Prepare DB for sync
 

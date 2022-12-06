@@ -8,7 +8,7 @@ ENV \
   DEBIAN_FRONTEND=noninteractive \
   LANG=C.UTF-8 \
   USER=root \
-  PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:$PATH \
+  PATH=$CNODE_HOME/scripts:/root/.local/bin:/root/.ghcup/bin:$PATH \
   BRANCH=$BRANCH \
   G_ACCOUNT=$G_ACCOUNT \
   COMMIT=$COMMIT
@@ -24,4 +24,4 @@ RUN curl -s -f -k -o cardano-node-latest.txt "https://raw.githubusercontent.com/
     git checkout tags/"${CNODE_VERSION}" &&\
     git status &&\
     /opt/cardano/cnode/scripts/cabal-build-all.sh &&\
-    /root/.cabal/bin/cardano-cli version ; /root/.cabal/bin/cardano-node version
+    /root/.local/bin/cardano-cli version ; /root/.local/bin/cardano-node version

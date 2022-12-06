@@ -12,7 +12,7 @@ on:
 jobs:
   guild-deploy-and-build-amazonlinux2:
     runs-on: ubuntu-latest
-    #if: github.event.pull_request.draft == false
+    if: github.event.pull_request.draft == false
     steps:
     - name: Provide additional free space
       run: |
