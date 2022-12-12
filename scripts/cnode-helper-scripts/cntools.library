@@ -633,7 +633,7 @@ isPoolRegistered() {
 #               1: on error ($error_msg contains error message)
 #               2: offline/disabled/no result
 getAssetInfo() {
-  unset 
+  unset
   if [[ ${CNTOOLS_MODE} = "OFFLINE" || -z ${KOIOS_API} || "$#" -ne 2 ]]; then
     return 2
   else
@@ -642,29 +642,19 @@ getAssetInfo() {
     if [[ ${asset_info} = '[]' ]]; then
       return 2
     fi
-    asset_info_tsv=$(jq -r '[
-    .[0].asset_name_ascii //"-",
-    .[0].fingerprint //"-",
-    .[0].minting_tx_hash //"-",
-    .[0].total_supply //0,
-    .[0].mint_cnt //0,
-    .[0].burn_cnt //0,
-    .[0].creation_time //0,
-    (.[0].minting_tx_metadata|@json),
-    (.[0].token_registry_metadata|@json)
-    ] | @tsv' <<< "${asset_info}")
-
-    read -ra asset_info_arr <<< ${asset_info_tsv}
-
-    a_asset_name_ascii=${asset_info_arr[0]}
-    a_fingerprint=${asset_info_arr[1]}
-    a_minting_tx_hash=${asset_info_arr[2]}
-    a_total_supply=${asset_info_arr[3]}
-    a_mint_cnt=${asset_info_arr[4]}
-    a_burn_cnt=${asset_info_arr[5]}
-    a_creation_time=${asset_info_arr[6]}
-    a_minting_tx_metadata=${asset_info_arr[7]}
-    a_token_registry_metadata=${asset_info_arr[8]}
+    declare -A mintinfo
+    for i in $( jq -r '.[] | keys | @tsv' <<< $asset_info ) ; do
+      mintinfo[$i]=$(jq -r ".[] | .$i" <<< $asset_info)
+    done
+    a_asset_name_ascii=${mintinfo[asset_name_ascii]}
+    a_fingerprint=${mintinfo[fingerprint]}
+    a_minting_tx_hash=${mintinfo[minting_tx_hash]}
+    a_total_supply=${mintinfo[total_supply]}
+    a_mint_cnt=${mintinfo[mint_cnt]}
+    a_burn_cnt=${mintinfo[burn_cnt]}
+    a_creation_time=${mintinfo[creation_time]}
+    a_minting_tx_metadata=${mintinfo[minting_tx_metadata]}
+    a_token_registry_metadata=${mintinfo[token_registry_metadata]}
   fi
 }
 
