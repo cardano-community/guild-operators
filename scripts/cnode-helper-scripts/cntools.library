@@ -637,7 +637,7 @@ isPoolRegistered() {
 #               1: on error ($error_msg contains error message)
 #               2: offline/disabled/no result
 getAssetInfo() {
-  unset 
+  unset
   if [[ ${CNTOOLS_MODE} = "OFFLINE" || -z ${KOIOS_API} || "$#" -ne 2 ]]; then
     return 2
   else
@@ -654,8 +654,8 @@ getAssetInfo() {
     .[0].mint_cnt //0,
     .[0].burn_cnt //0,
     .[0].creation_time //0,
-    (.[0].minting_tx_metadata|@json),
-    (.[0].token_registry_metadata|@json)
+    (.[0].minting_tx_metadata|@base64),
+    (.[0].token_registry_metadata|@base64)
     ] | @tsv' <<< "${asset_info}")
 
     read -ra asset_info_arr <<< ${asset_info_tsv}
@@ -667,8 +667,8 @@ getAssetInfo() {
     a_mint_cnt=${asset_info_arr[4]}
     a_burn_cnt=${asset_info_arr[5]}
     a_creation_time=${asset_info_arr[6]}
-    a_minting_tx_metadata=${asset_info_arr[7]}
-    a_token_registry_metadata=${asset_info_arr[8]}
+    a_minting_tx_metadata=$(base64 -d <<< ${asset_info_arr[7]})
+    a_token_registry_metadata=$(base64 -d <<< ${asset_info_arr[8]})
   fi
 }
 
