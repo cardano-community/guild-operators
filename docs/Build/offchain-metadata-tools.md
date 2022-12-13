@@ -7,7 +7,7 @@ In the Cardano multi-asset era, this project helps you create and submit metadat
 
 ### Download pre-built binaries
 
-Go to [input-output-hk/offchain-metadata-tools](https://github.com/input-output-hk/offchain-metadata-tools#pre-built-binaries) to download the binaries and place in a directory specified by `PATH`, e.g. `$HOME/.cabal/bin/`. 
+Go to [input-output-hk/offchain-metadata-tools](https://github.com/input-output-hk/offchain-metadata-tools#pre-built-binaries) to download the binaries and place in a directory specified by `PATH`, e.g. `$HOME/.local/bin/`. 
 
 ### Build Instructions
 
@@ -34,7 +34,7 @@ git pull
 git checkout master
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
-The above would copy the binaries into `~/.cabal/bin` folder.
+The above would copy the binaries into `~/.local/bin` folder.
 
 ### Verify
 

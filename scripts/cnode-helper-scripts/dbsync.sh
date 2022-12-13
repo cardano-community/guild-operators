@@ -9,7 +9,7 @@
 ######################################
 
 #PGPASSFILE="${CNODE_HOME}/priv/.pgpass"                    # PGPass file containing connection information for the postgres instance
-#DBSYNCBIN="${HOME}/.cabal/bin/cardano-db-sync"             # Path for cardano-db-sync binary, assumed to be available in $PATH
+#DBSYNCBIN="${HOME}/.local/bin/cardano-db-sync"             # Path for cardano-db-sync binary, assumed to be available in $PATH
 #DBSYNC_STATE_DIR="${CNODE_HOME}/guild-db/ledger-state"     # Folder where DBSync instance will dump ledger-state files
 #DBSYNC_SCHEMA_DIR="${CNODE_HOME}/guild-db/schema"          # Path to DBSync repository's schema folder
 #DBSYNC_CONFIG="${CNODE_HOME}/files/dbsync.json"            # Config file for dbsync instance
@@ -36,7 +36,7 @@ usage() {
 }
 
 set_defaults() {
-  [[ -z "${DBSYNCBIN}" ]] && DBSYNCBIN="${HOME}/.cabal/bin/cardano-db-sync"
+  [[ -z "${DBSYNCBIN}" ]] && DBSYNCBIN="${HOME}/.local/bin/cardano-db-sync"
   [[ -z "${PGPASSFILE}" ]] && PGPASSFILE="${CNODE_HOME}/priv/.pgpass"
   [[ -z "${DBSYNC_CONFIG}" ]] && DBSYNC_CONFIG="${CNODE_HOME}/files/dbsync.json"
   [[ -z "${DBSYNC_SCHEMA_DIR}" ]] && DBSYNC_SCHEMA_DIR="${CNODE_HOME}/guild-db/schema"

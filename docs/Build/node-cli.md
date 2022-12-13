@@ -27,7 +27,7 @@ git checkout $(curl -s https://api.github.com/repos/input-output-hk/cardano-node
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
 
-The above would copy the binaries built into `~/.cabal/bin` folder.
+The above would copy the binaries built into `~/.local/bin` folder.
 
 #### Download pre-compiled Binary from Node release
 
@@ -53,8 +53,8 @@ cardano-node version
 Before you go ahead with starting your node, you may want to update values for `CNODE_PORT` in `$CNODE_HOME/scripts/env`. Note that it is imperative for operational relays and pools to ensure that the port mentioned is opened via firewall to the destination your node is supposed to connect from. Update your network/firewall configuration accordingly. Future executions of `prereqs.sh` will preserve and not overwrite these values.
 
 ```bash
-CNODEBIN="${HOME}/.cabal/bin/cardano-node"
-CCLI="${HOME}/.cabal/bin/cardano-cli"
+CNODEBIN="${HOME}/.local/bin/cardano-node"
+CCLI="${HOME}/.local/bin/cardano-cli"
 CNODE_PORT=6000
 POOL_NAME="GUILD"
 ```

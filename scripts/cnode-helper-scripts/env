@@ -7,9 +7,9 @@
 ######################################
 
 #USESYSVARS="N"                                         # Whether to use environment variable from shell session for CNODE_HOME
-#CNODEBIN="${HOME}/.cabal/bin/cardano-node"             # Override automatic detection of cardano-node executable
-#CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of cardano-cli executable
-#CNCLI="${HOME}/.cargo/bin/cncli"                       # Override automatic detection of executable (https://github.com/AndrewWestberg/cncli)
+#CNODEBIN="${HOME}/.local/bin/cardano-node"             # Override automatic detection of cardano-node executable
+#CCLI="${HOME}/.local/bin/cardano-cli"                  # Override automatic detection of cardano-cli executable
+#CNCLI="${HOME}/.local/bin/cncli"                       # Override automatic detection of executable (https://github.com/AndrewWestberg/cncli)
 #CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
 #CNODE_PORT=6000                                        # Set node port
 #CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path
@@ -817,8 +817,8 @@ set_default_vars
 
 [[ -z "${CCLI}" ]] && CCLI=$(command -v cardano-cli)
 if [[ -z "${CCLI}" ]]; then
-  if [[ -f "${HOME}/.cabal/bin/cardano-cli" ]]; then
-    export PATH="${HOME}/.cabal/bin":$PATH
+  if [[ -f "${HOME}/.local/bin/cardano-cli" ]]; then
+    export PATH="${HOME}/.local/bin":$PATH
     CCLI=$(command -v cardano-cli)
   else
     echo "You do not have a cardano-cli binary available in \$PATH."
@@ -831,8 +831,8 @@ if [[ -z "${CNODEBIN}" ]]; then
   if [[ -f "$(dirname ${CCLI})"/cardano-node ]]; then
     CCLIPARENT="$(dirname ${CCLI})" && export PATH="${CCLIPARENT}":$PATH
     CNODEBIN="$(dirname ${CCLI})"/cardano-node
-  elif [[ -f "${HOME}/.cabal/bin/cardano-node" ]]; then
-    export PATH="${HOME}/.cabal/bin":$PATH
+  elif [[ -f "${HOME}/.local/bin/cardano-node" ]]; then
+    export PATH="${HOME}/.local/bin":$PATH
     CNODEBIN=$(command -v cardano-node)
   elif [[ ${OFFLINE_MODE} = "Y" ]]; then
     echo "You do not have a cardano-node binary available in \$PATH."
@@ -841,7 +841,7 @@ if [[ -z "${CNODEBIN}" ]]; then
 fi
 
 if [[ -z "${CNCLI}" ]]; then
-  CNCLI=$(command -v cncli) || CNCLI="${HOME}/.cargo/bin/cncli"
+  CNCLI=$(command -v cncli) || CNCLI="${HOME}/.local/bin/cncli"
 fi
 
 [[ -f /usr/local/lib/libsodium.so ]] && export LD_LIBRARY_PATH=/usr/local/lib:"${LD_LIBRARY_PATH}" && PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:"${PKG_CONFIG_PATH}"

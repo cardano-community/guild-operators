@@ -81,7 +81,6 @@ usage() {
 		  b   Install OS level dependencies for tools required while building cardano-node/cardano-db-sync components (Default: skip)
 		  l   Build and Install libsodium fork from IO repositories (Default: skip)
 		  f   Force overwrite entire content of scripts and config files (backups of existing ones will be created) (Default: skip)
-		  s   Re-Create cnode Folder Structure (Default: skip if folder exists)
 		  d   Download latest (released) cardano-node, cardano-cli, cardano-db-sync and cardano-submit-api binaries (Default: skip)
 		  c   Install/Upgrade CNCLI binary (Default: skip)
 		  o   Install/Upgrade Ogmios Server binary (Default: skip)
@@ -123,7 +122,7 @@ set_defaults() {
   [[ -z "${OS_ID}" ]] && OS_ID=$(grep -i ^id= /etc/os-release | cut -d= -f 2)
   DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
   VERSION_ID=$(grep -i ^version_id= /etc/os-release | cut -d= -f 2 | tr -d '"' | cut -d. -f 1)
-  ARCH=$(uname -i)
+  ARCH=$(uname -a)
   if ! curl -s -f -m ${CURL_TIMEOUT} "${REPO_RAW}/${BRANCH}/LICENSE" -o /dev/null ; then
     echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to master branch\n"
     BRANCH=master
@@ -158,6 +157,9 @@ update_check() {
 common_init() {
   dirs -c # clear dir stack
   set_defaults
+  if ! grep -q '/.local/bin' "${HOME}"/.bashrc; then
+    export PATH="${HOME}/.local/bin:${PATH}"
+  fi
 }
 
 ### Update file retaining existing custom configs
@@ -179,7 +181,7 @@ updateWithCustomConfig() {
   fi
   [[ -f ${file} ]] && cp -f ${file} "${file}_bkp$(date +%s)"
   mv -f ${file}.tmp ${file}
-  [[ "${file}" =~ '.sh' ]] && chmod 755 ${file}
+  [[ "${file}" == *.sh ]] && chmod 755 ${file}
 }
 
 # Description : Add epel repository when needed
@@ -192,7 +194,7 @@ add_epel_repository() {
   ! grep -q ^epel <<< "$(yum repolist)" && $sudo yum ${3} install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"${2}".noarch.rpm > /dev/null
 }
 
-# OS Dependencies (TODO: Add cabal/bin to bashrc?)
+# OS Dependencies
 os_dependencies() {
   pkg_opts="-y"
   echo "Preparing OS dependency packages for ${DISTRO} system"
@@ -204,17 +206,14 @@ os_dependencies() {
   elif [[ "${OS_ID}" =~ rhel ]] || [[ "${OS_ID}" =~ fedora ]] || [[ "${DISTRO}" =~ Fedora ]]; then
     #CentOS/RHEL/Fedora/RockyLinux
     pkgmgrcmd="yum"
-    pkg_list="python3 coreutils ncurses-devel ncurses-libs openssl-devel systemd systemd-devel libsodium-devel tmux git jq gnupg2 libtool iproute bc traceroute sqlite util-linux xz wget unzip procps-ng llvm clang numactl-devel libffi-devel gmp-devel zlib-devel make gcc-c++ autoconf lmdb-devel"
+    pkg_list="python3 coreutils ncurses-devel ncurses-libs openssl-devel systemd systemd-devel libsodium-devel tmux git jq gnupg2 libtool iproute bc traceroute sqlite util-linux xz wget unzip procps-ng llvm clang numactl-devel libffi-devel gmp-devel zlib-devel make gcc-c++ autoconf udev lmdb-devel"
     if [[ "${VERSION_ID}" == "2" ]] ; then
       #AmazonLinux2
       pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig srm"
-    elif [[ "${VERSION_ID}" == "7" ]]; then
-      #RHEL/CentOS7
-      pkg_list="${pkg_list} libusb pkgconfig srm"
     elif [[ "${VERSION_ID}" =~ "8" ]] || [[ "${VERSION_ID}" =~ "9" ]]; then
       #RHEL/CentOS/RockyLinux8
       pkg_opts="${pkg_opts} --allowerasing"
-      pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config"
+      pkg_list="${pkg_list} --enablerepo=devel,crb libusbx ncurses-compat-libs pkgconf-pkg-config"
     elif [[ "${DISTRO}" =~ Fedora ]]; then
       #Fedora
       pkg_opts="${pkg_opts} --allowerasing"
@@ -245,7 +244,7 @@ os_dependencies() {
     echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
     err_exit
   fi
-  if [[ ! -d "${HOME}"/.cabal/bin ]]; then mkdir -p "${HOME}"/.cabal/bin; fi
+  [[ ! -d "${HOME}"/.local/bin ]] && mkdir -p "${HOME}"/.local/bin
 }
 
 # Build Dependencies for cabal builds
@@ -261,14 +260,14 @@ build_dependencies() {
     BOOTSTRAP_HASKELL_ADJUST_BASHRC=1
     unset BOOTSTRAP_HASKELL_INSTALL_HLS
     export BOOTSTRAP_HASKELL_NONINTERACTIVE BOOTSTRAP_HASKELL_INSTALL_STACK BOOTSTRAP_HASKELL_ADJUST_BASHRC
-    curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | bash
+    curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | bash >/dev/null 2>&1
   fi
   [[ -f "${HOME}/.ghcup/env" ]] && source "${HOME}/.ghcup/env"
   if ! ghc --version 2>/dev/null | grep -q ${BOOTSTRAP_HASKELL_GHC_VERSION}; then
     echo "Upgrading ghcup .."
     ghcup upgrade 2>/dev/null
     echo "Installing GHC v${BOOTSTRAP_HASKELL_GHC_VERSION} .."
-    ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null || err_exit " Executing \"ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}\" failed, please try to diagnose/execute it manually to diagnose!"
+    ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null 2>&1 || err_exit " Executing \"ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}\" failed, please try to diagnose/execute it manually to diagnose!"
     ghcup set ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null
   fi
   cabal_version=$(cabal --version 2>/dev/null | head -n 1 | cut -d' ' -f3)
@@ -278,7 +277,7 @@ build_dependencies() {
       ghcup rm cabal ${cabal_version} 2>/dev/null
     fi
     echo "Installing Cabal v${BOOTSTRAP_HASKELL_CABAL_VERSION}.."
-    ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION} >/dev/null || err_exit " Executing \"ghcup install cabal ${BOOTSTRAP_HASKELL_GHC_VERSION}\" failed, please try to diagnose/execute it manually to diagnose!"
+    ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION} >/dev/null 2>&1 || err_exit " Executing \"ghcup install cabal ${BOOTSTRAP_HASKELL_GHC_VERSION}\" failed, please try to diagnose/execute it manually to diagnose!"
   fi
   # Cannot verify the version and availability of libsecp256k1 package built previously, hence have to re-install each time
   echo "[Re]-Install libsecp256k1 ..."
@@ -346,7 +345,7 @@ download_cncli() {
   cncli_git_version="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.tag_name')"
   echo "  Downloading CNCLI..."
   rm -rf /tmp/cncli-bin && mkdir /tmp/cncli-bin
-  pushd /tmp/cncli >/dev/null || err_exit
+  pushd /tmp/cncli-bin >/dev/null || err_exit
   cncli_asset_url="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-gnu.tar.gz')"
   if curl -sL -f -m ${CURL_TIMEOUT} -o cncli.tar.gz ${cncli_asset_url}; then
     tar zxf cncli.tar.gz &>/dev/null
@@ -354,8 +353,8 @@ download_cncli() {
     [[ -f cncli ]] || err_exit "CNCLI downloaded but binary (cncli) not found after extracting package!"
     [[ "${cncli_version}" = "v0.0.0" ]] && echo " latest_version: ${cncli_git_version}" || echo " installed version: ${cncli_version} | latest version: ${cncli_git_version}"
     chmod +x /tmp/cncli-bin/cncli
-    mv -f /tmp/cncli-bin "${HOME}"/.cabal/bin/
-    rm -f "${HOME}"/.cargo/bin/cncli
+    mv -f /tmp/cncli-bin "${HOME}"/.local/bin/
+    rm -f "${HOME}"/.cargo/bin/cncli # Remove duplicate file in $PATH (old convention)
     echo " cncli ${cncli_git_version} installed!"
   else
     err_exit "Download of latest release of CNCLI from GitHub failed! Please retry or install it manually."
@@ -367,8 +366,8 @@ download_cardanohwcli() {
   echo "Installing Vacuumlabs cardano-hw-cli"
   if command -v cardano-hw-cli >/dev/null; then vchc_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"; else vchc_version="0.0.0"; fi
   echo "  Downloading Vacuumlabs cardano-hw-cli..."
-  mkdir -p /tmp/cncli-bin
-  pushd /tmp >/dev/null || err_exit
+  rm -rf /tmp/chwcli-bin && mkdir -p /tmp/chwcli-bin
+  pushd /tmp/chwcli-bin >/dev/null || err_exit
   rm -rf cardano-hw-cli*
   vchc_asset_url="$(curl -s https://api.github.com/repos/vacuumlabs/cardano-hw-cli/releases/latest | jq -r '.assets[].browser_download_url' | grep '_linux-x64.tar.gz')"
   if curl -sL -f -m ${CURL_TIMEOUT} -o cardano-hw-cli_linux-x64.tar.gz ${vchc_asset_url}; then
@@ -378,19 +377,16 @@ download_cardanohwcli() {
     vchc_git_version="$(cardano-hw-cli/cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
     if ! versionCheck "${vchc_git_version}" "${vchc_version}"; then
       [[ ${vchc_version} = "0.0.0" ]] && echo "  latest version: ${vchc_git_version}" || echo "  installed version: ${vchc_version}  |  latest version: ${vchc_git_version}"
-      mkdir -p "${HOME}"/bin
-      if [ -d "${HOME}"/bin/cardano-hw-cli ]; then
-        rm -rf "${HOME}"/bin/cardano-hw-cli 
+      mkdir -p "${HOME}"/.local/bin
+      rm -rf "${HOME}"/bin/cardano-hw-cli # Remove duplicate file in $PATH (old convention)
+      if [ -f "${HOME}"/.local/bin/cardano-hw-cli ]; then
+        rm -rf "${HOME}"/.local/bin/cardano-hw-cli 
       fi
-      pushd "${HOME}"/bin >/dev/null || err_exit
-      mv -f /tmp/cardano-hw-cli .
-      if ! grep -q "cardano-hw-cli" "${HOME}"/.bashrc; then
-        echo "  adding cardano-hw-cli to PATH and setting Ledger udev rules, reload shell to take effect!"
-        echo "  PATH=\"$HOME/bin/cardano-hw-cli:\$PATH\"" >> "${HOME}"/.bashrc
-      fi
+      pushd "${HOME}"/.local/bin >/dev/null || err_exit
+      mv -f /tmp/chwcli-bin/cardano-hw-cli .
       if [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ]]; then
         # Ledger udev rules
-        curl -s -f -m ${CURL_TIMEOUT} https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh | $sudo bash
+        curl -s -f -m ${CURL_TIMEOUT} https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh | $sudo bash >/dev/null 2>&1
         $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" -i /etc/udev/rules.d/20-hw1.rules
       fi
       if [[ ! -f "/etc/udev/rules.d/51-trezor.rules" ]]; then
@@ -399,8 +395,8 @@ download_cardanohwcli() {
         $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" -i /etc/udev/rules.d/51-trezor.rules
       fi
       # Trigger rules update
-      $sudo udevadm control --reload-rules
-      $sudo udevadm trigger
+      $sudo udevadm control --reload-rules >/dev/null 2>&1
+      $sudo udevadm trigger >/dev/null 2>&1
       echo "  cardano-hw-cli v${vchc_git_version} installed!"
     else
       rm -rf cardano-hw-cli #cleanup in /tmp
@@ -428,7 +424,8 @@ download_ogmios() {
     if ! versionCheck "${ogmios_git_version}" "${ogmios_version}"; then
       [[ "${ogmios_version}" = "0.0.0" ]] && echo "  latest version: ${ogmios_git_version}" || echo "  installed version: ${ogmios_version} | latest version: ${ogmios_git_version}"
       chmod +x /tmp/ogmios/${OGMIOSPATH}
-      mv -f /tmp/ogmios/${OGMIOSPATH} "${HOME}"/.cabal/bin/
+      mv -f /tmp/ogmios/${OGMIOSPATH} "${HOME}"/.local/bin/
+      rm -f "${HOME}"/.cabal/bin/ogmios # Remove duplicate from $PATH
       echo "  ogmios ${ogmios_git_version} installed!"
     else
       rm -rf /tmp/ogmios #cleanup in /tmp
@@ -448,12 +445,11 @@ download_cardanosigner() {
     rm -rf /tmp/csigner && mkdir /tmp/csigner
     pushd /tmp/csigner >/dev/null || err_exit
     csigner_asset_url="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.assets[].browser_download_url')"
-    ARCH=$(uname -i)
     csigner_release_url=""
     while IFS= read -r release; do
       if [[ -z ${ARCH##*aarch64*} && ${release} = *arm-x64.tar.gz ]]; then # ARM64
         csigner_release_url=${release}; break
-      elif [[ ${ARCH} = x86_64 && ${release} = *linux-x64.tar.gz ]]; then # Linux x64
+      elif [[ -z ${ARCH##*x86_64*} && ${release} = *linux-x64.tar.gz ]]; then # Linux x64
         csigner_release_url=${release}; break
       fi
     done <<< "${csigner_asset_url}"
@@ -464,7 +460,8 @@ download_cardanosigner() {
         [[ -f cardano-signer ]] || err_exit "Cardano Signer downloaded but binary(cardano-signer) not found after extracting package!"
         [[ "${csigner_version}" = "v0.0.0" ]] && echo "  latest version: ${csigner_git_version}" || echo "  installed version: ${csigner_version} | latest version: ${csigner_git_version}"
         chmod +x /tmp/csigner/cardano-signer
-        mv -f /tmp/csigner/cardano-signer "${HOME}"/.cabal/bin/
+        mv -f /tmp/csigner/cardano-signer "${HOME}"/.local/bin/
+	rm -f "${HOME}"/.cabal/bin/cardano-signer # Remove duplicate from $PATH
         echo "  cardano-signer ${csigner_git_version} installed!"
       else
         err_exit "Download of latest release of Cardano Signer archive from GitHub failed! Please retry or install it manually."
@@ -490,11 +487,11 @@ setup_folder() {
   
   $sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/guild-db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv
   $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
-  populate_cnode
 }
 
 # Download and update scripts for cnode (TODO: Set up and test it out, differentiate between FORCE_OVERWRITE and normal execution)
 populate_cnode() {
+  [[ ! -d "${CNODE_HOME}"/files ]] && setup_folder
   echo "Downloading files..."
   pushd "${CNODE_HOME}"/files >/dev/null || err_exit
   echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
@@ -553,7 +550,7 @@ populate_cnode() {
   updateWithCustomConfig "ogmios.sh"
   updateWithCustomConfig "submitapi.sh"
   updateWithCustomConfig "setup_mon.sh"
-  updateWithCustomConfig "setup-grest.sh"
+  updateWithCustomConfig "setup-grest.sh" "grest-helper-scripts"
   updateWithCustomConfig "topologyUpdater.sh"
   
   find "${CNODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
@@ -563,23 +560,20 @@ populate_cnode() {
 # Parse arguments supplied to script
 parse_args() {
   POPULATE_CNODE="Y"
+  if [[ ! -d "${CNODE_HOME}"/files ]]; then
+    # Guess this is a fresh machine and set minimal params
+    INSTALL_OS_DEPS="Y"
+  fi
   if [[ -n "${S_ARGS}" ]]; then
     [[ "${S_ARGS}" =~ "p" ]] && INSTALL_OS_DEPS="Y"
     [[ "${S_ARGS}" =~ "b" ]] && INSTALL_OS_DEPS="Y" && WANT_BUILD_DEPS="Y"
     [[ "${S_ARGS}" =~ "l" ]] && INSTALL_OS_DEPS="Y" && WANT_BUILD_DEPS="Y" && INSTALL_LIBSODIUM_FORK="Y"
     [[ "${S_ARGS}" =~ "f" ]] && FORCE_OVERWRITE="Y" && POPULATE_CNODE="F"
-    [[ "${S_ARGS}" =~ "s" ]] && RECREATE_FOLDERS="Y"
     [[ "${S_ARGS}" =~ "d" ]] && INSTALL_CNODEBINS="Y"
     [[ "${S_ARGS}" =~ "c" ]] && INSTALL_CNCLI="Y"
     [[ "${S_ARGS}" =~ "o" ]] && INSTALL_OGMIOS="Y"
     [[ "${S_ARGS}" =~ "w" ]] && INSTALL_CWHCLI="Y"
     [[ "${S_ARGS}" =~ "x" ]] && INSTALL_CARDANO_SIGNER="Y"
-  else
-    if [[ ! -d ${CNODE_HOME} ]]; then
-      # Guess this is a fresh machine and set minimal params
-      RECREATE_FOLDERS="Y"
-      INSTALL_OS_DEPS="Y"
-    fi
     echo "Nothing to do.."
   fi
 }
@@ -593,7 +587,6 @@ main_flow() {
   [[ "${INSTALL_LIBSODIUM_FORK}" == "Y" ]] && build_libsodium
   [[ "${FORCE_OVERWRITE}" == "Y" ]] && POPULATE_CNODE="F" && populate_cnode
   [[ "${POPULATE_CNODE}" == "Y" ]] && populate_cnode
-  [[ "${RECREATE_FOLDERS}" == "Y" ]] && setup_folder
   [[ "${INSTALL_CNODEBINS}" == "Y" ]] && download_cnodebins
   [[ "${INSTALL_CNCLI}" == "Y" ]] && download_cncli
   [[ "${INSTALL_OGMIOS}" == "Y" ]] && download_ogmios

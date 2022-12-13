@@ -9,7 +9,7 @@ USER=root
 WORKDIR /
 
 RUN set -x && apt update \
-  && mkdir -p /root/.cabal/bin && mkdir -p /root/.ghcup/bin \
+  && mkdir -p /root/.local/bin && mkdir -p /root/.ghcup/bin \
   && apt install -y  apt-utils wget gnupg apt-utils git udev \
   && wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh \
   && export SUDO='N' \

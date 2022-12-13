@@ -51,8 +51,8 @@ Typical section that you may want to modify (if defaults don't work for you):
 # Leave as is if unsure              #
 ######################################
 
-#CCLI="${HOME}/.cabal/bin/cardano-cli"                  # Override automatic detection of path to cardano-cli executable
-#CNCLI="${HOME}/.cargo/bin/cncli"                       # Override automatic detection of path to cncli executable (https://github.com/AndrewWestberg/cncli)
+#CCLI="${HOME}/.local/bin/cardano-cli"                  # Override automatic detection of path to cardano-cli executable
+#CNCLI="${HOME}/.local/bin/cncli"                       # Override automatic detection of path to cncli executable (https://github.com/AndrewWestberg/cncli)
 #CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
 CNODE_PORT=6000                                         # Set node port
 #CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path

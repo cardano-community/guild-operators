@@ -15,7 +15,6 @@ Running your own Cardano node has never been so fast and easy.
 - cardano-cli
 - cardano-hw-cli
 - cardano-node
-- cardano-ping
 - cardano-submit-api
 
 ### 🔔 Built-in tools

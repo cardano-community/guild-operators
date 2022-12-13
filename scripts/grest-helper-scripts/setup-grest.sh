@@ -323,7 +323,7 @@ SGVERSION=1.0.9
     if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest.tar.xz "${pgrest_asset_url}"; then
       tar xf postgrest.tar.xz &>/dev/null && rm -f postgrest.tar.xz
       [[ -f postgrest ]] || err_exit "PostgREST archive downloaded but binary not found after attempting to extract package!"
-      mv -f ./postgrest ~/.cabal/bin/
+      mv -f ./postgrest ~/.local/bin/
     else
       err_exit "Could not download ${pgrest_asset_url}"
     fi
@@ -493,7 +493,7 @@ SGVERSION=1.0.9
 			RestartSec=5
 			User=${USER}
 			LimitNOFILE=1048576
-			ExecStart=${HOME}/.cabal/bin/postgrest ${CNODE_HOME}/priv/grest.conf
+			ExecStart=${HOME}/.local/bin/postgrest ${CNODE_HOME}/priv/grest.conf
 			ExecReload=/bin/kill -SIGUSR1 \\\$MAINPID
 			StandardOutput=syslog
 			StandardError=syslog
