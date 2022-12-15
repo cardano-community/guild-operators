@@ -57,7 +57,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.27.3
+GLV_VERSION=v1.27.4
 
 PARENT="$(dirname $0)"
 
@@ -124,7 +124,7 @@ fi
 
 if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
 
-  if command -v cncli >/dev/null && systemctl is-active --quiet ${CNODE_VNAME}-cncli-sync.service; then
+  if command -v cncli >/dev/null && command -v systemctl >/dev/null && systemctl is-active --quiet ${CNODE_VNAME}-cncli-sync.service; then
     vcur=$(cncli -V | sed 's/cncli /v/g')
     vrem=$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r .tag_name)
     [[ ${vcur} != ${vrem} ]] && printf "${FG_MAGENTA}CNCLI current version (${vcur}) different from repo (${vrem}), consider upgrading!.${NC}" && waitToProceed

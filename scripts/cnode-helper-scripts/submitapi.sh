@@ -9,7 +9,7 @@
 # Common variables set in env file   #
 ######################################
 
-#SUBMITAPIBIN="${HOME}"/.cabal/bin/cardano-submit-api # Path for cardano-submit-api binary, if not in $PATH
+#SUBMITAPIBIN="${HOME}"/.local/bin/cardano-submit-api # Path for cardano-submit-api binary, if not in $PATH
 #HOSTADDR=127.0.0.1                                 # Default Listen IP/Hostname for Submit API
 #HOSTPORT=8090                                      # Default Listen port for Submit API
 
@@ -34,7 +34,7 @@ usage() {
 }
 
 set_defaults() {
-  [[ -z "${SUBMITAPIBIN}" ]] && SUBMITAPIBIN="${HOME}"/.cabal/bin/cardano-submit-api
+  [[ -z "${SUBMITAPIBIN}" ]] && SUBMITAPIBIN="${HOME}"/.local/bin/cardano-submit-api
   [[ -z "${HOSTADDR}" ]] && HOSTADDR=127.0.0.1
   [[ -z "${HOSTPORT}" ]] && HOSTPORT=8090
 }

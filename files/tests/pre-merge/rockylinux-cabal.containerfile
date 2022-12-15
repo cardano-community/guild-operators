@@ -1,11 +1,10 @@
 ARG COMMIT
-FROM ghcr.io/cardano-community/pre-merge-ubuntu:guild-deploy_${COMMIT}
+FROM ghcr.io/cardano-community/pre-merge-rockylinux:guild-deploy_${COMMIT}
 ARG G_ACCOUNT
 ARG BRANCH
 ARG CNODE_HOME=/opt/cardano/cnode
 
 ENV \
-  DEBIAN_FRONTEND=noninteractive \
   LANG=C.UTF-8 \
   USER=root \
   PATH=$CNODE_HOME/scripts:/root/.local/bin:/root/.ghcup/bin:$PATH \
