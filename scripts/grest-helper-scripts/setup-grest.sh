@@ -107,7 +107,7 @@ SGVERSION=1.0.9
     local cron_pattern=$2
     local cron_job_path="${CRON_DIR}/${CNODE_VNAME}-${job}"
     local cron_scripts_path="${CRON_SCRIPTS_DIR}/${job}.sh"
-    local cron_log_path="${LOG_DIR}/${job}.log"
+    local cron_log_path="${LOG_DIR}/${job}_\`date +%d%m%y\`.log"
     local cron_job_entry="${cron_pattern} ${USER} /bin/bash ${cron_scripts_path} >> ${cron_log_path} 2>&1"
     remove_cron_job "${job}"
     sudo bash -c "{ echo '${cron_job_entry}'; } > ${cron_job_path}"
@@ -173,6 +173,13 @@ SGVERSION=1.0.9
     set_cron_variables "populate-next-epoch-nonce"
     install_cron_job "populate-next-epoch-nonce" "*/10 * * * *"
 
+    get_cron_job_executable "asset-info-cache-update"
+    set_cron_variables "asset-info-cache-update"
+    install_cron_job "asset-info-cache-update" "* * * * *"
+
+    # Only (legacy) testnet and mainnet asset registries supported
+    # In absence of official messaging, current (soon to be reset) preprod/preview networks use same registry as testnet. TBC - once there is an update from IO on these
+    # Possible future addition for the Guild network once there is a guild registry
     if [[ ${NWMAGIC} -eq 764824073 || ${NWMAGIC} -eq 1097911063 || ${NWMAGIC} -eq 1 || ${NWMAGIC} -eq 2 || ${NWMAGIC} -eq 141 ]]; then
       get_cron_job_executable "asset-registry-update"
       set_cron_variables "asset-registry-update"
