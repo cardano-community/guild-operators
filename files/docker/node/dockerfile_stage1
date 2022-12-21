@@ -11,9 +11,9 @@ WORKDIR /
 RUN set -x && apt update \
   && mkdir -p /root/.local/bin && mkdir -p /root/.ghcup/bin \
   && apt install -y  apt-utils wget gnupg apt-utils git udev \
-  && wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh \
+  && wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh \
   && export SUDO='N' \
   && export UPDATE_CHECK='N' \
   && export BOOTSTRAP_HASKELL_NO_UPGRADE=1 \
-  && chmod +x ./prereqs.sh &&  ./prereqs.sh -w -c \
+  && chmod +x ./guild-deploy.sh &&  ./guild-deploy.sh -s pbcowx \
   && apt-get -y purge && apt-get -y clean && apt-get -y autoremove  && rm -rf /var/lib/apt/lists/*

@@ -226,13 +226,11 @@ setup_cron_jobs() {
   set_cron_variables "pool-history-cache-update"
   install_cron_job "pool-history-cache-update" "*/10 * * * *"
 
-  # Only testnet and mainnet asset registries supported
-  # Possible future addition for the Guild network once there is a guild registry
-  if [[ ${NWMAGIC} -eq 764824073 || ${NWMAGIC} -eq 1097911063 ]]; then
+  if [[ ${NWMAGIC} -eq 764824073 || ${NWMAGIC} -eq 1 || ${NWMAGIC} -eq 2 || ${NWMAGIC} -eq 141 ]]; then
     get_cron_job_executable "asset-registry-update"
     set_cron_variables "asset-registry-update"
     # Point the update script to testnet regisry repo structure (default: mainnet)
-    [[ ${NWMAGIC} -eq 1097911063 ]] && set_cron_asset_registry_testnet_variables
+    [[ ${NWMAGIC} -eq 1 || ${NWMAGIC} -eq 2 || ${NWMAGIC} -eq 141 ]] && set_cron_asset_registry_testnet_variables
     install_cron_job "asset-registry-update" "*/10 * * * *"
   fi
 }
