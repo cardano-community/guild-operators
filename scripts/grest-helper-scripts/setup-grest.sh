@@ -44,7 +44,7 @@ SGVERSION=1.0.9
   
   update_check() {
     # Check if env file is missing in current folder, note that some env functions may not be present until env is sourced successfully
-    [[ ! -f ./env ]] && printf "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
+    [[ ! -f ./env ]] && printf "\nCommon env file missing, please ensure latest guild-deploy.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
     . ./env offline # Just to source checkUpdate, will be re-sourced later
     
     # Update check

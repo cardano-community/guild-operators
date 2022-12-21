@@ -61,7 +61,7 @@ clear
 
 if [[ ! -f "${PARENT}"/env ]]; then
   echo -e "\nCommon env file missing: ${PARENT}/env"
-  echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"
+  echo -e "This is a mandatory prerequisite, please install with guild-deploy.sh or manually download from GitHub\n"
   exit 1
 fi
 

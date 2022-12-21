@@ -75,7 +75,7 @@ This chapter describes some common use-cases for wallet and pool creation when r
       3.5.0
       ```
     !!! info ""
-        If the version is not as per above, please run the latest `prereqs.sh` from [here](../basics.md) and rebuild `cardano-node` as instructed [here](../Build/node-cli.md).
+        If the version is not as per above, please run the latest `guild-deploy.sh` from [here](../basics.md) and rebuild `cardano-node` as instructed [here](../Build/node-cli.md).
 
     To import a Daedalus/Yoroi wallet to CNTools, open CNTools and select the `[w] Wallet` option, and then select the `[i] Import`, the following menu will appear:
       ```

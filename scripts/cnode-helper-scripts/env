@@ -874,12 +874,12 @@ if command -v "ss" &>/dev/null; then
 elif command -v "lsof" &>/dev/null; then
   use_lsof='Y'
 else
-  echo -e "'ss' and fallback 'lsof' commands are missing, please install using latest prereqs.sh script or with your packet manager of choice.\nhttps://command-not-found.com/ss can be used to check package name to install.\n"
+  echo -e "'ss' and fallback 'lsof' commands are missing, please install using latest guild-deploy.sh script or with your packet manager of choice.\nhttps://command-not-found.com/ss can be used to check package name to install.\n"
   return 1
 fi
 
 if ! command -v "jq" &>/dev/null; then
-  echo -e "'jq' command is missing, please install using latest prereqs.sh script of with your packet manager of choice.\nhttps://command-not-found.com/ss can be used to check package name to install.\n"
+  echo -e "'jq' command is missing, please install using latest guild-deploy.sh script of with your packet manager of choice.\nhttps://command-not-found.com/ss can be used to check package name to install.\n"
   return 1
 fi
 

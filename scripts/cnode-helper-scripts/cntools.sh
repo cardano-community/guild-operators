@@ -117,7 +117,7 @@ clear
 
 if [[ ! -f "${PARENT}"/env ]]; then
   echo -e "\nCommon env file missing: ${PARENT}/env"
-  echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"
+  echo -e "This is a mandatory prerequisite, please install with guild-deploy.sh or manually download from GitHub\n"
   myExit 1
 fi
 
@@ -432,7 +432,7 @@ function main {
                     if ! cmdAvailable "bech32" &>/dev/null || \
                       ! cmdAvailable "cardano-address" &>/dev/null; then
                       println ERROR "${FG_RED}ERROR${NC}: bech32 and/or cardano-address not found in '\$PATH'" 
-                      println ERROR "Please run updated prereqs.sh and re-build cardano-node"
+                      println ERROR "Please run updated guild-deploy.sh and re-build/re-download cardano-node"
                       waitForInput && continue
                     fi
                     getAnswerAnyCust wallet_name "Name of imported wallet"
@@ -569,7 +569,7 @@ function main {
                     echo
                     if ! cmdAvailable "cardano-hw-cli" &>/dev/null; then
                       println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli executable not found in path!"
-                      println ERROR "Please run '${FG_YELLOW}prereqs.sh -w${NC}' to add hardware wallet support and install Vaccumlabs cardano-hw-cli, '${FG_YELLOW}prereqs.sh -h${NC}' shows all available options"
+                      println ERROR "Please run '${FG_YELLOW}guild-deploy.sh -s w${NC}' to add hardware wallet support and install Vaccumlabs cardano-hw-cli, '${FG_YELLOW}guild-deploy.sh -h${NC}' shows all available options"
                       waitForInput && continue
                     fi
                     if [[ ! -x $(command -v cardano-hw-cli) ]]; then

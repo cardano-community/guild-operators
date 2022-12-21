@@ -138,7 +138,7 @@ cncliInit() {
   
   if [[ ! -f "${PARENT}"/env ]]; then
     echo -e "\nCommon env file missing: ${PARENT}/env"
-    echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"
+    echo -e "This is a mandatory prerequisite, please install with guild-deploy.sh or manually download from GitHub\n"
     exit 1
   fi
   
@@ -179,7 +179,7 @@ cncliInit() {
   TMP_DIR="${TMP_DIR}/cncli"
   if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then echo "ERROR: Failed to create directory for temporary files: ${TMP_DIR}"; exit 1; fi
   
-  [[ ! -f "${CNCLI}" ]] && echo -e "\nERROR: failed to locate cncli executable, please install with 'prereqs.sh'\n" && exit 1
+  [[ ! -f "${CNCLI}" ]] && echo -e "\nERROR: failed to locate cncli executable, please install with 'guild-deploy.sh'\n" && exit 1
   CNCLI_VERSION="v$(cncli -V | cut -d' ' -f2)"
   if ! versionCheck "5.1.0" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, minimum required version is 5.1.0, please upgrade to latest version!"; exit 1; fi
   

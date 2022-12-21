@@ -28,7 +28,7 @@ PGPASSFILE=$CNODE_HOME/priv/.pgpass
 psql cexplorer
 ```
 
-Ensure that you can connect to your Postgres DB fine using above (quit from psql once validated using `\q`). As part of `prereqs.sh` execution, you'd find setup-grest.sh file made available in `${CNODE_HOME}/scripts` folder, which will help you automate installation of PostgREST, HAProxy as well as brings in latest queries/functions provided via Koios to your instances.
+Ensure that you can connect to your Postgres DB fine using above (quit from psql once validated using `\q`). As part of `guild-deploy.sh` execution, you'd find setup-grest.sh file made available in `${CNODE_HOME}/scripts` folder, which will help you automate installation of PostgREST, HAProxy as well as brings in latest queries/functions provided via Koios to your instances.
 
 !!! warning "Warning"
     As of now, gRest services are in alpha stage - while can be utilised, please remember there may be breaking changes and every collaborator is expected to work with the team to keep their instances up-to-date using alpha branch.

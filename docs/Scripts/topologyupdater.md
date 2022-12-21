@@ -6,7 +6,7 @@ The topologyUpdater shell script must be executed on the relay node as a cronjob
 
 #### Download and Configure {: id="download"}
 
-If you have run [prereqs.sh](../basics.md#pre-requisites), this should already be available in your scripts folder and make this step unnecessary.
+If you have run [guild-deploy.sh](../basics.md#pre-requisites), this should already be available in your scripts folder and make this step unnecessary.
 
 Before the updater can make a valid request to the central topology service, it must query the current tip/blockNo from the well-synced local node. It connects to your node through the configuration in the script as well as the common `env` configuration file. Customize these files for your needs.
 
@@ -38,12 +38,12 @@ MAX_PEERS=15                                              # Maximum number of pe
 #BATCH_AUTO_UPDATE=N                                      # Set to Y to automatically update the script if a new version is available without user interaction
 ```
 
-Any customisations you add above, will be saved across future `prereqs.sh` executions, unless you specify the `-f` flag to overwrite completely.
+Any customisations you add above, will be saved across future `guild-deploy.sh` executions, unless you specify the `-f` flag to overwrite completely.
 
 #### Deploy the script {: id="deploy"}
 
 **systemd service**  
-The script can be deployed as a background service in different ways but the recommended and easiest way if [prereqs.sh](../basics.md#pre-requisites) was used, is to utilize the `deploy-as-systemd.sh` script to setup and schedule the execution. This will deploy both push & fetch service files as well as timers for a scheduled 60 min node alive message and cnode restart at the user set interval (default: 24 hours) when running the deploy script.
+The script can be deployed as a background service in different ways but the recommended and easiest way if [guild-deploy.sh](../basics.md#pre-requisites) was used, is to utilize the `deploy-as-systemd.sh` script to setup and schedule the execution. This will deploy both push & fetch service files as well as timers for a scheduled 60 min node alive message and cnode restart at the user set interval (default: 24 hours) when running the deploy script.
 
 - `cnode-tu-push.service`    : pushes a node alive message to Topology Updater API
 - `cnode-tu-push.timer`      : schedules the push service to execute once every hour

@@ -89,7 +89,7 @@ while getopts :d opt; do
 done
 
 # Check if env file is missing in current folder (no update checks as will mostly run as daemon), source env if present
-[[ ! -f "$(dirname $0)"/env ]] && echo -e "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
+[[ ! -f "$(dirname $0)"/env ]] && echo -e "\nCommon env file missing, please ensure latest guild-deploy.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
 . "$(dirname $0)"/env
 case $? in
   1) echo -e "ERROR: Failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" && exit 1;;
