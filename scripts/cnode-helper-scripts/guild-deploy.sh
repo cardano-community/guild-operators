@@ -322,17 +322,17 @@ download_cnodebins() {
   pushd "${HOME}"/tmp >/dev/null || err_exit
   echo "  Downloading Cardano Node archive from IO Hydra CI builds.."
   rm -f cardano-node cardano-address
-  curl -m 200 -sfL https://hydra.iohk.io/build/21343721/download/1/cardano-node-1.35.4-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node's latest release archive from IO CI builds at hydra.iohk.io!"
+  curl -m 200 -sfL https://update-cardano-mainnet.iohk.io/cardano-node-releases/cardano-node-1.35.4-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node's latest release archive from IO CI builds at update-cardano-mainnet.iohk.io!"
   tar zxf cnode.tar.gz ./cardano-node ./cardano-cli ./cardano-submit-api ./bech32 &>/dev/null
   rm -f cnodebin.tar.gz
   [[ -f cardano-node ]] || err_exit " cardano-node archive downloaded but binary (cardano-node) not found after extracting package!"
   echo "  Downloading Github release package for Cardano Wallet"
-  curl -m 200 -sfL https://hydra.iohk.io/build/21343721/download/1/cardano-node-1.35.4-linux.tar.gz -o cwallet.tar.gz || err_exit " Could not download cardano-wallet's latest release archive from IO github!"
-  tar zxf cwallet.tar.gz --strip-components=1 cardano-wallet-v2022-10-06-linux64/cardano-address &>/dev/null
-  rm -f cwallet.tar.gz
-  [[ -f cardano-address ]] || err_exit " cardano-wallet archive downloaded but binary (cardano-address) not found after extracting package!"
+  curl -m 200 -sfL https://github.com/input-output-hk/cardano-addresses/releases/download/3.12.0/cardano-addresses-3.12.0-linux64.tar.gz -o caddress.tar.gz || err_exit " Could not download cardano-wallet's latest release archive from IO github!"
+  tar zxf caddress.tar.gz --strip-components=1 bin/cardano-address &>/dev/null
+  rm -f caddress.tar.gz
+  [[ -f cardano-address ]] || err_exit " cardano-address archive downloaded but binary (bin/cardano-address) not found after extracting package!"
   echo "  Downloading Cardano DB Sync archive from IO Hydra CI Builds.."
-  curl -m 200 -sfL https://hydra.iohk.io/build/19105782/download/1/cardano-db-sync-13.0.5-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync's latest release archive from IO CI builds at hydra.iohk.io!"
+  curl -m 200 -sfL https://api.koios.rest/bin/cardano-db-sync.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync's latest release archive from IO CI builds at hydra.iohk.io!"
   tar zxf cnodedbsync.tar.gz ./cardano-db-sync &>/dev/null
   [[ -f cardano-db-sync ]] || err_exit " cardano-db-sync archive downloaded but binary (cardano-db-sync) not found after extracting package!"
   rm -f cnodebin.tar.gz

@@ -832,7 +832,7 @@ if [[ -z "${CNODEBIN}" ]]; then
   elif [[ -f "${HOME}/.local/bin/cardano-node" ]]; then
     export PATH="${HOME}/.local/bin":$PATH
     CNODEBIN=$(command -v cardano-node)
-  elif [[ ${OFFLINE_MODE} = "Y" ]]; then
+  elif [[ ${OFFLINE_MODE} = "N" ]]; then
     echo "You do not have a cardano-node binary available in \$PATH."
     return 1
   fi
