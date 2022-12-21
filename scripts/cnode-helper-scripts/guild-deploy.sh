@@ -202,7 +202,7 @@ os_dependencies() {
   if [[ "${OS_ID}" =~ ebian ]] || [[ "${OS_ID}" =~ buntu ]] || [[ "${DISTRO}" =~ ebian ]] || [[ "${DISTRO}" =~ buntu ]]; then
     #Debian/Ubuntu
     pkgmgrcmd="env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get"
-    pkg_list="python3 pkg-config libssl-dev libncursesw5 libtinfo-dev systemd libsystemd-dev libsodium-dev tmux git jq libtool bc gnupg aptitude libtool secure-delete iproute2 tcptraceroute sqlite3 bsdmainutils libusb-1.0-0-dev libudev-dev unzip llvm clang libnuma-dev libpq-dev build-essential libffi-dev libgmp-dev zlib1g-dev make g++ autoconf automake liblmdb-dev"
+    pkg_list="python3 pkg-config libssl-dev libncursesw5 libtinfo-dev systemd libsystemd-dev libsodium-dev tmux git jq libtool bc gnupg aptitude libtool secure-delete iproute2 tcptraceroute sqlite3 bsdmainutils libusb-1.0-0-dev libudev-dev unzip llvm clang libnuma-dev libpq-dev build-essential libffi-dev libgmp-dev zlib1g-dev make g++ autoconf automake liblmdb-dev procps"
   elif [[ "${OS_ID}" =~ rhel ]] || [[ "${OS_ID}" =~ fedora ]] || [[ "${DISTRO}" =~ Fedora ]]; then
     #CentOS/RHEL/Fedora/RockyLinux
     pkgmgrcmd="yum"
@@ -322,17 +322,17 @@ download_cnodebins() {
   pushd "${HOME}"/tmp >/dev/null || err_exit
   echo "  Downloading Cardano Node archive from IO Hydra CI builds.."
   rm -f cardano-node cardano-address
-  curl -m 200 -sfL https://hydra.iohk.io/build/21343721/download/1/cardano-node-1.35.4-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node's latest release archive from IO CI builds at hydra.iohk.io!"
+  curl -m 200 -sfL https://update-cardano-mainnet.iohk.io/cardano-node-releases/cardano-node-1.35.4-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node's latest release archive from IO CI builds at update-cardano-mainnet.iohk.io!"
   tar zxf cnode.tar.gz ./cardano-node ./cardano-cli ./cardano-submit-api ./bech32 &>/dev/null
   rm -f cnodebin.tar.gz
   [[ -f cardano-node ]] || err_exit " cardano-node archive downloaded but binary (cardano-node) not found after extracting package!"
   echo "  Downloading Github release package for Cardano Wallet"
-  curl -m 200 -sfL https://hydra.iohk.io/build/21343721/download/1/cardano-node-1.35.4-linux.tar.gz -o cwallet.tar.gz || err_exit " Could not download cardano-wallet's latest release archive from IO github!"
-  tar zxf cwallet.tar.gz --strip-components=1 cardano-wallet-v2022-10-06-linux64/cardano-address &>/dev/null
-  rm -f cwallet.tar.gz
-  [[ -f cardano-address ]] || err_exit " cardano-wallet archive downloaded but binary (cardano-address) not found after extracting package!"
+  curl -m 200 -sfL https://github.com/input-output-hk/cardano-addresses/releases/download/3.12.0/cardano-addresses-3.12.0-linux64.tar.gz -o caddress.tar.gz || err_exit " Could not download cardano-wallet's latest release archive from IO github!"
+  tar zxf caddress.tar.gz --strip-components=1 bin/cardano-address &>/dev/null
+  rm -f caddress.tar.gz
+  [[ -f cardano-address ]] || err_exit " cardano-address archive downloaded but binary (bin/cardano-address) not found after extracting package!"
   echo "  Downloading Cardano DB Sync archive from IO Hydra CI Builds.."
-  curl -m 200 -sfL https://hydra.iohk.io/build/19105782/download/1/cardano-db-sync-13.0.5-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync's latest release archive from IO CI builds at hydra.iohk.io!"
+  curl -m 200 -sfL https://api.koios.rest/bin/cardano-db-sync.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync's latest release archive from IO CI builds at hydra.iohk.io!"
   tar zxf cnodedbsync.tar.gz ./cardano-db-sync &>/dev/null
   [[ -f cardano-db-sync ]] || err_exit " cardano-db-sync archive downloaded but binary (cardano-db-sync) not found after extracting package!"
   rm -f cnodebin.tar.gz
@@ -508,7 +508,7 @@ populate_cnode() {
     curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp ${URL_RAW}/files/alonzo-genesis-guild.json || err_exit "${err_msg} alonzo-genesis-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp ${URL_RAW}/files/topology-guild.json || err_exit "${err_msg} topology-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-guild.json || err_exit "${err_msg} config-guild.json"
-  elif [[ ${NETWORK} =~ ^(mainnet|preprod|preview|testnet)$ ]]; then # testnet will be retired , already marked as legacy soon
+  elif [[ ${NETWORK} =~ ^(mainnet|preprod|preview)$ ]]; then
     NWCONFURL="https://raw.githubusercontent.com/input-output-hk/cardano-world/master/docs/environments"
     curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/${NETWORK}/byron-genesis.json" || err_exit "${err_msg} byron-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp "${NWCONFURL}/${NETWORK}/shelley-genesis.json" || err_exit "${err_msg} shelley-genesis.json"

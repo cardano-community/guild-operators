@@ -3,7 +3,7 @@ This documentation site (rather the repository itself) is created by some of the
 
   - Learn about working with architecture, setup and essentials (SysOps);
   - Understand how to secure your server (SecOps);
-  - Be comfortable with working with `cardano-cli`, and have worked on testnet for pool operations without use of wrapper scripts - as an education exercise;
+  - Be comfortable with working with `cardano-cli`, and have worked on preview/preprod/guild networks for pool operations without use of wrapper scripts - as an education exercise;
   - Read the documentation and disclaimers. The guide and tools only aim to simplify your tasks, it will not try to do everything for you - neither scope best practices.
   - We recommend anyone using these instructions to use offline workflow, and **NEVER** have their wallet keys and pool keys to be made available to online servers, as supported by the tools.
 

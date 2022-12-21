@@ -3,7 +3,7 @@
     - Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
     - The active testers for this script use Fedora/CentOS/RHEL/Ubuntu operating systems, other OS may require customisations.
     - The tool uses the folder structure defined [here](../basics.md#folder-structure). Everyone is free to customise, but while doing so beware that you may introduce changes that may not be tested during updates.
-    - Always use Testnet/Guild network first to familiarise, read the warning/messages in full, maintain your keys/backups with passwords (no one other than yourself can retrieve the funds if you make an accident), before performing actions on mainnet.
+    - Always use Preview/Preprod/Guild network first to familiarise, read the warning/messages in full, maintain your keys/backups with passwords (no one other than yourself can retrieve the funds if you make an accident), before performing actions on mainnet.
 
 CNTools is like a swiss army knife for pool operators to simplify typical operations regarding their wallet keys and pool management. Please note that this tool only aims to simplify usual tasks for its users, but it should **NOT** act as an excuse to skip understanding how to manually work through things or basics of Linux operations. The skills highlighted on the [home page](../index.md) are paramount for a stake pool operator, and so is the understanding of configuration files and network. Please ensure you've read and understood the disclaimers **before** proceeding.
 
@@ -32,7 +32,7 @@ CNTools can operate in following modes:
 - Offline - When CNTools is launched with `-o` runtime argument, this launches CNTools with limited set of features. This mode **does not require access to cardano-node**. It is mainly used to create Wallet/Pool and access `Transaction >> Sign` to sign an offline transaction file created in Hybrid mode.
 
 #### Download and Update
-The update functionality is provided from within CNTools. In case of breaking changes, please follow the prompts post-upgrade. If stuck, it's always best to re-run the latest `prereqs.sh` before proceeding.
+The update functionality is provided from within CNTools. In case of breaking changes, please follow the prompts post-upgrade. If stuck, it's always best to re-run the latest `guild-deploy.sh` before proceeding.
 
 !!! info ""
     If you have not updated in a while, it is possible that you might come from a release with breaking changes. If so, please be sure to check out the [upgrade](../upgrade.md) instructions.
@@ -43,7 +43,7 @@ The scripts menu supports both arrow key navigation and shortcut key selection. 
 #### Hardware Wallet
 CNTools include hardware wallet support since version `7.0.0` through Vacuumlabs `cardano-hw-cli` application. Initialize and update firmware/app on the device to the latest version before usage following the manufacturer instructions.
 
-To enable hardware support run `prereqs.sh -w`. This downloads and installs Vacuumlabs `cardano-hw-cli` including `udev` configuration. When a new version of Vacuumlabs `cardano-hw-cli` is released, run `prereqs.sh -w` again to update. For additional runtime options, run `prereqs.sh -h`.
+To enable hardware support run `guild-deploy.sh -s w`. This downloads and installs Vacuumlabs `cardano-hw-cli` including `udev` configuration. When a new version of Vacuumlabs `cardano-hw-cli` is released, run `guild-deploy.sh -s w` again to update. For additional runtime options, run `guild-deploy.sh -h`.
 
 === "Ledger"
 
@@ -65,7 +65,7 @@ Keys excluded from backup when created without private keys:
 **Wallet** - `payment.skey`, `stake.skey`
 **Pool**   - `cold.skey`
 
-Note that setting up an offline server requires good SysOps background (you need to be aware of how to set up your server with offline mirror repository, how to transfer files across and be fairly familiar with the disk layout of guild tools). The `prereqs.sh` in its current state is not expected to run on an offline machine. Essentially, you simply need the `cardano-cli`, `bech32`, `cardano-address` binaries in your `$PATH`, OS level dependency packages [`jq`, `coreutils`, `pkgconfig`, `gcc-c++` and `bc` ], and perhaps a copy from your online `cnode` directory (to ensure you have the right `genesis`/`config` files on your offline server). We strongly recommend you to familiarise yourself with the workflow on the testnet / guild networks first, before attempting on mainnet.
+Note that setting up an offline server requires good SysOps background (you need to be aware of how to set up your server with offline mirror repository, how to transfer files across and be fairly familiar with the disk layout of guild tools). The `guild-deploy.sh` in its current state is not expected to run on an offline machine. Essentially, you simply need the `cardano-cli`, `bech32`, `cardano-address` binaries in your `$PATH`, OS level dependency packages [`jq`, `coreutils`, `pkgconfig`, `gcc-c++` and `bc` ], and perhaps a copy from your online `cnode` directory (to ensure you have the right `genesis`/`config` files on your offline server). We strongly recommend you to familiarise yourself with the workflow on the preview / preprod / guild networks first, before attempting on mainnet.
 
 Example workflow for creating a wallet and pool:
 

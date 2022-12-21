@@ -14,7 +14,7 @@ Note that securing prometheus/grafana servers via TLS encryption and other secur
 
 #### Download setup_mon.sh {docsify-ignore}
 
-If you have run `prereqs.sh`, you can skip this step. To download monitoring script, you can execute the commands below:
+If you have run `guild-deploy.sh`, you can skip this step. To download monitoring script, you can execute the commands below:
 ``` bash
 cd $CNODE_HOME/scripts
 wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/setup_mon.sh

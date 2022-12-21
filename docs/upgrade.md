@@ -21,13 +21,13 @@ Some or all of the above required us to rewrite some artifacts in a way that is 
 
 !> Remember that same as before, you're running these as non root user with sudo access for the session.
 
-- Download the latest `prereqs.sh` (tip: do checkout new features with `prereqs.sh -h`) to update all the scripts and files from the guild template. Most of the files modified with user content (`env`, `gLiveView.sh`, `topologyUpdater.sh`, `cnode.sh`, etc) will be backed up before overwriting. The backed up files will be in the same folder as the original files, and will be named as *`${filename}_bkp<timestamp>`*. More static files (genesis files or some of the scripts themselves) will not be backed up, as they're not expected to be modified.
+- Download the latest `guild-deploy.sh` (tip: do checkout new features with `guild-deploy.sh -h`) to update all the scripts and files from the guild template. Most of the files modified with user content (`env`, `gLiveView.sh`, `topologyUpdater.sh`, `cnode.sh`, etc) will be backed up before overwriting. The backed up files will be in the same folder as the original files, and will be named as *`${filename}_bkp<timestamp>`*. More static files (genesis files or some of the scripts themselves) will not be backed up, as they're not expected to be modified.
 
 ``` bash
 mkdir "$HOME/tmp";cd "$HOME/tmp"
-curl -sS -o prereqs.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh
-chmod 700 prereqs.sh
-./prereqs.sh -f
+curl -sS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
+chmod 700 guild-deploy.sh
+./guild-deploy.sh -s f
 ```
 
 - Check and add back your customisations.
@@ -75,7 +75,7 @@ CNODE_PORT=6000                                         # Set node port
 
 #### Advanced Users/Testers only
 
-For folks who would like to try out an unreleased feature by using a specific branch (`alpha` for example), you can now do so. While setting up your repository, use `prereqs.sh -b alpha -f` where alpha is the name of the branch.
+For folks who would like to try out an unreleased feature by using a specific branch (`alpha` for example), you can now do so. While setting up your repository, use `guild-deploy.sh -b alpha -s f` where alpha is the name of the branch.
 The `-b branch` argument is also extended to CNTools, gLiveView and topologyUpdater scripts.
 
 Just beware, that using this option may mean you test against a branch that may have breaking changes. Always take extra care when using this option.

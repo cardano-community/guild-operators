@@ -44,7 +44,7 @@ SGVERSION=1.0.9
   
   update_check() {
     # Check if env file is missing in current folder, note that some env functions may not be present until env is sourced successfully
-    [[ ! -f ./env ]] && printf "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
+    [[ ! -f ./env ]] && printf "\nCommon env file missing, please ensure latest guild-deploy.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
     . ./env offline # Just to source checkUpdate, will be re-sourced later
     
     # Update check
@@ -107,7 +107,7 @@ SGVERSION=1.0.9
     local cron_pattern=$2
     local cron_job_path="${CRON_DIR}/${CNODE_VNAME}-${job}"
     local cron_scripts_path="${CRON_SCRIPTS_DIR}/${job}.sh"
-    local cron_log_path="${LOG_DIR}/${job}.log"
+    local cron_log_path="${LOG_DIR}/${job}_\`date +%d%m%y\`.log"
     local cron_job_entry="${cron_pattern} ${USER} /bin/bash ${cron_scripts_path} >> ${cron_log_path} 2>&1"
     remove_cron_job "${job}"
     sudo bash -c "{ echo '${cron_job_entry}'; } > ${cron_job_path}"
@@ -173,11 +173,18 @@ SGVERSION=1.0.9
     set_cron_variables "populate-next-epoch-nonce"
     install_cron_job "populate-next-epoch-nonce" "*/10 * * * *"
 
-    if [[ ${NWMAGIC} -eq 764824073 || ${NWMAGIC} -eq 1097911063 || ${NWMAGIC} -eq 1 || ${NWMAGIC} -eq 2 || ${NWMAGIC} -eq 141 ]]; then
+    get_cron_job_executable "asset-info-cache-update"
+    set_cron_variables "asset-info-cache-update"
+    install_cron_job "asset-info-cache-update" "* * * * *"
+
+    # Only (legacy) testnet and mainnet asset registries supported
+    # In absence of official messaging, current (soon to be reset) preprod/preview networks use same registry as testnet. TBC - once there is an update from IO on these
+    # Possible future addition for the Guild network once there is a guild registry
+    if [[ ${NWMAGIC} -eq 764824073 || ${NWMAGIC} -eq 1 || ${NWMAGIC} -eq 2 || ${NWMAGIC} -eq 141 ]]; then
       get_cron_job_executable "asset-registry-update"
       set_cron_variables "asset-registry-update"
       # Point the update script to testnet regisry repo structure (default: mainnet)
-      [[ ${NWMAGIC} -eq 1097911063 || ${NWMAGIC} -eq 1 || ${NWMAGIC} -eq 2 || ${NWMAGIC} -eq 141 ]] && set_cron_asset_registry_testnet_variables
+      [[ ${NWMAGIC} -eq 1 || ${NWMAGIC} -eq 2 || ${NWMAGIC} -eq 141 ]] && set_cron_asset_registry_testnet_variables
       install_cron_job "asset-registry-update" "*/10 * * * *"
     fi
   }
@@ -229,7 +236,6 @@ SGVERSION=1.0.9
     DOCS_URL="https://cardano-community.github.io/guild-operators"
     [[ -z "${PGPASSFILE}" ]] && export PGPASSFILE="${CNODE_HOME}"/priv/.pgpass
     case ${NWMAGIC} in
-      1097911063) KOIOS_SRV="testnet.koios.rest" ;;
       764824073)  KOIOS_SRV="api.koios.rest" ;;
       1) KOIOS_SRV="preprod.koios.rest" ;;
       2) KOIOS_SRV="preview.koios.rest" ;;
