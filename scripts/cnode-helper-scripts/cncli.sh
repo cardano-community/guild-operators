@@ -10,6 +10,7 @@
 ######################################
 
 #POOL_ID=""                               # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation & pooltool sendtip, lower-case hex pool id
+#POOL_ID_BECH32=""                        # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation with Koios API, lower-case pool id in bech32 format
 #POOL_VRF_SKEY=""                         # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation, path to pool's vrf.skey file
 #POOL_VRF_VKEY=""                         # Automatically detected if POOL_NAME is set in env. Required for block validation, path to pool's vrf.vkey file
 #PT_API_KEY=""                            # POOLTOOL: set API key, e.g "a47811d3-0008-4ecd-9f3e-9c22bdb7c82d"
@@ -24,7 +25,7 @@
 #CONFIRM_SLOT_CNT=600                     # CNCLI validate: require at least these many slots to have passed before validating
 #CONFIRM_BLOCK_CNT=15                     # CNCLI validate: require at least these many blocks on top of minted before validating
 #BATCH_AUTO_UPDATE=N                      # Set to Y to automatically update the script if a new version is available without user interaction
-#LEDGER_API=false                         # Use API from api.crypto2099.io in cncli leaderlog instead of local stake-snapshot query to reduce system resources. ONLY for MainNet network (true|false)
+#USE_KOIOS_API=Y                          # Use Koios API in cncli leaderlog instead of local stake-snapshot query to reduce system resources. (default true)
 
 ######################################
 # Do NOT modify code below           #
@@ -114,12 +115,25 @@ getLedgerData() { # getNodeMetrics expected to have been already run
     echo "ERROR: stake-snapshot query failed: ${stake_snapshot}"
     return 1
   fi
-  #pool_stake_go=$(jq -r .poolStakeGo <<< ${stake_snapshot})
-  #active_stake_go=$(jq -r .activeStakeGo <<< ${stake_snapshot})
   pool_stake_mark=$(jq -r .poolStakeMark <<< ${stake_snapshot})
   active_stake_mark=$(jq -r .activeStakeMark <<< ${stake_snapshot})
   pool_stake_set=$(jq -r .poolStakeSet <<< ${stake_snapshot})
   active_stake_set=$(jq -r .activeStakeSet <<< ${stake_snapshot})
+  return 0
+}
+
+getKoiosData() {
+  [[ -z ${KOIOS_API} ]] && return 1
+  if ! stake_snapshot=$(curl -sSL -f -d _pool_bech32=${POOL_ID_BECH32} "${KOIOS_API}/pool_stake_snapshot" 2>&1); then
+    echo "ERROR: Koios pool_stake_snapshot query failed: curl -sSL -f -d _pool_bech32=${POOL_ID_BECH32} ${KOIOS_API}/pool_stake_snapshot"
+    return 1
+  fi
+  read -ra stake_mark <<<"$(jq -r '.[] | select(.snapshot=="Mark") | [.pool_stake, .active_stake] | @tsv' <<< ${stake_snapshot})"
+  read -ra stake_set <<<"$(jq -r '.[] | select(.snapshot=="Set") | [.pool_stake, .active_stake] | @tsv' <<< ${stake_snapshot})"
+  pool_stake_mark=${stake_mark[0]}
+  active_stake_mark=${stake_mark[1]}
+  pool_stake_set=${stake_set[0]}
+  active_stake_set=${stake_set[1]}
   return 0
 }
 
@@ -186,7 +200,7 @@ cncliInit() {
   [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
   if ! mkdir -p "${CNCLI_DIR}" 2>/dev/null; then echo "ERROR: Failed to create CNCLI DB directory: ${CNCLI_DIR}"; exit 1; fi
   CNCLI_DB="${CNCLI_DIR}/cncli.db"
-  [[ -z "${LEDGER_API}" ]] && LEDGER_API=false
+  [[ -z "${USE_KOIOS_API}" ]] && USE_KOIOS_API=Y
   [[ -z "${CNODE_HOST}" ]] && CNODE_HOST="127.0.0.1"
   [[ -z "${SLEEP_RATE}" ]] && SLEEP_RATE=60
   [[ -z "${CONFIRM_SLOT_CNT}" ]] && CONFIRM_SLOT_CNT=600
@@ -199,6 +213,7 @@ cncliInit() {
   PT_SENDSLOTS_STOP=$((PT_SENDSLOTS_STOP*60))
   if [[ -d "${POOL_DIR}" ]]; then
     [[ -z "${POOL_ID}" && -f "${POOL_DIR}/${POOL_ID_FILENAME}" ]] && POOL_ID=$(cat "${POOL_DIR}/${POOL_ID_FILENAME}")
+    [[ -z "${POOL_ID_BECH32}" && -f "${POOL_DIR}/${POOL_ID_FILENAME}-bech32" ]] && POOL_ID_BECH32=$(cat "${POOL_DIR}/${POOL_ID_FILENAME}-bech32")
     [[ -z "${POOL_VRF_SKEY}" ]] && POOL_VRF_SKEY="${POOL_DIR}/${POOL_VRF_SK_FILENAME}"
     [[ -z "${POOL_VRF_VKEY}" ]] && POOL_VRF_VKEY="${POOL_DIR}/${POOL_VRF_VK_FILENAME}"
   fi
@@ -220,7 +235,7 @@ cncliSync() {
 cncliLeaderlog() {
   echo "~ CNCLI Leaderlog started ~"
   createBlocklogDB || exit 1 # create db if needed
-  [[ -z ${POOL_ID} || -z ${POOL_VRF_SKEY} ]] && echo "'POOL_ID' and/or 'POOL_VRF_SKEY' not set in $(basename "$0"), exiting!" && exit 1
+  [[ -z ${POOL_ID} || -z ${POOL_ID_BECH32} || -z ${POOL_VRF_SKEY} ]] && echo "'POOL_ID'/'POOL_ID_BECH32' and/or 'POOL_VRF_SKEY' not set in $(basename "$0"), exiting!" && exit 1
   
   while true; do
     if [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
@@ -254,10 +269,12 @@ cncliLeaderlog() {
     echo "Leaderlogs already calculated for epoch ${curr_epoch}, skipping!"
   else
     echo "Running leaderlogs for epoch ${curr_epoch} and adding leader slots not already in DB"
-    stake_param_current=""
-    if [[ ${LEDGER_API} = false || ${NWMAGIC} -ne 764824073 ]]; then 
-      if ! getLedgerData; then exit 1; else stake_param_current="--active-stake ${active_stake_set} --pool-stake ${pool_stake_set}"; fi
+    if [[ ${USE_KOIOS_API} = Y ]]; then 
+      getKoiosData || exit 1
+    else
+      getLedgerData || exit 1
     fi
+    stake_param_current="--active-stake ${active_stake_set} --pool-stake ${pool_stake_set}"
     cncli_leaderlog=$(${CNCLI} leaderlog --consensus "${consensus}" --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current ${stake_param_current} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
     if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
       error_msg=$(jq -r .errorMessage <<< "${cncli_leaderlog}")
@@ -318,10 +335,12 @@ cncliLeaderlog() {
         else continue; fi
       fi
       echo "Running leaderlogs for next epoch[${next_epoch}]"
-      stake_param_next=""
-      if [[ ${LEDGER_API} = false || ${NWMAGIC} -ne 764824073 ]]; then 
-        if ! getLedgerData; then sleep 300; continue; else stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"; fi # Sleep for 5 min before retrying to query stake snapshot in case of error
+      if [[ ${USE_KOIOS_API} = Y ]]; then
+        if ! getKoiosData; then sleep 60; continue; fi # Sleep for 1 min before retrying to query koios again in case of error
+      else
+        if ! getLedgerData; then sleep 300; continue; fi # Sleep for 5 min before retrying to query stake snapshot in case of error
       fi
+      stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"
       cncli_leaderlog=$(${CNCLI} leaderlog --consensus "${consensus}" --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next ${stake_param_next} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
       if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
         error_msg=$(jq -r .errorMessage <<< "${cncli_leaderlog}")

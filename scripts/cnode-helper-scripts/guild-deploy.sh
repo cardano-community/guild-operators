@@ -67,7 +67,7 @@ versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=avail
 usage() {
   cat <<-EOF >&2
 		
-		Usage: $(basename "$0") [-n <mainnet|preprod|guild|preview>] [-p path] [-t <name>] [-b <branch>] [-i] [-u] [-s [p][b][l][f][s][d][c][o][w][x]]
+		Usage: $(basename "$0") [-n <mainnet|preprod|guild|preview>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][f][d][c][o][w][x]]
 		Set up dependencies for building/using common tools across cardano ecosystem.
 		The script will always update dynamic content from existing scripts retaining existing user variables
 		
@@ -157,6 +157,8 @@ update_check() {
 common_init() {
   dirs -c # clear dir stack
   set_defaults
+  mkdir -p "${HOME}"/tmp
+  [[ ! -d "${HOME}"/.local/bin ]] && mkdir -p "${HOME}"/.local/bin
   if ! grep -q '/.local/bin' "${HOME}"/.bashrc; then
     export PATH="${HOME}/.local/bin:${PATH}"
   fi
@@ -244,7 +246,6 @@ os_dependencies() {
     echo "It would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
     err_exit
   fi
-  [[ ! -d "${HOME}"/.local/bin ]] && mkdir -p "${HOME}"/.local/bin
 }
 
 # Build Dependencies for cabal builds
@@ -333,9 +334,10 @@ download_cnodebins() {
   [[ -f cardano-address ]] || err_exit " cardano-address archive downloaded but binary (bin/cardano-address) not found after extracting package!"
   echo "  Downloading Cardano DB Sync archive from IO Hydra CI Builds.."
   curl -m 200 -sfL https://api.koios.rest/bin/cardano-db-sync.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync's latest release archive from IO CI builds at hydra.iohk.io!"
-  tar zxf cnodedbsync.tar.gz ./cardano-db-sync &>/dev/null
+  tar zxf cnodedbsync.tar.gz cardano-db-sync &>/dev/null
   [[ -f cardano-db-sync ]] || err_exit " cardano-db-sync archive downloaded but binary (cardano-db-sync) not found after extracting package!"
-  rm -f cnodebin.tar.gz
+  rm -f cnodedbsync.tar.gz
+  mv -t "${HOME}"/.local/bin cardano-node cardano-cli cardano-submit-api bech32 cardano-db-sync cardano-address
 }
 
 # Download CNCLI
