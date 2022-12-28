@@ -109,7 +109,7 @@ if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
   checkFixConfig '["TraceBlockFetchClient"]' "true" "fix";
   checkFixConfig '["TracingVerbosity"]' "NormalVerbosity" "fix";
   [[ $config_change -eq 1 ]] && echo "Please restart the node with new Tracers before using blockPerf."
-  #deploy_systemd && exit 0
+  deploy_systemd && exit 0
   exit 2
 fi
 
