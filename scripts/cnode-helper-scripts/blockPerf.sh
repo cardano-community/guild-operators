@@ -21,7 +21,7 @@
 # Do NOT modify code below           #
 ######################################
 
-BP_VERSION=v1.3.3
+BP_VERSION=v1.3.4
 
 deploy_systemd() {
   echo "Deploying ${CNODE_VNAME} blockPerf as systemd service.."
@@ -68,10 +68,11 @@ usage() {
 ###################
 
 # Parse command line options
-while getopts :ds opt; do
+while getopts :dsm opt; do
   case ${opt} in
     d ) DEPLOY_SYSTEMD="Y" ;;
     s ) if [[ -z $SERVICE_MODE ]]; then SERVICE_MODE="Y"; fi ;;
+    m ) PARSE_MANUAL="Y" ;;
     \? ) usage ;;
   esac
 done
@@ -90,14 +91,25 @@ else
   fi
 fi
 
+checkFixConfig() {
+  # if config's key != value update config as required
+  checkKey=${1}; 
+  checkVal=$2;
+  if [[  "$3" == "fix" ]]; then
+    [[ "$(jq -r ".${checkKey}" "${CONFIG}")" != "${checkVal}" ]] && jq --argjson theKey $checkKey --arg theVal $checkVal 'setpath($theKey; $theVal)' ${CONFIG} > ${CONFIG}.tmp && mv ${CONFIG}.tmp ${CONFIG} && echo "INFO: setting .$checkKey to ${checkVal}" && config_change=1
+  else  # alert only
+    [[ "$(jq -r ".${checkKey}" "${CONFIG}")" != "${checkVal}" ]] && echo "INFO: for blockPerf parsing please set ${checkKey[0]}:\"${checkVal}\" in ${CONFIG}" && config_change=1
+  fi
+}
+
 #Deploy systemd if -d argument was specified
 if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
   # if not already enabled activate the required Tracers in the config file
-  [[ "$(jq -r .TraceChainSyncClient "${CONFIG}")" != "true" ]] && jq '.TraceChainSyncClient = "true"' ${CONFIG} > ${CONFIG}.tmp && mv ${CONFIG}.tmp ${CONFIG} && echo "INFO: Enabling node config TraceChainSyncClient" && config_changed=1
-  [[ "$(jq -r .TraceBlockFetchClient "${CONFIG}")" != "true" ]] && jq '.TraceBlockFetchClient = "true"' ${CONFIG} > ${CONFIG}.tmp && mv ${CONFIG}.tmp ${CONFIG} && echo "INFO: Enabling node config TraceBlockFetchClient" && config_changed=1
-  [[ "$(jq -r .TracingVerbosity "${CONFIG}")" != "NormalVerbosity" ]] && jq '.TracingVerbosity = "NormalVerbosity"' ${CONFIG} > ${CONFIG}.tmp && mv ${CONFIG}.tmp ${CONFIG} && echo "INFO: Set node config NormalVerbosity" && config_changed=1
-  [[ $config_changed -eq 1 ]] && echo "Please restart the node with new Tracers before using blockPerf."
-  deploy_systemd && exit 0
+  checkFixConfig '["TraceChainSyncClient"]' "true" "fix";
+  checkFixConfig '["TraceBlockFetchClient"]' "true" "fix";
+  checkFixConfig '["TracingVerbosity"]' "NormalVerbosity" "fix";
+  [[ $config_change -eq 1 ]] && echo "Please restart the node with new Tracers before using blockPerf."
+  #deploy_systemd && exit 0
   exit 2
 fi
 
@@ -110,10 +122,10 @@ if [[ "${CONFIG##*.}" = "json" ]] && [[ -f ${CONFIG} ]]; then
   [[ -z ${EKG_PORT} ]] && EKG_PORT=$(jq .hasEKG $CONFIG)
   [[ -z "${EKG_PORT}" ]] && echo -e "ERROR: Failed to locate the EKG Port in node configuration file" && errors=1
   NWMAGIC=$(jq -r .networkMagic < ${GENESIS_JSON})
-  [[ "$(jq -r .TraceChainSyncClient "${CONFIG}")" != "true" ]] && echo "ERROR: please set \"TraceChainSyncClient\":\"true\" in config file " && errors=1
-  [[ "$(jq -r .TraceBlockFetchClient "${CONFIG}")" != "true" ]] && echo "ERROR: please set \"TraceBlockFetchClient\":\"true\" in config file " && errors=1
-  [[ "$(jq -r .TracingVerbosity "${CONFIG}")" != "NormalVerbosity" ]] && echo "ERROR: please set \"TracingVerbosity\":\"NormalVerbosity\" in config file " && errors=1
-  [[ $errors -eq 1 ]] && exit 1
+  checkFixConfig '["TraceChainSyncClient"]' "true" "alert";
+  checkFixConfig '["TraceBlockFetchClient"]' "true" "alert";
+  checkFixConfig '["TracingVerbosity"]' "NormalVerbosity" "alert";
+  [[ $config_change -eq 1 ]] && exit 1
 else 
   echo "ERROR: Failed to locate json configuration file" && exit 1
 fi
@@ -121,7 +133,7 @@ fi
 # simple-static way to convert slotnumber <=> unixtime (works as slong as slot time is 1sec)
 case ${NWMAGIC} in  
   1) 
-    [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="PreView"
+    [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="PreProd"
     NETWORK_UTIME_OFFSET=1660003200;;  
   2) 
     [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="PreView"
@@ -140,27 +152,6 @@ if [[ -f ${pidfile} ]]; then
 else
     trap "rm -f -- '$pidfile'" EXIT
     echo $! > $pidfile
-fi
-
-echo "INFO parsing ${logfile} for ${NETWORK_NAME} blocks (networkmagic: ${NWMAGIC})"
-
-# on (re)start wait until node metrics become available
-while true [ -z $(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r '.cardano.node.metrics.blockNum.int.val //0') ]
-do
-    blockHeightPrev=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r '.cardano.node.metrics.blockNum.int.val //0')
-    if [ -z $blockHeightPrev ] || [ $blockHeightPrev == 0 ] ; then
-      echo "WARN: can't query EKG on http://${EKG_HOST}:${EKG_PORT} ... waiting ..."
-      sleep 5
-    else
-      forksPrev=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r '.cardano.node.metrics.forks.int.val //0')
-      break;
-    fi
-done
-if [ -z $blockHeightPrev ] || [ $blockHeightPrev == 0 ] ; then
-  blockHeightPrev=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r '.cardano.node.metrics.blockNum.int.val //0')
-fi
-if [ -z $forksPrev ] || [ $forksPrev == 0 ] ; then
-  forksPrev=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r '.cardano.node.metrics.forks.int.val //0')
 fi
 
 missingTbh=true; missingCbf=true; 
@@ -244,8 +235,8 @@ reportBlock() {
     # calculate delta-milliseconds from original slottime
     deltaSlotTbh=$(getDeltaMS ${blockTimeTbh} ${blockSlotTime},000)
     deltaTbhSfr=$(( $(getDeltaMS ${blockTimeSfrX} ${blockSlotTime},000) - deltaSlotTbh))
-    deltaSfrCbf=$(( $(getDeltaMS ${blockTimeCbf} ${blockSlotTime},000) - deltaTbhSfr - deltaSlotTbh))
-    deltaCbfAb=$(( $(getDeltaMS ${blockTimeAb} ${blockSlotTime},000) - deltaSfrCbf - deltaTbhSfr - deltaSlotTbh))
+    [ ! -z "$blockTimeCbf" ] && deltaSfrCbf=$(( $(getDeltaMS ${blockTimeCbf} ${blockSlotTime},000) - deltaTbhSfr - deltaSlotTbh)) || deltaSfrCbf="NULL"
+    [ ! -z "$blockTimeAb" ] && deltaCbfAb=$(( $(getDeltaMS ${blockTimeAb} ${blockSlotTime},000) - deltaSfrCbf - deltaTbhSfr - deltaSlotTbh)) || deltaCbfAb="NULL"
     [[ "$deltaCbfAb" -lt 0 ]] && deltaCbfAb=0  # rare cases of ab logged before cbf (can be removed after fixed in node )
     # may blacklist some internal IPs, to not expose them to common views (api.clio.one)
     if [[ "$AddrBlacklist" == *"$blockTimeCbfAddr"* ]]; then
@@ -261,7 +252,7 @@ reportBlock() {
       echo -e "WARN: blockheight:${iblockHeight} (negative delta) \n  tbh:${blockTimeTbh} ${deltaSlotTbh}\n  sfr:${blockTimeSfrX} ${deltaTbhSfr}\n  cbf:${blockTimeCbf} ${deltaSfrCbf}\n  ab:${blockTimeAb} ${deltaCbfAb}" 
       echo -e "DBG \n blockTimeCbfAddr: $blockTimeCbfAddr \n blockTimeCbfPort: $blockTimeCbfPort \n sbx: $sbx \n line_tsv: $line_tsv"
       #Debug: look into when and why this happens
-      #echo -e "blockheight:${iblockHeight} (negative delta) \n  tbh:${blockTimeTbh} ${deltaSlotTbh}\n  sfr:${blockTimeSfrX} ${deltaTbhSfr}\n  cbf:${blockTimeCbf} ${deltaSfrCbf}\n  ab:${blockTimeAb} ${deltaCbfAb} \n blockTimeCbfAddr: $blockTimeCbfAddr \n blockTimeCbfPort: $blockTimeCbfPort \n sbx: $sbx \n line_tsv: $line_tsv \n \n blockLogLine: \n${blockLogLine} \n\n ${blockLog}" > zzz_debug_WARN_block_${iblockHeight}.json
+      echo -e "blockheight:${iblockHeight} (negative delta) \n  tbh:${blockTimeTbh} ${deltaSlotTbh}\n  sfr:${blockTimeSfrX} ${deltaTbhSfr}\n  cbf:${blockTimeCbf} ${deltaSfrCbf}\n  ab:${blockTimeAb} ${deltaCbfAb} \n blockTimeCbfAddr: $blockTimeCbfAddr \n blockTimeCbfPort: $blockTimeCbfPort \n sbx: $sbx \n line_tsv: $line_tsv \n \n blockLogLine: \n${blockLogLine} \n\n ${blockLog}" > /opt/cardano/cnode/zzz_debug_WARN_block_${iblockHeight}.json
     else
       if [[ "${deltaSlotTbh}" -lt 10000 ]] && [[ "$((blockSlot-slotHeightPrev))" -lt 200 ]]; then
         [[ ${SELFISH_MODE} != "Y" ]] && result=$(curl -4 -s "https://api.clio.one/blocklog/v1/?magic=${NWMAGIC}&bpv=${BP_VERSION}&nport=${CNODE_PORT}&bn=${iblockHeight}&slot=${blockSlot}&tbh=${deltaSlotTbh}&sfr=${deltaTbhSfr}&cbf=${deltaSfrCbf}&ab=${deltaCbfAb}&g=${blockTimeG}&size=${blockSize}&addr=${blockTimeCbfAddrPublic}&port=${blockTimeCbfPortPublic}&bh=${blockHash}&bpenv=${envBP}" &)
@@ -278,6 +269,47 @@ reportBlock() {
   blockTimeTbh=""; missingTbh=true; blockTimeSfr1=""; blockTimeSfrX=""; blockTimeCbf=""; missingCbf=true; blockTimeCbfAddr=""; blockTimeCbfPort=""; blockTimeAb=""; blockSlot=""; blockSlotTime=""
   blockDelay=""; blockSize=""; blockTimeDeltaSlots=0; deltaCbf=""; deltaSfr=""; deltaAb=""; 
 }
+
+if [[ "${PARSE_MANUAL}" == "Y" ]]; then
+  # manually parse for a certain block (no EKG tracing, no online reporting)
+  echo "INFO: manual parse mode"
+  if [[ $2 -gt 0  &&  ! -z $3 ]]; then
+    SELFISH_MODE=Y # don't report this block online
+    SERVICE_MODE=N # only show console output
+    iblockHeight=$2
+    logfile=$3
+    echo " looking for block $2"
+    echo " in logfile $3"
+    blockHash=$(grep -m 1 "$iblockHeight" ${logfile} | jq -r .data.block)
+    blockLog=$(grep -E ${blockHash:0:10} ${logfile} | grep -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch' )
+	reportBlock ${blockLog} && exit 0;
+    exit 1
+  else
+    echo "in manual parse mode (-m) please specify [blockheight intNum] and [logfile path]"
+	exit 1
+  fi
+fi
+
+echo "INFO parsing ${logfile} for ${NETWORK_NAME} blocks (networkmagic: ${NWMAGIC})"
+
+# on (re)start wait until node metrics become available
+while true [ -z $(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r '.cardano.node.metrics.blockNum.int.val //0') ]
+do
+    blockHeightPrev=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r '.cardano.node.metrics.blockNum.int.val //0')
+    if [ -z $blockHeightPrev ] || [ $blockHeightPrev == 0 ] ; then
+      echo "WARN: can't query EKG on http://${EKG_HOST}:${EKG_PORT} ... waiting ..."
+      sleep 5
+    else
+      forksPrev=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r '.cardano.node.metrics.forks.int.val //0')
+      break;
+    fi
+done
+if [ -z $blockHeightPrev ] || [ $blockHeightPrev == 0 ] ; then
+  blockHeightPrev=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r '.cardano.node.metrics.blockNum.int.val //0')
+fi
+if [ -z $forksPrev ] || [ $forksPrev == 0 ] ; then
+  forksPrev=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r '.cardano.node.metrics.forks.int.val //0')
+fi
 
 while true
 do
