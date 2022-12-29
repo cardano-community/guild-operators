@@ -355,7 +355,7 @@ download_cncli() {
     [[ -f cncli ]] || err_exit "CNCLI downloaded but binary (cncli) not found after extracting package!"
     [[ "${cncli_version}" = "v0.0.0" ]] && echo " latest_version: ${cncli_git_version}" || echo " installed version: ${cncli_version} | latest version: ${cncli_git_version}"
     chmod +x /tmp/cncli-bin/cncli
-    mv -f /tmp/cncli-bin "${HOME}"/.local/bin/
+    mv -f /tmp/cncli-bin/cncli "${HOME}"/.local/bin/
     rm -f "${HOME}"/.cargo/bin/cncli # Remove duplicate file in $PATH (old convention)
     echo " cncli ${cncli_git_version} installed!"
   else
@@ -385,7 +385,7 @@ download_cardanohwcli() {
         rm -rf "${HOME}"/.local/bin/cardano-hw-cli 
       fi
       pushd "${HOME}"/.local/bin >/dev/null || err_exit
-      mv -f /tmp/chwcli-bin/cardano-hw-cli .
+      mv -f /tmp/chwcli-bin/cardano-hw-cli/cardano-hw-cli .
       if [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ]]; then
         # Ledger udev rules
         curl -s -f -m ${CURL_TIMEOUT} https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh | $sudo bash >/dev/null 2>&1
