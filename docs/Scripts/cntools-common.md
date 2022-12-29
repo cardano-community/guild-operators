@@ -1,5 +1,5 @@
 !!! important
-     Familiarize yourself with the Online workflow of creating wallets and pools on the Testnet. You can then move on to test the [Offline Workflow](../Scripts/cntools.md#offline-workflow). The Offline workflow means that the private keys never touch the Online node. When comfortable with both the online and offline CNTools workflow, it's time to deploy what you learnt on the mainnet.
+     Familiarize yourself with the Online workflow of creating wallets and pools on the Preview/Preprod/Guild network first. You can then move on to test the [Offline Workflow](../Scripts/cntools.md#offline-workflow). The Offline workflow means that the private keys never touch the Online node. When comfortable with both the online and offline CNTools workflow, it's time to deploy what you learnt on the mainnet.
 
 This chapter describes some common use-cases for wallet and pool creation when running CNTools in Online mode. CNTools contains much more functionality not described here.
 
@@ -75,7 +75,7 @@ This chapter describes some common use-cases for wallet and pool creation when r
       3.5.0
       ```
     !!! info ""
-        If the version is not as per above, please run the latest `prereqs.sh` from [here](../basics.md) and rebuild `cardano-node` as instructed [here](../Build/node-cli.md).
+        If the version is not as per above, please run the latest `guild-deploy.sh` from [here](../basics.md) and rebuild `cardano-node` as instructed [here](../Build/node-cli.md).
 
     To import a Daedalus/Yoroi wallet to CNTools, open CNTools and select the `[w] Wallet` option, and then select the `[i] Import`, the following menu will appear:
       ```
@@ -285,6 +285,6 @@ This chapter describes some common use-cases for wallet and pool creation when r
     2. Start or restart your `cardano-node`. If deployed as a `systemd` service as shown [here](Build/node-cli?id=run-as-systemd-service), you can run `sudo systemctl restart cnode`.
     3. Ensure the node is running as a block producing (core) node.
     
-    You can use [gLiveView](Scripts/gliveview) - the output at the top should say `> Cardano Node - (Core - Testnet)`.
+    You can use [gLiveView](Scripts/gliveview) - the output at the top should say `> Cardano Node - (Core - Guild)`.
     
     Alternatively, you can check the node logs in `$CNODE_HOME/logs/` to see whether the node is performing leadership checks (`TraceStartLeadershipCheck`, `TraceNodeIsNotLeader`, etc.) 

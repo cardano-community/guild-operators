@@ -30,7 +30,7 @@ git checkout $(curl -s https://api.github.com/repos/input-output-hk/cardano-wall
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
 
-The above would copy the binaries into `~/.cabal/bin` folder.
+The above would copy the binaries into `~/.local/bin` folder.
 
 ##### Start the wallet
 

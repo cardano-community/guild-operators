@@ -12,6 +12,7 @@
 #HAPROXY_PORT=8053             # Destination HAProxy port
 #DBSYNC_PROM_HOST=127.0.0.1    # Destination DBSync Prometheus Host
 #DBSYNC_PROM_PORT=8080         # Destination DBSync Prometheus port
+#PGDATABASE=cexplorer          # Destination Postgres database
 
 ######################################
 # Do NOT modify code below           #
@@ -25,6 +26,7 @@ exec 2>/dev/null
 [[ -z ${HAPROXY_PORT} ]] && HAPROXY_PORT=8053
 [[ -z ${DBSYNC_PROM_HOST} ]] && DBSYNC_PROM_HOST=127.0.0.1
 [[ -z ${DBSYNC_PROM_PORT} ]] && DBSYNC_PROM_PORT=8080
+[[ -z ${PGDATABASE} ]] && PGDATABASE=cexplorer
 
 function get-metrics() {
   shopt -s expand_aliases
@@ -44,10 +46,10 @@ function get-metrics() {
   memused=$(( memtotal - $(echo "${meminf}" | grep MemAvailable | awk '{print $2}') ))
   cpuutil=$(awk -v a="$(awk '/cpu /{print $2+$4,$2+$4+$5}' /proc/stat; sleep 1)" '/cpu /{split(a,b," "); print 100*($2+$4-b[1])/($2+$4+$5-b[2])}'  /proc/stat)
   # in Bytes
-  pubschsize=$(psql -t --csv -d cexplorer -c "SELECT sum(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'public'" | grep "^[0-9]")
-  grestschsize=$(psql -t --csv -d cexplorer -c "SELECT sum(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'grest'" | grep "^[0-9]")
-  grestconns=$(psql -t --csv -d cexplorer -c "select count(1) from pg_stat_activity where state='active' or state='idle';" | awk '{print $1}')
-  dbsize=$(psql -t --csv -d cexplorer -c "SELECT pg_database_size ('cexplorer');" | grep "^[0-9]")
+  pubschsize=$(psql -t --csv -d ${PGDATABASE} -c "SELECT sum(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'public'" | grep "^[0-9]")
+  grestschsize=$(psql -t --csv -d ${PGDATABASE} -c "SELECT sum(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'grest'" | grep "^[0-9]")
+  grestconns=$(psql -t --csv -d ${PGDATABASE} -c "select count(1) from pg_stat_activity where state='active' or state='idle';" | awk '{print $1}')
+  dbsize=$(psql -t --csv -d ${PGDATABASE} -c "SELECT pg_database_size ('${PGDATABASE}');" | grep "^[0-9]")
 
   # Metrics
   export METRIC_dbsynctipref=$(( currslottip - $( echo "${tip}" | jq .[0].abs_slot) ))
@@ -66,7 +68,7 @@ function get-metrics() {
   export METRIC_dbsize="${dbsize}"
   #export METRIC_cnodeversion="$(echo $(cardano-node --version) | awk '{print $2 "-" $9}')"
   #export METRIC_dbsyncversion="$(echo $(cardano-db-sync --version) | awk '{print $2 "-" $9}')"
-  #export METRIC_psqlversion="$(echo "" | psql cexplorer -c "SELECT version();" | grep PostgreSQL | awk '{print $2}')"
+  #export METRIC_psqlversion="$(echo "" | psql ${PGDATABASE} -c "SELECT version();" | grep PostgreSQL | awk '{print $2}')"
 
   for metric_var_name in $(env | grep ^METRIC | sort | awk -F= '{print $1}')
   do

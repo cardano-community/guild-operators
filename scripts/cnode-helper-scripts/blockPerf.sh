@@ -13,7 +13,7 @@
 #SELFISH_MODE='Y'      # in case you don't want to share this node's block propagation data, turn the selfish mode on (Y)
 #SERVICE_MODE='N'      # if you deploy-as-service this script it will run with the -s (service) parameter, and surpress console/syslog output. you can overwrite it here, restart the service and watch the console output with 'journalctl -f -u cnode-tu-blockperf'
 
-#CNODE_PORT=6010       # the port on which this node runs (automatically read from cnTools:env   outside cnTools you need to manually set this parameter
+#CNODE_PORT=6000       # the port on which this node runs (automatically read from cnTools:env   outside cnTools you need to manually set this parameter
 
 #AddrBlacklist="192.168.1.123, " # uncomment with your block producers or other nodes IP that you do not want to expose to common view
 

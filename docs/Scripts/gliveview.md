@@ -7,11 +7,11 @@ The tool is independent from other files and can run as a standalone utility tha
 
 ##### Download
 
-If you've used [prereqs.sh](../basics.md#pre-requisites), you can skip this part, as this is already set up for you. The tool relies on the common `env` configuration file.
+If you've used [guild-deploy.sh](../basics.md#pre-requisites), you can skip this part, as this is already set up for you. The tool relies on the common `env` configuration file.
 To get current epoch blocks, the [logMonitor.sh](../Scripts/logmonitor.md) script is needed (and can be combined with [CNCLI](../Scripts/cncli.md)). This is optional and **Guild LiveView** will function without it.
 
 !!! info "Note"
-    For those who follow guild's [folder structure](../basics.md#folder-structure) and do not wish to run `prereqs.sh`, you can run the below in `$CNODE_HOME/scripts` folder
+    For those who follow guild's [folder structure](../basics.md#folder-structure) and do not wish to run `guild-deploy.sh`, you can run the below in `$CNODE_HOME/scripts` folder
 
 To download the script:
 

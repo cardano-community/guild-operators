@@ -2,6 +2,10 @@
 
 # shellcheck disable=SC1090,SC2086
 
+######################################
+# Do NOT modify code below           #
+######################################
+
 PARENT="$(dirname "$0")" 
 
 if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then

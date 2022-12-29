@@ -9,7 +9,7 @@
 ######################################
 
 #PGPASSFILE="${CNODE_HOME}/priv/.pgpass"                    # PGPass file containing connection information for the postgres instance
-#DBSYNCBIN="${HOME}/.cabal/bin/cardano-db-sync"             # Path for cardano-db-sync binary, assumed to be available in $PATH
+#DBSYNCBIN="${HOME}/.local/bin/cardano-db-sync"             # Path for cardano-db-sync binary, assumed to be available in $PATH
 #DBSYNC_STATE_DIR="${CNODE_HOME}/guild-db/ledger-state"     # Folder where DBSync instance will dump ledger-state files
 #DBSYNC_SCHEMA_DIR="${CNODE_HOME}/guild-db/schema"          # Path to DBSync repository's schema folder
 #DBSYNC_CONFIG="${CNODE_HOME}/files/dbsync.json"            # Config file for dbsync instance
@@ -36,7 +36,7 @@ usage() {
 }
 
 set_defaults() {
-  [[ -z "${DBSYNCBIN}" ]] && DBSYNCBIN="${HOME}/.cabal/bin/cardano-db-sync"
+  [[ -z "${DBSYNCBIN}" ]] && DBSYNCBIN="${HOME}/.local/bin/cardano-db-sync"
   [[ -z "${PGPASSFILE}" ]] && PGPASSFILE="${CNODE_HOME}/priv/.pgpass"
   [[ -z "${DBSYNC_CONFIG}" ]] && DBSYNC_CONFIG="${CNODE_HOME}/files/dbsync.json"
   [[ -z "${DBSYNC_SCHEMA_DIR}" ]] && DBSYNC_SCHEMA_DIR="${CNODE_HOME}/guild-db/schema"
@@ -51,7 +51,7 @@ check_defaults() {
     echo "ERROR: The PGPASSFILE (${PGPASSFILE}) not found, please ensure you've followed the instructions on guild-operators website!" && exit 1
     exit 1
   elif [[ ! -f "${DBSYNC_CONFIG}" ]]; then
-    echo "ERROR: Could not find the dbsync config file: ${DBSYNC_CONFIG} . Please ensure you've run prereqs.sh and/or edit the DBSYNC_CONFIG variable if using a custom file." && exit 1
+    echo "ERROR: Could not find the dbsync config file: ${DBSYNC_CONFIG} . Please ensure you've run guild-deploy.sh and/or edit the DBSYNC_CONFIG variable if using a custom file." && exit 1
   elif [[ ! -d "${DBSYNC_SCHEMA_DIR}" ]]; then
     echo "ERROR: The schema directory (${DBSYNC_SCHEMA_DIR}) does not exist. Please ensure you've follow the instructions on guild-operators website" && exit 1
   fi
@@ -113,7 +113,7 @@ while getopts :d opt; do
 done
 
 # Check if env file is missing in current folder (no update checks as will mostly run as daemon), source env if present
-[[ ! -f "$(dirname $0)"/env ]] && echo -e "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
+[[ ! -f "$(dirname $0)"/env ]] && echo -e "\nCommon env file missing, please ensure latest guild-deploy.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
 . "$(dirname $0)"/env
 case $? in
   1) echo -e "ERROR: Failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" && exit 1;;

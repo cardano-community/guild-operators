@@ -26,37 +26,55 @@ mkdir "$HOME/tmp";cd "$HOME/tmp"
 # Install curl
 # CentOS / RedHat - sudo dnf -y install curl
 # Ubuntu / Debian - sudo apt -y install curl
-curl -sS -o prereqs.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh
-chmod 755 prereqs.sh
+curl -sS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
+chmod 755 guild-deploy.sh
 ```
 
-Please familiarise with the syntax of `prereqs.sh` before proceeding. The usage syntax can be checked using `./prereqs.sh -h` , sample output below:
+Please familiarise with the syntax of `guild-deploy.sh` before proceeding. The usage syntax can be checked using `./guild-deploy.sh -h` , sample output below:
 
 ``` bash
-Usage: prereqs.sh [-f] [-s] [-i] [-l] [-c] [-w] [-o] [-x] [-b <branch>] [-n <mainnet|preprod|guild|preview>] [-t <name>] [-m <seconds>]
-Install pre-requisites for building cardano node and using CNTools
 
--f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
-      topology.json, config.json and genesis files normally saved will also be overwritten
--s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
--n    Connect to specified network instead of mainnet network (Default: connect to cardano mainnet network)
-      eg: -n guild
--t    Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
--m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
--l    Use system libsodium instead of IOG fork (Default: use libsodium from IOG fork)
--c    Install/Upgrade and build CNCLI with RUST
--w    Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
--o    Install/Upgrade Ogmios Server binary
--x    Install/Upgrade Cardano Signer
+Usage: guild-deploy.sh [-n <mainnet|preprod|guild|preview>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][f][d][c][o][w][x]]
+Set up dependencies for building/using common tools across cardano ecosystem.
+The script will always update dynamic content from existing scripts retaining existing user variables
+
+-n    Connect to specified network instead of mainnet network (Default: connect to cardano mainnet network) eg: -n guild
+-p    Parent folder path underneath which the top-level folder will be created (Default: /opt/cardano)
+-t    Alternate name for top level folder - only alpha-numeric chars allowed (Default: cnode)
 -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
--i    Interactive mode (Default: silent mode)
+-u    Skip update check for script itself
+-s    Selective Install, only deploy specific components as below:
+  p   Install common pre-requisite OS-level Dependencies for most tools on this repo (Default: skip)
+  b   Install OS level dependencies for tools required while building cardano-node/cardano-db-sync components (Default: skip)
+  l   Build and Install libsodium fork from IO repositories (Default: skip)
+  f   Force overwrite entire content of scripts and config files (backups of existing ones will be created) (Default: skip)
+  d   Download latest (released) cardano-node, cardano-cli, cardano-db-sync and cardano-submit-api binaries (Default: skip)
+  c   Install/Upgrade CNCLI binary (Default: skip)
+  o   Install/Upgrade Ogmios Server binary (Default: skip)
+  w   Install/Upgrade Cardano Hardware CLI (Default: skip)
+  x   Install/Upgrade Cardano Signer binary (Default: skip)
+
 ```
 
-Running without any parameters will run script in silent mode with OS Dependencies, install libsodium fork from IOG, and *NOT* force overwrite of all files (only static files will be overwritten, which should not contain user modifications):
+This script uses opt-in election of what you'd like the script to do (as against previous version that used to try and auto-detect versions). The defaults without any arguments will only update static part of script contents for you.
+A typical example install to install most components but not overwrite static part of existing files for preview network would be:
 
 ``` bash
-./prereqs.sh
+./guild-deploy.sh -b master -n preview -t cnode -s pdlcowx
 . "${HOME}/.bashrc"
+```
+
+If instead of download, you'd want to build the components yourself, you could use:
+
+``` bash
+./guild-deploy.sh -b master -n preview -t cnode -s pblcowx
+. "${HOME}/.bashrc"
+```
+
+Lastly, if you'd want to update your scripts but not install any additional dependencies, you may simply run:
+
+``` bash
+./guild-deploy.sh -b master -n preview -t cnode
 ```
 
 ##### Folder structure

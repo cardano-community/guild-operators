@@ -15,7 +15,6 @@ Running your own Cardano node has never been so fast and easy.
 - cardano-cli
 - cardano-hw-cli
 - cardano-node
-- cardano-ping
 - cardano-submit-api
 
 ### 🔔 Built-in tools
@@ -45,7 +44,7 @@ Running your own Cardano node has never been so fast and easy.
 
 ![CNCLI](./imgs/cncli.png)
 
-#### Guild Operators Docker strategy ( mainnet/ testnet / preview / preprod / guild)  {: id="strategy"}
+#### Guild Operators Docker strategy ( mainnet/ preview / preprod / guild)  {: id="strategy"}
 
 Modular docker images based on Debian.
 

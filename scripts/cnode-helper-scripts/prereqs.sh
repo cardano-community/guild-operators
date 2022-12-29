@@ -60,6 +60,9 @@ versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=avail
 usage() {
   cat <<EOF >&2
 
+
+!! NOTICE: Use of this script is DEPRECATED, please consider using guild-deploy.sh instead !!
+
 Usage: $(basename "$0") [-f] [-s] [-i] [-l] [-c] [-w] [-o] [-x] [-b <branch>] [-n <mainnet|preprod|guild|preview>] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano node and using CNTools
 
@@ -531,7 +534,7 @@ if [[ ${NETWORK} = "guild" ]]; then
   curl -s -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp ${URL_RAW}/files/alonzo-genesis-guild.json
   curl -s -f -m ${CURL_TIMEOUT} -o topology.json.tmp ${URL_RAW}/files/topology-guild.json
   curl -s -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-guild.json
-elif [[ ${NETWORK} =~ ^(mainnet|preprod|preview|testnet)$ ]]; then # testnet will be retired , already marked as legacy soon
+elif [[ ${NETWORK} =~ ^(mainnet|preprod|preview)$ ]]; then
   NWCONFURL="https://raw.githubusercontent.com/input-output-hk/cardano-world/master/docs/environments"
   curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/${NETWORK}/byron-genesis.json"
   curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp "${NWCONFURL}/${NETWORK}/shelley-genesis.json"
@@ -554,7 +557,6 @@ if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f dbsync.json ]]; then mv -f dbsync.json.tm
 
 pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
 curl -s -f -m ${CURL_TIMEOUT} -o env.tmp ${URL_RAW}/scripts/cnode-helper-scripts/env
-curl -s -f -m ${CURL_TIMEOUT} -o rotatePoolKeys.sh ${URL_RAW}/scripts/cnode-helper-scripts/rotatePoolKeys.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cnode.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cnode.sh
 curl -s -f -m ${CURL_TIMEOUT} -o dbsync.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/dbsync.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cntools.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntools.sh
@@ -566,7 +568,6 @@ curl -s -f -m ${CURL_TIMEOUT} -o topologyUpdater.sh.tmp ${URL_RAW}/scripts/cnode
 curl -s -f -m ${CURL_TIMEOUT} -o cabal-build-all.sh ${URL_RAW}/scripts/cnode-helper-scripts/cabal-build-all.sh
 curl -s -f -m ${CURL_TIMEOUT} -o submitapi.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/submitapi.sh
 curl -s -f -m ${CURL_TIMEOUT} -o ogmios.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/ogmios.sh
-curl -s -f -m ${CURL_TIMEOUT} -o system-info.sh ${URL_RAW}/scripts/cnode-helper-scripts/system-info.sh
 curl -s -f -m ${CURL_TIMEOUT} -o gLiveView.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/gLiveView.sh
 curl -s -f -m ${CURL_TIMEOUT} -o deploy-as-systemd.sh ${URL_RAW}/scripts/cnode-helper-scripts/deploy-as-systemd.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cncli.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cncli.sh

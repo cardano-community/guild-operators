@@ -5,7 +5,7 @@ A place for SPOs to contribute together to the Cardano Ecosystem.
 * [Stake Pool Operator](https://cardano-community.github.io/guild-operators) site contains instructions for using various guild tools which simplify various stake-ops (setting up, managing and monitoring pools) for pool operators. Note that the guides are present to help you simplify your tasks - but as an entity responsible for creating blocks on a financial platform, we expect the pre-requisite skillsets before entering the portal:
   - Learn about working with architecture, setup and essentials (sysops);
   - Understand how to secure your server (secops);
-  - Be comfortable with working with cardano-cli , and have worked on testnet for pool operations without use of wrapper scripts - as an education exercise;
+  - Be comfortable with working with cardano-cli , and have worked on preview/preprod/guild networks for pool operations without use of wrapper scripts - as an education exercise;
   - Read the documentation and disclaimers. The guide and tools only aim to simplify your tasks, it will not try to do everything for you - neither scope best practices.
   - We recommend anyone using these instructions to use offline workflow, and *NEVER* have their wallet keys and pool keys to be made available to online servers, as supported by the tools.
 

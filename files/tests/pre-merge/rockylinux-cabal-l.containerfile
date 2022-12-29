@@ -1,11 +1,10 @@
 ARG COMMIT
-FROM ghcr.io/cardano-community/pre-merge-ubuntu:guild-deploy_${COMMIT}
+FROM ghcr.io/cardano-community/pre-merge-rockylinux:guild-deploy-l_${COMMIT}
 ARG G_ACCOUNT
 ARG BRANCH
 ARG CNODE_HOME=/opt/cardano/cnode
 
 ENV \
-  DEBIAN_FRONTEND=noninteractive \
   LANG=C.UTF-8 \
   USER=root \
   PATH=$CNODE_HOME/scripts:/root/.local/bin:/root/.ghcup/bin:$PATH \
@@ -23,5 +22,5 @@ RUN curl -s -f -k -o cardano-node-latest.txt "https://raw.githubusercontent.com/
     git fetch --tags --all &&\
     git checkout tags/"${CNODE_VERSION}" &&\
     git status &&\
-    /opt/cardano/cnode/scripts/cabal-build-all.sh -l &&\
+    /opt/cardano/cnode/scripts/cabal-build-all.sh &&\
     /root/.local/bin/cardano-cli version ; /root/.local/bin/cardano-node version

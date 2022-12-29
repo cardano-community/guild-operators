@@ -9,7 +9,7 @@
 # Common variables set in env file   #
 ######################################
 
-#SUBMITAPIBIN="${HOME}"/.cabal/bin/cardano-submit-api # Path for cardano-submit-api binary, if not in $PATH
+#SUBMITAPIBIN="${HOME}"/.local/bin/cardano-submit-api # Path for cardano-submit-api binary, if not in $PATH
 #HOSTADDR=127.0.0.1                                 # Default Listen IP/Hostname for Submit API
 #HOSTPORT=8090                                      # Default Listen port for Submit API
 
@@ -34,7 +34,7 @@ usage() {
 }
 
 set_defaults() {
-  [[ -z "${SUBMITAPIBIN}" ]] && SUBMITAPIBIN="${HOME}"/.cabal/bin/cardano-submit-api
+  [[ -z "${SUBMITAPIBIN}" ]] && SUBMITAPIBIN="${HOME}"/.local/bin/cardano-submit-api
   [[ -z "${HOSTADDR}" ]] && HOSTADDR=127.0.0.1
   [[ -z "${HOSTPORT}" ]] && HOSTPORT=8090
 }
@@ -89,7 +89,7 @@ while getopts :d opt; do
 done
 
 # Check if env file is missing in current folder (no update checks as will mostly run as daemon), source env if present
-[[ ! -f "$(dirname $0)"/env ]] && echo -e "\nCommon env file missing, please ensure latest prereqs.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
+[[ ! -f "$(dirname $0)"/env ]] && echo -e "\nCommon env file missing, please ensure latest guild-deploy.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
 . "$(dirname $0)"/env
 case $? in
   1) echo -e "ERROR: Failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" && exit 1;;

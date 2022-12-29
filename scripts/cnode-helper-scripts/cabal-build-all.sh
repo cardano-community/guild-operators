@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC1090
 # executes cabal build all
-# parses executables created from compiler output and copies it to ~./cabal/bin folder.
+# parses executables created from compiler output and copies it to ~/.local/bin folder.
+
+######################################
+# Do NOT modify code below           #
+######################################
 
 echo "Deleting build config artifact to remove cached version, this prevents invalid Git Rev"
 find dist-newstyle/build/x86_64-linux/ghc-8.10.?/cardano-config-* >/dev/null 2>&1 && rm -rf "dist-newstyle/build/x86_64-linux/ghc-8.*/cardano-config-*"
@@ -90,6 +94,6 @@ fi
 grep "^Linking" /tmp/build.log | grep -Ev 'test|golden|demo|chairman|locli|ledger|topology' | while read -r line ; do
     act_bin_path=$(echo "$line" | awk '{print $2}')
     act_bin=$(echo "$act_bin_path" | awk -F "/" '{print $NF}')
-    echo "Copying $act_bin to ${HOME}/.cabal/bin/"
-    cp -f "$act_bin_path" "${HOME}/.cabal/bin/"
+    echo "Copying $act_bin to ${HOME}/.local/bin/"
+    cp -f "$act_bin_path" "${HOME}/.local/bin/"
 done
