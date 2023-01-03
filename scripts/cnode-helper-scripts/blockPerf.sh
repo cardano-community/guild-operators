@@ -14,7 +14,7 @@
 #SERVICE_MODE='N'      # if you deploy-as-service this script it will run with the -s (service) parameter, and surpress console/syslog output. you can overwrite it here, restart the service and watch the console output with 'journalctl -f -u cnode-tu-blockperf'
 #BATCH_AUTO_UPDATE=N   # Set to Y to automatically update the script if a new version is available without user interaction
 
-#CNODE_PORT=6010       # the port on which this node runs (automatically read from cnTools:env   outside cnTools you need to manually set this parameter)
+#CNODE_PORT=6000       # the port on which this node runs (automatically read from cnTools:env   outside cnTools you need to manually set this parameter)
 
 #AddrBlacklist="192.168.1.123, " # uncomment with your block producers or other nodes IP that you do not want to expose to common view
 
@@ -22,7 +22,7 @@
 # Do NOT modify code below           #
 ######################################
 
-BP_VERSION=v1.3.5
+BP_VERSION=v1.3.6
 
 SKIP_UPDATE=N
 [[ $1 = "-u" ]] && SKIP_UPDATE=Y && shift
@@ -301,7 +301,7 @@ reportBlock() {
       echo -e "WARN: blockheight:${iblockHeight} (negative delta) \n  tbh:${blockTimeTbh} ${deltaSlotTbh}\n  sfr:${blockTimeSfrX} ${deltaTbhSfr}\n  cbf:${blockTimeCbf} ${deltaSfrCbf}\n  ab:${blockTimeAb} ${deltaCbfAb}" 
       echo -e "DBG \n blockTimeCbfAddr: $blockTimeCbfAddr \n blockTimeCbfPort: $blockTimeCbfPort \n sbx: $sbx \n line_tsv: $line_tsv"
       #Debug: look into when and why this happens
-      #echo -e "blockheight:${iblockHeight} (negative delta) \n  tbh:${blockTimeTbh} ${deltaSlotTbh}\n  sfr:${blockTimeSfrX} ${deltaTbhSfr}\n  cbf:${blockTimeCbf} ${deltaSfrCbf}\n  ab:${blockTimeAb} ${deltaCbfAb} \n blockTimeCbfAddr: $blockTimeCbfAddr \n blockTimeCbfPort: $blockTimeCbfPort \n sbx: $sbx \n line_tsv: $line_tsv \n \n blockLogLine: \n${blockLogLine} \n\n ${blockLog}" > zzz_debug_WARN_block_${iblockHeight}.json
+      #echo -e "blockheight:${iblockHeight} (negative delta) \n  bhash:${blockHash}\n  tbh:${blockTimeTbh} ${deltaSlotTbh}\n  sfr:${blockTimeSfrX} ${deltaTbhSfr}\n  cbf:${blockTimeCbf} ${deltaSfrCbf}\n  ab:${blockTimeAb} ${deltaCbfAb} \n blockTimeCbfAddr: $blockTimeCbfAddr \n blockTimeCbfPort: $blockTimeCbfPort \n sbx: $sbx \n line_tsv: $line_tsv \n \n blockLogLine: \n${blockLogLine} \n\n ${blockLog}" > zzz_debug_WARN_block_${iblockHeight}.json
     else
       if [[ "${deltaSlotTbh}" -lt 10000 ]] && [[ "$((blockSlot-slotHeightPrev))" -lt 200 ]]; then
         [[ ${SELFISH_MODE} != "Y" ]] && result=$(curl -4 -s "https://api.clio.one/blocklog/v1/?magic=${NWMAGIC}&bpv=${BP_VERSION}&nport=${CNODE_PORT}&bn=${iblockHeight}&slot=${blockSlot}&tbh=${deltaSlotTbh}&tbhAddr=${blockTimeTbhAddrPublic}&tbhPort=${blockTimeTbhPortPublic}&sfr=${deltaTbhSfr}&cbf=${deltaSfrCbf}&ab=${deltaCbfAb}&g=${blockTimeG}&size=${blockSize}&addr=${blockTimeCbfAddrPublic}&port=${blockTimeCbfPortPublic}&bh=${blockHash}&bpenv=${envBP}" &)
@@ -327,8 +327,8 @@ if [[ "${PARSE_MANUAL}" == "Y" ]]; then
     SERVICE_MODE=N # only show console output
     iblockHeight=$2
     logfile=$3
-    echo " looking for block $2"
-    echo " in logfile $3"
+    echo " looking for block $iblockHeight"
+    echo " in logfile $logfile"
     blockHash=$(grep -m 1 "$iblockHeight" ${logfile} | jq -r .data.block)
     echo "DBG Hash: $blockHash"
     blockLog=$(grep -E ${blockHash:0:10} ${logfile} | grep -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' )
@@ -377,25 +377,30 @@ do
   if [ -z $blockHeight ] || [ "$blockHeight" -eq 0 ]; then
     echo "WARN: can't query EKG on http://${EKG_HOST}:${EKG_PORT}/ ..."
     sleep 10
-  elif [ "$blockHeight" -gt "$blockHeightPrev" ] ; then # new Block
-    for (( iblockHeight=$blockHeightPrev+1; iblockHeight<=$blockHeight; iblockHeight++ ))
-    do  #catch up from previous to current blockheight
-      blockHash=$(grep -m 1 "$iblockHeight" ${logfile} | jq -r .data.block)
-      if [ ! -z $blockHash ]; then
-        blockLog=$(grep ":${blockHash:0:10}" ${logfile} | grep -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' )
-        if [ $(echo "$blockLog" | grep -h -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' | jq -r .data.kind | sort | uniq | wc -l) -lt 4 ]; then 
-          # grep'ed blockLog is incomplete (4 steps) probably because of log rotation. so let's grep from all logs
-          blockLog=$(grep -h -E ${blockHash:0:10} ${logfile/.json/-*} ${logfile} | grep -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' )
+  elif [ "$blockHeight" -gt "$blockHeightPrev" ]; then # a new BlockHeight
+    if [ $(( blockHeight - blockHeightPrev )) -gt 5 ] ; then # the node is (quickly) syncing up from the past: wait until synced up
+      echo -e "INFO: blockheight delta from previous loop is high [$(( blockHeight - blockHeightPrev ))] Skip parsing as node seems syncing up from the past"
+      blockHeightPrev=$blockHeight; 
+    else
+      for (( iblockHeight=$blockHeightPrev+1; iblockHeight<=$blockHeight; iblockHeight++ ))
+      do  #catch up from previous to current blockheight
+        blockHash=$(grep -m 1 "$iblockHeight" ${logfile} | jq -r .data.block)
+        if [ ! -z $blockHash ]; then
+          blockLog=$(grep ":${blockHash:0:10}" ${logfile} | grep -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' )
+          if [ $(echo "$blockLog" | grep -h -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' | jq -r .data.kind | sort | uniq | wc -l) -lt 4 ]; then 
+            # grep'ed blockLog is incomplete (4 steps) probably because of log rotation. so let's grep from all logs
+            blockLog=$(grep -h -E ${blockHash:0:10} ${logfile/.json/-*} ${logfile} | grep -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' )
+          fi
+          reportBlock ${blockLog};
+        else
+          echo -e "WARN: blockheight:${iblockHeight} no hash" 
+          #Debug: look into when and why this happens
+          echo -e "blockheight:${iblockHeight} (no hash) \n\n $(grep -m 1 "$iblockHeight" ${logfile})" > zzz_debug_WARN_block_${iblockHeight}.json
         fi
-        reportBlock ${blockLog};
-       else
-        echo -e "WARN: blockheight:${iblockHeight} no hash" 
-        #Debug: look into when and why this happens
-        #echo -e "blockheight:${iblockHeight} (no hash) \n\n $(grep -m 1 "$iblockHeight" ${logfile})" > zzz_debug_WARN_block_${iblockHeight}.json
-      fi
-      echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    done  # catch up from previous to current blockheight
-    blockHeightPrev=$blockHeight; 
+        [[ ${SERVICE_MODE} != "Y" ]] && echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      done  # catch up from previous to current blockheight
+      blockHeightPrev=$blockHeight; 
+    fi
   elif [ "$forks" -gt "$forksPrev" ] ; then # another new Block (instead of previous one)
     forkMode=1
     blockHash=$(grep -E -m 1 "SwitchedToAFork+.*${slotNum}" ${logfile} | jq -r .data.newtip)
@@ -411,14 +416,14 @@ do
         fi
       iblockHeight=$(grep -m 1 ${blockHash} ${logfile})
       iblockHeight=$(jq -r .data.blockNo.unBlockNo <<< "${iblockHeight}")
-      echo "b:${iblockHeight}	s:${slotNum}" >> forks.log
+      #echo "b:${iblockHeight}	s:${slotNum}" >> forks.log
       reportBlock ${blockLog};
     else
       echo -e "WARN: blockheight:${iblockHeight} no hash" 
       #Debug: look into when and why this happens
       #echo -e "blockheight:${iblockHeight} (no hash) \n\n $(grep -m 1 "$iblockHeight" ${logfile})" > zzz_debug_WARN_block_${iblockHeight}.json
     fi
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    [[ ${SERVICE_MODE} != "Y" ]] && echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     forksPrev=$forks; 
     forkMode=0
   fi
