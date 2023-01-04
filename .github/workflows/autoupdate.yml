@@ -1,0 +1,13 @@
+name: autoupdate-branch
+on:
+  push:
+    branches:
+      - alpha
+jobs:
+  Autoupdate:
+    name: Auto-Update
+    runs-on: ubuntu-latest
+    steps:
+      - uses: tibdex/auto-update@v2
+        with:
+          github_token: ${{secrets.GITHUB_TOKEN }}

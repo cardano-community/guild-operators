@@ -37,6 +37,7 @@
                                                         # Leave commented for automatic network detection between MainNet, TestNet and Guild network.
                                                         # https://www.koios.rest/
 #DBSYNC_QUERY_FOLDER="${CNODE_HOME}/files/dbsync/queries" # [advanced feature] Folder containing DB-Sync chain analysis queries
+#G_ACCOUNT="cardano-community"             # Override default github repository if you forked project
 
 #WALLET_FOLDER="${CNODE_HOME}/priv/wallet"              # Root folder for Wallets
 #POOL_FOLDER="${CNODE_HOME}/priv/pool"                  # Root folder for Pools
@@ -79,6 +80,10 @@
 ######################################
 # Do NOT modify code below           #
 ######################################
+
+# Initialise/Set offline mode prior to calling functions
+OFFLINE_MODE='N'
+[[ $1 = "offline" ]] && OFFLINE_MODE='Y'
 
 # Description : Check if provided file exists
 #             : $1 = File (with path) to check
@@ -149,10 +154,9 @@ checkUpdate() {
   [[ "${UPDATE_CHECK}" != "Y" ]] && return 0
 
   if [[ ${OFFLINE_MODE} = N && ${BRANCH} != master && ${BRANCH} != alpha ]]; then
-    if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
-      echo -e "WARN!! The folder was configured against ${BRANCH} branch - which does not exist anymore, falling back to alpha branch"
-      # alpha because if someone was testing something against a custom branch, it would likely be merged to alpha first. Production systems should not be using custom branch anyways
-      BRANCH=alpha
+    if ! curl -s -f -m ${CURL_TIMEOUT} "${URL_RAW}/LICENSE" -o /dev/null ; then
+      echo -e "WARN!! The folder was configured against ${BRANCH} branch - which does not exist anymore, falling back to master branch"
+      BRANCH=master
       echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
     fi
   fi
@@ -172,7 +176,7 @@ checkUpdate() {
     GIT_TEMPL=$(awk '/^# Do NOT modify/,0' "${dname}/${fname}".tmp)
     NEW_STATIC=$(checkUserVariables "${OLD_STATIC}" "${GIT_STATIC}")
     if [[ ($3 = Y && "$(sha256sum "${dname}/${fname}" | cut -d' ' -f1)" != "$(sha256sum "${dname}/${fname}.tmp" | cut -d' ' -f1)") || "$(echo ${OLD_STATIC} | sha256sum)" != "$(echo ${NEW_STATIC} | sha256sum)" || "$(echo ${OLD_TEMPL} | sha256sum)" != "$(echo ${GIT_TEMPL} | sha256sum)" ]]; then
-      update_msg="\nScript update(s) detected, do you want to download the latest version?"
+      update_msg="\n${fname} script update(s) detected, do you want to download the latest version?"
       if [[ ${fname} = cntools.library || ${fname} = gLiveView.sh ]]; then
         if [[ ${fname} = cntools.library ]]; then
           CUR_MAJOR_VERSION=$(grep -r ^CNTOOLS_MAJOR_VERSION= "${dname}/${fname}" |sed -e "s#.*=##")
@@ -322,11 +326,12 @@ validateDecimalNbr() {
 
 # Description : Pretty print Lovelace value
 #             : $1 = Amount in Lovelace
+#             : $2 = normal | pretty (default)
 formatLovelace() {
   if isNumber $1; then
     [[ $1 -eq 0 ]] && echo 0 && return
     [[ $1 -le 999999 ]] && printf '0.%06d' "$1" && return
-    printf '%s.%s' "$(sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< ${1::-6})" "${1: -6}"
+    [[ -z $2 || $2 = 'pretty' ]] && printf '%s.%s' "$(sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< ${1::-6})" "${1: -6}" || printf '%s.%s' "${1::-6}" "${1: -6}"
   else
     printf "${FG_RED}ERROR${NC}: must be a valid integer number" 1>&2
     return 1
@@ -393,7 +398,7 @@ fractionToPCT() {
 isValidIPv4() {
   local ip=$1
   [[ -z ${ip} ]] && return 1
-  if [[ ${ip} =~ ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ || ${ip} =~ ^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$ ]]; then
+  if [[ ${ip} =~ ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ || ${ip} =~ ^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9_\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9_\-]*[A-Za-z0-9])$ ]]; then
     return 0
   fi
   return 1
@@ -717,24 +722,6 @@ getEraIdentifier() {
 
 [[ ${0} != '-bash' ]] && PARENT=$(dirname $0) || PARENT="$(pwd)" # If sourcing at terminal, $0 would be "-bash" , which is invalid. Thus, fallback to present working directory
 
-OFFLINE_MODE='N'
-[[ $1 = "offline" ]] && OFFLINE_MODE='Y'
-[[ $(basename $0 2>/dev/null) = "cnode.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
-[[ $(basename $0 2>/dev/null) = "topologyUpdater.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
-
-[[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master
-
-URL_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators/${BRANCH}"
-DB_SCRIPTS_URL="${URL_RAW}/scripts/grest-helper-scripts/db-scripts"
-export LC_ALL=C.UTF-8
-
-# special mapping of coreutils gdate to date for MacOS
-if [[ $(uname) == Darwin ]]; then
-   date () { gdate "$@"; }
-fi
-
-[[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
-
 telegramSend() {
   if [[ -z "${TG_BOT_TOKEN}" ]] || [[ -z "${TG_CHAT_ID}" ]]; then
     echo "Warn: to use the telegramSend function you must first set the bot and chat id in the env file"
@@ -745,6 +732,20 @@ telegramSend() {
 }
 
 set_default_vars() {
+  [[ $(basename $0 2>/dev/null) = "cnode.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
+  [[ $(basename $0 2>/dev/null) = "topologyUpdater.sh" ]] && OFFLINE_MODE='Y' # for backwards compatibility
+
+  [[ -f "${PARENT}"/.env_branch ]] && BRANCH=$(cat "${PARENT}"/.env_branch) || BRANCH=master
+  [[ -z ${G_ACCOUNT} ]] && G_ACCOUNT="cardano-community"
+
+  URL_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}"
+  DB_SCRIPTS_URL="${URL_RAW}/scripts/grest-helper-scripts/db-scripts"
+  export LC_ALL=C.UTF-8
+  # special mapping of coreutils gdate to date for MacOS
+  if [[ $(uname) == Darwin ]]; then
+     date () { gdate "$@"; }
+  fi
+  [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=10
   [[ -z "${CNODE_HOME}" ]] && CNODE_HOME=/opt/cardano/cnode
   CNODE_NAME="$(basename ${CNODE_HOME})"
   CNODE_VNAME=$(tr '[:upper:]' '[:lower:]' <<< ${CNODE_NAME//_HOME/})
@@ -977,8 +978,8 @@ if [[ -n "${CNODE_PID}" ]]; then
 fi
 
 node_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
-if ! versionCheck "1.35.0" "${node_version}"; then
-  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.35.0 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
+if ! versionCheck "1.35.2" "${node_version}"; then
+  echo -e "\nGuild scripts has now been upgraded to support cardano-node 1.35.2 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
   return 1
 fi
 
@@ -1006,17 +1007,22 @@ case ${NWMAGIC} in
     NETWORK_NAME="Mainnet"
     SHELLEY_TRANS_EPOCH=208
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://api.koios.rest/api/v0" ;;
-  1097911063) 
-    NETWORK_NAME="Testnet"
-    SHELLEY_TRANS_EPOCH=74
-    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://testnet.koios.rest/api/v0" ;;
-  633343913) 
-    NETWORK_NAME="Staging"
-    SHELLEY_TRANS_EPOCH=208 ;;
+  1)
+    NETWORK_NAME="PreProd"
+    SHELLEY_TRANS_EPOCH=4
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preprod.koios.rest/api/v0";;
   141) 
     NETWORK_NAME="Guild"
     SHELLEY_TRANS_EPOCH=2
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://guild.koios.rest/api/v0" ;;
+  2)
+    NETWORK_NAME="Preview"
+    SHELLEY_TRANS_EPOCH=0
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preview.koios.rest/api/v0" ;;
+  1097911063) # To be retired soon
+    NETWORK_NAME="Testnet"
+    SHELLEY_TRANS_EPOCH=74
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://testnet.koios.rest/api/v0" ;;
   *) 
     NETWORK_NAME="Custom"
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0

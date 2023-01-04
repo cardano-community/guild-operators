@@ -217,6 +217,8 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   echo "${PROT_PARAMS}" > "${TMP_DIR}"/protparams.json
 fi
 
+test_koios
+
 # check that bash version is > 4.4.0
 [[ $(bash --version | head -n 1) =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] || myExit 1 "Unable to get BASH version"
 if ! versionCheck "4.4.0" "${BASH_REMATCH[1]}"; then
@@ -847,8 +849,7 @@ function main {
                 # Token Metadata API URLs
                 case ${NWMAGIC} in
                   764824073) token_meta_server="https://tokens.cardano.org/metadata/" ;; # mainnet
-                  1097911063) token_meta_server="https://metadata.cardano-testnet.iohkdev.io/metadata/" ;; # public testnet
-                  *) token_meta_server="" ;; # Not a valid asset metadata network
+                  *) token_meta_server="https://metadata.cardano-testnet.iohkdev.io/metadata/" ;; # other test networks
                 esac
                 for i in {1..2}; do
                   if [[ $i -eq 1 ]]; then 
@@ -1634,8 +1635,8 @@ function main {
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println OFF " Pool Management\n"\
 						" ) New      - create a new pool"\
-						" ) Register - register created pool on chain using a stake wallet (pledge wallet)"\
-						" ) Modify   - change pool parameters and register updated pool values on chain"\
+						" ) Register - register a newly created pool on chain using a stake wallet (pledge wallet)"\
+						" ) Modify   - re-register pool modifying pool definition and/or parameters"\
 						" ) Retire   - de-register stake pool from chain in specified epoch"\
 						" ) List     - a compact list view of available local pools"\
 						" ) Show     - detailed view of specified pool"\
@@ -1767,10 +1768,10 @@ function main {
               else
                 margin_fraction=$(pctToFraction "${margin}")
               fi
-              minPoolCost=$(( $(jq -r '.minPoolCost //0' <<< "${PROT_PARAMS}") / 1000000 )) # convert to Ada
+              minPoolCost=$(formatLovelace $(jq -r '.minPoolCost //0' <<< "${PROT_PARAMS}") normal) # convert to Ada
               [[ -f ${pool_config} ]] && cost_ada=$(jq -r '.costADA //0' "${pool_config}") || cost_ada=${minPoolCost} # default cost
-              [[ ${cost_ada} -lt ${minPoolCost} ]] && cost_ada=${minPoolCost} # raise old value to new minimum cost
-              getAnswerAnyCust cost_enter "Cost (in Ada, minimum: ${minPoolCost}, default: $(formatAsset ${cost_ada}))"
+              [[ $(bc -l <<< "${cost_ada} < ${minPoolCost}") -eq 1 ]] && cost_ada=${minPoolCost} # raise old value to new minimum cost
+              getAnswerAnyCust cost_enter "Cost (in Ada, minimum: ${minPoolCost}, default: ${cost_ada})"
               cost_enter="${cost_enter//,}"
               if [[ -n "${cost_enter}" ]]; then
                 if ! AdaToLovelace "${cost_enter}" >/dev/null; then
@@ -1781,7 +1782,7 @@ function main {
               else
                 cost_lovelace=$(AdaToLovelace "${cost_ada}")
               fi
-              if [[ ${cost_ada} -lt ${minPoolCost} ]]; then
+              if [[ $(bc -l <<< "${cost_ada} < ${minPoolCost}") -eq 1 ]]; then
                 println ERROR "\n${FG_RED}ERROR${NC}: cost set lower than allowed"
                 waitForInput && continue
               fi
@@ -2269,7 +2270,7 @@ function main {
               println "Reward Wallet : ${FG_GREEN}${reward_wallet}${NC}"
               println "Pledge        : ${FG_LBLUE}$(formatAsset ${pledge_ada})${NC} Ada"
               println "Margin        : ${FG_LBLUE}${margin}${NC} %"
-              println "Cost          : ${FG_LBLUE}$(formatAsset ${cost_ada})${NC} Ada"
+              println "Cost          : ${FG_LBLUE}$(formatLovelace ${cost_lovelace})${NC} Ada"
               if [[ ${SUBCOMMAND} = "register" ]]; then
                 if [[ ${op_mode} = "hybrid" ]]; then
                   println DEBUG "\n${FG_YELLOW}After offline pool transaction is signed and submitted, uncomment and set value for POOL_NAME in ${PARENT}/env with${NC} '${FG_GREEN}${pool_name}${NC}'"
@@ -3116,7 +3117,7 @@ function main {
                   println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-metadata".ticker' <<< ${offlineJSON})${NC}"
                   println DEBUG "Pledge           : ${FG_LBLUE}$(formatAsset "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")${NC} Ada"
                   println DEBUG "Margin           : ${FG_LBLUE}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
-                  println DEBUG "Cost             : ${FG_LBLUE}$(formatAsset "$(jq -r '."pool-cost"' <<< ${offlineJSON})")${NC} Ada"
+                  println DEBUG "Cost             : ${FG_LBLUE}$(formatLovelace "$(AdaToLovelace "$(jq -r '."pool-cost"' <<< ${offlineJSON})")")${NC} Ada"
                   for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
                     _jq() { base64 -d <<< ${otx_signing_file} | jq -r "${1}"; }
                     otx_signing_name=$(_jq '.name')
@@ -3290,7 +3291,7 @@ function main {
                   [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-metadata".ticker' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Pledge           : ${FG_LBLUE}$(formatAsset "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")${NC} Ada"
                   [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Margin           : ${FG_LBLUE}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
-                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Cost             : ${FG_LBLUE}$(formatAsset "$(jq -r '."pool-cost"' <<< ${offlineJSON})")${NC} Ada"
+                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Cost             : ${FG_LBLUE}$(formatLovelace "$(AdaToLovelace "$(jq -r '."pool-cost"' <<< ${offlineJSON})")")${NC} Ada"
                   [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Policy Name      : ${FG_LGRAY}$(jq -r '."policy-name"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Policy ID        : ${FG_LGRAY}$(jq -r '."policy-id"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Asset Name       : ${FG_LGRAY}$(jq -r '."asset-name"' <<< ${offlineJSON})${NC}"
@@ -3574,9 +3575,9 @@ function main {
                    "--delete *${ASSET_POLICY_SK_FILENAME}"
                    "--delete *${ASSET_POLICY_SK_FILENAME}.gpg"
                  )
-                 backup_file="${backup_path}online_cntools_backup-$(date '+%Y%m%d%H%M%S').tar"
+                 backup_file="${backup_path}online_cntools_backup-$(date '+%Y%m%d%H%M%S').${CNODE_NAME}.tar"
                  ;;
-              1) backup_file="${backup_path}offline_cntools_backup-$(date '+%Y%m%d%H%M%S').tar" ;;
+              1) backup_file="${backup_path}offline_cntools_backup-$(date '+%Y%m%d%H%M%S').${CNODE_NAME}.tar" ;;
             esac
             echo
             backup_source=(
@@ -3756,16 +3757,14 @@ function main {
 						" ) Metadata       - create and optionally post metadata on-chain"\
 						" ) Multi-Asset    - multi-asset nanagement"\
 						" ) Delete Keys    - Delete all sign/cold keys from CNTools (wallet|pool|asset)"\
-						" ) Chain Analysis - Query external DB-Sync REST API using predefined queries"\
 						"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println DEBUG " Select Operation\n"
-          select_opt "[m] Metadata" "[a] Multi-Asset" "[x] Delete Private Keys" "[c] Chain Analysis" "[h] Home"
+          select_opt "[m] Metadata" "[a] Multi-Asset" "[x] Delete Private Keys" "[h] Home"
           case $? in
             0) SUBCOMMAND="metadata" ;;
             1) SUBCOMMAND="multi-asset" ;;
             2) SUBCOMMAND="del-keys" ;;
-            3) SUBCOMMAND="chain-analysis" ;;
-            4) break ;;
+            3) break ;;
           esac
           case $SUBCOMMAND in  
             metadata)
@@ -3920,7 +3919,8 @@ function main {
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println OFF " Multi-Asset Token Management\n"\
 									" ) Create Policy  - create a new asset policy"\
-									" ) List Assets    - list created/minted policies/assets"\
+									" ) List Assets    - list created/minted policies/assets (local)"\
+                  " ) Show Asset     - show minted asset information"\
 									" ) Decrypt Policy - remove write protection and decrypt policy"\
 									" ) Encrypt Policy - encrypt policy sign key and make all files immutable"\
 									" ) Mint Asset     - mint new assets for selected policy"\
@@ -3928,17 +3928,18 @@ function main {
 									" ) Register Asset - create/update JSON submission file for Cardano Token Registry"\
 									"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println DEBUG " Select Multi-Asset Operation\n"
-                select_opt "[c] Create Policy" "[l] List Assets" "[d] Decrypt / Unlock Policy" "[e] Encrypt / Lock Policy" "[m] Mint Asset" "[x] Burn Asset" "[r] Register Asset" "[b] Back" "[h] Home"
+                select_opt "[c] Create Policy" "[l] List Assets" "[s] Show Asset" "[d] Decrypt / Unlock Policy" "[e] Encrypt / Lock Policy" "[m] Mint Asset" "[x] Burn Asset" "[r] Register Asset" "[b] Back" "[h] Home"
                 case $? in
                   0) SUBCOMMAND="create-policy" ;;
                   1) SUBCOMMAND="list-assets" ;;
-                  2) SUBCOMMAND="decrypt-policy" ;;
-                  3) SUBCOMMAND="encrypt-policy" ;;
-                  4) SUBCOMMAND="mint-asset" ;;
-                  5) SUBCOMMAND="burn-asset" ;;
-                  6) SUBCOMMAND="register-asset" ;;
-                  7) break ;;
-                  8) break 2 ;;
+                  2) SUBCOMMAND="show-asset" ;;
+                  3) SUBCOMMAND="decrypt-policy" ;;
+                  4) SUBCOMMAND="encrypt-policy" ;;
+                  5) SUBCOMMAND="mint-asset" ;;
+                  6) SUBCOMMAND="burn-asset" ;;
+                  7) SUBCOMMAND="register-asset" ;;
+                  8) break ;;
+                  9) break 2 ;;
                 esac
                 case $SUBCOMMAND in
                   create-policy)
@@ -4027,14 +4028,59 @@ function main {
                       if [[ $(find "${policy}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | wc -c) -gt 0 ]]; then
                         while IFS= read -r -d '' asset; do
                           asset_filename=$(basename ${asset})
-                          [[ -z ${asset_filename%.*} ]] && asset_name="" || asset_name="${asset_filename%.*}"
+                          [[ -z ${asset_filename%.*} ]] && asset_name="" || asset_name="${asset_filename%%.*}"
                           [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
-                          println "Asset         : Name: ${FG_MAGENTA}${asset_name}${NC} (${FG_LGRAY}(${asset_name_hex}${NC}) - Minted: ${FG_LBLUE}$(formatAsset "$(jq -r .minted "${asset}")")${NC}"
+                          println "Asset         : Name: ${FG_MAGENTA}${asset_name}${NC} (${FG_LGRAY}${asset_name_hex}${NC}) - Minted: ${FG_LBLUE}$(formatAsset "$(jq -r .minted "${asset}")")${NC}"
                         done < <(find "${policy}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | sort -z)
                       else
                         println "Asset         : ${FG_LGRAY}No assets minted for this policy!${NC}"
                       fi
                     done < <(find "${ASSET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+                    waitForInput && continue
+                    ;; ###################################################################
+                  show-asset)
+                    clear
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    println " >> ADVANCED >> MULTI-ASSET >> SHOW ASSET"
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies or assets found!${NC}" && waitForInput && continue
+                    println DEBUG "# Select minted asset to show information for"
+                    if ! selectAsset; then # ${selected_value} populated
+                      waitForInput && continue
+                    fi
+                    echo
+                    policy_id=$(cat "${ASSET_FOLDER}/${policy_dir}/${ASSET_POLICY_ID_FILENAME}")
+                    println "Policy Name    : ${FG_GREEN}${policy_dir}${NC}"
+                    println "Policy ID      : ${FG_LGRAY}${policy_id}${NC}"
+                    ttl=$(jq -er '.scripts[0].slot //0' "${ASSET_FOLDER}/${policy_dir}/${ASSET_POLICY_SCRIPT_FILENAME}")
+                    current_slot=$(getSlotTipRef)
+                    if [[ ${ttl} -eq 0 ]]; then
+                      println "Policy Expire  : ${FG_LGRAY}unlimited${NC}"
+                    elif [[ ${ttl} -gt ${current_slot} ]]; then
+                      println "Policy Expire  : ${FG_LGRAY}$(getDateFromSlot ${ttl} '%(%F %T %Z)T')${NC}, ${FG_LGRAY}$(timeLeft $((ttl-current_slot)))${NC} remaining"
+                    else
+                      println "Policy Expire  : ${FG_LGRAY}$(getDateFromSlot ${ttl} '%(%F %T %Z)T')${NC}, ${FG_RED}expired $(timeLeft $((current_slot-ttl))) ago !!${NC}"
+                    fi
+                    [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
+                    println "Asset Name     : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY} (${asset_name_hex})${NC}"
+                    getAssetInfo "${policy_id}" "${asset_name_hex}"
+                    case $? in
+                      0) println "Fingerprint    : ${FG_LGRAY}${a_fingerprint}${NC}"
+                         println "In Circulation : ${FG_LBLUE}$(formatAsset ${a_total_supply})${NC}"
+                         println "Mint Count     : ${FG_LBLUE}${a_mint_cnt}${NC}"
+                         println "Burn Count     : ${FG_LBLUE}${a_burn_cnt}${NC}"
+                         println "Mint Tx Meta   :"
+                         if [[ ${a_minting_tx_metadata} != '[]' ]]; then jq -r . <<< "${a_minting_tx_metadata}"; fi
+                         println "Token Reg Meta :"
+                         if [[ ${a_token_registry_metadata} != 'null' ]]; then jq -r . <<< "${a_token_registry_metadata}"; fi ;;
+                      1) println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" ;;
+                      2) a_minted=$(jq -er '.minted //0' "${asset_file}")
+                         println "In Circulation : ${FG_LBLUE}$(formatAsset "$(jq -er '.minted //0' "${asset_file}")")${NC} (local tracking)" ;;
+                    esac
+                    a_last_update=$(jq -er '.lastUpdate //"-"' "${asset_file}")
+                    a_last_action=$(jq -er '.lastAction //"-"' "${asset_file}")
+                    println "Last Updated   : ${FG_LGRAY}${a_last_update}${NC}"
+                    println "Last Action    : ${FG_LGRAY}${a_last_action}${NC}"
                     waitForInput && continue
                     ;; ###################################################################
                   decrypt-policy)
@@ -4195,11 +4241,11 @@ function main {
                     [[ ${#asset_name} -gt 32 ]] && println ERROR "${FG_RED}ERROR${NC}: Asset name is limited to 32 chars in length!" && waitForInput && continue
                     asset_file="${policy_folder}/${asset_name}.asset"
                     echo
-                    getAnswerAnyCust asset_amount "Amount (commas allowed as thousand separator)"
-                    asset_amount="${asset_amount//,}"
-                    [[ -z "${asset_amount}" ]] && println ERROR "${FG_RED}ERROR${NC}: Amount empty, please set a valid integer number!" && waitForInput && continue
-                    if ! isNumber ${asset_amount}; then println ERROR "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue; fi
-                    [[ -f "${asset_file}" ]] && asset_minted=$(( $(jq -r .minted "${asset_file}") + asset_amount )) || asset_minted=${asset_amount}
+                    getAnswerAnyCust assets_to_mint "Amount (commas allowed as thousand separator)"
+                    assets_to_mint="${assets_to_mint//,}"
+                    [[ -z "${assets_to_mint}" ]] && println ERROR "${FG_RED}ERROR${NC}: Amount empty, please set a valid integer number!" && waitForInput && continue
+                    if ! isNumber ${assets_to_mint}; then println ERROR "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue; fi
+                    [[ -f "${asset_file}" ]] && asset_minted=$(( $(jq -r .minted "${asset_file}") + assets_to_mint )) || asset_minted=${assets_to_mint}
                     metafile_param=""
                     println DEBUG "\nDo you want to attach a metadata JSON file to the minting transaction?"
                     select_opt "[n] No" "[y] Yes"
@@ -4268,7 +4314,7 @@ function main {
                       waitForInput && continue
                     fi
                     if [[ ! -f "${asset_file}" ]]; then echo "{}" > ${asset_file}; fi
-                    assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"${asset_name}\", policyID: \"${policy_id}\", assetName: \"$(asciiToHex "${asset_name}")\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"mint ${asset_amount}\"}" < ${asset_file})
+                    assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"${asset_name}\", policyID: \"${policy_id}\", assetName: \"$(asciiToHex "${asset_name}")\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"Minted $(formatAsset ${assets_to_mint})\"}" < ${asset_file})
                     echo -e "${assetJSON}" > ${asset_file}
                     echo
                     if ! verifyTx ${addr}; then waitForInput && continue; fi
@@ -4276,11 +4322,19 @@ function main {
                     println "Assets successfully minted!"
                     println "Policy Name    : ${FG_GREEN}${policy_name}${NC}"
                     println "Policy ID      : ${FG_LGRAY}${policy_id}${NC}"
-                    [[ -z ${asset_name} ]] && asset_name="."
-                    [[ ${asset_name} = '.' ]] && asset_name_hex="" || asset_name_hex=" ($(asciiToHex "${asset_name}"))"
-                    println "Asset Name     : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY}${asset_name_hex}${NC}"
-                    println "Minted         : ${FG_LBLUE}$(formatAsset ${asset_amount})${NC}"
-                    println "In Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)"
+                    [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
+                    println "Asset Name     : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY} (${asset_name_hex})${NC}"
+                    getAssetInfo "${policy_id}" "${asset_name_hex}"
+                    case $? in
+                      0) println "Fingerprint    : ${FG_LGRAY}${a_fingerprint}${NC}"
+                         println "Minted         : ${FG_LBLUE}$(formatAsset ${assets_to_mint})${NC}"
+                         println "In Circulation : ${FG_LBLUE}$(formatAsset ${a_total_supply})${NC}"
+                         println "Mint Count     : ${FG_LBLUE}${a_mint_cnt}${NC}"
+                         println "Burn Count     : ${FG_LBLUE}${a_burn_cnt}${NC}" ;;
+                      1) println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" ;;
+                      2) println "Minted         : ${FG_LBLUE}$(formatAsset ${assets_to_mint})${NC}"
+                         println "In Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)" ;;
+                    esac
                     waitForInput && continue
                     ;; ###################################################################
                   burn-asset)
@@ -4346,11 +4400,11 @@ function main {
                     if [[ ${selection_arr[2]} = *"base" ]]; then 
                       addr=${base_addr}
                       wallet_source="base"
-                      asset_amount=${base_assets[${asset}]}
+                      curr_asset_amount=${base_assets[${asset}]}
                     else
                       addr=${pay_addr}
                       wallet_source="enterprise"
-                      asset_amount=${pay_assets[${asset}]}
+                      curr_asset_amount=${pay_assets[${asset}]}
                     fi
                     echo
                     
@@ -4374,12 +4428,12 @@ function main {
                     policy_ttl=$(jq -r '.scripts[0].slot //0' "${policy_script_file}")
                     [[ ${policy_ttl} -gt 0 && ${policy_ttl} -lt $(getSlotTipRef) ]] && println ERROR "${FG_RED}ERROR${NC}: Policy expired!" && waitForInput && continue
                     # ask amount to burn
-                    println DEBUG "Available assets to burn: ${FG_LBLUE}$(formatAsset "${asset_amount}")${NC}\n"
+                    println DEBUG "Available assets to burn: ${FG_LBLUE}$(formatAsset "${curr_asset_amount}")${NC}\n"
                     getAnswerAnyCust assets_to_burn "Amount (commas allowed as thousand separator)"
                     assets_to_burn="${assets_to_burn//,}"
-                    [[ ${assets_to_burn} = "all" ]] && assets_to_burn=${asset_amount}
+                    [[ ${assets_to_burn} = "all" ]] && assets_to_burn=${curr_asset_amount}
                     if ! isNumber ${assets_to_burn}; then println ERROR "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue; fi
-                    [[ ${assets_to_burn} -gt ${asset_amount} ]] && println ERROR "${FG_RED}ERROR${NC}: Amount exceeding assets in address, you can only burn ${FG_LBLUE}$(formatAsset "${asset_amount}")${NC}" && waitForInput && continue
+                    [[ ${assets_to_burn} -gt ${curr_asset_amount} ]] && println ERROR "${FG_RED}ERROR${NC}: Amount exceeding assets in address, you can only burn ${FG_LBLUE}$(formatAsset "${asset_amount}")${NC}" && waitForInput && continue
                     asset_minted=$(( $(jq -r .minted "${asset_file}") - assets_to_burn ))
                     # Attach metadata?
                     metafile_param=""
@@ -4402,20 +4456,28 @@ function main {
                     fi
                     # TODO: Update asset file
                     if [[ ! -f "${asset_file}" ]]; then echo "{}" > ${asset_file}; fi
-                    assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"$(hexToAscii "${asset_name}")\", policyID: \"${policy_id}\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"burn ${assets_to_burn}\"}" < ${asset_file})
+                    assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"$(hexToAscii "${asset_name}")\", policyID: \"${policy_id}\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"Burned $(formatAsset ${assets_to_burn})\"}" < ${asset_file})
                     echo -e "${assetJSON}" > ${asset_file}
                     echo
                     if ! verifyTx ${addr}; then waitForInput && continue; fi
                     echo
                     println "Assets successfully burned!"
-                    println "Policy Name         : ${FG_GREEN}${policy_name}${NC}"
-                    println "Policy ID           : ${FG_LGRAY}${policy_id}${NC}"
-                    [[ -z ${asset_name} ]] && asset_name="." || asset_name="$(hexToAscii "${asset_name}")"
-                    [[ ${asset_name} = '.' ]] && asset_name_hex="" || asset_name_hex=" ($(asciiToHex "${asset_name}"))"
-                    println "Asset Name          : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY}${asset_name_hex}${NC}"
-                    println "Burned              : ${FG_LBLUE}$(formatAsset ${assets_to_burn})${NC}"
-                    println "Left in Address     : ${FG_LBLUE}$(formatAsset $(( asset_amount - assets_to_burn )))${NC}"
-                    println "Left in Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)"
+                    println "Policy Name     : ${FG_GREEN}${policy_name}${NC}"
+                    println "Policy ID       : ${FG_LGRAY}${policy_id}${NC}"
+                    [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
+                    println "Asset Name      : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY} (${asset_name_hex})${NC}"
+                    println "Left in Address : ${FG_LBLUE}$(formatAsset $(( curr_asset_amount - assets_to_burn )))${NC}"
+                    getAssetInfo "${policy_id}" "${asset_name_hex}"
+                    case $? in
+                      0) println "Fingerprint     : ${FG_LGRAY}${a_fingerprint}${NC}"
+                         println "Burned          : ${FG_LBLUE}$(formatAsset ${assets_to_burn})${NC}"
+                         println "In Circulation  : ${FG_LBLUE}$(formatAsset ${a_total_supply})${NC}"
+                         println "Mint Count      : ${FG_LBLUE}${a_mint_cnt}${NC}"
+                         println "Burn Count      : ${FG_LBLUE}${a_burn_cnt}${NC}" ;;
+                      1) println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" ;;
+                      2) println "Burned          : ${FG_LBLUE}$(formatAsset ${assets_to_burn})${NC}"
+                         println "In Circulation  : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)" ;;
+                    esac
                     waitForInput && continue
                     ;; ###################################################################
                   register-asset)
@@ -4554,11 +4616,10 @@ function main {
                         println "\nPlease follow directions on CF Token Registry GitHub site to create a PR for the generated metadata file"
                         println "https://github.com/cardano-foundation/cardano-token-registry/wiki/How-to-submit-an-entry-to-the-registry"
                         ;;
-                      1097911063) # public testnet
+                      *) # public testnet
                         println "\nPlease create a PR on IOHK Metadata Registry TestNet GitHub site for the generated metadata file"
                         println "https://github.com/input-output-hk/metadata-registry-testnet"
                         ;;
-                      *) : ;; # ignore other networks
                     esac
                     
                     waitForInput && continue
@@ -4618,180 +4679,6 @@ function main {
                 println "\n${FG_LBLUE}${key_del_cnt}${NC} private key(s) found and deleted!"
               fi
               waitForInput && continue
-              ;; ###################################################################
-            chain-analysis)
-              while true; do # Chain Analysis - loop 1
-                clear
-                println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                println " >> ADVANCED >> CHAIN-ANALYSIS"
-                println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-
-                if [[ -z ${KOIOS_API} ]]; then
-                  println ERROR "${FG_RED}ERROR${NC}: KOIOS_API not set in env or API unavailable!"
-                  waitForInput && break
-                fi
-
-                declare -A ca_menu1=(); declare -A ca_menu2=(); declare -A ca_menu3=()
-                mkdir -p "${DBSYNC_QUERY_FOLDER}"
-                while IFS= read -r -d '' query_file; do
-                  ! query_file_json=$(jq -er '.' "${query_file}") && println ERROR "${FG_RED}ERROR${NC}: .menuPath missing in '${FG_LGRAY}${query_file}${NC}'" && waitForInput && break 2
-                  ! menu_path=$(jq -er '.menuPath' <<< ${query_file_json}) && println ERROR "${FG_RED}ERROR${NC}: .menuPath missing in '${FG_LGRAY}${query_file}${NC}'" && waitForInput && break 2
-                  IFS='/' read -ra menu_path_arr <<< "${menu_path}"
-                  if [[ ${#menu_path_arr[@]} -eq 1 ]]; then
-                    ca_menu1[${menu_path_arr[0]}]="${query_file_json}"
-                  elif [[ ${#menu_path_arr[@]} -eq 2 ]]; then
-                    ca_menu1[${menu_path_arr[0]}]=""
-                    ca_menu2[${menu_path_arr[1]}]="${query_file_json}"
-                  elif [[ ${#menu_path_arr[@]} -eq 2 ]]; then
-                    ca_menu1[${menu_path_arr[0]}]=""
-                    ca_menu2[${menu_path_arr[1]}]=""
-                    ca_menu3[${menu_path_arr[2]}]="${query_file_json}"
-                  else
-                    println ERROR "${FG_RED}ERROR${NC}: invalid .menuPath entry, 2 level submenu level maximum(/), found '${FG_LBLUE}${#menu_path_arr[@]}${NC}', in '${FG_LGRAY}${query_file}${NC}'" && waitForInput && break 2
-                  fi
-                done < <(find "${DBSYNC_QUERY_FOLDER}" -mindepth 1 -maxdepth 1 -type f -name '*.json' -print0)
-
-                println OFF " Chain Analysis - Main Menu\n"
-                
-                index=0; ca_menu1_select=()
-                for mi in "${!ca_menu1[@]}"; do
-                  mi_desc=$(jq -er '.description //empty' <<< "${ca_menu1[${mi}]}")
-                  if [[ -z ${mi_desc} ]]; then println OFF "$(printf ' ) %-14s - [sub menu]' "${mi}")"; else println OFF "$(printf ' ) %-14s - %s' "${mi}" "${mi_desc}")"; fi
-                  ca_menu1_select+=( "[${index}] ${mi}" )
-                  ((index++))
-                done
-                println OFF "$(printf ' ) %-14s - %s' "DL Queries" "Download official Guild Operators queries")"
-                println OFF "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                println DEBUG " Select Chain Analysis Operation\n"
-                
-                select_opt "${ca_menu1_select[@]}" "[d] Download Queries" "[b] Back" "[h] Home"
-                selection=$?
-                
-                if [[ ${selection} -eq ${#ca_menu1[@]} ]]; then
-                  clear
-                  println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                  println " >> ADVANCED >> CHAIN-ANALYSIS >> DOWNLOAD QUERIES"
-                  println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                  println DEBUG "\nDownloading official DBSync queries from Guild Operators GitHub site ..\n"
-                  if ! query_file_list=$(curl -s -m ${CURL_TIMEOUT} https://api.github.com/repos/cardano-community/guild-operators/contents/files/grest/queries?ref=${BRANCH}); then
-                    println ERROR "${FG_RED}ERROR${NC}: ${query_file_list}" && waitForInput && continue
-                  fi
-                  for row in $(jq -r '.[] | @base64' <<< ${query_file_list}); do
-                    file_name=$(base64 -d <<< ${row} | jq -r '.name')
-                    [[ -z ${file_name} || ${file_name} != *.json ]] && continue
-                    dl_url=$(base64 -d <<< ${row} | jq -r '.download_url //empty')
-                    [[ -z ${dl_url} ]] && continue
-                    file_dest="${DBSYNC_QUERY_FOLDER}/${file_name}"
-                    if ! curl -s -f -m ${CURL_TIMEOUT} -o "${file_dest}" ${dl_url} 2>/dev/null; then
-                      println ERROR "${FG_RED}ERROR${NC}: download failed: ${dl_url}"
-                      waitForInput && continue 2
-                    fi
-                    println "Query:       ${FG_GREEN}$(jq -r '.menuPath' "${file_dest}")${NC}"
-                    println "Description: ${FG_LGRAY}$(jq -r '.description' "${file_dest}")${NC}"
-                    echo
-                  done
-                  println DEBUG "${FG_GREEN}All DBSync queries successfully download!${NC}"
-                  println DEBUG "${FG_YELLOW}'ADVANCED >> CHAIN-ANALYSIS' menu will automatically be populated${NC}"
-                  waitForInput && continue
-                fi
-
-                [[ ${selection} -eq $(( ${#ca_menu1[@]} + 1 )) ]] && break
-                [[ ${selection} -eq $(( ${#ca_menu1[@]} + 2 )) ]] && break 2
-
-                index=0; selected_name=""; selected_json=""
-                for mi in "${!ca_menu1[@]}"; do
-                  if [[ ${selection} -eq ${index} ]]; then
-                    selected_name="${mi}"
-                    selected_json="${ca_menu1[${mi}]}"
-                    break
-                  fi
-                  ((index++))
-                done
-
-                if [[ -n ${selected_json} ]]; then
-                  clear
-                  println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                  println " >> ADVANCED >> CHAIN-ANALYSIS >> $(echo ${selected_name} | tr '[:lower:]' '[:upper:]')"
-                  println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                  runDBSyncQuery "${selected_json}"
-                  waitForInput && continue
-                else
-                  while true; do # Chain Analysis - loop 2
-                    clear
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> CHAIN-ANALYSIS >> $(echo ${selected_name} | tr '[:lower:]' '[:upper:]')"
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println OFF " Chain Analysis - ${selected_name} Sub Menu\n"
-                    index=0; ca_menu2_select=()
-                    for mi in "${!ca_menu2[@]}"; do
-                      mi_desc=$(jq -er '.description //empty' <<< "${ca_menu2[${mi}]}")
-                      if [[ -z ${mi_desc} ]]; then println OFF "$(printf ' ) %-14s - [sub menu]' "${mi}")"; else println OFF "$(printf ' ) %-14s - %s' "${mi}" "${mi_desc}")"; fi
-                      ca_menu2_select+=( "[${index}] ${mi}" )
-                      ((index++))
-                    done
-                    println OFF "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println DEBUG " Select Chain Analysis Operation\n"
-                    select_opt "${ca_menu2_select[@]}" "[b] Back" "[h] Home"
-                    selection=$?
-                    [[ ${selection} -eq ${#ca_menu2[@]} ]] && break
-                    [[ ${selection} -gt ${#ca_menu2[@]} ]] && break 3
-                    index=0; selected_name2=""; selected_json2=""
-                    for mi in "${!ca_menu2[@]}"; do
-                      if [[ ${selection} -eq ${index} ]]; then
-                        selected_name2="${mi}"
-                        selected_json2="${ca_menu2[${mi}]}"
-                        break
-                      fi
-                      ((index++))
-                    done
-
-                    if [[ -n ${selected_json2} ]]; then
-                      clear
-                      println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                      println " >> ADVANCED >> CHAIN-ANALYSIS >> $(echo ${selected_name} | tr '[:lower:]' '[:upper:]') >> $(echo ${selected_name2} | tr '[:lower:]' '[:upper:]')"
-                      println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                      runDBSyncQuery "${selected_json2}"
-                      waitForInput && continue
-                    else
-                      while true; do # Chain Analysis - loop 3
-                        clear
-                        println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                        println " >> ADVANCED >> CHAIN-ANALYSIS >> $(echo ${selected_name} | tr '[:lower:]' '[:upper:]') >> $(echo ${selected_name2} | tr '[:lower:]' '[:upper:]')"
-                        println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                        println OFF " Chain Analysis - ${selected_name2} Sub Menu\n"
-                        index=0; ca_menu3_select=()
-                        for mi in "${!ca_menu3[@]}"; do
-                          mi_desc=$(jq -er '.description //empty' <<< "${ca_menu3[${mi}]}")
-                          println OFF "$(printf ' ) %-14s - %s' "${mi}" "${mi_desc}")"
-                          ca_menu3_select+=( "[${index}] ${mi}" )
-                          ((index++))
-                        done
-                        println OFF "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                        println DEBUG " Select Chain Analysis Operation\n"
-                        select_opt "${ca_menu3_select[@]}" "[b] Back" "[h] Home"
-                        selection=$?
-                        [[ ${selection} -eq ${#ca_menu3[@]} ]] && break
-                        [[ ${selection} -gt ${#ca_menu3[@]} ]] && break 4
-                        index=0; selected_name3=""; selected_json3=""
-                        for mi in "${!ca_menu3[@]}"; do
-                          if [[ ${selection} -eq ${index} ]]; then
-                            selected_name="${mi}"
-                            selected_json3="${ca_menu3[${mi}]}"
-                            break
-                          fi
-                          ((index++))
-                        done
-                        clear
-                        println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                        println " >> ADVANCED >> CHAIN-ANALYSIS >> $(echo ${selected_name} | tr '[:lower:]' '[:upper:]') >> $(echo ${selected_name2} | tr '[:lower:]' '[:upper:]') >> $(echo ${selected_name3} | tr '[:lower:]' '[:upper:]')"
-                        println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                        runDBSyncQuery "${selected_json3}"
-                        waitForInput && continue
-                      done # Chain Analysis - loop 3
-                    fi
-                  done # Chain Analysis - loop 2
-                fi
-              done # Chain Analysis - loop 1
               ;; ###################################################################
           esac # advanced sub OPERATION
         done # Advanced loop

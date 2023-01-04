@@ -1,5 +1,87 @@
 # Koios gRest Changelog
 
+## [1.0.9] - For all networks
+
+This release is effectively same as `1.0.9rc` below (please check out the notes accordingly), just with minor bug fix on `setup-grest.sh` itself.
+
+## [1.0.9rc] - For non-mainnet networks
+
+This release candidate is non-breaking for existing methods and inputs, but breaking for output objects for endpoints.
+The aim with release candidate version is to allow folks couple of weeks to test, adapt their libraries before applying to mainnet.
+
+### New endpoints added
+- `datum_info` - List of datum information for given datum hashes
+- `account_info_cached` - Same as `account_info`, but serves cached information instead of live one
+
+### Data Input/Output changes
+- `address_info`, `address_assets`, `account_assets`, `tx_info`, `asset_list` `asset_summary` to align output `asset_list` object to return array of `policy_id`, `asset_name`, `fingerprint` (and `quantity`, `minting_txs` where applicable) [#120](https://github.com/cardano-community/koios-artifacts/pull/120)
+- `asset_history` - Fix metadata to wrap in array to refer to right object [#122](https://github.com/cardano-community/koios-artifacts/pull/122)
+- `asset_txs` - Add optional boolean parameter `_history` (default: `false`) to toggle between querying current UTxO set vs entire history for asset [#122](https://github.com/cardano-community/koios-artifacts/pull/122)
+- `pool_history` - `fixed_cost`, `pool_fees`, `deleg_rewards`, `epoch_ros` will be returned as 0 when null [#122](https://github.com/cardano-community/koios-artifacts/pull/122)
+- `tx_info` - `plutus_contracts->outputs` can be null [#122](https://github.com/cardano-community/koios-artifacts/pull/122)
+
+### Changes for Instance Providers
+- SQL queries have been moved from `guild-operators` repository to `koios-artifacts` repository. This is to ensure that the updates made to scripts and other tooling do not have a dependency on Koios query versioning [#122](https://github.com/cardano-community/koios-artifacts/pull/122)
+- `block_info` - Use `block_no` instead of `id` to check for previous/next block hash [#122](https://github.com/cardano-community/koios-artifacts/pull/122)
+- Add topology for preprod and preview networks [#122](https://github.com/cardano-community/koios-artifacts/pull/122)
+
+## [1.0.8] - For all networks
+
+This release is contains minor bug-fixes that were discovered in koios-1.0.7.
+No major changes to output for this one.
+
+### Changes for API
+
+#### New endpoints added
+- None
+
+#### Data Input/Output changes
+- `tx_info` and `tx_metadata` - Align metadata for JSON output format [#1542](https://github.com/cardano-community/guild-operators/pull/1542)
+- `blocks` - Query Output aligned to specs (`epoch` => `epoch_no`)
+- `epoch_block_protocols` - [ ** Specs only ** ] Fix Documentation schema , which was accidentally showing wrong output
+- `pool_delegators_history` - List all epochs instead of current, if no `_epoch_no` is specified [#1545](https://github.com/cardano-community/guild-operators/issues/1545)
+
+### Changes for Instance Providers
+- `asset_info` - Fix metadata aggregaton for minting transactions with multiple metadata keys [#1543](https://github.com/cardano-community/guild-operators/pull/1543)
+- `stake_distribution_new_accounts` - Leftover reference for `account_info` which now accepts array, resulted in error to populate stake distribution cache for new accounts [#1541](https://github.com/cardano-community/guild-operators/pull/1541)
+- `grest-poll.sh` - Remove query view section from polling script, and remove grestrpcs re-creation per hour (it's already updated when `setup-grest.sh` is run) , in preparation for [#1545](https://github.com/cardano-community/guild-operators/issues/1545)
+
+## [1.0.7] - For all networks
+
+This release continues updates from koios-1.0.6 to further utilise stake-snapshot cache tables which would be useful for SPOs as well as reduce downtime post epoch transition. One largely requested feature to accept bulk inputs for many block/address/account endpoints is now complete.
+Additionally, koios instance providers are now recommended to use cardano-node 1.35.3 with dbsync 13.0.5.
+
+### Changes for API 
+
+### New endpoints added
+- `pool_delegators_history` - Provides historical record for pool's delegators [#1486](https://github.com/cardano-community/guild-operators/pull/1486)
+- `pool_stake_snapshot` - Provides mark, set and go snapshot values for pool being queried. [#1489](https://github.com/cardano-community/guild-operators/pull/1489)
+
+### Data Input/Output changes
+- `pool_delegators` - No longer accepts `_epoch_no` as parameter, as it only returns live delegators. Additionally provides `latest_delegation_hash` in output. [#1486](https://github.com/cardano-community/guild-operators/pull/1486)
+- `tx_info` - `epoch` => `epoch_no` [#1494](https://github.com/cardano-community/guild-operators/pull/1494)
+- `tx_info` - Change `collateral_outputs` (array) to `collateral_output` (object) as collateral output is only singular in current implementation [#1496](https://github.com/cardano-community/guild-operators/pull/1496)
+- `address_info` - Add `inline_datum` and `reference_script` to output [#1500](https://github.com/cardano-community/guild-operators/pull/1500)
+- `pool_info` - Add `sigma` field to output [#1511](https://github.com/cardano-community/guild-operators/pull/1511)
+- `pool_updates` - Add historical metadata information to output [#1503](https://github.com/cardano-community/guild-operators/pull/1503)
+- Change block/address/account endpoints to accept bulk input where applicable. This resulted in GET requests changing to POST accepting payload of multiple blocks, addresses or accounts for respective endpoints as *input* (eg: `_stake_address text` becomes `_stake_addresses text[]`). The additional changes in output as below:
+  - `block_txs` - Now returns `block_hash` and array of `tx_hashes`
+  - `address_info` - Additional field `address` returned in output
+  - `address_assets` - Now returns `address` and an array of `assets` JSON
+  - `account_addresses` - Accepts `stake_addresses` array and outputs `stake_address` and array of `addresses`
+  - `account_assets` - Accepts `stake_addresses` array and outputs `stake_address` and array of `assets` JSON
+  - `account_history` - Accepts `stake_addresses` array alongwith `epoch_no` integer and outputs `stake_address` and array of `history` JSON
+  - `account_info` - Accepts `stake_addresses` array and returns additional field `stake_address` to output
+  - `account_rewards` - Now returns `stake_address` and an array of `rewards` JSON
+  - `account_updates` - Now returns `stake_address` and an array of `updates` JSON
+- `asset_info` - Change `minting_tx_metadata` from array to object [#1533](https://github.com/cardano-community/guild-operators/pull/1533)
+- `account_addresses` - Sort results by oldest address first [#1538](https://github.com/cardano-community/guild-operators/pull/1538)
+
+### Changes for Instance Providers
+- `epoch_info_cache` - Only update last_tx_id of previous epoch on epoch transition [#1490](https://github.com/cardano-community/guild-operators/pull/1490) and [#1502](https://github.com/cardano-community/guild-operators/pull/1502)
+- `epoch_info_cache` / `stake_snapshot_cache` - Store total snapshot stake to epoch stake cache, and active pool stake to stake snapshot cache [#1485](https://github.com/cardano-community/guild-operators/pull/1485)
+
+
 ## [1.0.6/1.0.6m] - Interim release for all networks to upgrade to dbsync v13
 
 The backlog of items not being added to mainnet has been increasing due to delays with Vasil HFC event to Mainnet. As such we had to come up with a split update approach.

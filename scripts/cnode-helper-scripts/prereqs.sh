@@ -8,7 +8,7 @@ unset CNODE_HOME
 # User Variables - Change as desired     #
 # command line flags override set values #
 ##########################################
-
+#G_ACCOUNT="cardano-community"    # Override github GUILD account if you forked the project
 #INTERACTIVE='N'        # Interactive mode (Default: silent mode)
 #NETWORK='mainnet'      # Connect to specified network instead of public network (Default: connect to public cardano network)
 #WANT_BUILD_DEPS='Y'    # Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
@@ -18,11 +18,12 @@ unset CNODE_HOME
 #INSTALL_CNCLI='N'      # Install/Upgrade and build CNCLI with RUST
 #INSTALL_VCHC='N'       # Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
 #INSTALL_OGMIOS='N'     # Install Ogmios Server
+#INSTALL_CSIGNER='N'    # Install/Upgrade Cardano Signer
 #CNODE_NAME='cnode'     # Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
 #CURL_TIMEOUT=60        # Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
 #UPDATE_CHECK='Y'       # Check if there is an updated version of prereqs.sh script to download
 #SUDO='Y'               # Used by docker builds to disable sudo, leave unchanged if unsure.
- 
+
 ######################################
 # Do NOT modify code below           #
 ######################################
@@ -59,20 +60,21 @@ versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=avail
 usage() {
   cat <<EOF >&2
 
-Usage: $(basename "$0") [-f] [-s] [-i] [-l] [-c] [-w] [-o] [-b <branch>] [-n <mainnet|testnet|guild|staging>] [-t <name>] [-m <seconds>]
+Usage: $(basename "$0") [-f] [-s] [-i] [-l] [-c] [-w] [-o] [-x] [-b <branch>] [-n <mainnet|preprod|guild|preview>] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano node and using CNTools
 
 -f    Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
       topology.json, config.json and genesis files normally saved will also be overwritten
 -s    Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
 -n    Connect to specified network instead of mainnet network (Default: connect to cardano mainnet network)
-      eg: -n testnet
+      eg: -n guild
 -t    Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
 -l    Use system libsodium instead of IOG fork (Default: use libsodium from IOG fork)
 -c    Install/Upgrade and build CNCLI with RUST
 -w    Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
 -o    Install/Upgrade Ogmios Server binary
+-x    Install/Upgrade Cardano Signer
 -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
 -i    Interactive mode (Default: silent mode)
 
@@ -80,7 +82,7 @@ EOF
   exit 1
 }
 
-while getopts :in:sflcwot:m:b: opt; do
+while getopts :in:sflcwoxt:m:b: opt; do
   case ${opt} in
     i ) INTERACTIVE='Y' ;;
     n ) NETWORK=${OPTARG} ;;
@@ -90,6 +92,7 @@ while getopts :in:sflcwot:m:b: opt; do
     c ) INSTALL_CNCLI='Y' ;;
     w ) INSTALL_VCHC='Y' ;;
     o ) INSTALL_OGMIOS='Y' ;;
+    x ) INSTALL_CSIGNER='Y' ;;
     t ) CNODE_NAME=${OPTARG//[^[:alnum:]]/_} ;;
     m ) CURL_TIMEOUT=${OPTARG} ;;
     b ) BRANCH=${OPTARG} ;;
@@ -98,6 +101,7 @@ while getopts :in:sflcwot:m:b: opt; do
 done
 shift $((OPTIND -1))
 
+[[ -z ${G_ACCOUNT} ]] && G_ACCOUNT="cardano-community"
 [[ -z ${INTERACTIVE} ]] && INTERACTIVE='N'
 [[ -z ${NETWORK} ]] && NETWORK='mainnet'
 [[ -z ${WANT_BUILD_DEPS} ]] && WANT_BUILD_DEPS='Y'
@@ -106,6 +110,7 @@ shift $((OPTIND -1))
 [[ -z ${INSTALL_CNCLI} ]] && INSTALL_CNCLI='N'
 [[ -z ${INSTALL_VCHC} ]] && INSTALL_VCHC='N'
 [[ -z ${INSTALL_OGMIOS} ]] && INSTALL_OGMIOS='N'
+[[ -z ${INSTALL_CSIGNER} ]] && INSTALL_CSIGNER='N'
 [[ -z ${CNODE_NAME} ]] && CNODE_NAME='cnode'
 [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=60
 [[ -z ${UPDATE_CHECK} ]] && UPDATE_CHECK='Y'
@@ -123,8 +128,8 @@ CNODE_HOME=${CNODE_PATH}/${CNODE_NAME}
 CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
 [[ -z "${BRANCH}" ]] && BRANCH="master"
 
-REPO="https://github.com/cardano-community/guild-operators"
-REPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
+REPO="https://github.com/${G_ACCOUNT}/guild-operators"
+REPO_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators"
 URL_RAW="${REPO_RAW}/${BRANCH}"
 
 # Check if prereqs.sh update is available
@@ -170,12 +175,23 @@ if [[ "${INTERACTIVE}" = 'Y' ]]; then
   fi
 fi
 
+# Description : Add epel repository when needed
+#             : $1 = DISTRO
+#             : $2 = Epel repository VERSION_ID
+#             : $3 = pkg_opts for repo install
+add_epel_repository() {
+  if [[ "${1}" =~ Fedora ]]; then return; fi
+  echo "  Enabling epel repository..."
+  ! grep -q ^epel <<< "$(yum repolist)" && $sudo yum ${3} install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"${2}".noarch.rpm > /dev/null
+}
+
 if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
 
   # Determine OS platform
   OS_ID=$(grep -i ^id_like= /etc/os-release | cut -d= -f 2)
   DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
   VERSION_ID=$(grep -i ^version_id= /etc/os-release | cut -d= -f 2 | tr -d '"' | cut -d. -f 1)
+  ARCH=$(uname -i)
 
   if [[ "${OS_ID}" =~ ebian ]] || [[ "${DISTRO}" =~ ebian ]]; then
     #Debian/Ubuntu
@@ -183,10 +199,11 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
     echo "Using apt to prepare packages for ${DISTRO} system"
     echo "  Updating system packages..."
     $sudo apt-get ${pkg_opts} install curl > /dev/null
-    $sudo apt-get ${pkg_opts} update > /dev/null
+    $sudo env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get ${pkg_opts} update > /dev/null
     echo "  Installing missing prerequisite packages, if any.."
-    pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute dialog automake sqlite3 bsdmainutils libusb-1.0-0-dev libudev-dev unzip"
-    $sudo apt-get ${pkg_opts} install ${pkg_list} > /dev/null;rc=$?
+    pkg_list="libpq-dev python3 build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev systemd libsystemd-dev libsodium-dev zlib1g-dev make g++ tmux git jq libncursesw5 gnupg aptitude libtool autoconf secure-delete iproute2 bc tcptraceroute dialog automake sqlite3 bsdmainutils libusb-1.0-0-dev libudev-dev unzip procps"
+    pkg_list="${pkg_list} llvm clang libnuma-dev"
+    $sudo env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get ${pkg_opts} install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
       echo "$sudo apt-get ${pkg_opts} install ${pkg_list}"
@@ -217,7 +234,10 @@ if [ "$WANT_BUILD_DEPS" = 'Y' ]; then
       pkg_opts="${pkg_opts} --allowerasing"
       pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config srm"
     fi
-    ! grep -q ^epel <<< "$(yum repolist)" && $sudo yum ${pkg_opts} install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"${VERSION_ID}".noarch.rpm > /dev/null
+    if [ -z "${ARCH##*aarch64*}" ]; then
+      pkg_list="${pkg_list} llvm clang numactl-devel"
+    fi    
+    add_epel_repository "${DISTRO}" "${VERSION_ID}" "${pkg_opts}"
     $sudo yum ${pkg_opts} install ${pkg_list} > /dev/null;rc=$?
     if [ $rc != 0 ]; then
       echo "An error occurred while installing the prerequisite packages, please investigate by using the command below:"
@@ -426,12 +446,14 @@ if [[ "${INSTALL_OGMIOS}" = "Y" ]]; then
   if curl -sL -f -m ${CURL_TIMEOUT} -o ogmios.zip ${ogmios_asset_url}; then
     unzip ogmios.zip &>/dev/null
     rm -f ogmios.zip
-    [[ -f bin/ogmios ]] || err_exit "ogmios downloaded but binary not found after extracting package!"
+    [[ -f bin/ogmios ]] && OGMIOSPATH=bin/ogmios
+    [[ -f ogmios ]] && OGMIOSPATH=ogmios
+    [[ -n ${OGMIOSPATH} ]] || err_exit "ogmios downloaded but binary not found after extracting package!"
     ogmios_git_version="$(curl -s https://api.github.com/repos/CardanoSolutions/ogmios/releases/latest | jq -r '.tag_name')"
     if ! versionCheck "${ogmios_git_version}" "${ogmios_version}"; then
       [[ "${ogmios_version}" = "0.0.0" ]] && echo "  latest version: ${ogmios_git_version}" || echo "  installed version: ${ogmios_version} | latest version: ${ogmios_git_version}"
-      chmod +x /tmp/ogmios/bin/ogmios
-      mv -f /tmp/ogmios/bin/ogmios "${HOME}"/.cabal/bin/
+      chmod +x /tmp/ogmios/${OGMIOSPATH}
+      mv -f /tmp/ogmios/${OGMIOSPATH} "${HOME}"/.cabal/bin/
       echo "  ogmios ${ogmios_git_version} installed!"
     else
       rm -rf /tmp/ogmios #cleanup in /tmp
@@ -439,6 +461,45 @@ if [[ "${INSTALL_OGMIOS}" = "Y" ]]; then
     fi
   else
     err_exit "Download of latest release of ogmios archive from GitHub failed! Please retry or manually install it."
+  fi
+fi
+
+if [[ "${INSTALL_CSIGNER}" = "Y" ]]; then
+  echo "Installing Cardano Signer"
+  if command -v cardano-signer >/dev/null; then csigner_version="v$(cardano-signer version)"; else csigner_version="v0.0.0"; fi
+  csigner_git_version="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.tag_name')"
+  if ! versionCheck "${csigner_git_version}" "${csigner_version}"; then
+    rm -rf /tmp/csigner && mkdir /tmp/csigner
+    pushd /tmp/csigner >/dev/null || err_exit
+    csigner_asset_url="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.assets[].browser_download_url')"
+    ARCH=$(uname -i)
+    csigner_release_url=""
+    while IFS= read -r release; do
+      if [[ -z ${ARCH##*aarch64*} && ${release} = *arm-x64.tar.gz ]]; then # ARM64
+        csigner_release_url=${release}; break
+      elif [[ $(uname) == Darwin && ${release} = *mac-x64.tar.gz ]]; then # Mac OSX
+        csigner_release_url=${release}; break
+      elif [[ ${ARCH} = x86_64 && ${release} = *linux-x64.tar.gz ]]; then # Linux x64
+        csigner_release_url=${release}; break
+      fi
+    done <<< "${csigner_asset_url}"
+    if [[ -n ${csigner_release_url} ]]; then
+      if curl -sL -f -m ${CURL_TIMEOUT} -o csigner.tar.gz ${csigner_release_url}; then
+        tar zxf csigner.tar.gz &>/dev/null
+        rm -f csigner.tar.gz
+        [[ -f cardano-signer ]] || err_exit "Cardano Signer downloaded but binary(cardano-signer) not found after extracting package!"
+        [[ "${csigner_version}" = "v0.0.0" ]] && echo "  latest version: ${csigner_git_version}" || echo "  installed version: ${csigner_version} | latest version: ${csigner_git_version}"
+        chmod +x /tmp/csigner/cardano-signer
+        mv -f /tmp/csigner/cardano-signer "${HOME}"/.cabal/bin/
+        echo "  cardano-signer ${csigner_git_version} installed!"
+      else
+        err_exit "Download of latest release of Cardano Signer archive from GitHub failed! Please retry or manually install it."
+      fi
+    else
+      err_exit "Unsupported system, no cardano-signer release found matching system architecture."
+    fi
+  else
+    echo "  Cardano Signer already latest version [${csigner_version}], skipping!"
   fi
 fi
 
@@ -450,9 +511,9 @@ echo "Downloading files..."
 pushd "${CNODE_HOME}"/files >/dev/null || err_exit
 
 
-if ! curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/cardano-community/guild-operators/branches" | jq -e ".[] | select(.name == \"${BRANCH}\")" &>/dev/null ; then
-  echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to alpha branch\n"
-  BRANCH=alpha
+if ! curl -s -f -m ${CURL_TIMEOUT} "${REPO_RAW}/${BRANCH}/LICENSE" -o /dev/null ; then
+  echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to master branch\n"
+  BRANCH=master
   URL_RAW="${REPO_RAW}/${BRANCH}"
   echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
 else
@@ -461,7 +522,7 @@ fi
 
 # Download dbsync config
 curl -sL -f -m ${CURL_TIMEOUT} -o dbsync.json.tmp ${URL_RAW}/files/config-dbsync.json
-[[ "${NETWORK}" != "mainnet" ]] && sed -i 's#NetworkName": "mainnet"#NetworkName": "testnet"#g' dbsync.json.tmp
+[[ "${NETWORK}" != "mainnet" ]] && sed -i "s#NetworkName\": \"mainnet\"#NetworkName\": \"${NETWORK}\"#g" dbsync.json.tmp
 
 # Download node config, genesis and topology from template
 if [[ ${NETWORK} = "guild" ]]; then
@@ -470,14 +531,15 @@ if [[ ${NETWORK} = "guild" ]]; then
   curl -s -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp ${URL_RAW}/files/alonzo-genesis-guild.json
   curl -s -f -m ${CURL_TIMEOUT} -o topology.json.tmp ${URL_RAW}/files/topology-guild.json
   curl -s -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-guild.json
-elif [[ ${NETWORK} =~ ^(mainnet|testnet|staging)$ ]]; then
-  curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${NETWORK}-byron-genesis.json
-  curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${NETWORK}-shelley-genesis.json
-  curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${NETWORK}-alonzo-genesis.json
-  curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${NETWORK}-topology.json
-  curl -s -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-${NETWORK}.json
+elif [[ ${NETWORK} =~ ^(mainnet|preprod|preview|testnet)$ ]]; then # testnet will be retired , already marked as legacy soon
+  NWCONFURL="https://raw.githubusercontent.com/input-output-hk/cardano-world/master/docs/environments"
+  curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/${NETWORK}/byron-genesis.json"
+  curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp "${NWCONFURL}/${NETWORK}/shelley-genesis.json"
+  curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp "${NWCONFURL}/${NETWORK}/alonzo-genesis.json"
+  curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp "${NWCONFURL}/${NETWORK}/topology.json"
+  curl -s -f -m ${CURL_TIMEOUT} -o config.json.tmp "${URL_RAW}/files/config-${NETWORK}.json"
 else
-  err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, testnet, guild & staging."
+  err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, preprod, guild or preview."
 fi
 sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -i ./*.json.tmp
 [[ ${FORCE_OVERWRITE} = 'Y' && -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
@@ -519,7 +581,7 @@ updateWithCustomConfig() {
     return
   fi
   if [[ -f ${file} && ${FORCE_OVERWRITE} = 'N' ]]; then
-    if grep '^# Do NOT modify' ${file} >/dev/null 2>&1; then
+    if grep '^# User Variables' ${file}.tmp >/dev/null 2>&1; then
       TEMPL_CMD=$(awk '/^# Do NOT modify/,0' ${file}.tmp)
       if [[ -z ${TEMPL_CMD} ]]; then
         echo "ERROR!! Script downloaded from GitHub corrupt, ignoring update for '${file}'"

@@ -3,6 +3,7 @@
 
     - Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
     - The [Cardano DB Sync](https://github.com/input-output-hk/cardano-db-sync) relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to [Sample Local PostgreSQL Server Deployment instructions](../Appendix/postgres.md) for setting up a Postgres instance. Specifically, we expect the `PGPASSFILE` environment variable is set as per the instructions in the sample guide, for `db-sync` to be able to connect.
+    - One of the biggest obstacles for user experience when running dbsync is ensuring you satisfy EACH of the points mentioned in System Requirements [here](https://github.com/input-output-hk/cardano-db-sync#system-requirements). Also, note that we do not advise running dbsync on mainnet if your RAM is below 48GB.
 
 
 ### Build Instructions
@@ -32,7 +33,7 @@ git checkout $(curl -s https://api.github.com/repos/input-output-hk/cardano-db-s
 # Use `-l` argument if you'd like to use system libsodium instead of IOG fork of libsodium while compiling
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
-The above would copy the binaries into `~/.cabal/bin` folder.
+The above would copy the `cardano-db-sync` binary into `~/.cabal/bin` folder.
 
 #### Prepare DB for sync
 
@@ -66,7 +67,7 @@ At high-level, this would involve steps as below (read and update paths as per y
 ``` bash
 
 # Replace the actual link below with the latest one from release notes
-wget https://update-cardano-mainnet.iohk.io/cardano-db-sync/12/db-sync-snapshot-schema-12-block-6764999-x86_64.tgz -O /tmp/dbsyncsnap.tgz
+wget https://update-cardano-mainnet.iohk.io/cardano-db-sync/13/db-sync-snapshot-schema-13-block-7622755-x86_64.tgz
 rm -rf ${CNODE_HOME}/guild-db/ledger-state ; mkdir -p ${CNODE_HOME}/guild-db/ledger-state
 cd -; cd ~/git/cardano-db-sync
 scripts/postgresql-setup.sh --restore-snapshot /tmp/dbsyncsnap.tgz ${CNODE_HOME}/guild-db/ledger-state

@@ -57,7 +57,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.27.1
+GLV_VERSION=v1.27.3
 
 PARENT="$(dirname $0)"
 
@@ -123,6 +123,13 @@ fi
 . "${PARENT}"/env &>/dev/null # ignore any errors, re-sourced later
 
 if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
+
+  if command -v cncli >/dev/null && systemctl is-active --quiet ${CNODE_VNAME}-cncli-sync.service; then
+    vcur=$(cncli -V | sed 's/cncli /v/g')
+    vrem=$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r .tag_name)
+    [[ ${vcur} != ${vrem} ]] && printf "${FG_MAGENTA}CNCLI current version (${vcur}) different from repo (${vrem}), consider upgrading!.${NC}" && waitToProceed
+  fi
+
   echo "Checking for script updates..."
   # Check availability of checkUpdate function
   if [[ ! $(command -v checkUpdate) ]]; then
@@ -699,7 +706,7 @@ while true; do
     fi
 
     mem_rss="$(ps -q ${CNODE_PID} -o rss=)"
-    read -ra cpu_now <<< "$(awk '/cpu /{print $2+$4,$2+$4+$5}' /proc/stat)"
+    read -ra cpu_now <<< "$(awk '/cpu /{printf "%.f %.f", $2+$4,$2+$4+$5}' /proc/stat)"
     if [[ ${#cpu_now[@]} -eq 2 ]]; then
       if [[ ${#cpu_last[@]} -eq 2 ]]; then
         cpu_util=$(bc -l <<< "100*((${cpu_now[0]}-${cpu_last[0]})/(${cpu_now[1]}-${cpu_last[1]}))")

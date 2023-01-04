@@ -72,7 +72,7 @@ if [[ -z "${USE_SYSTEM_LIBSODIUM}" ]] ; then # Build using default cabal.project
     [[ "${PWD##*/}" == "cardano-node" ]] && cabal build cardano-node cardano-cli cardano-submit-api --disable-tests --disable-profiling | tee /tmp/build.log
     [[ "${PWD##*/}" == "cardano-db-sync" ]] && cabal build cardano-db-sync --disable-tests --disable-profiling | tee /tmp/build.log
     mv .tmp.cabal.project.local cabal.project.local
-    cabal install bech32 cardano-addresses-cli cardano-ping --overwrite-policy=always 2>&1 | tee /tmp/build-b32-caddr.log
+    cabal install bech32 cardano-addresses-cli --overwrite-policy=always 2>&1 | tee /tmp/build-b32-caddr.log
   else
     cabal build all --disable-tests --disable-profiling 2>&1 | tee /tmp/build.log
   fi
@@ -84,7 +84,7 @@ else # Add cabal.project.local customisations first before building
   else
     cabal build all --disable-tests --disable-profiling 2>&1 | tee /tmp/build.log
   fi
-  [[ -f cabal.project.local ]] && cabal install bech32 cardano-ping cardano-addresses-cli --overwrite-policy=always 2>&1 | tee /tmp/build-b32-caddr.log
+  [[ -f cabal.project.local ]] && cabal install bech32 cardano-addresses-cli --overwrite-policy=always 2>&1 | tee /tmp/build-b32-caddr.log
 fi
 
 grep "^Linking" /tmp/build.log | grep -Ev 'test|golden|demo|chairman|locli|ledger|topology' | while read -r line ; do

@@ -26,9 +26,12 @@ if grep -q "^PGPASSFILE=" "${CNODE_HOME}/scripts/dbsync.sh" 2> /dev/null || [[ -
 fi
 
 echo -e "\e[32m~~ Cardano Submit API ~~\e[0m"
-echo "launches the main submitapi.sh script to deploy cardano-submit-api as service"
+echo "Deploy Cardano Submit API as systemd service? [y|n]"
 echo
-./submitapi.sh -d
+read -rsn1 yn
+if [[ ${yn} = [Yy]* ]]; then
+  ./submitapi.sh -d
+fi
 
 if command -v ogmios >/dev/null 2>&1 ; then
   echo -e "\e32m~~ Cardano Ogmios Server ~~\e[0m"

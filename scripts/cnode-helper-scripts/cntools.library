@@ -11,7 +11,7 @@ CNTOOLS_MAJOR_VERSION=10
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=0
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=2
+CNTOOLS_PATCH_VERSION=5
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -395,7 +395,7 @@ getDirs() {
 
 # Command     : selectDir [type] [dir1 dir2 ...]
 # Description : A helper function to selectOption() specifically for directory selection
-# Parameters  : type  >  'wallet' 'pool' 'policy'
+# Parameters  : type  >  'wallet' 'pool' 'policy' 'asset'
 #             : dirX  >  array of dirs to include in selection, '[Esc] Cancel' option added to all selections
 # Return      : populates ${dir_name} variable
 selectDir() {
@@ -627,6 +627,47 @@ isPoolRegistered() {
   fi
 }
 
+# Command     : getAssetInfo [policy_id] [asset_name_hex]
+# Description : Query Koios for asset information.
+# Return      : 0: data saved in asset_<koios_field>
+#               1: on error ($error_msg contains error message)
+#               2: offline/disabled/no result
+getAssetInfo() {
+  unset
+  if [[ ${CNTOOLS_MODE} = "OFFLINE" || -z ${KOIOS_API} || "$#" -ne 2 ]]; then
+    return 2
+  else
+    println ACTION "curl -sSL -f -d _asset_policy=$1 -d _asset_name=$2  ${KOIOS_API}/asset_info"
+    ! asset_info=$(curl -sSL -f -d _asset_policy=$1 -d _asset_name=$2 "${KOIOS_API}/asset_info" 2>&1) && error_msg="${asset_info}" && return 1
+    if [[ ${asset_info} = '[]' ]]; then
+      return 2
+    fi
+    asset_info_tsv=$(jq -r '[
+    .[0].asset_name_ascii //"-",
+    .[0].fingerprint //"-",
+    .[0].minting_tx_hash //"-",
+    .[0].total_supply //0,
+    .[0].mint_cnt //0,
+    .[0].burn_cnt //0,
+    .[0].creation_time //0,
+    (.[0].minting_tx_metadata|@base64),
+    (.[0].token_registry_metadata|@base64)
+    ] | @tsv' <<< "${asset_info}")
+
+    read -ra asset_info_arr <<< ${asset_info_tsv}
+
+    a_asset_name_ascii=${asset_info_arr[0]}
+    a_fingerprint=${asset_info_arr[1]}
+    a_minting_tx_hash=${asset_info_arr[2]}
+    a_total_supply=${asset_info_arr[3]}
+    a_mint_cnt=${asset_info_arr[4]}
+    a_burn_cnt=${asset_info_arr[5]}
+    a_creation_time=${asset_info_arr[6]}
+    a_minting_tx_metadata=$(base64 -d <<< ${asset_info_arr[7]})
+    a_token_registry_metadata=$(base64 -d <<< ${asset_info_arr[8]})
+  fi
+}
+
 # Command     : selectPolicy [mode] [file1 file2 ...]
 # Description : A helper function to select a Multi-Asset policy
 # Parameters  : fileX  >  array of files required to exist in policy folder for it to be selectable
@@ -660,6 +701,30 @@ selectPolicy() {
   [[ ${enc_req_files} -gt 0 ]] && println DEBUG "${FG_YELLOW}encrypted policies found but NOT listed, please decrypt to show${NC}"
   if ! selectDir "policy" "${policy_dirs[@]}"; then return 1; fi # ${dir_name} populated by selectDir function
   policy_name="$(echo ${dir_name} | cut -d' ' -f1)"
+}
+
+# Command     : selectAsset
+# Description : A helper function to select a Multi-Asset minted on device
+# Return      : populates ${policy_dir}, ${asset_name} & ${asset_file} variables
+selectAsset() {
+  asset_list=() # <policy_id>.<asset_name>
+  if ! getDirs "${ASSET_FOLDER}"; then return 1; fi
+  for dir in "${dirs[@]}"; do
+    if [[ $(find "${ASSET_FOLDER}/${dir}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | wc -c) -gt 0 ]]; then
+      while IFS= read -r -d '' asset; do
+        asset_file=${asset##*/}
+        asset_list+=("${dir}/${asset_file%%.*}")
+      done < <(find "${ASSET_FOLDER}/${dir}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | sort -z)
+    fi
+  done
+  if [[ ${#asset_list[@]} -eq 0 ]]; then
+    println ERROR "${FG_YELLOW}WARN${NC}: No assets found on disk!"
+    return 1
+  fi
+  if ! selectDir "asset" "${asset_list[@]}"; then return 1; fi # ${dir_name} populated by selected value
+  policy_dir="${dir_name%%/*}"
+  asset_name="${dir_name##*/}"
+  asset_file="${ASSET_FOLDER}/${policy_dir}/${asset_name}.asset"
 }
 
 # Command     : getPasswordCust [optional: confirm]
@@ -925,8 +990,8 @@ getBalance() {
       fi
     done <<< "${utxo_raw}"
   else
-    println ACTION "curl -sSL -f -d _address=${1} ${KOIOS_API}/address_info"
-    ! addr_info=$(curl -sSL -f -d _address=${1} ${KOIOS_API}/address_info 2>&1) && return 1
+    println ACTION "curl -sSL -f -H \"Content-Type: application/json\" -H \"Accept: application/json\" -X POST -d '{\"_addresses\":[\"${1}\"]}' ${KOIOS_API}/address_info"
+    ! addr_info=$(curl -sSL -f -H "Content-Type: application/json" -H "Accept: application/json" -X POST -d "{\"_addresses\":[\"${1}\"]}" ${KOIOS_API}/address_info 2>&1) && return 1
     [[ ${addr_info} = '[]' || $(jq -r '.[0].balance //0' <<< ${addr_info}) -eq 0 ]] && return
 
     assets["lovelace"]=$(jq -r .[0].balance <<< ${addr_info})
@@ -2192,13 +2257,13 @@ mintAsset() {
   fi
   
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".$(asciiToHex "${asset_name}")"
-  getAssetsTxOut "${policy_id}${asset_name_out}" "${asset_amount}"
+  getAssetsTxOut "${policy_id}${asset_name_out}" "${assets_to_mint}"
   
   build_args=(
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
-    --mint "${asset_amount} ${policy_id}${asset_name_out}"
-    --minting-script-file "${policy_script_file}"
+    --mint "${assets_to_mint} ${policy_id}${asset_name_out}"
+    --mint-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee 0
@@ -2241,8 +2306,8 @@ mintAsset() {
   build_args=(
     ${tx_in}
     --tx-out "${tx_out}"
-    --mint "${asset_amount} ${policy_id}${asset_name_out}"
-    --minting-script-file "${policy_script_file}"
+    --mint "${assets_to_mint} ${policy_id}${asset_name_out}"
+    --mint-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
@@ -2257,7 +2322,7 @@ mintAsset() {
     if ! offlineJSON=$(jq ". += { \"policy-name\": \"${policy_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"policy-id\": \"${policy_id}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"asset-name\": \"$(asciiToHex "${asset_name}") (${asset_name})\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"asset-amount\": \"${asset_amount}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"asset-amount\": \"${assets_to_mint}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"asset-minted\": \"${asset_minted}\" }" <<< ${offlineJSON}); then return 1; fi
     if [[ -n ${metafile_param} ]]; then
       if ! offlineJSON=$(jq ". += { metadata: $(jq -c . "${metafile}") }" <<< ${offlineJSON}); then return 1; fi
@@ -2303,7 +2368,7 @@ burnAsset() {
     ${tx_in}
     --tx-out "${addr}+0${assets_tx_out}"
     --mint "-${assets_to_burn} ${policy_id}${asset_name_out}"
-    --minting-script-file "${policy_script_file}"
+    --mint-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee 0
@@ -2347,7 +2412,7 @@ burnAsset() {
     ${tx_in}
     --tx-out "${tx_out}"
     --mint "-${assets_to_burn} ${policy_id}${asset_name_out}"
-    --minting-script-file "${policy_script_file}"
+    --mint-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
@@ -2615,85 +2680,4 @@ selectOpMode() {
     1) op_mode="hybrid" ;;
     2) return 1 ;;
   esac
-}
-
-# Command     : runDBSyncQuery [json query]
-# Description : Helper function to execute DB-Sync query
-# Parameters  : json query  >  JSON schema for the query to run
-runDBSyncQuery() {
-  json_query=$1
-  
-  declare -A variables=()
-  for variable in $(jq -r '.variables[] | @base64' <<< "${json_query}"); do
-    v_name=$(base64 -d <<< ${variable} | jq -r '.name')
-    v_name=${v_name//[^[:alnum:]]/_}
-    v_question=$(base64 -d <<< ${variable} | jq -r '.question')
-    v_mandatory=$(base64 -d <<< ${variable} | jq -r '.mandatory')
-    echo
-    getAnswerAnyCust answer "${v_question}"
-    [[ -z ${answer} && ${v_mandatory} = true ]] && println ERROR "${FG_RED}ERROR${NC}: answer empty for a mandatory question :(" && return 1
-    variables[${v_name}]="${answer}"
-  done
-
-  for query in $(jq -r '.queries[] | @base64' <<< "${json_query}"); do
-    q_name=$(base64 -d <<< ${query} | jq -r '.name')
-    q_print=$(base64 -d <<< ${query} | jq -r '.print')
-    q_uri=$(base64 -d <<< ${query} | jq -r '.uri')
-
-    [[ ${q_print} = true ]] && echo
-
-    q_data=()
-    for data in $(base64 -d <<< ${query} | jq -r '.data[] | @base64'); do
-      d_type=$(base64 -d <<< ${data} | jq -r '.type')
-      [[ ${d_type} = query_result ]] && d_q_name=$(base64 -d <<< ${data} | jq -r '.queryName') && d_q_name=${d_q_name//[^[:alnum:]]/_}
-      d_arg=$(base64 -d <<< ${data} | jq -r '.arg')
-      d_payload=$(base64 -d <<< ${data} | jq -r '.payload')
-      if [[ ${d_type} = query_result && -n ${d_q_name} && ${variables[query_${d_q_name}]+isset} ]]; then
-        q_json_payload=$(jq -r "${d_payload}" <<< "${variables[query_${d_q_name}]}")
-        q_data+=( "-d" "${d_arg}=${q_json_payload}" )
-      elif [[ ${d_type} = query_variable && ${variables[${d_payload}]+isset} ]]; then
-        q_data+=( "-d" "${d_arg}=${variables[${d_payload}]}" )
-      elif [[ ${d_type} = cntools_variable && -n ${!d_payload} ]]; then
-        q_data+=( "-d" "${d_arg}=${!d_payload}" )
-      else
-        println ERROR "\n${FG_RED}ERROR${NC}: variable defined in query not set: '${d_payload}'\n" && return 1
-      fi
-    done
-
-    println ACTION "curl -sSL -f ${q_data[*]} ${KOIOS_API}/${q_uri}"
-    if ! q_result=$(curl -sSL -f "${q_data[@]}" "${KOIOS_API}/${q_uri}" 2>&1) || ! jq -e . <<< ${q_result} &>/dev/null; then
-      println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${q_uri}: ${q_result}" && return 1
-    fi
-    println LOG "$(jq -c . <<< ${q_result})"
-    variables[query_${q_name//[^[:alnum:]]/_}]="${q_result}"
-    if [[ ${q_print} = true ]]; then
-      exec >&6 # normal stdout
-      println OFF "  ${FG_LBLUE}> ${FG_GREEN}${q_name} ${FG_LBLUE}<${NC}"
-      jq -r . <<< ${q_result}
-      exec >&8 # custom stdout
-    fi
-  done
-
-  ! query_script=$(jq -er '.script | join("\n")' <<< ${json_query} 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during script parsing: ${query_script}\n" && return 1
-
-  [[ -z ${query_script} ]] && return 0
-
-  script_file="$(mktemp "${TMP_DIR}/query_script_XXXXXXXXXX.sh")"
-  echo -e "#########################################\n# Script to execute [Press 'q' to quit] #\n#########################################" '\n\n#!/usr/bin/env bash' "\n\n${query_script}" > "${script_file}"
-  chmod +x "${script_file}"
-
-  exec >&6 # normal stdout
-  less "${script_file}"
-  exec >&8 # custom stdout
-
-  println DEBUG "\nProceed to run script?"
-  select_opt "[y] Yes" "[n] No"
-  selection=$?
-  tput rc && tput ed
-  case ${selection} in
-    0) . "${script_file}" ;;
-    1) : ;;
-  esac
-
-  return 0
 }

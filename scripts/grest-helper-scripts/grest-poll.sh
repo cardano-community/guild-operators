@@ -52,7 +52,6 @@ function chk_upd() {
   fi
   
   curl -sfkL "${API_STRUCT_DEFINITION}" -o "${LOCAL_SPEC}" 2>/dev/null
-  grep " #RPC" "${LOCAL_SPEC}" | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${PARENT}"/../files/grestrpcs
 
   checkUpdate "${PARENT}"/grest-poll.sh Y N N grest-helper-scripts
   [[ "$?" == "2" ]] && echo "ERROR: checkUpdate Failed" && exit 1
@@ -138,6 +137,7 @@ function chk_cache_status() {
   last_stakedist_block=$(curl -skL "${GURL}/control_table?key=eq.stake_distribution_lbh" | jq -r .[0].last_value 2>/dev/null)
   last_poolhist_update=$(curl -skL "${GURL}/control_table?key=eq.pool_history_cache_last_updated" | jq -r .[0].last_value 2>/dev/null)
   last_actvstake_epoch=$(curl -skL "${GURL}/control_table?key=eq.last_active_stake_validated_epoch" | jq -r .[0].last_value 2>/dev/null)
+  last_snapshot_epoch=$(curl -skL "${GURL}/control_table?key=eq.last_stake_snapshot_epoch" | jq -r .[0].last_value 2>/dev/null)
   if [[ "${last_stakedist_block}" == "" ]] || [[ "${last_stakedist_block}" == "[]" ]] || [[ $(( block_no - last_stakedist_block )) -gt 1000 ]]; then
     log_err "Stake Distribution cache too far from tip !!"
     optexit
@@ -150,13 +150,19 @@ function chk_cache_status() {
     log_err "Active Stake cache not populated !!"
     optexit
   else
-    if [[ "${last_actvstake_epoch}" != "${epoch}" ]]; then
       [[ -z "${GENESIS_JSON}" ]] && GENESIS_JSON="${PARENT}"/../files/shelley-genesis.json
       epoch_length=$(jq -r .epochLength "${GENESIS_JSON}" 2>/dev/null)
-      if [[ ${epoch_slot} -ge $(( epoch_length / 12 )) ]]; then
-        log_err "Active Stake cache for epoch ${epoch} still not populated as of ${epoch_slot} slot, maximum tolerance was $(( epoch_length / 12 )) !!"
-        optexit
-      fi
+      if [[ ${epoch_slot} -ge $(( epoch_length / 10 )) ]]; then
+        if [[ "${last_actvstake_epoch}" != "${epoch}" ]]; then
+          log_err "Active Stake cache for epoch ${epoch} still not populated as of ${epoch_slot} slot, maximum tolerance was $(( epoch_length / 10 )) !!"
+          optexit
+        fi
+      else
+        if [[ $((last_snapshot_epoch + 2)) -lt ${epoch} ]]; then
+          [[ "${DEBUG_MODE}" == "1" ]] && echo "Last stake snapshot was captured in epoch: ${last_snapshot_epoch}."
+          log_err "Stake snapshot for current epoch ${epoch} was not captured !!"
+          optexit
+        fi
     fi
   fi
 }
@@ -207,5 +213,3 @@ chk_rpcs
 chk_tip
 chk_cache_status
 chk_limit
-chk_endpt_get "blocks" view
-chk_endpt_get "epoch_info?_epoch_no=$(( epoch - 1 ))" rpc
