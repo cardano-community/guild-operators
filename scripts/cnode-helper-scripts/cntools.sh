@@ -650,18 +650,22 @@ function main {
               echo
               println DEBUG "# Select wallet to register (only non-registered wallets shown)"
               if [[ ${op_mode} = "online" ]]; then
-                if ! selectWallet "non-reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
-                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                fi
+                selectWallet "non-reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
                 getWalletType ${wallet_name}
                 case $? in
                   2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
                 esac
               else
-                if ! selectWallet "non-reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
-                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                fi
+                selectWallet "non-reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
                 getWalletType ${wallet_name}
               fi
               getBaseAddress ${wallet_name}
@@ -697,18 +701,22 @@ function main {
               echo
               println DEBUG "# Select wallet to de-register (only registered wallets shown)"
               if [[ ${op_mode} = "online" ]]; then
-                if ! selectWallet "reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
-                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                fi
+                selectWallet "reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
                 getWalletType ${wallet_name}
                 case $? in
                   2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
                 esac
               else
-                if ! selectWallet "reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then
-                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                fi
+                selectWallet "reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
                 getWalletType ${wallet_name}
               fi
               getRewards ${wallet_name}
@@ -821,9 +829,11 @@ function main {
                 println DEBUG "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, limited wallet info shown!"
               fi
               tput sc
-              if ! selectWallet "none"; then
-                [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-              fi
+              selectWallet "none"
+              case $? in
+                1) waitForInput; continue ;;
+                2) continue ;;
+              esac
               tput rc && tput ed
               enc_files=$(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c)
               if [[ ${enc_files} -gt 0 ]]; then
@@ -1004,9 +1014,11 @@ function main {
               fi
               echo
               println DEBUG "# Select wallet to remove"
-              if ! selectWallet "none"; then # ${wallet_name} populated by selectWallet function
-                [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-              fi
+              selectWallet "none"
+              case $? in
+                1) waitForInput; continue ;;
+                2) continue ;;
+              esac
               echo
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println DEBUG "Are you sure to delete wallet ${FG_GREEN}${wallet_name}${NC}?"
@@ -1081,9 +1093,11 @@ function main {
               echo
               [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
               println DEBUG "# Select wallet to decrypt"
-              if ! selectWallet "encrypted"; then # ${wallet_name} populated by selectWallet function
-                [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-              fi
+              selectWallet "encrypted"
+              case $? in
+                1) waitForInput; continue ;;
+                2) continue ;;
+              esac
               filesUnlocked=0
               keysDecrypted=0
               echo
@@ -1127,9 +1141,11 @@ function main {
               echo
               [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
               println DEBUG "# Select wallet to encrypt"
-              if ! selectWallet "encrypted"; then # ${wallet_name} populated by selectWallet function
-                [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-              fi
+              selectWallet "encrypted"
+              case $? in
+                1) waitForInput; continue ;;
+                2) continue ;;
+              esac
               filesLocked=0
               keysEncrypted=0
               if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -le 0 ]]; then
@@ -1216,18 +1232,22 @@ function main {
               # source wallet
               println DEBUG "# Select ${FG_YELLOW}source${NC} wallet"
               if [[ ${op_mode} = "online" ]]; then
-                if ! selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                fi
+                selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
                 getWalletType ${wallet_name}
                 case $? in
                   2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
                 esac
               else
-                if ! selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                fi
+                selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
                 getWalletType ${wallet_name}
               fi
               s_wallet="${wallet_name}"
@@ -1370,9 +1390,11 @@ function main {
               println DEBUG "# Select ${FG_YELLOW}destination${NC} type"
               select_opt "[w] Wallet" "[a] Address" "[Esc] Cancel"
               case $? in
-                0) if ! selectWallet "balance"; then # ${wallet_name} populated by selectWallet function
-                    [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                  fi
+                0) selectWallet "balance"
+                  case $? in
+                    1) waitForInput; continue ;;
+                    2) continue ;;
+                  esac
                   d_wallet="${wallet_name}"
                   getBaseAddress ${d_wallet}
                   getPayAddress ${d_wallet}
@@ -1497,18 +1519,22 @@ function main {
               echo
               println DEBUG "# Select wallet to delegate"
               if [[ ${op_mode} = "online" ]]; then
-                if ! selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                fi
+                selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
                 getWalletType ${wallet_name}
                 case $? in
                   2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
                 esac
               else
-                if ! selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                fi
+                selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
                 getWalletType ${wallet_name}
               fi
               getBaseAddress ${wallet_name}
@@ -1536,9 +1562,11 @@ function main {
               println DEBUG "Do you want to delegate to a local CNTools pool or specify the pool ID?"
               select_opt "[p] CNTools Pool" "[i] Pool ID" "[Esc] Cancel"
               case $? in
-                0) if ! selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}"; then # ${pool_name} populated by selectPool function
-                    waitForInput && continue
-                  fi
+                0) selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}"
+                  case $? in
+                    1) waitForInput; continue ;;
+                    2) continue ;;
+                  esac
                   getPoolID "${pool_name}"
                   ;;
                 1) getAnswerAnyCust pool_id "Pool ID (blank to cancel)"
@@ -1582,18 +1610,22 @@ function main {
               echo
               println DEBUG "# Select wallet to withdraw funds from"
               if [[ ${op_mode} = "online" ]]; then
-                if ! selectWallet "reward" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                fi
+                selectWallet "reward" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
                 getWalletType ${wallet_name}
                 case $? in
                   2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
                 esac
               else
-                if ! selectWallet "reward" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                fi
+                selectWallet "reward" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
                 getWalletType ${wallet_name}
               fi
               echo
@@ -1633,7 +1665,7 @@ function main {
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println OFF " Pool Management\n"\
 						" ) New      - create a new pool"\
-                                                " ) Import   - import node cold keys from hardware"\
+						" ) Import   - import node cold keys from Ledger HW device (Trezor not supported)"\
 						" ) Register - register a newly created pool on chain using a stake wallet (pledge wallet)"\
 						" ) Modify   - re-register pool modifying pool definition and/or parameters"\
 						" ) Retire   - de-register stake pool from chain in specified epoch"\
@@ -1644,7 +1676,7 @@ function main {
 						" ) Encrypt  - encrypt pool cold keys and make all files immutable"\
 						"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println DEBUG " Select Pool Operation\n"
-          select_opt "[n] New" "[i] Import HW" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home"
+          select_opt "[n] New" "[i] Import (Ledger)" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home"
           case $? in
             0) SUBCOMMAND="new" ;;
             1) SUBCOMMAND="import" ;;
@@ -1766,23 +1798,29 @@ function main {
               fi
               echo
 
-              # HW=1 ### TEMP TO ENABLE HW PROC
+              unset isHWpool
               println DEBUG "# Select pool to register|modify"
               [[ ${SUBCOMMAND} = "register" ]] && pool_filter="non-reg" || pool_filter="reg"
               if [[ ${op_mode} = "online" ]]; then
-                if ! selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_VRF_VK_FILENAME}"; then
-                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                fi
+                selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_VRF_VK_FILENAME}"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
                 getPoolType ${pool_name}
                 case $? in
+                  0) isHWpool=Y ;;
                   2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
                   3) println ERROR "${FG_RED}ERROR${NC}: signing keys missing from pool!" && waitForInput && continue ;;
                 esac
               else
-                if ! selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_VRF_VK_FILENAME}"; then
-                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                fi
+                selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_VRF_VK_FILENAME}"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
                 getPoolType ${pool_name}
+                [[ $? -eq 0 ]] && isHWpool=Y
               fi
               echo
               pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
@@ -2109,9 +2147,11 @@ function main {
                     3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
                   esac
                 else
-                  if ! selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-                    [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                  fi
+                  selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                  case $? in
+                    1) waitForInput; continue ;;
+                    2) continue ;;
+                  esac
                   getWalletType ${wallet_name}
                 fi
                 if ! isWalletRegistered ${wallet_name}; then
@@ -2209,11 +2249,8 @@ function main {
 
               pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
               pool_hotkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_SK_FILENAME}"
-              pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
-              pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
-              if getPoolType "${pool_name}" ; then
-                pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HW_COLDKEY_SK_FILENAME}"
-              fi
+              #pool_coldkey_vk_file set by getPoolType at start
+              #pool_coldkey_sk_file set by getPoolType at start
               pool_vrf_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_VRF_VK_FILENAME}"
               pool_opcert_counter_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_COUNTER_FILENAME}"
               pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
@@ -2229,17 +2266,17 @@ function main {
                   current_kes_period=$(getCurrentKESperiod)
                   echo "${current_kes_period}" > ${pool_saved_kes_start}
 
-                  if [[ ! -f "${pool_opcert_file}" ]] ; then
-                    if getPoolType "${pool_name}" ; then
+                  if [[ ! -f "${pool_opcert_file}" ]]; then
+                    if [[ ${isHWpool} = 'Y' ]]; then
                       if ! unlockHWDevice "issue the opcert"; then return 1; fi
-		      println ACTION "cardano-hw-cli node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --hw-signing-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
-		      ! cardano-hw-cli node issue-op-cert \
-		        --kes-verification-key-file "${pool_hotkey_vk_file}" \
-		        --hw-signing-file "${pool_coldkey_sk_file}" \
-		        --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" \
-		        --kes-period "${current_kes_period}" \
-		        --out-file "${pool_opcert_file}" \
-		      && return 1
+                        println ACTION "cardano-hw-cli node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --hw-signing-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
+                        ! cardano-hw-cli node issue-op-cert \
+                          --kes-verification-key-file "${pool_hotkey_vk_file}" \
+                          --hw-signing-file "${pool_coldkey_sk_file}" \
+                          --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" \
+                          --kes-period "${current_kes_period}" \
+                          --out-file "${pool_opcert_file}" \
+                        && return 1
                     else
                       println ACTION "${CCLI} node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
                       ${CCLI} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}"
@@ -2264,7 +2301,7 @@ function main {
 
               delegate_owner_wallet='N'
               if [[ ${SUBCOMMAND} = "register" ]]; then
-                if [[ ${hw_owner_wallets} = 'Y' || ${hw_reward_wallet} = 'Y' ]] || getPoolType "${pool_name}" ; then
+                if [[ ${hw_owner_wallets} = 'Y' || ${hw_reward_wallet} = 'Y' || ${isHWpool} = 'Y' ]]; then
                   println DEBUG "\n${FG_BLUE}INFO${NC}: hardware wallet included as reward or multi-owner or hardware pool, automatic owner/reward wallet delegation disabled"
                   println DEBUG "${FG_BLUE}INFO${NC}: ${FG_YELLOW}please manually delegate all wallets to the pool!!!${NC}"
                   waitForInput "press any key to continue"
@@ -2392,16 +2429,24 @@ function main {
               echo
               println DEBUG "# Select pool to retire"
               if [[ ${op_mode} = "online" ]]; then
-
-                if ! selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}" ; then # ${pool_name} populated by selectPool function
-                  waitForInput && continue
-                fi
+                selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
+                getPoolType ${pool_name}
+                case $? in
+                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
+                  3) println ERROR "${FG_RED}ERROR${NC}: signing keys missing from pool!" && waitForInput && continue ;;
+                esac
               else
-                if ! selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}"; then # ${pool_name} populated by selectPool function
-                  waitForInput && continue
-                fi
+                selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
+                getPoolType ${pool_name}
               fi
-
               echo
               epoch=$(getEpoch)
               poolRetireMaxEpoch=$(jq -r '.poolRetireMaxEpoch' <<< "${PROT_PARAMS}")
@@ -2419,9 +2464,11 @@ function main {
               fi
               println DEBUG "# Select wallet for pool de-registration transaction fee"
               if [[ ${op_mode} = "online" ]]; then
-                if ! selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                fi
+                selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
                 getWalletType ${wallet_name}
                 case $? in
                   0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for pool de-registration transaction fee!" && waitForInput && continue ;;
@@ -2429,9 +2476,11 @@ function main {
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
                 esac
               else
-                if ! selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                fi
+                selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
                 getWalletType ${wallet_name}
                 case $? in
                   0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for pool de-registration transaction fee!" && waitForInput && continue ;;
@@ -2469,11 +2518,6 @@ function main {
               else
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
                 waitForInput && continue
-              fi
-              pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
-              pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
-              if getPoolType "${pool_name}" ; then
-                pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_HW_COLDKEY_SK_FILENAME}"
               fi
               pool_deregcert_file="${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}"
               pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
@@ -2554,9 +2598,11 @@ function main {
                 println DEBUG "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, locally saved info shown!"
               fi
               tput sc
-              if ! selectPool "all" "${POOL_ID_FILENAME}"; then # ${pool_name} populated by selectPool function
-                waitForInput && continue
-              fi
+              selectPool "all" "${POOL_ID_FILENAME}"
+              case $? in
+                1) waitForInput; continue ;;
+                2) continue ;;
+              esac
               current_epoch=$(getEpoch)
               getPoolID ${pool_name}
               tput rc && tput ed
@@ -2876,9 +2922,10 @@ function main {
               [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
               println DEBUG "# Select pool to rotate KES keys on"
               selectPool "all" "${POOL_COLDKEY_VK_FILENAME}"
-              if [ ! $? -eq 0 ] ; then # ${pool_name} populated by selectPool function
-                waitForInput && continue
-              fi
+              case $? in
+                1) waitForInput; continue ;;
+                2) continue ;;
+              esac
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 getAnswerAnyCust new_counter "Enter new counter number"
                 if ! isNumber ${new_counter}; then
@@ -2915,9 +2962,11 @@ function main {
               echo
               [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
               println DEBUG "# Select pool to decrypt"
-              if ! selectPool "encrypted"; then # ${pool_name} populated by selectPool function
-                waitForInput && continue
-              fi
+              selectPool "encrypted"
+              case $? in
+                1) waitForInput; continue ;;
+                2) continue ;;
+              esac
               filesUnlocked=0
               keysDecrypted=0
               echo
@@ -2960,9 +3009,11 @@ function main {
               echo
               [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
               println DEBUG "# Select pool to encrypt"
-              if ! selectPool "encrypted"; then # ${pool_name} populated by selectPool function
-                waitForInput && continue
-              fi
+              selectPool "encrypted"
+              case $? in
+                1) waitForInput; continue ;;
+                2) continue ;;
+              esac
               filesLocked=0
               keysEncrypted=0
               if [[ $(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -le 0 ]]; then
@@ -3929,9 +3980,11 @@ function main {
               esac
               println DEBUG "\n# Select wallet to pay for metadata transaction fee"
               if [[ ${op_mode} = "online" ]]; then
-                if ! selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                fi
+                selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
                 getWalletType ${wallet_name}
                 case $? in
                   0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for metadata transaction fee!" && waitForInput && continue ;;
@@ -3939,9 +3992,11 @@ function main {
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
                 esac
               else
-                if ! selectWallet "balance"; then # ${wallet_name} populated by selectWallet function
-                  [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                fi
+                selectWallet "balance"
+                case $? in
+                  1) waitForInput; continue ;;
+                  2) continue ;;
+                esac
                 getWalletType ${wallet_name}
                 case $? in
                   0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for metadata transaction fee!" && waitForInput && continue ;;
@@ -4125,9 +4180,11 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies or assets found!${NC}" && waitForInput && continue
                     println DEBUG "# Select minted asset to show information for"
-                    if ! selectAsset; then # ${selected_value} populated
-                      waitForInput && continue
-                    fi
+                    selectAsset
+                    case $? in
+                      1) waitForInput; continue ;;
+                      2) continue ;;
+                    esac
                     echo
                     policy_id=$(cat "${ASSET_FOLDER}/${policy_dir}/${ASSET_POLICY_ID_FILENAME}")
                     println "Policy Name    : ${FG_GREEN}${policy_dir}${NC}"
@@ -4171,9 +4228,11 @@ function main {
                     echo
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No policies available!${NC}" && waitForInput && continue
                     println DEBUG "# Select policy to decrypt"
-                    if ! selectPolicy "encrypted"; then # ${policy_name} populated by selectPolicy function
-                      waitForInput && continue
-                    fi
+                    selectPolicy "encrypted"
+                    case $? in
+                      1) waitForInput; continue ;;
+                      2) continue ;;
+                    esac
                     filesUnlocked=0
                     keysDecrypted=0
                     echo
@@ -4219,9 +4278,11 @@ function main {
                     echo
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No policies available!${NC}" && waitForInput && continue
                     println DEBUG "# Select policy to encrypt"
-                    if ! selectPolicy "encrypted"; then # ${policy_name} populated by selectPolicy function
-                      waitForInput && continue
-                    fi
+                    selectPolicy "encrypted"
+                    case $? in
+                      1) waitForInput; continue ;;
+                      2) continue ;;
+                    esac
                     filesLocked=0
                     keysEncrypted=0
                     if [[ $(find "${ASSET_FOLDER}/${policy_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -le 0 ]]; then
@@ -4283,9 +4344,11 @@ function main {
                     echo
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies found!${NC}\n\nPlease first create a policy to mint asset with" && waitForInput && continue
                     println DEBUG "# Select the policy to use when minting the asset"
-                    if ! selectPolicy "all" "${ASSET_POLICY_SK_FILENAME}" "${ASSET_POLICY_VK_FILENAME}" "${ASSET_POLICY_SCRIPT_FILENAME}" "${ASSET_POLICY_ID_FILENAME}"; then # ${policy_name} populated by selectPolicy function
-                      waitForInput && continue
-                    fi
+                    selectPolicy "all" "${ASSET_POLICY_SK_FILENAME}" "${ASSET_POLICY_VK_FILENAME}" "${ASSET_POLICY_SCRIPT_FILENAME}" "${ASSET_POLICY_ID_FILENAME}"
+                    case $? in
+                      1) waitForInput; continue ;;
+                      2) continue ;;
+                    esac
                     policy_folder="${ASSET_FOLDER}/${policy_name}"
                     # Policy filenames
                     policy_sk_file="${policy_folder}/${ASSET_POLICY_SK_FILENAME}"
@@ -4341,18 +4404,22 @@ function main {
                     esac
                     println DEBUG "\n# Select wallet to mint assets on (also used for transaction fee)"
                     if [[ ${op_mode} = "online" ]]; then
-                      if ! selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-                        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                      fi
+                      selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"
+                      case $? in
+                        1) waitForInput; continue ;;
+                        2) continue ;;
+                      esac
                       getWalletType ${wallet_name}
                       case $? in
                         2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
                         3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
                       esac
                     else
-                      if ! selectWallet "balance"; then # ${wallet_name} populated by selectWallet function
-                        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                      fi
+                      selectWallet "balance"
+                      case $? in
+                        1) waitForInput; continue ;;
+                        2) continue ;;
+                      esac
                     fi
                     echo
                     getBaseAddress ${wallet_name}
@@ -4432,9 +4499,11 @@ function main {
                     echo
                     println DEBUG "# Select wallet with assets to burn"
                     if [[ ${op_mode} = "online" ]]; then
-                      if ! selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-                        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                      fi
+                      selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"
+                      case $? in
+                        1) waitForInput; continue ;;
+                        2) continue ;;
+                      esac
                       getWalletType ${wallet_name}
                       case $? in
                         0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet for asset burning!" && waitForInput && continue ;;
@@ -4442,9 +4511,11 @@ function main {
                         3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
                       esac
                     else
-                      if ! selectWallet "balance"; then # ${wallet_name} populated by selectWallet function
-                        [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
-                      fi
+                      selectWallet "balance"
+                      case $? in
+                        1) waitForInput; continue ;;
+                        2) continue ;;
+                      esac
                       getWalletType ${wallet_name}
                       case $? in
                         0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet for asset burning!" && waitForInput && continue ;;
@@ -4573,9 +4644,11 @@ function main {
                     fi
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies found!${NC}\n\nPlease first create a policy to use for Cardano Token Registry" && waitForInput && continue
                     println DEBUG "# Select the policy to use for Cardano Token Registry"
-                    if ! selectPolicy "all" "${ASSET_POLICY_SK_FILENAME}" "${ASSET_POLICY_SCRIPT_FILENAME}" "${ASSET_POLICY_ID_FILENAME}"; then # ${policy_name} populated by selectPolicy function
-                      waitForInput && continue
-                    fi
+                    selectPolicy "all" "${ASSET_POLICY_SK_FILENAME}" "${ASSET_POLICY_SCRIPT_FILENAME}" "${ASSET_POLICY_ID_FILENAME}"
+                    case $? in
+                      1) waitForInput; continue ;;
+                      2) continue ;;
+                    esac
                     policy_folder="${ASSET_FOLDER}/${policy_name}"
                     # Policy filenames
                     policy_sk_file="${policy_folder}/${ASSET_POLICY_SK_FILENAME}"
