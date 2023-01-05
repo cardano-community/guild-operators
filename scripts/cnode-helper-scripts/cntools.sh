@@ -2630,9 +2630,10 @@ function main {
                 [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
                 [[ -n "${ledger_pParams}" ]] && pool_registered="${FG_GREEN}YES${NC}" || pool_registered="${FG_RED}NO${NC}"
               else
+                println DEBUG "\n${FG_YELLOW}> Querying Koios API for pool information (some data can have a delay of up to 10min)${NC}"
                 isPoolRegistered ${pool_name} # variables set in isPoolRegistered [pool_info, error_msg, p_<metric>]
                 case $? in
-                  0) println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" && waitForInput && continue ;;
+                  0) println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" && waitForInput && continue ;;
                   1) pool_registered="${FG_RED}NO${NC}" ;;
                   2) pool_registered="${FG_GREEN}YES${NC}" ;;
                   3) if [[ ${current_epoch} -lt ${p_retiring_epoch} ]]; then
@@ -4162,7 +4163,7 @@ function main {
                       fi
                       if [[ $(find "${policy}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | wc -c) -gt 0 ]]; then
                         while IFS= read -r -d '' asset; do
-                          asset_filename=$(basename ${asset})
+                          asset_filename=$(basename "${asset}")
                           [[ -z ${asset_filename%.*} ]] && asset_name="" || asset_name="${asset_filename%%.*}"
                           [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
                           println "Asset         : Name: ${FG_MAGENTA}${asset_name}${NC} (${FG_LGRAY}${asset_name_hex}${NC}) - Minted: ${FG_LBLUE}$(formatAsset "$(jq -r .minted "${asset}")")${NC}"
@@ -4363,7 +4364,7 @@ function main {
                       println DEBUG "# Assets minted for this Policy\n"
                       asset_name_maxlen=5; asset_amount_maxlen=12
                       while IFS= read -r -d '' asset; do
-                        asset_filename=$(basename ${asset})
+                        asset_filename=$(basename "${asset}")
                         [[ -z ${asset_filename%.*} ]] && asset_name="." || asset_name="${asset_filename%.*}"
                         [[ ${#asset_name} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#asset_name}
                         asset_minted=$(jq -r '.minted //0' "${asset}")
@@ -4372,7 +4373,7 @@ function main {
                       println DEBUG "$(printf "%${asset_amount_maxlen}s | %s\n" "Total Amount" "Policy ID[.AssetName]")"
                       println DEBUG "$(printf "%$((asset_amount_maxlen+1))s+%$((asset_name_maxlen+58))s\n" "" "" | tr " " "-")"
                       while IFS= read -r -d '' asset; do
-                        asset_filename=$(basename ${asset})
+                        asset_filename=$(basename "${asset}")
                         [[ -z ${asset_filename%.*} ]] && asset_name="${FG_LGRAY}${policy_id}${NC}" || asset_name="${FG_LGRAY}${policy_id}.${FG_MAGENTA}${asset_filename%.*}${NC}"
                         asset_minted=$(jq -r '.minted //0' "${asset}")
                         println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} | %s\n" "${asset_minted}" "${asset_name}")"
@@ -4460,9 +4461,9 @@ function main {
                     if ! mintAsset; then
                       waitForInput && continue
                     fi
-                    if [[ ! -f "${asset_file}" ]]; then echo "{}" > ${asset_file}; fi
-                    assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"${asset_name}\", policyID: \"${policy_id}\", assetName: \"$(asciiToHex "${asset_name}")\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"Minted $(formatAsset ${assets_to_mint})\"}" < ${asset_file})
-                    echo -e "${assetJSON}" > ${asset_file}
+                    if [[ ! -f "${asset_file}" ]]; then echo "{}" > "${asset_file}"; fi
+                    assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"${asset_name}\", policyID: \"${policy_id}\", assetName: \"$(asciiToHex "${asset_name}")\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"Minted $(formatAsset ${assets_to_mint})\"}" < "${asset_file}")
+                    echo -e "${assetJSON}" > "${asset_file}"
                     echo
                     if ! verifyTx ${addr}; then waitForInput && continue; fi
                     echo
@@ -4564,7 +4565,7 @@ function main {
                     while IFS= read -r -d '' file; do
                       [[ ${asset_arr[0]} = "$(jq -r .policyID ${file})" ]] && asset_file="${file}" && break
                     done < <(find "${ASSET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name '*.asset' -print0)
-                    [[ -z ${asset_file} ]] && println ERROR "${FG_RED}ERROR${NC}: Searched all available policies in '${ASSET_FOLDER}' for matching '.asset' file but non found!" && waitForInput && continue
+                    [[ -z "${asset_file}" ]] && println ERROR "${FG_RED}ERROR${NC}: Searched all available policies in '${ASSET_FOLDER}' for matching '.asset' file but non found!" && waitForInput && continue
                     
                     [[ ${#asset_arr[@]} -eq 1 ]] && asset_name="" || asset_name="${asset_arr[1]}"
                     
@@ -4606,9 +4607,9 @@ function main {
                       waitForInput && continue
                     fi
                     # TODO: Update asset file
-                    if [[ ! -f "${asset_file}" ]]; then echo "{}" > ${asset_file}; fi
-                    assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"$(hexToAscii "${asset_name}")\", policyID: \"${policy_id}\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"Burned $(formatAsset ${assets_to_burn})\"}" < ${asset_file})
-                    echo -e "${assetJSON}" > ${asset_file}
+                    if [[ ! -f "${asset_file}" ]]; then echo "{}" > "${asset_file}"; fi
+                    assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"$(hexToAscii "${asset_name}")\", policyID: \"${policy_id}\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"Burned $(formatAsset ${assets_to_burn})\"}" < "${asset_file}")
+                    echo -e "${assetJSON}" > "${asset_file}"
                     echo
                     if ! verifyTx ${addr}; then waitForInput && continue; fi
                     echo
@@ -4659,7 +4660,7 @@ function main {
                       println DEBUG "# Assets previously minted for this Policy\n"
                       asset_name_maxlen=5; asset_amount_maxlen=12
                       while IFS= read -r -d '' asset; do
-                        asset_filename=$(basename ${asset})
+                        asset_filename=$(basename "${asset}")
                         [[ -z ${asset_filename%.*} ]] && asset_name="." || asset_name="${asset_filename%.*}"
                         [[ ${#asset_name} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#asset_name}
                         asset_minted=$(jq -r '.minted //0' "${asset}")
@@ -4668,7 +4669,7 @@ function main {
                       println DEBUG "$(printf "%${asset_amount_maxlen}s | %s\n" "Total Amount" "Policy ID[.AssetName]")"
                       println DEBUG "$(printf "%$((asset_amount_maxlen+1))s+%$((asset_name_maxlen+58))s\n" "" "" | tr " " "-")"
                       while IFS= read -r -d '' asset; do
-                        asset_filename=$(basename ${asset})
+                        asset_filename=$(basename "${asset}")
                         [[ -z ${asset_filename%.*} ]] && asset_name="${FG_LGRAY}${policy_id}${NC}" || asset_name="${FG_LGRAY}${policy_id}.${FG_MAGENTA}${asset_filename%.*}${NC}"
                         asset_minted=$(jq -r '.minted //0' "${asset}")
                         println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} | %s\n" "${asset_minted}" "${asset_name}")"
@@ -4756,10 +4757,10 @@ function main {
                     popd &>/dev/null || println ERROR "\n${FG_RED}ERROR${NC}: unable to return to previous directory!"
                     
                     # Update .asset file with registered metadata
-                    assetFileJSON=$(cat ${asset_file})
+                    assetFileJSON=$(cat "${asset_file}")
                     assetFileJSON=$(jq ". += {metadata: {name: \"${meta_name}\", description: \"${meta_desc}\", ticker: \"${meta_ticker}\", url: \"${meta_url}\", logo: \"${meta_logo}\", sequenceNumber: \"${sequence_number}\"} } " <<< ${assetFileJSON})
                     assetFileJSON=$(jq ". += {lastUpdate: \"$(date -R)\", lastAction: \"created Cardano Token Registry submission file\"}" <<< ${assetFileJSON})
-                    echo -e "${assetFileJSON}" > ${asset_file}
+                    echo -e "${assetFileJSON}" > "${asset_file}"
                     
                     echo
                     println "Cardano Metadata Registry submission file successfully created!"
