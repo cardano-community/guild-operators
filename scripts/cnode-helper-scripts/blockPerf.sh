@@ -384,9 +384,9 @@ do
     else
       for (( iblockHeight=$blockHeightPrev+1; iblockHeight<=$blockHeight; iblockHeight++ ))
       do  #catch up from previous to current blockheight
-        blockHash=$(grep -m 1 "$iblockHeight" ${logfile} | jq -r .data.block)
+        blockHash=$(grep -m 1 ":$iblockHeight" ${logfile} | jq -r .data.block)
         if [ ! -z $blockHash ]; then
-          blockLog=$(grep ":${blockHash:0:10}" ${logfile} | grep -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' )
+          blockLog=$(grep "${blockHash:0:10}" ${logfile} | grep -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' )
           if [ $(echo "$blockLog" | grep -h -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' | jq -r .data.kind | sort | uniq | wc -l) -lt 4 ]; then 
             # grep'ed blockLog is incomplete (4 steps) probably because of log rotation. so let's grep from all logs
             blockLog=$(grep -h -E ${blockHash:0:10} ${logfile/.json/-*} ${logfile} | grep -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' )
@@ -409,7 +409,7 @@ do
       blockHash=$(grep -m 1 "${blockHash}+.*$slotNum" ${logfile} | jq -r .data.block)
     fi
     if [ ! -z $blockHash ]; then
-      blockLog=$(grep ":${blockHash}" ${logfile} | grep -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork')
+      blockLog=$(grep "${blockHash}" ${logfile} | grep -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork')
       if [ $(echo "$blockLog" | grep -h -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' | jq -r .data.kind | sort | uniq | wc -l) -lt 4 ]; then 
         # grep'ed blockLog is incomplete (4 steps) probably because of log rotation. so let's grep from all logs
         blockLog=$(grep -h -E ${blockHash:0:10} ${logfile/.json/-*} ${logfile} | grep -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' )
