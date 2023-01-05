@@ -1665,7 +1665,7 @@ function main {
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println OFF " Pool Management\n"\
 						" ) New      - create a new pool"\
-						" ) Import   - import node cold keys from Ledger HW device (Trezor not supported)"\
+						" ) Import   - import node cold keys from Ledger HW device (only Ledger)"\
 						" ) Register - register a newly created pool on chain using a stake wallet (pledge wallet)"\
 						" ) Modify   - re-register pool modifying pool definition and/or parameters"\
 						" ) Retire   - de-register stake pool from chain in specified epoch"\
@@ -1676,7 +1676,7 @@ function main {
 						" ) Encrypt  - encrypt pool cold keys and make all files immutable"\
 						"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println DEBUG " Select Pool Operation\n"
-          select_opt "[n] New" "[i] Import (Ledger)" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home"
+          select_opt "[n] New" "[i] Import" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home"
           case $? in
             0) SUBCOMMAND="new" ;;
             1) SUBCOMMAND="import" ;;
