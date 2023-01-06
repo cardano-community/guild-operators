@@ -4617,8 +4617,8 @@ function main {
                     println "Assets successfully burned!"
                     println "Policy Name     : ${FG_GREEN}${policy_name}${NC}"
                     println "Policy ID       : ${FG_LGRAY}${policy_id}${NC}"
-                    [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
-                    println "Asset Name      : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY} (${asset_name_hex})${NC}"
+                    [[ -z ${asset_name} ]] && asset_name_ascii="" || asset_name_ascii="$(hexToAscii "${asset_name}")"
+                    println "Asset Name      : ${FG_MAGENTA}${asset_name_ascii}${NC}${FG_LGRAY} (${asset_name})${NC}"
                     println "Left in Address : ${FG_LBLUE}$(formatAsset $(( curr_asset_amount - assets_to_burn )))${NC}"
                     getAssetInfo "${policy_id}" "${asset_name_hex}"
                     case $? in
