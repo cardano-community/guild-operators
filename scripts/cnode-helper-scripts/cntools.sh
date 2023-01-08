@@ -4208,9 +4208,9 @@ function main {
                          println "Mint Count     : ${FG_LBLUE}${a_mint_cnt}${NC}"
                          println "Burn Count     : ${FG_LBLUE}${a_burn_cnt}${NC}"
                          println "Mint Tx Meta   :"
-                         if [[ ${a_minting_tx_metadata} != '[]' ]]; then jq -r . <<< "${a_minting_tx_metadata}"; fi
+                         if [[ ${a_minting_tx_metadata} != '-' ]]; then jq -r . <<< "${a_minting_tx_metadata}"; fi
                          println "Token Reg Meta :"
-                         if [[ ${a_token_registry_metadata} != 'null' ]]; then jq -r . <<< "${a_token_registry_metadata}"; fi ;;
+                         if [[ ${a_token_registry_metadata} != '-' ]]; then jq -r . <<< "${a_token_registry_metadata}"; fi ;;
                       1) println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" ;;
                       2) a_minted=$(jq -er '.minted //0' "${asset_file}")
                          println "In Circulation : ${FG_LBLUE}$(formatAsset "$(jq -er '.minted //0' "${asset_file}")")${NC} (local tracking)" ;;

@@ -647,7 +647,7 @@ getAssetInfo() {
       return 2
     fi
     asset_info_tsv=$(jq -r '[
-    .[0].asset_name_ascii //"-",
+    (.[0].asset_name_ascii //"-" | @base64),
     .[0].fingerprint //"-",
     .[0].minting_tx_hash //"-",
     .[0].total_supply //0,
@@ -660,7 +660,7 @@ getAssetInfo() {
 
     read -ra asset_info_arr <<< ${asset_info_tsv}
 
-    a_asset_name_ascii=${asset_info_arr[0]}
+    a_asset_name_ascii=$(base64 -d <<< ${asset_info_arr[0]})
     a_fingerprint=${asset_info_arr[1]}
     a_minting_tx_hash=${asset_info_arr[2]}
     a_total_supply=${asset_info_arr[3]}
