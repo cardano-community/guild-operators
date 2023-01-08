@@ -10,8 +10,14 @@
       
         <link rel="canonical" href="https://cardano-community.github.io/guild-operators/basics/">
       
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../build/">
+      
       <link rel="icon" href="../overrides/guildicon.png">
-      <meta name="generator" content="mkdocs-1.3.1, mkdocs-material-8.3.9">
+      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.0.2">
     
     
       
@@ -19,13 +25,13 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.1d29e8d0.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.f56500e0.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.cbb835fc.min.css">
-        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.2505c338.min.css">
       
       
+
     
     
     
@@ -40,7 +46,7 @@
     
       <link rel="stylesheet" href="../overrides/custom.css">
     
-    <script>__md_scope=new URL("..",location),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
   
@@ -50,10 +56,13 @@
   
 
 
-  <script>function gtag(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],gtag("js",new Date),gtag("config","G-MLM58HW7RF"),document.addEventListener("DOMContentLoaded",function(){document.forms.search&&document.forms.search.query.addEventListener("blur",function(){this.value&&gtag("event","search",{search_term:this.value})}),"undefined"!=typeof location$&&location$.subscribe(function(e){gtag("config","G-MLM58HW7RF",{page_path:e.pathname})})})</script>
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-MLM58HW7RF"></script>
+  <script id="__analytics">function __md_analytics(){function n(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],n("js",new Date),n("config","G-MLM58HW7RF"),document.addEventListener("DOMContentLoaded",function(){document.forms.search&&document.forms.search.query.addEventListener("blur",function(){this.value&&n("event","search",{search_term:this.value})}),document$.subscribe(function(){var a=document.forms.feedback;if(void 0!==a)for(var e of a.querySelectorAll("[type=submit]"))e.addEventListener("click",function(e){e.preventDefault();var t=document.location.pathname,e=this.getAttribute("data-md-value");n("event","feedback",{page:t,data:e}),a.firstElementChild.disabled=!0;e=a.querySelector(".md-feedback__note [data-md-value='"+e+"']");e&&(e.hidden=!1)}),a.hidden=!1}),location$.subscribe(function(e){n("config","G-MLM58HW7RF",{page_path:e.pathname})})});var e=document.createElement("script");e.async=!0,e.src="https://www.googletagmanager.com/gtag/js?id=G-MLM58HW7RF",document.getElementById("__analytics").insertAdjacentElement("afterEnd",e)}</script>
 
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
 
+    
     
     
   </head>
@@ -120,7 +129,6 @@
       <form class="md-header__option" data-md-component="palette">
         
           
-          
           <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="green" data-md-color-accent="green"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
           
             <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_2" hidden>
@@ -128,7 +136,6 @@
             </label>
           
         
-          
           
           <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="green"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_2">
           
@@ -155,11 +162,11 @@
       </label>
       <nav class="md-search__options" aria-label="Search">
         
-          <a href="javascript:void(0)" class="md-search__icon md-icon" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7 0-.24-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91 1.61 0 2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08Z"/></svg>
           </a>
         
-        <button type="reset" class="md-search__icon md-icon" aria-label="Clear" tabindex="-1">
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
         </button>
       </nav>
@@ -183,7 +190,7 @@
         <a href="https://github.com/cardano-community/guild-operators" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.1.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
   </div>
   <div class="md-source__repository">
     cardano-community/guild-operators
@@ -227,7 +234,7 @@
       <a href="https://github.com/cardano-community/guild-operators" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.1.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
   </div>
   <div class="md-source__repository">
     cardano-community/guild-operators
@@ -344,8 +351,6 @@
         
           
         
-          
-        
       
       
         <label class="md-nav__link" for="__nav_3">
@@ -410,20 +415,6 @@
     <li class="md-nav__item">
       <a href="../Build/grest/" class="md-nav__link">
         gRest
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../Build/grest-changelog/" class="md-nav__link">
-        gRest Changelog
       </a>
     </li>
   
@@ -903,20 +894,21 @@
               </div>
             
           
-          <div class="md-content" data-md-component="content">
-            <article class="md-content__inner md-typeset">
-              
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
                 
-  <a href="https://github.com/cardano-community/guild-operators/edit/master/docs/basics.md" title="Edit this page" class="md-content__button md-icon">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25Z"/></svg>
-  </a>
+                  
+
+  
+  
 
 
 
   <h1>Basics</h1>
 
 <h4 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">⚓︎</a></h4>
-<p>The architecture for various components are already described at <a href="https://docs.cardano.org/explore-cardano/cardano-architecture/overview">docs.cardano.org</a> by CF/IOHK. We will not reinvent the wheel <img alt="😄" class="twemoji" src="https://twemoji.maxcdn.com/v/latest/svg/1f604.svg" title=":smile:" /></p>
+<p>The architecture for various components are already described at <a href="https://docs.cardano.org/explore-cardano/cardano-architecture">docs.cardano.org</a> by CF/IOHK. We will not reinvent the wheel <img alt="😄" class="twemoji" src="https://twemoji.maxcdn.com/v/latest/svg/1f604.svg" title=":smile:" /></p>
 <h4 id="manual-software-pre-requirements">Manual Software Pre-Requirements<a class="headerlink" href="#manual-software-pre-requirements" title="Permanent link">⚓︎</a></h4>
 <p>While we do not intend to hand out step-by-step instructions, the tools are often misused as a shortcut to avoid ensuring base skillsets mentioned on home page. Some of the common gotchas that we often find SPOs to miss out on:</p>
 <div class="highlight"><pre><span></span><code>- It is imperative that pools operate with highly accurate system time, in order to propogate blocks to network in a timely manner and avoid penalties to own (or at times other competing) blocks. Please refer to sample guidance [here ](https://ubuntu.com/server/docs/network-ntp) for details - the precise steps may depend on your OS.
@@ -931,35 +923,35 @@
 </div>
 <h5 id="os-prereqs">Set up OS packages, folder structure and fetch files from repo<a class="headerlink" href="#os-prereqs" title="Permanent link">⚓︎</a></h5>
 <p>The pre-requisites for Linux systems are automated to be executed as a single script. To download the pre-requisites scripts, execute the below:</p>
-<div class="highlight"><pre><span></span><code>mkdir <span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/tmp&quot;</span><span class="p">;</span><span class="nb">cd</span> <span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/tmp&quot;</span>
+<div class="highlight"><pre><span></span><code>mkdir<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/tmp&quot;</span><span class="p">;</span><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/tmp&quot;</span>
 <span class="c1"># Install curl</span>
 <span class="c1"># CentOS / RedHat - sudo dnf -y install curl</span>
 <span class="c1"># Ubuntu / Debian - sudo apt -y install curl</span>
-curl -sS -o prereqs.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh
-chmod <span class="m">755</span> prereqs.sh
+curl<span class="w"> </span>-sS<span class="w"> </span>-o<span class="w"> </span>prereqs.sh<span class="w"> </span>https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh
+chmod<span class="w"> </span><span class="m">755</span><span class="w"> </span>prereqs.sh
 </code></pre></div>
 <p>Please familiarise with the syntax of <code>prereqs.sh</code> before proceeding. The usage syntax can be checked using <code>./prereqs.sh -h</code> , sample output below:</p>
-<div class="highlight"><pre><span></span><code>Usage: prereqs.sh <span class="o">[</span>-f<span class="o">]</span> <span class="o">[</span>-s<span class="o">]</span> <span class="o">[</span>-i<span class="o">]</span> <span class="o">[</span>-l<span class="o">]</span> <span class="o">[</span>-c<span class="o">]</span> <span class="o">[</span>-w<span class="o">]</span> <span class="o">[</span>-o<span class="o">]</span> <span class="o">[</span>-x<span class="o">]</span> <span class="o">[</span>-b &lt;branch&gt;<span class="o">]</span> <span class="o">[</span>-n &lt;mainnet<span class="p">|</span>preprod<span class="p">|</span>guild<span class="p">|</span>preview&gt;<span class="o">]</span> <span class="o">[</span>-t &lt;name&gt;<span class="o">]</span> <span class="o">[</span>-m &lt;seconds&gt;<span class="o">]</span>
-Install pre-requisites <span class="k">for</span> building cardano node and using CNTools
+<div class="highlight"><pre><span></span><code>Usage:<span class="w"> </span>prereqs.sh<span class="w"> </span><span class="o">[</span>-f<span class="o">]</span><span class="w"> </span><span class="o">[</span>-s<span class="o">]</span><span class="w"> </span><span class="o">[</span>-i<span class="o">]</span><span class="w"> </span><span class="o">[</span>-l<span class="o">]</span><span class="w"> </span><span class="o">[</span>-c<span class="o">]</span><span class="w"> </span><span class="o">[</span>-w<span class="o">]</span><span class="w"> </span><span class="o">[</span>-o<span class="o">]</span><span class="w"> </span><span class="o">[</span>-x<span class="o">]</span><span class="w"> </span><span class="o">[</span>-b<span class="w"> </span>&lt;branch&gt;<span class="o">]</span><span class="w"> </span><span class="o">[</span>-n<span class="w"> </span>&lt;mainnet<span class="p">|</span>preprod<span class="p">|</span>guild<span class="p">|</span>preview&gt;<span class="o">]</span><span class="w"> </span><span class="o">[</span>-t<span class="w"> </span>&lt;name&gt;<span class="o">]</span><span class="w"> </span><span class="o">[</span>-m<span class="w"> </span>&lt;seconds&gt;<span class="o">]</span>
+Install<span class="w"> </span>pre-requisites<span class="w"> </span><span class="k">for</span><span class="w"> </span>building<span class="w"> </span>cardano<span class="w"> </span>node<span class="w"> </span>and<span class="w"> </span>using<span class="w"> </span>CNTools
 
--f    Force overwrite of all files including normally saved user config sections <span class="k">in</span> env, cnode.sh and gLiveView.sh
-      topology.json, config.json and genesis files normally saved will also be overwritten
--s    Skip installing OS level dependencies <span class="o">(</span>Default: will check and install any missing OS level prerequisites<span class="o">)</span>
--n    Connect to specified network instead of mainnet network <span class="o">(</span>Default: connect to cardano mainnet network<span class="o">)</span>
-      eg: -n guild
--t    Alternate name <span class="k">for</span> top level folder, non alpha-numeric chars will be replaced with underscore <span class="o">(</span>Default: cnode<span class="o">)</span>
--m    Maximum <span class="nb">time</span> <span class="k">in</span> seconds that you allow the file download operation to take before aborting <span class="o">(</span>Default: 60s<span class="o">)</span>
--l    Use system libsodium instead of IOG fork <span class="o">(</span>Default: use libsodium from IOG fork<span class="o">)</span>
--c    Install/Upgrade and build CNCLI with RUST
--w    Install/Upgrade Vacuumlabs cardano-hw-cli <span class="k">for</span> hardware wallet support
--o    Install/Upgrade Ogmios Server binary
--x    Install/Upgrade Cardano Signer
--b    Use alternate branch of scripts to download - only recommended <span class="k">for</span> testing/development <span class="o">(</span>Default: master<span class="o">)</span>
--i    Interactive mode <span class="o">(</span>Default: silent mode<span class="o">)</span>
+-f<span class="w">    </span>Force<span class="w"> </span>overwrite<span class="w"> </span>of<span class="w"> </span>all<span class="w"> </span>files<span class="w"> </span>including<span class="w"> </span>normally<span class="w"> </span>saved<span class="w"> </span>user<span class="w"> </span>config<span class="w"> </span>sections<span class="w"> </span><span class="k">in</span><span class="w"> </span>env,<span class="w"> </span>cnode.sh<span class="w"> </span>and<span class="w"> </span>gLiveView.sh
+<span class="w">      </span>topology.json,<span class="w"> </span>config.json<span class="w"> </span>and<span class="w"> </span>genesis<span class="w"> </span>files<span class="w"> </span>normally<span class="w"> </span>saved<span class="w"> </span>will<span class="w"> </span>also<span class="w"> </span>be<span class="w"> </span>overwritten
+-s<span class="w">    </span>Skip<span class="w"> </span>installing<span class="w"> </span>OS<span class="w"> </span>level<span class="w"> </span>dependencies<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>will<span class="w"> </span>check<span class="w"> </span>and<span class="w"> </span>install<span class="w"> </span>any<span class="w"> </span>missing<span class="w"> </span>OS<span class="w"> </span>level<span class="w"> </span>prerequisites<span class="o">)</span>
+-n<span class="w">    </span>Connect<span class="w"> </span>to<span class="w"> </span>specified<span class="w"> </span>network<span class="w"> </span>instead<span class="w"> </span>of<span class="w"> </span>mainnet<span class="w"> </span>network<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>connect<span class="w"> </span>to<span class="w"> </span>cardano<span class="w"> </span>mainnet<span class="w"> </span>network<span class="o">)</span>
+<span class="w">      </span>eg:<span class="w"> </span>-n<span class="w"> </span>guild
+-t<span class="w">    </span>Alternate<span class="w"> </span>name<span class="w"> </span><span class="k">for</span><span class="w"> </span>top<span class="w"> </span>level<span class="w"> </span>folder,<span class="w"> </span>non<span class="w"> </span>alpha-numeric<span class="w"> </span>chars<span class="w"> </span>will<span class="w"> </span>be<span class="w"> </span>replaced<span class="w"> </span>with<span class="w"> </span>underscore<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>cnode<span class="o">)</span>
+-m<span class="w">    </span>Maximum<span class="w"> </span><span class="nb">time</span><span class="w"> </span><span class="k">in</span><span class="w"> </span>seconds<span class="w"> </span>that<span class="w"> </span>you<span class="w"> </span>allow<span class="w"> </span>the<span class="w"> </span>file<span class="w"> </span>download<span class="w"> </span>operation<span class="w"> </span>to<span class="w"> </span>take<span class="w"> </span>before<span class="w"> </span>aborting<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>60s<span class="o">)</span>
+-l<span class="w">    </span>Use<span class="w"> </span>system<span class="w"> </span>libsodium<span class="w"> </span>instead<span class="w"> </span>of<span class="w"> </span>IOG<span class="w"> </span>fork<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>use<span class="w"> </span>libsodium<span class="w"> </span>from<span class="w"> </span>IOG<span class="w"> </span>fork<span class="o">)</span>
+-c<span class="w">    </span>Install/Upgrade<span class="w"> </span>and<span class="w"> </span>build<span class="w"> </span>CNCLI<span class="w"> </span>with<span class="w"> </span>RUST
+-w<span class="w">    </span>Install/Upgrade<span class="w"> </span>Vacuumlabs<span class="w"> </span>cardano-hw-cli<span class="w"> </span><span class="k">for</span><span class="w"> </span>hardware<span class="w"> </span>wallet<span class="w"> </span>support
+-o<span class="w">    </span>Install/Upgrade<span class="w"> </span>Ogmios<span class="w"> </span>Server<span class="w"> </span>binary
+-x<span class="w">    </span>Install/Upgrade<span class="w"> </span>Cardano<span class="w"> </span>Signer
+-b<span class="w">    </span>Use<span class="w"> </span>alternate<span class="w"> </span>branch<span class="w"> </span>of<span class="w"> </span>scripts<span class="w"> </span>to<span class="w"> </span>download<span class="w"> </span>-<span class="w"> </span>only<span class="w"> </span>recommended<span class="w"> </span><span class="k">for</span><span class="w"> </span>testing/development<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>master<span class="o">)</span>
+-i<span class="w">    </span>Interactive<span class="w"> </span>mode<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>silent<span class="w"> </span>mode<span class="o">)</span>
 </code></pre></div>
 <p>Running without any parameters will run script in silent mode with OS Dependencies, install libsodium fork from IOG, and <em>NOT</em> force overwrite of all files (only static files will be overwritten, which should not contain user modifications):</p>
 <div class="highlight"><pre><span></span><code>./prereqs.sh
-. <span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/.bashrc&quot;</span>
+.<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/.bashrc&quot;</span>
 </code></pre></div>
 <h5 id="folder-structure">Folder structure<a class="headerlink" href="#folder-structure" title="Permanent link">⚓︎</a></h5>
 <p>Running the script above will create the folder structure as per below, for your reference. You can replace the top level folder <code>/opt/cardano/cnode</code> by editing the value of <code>CNODE_HOME</code> in <code>~/.bashrc</code> and <code>$CNODE_HOME/files/env</code> files:</p>
@@ -980,51 +972,22 @@ Install pre-requisites <span class="k">for</span> building cardano node and usin
 └── sockets                   # Socket files created by cardano-node
 </code></pre></div>
 
-              
-            </article>
-            
-          </div>
+
+  
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
         </div>
         
       </main>
       
         <footer class="md-footer">
-  
-    
-    <nav class="md-footer__inner md-grid" aria-label="Footer" >
-      
-        
-        <a href=".." class="md-footer__link md-footer__link--prev" aria-label="Previous: Home" rel="prev">
-          <div class="md-footer__button md-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
-          </div>
-          <div class="md-footer__title">
-            <div class="md-ellipsis">
-              <span class="md-footer__direction">
-                Previous
-              </span>
-              Home
-            </div>
-          </div>
-        </a>
-      
-      
-        
-        <a href="../build/" class="md-footer__link md-footer__link--next" aria-label="Next: Overview" rel="next">
-          <div class="md-footer__title">
-            <div class="md-ellipsis">
-              <span class="md-footer__direction">
-                Next
-              </span>
-              Overview
-            </div>
-          </div>
-          <div class="md-footer__button md-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"/></svg>
-          </div>
-        </a>
-      
-    </nav>
   
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
@@ -1034,6 +997,11 @@ Install pre-requisites <span class="k">for</span> building cardano node and usin
       Copyright &copy; 2019-2021 Guild-Operators
     </div>
   
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
   
 </div>
       
@@ -1045,7 +1013,7 @@ Install pre-requisites <span class="k">for</span> building cardano node and usin
       
     
     <a href="https://github.com/cardano-community" target="_blank" rel="noopener" title="github.com" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.1.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
     </a>
   
 </div>
@@ -1058,10 +1026,11 @@ Install pre-requisites <span class="k">for</span> building cardano node and usin
     <div class="md-dialog" data-md-component="dialog">
       <div class="md-dialog__inner md-typeset"></div>
     </div>
-    <script id="__config" type="application/json">{"base": "..", "features": ["search.highlight", "search.share", "navigation.indexes", "navigation.instant", "navigation.tracking"], "search": "../assets/javascripts/workers/search.b97dbffb.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["search.highlight", "search.share", "navigation.indexes"], "search": "../assets/javascripts/workers/search.12658920.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.6c7ad80a.min.js"></script>
+      <script src="../assets/javascripts/bundle.5cf534bf.min.js"></script>
       
     
   </body>
