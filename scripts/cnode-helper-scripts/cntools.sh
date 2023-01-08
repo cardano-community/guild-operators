@@ -4620,7 +4620,7 @@ function main {
                     [[ -z ${asset_name} ]] && asset_name_ascii="" || asset_name_ascii="$(hexToAscii "${asset_name}")"
                     println "Asset Name      : ${FG_MAGENTA}${asset_name_ascii}${NC}${FG_LGRAY} (${asset_name})${NC}"
                     println "Left in Address : ${FG_LBLUE}$(formatAsset $(( curr_asset_amount - assets_to_burn )))${NC}"
-                    getAssetInfo "${policy_id}" "${asset_name_hex}"
+                    getAssetInfo "${policy_id}" "${asset_name}"
                     case $? in
                       0) println "Fingerprint     : ${FG_LGRAY}${a_fingerprint}${NC}"
                          println "Burned          : ${FG_LBLUE}$(formatAsset ${assets_to_burn})${NC}"

@@ -638,7 +638,7 @@ isPoolRegistered() {
 #               2: offline/disabled/no result
 getAssetInfo() {
   unset
-  if [[ ${CNTOOLS_MODE} = "OFFLINE" || -z ${KOIOS_API} || "$#" -ne 2 ]]; then
+  if [[ ${CNTOOLS_MODE} = "OFFLINE" || -z ${KOIOS_API} || $# -ge 1 ]]; then
     return 2
   else
     println ACTION "curl -sSL -f -d _asset_policy=$1 -d _asset_name=$2  ${KOIOS_API}/asset_info"
