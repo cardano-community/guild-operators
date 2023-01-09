@@ -4550,7 +4550,8 @@ function main {
                     IFS=' ' read -ra selection_arr <<< "${assets_on_wallet[${selection}]}"
                     asset="${selection_arr[0]}"
                     IFS='.' read -ra asset_arr <<< "${selection_arr[0]}"
-                    if [[ ${selection_arr[2]} = *"base" ]]; then 
+                    selection_arr_length=${#selection_arr[@]}
+                    if [[ ${selection_arr[@]:$((selection_arr_length-2))} = "[base addr]" ]]; then 
                       addr=${base_addr}
                       wallet_source="base"
                       curr_asset_amount=${base_assets[${asset}]}
