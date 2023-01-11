@@ -28,7 +28,7 @@ unset CNODE_HOME
 #CURL_TIMEOUT=60        # Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
 #UPDATE_CHECK='Y'       # Check if there is an updated version of guild-deploy.sh script to download
 #SUDO='Y'               # Used by docker builds to disable sudo, leave unchanged if unsure.
-
+#SKIP_DBSYNC_DOWNLOAD='N' # When using -i d switch, used by docker builds or users who might not want to download dbsync binary
 ######################################
 # Do NOT modify code below           #
 ######################################
@@ -106,6 +106,7 @@ set_defaults() {
   [[ -z ${CNODE_NAME} ]] && CNODE_NAME='cnode'
   [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=60
   [[ -z ${UPDATE_CHECK} ]] && UPDATE_CHECK='Y'
+  [[ -z ${SKIP_DBSYNC_DOWNLOAD} ]] && SKIP_DBSYNC_DOWNLOAD='N'
   [[ -z ${SUDO} ]] && SUDO='Y'
   [[ -z "${BRANCH}" ]] && BRANCH="master"
   [[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
@@ -317,7 +318,7 @@ build_libsodium() {
 }
 
 # Download cardano-node, cardano-cli, cardano-db-sync, bech32 and cardano-submit-api
-# TODO: Replace these with self-hosted ones
+# TODO: Replace these with self-hosted ones (potentially consider IPFS as upload destination for CI)
 download_cnodebins() {
   echo "Downloading binaries.."
   pushd "${HOME}"/tmp >/dev/null || err_exit
@@ -332,18 +333,22 @@ download_cnodebins() {
   tar zxf caddress.tar.gz --strip-components=1 bin/cardano-address &>/dev/null
   rm -f caddress.tar.gz
   [[ -f cardano-address ]] || err_exit " cardano-address archive downloaded but binary (bin/cardano-address) not found after extracting package!"
-  echo "  Downloading Cardano DB Sync archive from IO Hydra CI Builds.."
-  curl -m 200 -sfL https://api.koios.rest/bin/cardano-db-sync.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync's latest release archive from IO CI builds at hydra.iohk.io!"
-  tar zxf cnodedbsync.tar.gz cardano-db-sync &>/dev/null
-  [[ -f cardano-db-sync ]] || err_exit " cardano-db-sync archive downloaded but binary (cardano-db-sync) not found after extracting package!"
-  rm -f cnodedbsync.tar.gz
-  mv -t "${HOME}"/.local/bin cardano-node cardano-cli cardano-submit-api bech32 cardano-db-sync cardano-address
+  if [[ "${SKIP_DBSYNC_DOWNLOAD}" != "N" ]]; then
+    echo "  Downloading Cardano DB Sync archive from IO Hydra CI Builds.."
+    curl -m 200 -sfL https://api.koios.rest/bin/cardano-db-sync.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync's latest release archive from IO CI builds at hydra.iohk.io!"
+    tar zxf cnodedbsync.tar.gz cardano-db-sync &>/dev/null
+    [[ -f cardano-db-sync ]] || err_exit " cardano-db-sync archive downloaded but binary (cardano-db-sync) not found after extracting package!"
+    rm -f cnodedbsync.tar.gz
+    mv -t "${HOME}"/.local/bin cardano-db-sync
+  fi
+  mv -t "${HOME}"/.local/bin cardano-node cardano-cli cardano-submit-api bech32 cardano-address
+  chmod +x "${HOME}"/.local/bin/*
 }
 
 # Download CNCLI
 download_cncli() {
   echo "Installing CNCLI"
-  if command -v cncli >/dev/null; then cncli_version="v$(cncli -V | cut -d' ' -f2)"; else cncli_version="v0.0.0"; fi
+  if command -v cncli >/dev/null; then cncli_version="v$(cncli -V 2>/dev/null | cut -d' ' -f2)"; else cncli_version="v0.0.0"; fi
   cncli_git_version="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.tag_name')"
   echo "  Downloading CNCLI..."
   rm -rf /tmp/cncli-bin && mkdir /tmp/cncli-bin

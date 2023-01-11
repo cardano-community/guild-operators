@@ -1549,7 +1549,7 @@ function main {
               fi
               getRewards ${wallet_name}
 
-              if [[ reward_lovelace -eq -1 ]]; then
+              if [[ ${reward_lovelace} -eq -1 ]]; then
                 if [[ ${op_mode} = "online" ]]; then
                   if ! registerStakeWallet ${wallet_name}; then waitForInput && continue; fi
                 else
@@ -3735,7 +3735,7 @@ function main {
             if ! output=$(tar cf "${backup_file}" "${backup_list[@]}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: during tarball creation:\n${output}" && waitForInput && continue; fi
             if [[ ${#excluded_files[@]} -gt 0 ]]; then
               println ACTION "tar --wildcards --file=\"${backup_file}\" ${excluded_files[*]}"
-              tar --wildcards --file="${backup_file}" ${excluded_files[*]} &>/dev/null # ignore any error, tar will write error if some of the keys to delete are not found
+              tar --wildcards --file="${backup_file}" "${excluded_files[@]}" &>/dev/null # ignore any error, tar will write error if some of the keys to delete are not found
               println ACTION "gzip ${backup_file}"
               if ! output=$(gzip "${backup_file}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: gzip error:\n${output}" && waitForInput && continue; fi
               backup_file+=".gz"
@@ -4551,7 +4551,7 @@ function main {
                     asset="${selection_arr[0]}"
                     IFS='.' read -ra asset_arr <<< "${selection_arr[0]}"
                     selection_arr_length=${#selection_arr[@]}
-                    if [[ ${selection_arr[@]:$((selection_arr_length-2))} = "[base addr]" ]]; then 
+                    if [[ ${selection_arr[*]:$((selection_arr_length-2))} = "[base addr]" ]]; then 
                       addr=${base_addr}
                       wallet_source="base"
                       curr_asset_amount=${base_assets[${asset}]}

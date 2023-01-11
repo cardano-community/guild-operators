@@ -22,6 +22,7 @@ RUN set -x && apt update \
   && wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh \
   && export SUDO='N' \
   && export UPDATE_CHECK='N' \
+  && export SKIP_DBSYNC_DOWNLOAD='Y' \
   && chmod +x ./guild-deploy.sh &&  ./guild-deploy.sh -b setup-upds -s pdcowx \
   && apt-get -y purge && apt-get -y clean && apt-get -y autoremove  && rm -rf /var/lib/apt/lists/*
 
