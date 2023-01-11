@@ -1,6 +1,6 @@
 #### Architecture
 
-The architecture for various components are already described at [docs.cardano.org](https://docs.cardano.org/explore-cardano/cardano-architecture/overview) by CF/IOHK. We will not reinvent the wheel :smile:
+The architecture for various components are already described at [docs.cardano.org](https://docs.cardano.org/explore-cardano/cardano-architecture) by CF/IOHK. We will not reinvent the wheel :smile:
 
 #### Manual Software Pre-Requirements
 
