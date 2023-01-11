@@ -277,10 +277,10 @@ joinArray() {
 # Description : Generate asset id according to CIP-14 standard
 #               https://github.com/cardano-foundation/CIPs/pull/64
 #             : $1 = hex-encoded policy ID
-#             : $2 = ASCII formatted asset name
+#             : $2 = hex-encoded asset name
 getAssetIDBech32() {
   { ! cmdAvailable "bech32" || ! cmdAvailable "b2sum"; } && return 1
-  printf "$(echo -n $1 | sed 's/../\\x&/g')%s" "$2" | b2sum -l 160 -b | cut -d' ' -f 1 | bech32 asset
+  printf "$(echo -n $1$2 | sed 's/../\\x&/g')" | b2sum -l 160 -b | cut -d' ' -f 1 | bech32 asset
 }
 
 # Description : Convert a normal 1 byte ASCII string to hex (alnum chars)
@@ -289,7 +289,7 @@ asciiToHex() {
   local ascwrd=$1
   [[ -z ${ascwrd} ]] && return
   for ((i=0;i<${#ascwrd};i++)); do
-    printf %02x \'${ascwrd:$i:1}
+    printf %02x \'"${ascwrd:$i:1}"
   done
 }
 
@@ -301,7 +301,7 @@ hexToAscii() {
   [[ -z ${hexstr} ]] && return
   (( hexcnt % 2 != 0 )) && return
   for ((i=0;i<${#hexstr};i=i+2)); do
-    printf "\x${hexstr:$i:2}"
+    [[ ${hexstr:$i:2} = "00" ]] && printf "\x20" || printf "\x${hexstr:$i:2}" # 00 = NUL char, special case handling
   done
 }
 

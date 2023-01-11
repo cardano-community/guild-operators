@@ -638,7 +638,7 @@ isPoolRegistered() {
 #               2: offline/disabled/no result
 getAssetInfo() {
   unset
-  if [[ ${CNTOOLS_MODE} = "OFFLINE" || -z ${KOIOS_API} || "$#" -ne 2 ]]; then
+  if [[ ${CNTOOLS_MODE} = "OFFLINE" || -z ${KOIOS_API} || $# -ge 1 ]]; then
     return 2
   else
     println ACTION "curl -sSL -f -d _asset_policy=$1 -d _asset_name=$2  ${KOIOS_API}/asset_info"
@@ -647,20 +647,20 @@ getAssetInfo() {
       return 2
     fi
     asset_info_tsv=$(jq -r '[
-    .[0].asset_name_ascii //"-",
+    (.[0].asset_name_ascii //"-" | @base64),
     .[0].fingerprint //"-",
     .[0].minting_tx_hash //"-",
     .[0].total_supply //0,
     .[0].mint_cnt //0,
     .[0].burn_cnt //0,
     .[0].creation_time //0,
-    (.[0].minting_tx_metadata|@base64),
-    (.[0].token_registry_metadata|@base64)
+    (.[0].minting_tx_metadata //"-" | @base64),
+    (.[0].token_registry_metadata //"-" | @base64)
     ] | @tsv' <<< "${asset_info}")
 
     read -ra asset_info_arr <<< ${asset_info_tsv}
 
-    a_asset_name_ascii=${asset_info_arr[0]}
+    a_asset_name_ascii=$(base64 -d <<< ${asset_info_arr[0]})
     a_fingerprint=${asset_info_arr[1]}
     a_minting_tx_hash=${asset_info_arr[2]}
     a_total_supply=${asset_info_arr[3]}
