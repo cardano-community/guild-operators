@@ -49,13 +49,13 @@ cat <<-EOF > .tmp.cabal.project.local
 	source-repository-package
 	  type: git
 	  location: https://github.com/input-output-hk/bech32
-	  tag: ab61914443e5f53624d3b2995767761b3f68e576
+	  tag: v1.1.2
 	  subdir: bech32
 	
 	source-repository-package
 	  type: git
 	  location: https://github.com/input-output-hk/cardano-addresses
-	  tag: b6f2f3cef01a399376064194fd96711a5bdba4a7
+	  tag: 3.12.0
 	  subdir:
 	    command-line
 	    core

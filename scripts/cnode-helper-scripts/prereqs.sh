@@ -618,3 +618,5 @@ find "${CNODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
 chmod -R 700 "${CNODE_HOME}"/priv 2>/dev/null
 
 pushd -0 >/dev/null || err_exit; dirs -c
+
+echo "Note: Use of prereqs.sh script is deprecated, this script is no longer going to be maintained. Please consider use of new guild-deploy.sh script as documented on https://cardano-community.github.io/guild-operators/upgrade/"

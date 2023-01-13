@@ -6,6 +6,16 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.1.0] - 2023-01-17
+#### Added
+- Hardware Wallets: Allow signing using cold keys for a pool, use it for rotating KES keys.
+
+#### Changed
+- Keep deployment consistent with guild-deploy.sh
+
+#### Fixed
+- Fix parsing space in the name of assets
+
 ## [10.0.5] - 2022-11-07
 #### Changed
 - Updated testnet token registry to be reused for each non-mainnet network

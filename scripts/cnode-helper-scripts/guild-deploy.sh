@@ -2,12 +2,6 @@
 # shellcheck disable=SC2086,SC1090,SC2059
 # shellcheck source=/dev/null
 
-# Todo:
-# - see if update_check and updateWithCustomConfig can be combined
-#
-# - Adopt updates as per https://github.com/cardano-community/guild-operators/issues/1262
-# - Use the same for env files too
-
 unset CNODE_HOME
 
 ##########################################
@@ -496,7 +490,7 @@ setup_folder() {
   $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
 }
 
-# Download and update scripts for cnode (TODO: Set up and test it out, differentiate between FORCE_OVERWRITE and normal execution)
+# Download and update scripts for cnode
 populate_cnode() {
   [[ ! -d "${CNODE_HOME}"/files ]] && setup_folder
   echo "Downloading files..."

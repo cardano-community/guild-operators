@@ -23,7 +23,7 @@ RUN set -x && apt update \
   && export SUDO='N' \
   && export UPDATE_CHECK='N' \
   && export SKIP_DBSYNC_DOWNLOAD='Y' \
-  && chmod +x ./guild-deploy.sh &&  ./guild-deploy.sh -b setup-upds -s pdcowx \
+  && chmod +x ./guild-deploy.sh &&  ./guild-deploy.sh -b master -s pdcowx \
   && apt-get -y purge && apt-get -y clean && apt-get -y autoremove  && rm -rf /var/lib/apt/lists/*
 
 # COPY NODE BINS AND DEPS 

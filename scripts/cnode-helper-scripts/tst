@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-
-[[ ${0} != '-bash' ]] && PARENT=$(dirname $0) || PARENT="$(pwd)"
