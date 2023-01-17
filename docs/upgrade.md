@@ -1,4 +1,4 @@
-??? example "One-Time major upgrade for Guild Scripts from 25-Jan-2023 (expand for details)"
+??? example "One-Time major upgrade for Guild Scripts from 20-Jan-2023 (expand for details)"
     
     The scripts on guild-operators repository have gone through quite a few changes to accomodate for the below:
 
@@ -11,6 +11,10 @@
     Some of the above required us to add breaking changes to some scripts, but hopefully the above explains the premise for those changes. To ease this one-time upgrade process for existing deployments,  we have tried to come up with the guide below, feel free to edit this file to improve the documents based on your experience. Again, apologies in advance to those who do not agree with the above changes (the old code would ofcourse remain unimpacted at tag `legacy-scripts`, so if you'd like to stick to old scripts , you can use `-b legacy-scripts` for your tools to switch back).  
 
 ### Steps for Ugrading
+
+!!! warning
+    Make sure you go through upgrade steps for your setup in a non-mainnet environment first!
+
 
 - Download the latest `guild-deploy.sh` (checkout new syntax with `guild-deploy.sh -h`) to update all the scripts and files from the guild template. The scripts modified with user content (`env`, `gLiveView.sh`, `topologyUpdater.sh`, `cnode.sh`, etc) will be backed up before overwriting. The backed up files will be in the same folder as the original files, and will be named as *`${filename}_bkp<timestamp>`*. More static files (genesis files or some of the scripts themselves) will not be backed up, as they're not expected to be modified.
 

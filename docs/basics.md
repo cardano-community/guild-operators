@@ -48,7 +48,7 @@ The script will always update dynamic content from existing scripts retaining ex
   b   Install OS level dependencies for tools required while building cardano-node/cardano-db-sync components (Default: skip)
   l   Build and Install libsodium fork from IO repositories (Default: skip)
   f   Force overwrite entire content of scripts and config files (backups of existing ones will be created) (Default: skip)
-  d   Download latest (released) cardano-node, cardano-cli, cardano-db-sync and cardano-submit-api binaries (Default: skip)
+  d   Download latest (released) binaries for bech32, cardano-address, cardano-node, cardano-cli, cardano-db-sync and cardano-submit-api binaries (Default: skip)
   c   Install/Upgrade CNCLI binary (Default: skip)
   o   Install/Upgrade Ogmios Server binary (Default: skip)
   w   Install/Upgrade Cardano Hardware CLI (Default: skip)

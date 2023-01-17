@@ -17,6 +17,19 @@ cd cardano-node
 
 You can use the instructions below to build the latest release of [cardano-node](https://github.com/input-output-hk/cardano-node). 
 
+??? danger "Known issue on cardano-node 1.35.4"
+    
+    Guild tools use a couple of additional binaries that is not part of node repository. Traditionally, these (eg: `cardano-address` and previously `cardano-ping`) were made available as part of build process by cabal.project.local file. However, for node tag 1.35.4 - `cabal install` is [broken](https://github.com/cardano-community/guild-operators/issues/1573#issuecomment-1310230673) which means `cabal install cardano-addresses-cli` will no longer work and report error as below:
+    
+    ```
+    Got NamedPackage ouroboros-consensus-cardano-tools
+    CallStack (from HasCallStack):
+      error, called at src/Distribution/Client/CmdInstall.hs:474:33 in main:Distribution.Client.CmdInstall
+    ```
+    
+    The error is already fixed on `cardano-node` repo in later commits - but when using this particular tag, you would want to include additional flag to download binaries (`-s d`) for `guild-deploy.sh` prior to compiling below, just to ensure you've pre-compiled version of `cardano-address` and `bech32` are added to your setup.
+
+
 ``` bash
 git fetch --tags --all
 git pull
