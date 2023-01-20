@@ -17,7 +17,7 @@
         <link rel="next" href="../gliveview/">
       
       <link rel="icon" href="../../overrides/guildicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.0.2">
+      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.0.5">
     
     
       
@@ -25,7 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.f56500e0.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.558e4712.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.2505c338.min.css">
@@ -178,7 +178,7 @@
           <div class="md-search-result__meta">
             Initializing search
           </div>
-          <ol class="md-search-result__list"></ol>
+          <ol class="md-search-result__list" role="presentation"></ol>
         </div>
       </div>
     </div>
@@ -285,8 +285,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" type="checkbox" id="__nav_3" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_3" type="checkbox" id="__nav_3" >
       
       
         
@@ -302,7 +303,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_3">
+        <label class="md-nav__link" for="__nav_3" tabindex="0" aria-expanded="false">
           Build and Run
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -403,26 +404,27 @@
     <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" type="checkbox" id="__nav_4" checked>
       
       
-      
-        
-          
-        
-          
-        
-          
-        
-          
-        
-          
-        
-          
-        
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4" type="checkbox" id="__nav_4" checked>
       
       
-        <label class="md-nav__link" for="__nav_4">
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+      
+      
+        <label class="md-nav__link" for="__nav_4" tabindex="0" aria-expanded="true">
           Scripts
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -457,8 +459,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4_2" type="checkbox" id="__nav_4_2" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4_2" type="checkbox" id="__nav_4_2" >
       
       
         
@@ -472,7 +475,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_4_2">
+        <label class="md-nav__link" for="__nav_4_2" tabindex="0" aria-expanded="false">
           CNTools
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -678,8 +681,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_5" type="checkbox" id="__nav_5" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5" type="checkbox" id="__nav_5" >
       
       
         
@@ -693,7 +697,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_5">
+        <label class="md-nav__link" for="__nav_5" tabindex="0" aria-expanded="false">
           Docker
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -778,8 +782,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" type="checkbox" id="__nav_6" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_6" type="checkbox" id="__nav_6" >
       
       
         
@@ -789,7 +794,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_6">
+        <label class="md-nav__link" for="__nav_6" tabindex="0" aria-expanded="false">
           Appendix
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -940,7 +945,7 @@
 <p><code>cncli.sh</code> script's main functions, <code>sync</code>, <code>leaderlog</code>, <code>validate</code> and PoolTool <code>sendslots</code>/<code>sendtip</code> are not meant to be run manually, but instead deployed as systemd services that run in the background to do the block scraping and validation automatically. Additional commands exist for manual execution to initiate the <code>sqlite</code> db, filling the blocklog DB with all blocks created by the pool known to the blockchain, migration of old cntoolsBlockCollector JSON blocklog, and re-validation of blocks and leaderlogs. See usage output below for a complete list of available commands.</p>
 <p>The script works in tandem with <a href="../logmonitor/">Log Monitor</a> to provide faster adopted status but mainly to catch slots the node is leader for but are unable to create a block for. These are marked as invalid. Blocklog will however work fine without the <code>logMonitor</code> service and <code>CNCLI</code> is able to handle everything except catching invalid blocks.</p>
 <ol>
-<li>Run the latest version of <code>prereqs.sh</code> with <code>prereqs.sh -c</code> to download and install RUST and CNCLI. IOG fork of libsodium required by CNCLI is automatically compiled by CNCLI build process. If a previous installation is found, RUST and CNCLI will be updated to the latest version.</li>
+<li>Run the latest version of <code>guild-deploy.sh</code> with <code>guild-deploy.sh -s c</code> to download and install RUST and CNCLI. IOG fork of libsodium required by CNCLI is automatically compiled by CNCLI build process. If a previous installation is found, RUST and CNCLI will be updated to the latest version.</li>
 <li>Run <code>deploy-as-systemd.sh</code> to deploy the systemd services that handle all the work in the background. Six systemd services in total are deployed whereof four are related to CNCLI. See above for the different purposes they serve.</li>
 <li>
 <p>If you want to disable some of the deployed services, run <code>sudo systemctl disable &lt;service&gt;</code></p>
@@ -1157,10 +1162,10 @@ Current epoch: 96
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "../..", "features": ["search.highlight", "search.share", "navigation.indexes"], "search": "../../assets/javascripts/workers/search.12658920.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": ["search.highlight", "search.share", "navigation.indexes"], "search": "../../assets/javascripts/workers/search.e5c33ebb.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.5cf534bf.min.js"></script>
+      <script src="../../assets/javascripts/bundle.51d95adb.min.js"></script>
       
     
   </body>

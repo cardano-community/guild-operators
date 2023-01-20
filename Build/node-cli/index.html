@@ -17,7 +17,7 @@
         <link rel="next" href="../dbsync/">
       
       <link rel="icon" href="../../overrides/guildicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.0.2">
+      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.0.5">
     
     
       
@@ -25,7 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.f56500e0.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.558e4712.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.2505c338.min.css">
@@ -178,7 +178,7 @@
           <div class="md-search-result__meta">
             Initializing search
           </div>
-          <ol class="md-search-result__list"></ol>
+          <ol class="md-search-result__list" role="presentation"></ol>
         </div>
       </div>
     </div>
@@ -287,8 +287,9 @@
     <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" type="checkbox" id="__nav_3" checked>
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_3" type="checkbox" id="__nav_3" checked>
       
       
         
@@ -304,7 +305,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_3">
+        <label class="md-nav__link" for="__nav_3" tabindex="0" aria-expanded="true">
           Build and Run
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -508,26 +509,27 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" type="checkbox" id="__nav_4" >
       
       
-      
-        
-          
-        
-          
-        
-          
-        
-          
-        
-          
-        
-          
-        
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4" type="checkbox" id="__nav_4" >
       
       
-        <label class="md-nav__link" for="__nav_4">
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+      
+      
+        <label class="md-nav__link" for="__nav_4" tabindex="0" aria-expanded="false">
           Scripts
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -562,8 +564,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4_2" type="checkbox" id="__nav_4_2" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4_2" type="checkbox" id="__nav_4_2" >
       
       
         
@@ -577,7 +580,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_4_2">
+        <label class="md-nav__link" for="__nav_4_2" tabindex="0" aria-expanded="false">
           CNTools
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -725,8 +728,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_5" type="checkbox" id="__nav_5" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5" type="checkbox" id="__nav_5" >
       
       
         
@@ -740,7 +744,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_5">
+        <label class="md-nav__link" for="__nav_5" tabindex="0" aria-expanded="false">
           Docker
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -825,8 +829,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" type="checkbox" id="__nav_6" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_6" type="checkbox" id="__nav_6" >
       
       
         
@@ -836,7 +841,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_6">
+        <label class="md-nav__link" for="__nav_6" tabindex="0" aria-expanded="false">
           Appendix
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -1030,6 +1035,15 @@ git<span class="w"> </span>clone<span class="w"> </span>https://github.com/input
 </code></pre></div>
 <h4 id="build-cardano-node">Build Cardano Node<a class="headerlink" href="#build-cardano-node" title="Permanent link">⚓︎</a></h4>
 <p>You can use the instructions below to build the latest release of <a href="https://github.com/input-output-hk/cardano-node">cardano-node</a>. </p>
+<details class="danger">
+<summary>Known issue on cardano-node 1.35.4</summary>
+<p>Guild tools use a couple of additional binaries that is not part of node repository. Traditionally, these (eg: <code>cardano-address</code> and previously <code>cardano-ping</code>) were made available as part of build process by cabal.project.local file. However, for node tag 1.35.4 - <code>cabal install</code> is <a href="https://github.com/cardano-community/guild-operators/issues/1573#issuecomment-1310230673">broken</a> which means <code>cabal install cardano-addresses-cli</code> will no longer work and report error as below:</p>
+<div class="highlight"><pre><span></span><code>Got NamedPackage ouroboros-consensus-cardano-tools
+CallStack (from HasCallStack):
+  error, called at src/Distribution/Client/CmdInstall.hs:474:33 in main:Distribution.Client.CmdInstall
+</code></pre></div>
+<p>The error is already fixed on <code>cardano-node</code> repo in later commits - but when using this particular tag, you would want to include additional flag to download binaries (<code>-s d</code>) for <code>guild-deploy.sh</code> prior to compiling below, just to ensure you've pre-compiled version of <code>cardano-address</code> and <code>bech32</code> are added to your setup.</p>
+</details>
 <div class="highlight"><pre><span></span><code>git<span class="w"> </span>fetch<span class="w"> </span>--tags<span class="w"> </span>--all
 git<span class="w"> </span>pull
 <span class="c1"># Replace tag against checkout if you do not want to build the latest released version</span>
@@ -1038,7 +1052,7 @@ git<span class="w"> </span>checkout<span class="w"> </span><span class="k">$(</s
 <span class="c1"># Use `-l` argument if you&#39;d like to use system libsodium instead of IOG fork of libsodium while compiling</span>
 <span class="nv">$CNODE_HOME</span>/scripts/cabal-build-all.sh
 </code></pre></div>
-<p>The above would copy the binaries built into <code>~/.cabal/bin</code> folder.</p>
+<p>The above would copy the binaries built into <code>~/.local/bin</code> folder.</p>
 <h4 id="download-pre-compiled-binary-from-node-release">Download pre-compiled Binary from Node release<a class="headerlink" href="#download-pre-compiled-binary-from-node-release" title="Permanent link">⚓︎</a></h4>
 <p>While certain folks might want to build the node themselves (could be due to OS/arch compatibility, trust factor or customisations), for most it might not make sense to build the node locally.
 Instead, you can download the binaries using <a href="https://github.com/input-output-hk/cardano-node/releases">cardano-node release notes</a>, where-in you can find the download links for every version.
@@ -1053,9 +1067,9 @@ cardano-node<span class="w"> </span>version
 <span class="c1"># git rev &lt;...&gt;</span>
 </code></pre></div>
 <h4 id="update-port-number-or-pool-name-for-relative-paths">Update port number or pool name for relative paths<a class="headerlink" href="#update-port-number-or-pool-name-for-relative-paths" title="Permanent link">⚓︎</a></h4>
-<p>Before you go ahead with starting your node, you may want to update values for <code>CNODE_PORT</code> in <code>$CNODE_HOME/scripts/env</code>. Note that it is imperative for operational relays and pools to ensure that the port mentioned is opened via firewall to the destination your node is supposed to connect from. Update your network/firewall configuration accordingly. Future executions of <code>prereqs.sh</code> will preserve and not overwrite these values.</p>
-<div class="highlight"><pre><span></span><code><span class="nv">CNODEBIN</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/.cabal/bin/cardano-node&quot;</span>
-<span class="nv">CCLI</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/.cabal/bin/cardano-cli&quot;</span>
+<p>Before you go ahead with starting your node, you may want to update values for <code>CNODE_PORT</code> in <code>$CNODE_HOME/scripts/env</code>. Note that it is imperative for operational relays and pools to ensure that the port mentioned is opened via firewall to the destination your node is supposed to connect from. Update your network/firewall configuration accordingly. Future executions of <code>guild-deploy.sh</code> will preserve and not overwrite these values.</p>
+<div class="highlight"><pre><span></span><code><span class="nv">CNODEBIN</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/.local/bin/cardano-node&quot;</span>
+<span class="nv">CCLI</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/.local/bin/cardano-cli&quot;</span>
 <span class="nv">CNODE_PORT</span><span class="o">=</span><span class="m">6000</span>
 <span class="nv">POOL_NAME</span><span class="o">=</span><span class="s2">&quot;GUILD&quot;</span>
 </code></pre></div>
@@ -1174,10 +1188,10 @@ sudo<span class="w"> </span>systemctl<span class="w"> </span>status<span class="
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "../..", "features": ["search.highlight", "search.share", "navigation.indexes"], "search": "../../assets/javascripts/workers/search.12658920.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": ["search.highlight", "search.share", "navigation.indexes"], "search": "../../assets/javascripts/workers/search.e5c33ebb.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.5cf534bf.min.js"></script>
+      <script src="../../assets/javascripts/bundle.51d95adb.min.js"></script>
       
     
   </body>

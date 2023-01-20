@@ -17,7 +17,7 @@
         <link rel="next" href="../cntools-changelog/">
       
       <link rel="icon" href="../../overrides/guildicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.0.2">
+      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.0.5">
     
     
       
@@ -25,7 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.f56500e0.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.558e4712.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.2505c338.min.css">
@@ -173,7 +173,7 @@
           <div class="md-search-result__meta">
             Initializing search
           </div>
-          <ol class="md-search-result__list"></ol>
+          <ol class="md-search-result__list" role="presentation"></ol>
         </div>
       </div>
     </div>
@@ -280,8 +280,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" type="checkbox" id="__nav_3" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_3" type="checkbox" id="__nav_3" >
       
       
         
@@ -297,7 +298,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_3">
+        <label class="md-nav__link" for="__nav_3" tabindex="0" aria-expanded="false">
           Build and Run
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -398,26 +399,27 @@
     <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" type="checkbox" id="__nav_4" checked>
       
       
-      
-        
-          
-        
-          
-        
-          
-        
-          
-        
-          
-        
-          
-        
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4" type="checkbox" id="__nav_4" checked>
       
       
-        <label class="md-nav__link" for="__nav_4">
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+      
+      
+        <label class="md-nav__link" for="__nav_4" tabindex="0" aria-expanded="true">
           Scripts
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -454,8 +456,9 @@
     <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4_2" type="checkbox" id="__nav_4_2" checked>
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4_2" type="checkbox" id="__nav_4_2" checked>
       
       
         
@@ -469,7 +472,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_4_2">
+        <label class="md-nav__link" for="__nav_4_2" tabindex="0" aria-expanded="true">
           CNTools
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -625,8 +628,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_5" type="checkbox" id="__nav_5" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5" type="checkbox" id="__nav_5" >
       
       
         
@@ -640,7 +644,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_5">
+        <label class="md-nav__link" for="__nav_5" tabindex="0" aria-expanded="false">
           Docker
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -725,8 +729,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" type="checkbox" id="__nav_6" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_6" type="checkbox" id="__nav_6" >
       
       
         
@@ -736,7 +741,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_6">
+        <label class="md-nav__link" for="__nav_6" tabindex="0" aria-expanded="false">
           Appendix
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -834,7 +839,7 @@
 
 <div class="admonition important">
 <p class="admonition-title">Important</p>
-<p>Familiarize yourself with the Online workflow of creating wallets and pools on the Testnet. You can then move on to test the <a href="../cntools/#offline-workflow">Offline Workflow</a>. The Offline workflow means that the private keys never touch the Online node. When comfortable with both the online and offline CNTools workflow, it's time to deploy what you learnt on the mainnet.</p>
+<p>Familiarize yourself with the Online workflow of creating wallets and pools on the Preview/Preprod/Guild network first. You can then move on to test the <a href="../cntools/#offline-workflow">Offline Workflow</a>. The Offline workflow means that the private keys never touch the Online node. When comfortable with both the online and offline CNTools workflow, it's time to deploy what you learnt on the mainnet.</p>
 </div>
 <p>This chapter describes some common use-cases for wallet and pool creation when running CNTools in Online mode. CNTools contains much more functionality not described here.</p>
 <div class="tabbed-set" data-tabs="1:5"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><label for="__tabbed_1_1">Create Wallet</label><div class="tabbed-content">
@@ -906,7 +911,7 @@ cardano-address --version
 3.5.0
 </code></pre></div></p>
 <div class="admonition info">
-<p>If the version is not as per above, please run the latest <code>prereqs.sh</code> from <a href="../../basics/">here</a> and rebuild <code>cardano-node</code> as instructed <a href="../../Build/node-cli/">here</a>.</p>
+<p>If the version is not as per above, please run the latest <code>guild-deploy.sh</code> from <a href="../../basics/">here</a> and rebuild <code>cardano-node</code> as instructed <a href="../../Build/node-cli/">here</a>.</p>
 </div>
 <p>To import a Daedalus/Yoroi wallet to CNTools, open CNTools and select the <code>[w] Wallet</code> option, and then select the <code>[i] Import</code>, the following menu will appear:
   <div class="highlight"><pre><span></span><code>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1116,7 +1121,7 @@ press any key to return to home menu
 <li>Start or restart your <code>cardano-node</code>. If deployed as a <code>systemd</code> service as shown <a href="Build/node-cli?id=run-as-systemd-service">here</a>, you can run <code>sudo systemctl restart cnode</code>.</li>
 <li>Ensure the node is running as a block producing (core) node.</li>
 </ol>
-<p>You can use <a href="Scripts/gliveview">gLiveView</a> - the output at the top should say <code>&gt; Cardano Node - (Core - Testnet)</code>.</p>
+<p>You can use <a href="Scripts/gliveview">gLiveView</a> - the output at the top should say <code>&gt; Cardano Node - (Core - Guild)</code>.</p>
 <p>Alternatively, you can check the node logs in <code>$CNODE_HOME/logs/</code> to see whether the node is performing leadership checks (<code>TraceStartLeadershipCheck</code>, <code>TraceNodeIsNotLeader</code>, etc.) </p>
 </div>
 </div>
@@ -1176,10 +1181,10 @@ press any key to return to home menu
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "../..", "features": ["search.highlight", "search.share", "navigation.indexes"], "search": "../../assets/javascripts/workers/search.12658920.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": ["search.highlight", "search.share", "navigation.indexes"], "search": "../../assets/javascripts/workers/search.e5c33ebb.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.5cf534bf.min.js"></script>
+      <script src="../../assets/javascripts/bundle.51d95adb.min.js"></script>
       
     
   </body>

@@ -17,7 +17,7 @@
         <link rel="next" href="../cntools/">
       
       <link rel="icon" href="../../overrides/guildicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.0.2">
+      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.0.5">
     
     
       
@@ -25,7 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.f56500e0.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.558e4712.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.2505c338.min.css">
@@ -178,7 +178,7 @@
           <div class="md-search-result__meta">
             Initializing search
           </div>
-          <ol class="md-search-result__list"></ol>
+          <ol class="md-search-result__list" role="presentation"></ol>
         </div>
       </div>
     </div>
@@ -285,8 +285,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" type="checkbox" id="__nav_3" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_3" type="checkbox" id="__nav_3" >
       
       
         
@@ -302,7 +303,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_3">
+        <label class="md-nav__link" for="__nav_3" tabindex="0" aria-expanded="false">
           Build and Run
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -403,26 +404,27 @@
     <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" type="checkbox" id="__nav_4" checked>
       
       
-      
-        
-          
-        
-          
-        
-          
-        
-          
-        
-          
-        
-          
-        
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4" type="checkbox" id="__nav_4" checked>
       
       
-        <label class="md-nav__link" for="__nav_4">
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+      
+      
+        <label class="md-nav__link" for="__nav_4" tabindex="0" aria-expanded="true">
           Scripts
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -501,8 +503,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4_2" type="checkbox" id="__nav_4_2" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4_2" type="checkbox" id="__nav_4_2" >
       
       
         
@@ -516,7 +519,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_4_2">
+        <label class="md-nav__link" for="__nav_4_2" tabindex="0" aria-expanded="false">
           CNTools
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -664,8 +667,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_5" type="checkbox" id="__nav_5" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5" type="checkbox" id="__nav_5" >
       
       
         
@@ -679,7 +683,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_5">
+        <label class="md-nav__link" for="__nav_5" tabindex="0" aria-expanded="false">
           Docker
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -764,8 +768,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" type="checkbox" id="__nav_6" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_6" type="checkbox" id="__nav_6" >
       
       
         
@@ -775,7 +780,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_6">
+        <label class="md-nav__link" for="__nav_6" tabindex="0" aria-expanded="false">
           Appendix
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -897,22 +902,22 @@
 
 <p>A common environment file called <code>env</code> is sourced by most scripts in the Guild Operators repository. This file holds common variables and functions needed by other scripts. There are several benefits to this, not having to specify duplicate settings and being able to reuse functions decreasing the risk of misconfiguration and inconsistency.</p>
 <h4 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">⚓︎</a></h4>
-<p><code>env</code> file is downloaded together with the rest of the scripts when <a href="../../basics/#pre-requisites">Pre-Requisites</a> if followed and located in the <code>$CNODE_HOME/scripts/</code> directory. The file is also automatically downloaded/updated by some of the individual scripts if missing, like <code>cntools.sh</code>, <code>gLiveView.sh</code> and <code>topologyUpdater.sh</code>. All custom changes in User Variables section are untouched on updates unless a forced overwrite is selected when running <code>prereqs.sh</code>.</p>
+<p><code>env</code> file is downloaded together with the rest of the scripts when <a href="../../basics/#pre-requisites">Pre-Requisites</a> if followed and located in the <code>$CNODE_HOME/scripts/</code> directory. The file is also automatically downloaded/updated by some of the individual scripts if missing, like <code>cntools.sh</code>, <code>gLiveView.sh</code> and <code>topologyUpdater.sh</code>. All custom changes in User Variables section are untouched on updates unless a forced overwrite is selected when running <code>guild-deploy.sh</code>.</p>
 <h4 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">⚓︎</a></h4>
 <p>Most variables can be left commented to use the automatically detected or default value. But there are some that need to be set as explained below.</p>
 <ul>
 <li><code>CNODE_PORT</code> - This is the most important variable and <strong>needs</strong> to be set. Used when launching the node through <code>cnode.sh</code> and to identify the correct process of the node.</li>
-<li><code>CNODE_HOME</code> - The root directory of the Cardano node holding all the files needed. Can be left commented if <code>prereqs.sh</code> has been run as this variable is then exported and added as a system environment variable.</li>
+<li><code>CNODE_HOME</code> - The root directory of the Cardano node holding all the files needed. Can be left commented if <code>guild-deploy.sh</code> has been run as this variable is then exported and added as a system environment variable.</li>
 <li><code>POOL_NAME</code> - If the node is to be started as a block producer by <code>cnode.sh</code> this variable needs to be uncommented and set. This is the name given to the pool in CNTools (not ticker), i.e. the pool directory name under <code>$CNODE_HOME/priv/pool/&lt;POOL_NAME&gt;</code></li>
 </ul>
-<p><strong>Take your time and look through the different variables</strong> and their explanations and decide if you need/want to change the default setting. For a default deployment using <code>prereqs.sh</code>, the <code>CNODE_PORT</code> (all installs) and <code>POOL_NAME</code> (only block producer) should be the only variables needed to be set.</p>
+<p><strong>Take your time and look through the different variables</strong> and their explanations and decide if you need/want to change the default setting. For a default deployment using <code>guild-deploy.sh</code>, the <code>CNODE_PORT</code> (all installs) and <code>POOL_NAME</code> (only block producer) should be the only variables needed to be set.</p>
 <div class="highlight"><pre><span></span><code><span class="c1">######################################</span>
 <span class="c1"># User Variables - Change as desired #</span>
 <span class="c1"># Leave as is if unsure              #</span>
 <span class="c1">######################################</span>
 
-<span class="c1">#CCLI=&quot;${HOME}/.cabal/bin/cardano-cli&quot;                  # Override automatic detection of path to cardano-cli executable</span>
-<span class="c1">#CNCLI=&quot;${HOME}/.cargo/bin/cncli&quot;                       # Override automatic detection of path to cncli executable (https://github.com/AndrewWestberg/cncli)</span>
+<span class="c1">#CCLI=&quot;${HOME}/.local/bin/cardano-cli&quot;                  # Override automatic detection of path to cardano-cli executable</span>
+<span class="c1">#CNCLI=&quot;${HOME}/.local/bin/cncli&quot;                       # Override automatic detection of path to cncli executable (https://github.com/AndrewWestberg/cncli)</span>
 <span class="c1">#CNODE_HOME=&quot;/opt/cardano/cnode&quot;                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)</span>
 <span class="nv">CNODE_PORT</span><span class="o">=</span><span class="m">6000</span><span class="w">                                         </span><span class="c1"># Set node port</span>
 <span class="c1">#CONFIG=&quot;${CNODE_HOME}/files/config.json&quot;               # Override automatic detection of node config path</span>
@@ -1031,10 +1036,10 @@
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "../..", "features": ["search.highlight", "search.share", "navigation.indexes"], "search": "../../assets/javascripts/workers/search.12658920.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": ["search.highlight", "search.share", "navigation.indexes"], "search": "../../assets/javascripts/workers/search.e5c33ebb.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.5cf534bf.min.js"></script>
+      <script src="../../assets/javascripts/bundle.51d95adb.min.js"></script>
       
     
   </body>

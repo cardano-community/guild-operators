@@ -9,9 +9,9 @@
 <link href="../env/" rel="prev"/>
 <link href="../cntools-common/" rel="next"/>
 <link href="../../overrides/guildicon.png" rel="icon"/>
-<meta content="mkdocs-1.4.2, mkdocs-material-9.0.2" name="generator"/>
+<meta content="mkdocs-1.4.2, mkdocs-material-9.0.5" name="generator"/>
 <title>Overview - Guild Operators</title>
-<link href="../../assets/stylesheets/main.f56500e0.min.css" rel="stylesheet"/>
+<link href="../../assets/stylesheets/main.558e4712.min.css" rel="stylesheet"/>
 <link href="../../assets/stylesheets/palette.2505c338.min.css" rel="stylesheet"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
@@ -94,7 +94,7 @@
 <div class="md-search-result__meta">
             Initializing search
           </div>
-<ol class="md-search-result__list"></ol>
+<ol class="md-search-result__list" role="presentation"></ol>
 </div>
 </div>
 </div>
@@ -148,7 +148,7 @@
 </li>
 <li class="md-nav__item md-nav__item--nested">
 <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" id="__nav_3" type="checkbox"/>
-<label class="md-nav__link" for="__nav_3">
+<label aria-expanded="false" class="md-nav__link" for="__nav_3" tabindex="0">
           Build and Run
           <span class="md-nav__icon md-icon"></span>
 </label>
@@ -188,7 +188,7 @@
 </li>
 <li class="md-nav__item md-nav__item--active md-nav__item--nested">
 <input checked="" class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" id="__nav_4" type="checkbox"/>
-<label class="md-nav__link" for="__nav_4">
+<label aria-expanded="true" class="md-nav__link" for="__nav_4" tabindex="0">
           Scripts
           <span class="md-nav__icon md-icon"></span>
 </label>
@@ -205,7 +205,7 @@
 </li>
 <li class="md-nav__item md-nav__item--active md-nav__item--nested">
 <input checked="" class="md-nav__toggle md-toggle" data-md-toggle="__nav_4_2" id="__nav_4_2" type="checkbox"/>
-<label class="md-nav__link" for="__nav_4_2">
+<label aria-expanded="true" class="md-nav__link" for="__nav_4_2" tabindex="0">
           CNTools
           <span class="md-nav__icon md-icon"></span>
 </label>
@@ -301,7 +301,7 @@
 </li>
 <li class="md-nav__item md-nav__item--nested">
 <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_5" id="__nav_5" type="checkbox"/>
-<label class="md-nav__link" for="__nav_5">
+<label aria-expanded="false" class="md-nav__link" for="__nav_5" tabindex="0">
           Docker
           <span class="md-nav__icon md-icon"></span>
 </label>
@@ -336,7 +336,7 @@
 </li>
 <li class="md-nav__item md-nav__item--nested">
 <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" id="__nav_6" type="checkbox"/>
-<label class="md-nav__link" for="__nav_6">
+<label aria-expanded="false" class="md-nav__link" for="__nav_6" tabindex="0">
           Appendix
           <span class="md-nav__icon md-icon"></span>
 </label>
@@ -417,7 +417,7 @@
 <li>Ensure the <a href="../../basics/#pre-requisites">Pre-Requisites</a> are in place before you proceed.</li>
 <li>The active testers for this script use Fedora/CentOS/RHEL/Ubuntu operating systems, other OS may require customisations.</li>
 <li>The tool uses the folder structure defined <a href="../../basics/#folder-structure">here</a>. Everyone is free to customise, but while doing so beware that you may introduce changes that may not be tested during updates.</li>
-<li>Always use Testnet/Guild network first to familiarise, read the warning/messages in full, maintain your keys/backups with passwords (no one other than yourself can retrieve the funds if you make an accident), before performing actions on mainnet.</li>
+<li>Always use Preview/Preprod/Guild network first to familiarise, read the warning/messages in full, maintain your keys/backups with passwords (no one other than yourself can retrieve the funds if you make an accident), before performing actions on mainnet.</li>
 </ul>
 </div>
 <p>CNTools is like a swiss army knife for pool operators to simplify typical operations regarding their wallet keys and pool management. Please note that this tool only aims to simplify usual tasks for its users, but it should <strong>NOT</strong> act as an excuse to skip understanding how to manually work through things or basics of Linux operations. The skills highlighted on the <a href="../../">home page</a> are paramount for a stake pool operator, and so is the understanding of configuration files and network. Please ensure you've read and understood the disclaimers <strong>before</strong> proceeding.</p>
@@ -443,7 +443,7 @@
 <li>Offline - When CNTools is launched with <code>-o</code> runtime argument, this launches CNTools with limited set of features. This mode <strong>does not require access to cardano-node</strong>. It is mainly used to create Wallet/Pool and access <code>Transaction &gt;&gt; Sign</code> to sign an offline transaction file created in Hybrid mode.</li>
 </ul>
 <h4 id="download-and-update">Download and Update<a class="headerlink" href="#download-and-update" title="Permanent link">⚓︎</a></h4>
-<p>The update functionality is provided from within CNTools. In case of breaking changes, please follow the prompts post-upgrade. If stuck, it's always best to re-run the latest <code>prereqs.sh</code> before proceeding.</p>
+<p>The update functionality is provided from within CNTools. In case of breaking changes, please follow the prompts post-upgrade. If stuck, it's always best to re-run the latest <code>guild-deploy.sh</code> before proceeding.</p>
 <div class="admonition info">
 <p>If you have not updated in a while, it is possible that you might come from a release with breaking changes. If so, please be sure to check out the <a href="../../upgrade/">upgrade</a> instructions.</p>
 </div>
@@ -451,7 +451,7 @@
 <p>The scripts menu supports both arrow key navigation and shortcut key selection. The character within the square brackets is the shortcut to press for quick navigation. For other selections like wallet and pool menu that don't contain shortcuts, there is a third way to navigate. Key pressed is compared to the first character of the menu option and if there is a match the selection jumps to this location. A handy way to quickly navigate a large menu. </p>
 <h4 id="hardware-wallet">Hardware Wallet<a class="headerlink" href="#hardware-wallet" title="Permanent link">⚓︎</a></h4>
 <p>CNTools include hardware wallet support since version <code>7.0.0</code> through Vacuumlabs <code>cardano-hw-cli</code> application. Initialize and update firmware/app on the device to the latest version before usage following the manufacturer instructions.</p>
-<p>To enable hardware support run <code>prereqs.sh -w</code>. This downloads and installs Vacuumlabs <code>cardano-hw-cli</code> including <code>udev</code> configuration. When a new version of Vacuumlabs <code>cardano-hw-cli</code> is released, run <code>prereqs.sh -w</code> again to update. For additional runtime options, run <code>prereqs.sh -h</code>.</p>
+<p>To enable hardware support run <code>guild-deploy.sh -s w</code>. This downloads and installs Vacuumlabs <code>cardano-hw-cli</code> including <code>udev</code> configuration. When a new version of Vacuumlabs <code>cardano-hw-cli</code> is released, run <code>guild-deploy.sh -s w</code> again to update. For additional runtime options, run <code>guild-deploy.sh -h</code>.</p>
 <div class="tabbed-set" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio"><label for="__tabbed_1_1">Ledger</label><div class="tabbed-content">
 <ul>
 <li>Supported devices: Nano S / Nano X  </li>
@@ -471,7 +471,7 @@
 <p>Keys excluded from backup when created without private keys:
 <strong>Wallet</strong> - <code>payment.skey</code>, <code>stake.skey</code>
 <strong>Pool</strong>   - <code>cold.skey</code></p>
-<p>Note that setting up an offline server requires good SysOps background (you need to be aware of how to set up your server with offline mirror repository, how to transfer files across and be fairly familiar with the disk layout of guild tools). The <code>prereqs.sh</code> in its current state is not expected to run on an offline machine. Essentially, you simply need the <code>cardano-cli</code>, <code>bech32</code>, <code>cardano-address</code> binaries in your <code>$PATH</code>, OS level dependency packages [<code>jq</code>, <code>coreutils</code>, <code>pkgconfig</code>, <code>gcc-c++</code> and <code>bc</code> ], and perhaps a copy from your online <code>cnode</code> directory (to ensure you have the right <code>genesis</code>/<code>config</code> files on your offline server). We strongly recommend you to familiarise yourself with the workflow on the testnet / guild networks first, before attempting on mainnet.</p>
+<p>Note that setting up an offline server requires good SysOps background (you need to be aware of how to set up your server with offline mirror repository, how to transfer files across and be fairly familiar with the disk layout of guild tools). The <code>guild-deploy.sh</code> in its current state is not expected to run on an offline machine. Essentially, you simply need the <code>cardano-cli</code>, <code>bech32</code>, <code>cardano-address</code> binaries in your <code>$PATH</code>, OS level dependency packages [<code>jq</code>, <code>coreutils</code>, <code>pkgconfig</code>, <code>gcc-c++</code> and <code>bc</code> ], and perhaps a copy from your online <code>cnode</code> directory (to ensure you have the right <code>genesis</code>/<code>config</code> files on your offline server). We strongly recommend you to familiarise yourself with the workflow on the preview / preprod / guild networks first, before attempting on mainnet.</p>
 <p>Example workflow for creating a wallet and pool:</p>
 <div class="mermaid">
 sequenceDiagram
@@ -591,8 +591,8 @@ sequenceDiagram
 <div class="md-dialog" data-md-component="dialog">
 <div class="md-dialog__inner md-typeset"></div>
 </div>
-<script id="__config" type="application/json">{"base": "../..", "features": ["search.highlight", "search.share", "navigation.indexes"], "search": "../../assets/javascripts/workers/search.12658920.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
-<script src="../../assets/javascripts/bundle.5cf534bf.min.js"></script>
+<script id="__config" type="application/json">{"base": "../..", "features": ["search.highlight", "search.share", "navigation.indexes"], "search": "../../assets/javascripts/workers/search.e5c33ebb.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+<script src="../../assets/javascripts/bundle.51d95adb.min.js"></script>
 <script src="https://unpkg.com/mermaid@latest/dist/mermaid.min.js"></script><script>mermaid.initialize({
     theme: "forest",
     themeVariables: {

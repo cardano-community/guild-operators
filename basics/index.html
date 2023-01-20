@@ -17,7 +17,7 @@
         <link rel="next" href="../build/">
       
       <link rel="icon" href="../overrides/guildicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.0.2">
+      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.0.5">
     
     
       
@@ -25,7 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.f56500e0.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.558e4712.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.2505c338.min.css">
@@ -178,7 +178,7 @@
           <div class="md-search-result__meta">
             Initializing search
           </div>
-          <ol class="md-search-result__list"></ol>
+          <ol class="md-search-result__list" role="presentation"></ol>
         </div>
       </div>
     </div>
@@ -336,8 +336,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" type="checkbox" id="__nav_3" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_3" type="checkbox" id="__nav_3" >
       
       
         
@@ -353,7 +354,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_3">
+        <label class="md-nav__link" for="__nav_3" tabindex="0" aria-expanded="false">
           Build and Run
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -452,26 +453,27 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" type="checkbox" id="__nav_4" >
       
       
-      
-        
-          
-        
-          
-        
-          
-        
-          
-        
-          
-        
-          
-        
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4" type="checkbox" id="__nav_4" >
       
       
-        <label class="md-nav__link" for="__nav_4">
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+      
+      
+        <label class="md-nav__link" for="__nav_4" tabindex="0" aria-expanded="false">
           Scripts
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -506,8 +508,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4_2" type="checkbox" id="__nav_4_2" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4_2" type="checkbox" id="__nav_4_2" >
       
       
         
@@ -521,7 +524,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_4_2">
+        <label class="md-nav__link" for="__nav_4_2" tabindex="0" aria-expanded="false">
           CNTools
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -669,8 +672,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_5" type="checkbox" id="__nav_5" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5" type="checkbox" id="__nav_5" >
       
       
         
@@ -684,7 +688,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_5">
+        <label class="md-nav__link" for="__nav_5" tabindex="0" aria-expanded="false">
           Docker
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -769,8 +773,9 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" type="checkbox" id="__nav_6" >
       
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_6" type="checkbox" id="__nav_6" >
       
       
         
@@ -780,7 +785,7 @@
         
       
       
-        <label class="md-nav__link" for="__nav_6">
+        <label class="md-nav__link" for="__nav_6" tabindex="0" aria-expanded="false">
           Appendix
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -908,7 +913,7 @@
   <h1>Basics</h1>
 
 <h4 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">⚓︎</a></h4>
-<p>The architecture for various components are already described at <a href="https://docs.cardano.org/explore-cardano/cardano-architecture">docs.cardano.org</a> by CF/IOHK. We will not reinvent the wheel <img alt="😄" class="twemoji" src="https://twemoji.maxcdn.com/v/latest/svg/1f604.svg" title=":smile:" /></p>
+<p>The architecture for various components are already described at <a href="https://docs.cardano.org/explore-cardano/cardano-architecture">docs.cardano.org</a> by CF/IOHK. We will not reinvent the wheel <img alt="😄" class="twemoji" src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/1f604.svg" title=":smile:" /></p>
 <h4 id="manual-software-pre-requirements">Manual Software Pre-Requirements<a class="headerlink" href="#manual-software-pre-requirements" title="Permanent link">⚓︎</a></h4>
 <p>While we do not intend to hand out step-by-step instructions, the tools are often misused as a shortcut to avoid ensuring base skillsets mentioned on home page. Some of the common gotchas that we often find SPOs to miss out on:</p>
 <div class="highlight"><pre><span></span><code>- It is imperative that pools operate with highly accurate system time, in order to propogate blocks to network in a timely manner and avoid penalties to own (or at times other competing) blocks. Please refer to sample guidance [here ](https://ubuntu.com/server/docs/network-ntp) for details - the precise steps may depend on your OS.
@@ -927,31 +932,41 @@
 <span class="c1"># Install curl</span>
 <span class="c1"># CentOS / RedHat - sudo dnf -y install curl</span>
 <span class="c1"># Ubuntu / Debian - sudo apt -y install curl</span>
-curl<span class="w"> </span>-sS<span class="w"> </span>-o<span class="w"> </span>prereqs.sh<span class="w"> </span>https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/prereqs.sh
-chmod<span class="w"> </span><span class="m">755</span><span class="w"> </span>prereqs.sh
+curl<span class="w"> </span>-sS<span class="w"> </span>-o<span class="w"> </span>guild-deploy.sh<span class="w"> </span>https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
+chmod<span class="w"> </span><span class="m">755</span><span class="w"> </span>guild-deploy.sh
 </code></pre></div>
-<p>Please familiarise with the syntax of <code>prereqs.sh</code> before proceeding. The usage syntax can be checked using <code>./prereqs.sh -h</code> , sample output below:</p>
-<div class="highlight"><pre><span></span><code>Usage:<span class="w"> </span>prereqs.sh<span class="w"> </span><span class="o">[</span>-f<span class="o">]</span><span class="w"> </span><span class="o">[</span>-s<span class="o">]</span><span class="w"> </span><span class="o">[</span>-i<span class="o">]</span><span class="w"> </span><span class="o">[</span>-l<span class="o">]</span><span class="w"> </span><span class="o">[</span>-c<span class="o">]</span><span class="w"> </span><span class="o">[</span>-w<span class="o">]</span><span class="w"> </span><span class="o">[</span>-o<span class="o">]</span><span class="w"> </span><span class="o">[</span>-x<span class="o">]</span><span class="w"> </span><span class="o">[</span>-b<span class="w"> </span>&lt;branch&gt;<span class="o">]</span><span class="w"> </span><span class="o">[</span>-n<span class="w"> </span>&lt;mainnet<span class="p">|</span>preprod<span class="p">|</span>guild<span class="p">|</span>preview&gt;<span class="o">]</span><span class="w"> </span><span class="o">[</span>-t<span class="w"> </span>&lt;name&gt;<span class="o">]</span><span class="w"> </span><span class="o">[</span>-m<span class="w"> </span>&lt;seconds&gt;<span class="o">]</span>
-Install<span class="w"> </span>pre-requisites<span class="w"> </span><span class="k">for</span><span class="w"> </span>building<span class="w"> </span>cardano<span class="w"> </span>node<span class="w"> </span>and<span class="w"> </span>using<span class="w"> </span>CNTools
+<p>Please familiarise with the syntax of <code>guild-deploy.sh</code> before proceeding. The usage syntax can be checked using <code>./guild-deploy.sh -h</code> , sample output below:</p>
+<div class="highlight"><pre><span></span><code>Usage:<span class="w"> </span>guild-deploy.sh<span class="w"> </span><span class="o">[</span>-n<span class="w"> </span>&lt;mainnet<span class="p">|</span>preprod<span class="p">|</span>guild<span class="p">|</span>preview&gt;<span class="o">]</span><span class="w"> </span><span class="o">[</span>-p<span class="w"> </span>path<span class="o">]</span><span class="w"> </span><span class="o">[</span>-t<span class="w"> </span>&lt;name&gt;<span class="o">]</span><span class="w"> </span><span class="o">[</span>-b<span class="w"> </span>&lt;branch&gt;<span class="o">]</span><span class="w"> </span><span class="o">[</span>-u<span class="o">]</span><span class="w"> </span><span class="o">[</span>-s<span class="w"> </span><span class="o">[</span>p<span class="o">][</span>b<span class="o">][</span>l<span class="o">][</span>f<span class="o">][</span>d<span class="o">][</span>c<span class="o">][</span>o<span class="o">][</span>w<span class="o">][</span>x<span class="o">]]</span>
+Set<span class="w"> </span>up<span class="w"> </span>dependencies<span class="w"> </span><span class="k">for</span><span class="w"> </span>building/using<span class="w"> </span>common<span class="w"> </span>tools<span class="w"> </span>across<span class="w"> </span>cardano<span class="w"> </span>ecosystem.
+The<span class="w"> </span>script<span class="w"> </span>will<span class="w"> </span>always<span class="w"> </span>update<span class="w"> </span>dynamic<span class="w"> </span>content<span class="w"> </span>from<span class="w"> </span>existing<span class="w"> </span>scripts<span class="w"> </span>retaining<span class="w"> </span>existing<span class="w"> </span>user<span class="w"> </span>variables
 
--f<span class="w">    </span>Force<span class="w"> </span>overwrite<span class="w"> </span>of<span class="w"> </span>all<span class="w"> </span>files<span class="w"> </span>including<span class="w"> </span>normally<span class="w"> </span>saved<span class="w"> </span>user<span class="w"> </span>config<span class="w"> </span>sections<span class="w"> </span><span class="k">in</span><span class="w"> </span>env,<span class="w"> </span>cnode.sh<span class="w"> </span>and<span class="w"> </span>gLiveView.sh
-<span class="w">      </span>topology.json,<span class="w"> </span>config.json<span class="w"> </span>and<span class="w"> </span>genesis<span class="w"> </span>files<span class="w"> </span>normally<span class="w"> </span>saved<span class="w"> </span>will<span class="w"> </span>also<span class="w"> </span>be<span class="w"> </span>overwritten
--s<span class="w">    </span>Skip<span class="w"> </span>installing<span class="w"> </span>OS<span class="w"> </span>level<span class="w"> </span>dependencies<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>will<span class="w"> </span>check<span class="w"> </span>and<span class="w"> </span>install<span class="w"> </span>any<span class="w"> </span>missing<span class="w"> </span>OS<span class="w"> </span>level<span class="w"> </span>prerequisites<span class="o">)</span>
--n<span class="w">    </span>Connect<span class="w"> </span>to<span class="w"> </span>specified<span class="w"> </span>network<span class="w"> </span>instead<span class="w"> </span>of<span class="w"> </span>mainnet<span class="w"> </span>network<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>connect<span class="w"> </span>to<span class="w"> </span>cardano<span class="w"> </span>mainnet<span class="w"> </span>network<span class="o">)</span>
-<span class="w">      </span>eg:<span class="w"> </span>-n<span class="w"> </span>guild
--t<span class="w">    </span>Alternate<span class="w"> </span>name<span class="w"> </span><span class="k">for</span><span class="w"> </span>top<span class="w"> </span>level<span class="w"> </span>folder,<span class="w"> </span>non<span class="w"> </span>alpha-numeric<span class="w"> </span>chars<span class="w"> </span>will<span class="w"> </span>be<span class="w"> </span>replaced<span class="w"> </span>with<span class="w"> </span>underscore<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>cnode<span class="o">)</span>
--m<span class="w">    </span>Maximum<span class="w"> </span><span class="nb">time</span><span class="w"> </span><span class="k">in</span><span class="w"> </span>seconds<span class="w"> </span>that<span class="w"> </span>you<span class="w"> </span>allow<span class="w"> </span>the<span class="w"> </span>file<span class="w"> </span>download<span class="w"> </span>operation<span class="w"> </span>to<span class="w"> </span>take<span class="w"> </span>before<span class="w"> </span>aborting<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>60s<span class="o">)</span>
--l<span class="w">    </span>Use<span class="w"> </span>system<span class="w"> </span>libsodium<span class="w"> </span>instead<span class="w"> </span>of<span class="w"> </span>IOG<span class="w"> </span>fork<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>use<span class="w"> </span>libsodium<span class="w"> </span>from<span class="w"> </span>IOG<span class="w"> </span>fork<span class="o">)</span>
--c<span class="w">    </span>Install/Upgrade<span class="w"> </span>and<span class="w"> </span>build<span class="w"> </span>CNCLI<span class="w"> </span>with<span class="w"> </span>RUST
--w<span class="w">    </span>Install/Upgrade<span class="w"> </span>Vacuumlabs<span class="w"> </span>cardano-hw-cli<span class="w"> </span><span class="k">for</span><span class="w"> </span>hardware<span class="w"> </span>wallet<span class="w"> </span>support
--o<span class="w">    </span>Install/Upgrade<span class="w"> </span>Ogmios<span class="w"> </span>Server<span class="w"> </span>binary
--x<span class="w">    </span>Install/Upgrade<span class="w"> </span>Cardano<span class="w"> </span>Signer
+-n<span class="w">    </span>Connect<span class="w"> </span>to<span class="w"> </span>specified<span class="w"> </span>network<span class="w"> </span>instead<span class="w"> </span>of<span class="w"> </span>mainnet<span class="w"> </span>network<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>connect<span class="w"> </span>to<span class="w"> </span>cardano<span class="w"> </span>mainnet<span class="w"> </span>network<span class="o">)</span><span class="w"> </span>eg:<span class="w"> </span>-n<span class="w"> </span>guild
+-p<span class="w">    </span>Parent<span class="w"> </span>folder<span class="w"> </span>path<span class="w"> </span>underneath<span class="w"> </span>which<span class="w"> </span>the<span class="w"> </span>top-level<span class="w"> </span>folder<span class="w"> </span>will<span class="w"> </span>be<span class="w"> </span>created<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>/opt/cardano<span class="o">)</span>
+-t<span class="w">    </span>Alternate<span class="w"> </span>name<span class="w"> </span><span class="k">for</span><span class="w"> </span>top<span class="w"> </span>level<span class="w"> </span>folder<span class="w"> </span>-<span class="w"> </span>only<span class="w"> </span>alpha-numeric<span class="w"> </span>chars<span class="w"> </span>allowed<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>cnode<span class="o">)</span>
 -b<span class="w">    </span>Use<span class="w"> </span>alternate<span class="w"> </span>branch<span class="w"> </span>of<span class="w"> </span>scripts<span class="w"> </span>to<span class="w"> </span>download<span class="w"> </span>-<span class="w"> </span>only<span class="w"> </span>recommended<span class="w"> </span><span class="k">for</span><span class="w"> </span>testing/development<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>master<span class="o">)</span>
--i<span class="w">    </span>Interactive<span class="w"> </span>mode<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>silent<span class="w"> </span>mode<span class="o">)</span>
+-u<span class="w">    </span>Skip<span class="w"> </span>update<span class="w"> </span>check<span class="w"> </span><span class="k">for</span><span class="w"> </span>script<span class="w"> </span>itself
+-s<span class="w">    </span>Selective<span class="w"> </span>Install,<span class="w"> </span>only<span class="w"> </span>deploy<span class="w"> </span>specific<span class="w"> </span>components<span class="w"> </span>as<span class="w"> </span>below:
+<span class="w">  </span>p<span class="w">   </span>Install<span class="w"> </span>common<span class="w"> </span>pre-requisite<span class="w"> </span>OS-level<span class="w"> </span>Dependencies<span class="w"> </span><span class="k">for</span><span class="w"> </span>most<span class="w"> </span>tools<span class="w"> </span>on<span class="w"> </span>this<span class="w"> </span>repo<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>skip<span class="o">)</span>
+<span class="w">  </span>b<span class="w">   </span>Install<span class="w"> </span>OS<span class="w"> </span>level<span class="w"> </span>dependencies<span class="w"> </span><span class="k">for</span><span class="w"> </span>tools<span class="w"> </span>required<span class="w"> </span><span class="k">while</span><span class="w"> </span>building<span class="w"> </span>cardano-node/cardano-db-sync<span class="w"> </span>components<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>skip<span class="o">)</span>
+<span class="w">  </span>l<span class="w">   </span>Build<span class="w"> </span>and<span class="w"> </span>Install<span class="w"> </span>libsodium<span class="w"> </span>fork<span class="w"> </span>from<span class="w"> </span>IO<span class="w"> </span>repositories<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>skip<span class="o">)</span>
+<span class="w">  </span>f<span class="w">   </span>Force<span class="w"> </span>overwrite<span class="w"> </span>entire<span class="w"> </span>content<span class="w"> </span>of<span class="w"> </span>scripts<span class="w"> </span>and<span class="w"> </span>config<span class="w"> </span>files<span class="w"> </span><span class="o">(</span>backups<span class="w"> </span>of<span class="w"> </span>existing<span class="w"> </span>ones<span class="w"> </span>will<span class="w"> </span>be<span class="w"> </span>created<span class="o">)</span><span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>skip<span class="o">)</span>
+<span class="w">  </span>d<span class="w">   </span>Download<span class="w"> </span>latest<span class="w"> </span><span class="o">(</span>released<span class="o">)</span><span class="w"> </span>binaries<span class="w"> </span><span class="k">for</span><span class="w"> </span>bech32,<span class="w"> </span>cardano-address,<span class="w"> </span>cardano-node,<span class="w"> </span>cardano-cli,<span class="w"> </span>cardano-db-sync<span class="w"> </span>and<span class="w"> </span>cardano-submit-api<span class="w"> </span>binaries<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>skip<span class="o">)</span>
+<span class="w">  </span>c<span class="w">   </span>Install/Upgrade<span class="w"> </span>CNCLI<span class="w"> </span>binary<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>skip<span class="o">)</span>
+<span class="w">  </span>o<span class="w">   </span>Install/Upgrade<span class="w"> </span>Ogmios<span class="w"> </span>Server<span class="w"> </span>binary<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>skip<span class="o">)</span>
+<span class="w">  </span>w<span class="w">   </span>Install/Upgrade<span class="w"> </span>Cardano<span class="w"> </span>Hardware<span class="w"> </span>CLI<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>skip<span class="o">)</span>
+<span class="w">  </span>x<span class="w">   </span>Install/Upgrade<span class="w"> </span>Cardano<span class="w"> </span>Signer<span class="w"> </span>binary<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>skip<span class="o">)</span>
 </code></pre></div>
-<p>Running without any parameters will run script in silent mode with OS Dependencies, install libsodium fork from IOG, and <em>NOT</em> force overwrite of all files (only static files will be overwritten, which should not contain user modifications):</p>
-<div class="highlight"><pre><span></span><code>./prereqs.sh
+<p>This script uses opt-in election of what you'd like the script to do (as against previous version that used to try and auto-detect versions). The defaults without any arguments will only update static part of script contents for you.
+A typical example install to install most components but not overwrite static part of existing files for preview network would be:</p>
+<div class="highlight"><pre><span></span><code>./guild-deploy.sh<span class="w"> </span>-b<span class="w"> </span>master<span class="w"> </span>-n<span class="w"> </span>preview<span class="w"> </span>-t<span class="w"> </span>cnode<span class="w"> </span>-s<span class="w"> </span>pdlcowx
 .<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/.bashrc&quot;</span>
+</code></pre></div>
+<p>If instead of download, you'd want to build the components yourself, you could use:</p>
+<div class="highlight"><pre><span></span><code>./guild-deploy.sh<span class="w"> </span>-b<span class="w"> </span>master<span class="w"> </span>-n<span class="w"> </span>preview<span class="w"> </span>-t<span class="w"> </span>cnode<span class="w"> </span>-s<span class="w"> </span>pblcowx
+.<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/.bashrc&quot;</span>
+</code></pre></div>
+<p>Lastly, if you'd want to update your scripts but not install any additional dependencies, you may simply run:</p>
+<div class="highlight"><pre><span></span><code>./guild-deploy.sh<span class="w"> </span>-b<span class="w"> </span>master<span class="w"> </span>-n<span class="w"> </span>preview<span class="w"> </span>-t<span class="w"> </span>cnode
 </code></pre></div>
 <h5 id="folder-structure">Folder structure<a class="headerlink" href="#folder-structure" title="Permanent link">⚓︎</a></h5>
 <p>Running the script above will create the folder structure as per below, for your reference. You can replace the top level folder <code>/opt/cardano/cnode</code> by editing the value of <code>CNODE_HOME</code> in <code>~/.bashrc</code> and <code>$CNODE_HOME/files/env</code> files:</p>
@@ -1027,10 +1042,10 @@ Install<span class="w"> </span>pre-requisites<span class="w"> </span><span class
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "..", "features": ["search.highlight", "search.share", "navigation.indexes"], "search": "../assets/javascripts/workers/search.12658920.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": ["search.highlight", "search.share", "navigation.indexes"], "search": "../assets/javascripts/workers/search.e5c33ebb.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.5cf534bf.min.js"></script>
+      <script src="../assets/javascripts/bundle.51d95adb.min.js"></script>
       
     
   </body>
