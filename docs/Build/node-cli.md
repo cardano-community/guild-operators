@@ -17,6 +17,19 @@ cd cardano-node
 
 You can use the instructions below to build the latest release of [cardano-node](https://github.com/input-output-hk/cardano-node). 
 
+??? danger "Known issue on cardano-node 1.35.4"
+    
+    Guild tools use a couple of additional binaries that is not part of node repository. Traditionally, these (eg: `cardano-address` and previously `cardano-ping`) were made available as part of build process by cabal.project.local file. However, for node tag 1.35.4 - `cabal install` is [broken](https://github.com/cardano-community/guild-operators/issues/1573#issuecomment-1310230673) which means `cabal install cardano-addresses-cli` will no longer work and report error as below:
+    
+    ```
+    Got NamedPackage ouroboros-consensus-cardano-tools
+    CallStack (from HasCallStack):
+      error, called at src/Distribution/Client/CmdInstall.hs:474:33 in main:Distribution.Client.CmdInstall
+    ```
+    
+    The error is already fixed on `cardano-node` repo in later commits - but when using this particular tag, you would want to include additional flag to download binaries (`-s d`) for `guild-deploy.sh` prior to compiling below, just to ensure you've pre-compiled version of `cardano-address` and `bech32` are added to your setup.
+
+
 ``` bash
 git fetch --tags --all
 git pull
@@ -27,7 +40,7 @@ git checkout $(curl -s https://api.github.com/repos/input-output-hk/cardano-node
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
 
-The above would copy the binaries built into `~/.cabal/bin` folder.
+The above would copy the binaries built into `~/.local/bin` folder.
 
 #### Download pre-compiled Binary from Node release
 
@@ -50,11 +63,11 @@ cardano-node version
 
 #### Update port number or pool name for relative paths
 
-Before you go ahead with starting your node, you may want to update values for `CNODE_PORT` in `$CNODE_HOME/scripts/env`. Note that it is imperative for operational relays and pools to ensure that the port mentioned is opened via firewall to the destination your node is supposed to connect from. Update your network/firewall configuration accordingly. Future executions of `prereqs.sh` will preserve and not overwrite these values.
+Before you go ahead with starting your node, you may want to update values for `CNODE_PORT` in `$CNODE_HOME/scripts/env`. Note that it is imperative for operational relays and pools to ensure that the port mentioned is opened via firewall to the destination your node is supposed to connect from. Update your network/firewall configuration accordingly. Future executions of `guild-deploy.sh` will preserve and not overwrite these values.
 
 ```bash
-CNODEBIN="${HOME}/.cabal/bin/cardano-node"
-CCLI="${HOME}/.cabal/bin/cardano-cli"
+CNODEBIN="${HOME}/.local/bin/cardano-node"
+CCLI="${HOME}/.local/bin/cardano-cli"
 CNODE_PORT=6000
 POOL_NAME="GUILD"
 ```

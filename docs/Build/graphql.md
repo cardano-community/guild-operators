@@ -11,7 +11,7 @@ git clone https://github.com/hasura/graphql-engine
 cd graphql-engine/server
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
-This should make `graphql-engine` available at ~/.cabal/bin.
+This should make `graphql-engine` available at ~/.local/bin.
 
 ##### Build cardano-graphql
 

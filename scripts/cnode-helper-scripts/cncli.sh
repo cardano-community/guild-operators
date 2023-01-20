@@ -10,6 +10,7 @@
 ######################################
 
 #POOL_ID=""                               # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation & pooltool sendtip, lower-case hex pool id
+#POOL_ID_BECH32=""                        # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation with Koios API, lower-case pool id in bech32 format
 #POOL_VRF_SKEY=""                         # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation, path to pool's vrf.skey file
 #POOL_VRF_VKEY=""                         # Automatically detected if POOL_NAME is set in env. Required for block validation, path to pool's vrf.vkey file
 #PT_API_KEY=""                            # POOLTOOL: set API key, e.g "a47811d3-0008-4ecd-9f3e-9c22bdb7c82d"
@@ -24,7 +25,8 @@
 #CONFIRM_SLOT_CNT=600                     # CNCLI validate: require at least these many slots to have passed before validating
 #CONFIRM_BLOCK_CNT=15                     # CNCLI validate: require at least these many blocks on top of minted before validating
 #BATCH_AUTO_UPDATE=N                      # Set to Y to automatically update the script if a new version is available without user interaction
-#LEDGER_API=false                         # Use API from api.crypto2099.io in cncli leaderlog instead of local stake-snapshot query to reduce system resources. ONLY for MainNet network (true|false)
+#USE_KOIOS_API=Y                          # Use Koios API in cncli leaderlog instead of local stake-snapshot query to reduce system resources. (default true)
+#CNCLI_PROM_PORT=12799                    # Set Prometheus port for cncli block metrics available through metrics operation (default: 12799)
 
 ######################################
 # Do NOT modify code below           #
@@ -48,9 +50,9 @@ usage() {
 		ptsendslots Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs (deployed as service)
 		  force     Manually force pooltool sendslots submission ignoring configured time window 
 		init        One-time initialization adding all minted and confirmed blocks to blocklog
-		migrate     One-time migration from old blocklog(cntoolsBlockCollector) to new format (post cncli)
-		  path      Path to the old cntoolsBlockCollector blocklog folder holding json files with blocks created
-		
+		metrics     Print cncli block metrics in Prometheus format
+		  deploy    Install dependencies and deploy cncli monitoring agent service (available through port specified by CNCLI_PROM_PORT)
+		  serve     Run Prometheus service (mainly for use by deployed systemd service though deploy argument)
 		EOF
   exit 1
 }
@@ -114,12 +116,25 @@ getLedgerData() { # getNodeMetrics expected to have been already run
     echo "ERROR: stake-snapshot query failed: ${stake_snapshot}"
     return 1
   fi
-  #pool_stake_go=$(jq -r .poolStakeGo <<< ${stake_snapshot})
-  #active_stake_go=$(jq -r .activeStakeGo <<< ${stake_snapshot})
   pool_stake_mark=$(jq -r .poolStakeMark <<< ${stake_snapshot})
   active_stake_mark=$(jq -r .activeStakeMark <<< ${stake_snapshot})
   pool_stake_set=$(jq -r .poolStakeSet <<< ${stake_snapshot})
   active_stake_set=$(jq -r .activeStakeSet <<< ${stake_snapshot})
+  return 0
+}
+
+getKoiosData() {
+  [[ -z ${KOIOS_API} ]] && return 1
+  if ! stake_snapshot=$(curl -sSL -f -d _pool_bech32=${POOL_ID_BECH32} "${KOIOS_API}/pool_stake_snapshot" 2>&1); then
+    echo "ERROR: Koios pool_stake_snapshot query failed: curl -sSL -f -d _pool_bech32=${POOL_ID_BECH32} ${KOIOS_API}/pool_stake_snapshot"
+    return 1
+  fi
+  read -ra stake_mark <<<"$(jq -r '.[] | select(.snapshot=="Mark") | [.pool_stake, .active_stake] | @tsv' <<< ${stake_snapshot})"
+  read -ra stake_set <<<"$(jq -r '.[] | select(.snapshot=="Set") | [.pool_stake, .active_stake] | @tsv' <<< ${stake_snapshot})"
+  pool_stake_mark=${stake_mark[0]}
+  active_stake_mark=${stake_mark[1]}
+  pool_stake_set=${stake_set[0]}
+  active_stake_set=${stake_set[1]}
   return 0
 }
 
@@ -138,7 +153,7 @@ cncliInit() {
   
   if [[ ! -f "${PARENT}"/env ]]; then
     echo -e "\nCommon env file missing: ${PARENT}/env"
-    echo -e "This is a mandatory prerequisite, please install with prereqs.sh or manually download from GitHub\n"
+    echo -e "This is a mandatory prerequisite, please install with guild-deploy.sh or manually download from GitHub\n"
     exit 1
   fi
   
@@ -179,14 +194,14 @@ cncliInit() {
   TMP_DIR="${TMP_DIR}/cncli"
   if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then echo "ERROR: Failed to create directory for temporary files: ${TMP_DIR}"; exit 1; fi
   
-  [[ ! -f "${CNCLI}" ]] && echo -e "\nERROR: failed to locate cncli executable, please install with 'prereqs.sh'\n" && exit 1
+  [[ ! -f "${CNCLI}" ]] && echo -e "\nERROR: failed to locate cncli executable, please install with 'guild-deploy.sh'\n" && exit 1
   CNCLI_VERSION="v$(cncli -V | cut -d' ' -f2)"
   if ! versionCheck "5.1.0" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, minimum required version is 5.1.0, please upgrade to latest version!"; exit 1; fi
   
   [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
   if ! mkdir -p "${CNCLI_DIR}" 2>/dev/null; then echo "ERROR: Failed to create CNCLI DB directory: ${CNCLI_DIR}"; exit 1; fi
   CNCLI_DB="${CNCLI_DIR}/cncli.db"
-  [[ -z "${LEDGER_API}" ]] && LEDGER_API=false
+  [[ -z "${USE_KOIOS_API}" ]] && USE_KOIOS_API=Y
   [[ -z "${CNODE_HOST}" ]] && CNODE_HOST="127.0.0.1"
   [[ -z "${SLEEP_RATE}" ]] && SLEEP_RATE=60
   [[ -z "${CONFIRM_SLOT_CNT}" ]] && CONFIRM_SLOT_CNT=600
@@ -199,6 +214,7 @@ cncliInit() {
   PT_SENDSLOTS_STOP=$((PT_SENDSLOTS_STOP*60))
   if [[ -d "${POOL_DIR}" ]]; then
     [[ -z "${POOL_ID}" && -f "${POOL_DIR}/${POOL_ID_FILENAME}" ]] && POOL_ID=$(cat "${POOL_DIR}/${POOL_ID_FILENAME}")
+    [[ -z "${POOL_ID_BECH32}" && -f "${POOL_DIR}/${POOL_ID_FILENAME}-bech32" ]] && POOL_ID_BECH32=$(cat "${POOL_DIR}/${POOL_ID_FILENAME}-bech32")
     [[ -z "${POOL_VRF_SKEY}" ]] && POOL_VRF_SKEY="${POOL_DIR}/${POOL_VRF_SK_FILENAME}"
     [[ -z "${POOL_VRF_VKEY}" ]] && POOL_VRF_VKEY="${POOL_DIR}/${POOL_VRF_VK_FILENAME}"
   fi
@@ -220,7 +236,7 @@ cncliSync() {
 cncliLeaderlog() {
   echo "~ CNCLI Leaderlog started ~"
   createBlocklogDB || exit 1 # create db if needed
-  [[ -z ${POOL_ID} || -z ${POOL_VRF_SKEY} ]] && echo "'POOL_ID' and/or 'POOL_VRF_SKEY' not set in $(basename "$0"), exiting!" && exit 1
+  [[ -z ${POOL_ID} || -z ${POOL_ID_BECH32} || -z ${POOL_VRF_SKEY} ]] && echo "'POOL_ID'/'POOL_ID_BECH32' and/or 'POOL_VRF_SKEY' not set in $(basename "$0"), exiting!" && exit 1
   
   while true; do
     if [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
@@ -254,10 +270,12 @@ cncliLeaderlog() {
     echo "Leaderlogs already calculated for epoch ${curr_epoch}, skipping!"
   else
     echo "Running leaderlogs for epoch ${curr_epoch} and adding leader slots not already in DB"
-    stake_param_current=""
-    if [[ ${LEDGER_API} = false || ${NWMAGIC} -ne 764824073 ]]; then 
-      if ! getLedgerData; then exit 1; else stake_param_current="--active-stake ${active_stake_set} --pool-stake ${pool_stake_set}"; fi
+    if [[ ${USE_KOIOS_API} = Y ]]; then 
+      getKoiosData || exit 1
+    else
+      getLedgerData || exit 1
     fi
+    stake_param_current="--active-stake ${active_stake_set} --pool-stake ${pool_stake_set}"
     cncli_leaderlog=$(${CNCLI} leaderlog --consensus "${consensus}" --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current ${stake_param_current} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
     if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
       error_msg=$(jq -r .errorMessage <<< "${cncli_leaderlog}")
@@ -318,10 +336,12 @@ cncliLeaderlog() {
         else continue; fi
       fi
       echo "Running leaderlogs for next epoch[${next_epoch}]"
-      stake_param_next=""
-      if [[ ${LEDGER_API} = false || ${NWMAGIC} -ne 764824073 ]]; then 
-        if ! getLedgerData; then sleep 300; continue; else stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"; fi # Sleep for 5 min before retrying to query stake snapshot in case of error
+      if [[ ${USE_KOIOS_API} = Y ]]; then
+        if ! getKoiosData; then sleep 60; continue; fi # Sleep for 1 min before retrying to query koios again in case of error
+      else
+        if ! getLedgerData; then sleep 300; continue; fi # Sleep for 5 min before retrying to query stake snapshot in case of error
       fi
+      stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"
       cncli_leaderlog=$(${CNCLI} leaderlog --consensus "${consensus}" --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next ${stake_param_next} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
       if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
         error_msg=$(jq -r .errorMessage <<< "${cncli_leaderlog}")
@@ -515,35 +535,167 @@ cncliInitBlocklogDB() {
 
 #################################
 
-cncliMigrateBlocklog() {
-  [[ ! -d ${subarg} ]] && echo -e "\nERROR: unable to locate directory holding cntoolsBlockCollector blocklog json files:\n${subarg}" && usage
+cncliMetrics() {
+  if [[ ${subarg} = "deploy" ]]; then
+    deployMonitoringAgent
+    return
+  elif [[ ${subarg} = "serve" ]]; then
+    if ! command -v socat >/dev/null; then
+      echo "ERROR: socat not installed, please first run cncli.sh metrics deploy to install socat and deploy service, or manually install socat."
+      return
+    fi
+    socat TCP-LISTEN:${CNCLI_PROM_PORT:-12799},reuseaddr,fork SYSTEM:"echo HTTP/1.1 200 OK;SERVED=true bash ${CNODE_HOME}/scripts/cncli.sh metrics;"
+    return
+  fi
   getNodeMetrics
-  if ! getShelleyTransitionEpoch; then echo "ERROR: failed to calculate shelley transition epoch" && exit 1; fi
-  createBlocklogDB || exit 1 # create db if needed
-  while IFS= read -r -d '' blocks_file; do
-    echo "> Migrating: $(basename "${blocks_file}")"
-    [[ ${blocks_file} =~ blocks_([0-9]+) ]] && epoch=${BASH_REMATCH[1]} || epoch=0
-    blocks_data="$(cat "${blocks_file}")"
-    while read -r block; do
-      block_slot=$(jq -r '.slot' <<< "${block}")
-      block_at=$(jq -r '.at' <<< "${block}" | sed 's/\.[0-9]\{2\}Z/+00:00/')
-      block_hash=$(jq -r '.hash //empty' <<< "${block}")
-      block_size=$(jq -r '.size //0' <<< "${block}")
-      slot_in_epoch=$(getSlotInEpochFromSlot ${block_slot} ${epoch})
-      if [[ -n ${block_hash} ]]; then
-        [[ ${block_hash} =~ ^Invalid ]] && block_status="invalid" || block_status="adopted"
-      else
-        block_status="leader"
-      fi
-      sqlite3 ${BLOCKLOG_DB} <<-EOF
-				UPDATE OR IGNORE blocklog SET at = '${block_at}', epoch = ${epoch}, slot_in_epoch = ${slot_in_epoch}, hash = '${block_hash}', size = ${block_size}, status = '${block_status}'
-				WHERE slot = ${block_slot};
-				INSERT OR IGNORE INTO blocklog (slot, at, epoch, slot_in_epoch, hash, size, status)
-				VALUES (${block_slot}, '${block_at}', ${epoch}, ${slot_in_epoch}, '${block_hash}', ${block_size}, '${block_status}');
-				EOF
-      echo "Block at slot ${block_slot} added/updated, status '${block_status}'"
-    done < <(jq -c '.[]' <<< "${blocks_data}" 2>/dev/null)
-  done < <(find "${subarg}" -mindepth 1 -maxdepth 1 -type f -name "blocks_*.json" -print0 | sort -z)
+  getBlocklogMetrics ${epochnum}
+}
+
+deployMonitoringAgent() {
+  # Install socat if needed to allow metrics operation to listen on port
+  if ! command -v socat >/dev/null; then
+    echo -e "Installing socat .."
+    if command -v apt-get >/dev/null; then
+      sudo apt-get -y install socat >/dev/null || err_exit "'sudo apt-get -y install socat' failed!"
+    elif command -v yum >/dev/null; then
+      sudo yum -y install socat >/dev/null || err_exit "'sudo yum -y install socat' failed!"
+    else
+      err_exit "'socat' not found in \$PATH, needed to for node exporter monitoring!"
+    fi
+  fi
+  echo -e "[Re]Installing CNCLI Monitoring Agent service.."
+  sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-cncli-exporter.service
+[Unit]
+Description=Guild CNCLI Metrics Exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+User=${USER}
+WorkingDirectory=${CNODE_HOME}/scripts
+ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh metrics serve\"
+KillSignal=SIGINT
+SuccessExitStatus=143
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=${CNODE_VNAME}_cncli_exporter
+TimeoutStopSec=5
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target
+EOF"
+  sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}-cncli-exporter.service &>/dev/null && sudo systemctl restart ${CNODE_VNAME}-cncli-exporter.service &>/dev/null
+  echo -e "Done!!"
+}
+
+getBlocklogMetrics() {
+  shopt -s expand_aliases
+  if [[ ${SERVED} = true ]]; then
+    echo "Content-type: text/plain" # Tells the browser what kind of content to expect
+    echo "" # request body starts from this empty line
+  fi
+
+  cncli_error=""
+  next_leader_time_utc=0
+  next_next_leader_time_utc=0
+  leader=0
+  ideal=0
+  luck=0
+  adopted_total=0
+  confirmed_total=0
+  missed_total=0
+  ghosted_total=0
+  stolen_total=0
+  invalid_total=0
+  adopted_max_consec=0
+  confirmed_max_consec=0
+  missed_max_consec=0
+  ghosted_max_consec=0
+  stolen_max_consec=0
+  invalid_max_consec=0
+
+  [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
+  CNCLI_DB="${CNCLI_DIR}/cncli.db"
+  
+  if [[ ! -f "${BLOCKLOG_DB}" ]]; then
+    cncli_error="ERROR: blocklog database not found: ${BLOCKLOG_DB}"
+  elif ! cncliDBinSync; then
+    cncli_error="CNCLI DB out of sync :( [$(printf "%2.4f %%" ${cncli_sync_prog})]"
+  else
+    for status_type in $(sqlite3 "${BLOCKLOG_DB}" "SELECT status, COUNT(status) FROM blocklog WHERE epoch=${epochnum} GROUP BY status;" 2>/dev/null); do
+      IFS='|' read -ra status <<< ${status_type}; unset IFS
+      case ${status[0]} in
+        invalid) invalid_total=${status[1]} ;;
+        missed) missed_total=${status[1]} ;;
+        ghosted) ghosted_total=${status[1]} ;;
+        stolen) stolen_total=${status[1]} ;;
+        confirmed) confirmed_total=${status[1]} ;;
+        adopted) adopted_total=${status[1]} ;;
+        leader) leader=${status[1]} ;;
+      esac
+    done
+    adopted_total=$(( adopted_total + confirmed_total ))
+    leader=$(( leader + adopted_total + invalid_total + missed_total + ghosted_total + stolen_total ))
+    next_leader_time_utc=$(sqlite3 "${BLOCKLOG_DB}" "SELECT STRFTIME('%s', at) FROM blocklog WHERE datetime(at) > datetime('now') ORDER BY slot ASC LIMIT 1;" 2>/dev/null)
+    if [[ -z ${next_leader_time_utc} ]]; then
+      next_leader_time_utc=0
+    else
+      next_next_leader_time_utc=$(sqlite3 "${BLOCKLOG_DB}" "SELECT STRFTIME('%s', at) FROM blocklog WHERE CAST(STRFTIME('%s', at) AS INTEGER) > ${next_leader_time_utc} ORDER BY slot ASC LIMIT 1;" 2>/dev/null)
+      [[ -z ${next_next_leader_time_utc} ]] && next_next_leader_time_utc=0
+    fi
+    IFS='|' read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${epochnum};" 2>/dev/null)"; unset IFS
+    if [[ ${#epoch_stats[@]} -eq 2 ]]; then
+      ideal=${epoch_stats[0]}
+      luck=${epoch_stats[1]}
+    fi
+    for max_consecutive in $(sqlite3 "${BLOCKLOG_DB}" "SELECT status, MAX(seqnum) FROM (SELECT status, COUNT(*) AS seqnum FROM (SELECT blocklog.*, (ROW_NUMBER() OVER (ORDER BY id) - ROW_NUMBER() OVER (PARTITION BY status ORDER BY id)) AS seqnum FROM blocklog WHERE epoch=${epochnum}) tmp GROUP BY seqnum, status) GROUP BY status;"); do
+      IFS='|' read -ra consecutive <<< ${max_consecutive}; unset IFS
+      case ${consecutive[0]} in
+        invalid) invalid_max_consec=${consecutive[1]} ;;
+        missed) missed_max_consec=${consecutive[1]} ;;
+        ghosted) ghosted_max_consec=${consecutive[1]} ;;
+        stolen) stolen_max_consec=${consecutive[1]} ;;
+        confirmed) confirmed_max_consec=${consecutive[1]} ;;
+        adopted) adopted_max_consec=${consecutive[1]} ;;
+      esac
+    done
+    adopted_max_consec=$(( adopted_max_consec + confirmed_max_consec ))
+  fi
+
+  # Metrics
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_next_leader_time_utc=${next_leader_time_utc}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_next_next_leader_time_utc=${next_next_leader_time_utc}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_leader=${leader}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_ideal=${ideal}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_luck=${luck}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_adopted_total=${adopted_total}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_confirmed_total=${confirmed_total}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_missed_total=${missed_total}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_ghosted_total=${ghosted_total}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_stolen_total=${stolen_total}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_invalid_total=${invalid_total}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_adopted_max_consec=${adopted_max_consec}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_confirmed_max_consec=${confirmed_max_consec}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_missed_max_consec=${missed_max_consec}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_ghosted_max_consec=${ghosted_max_consec}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_stolen_max_consec=${stolen_max_consec}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_invalid_max_consec=${invalid_max_consec}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_error=${cncli_error}
+
+  for metric_var_name in $(env | grep ^CNCLI_METRIC_ | sort | awk -F= '{print $1}'); do
+    METRIC_NAME=${metric_var_name//CNCLI_METRIC_/}
+    # default NULL values to empty string
+    if [[ -z "${!metric_var_name}" ]]; then
+      METRIC_VALUE="\"\""
+    else
+      METRIC_VALUE="${!metric_var_name}"
+    fi
+    echo "${METRIC_NAME} ${METRIC_VALUE}"
+  done
 }
 
 #################################
@@ -625,7 +777,7 @@ case ${subcommand} in
     cncliInit && cncliPTsendslots ;;
   init )
     cncliInit && cncliInitBlocklogDB ;;
-  migrate )
-    cncliInit && cncliMigrateBlocklog ;;
+  metrics )
+    cncliMetrics ;; # no cncliInit needed
   * ) usage ;;
 esac

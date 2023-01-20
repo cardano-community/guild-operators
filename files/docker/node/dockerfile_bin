@@ -16,6 +16,16 @@ ENV \
     PATH=/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.local/bin \
     GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
 
+RUN set -x && apt update \
+  && mkdir -p /root/.local/bin \
+  && apt install -y curl wget gnupg apt-utils git udev \
+  && wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh \
+  && export SUDO='N' \
+  && export UPDATE_CHECK='N' \
+  && export SKIP_DBSYNC_DOWNLOAD='Y' \
+  && chmod +x ./guild-deploy.sh &&  ./guild-deploy.sh -b master -s pdcowx \
+  && apt-get -y purge && apt-get -y clean && apt-get -y autoremove  && rm -rf /var/lib/apt/lists/*
+
 # COPY NODE BINS AND DEPS 
 COPY --from=cardanocommunity/cardano-node:stage2 /root/.local/bin/* /usr/local/bin/
 COPY --from=cardanocommunity/cardano-node:stage2 /opt/ /opt/

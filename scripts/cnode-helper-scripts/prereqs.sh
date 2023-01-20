@@ -60,6 +60,9 @@ versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=avail
 usage() {
   cat <<EOF >&2
 
+
+!! NOTICE: Use of this script is DEPRECATED, please consider using guild-deploy.sh instead !!
+
 Usage: $(basename "$0") [-f] [-s] [-i] [-l] [-c] [-w] [-o] [-x] [-b <branch>] [-n <mainnet|preprod|guild|preview>] [-t <name>] [-m <seconds>]
 Install pre-requisites for building cardano node and using CNTools
 
@@ -531,7 +534,7 @@ if [[ ${NETWORK} = "guild" ]]; then
   curl -s -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp ${URL_RAW}/files/alonzo-genesis-guild.json
   curl -s -f -m ${CURL_TIMEOUT} -o topology.json.tmp ${URL_RAW}/files/topology-guild.json
   curl -s -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-guild.json
-elif [[ ${NETWORK} =~ ^(mainnet|preprod|preview|testnet)$ ]]; then # testnet will be retired , already marked as legacy soon
+elif [[ ${NETWORK} =~ ^(mainnet|preprod|preview)$ ]]; then
   NWCONFURL="https://raw.githubusercontent.com/input-output-hk/cardano-world/master/docs/environments"
   curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/${NETWORK}/byron-genesis.json"
   curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp "${NWCONFURL}/${NETWORK}/shelley-genesis.json"
@@ -554,7 +557,6 @@ if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f dbsync.json ]]; then mv -f dbsync.json.tm
 
 pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
 curl -s -f -m ${CURL_TIMEOUT} -o env.tmp ${URL_RAW}/scripts/cnode-helper-scripts/env
-curl -s -f -m ${CURL_TIMEOUT} -o rotatePoolKeys.sh ${URL_RAW}/scripts/cnode-helper-scripts/rotatePoolKeys.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cnode.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cnode.sh
 curl -s -f -m ${CURL_TIMEOUT} -o dbsync.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/dbsync.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cntools.sh ${URL_RAW}/scripts/cnode-helper-scripts/cntools.sh
@@ -566,7 +568,6 @@ curl -s -f -m ${CURL_TIMEOUT} -o topologyUpdater.sh.tmp ${URL_RAW}/scripts/cnode
 curl -s -f -m ${CURL_TIMEOUT} -o cabal-build-all.sh ${URL_RAW}/scripts/cnode-helper-scripts/cabal-build-all.sh
 curl -s -f -m ${CURL_TIMEOUT} -o submitapi.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/submitapi.sh
 curl -s -f -m ${CURL_TIMEOUT} -o ogmios.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/ogmios.sh
-curl -s -f -m ${CURL_TIMEOUT} -o system-info.sh ${URL_RAW}/scripts/cnode-helper-scripts/system-info.sh
 curl -s -f -m ${CURL_TIMEOUT} -o gLiveView.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/gLiveView.sh
 curl -s -f -m ${CURL_TIMEOUT} -o deploy-as-systemd.sh ${URL_RAW}/scripts/cnode-helper-scripts/deploy-as-systemd.sh
 curl -s -f -m ${CURL_TIMEOUT} -o cncli.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/cncli.sh
@@ -599,7 +600,7 @@ updateWithCustomConfig() {
   mv -f ${file}.tmp ${file}
 }
 
-[[ ${FORCE_OVERWRITE} = 'Y' ]] && echo "Forced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/dbsync.sh, scripts/submitapi.sh, scripts/ogmios.sh, scripts/gLiveView.sh and scripts/topologyUpdater.sh (alongwith files/topology.json, files/config.json, files/dbsync.json) as required/"
+[[ ${FORCE_OVERWRITE} = 'Y' ]] && echo "Forced full upgrade! Please customise any user-defined variables (especially in scripts/env, scripts/cnode.sh, scripts/dbsync.sh, scripts/submitapi.sh, scripts/ogmios.sh, scripts/topologyUpdater.sh) - alongwith config files (files/topology.json, files/config.json, files/dbsync.json) as required."
 
 updateWithCustomConfig "env"
 updateWithCustomConfig "cnode.sh"
@@ -617,3 +618,5 @@ find "${CNODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
 chmod -R 700 "${CNODE_HOME}"/priv 2>/dev/null
 
 pushd -0 >/dev/null || err_exit; dirs -c
+
+echo "Note: Use of prereqs.sh script is deprecated, this script is no longer going to be maintained. Please consider use of new guild-deploy.sh script as documented on https://cardano-community.github.io/guild-operators/upgrade/"

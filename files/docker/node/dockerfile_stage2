@@ -5,7 +5,7 @@ ENV \
   DEBIAN_FRONTEND=noninteractive \ 
   LANG=C.UTF-8 \
   USER=root \
-  PATH=$CNODE_HOME/scripts:/root/.cabal/bin:/root/.ghcup/bin:$PATH 
+  PATH=$CNODE_HOME/scripts:/root/.local/bin:/root/.ghcup/bin:$PATH 
 
 RUN git clone https://github.com/input-output-hk/cardano-node.git \
   && export BOOTSTRAP_HASKELL_NO_UPGRADE=1 \
