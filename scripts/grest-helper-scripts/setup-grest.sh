@@ -16,8 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=1.0.9
-# Using versions from 1.0.5-1.0.9 for minor commit alignment before we're prepared for wider networks
+SGVERSION=1.0.10rc
 
 ######## Functions ########
   usage() {
@@ -107,7 +106,7 @@ SGVERSION=1.0.9
     local cron_pattern=$2
     local cron_job_path="${CRON_DIR}/${CNODE_VNAME}-${job}"
     local cron_scripts_path="${CRON_SCRIPTS_DIR}/${job}.sh"
-    local cron_log_path="${LOG_DIR}/${job}_\`date +%d%m%y\`.log"
+    local cron_log_path="${LOG_DIR}/${job}_\`date +\\%d\\%m\\%y\`.log"
     local cron_job_entry="${cron_pattern} ${USER} /bin/bash ${cron_scripts_path} >> ${cron_log_path} 2>&1"
     remove_cron_job "${job}"
     sudo bash -c "{ echo '${cron_job_entry}'; } > ${cron_job_path}"

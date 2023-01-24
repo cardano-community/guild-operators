@@ -316,9 +316,9 @@ build_libsodium() {
 download_cnodebins() {
   echo "Downloading binaries.."
   pushd "${HOME}"/tmp >/dev/null || err_exit
-  echo "  Downloading Cardano Node archive from IO Hydra CI builds.."
+  echo "  Downloading Cardano Node archive created from IO CI builds.."
   rm -f cardano-node cardano-address
-  curl -m 200 -sfL https://update-cardano-mainnet.iohk.io/cardano-node-releases/cardano-node-1.35.4-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node's latest release archive from IO CI builds at update-cardano-mainnet.iohk.io!"
+  curl -m 200 -sfL https://update-cardano-mainnet.iohk.io/cardano-node-releases/cardano-node-1.35.5-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node's latest release archive from IO CI builds at update-cardano-mainnet.iohk.io!"
   tar zxf cnode.tar.gz ./cardano-node ./cardano-cli ./cardano-submit-api ./bech32 &>/dev/null
   rm -f cnodebin.tar.gz
   [[ -f cardano-node ]] || err_exit " cardano-node archive downloaded but binary (cardano-node) not found after extracting package!"
@@ -328,9 +328,9 @@ download_cnodebins() {
   rm -f caddress.tar.gz
   [[ -f cardano-address ]] || err_exit " cardano-address archive downloaded but binary (bin/cardano-address) not found after extracting package!"
   if [[ "${SKIP_DBSYNC_DOWNLOAD}" != "N" ]]; then
-    echo "  Downloading Cardano DB Sync archive from IO Hydra CI Builds.."
-    curl -m 200 -sfL https://api.koios.rest/bin/cardano-db-sync.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync's latest release archive from IO CI builds at hydra.iohk.io!"
-    tar zxf cnodedbsync.tar.gz cardano-db-sync &>/dev/null
+    echo "  Downloading Cardano DB Sync archive created from IO CI Builds.."
+    curl -m 200 -sfL https://update-cardano-mainnet.iohk.io/cardano-db-sync/cardano-db-sync-13.1.0.0-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync's latest release archive from IO CI builds at hydra.iohk.io!"
+    tar zxf cnodedbsync.tar.gz ./cardano-db-sync &>/dev/null
     [[ -f cardano-db-sync ]] || err_exit " cardano-db-sync archive downloaded but binary (cardano-db-sync) not found after extracting package!"
     rm -f cnodedbsync.tar.gz
     mv -t "${HOME}"/.local/bin cardano-db-sync
