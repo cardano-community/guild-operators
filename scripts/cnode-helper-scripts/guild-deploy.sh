@@ -318,7 +318,7 @@ download_cnodebins() {
   pushd "${HOME}"/tmp >/dev/null || err_exit
   echo "  Downloading Cardano Node archive from IO Hydra CI builds.."
   rm -f cardano-node cardano-address
-  curl -m 200 -sfL https://update-cardano-mainnet.iohk.io/cardano-node-releases/cardano-node-1.35.4-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node's latest release archive from IO CI builds at update-cardano-mainnet.iohk.io!"
+  curl -m 200 -sfL https://update-cardano-mainnet.iohk.io/cardano-node-releases/cardano-node-1.35.5-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node's latest release archive from IO CI builds at update-cardano-mainnet.iohk.io!"
   tar zxf cnode.tar.gz ./cardano-node ./cardano-cli ./cardano-submit-api ./bech32 &>/dev/null
   rm -f cnodebin.tar.gz
   [[ -f cardano-node ]] || err_exit " cardano-node archive downloaded but binary (cardano-node) not found after extracting package!"
