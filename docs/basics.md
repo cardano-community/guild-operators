@@ -49,12 +49,15 @@ The script will always update dynamic content from existing scripts retaining ex
   l   Build and Install libsodium fork from IO repositories (Default: skip)
   f   Force overwrite entire content of scripts and config files (backups of existing ones will be created) (Default: skip)
   d   Download latest (released) binaries for bech32, cardano-address, cardano-node, cardano-cli, cardano-db-sync and cardano-submit-api binaries (Default: skip)
-  c   Install/Upgrade CNCLI binary (Default: skip)
+  c   Install/Upgrade CNCLI binary (Default: skip) # (1)!
   o   Install/Upgrade Ogmios Server binary (Default: skip)
   w   Install/Upgrade Cardano Hardware CLI (Default: skip)
   x   Install/Upgrade Cardano Signer binary (Default: skip)
 
 ```
+
+1. If you receive an error for libssl, you may need to compile cncli manually on your OS as per instructions [here](https://github.com/cardano-community/cncli/blob/develop/INSTALL.md#compile-from-source)
+
 
 This script uses opt-in election of what you'd like the script to do (as against previous version that used to try and auto-detect versions). The defaults without any arguments will only update static part of script contents for you.
 A typical example install to install most components but not overwrite static part of existing files for preview network would be:
