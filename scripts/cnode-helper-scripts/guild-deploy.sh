@@ -155,7 +155,7 @@ common_init() {
   mkdir -p "${HOME}"/tmp
   [[ ! -d "${HOME}"/.local/bin ]] && mkdir -p "${HOME}"/.local/bin
   if ! grep -q '/.local/bin' "${HOME}"/.bashrc; then
-    export PATH="${HOME}/.local/bin:${PATH}"
+    echo 'export PATH="${HOME}/.local/bin:${PATH}"' >> "${HOME}"/.bashrc
   fi
 }
 
@@ -314,6 +314,7 @@ build_libsodium() {
 # Download cardano-node, cardano-cli, cardano-db-sync, bech32 and cardano-submit-api
 # TODO: Replace these with self-hosted ones (potentially consider IPFS as upload destination for CI)
 download_cnodebins() {
+  [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The IO CI builds are not available for ARM, you might need to build them!"
   echo "Downloading binaries.."
   pushd "${HOME}"/tmp >/dev/null || err_exit
   echo "  Downloading Cardano Node archive created from IO CI builds.."
@@ -327,7 +328,7 @@ download_cnodebins() {
   tar zxf caddress.tar.gz --strip-components=1 bin/cardano-address &>/dev/null
   rm -f caddress.tar.gz
   [[ -f cardano-address ]] || err_exit " cardano-address archive downloaded but binary (bin/cardano-address) not found after extracting package!"
-  if [[ "${SKIP_DBSYNC_DOWNLOAD}" != "N" ]]; then
+  if [[ "${SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
     echo "  Downloading Cardano DB Sync archive created from IO CI Builds.."
     curl -m 200 -sfL https://update-cardano-mainnet.iohk.io/cardano-db-sync/cardano-db-sync-13.1.0.0-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync's latest release archive from IO CI builds at hydra.iohk.io!"
     tar zxf cnodedbsync.tar.gz ./cardano-db-sync &>/dev/null
@@ -561,10 +562,6 @@ populate_cnode() {
 # Parse arguments supplied to script
 parse_args() {
   POPULATE_CNODE="Y"
-  if [[ ! -d "${CNODE_HOME}"/files ]]; then
-    # Guess this is a fresh machine and set minimal params
-    INSTALL_OS_DEPS="Y"
-  fi
   if [[ -n "${S_ARGS}" ]]; then
     [[ "${S_ARGS}" =~ "p" ]] && INSTALL_OS_DEPS="Y"
     [[ "${S_ARGS}" =~ "b" ]] && INSTALL_OS_DEPS="Y" && WANT_BUILD_DEPS="Y"
@@ -577,11 +574,15 @@ parse_args() {
     [[ "${S_ARGS}" =~ "x" ]] && INSTALL_CARDANO_SIGNER="Y"
     echo "Nothing to do.."
   fi
+  common_init
+  if [[ ! -d "${CNODE_HOME}"/files ]]; then
+    # Guess this is a fresh machine and set minimal params
+    INSTALL_OS_DEPS="Y"
+  fi
 }
 
 # Main Flow for calling different functions
 main_flow() {
-  common_init
   [[ "${UPDATE_CHECK}" == "Y" ]] && update_check
   [[ "${INSTALL_OS_DEPS}" == "Y" ]] && os_dependencies
   [[ "${WANT_BUILD_DEPS}" == "Y" ]] && build_dependencies
