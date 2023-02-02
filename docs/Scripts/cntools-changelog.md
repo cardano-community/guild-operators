@@ -6,6 +6,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.1.1] - 2023-02-07
+#### Fixed
+- Disable `dialog` by default, it is an optional component - and no longer installed by default.
+
 ## [10.1.0] - 2023-01-17
 #### Added
 - Hardware Wallets: Allow signing using cold keys for a pool, use it for rotating KES keys.

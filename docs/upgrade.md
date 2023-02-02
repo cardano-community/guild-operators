@@ -50,7 +50,7 @@ You can move the binaries by using mv command (for example, if you dont have any
     Ideally, you should shutdown services (eg: cnode, cnode-dbsync, etc) prior to running the below to ensure they run from new location (you can also re-deploy them if you haven't done so in a while, eg: `./cnode.sh -d`). At the end of the guide, you can start them back up.
 
 ``` bash
-mv -t "${HOME}"/.local/bin/ "${HOME}"/.cabal/bin/* "${HOME}"/.cargo/* "${HOME}"/bin/*
+mv -t "${HOME}"/.local/bin/ "${HOME}"/.cabal/bin/* "${HOME}"/.cargo/bin/* "${HOME}"/bin/*
 ```
 
 - We've found users often confuse between $PATH variable resolution between multiple shell sessions, systemd, etc. To avoid this, edit the following files and uncomment and set the following variables to the appropriate paths as per your deployment (eg: `CCLI="${HOME}"/.local/bin/cardano-cli` if following above):

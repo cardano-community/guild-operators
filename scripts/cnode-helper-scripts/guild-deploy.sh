@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2086,SC1090,SC2059
+# shellcheck disable=SC2086,SC1090,SC2059,SC2016
 # shellcheck source=/dev/null
 
 unset CNODE_HOME
@@ -15,7 +15,7 @@ unset CNODE_HOME
                         # topology.json, config.json and genesis files normally saved will also be overwritten
 #LIBSODIUM_FORK='Y'     # Use IOG fork of libsodium instead of official repositories - Recommended as per IOG instructions (Default: IOG fork)
 #INSTALL_CNCLI='N'      # Install/Upgrade and build CNCLI with RUST
-#INSTALL_VCHC='N'       # Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
+#INSTALL_CWHCLI='N'       # Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
 #INSTALL_OGMIOS='N'     # Install Ogmios Server
 #INSTALL_CSIGNER='N'    # Install/Upgrade Cardano Signer
 #CNODE_NAME='cnode'     # Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
@@ -93,7 +93,7 @@ set_defaults() {
   [[ -z ${FORCE_OVERWRITE} ]] && FORCE_OVERWRITE='N'
   [[ -z ${LIBSODIUM_FORK} ]] && LIBSODIUM_FORK='N'
   [[ -z ${INSTALL_CNCLI} ]] && INSTALL_CNCLI='N'
-  [[ -z ${INSTALL_VCHC} ]] && INSTALL_VCHC='N'
+  [[ -z ${INSTALL_CWHCLI} ]] && INSTALL_CWHCLI='N'
   [[ -z ${INSTALL_OGMIOS} ]] && INSTALL_OGMIOS='N'
   [[ -z ${INSTALL_CSIGNER} ]] && INSTALL_CSIGNER='N'
   [[ -z ${CNODE_PATH} ]] && CNODE_PATH="/opt/cardano"
@@ -385,7 +385,7 @@ download_cardanohwcli() {
         rm -rf "${HOME}"/.local/bin/cardano-hw-cli 
       fi
       pushd "${HOME}"/.local/bin >/dev/null || err_exit
-      mv -f /tmp/chwcli-bin/cardano-hw-cli/cardano-hw-cli .
+      mv -f /tmp/chwcli-bin/cardano-hw-cli/* ./
       if [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ]]; then
         # Ledger udev rules
         curl -s -f -m ${CURL_TIMEOUT} https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh | $sudo bash >/dev/null 2>&1

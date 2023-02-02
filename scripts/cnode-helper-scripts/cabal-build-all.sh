@@ -17,11 +17,17 @@ find dist-newstyle/build/x86_64-linux/ghc-8.10.?/cardano-config-* >/dev/null 2>&
 [[ -d /usr/lib64/pkgconfig ]] && export PKG_CONFIG_PATH=/usr/lib64/pkgconfig:"${PKG_CONFIG_PATH}"
 [[ -d /usr/local/lib/pkgconfig ]] && export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:"${PKG_CONFIG_PATH}"
 
-if [[ "$1" == "-l" ]] ; then
+if [[ "$1" == "-l" ]] || [[ "$2" == "-l" ]]; then
   USE_SYSTEM_LIBSODIUM="package cardano-crypto-praos
     flags: -external-libsodium-vrf"
 else
   unset USE_SYSTEM_LIBSODIUM
+fi
+
+if [[ "$1" == "-c" ]]; then
+  CUSTOM_CABAL="Y"
+else
+  CUSTOM_CABAL="N"
 fi
 
 [[ -f cabal.project.local ]] && mv cabal.project.local cabal.project.local.bkp_"$(date +%s)"
@@ -75,8 +81,12 @@ if [[ -z "${USE_SYSTEM_LIBSODIUM}" ]] ; then # Build using default cabal.project
     #cabal install cardano-crypto-class --disable-tests --disable-profiling | tee /tmp/build.log
     [[ "${PWD##*/}" == "cardano-node" ]] && cabal build cardano-node cardano-cli cardano-submit-api --disable-tests --disable-profiling | tee /tmp/build.log
     [[ "${PWD##*/}" == "cardano-db-sync" ]] && cabal build cardano-db-sync --disable-tests --disable-profiling | tee /tmp/build.log
-    mv .tmp.cabal.project.local cabal.project.local
-    cabal install bech32 cardano-addresses-cli --overwrite-policy=always 2>&1 | tee /tmp/build-b32-caddr.log
+    if [[ "${CUSTOM_CABAL}" == "Y" ]]; then
+      mv .tmp.cabal.project.local cabal.project.local
+      cabal install bech32 cardano-addresses-cli --overwrite-policy=always 2>&1 | tee /tmp/build-b32-caddr.log
+    else
+      [[ -f "cabal.project.local" ]] && mv cabal.project.local cabal.project.local_disabled
+    fi
   else
     cabal build all --disable-tests --disable-profiling 2>&1 | tee /tmp/build.log
   fi
