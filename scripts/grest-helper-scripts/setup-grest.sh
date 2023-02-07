@@ -24,7 +24,7 @@ SGVERSION=1.0.10rc
 		
 		Usage: $(basename "$0") [-f] [-i [p][r][m][c][d]] [-u] [-b <branch>]
 		
-		Install and setup haproxy, PostgREST, polling services and create systemd services for haproxy, postgREST and dbsync
+		Install and setup haproxy, PostgREST, polling services and create systemd services for haproxy, postgREST and monitoring
 		
 		-i    Set-up Components individually. If this option is not specified, components will only be installed if found missing (eg: -i prcd)
 		    p    Install/Update PostgREST binaries by downloading latest release from github.
@@ -78,7 +78,7 @@ SGVERSION=1.0.10rc
     base64 --decode <<<$2 | jq -r "$1"
   }
 
-  deployRPC() {
+  deploy_rpc() {
     file_name=$(jqDecode '.name' "${1}")
     [[ -z ${file_name} || ${file_name} != *.sql ]] && return
     dl_url=$(jqDecode '.download_url //empty' "${1}")
@@ -633,10 +633,10 @@ SGVERSION=1.0.10rc
           printf "\n      \e[31mERROR\e[0m: ${rpc_file_list_subdir}" && continue
         fi
         for row2 in $(jq -r '.[] | @base64' <<<${rpc_file_list_subdir}); do
-          deployRPC ${row2}
+          deploy_rpc ${row2}
         done
       else
-        deployRPC ${row}
+        deploy_rpc ${row}
       fi
     done
     setup_cron_jobs
