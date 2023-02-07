@@ -1036,8 +1036,8 @@ git<span class="w"> </span>clone<span class="w"> </span>https://github.com/input
 <h4 id="build-cardano-node">Build Cardano Node<a class="headerlink" href="#build-cardano-node" title="Permanent link">⚓︎</a></h4>
 <p>You can use the instructions below to build the latest release of <a href="https://github.com/input-output-hk/cardano-node">cardano-node</a>. </p>
 <details class="danger">
-<summary>Known issue on cardano-node 1.35.[4-5]</summary>
-<p>Guild tools use a couple of additional binaries that is not part of node repository. Traditionally, these (eg: <code>cardano-address</code> and previously <code>cardano-ping</code>) were made available as part of build process by cabal.project.local file. However, for node tag 1.35.[4-5] - <code>cabal install</code> is <a href="https://github.com/cardano-community/guild-operators/issues/1573#issuecomment-1310230673">broken</a> which means <code>cabal install cardano-addresses-cli</code> will no longer work and report error as below:</p>
+<summary>Known issue on cardano-node 1.35.[4-6]</summary>
+<p>Guild tools use a couple of additional binaries that is not part of node repository. Traditionally, these (eg: <code>cardano-address</code> and previously <code>cardano-ping</code>) were made available as part of build process by cabal.project.local file. However, for node tag 1.35.[4-6] - <code>cabal install</code> is <a href="https://github.com/cardano-community/guild-operators/issues/1573#issuecomment-1310230673">broken</a> which means <code>cabal install cardano-addresses-cli</code> will no longer work and report error as below:</p>
 <div class="highlight"><pre><span></span><code>Got NamedPackage ouroboros-consensus-cardano-tools
 CallStack (from HasCallStack):
   error, called at src/Distribution/Client/CmdInstall.hs:474:33 in main:Distribution.Client.CmdInstall

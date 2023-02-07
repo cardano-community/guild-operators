@@ -957,7 +957,7 @@ The<span class="w"> </span>script<span class="w"> </span>will<span class="w"> </
 <span class="w">  </span>x<span class="w">   </span>Install/Upgrade<span class="w"> </span>Cardano<span class="w"> </span>Signer<span class="w"> </span>binary<span class="w"> </span><span class="o">(</span>Default:<span class="w"> </span>skip<span class="o">)</span>
 </code></pre></div>
 <ol>
-<li>If you receive an error for libssl, you may need to compile cncli manually on your OS as per instructions <a href="https://github.com/cardano-community/cncli/blob/develop/INSTALL.md#compile-from-source">here</a></li>
+<li>If you receive an error for <code>glibc</code>, it would likely be due to the build mismatch between pre-compiled binary and your OS, which is not uncommon. You may need to compile cncli manually on your OS as per instructions <a href="https://github.com/cardano-community/cncli/blob/develop/INSTALL.md#compile-from-source">here</a> - make sure to copy the output binary to <code>"${HOME}/.local/bin"</code> folder.</li>
 </ol>
 <p>This script uses opt-in election of what you'd like the script to do (as against previous version that used to try and auto-detect versions). The defaults without any arguments will only update static part of script contents for you.
 A typical example install to install most components but not overwrite static part of existing files for preview network would be:</p>
