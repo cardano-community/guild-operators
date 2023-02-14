@@ -21,23 +21,33 @@ EXCEPTION
 END
 $$;
 
-GRANT USAGE ON SCHEMA public TO web_anon;
+DO $$
+BEGIN
+  CREATE ROLE authenticator LOGIN;
+  EXECUTE FORMAT('GRANT CONNECT ON DATABASE %I to authenticator', current_database());
+EXCEPTION
+  WHEN DUPLICATE_OBJECT THEN
+    RAISE NOTICE 'authenticator exists, skipping...';
+END;
+$$;
 
-GRANT USAGE ON SCHEMA grest TO web_anon;
-
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO web_anon;
-
-GRANT SELECT ON ALL TABLES IN SCHEMA grest TO web_anon;
+GRANT USAGE ON SCHEMA public TO authenticator,web_anon;
+GRANT USAGE ON SCHEMA grest TO authenticator,web_anon;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO authenticator,web_anon;
+GRANT SELECT ON ALL TABLES IN SCHEMA grest TO authenticator,web_anon;
+GRANT web_anon TO authenticator;
+ALTER ROLE authenticator SET pgrst.tx.statement_timeout = 65000;
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT
 SELECT
-  ON TABLES TO web_anon;
+  ON TABLES TO web_anon,authenticator;
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA grest GRANT
 SELECT
-  ON TABLES TO web_anon;
+  ON TABLES TO web_anon,authenticator;
 
 ALTER ROLE web_anon SET search_path TO grest, public;
+ALTER ROLE authenticator SET search_path TO grest, public;
 
 -- CONTROL TABLE --
 CREATE TABLE IF NOT EXISTS GREST.CONTROL_TABLE (
@@ -157,5 +167,7 @@ $$
   END;
 $$;
 
+-- Refresh asset token registry cache from github, to avoid stale deletes
+DELETE FROM grest.control_table WHERE key='asset_registry_commit';
 -- DATABASE INDEXES --
 -- Empty

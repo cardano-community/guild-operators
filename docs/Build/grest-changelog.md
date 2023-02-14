@@ -2,7 +2,9 @@
 
 ## [1.0.10rc] - For non-mainnet networks
 
-This release primarily focuses on ability to support better DeFi rojects alongwith some value addition endpoints. Overall issue is only breaking for two output column fields, the input param changes are optional, while there are a few additional fields on output for some endpoints. Also, dbsync 13.1.x.x was released and is being tested primarily for performance impacts.
+This release primarily focuses on ability to support better DeFi projects alongwith some value addition for existing clients by bringing in 10 new endpoints (paired with 2 deprecations), and few additional *optional* input parameters , and some additional output columns to existing endpoints. The only breaking change/fix is for output returned for `tx_info`.
+
+Also, dbsync 13.1.x.x has been released and is recommended to be used for this release
 
 ### New endpoints added
 
@@ -10,12 +12,12 @@ This release primarily focuses on ability to support better DeFi rojects alongwi
 - `/asset_nft_address` - Returns address where the specified NFT sits on [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
 - `/account_utxos` - Returns brief details on non-empty UTxOs associated with a given stake address [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
 - `/asset_info_bulk` - Bulk version of `/asset_info` [#142](https://github.com/cardano-community/koios-artifacts/pull/142)
-- `/asset_policy_list` - Returns list of all asset under a policy [#142](https://github.com/cardano-community/koios-artifacts/pull/142)
 - `/asset_token_registry` - Returns assets registered via token registry on github [#145](https://github.com/cardano-community/koios-artifacts/pull/145)
 - `/credential_utxos` - Returns UTxOs associated with a payment credential [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
 - `/param_updates` - Returns list of parameter update proposals applied to the network [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
 - `/policy_asset_addresses` - Returns addresses with quantity for each asset on a given policy [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
 - `/policy_asset_info` - Equivalent of deprecated `/asset_policy_info` but with more details in output [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
+- `/policy_asset_list` - Returns list of asset under the given policy (including supply) [#142](https://github.com/cardano-community/koios-artifacts/pull/142), [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
 
 ### Data Input/Output Changes
 - Input - `/account_addresses` - Add optional `_first_only` and `_empty` flags to show only first address with tx or to include empty addresses to output [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
@@ -23,7 +25,6 @@ This release primarily focuses on ability to support better DeFi rojects alongwi
 - Output (addition) - `/account_assets` , `/address_assets` , `/address_info`, `/tx_info`, `/tx_utxos` - Add `decimals` to output [#142](https://github.com/cardano-community/koios-artifacts/pull/142)
 - Output (addition) - `/policy_asset_info` - Add `minting_tx_hash`, `total_supply`, `mint_cnt`, `burn_cnt` and `creation_time` fields to the output [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
 - Output (**breaking**) - `/tx_info` - Change `_invalid_before` and `_invalid_after` to text field [#141](https://github.com/cardano-community/koios-artifacts/pull/141)
-- Output (**breaking**) - `/policy_asset_list` - Update `total_supply` to text (in line with other lovelace output columns) [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
 - Output (**breaking**/removal) - `tx_info` - Remove the field `plutus_contracts` > [array] > `outputs` as there is no logic to connect it to inputs spending [#163](https://github.com/cardano-community/koios-artifacts/pull/163)
 
 ### Deprecations:
@@ -39,6 +40,7 @@ This release primarily focuses on ability to support better DeFi rojects alongwi
 - Bump to Koios 1.0.10rc [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
 - Fix typo in specs for `/pool_delegators` output column `latest_delegation_tx_hash` [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
 - Add indexes for ones missing after configuring cardano-db-sync 13.1.0.0 [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
+- Update PostgREST to be run as `authenticator` user, whose default `statement_timeout` is set to 65s and update configs accordingly [#1605](https://github.com/cardano-community/cardano-community/guild-operators/pull/1606)
 
 ## [1.0.9] - For all networks
 
