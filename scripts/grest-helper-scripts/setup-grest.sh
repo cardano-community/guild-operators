@@ -245,7 +245,6 @@ SGVERSION=1.0.10rc
 
   parse_args() {
     if [[ -z "${I_ARGS}" ]]; then
-      ! command -v postgrest >/dev/null && INSTALL_POSTGREST="Y"
       ! command -v haproxy >/dev/null && INSTALL_HAPROXY="Y"
       [[ ! -f "${CNODE_HOME}"/scripts/grest-exporter.sh ]] && INSTALL_MONITORING_AGENTS="Y"
       # absence of haproxy.cfg or grest.conf at mentioned path would mean setup is not updated, or has not been run - hence, overwrite all
@@ -493,7 +492,7 @@ SGVERSION=1.0.10rc
   deploy_systemd() {
     printf "\n[Re]Deploying Services.."
     printf "\n  PostgREST Service"
-    command -v postgrest >/dev/null && sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-postgrest.service
+    sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-postgrest.service
 			[Unit]
 			Description=REST Overlay for Postgres database
 			After=postgresql.service

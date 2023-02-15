@@ -194,7 +194,7 @@ function chk_endpt_post() {
 }
 
 function chk_asset_registry() {
-  ct=$(curl -sfL -H 'Prefer: count=exact' "${GURL}/asset_registry_cache?select=name&limit=1" -I 2>/dev/null | grep content-range | cut -d/ -f2)
+  ct=$(curl -sfL -H 'Prefer: count=exact' "${GURL}/asset_registry_cache?select=name&limit=1" -I 2>/dev/null | grep -i 'content-range' | cut -d/ -f2 | tr -d '[:space:]')
   [[ "${ct}" == "" ]] && log_err "Asset registry cache not yet populated!"
   [[ ${ct} -lt 150 ]] && log_err "Asset registry cache seems incomplete (<150) assets, try deleting key: asset_registry_commit in control_table and wait for next cron run"
 }

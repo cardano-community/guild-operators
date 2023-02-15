@@ -92,7 +92,11 @@ if [[ -z "${USE_SYSTEM_LIBSODIUM}" ]] ; then # Build using default cabal.project
   fi
 else # Add cabal.project.local customisations first before building
   if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" ]]; then
-    mv .tmp.cabal.project.local cabal.project.local
+    if [[ "${CUSTOM_CABAL}" == "Y" ]]; then
+      mv .tmp.cabal.project.local cabal.project.local
+    else
+      [[ -f "cabal.project.local" ]] && mv cabal.project.local cabal.project.local_disabled
+    fi
     [[ "${PWD##*/}" == "cardano-node" ]] && cabal build cardano-node cardano-cli cardano-submit-api --disable-tests --disable-profiling | tee /tmp/build.log
     [[ "${PWD##*/}" == "cardano-db-sync" ]] && cabal build cardano-db-sync --disable-tests --disable-profiling | tee /tmp/build.log
   else

@@ -35,12 +35,13 @@ Also, dbsync 13.1.x.x has been released and is recommended to be used for this r
 - `/epoch_info`, `/epoch_params` - Restrict output to current epoch [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
 - `/block_info` - Use `/previous_id` field to show previous/next blocks (previously was using block_id/height) [#145](https://github.com/cardano-community/koios-artifacts/pull/145)
 - `/asset_info`/`asset_policy_info` - Fix mint tx data to be latest [#141](https://github.com/cardano-community/koios-artifacts/pull/141)
-- Support new guild scripts revamp
+- Support new guild scripts revamp [#1572](https://github.com/cardano-community/guild-operators/pull/1572)
+- Add asset token registry check [1606](https://github.com/cardano-community/guild-operators/pull/1606)
 - New cache table `grest.asset_info_cache` to hold mint/burn counts alongwith first/last mint tx/keys [#142](https://github.com/cardano-community/koios-artifacts/pull/142)
 - Bump to Koios 1.0.10rc [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
 - Fix typo in specs for `/pool_delegators` output column `latest_delegation_tx_hash` [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
 - Add indexes for ones missing after configuring cardano-db-sync 13.1.0.0 [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
-- Update PostgREST to be run as `authenticator` user, whose default `statement_timeout` is set to 65s and update configs accordingly [#1605](https://github.com/cardano-community/cardano-community/guild-operators/pull/1606)
+- Update PostgREST to be run as `authenticator` user, whose default `statement_timeout` is set to 65s and update configs accordingly [#1606](https://github.com/cardano-community/cardano-community/guild-operators/pull/1606)
 
 ## [1.0.9] - For all networks
 
