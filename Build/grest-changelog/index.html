@@ -71,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="green" data-md-color-accent="green">
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="#8bcbac" data-md-color-accent="#8bcbac">
   
     
     
@@ -125,7 +125,7 @@
       <form class="md-header__option" data-md-component="palette">
         
           
-          <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="green" data-md-color-accent="green"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+          <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="#8bcbac" data-md-color-accent="#8bcbac"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
           
             <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_2" hidden>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12c0-2.42-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
@@ -1176,19 +1176,20 @@
 
 <h1 id="koios-grest-changelog">Koios gRest Changelog<a class="headerlink" href="#koios-grest-changelog" title="Permanent link">⚓︎</a></h1>
 <h2 id="1010rc-for-non-mainnet-networks">[1.0.10rc] - For non-mainnet networks<a class="headerlink" href="#1010rc-for-non-mainnet-networks" title="Permanent link">⚓︎</a></h2>
-<p>This release primarily focuses on ability to support better DeFi rojects alongwith some value addition endpoints. Overall issue is only breaking for two output column fields, the input param changes are optional, while there are a few additional fields on output for some endpoints. Also, dbsync 13.1.x.x was released and is being tested primarily for performance impacts.</p>
+<p>This release primarily focuses on ability to support better DeFi projects alongwith some value addition for existing clients by bringing in 10 new endpoints (paired with 2 deprecations), and few additional <em>optional</em> input parameters , and some additional output columns to existing endpoints. The only breaking change/fix is for output returned for <code>tx_info</code>.</p>
+<p>Also, dbsync 13.1.x.x has been released and is recommended to be used for this release</p>
 <h3 id="new-endpoints-added">New endpoints added<a class="headerlink" href="#new-endpoints-added" title="Permanent link">⚓︎</a></h3>
 <ul>
 <li><code>/asset_addresses</code> -  Equivalent of deprecated <code>/asset_address_list</code> <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 <li><code>/asset_nft_address</code> - Returns address where the specified NFT sits on <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 <li><code>/account_utxos</code> - Returns brief details on non-empty UTxOs associated with a given stake address <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 <li><code>/asset_info_bulk</code> - Bulk version of <code>/asset_info</code> <a href="https://github.com/cardano-community/koios-artifacts/pull/142">#142</a></li>
-<li><code>/asset_policy_list</code> - Returns list of all asset under a policy <a href="https://github.com/cardano-community/koios-artifacts/pull/142">#142</a></li>
 <li><code>/asset_token_registry</code> - Returns assets registered via token registry on github <a href="https://github.com/cardano-community/koios-artifacts/pull/145">#145</a></li>
 <li><code>/credential_utxos</code> - Returns UTxOs associated with a payment credential <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 <li><code>/param_updates</code> - Returns list of parameter update proposals applied to the network <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 <li><code>/policy_asset_addresses</code> - Returns addresses with quantity for each asset on a given policy <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 <li><code>/policy_asset_info</code> - Equivalent of deprecated <code>/asset_policy_info</code> but with more details in output <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
+<li><code>/policy_asset_list</code> - Returns list of asset under the given policy (including supply) <a href="https://github.com/cardano-community/koios-artifacts/pull/142">#142</a>, <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 </ul>
 <h3 id="data-inputoutput-changes">Data Input/Output Changes<a class="headerlink" href="#data-inputoutput-changes" title="Permanent link">⚓︎</a></h3>
 <ul>
@@ -1197,7 +1198,6 @@
 <li>Output (addition) - <code>/account_assets</code> , <code>/address_assets</code> , <code>/address_info</code>, <code>/tx_info</code>, <code>/tx_utxos</code> - Add <code>decimals</code> to output <a href="https://github.com/cardano-community/koios-artifacts/pull/142">#142</a></li>
 <li>Output (addition) - <code>/policy_asset_info</code> - Add <code>minting_tx_hash</code>, <code>total_supply</code>, <code>mint_cnt</code>, <code>burn_cnt</code> and <code>creation_time</code> fields to the output <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 <li>Output (<strong>breaking</strong>) - <code>/tx_info</code> - Change <code>_invalid_before</code> and <code>_invalid_after</code> to text field <a href="https://github.com/cardano-community/koios-artifacts/pull/141">#141</a></li>
-<li>Output (<strong>breaking</strong>) - <code>/policy_asset_list</code> - Update <code>total_supply</code> to text (in line with other lovelace output columns) <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 <li>Output (<strong>breaking</strong>/removal) - <code>tx_info</code> - Remove the field <code>plutus_contracts</code> &gt; [array] &gt; <code>outputs</code> as there is no logic to connect it to inputs spending <a href="https://github.com/cardano-community/koios-artifacts/pull/163">#163</a></li>
 </ul>
 <h3 id="deprecations">Deprecations:<a class="headerlink" href="#deprecations" title="Permanent link">⚓︎</a></h3>
@@ -1210,10 +1210,13 @@
 <li><code>/epoch_info</code>, <code>/epoch_params</code> - Restrict output to current epoch <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 <li><code>/block_info</code> - Use <code>/previous_id</code> field to show previous/next blocks (previously was using block_id/height) <a href="https://github.com/cardano-community/koios-artifacts/pull/145">#145</a></li>
 <li><code>/asset_info</code>/<code>asset_policy_info</code> - Fix mint tx data to be latest <a href="https://github.com/cardano-community/koios-artifacts/pull/141">#141</a></li>
-<li>Support new guild scripts revamp</li>
+<li>Support new guild scripts revamp <a href="https://github.com/cardano-community/guild-operators/pull/1572">#1572</a></li>
+<li>Add asset token registry check <a href="https://github.com/cardano-community/guild-operators/pull/1606">1606</a></li>
 <li>New cache table <code>grest.asset_info_cache</code> to hold mint/burn counts alongwith first/last mint tx/keys <a href="https://github.com/cardano-community/koios-artifacts/pull/142">#142</a></li>
 <li>Bump to Koios 1.0.10rc <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 <li>Fix typo in specs for <code>/pool_delegators</code> output column <code>latest_delegation_tx_hash</code> <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
+<li>Add indexes for ones missing after configuring cardano-db-sync 13.1.0.0 <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
+<li>Update PostgREST to be run as <code>authenticator</code> user, whose default <code>statement_timeout</code> is set to 65s and update configs accordingly <a href="https://github.com/cardano-community/cardano-community/guild-operators/pull/1606">#1606</a></li>
 </ul>
 <h2 id="109-for-all-networks">[1.0.9] - For all networks<a class="headerlink" href="#109-for-all-networks" title="Permanent link">⚓︎</a></h2>
 <p>This release is effectively same as <code>1.0.9rc</code> below (please check out the notes accordingly), just with minor bug fix on <code>setup-grest.sh</code> itself.</p>
