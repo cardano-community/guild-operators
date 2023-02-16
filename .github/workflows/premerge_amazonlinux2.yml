@@ -41,33 +41,33 @@ jobs:
         echo "##[set-output name=branch;]${GITHUB_HEAD_REF}"
         echo "##[set-output name=owner;]${GITHUB_REPOSITORY_OWNER}"
       id: pr_branch
-    - name: Testing guild-deploy.sh (system libsodium)
-      run: |
-        export BRANCH=${{ steps.pr_branch.outputs.branch }}
-        export G_ACCOUNT=${{ steps.pr_branch.outputs.owner }}
-        export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
-        docker build . --file files/tests/pre-merge/amazonlinux2-guild-deploy.sh.containerfile --compress --build-arg BRANCH --build-arg COMMIT --build-arg G_ACCOUNT --tag ghcr.io/cardano-community/pre-merge-amazonlinux2:guild-deploy_${COMMIT}
-    - name: Push pre-merge-amazonlinux2:guild-deploy_${COMMIT}
-      run: |
-        export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
-        docker push ghcr.io/cardano-community/pre-merge-amazonlinux2:guild-deploy_${COMMIT}
-    - name: Testing cabal-build-all.sh (system libsodium)
-      run: |
-        export BRANCH=${{ steps.pr_branch.outputs.branch }}
-        export G_ACCOUNT=${{ steps.pr_branch.outputs.owner }}
-        export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
-        echo "Working from PR Branch ${G_ACCOUNT}/guild-operators/${BRANCH} on Commit ${COMMIT}"
-        docker build . --file files/tests/pre-merge/amazonlinux2-cabal.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-amazonlinux2:cabal_${COMMIT}
+    #- name: Testing guild-deploy.sh (system libsodium)
+    #  run: |
+    #    export BRANCH=${{ steps.pr_branch.outputs.branch }}
+    #    export G_ACCOUNT=${{ steps.pr_branch.outputs.owner }}
+    #    export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
+    #    docker build . --file files/tests/pre-merge/amazonlinux2-guild-deploy.sh.containerfile --compress --build-arg BRANCH --build-arg COMMIT --build-arg G_ACCOUNT --tag ghcr.io/cardano-community/pre-merge-amazonlinux2:guild-deploy_${COMMIT}
+    #- name: Push pre-merge-amazonlinux2:guild-deploy_${COMMIT}
+    #  run: |
+    #    export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
+    #    docker push ghcr.io/cardano-community/pre-merge-amazonlinux2:guild-deploy_${COMMIT}
+    #- name: Testing cabal-build-all.sh (system libsodium)
+    #  run: |
+    #    export BRANCH=${{ steps.pr_branch.outputs.branch }}
+    #    export G_ACCOUNT=${{ steps.pr_branch.outputs.owner }}
+    #    export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
+    #    echo "Working from PR Branch ${G_ACCOUNT}/guild-operators/${BRANCH} on Commit ${COMMIT}"
+    #    docker build . --file files/tests/pre-merge/amazonlinux2-cabal.containerfile --compress --build-arg BRANCH --build-arg COMMIT --tag ghcr.io/cardano-community/pre-merge-amazonlinux2:cabal_${COMMIT}
     - name: Testing guild-deploy.sh (IO fork of libsodium)
       run: |
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
         export G_ACCOUNT=${{ steps.pr_branch.outputs.owner }}
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
-        docker build . --file files/tests/pre-merge/amazonlinux2-guild-deploy.sh.containerfile --compress --build-arg BRANCH --build-arg COMMIT --build-arg G_ACCOUNT --tag ghcr.io/cardano-community/pre-merge-amazonlinux2:guild-deploy_${COMMIT}
+        docker build . --file files/tests/pre-merge/amazonlinux2-guild-deploy.sh-l.containerfile --compress --build-arg BRANCH --build-arg COMMIT --build-arg G_ACCOUNT --tag ghcr.io/cardano-community/pre-merge-amazonlinux2:guild-deploy-l_${COMMIT}
     - name: Push pre-merge-amazonlinux2:guild-deploy_${COMMIT}
       run: |
         export COMMIT=$(git rev-parse --short "$GITHUB_SHA")
-        docker push ghcr.io/cardano-community/pre-merge-amazonlinux2:guild-deploy_${COMMIT}
+        docker push ghcr.io/cardano-community/pre-merge-amazonlinux2:guild-deploy-l_${COMMIT}
     - name: Testing cabal-build-all.sh (IO fork of libsodium)
       run: |
         export BRANCH=${{ steps.pr_branch.outputs.branch }}
