@@ -317,6 +317,7 @@ reportBlock() {
   slotHeightPrev=$blockSlot; 
   blockTimeTbh=""; missingTbh=true; blockTimeSfr1=""; blockTimeSfrX=""; blockTimeCbf=""; missingCbf=true; blockTimeCbfAddr=""; blockTimeCbfPort=""; blockTimeAb=""; blockSlot=""; blockSlotTime=""
   blockDelay=""; blockSize=""; blockTimeDeltaSlots=0; deltaCbf=""; deltaSfr=""; deltaAb=""; 
+  blockTimeTbhAddr=""; blockTimeTbhPort="";
 }
 
 if [[ "${PARSE_MANUAL}" == "Y" ]]; then
