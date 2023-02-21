@@ -22,7 +22,7 @@
 # Do NOT modify code below           #
 ######################################
 
-BP_VERSION=v1.3.6
+BP_VERSION=v1.3.7
 
 SKIP_UPDATE=N
 [[ $1 = "-u" ]] && SKIP_UPDATE=Y && shift
