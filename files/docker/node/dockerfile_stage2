@@ -9,10 +9,20 @@ ENV \
 
 RUN git clone https://github.com/input-output-hk/cardano-node.git \
   && export BOOTSTRAP_HASKELL_NO_UPGRADE=1 \
+  && mkdir -p /root/.local/bin/ \
   && wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/docker/node/release-versions/cardano-node-latest.txt \
   && CNVERSION=$(cat cardano-node-latest.txt) \
   && cd cardano-node \
   && git fetch --tags --all && git checkout tags/$CNVERSION \
   && bash $CNODE_HOME/scripts/cabal-build-all.sh -l \
+  && apt-get update -y && sudo apt-get install -y cargo automake build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 libtool autoconf \
+  && git clone --recurse-submodules https://github.com/cardano-community/cncli \
+  && cd cncli \
+  && tag=`curl https://github.com/cardano-community/cncli/tags | grep "cncli/releases" | grep -v ">Releases<" | head -n 1 | cut -d ">" -f 3 | cut -d "<" -f 1` \
+  && git checkout $tag \
+  && curl https://sh.rustup.rs -sSf | sh -s -- -y \
+  && ~/.cargo/bin/cargo install --path . --force \
+  && ~/cncli/target/release/cncli --version \
+  && mv ~/cncli/target/release/cncli /root/.local/bin/ \
   && apt-get -y remove libpq-dev build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ && apt-get -y purge && apt-get -y clean && apt-get -y autoremove \
   && cardano-node --version; 
