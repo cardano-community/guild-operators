@@ -27,4 +27,5 @@ jobs:
       run: |
         CNVERSION=`cat files/docker/node/release-versions/cardano-node-latest.txt`
         docker push cardanocommunity/cardano-node:latest
+        docker tag cardanocommunity/cardano-node:latest cardanocommunity/cardano-node:$CNVERSION
         docker push cardanocommunity/cardano-node:$CNVERSION
