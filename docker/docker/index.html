@@ -1076,7 +1076,7 @@
 <p>Modular docker images based on Debian.</p>
 <p>Based on the Guild's work we decided to build the Cardano Node images in 3 stages:</p>
 <ul>
-<li>1<sup>st</sup> stage: it uses <code>prereq.sh</code> to prepare the development enviroment before compiling the node source code.  -&gt; <a href="https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_stage1">Stage1</a></li>
+<li>1<sup>st</sup> stage: it uses <code>prereq.sh</code> to prepare the development environment before compiling the node source code.  -&gt; <a href="https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_stage1">Stage1</a></li>
 <li>2<sup>nd</sup> stage: based on stage1, this stage intent is to compile and produce the binaries of the node. -&gt; <a href="https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_stage2">Stage2</a></li>
 <li>3<sup>rd</sup> stage: based upon a minimal debian image it incorporates the node's binaries as well as all the Guild's tools. -&gt; <a href="https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_stage3">Stage3</a></li>
 </ul>
